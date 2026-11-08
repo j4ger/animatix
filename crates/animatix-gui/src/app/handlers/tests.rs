@@ -427,108 +427,102 @@ fn rename_actor_noop_when_old_equals_new() {
 }
 
 #[test]
-fn rename_actor_fails_with_empty_label() {
-    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
+fn rename_actor_fails_with_invalid_label() {
+    // Cases:
+    // 1) empty label rejected with 'empty' status
+    // 2) duplicate existing label rejected with 'already exists' status
+    for (new_name, expected_status) in [("", "empty"), ("circle", "already exists")] {
+        let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
+        let source_before = document_store.source.document.source_text.clone();
 
-    let source_before = document_store.source.document.source_text.clone();
+        actor::handle_rename_actor(
+            &mut document_store,
+            &mut preview_store,
+            &mut ui_store,
+            "box".into(),
+            new_name.into(),
+        );
 
-    actor::handle_rename_actor(
-        &mut document_store,
-        &mut preview_store,
-        &mut ui_store,
-        "box".into(),
-        "".into(),
-    );
+        // Status should mention failure reason
+        assert!(
+            preview_store.preview.status.contains(expected_status),
+            "status should mention '{expected_status}', got: {}",
+            preview_store.preview.status
+        );
 
-    // Status should mention failure reason
-    assert!(
-        preview_store.preview.status.contains("empty"),
-        "status should mention 'empty', got: {}",
-        preview_store.preview.status
-    );
-
-    // Source should be unchanged
-    assert_eq!(
-        document_store.source.document.source_text, source_before,
-        "source should not change on failure"
-    );
-}
-
-#[test]
-fn rename_actor_fails_with_duplicate_label() {
-    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
-
-    let source_before = document_store.source.document.source_text.clone();
-
-    actor::handle_rename_actor(
-        &mut document_store,
-        &mut preview_store,
-        &mut ui_store,
-        "box".into(),
-        "circle".into(),
-    );
-
-    // Status should mention duplicate
-    assert!(
-        preview_store.preview.status.contains("already exists"),
-        "status should mention 'already exists', got: {}",
-        preview_store.preview.status
-    );
-
-    // Source should be unchanged
-    assert_eq!(
-        document_store.source.document.source_text, source_before,
-        "source should not change on failure"
-    );
+        // Source should be unchanged
+        assert_eq!(
+            document_store.source.document.source_text, source_before,
+            "source should not change on failure"
+        );
+    }
 }
 
 // ── handle_delete_selected_actors ──────────────────────────────────
 
 #[test]
-fn delete_selected_actor_removes_from_ast() {
-    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
+fn delete_selected_actors_removes_from_ast() {
+    // Cases:
+    // 1) single actor selection removes that actor and keeps others
+    // 2) multiple actor selection removes all selected actors
+    for (to_delete, should_remain) in [
+        (vec!["box"], vec!["circle"]),
+        (vec!["box", "circle"], vec![]),
+    ] {
+        let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
 
-    ui_store.selection.selected_actors.insert("box".to_string());
+        for label in &to_delete {
+            ui_store.selection.selected_actors.insert(label.to_string());
+        }
 
-    actor::handle_delete_selected_actors(&mut document_store, &mut preview_store, &mut ui_store);
+        actor::handle_delete_selected_actors(
+            &mut document_store,
+            &mut preview_store,
+            &mut ui_store,
+        );
 
-    // Actor should be removed from raw_statements
-    let stmts = document_store
-        .source
-        .document
-        .raw_statements
-        .as_ref()
-        .expect("raw_statements should exist");
-    assert!(
-        !stmts
-            .iter()
-            .any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "box")),
-        "'box' should be removed from raw_statements"
-    );
+        // Actors should be removed from raw_statements
+        let stmts = document_store
+            .source
+            .document
+            .raw_statements
+            .as_ref()
+            .expect("raw_statements should exist");
+        for deleted in &to_delete {
+            assert!(
+                !stmts
+                    .iter()
+                    .any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == *deleted)),
+                "'{deleted}' should be removed from raw_statements"
+            );
+        }
 
-    // Other actors should remain
-    assert!(
-        stmts
-            .iter()
-            .any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "circle")),
-        "'circle' should still be present"
-    );
+        // Other actors should remain
+        for remaining in &should_remain {
+            assert!(
+                stmts
+                    .iter()
+                    .any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == *remaining)),
+                "'{remaining}' should still be present"
+            );
+        }
 
-    // Selection should be cleared
-    assert!(
-        ui_store.selection.selected_actors.is_empty(),
-        "selection should be empty after deletion"
-    );
+        // Selection should be cleared
+        assert!(
+            ui_store.selection.selected_actors.is_empty(),
+            "selection should be empty after deletion"
+        );
 
-    // Source should be dirty
-    assert!(document_store.source.document.is_dirty);
+        // Source should be dirty
+        assert!(document_store.source.document.is_dirty);
 
-    // Status should mention deletion
-    assert!(
-        preview_store.preview.status.contains("Deleted"),
-        "status should contain 'Deleted', got: {}",
-        preview_store.preview.status
-    );
+        // Status should mention deletion
+        assert!(
+            preview_store.preview.status.contains("Deleted"),
+            "status should contain 'Deleted', got: {}",
+            preview_store.preview.status
+        );
+    }
 }
 
 #[test]
@@ -543,46 +537,6 @@ fn delete_selected_actors_with_empty_selection_is_noop() {
     assert_eq!(
         document_store.source.document.source_text, source_before,
         "source should not change with empty selection"
-    );
-}
-
-#[test]
-fn delete_selected_actors_removes_multiple() {
-    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
-
-    ui_store.selection.selected_actors.insert("box".to_string());
-    ui_store.selection.selected_actors.insert("circle".to_string());
-
-    actor::handle_delete_selected_actors(&mut document_store, &mut preview_store, &mut ui_store);
-
-    // Both actors should be removed
-    let stmts = document_store
-        .source
-        .document
-        .raw_statements
-        .as_ref()
-        .expect("raw_statements should exist");
-    assert!(
-        !stmts
-            .iter()
-            .any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "box")),
-        "'box' should be removed"
-    );
-    assert!(
-        !stmts
-            .iter()
-            .any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "circle")),
-        "'circle' should be removed"
-    );
-
-    // Source should be dirty
-    assert!(document_store.source.document.is_dirty);
-
-    // Status should mention deletion
-    assert!(
-        preview_store.preview.status.contains("Deleted"),
-        "status should contain 'Deleted', got: {}",
-        preview_store.preview.status
     );
 }
 

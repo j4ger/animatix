@@ -267,85 +267,92 @@ mod tests {
     }
 
     #[test]
-    fn batch_move_uses_one_undo_snapshot_and_moves_every_spec() {
-        let mut document_store = make_document_store(
-            "#0s\nbox: Rect, size: (100, 100)\n#1s\nbox.opacity = 0.5\nbox.rotation = 1\n",
-        );
-        let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
-        let mut ui_store = ui_store();
+    fn batch_move_keyframes_uses_one_undo_snapshot() {
+        // Cases:
+        // 1) moving multiple specs from a shared block to the same target time
+        // 2) moving multiple specs from separate blocks independently
+        struct Case {
+            source: &'static str,
+            specs: Vec<crate::app::commands::MoveKeyframeSpec>,
+            expected_contains: &'static [&'static str],
+            expected_absent: &'static [&'static str],
+        }
 
-        let effects = handle_move_keyframes(
-            &mut document_store,
-            &mut preview_store,
-            &mut ui_store,
-            vec![
-                crate::app::commands::MoveKeyframeSpec {
-                    scene: None,
-                    actor: "box".to_string(),
-                    property: "opacity".to_string(),
-                    old_time_s: 1.0,
-                    new_time_s: 2.0,
-                },
-                crate::app::commands::MoveKeyframeSpec {
-                    scene: None,
-                    actor: "box".to_string(),
-                    property: "rotation".to_string(),
-                    old_time_s: 1.0,
-                    new_time_s: 2.0,
-                },
-            ],
-        );
+        let cases = [
+            Case {
+                source: "#0s\nbox: Rect, size: (100, 100)\n#1s\nbox.opacity = 0.5\nbox.rotation = 1\n",
+                specs: vec![
+                    crate::app::commands::MoveKeyframeSpec {
+                        scene: None,
+                        actor: "box".to_string(),
+                        property: "opacity".to_string(),
+                        old_time_s: 1.0,
+                        new_time_s: 2.0,
+                    },
+                    crate::app::commands::MoveKeyframeSpec {
+                        scene: None,
+                        actor: "box".to_string(),
+                        property: "rotation".to_string(),
+                        old_time_s: 1.0,
+                        new_time_s: 2.0,
+                    },
+                ],
+                expected_contains: &["2s", "box.opacity", "box.rotation"],
+                expected_absent: &["#1s"],
+            },
+            Case {
+                source: "#0s\nbox: Rect, size: (100, 100)\n#1s\nbox.opacity = 0.5\n#2s\nbox.rotation = 1\n",
+                specs: vec![
+                    crate::app::commands::MoveKeyframeSpec {
+                        scene: None,
+                        actor: "box".to_string(),
+                        property: "opacity".to_string(),
+                        old_time_s: 1.0,
+                        new_time_s: 2.0,
+                    },
+                    crate::app::commands::MoveKeyframeSpec {
+                        scene: None,
+                        actor: "box".to_string(),
+                        property: "rotation".to_string(),
+                        old_time_s: 2.0,
+                        new_time_s: 3.0,
+                    },
+                ],
+                expected_contains: &["#3s", "#2s"],
+                expected_absent: &["#1s"],
+            },
+        ];
 
-        assert!(effects.is_empty());
-        // Both moves share a single undo entry.
-        assert_eq!(document_store.history.undo_stack.len(), 1);
-        let source = document_store.source.text();
-        assert!(
-            source.contains("2s") || source.contains("2000ms"),
-            "moved time in source: {source}"
-        );
-        assert!(!source.contains("#1s"), "old keyframe block should be gone: {source}");
-        assert!(source.contains("box.opacity"));
-        assert!(source.contains("box.rotation"));
-    }
+        for case in cases {
+            let mut document_store = make_document_store(case.source);
+            let mut preview_store =
+                preview_store(5.0, document_store.source.document.scene_dimensions);
+            let mut ui_store = ui_store();
 
-    #[test]
-    fn batch_move_moves_separate_blocks_independently() {
-        let mut document_store = make_document_store(
-            "#0s\nbox: Rect, size: (100, 100)\n#1s\nbox.opacity = 0.5\n#2s\nbox.rotation = 1\n",
-        );
-        let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
-        let mut ui_store = ui_store();
+            let effects = handle_move_keyframes(
+                &mut document_store,
+                &mut preview_store,
+                &mut ui_store,
+                case.specs,
+            );
 
-        let effects = handle_move_keyframes(
-            &mut document_store,
-            &mut preview_store,
-            &mut ui_store,
-            vec![
-                crate::app::commands::MoveKeyframeSpec {
-                    scene: None,
-                    actor: "box".to_string(),
-                    property: "opacity".to_string(),
-                    old_time_s: 1.0,
-                    new_time_s: 2.0,
-                },
-                crate::app::commands::MoveKeyframeSpec {
-                    scene: None,
-                    actor: "box".to_string(),
-                    property: "rotation".to_string(),
-                    old_time_s: 2.0,
-                    new_time_s: 3.0,
-                },
-            ],
-        );
-
-        assert!(effects.is_empty());
-        assert_eq!(document_store.history.undo_stack.len(), 1);
-        let source = document_store.source.text();
-        // Each keyframe block moved by its own delta.
-        assert!(source.contains("#3s"), "rotation should land at 3s: {source}");
-        assert!(source.contains("#2s"), "opacity should land at 2s: {source}");
-        assert!(!source.contains("#1s"), "nothing should remain at 1s: {source}");
+            assert!(effects.is_empty());
+            // Moves share a single undo entry.
+            assert_eq!(document_store.history.undo_stack.len(), 1);
+            let source = document_store.source.text();
+            for needle in case.expected_contains {
+                assert!(
+                    source.contains(needle) || (needle == &"2s" && source.contains("2000ms")),
+                    "expected {needle} in source: {source}"
+                );
+            }
+            for needle in case.expected_absent {
+                assert!(
+                    !source.contains(needle),
+                    "old keyframe block {needle} should be gone: {source}"
+                );
+            }
+        }
     }
 
     #[test]

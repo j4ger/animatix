@@ -117,151 +117,110 @@ fn strict_types_no_warning_when_annotated() {
 }
 
 #[test]
-fn typecheck_validates_action_param_types() {
+fn typecheck_action_param_types() {
+    // Cases:
+    // 1) invalid action param type triggers mismatch diagnostic
+    // 2) valid action param type is accepted without errors
     use crate::ast::Action;
-    let mut components = HashMap::new();
-    components.insert(
-        "Button".to_string(),
-        ComponentEntry {
-            definition: ComponentDef {
-                name: "Button".to_string(),
-                params: vec![],
-                body: vec![],
-                is_pub: false,
+    for (value, expected_mismatch) in [
+        (Expr::Str("too big".to_string()), true),
+        (Expr::Num(1.5), false),
+    ] {
+        let mut components = HashMap::new();
+        components.insert(
+            "Button".to_string(),
+            ComponentEntry {
+                definition: ComponentDef {
+                    name: "Button".to_string(),
+                    params: vec![],
+                    body: vec![],
+                    is_pub: false,
+                },
+                source_path: std::path::PathBuf::new(),
+                actions: {
+                    let mut actions = HashMap::new();
+                    actions.insert(
+                        "pulse".to_string(),
+                        FnTemplate {
+                            params: vec![ParamDef {
+                                name: "scale".to_string(),
+                                param_type: Some(TypeAnnotation::Num),
+                                default: Some(Expr::Num(1.15)),
+                            }],
+                            return_type: None,
+                            body: vec![],
+                        },
+                    );
+                    actions
+                },
             },
-            source_path: std::path::PathBuf::new(),
-            actions: {
-                let mut actions = HashMap::new();
-                actions.insert(
-                    "pulse".to_string(),
-                    FnTemplate {
-                        params: vec![ParamDef {
-                            name: "scale".to_string(),
-                            param_type: Some(TypeAnnotation::Num),
-                            default: Some(Expr::Num(1.15)),
-                        }],
-                        return_type: None,
-                        body: vec![],
-                    },
-                );
-                actions
-            },
-        },
-    );
-    let mut env =
-        TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())));
+        );
+        let mut env =
+            TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())));
 
-    let stmts = vec![
-        actor("btn", "Button"),
-        Stmt::Action(
-            Action {
-                verb: "pulse".to_string(),
-                targets: vec!["btn".to_string()],
-                args: vec![],
-                modifiers: vec![Modifier {
-                    name: Some("scale".to_string()),
-                    value: Expr::Str("too big".to_string()),
-                }],
-                byte_span: None,
-                target_index: vec![],
-            },
-            None,
-        ),
-    ];
-    let diagnostics = env.check_statements(&stmts);
-    assert_eq!(diagnostics.len(), 1);
-    assert!(diagnostics[0].message.contains("Type mismatch"));
-    assert!(diagnostics[0].message.contains("scale"));
-}
-
-#[test]
-fn typecheck_accepts_valid_action_params() {
-    use crate::ast::Action;
-    let mut components = HashMap::new();
-    components.insert(
-        "Button".to_string(),
-        ComponentEntry {
-            definition: ComponentDef {
-                name: "Button".to_string(),
-                params: vec![],
-                body: vec![],
-                is_pub: false,
-            },
-            source_path: std::path::PathBuf::new(),
-            actions: {
-                let mut actions = HashMap::new();
-                actions.insert(
-                    "pulse".to_string(),
-                    FnTemplate {
-                        params: vec![ParamDef {
-                            name: "scale".to_string(),
-                            param_type: Some(TypeAnnotation::Num),
-                            default: Some(Expr::Num(1.15)),
-                        }],
-                        return_type: None,
-                        body: vec![],
-                    },
-                );
-                actions
-            },
-        },
-    );
-    let mut env =
-        TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())));
-
-    let stmts = vec![
-        actor("btn", "Button"),
-        Stmt::Action(
-            Action {
-                verb: "pulse".to_string(),
-                targets: vec!["btn".to_string()],
-                args: vec![],
-                modifiers: vec![Modifier {
-                    name: Some("scale".to_string()),
-                    value: Expr::Num(1.5),
-                }],
-                byte_span: None,
-                target_index: vec![],
-            },
-            None,
-        ),
-    ];
-    let diagnostics = env.check_statements(&stmts);
-    assert!(diagnostics.is_empty(), "Expected no errors, got: {:?}", diagnostics);
+        let stmts = vec![
+            actor("btn", "Button"),
+            Stmt::Action(
+                Action {
+                    verb: "pulse".to_string(),
+                    targets: vec!["btn".to_string()],
+                    args: vec![],
+                    modifiers: vec![Modifier {
+                        name: Some("scale".to_string()),
+                        value,
+                    }],
+                    byte_span: None,
+                    target_index: vec![],
+                },
+                None,
+            ),
+        ];
+        let diagnostics = env.check_statements(&stmts);
+        if expected_mismatch {
+            assert_eq!(diagnostics.len(), 1);
+            assert!(diagnostics[0].message.contains("Type mismatch"));
+            assert!(diagnostics[0].message.contains("scale"));
+        } else {
+            assert!(diagnostics.is_empty(), "Expected no errors, got: {:?}", diagnostics);
+        }
+    }
 }
 
 #[test]
 fn type_alias_resolves_in_component_param() {
-    let def = ComponentDef {
-        name: "Card".to_string(),
-        params: vec![ParamDef {
-            name: "value".to_string(),
-            param_type: Some(TypeAnnotation::Alias("Metric".to_string())),
-            default: None,
-        }],
-        body: vec![],
-        is_pub: false,
-    };
-    let mut components = HashMap::new();
-    components.insert(
-        "Card".to_string(),
-        ComponentEntry {
-            definition: def.clone(),
-            source_path: std::path::PathBuf::new(),
-            actions: HashMap::new(),
-        },
-    );
-    let empty_actions = HashMap::new();
-    let mut env = TypeEnv::new(&components, &empty_actions);
-    let stmts = vec![
-        Stmt::TypeAlias {
+    // Cases:
+    // 1) alias declared before the component definition
+    // 2) alias declared after the component definition
+    for alias_first in [true, false] {
+        let def = ComponentDef {
+            name: "Card".to_string(),
+            params: vec![ParamDef {
+                name: "value".to_string(),
+                param_type: Some(TypeAnnotation::Alias("Metric".to_string())),
+                default: None,
+            }],
+            body: vec![],
+            is_pub: false,
+        };
+        let mut components = HashMap::new();
+        components.insert(
+            "Card".to_string(),
+            ComponentEntry {
+                definition: def.clone(),
+                source_path: std::path::PathBuf::new(),
+                actions: HashMap::new(),
+            },
+        );
+        let empty_actions = HashMap::new();
+        let mut env = TypeEnv::new(&components, &empty_actions);
+        let alias_stmt = Stmt::TypeAlias {
             is_pub: true,
             name: "Metric".to_string(),
             annotation: TypeAnnotation::Union(vec![TypeAnnotation::Bool, TypeAnnotation::Str]),
             span: None,
-        },
-        Stmt::ComponentDef(def.clone(), None),
-        actor_with_props(
+        };
+        let comp_stmt = Stmt::ComponentDef(def.clone(), None);
+        let actor_stmt = actor_with_props(
             "card",
             "Card",
             vec![Property {
@@ -270,10 +229,19 @@ fn type_alias_resolves_in_component_param() {
                 value_span: None,
                 trailing_comment: None,
             }],
-        ),
-    ];
-    let diagnostics = env.check_statements(&stmts);
-    assert!(diagnostics.is_empty(), "Expected no errors, got: {:?}", diagnostics);
+        );
+        let stmts = if alias_first {
+            vec![alias_stmt, comp_stmt, actor_stmt]
+        } else {
+            vec![comp_stmt, alias_stmt, actor_stmt]
+        };
+        let diagnostics = env.check_statements(&stmts);
+        assert!(
+            diagnostics.is_empty(),
+            "Expected no errors (alias_first: {alias_first}), got: {:?}",
+            diagnostics
+        );
+    }
 }
 
 #[test]
@@ -523,56 +491,6 @@ fn colorscheme_path_accepted_for_color_param() {
     assert!(
         diagnostics.is_empty(),
         "accent.primary should be accepted for Color param, got: {:?}",
-        diagnostics
-    );
-}
-
-#[test]
-fn type_alias_resolves_when_declared_after_component() {
-    let def = ComponentDef {
-        name: "Card".to_string(),
-        params: vec![ParamDef {
-            name: "value".to_string(),
-            param_type: Some(TypeAnnotation::Alias("Metric".to_string())),
-            default: None,
-        }],
-        body: vec![],
-        is_pub: false,
-    };
-    let mut components = HashMap::new();
-    components.insert(
-        "Card".to_string(),
-        ComponentEntry {
-            definition: def.clone(),
-            source_path: std::path::PathBuf::new(),
-            actions: HashMap::new(),
-        },
-    );
-    let empty_actions = HashMap::new();
-    let mut env = TypeEnv::new(&components, &empty_actions);
-    let stmts = vec![
-        Stmt::ComponentDef(def.clone(), None),
-        Stmt::TypeAlias {
-            is_pub: true,
-            name: "Metric".to_string(),
-            annotation: TypeAnnotation::Union(vec![TypeAnnotation::Bool, TypeAnnotation::Str]),
-            span: None,
-        },
-        actor_with_props(
-            "card",
-            "Card",
-            vec![Property {
-                name: "value".to_string(),
-                value: Expr::Str("Revenue".to_string()),
-                value_span: None,
-                trailing_comment: None,
-            }],
-        ),
-    ];
-    let diagnostics = env.check_statements(&stmts);
-    assert!(
-        diagnostics.is_empty(),
-        "alias declared after the component should resolve, got: {:?}",
         diagnostics
     );
 }

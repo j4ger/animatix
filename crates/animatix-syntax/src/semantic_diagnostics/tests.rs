@@ -63,30 +63,42 @@ fn an_unread_binding_is_still_a_warning() {
 }
 
 #[test]
-fn structural_container_with_children_is_not_unused() {
-    let stmts = vec![Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: "cards".to_string(),
-        array_index: None,
-        ty: "Row".to_string(),
-        props: vec![],
-        modifiers: vec![],
-        children: vec![InlineItem::Labeled {
-            label: "card".to_string(),
+fn container_and_non_container_with_children_unused_behavior() {
+    // Cases:
+    // 1) structural container with children is not unused ("cards": "Row", expected unused = false)
+    // 2) non-container with children is still unused ("wrapper": "Rect", expected unused = true)
+    for (label, ty, expected_unused) in [("cards", "Row", false), ("wrapper", "Rect", true)] {
+        let stmts = vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: label.to_string(),
             array_index: None,
-            ty: "Rect".to_string(),
+            ty: ty.to_string(),
             props: vec![],
             modifiers: vec![],
-            children: vec![],
-        }],
-        span: None,
-    }];
-    let labels = unused_labels(&stmts);
-    assert!(
-        !labels.iter().any(|m| m.contains("'cards'")),
-        "structural container label should be exempt: {labels:?}"
-    );
+            children: vec![InlineItem::Labeled {
+                label: "child".to_string(),
+                array_index: None,
+                ty: "Rect".to_string(),
+                props: vec![],
+                modifiers: vec![],
+                children: vec![],
+            }],
+            span: None,
+        }];
+        let labels = unused_labels(&stmts);
+        if expected_unused {
+            assert!(
+                labels.iter().any(|m| m.contains(label)),
+                "expected {label} to be flagged as unused, got: {labels:?}"
+            );
+        } else {
+            assert!(
+                !labels.iter().any(|m| m.contains(label)),
+                "structural container label should be exempt: {labels:?}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -104,30 +116,6 @@ fn empty_container_is_still_unused() {
     }];
     let labels = unused_labels(&stmts);
     assert!(labels.iter().any(|m| m.contains("holder")));
-}
-
-#[test]
-fn non_container_with_children_is_still_unused() {
-    let stmts = vec![Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: "wrapper".to_string(),
-        array_index: None,
-        ty: "Rect".to_string(),
-        props: vec![],
-        modifiers: vec![],
-        children: vec![InlineItem::Labeled {
-            label: "child".to_string(),
-            array_index: None,
-            ty: "Rect".to_string(),
-            props: vec![],
-            modifiers: vec![],
-            children: vec![],
-        }],
-        span: None,
-    }];
-    let labels = unused_labels(&stmts);
-    assert!(labels.iter().any(|m| m.contains("wrapper")));
 }
 
 fn unknown_types(stmts: &[Stmt], symbols: &SymbolTable) -> Vec<String> {

@@ -146,102 +146,71 @@ fn test_closure_parser() {
 }
 
 #[test]
-fn test_text_shorthand_parser() {
-    let res = parse_ok(r#"a: "hello world""#);
+fn test_shorthand_parser() {
+    // Cases: (1) Text shorthand string literal, (2) Typst shorthand math delimiters ($$).
+    for (input, expected_label, expected_ty, expected_prop, expected_val) in [
+        (r#"a: "hello world""#, "a", "Text", "text", "hello world"),
+        ("eq: $$ x^2 + y^2 $$", "eq", "Typst", "content", "x^2 + y^2"),
+    ] {
+        let res = parse_ok(input);
 
-    if let Stmt::ActorDecl {
-        is_pub,
-        label,
-        ty,
-        props,
-        modifiers,
-        children,
-        ..
-    } = &res[0]
-    {
-        assert!(!(*is_pub));
-        assert_eq!(label, "a");
-        assert_eq!(ty, "Text");
-        assert_eq!(props.len(), 1);
-        assert_eq!(props[0].name, "text");
-        assert_eq!(props[0].value, Expr::Str("hello world".to_string()));
-        assert!(modifiers.is_empty());
-        assert!(children.is_empty());
-    } else {
-        panic!("Expected ActorDecl, got {:?}", res[0]);
+        if let Stmt::ActorDecl {
+            is_pub,
+            label,
+            ty,
+            props,
+            modifiers,
+            children,
+            ..
+        } = &res[0]
+        {
+            assert!(!(*is_pub));
+            assert_eq!(label, expected_label);
+            assert_eq!(ty, expected_ty);
+            assert_eq!(props.len(), 1);
+            assert_eq!(props[0].name, expected_prop);
+            assert_eq!(props[0].value, Expr::Str(expected_val.to_string()));
+            assert!(modifiers.is_empty());
+            assert!(children.is_empty());
+        } else {
+            panic!("Expected ActorDecl, got {:?}", res[0]);
+        }
     }
 }
 
 #[test]
-fn test_text_shorthand_with_modifiers() {
-    let res = parse_ok(r#"title: "Slide 1" [2s, ease: ease-in-out]"#);
+fn test_shorthand_with_modifiers() {
+    // Cases: (1) Text shorthand with duration and ease, (2) Typst shorthand with duration.
+    for (input, expected_label, expected_ty, expected_prop, expected_val, expected_mod_count) in [
+        (
+            r#"title: "Slide 1" [2s, ease: ease-in-out]"#,
+            "title",
+            "Text",
+            "text",
+            "Slide 1",
+            2,
+        ),
+        ("eq: $$ x^2 $$ [2s]", "eq", "Typst", "content", "x^2", 1),
+    ] {
+        let res = parse_ok(input);
 
-    if let Stmt::ActorDecl {
-        label,
-        ty,
-        props,
-        modifiers,
-        ..
-    } = &res[0]
-    {
-        assert_eq!(label, "title");
-        assert_eq!(ty, "Text");
-        assert_eq!(props.len(), 1);
-        assert_eq!(props[0].name, "text");
-        assert_eq!(props[0].value, Expr::Str("Slide 1".to_string()));
-        assert_eq!(modifiers.len(), 2);
-    } else {
-        panic!("Expected ActorDecl, got {:?}", res[0]);
-    }
-}
-
-#[test]
-fn test_typst_shorthand_parser() {
-    let res = parse_ok("eq: $$ x^2 + y^2 $$");
-
-    if let Stmt::ActorDecl {
-        is_pub,
-        label,
-        ty,
-        props,
-        modifiers,
-        children,
-        ..
-    } = &res[0]
-    {
-        assert!(!(*is_pub));
-        assert_eq!(label, "eq");
-        assert_eq!(ty, "Typst");
-        assert_eq!(props.len(), 1);
-        assert_eq!(props[0].name, "content");
-        assert_eq!(props[0].value, Expr::Str("x^2 + y^2".to_string()));
-        assert!(modifiers.is_empty());
-        assert!(children.is_empty());
-    } else {
-        panic!("Expected ActorDecl, got {:?}", res[0]);
-    }
-}
-
-#[test]
-fn test_typst_shorthand_with_modifiers() {
-    let res = parse_ok("eq: $$ x^2 $$ [2s]");
-
-    if let Stmt::ActorDecl {
-        label,
-        ty,
-        props,
-        modifiers,
-        ..
-    } = &res[0]
-    {
-        assert_eq!(label, "eq");
-        assert_eq!(ty, "Typst");
-        assert_eq!(props.len(), 1);
-        assert_eq!(props[0].name, "content");
-        assert_eq!(props[0].value, Expr::Str("x^2".to_string()));
-        assert_eq!(modifiers.len(), 1);
-    } else {
-        panic!("Expected ActorDecl, got {:?}", res[0]);
+        if let Stmt::ActorDecl {
+            label,
+            ty,
+            props,
+            modifiers,
+            ..
+        } = &res[0]
+        {
+            assert_eq!(label, expected_label);
+            assert_eq!(ty, expected_ty);
+            assert_eq!(props.len(), 1);
+            assert_eq!(props[0].name, expected_prop);
+            assert_eq!(props[0].value, Expr::Str(expected_val.to_string()));
+            assert_eq!(modifiers.len(), expected_mod_count);
+        } else {
+            panic!("Expected ActorDecl, got {:?}", res[0]);
+        }
     }
 }
 
@@ -265,22 +234,19 @@ fn assert_value_span(input: &str, property: &str, expected: &str) {
 
 #[test]
 fn test_vec2_value_span_accuracy() {
-    // Reproduce the bug: size: (2494.552, 1377.7778) should have correct span
-    assert_value_span(
-        r#"backdrop: Rect, size: (2494.552, 1377.7778), color: scene.background"#,
-        "size",
-        "(2494.552, 1377.7778)",
-    );
-}
-
-#[test]
-fn test_vec2_value_span_with_trailing_comma() {
-    // Test with trailing comma in tuple: (2494.552, 1377.7778,)
-    assert_value_span(
-        r#"backdrop: Rect, size: (2494.552, 1377.7778,), color: scene.background"#,
-        "size",
-        "(2494.552, 1377.7778,)",
-    );
+    // Cases: (1) standard tuple without trailing comma, (2) tuple with trailing comma.
+    for (input, expected_span) in [
+        (
+            r#"backdrop: Rect, size: (2494.552, 1377.7778), color: scene.background"#,
+            "(2494.552, 1377.7778)",
+        ),
+        (
+            r#"backdrop: Rect, size: (2494.552, 1377.7778,), color: scene.background"#,
+            "(2494.552, 1377.7778,)",
+        ),
+    ] {
+        assert_value_span(input, "size", expected_span);
+    }
 }
 
 #[test]
