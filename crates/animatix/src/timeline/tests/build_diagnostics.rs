@@ -1,72 +1,32 @@
 use super::*;
 
 #[test]
-fn always_overrides_keyframes_warning() {
-    // A single keyframe is bit-for-bit a declaration seed, so this test needs
-    // two differing authored values to be meaningful.
-    let source = r#"
-        #0s
-        box1: Rect, size: (100, 100), opacity: 0.8
-        #2s
-        box1.opacity = 0.3
-        always {
-            box1.opacity = 0.5
-        }
-    "#;
-    let report = support::build(source);
+fn always_overrides_keyframes_warnings() {
+    let cases = [
+        (
+            "box1: Rect, size: (100, 100), opacity: 0.8\n#2s\nbox1.opacity = 0.3\nalways { box1.opacity = 0.5 }",
+            true,
+            "Expected warning when conflict exists"
+        ),
+        (
+            "always { box1.opacity = 0.5 }",
+            false,
+            "Should NOT emit warning when actor doesn't exist"
+        ),
+        (
+            "box1: Rect, size: (100, 100)\nalways { box1.rotation = 0.5 }",
+            false,
+            "Should NOT emit warning when no keyframe conflict"
+        ),
+    ];
 
-    let has_warning = report
-        .diagnostics
-        .iter()
-        .any(|d| d.code == animatix_syntax::diagnostics::DiagnosticCode::AlwaysOverridesKeyframes);
-    assert!(
-        has_warning,
-        "Expected AlwaysOverridesKeyframes warning when both keyframes and always block target the same property"
-    );
-}
-
-#[test]
-fn always_overrides_keyframes_no_warning_without_track() {
-    // No keyframe at all, just an always block.  The target actor doesn't
-    // exist in tracks, so no warning should be emitted.
-    let source = r#"
-        always {
-            box1.opacity = 0.5
-        }
-    "#;
-    let report = support::build(source);
-
-    let has_warning = report
-        .diagnostics
-        .iter()
-        .any(|d| d.code == animatix_syntax::diagnostics::DiagnosticCode::AlwaysOverridesKeyframes);
-    assert!(
-        !has_warning,
-        "Should NOT emit AlwaysOverridesKeyframes warning when actor doesn't exist in tracks"
-    );
-}
-
-#[test]
-fn always_overrides_keyframes_no_warning_without_conflict() {
-    // ActorDecl creates a track but the always block writes to a property
-    // that has no keyframes (e.g., rotation is not set by insert_end_keyframes).
-    // No warning should be emitted.
-    let source = r#"
-        box1: Rect, size: (100, 100)
-        always {
-            box1.rotation = 0.5
-        }
-    "#;
-    let report = support::build(source);
-
-    let has_warning = report
-        .diagnostics
-        .iter()
-        .any(|d| d.code == animatix_syntax::diagnostics::DiagnosticCode::AlwaysOverridesKeyframes);
-    assert!(
-        !has_warning,
-        "Should NOT emit AlwaysOverridesKeyframes warning when the always property has no keyframes"
-    );
+    for (source, expect_warning, msg) in cases {
+        let report = support::build(&format!("#0s\n{}", source));
+        let has_warning = report.diagnostics.iter().any(|d| {
+            d.code == animatix_syntax::diagnostics::DiagnosticCode::AlwaysOverridesKeyframes
+        });
+        assert_eq!(has_warning, expect_warning, "{}", msg);
+    }
 }
 
 #[test]

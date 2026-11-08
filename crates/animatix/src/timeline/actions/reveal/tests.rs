@@ -10,10 +10,10 @@ use animatix_core::caps::ActorCategory;
 use crate::ast::{Action, Expr, Modifier, Property, Stmt, Time};
 use crate::diagnostics::{Diagnostic, DiagnosticCode};
 use crate::primitives::{BuildCtx, Primitive};
-use crate::timeline::Timeline;
 use crate::timeline::actions::process_action;
 use crate::timeline::actions::registry::BuiltinAction;
 use crate::timeline::property_track::TrackAccessor;
+use crate::timeline::Timeline;
 
 struct TextExt;
 
@@ -139,33 +139,32 @@ fn draw_in_sets_stroke_progress_and_delays_fill_until_end() {
 }
 
 #[test]
-fn draw_in_lifts_hidden_by_default_opacity() {
-    // Regression: a pre-keyframe declaration is seeded `opacity = 0`;
-    // draw-in animates only stroke_progress/fill_opacity, which used to
-    // leave the target fully transparent forever (the "Path renders
-    // blank in image export" report).
-    let ast = vec![
-        circle_decl("shape"),
-        Stmt::Keyframe {
-            time: Time::Seconds(0.5),
-            body: vec![action_stmt("draw-in", "shape", 0.7)],
-            span: None,
-        },
-    ];
+fn vector_reveal_lifts_hidden_by_default_opacity() {
+    for verb in ["draw-in", "reveal-in"] {
+        let ast = vec![
+            circle_decl("shape"),
+            Stmt::Keyframe {
+                time: Time::Seconds(0.5),
+                body: vec![action_stmt(verb, "shape", 0.7)],
+                span: None,
+            },
+        ];
 
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let shape_id = report.output.world.get_id("shape").expect("shape id");
-    let style = report.output.world.style(shape_id);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+        let shape_id = report.output.world.get_id("shape").expect("shape id");
+        let style = report.output.world.style(shape_id);
 
-    assert_eq!(style.opacity.get(0, 1.0), 0.0);
-    assert_eq!(style.opacity.get(400, 1.0), 0.0, "still hidden before the draw");
-    assert!(style.opacity.get(900, 1.0) > 0.0, "opacity must rise during the draw");
-    assert_eq!(style.opacity.get(1200, 1.0), 1.0, "fully visible after the draw");
-    assert!(
-        !report.output.world.meta(shape_id).hidden_by_default,
-        "flag must be consumed by the lift"
-    );
-    assert!(report.diagnostics.is_empty());
+        if verb == "draw-in" {
+            // The regression this test pins: draw-in must lift the seeded
+            // opacity from t=0 and ramp it during the draw, not only end at 1.
+            assert_eq!(style.opacity.get(0, 1.0), 0.0, "draw-in hidden at t=0");
+            assert!(style.opacity.get(900, 1.0) > 0.0, "draw-in opacity must rise during the draw");
+        }
+        assert_eq!(style.opacity.get(400, 1.0), 0.0, "{verb} hidden before");
+        assert_eq!(style.opacity.get(1200, 1.0), 1.0, "{verb} visible after");
+        assert!(!report.output.world.meta(shape_id).hidden_by_default, "{verb} flag consumed");
+        assert!(report.diagnostics.is_empty(), "{verb} diagnostics empty");
+    }
 }
 
 #[test]
@@ -191,27 +190,6 @@ fn draw_in_typewriter_lifts_hidden_by_default_opacity() {
 }
 
 #[test]
-fn reveal_in_lifts_hidden_by_default_opacity() {
-    let ast = vec![
-        circle_decl("shape"),
-        Stmt::Keyframe {
-            time: Time::Seconds(0.5),
-            body: vec![action_stmt("reveal-in", "shape", 0.7)],
-            span: None,
-        },
-    ];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let shape_id = report.output.world.get_id("shape").expect("shape id");
-    let style = report.output.world.style(shape_id);
-
-    assert_eq!(style.opacity.get(400, 1.0), 0.0);
-    assert_eq!(style.opacity.get(1200, 1.0), 1.0);
-    assert!(!report.output.world.meta(shape_id).hidden_by_default);
-    assert!(report.diagnostics.is_empty());
-}
-
-#[test]
 fn wipe_out_reports_unsupported_image_targets() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
@@ -221,12 +199,10 @@ fn wipe_out_reports_unsupported_image_targets() {
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == DiagnosticCode::UnsupportedActionTarget)
-    );
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == DiagnosticCode::UnsupportedActionTarget));
 }
 
 #[test]
@@ -294,33 +270,29 @@ fn reveal_out_preserves_prior_state_for_delayed_instant_change() {
 }
 
 #[test]
-fn reveal_out_on_text_proceeds_without_diagnostics() {
-    // Text targets are now allowed through vector reveal actions.
-    // They will animate fill_opacity even though stroke_progress has no visual effect.
-    let ast = vec![Stmt::Keyframe {
-        time: Time::Seconds(0.0),
-        body: vec![
-            text_decl("headline"),
-            action_stmt("reveal-out", "headline", 1.0),
-        ],
-        span: None,
-    }];
+fn text_vector_reveal_proceeds_without_diagnostics() {
+    for (verb, expected_fill_start) in [("reveal-out", 0.0), ("draw-out", 1.0)] {
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![text_decl("headline"), action_stmt(verb, "headline", 1.0)],
+            span: None,
+        }];
 
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
-    assert!(
-        !report
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == DiagnosticCode::UnsupportedActionTarget),
-        "reveal-out on text should not report unsupported target"
-    );
+        assert!(
+            !report
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagnosticCode::UnsupportedActionTarget),
+            "{verb} on text should not report unsupported target"
+        );
 
-    let headline_id = report.output.world.get_id("headline").expect("headline id");
-    let style = report.output.world.style(headline_id);
-    // reveal-out hides fill at start (0.0) and keeps it hidden while stroke animates out
-    assert_eq!(style.fill_opacity.get(0, 1.0), 0.0);
-    assert_eq!(style.fill_opacity.get(1000, 1.0), 0.0);
+        let headline_id = report.output.world.get_id("headline").expect("headline id");
+        let style = report.output.world.style(headline_id);
+        assert_eq!(style.fill_opacity.get(0, 1.0), expected_fill_start, "{verb} fill start");
+        assert_eq!(style.fill_opacity.get(1000, 1.0), 0.0, "{verb} fill end");
+    }
 }
 
 #[test]
@@ -343,35 +315,6 @@ fn draw_out_keeps_fill_until_the_end() {
     assert_eq!(style.stroke_progress.get(1000, 1.0), 0.0);
     assert_eq!(style.fill_opacity.get(1000, 1.0), 0.0);
     assert!(report.diagnostics.is_empty());
-}
-
-#[test]
-fn draw_out_on_text_proceeds_without_diagnostics() {
-    // Text targets are now allowed through vector reveal actions.
-    let ast = vec![Stmt::Keyframe {
-        time: Time::Seconds(0.0),
-        body: vec![
-            text_decl("headline"),
-            action_stmt("draw-out", "headline", 1.0),
-        ],
-        span: None,
-    }];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-
-    assert!(
-        !report
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == DiagnosticCode::UnsupportedActionTarget),
-        "draw-out on text should not report unsupported target"
-    );
-
-    let headline_id = report.output.world.get_id("headline").expect("headline id");
-    let style = report.output.world.style(headline_id);
-    // fill_opacity should still be animated (fade-out behavior)
-    assert_eq!(style.fill_opacity.get(0, 1.0), 1.0);
-    assert_eq!(style.fill_opacity.get(1000, 1.0), 0.0);
 }
 
 #[test]

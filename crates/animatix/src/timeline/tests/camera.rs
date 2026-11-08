@@ -19,6 +19,43 @@ a: Rect, size: (100, 100), at: (200, 100), color: accent.primary
 "#;
 
 #[test]
+fn diagnostic_tests() {
+    let cases = [
+        (
+            r#"config { colorscheme: "editorial-dark", resolution: (640, 360) }
+               #0s
+               a: Rect, size: (100, 100), at: (200, 100)
+               camera.zoom = (1.0, 2.0)"#,
+            "camera.zoom` expects a number",
+        ),
+        (
+            r#"config { colorscheme: "editorial-dark", resolution: (640, 360) }
+               #0s
+               camera: Rect, size: (100, 100), at: (200, 100)"#,
+            "is reserved",
+        ),
+        (
+            r#"config { colorscheme: "editorial-dark", resolution: (640, 360) }
+               #0s
+               deck: Col, at: (320, 180) {
+                 hud: Rect, size: (40, 40), camera_follow: false
+               }"#,
+            "not a root actor",
+        ),
+    ];
+
+    for (source, expected_msg) in cases {
+        let (_, diagnostics) = build_ignoring_warnings(source);
+        assert!(
+            diagnostics.iter().any(|d| d.message.contains(expected_msg)),
+            "Expected diagnostic message containing '{}', got: {:?}",
+            expected_msg,
+            diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
+}
+
+#[test]
 fn a_scene_that_never_addresses_the_camera_stays_untransformed() {
     let timeline = build_timeline(PLAIN);
     assert!(
@@ -149,39 +186,6 @@ camera.tilt = 0.4
     );
 }
 
-#[test]
-fn a_wrongly_shaped_camera_value_is_reported() {
-    let (_, diagnostics) = build_ignoring_warnings(
-        r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
-#0s
-a: Rect, size: (100, 100), at: (200, 100)
-camera.zoom = (1.0, 2.0)
-"#,
-    );
-    assert!(
-        diagnostics.iter().any(|d| d.message.contains("camera.zoom` expects a number")),
-        "a tuple zoom must be reported, got {:?}",
-        diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn the_camera_label_is_reserved_for_the_camera() {
-    let (_, diagnostics) = build_ignoring_warnings(
-        r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
-#0s
-camera: Rect, size: (100, 100), at: (200, 100)
-"#,
-    );
-    assert!(
-        diagnostics.iter().any(|d| d.message.contains("is reserved")),
-        "declaring an actor named `camera` must warn, got {:?}",
-        diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
 /// World-space bounds centre of `label` after evaluating the frame at `time_s`.
 /// `precise_bounds` is camera-included world space — the same space `verify`
 /// reads — so it is where an opt-out has to show up.
@@ -281,23 +285,6 @@ hud: Rect, size: (40, 40), at: (420, 180), camera_follow: "no"
 /// The opt-out applies where the camera applies — once, to a root subtree. On a
 /// nested actor it would read as a HUD that keeps moving, so the declaration is
 /// reported instead of left to be discovered in a render.
-#[test]
-fn a_nested_camera_follow_false_warns() {
-    let (_, diagnostics) = build_ignoring_warnings(
-        r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
-#0s
-deck: Col, at: (320, 180) {
-  hud: Rect, size: (40, 40), camera_follow: false
-}
-"#,
-    );
-    assert!(
-        diagnostics.iter().any(|d| d.message.contains("not a root actor")),
-        "a nested opt-out must be reported, got {:?}",
-        diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
 
 /// A `Filter` scope that opts out keeps its authored `bounds:` as screen
 /// coordinates. The rule lives inside `effect_scope_region` (it consults the

@@ -736,38 +736,28 @@ fn test_plot_curve_carry() {
     );
 }
 
-/// `Svg` carries its identity to the next scene.
+/// `Svg` and `Image` carry their identity to the next scene.
 #[test]
-fn test_svg_actor_carry() {
-    // Inline path: no file loading needed for the kind-carry assertion.
-    let report = build_composition(concat!(
-        "# SceneA\n",
-        "#0s\n",
-        "icon: Svg, at: (200, 200), size: (100, 100), src: \"M10 10 L20 20\"\n",
-        "#1s\n",
-        "persist icon\n",
-        "\n",
-        "# SceneB\n",
-        "#0s\n",
-    ));
-    assert_actor_type(scene(&report.output, "SceneB"), "icon", "Svg");
-}
-
-/// `Image` carries its identity to the next scene.
-#[test]
-fn test_image_actor_carry() {
-    // File-loading diagnostics are expected; only the carry matters here.
-    let report = build_composition(concat!(
-        "# SceneA\n",
-        "#0s\n",
-        "pic: Image, at: (300, 200), size: (200, 150), src: \"placeholder.png\"\n",
-        "#1s\n",
-        "persist pic\n",
-        "\n",
-        "# SceneB\n",
-        "#0s\n",
-    ));
-    assert_actor_type(scene(&report.output, "SceneB"), "pic", "Image");
+fn test_media_actor_identity_carries() {
+    // The Svg inline path needs no file loading; the Image file-loading
+    // diagnostics are expected — only the carried identity is asserted.
+    let cases = [
+        (
+            "icon",
+            "icon: Svg, at: (200, 200), size: (100, 100), src: \"M10 10 L20 20\"",
+            "Svg",
+        ),
+        (
+            "pic",
+            "pic: Image, at: (300, 200), size: (200, 150), src: \"placeholder.png\"",
+            "Image",
+        ),
+    ];
+    for (label, decl, ty) in cases {
+        let source = format!("# SceneA\n#0s\n{decl}\n#1s\npersist {label}\n\n# SceneB\n#0s\n");
+        let report = build_composition(&source);
+        assert_actor_type(scene(&report.output, "SceneB"), label, ty);
+    }
 }
 
 #[test]

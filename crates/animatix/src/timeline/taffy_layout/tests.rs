@@ -92,7 +92,7 @@ fn test_manual_child_excluded_from_positions() {
     assert_eq!(results[0].position[0], -results[2].position[0]); // symmetric
     assert!(results[0].position[0] < 0.0); // a is left of center
     assert!(results[2].position[0] > 0.0); // c is right of center
-    // b (center) happens to be at [0, 0] due to symmetric layout
+                                           // b (center) happens to be at [0, 0] due to symmetric layout
     assert_eq!(results[1].position, [0.0, 0.0]);
 }
 
@@ -251,29 +251,6 @@ fn test_read_text_child_props_non_existent_returns_none() {
     // Non-existent labels should return None
     let props = timeline.read_text_child_props("nonexistent", 0);
     assert!(props.is_none());
-}
-
-#[test]
-fn test_text_child_props_struct_clone_debug() {
-    // Verify TextChildProps derives Clone and Debug
-    let props = crate::timeline::layout::TextChildProps {
-        text_kind: crate::renderer::text::TextKind::Text,
-        content: "hello".to_string(),
-        font_family: "sans-serif".to_string(),
-        font_size: 48.0,
-        font_weight: 400.0,
-        font_style: "normal".to_string(),
-        line_height: 1.2,
-        letter_spacing: 0.0,
-        word_spacing: 0.0,
-        color: [1.0, 1.0, 1.0, 1.0],
-        text_align: "left".to_string(),
-        overflow: "visible".to_string(),
-        language: String::new(),
-        existing_max_width: 0.0,
-    };
-    let _cloned = props.clone();
-    let _debug = format!("{:?}", props);
 }
 
 #[test]

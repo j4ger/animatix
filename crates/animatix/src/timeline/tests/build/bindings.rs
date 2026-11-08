@@ -4,8 +4,8 @@ use super::support::{
     text_at, vec2,
 };
 use crate::ast::LoopPattern;
-use crate::timeline::Value;
 use crate::timeline::property_track::TrackAccessor;
+use crate::timeline::Value;
 
 #[test]
 fn test_for_loop_tuple_destructuring_creates_actors() {
@@ -141,65 +141,30 @@ fn test_for_loop_tuple_destructuring_with_let_decl() {
 }
 
 #[test]
-fn test_for_loop_variable_cleaned_after_exit() {
-    // After a for-loop, the loop variable and index variable should not
-    // persist in the environment (closures already captured them).
-    let source = r#"
-        #0s
-        for i, idx in {1, 2, 3} {
-            let x = i * 2
+fn test_for_loop_variables_cleaned_after_exit() {
+    let cases = [
+        ("for i, idx in {1, 2, 3} { let x = i * 2 }", &["i", "idx"]),
+        ("for (a, b) in {(1, 2), (3, 4)} { let z = a + b }", &["a", "b"]),
+    ];
+
+    for (source, vars) in cases {
+        let report = build(&format!("#0s\n{}", source));
+        let errors: Vec<_> = report
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error)
+            .collect();
+        assert!(errors.is_empty(), "Expected no build errors for {}, got: {:?}", source, errors);
+
+        let timeline = report.output;
+        for var in vars {
+            assert!(
+                timeline.env.get(var).is_none(),
+                "Loop variable '{}' should be undefined after loop exit",
+                var
+            );
         }
-    "#;
-
-    let report = build(source);
-    let errors: Vec<_> = report
-        .diagnostics
-        .iter()
-        .filter(|d| d.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error)
-        .collect();
-    assert!(errors.is_empty(), "Expected no build errors, got: {:?}", errors);
-
-    let timeline = report.output;
-    // Loop variable 'i' should NOT be in the environment after the loop
-    assert!(
-        timeline.env.get("i").is_none(),
-        "Loop variable 'i' should be undefined after loop exit"
-    );
-    // Index variable 'idx' should NOT be in the environment after the loop
-    assert!(
-        timeline.env.get("idx").is_none(),
-        "Index variable 'idx' should be undefined after loop exit"
-    );
-}
-
-#[test]
-fn test_for_loop_tuple_vars_cleaned_after_exit() {
-    // Tuple destructuring variables should also be cleaned up after the loop.
-    let source = r#"
-        #0s
-        for (a, b) in {(1, 2), (3, 4)} {
-            let z = a + b
-        }
-    "#;
-
-    let report = build(source);
-    let errors: Vec<_> = report
-        .diagnostics
-        .iter()
-        .filter(|d| d.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error)
-        .collect();
-    assert!(errors.is_empty(), "Expected no build errors, got: {:?}", errors);
-
-    let timeline = report.output;
-    // Tuple destructuring variables should be cleaned up
-    assert!(
-        timeline.env.get("a").is_none(),
-        "Tuple var 'a' should be undefined after loop exit"
-    );
-    assert!(
-        timeline.env.get("b").is_none(),
-        "Tuple var 'b' should be undefined after loop exit"
-    );
+    }
 }
 
 #[test]
@@ -459,16 +424,14 @@ bg: Filter {
     );
     let scope = timeline.world.tracks.get_id("bg").expect("filter scope");
     let (width, height) = timeline.resolution().expect("configured resolution");
-    assert!(
-        timeline
-            .effect_scope_region(
-                scope,
-                crate::timeline::SceneDimensions { width, height },
-                0,
-                kurbo::Affine::IDENTITY
-            )
-            .is_none()
-    );
+    assert!(timeline
+        .effect_scope_region(
+            scope,
+            crate::timeline::SceneDimensions { width, height },
+            0,
+            kurbo::Affine::IDENTITY
+        )
+        .is_none());
 }
 
 /// A plugin effect registered in the extension registry lowers like a
@@ -477,8 +440,8 @@ bg: Filter {
 #[test]
 fn plugin_effect_lowers_into_scope_chain() {
     use crate::timeline::effects::{
-        EffectParamKind, EffectParamSpec, EffectParamValue, EffectPassSpec, PluginEffectData,
-        register_extension_effect,
+        register_extension_effect, EffectParamKind, EffectParamSpec, EffectParamValue,
+        EffectPassSpec, PluginEffectData,
     };
 
     let params = vec![EffectParamSpec::new(
@@ -735,7 +698,7 @@ always {
     // The always block overrides the status text per frame — the override is
     // only visible through full pipeline evaluation (execute_modifier_ir),
     // not through the text track's keyframes.
-    use crate::timeline::modifier_runtime::ir::{ModifierOverrides, execute_modifier_ir};
+    use crate::timeline::modifier_runtime::ir::{execute_modifier_ir, ModifierOverrides};
     let status_at = |time_ms: u64| -> String {
         let mut overrides = ModifierOverrides::default();
         let mut env = timeline.build_frame_env(
@@ -844,58 +807,41 @@ fn effect_keys_on_non_action_hosts_warn() {
 }
 
 #[test]
-fn prop_ref_with_unknown_actor_warns_at_build() {
-    // `&rign.at` (typo'd label) must produce a build-time diagnostic instead
-    // of failing at frame time.
-    let source = r#"
-        config { colorscheme: "editorial-dark", resolution: (480, 270) }
+fn prop_ref_build_diagnostics() {
+    let cases = [
+        (
+            r#"
+                box: Rect, size: (80, 40), color: accent.primary, anchor: scene.center
+                always { box.color = if is_animating(&rign.at) { accent.warning } else { accent.success } }
+            "#,
+            "rign",
+            crate::diagnostics::DiagnosticCode::UnknownTargetPath,
+        ),
+        (
+            r#"
+                box: Rect, size: (80, 40), color: accent.primary, anchor: scene.center, font_size: 10
+                always { let _guard = is_animating(&box.font_size) }
+            "#,
+            "font_size",
+            crate::diagnostics::DiagnosticCode::UnknownTargetPath,
+        ),
+    ];
 
-        box: Rect, size: (80, 40), color: accent.primary, anchor: scene.center
-
-        #0.2s
-        fade-in box [200ms]
-
-        always {
-          box.color = if is_animating(&rign.at) { accent.warning } else { accent.success }
-        }
-    "#;
-    let report = build(source);
-    assert!(
-        report.diagnostics.iter().any(|d| {
-            d.code == crate::diagnostics::DiagnosticCode::UnknownTargetPath
-                && d.message.contains("rign")
-        }),
-        "typo'd property-ref label must warn at build, got: {:?}",
-        report.diagnostics
-    );
-}
-
-#[test]
-fn prop_ref_to_non_injectable_property_warns() {
-    // `font_size` is assignable but not injectable (read_source is absent),
-    // so `&box.font_size` must warn even though the label and the property
-    // name are both individually valid.
-    let source = r#"
-        config { colorscheme: "editorial-dark", resolution: (480, 270) }
-
-        box: Rect, size: (80, 40), color: accent.primary, anchor: scene.center, font_size: 10
-
-        #0.2s
-        fade-in box [200ms]
-
-        always {
-          let _guard = is_animating(&box.font_size)
-        }
-    "#;
-    let report = build(source);
-    assert!(
-        report.diagnostics.iter().any(|d| {
-            d.code == crate::diagnostics::DiagnosticCode::UnknownTargetPath
-                && d.message.contains("font_size")
-        }),
-        "non-injectable property ref must warn at build, got: {:?}",
-        report.diagnostics
-    );
+    for (source, expected_msg, code) in cases {
+        let report = build(&format!(
+            "config {{ colorscheme: \"editorial-dark\", resolution: (480, 270) }}\n#0.2s\nfade-in box [200ms]\n{}",
+            source
+        ));
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| { d.code == code && d.message.contains(expected_msg) }),
+            "expected a diagnostic for {}, got: {:?}",
+            expected_msg,
+            report.diagnostics
+        );
+    }
 }
 
 #[test]

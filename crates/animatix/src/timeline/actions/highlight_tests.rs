@@ -170,25 +170,30 @@ fn opacity_keyframe_count(
         .unwrap_or(0)
 }
 
+/// Build a `highlight`/`unhighlight` action with one duration modifier.
+fn highlight_action(verb: &str, targets: &[&str], duration: &str) -> Stmt {
+    Stmt::Action(
+        Action {
+            verb: verb.to_string(),
+            targets: targets.iter().map(|s| s.to_string()).collect(),
+            args: vec![],
+            modifiers: vec![Modifier {
+                name: None,
+                value: Expr::Ident(duration.to_string()),
+            }],
+            byte_span: None,
+            target_index: vec![],
+        },
+        None,
+    )
+}
+
 #[test]
 fn highlight_adds_opacity_keyframes() {
     let mut ast = make_equation_with_fragment();
     // Append a highlight action at t=1s
     if let Stmt::Keyframe { body, .. } = &mut ast[0] {
-        body.push(Stmt::Action(
-            Action {
-                verb: "highlight".to_string(),
-                targets: vec!["f1".to_string()],
-                args: vec![],
-                modifiers: vec![Modifier {
-                    name: None,
-                    value: Expr::Ident("800ms".to_string()),
-                }],
-                byte_span: None,
-                target_index: vec![],
-            },
-            None,
-        ));
+        body.push(highlight_action("highlight", &["f1"], "800ms"));
     }
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
@@ -224,20 +229,7 @@ fn highlight_adds_opacity_keyframes() {
 fn unhighlight_adds_opacity_keyframes() {
     let mut ast = make_equation_with_fragment();
     if let Stmt::Keyframe { body, .. } = &mut ast[0] {
-        body.push(Stmt::Action(
-            Action {
-                verb: "unhighlight".to_string(),
-                targets: vec!["f1".to_string()],
-                args: vec![],
-                modifiers: vec![Modifier {
-                    name: None,
-                    value: Expr::Ident("600ms".to_string()),
-                }],
-                byte_span: None,
-                target_index: vec![],
-            },
-            None,
-        ));
+        body.push(highlight_action("unhighlight", &["f1"], "600ms"));
     }
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
@@ -269,20 +261,7 @@ fn exclusive_highlight_unhighlights_siblings() {
     // Equation with f1, f2, f3 — highlight f2, check siblings get unhighlighted
     let mut ast = make_equation_with_fragments(&["f1", "f2", "f3"]);
     if let Stmt::Keyframe { body, .. } = &mut ast[0] {
-        body.push(Stmt::Action(
-            Action {
-                verb: "highlight".to_string(),
-                targets: vec!["f2".to_string()],
-                args: vec![],
-                modifiers: vec![Modifier {
-                    name: None,
-                    value: Expr::Ident("800ms".to_string()),
-                }],
-                byte_span: None,
-                target_index: vec![],
-            },
-            None,
-        ));
+        body.push(highlight_action("highlight", &["f2"], "800ms"));
     }
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
@@ -324,20 +303,7 @@ fn multi_target_highlight_exclusive() {
     // Both should be highlighted, f3 should be unhighlighted
     let mut ast = make_equation_with_fragments(&["f1", "f2", "f3"]);
     if let Stmt::Keyframe { body, .. } = &mut ast[0] {
-        body.push(Stmt::Action(
-            Action {
-                verb: "highlight".to_string(),
-                targets: vec!["f1".to_string(), "f2".to_string()],
-                args: vec![],
-                modifiers: vec![Modifier {
-                    name: None,
-                    value: Expr::Ident("800ms".to_string()),
-                }],
-                byte_span: None,
-                target_index: vec![],
-            },
-            None,
-        ));
+        body.push(highlight_action("highlight", &["f1", "f2"], "800ms"));
     }
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());

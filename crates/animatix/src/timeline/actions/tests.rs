@@ -165,11 +165,9 @@ fn unknown_actions_emit_diagnostics() {
 
     process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
 
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == DiagnosticCode::UnknownAction)
-    );
+    assert!(diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == DiagnosticCode::UnknownAction));
 }
 
 #[test]
@@ -276,11 +274,10 @@ fn vector_reveal_targets_reject_container_nodes_with_leaf_only_message() {
     }));
 }
 
-#[test]
-fn swap_action_requires_exactly_two_targets() {
-    let action = Action {
-        verb: "swap".to_string(),
-        targets: vec!["a".to_string()],
+fn make_action(verb: &str, targets: &[&str]) -> Action {
+    Action {
+        verb: verb.to_string(),
+        targets: targets.iter().map(|s| s.to_string()).collect(),
         args: vec![],
         modifiers: vec![Modifier {
             name: None,
@@ -288,7 +285,12 @@ fn swap_action_requires_exactly_two_targets() {
         }],
         byte_span: None,
         target_index: vec![],
-    };
+    }
+}
+
+#[test]
+fn swap_action_requires_exactly_two_targets() {
+    let action = make_action("swap", &["a"]);
     let mut timeline = Timeline::new();
     let mut diagnostics = Vec::new();
 
@@ -300,17 +302,7 @@ fn swap_action_requires_exactly_two_targets() {
 
 #[test]
 fn swap_action_requires_existing_targets() {
-    let action = Action {
-        verb: "swap".to_string(),
-        targets: vec!["a".to_string(), "b".to_string()],
-        args: vec![],
-        modifiers: vec![Modifier {
-            name: None,
-            value: crate::ast::Expr::Ident("500ms".to_string()),
-        }],
-        byte_span: None,
-        target_index: vec![],
-    };
+    let action = make_action("swap", &["a", "b"]);
     let mut timeline = Timeline::new();
     let mut diagnostics = Vec::new();
 
@@ -326,17 +318,7 @@ fn swap_action_requires_common_parent() {
     timeline.spawn_entity("a", "Rect");
     timeline.spawn_entity("b", "Rect");
 
-    let action = Action {
-        verb: "swap".to_string(),
-        targets: vec!["a".to_string(), "b".to_string()],
-        args: vec![],
-        modifiers: vec![Modifier {
-            name: None,
-            value: crate::ast::Expr::Ident("500ms".to_string()),
-        }],
-        byte_span: None,
-        target_index: vec![],
-    };
+    let action = make_action("swap", &["a", "b"]);
     let mut diagnostics = Vec::new();
 
     process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
@@ -496,17 +478,7 @@ fn reorder_action_requires_order_modifier() {
     let mut timeline = Timeline::new();
     timeline.world.spawn("row", "Rect");
 
-    let action = Action {
-        verb: "reorder".to_string(),
-        targets: vec!["row".to_string()],
-        args: vec![],
-        modifiers: vec![Modifier {
-            name: None,
-            value: crate::ast::Expr::Ident("500ms".to_string()),
-        }],
-        byte_span: None,
-        target_index: vec![],
-    };
+    let action = make_action("reorder", &["row"]);
     let mut diagnostics = Vec::new();
 
     process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);

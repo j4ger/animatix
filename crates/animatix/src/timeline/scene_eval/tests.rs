@@ -30,37 +30,6 @@ fn make_minimal_timeline() -> Timeline {
 }
 
 #[test]
-fn evaluate_returns_scene_for_simple_timeline() {
-    let timeline = make_minimal_timeline();
-    let dimensions = SceneDimensions {
-        width: 800,
-        height: 600,
-    };
-
-    let scene = timeline.evaluate(0.0, dimensions);
-
-    // Should return a valid vello Scene (not empty, at least has background)
-    // vello::Scene doesn't expose fraction() in all versions; just verify it doesn't panic
-    let _ = scene;
-}
-
-#[test]
-fn evaluate_returns_scene_at_different_times() {
-    let timeline = make_minimal_timeline();
-    let dimensions = SceneDimensions {
-        width: 800,
-        height: 600,
-    };
-
-    let scene_0 = timeline.evaluate(0.0, dimensions);
-    let scene_5 = timeline.evaluate(5.0, dimensions);
-
-    // Both should be valid scenes (no panic)
-    let _ = scene_0;
-    let _ = scene_5;
-}
-
-#[test]
 fn evaluate_with_empty_timeline_returns_scene() {
     let timeline = Timeline::new();
     let dimensions = SceneDimensions {
