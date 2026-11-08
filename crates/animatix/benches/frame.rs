@@ -12,6 +12,7 @@ mod scaling_no_cache;
 mod scrubbing;
 mod static_scene;
 mod static_scene_item_collection;
+mod support;
 mod timeline_eval;
 mod visibility_culling;
 

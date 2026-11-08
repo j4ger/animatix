@@ -1,7 +1,7 @@
 use animatix::timeline::{SceneDimensions, Timeline};
 use criterion::{Criterion, black_box};
 
-use crate::common;
+use crate::support::build_many_actors_scene;
 
 fn build_text_scene() -> Timeline {
     let source = r#"
@@ -11,24 +11,7 @@ config { colorscheme: "editorial-dark" }
 title: Text, content: "Hello World", font_size: 48, color: text.primary, at: (960, 540)
 subtitle: Text, content: "Subtitle text here", font_size: 24, color: text.secondary, at: (960, 600)
 "#;
-    common::parse_timeline(source)
-}
-
-fn build_many_actors_scene() -> Timeline {
-    let mut source = String::from(
-        r#"config { colorscheme: "editorial-dark" }
-
-#0s
-"#,
-    );
-    for i in 0..50 {
-        source.push_str(&format!(
-            "box{i}: Rect, size: (50, 50), color: accent.primary, at: ({}, {})\n",
-            100 + i * 30,
-            100 + (i % 10) * 50
-        ));
-    }
-    common::parse_timeline(&source)
+    crate::common::parse_timeline(source)
 }
 
 fn build_layout_scene() -> Timeline {
@@ -44,7 +27,7 @@ container: Row, at: (100, 100), gap: 20, align: "center" {
   e: Rect, size: (70, 70), color: accent.primary
 }
 "#;
-    common::parse_timeline(source)
+    crate::common::parse_timeline(source)
 }
 
 pub(crate) fn bench_scrubbing(c: &mut Criterion) {

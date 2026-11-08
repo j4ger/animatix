@@ -1,25 +1,7 @@
 use animatix::timeline::{SceneDimensions, Timeline};
 use criterion::{Criterion, black_box};
 
-use crate::common;
-
-fn build_visible_scene(actor_count: usize) -> Timeline {
-    // All actors visible on screen
-    let mut source = String::from(
-        r#"config { colorscheme: "editorial-dark" }
-
-#0s
-"#,
-    );
-    for i in 0..actor_count {
-        source.push_str(&format!(
-            "box{i}: Rect, size: (50, 50), color: accent.primary, at: ({}, {})\n",
-            100 + (i % 20) * 90,
-            100 + (i / 20) * 90
-        ));
-    }
-    common::parse_timeline(&source)
-}
+use crate::support::build_visible_scene;
 
 fn build_mixed_visibility_scene(visible: usize, offscreen: usize) -> Timeline {
     // Some visible, some off-screen
@@ -43,7 +25,7 @@ fn build_mixed_visibility_scene(visible: usize, offscreen: usize) -> Timeline {
             3000
         ));
     }
-    common::parse_timeline(&source)
+    crate::common::parse_timeline(&source)
 }
 
 pub(crate) fn bench_visibility(c: &mut Criterion) {

@@ -1,25 +1,7 @@
-use animatix::timeline::{SceneDimensions, Timeline};
+use animatix::timeline::SceneDimensions;
 use criterion::{Criterion, black_box};
 
-use crate::common;
-
-fn build_static_scene(actor_count: usize) -> Timeline {
-    // Static scene: no keyframes, no modifiers
-    let mut source = String::from(
-        r#"config { colorscheme: "editorial-dark" }
-
-#0s
-"#,
-    );
-    for i in 0..actor_count {
-        source.push_str(&format!(
-            "box{i}: Rect, size: (50, 50), color: accent.primary, at: ({}, {})\n",
-            100 + (i % 20) * 90,
-            100 + (i / 20) * 90
-        ));
-    }
-    common::parse_timeline(&source)
-}
+use crate::support::build_static_scene;
 
 pub(crate) fn bench_static(c: &mut Criterion) {
     let dims = SceneDimensions {

@@ -1,24 +1,7 @@
-use animatix::timeline::{SceneDimensions, Timeline};
+use animatix::timeline::SceneDimensions;
 use criterion::{Criterion, black_box};
 
-use crate::common;
-
-fn build_many_actors_scene() -> Timeline {
-    let mut source = String::from(
-        r#"config { colorscheme: "editorial-dark" }
-
-#0s
-"#,
-    );
-    for i in 0..50 {
-        source.push_str(&format!(
-            "box{i}: Rect, size: (50, 50), color: accent.primary, at: ({}, {})\n",
-            100 + i * 30,
-            100 + (i % 10) * 50
-        ));
-    }
-    common::parse_timeline(&source)
-}
+use crate::support::build_many_actors_scene;
 
 pub(crate) fn bench_scene_costs(c: &mut Criterion) {
     let many_actors = build_many_actors_scene();

@@ -10,6 +10,7 @@ mod cost_breakdown;
 mod equation_frame;
 mod scene_costs;
 mod stage_breakdown;
+mod support;
 
 use criterion::{Criterion, criterion_group, criterion_main};
 
