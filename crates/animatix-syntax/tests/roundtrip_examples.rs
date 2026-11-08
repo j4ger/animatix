@@ -8,6 +8,10 @@
 
 use std::path::Path;
 
+mod common;
+
+use common::comment_texts;
+
 /// Recursively collect all `.amx` files under `dir`.
 fn collect_amx_files(dir: &Path) -> Vec<std::path::PathBuf> {
     let mut files = Vec::new();
@@ -157,16 +161,6 @@ fn both_serializers_are_stable_across_the_repo() {
 }
 
 // Comment preservation over the whole repo
-
-fn comment_texts(source: &str) -> Vec<String> {
-    animatix_syntax::token::tokenize(source)
-        .into_iter()
-        .filter_map(|token| match token.kind {
-            animatix_syntax::token::TokenKind::Comment(text) => Some(text),
-            _ => None,
-        })
-        .collect()
-}
 
 /// Formatting real content must preserve every `//` comment verbatim, keep the
 /// result parseable, and be idempotent. This is the corpus-level guard behind

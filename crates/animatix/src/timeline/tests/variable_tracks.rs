@@ -1,3 +1,4 @@
+use super::support::assign;
 use super::support::{actor, assert_clean, build_ast, build_clean, keyframe, parse, prop, vec2};
 use super::*;
 use crate::ast::BinaryOp;
@@ -9,18 +10,6 @@ fn let_decl(name: &str, value: Expr) -> Stmt {
         is_pub: false,
         name: name.to_string(),
         value,
-        span: None,
-    }
-}
-
-fn assign(label: &str, property: &str, value: Expr) -> Stmt {
-    Stmt::Assignment {
-        target: vec![crate::ast::TargetSegment::Static(label.to_string())],
-        property: property.to_string(),
-        value,
-        modifiers: vec![],
-        easing: None,
-        value_span: None,
         span: None,
     }
 }

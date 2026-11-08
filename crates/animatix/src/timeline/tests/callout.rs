@@ -1,5 +1,6 @@
 //! Tests for the Callout primitive
 
+use super::support::assign;
 use super::support::{actor, build, build_ast, keyframe};
 use super::*;
 use crate::ast::Property;
@@ -18,18 +19,6 @@ fn prop(name: &str, value: Expr) -> Property {
 
 fn vec2(x: f32, y: f32) -> Expr {
     Expr::Tuple(vec![Expr::Num(x as f64), Expr::Num(y as f64)])
-}
-
-fn assign(label: &str, property: &str, value: Expr) -> Stmt {
-    Stmt::Assignment {
-        target: vec![crate::ast::TargetSegment::Static(label.to_string())],
-        property: property.to_string(),
-        value,
-        modifiers: vec![],
-        easing: None,
-        value_span: None,
-        span: None,
-    }
 }
 
 fn make_config() -> Stmt {

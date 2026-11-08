@@ -255,3 +255,15 @@ pub(crate) fn prop(name: &str, value: Expr) -> Property {
 pub(crate) fn vec2(x: f64, y: f64) -> Expr {
     Expr::Tuple(vec![Expr::Num(x), Expr::Num(y)])
 }
+
+pub(crate) fn assign(label: &str, property: &str, value: Expr) -> Stmt {
+    Stmt::Assignment {
+        target: vec![crate::ast::TargetSegment::Static(label.to_string())],
+        property: property.to_string(),
+        value,
+        modifiers: vec![],
+        easing: None,
+        value_span: None,
+        span: None,
+    }
+}

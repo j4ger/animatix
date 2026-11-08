@@ -54,6 +54,18 @@ wipe-in box [500ms]
     build_clean(SRC);
 }
 
+fn x_bounds(paths: &[crate::renderer::text::TextPath]) -> (f64, f64) {
+    use kurbo::Shape as _;
+    let mut min_x = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    for p in paths {
+        let b = p.path.bounding_box();
+        min_x = min_x.min(b.x0);
+        max_x = max_x.max(b.x1);
+    }
+    (min_x, max_x)
+}
+
 #[test]
 fn text_anchor_left_center_right_alignments() {
     let source = r#"
@@ -62,18 +74,6 @@ t_left: Text, text: "Animatix", text_anchor: "left", at: (300, 200)
 t_right: Text, text: "Animatix", text_anchor: "right", at: (300, 200)
 "#;
     let timeline = build_clean(source);
-
-    fn x_bounds(paths: &[crate::renderer::text::TextPath]) -> (f64, f64) {
-        use kurbo::Shape as _;
-        let mut min_x = f64::INFINITY;
-        let mut max_x = f64::NEG_INFINITY;
-        for p in paths {
-            let b = p.path.bounding_box();
-            min_x = min_x.min(b.x0);
-            max_x = max_x.max(b.x1);
-        }
-        (min_x, max_x)
-    }
 
     let center = timeline.world.tracks.get_id("t_center").unwrap();
     let left = timeline.world.tracks.get_id("t_left").unwrap();
@@ -130,18 +130,6 @@ t: Text, text: "AnchorTest", text_anchor: "left", at: (300, 200)
 t.text_anchor = "right"
 "#;
     let timeline = build_clean(source);
-
-    fn x_bounds(paths: &[crate::renderer::text::TextPath]) -> (f64, f64) {
-        use kurbo::Shape as _;
-        let mut min_x = f64::INFINITY;
-        let mut max_x = f64::NEG_INFINITY;
-        for p in paths {
-            let b = p.path.bounding_box();
-            min_x = min_x.min(b.x0);
-            max_x = max_x.max(b.x1);
-        }
-        (min_x, max_x)
-    }
 
     let t_track = timeline.world.tracks.get_id("t").unwrap();
     let t_text = timeline.world.text_or_default(t_track);
