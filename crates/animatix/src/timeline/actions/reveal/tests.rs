@@ -10,10 +10,10 @@ use animatix_core::caps::ActorCategory;
 use crate::ast::{Action, Expr, Modifier, Property, Stmt, Time};
 use crate::diagnostics::{Diagnostic, DiagnosticCode};
 use crate::primitives::{BuildCtx, Primitive};
+use crate::timeline::Timeline;
 use crate::timeline::actions::process_action;
 use crate::timeline::actions::registry::BuiltinAction;
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::Timeline;
 
 struct TextExt;
 
@@ -199,10 +199,12 @@ fn wipe_out_reports_unsupported_image_targets() {
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
-    assert!(report
-        .diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.code == DiagnosticCode::UnsupportedActionTarget));
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagnosticCode::UnsupportedActionTarget)
+    );
 }
 
 #[test]

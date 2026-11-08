@@ -6,17 +6,17 @@ fn always_overrides_keyframes_warnings() {
         (
             "box1: Rect, size: (100, 100), opacity: 0.8\n#2s\nbox1.opacity = 0.3\nalways { box1.opacity = 0.5 }",
             true,
-            "Expected warning when conflict exists"
+            "Expected warning when conflict exists",
         ),
         (
             "always { box1.opacity = 0.5 }",
             false,
-            "Should NOT emit warning when actor doesn't exist"
+            "Should NOT emit warning when actor doesn't exist",
         ),
         (
             "box1: Rect, size: (100, 100)\nalways { box1.rotation = 0.5 }",
             false,
-            "Should NOT emit warning when no keyframe conflict"
+            "Should NOT emit warning when no keyframe conflict",
         ),
     ];
 

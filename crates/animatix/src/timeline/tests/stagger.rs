@@ -4,9 +4,11 @@ use animatix_syntax::parser::parse_source;
 
 use super::*;
 
+type StaggerCase = (&'static str, &'static str, &'static [(&'static str, u64)]);
+
 #[test]
 fn test_wavefront_stagger() {
-    let cases: [(&str, &str, &[(&str, u64)]); 2] = [
+    let cases: [StaggerCase; 2] = [
         (
             "center",
             r#"

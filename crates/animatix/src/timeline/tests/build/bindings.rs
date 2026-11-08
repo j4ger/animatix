@@ -4,8 +4,8 @@ use super::support::{
     text_at, vec2,
 };
 use crate::ast::LoopPattern;
-use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::Value;
+use crate::timeline::property_track::TrackAccessor;
 
 #[test]
 fn test_for_loop_tuple_destructuring_creates_actors() {
@@ -424,14 +424,16 @@ bg: Filter {
     );
     let scope = timeline.world.tracks.get_id("bg").expect("filter scope");
     let (width, height) = timeline.resolution().expect("configured resolution");
-    assert!(timeline
-        .effect_scope_region(
-            scope,
-            crate::timeline::SceneDimensions { width, height },
-            0,
-            kurbo::Affine::IDENTITY
-        )
-        .is_none());
+    assert!(
+        timeline
+            .effect_scope_region(
+                scope,
+                crate::timeline::SceneDimensions { width, height },
+                0,
+                kurbo::Affine::IDENTITY
+            )
+            .is_none()
+    );
 }
 
 /// A plugin effect registered in the extension registry lowers like a
@@ -440,8 +442,8 @@ bg: Filter {
 #[test]
 fn plugin_effect_lowers_into_scope_chain() {
     use crate::timeline::effects::{
-        register_extension_effect, EffectParamKind, EffectParamSpec, EffectParamValue,
-        EffectPassSpec, PluginEffectData,
+        EffectParamKind, EffectParamSpec, EffectParamValue, EffectPassSpec, PluginEffectData,
+        register_extension_effect,
     };
 
     let params = vec![EffectParamSpec::new(
@@ -698,7 +700,7 @@ always {
     // The always block overrides the status text per frame — the override is
     // only visible through full pipeline evaluation (execute_modifier_ir),
     // not through the text track's keyframes.
-    use crate::timeline::modifier_runtime::ir::{execute_modifier_ir, ModifierOverrides};
+    use crate::timeline::modifier_runtime::ir::{ModifierOverrides, execute_modifier_ir};
     let status_at = |time_ms: u64| -> String {
         let mut overrides = ModifierOverrides::default();
         let mut env = timeline.build_frame_env(

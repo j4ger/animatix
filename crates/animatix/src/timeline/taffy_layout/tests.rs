@@ -92,7 +92,7 @@ fn test_manual_child_excluded_from_positions() {
     assert_eq!(results[0].position[0], -results[2].position[0]); // symmetric
     assert!(results[0].position[0] < 0.0); // a is left of center
     assert!(results[2].position[0] > 0.0); // c is right of center
-                                           // b (center) happens to be at [0, 0] due to symmetric layout
+    // b (center) happens to be at [0, 0] due to symmetric layout
     assert_eq!(results[1].position, [0.0, 0.0]);
 }
 

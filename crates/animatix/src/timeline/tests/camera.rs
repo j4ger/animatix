@@ -282,10 +282,6 @@ hud: Rect, size: (40, 40), at: (420, 180), camera_follow: "no"
     );
 }
 
-/// The opt-out applies where the camera applies — once, to a root subtree. On a
-/// nested actor it would read as a HUD that keeps moving, so the declaration is
-/// reported instead of left to be discovered in a render.
-
 /// A `Filter` scope that opts out keeps its authored `bounds:` as screen
 /// coordinates. The rule lives inside `effect_scope_region` (it consults the
 /// track it is given), so it is pinned here instead of through a render.

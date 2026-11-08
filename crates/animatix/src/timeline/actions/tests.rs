@@ -165,9 +165,11 @@ fn unknown_actions_emit_diagnostics() {
 
     process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
 
-    assert!(diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.code == DiagnosticCode::UnknownAction));
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagnosticCode::UnknownAction)
+    );
 }
 
 #[test]
