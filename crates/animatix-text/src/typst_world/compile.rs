@@ -274,8 +274,7 @@ pub fn compile_text(
         font,
         escaped
     );
-    // The page rule must stay at the document top level; only the content is
-    // wrapped in the width-constrained block.
+    // (See page rule note above.)
     let markup = format!(
         "{}{}",
         page_preamble,
@@ -539,8 +538,7 @@ pub fn compile_code(
         color.to_hex(),
         font,
     );
-    // The page rule must stay at the document top level; only the content is
-    // wrapped in the width-constrained block.
+    // (See page rule note above.)
     let markup = format!(
         "{}{}",
         page_preamble,

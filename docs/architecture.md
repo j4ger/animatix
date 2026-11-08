@@ -972,7 +972,7 @@ crates/
 │   └── src/
 │       ├── ast/           # AST types (expr, stmt, span, types)
 │       ├── parser/        # Chumsky parser (consumes the token stream)
-│       ├── token.rs       # Lossless tokenizer
+│       ├── token/       # Lossless tokenizer
 │       ├── diagnostics/   # Diagnostic model + formatting
 │       ├── easing.rs      # Easing function registry
 │       ├── source_index.rs# Source location mapping
@@ -1053,7 +1053,7 @@ variant coverage is reviewed when new AST variants are added.
 ## 19. Design Decisions (Current)
 
 ### Frontend
-- One lossless tokenizer (`crates/animatix-syntax/src/token.rs`) is the only lexical definition. The parser consumes its token stream; the analyzer, LSP, and GUI use the same tokens for positions and highlighting.
+- One lossless tokenizer (`crates/animatix-syntax/src/token/`) is the only lexical definition. The parser consumes its token stream; the analyzer, LSP, and GUI use the same tokens for positions and highlighting.
 
 ### Evaluation and IR
 - Closures capture lexical scope at creation: `Value::Closure` carries a `CapturedEnv` that snapshots only the build-time override layer; the shared stdlib base is re-provided at render time.

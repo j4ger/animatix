@@ -323,7 +323,7 @@ history file so the agent can detect oscillation and avoid repeating edits.
 
 Goal: produce deterministic scene facts, a stable report, and optional rendered
 frames. This phase shipped as the `review` command in `animatix-cli` rather
-than a separate `crates/animatix-review` crate.
+than a separate review crate.
 
 Implemented:
 
@@ -337,7 +337,7 @@ Implemented:
 
 Exit criteria (met):
 
-- `cargo run --bin animatix -- review examples/gallery/fft_explain.amx --format json` works without a GPU or `verify.txt`.
+- `cargo run --bin animatix -- review examples/projects/fft_explain.amx --format json` works without a GPU or `verify.txt`.
 - The report contains actor bounds/opacity facts, keyframe timing, and issues with evidence.
 - No model or external service is required.
 
@@ -538,5 +538,5 @@ See also:
 - `dogfood/arena/README.md`
 - `web/arena/index.html`
 - `scripts/arena.py`
-- `crates/animatix-render/src/offscreen.rs`
-- `crates/animatix/src/timeline/scene_eval.rs`
+- `crates/animatix-render/src/offscreen/`
+- `crates/animatix/src/timeline/scene_eval/`

@@ -97,7 +97,7 @@ Why it is not a renderer tweak, and what the failed attempt measured (all in
 `docs/roadmap.md`, rows "Single-line `text_align`…" and "`text_align` cannot be
 fixed without deciding what it means"):
 
-- `property_registry.rs` seeds `text_align` with `"left"` while `compile_text_*`
+- `property_registry/` seeds `text_align` with `"left"` while `compile_text_*`
   centred the measured ink regardless of value, so the default has always been
   lying and the three spellings were indistinguishable.
 - Making alignment real reaches ordinary centred text everywhere (~two thirds of
@@ -123,7 +123,7 @@ not cross-fade state shapes" is an acceptable outcome if the measured cost of
 building the outgoing state per frame is not. It doubles shape compilation
 inside morph windows, so it **must** go through `scripts/perf-bench.sh compare`
 (the script now hard-fails if `python3` is missing instead of silently
-reporting green — see `6d63ff93`). Start by reading `timeline/build/dispatch.rs`
+reporting green — see `6d63ff93`). Start by reading `timeline/animation_track/shape.rs`
 (`render_type_name`, `shape_type_switches`), the `Fade` branch in the morph
 code, and the text cross-fade in `crates/animatix/src/primitives/mod.rs`, which
 already solves "draw two things at complementary alpha".
@@ -143,7 +143,7 @@ already solves "draw two things at complementary alpha".
   and prune `docs/roadmap.md` to remaining work only.
 
 Also still open in the roadmap and found *by* this round's lint: percentage and
-`fill` collapse in a `Row` (`timeline/layout.rs:946` hardcodes
+`fill` collapse in a `Row` (`timeline/layout.rs` hardcodes
 `parent_content_size = [0.0, 0.0]`), layout has no `max_width` and the name is
 taken by text wrap, `Applicable::Everything` rows hide exactly the drop class
 `inapplicable-property` exists to catch, plot axes render pure white under

@@ -7,6 +7,8 @@
 #   - active docs must not carry stale known-gap wording for completed roadmap items
 #   - docs/properties.md Applies-to actor lists must match PROPERTY_DESCRIPTORS
 #     for the rows pinned below
+#   - code spans that name a repo path (`crates/…`, `scripts/…`, `web/…`) must resolve
+#   - active docs must cite symbols, not `file.rs:NNN` line numbers
 #
 # Usage:
 #   bash scripts/check-docs.sh
@@ -210,6 +212,62 @@ else
     FAILED=1
 fi
 
+# ── 5. Code-span repo paths ──────────────────────────────────────────────────
+# A path in backticks is navigation: if it does not resolve, the reader follows
+# a dead end. Only repo-root paths are checked (a bare `utils.rs` is ambiguous
+# prose shorthand); commands, placeholders and globs are skipped.
+echo ""
+echo "5. Code-span repo paths"
+echo "-----------------------"
+PATH_FAILED=0
+while IFS= read -r file; do
+    [ -f "$file" ] || continue
+    while IFS= read -r span; do
+        [ -n "$span" ] || continue
+        if [[ "$span" == *"<"* || "$span" == *">"* || "$span" == *"*"* \
+            || "$span" == *"{"* || "$span" == *"}"* || "$span" == *"?"* \
+            || "$span" == *"://"* || "$span" == *" "* || "$span" == *"..."* ]]; then
+            continue
+        fi
+        path="${span%:*}"
+        case "$path" in
+            crates/* | scripts/* | web/* | examples/* | docs/*) ;;
+            *) continue ;;
+        esac
+        if [ ! -e "$ROOT/$path" ] && [ ! -e "$ROOT/${path%/}" ]; then
+            echo "  STALE PATH: $file -> $span"
+            PATH_FAILED=1
+        fi
+    done < <(perl -ne 'while (/`([^`]+)`/g) { print "$1\n" }' "$file")
+done < <(find "$ROOT/docs" -name '*.md' -type f -not -path "*/history/*" | sort)
+if [ "$PATH_FAILED" -eq 0 ]; then
+    echo "  PASSED"
+else
+    FAILED=1
+fi
+
+# ── 6. Line-number citations ─────────────────────────────────────────────────
+# A `file.rs:123` citation is stale the moment the file is edited, and these
+# have already pointed at the wrong line repeatedly. Cite a symbol instead.
+# History pages are exempt: they record what a file looked like at the time.
+echo ""
+echo "6. Line-number citations"
+echo "-----------------------"
+LINE_FAILED=0
+while IFS= read -r file; do
+    [ -f "$file" ] || continue
+    if matches=$(grep -nE '`[^`]+\.rs:[0-9]+`' "$file"); then
+        echo "  LINE-NUMBER CITATION FOUND: $file"
+        printf '%s\n' "$matches"
+        LINE_FAILED=1
+    fi
+done < <(find "$ROOT/docs" -name '*.md' -type f -not -path "*/history/*" | sort)
+if [ "$LINE_FAILED" -eq 0 ]; then
+    echo "  PASSED"
+else
+    FAILED=1
+fi
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 echo ""
 echo "========================================"
@@ -223,6 +281,7 @@ fi
 echo "DOCS CHECK FAILED"
 echo ""
 echo "Fix broken relative links, remove completed roadmap rows in any table,"
-echo "update known-gap wording when a roadmap item ships, or correct a"
-echo "documented Applies-to actor list."
+echo "update known-gap wording when a roadmap item ships, correct a documented"
+echo "Applies-to actor list, repair a stale repo path, or replace a line-number"
+echo "citation with a symbol reference."
 exit 1

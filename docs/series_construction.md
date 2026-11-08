@@ -81,7 +81,7 @@ share one env across sample points — a leaked `let` would corrupt
 subsequent samples and other actors.
 
 Capture semantics: `Expr::Closure` bodies are compiled at value creation
-(`utils.rs:292`), and `CapturedEnv` snapshots the override layer at that
+(`timeline/utils/`), and `CapturedEnv` snapshots the override layer at that
 moment. A `LetChain` never becomes a capture (it evaluates immediately),
 so capture machinery is untouched.
 
@@ -96,7 +96,7 @@ through the plugin ABI like every other `CompiledExpr` node.
   capture.
 - Frame time (post-freeze): `timeline.env_base` is frozen into `base`;
   closure captures exclude base (by design), and invocation rebuilds the
-  child env from the caller's base (`utils.rs:490-500`). This is why the
+  child env from the caller's base (`timeline/utils/`). This is why the
   folder needs the caller env — and why plot closures calling pure user
   fns already work end to end (verified by `plot_closure_calls_pure_fn`,
   Stage 0): `CallEnv` resolves the fn name through the frame env's frozen

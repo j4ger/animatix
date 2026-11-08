@@ -186,8 +186,8 @@ pub const GRAY_600: Color32 = Color32::from_rgb(60, 66, 78);
 | No runtime `linear_multiply` for alpha | Pre-computed `const` values only |
 | Status and Category colors must not be shared | Separate modules, separate types |
 | Every semantic color must exist in both dark and light themes | Runtime `Theme` swap; both `Theme::dark()` and `Theme::light()` define all slots |
-| Component-level tokens live in the `Theme` struct, not in `design_tokens/` | Convention + review; `tokens/theme.rs` is the source of truth |
-| Raw color literals (`Color32::from_rgb`, `from_gray`, etc.) | Allowed **only** inside `tokens/primitive.rs` and `tokens/theme.rs`; never in widget code |
+| Component-level tokens live in the `Theme` struct, not in `design_tokens/` | Convention + review; `tokens/theme/` is the source of truth |
+| Raw color literals (`Color32::from_rgb`, `from_gray`, etc.) | Allowed **only** inside `tokens/primitive.rs` and `tokens/theme/`; never in widget code |
 
 ### 2.4 Import Convention
 
@@ -343,7 +343,7 @@ current shipped palette (`crates/eparts/src/tokens/primitive.rs`).
 
 ### 5.2 Light Theme Values
 
-`Theme::light()` (shipped — see `crates/eparts/src/tokens/theme.rs`). Accent
+`Theme::light()` (shipped — see `crates/eparts/src/tokens/theme/`). Accent
 and status hues are identical to dark for brand consistency; surfaces are
 near-white with dark text.
 
@@ -622,12 +622,12 @@ allocation; it is not a competing API — `show()` allocates and delegates to
 3. Pattern components compose Primitives — no direct `painter` calls.
 4. Domain panels compose Patterns + Primitives — no direct `painter` calls
    for standard UI elements (canvas painting is exempt).
-5. Component-level tokens live in the `Theme` struct (`tokens/theme.rs`),
+5. Component-level tokens live in the `Theme` struct (`tokens/theme/`),
    not in component modules as bare `const` values.
 
 ### 6.4 Component Theme Slots
 
-The `Theme` struct (source of truth: `crates/eparts/src/tokens/theme.rs`)
+The `Theme` struct (source of truth: `crates/eparts/src/tokens/theme/`)
 groups component-scoped color slots under `theme.components`. Each group maps
 all interaction states to `Slot { bg, fg, border }` or lighter types. The full
 taxonomy:

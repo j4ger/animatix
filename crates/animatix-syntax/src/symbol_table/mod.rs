@@ -129,8 +129,7 @@ pub struct ComponentInfo {
     pub line: usize,
     /// The 1-based UTF-16 column number of the declaration (LSP position).
     pub col: usize,
-    /// Full source span in character-column units for precise source
-    /// write-back and GUI navigation.
+    /// Source span for write-back and GUI navigation.
     pub span: Option<Span>,
     /// Whether the component is exported with `pub`.
     pub is_pub: bool,
@@ -156,8 +155,7 @@ pub struct SceneInfo {
     pub line: usize,
     /// The 1-based UTF-16 column number of the declaration (LSP position).
     pub col: usize,
-    /// Full source span in character-column units for precise source
-    /// write-back and GUI navigation.
+    /// Source span for write-back and GUI navigation.
     pub span: Option<Span>,
 }
 

@@ -19,27 +19,27 @@ dependencies, and **Cocogitto** (`cog`, used for conventional commits). Run
 
 ```bash
 # Inspect parsed AST
-cargo run --bin animatix -- ast examples/gallery/fft_explain.amx
-cargo run --bin animatix -- ast examples/gallery/fft_explain.amx --compact
+cargo run --bin animatix -- ast examples/projects/fft_explain.amx
+cargo run --bin animatix -- ast examples/projects/fft_explain.amx --compact
 
 # Live preview
-cargo run --bin animatix -- render examples/gallery/fft_explain.amx
-cargo run --bin animatix -- render examples/gallery/fft_explain.amx --loop
+cargo run --bin animatix -- render examples/projects/fft_explain.amx
+cargo run --bin animatix -- render examples/projects/fft_explain.amx --loop
 
 # Frame export
-cargo run --bin animatix -- image examples/gallery/fft_explain.amx --time 1.5 --output frame.png
+cargo run --bin animatix -- image examples/projects/fft_explain.amx --time 1.5 --output frame.png
 
 # Video/GIF export (requires the `video` feature, see AGENTS.md)
-cargo run -p animatix-cli --features video -- video examples/gallery/fft_explain.amx --fps 30 --duration 5 --output demo.mp4
-cargo run -p animatix-cli --features video -- gif examples/gallery/fft_explain.amx --fps 15 --duration 5 --output out.gif
+cargo run -p animatix-cli --features video -- video examples/projects/fft_explain.amx --fps 30 --duration 5 --output demo.mp4
+cargo run -p animatix-cli --features video -- gif examples/projects/fft_explain.amx --fps 15 --duration 5 --output out.gif
 
 # GUI
-cargo run --bin animatix-gui -- examples/gallery/fft_explain.amx
+cargo run --bin animatix-gui -- examples/projects/fft_explain.amx
 ```
 
 ### Tokenizer/Tooling Validation
 
-For syntax or highlighting changes, run the syntax, analyzer, GUI, and LSP tests after updating `crates/animatix-syntax/src/token.rs`.
+For syntax or highlighting changes, run the syntax, analyzer, GUI, and LSP tests after updating `crates/animatix-syntax/src/token/`.
 
 ### Recommended Validation Loop
 
@@ -80,8 +80,8 @@ crates/
 
 - `crates/animatix-cli/src/main.rs` — CLI entrypoint
 - `crates/animatix-syntax/src/parser/` — Chumsky parser (split into submodules)
-- `crates/animatix-syntax/src/ast.rs` — AST types
-- `crates/animatix-syntax/src/typing.rs` — shared `Type`/`TypeEnv` inference
+- `crates/animatix-syntax/src/ast/` — AST types
+- `crates/animatix-syntax/src/typing/` — shared `Type`/`TypeEnv` inference
 - `crates/animatix-syntax/src/walk.rs` — shared AST traversal primitives
 - `crates/animatix/src/timeline/` — keyframed runtime, actions, morphing, plotting
 - `crates/animatix-render/src/` — Vello/WGPU rendering backend (renderer core, filter backend, encoders)
@@ -90,7 +90,7 @@ crates/
 - `crates/animatix-gui/src/app/panels/` — UI panels (inspector, timeline, sidebar, preview, editor)
 - `crates/animatix-gui/src/app/commands/mod.rs` — command system (ShellAction / Command / ViewAction)
 - `crates/animatix-gui/src/app/design_tokens/mod.rs` — GUI design token system
-- `crates/animatix-syntax/src/token.rs` — single lossless tokenizer
+- `crates/animatix-syntax/src/token/` — single lossless tokenizer
 - `crates/animatix-gui/src/fonts.rs` — egui font setup, including system CJK fallback
 
 ---
@@ -301,7 +301,7 @@ implemented in **all** of the following places. The compiler's non-exhaustive
 match errors catch the typed arms, but the *semantic* ones (recursion in the
 two visitor methods, lowering parity) are silent if missed:
 
-1. **AST variant** — `crates/animatix-syntax/src/ast.rs` (`Expr` enum);
+1. **AST variant** — `crates/animatix-syntax/src/ast/` (`Expr` enum);
    extend `references_ident` in the same file (plot dynamic-gating and
    frame-env injection depend on it).
 2. **Parser** — `crates/animatix-syntax/src/parser/expr.rs`.
@@ -311,7 +311,7 @@ two visitor methods, lowering parity) are silent if missed:
    visitors: `collect_prop_refs` and `references_ident`.
 5. **IR evaluation** — `.../ir/eval.rs` (`evaluate_compiled_expr`) and
    `.../ir/display.rs` (debug rendering).
-6. **Unified build-time evaluation** — `crates/animatix/src/timeline/utils.rs`
+6. **Unified build-time evaluation** — `crates/animatix/src/timeline/utils/`
    (`evaluate_expr_inner`) automatically delegates to `compile_expr` and
    `evaluate_compiled_expr`, sharing the same IR VM.
 7. **Cache key** — if the form reads mutable environment state, check whether

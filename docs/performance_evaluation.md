@@ -175,7 +175,7 @@ parameterized to stress the expensive paths:
 | Scenario | Stresses |
 |---|---|
 | `sorting-visualizer/entry.amx` | generated actors, many tracks, sequence/stagger actions |
-| `examples/gallery/fft_explain.amx` | feature density, mixed primitives |
+| `examples/projects/fft_explain.amx` | feature density, mixed primitives |
 | `examples/data/23_plot_kinds.amx` | plot path generation (vector paths) |
 | `examples/generation/*` | reactive `always` blocks → frame env + modifier runtime |
 | a synthetic `N`-actor generated scene (scaling sweep) | planner, layout, scene flatten |
@@ -340,7 +340,7 @@ production hot path pays only a thread-local push/pop unless compiled out (see
 >    allocations ~60 blocks + ~10 KB/frame despite the allocation-free hit
 >    path (probe the key-build and `compute_layout_for_time` internals).
 > 6. **`precise_bounds_cache` clone** — one ≈3.7 KB table clone/frame at
->    `scene_eval.rs` `evaluate_program_inner` (candidate: `Arc`-share like
+>    `scene_eval/` `evaluate_program_inner` (candidate: `Arc`-share like
 >    the layout positions).
 
 > **Round 2 (2026-09-04, later the same day): items 4/5 fixed + a real leak
@@ -377,7 +377,7 @@ production hot path pays only a thread-local push/pop unless compiled out (see
 > `timeline_evaluate_1s/2s` collapsing −43% (176.5 → 100.0 ns) in the full
 > gate. Treat those two as reliable again; re-baseline them.
 >
-> `examples/leak_probe.rs` is the diagnostic template for "leak vs
+> `crates/animatix/examples/leak_probe.rs` is the diagnostic template for "leak vs
 > fragmentation": sample `dhat::HeapStats` (`curr_bytes` = live set) and
 > process RSS over a fixed-time evaluate loop — live growing with total is a
 > leak, total growing with live flat is churn/fragmentation.
@@ -703,7 +703,7 @@ and the wall time divided by N. `per_frame_ms − cpu_ms` is the GPU's share.
 | Frame driver + CPU timer | `AmxPlayer::debug_bench_frames` / `debug_bench_warmup` |
 | GPU sync point | `debug_gpu_drain()` (free wasm export) |
 | Raster scale knob | `AmxPlayer::set_render_scale` / `render_scale` |
-| Scenario page | `web/demos/perf-probe.html` (`?scene=&players=&frames=&scales=`) |
+| Scenario page | `web/dev/perf-probe.html` (`?scene=&players=&frames=&scales=`) |
 
 The probe page is self-driving: it loads the scene, sweeps render scales, prints
 a table, and publishes the same object on `window.__perf` for a browser driver
@@ -905,7 +905,7 @@ browser (RenderDoc against a `--no-sandbox` Chromium, or Dawn tracing through
 - ~~The frame cache never hits on the web path~~ — **no longer true.**
   `restore_frame_cache` gates on `backend_can_run`, which asks whether the scene
   has effect scopes at all rather than whether a backend was handed in
-  (`scene_eval.rs`), so an unfiltered browser scene caches like the desktop one.
+  (`scene_eval/`), so an unfiltered browser scene caches like the desktop one.
 - ~~Filter scopes do not scale~~ — **fixed.** See
   [The filter chain follows the raster](#the-filter-chain-follows-the-raster).
 
@@ -914,7 +914,7 @@ browser (RenderDoc against a `--no-sandbox` Chromium, or Dawn tracing through
 `GpuFilterBackend` used to allocate and dispatch at scene resolution whatever the
 caller ended up rasterizing, so the page's adaptive quality step bought nothing on
 exactly the figures that are expensive: a `Filter` scope with Blur/Bloom/Grade/
-Vignette. Measured with a controlled pair — `web/_perf_ab/chain_{on,off}.amx`,
+Vignette. Measured with a controlled pair — `web/_perf_ab/chain_on.amx` and `web/_perf_ab/chain_off.amx`,
 identical art and timing, the only difference being whether the scope carries the
 chain — on a software raster, so the ratios are the finding:
 
@@ -1027,7 +1027,7 @@ Two drivers deliberately do **not** use it:
   built, in the one place it pays.
 
 `perf-bench.sh compare` is the CPU-side check that none of this costs anything,
-and `web/demos/perf-probe.html` now measures the skip directly: it renders one
+and `web/dev/perf-probe.html` now measures the skip directly: it renders one
 frame 30 times in a row (`rest_ms`) against its normal per-frame cost
 (`page_ms`), so a silently broken dedup shows up as those two numbers converging.
 
@@ -1550,7 +1550,7 @@ it moves and the **gate** that protects it.
 | Shared stage tracing | `crates/animatix/src/perf.rs` + `ScopedStage` | **added** (PF-8, 2026-08-31; `perf-tracing` default-on feature) |
 | Scenario suite benches | `crates/animatix/benches/` | add |
 | Steady-state time driver | `crates/animatix/examples/perf_driver.rs` | **added** (2026-09-03; §3.5 note) |
-| Steady-state allocation driver (dhat) | `crates/animatix/examples/alloc_driver.rs` + `examples/scenario_60actors.rs` | **added** (PF-6, 2026-09-04; §3.5 note) |
+| Steady-state allocation driver (dhat) | `crates/animatix/examples/alloc_driver.rs` + `crates/animatix/examples/common/scenario_60actors.rs` | **added** (PF-6, 2026-09-04; §3.5 note) |
 | Export-path allocation driver (dhat, real `.amx`) | `crates/animatix/examples/export_alloc_driver.rs` | **added** (PF-6 round 9, 2026-09-05; §3.5 note) |
 | Export-path throughput driver (PF-7, stage breakdown) | `crates/animatix/examples/export_perf_driver.rs` | **added** (PF-7 baseline, 2026-09-05; §5 P4) |
 | GPU/export + memory capture | `animatix-cli perf` (or bench under `nix develop`) | add (PF-7) |
@@ -1558,7 +1558,7 @@ it moves and the **gate** that protects it.
 | Web frame driver + CPU timer | `AmxPlayer::debug_bench_frames` / `debug_bench_warmup` | **added** (Layer W, 2026-09-30) |
 | Web GPU sync point | `debug_gpu_drain()` | **added** (Layer W, 2026-09-30) |
 | Web raster-scale knob | `AmxPlayer::set_render_scale` / `render_scale` | **added** (Layer W, 2026-09-30) |
-| Web scenario/probe page | `web/demos/perf-probe.html` | **added** (Layer W, 2026-09-30) |
+| Web scenario/probe page | `web/dev/perf-probe.html` | **added** (Layer W, 2026-09-30) |
 | Roadmap backlog | `docs/roadmap.md` | **added** (PF-1…PF-9; web items under "Web playback") |
 
 ---

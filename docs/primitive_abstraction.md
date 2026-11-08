@@ -21,15 +21,14 @@ per-type branching in the pipeline:
 | Per-actor drawing | `BehaviorDef` family dispatch | `scene_eval::evaluate_node` dispatches; `Primitive::evaluate` serves as the extension-adapter surface. |
 | Child rendering | `Primitive::render_children_by_id(&mut RenderChildrenCtx, &[EntityId])` | `scene_eval::render_node_children` contains no `ChildProcessing` branch; `Filter`/`Mask`/`Equation` override it. |
 | Mask clip geometry | `BehaviorDef` family dispatch | Plot geometry excluded (`plot_geometry`); `Primitive::clip_path` serves as extension-adapter surface. |
-| Equation fragments | `BehaviorDef` family dispatch | No `ActorKindId::Fragment` check; `Primitive::equation_fragment` serves as extension-adapter surface. |
-| Identity | `AnimationTrack::actor_type: String` | Required and registry-resolved; `kind` derived by `set_identity` (extensions may override via `kind_id()`), with a build-time drift warning. |
-| Native extensions | `crates/animatix-plugin-api` + `extension_native_plugin.rs` | `repr(C)` callbacks: `build`, `evaluate`, `handle_assignment`, `finalize_container_build`, `default_props`, `default_color_key`, `clip_path`, `equation_fragment` (ABI snapshot 9). |
+| Equation fragments | `BehaviorDef` family dispatch | `Primitive::equation_fragment` serves as the extension-adapter surface. |
+| Identity | `World` component identity | `World::actor_type` plus the `BehaviorId` component; `set_identity` derives the capability projection. No per-actor aggregate struct. |
+| Native extensions | `crates/animatix-plugin-api` + `extension_native_plugin/` | `repr(C)` callbacks: `build`, `evaluate`, `handle_assignment`, `finalize_container_build`, `default_props`, `default_color_key`, `clip_path`, `equation_fragment` (ABI snapshot 9). |
 
 Invariants are pinned by tests: `every_built_track_identity_is_consistent`
-(`timeline/tests/build.rs`), `registry_matches_primitives` (card/behaviour
-symbol pairing and set equality — the two lists no longer share an order) /
-`child_processing_capabilities_cover_special_containers` (`primitives/mod.rs`),
-`custom_primitive_builds_through_timeline` (`primitives/registry.rs`).
+(`timeline/tests/build/graph.rs`), `registry_matches_primitives` / `child_processing_capabilities_cover_special_containers`
+(`primitives/tests.rs`), `custom_primitive_builds_through_timeline`
+(`primitives/registry.rs`).
 
 ## 2. Deliberately not unified (accepted boundaries)
 
@@ -53,7 +52,7 @@ them without a concrete driver.
     Typst engine has no C surface.
   - **Sub-scene readback.** The only image the ABI ingests is
     `NativeImageCommand` — a URL resolved from the asset cache
-    (`crates/animatix-plugin-api/src/lib.rs:485`); there is deliberately no
+    (`crates/animatix-plugin-api/src/lib.rs`); there is deliberately no
     "here are pixels" or "here is a texture" command, because `SceneImage` /
     `RenderedFrame` carry `vello` types and a buffer park/reuse protocol.
 
@@ -65,7 +64,7 @@ them without a concrete driver.
 - **Container strategy bodies live in `Timeline`, not the primitive.** The
   built-in `render_children_by_id` overrides (`primitives/filter.rs`, `mask.rs`,
   `equation.rs`) are one-line delegations to `Timeline::render_*_children_ctx`
-  (`timeline/scene_eval.rs`). Moving the bodies into `primitives/*` would pull
+  (`timeline/scene_eval/containers/`). Moving the bodies into `primitives/*` would pull
   `filter_backend` (a `&mut Option<&mut dyn FilterBackend>` with a nested
   lifetime) and the Typst compiler into the primitive layer. The split is
   intentional.
@@ -74,14 +73,18 @@ them without a concrete driver.
 
 | # | Gap | Evidence | Ideal |
 |---|---|---|---|
-| G1 | **Build side is not unified** — biggest asymmetry | `find_actor_kind` returns `None` for `Shape`/`Container`, so those are built inline by `process_actor_decl` (`Rect::build` is a no-op); `Text::build` delegates to `timeline::declarations_text`, plot/media similarly (`timeline/actor_kind.rs`, `primitives/text.rs`) | Each primitive's `build()` owns its logic; no central kind dispatch; shapes/containers also go through the trait. |
-| G2 | **Property system is kind-centric** | `PropertyPlan::for_actor_kind(kind)`, `Applicable::includes(kind)`, `allowed_property_indices(kind)`, `(schema.default_value)(track.kind)` (`timeline/plan.rs`, `property_registry.rs`, `property_engine.rs`) | Built-in property applicability/defaults declared on the primitive; `kind` reduced to an internal cache key. |
-| G3 | **Identity is dual and not pre-resolved** | `actor_type: String` + `kind: ActorKindId` (the latter independently writable by extensions); the frame path resolves primitive behavior using the registry. | One identity; build resolves the behavior definition onto the track so the frame path does no lookup. The "pre-resolved primitive handle" direction was tried (old `PrimitiveHandle` cache) and removed — do not recommend re-adding it. |
-| G4 | **Overlapping taxonomies** | `ActorKindId`, `ShapeKind`, `ActorCategory`, `PrimitiveCategory` (schema), `ChildProcessing`, `PrimitiveFamily` mutually mapped and drift-pinned | One capability description per primitive; the rest derived views. |
-| G5 | **Shape semantics partly outside the trait** | `vector_shape_uses_custom_path` / `exposes_tip_size` are `ShapeType` free functions for the GUI edit-vertices layer (`timeline/shapes/mod.rs`) | Shape behaviour on the primitive (or `ShapeType` as a primitive view). |
-| G6 | **Child strategy is a closed enum** (declaration, not dispatch) | `ChildProcessing::{Generic,Filter,Mask,Equation}` is a shared-schema/ABI enum; a native plugin cannot author a fifth strategy (ABI 9 deferred) | Open strategy surface. Accepted as-is pending a real plugin need. |
-| G7 | **`RenderCommand` is a second closed ABI** | `#[non_exhaustive]` enum with manual `execute` / `local_bounds` dispatch (`primitives/mod.rs`) | Extensible draw primitives. |
-| G8 | **FFI mirror surface** (inherent) | See §2 | N/A — bounded by what `repr(C)` can carry. |
+| G1 | **Build side is not unified** — biggest asymmetry | Built-in lowering lives in `BehaviorDef` family `build_extra` functions under `timeline/behavior/builtin/` and the generic actor pipeline under `timeline/build/actor/`; `Primitive::build` is the extension path and defaults to a no-op for built-ins. | Each primitive's `build()` owns its logic; no central family dispatch; shapes/containers also go through the trait. |
+| G2 | **Property system is kind-centric** | `Applicable::includes(&caps, ty)` and `allowed_property_indices(caps, actor_type)` gate applicability by kind; slots/defaults still come from `property_registry/` and `property_engine/`. | Built-in property applicability/defaults declared on the primitive; `kind` reduced to an internal cache key. |
+| G3 | **Overlapping taxonomies** | `ShapeKind`, `ActorCategory`, `PrimitiveCategory` (schema), `ChildProcessing`, `PrimitiveFamily` are mutually mapped and drift-pinned. | One capability description per primitive; the rest derived views. |
+| G4 | **Shape semantics partly outside the trait** | `vector_shape_uses_custom_path` / `exposes_tip_size` are `ShapeType` free functions for the GUI edit-vertices layer (`timeline/shapes/defaults.rs`). | Shape behaviour on the primitive (or `ShapeType` as a primitive view). |
+| G5 | **Child strategy is a closed enum** (declaration, not dispatch) | `ChildProcessing::{Generic,Filter,Mask,Equation}` is a shared-schema/ABI enum; a native plugin cannot author a fifth strategy (ABI 9 deferred). | Open strategy surface. Accepted as-is pending a real plugin need. |
+| G6 | **`RenderCommand` is a second closed ABI** | `#[non_exhaustive]` enum with manual `execute` / `local_bounds` dispatch (`primitives/mod.rs`). | Extensible draw primitives. |
+| G7 | **FFI mirror surface** (inherent) | See §2. | N/A — bounded by what `repr(C)` can carry. |
+
+The former identity gap (dual `actor_type`/`ActorKindId`, with a pre-resolved
+primitive handle on the track) is resolved and was removed from this table: the
+old `PrimitiveHandle` cache was tried and deleted, and identity now lives in the
+`World` component stores. Do not reintroduce a per-track primitive-handle cache.
 
 ## 4. Deferred decisions (decided, not scheduled)
 
@@ -93,11 +96,6 @@ Recorded so they are not re-litigated without new evidence:
   a host `push_clip_layer`/`pop_layer` + the existing `append_*` callbacks —
   keep it orthogonal to `child_processing` (so analyzer/manifests are
   untouched), and document that offscreen GPU and Typst are out of scope.
-- **Privatizing `AnimationTrack.kind`.** `kind` is an intentional independent
-  override for extension primitives (`kind_id()`), so privacy would relocate one
-  write rather than make `actor_type` the sole identity. The invariant is already
-  enforced by `set_identity` + the build-time drift warning +
-  `every_built_track_identity_is_consistent`.
 
 ## 5. If pursued: recommended order
 
@@ -111,12 +109,9 @@ feature that hits the boundary) — not for purity.
    `timeline/build/*` kind-specific builder into its primitive's `build()`, and
    route shapes/containers through the trait. Land one primitive family per
    change.
-3. **G3 — single identity + pre-resolved handle.** Fold into (2): when build
-   ends it already holds the primitive, so store the resolved handle on the
-   track. Yields a design cleanup plus a per-node lookup removal.
-4. **G4/G5/G7 — opportunistic.** Taxonomy convergence, shape semantics, and
+3. **G3/G4/G6 — opportunistic.** Taxonomy convergence, shape semantics, and
    `RenderCommand` openness as the surrounding modules are next edited.
-5. **G6/G8 — keep as-is.** Documented boundaries; do not expand the ABI without a
+4. **G5/G7 — keep as-is.** Documented boundaries; do not expand the ABI without a
    concrete plugin need.
 
 ## 6. Post-processing effects: a chain, not a primitive category
@@ -170,7 +165,7 @@ generic `mix` in v1. The first two effects are `Blur` and `ColorGrade`.
 > *registration* cannot go through `ExtensionRegistry` for built-in effects: the
 > primary build paths (`Timeline::build(&ast)` in the GUI document and in
 > image/video export) build with `extensions: None`
-> (`timeline/mod.rs:765`), and extension properties are only written by
+> (`timeline/mod.rs`), and extension properties are only written by
 > `write_extension_properties_for_decl` when a context is attached. Built-in
 > effect parameters must be intrinsic built-in properties (`PROPERTY_REGISTRY` +
 > `PROPERTY_DESCRIPTORS`) with a generic per-track binding (`Tagged`/plan-slot),

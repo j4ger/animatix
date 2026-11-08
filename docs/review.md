@@ -24,10 +24,10 @@ The four review-adjacent commands answer different questions.
 ## `animatix review`
 
 ```bash
-animatix review examples/gallery/fft_explain.amx
-animatix review examples/gallery/fft_explain.amx --format json
-animatix review examples/gallery/fft_explain.amx --policy site --fail-on warning
-animatix review examples/gallery/fft_explain.amx --storyboard /tmp/board.png
+animatix review examples/projects/fft_explain.amx
+animatix review examples/projects/fft_explain.amx --format json
+animatix review examples/projects/fft_explain.amx --policy site --fail-on warning
+animatix review examples/projects/fft_explain.amx --storyboard /tmp/board.png
 ```
 
 ### Flags
@@ -57,7 +57,7 @@ The report is `schema_version: 1`:
 ```json
 {
   "schema_version": 1,
-  "input": "examples/gallery/fft_explain.amx",
+  "input": "examples/projects/fft_explain.amx",
   "target": {
     "kind": "single_scene",
     "duration_s": 24.0,
@@ -146,7 +146,7 @@ single contact-sheet image of the keyframe beats and the resting frame for a
 human or multimodal model to inspect.
 
 ```bash
-animatix storyboard examples/gallery/fft_explain.amx -o /tmp/storyboard.png
+animatix storyboard examples/projects/fft_explain.amx -o /tmp/storyboard.png
 ```
 
 `--times`, `--max-frames`, `--cols`, `--tile-width`, and `--tile-height`

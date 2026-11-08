@@ -1,4 +1,7 @@
 //! Adaptive subdivision and coordinate transform for plot curve sampling.
+//!
+//! Recursive plot samplers thread many independent sampling/styling params;
+//! grouping them into a struct is a separate refactor.
 
 use std::collections::HashMap;
 
@@ -129,8 +132,6 @@ impl PointSink for CurvePathBuilder {
     }
 }
 
-// Recursive plot samplers thread many independent sampling/styling params;
-// grouping them into a struct is a separate refactor.
 #[allow(clippy::too_many_arguments)]
 pub fn sample_recursive_cartesian_impl<F: FnMut(f64) -> f64, S: PointSink>(
     min_t: f64,
@@ -220,8 +221,6 @@ pub fn sample_recursive_cartesian_impl<F: FnMut(f64) -> f64, S: PointSink>(
     }
 }
 
-// Recursive plot samplers thread many independent sampling/styling params;
-// grouping them into a struct is a separate refactor.
 #[allow(clippy::too_many_arguments)]
 pub fn sample_recursive_cartesian(
     min_t: f64,
@@ -334,8 +333,6 @@ pub fn sample_recursive_polar_impl<F: FnMut(f64) -> f64, S: PointSink>(
     }
 }
 
-// Recursive plot samplers thread many independent sampling/styling params;
-// grouping them into a struct is a separate refactor.
 #[allow(clippy::too_many_arguments)]
 pub fn sample_recursive_polar(
     min_t: f64,
@@ -451,8 +448,6 @@ pub fn sample_recursive_parametric_impl<F: FnMut(f64) -> [f64; 2], S: PointSink>
     }
 }
 
-// Recursive plot samplers thread many independent sampling/styling params;
-// grouping them into a struct is a separate refactor.
 #[allow(clippy::too_many_arguments)]
 pub fn sample_recursive_parametric(
     min_t: f64,

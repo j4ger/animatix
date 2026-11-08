@@ -15,8 +15,8 @@ read.
 
 The obvious implementation is a frame-time accumulator, and it is not available:
 `Timeline::evaluate` is `&self` on a cloned timeline per export thread
-(`scene_eval::evaluate_program_inner`, `crates/animatix/src/timeline/scene_eval.rs:2013`),
-and a frame can be served by `restore_frame_cache` (`scene_eval.rs:1913`) **without
+(`scene_eval::evaluate_program_inner`, `crates/animatix/src/timeline/scene_eval/`),
+and a frame can be served by `restore_frame_cache` (`timeline/scene_eval/`) **without
 recomputing anything**. Anything that persists between frames is therefore
 order-dependent and thread-dependent.
 
@@ -33,7 +33,7 @@ signal is **piecewise-linear** and the smoothing kernel is **exponential**, and 
 pair has a closed-form convolution per segment. No taps, no history, no accumulator
 — an exact one-pole response evaluated analytically. The engine's own
 `Easing::Spring { damping, frequency }` is literally `1 - e^{-dt}cos(ft)`
-(`crates/animatix-syntax/src/easing.rs:159-166`), i.e. a damped oscillator's step
+(`crates/animatix-syntax/src/easing.rs`), i.e. a damped oscillator's step
 response. Easing curves in this codebase already *are* filter kernels; STAT-1
 exploits the identity instead of adding a filter.
 
@@ -55,20 +55,20 @@ renderer.
 
 The pass shape already exists twice over. `timeline/legend.rs`'s
 `scan_legend_entries(&timeline.tracks, &timeline.root_nodes)` is invoked at
-`build/entry.rs:904-922` with the comment *"Populate Legend entries after every
+`build/entry.rs` with the comment *"Populate Legend entries after every
 actor is built so generated and forward-declared actors participate in the same
 scan"* — a post-build walk that derives scene facts and stores them. The seamless-loop
-check at `build/entry.rs:713-749` proves the second half: build can already sample
+check at `build/entry.rs` proves the second half: build can already sample
 any track at any time (`property_has_keyframes`, `read_property_value(track, field, t)`).
 STAT-1 is those two capabilities pointed at each other.
 
 A frame-time sampler over all actors was rejected on measurement grounds: it costs
 O(actors) per query, it would double-count what `inject_runtime_lookup_values`
-(`timeline/frame_env.rs:228`) already pays per frame, and — decisively — the exact
+(`timeline/frame_env.rs`) already pays per frame, and — decisively — the exact
 same quantity sampled at build is *free* at frame time. The one thing frame-time
 sampling would buy is *rendered* geometry (real ink bounds rather than declared
 boxes), and that is unavailable for the whole scene anyway: `precise_bounds` is
-cleared at `scene_eval.rs:2063` and filled by the root loop, i.e. **after** `always`
+cleared at `timeline/scene_eval/` and filled by the root loop, i.e. **after** `always`
 runs. See "Non-goals" for the bound this imposes.
 
 ### Registration route: fast path
@@ -84,7 +84,7 @@ themselves.
 
 ### The value: a curve is a flat `List` of numbers
 
-`Value::List(Arc<[Value]>)` (`timeline/env.rs:158`) is already shared-by-refcount for
+`Value::List(Arc<[Value]>)` (`timeline/env/`) is already shared-by-refcount for
 exactly this shape — its doc comment names an FFT sample array captured by a plot
 closure, deep-cloned per sample point until the `Arc` landed. Curves reuse it as a
 flat interleaved pair list:
@@ -100,23 +100,23 @@ encoding covers everything.
 
 Keys are injected as **literal dotted strings**, which is how `scene.center` already
 works: `Expr::Path` tries the joined dotted key in the environment first
-(`timeline/utils.rs:387`) and only then falls back to walking `Value::Object` fields
+(`timeline/utils/`) and only then falls back to walking `Value::Object` fields
 (`:391-410`). So `scene.stats.motion` needs no `Value::Object`, no type-layer field
 resolution, and no nesting machinery.
 
 ### Injection point and gating
 
 The bake writes into `timeline.env` **before** `env_base` is frozen
-(`build/entry.rs:856`), so a curve reaches every frame through `Environment::with_base`
+(`build/entry.rs`), so a curve reaches every frame through `Environment::with_base`
 as an immutable base-layer key — readable in `always` with zero per-frame work, the
 same route the `scene.{anchor}` keys take.
 
 Gating follows `has_effect_scopes` / `refresh_blend_used` / `refresh_camera_used`
-(`build/entry.rs:933-936`): a build-time flag `stats_used`, set when any expression
+(`build/entry.rs`): a build-time flag `stats_used`, set when any expression
 textually references `scene.stats`, guards the whole pass. A scene that never asks
 about itself pays nothing anywhere — not at build, not at frame time. (Companion
 requirement: `build::referenced_roots`, which filters per-frame property injection by
-textual reference, `timeline/mod.rs:633-638`, must not mistake `scene.stats` for an
+textual reference, `timeline/mod.rs`, must not mistake `scene.stats` for an
 actor label. Verify against how `scene.center` is currently treated in the analyzer's
 `symbol_table.rs`.)
 
@@ -214,13 +214,13 @@ When `config { seamless_loop: true }`, the smoothing window wraps circularly
 (`t - W < 0` reads past the scene end) and the bake **pins `v0 == vN`**. Without this,
 the window truncation at `t < W` is a startup transient that jumps at the seam —
 the same family of defect as the pinned-spring-endpoint note at
-`easing.rs:156-158` ("a keyframe that lands 0.2% off its target moves the resting
+`easing.rs` ("a keyframe that lands 0.2% off its target moves the resting
 composition"). For non-loop scenes the window clamps at `t0` and the transient is the
 correct behaviour.
 
 The baked curves are then lintable, which closes the one hole the existing check has:
 the seamless-loop pass samples *keyframed properties* and its comment at
-`build/entry.rs:708-712` is explicit that `always`-computed values are invisible to it.
+`build/entry.rs` is explicit that `always`-computed values are invisible to it.
 Baked curves are data, so add them to that walk: compare `curve_at(c, 0)` against
 `curve_at(c, end_ms)`. Absent this, a scene whose ambience jumps at the seam fails
 invisibly — which is precisely how the next `history/` entry gets written.
@@ -237,7 +237,7 @@ invisibly — which is precisely how the next `history/` entry gets written.
 - **Order of operations**: sample raw → smooth → simplify → pin loop endpoints. The
   RDP pass after smoothing is what makes the point count small; simplifying first
   would distort the response.
-- **Determinism**: iteration is over `BTreeMap` tracks (`timeline/mod.rs:516` — the
+- **Determinism**: iteration is over `BTreeMap` tracks (`timeline/mod.rs` — the
   key order is the determinism guarantee), so bake output is byte-identical across
   runs and threads.
 
@@ -256,7 +256,7 @@ shading" as an effect or a container scope. A full-canvas `Filter` scope would b
 more serialized render/harvest round-trip — and the measured floor says that cost is
 not fill-rate: halving resolution bought +15% (`roadmap.md:150`), the 13-scope
 catalog is 63–71 ms with the chain itself only ~12 ms. Worse, a background is by
-definition *first* in z-order, and `can_post_composite_filter` (`scene_eval.rs:380`,
+definition *first* in z-order, and `can_post_composite_filter` (`timeline/scene_eval/`,
 call site `:2290`) permits the zero-readback path only for the last rendered element,
 so a background scope takes the inline readback path every frame.
 
@@ -305,8 +305,8 @@ nothing and looks correct in source.
 |---|---|---|
 | Density **grid** / `density_at(x, y)` | Needs `List<List<Num>>`, a spatial sampler, and a size-2 encoding decision, for marginal gain over `focus` + `spread` (which describe the same content as two Gaussians) | A real layout needs more than one hotspot |
 | `Ambience` **primitive** | Every visual it would emit is already expressible as `Rect`/`Ellipse` + `fill_gradient` + `blend`; a primitive adds a catalog row, an identity card, an applicability row, and a spec table | The recipe set grows a shared parameter vocabulary worth pinning |
-| Ambience as **parent container** of the cast | A parent evaluates before its children, so `TargetResolver::target_bounds` (`timeline/callout_geometry.rs:34-77`) can only reach its 2nd/3rd fallback — declared size × world affine — never the `precise_bounds` that reflect text/path/image ink. And full-viewport-under-content compositing is documented as absent: *"there is no way to put content underneath it"* (`roadmap.md:167-170`) | Compositing gains a below-scope pass |
-| Frame-time **stat accumulation** (`prev = lerp(prev, now, k)`) | Impossible, not merely discouraged: cache hits skip recomputation (`scene_eval.rs:1913`) and export threads start mid-timeline. `curve_smooth` provides the identical response for free | Never — this is the constraint the design is built on |
+| Ambience as **parent container** of the cast | A parent evaluates before its children, so `TargetResolver::target_bounds` (`timeline/callout_geometry.rs`) can only reach its 2nd/3rd fallback — declared size × world affine — never the `precise_bounds` that reflect text/path/image ink. And full-viewport-under-content compositing is documented as absent: *"there is no way to put content underneath it"* (`roadmap.md:167-170`) | Compositing gains a below-scope pass |
+| Frame-time **stat accumulation** (`prev = lerp(prev, now, k)`) | Impossible, not merely discouraged: cache hits skip recomputation (`timeline/scene_eval/`) and export threads start mid-timeline. `curve_smooth` provides the identical response for free | Never — this is the constraint the design is built on |
 | Rendered-ink statistics (pixel/luminance) | Readback hard-errors on wasm and is the recorded perf landmine (`docs/performance_evaluation.md` §3.7) | A GPU-side reduction with no CPU round-trip exists |
 | `stat("name")` string lookup | Would need the env route and a name registry; passing the curve as an argument is strictly more general (author-built curves work too) | — |
 
