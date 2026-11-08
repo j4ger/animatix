@@ -66,7 +66,7 @@ impl Size {
     }
 
     /// Returns the horizontal padding (in px) for this size.
-    pub fn pad_x(self) -> f32 {
+    fn pad(self) -> f32 {
         match self {
             Self::Xs => crate::tokens::spatial::SPACE_1,
             Self::Sm => crate::tokens::spatial::SPACE_2,
@@ -74,6 +74,11 @@ impl Size {
             Self::Lg => crate::tokens::spatial::SPACE_4,
             Self::Custom(_) => crate::tokens::spatial::SPACE_3,
         }
+    }
+
+    /// Returns the horizontal padding (in px) for this size.
+    pub fn pad_x(self) -> f32 {
+        self.pad()
     }
 
     /// Returns the horizontal padding scaled for the given density.
@@ -83,13 +88,7 @@ impl Size {
 
     /// Returns the vertical padding (in px) for this size.
     pub fn pad_y(self) -> f32 {
-        match self {
-            Self::Xs => crate::tokens::spatial::SPACE_1,
-            Self::Sm => crate::tokens::spatial::SPACE_2,
-            Self::Md => crate::tokens::spatial::SPACE_3,
-            Self::Lg => crate::tokens::spatial::SPACE_4,
-            Self::Custom(_) => crate::tokens::spatial::SPACE_3,
-        }
+        self.pad()
     }
 
     /// Returns the `TextRole` that corresponds to this size.
