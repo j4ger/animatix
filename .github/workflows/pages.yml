@@ -11,8 +11,9 @@
 # bundle build, the site scene build in both profiles, and the wasm compile —
 # which meant a broken `web/embed/amx-player.js` could be discovered *after*
 # the merge it was supposed to protect. They are gates in scripts/ci.sh now, so
-# a PR runs exactly them; this file keeps the deploy and re-runs the gates as
-# the release blocker it always was.
+# a PR runs exactly them; this file keeps the deploy build/assembly as the
+# release blocker, while the browser smoke stays in CI so a software-GPU retry
+# is not paid (or flaked) twice for the same commit.
 #
 # NOTE for maintainers: Pages must be enabled once in the repo settings
 # (Settings → Pages → Source: "GitHub Actions"); after that this workflow
@@ -79,16 +80,14 @@ jobs:
       - name: Gates (embed bundle build, site scenes in shipped profiles)
         run: scripts/ci.sh gate embed-build site-scenes
 
-      - name: Build engines and smoke the pages
-        # `.#web-ci` is the only shell with a wasm32 std, the pinned
-        # wasm-bindgen CLI and a headless Chromium. Building and smoke-testing
-        # in one step is required: pkg/ is gitignored, so a separate job would
-        # have nothing to load. This intentionally repeats the CI web-build
-        # gates for the same reason: this workflow gets a fresh checkout, not
-        # the CI runner's workspace. ci.sh never enters the shell itself —
-        # devshells prepend, so an outer rustc would win and the build would
-        # look broken.
-        run: nix develop .#web-ci --command scripts/ci.sh gate web-build web-smoke
+      - name: Build engines
+        # `.#web-ci` is the only shell with a wasm32 std and the pinned
+        # wasm-bindgen CLI. Building here is required: pkg/ is gitignored and
+        # this workflow gets a fresh checkout, not the CI runner's workspace.
+        # The browser smoke already ran in CI for this exact commit; repeating
+        # it here doubled the deploy time and gave a software-GPU flake a second
+        # chance to block deployment. `workflow_run` success is the smoke gate.
+        run: nix develop .#web-ci --command scripts/ci.sh gate web-build
 
       # The same assembler the release pipeline zips with (scripts/site-artifact.sh):
       # the .br twins dropped, .nojekyll written, both engine bundles required.

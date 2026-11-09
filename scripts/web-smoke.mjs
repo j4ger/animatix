@@ -43,6 +43,12 @@ const PAGES = process.env.SMOKE_PAGES
       "/dev/svg-probe/index.html",
     ];
 
+// Full-engine scenes load a second, ~22 MB wasm module. On a SwiftShader CI
+// runner the first compile can take several minutes, so the per-player bound is
+// deliberately generous; the page-level budget covers a page with many players.
+const PLAYER_READY_TIMEOUT_MS = 480_000;
+const PAGE_BUDGET_MS = 30 * 60_000;
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function freePort() {
@@ -113,7 +119,7 @@ class Cdp {
 
 // Runs inside the page. The page-side deadline is generous: the first load
 // compiles a multi-megabyte wasm module and builds every scene on the page.
-function pageProbe() {
+function pageProbe(playerTimeoutMs, pageBudgetMs) {
   return (async () => {
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     if (!navigator.gpu) return { error: "navigator.gpu is undefined (no WebGPU)" };
@@ -137,13 +143,13 @@ function pageProbe() {
     // at a time and wait for each: that is what a reader does, and it makes the
     // gate deterministic instead of a race with the scroll position.
     // Full-engine scenes compile a second wasm module; on SwiftShader CI that
-    // can take minutes per player. Keep the 120 s per-player bound but allow
-    // the page 15 min overall instead of 10 so a slow upgrade is not a flake.
+    // can take minutes per player. The 8 min per-player bound and 30 min page
+    // budget absorb the first full-engine compile instead of failing it.
     const results = [];
-    const globalDeadline = Date.now() + 900000;
+    const globalDeadline = Date.now() + pageBudgetMs;
     for (const player of players) {
       const src = player.getAttribute("src");
-      const deadline = Math.min(globalDeadline, Date.now() + 120000);
+      const deadline = Math.min(globalDeadline, Date.now() + playerTimeoutMs);
       player.scrollIntoView({ block: "center", behavior: "instant" });
       // IntersectionObserver can lag behind a programmatic scroll on a loaded
       // CI runner, leaving a lazy player idle forever. `loadNow()` is the
@@ -158,7 +164,7 @@ function pageProbe() {
         if (player._state === "error") return { error: `player error on ${src}` };
         if (Date.now() > deadline) {
           return {
-            error: `timed out waiting for ${src} to be ready (state: ${player._state})`,
+            error: `timed out after ${Math.round(playerTimeoutMs / 1000)}s waiting for ${src} to be ready (state: ${player._state})`,
             states: players.map((p) => p._state),
           };
         }
@@ -313,6 +319,7 @@ async function main() {
 
     for (const path of PAGES) {
       const url = `${base}${path}`;
+      const pageStarted = Date.now();
       process.stdout.write(`web-smoke: ${path} `);
       await cdp.send("Page.navigate", { url });
       await waitFor(`load of ${path}`, 120000, async () => {
@@ -324,7 +331,7 @@ async function main() {
       });
 
       const { result } = await cdp.send("Runtime.evaluate", {
-        expression: `(${pageProbe.toString()})()`,
+        expression: `(${pageProbe.toString()})(${PLAYER_READY_TIMEOUT_MS}, ${PAGE_BUDGET_MS})`,
         awaitPromise: true,
         returnByValue: true,
       });
@@ -344,7 +351,7 @@ async function main() {
       if (painted === 0 && canvases.some((size) => size > 0)) {
         throw new Error(`${path}: every canvas is blank after ready (${canvases.join(",")})`);
       }
-      console.log(`ok (${outcome.players} players, ${painted} painted, canvas bytes ${canvases.join(",")})`);
+      console.log(`ok (${outcome.players} players, ${painted} painted, canvas bytes ${canvases.join(",")}, ${((Date.now() - pageStarted) / 1000).toFixed(1)}s)`);
     }
     console.log("web-smoke: ok");
   } catch (error) {

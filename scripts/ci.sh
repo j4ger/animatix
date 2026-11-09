@@ -337,6 +337,10 @@ gate_web_build() {
   # checkout does not have it and artifacts do not cross jobs; build it in this
   # job before the smoke gate serves the site.
   gate_embed_build
+  # The size budget belongs to the build, not only to the Pages assembler: a
+  # regression that only the deploy gate catches has already reached main.
+  # `_site` and the font pack may not exist yet; size-report skips missing paths.
+  bash scripts/size-report.sh --check
 }
 
 gate_web_smoke() {
@@ -349,10 +353,12 @@ gate_web_smoke() {
   #
   # The browser smoke is the one gate that depends on a real Chromium process
   # and a local HTTP server; a cold or overloaded runner occasionally reaches
-  # the player before its scene fetch has completed. A second attempt catches
-  # that startup race without weakening the checks.
+  # the player before its scene fetch has completed. One restart catches that
+  # startup race without weakening the checks. The per-player timeout is already
+  # generous (full-engine wasm can take minutes on SwiftShader), so repeating
+  # the whole suite a third time only multiplies the runtime of a real failure.
   local attempt
-  for attempt in 1 2 3; do
+  for attempt in 1 2; do
     if node scripts/web-smoke.mjs; then
       return 0
     fi
