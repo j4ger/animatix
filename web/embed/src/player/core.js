@@ -1,8 +1,23 @@
 const FRAME_RATE = 60;
 
-// `?amxdebug` turns the readout on for every player on the page, so a deployed
-// page can be inspected without editing its markup.
+// `?amxdebug` turns the debug readouts on for every player on the page — the
+// strip's frame readout and the stats HUD (`hud.js`) — so a deployed page can be
+// inspected without editing its markup. Deliberately namespaced: a bare `?debug`
+// belongs to whatever else the page runs, and a library that claims it can turn
+// on a stranger's overlay.
 const DEBUG_BY_URL = /[?&]amxdebug\b/.test(location.search);
+
+// Counters the stats HUD reads (`hud.js`). `steps` is committed 60 Hz steps —
+// the page's achieved cadence; `renders` is how many embeds actually drew in
+// those steps, so a page where `steps` is healthy and `renders` stays 0 reads
+// as "everything is paused or deduped" rather than "everything is fast".
+//
+// On `globalThis`, not module-local: a page can import this bundle through two
+// different URLs (a relative `./embed/` and an absolute one), which evaluates
+// the module twice. Only the first defines the custom element, so only its
+// `instances` set and its loop are live — a HUD mounted from the second copy
+// would otherwise read zeros forever. One page, one counter object.
+const stats = (globalThis.__amxStats ??= { steps: 0, renders: 0 });
 
 const LOADER_SCRIPT = [...document.querySelectorAll("script[type=module]")].find((s) =>
   (s.src || "").includes("amx-player.js"),
@@ -313,6 +328,7 @@ function tick(t) {
   const dt = pendingDt;
   pendingDt = 0;
   const now = performance.now();
+  stats.steps += 1;
 
   // Pressure is measured on committed steps only, from the rAF timestamp gap.
   // The manual-tick probe feeds fake monotonic timestamps with ~40 ms deltas;
@@ -341,6 +357,7 @@ function tick(t) {
       inst._noteRenderMs(performance.now() - t0, now);
       inst._wantRender = false;
       rendersThisTick += 1;
+      stats.renders += 1;
     }
   }
 
@@ -569,5 +586,5 @@ export {
   lastT, QUALITY_STEPS, SLOW_TICK_MS, FAST_TICK_MS, qualityStep, slowTicks, fastTicks,
   setQualityStep, tick, ensureLoop, SCROLL_SETTLE_MS, LOAD_MAX_DEFER_MS, LOAD_RETRY_MS,
   LOAD_STALL_MS, loadQueue, arriving, loadTimer, lastScrollAt, pumpLoads, enqueueLoad,
-  dequeueLoad, ASPECTS, refreshInterval, CADENCE_STEPS, cadenceStep, pagePressure,
+  dequeueLoad, ASPECTS, refreshInterval, CADENCE_STEPS, cadenceStep, pagePressure, stats,
 };

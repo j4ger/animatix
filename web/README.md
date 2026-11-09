@@ -271,6 +271,22 @@ Behavior:
   copies the line to the clipboard and the console. Needs `controls` — the
   readout lives in the strip; `player.frame`, `player.totalFrames` and
   `player.debugReport()` work on any ready player regardless.
+
+  **`?amxdebug`** also adds a page-level stats panel — the readout for "the page
+  feels choppy", as opposed to "this frame looks wrong". Fixed
+  top-right, pointer-transparent, 5 Hz, one `<pre>` rewritten in place, so it
+  does not change what it measures. It reports the achieved page cadence
+  (`fps / 60` grid) against how many embeds are visible, playing and drawing;
+  the page's raster-pixel total against its budget; and one line per embed:
+  state, `rs` (the scale the engine actually rasters at) against `disp` (the
+  display match) with the two multipliers that took it (`×q` quality ladder,
+  `×px` page pixel budget), `▼` when the raster is below the display match
+  (upscaled blit) and `▲` when it supersamples, the raster size, target fps,
+  measured render cost, missed-vsync pressure, the controller's current reason
+  (`ok`, `budget:fps`, `budget:raster`, `budget:pixel`), and the share of ticks
+  the frame dedup absorbed. Players read from the document rather than from the
+  module's instance set, so a page that imports the bundle twice still reports
+  every element.
   Mouse: hovering the strip freezes the clock and peeks the frame under the
   pointer (snapping to landmarks within 0.2 s); leaving resumes, unless a
   click latched the pause. Clicking the strip sets the position and toggles
@@ -694,6 +710,20 @@ wasm files no longer contain font bytes.
   WebGPU the discrete GPU but WebGL2 the integrated one, so the two backends are
   not always on the same GPU — the page reports which adapter each got. Dev-only:
   it measures raw renderer throughput, not effects, transitions or text shaping.
+- `web/dev/dawn-calls.html` — call-count census: the "is a browser frame's cost
+  the Dawn call count?" question priced instead of argued. It wraps the WebGPU
+  prototypes the wasm player calls through (no Rust change) and reports what one
+  rendered frame issues — 117 calls for a plain scene (16 compute passes, 16 bind
+  groups, 2 submits, 1 render pass), 279 with one `Filter` scope — plus µs per
+  call type, the cost of a compute-pass boundary, and the canvas
+  acquire+clear+present on its own (`debug_fill`). Drive it with
+  `HB_HEADED=1 node scripts/dawn-calls-probe.mjs`; a headless Chromium here
+  exposes no native-Vulkan adapter, and SwiftShader ms are CPU emulation. The
+  answer it gives on an RTX 4060: the whole call set is ~37 µs of a ~1.2 ms
+  frame, so per-call work is not where a browser frame goes. It deliberately
+  carries no A/B arm — a JS-level "fewer calls" simulation (memoized bind groups,
+  merged submits) measured *less work* rather than the same work faster, and the
+  page header records why.
 
 > Two probe traps have burned this pipeline before (see `docs/history/2026-09.md`,
 > "The wasm-SVG item that never was"): a scene screenshot catches whatever

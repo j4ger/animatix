@@ -59,6 +59,15 @@
 //              `controls` (the readout lives in the strip); `?amxdebug` on the
 //              page URL turns it on for every player without editing markup,
 //              and `d` toggles it while the strip has focus.
+//
+// Page-level stats HUD: `?amxdebug` on the page URL adds a fixed panel in the
+// corner with the achieved page cadence, how many embeds are
+// visible/playing/drawing, the page's raster-pixel total against its budget,
+// and one line per embed — state, render scale against the display match (with
+// the quality/page multipliers that took it), raster size, target fps, measured
+// render cost, missed-vsync pressure, the controller's current reason, and the
+// share of ticks the frame dedup absorbed. It updates at 5 Hz and is
+// pointer-transparent, so it does not change what it measures.
 //   fit        "contain" (default — the whole frame, letterboxed) | "cover"
 //              — the frame fills the element box, cropping overflow. Cover
 //              also unlocks the stage from its aspect-ratio box so the
@@ -116,11 +125,17 @@
 // frame out loud.
 
 import { AmxPlayerPlayback } from "./player/playback.js";
+import { installDebugHud } from "./player/hud.js";
 
 class AmxPlayerElement extends AmxPlayerPlayback {}
 
 if (!customElements.get("amx-player")) {
   customElements.define("amx-player", AmxPlayerElement);
 }
+
+// `?amxdebug` mounts the page-level stats panel. Installed from
+// the entry point, not from the element, so a page with no player still reports
+// "players 0" instead of silently showing nothing.
+installDebugHud();
 
 export { AmxPlayerElement };
