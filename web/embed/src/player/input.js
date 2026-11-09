@@ -216,6 +216,7 @@ export class AmxPlayerInput extends AmxPlayerLoad {
     // hold rest.
     if (this._time >= this._duration) this._time = 0;
     this._playing = true;
+    this._pausedByVisibility = false;
     // A paused embed is not in `instances`, so it misses both the quality-step
     // notifications and its own layout changes; re-align on the way in.
     this._applyRenderScale();

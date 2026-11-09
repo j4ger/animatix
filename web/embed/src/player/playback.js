@@ -18,16 +18,38 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
 
   pause() {
     this._playing = false;
+    // An explicit pause outranks the visibility observer: re-entering the
+    // viewport must not undo what the user (or the page) just asked for.
+    this._pausedByVisibility = false;
     instances.delete(this);
     if (this._state === "ready") {
-      // Without the control bar the center affordance is the only way back —
-      // except for a sealed embed, where the page is the way back, or in
-      // presentation mode where slides rest cleanly without an obscuring overlay.
-      if (!this._controls && !this._isSealed() && !this.hasAttribute("autoplay") && !this._isPresentation()) {
-        this._playbtn.classList.add("show");
-      }
+      this._showPlayAffordance();
       this._syncControls();
     }
+  }
+
+  /// Off-screen pause, owned by the visibility observer. It is not a user
+  /// decision, so [`Self::_resumeFromVisibility`] undoes it on re-entry; keeping
+  /// it apart from `pause()` is what stops a scroll from permanently freezing an
+  /// autoplay figure.
+  _pauseForVisibility() {
+    if (!this._playing) return;
+    this._playing = false;
+    instances.delete(this);
+    this._pausedByVisibility = true;
+    if (this._state === "ready") this._syncControls();
+  }
+
+  /// Undo an off-screen pause. An `autoplay` embed was started by the page, so
+  /// leaving the viewport was never a user pause and coming back resumes it. A
+  /// page that called `play()` on an embed *without* `autoplay` keeps the old
+  /// behaviour — it stays paused — but gets the affordance instead of being
+  /// stuck with a frozen picture and no control.
+  _resumeFromVisibility() {
+    if (!this._pausedByVisibility) return;
+    this._pausedByVisibility = false;
+    if (this.hasAttribute("autoplay") && !REDUCED_MOTION && !SAVE_DATA) this.play();
+    else this._showPlayAffordance();
   }
 
   /// Jump to `time` (seconds within the timeline) and show the frame. Keeps

@@ -41,6 +41,10 @@ export class AmxPlayerBase extends HTMLElement {
     this._renderFailures = 0; // consecutive _renderScene failures; see below
     this._debugFrame = this.hasAttribute("debug-frame") || DEBUG_BY_URL;
     this._visible = false;
+    // True while the *visibility observer* is the reason playback is
+    // stopped, so re-entering the viewport can undo exactly that pause and
+    // never a user's. See `_pauseForVisibility` in playback.js.
+    this._pausedByVisibility = false;
     this._observer = null;
     this._renderScaleObserver = null;
     this._renderScaleRetry = null;
@@ -223,6 +227,22 @@ export class AmxPlayerBase extends HTMLElement {
   /// change so a page can seal or unseal an embed mid-flight.
   _isSealed() {
     return this.hasAttribute("sealed");
+  }
+
+  /// Show the center play affordance — the only way back for an embed with no
+  /// control bar. Suppressed where something else already resumes: the strip's
+  /// own play button (`controls`), page-driven playback (`sealed`), and
+  /// presentation mode (slides rest without an obscuring overlay).
+  ///
+  /// `autoplay` is deliberately *not* in that list. It used to be, on the
+  /// reasoning that an autoplay embed is paused by the page rather than by the
+  /// user — but that left every controls-less autoplay figure with no way back
+  /// at all once anything stopped it. A visible button is strictly better than a
+  /// frozen picture.
+  _showPlayAffordance() {
+    if (!this._playbtn) return;
+    if (this._controls || this._isSealed() || this._isPresentation()) return;
+    this._playbtn.classList.add("show");
   }
 
   /// `fit` — "contain" (default) or "cover" (see the attribute docs above).

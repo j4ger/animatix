@@ -478,7 +478,10 @@ export class AmxPlayerView extends AmxPlayerBase {
         for (const entry of entries) {
           this._visible = entry.isIntersecting;
           if (this._visible && this._state === "idle") this._maybeStartLoading();
-          if (!this._visible && this._playing) this.pause();
+          if (!this._visible && this._playing) this._pauseForVisibility();
+          // Undo an off-screen pause (never a user's). Runs before the sealed
+          // branch below, which is then a no-op because playback is running.
+          if (this._visible) this._resumeFromVisibility();
           // A sealed embed with autoplay has no visible control to bring it
           // back after the offscreen pause above — resuming on re-entry is
           // the whole contract of the attribute pair.
