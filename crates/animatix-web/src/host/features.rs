@@ -31,9 +31,15 @@ pub fn required_features(stmts: &[Stmt]) -> FeatureMask {
 }
 
 fn features_for_type(ty: &str) -> FeatureMask {
-    catalog_lookup(ty)
-        .map(|info| info.required_features)
-        .unwrap_or(FeatureMask::UNKNOWN)
+    if let Some(info) = catalog_lookup(ty) {
+        return info.required_features;
+    }
+    // Effect children inside a Filter/Glass scope are built-ins, not unknown
+    // primitives; they do not require the full engine.
+    if animatix_std::is_effect(ty) {
+        return FeatureMask::NONE;
+    }
+    FeatureMask::UNKNOWN
 }
 
 #[cfg(test)]
@@ -78,6 +84,19 @@ mod tests {
         assert!(
             required_features(&parse(source)).contains(FeatureMask::RICH_TEXT),
             "a primitive nested in a keyframe/container must be found"
+        );
+    }
+
+    #[test]
+    fn filter_effect_children_are_not_unknown() {
+        let source = r#"panel: Filter {
+  soft: Blur, radius: 4
+  glow: Bloom, intensity: 0.5
+}"#;
+        assert_eq!(
+            required_features(&parse(source)),
+            FeatureMask::NONE,
+            "effect children must not be mistaken for unknown actor primitives"
         );
     }
 

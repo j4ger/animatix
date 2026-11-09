@@ -51,6 +51,15 @@ pub static EFFECTS: &[&dyn Effect] = &[
     &effects::POSTERIZE,
 ];
 
+/// True when `name` is a built-in effect type.
+///
+/// Effect children (`Blur`, `Bloom`, …) live inside a `Filter`/`Glass` scope,
+/// not in the primitive catalog. The browser feature walker must not mistake
+/// them for an unknown actor and select the full engine.
+pub fn is_effect(name: &str) -> bool {
+    EFFECTS.iter().any(|effect| effect.type_name() == name)
+}
+
 // ── Dispatch ────────────────────────────────────────────────────────────────
 
 /// A resolved effect: either a built-in singleton or a registered plugin
