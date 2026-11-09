@@ -1,20 +1,13 @@
-// house-style: three acts — residual-highway hook, dual-sublayer mechanism, delta payoff with a camera push.
+// house-style: residual-highway hook, dual-sublayer mechanism, delta injection payoff.
 // 05 · Feed-forward network & residual highway.
 //
-// The residual stream is the spine of the transformer. Three acts:
-//   I.  An unbroken highway draws across the whole stage: identity signal
-//       survives every depth.
-//   II. Attention and the 4× expansion feed-forward branch off it; each
-//       sublayer computes a delta and adds back into the stream.
-//   III. The deltas sum, the stream carries the result, and the camera pushes
-//       in on the residual principle before settling.
+// The residual stream is the central spine of the transformer block. Three acts:
+//   I.   An unbroken highway draws across the whole stage: identity signal survives deep layers.
+//   II.  Attention and the 4× expansion feed-forward branch off it; each sublayer computes an additive delta.
+//   III. The deltas sum back into the stream, the camera pushes in on the residual principle before settling.
 //
 // House-style §1: StageFloor + compact head + caption are opaque at t=0.
-// House-style §5: title 48 (compact head; the highway owns the top band),
-// node titles 20, sublabels 16, formula 22, captions 24 — nothing below 16.
-//
-// Slider: `expansion` is the FFN width multiplier; it drives the projected
-// dimension copy and the number of expansion bars in the FFN card (2-8, step 1).
+// House-style §5: title 48, node titles 20, sublabels 16, formula 22, captions 24.
 
 import "../../lib/theme.amx"
 import "../../lib/stage.amx"
@@ -37,11 +30,11 @@ head_title: Text, text: "The signal keeps its way", font_size: 48, font_weight: 
 head_rule: Rect, size: (96, 4), color: accent.primary,
   anchor: scene.top_left, offset: (96, 150), opacity: 1
 
-cap1: Caption, text: "Act I · One unbroken highway carries the token's identity through the depth.",
+cap1: Caption, text: "The residual highway preserves signal through depth.",
   tag: "feedforward.amx", opacity: 1
-cap2: Caption, text: format("Act II · Attention mixes context; the FFN expands ×{:.0} to store facts.", expansion),
+cap2: Caption, text: format("FFN expands ×{:.0} to 3072 features to recall facts.", expansion),
   tag: "feedforward.amx", opacity: 0
-cap3: Caption, text: "Act III · Every sublayer adds only a delta; the stream preserves the signal.",
+cap3: Caption, text: "Sublayers add only deltas (x + Δ) into the highway.",
   tag: "feedforward.amx", opacity: 0
 
 exp_chip: Readout, label: "EXPANSION", value: format("×{:.0}", expansion), at: (795, 210)
@@ -181,7 +174,7 @@ fade-out dot [260ms, delay: 1480ms, ease: ease-in]
 fade-in summary_card [380ms, delay: 500ms, ease: expo-out]
 
 #5.10s
-sum_t: Text, text: "Residual principle: sublayers only compute deltas; the stream preserves signal depth.",
+sum_t: Text, text: "Residual principle: sublayers compute only additive deltas (x + Δ); the highway preserves signal depth.",
   font_size: 18, color: text.secondary, text_anchor: "center", at: (640, 620), opacity: 0
 fade-in sum_t [300ms, delay: 300ms, ease: expo-out]
 

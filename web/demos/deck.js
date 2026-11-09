@@ -12,7 +12,8 @@
       if (this.slides.length === 0) return;
 
       this.currentIndex = 0;
-      this.mode = localStorage.getItem('amx-deck-view-mode') || 'deck'; // 'deck' | 'article'
+      const defaultMode = this.root.dataset.defaultMode || 'article';
+      this.mode = localStorage.getItem('amx-deck-view-mode') || defaultMode; // 'deck' | 'article'
       this.isAutoAdvancing = false;
       this.autoTimer = null;
 
@@ -39,6 +40,39 @@
       this.nav = nav;
 
       this.renderNav();
+      this.renderFooters();
+    }
+
+    renderFooters() {
+      // Inject next/prev footer into each slide's briefing deck
+      this.slides.forEach((slide, idx) => {
+        if (slide.querySelector('.deck-slide-footer')) return;
+        const briefing = slide.querySelector('.briefing-deck');
+        if (!briefing) return;
+
+        const prevIdx = idx > 0 ? idx - 1 : null;
+        const nextIdx = idx < this.slides.length - 1 ? idx + 1 : 0;
+        const prevTitle = prevIdx !== null ? (this.slides[prevIdx].dataset.title || `Fig ${prevIdx}`) : '';
+        const nextTitle = this.slides[nextIdx].dataset.title || `Fig ${nextIdx}`;
+
+        const footer = document.createElement('div');
+        footer.className = 'deck-slide-footer';
+        footer.innerHTML = `
+          <div class="deck-footer-nav">
+            ${prevIdx !== null ? `
+              <button type="button" class="btn-deck-footer-nav prev" data-goto="${prevIdx}">
+                <span class="nav-arrow">←</span>
+                <span><b>Fig ${prevIdx.toString().padStart(2, '0')}</b> · ${prevTitle}</span>
+              </button>
+            ` : '<span></span>'}
+            <button type="button" class="btn-deck-footer-nav next" data-goto="${nextIdx}">
+              <span><b>Fig ${nextIdx.toString().padStart(2, '0')}</b> · ${nextTitle}</span>
+              <span class="nav-arrow">→</span>
+            </button>
+          </div>
+        `;
+        briefing.appendChild(footer);
+      });
     }
 
     renderNav() {
@@ -116,6 +150,15 @@
         if (e.target.closest('.deck-next')) {
           this.next();
           return;
+        }
+      });
+
+      // Slide footer next/prev navigation
+      this.root.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-deck-footer-nav');
+        if (btn && btn.dataset.goto !== undefined) {
+          const target = parseInt(btn.dataset.goto, 10);
+          if (!isNaN(target)) this.goToSlide(target);
         }
       });
 

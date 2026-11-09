@@ -1,20 +1,19 @@
-// house-style: flagship master figure; three acts, rests on the full blueprint.
+// house-style: flagship master figure, autoregressive loopback, fully assembled blueprint.
 // 00 · The whole architecture, one unified blueprint.
 //
 // The article opens with this master figure. It reads bottom-up, following data flow:
-//   1. Discrete token chips along the bottom baseline — with a BLANK where the
+//   1. Discrete token chips along the bottom baseline — with a blank slot where the
 //      prediction will land: the hook is the question, not the diagram.
 //   2. Token embeddings + positional encodings plate.
 //   3. Transformer block × N with self-attention, FFN, and residual skip arcs.
 //   4. LM Head un-embeds hidden states into vocabulary logits.
 //   5. Payoff: the autoregressive loopback draws, the winning token ("street")
 //      lands in the blank, the camera pushes a touch and settles — and the
-//      assembled blueprint holds into the resting frame (house-style §2).
+//      assembled blueprint holds into the resting frame.
 //
 // House-style §1: the StageFloor and the ActHead carry authored opacity, so
-// frame 0 is a lit, titled stage; the diagram is revealed *within* it.
-// House-style §5: nothing here renders below 16 px; node sublabels are 16,
-// plate text 18, the head title 64 (stage.ActHead), captions 24.
+// frame 0 is a lit, titled stage; the diagram is revealed within it.
+// House-style §5: nothing here renders below 16 px.
 
 import "../../lib/theme.amx"
 import "../../lib/stage.amx"
@@ -22,20 +21,12 @@ import "../lib/components.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 11.0 }
 
-// The slider target: `--set depth=N` (and the player's data-vars) rewrites the
-// block title and the skip-arc count copy without touching choreography.
+// The slider target: `--set depth=N` rewrites the block title and readouts.
 let depth = 12
 
 // ── the stage ───────────────────────────────────────────────────────
-// StageFloor alone: stacking Ambience's screen-blend ribbons over the floor
-// left a darker interference patch at scene centre in the early frames, and
-// two light systems on one plate is one too many (DESIGN §1.8).
 floor: StageFloor, glow: 1.3
 
-// A COMPACT head variant for master figures whose diagram needs the top band:
-// kicker + 48 px title + rule in a 150 px band, left-anchored at x=96 like
-// stage.ActHead, but without ActHead's 64 px title and 220 px column. Diagram
-// scenes with room above the subject use ActHead itself.
 head_kicker: Text, text: "FIG 00 · FULL ARCHITECTURE BLUEPRINT", font_size: 18,
   font_weight: 600, color: accent.primary, text_align: "left", text_anchor: "left",
   anchor: scene.top_left, offset: (96, 56), opacity: 1
@@ -45,9 +36,9 @@ head_title: Text, text: "One loop that writes", font_size: 48, font_weight: "bol
 head_rule: Rect, size: (96, 4), color: accent.primary,
   anchor: scene.top_left, offset: (96, 150), opacity: 1
 
-cap1: Caption, text: "Act I · Five tokens and a blank: the question the model answers.", tag: "overview.amx"
-cap2: Caption, text: "Act II · Embeddings climb into a block repeated × N.", tag: "overview.amx", opacity: 0
-cap3: Caption, text: "Act III · The loopback appends its own prediction to the input.", tag: "overview.amx", opacity: 0
+cap1: Caption, text: "Tokens enter with a blank slot awaiting prediction.", tag: "overview.amx"
+cap2: Caption, text: "Hidden states climb through repeated blocks (× N).", tag: "overview.amx", opacity: 0
+cap3: Caption, text: "Autoregressive loop appends “street” back to input.", tag: "overview.amx", opacity: 0
 
 // Readouts sit in the right gutter BELOW the probability ladder, which owns
 // y 80-156; the old placement collided with it from the payoff beat onward.

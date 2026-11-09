@@ -345,3 +345,50 @@ footer strong { color: var(--ink); font-weight: 600; }
   line-height: 1.5;
   color: #abb2bf;
 }
+
+/* Deck Slide Footer Navigation */
+.deck-slide-footer {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.deck-footer-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.btn-deck-footer-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 10px 16px;
+  color: var(--ink);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+.btn-deck-footer-nav:hover {
+  background: rgba(245, 185, 66, 0.1);
+  border-color: rgba(245, 185, 66, 0.35);
+  color: var(--accent);
+}
+.btn-deck-footer-nav .nav-arrow {
+  font-size: 16px;
+  font-weight: 700;
+}
+.btn-deck-footer-nav.next {
+  margin-left: auto;
+  background: rgba(245, 185, 66, 0.08);
+  border-color: rgba(245, 185, 66, 0.22);
+}
+.btn-deck-footer-nav.next:hover {
+  background: var(--deck-accent, var(--accent));
+  color: #080a0f;
+  border-color: transparent;
+}

@@ -1,22 +1,15 @@
-// house-style: three acts — token-entry hook, layer-stack climb, logit payoff with a camera push.
+// house-style: layer-stack climb, hierarchical abstraction, logit un-embedding payoff.
 // 06 · The deep layer stack & vocabulary logit projection.
 //
-// The walkthrough's closing figure. Three acts:
-//   I.  Tokens enter the base of the stack; the depth ruler states how many
-//       blocks they will cross.
-//   II. The stack builds bottom-up — Block 01 surface syntax, Block 06 entity
-//       relations, Block 12 abstract intent — each with its evolving
-//       representation strip.
-//   III. The LM head un-embeds the final state into 50,257 logits; the
-//       probability panel ranks them and "street" wins. The camera pushes in
-//       on the completed tower and settles into the resting frame.
+// The walkthrough's deep synthesis figure. Three acts:
+//   I.   Tokens enter the base of the stack; the depth ruler measures the computational budget.
+//   II.  The stack climbs bottom-up — Block 01 surface syntax, Block 06 entity
+//        relations, Block 12 abstract intent — each with an evolving representation strip.
+//   III. The LM head un-embeds the final state into 50,257 logits; the probability panel
+//        ranks candidates and "street" wins. The camera pushes in and settles into rest.
 //
 // House-style §1: StageFloor + compact head + caption are opaque at t=0.
-// House-style §5: title 48 (compact head; the tower owns the top band), block
-// titles 18, sublabels 16, readout values 28, captions 24 — nothing below 16.
-//
-// Slider: `stages` is the layer count quoted by the badge, the readout and the
-// narration, and it drives the number of depth-ruler ticks (range 6-24, step 2).
+// House-style §5: title 48, block titles 18, sublabels 16, captions 24.
 
 import "../../lib/theme.amx"
 import "../../lib/stage.amx"
@@ -39,11 +32,11 @@ head_title: Text, text: format("{:.0} layers to a word", stages), font_size: 48,
 head_rule: Rect, size: (96, 4), color: accent.primary,
   anchor: scene.top_left, offset: (96, 150), opacity: 1
 
-cap1: Caption, text: "Act I · Token embeddings enter the base of the N-layer stack.",
+cap1: Caption, text: "Token embeddings enter the base of the deep stack.",
   tag: "pipeline.amx", opacity: 1
-cap2: Caption, text: format("Act II · {:.0} blocks refine grammar, then coreference, then intent.", stages),
+cap2: Caption, text: format("{:.0} layers refine grammar into relational intent.", stages),
   tag: "pipeline.amx", opacity: 0
-cap3: Caption, text: "Act III · The LM head projects into 50,257 logits; softmax picks “street”.",
+cap3: Caption, text: "LM head projects 50,257 logits: “street” wins.",
   tag: "pipeline.amx", opacity: 0
 
 layers_chip: Readout, label: "LAYERS", value: format("{:.0}", stages), at: (1090, 180)

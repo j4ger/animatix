@@ -1,22 +1,16 @@
-// house-style: three acts — harmonic hook, period-doubling matrix, fusion payoff with a camera push.
+// house-style: harmonic hook, period-doubling matrix, vector fusion payoff.
 // 02 · Positional encoding — harmonic sinusoidal spectrum injected into token order.
 //
 // The question this figure answers: attention is order-blind, so where does
 // sequence order come from? Three acts:
-//   I.  Eight token positions line up over an empty spectral grid.
-//   II. The grid fills with sinusoids at doubling wavelengths — fine rows
-//       oscillate quickly, coarse rows slowly. The legend and the fusion card
-//       state the mechanism: x_i = e_i + p_i.
-//   III. A cursor scans the columns, re-reading one position's fingerprint, and
-//       the camera pushes into the matrix before settling on the full spectrum.
+//   I.   Eight token positions line up over an empty spectral grid.
+//   II.  The grid fills with sinusoids at doubling wavelengths — fine rows
+//        oscillate quickly, coarse rows slowly.
+//   III. A cursor scans the columns, extracting one position's fingerprint, and
+//        the vector fusion identity adds it element-wise to the token embeddings.
 //
 // House-style §1: StageFloor + compact head + caption carry frame 0.
-// House-style §5: 48 px title (compact head, the diagram owns the top band),
-// row labels 18, axis labels 16, formulas 22, captions 24 — nothing below 16.
-//
-// Slider: `wavelength` is the coarse-row period; rows quote wavelength/8,
-// wavelength/4, wavelength/2 and wavelength, and the cell pattern is generated
-// from the same value (range 8-48, step 4).
+// House-style §5: title 48, row labels 18, formulas 22, captions 24.
 
 import "../../lib/theme.amx"
 import "../../lib/stage.amx"
@@ -25,8 +19,6 @@ import "../lib/components.amx"
 config { colorscheme: "ink", resolution: (1280, 720), duration: 7.4 }
 
 let wavelength = 24
-// 8 positions × 4 spectral rows, generated so the wavelength slider also
-// changes the harmonic field rather than only the copy.
 let cells = (0, 32)
 
 // ── the stage ───────────────────────────────────────────────────────
@@ -35,17 +27,17 @@ floor: StageFloor, glow: 1.25
 head_eyebrow: Text, text: "FIG 02 · HARMONIC POSITIONAL SPECTRUM", font_size: 18,
   font_weight: 600, color: accent.primary, text_align: "left", text_anchor: "left",
   anchor: scene.top_left, offset: (96, 44), opacity: 0
-head_title: Text, text: "Order is injected", font_size: 48, font_weight: "bold",
+head_title: Text, text: "Injecting the arrow of time", font_size: 48, font_weight: "bold",
   color: text.primary, text_align: "left", text_anchor: "left",
   anchor: scene.top_left, offset: (96, 96), opacity: 1
 head_rule: Rect, size: (96, 4), color: accent.primary,
   anchor: scene.top_left, offset: (96, 150), opacity: 1
 
-cap1: Caption, text: "Act I · Attention is order-blind; position must be supplied.",
+cap1: Caption, text: "Attention is order-blind; sequence order must be injected.",
   tag: "positional.amx", opacity: 1
-cap2: Caption, text: "Act II · Each row doubles its wavelength: fine resolution to coarse.",
+cap2: Caption, text: "Sinusoidal harmonics double wavelength across rows.",
   tag: "positional.amx", opacity: 0
-cap3: Caption, text: "Act III · The spectrum adds element-wise to the token embedding.",
+cap3: Caption, text: "Vectors fuse (x_i = e_i + p_i) to freeze word order.",
   tag: "positional.amx", opacity: 0
 
 pos_chip: Readout, label: "POSITIONS", value: "8", at: (1090, 210)
@@ -55,7 +47,7 @@ wave_chip: Readout, label: "MAX WAVELENGTH", value: format("{:.0}", wavelength),
 formula_chip: Stack, at: (1000, 78), size: (380, 50), opacity: 0 {
   f_bg: Rect, size: (380, 50), corner_radius: 12, color: surface.primary,
     stroke: stroke.default, stroke_width: 1.2
-  f_txt: Text, text: "PE = sin(pos / 10000^(2i/d))", font_size: 22, color: accent.info
+  f_txt: Text, text: "PE = sin(pos / 10000^(2i/d))", font_size: 22, font_weight: 600, color: accent.info
 }
 
 // ── Token positions above the matrix ────────────────────────────────

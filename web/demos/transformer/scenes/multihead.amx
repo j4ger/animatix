@@ -1,20 +1,15 @@
-// house-style: three acts — single-head blur hook, specialist head cards, concat payoff with a camera push.
+// house-style: single-head blur hook, specialist head cards, concat projection payoff.
 // 04 · Multi-head attention — parallel specialized subspaces & linear recombination.
 //
 // Why more than one head? A single attention map averages every relation into
 // one blur. Three acts:
-//   I.  One state projects into parallel subspaces — three head cards appear.
-//   II. Each head fills its own attention map: coreference, syntax, local
-//       context. Same tokens, different relation, all at once.
+//   I.   One representation projects into parallel subspaces — three specialist head cards appear.
+//   II.  Each head fills its own attention map: coreference, syntax, local context.
 //   III. Every head drops into the concatenation rail; W_O projects the joint
-//       vector back to d_model. The camera pushes in and settles.
+//        vector back to d_model. The camera pushes in and settles into rest.
 //
 // House-style §1: StageFloor + compact head + caption are opaque at t=0.
-// House-style §5: title 48 (compact head; the cards own the top band), card
-// titles 20, sublabels 16, formula 22, captions 24 — nothing below 16.
-//
-// Slider: `heads` is the head count quoted by the formula, the readout, the
-// concat rail and the narration (range 4-16, step 2).
+// House-style §5: title 48, card titles 20, sublabels 16, formula 22, captions 24.
 
 import "../../lib/theme.amx"
 import "../../lib/stage.amx"
@@ -36,11 +31,11 @@ head_title: Text, text: "Many heads, one output", font_size: 48, font_weight: "b
 head_rule: Rect, size: (96, 4), color: accent.primary,
   anchor: scene.top_left, offset: (96, 150), opacity: 1
 
-cap1: Caption, text: "Act I · One head averages every relation into a single blur.",
+cap1: Caption, text: "One head blurs relations; multi-head splits views.",
   tag: "multihead.amx", opacity: 1
-cap2: Caption, text: format("Act II · {:.0} heads specialize: coreference, syntax, local context.", heads),
+cap2: Caption, text: format("{:.0} parallel heads track syntax and coreference.", heads),
   tag: "multihead.amx", opacity: 0
-cap3: Caption, text: "Act III · Concatenate every head, then project back through W_O.",
+cap3: Caption, text: "Heads concatenate and project through W_O to d_model.",
   tag: "multihead.amx", opacity: 0
 
 heads_chip: Readout, label: "HEADS", value: format("{:.0}", heads), at: (1090, 210)
@@ -66,9 +61,9 @@ title_c: Text, text: "Head 3 · Local context", font_size: 20, color: accent.inf
 
 sub_a: Text, text: "“it” → “animal” · 0.88", font_size: 16, color: text.muted,
   text_anchor: "center", at: (231, 214), opacity: 0
-sub_b: Text, text: "“cross” → “street” · 0.92", font_size: 16, color: text.muted,
+sub_b: Text, text: "“didn't” → “cross” · 0.92", font_size: 16, color: text.muted,
   text_anchor: "center", at: (518, 214), opacity: 0
-sub_c: Text, text: "“didn't” → “cross” · 0.85", font_size: 16, color: text.muted,
+sub_c: Text, text: "“cross” → “street” · 0.85", font_size: 16, color: text.muted,
   text_anchor: "center", at: (805, 214), opacity: 0
 
 head1_grid: Grid, cols: 3, gap: 8, at: (231, 330) {

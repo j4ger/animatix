@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="../../site/v2.css">
 </head>
 <body>
-  <div class="wrap walkthrough-deck" data-amx-deck>
+  <div class="wrap walkthrough-deck" data-amx-deck data-default-mode="article">
     <header class="hero-split">
       <div class="hero-headline">
         <p class="kicker">ANIMATIX DEEP DIVE · COMPILATION-FIRST EXPLAINER</p>
@@ -37,14 +37,14 @@
     <div class="mental-model-banner">
       <div class="model-badge">
         <span class="live-dot"></span>
-        <span>The Core Mental Model: Tokens Flow Up</span>
+        <span>The Core Mental Model: The Residual Information Highway</span>
       </div>
       <div class="model-pipeline">
         <div class="pipeline-step"><span>01</span> Tokens</div>
         <div class="pipeline-arrow">→</div>
         <div class="pipeline-step"><span>02</span> Embed + Pos</div>
         <div class="pipeline-arrow">→</div>
-        <div class="pipeline-step active"><span>03</span> [Attn + FFN] × N</div>
+        <div class="pipeline-step active"><span>03</span> [Attn + FFN] × N (Highway)</div>
         <div class="pipeline-arrow">→</div>
         <div class="pipeline-step"><span>04</span> Logits</div>
       </div>
@@ -52,19 +52,7 @@
 
     <!-- ── Interactive Slideshow / Reading Container ── -->
     <!-- site-gen:works-params:start -->
-    <div class="param-rail" data-work="transformer" data-palette="ember">
-      <span class="readout">Live parameters · rebuilds the scenes in place</span>
-      <div class="param-row">
-        <label for="var-depth">depth</label>
-        <input id="var-depth" type="range" min="4" max="24" step="1" value="12" data-var="depth">
-        <output>12</output>
-      </div>
-      <div class="param-row">
-        <label for="var-heads">heads</label>
-        <input id="var-heads" type="range" min="1" max="16" step="1" value="12" data-var="heads">
-        <output>12</output>
-      </div>
-    </div>
+
 <!-- site-gen:works-params:end -->
 
     <div class="deck-slides-container">
@@ -97,8 +85,10 @@
               <span class="briefing-kicker">Architecture Blueprint · Autoregressive Feedback</span>
               <h2 class="briefing-title">The Transformer Block at a Glance</h2>
               <p class="briefing-hook">
-                Tokens climb through repeated self-attention and feed-forward sublayers (<strong>× N</strong>).
-                The winning token from the LM head appends back onto the input row — that feedback loop <strong>is</strong> autoregressive generation.
+                Frontier language models do not generate whole sentences at once; they run a continuous, iterative snowball.
+                In each forward pass, input tokens ascend through <strong>N stacked blocks</strong>. Self-attention routes context horizontally
+                between words, while feed-forward networks recall factual memory. At the summit, the LM Head projects hidden states
+                into vocabulary probabilities. The winning token appends back onto the input sequence — that feedback loop <strong>is</strong> autoregressive generation.
               </p>
             </div>
             <a class="btn-stage-src" href="scenes/overview.amx" target="_blank" rel="noopener noreferrer">
@@ -111,36 +101,36 @@
             <span class="spec-chip accent"><b>Depth:</b> 12 Blocks</span>
             <span class="spec-chip"><b>Coordinate Width:</b> 768 Float32</span>
             <span class="spec-chip"><b>Vocabulary:</b> 50,257 Tokens</span>
-            <span class="spec-chip"><b>Bypass:</b> Add &amp; Norm Residuals</span>
+            <span class="spec-chip"><b>Bypass:</b> Add &amp; Norm Residual Highway</span>
           </div>
 
           <div class="briefing-beats">
             <div class="beat-card">
               <span class="beat-step-num">1</span>
               <div class="beat-card-text">
-                <strong>Token Entry</strong>
-                Discrete sub-word tokens enter along the bottom baseline.
+                <strong>Token Baseline</strong>
+                Discrete tokens enter along the baseline with a trailing blank slot awaiting prediction.
               </div>
             </div>
             <div class="beat-card">
               <span class="beat-step-num">2</span>
               <div class="beat-card-text">
                 <strong>Coordinate Injection</strong>
-                Lookup table extrudes embedding and positional coordinates.
+                Lookup table extrudes dense coordinates, fused with sinusoidal position frequencies.
               </div>
             </div>
             <div class="beat-card">
               <span class="beat-step-num">3</span>
               <div class="beat-card-text">
-                <strong>Attention &amp; FFN</strong>
-                Context mixes across words, then transforms each coordinate row.
+                <strong>Attention &amp; FFN Bus</strong>
+                Blocks repeat × N, routing relational context and computing additive updates.
               </div>
             </div>
             <div class="beat-card">
               <span class="beat-step-num">4</span>
               <div class="beat-card-text">
-                <strong>Autoregressive Loop</strong>
-                Predicted next token appends back to input sequence.
+                <strong>Autoregressive Loopback</strong>
+                The top predicted candidate ("street") appends to the sequence, triggering the next turn.
               </div>
             </div>
           </div>
@@ -175,8 +165,9 @@
               <span class="briefing-kicker">01 · Vector Extrusion</span>
               <h2 class="briefing-title">From Text to High-Dimensional Coordinates</h2>
               <p class="briefing-hook">
-                Neural networks compute on geometry, not strings. The input string fractures into sub-word tokens
-                via Byte-Pair Encoding, each extruding a <strong>768-dimensional coordinate row</strong> from a learned lookup matrix.
+                Neural networks compute on continuous geometry, not raw characters. Byte-Pair Encoding (BPE) fractures the string into statistically optimal sub-word tokens,
+                mapped to integer IDs in a 50,257-token codebook. An embedding matrix W_e then extrudes each ID into a <strong>768-dimensional coordinate row</strong>,
+                translating discrete symbols into a rich semantic vector space where spatial proximity reflects conceptual meaning.
               </p>
             </div>
             <a class="btn-stage-src" href="scenes/tokens.amx" target="_blank" rel="noopener noreferrer">
@@ -186,9 +177,9 @@
           </div>
 
           <div class="briefing-specs">
-            <span class="spec-chip accent"><b>Tokenizer:</b> Byte-Pair Encoding</span>
+            <span class="spec-chip accent"><b>Tokenizer:</b> Byte-Pair Encoding (BPE)</span>
             <span class="spec-chip"><b>d_model:</b> 768 Dimensions</span>
-            <span class="spec-chip"><b>Embedding Table:</b> 38.6M Dedicated Weights</span>
+            <span class="spec-chip"><b>Embedding Table:</b> 50,257 × 768 Weights (38.6M)</span>
           </div>
 
           <div class="briefing-beats">
@@ -196,21 +187,21 @@
               <span class="beat-step-num">1</span>
               <div class="beat-card-text">
                 <strong>Raw Character Stream</strong>
-                Unbroken string received by the model tokenizer.
+                Unbroken natural text arrives before tokenizer segmentation.
               </div>
             </div>
             <div class="beat-card">
               <span class="beat-step-num">2</span>
               <div class="beat-card-text">
                 <strong>Sub-Word Fracture</strong>
-                Text splits into statistically optimal BPE token chips.
+                BPE splits words into frequent statistical n-grams and vocabulary IDs.
               </div>
             </div>
             <div class="beat-card">
               <span class="beat-step-num">3</span>
               <div class="beat-card-text">
-                <strong>Vector Lookup</strong>
-                Each chip retrieves its learned float32 coordinates.
+                <strong>Coordinate Extrusion</strong>
+                Lookup table W_e indexes learned Float32 coordinates, preparing continuous vectors.
               </div>
             </div>
           </div>
@@ -218,12 +209,13 @@
           <details class="deck-code-drawer">
             <summary class="deck-code-summary">Inspect Scene Code (.amx)</summary>
             <div class="deck-code-body">
-              <pre><code>// Declarative token chips & coordinate extrusion
-in_row: Row, at: (520, 190), gap: 18, align: "center" {
-  c1: LabeledBox, label: "The", width: 120, height: 56, text_size: 17
-  c2: LabeledBox, label: "animal", width: 120, height: 56, text_size: 17
-  c3: LabeledBox, label: "didn't", width: 120, height: 56, text_size: 17
-  c4: LabeledBox, label: "cross", width: 120, height: 56, text_size: 17
+              <pre><code>// Token chips & coordinate extrusion
+chip_row: Row, at: (520, 252), gap: 16, align: "center" {
+  chip_the: LabeledBox, label: "The", width: 150, height: 56, text_size: 20
+  chip_animal: LabeledBox, label: "animal", width: 150, height: 56, text_size: 20
+  chip_didnt: LabeledBox, label: "didn't", width: 150, height: 56, text_size: 20
+  chip_cross: LabeledBox, label: "cross", width: 150, height: 56, text_size: 20
+  chip_the2: LabeledBox, label: "the", width: 150, height: 56, text_size: 20
 }</code></pre>
             </div>
           </details>
@@ -258,8 +250,9 @@ in_row: Row, at: (520, 190), gap: 18, align: "center" {
               <span class="briefing-kicker">02 · Temporal Fingerprints</span>
               <h2 class="briefing-title">Injecting the Arrow of Time</h2>
               <p class="briefing-hook">
-                Self-attention is permutation-invariant — it treats tokens as an unordered bag of words.
-                Word order is injected by adding a unique <strong>harmonic frequency fingerprint</strong> to each position.
+                Self-attention calculates pairwise affinities without regard to order: it treats tokens as an unordered bag of words.
+                To distinguish sequence order, Transformers add a deterministic <strong>harmonic sinusoidal spectrum</strong> (x_i = e_i + p_i).
+                Wavelengths double across dimensions, giving each sequence index a distinct, continuous mathematical fingerprint.
               </p>
             </div>
             <a class="btn-stage-src" href="scenes/positional.amx" target="_blank" rel="noopener noreferrer">
@@ -269,31 +262,31 @@ in_row: Row, at: (520, 190), gap: 18, align: "center" {
           </div>
 
           <div class="briefing-specs">
-            <span class="spec-chip accent"><b>Period Doubling:</b> 3 → 6 → 12 → 24</span>
-            <span class="spec-chip"><b>Type:</b> Sinusoidal Harmonic Basis</span>
-            <span class="spec-chip"><b>Operation:</b> Element-Wise Vector Addition</span>
+            <span class="spec-chip accent"><b>Period Doubling:</b> λ = 3 → 6 → 12 → 24</span>
+            <span class="spec-chip"><b>Basis:</b> Sinusoidal Harmonic Basis</span>
+            <span class="spec-chip"><b>Operation:</b> Element-Wise Vector Addition (x_i = e_i + p_i)</span>
           </div>
 
           <div class="briefing-beats">
             <div class="beat-card">
               <span class="beat-step-num">1</span>
               <div class="beat-card-text">
-                <strong>Coordinate Matrix</strong>
-                Rows represent dimensions; columns represent sequence positions 0–7.
+                <strong>Order-Blindness</strong>
+                Attention is permutation-invariant; sequence order must be injected explicitly.
               </div>
             </div>
             <div class="beat-card">
               <span class="beat-step-num">2</span>
               <div class="beat-card-text">
-                <strong>Frequency Doubling</strong>
-                Lower rows halve frequency, transitioning from rapid oscillation to smooth gradients.
+                <strong>Harmonic Doubling</strong>
+                Sinusoidal waves double in wavelength across rows from fine to coarse resolution.
               </div>
             </div>
             <div class="beat-card">
               <span class="beat-step-num">3</span>
               <div class="beat-card-text">
-                <strong>Fingerprint Extraction</strong>
-                Cursor isolates column 3 composite vector added to token 3.
+                <strong>Vector Fusion</strong>
+                Positional vectors add element-wise to embeddings, permanently freezing token order.
               </div>
             </div>
           </div>
@@ -339,9 +332,9 @@ in_row: Row, at: (520, 190), gap: 18, align: "center" {
           </div>
 
           <div class="briefing-specs">
-            <span class="spec-chip accent"><b>Formula:</b> softmax(QKᵀ / √d_k)</span>
+            <span class="spec-chip accent"><b>Formula:</b> softmax(QKᵀ / √d_k) V</span>
             <span class="spec-chip"><b>Key Width (d_k):</b> 64 Float32</span>
-            <span class="spec-chip"><b>Focal Winner:</b> "animal" (0.62)</span>
+            <span class="spec-chip"><b>Coreference Winner:</b> "animal" (0.64 vs "street" 0.18)</span>
           </div>
 
           <div class="briefing-beats">
@@ -349,21 +342,21 @@ in_row: Row, at: (520, 190), gap: 18, align: "center" {
               <span class="beat-step-num">1</span>
               <div class="beat-card-text">
                 <strong>Query Emitted</strong>
-                Token "it" casts a search vector across all prior tokens.
+                Token "it" casts a search vector probing all prior tokens in the sequence.
               </div>
             </div>
             <div class="beat-card">
               <span class="beat-step-num">2</span>
               <div class="beat-card-text">
                 <strong>Dot-Product Scoring</strong>
-                Key vectors compute relevance affinities across the sentence.
+                Affinities evaluate against Keys: "animal" scores 0.64, outcompeting "street" (0.18).
               </div>
             </div>
             <div class="beat-card">
               <span class="beat-step-num">3</span>
               <div class="beat-card-text">
-                <strong>Softmax Normalization</strong>
-                Raw scores normalize into probability weights summing to 1.0.
+                <strong>Value Gathering</strong>
+                Values sum by attention weight, allowing "it" to absorb the entity features of "animal".
               </div>
             </div>
           </div>
@@ -398,8 +391,10 @@ in_row: Row, at: (520, 190), gap: 18, align: "center" {
               <span class="briefing-kicker">04 · Parallel Subspaces</span>
               <h2 class="briefing-title">Tracking Multiple Relationships in Parallel</h2>
               <p class="briefing-hook">
-                A single attention head can only focus on one relationship at a time.
-                Splitting coordinates into <strong>12 parallel heads</strong> allows simultaneous tracking of syntax, coreference, and grammatical dependency.
+                A single attention head averages competing relationships into a blurred composite.
+                By projecting hidden states into <strong>12 parallel 64-dimensional subspaces</strong>, Multi-Head Attention allows distinct heads to specialize concurrently:
+                Head 1 resolves pronoun coreference ("it" → "animal"), Head 2 enforces syntactic verb negation ("didn't" → "cross"),
+                while Head 3 tracks local modifier dependencies ("cross" → "street"). Their outputs concatenate and project back into d_model via W_O.
               </p>
             </div>
             <a class="btn-stage-src" href="scenes/multihead.amx" target="_blank" rel="noopener noreferrer">
@@ -419,21 +414,21 @@ in_row: Row, at: (520, 190), gap: 18, align: "center" {
               <span class="beat-step-num">1</span>
               <div class="beat-card-text">
                 <strong>Subspace Projection</strong>
-                The 768-dim state projects into 12 specialized 64-dim subspaces.
+                The 768-dim state projects into 12 specialized 64-dim subspaces (12 × 64 = 768).
               </div>
             </div>
             <div class="beat-card">
               <span class="beat-step-num">2</span>
               <div class="beat-card-text">
-                <strong>Specialized Focus</strong>
-                Head A tracks subject-action, Head B tracks patient-action.
+                <strong>Parallel Specialization</strong>
+                Independent heads simultaneously track syntax, coreference, and grammatical modifiers.
               </div>
             </div>
             <div class="beat-card">
               <span class="beat-step-num">3</span>
               <div class="beat-card-text">
                 <strong>Linear Synthesis</strong>
-                All heads concatenate and project back into d_model.
+                All 12 head vectors concatenate and project via W_O back into the residual highway.
               </div>
             </div>
           </div>
@@ -448,7 +443,7 @@ in_row: Row, at: (520, 190), gap: 18, align: "center" {
             <div class="stage-hud">
               <div class="stage-hud-tag">
                 <span class="live-dot"></span>
-                <span>Fig 05 // Feed-Forward Associative Memory &amp; Residual Bypass</span>
+                <span>Fig 05 // Feed-Forward Associative Memory &amp; Residual Highway</span>
               </div>
               <div class="stage-hud-specs">
                 <span>pkg-slim · 2.3MB</span>
@@ -468,8 +463,9 @@ in_row: Row, at: (520, 190), gap: 18, align: "center" {
               <span class="briefing-kicker">05 · Associative Memory</span>
               <h2 class="briefing-title">Nonlinear Memory Recall in Higher Dimensions</h2>
               <p class="briefing-hook">
-                While attention routes information <em>between</em> tokens, the FFN processes each token <em>alone</em>.
-                Expanding coordinates 4× creates a rich associative memory space for factual recall.
+                While attention routes information <em>between</em> tokens, the Feed-Forward Network (FFN) operates on each token <em>alone</em>.
+                Expanding coordinates 4× to <strong>3072 dimensions</strong> creates a high-capacity sparse associative memory space for factual recall via GELU nonlinearities,
+                before projecting back as an additive delta (Δx) onto the central residual highway.
               </p>
             </div>
             <a class="btn-stage-src" href="scenes/feedforward.amx" target="_blank" rel="noopener noreferrer">
@@ -489,21 +485,21 @@ in_row: Row, at: (520, 190), gap: 18, align: "center" {
               <span class="beat-step-num">1</span>
               <div class="beat-card-text">
                 <strong>Residual Highway</strong>
-                The identity stream carries the unbroken token vector forward.
+                The unbroken central bus carries token identity across all layers without signal degradation.
               </div>
             </div>
             <div class="beat-card">
               <span class="beat-step-num">2</span>
               <div class="beat-card-text">
                 <strong>4× Dimensional Widen</strong>
-                Expands to 3072 features to activate associative memory keys.
+                Expands to 3072 features to activate sparse associative memory keys.
               </div>
             </div>
             <div class="beat-card">
               <span class="beat-step-num">3</span>
               <div class="beat-card-text">
-                <strong>Contract &amp; Add Back</strong>
-                Projected delta adds back directly into the residual highway.
+                <strong>Additive Delta Fusion</strong>
+                Projected delta adds directly back into the highway: x_(l+1) = x_l + FFN(LN(x_l)).
               </div>
             </div>
           </div>
@@ -538,8 +534,9 @@ in_row: Row, at: (520, 190), gap: 18, align: "center" {
               <span class="briefing-kicker">06 · Deep Assembly Line</span>
               <h2 class="briefing-title">Refining Representation Across N Layers</h2>
               <p class="briefing-hook">
-                Raw coordinates enter at block 1. Layer by layer, representation refines from low-level surface grammar
-                to high-level abstract reasoning, culminating in vocabulary logit scoring at the LM head.
+                Raw coordinates enter at block 1. Layer by layer, representation refines through the deep hierarchy:
+                early blocks resolve surface grammar and morphology, middle blocks map relational facts and coreference,
+                culminating in abstract semantic prediction scored against <strong>50,257 vocabulary logits</strong> at the LM head.
               </p>
             </div>
             <a class="btn-stage-src" href="scenes/pipeline.amx" target="_blank" rel="noopener noreferrer">
@@ -559,21 +556,21 @@ in_row: Row, at: (520, 190), gap: 18, align: "center" {
               <span class="beat-step-num">1</span>
               <div class="beat-card-text">
                 <strong>Pipeline Entry</strong>
-                Token embedding enters the base of the layer stack.
+                Token embedding enters the base of the 12-layer assembly stack.
               </div>
             </div>
             <div class="beat-card">
               <span class="beat-step-num">2</span>
               <div class="beat-card-text">
-                <strong>Iterative Refinement</strong>
-                Blocks 1 through N successively contextualize meaning.
+                <strong>Hierarchical Abstraction</strong>
+                Blocks 1 through 12 successively refine surface grammar into relational reasoning and intent.
               </div>
             </div>
             <div class="beat-card">
               <span class="beat-step-num">3</span>
               <div class="beat-card-text">
-                <strong>Logit Scoring</strong>
-                LM head scores every token in the vocabulary.
+                <strong>Logit Un-Embedding</strong>
+                LM head projects hidden states into 50,257 logits, scoring top prediction "street".
               </div>
             </div>
           </div>
