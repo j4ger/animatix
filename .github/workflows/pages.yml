@@ -2,18 +2,20 @@
 #
 # The deploy artifact is the runtime web tree plus web/pkg-slim,
 # web/pkg-assets and the generated web/fonts gzip pack (web/pkg is a release
-# asset, not a site payload). They are gitignored, so CI rebuilds them on every
-# run. GitHub Pages does not negotiate brotli precompression, so the .br twins
-# are dropped from the artifact (the raw .wasm files are what gets served; the
-# font pack is explicitly gzip and is decompressed by the player).
+# asset, not a site payload). CI builds those in the Web Build job and uploads
+# `web-runtime`; normal deploys download that artifact instead of rebuilding it,
+# while a manual dispatch falls back to a local build. GitHub Pages does not
+# negotiate brotli precompression, so the .br twins are dropped from the
+# artifact (the raw .wasm files are what gets served; the font pack is
+# explicitly gzip and is decompressed by the player).
 #
 # This workflow used to own three checks that PR CI did not run — the embed
 # bundle build, the site scene build in both profiles, and the wasm compile —
 # which meant a broken `web/embed/amx-player.js` could be discovered *after*
 # the merge it was supposed to protect. They are gates in scripts/ci.sh now, so
-# a PR runs exactly them; this file keeps the deploy build/assembly as the
-# release blocker, while the browser smoke stays in CI so a software-GPU retry
-# is not paid (or flaked) twice for the same commit.
+# a PR runs exactly them; this file assembles/deploys the artifact CI built,
+# while the browser smoke stays in CI so a software-GPU retry is not paid (or
+# flaked) twice for the same commit.
 #
 # NOTE for maintainers: Pages must be enabled once in the repo settings
 # (Settings → Pages → Source: "GitHub Actions"); after that this workflow
@@ -30,6 +32,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 
@@ -50,6 +53,17 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Download web runtime from CI
+        id: web-runtime
+        if: github.event_name == 'workflow_run'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: web-runtime
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: .
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -72,21 +86,17 @@ jobs:
           cache: npm
           cache-dependency-path: web/tools/package-lock.json
 
-      # The two gates that used to live here as hand-written steps, plus the
-      # embed-bundle build smoke. Ordered cheap-first: embed-build is two npm
-      # builds, site_scenes is a native test, and the engine builds are the
-      # minutes-long step — no reason to pay for two wasm links before the fast
-      # gates agree.
-      - name: Gates (embed bundle build, site scenes in shipped profiles)
-        run: scripts/ci.sh gate embed-build site-scenes
+      # embed-build is already in the downloaded CI artifact; site-scenes is
+      # cheap and validates the checked-out scenes against the shipped profiles.
+      - name: Site scenes
+        run: scripts/ci.sh gate site-scenes
 
-      - name: Build engines
+      - name: Build engines (manual dispatch or no CI artifact)
+        if: github.event_name != 'workflow_run' || steps.web-runtime.outcome != 'success'
         # `.#web-ci` is the only shell with a wasm32 std and the pinned
-        # wasm-bindgen CLI. Building here is required: pkg/ is gitignored and
-        # this workflow gets a fresh checkout, not the CI runner's workspace.
-        # The browser smoke already ran in CI for this exact commit; repeating
-        # it here doubled the deploy time and gave a software-GPU flake a second
-        # chance to block deployment. `workflow_run` success is the smoke gate.
+        # wasm-bindgen CLI. Manual dispatch and docs-only CI runs (where the
+        # path filter skipped Web Build) have no artifact, so build the same
+        # runtime here; normal deploys use the downloaded artifact.
         run: nix develop .#web-ci --command scripts/ci.sh gate web-build
 
       # The same assembler the release pipeline zips with (scripts/site-artifact.sh):

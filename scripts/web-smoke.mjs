@@ -320,6 +320,7 @@ async function main() {
     for (const path of PAGES) {
       const url = `${base}${path}`;
       const pageStarted = Date.now();
+      const consoleMark = consoleLog.length;
       process.stdout.write(`web-smoke: ${path} `);
       await cdp.send("Page.navigate", { url });
       await waitFor(`load of ${path}`, 120000, async () => {
@@ -336,6 +337,16 @@ async function main() {
         returnByValue: true,
       });
       const outcome = result.value || {};
+      // The deployed site ships only pkg-slim and pkg-assets (site-artifact.sh
+      // drops the full pkg). The smoke runs against web/, where pkg/ exists, so
+      // without this assertion it would happily exercise a package that 404s
+      // after deploy. Any auto-upgrade to full is a site bug, not a slow page.
+      const pageConsole = consoleLog.slice(consoleMark);
+      if (/needs full engine/.test(pageConsole)) {
+        throw new Error(
+          `${path}: scene upgraded to the full engine, but the deployed site does not ship web/pkg — this page would 404 after deploy`,
+        );
+      }
       const shaderFailure = chromeLog.match(/Error while parsing WGSL:[\s\S]{0,600}/);
       if (shaderFailure) {
         throw new Error(`${path}: GPU shader validation failed: ${shaderFailure[0]}`);

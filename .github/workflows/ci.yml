@@ -164,3 +164,20 @@ jobs:
             nix) nix develop --command scripts/ci.sh gate $GATE ;;
             *)   scripts/ci.sh gate $GATE ;;
           esac
+
+      # Pages deploys from a fresh checkout and cannot see this job's target/.
+      # Hand it the built runtime instead of rebuilding the wasm bundles and
+      # font pack there; that also keeps the deploy from re-running the
+      # software-GPU browser smoke (CI is the gate for this exact commit).
+      - name: Upload web runtime
+        if: matrix.gate == 'web-build web-smoke'
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-runtime
+          path: |
+            web/pkg-slim
+            web/pkg-assets
+            web/embed/amx-player.js
+            web/fonts
+          include-hidden-files: true
+          if-no-files-found: error
