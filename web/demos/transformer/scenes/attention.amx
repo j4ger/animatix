@@ -67,9 +67,9 @@ q_badge: Text, text: "QUERY TOKEN (Q)", font_size: 16, font_weight: 600, color: 
 k_label: Text, text: "Key vectors (K)", font_size: 18, font_weight: 600, color: text.muted,
   text_align: "left", text_anchor: "left", at: (96, 262), opacity: 0
 
-beam_q_k: Arrow, from: (875, 224), to: (323, 270), head_size: 12,
+beam_q_k: Arrow, from: (875, 224), to: (323, 263), head_size: 10,
   stroke: accent.primary, stroke_width: 4.5, opacity: 0
-beam_glow: Arrow, from: (875, 224), to: (323, 270), head_size: 12,
+beam_glow: Arrow, from: (875, 224), to: (323, 263), head_size: 10,
   stroke: accent.primary, stroke_width: 14, blend: "screen", opacity: 0
 
 key_sweep: Rect, size: (860, 44), corner_radius: 10, color: accent.primary,
@@ -200,8 +200,8 @@ out_card: Stack, at: (530, 620), size: (780, 64), opacity: 0 {
   out_bg: Rect, size: (780, 64), corner_radius: 14, color: surface.primary,
     stroke: accent.primary, stroke_width: 1.8
   out_col: Col, gap: 4, align: "center" {
-    out_t1: Text, text: "Output z_it = 0.64·V(animal) + 0.18·V(street) + 0.10·V(it) + …", font_size: 18, font_weight: 600, color: text.primary
-    out_t2: Text, text: "Coreference resolved: pronoun “it” now embeds the entity features of “animal”", font_size: 16, color: accent.primary
+    out_t1: Text, text: "Output z = 0.64·V(animal) + 0.18·V(street) + 0.10·V(it) + …", font_size: 18, font_weight: 600, color: text.primary, text_max_width: 700
+    out_t2: Text, text: "Coreference resolved: “it” now carries the features of “animal”", font_size: 16, color: accent.primary, text_max_width: 700
   }
 }
 fade-in out_card [420ms, ease: expo-out]

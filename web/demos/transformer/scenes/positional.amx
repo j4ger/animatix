@@ -107,7 +107,7 @@ fusion_card: Stack, at: (1090, 540), size: (240, 118), opacity: 0 {
   f_card_col: Col, gap: 6, align: "center" {
     f_c_title: Text, text: "Vector Fusion", font_size: 18, color: text.primary
     f_c_eq: Text, text: "x_i = e_i + p_i", font_size: 24, color: accent.info
-    f_c_sub: Text, text: "element-wise addition", font_size: 16, color: text.muted
+    f_c_sub: Text, text: "element-wise addition", font_size: 15, color: text.muted, text_max_width: 210
   }
 }
 
