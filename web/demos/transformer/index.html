@@ -224,7 +224,7 @@
           unbounded index values blow up network activations and introduce scale mismatch.
         </p>
         <p>
-          The Transformer's solution is elegant: **Harmonic Sinusoidal Frequencies**.
+          The Transformer's solution is elegant: <strong>Harmonic Sinusoidal Frequencies</strong>.
           For each dimension index $2i$, the model computes a sine wave; for $2i+1$, a cosine wave.
           Wavelengths double progressively across rows from fine to coarse resolution ($\lambda = 3, 6, 12, 24$).
           Low dimensions oscillate rapidly, capturing fine relative offsets; high dimensions oscillate slowly,
@@ -300,7 +300,7 @@
           To interpret <code>"it"</code>, the model must decide whether it refers to <code>"animal"</code> or <code>"street"</code>.
           The token <code>"it"</code> emits a Query searching for an antecedent with fatigue attributes.
           Taking dot products against all preceding Keys measures geometric alignment:
-          the affinity with <code>"animal"</code> scores **0.64**, decisively outcompeting <code>"street"</code> at **0.18**.
+          the affinity with <code>"animal"</code> scores <strong>0.64</strong>, decisively outcompeting <code>"street"</code> at <strong>0.18</strong>.
         </p>
         <p>
           Scores are scaled by <code>1 / √d_k</code> to maintain unit variance in high dimensions (preventing Softmax
@@ -424,15 +424,15 @@
         </p>
         <p>
           Pioneering interpretability research (Geva et al., 2021) demonstrated that the FFN functions as a vast
-          <strong>key-value factual memory</strong>. In the first linear layer, coordinates expand **4× from 768 to 3072 dimensions**.
+          <strong>key-value factual memory</strong>. In the first linear layer, coordinates expand <strong>4× from 768 to 3072 dimensions</strong>.
           In this expansive high-dimensional space, GELU nonlinearities act as concept detectors: specific neurons fire when
           certain factual associations appear (e.g., retrieving the common-sense fact that animals cannot walk when exhausted).
           The second linear layer contracts the representation back to 768 dimensions.
         </p>
         <p>
-          Connecting every sublayer is the **Residual Stream Highway**.
+          Connecting every sublayer is the <strong>Residual Stream Highway</strong>.
           Rather than forcing representations through destructive transforms, the identity signal travels straight along an
-          unbroken bus. Both Attention and FFN compute only **additive deltas ($\Delta x$)** injected back into the stream:
+          unbroken bus. Both Attention and FFN compute only <strong>additive deltas (&Delta;x)</strong> injected back into the stream:
           <code>x_{l+1} = x_l + \text{Sublayer}(\text{LayerNorm}(x_l))</code>.
           This residual highway allows gradients to propagate unimpeded across dozens of layers during training,
           eliminating the vanishing gradient problem.
@@ -496,10 +496,10 @@
           • <strong>Layers 9–12 (Abstract Intent):</strong> Deep blocks synthesize context, performing pragmatic inference and anticipating the next logical thought.
         </p>
         <p>
-          At the top of the stack, the hidden vector of the final token passes into the **Language Model Head**.
-          A linear un-embedding matrix projects the 768-dimensional vector into **50,257 logits** — one raw affinity score
+          At the top of the stack, the hidden vector of the final token passes into the <strong>Language Model Head</strong>.
+          A linear un-embedding matrix projects the 768-dimensional vector into <strong>50,257 logits</strong> — one raw affinity score
           for every token in the vocabulary. Normalized through Softmax, logits become a probability distribution.
-          In our sentence, <code>"street"</code> emerges victorious with **41% probability**, followed by <code>"road"</code> (22%)
+          In our sentence, <code>"street"</code> emerges victorious with <strong>41% probability</strong>, followed by <code>"road"</code> (22%)
           and <code>"bridge"</code> (12%). The winning token is appended to the input, and the autoregressive cycle begins anew.
         </p>
       </div>
