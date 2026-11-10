@@ -58,9 +58,9 @@ title_c: Text, text: "Head 3 · Local context", font_size: 20, color: accent.inf
 
 sub_a: Text, text: "“it” → “animal” · 0.88", font_size: 16, color: text.muted,
   text_anchor: "center", at: (231, 214), opacity: 0
-sub_b: Text, text: "“didn't” → “cross” · 0.92", font_size: 16, color: text.muted,
+sub_b: Text, text: "“cross” → “didn't” · 0.92", font_size: 16, color: text.muted,
   text_anchor: "center", at: (518, 214), opacity: 0
-sub_c: Text, text: "“cross” → “street” · 0.85", font_size: 16, color: text.muted,
+sub_c: Text, text: "“street” → “cross” · 0.85", font_size: 16, color: text.muted,
   text_anchor: "center", at: (805, 214), opacity: 0
 
 head1_grid: Grid, cols: 3, gap: 8, at: (231, 330) {

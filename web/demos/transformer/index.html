@@ -124,10 +124,8 @@
       </div>
 
       <aside class="article-callout">
-        <strong>The Generative Snowball:</strong>
-        Because generation is strictly autoregressive, producing a 1,000-token response requires 1,000 discrete forward passes
-        through all N layers. The industry-standard <strong>KV-Cache</strong> exists precisely to avoid recomputing past attention keys
-        and values on every single step.
+        <strong>The Generative Snowball &amp; Causal Autoregression:</strong>
+        Unlike masked models (such as BERT) that require explicit <code>[MASK]</code> placeholder tokens, an autoregressive decoder (like GPT, Claude, or DeepSeek) requires no placeholder. The model takes the prompt tokens as-is, reads the hidden vector of the very last token at layer N, and projects it into vocabulary logits. The single winning candidate is appended to extend the sequence, advancing the generative frontier one step at a time. To prevent quadratic recomputation, modern inference engines maintain a <strong>KV-Cache</strong> to store past key and value vectors.
       </aside>
     </section>
 
@@ -268,6 +266,11 @@
           </div>
         </div>
       </div>
+
+      <aside class="article-callout">
+        <strong>The Blessing of Dimensionality: Why Addition Doesn't Destroy Meaning:</strong>
+        In 2D or 3D geometry, adding two vectors drastically alters their direction. But in $d_{model} = 768$ dimensions, space behaves counter-intuitively: <strong>almost all random vectors are mutually orthogonal</strong> ($x^T y \approx 0$). High-dimensional space possesses vast geometric capacity, allowing token semantics, position frequencies, and later sublayer updates to travel in distinct, near-orthogonal subspaces like separate lanes on an 8-lane highway without colliding.
+      </aside>
     </section>
 
     <!-- ═════════════════════════════════════════════════════════════════ -->
@@ -287,12 +290,16 @@
           between every pair of words in the sentence</strong>.
         </p>
         <p>
-          To coordinate communication, each token vector projects into three distinct roles via learned weight matrices:
+          To coordinate communication, each token vector projects into three distinct roles via learned weight matrices (W_Q, W_K, W_V):
         </p>
         <p>
-          • <strong>Query (Q):</strong> What this token is searching for.<br>
-          • <strong>Key (K):</strong> What this token advertises to others.<br>
-          • <strong>Value (V):</strong> The substantive semantic information this token passes along.
+          • <strong>Query (Q):</strong> What this token seeks from others.<br>
+          • <strong>Key (K):</strong> What this token advertises to matching queries.<br>
+          • <strong>Value (V):</strong> The substantive semantic payload this token delivers.
+        </p>
+        <p>
+          <strong>Why not compute dot products directly between original vectors (x_i^T x_j)?</strong><br>
+          Because original dot products are strictly symmetric: $x_i^T x_j = x_j^T x_i$. In natural language, however, syntactic and semantic dependencies are directional and asymmetric: a pronoun eagerly searches for its antecedent noun, but the noun does not reciprocate that need. Linear projections $W_Q$ and $W_K$ break the symmetry ($Q K^T \neq K Q^T$). Meanwhile, an independent $W_V$ decouples the <em>indexing criteria</em> (what matches) from the <em>semantic payload</em> (what is retrieved).
         </p>
         <p>
           Consider the famous Winograd Schema challenge:
@@ -310,7 +317,7 @@
       </div>
 
       <div class="article-math-box">
-        <code>\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{Q K^T}{\sqrt{d_k}}\right) V</code>
+        <code>\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{Q K^T}{\sqrt{d_k}} + M\right) V</code>
       </div>
 
       <div class="article-figure-card">
@@ -340,6 +347,11 @@
           </div>
         </div>
       </div>
+
+      <aside class="article-callout">
+        <strong>The Causal Masking Law:</strong>
+        In bidirectional models (such as BERT encoders), tokens can look both left and right. But in generative decoders (GPT, Llama, DeepSeek), the model must never peek into the future. A causal mask matrix $M$ enforces this by setting upper-triangular affinities ($j > i$) to $-\infty$. Because $e^{-\infty} = 0$, future attention weights become zero. Notice that in our example, <code>"it"</code> is the 6th token looking backward at <code>"animal"</code> (token 2) and <code>"street"</code> (token 4) — strictly honoring the causal boundary!
+      </aside>
     </section>
 
     <!-- ═════════════════════════════════════════════════════════════════ -->
@@ -365,8 +377,8 @@
         </p>
         <p>
           • <strong>Head 1 (Coreference):</strong> Resolves pronouns across clauses (<code>"it" → "animal"</code>, weight 0.88).<br>
-          • <strong>Head 2 (Syntax):</strong> Enforces verb-negation dependencies (<code>"didn't" → "cross"</code>, weight 0.92).<br>
-          • <strong>Head 3 (Local Modifiers):</strong> Connects actions to spatial targets (<code>"cross" → "street"</code>, weight 0.85).
+          • <strong>Head 2 (Syntax):</strong> Resolves verb negation to preceding auxiliary (<code>"cross" → "didn't"</code>, weight 0.92).<br>
+          • <strong>Head 3 (Modifier Binding):</strong> Binds spatial object to preceding action (<code>"street" → "cross"</code>, weight 0.85).
         </p>
         <p>
           Each head computes attention independently within its 64-dimensional subspace.
@@ -406,6 +418,11 @@
           </div>
         </div>
       </div>
+
+      <aside class="article-callout">
+        <strong>The Dimension Trap: Why We Must Multiply by W_O:</strong>
+        Concatenating 12 heads of 64 dimensions each yields $12 \times 64 = 768$ dimensions — exactly matching $d_{model}$! Why not add it directly to the residual stream? Without $W_O$, the heads remain isolated silos: Head 1's features are forever locked in dimensions 0–63, Head 2 in 64–127, unable to interact. Matrix $W_O \in \mathbb{R}^{768 \times 768}$ acts as an <strong>Inter-Head Mixing Console</strong>, linearly cross-blending syntax clues, entity bindings, and modifiers across the full coordinate space so downstream blocks can reason over them jointly.
+      </aside>
     </section>
 
     <!-- ═════════════════════════════════════════════════════════════════ -->
@@ -440,7 +457,7 @@
       </div>
 
       <div class="article-math-box">
-        <code>x_{l+1} = x_l + \text{FFN}(\text{LN}(x_l)), \quad \text{FFN}(x) = \text{GELU}(x W_1 + b_1) W_2 + b_2</code>
+        <code>\text{FFN}(x) = \sum_{m=1}^{3072} \text{GELU}\left(x^T k_m + b_{1,m}\right) \cdot v_m + b_2</code>
       </div>
 
       <div class="article-figure-card">
@@ -470,6 +487,12 @@
           </div>
         </div>
       </div>
+
+      <aside class="article-callout">
+        <strong>The Mathematical Bridge: Why FFN Is a Key-Value Memory:</strong>
+        By decomposing $W_1$ into 3072 column vectors $k_m$ and $W_2$ into 3072 row vectors $v_m$, the matrix multiplication expands into $\text{FFN}(x) = \sum c_m v_m$.
+        Each $k_m$ serves as a <strong>Key (Concept Detector)</strong>: calculating inner product affinity against the current token. When a pattern matches (e.g., 'animal entity' + 'fatigue context'), GELU fires. The corresponding $v_m$ serves as the <strong>Value (Knowledge Patch)</strong>: delivering factual updates (e.g., 'requires rest / halted motion') injected as an additive delta into the residual highway.
+      </aside>
     </section>
 
     <!-- ═════════════════════════════════════════════════════════════════ -->
