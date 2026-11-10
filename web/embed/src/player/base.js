@@ -45,6 +45,17 @@ export class AmxPlayerBase extends HTMLElement {
     // stopped, so re-entering the viewport can undo exactly that pause and
     // never a user's. See `_pauseForVisibility` in playback.js.
     this._pausedByVisibility = false;
+    // True while the page-level concurrency cap is the reason playback is
+    // stopped (`window.__amxMaxPlaying`). The scheduler owns resumption; see
+    // `arbitrateConcurrency` in core.js.
+    this._parkedFromPage = false;
+    // Wall-clock of the last *explicit* play (a control press, a page's
+    // `play()`), 0 when none. The concurrency cap gives a recently explicit
+    // figure the live slot so a reader who starts one is not overruled by the
+    // scheduler a window later; `_schedulerResume` keeps scheduler/visibility
+    // resumptions out of this signal.
+    this._pinPlayAt = 0;
+    this._schedulerResume = false;
     this._observer = null;
     this._renderScaleObserver = null;
     this._renderScaleRetry = null;

@@ -170,6 +170,11 @@ function loadEngine(profile) {
 // ── shared render loop ──────────────────────────────────────────────
 
 const instances = new Set();
+// Embeds the page-level concurrency cap took off the clock (see
+// `arbitrateConcurrency`). Kept apart from `instances`: that set is what the
+// shared loop advances, and a parked embed must cost neither a tick nor a draw
+// while still being remembered so the slot can be handed back on scroll.
+const parkedInstances = new Set();
 let rafRunning = false;
 let lastT = 0;
 let pendingDt = 0;
@@ -401,12 +406,92 @@ function pageRasterBudget() {
   return Number.isFinite(override) && override > 0 ? override : MAX_PAGE_RASTER_PIXELS;
 }
 
+// ── page-level concurrency cap ──────────────────────────────────────
+//
+// A browser frame costs a *fixed* full-target Vello pass plus that embed's
+// CPU encode, and the cost of a scene's content is a rounding error beside it
+// (docs/performance_evaluation.md §3.7: an empty 1280×720 scene costs 3.71 ms
+// where `attention.amx` costs 3.59 ms, and the raster sweep is 0.9 ms + 2.8
+// ns/px). The consequence for an article page is arithmetic: N figures playing
+// costs N fixed passes, so seven embeds cannot hold 60 fps on a browser whose
+// per-pass cost is a few ms, no matter how small each figure's raster is — the
+// adaptive ladder can only trade resolution for area, which this cost model
+// does not reward.
+//
+// `window.__amxMaxPlaying = 1` (a page that knows it carries several figures;
+// read at allocation time, like the raster budget) keeps only the embeds
+// nearest the viewport centre live. The rest are *parked*, not paused: the
+// timeline stops and nothing is drawn, but no play affordance is shown and the
+// scheduler — not the reader — owns the resumption. Scrolling hands the slot
+// to the next figure without a reload. Absent or 0, every visible embed plays,
+// which is the historical behaviour every other page relies on.
+function maxPlaying() {
+  const value = Number(window.__amxMaxPlaying);
+  return Number.isFinite(value) && value >= 1 ? Math.floor(value) : Infinity;
+}
+
+/// Distance from the viewport centre in CSS px. A `display:none` slide (deck
+/// mode) has a zero rect and must never win the contest for the live slot.
+function viewportDistance(inst) {
+  const rect = inst.getBoundingClientRect?.();
+  if (!rect || (rect.width === 0 && rect.height === 0)) return Infinity;
+  return Math.abs((rect.top + rect.bottom) / 2 - window.innerHeight / 2);
+}
+
+/// Record/clear a parked embed. Exported for `playback.js`, which owns the
+/// playing-state side of parking.
+function parkInstance(inst) {
+  parkedInstances.add(inst);
+}
+
+function unparkInstance(inst) {
+  parkedInstances.delete(inst);
+}
+
+/// Hand the live slot to the embeds nearest the viewport centre. Called from
+/// `allocateBudget` (the 500 ms window) and from the visibility observer, so a
+/// scroll into a new figure does not wait for the next budget window. Layout is
+/// read here and nowhere per frame; N is the number of embeds on the page.
+function arbitrateConcurrency() {
+  const cap = maxPlaying();
+  if (!Number.isFinite(cap)) {
+    // A page that turns the cap off gets its parked embeds back rather than
+    // leaving them frozen by a policy that no longer exists.
+    for (const inst of [...parkedInstances]) inst._unparkFromPage?.();
+    return;
+  }
+  const candidates = [];
+  for (const inst of instances) {
+    if (inst._state === "ready" && inst._visible && inst._playing) candidates.push(inst);
+  }
+  for (const inst of parkedInstances) {
+    if (inst.isConnected && inst._state === "ready" && inst._visible) candidates.push(inst);
+  }
+  if (candidates.length <= cap) {
+    // Everyone fits: nothing to arbitrate, and unparking here would fight a
+    // user's explicit pause (a paused embed is not in either set).
+    return;
+  }
+  // A figure the reader (or the page) explicitly started recently outranks
+  // proximity: otherwise pressing play on a parked figure would put it live
+  // for one window and the next election would park it again. The pin expires
+  // so a long-running page still follows the reader's scroll.
+  const now = performance.now();
+  const pinned = (inst) => (now - (inst._pinPlayAt || 0) < 15000 ? 1 : 0);
+  candidates.sort((a, b) => pinned(b) - pinned(a) || viewportDistance(a) - viewportDistance(b));
+  for (let i = 0; i < candidates.length; i += 1) {
+    if (i < cap) candidates[i]._unparkFromPage?.();
+    else candidates[i]._parkFromPage?.();
+  }
+}
+
 /// Re-split the work across the visible, playing embeds. The cadence ladder is
 /// page-wide; each embed gets a phase offset so N renders do not all land in the
 /// same rAF tick, plus a hard per-tick cap derived from the ladder. `_costMs`
 /// only decides who is staggered first (costliest first) — it no longer decides
 /// whether adaptation happens at all.
 function allocateBudget() {
+  arbitrateConcurrency();
   const active = [];
   for (const inst of instances) {
     if (inst._visible && inst._playing && inst._state === "ready") active.push(inst);
@@ -587,4 +672,5 @@ export {
   setQualityStep, tick, ensureLoop, SCROLL_SETTLE_MS, LOAD_MAX_DEFER_MS, LOAD_RETRY_MS,
   LOAD_STALL_MS, loadQueue, arriving, loadTimer, lastScrollAt, pumpLoads, enqueueLoad,
   dequeueLoad, ASPECTS, refreshInterval, CADENCE_STEPS, cadenceStep, pagePressure, stats,
+  parkedInstances, maxPlaying, parkInstance, unparkInstance, arbitrateConcurrency,
 };

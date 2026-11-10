@@ -374,6 +374,12 @@ function snapshotPlayers() {
       src: player.getAttribute("src") || null,
       state: player._state ?? null,
       visible: player._visible ?? null,
+      // `playing` is a draw in the window; `parked` is the page-level
+      // concurrency cap holding this embed off the clock
+      // (`window.__amxMaxPlaying`), which is not the same as an idle/offscreen
+      // player. Reading both is what makes "vis 7, play 1" interpretable.
+      playing: player._playing ?? null,
+      parked: player._parkedFromPage ?? null,
       render_scale: finite(read(player, "renderScale") ?? read(player, "_renderScale")),
       pressure: finite(read(player, "pressure") ?? read(player, "_pressure")),
       target_fps: finite(read(player, "_targetFps") ?? read(player, "targetFps")),

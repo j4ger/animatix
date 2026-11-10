@@ -594,6 +594,18 @@ chip_row: Row, at: (520, 252), gap: 16, align: "center" {
 
   </div>
 
+  <script>
+    // Seven figures share this article. A browser frame costs a fixed
+    // full-target Vello pass per playing embed, and seven of them add up to
+    // less than 60 fps on any machine whose per-pass cost is a few
+    // milliseconds — regardless of how small each figure's raster is. Keep
+    // one live figure: the <amx-player> scheduler plays the one nearest the
+    // viewport centre and parks the rest (see `arbitrateConcurrency` in
+    // web/embed/src/player/core.js). Read at allocation time, so it must be
+    // set before the first player's budget window, not necessarily before it
+    // loads.
+    window.__amxMaxPlaying = 1;
+  </script>
   <script type="module" src="../../embed/amx-player.js" data-runtime-base="../../pkg-slim"></script>
   <script src="../deck.js"></script>
   <script src="../../site-chrome.js" data-root="../../" data-section="demos"></script>

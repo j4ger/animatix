@@ -60,7 +60,9 @@ function playerLine(inst, i) {
   const mark = rs < disp - 0.005 ? "▼" : rs > disp + 0.005 ? "▲" : " ";
   const state = (inst._state ?? "?").padEnd(5);
   const vis = inst._visible ? "vis" : " - ";
-  const play = inst._playing ? "play " : "pause";
+  // `park` is the page-level concurrency cap holding this figure off the clock
+  // (`window.__amxMaxPlaying`), distinct from a reader's `pause`.
+  const play = inst._parkedFromPage ? "park " : inst._playing ? "play " : "pause";
   const w = inst._player?.raster_width?.() ?? 0;
   const h = inst._player?.raster_height?.() ?? 0;
   const cost = (inst.costMs ?? 0) > 0 ? `${inst.costMs.toFixed(2)}ms` : "   —  ";

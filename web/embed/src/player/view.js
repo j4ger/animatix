@@ -4,7 +4,7 @@ const {
   SAVE_DATA, FADE_EACH, ICONS, enginePromises, loadEngine, instances, QUALITY_STEPS,
   SLOW_TICK_MS, FAST_TICK_MS, setQualityStep, tick, ensureLoop, SCROLL_SETTLE_MS,
   LOAD_MAX_DEFER_MS, LOAD_RETRY_MS, LOAD_STALL_MS, pumpLoads, enqueueLoad, dequeueLoad,
-  ASPECTS,
+  ASPECTS, arbitrateConcurrency,
 } = core;
 import { AmxPlayerBase } from "./base.js";
 
@@ -487,6 +487,12 @@ export class AmxPlayerView extends AmxPlayerBase {
           // the whole contract of the attribute pair.
           if (this._visible && this._isSealed() && !this._playing) this._resumeSealed();
         }
+        // The page-level concurrency cap (`window.__amxMaxPlaying`) elects the
+        // figure nearest the viewport centre. Run it now rather than waiting
+        // for the 500 ms budget window, so scrolling into the next figure
+        // hands the live slot over at the boundary instead of showing a
+        // frozen canvas for half a second. One layout read per entry batch.
+        if (core.maxPlaying() !== Infinity) arbitrateConcurrency();
       },
       { rootMargin: "50px" },
     );

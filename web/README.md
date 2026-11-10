@@ -344,6 +344,17 @@ Behavior:
   split. The pressure ladder and the page budget are combined with **min**, never
   multiplied, so they cannot compound. When pressure does bind, large embeds skip
   extra raster rungs (≥1.5 MP: +2, ≥0.6 MP: +1).
+- **Page concurrency cap** — `window.__amxMaxPlaying = N` (finite, ≥1; read at
+  allocation time like the raster budget) keeps at most N embeds *live*: the
+  scheduler plays the N nearest the viewport centre and **parks** the rest —
+  the timeline stops and nothing is drawn, but no play affordance is shown and
+  the scheduler owns resumption, so a scroll hands the slot to the next figure
+  without a reload. `_parkedFromPage` marks a parked embed and the `?amxdebug`
+  HUD prints its state as `park`. This is the lever for a page carrying several
+  figures: a browser frame costs a fixed full-target pass per playing embed, and
+  the raster budget cannot buy that back (an empty scene costs about what a full
+  one does — `docs/performance_evaluation.md` §3.7). Unset means every visible
+  embed plays, the historical behaviour.
 - **`data-fps` / `fps`** — per-element cadence cap, clamped to 12–60, default 60.
   The page-wide pressure ladder can lower it further, never raise it.
 - **Adaptive quality** — the compensation for a page that cannot hold the frame

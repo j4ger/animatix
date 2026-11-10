@@ -4,7 +4,7 @@ const {
   SAVE_DATA, FADE_EACH, ICONS, enginePromises, loadEngine, instances, QUALITY_STEPS,
   SLOW_TICK_MS, FAST_TICK_MS, setQualityStep, tick, ensureLoop, SCROLL_SETTLE_MS,
   LOAD_MAX_DEFER_MS, LOAD_RETRY_MS, LOAD_STALL_MS, pumpLoads, enqueueLoad, dequeueLoad,
-  ASPECTS,
+  ASPECTS, unparkInstance,
 } = core;
 import { AmxPlayerLoad } from "./load.js";
 export class AmxPlayerInput extends AmxPlayerLoad {
@@ -217,6 +217,17 @@ export class AmxPlayerInput extends AmxPlayerLoad {
     if (this._time >= this._duration) this._time = 0;
     this._playing = true;
     this._pausedByVisibility = false;
+    // A page-level park is over the moment playback starts by any route (the
+    // reader pressing play on the parked figure, `_unparkFromPage`, a deck
+    // switching slides). Leaving the flag set would keep it out of the
+    // scheduler's live set while it is visibly running.
+    this._parkedFromPage = false;
+    unparkInstance(this);
+    // Explicit play (control bar, gesture, page API) pins this figure for the
+    // concurrency cap's next election; a scheduler/visibility resume must not,
+    // or scrolling would make whichever figure resumed last outrank the one
+    // actually nearest the viewport.
+    if (!this._schedulerResume) this._pinPlayAt = performance.now();
     // A paused embed is not in `instances`, so it misses both the quality-step
     // notifications and its own layout changes; re-align on the way in.
     this._applyRenderScale();

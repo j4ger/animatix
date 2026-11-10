@@ -4,7 +4,7 @@ const {
   SAVE_DATA, FADE_EACH, ICONS, enginePromises, loadEngine, instances, QUALITY_STEPS,
   SLOW_TICK_MS, FAST_TICK_MS, setQualityStep, tick, ensureLoop, SCROLL_SETTLE_MS,
   LOAD_MAX_DEFER_MS, LOAD_RETRY_MS, LOAD_STALL_MS, pumpLoads, enqueueLoad, dequeueLoad,
-  ASPECTS,
+  ASPECTS, parkInstance, unparkInstance,
 } = core;
 import { AmxPlayerInput } from "./input.js";
 export class AmxPlayerPlayback extends AmxPlayerInput {
@@ -21,10 +21,51 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
     // An explicit pause outranks the visibility observer: re-entering the
     // viewport must not undo what the user (or the page) just asked for.
     this._pausedByVisibility = false;
+    this._parkedFromPage = false;
+    this._pinPlayAt = 0;
     instances.delete(this);
+    unparkInstance(this);
     if (this._state === "ready") {
       this._showPlayAffordance();
       this._syncControls();
+    }
+  }
+
+  /// Page-level concurrency parking (`window.__amxMaxPlaying`). Stops the clock
+  /// and the draw WITHOUT recording a user pause: the scheduler owns the
+  /// resumption, so no play affordance is shown and the visibility observer
+  /// must not treat this as "the page paused it on purpose". Not `pause()`,
+  /// which would do both and veto the hand-off.
+  _parkFromPage() {
+    if (!this._playing || this._parkedFromPage) return;
+    this._playing = false;
+    this._parkedFromPage = true;
+    instances.delete(this);
+    parkInstance(this);
+    if (this._state === "ready") this._syncControls();
+  }
+
+  /// Undo `_parkFromPage` and resume. Only an embed that was *playing* can be
+  /// parked, so resuming is correct for a page-driven `play()` too, not just
+  /// for `autoplay`: the old autoplay guard silently dropped a page-started
+  /// figure that the scheduler had parked. A reader's pause never reaches this
+  /// method (a paused embed is in neither live set).
+  _unparkFromPage() {
+    if (!this._parkedFromPage) return;
+    this._parkedFromPage = false;
+    unparkInstance(this);
+    this._playWithoutPin();
+  }
+
+  /// Start playback without claiming the concurrency cap's pinned slot: used
+  /// by the scheduler and the visibility observer, whose resumptions are
+  /// automatic and must not beat the figure nearest the viewport.
+  _playWithoutPin() {
+    this._schedulerResume = true;
+    try {
+      this.play();
+    } finally {
+      this._schedulerResume = false;
     }
   }
 
@@ -48,7 +89,7 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
   _resumeFromVisibility() {
     if (!this._pausedByVisibility) return;
     this._pausedByVisibility = false;
-    if (this.hasAttribute("autoplay") && !REDUCED_MOTION && !SAVE_DATA) this.play();
+    if (this.hasAttribute("autoplay") && !REDUCED_MOTION && !SAVE_DATA) this._playWithoutPin();
     else this._showPlayAffordance();
   }
 
