@@ -40,11 +40,6 @@ cap1: Caption, text: "Tokens enter with a blank slot awaiting prediction.", tag:
 cap2: Caption, text: "Hidden states climb through repeated blocks (× N).", tag: "overview.amx", opacity: 0
 cap3: Caption, text: "Autoregressive loop appends “street” back to input.", tag: "overview.amx", opacity: 0
 
-// Readouts sit in the right gutter BELOW the probability ladder, which owns
-// y 80-156; the old placement collided with it from the payoff beat onward.
-depth_chip: Readout, label: "BLOCK DEPTH", value: format("× {:.0}", depth), at: (1150, 260)
-vocab_chip: Readout, label: "VOCAB LOGITS", value: "50,257", at: (1150, 360)
-
 // ── Level 1: Input Sequence Baseline (y = 592) ──────────────────────
 in_row: Row, at: (560, 592), gap: 16, align: "center" {
   in1: LabeledBox, label: "The", width: 110, height: 54, text_size: 18, corner: 12

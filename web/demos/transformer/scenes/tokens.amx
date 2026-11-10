@@ -40,9 +40,6 @@ cap2: Caption, text: "BPE fractures text into discrete tokens and integer IDs.",
 cap3: Caption, text: "Table W_e extrudes each ID into a 768-dim vector.",
   tag: "tokens.amx", opacity: 0
 
-seq_chip: Readout, label: "TOKENS", value: format("{:.0}", seq), at: (1090, 238)
-dim_chip: Readout, label: "D_MODEL", value: "768", at: (1090, 334)
-
 // ── Act I: the sentence bar ─────────────────────────────────────────
 bar_stack: Stack, at: (520, 238), size: (860, 62) {
   bar: Rect, size: (860, 62), corner_radius: 14, color: surface.primary,
@@ -104,10 +101,6 @@ brace_glow: Rect, size: (10, 264), corner_radius: 5, color: accent.primary,
   blend: "screen", at: (960, 486), opacity: 0
 
 // ── Timeline Choreography ───────────────────────────────────────────
-always {
-  seq_chip.value_text.text = format("{:.0}", clamp(floor((t - 1.1) / 0.36) + 1, 1, seq))
-}
-
 // Act I — sentence arrives with lit stage
 #0.10s
 fade-in head_eyebrow [260ms, ease: expo-out]

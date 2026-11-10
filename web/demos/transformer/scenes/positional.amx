@@ -40,9 +40,6 @@ cap2: Caption, text: "Sinusoidal harmonics double wavelength across rows.",
 cap3: Caption, text: "Vectors fuse (x_i = e_i + p_i) to freeze word order.",
   tag: "positional.amx", opacity: 0
 
-pos_chip: Readout, label: "POSITIONS", value: "8", at: (1090, 210)
-wave_chip: Readout, label: "MAX WAVELENGTH", value: format("{:.0}", wavelength), at: (1090, 300)
-
 // The formula epigraph sits top-right, clear of the left-anchored head.
 formula_chip: Stack, at: (1000, 78), size: (380, 50), opacity: 0 {
   f_bg: Rect, size: (380, 50), corner_radius: 12, color: surface.primary,

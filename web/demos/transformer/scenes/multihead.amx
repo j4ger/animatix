@@ -38,9 +38,6 @@ cap2: Caption, text: format("{:.0} parallel heads track syntax and coreference."
 cap3: Caption, text: "Heads concatenate and project through W_O to d_model.",
   tag: "multihead.amx", opacity: 0
 
-heads_chip: Readout, label: "HEADS", value: format("{:.0}", heads), at: (1090, 210)
-dhead_chip: Readout, label: "D_HEAD", value: "64", at: (1090, 300)
-
 // ── Act I–II: three specialist head cards ───────────────────────────
 // Flat placement, not a Col inside a Stack: the nested Col's measured extent
 // drifted the title into the attention grid. Explicit centres keep the cards

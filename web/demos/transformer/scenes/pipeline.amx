@@ -39,9 +39,6 @@ cap2: Caption, text: format("{:.0} layers refine grammar into relational intent.
 cap3: Caption, text: "LM head projects 50,257 logits: “street” wins.",
   tag: "pipeline.amx", opacity: 0
 
-layers_chip: Readout, label: "LAYERS", value: format("{:.0}", stages), at: (1090, 180)
-vocab_chip: Readout, label: "VOCAB LOGITS", value: "50,257", at: (1090, 270)
-
 // ── Act I: input tokens on the baseline ─────────────────────────────
 in_row: Row, at: (480, 600), gap: 16, align: "center" {
   in1: LabeledBox, label: "The", width: 110, height: 48, text_size: 18, corner: 10

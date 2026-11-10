@@ -37,9 +37,6 @@ cap2: Caption, text: format("FFN expands ×{:.0} to 3072 features to recall fact
 cap3: Caption, text: "Sublayers add only deltas (x + Δ) into the highway.",
   tag: "feedforward.amx", opacity: 0
 
-exp_chip: Readout, label: "EXPANSION", value: format("×{:.0}", expansion), at: (795, 210)
-dim_chip: Readout, label: "D_MODEL", value: "768", at: (1055, 210)
-
 // ── Act I: the residual highway ─────────────────────────────────────
 rail: Rect, size: (1120, 8), corner_radius: 4, color: stroke.default, opacity: 0, at: (640, 400)
 
