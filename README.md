@@ -74,6 +74,7 @@ A curated set of 50 runnable entry demos in [`examples/`](examples/) covering sh
 |----------|-------------|
 | [`docs/spec.md`](docs/spec.md) | Language specification and status matrix |
 | [`docs/architecture.md`](docs/architecture.md) | System architecture and design decisions |
+| [`docs/figure-content-spec.md`](docs/figure-content-spec.md) | Figure-kit templates and the per-template text budget |
 | [`docs/contributing.md`](docs/contributing.md) | Development workflows and project structure |
 | [`docs/roadmap.md`](docs/roadmap.md) | Planned features and known gaps |
 | [`docs/gui_design_language.md`](docs/gui_design_language.md) | GUI design language and migration plan |

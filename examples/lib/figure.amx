@@ -1,0 +1,96 @@
+// figure.amx — the figure-kit: layout templates that give an explanatory
+// figure a correct-by-construction baseline.
+//
+// Every diagram scene used to re-derive the same three structures by hand —
+// the FIG header block, left-aligned section labels, and small info cards —
+// and each re-derivation drifted a few pixels: headers at y=44 vs y=48,
+// titles 48px under the 56px house floor, band labels left-anchored at x=96
+// floating above content rows centred on x=640 (the "weird padding" defect),
+// info-card sublabels squeezed by per-scene text_max_width guesses until
+// `animatix review` reported text.overflow. This kit pins those structures
+// once, at the measured house coordinates, so scenes compose content instead
+// of re-laying-out chrome.
+//
+// The layout mechanics follow the measured notes in demos/lib/stage.amx: a
+// Col/Row node is its CONTENT box centred on `at`, and Text extents are glyph
+// widths, so a full-width transparent `edge` spacer is what pins a column's
+// left edge to `at.x - width / 2`. All three templates use that trick; none
+// of them re-derive it per call site.
+//
+// Type floors follow web/DESIGN.md §1.5 (titles ≥56, kickers/labels ≥16,
+// nothing else below 16). Content caps below are the character counts that
+// fit without wrapping or `text.overflow` at those sizes — measured, not
+// guessed; staying inside them is what keeps review clean.
+//
+// Usage:
+//   import "lib/theme.amx"
+//   import "lib/figure.amx"
+//
+//   head: FigHead, kicker: "FIG 01 · TOKENIZATION", title: "Text is not the input"
+//   vocab: Band, label: "VOCABULARY IDS · 50,257 ENTRIES", at: (640, 300) {
+//     @row {
+//       chip_a: LabeledBox, label: "The", width: 150, height: 56
+//       chip_b: LabeledBox, label: "animal", width: 150, height: 56
+//     }
+//   }
+//   card: InfoCard, title: "d_model = 768", sub: "Float32 rows", at: (1080, 500)
+// ── FigHead ─────────────────────────────────────────────────────────────────
+// The FIG header block, at the one house position: kicker (18 px, accent,
+// caps), display title (56 px bold — the DESIGN.md §1.5 floor; 48 px scenes
+// were the drift), and the 96×4 accent rule. The column is 1088 wide centred
+// on (640, 120), so every child's left edge lands at x=96 on every scene
+// regardless of text length.
+//
+// Content caps at 56 px: kicker ≤ 52 chars (one line), title ≤ 30 chars
+// (one line at 1088 px). Pass `kicker: ""` to omit the kicker row; the
+// opacity switch keeps the layout gap honest either way.
+pub component FigHead(kicker: Str = "", title: Str, accent: Color = accent.primary, title_size: Num = 56) {
+  root: Col, size: (1088, 220), gap: 10, align: "start", at: (640, 120), opacity: 1 {
+  kicker_text: Text, text: kicker, font_size: 18, font_weight: 600, color: accent, text_max_width: 1088, text_align: "left", opacity: if kicker == "" { 0 } else { 1 }
+  title_text: Text, text: title, font_size: title_size, font_weight: "bold", color: text.primary, text_max_width: 1088, text_align: "left", opacity: 1
+  rule: Rect, size: (96, 4), color: accent, opacity: 1
+  edge: Rect, size: (1088, 1), color: (0, 0, 0, 0), opacity: 1, legend: false
+    }
+}
+
+// ── Band ────────────────────────────────────────────────────────────────────
+// A left-pinned section band: the caps label and the content row start at the
+// SAME x, which is the whole point. Place the instance with `at: (640, y)` —
+// the edge spacer makes the column content box exactly `width` wide, so both
+// the label and the `@row` fill (or default children) left-align at
+// `at.x - width / 2` (x=96 at the default 1088 and centre 640). A hand-placed
+// label at x=96 above a Row centred at x=640 is the misalignment this
+// replaces.
+//
+// Content cap: label ≤ 56 chars at 16 px. Slot children keep their own sizes;
+// the band reserves label height (20) + gap (12) above them.
+pub component Band(label: Str, width: Num = 1088, label_color: Color = text.muted) {
+  root: Col, size: (width, 160), gap: 12, align: "start", opacity: 1 {
+  label_text: Text, text: label, font_size: 16, font_weight: 600, color: label_color, text_max_width: width, text_align: "left", opacity: 1
+  row: Row, gap: 16, align: "center", opacity: 1 {
+  @slot
+  slot_fallback: Text, text: "Band content", font_size: 16, color: text.muted
+      }
+  edge: Rect, size: (width, 1), color: (0, 0, 0, 0), opacity: 1, legend: false
+    }
+}
+
+// ── InfoCard ────────────────────────────────────────────────────────────────
+// A small annotated data card: title line (accent, 20 px semibold) over a
+// subline (16 px muted) on a rounded surface plate. The subline's
+// text_max_width is derived from the card width (width - 36), which is the
+// inner padding — the per-scene magic numbers (180, 210, …) that produced the
+// overflow warnings were hand-deriving exactly this.
+//
+// Content caps: title ≤ 16 chars, sub ≤ 24 chars at the default 200 px
+// width; scale `width` with the text, not the font size.
+pub component InfoCard(title: Str, sub: Str = "", width: Num = 200, height: Num = 92, accent: Color = accent.primary) {
+  root: Stack, size: (width, height), opacity: 1 {
+  bg: Rect, size: (width, height), corner_radius: 14, color: surface.primary, stroke: stroke.default, stroke_width: 1.4
+  content: Col, gap: 4, align: "center", opacity: 1 {
+  title_text: Text, text: title, font_size: 20, font_weight: 600, color: accent, text_max_width: width - 36, text_align: "center"
+  sub_text: Text, text: sub, font_size: 16, color: text.muted, text_max_width: width - 36, text_align: "center", opacity: if sub == "" { 0 } else { 1 }
+  edge: Rect, size: (width - 36, 1), color: (0, 0, 0, 0), opacity: 1, legend: false
+      }
+    }
+}

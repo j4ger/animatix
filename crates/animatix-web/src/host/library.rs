@@ -28,6 +28,7 @@ const BUNDLED_LIBRARY: &[(&str, &str)] = &[
         include_str!("../../../../examples/lib/colorschemes.amx"),
     ),
     ("../lib/components.amx", include_str!("../../../../examples/lib/components.amx")),
+    ("../lib/figure.amx", include_str!("../../../../examples/lib/figure.amx")),
     ("../lib/light.amx", include_str!("../../../../examples/lib/light.amx")),
     ("../lib/palette.amx", include_str!("../../../../examples/lib/palette.amx")),
     ("../lib/reexport.amx", include_str!("../../../../examples/lib/reexport.amx")),

@@ -146,6 +146,7 @@ Reusable modules imported by examples and available for dogfood projects.
 | `lib/card.amx` | Reusable `Card` component |
 | `lib/slide.amx` | Reusable `Slide` layout with slots |
 | `lib/components.amx` | Reusable components for future demos |
+| `lib/figure.amx` | Figure kit: `FigHead` / `Band` / `InfoCard` layout templates (see `docs/figure-content-spec.md`) |
 | `lib/actions.amx` | Reusable custom action blocks |
 | `lib/colorschemes.amx` | Custom `Colorscheme` definitions |
 

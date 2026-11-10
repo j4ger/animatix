@@ -1,0 +1,67 @@
+// figure_kit.amx — exercises every figure.amx template on one stage, and
+// doubles as the living usage example: FigHead at the house header position,
+// two Bands whose labels and content share one left edge, an InfoCard with
+// derived inner padding, plus LabeledBox chips and stage.Caption.
+//
+// Content caps respected: FigHead title 30 chars, Band labels 56 chars,
+// InfoCard sub 24 chars.
+import "../lib/theme.amx"
+
+import "../lib/figure.amx"
+
+import "../lib/ambience.amx"
+
+config { colorscheme: "tide", resolution: (1280, 720), duration: 5 }
+
+// A local demo chip: the kit's templates stay free of web-only components
+// (LabeledBox lives in web/demos/transformer/lib), so the example declares
+// its own atom the way a real scene would.
+pub component Chip(label: Str) {
+  root: Stack, size: (150, 56) {
+  bg: Rect, size: (150, 56), corner_radius: 12, color: surface.primary, stroke: stroke.default, stroke_width: 1.2
+  label_text: Text, text: label, font_size: 20, color: text.primary
+    }
+}
+
+// ── the stage ───────────────────────────────────────────────────────
+// In web/demos the stage furniture is demos/lib/stage.amx (StageFloor +
+// Caption); examples carry only ambience, so this scene lights its ground
+// with Ambience and shows the kit against it.
+amb: Ambience, tint: rgb(0.35, 0.62, 0.65), base_opacity: 0.12
+
+head: FigHead, kicker: "FIG 01 · THE FIGURE KIT", title: "Templates set the baseline"
+
+vocab: Band, label: "VOCABULARY IDS · 50,257-TOKEN CODEBOOK", at: (640, 340), opacity: 0 {
+@row {
+chip_the: Chip, label: "The"
+chip_animal: Chip, label: "animal"
+chip_cross: Chip, label: "cross"
+  }
+}
+
+rows: Band, label: "EMBEDDING ROWS (W_E) · 768 FLOAT32 COORDINATES", at: (640, 520), opacity: 0 {
+@row {
+for i in {0, 1, 2, 3, 4} {
+cell[i]: Rect, size: (200, 40), corner_radius: 8, color: accent.primary, opacity: 0.35 + i * 0.15
+    }
+  }
+}
+
+card: InfoCard, title: "d_model = 768", sub: "Float32 coordinates", at: (1080, 520), opacity: 0
+
+#0.1s
+  fade-in head [320ms, ease: expo-out]
+
+#1s
+  fade-in vocab [360ms, ease: expo-out]
+
+#2.2s
+  fade-in rows [360ms, ease: expo-out]
+
+#3.4s
+  fade-in card [320ms, ease: expo-out]
+  pulse card [500ms, intensity: 0.03, delay: 300ms]
+
+// ── Rest ────────────────────────────────────────────────────────────
+#4.6s
+// Header, both bands and the card hold; nothing erases.
