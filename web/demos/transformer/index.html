@@ -91,7 +91,7 @@
       </div>
 
       <div class="article-math-box">
-        <code>y_{t} = \text{argmax} \, P(\text{token}_t \mid \text{tokens}_{1:t-1})</code>
+        <span class="math-expr"><i>y</i><sub><i>t</i></sub> = argmax <i>P</i>(token<sub><i>t</i></sub> &mid; tokens<sub>1:<i>t</i>&minus;1</sub>)</span>
       </div>
 
       <div class="article-figure-card">
@@ -168,7 +168,7 @@
       </div>
 
       <div class="article-math-box">
-        <code>x_i = W_e \left[ \text{token\_id}_i \right] \in \mathbb{R}^{d_{model}} \quad (d_{model} = 768)</code>
+        <span class="math-expr"><b>x</b><sub><i>i</i></sub> = <b>W</b><sub><i>e</i></sub> [ token_id<sub><i>i</i></sub> ] &isin; &Ropf;<sup><i>d</i><sub>model</sub></sup> &nbsp;&nbsp;(<i>d</i><sub>model</sub> = 768)</span>
       </div>
 
       <div class="article-figure-card">
@@ -236,7 +236,7 @@
       </div>
 
       <div class="article-math-box">
-        <code>PE_{(pos, 2i)} = \sin\left(\frac{pos}{10000^{2i/d}}\right), \quad PE_{(pos, 2i+1)} = \cos\left(\frac{pos}{10000^{2i/d}}\right)</code>
+        <span class="math-expr">PE<sub>(<i>pos</i>, 2<i>i</i>)</sub> = sin&lpar;<i>pos</i> / 10000<sup>2<i>i</i>/<i>d</i></sup>&rpar;, &nbsp;&nbsp; PE<sub>(<i>pos</i>, 2<i>i</i>+1)</sub> = cos&lpar;<i>pos</i> / 10000<sup>2<i>i</i>/<i>d</i></sup>&rpar;</span>
       </div>
 
       <div class="article-figure-card">
@@ -317,7 +317,7 @@
       </div>
 
       <div class="article-math-box">
-        <code>\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{Q K^T}{\sqrt{d_k}} + M\right) V</code>
+        <span class="math-expr">Attention(<b>Q</b>, <b>K</b>, <b>V</b>) = softmax&lpar;(<b>Q</b><b>K</b><sup>T</sup> / &radic;<i>d</i><sub><i>k</i></sub> + <b>M</b>)&rpar; <b>V</b></span>
       </div>
 
       <div class="article-figure-card">
@@ -388,7 +388,7 @@
       </div>
 
       <div class="article-math-box">
-        <code>\text{MultiHead}(Q, K, V) = \text{Concat}(\text{head}_1, \dots, \text{head}_h) W_O</code>
+        <span class="math-expr">MultiHead(<b>Q</b>, <b>K</b>, <b>V</b>) = Concat(head<sub>1</sub>, &hellip;, head<sub><i>h</i></sub>) <b>W</b><sub><i>O</i></sub></span>
       </div>
 
       <div class="article-figure-card">
@@ -457,7 +457,7 @@
       </div>
 
       <div class="article-math-box">
-        <code>\text{FFN}(x) = \sum_{m=1}^{3072} \text{GELU}\left(x^T k_m + b_{1,m}\right) \cdot v_m + b_2</code>
+        <span class="math-expr">FFN(<b>x</b>) = &sum;<sub><i>m</i>=1</sub><sup>3072</sup> GELU(<b>x</b><sup>T</sup> <b>k</b><sub><i>m</i></sub> + <i>b</i><sub>1,<i>m</i></sub>) <b>v</b><sub><i>m</i></sub> + <b>b</b><sub>2</sub></span>
       </div>
 
       <div class="article-figure-card">
@@ -528,7 +528,7 @@
       </div>
 
       <div class="article-math-box">
-        <code>P(\text{token}_{t+1} \mid \text{tokens}_{1:t}) = \text{softmax}\left( W_U \, h_L^{(t)} \right) \in \mathbb{R}^{50,257}</code>
+        <span class="math-expr"><i>P</i>(token<sub><i>t</i>+1</sub> &mid; tokens<sub>1:<i>t</i></sub>) = softmax(<b>W</b><sub><i>U</i></sub> <b>h</b><sub><i>L</i></sub><sup>(<i>t</i>)</sup>) &isin; &Ropf;<sup>50,257</sup></span>
       </div>
 
       <div class="article-figure-card">
@@ -554,7 +554,8 @@
           <div class="figure-text">
             <strong>The 12-Layer Stack and Logit Un-Embedding.</strong>
             Representations climb through the deep hierarchy: surface syntax (Block 01) ascends to relational semantics (Block 06)
-            and intent prediction (Block 12). The LM Head projects into 50,257 logits, selecting "street".
+            and intent prediction (Block 12). The LM Head projects into 50,257 logits, selecting "street" (41%).
+            The winning token appends to the baseline, advancing the generative frontier into the next forward pass.
           </div>
         </div>
       </div>
