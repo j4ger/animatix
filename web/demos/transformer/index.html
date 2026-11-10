@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>The Transformer Architecture, Illustrated &amp; Animated</title>
-  <meta name="description" content="A visual-first, long-form deep dive into the transformer architecture: seven interactive WebGPU figures compiled live from declarative .amx code — tokens, harmonic positions, attention spotlights, multi-head subspaces, associative memory, and the residual highway.">
+  <title>The Transformer, Explained with Animations</title>
+  <meta name="description" content="A visual long-form explainer of the transformer architecture: tokens, positions, attention, multi-head subspaces, feed-forward memory, and the residual highway — six live figures compiled from declarative .amx code.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="../../site.css">
   <link rel="stylesheet" href="../../site/v2.css">
@@ -17,671 +17,186 @@
   </script>
 </head>
 <body>
-  <div class="wrap transformer-article">
-    <!-- Article Hero Header -->
-    <header class="article-header">
-      <p class="kicker">ANIMATIX DEEP DIVE · COMPILATION-FIRST EXPLAINER</p>
-      <h1 class="article-title">The Transformer Architecture, Illustrated &amp; Animated</h1>
-      <div class="article-meta">
-        <span><b>7</b> Interactive Figures</span>
-        <span>•</span>
-        <span><b>WebGPU</b> 60 FPS Vector Engine</span>
-        <span>•</span>
-        <span><b>pkg-slim</b> (~1.6 MB Brotli)</span>
-        <span>•</span>
-        <span><b>Zero</b> Video Buffering</span>
-      </div>
-      <p class="lede">
-        In 2017, a team at Google Brain published a 15-page paper titled <em>"Attention Is All You Need"</em>.
-        It introduced an architecture so scalable that it became the computational foundation for GPT-4, Claude, Gemini,
-        and every frontier AI model today. This interactive deep dive opens the machine step by step: tracing how human
-        language fractures into high-dimensional geometry, communicates across attention spotlights, recalls factual memory in
-        non-linear highways, and generates human thought one word at a time.
+  <main class="wrap tx-wrap">
+
+    <header class="tx-head">
+      <p class="kicker">Animatix Deep Dive</p>
+      <h1 class="tx-title">The Transformer, Explained with Animations</h1>
+      <p class="tx-lede">
+        Six figures compiled live from <code>.amx</code> scene code walk through the
+        machine behind GPT and Claude — from raw text to the next-word prediction.
+        Read top to bottom; each chapter is one idea and one animation.
       </p>
+      <nav class="tx-toc" aria-label="Chapters">
+        <a href="#tokens">1&nbsp;Tokens</a>
+        <a href="#positions">2&nbsp;Positions</a>
+        <a href="#attention">3&nbsp;Attention</a>
+        <a href="#heads">4&nbsp;Heads</a>
+        <a href="#ffn">5&nbsp;FFN</a>
+        <a href="#stack">6&nbsp;Stack</a>
+        <a href="#rosetta">7&nbsp;CNN&nbsp;bridge</a>
+      </nav>
     </header>
-
-    <!-- Mental Model Pipeline Strip -->
-    <div class="mental-model-banner">
-      <div class="model-badge">
-        <span class="live-dot"></span>
-        <span>The Core Mental Model: The Residual Information Highway</span>
-      </div>
-      <div class="model-pipeline">
-        <div class="pipeline-step"><span>01</span> Tokens</div>
-        <div class="pipeline-arrow">→</div>
-        <div class="pipeline-step"><span>02</span> Embed + Pos</div>
-        <div class="pipeline-arrow">→</div>
-        <div class="pipeline-step active"><span>03</span> [Attn + FFN] × N (Highway)</div>
-        <div class="pipeline-arrow">→</div>
-        <div class="pipeline-step"><span>04</span> Logits</div>
-      </div>
-    </div>
-
-    <!-- Sticky Chapter Table of Contents Rail -->
-    <nav class="chapter-rail" id="chapter-rail" aria-label="Chapter Table of Contents">
-      <a href="#sec-overview" class="active"><span class="rn">00</span> Blueprint</a>
-      <a href="#sec-tokens"><span class="rn">01</span> Tokens</a>
-      <a href="#sec-positional"><span class="rn">02</span> Positions</a>
-      <a href="#sec-attention"><span class="rn">03</span> Self-Attention</a>
-      <a href="#sec-multihead"><span class="rn">04</span> Multi-Head</a>
-      <a href="#sec-feedforward"><span class="rn">05</span> FFN</a>
-      <a href="#sec-pipeline"><span class="rn">06</span> Layer Stack</a>
-      <a href="#sec-rosetta"><span class="rn">07</span> Rosetta</a>
-    </nav>
 
     <!-- site-gen:works-params:start -->
 
 <!-- site-gen:works-params:end -->
 
-    <!-- ═════════════════════════════════════════════════════════════════ -->
-    <!-- Chapter 00: The Autoregressive Blueprint                        -->
-    <!-- ═════════════════════════════════════════════════════════════════ -->
-    <section id="sec-overview" class="article-section">
-      <div class="section-header">
-        <span class="section-kicker">Chapter 00 · Autoregressive Feedback</span>
-        <h2 class="section-title">The Blueprint: A Machine That Writes One Word at a Time</h2>
-      </div>
-
-      <div class="article-prose">
-        <p>
-          Large language models can write essays, debug complex code, and simulate logical debate.
-          Yet beneath this apparent general intelligence lies an astonishingly focused operational truth:
-          <strong>the model is an iterative, next-token prediction engine</strong>.
-        </p>
-        <p>
-          When you submit a prompt, the model does not plan or generate an entire response in one stroke.
-          Instead, the input sequence enters along the bottom baseline. Signals ascend through <strong>N stacked blocks</strong>.
-          Self-attention routes context horizontally between words, while feed-forward networks recall factual memory.
-          At the summit, the Language Model (LM) Head projects hidden states into a probability distribution over the vocabulary.
-          The single winning candidate appends back onto the input row — and the entire forward pass repeats.
-          That closed feedback loop <strong>is</strong> autoregressive generation.
-        </p>
-      </div>
-
-      <div class="article-math-box">
-        <span class="math-expr"><i>y</i><sub><i>t</i></sub> = argmax <i>P</i>(token<sub><i>t</i></sub> &mid; tokens<sub>1:<i>t</i>&minus;1</sub>)</span>
-      </div>
-
-      <div class="article-figure-card">
-        <div class="stage-deck">
-          <div class="stage-core">
-            <div class="stage-hud">
-              <div class="stage-hud-tag">
-                <span class="live-dot"></span>
-                <span>Fig 00 // Full Architecture Blueprint · Autoregressive Feedback Loop</span>
-              </div>
-              <div class="stage-hud-specs">
-                <span>pkg-slim · 60 FPS WEBGPU</span>
-              </div>
-            </div>
-            <div class="stage-viewport">
-              <amx-player src="scenes/overview.amx" autoplay loop controls hold="1.5"
-                          aspect="16:9" title="The full transformer architecture blueprint"></amx-player>
-            </div>
-          </div>
-        </div>
-        <div class="article-figcaption">
-          <span class="article-fig-badge">Fig 00</span>
-          <div class="figure-text">
-            <strong>The Master Architecture Blueprint.</strong>
-            Tokens enter along the baseline with a trailing slot awaiting prediction. Hidden coordinates climb through
-            repeated self-attention and feed-forward sublayers (× N). The winning token ("street") appends back to input,
-            driving the next generative turn.
-          </div>
-        </div>
-      </div>
-
-      <aside class="article-callout">
-        <strong>The Generative Snowball &amp; Causal Autoregression:</strong>
-        Unlike masked models (such as BERT) that require explicit <code>[MASK]</code> placeholder tokens, an autoregressive decoder (like GPT, Claude, or DeepSeek) requires no placeholder. The model takes the prompt tokens as-is, reads the hidden vector of the very last token at layer N, and projects it into vocabulary logits. The single winning candidate is appended to extend the sequence, advancing the generative frontier one step at a time. To prevent quadratic recomputation, modern inference engines maintain a <strong>KV-Cache</strong> to store past key and value vectors.
-      </aside>
+    <!-- ═══ 1 · Tokens ═══════════════════════════════════════════════ -->
+    <section class="tx-chapter" id="tokens">
+      <h2 class="tx-chapter-title"><span>1</span>Words become vectors</h2>
+      <p>
+        A neural network cannot multiply a word like <code>animal</code>. The tokenizer
+        first splits text into sub-word chunks and looks each up in a learned table,
+        which returns a vector of <code>d<sub>model</sub></code> numbers — its coordinates
+        in meaning space. In that space, direction carries meaning:
+        <code>v(king) − v(man) + v(woman) ≈ v(queen)</code>.
+      </p>
+      <figure class="tx-fig">
+        <amx-player src="scenes/tokens.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Words become vectors: tokens, IDs, embeddings"></amx-player>
+        <figcaption><span class="cap">Text fractures into sub-word tokens, resolves to IDs, and
+        each ID extrudes a d<sub>model</sub>-dimensional embedding row from the table W<sub>e</sub>.</span></figcaption>
+      </figure>
+      <p>
+        Everything that follows — attention, memory, logits — operates on these vectors
+        and on nothing else. The embedding table is the only part of the model that
+        actually knows how to spell.
+      </p>
     </section>
 
-    <!-- ═════════════════════════════════════════════════════════════════ -->
-    <!-- Chapter 01: Sub-Word Fracture & Continuous Embeddings           -->
-    <!-- ═════════════════════════════════════════════════════════════════ -->
-    <section id="sec-tokens" class="article-section">
-      <div class="section-header">
-        <span class="section-kicker">Chapter 01 · Vector Extrusion</span>
-        <h2 class="section-title">From Discrete Text to High-Dimensional Coordinates</h2>
-      </div>
-
-      <div class="article-prose">
-        <p>
-          Computers store human text as discrete byte sequences (such as ASCII or UTF-8).
-          To a deep neural network, however, raw characters are mathematically opaque: a neural weight matrix
-          cannot multiply against character glyphs like <code>'animal'</code>.
-        </p>
-        <p>
-          Historically, NLP used one-hot vectors, assigning every word an isolated basis vector.
-          But one-hot vectors are disastrous: a 50,000-word vocabulary produces 50,000-dimensional sparse vectors
-          where every word is strictly orthogonal to every other word. In one-hot space, <code>cat</code> is as
-          distant from <code>kitten</code> as it is from <code>refrigerator</code>.
-        </p>
-        <p>
-          Modern models solve this in two steps:
-        </p>
-        <p>
-          <strong>1. Byte-Pair Encoding (BPE):</strong>
-          Text fractures into statistically optimal sub-word tokens, striking a perfect balance between character flexibility
-          and word-level efficiency. Each sub-word maps to an integer ID in a 50,257-token codebook.
-        </p>
-        <p>
-          <strong>2. Continuous Coordinate Extrusion:</strong>
-          A learned embedding matrix <code>W_e</code> extrudes each integer ID into a <strong>768-dimensional coordinate row</strong>
-          (in GPT-2 Small, $d_{model} = 768$). In this high-dimensional continuous geometry, spatial proximity directly reflects
-          conceptual meaning, and semantic relationships become geometric vector arithmetic:
-          <code>v(king) - v(man) + v(woman) ≈ v(queen)</code>.
-        </p>
-      </div>
-
-      <div class="article-math-box">
-        <span class="math-expr"><b>x</b><sub><i>i</i></sub> = <b>W</b><sub><i>e</i></sub> [ token_id<sub><i>i</i></sub> ] &isin; &Ropf;<sup><i>d</i><sub>model</sub></sup> &nbsp;&nbsp;(<i>d</i><sub>model</sub> = 768)</span>
-      </div>
-
-      <div class="article-figure-card">
-        <div class="stage-deck">
-          <div class="stage-core">
-            <div class="stage-hud">
-              <div class="stage-hud-tag">
-                <span class="live-dot"></span>
-                <span>Fig 01 // Sub-Word Fracture &amp; Coordinate Extrusion</span>
-              </div>
-              <div class="stage-hud-specs">
-                <span>pkg-slim · 60 FPS WEBGPU</span>
-              </div>
-            </div>
-            <div class="stage-viewport">
-              <amx-player src="scenes/tokens.amx" autoplay loop controls hold="1.5"
-                          aspect="16:9" title="Sub-word fracture and vector extrusion"></amx-player>
-            </div>
-          </div>
-        </div>
-        <div class="article-figcaption">
-          <span class="article-fig-badge">Fig 01</span>
-          <div class="figure-text">
-            <strong>Sub-Word Fracture and Coordinate Lookup.</strong>
-            Natural text arrives as unbroken character strings, fractures into sub-word token chips via BPE,
-            resolves to vocabulary IDs, and extrudes continuous 768-dimensional coordinate rows from matrix W_e.
-          </div>
-        </div>
-      </div>
+    <!-- ═══ 2 · Positions ════════════════════════════════════════════ -->
+    <section class="tx-chapter" id="positions">
+      <h2 class="tx-chapter-title"><span>2</span>Order is added back in</h2>
+      <p>
+        Attention is order-blind: shuffle the words and it computes the same result, so
+        <em>"dog bites man"</em> and <em>"man bites dog"</em> look identical. The fix is to
+        add a position vector to every token, built from sine and cosine waves of doubling
+        wavelength — fine fast-oscillating dimensions encode nearby positions, slow ones
+        encode coarse ones.
+      </p>
+      <figure class="tx-fig">
+        <amx-player src="scenes/positional.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Order is added back in: harmonic position encodings"></amx-player>
+        <figcaption><span class="cap">Each position's composite wave fingerprint is extracted and
+        added element-wise to the token embedding.</span></figcaption>
+      </figure>
+      <p>
+        In 768 dimensions these additions barely disturb each other — token meaning and
+        position ride in nearly orthogonal subspaces, which is why a plain sum is enough.
+      </p>
     </section>
 
-    <!-- ═════════════════════════════════════════════════════════════════ -->
-    <!-- Chapter 02: Positional Harmonics                                -->
-    <!-- ═════════════════════════════════════════════════════════════════ -->
-    <section id="sec-positional" class="article-section">
-      <div class="section-header">
-        <span class="section-kicker">Chapter 02 · Temporal Fingerprints</span>
-        <h2 class="section-title">Injecting the Arrow of Time: Harmonic Positional Encodings</h2>
-      </div>
-
-      <div class="article-prose">
-        <p>
-          Once words become continuous vectors, they enter the Transformer.
-          Here lies a fundamental paradox: <strong>Self-Attention is strictly permutation-invariant</strong>.
-          If you scramble the words of a sentence into a random order, an attention matrix computes the exact same values.
-          To an order-blind attention layer, <em>"dog bites man"</em> and <em>"man bites dog"</em> appear identical.
-        </p>
-        <p>
-          Why not simply append an integer step counter (1, 2, 3...) to each word?
-          Naive integer counters fail in deep backpropagation: as sequence lengths grow at inference time,
-          unbounded index values blow up network activations and introduce scale mismatch.
-        </p>
-        <p>
-          The Transformer's solution is elegant: <strong>Harmonic Sinusoidal Frequencies</strong>.
-          For each dimension index $2i$, the model computes a sine wave; for $2i+1$, a cosine wave.
-          Wavelengths double progressively across rows from fine to coarse resolution ($\lambda = 3, 6, 12, 24$).
-          Low dimensions oscillate rapidly, capturing fine relative offsets; high dimensions oscillate slowly,
-          providing a smooth global position coordinate.
-        </p>
-        <p>
-          This harmonic spectrum adds element-wise directly onto the token embedding (<code>x_i = e_i + p_i</code>).
-          Because trigonometric functions satisfy linear rotation identities, the model can learn to attend by
-          relative distance simply by taking linear combinations.
-        </p>
-      </div>
-
-      <div class="article-math-box">
-        <span class="math-expr">PE<sub>(<i>pos</i>, 2<i>i</i>)</sub> = sin&lpar;<i>pos</i> / 10000<sup>2<i>i</i>/<i>d</i></sup>&rpar;, &nbsp;&nbsp; PE<sub>(<i>pos</i>, 2<i>i</i>+1)</sub> = cos&lpar;<i>pos</i> / 10000<sup>2<i>i</i>/<i>d</i></sup>&rpar;</span>
-      </div>
-
-      <div class="article-figure-card">
-        <div class="stage-deck">
-          <div class="stage-core">
-            <div class="stage-hud">
-              <div class="stage-hud-tag">
-                <span class="live-dot"></span>
-                <span>Fig 02 // Harmonic Positional Spectrum</span>
-              </div>
-              <div class="stage-hud-specs">
-                <span>pkg-slim · 60 FPS WEBGPU</span>
-              </div>
-            </div>
-            <div class="stage-viewport">
-              <amx-player src="scenes/positional.amx" autoplay loop controls hold="1.5"
-                          aspect="16:9" title="Harmonic frequency positional spectrum"></amx-player>
-            </div>
-          </div>
-        </div>
-        <div class="article-figcaption">
-          <span class="article-fig-badge">Fig 02</span>
-          <div class="figure-text">
-            <strong>Harmonic Frequency Spectrum and Vector Fusion.</strong>
-            Eight positions line up across four spectral frequency bands. Wavelength doubles across rows.
-            A scanning cursor extracts each position's composite frequency fingerprint, adding it element-wise to the token embedding.
-          </div>
-        </div>
-      </div>
-
-      <aside class="article-callout">
-        <strong>The Blessing of Dimensionality: Why Addition Doesn't Destroy Meaning:</strong>
-        In 2D or 3D geometry, adding two vectors drastically alters their direction. But in $d_{model} = 768$ dimensions, space behaves counter-intuitively: <strong>almost all random vectors are mutually orthogonal</strong> ($x^T y \approx 0$). High-dimensional space possesses vast geometric capacity, allowing token semantics, position frequencies, and later sublayer updates to travel in distinct, near-orthogonal subspaces like separate lanes on an 8-lane highway without colliding.
-      </aside>
+    <!-- ═══ 3 · Attention ════════════════════════════════════════════ -->
+    <section class="tx-chapter" id="attention">
+      <h2 class="tx-chapter-title"><span>3</span>Attention routes context</h2>
+      <p>
+        This is the core mechanism. Every vector projects into three roles through learned
+        matrices: a <strong>Query</strong> (what it is looking for), a <strong>Key</strong>
+        (what it advertises), and a <strong>Value</strong> (what it hands over if matched).
+        Dot products between one query and all keys score the matches; softmax turns the
+        scores into weights; the weights mix the values.
+      </p>
+      <p class="tx-math">Attention(Q, K, V) = softmax(QK<sup>T</sup> / √d<sub>k</sub> + M)&nbsp;V</p>
+      <figure class="tx-fig">
+        <amx-player src="scenes/attention.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Attention routes context: the pronoun it finds animal"></amx-player>
+        <figcaption><span class="cap">Resolving "it" in <em>The animal didn't cross the street
+        because it was too tired</em>: the query of "it" scores animal at 0.64, street at 0.18,
+        and the weighted value stream carries "animal" back into "it".</span></figcaption>
+      </figure>
+      <p class="tx-note">
+        Generative models also apply a <strong>causal mask</strong>: scores against future
+        positions are set to −∞, so a token can only look left. That single constraint is
+        what makes next-word training possible.
+      </p>
     </section>
 
-    <!-- ═════════════════════════════════════════════════════════════════ -->
-    <!-- Chapter 03: Scaled Dot-Product Attention                        -->
-    <!-- ═════════════════════════════════════════════════════════════════ -->
-    <section id="sec-attention" class="article-section">
-      <div class="section-header">
-        <span class="section-kicker">Chapter 03 · Contextual Routing</span>
-        <h2 class="section-title">How Words Communicate: Scaled Dot-Product Self-Attention</h2>
-      </div>
-
-      <div class="article-prose">
-        <p>
-          Before Transformers, Recurrent Neural Networks (RNNs) passed information sequentially from word to word
-          like a game of telephone. In long sentences, early context was inevitably washed away.
-          Self-Attention shattered this bottleneck by establishing <strong>direct, pairwise $O(1)$ communication
-          between every pair of words in the sentence</strong>.
-        </p>
-        <p>
-          To coordinate communication, each token vector projects into three distinct roles via learned weight matrices (W_Q, W_K, W_V):
-        </p>
-        <p>
-          • <strong>Query (Q):</strong> What this token seeks from others.<br>
-          • <strong>Key (K):</strong> What this token advertises to matching queries.<br>
-          • <strong>Value (V):</strong> The substantive semantic payload this token delivers.
-        </p>
-        <p>
-          <strong>Why not compute dot products directly between original vectors (x_i^T x_j)?</strong><br>
-          Because original dot products are strictly symmetric: $x_i^T x_j = x_j^T x_i$. In natural language, however, syntactic and semantic dependencies are directional and asymmetric: a pronoun eagerly searches for its antecedent noun, but the noun does not reciprocate that need. Linear projections $W_Q$ and $W_K$ break the symmetry ($Q K^T \neq K Q^T$). Meanwhile, an independent $W_V$ decouples the <em>indexing criteria</em> (what matches) from the <em>semantic payload</em> (what is retrieved).
-        </p>
-        <p>
-          Consider the famous Winograd Schema challenge:
-          <em>"The animal didn't cross the street because <strong>it</strong> was too tired"</em>.
-          To interpret <code>"it"</code>, the model must decide whether it refers to <code>"animal"</code> or <code>"street"</code>.
-          The token <code>"it"</code> emits a Query searching for an antecedent with fatigue attributes.
-          Taking dot products against all preceding Keys measures geometric alignment:
-          the affinity with <code>"animal"</code> scores <strong>0.64</strong>, decisively outcompeting <code>"street"</code> at <strong>0.18</strong>.
-        </p>
-        <p>
-          Scores are scaled by <code>1 / √d_k</code> to maintain unit variance in high dimensions (preventing Softmax
-          from saturating into vanishing gradients). Finally, Softmax weights guide a weighted sum over all Value vectors:
-          the pronoun <code>"it"</code> absorbs the rich entity features of <code>"animal"</code>.
-        </p>
-      </div>
-
-      <div class="article-math-box">
-        <span class="math-expr">Attention(<b>Q</b>, <b>K</b>, <b>V</b>) = softmax&lpar;(<b>Q</b><b>K</b><sup>T</sup> / &radic;<i>d</i><sub><i>k</i></sub> + <b>M</b>)&rpar; <b>V</b></span>
-      </div>
-
-      <div class="article-figure-card">
-        <div class="stage-deck">
-          <div class="stage-core">
-            <div class="stage-hud">
-              <div class="stage-hud-tag">
-                <span class="live-dot"></span>
-                <span>Fig 03 // Scaled Dot-Product Attention Spotlight</span>
-              </div>
-              <div class="stage-hud-specs">
-                <span>pkg-slim · 60 FPS WEBGPU</span>
-              </div>
-            </div>
-            <div class="stage-viewport">
-              <amx-player src="scenes/attention.amx" autoplay loop controls hold="1.5"
-                          aspect="16:9" title="Scaled dot-product attention spotlight"></amx-player>
-            </div>
-          </div>
-        </div>
-        <div class="article-figcaption">
-          <span class="article-fig-badge">Fig 03</span>
-          <div class="figure-text">
-            <strong>Scaled Dot-Product Attention Spotlight.</strong>
-            Token "it" casts a Query probing preceding Keys. Dot products scaled by 1/√64 sharpen through Softmax,
-            awarding 64% to "animal" over "street" (18%). The weighted Value stream resolves the pronoun antecedent.
-          </div>
-        </div>
-      </div>
-
-      <aside class="article-callout">
-        <strong>The Causal Masking Law:</strong>
-        In bidirectional models (such as BERT encoders), tokens can look both left and right. But in generative decoders (GPT, Llama, DeepSeek), the model must never peek into the future. A causal mask matrix $M$ enforces this by setting upper-triangular affinities ($j > i$) to $-\infty$. Because $e^{-\infty} = 0$, future attention weights become zero. Notice that in our example, <code>"it"</code> is the 6th token looking backward at <code>"animal"</code> (token 2) and <code>"street"</code> (token 4) — strictly honoring the causal boundary!
-      </aside>
-
-      <aside class="article-callout">
-        <strong>For Computer Vision Veterans: Dynamic Convolutions with Infinite Receptive Field:</strong>
-        In a standard CNN (ResNet, VGG), a $3 \times 3$ convolutional kernel has fixed, frozen weights and a narrow, local receptive field that expands slowly over depth. Self-Attention fundamentally reimagines this:
-        1. <strong>Global Receptive Field ($O(1)$) from Layer 1:</strong> Every token can directly query any other token in a single step, bypassing the multi-layer receptive field dilation required in CNNs.
-        2. <strong>Data-Dependent Dynamic Weights:</strong> Rather than applying static parameters, the attention filter $A = \text{softmax}(QK^T / \sqrt{d_k} + M)$ is computed at runtime from the inputs themselves. Self-Attention is mathematically an input-adaptive, dynamic depthwise convolution with infinite receptive field!
-      </aside>
+    <!-- ═══ 4 · Multi-head ═══════════════════════════════════════════ -->
+    <section class="tx-chapter" id="heads">
+      <h2 class="tx-chapter-title"><span>4</span>Twelve lenses at once</h2>
+      <p>
+        One attention pass produces one pattern of weights — but a word participates in
+        several relationships at once. So the 768-dim state is split into twelve 64-dim
+        subspaces, each running its own attention with its own specialties: one tracks
+        coreference, one syntax, one modifier binding. The twelve outputs are concatenated
+        and re-mixed by a final matrix W<sub>O</sub> so the lanes can talk to each other.
+      </p>
+      <figure class="tx-fig">
+        <amx-player src="scenes/multihead.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Twelve lenses at once: multi-head attention"></amx-player>
+        <figcaption><span class="cap">Heads watch different relationships concurrently, then
+        concatenate and recombine through W<sub>O</sub> back into the 768-dim stream.</span></figcaption>
+      </figure>
     </section>
 
-    <!-- ═════════════════════════════════════════════════════════════════ -->
-    <!-- Chapter 04: Multi-Head Subspaces                                -->
-    <!-- ═════════════════════════════════════════════════════════════════ -->
-    <section id="sec-multihead" class="article-section">
-      <div class="section-header">
-        <span class="section-kicker">Chapter 04 · Parallel Subspaces</span>
-        <h2 class="section-title">Multiple Lenses at Once: Multi-Head Parallel Attention</h2>
-      </div>
-
-      <div class="article-prose">
-        <p>
-          Language is inherently multidimensional. At any instant, a single word participates in multiple simultaneous relationships:
-          grammatical agreement, pronoun coreference, modifier binding, and syntactic predicate structure.
-          A single attention head can only produce one probability distribution per word — forcing the model to compromise
-          and average diverse relationships into a blurred composite.
-        </p>
-        <p>
-          <strong>Multi-Head Attention</strong> resolves this by projecting the 768-dimensional model state into
-          <strong>12 parallel 64-dimensional subspaces</strong> ($12 \times 64 = 768$).
-          Each head operates as an independent, specialized lens:
-        </p>
-        <p>
-          • <strong>Head 1 (Coreference):</strong> Resolves pronouns across clauses (<code>"it" → "animal"</code>, weight 0.88).<br>
-          • <strong>Head 2 (Syntax):</strong> Resolves verb negation to preceding auxiliary (<code>"cross" → "didn't"</code>, weight 0.92).<br>
-          • <strong>Head 3 (Modifier Binding):</strong> Binds spatial object to preceding action (<code>"street" → "cross"</code>, weight 0.85).
-        </p>
-        <p>
-          Each head computes attention independently within its 64-dimensional subspace.
-          The 12 resulting vectors are concatenated into a $12 \times 64 = 768$ matrix, and a final linear projection
-          matrix <code>W_O</code> synthesizes the multi-aspect insights back into the main residual stream.
-        </p>
-      </div>
-
-      <div class="article-math-box">
-        <span class="math-expr">MultiHead(<b>Q</b>, <b>K</b>, <b>V</b>) = Concat(head<sub>1</sub>, &hellip;, head<sub><i>h</i></sub>) <b>W</b><sub><i>O</i></sub></span>
-      </div>
-
-      <div class="article-figure-card">
-        <div class="stage-deck">
-          <div class="stage-core">
-            <div class="stage-hud">
-              <div class="stage-hud-tag">
-                <span class="live-dot"></span>
-                <span>Fig 04 // Multi-Head Parallel Subspaces</span>
-              </div>
-              <div class="stage-hud-specs">
-                <span>pkg-slim · 60 FPS WEBGPU</span>
-              </div>
-            </div>
-            <div class="stage-viewport">
-              <amx-player src="scenes/multihead.amx" autoplay loop controls hold="1.5"
-                          aspect="16:9" title="Multi-head parallel attention subspaces"></amx-player>
-            </div>
-          </div>
-        </div>
-        <div class="article-figcaption">
-          <span class="article-fig-badge">Fig 04</span>
-          <div class="figure-text">
-            <strong>Multi-Head Parallel Subspaces and Recombination.</strong>
-            The 768-dimensional state projects into 12 parallel 64-dim heads. Specialized heads monitor coreference, syntax,
-            and modifiers concurrently, then concatenate and project via matrix W_O.
-          </div>
-        </div>
-      </div>
-
-      <aside class="article-callout">
-        <strong>The Dimension Trap: Why We Must Multiply by W_O:</strong>
-        Concatenating 12 heads of 64 dimensions each yields $12 \times 64 = 768$ dimensions — exactly matching $d_{model}$! Why not add it directly to the residual stream? Without $W_O$, the heads remain isolated silos: Head 1's features are forever locked in dimensions 0–63, Head 2 in 64–127, unable to interact. Matrix $W_O \in \mathbb{R}^{768 \times 768}$ acts as an <strong>Inter-Head Mixing Console</strong>, linearly cross-blending syntax clues, entity bindings, and modifiers across the full coordinate space so downstream blocks can reason over them jointly.
-      </aside>
+    <!-- ═══ 5 · FFN ══════════════════════════════════════════════════ -->
+    <section class="tx-chapter" id="ffn">
+      <h2 class="tx-chapter-title"><span>5</span>The FFN recalls facts</h2>
+      <p>
+        Attention moves information between tokens; the feed-forward network works on each
+        token alone. It expands the vector 4× to 3072 dimensions, applies a non-linearity,
+        and projects back. Interpretability research reads the first layer as a bank of
+        concept detectors and the second as the facts they release — a key-value memory
+        consulted token by token.
+      </p>
+      <figure class="tx-fig">
+        <amx-player src="scenes/feedforward.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="The FFN recalls facts: expanded memory and the residual highway"></amx-player>
+        <figcaption><span class="cap">The central highway carries the signal unchanged; the FFN
+        expands to 3072 dims, fires matching concepts, and injects the result back as an
+        addition.</span></figcaption>
+      </figure>
+      <p>
+        Note what the figure shows along the bottom: the sublayers do not
+        <em>transform</em> the stream, they <em>add to it</em>
+        (<code>x + Attn(x)</code>, then <code>x + FFN(x)</code>). This residual highway is
+        what lets gradients flow through dozens of layers.
+      </p>
     </section>
 
-    <!-- ═════════════════════════════════════════════════════════════════ -->
-    <!-- Chapter 05: FFN & Residual Highway                              -->
-    <!-- ═════════════════════════════════════════════════════════════════ -->
-    <section id="sec-feedforward" class="article-section">
-      <div class="section-header">
-        <span class="section-kicker">Chapter 05 · Associative Memory &amp; Residuals</span>
-        <h2 class="section-title">The Memory Highway: Storing Facts in Higher Dimensions</h2>
-      </div>
-
-      <div class="article-prose">
-        <p>
-          There is a fundamental division of labor inside every Transformer block:
-          <strong>Self-Attention routes information <em>between</em> tokens; the Feed-Forward Network (FFN) processes each token <em>alone</em>.</strong>
-        </p>
-        <p>
-          Pioneering interpretability research (Geva et al., 2021) demonstrated that the FFN functions as a vast
-          <strong>key-value factual memory</strong>. In the first linear layer, coordinates expand <strong>4× from 768 to 3072 dimensions</strong>.
-          In this expansive high-dimensional space, GELU nonlinearities act as concept detectors: specific neurons fire when
-          certain factual associations appear (e.g., retrieving the common-sense fact that animals cannot walk when exhausted).
-          The second linear layer contracts the representation back to 768 dimensions.
-        </p>
-        <p>
-          Connecting every sublayer is the <strong>Residual Stream Highway</strong>.
-          Rather than forcing representations through destructive transforms, the identity signal travels straight along an
-          unbroken bus. Both Attention and FFN compute only <strong>additive deltas (&Delta;x)</strong> injected back into the stream:
-          <code>x_{l+1} = x_l + \text{Sublayer}(\text{LayerNorm}(x_l))</code>.
-          This residual highway allows gradients to propagate unimpeded across dozens of layers during training,
-          eliminating the vanishing gradient problem.
-        </p>
-      </div>
-
-      <div class="article-math-box">
-        <span class="math-expr">FFN(<b>x</b>) = &sum;<sub><i>m</i>=1</sub><sup>3072</sup> GELU(<b>x</b><sup>T</sup> <b>k</b><sub><i>m</i></sub> + <i>b</i><sub>1,<i>m</i></sub>) <b>v</b><sub><i>m</i></sub> + <b>b</b><sub>2</sub></span>
-      </div>
-
-      <div class="article-figure-card">
-        <div class="stage-deck">
-          <div class="stage-core">
-            <div class="stage-hud">
-              <div class="stage-hud-tag">
-                <span class="live-dot"></span>
-                <span>Fig 05 // Feed-Forward Associative Memory &amp; Residual Highway</span>
-              </div>
-              <div class="stage-hud-specs">
-                <span>pkg-slim · 60 FPS WEBGPU</span>
-              </div>
-            </div>
-            <div class="stage-viewport">
-              <amx-player src="scenes/feedforward.amx" autoplay loop controls hold="1.5"
-                          aspect="16:9" title="Feed-forward network and residual highway"></amx-player>
-            </div>
-          </div>
-        </div>
-        <div class="article-figcaption">
-          <span class="article-fig-badge">Fig 05</span>
-          <div class="figure-text">
-            <strong>Feed-Forward Associative Memory and Residual Highway.</strong>
-            The central highway preserves signal identity through depth. Attention mixes context; the FFN expands 4×
-            to 3072 features to activate factual memory, injecting additive deltas back into the stream.
-          </div>
-        </div>
-      </div>
-
-      <aside class="article-callout">
-        <strong>The Mathematical Bridge: Why FFN Is a Key-Value Memory:</strong>
-        By decomposing $W_1$ into 3072 column vectors $k_m$ and $W_2$ into 3072 row vectors $v_m$, the matrix multiplication expands into $\text{FFN}(x) = \sum c_m v_m$.
-        Each $k_m$ serves as a <strong>Key (Concept Detector)</strong>: calculating inner product affinity against the current token. When a pattern matches (e.g., 'animal entity' + 'fatigue context'), GELU fires. The corresponding $v_m$ serves as the <strong>Value (Knowledge Patch)</strong>: delivering factual updates (e.g., 'requires rest / halted motion') injected as an additive delta into the residual highway.
-      </aside>
-
-      <aside class="article-callout">
-        <strong>For Computer Vision Veterans: The 1×1 Pointwise Convolution Equivalence:</strong>
-        To a vision engineer, the FFN is mathematically identical to a pair of <strong>$1 \times 1$ Pointwise Convolutions with an inverted bottleneck</strong>:
-        <br><code>\text{FFN}(x) = \text{Conv1D}_{1\times 1}(\text{GELU}(\text{Conv1D}_{1\times 1}(x)))</code><br>
-        It expands channels 4× from 768 to 3072, applies non-linearity, and projects back, operating across the sequence dimension without mixing tokens (exactly like 1×1 convolutions operate across spatial pixels without mixing coordinates). Modern vision networks like <strong>ConvNeXt</strong> and <strong>MobileNetV2</strong> adopted this inverted bottleneck directly from the Transformer!
-      </aside>
+    <!-- ═══ 6 · Stack ════════════════════════════════════════════════ -->
+    <section class="tx-chapter" id="stack">
+      <h2 class="tx-chapter-title"><span>6</span>Stacked, then predicted</h2>
+      <p>
+        Stack the block N times — 12 in GPT-2, 32 in Llama-3-8B — and meaning sharpens as
+        it climbs: early layers handle grammar, middle layers entities and relations, late
+        layers intent. The final vector feeds the LM head, which scores every token in the
+        vocabulary; softmax turns the scores into a probability for the next word.
+      </p>
+      <figure class="tx-fig">
+        <amx-player src="scenes/pipeline.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Stacked, then predicted: layer stack and next-word logits"></amx-player>
+        <figcaption><span class="cap">Representations climb the stack from syntax to intent, and
+        the head picks "street" at 41%. The winner is appended and the cycle repeats.</span></figcaption>
+      </figure>
+      <p>
+        That loop — predict one word, append it, predict again — is the whole trick.
+        Everything else in this article was engineering to make this one step good.
+      </p>
     </section>
 
-    <!-- ═════════════════════════════════════════════════════════════════ -->
-    <!-- Chapter 06: The 12-Layer Stack & Logits                         -->
-    <!-- ═════════════════════════════════════════════════════════════════ -->
-    <section id="sec-pipeline" class="article-section">
-      <div class="section-header">
-        <span class="section-kicker">Chapter 06 · Deep Assembly Line</span>
-        <h2 class="section-title">The Deep Assembly Line: From Surface Syntax to Logit Projection</h2>
-      </div>
-
-      <div class="article-prose">
-        <p>
-          A single Transformer block performs one round of contextual routing and memory retrieval.
-          The true power of modern language models emerges when blocks are stacked into a deep assembly line
-          ($N = 12$ layers in GPT-2 Small, $N = 32$ in Llama 3 8B, $N = 80+$ in frontier models).
-        </p>
-        <p>
-          As token representations ascend through the 12-layer stack, meaning undergoes a profound qualitative evolution:
-        </p>
-        <p>
-          • <strong>Layers 1–4 (Surface Syntax):</strong> Attention heads attend locally, grouping tokens into n-grams, identifying parts of speech, and mapping shallow grammar.<br>
-          • <strong>Layers 5–8 (Relational Semantics):</strong> Long-range heads activate, building entity representations, resolving cross-clause coreferences, and tracking subject-predicate relations.<br>
-          • <strong>Layers 9–12 (Abstract Intent):</strong> Deep blocks synthesize context, performing pragmatic inference and anticipating the next logical thought.
-        </p>
-        <p>
-          At the top of the stack, the hidden vector of the final token passes into the <strong>Language Model Head</strong>.
-          A linear un-embedding matrix projects the 768-dimensional vector into <strong>50,257 logits</strong> — one raw affinity score
-          for every token in the vocabulary. Normalized through Softmax, logits become a probability distribution.
-          In our sentence, <code>"street"</code> emerges victorious with <strong>41% probability</strong>, followed by <code>"road"</code> (22%)
-          and <code>"bridge"</code> (12%). The winning token is appended to the input, and the autoregressive cycle begins anew.
-        </p>
-      </div>
-
-      <div class="article-math-box">
-        <span class="math-expr"><i>P</i>(token<sub><i>t</i>+1</sub> &mid; tokens<sub>1:<i>t</i></sub>) = softmax(<b>W</b><sub><i>U</i></sub> <b>h</b><sub><i>L</i></sub><sup>(<i>t</i>)</sup>) &isin; &Ropf;<sup>50,257</sup></span>
-      </div>
-
-      <div class="article-figure-card">
-        <div class="stage-deck">
-          <div class="stage-core">
-            <div class="stage-hud">
-              <div class="stage-hud-tag">
-                <span class="live-dot"></span>
-                <span>Fig 06 // The Full Layer Stack &amp; Logit Projection</span>
-              </div>
-              <div class="stage-hud-specs">
-                <span>pkg-slim · 60 FPS WEBGPU</span>
-              </div>
-            </div>
-            <div class="stage-viewport">
-              <amx-player src="scenes/pipeline.amx" autoplay loop controls hold="1.5"
-                          aspect="16:9" title="The full transformer layer stack and logit un-embedding"></amx-player>
-            </div>
-          </div>
-        </div>
-        <div class="article-figcaption">
-          <span class="article-fig-badge">Fig 06</span>
-          <div class="figure-text">
-            <strong>The 12-Layer Stack and Logit Un-Embedding.</strong>
-            Representations climb through the deep hierarchy: surface syntax (Block 01) ascends to relational semantics (Block 06)
-            and intent prediction (Block 12). The LM Head projects into 50,257 logits, selecting "street" (41%).
-            The winning token appends to the baseline, advancing the generative frontier into the next forward pass.
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═════════════════════════════════════════════════════════════════ -->
-    <!-- Chapter 07: The Rosetta Stone for Vision & Classical ML         -->
-    <!-- ═════════════════════════════════════════════════════════════════ -->
-    <section id="sec-rosetta" class="article-section">
-      <div class="section-header">
-        <span class="section-kicker">Chapter 07 · Cross-Domain Bridges</span>
-        <h2 class="section-title">The Rosetta Stone: Transformers for the CNN Mind</h2>
-      </div>
-
-      <div class="article-prose">
-        <p>
-          For practitioners trained in computer vision and classical machine learning, shifting from Convolutional Neural Networks (CNNs) to Transformers can initially feel disorienting.
-          The tensor layouts differ, the inductive biases change, and familiar concepts like sliding windows and receptive fields seem absent.
-        </p>
-        <p>
-          In reality, the two paradigms share deep mathematical parallels. Below is a structural mapping translating every core Transformer mechanism into its familiar CNN equivalent:
-        </p>
-      </div>
-
-      <table class="evolution-table" aria-label="CNN vs Transformer Architectural Comparison">
+    <!-- ═══ Rosetta ══════════════════════════════════════════════════ -->
+    <section class="tx-chapter" id="rosetta">
+      <h2 class="tx-chapter-title"><span>7</span>For the CNN-minded</h2>
+      <p>
+        If you come from computer vision, every mechanism above has a familiar shape:
+      </p>
+      <table class="evolution-table">
         <thead>
-          <tr>
-            <th>Core Dimension</th>
-            <th>Classical CNN (ResNet / ConvNeXt)</th>
-            <th>Transformer (LLM / ViT)</th>
-            <th>Cross-Domain Intuition</th>
-          </tr>
+          <tr><th>Transformer</th><th>CNN equivalent</th></tr>
         </thead>
         <tbody>
-          <tr>
-            <td>Data Tensor</td>
-            <td>4D Tensor: [B, C, H, W]</td>
-            <td>3D Tensor: [B, L, D]</td>
-            <td>L = H × W (flattened spatial patches); D = C (feature channels)</td>
-          </tr>
-          <tr>
-            <td>Spatial Context</td>
-            <td>Static local kernel K × K (frozen weights)</td>
-            <td>Self-Attention (dynamic runtime weights)</td>
-            <td>Input-adaptive dynamic convolution with global O(1) receptive field</td>
-          </tr>
-          <tr>
-            <td>Channel Transformation</td>
-            <td>1×1 Pointwise Conv / Inverted Bottleneck</td>
-            <td>Feed-Forward Network (FFN: 768 → 3072 → 768)</td>
-            <td>Mathematically identical token-wise channel expansion and non-linear mapping</td>
-          </tr>
-          <tr>
-            <td>Subspace Branching</td>
-            <td>Grouped Convolution (ResNeXt cardinality)</td>
-            <td>Multi-Head Attention (12 heads × 64 dim)</td>
-            <td>Parallel orthogonal feature subspaces recombined via 1×1 projection (W_O)</td>
-          </tr>
-          <tr>
-            <td>Position &amp; Geometry</td>
-            <td>Hard-coded grid translation equivariance</td>
-            <td>Permutation-invariant + Harmonic Encodings</td>
-            <td>Weak inductive bias with high capacity replacing hard spatial constraints</td>
-          </tr>
-          <tr>
-            <td>Residual Philosophy</td>
-            <td>y = x + F(x) (branch computes feature; skip avoids loss)</td>
-            <td>x_(l+1) = x_l + &Delta;x (highway is central bus; sublayers write deltas)</td>
-            <td>Shift from "shortcut bypass" to "central shared communication bus"</td>
-          </tr>
-          <tr>
-            <td>Normalization</td>
-            <td>Batch Normalization (cross-spatial, per-channel)</td>
-            <td>Layer Normalization (per-token, cross-channel)</td>
-            <td>Independent of sequence length and batch size; zero cross-time leakage</td>
-          </tr>
+          <tr><td>Self-attention</td><td>Dynamic convolution with a global receptive field</td></tr>
+          <tr><td>Feed-forward block</td><td>Pair of 1×1 convolutions (inverted bottleneck)</td></tr>
+          <tr><td>Multi-head split</td><td>Grouped convolution (ResNeXt cardinality)</td></tr>
+          <tr><td>Positional encoding</td><td>Replaces hard-coded translation equivariance</td></tr>
+          <tr><td>Residual stream</td><td>The skip connection, promoted to the main bus</td></tr>
         </tbody>
       </table>
-
-      <aside class="article-callout" style="margin-top: 28px;">
-        <strong>The Victory of Weak Inductive Biases:</strong>
-        Why did Vision Transformers (ViT) eventually overtake traditional CNNs on massive benchmarks?
-        CNNs enforce a "hard" spatial inductive bias (nearby pixels must be related). While this prevents overfitting on small datasets, it caps model capacity on massive corpora.
-        By treating images as a bag of flattened patches with no built-in spatial bias, the Transformer gives the model freedom to discover arbitrary long-range correlations on its own.
-      </aside>
     </section>
 
-    <!-- ═════════════════════════════════════════════════════════════════ -->
-    <!-- Colophon / How This Walkthrough Works                           -->
-    <!-- ═════════════════════════════════════════════════════════════════ -->
-    <div class="howto">
-      <h2>How This Walkthrough Works</h2>
-      <p>
-        There are zero pre-rendered video files on this page. Every figure is a declarative <code class="inline">.amx</code> file compiled live in your browser and rendered at 60 FPS through WebGPU.
-      </p>
-      <pre>&lt;script type="module" src="../../embed/amx-player.js" data-runtime-base="../../pkg-slim"&gt;&lt;/script&gt;
-&lt;amx-player src="scenes/attention.amx" autoplay loop controls hold="1.5" aspect="16:9"&gt;&lt;/amx-player&gt;</pre>
-      <p>
-        Because these scenes use vector geometries and typography without Typst or SVG dependencies, they run on the lightweight <code class="inline">pkg-slim</code> runtime profile (~1.6 MB brotli-compressed).
-        Off-screen players are automatically paused via <code class="inline">IntersectionObserver</code>, ensuring 60 FPS buttery smoothness across the entire article.
-      </p>
-    </div>
-
-  </div>
+  </main>
 
   <script type="module" src="../../embed/amx-player.js" data-runtime-base="../../pkg-slim"></script>
   <script src="../../site-chrome.js" data-root="../../" data-section="demos"></script>
@@ -729,7 +244,7 @@
           "The figures below show static previews. Enable WebGPU " +
           "(Chrome 113+ on Windows/macOS, or " +
           "<code>chrome://flags/#enable-unsafe-webgpu</code> on Linux) to watch them animate.";
-        document.querySelector(".chapter-rail")?.before(n);
+        document.querySelector(".tx-head")?.after(n);
       };
 
       probe.then((ok) => {
@@ -749,27 +264,6 @@
         },
         true,
       );
-    })();
-  </script>
-  <script>
-    // Chapter rail scroll-spy
-    (() => {
-      const links = Array.from(document.querySelectorAll('.chapter-rail a'));
-      const sections = Array.from(document.querySelectorAll('.article-section'));
-      if (!links.length || !sections.length) return;
-
-      const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            const id = entry.target.id;
-            links.forEach(link => {
-              link.classList.toggle('active', link.getAttribute('href') === `#${id}`);
-            });
-          }
-        });
-      }, { rootMargin: '-15% 0px -65% 0px' });
-
-      sections.forEach(sec => observer.observe(sec));
     })();
   </script>
 </body>

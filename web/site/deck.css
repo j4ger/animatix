@@ -393,186 +393,123 @@ footer strong { color: var(--ink); font-weight: 600; }
   border-color: transparent;
 }
 
-/* ── Long-form Illustrated Article Layout ───────────────────────────── */
-/* Two-class selector so it beats v2.css's `.wrap { max-width: 1240px }`
-   regardless of stylesheet order. */
-.wrap.transformer-article {
-  max-width: 1120px;
+/* ── Transformer article reset ─────────────────────────────────────── */
+/* One column, one measure. Every block — title, prose, math, figure,
+   note, table — shares the same centred width so the page reads as a
+   single uniform stream instead of colliding panels. The fallback panel
+   and gpu-notice stay here because the page script creates them. */
+.tx-wrap,
+.wrap.tx-wrap {
+  max-width: 856px;              /* 760px measure + 2×48px gutters */
   margin: 0 auto;
+  padding: 48px 48px 64px;
 }
-/* Editorial column: prose, headers and callouts share one centred measure;
-   figure stages break out wider so diagrams get room without a left-heavy
-   text column beside a dead right gutter. */
-.article-header,
-.section-header,
-.article-prose,
-.article-callout,
-.article-math-box,
-.howto {
-  max-width: 780px;
-  margin-left: auto;
-  margin-right: auto;
-}
-.article-header {
-  padding: 24px 0 8px;
-  text-align: left;
-}
-.article-title {
+.tx-head { margin-bottom: 72px; }
+.tx-title {
   font-family: var(--display);
-  font-size: clamp(38px, 5vw, 64px);
+  font-size: clamp(38px, 5.4vw, 62px);
   font-weight: 600;
-  line-height: 1.05;
+  line-height: 1.06;
   letter-spacing: -0.02em;
   color: var(--ink);
-  margin: 8px 0 18px;
+  margin: 6px 0 20px;
   text-wrap: balance;
 }
-.article-meta {
+.tx-lede {
+  font-size: 18px;
+  line-height: 1.65;
+  color: var(--dim);
+  max-width: none;
+  margin: 0 0 28px;
+}
+.tx-lede code { font-family: var(--mono); font-size: 0.88em; color: var(--accent); }
+
+/* Table of contents: a quiet single row, not a floating rail. */
+.tx-toc {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 14px;
+  gap: 8px 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.tx-toc a {
   font-family: var(--mono);
-  font-size: 11.5px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--faint);
-  margin-bottom: 26px;
+  font-size: 12.5px;
+  color: var(--muted);
+  text-decoration: none;
+  letter-spacing: 0.03em;
 }
-.article-meta b { color: var(--ink); font-weight: 700; }
-.article-meta span:nth-child(even) { color: var(--muted); }
-.article-header .lede {
-  margin-top: 0;
-  max-width: 64ch;
+.tx-toc a:hover { color: var(--accent); }
+
+/* Chapters: generous rhythm, one consistent measure. */
+.tx-chapter {
+  margin: 0 0 88px;
+  scroll-margin-top: 96px;
 }
-.article-section {
-  margin: 72px 0 96px;
-  scroll-margin-top: 88px;
-}
-.section-header {
-  margin-bottom: 24px;
-}
-.section-kicker {
-  font-family: var(--mono);
-  font-size: 11.5px;
+.tx-chapter-title {
+  font-size: clamp(24px, 2.8vw, 32px);
   font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--accent);
-  display: block;
-  margin-bottom: 6px;
-}
-.section-title {
-  font-size: clamp(26px, 3.4vw, 38px);
-  font-weight: 750;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.02em;
   color: var(--ink);
-  line-height: 1.18;
-  margin: 0 0 16px;
-}
-.article-prose {
-  font-size: 16.5px;
-  line-height: 1.8;
-  color: var(--dim);
-  max-width: 780px;
-  margin-left: auto;
-  margin-right: auto;
-}
-.article-prose p {
   margin: 0 0 18px;
 }
-.article-prose strong {
-  color: var(--ink);
-  font-weight: 650;
-}
-.article-prose code {
+.tx-chapter-title span {
   font-family: var(--mono);
-  font-size: 0.88em;
+  font-size: 0.62em;
+  font-weight: 700;
+  color: var(--accent);
+  vertical-align: 0.28em;
+  margin-right: 12px;
+}
+.tx-chapter p {
+  font-size: 16.5px;
+  line-height: 1.78;
+  color: var(--dim);
+  margin: 0 0 18px;
+  max-width: none;               /* base.css caps every p at 56ch */
+}
+.tx-chapter strong { color: var(--ink); font-weight: 650; }
+.tx-chapter code {
+  font-family: var(--mono);
+  font-size: 0.87em;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.08);
   padding: 2px 6px;
   border-radius: 4px;
   color: var(--accent);
 }
-.article-callout {
-  background: linear-gradient(135deg, rgba(245, 185, 66, 0.08), rgba(245, 185, 66, 0.02));
-  border-left: 3px solid var(--accent);
-  border-radius: 0 12px 12px 0;
-  padding: 18px 24px;
-  margin: 28px auto;
-  font-size: 15px;
-  line-height: 1.7;
-  color: var(--dim);
-}
-.article-callout strong {
-  color: var(--ink);
-}
-.article-math-box {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(6, 8, 13, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 18px 24px;
-  margin: 28px auto;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 12px 28px -10px rgba(0, 0, 0, 0.6);
-}
-.math-expr {
-  font-family: var(--display), "Times New Roman", Times, Georgia, serif;
-  font-size: 19px;
-  letter-spacing: 0.04em;
+.tx-chapter em { color: var(--ink); font-style: italic; }
+
+/* The one formula the article needs, set like prose rather than boxed. */
+.tx-chapter p.tx-math {
+  font-family: var(--display), Georgia, serif;
+  font-size: 18px;
+  letter-spacing: 0.02em;
   color: var(--ink);
   text-align: center;
+  padding: 10px 0 4px;
+  margin-bottom: 6px;
 }
-.math-expr i {
-  font-style: italic;
-  font-family: var(--display), "Times New Roman", Times, Georgia, serif;
-}
-.math-expr b {
-  font-weight: 700;
-  font-family: var(--display), "Times New Roman", Times, Georgia, serif;
-  color: var(--accent);
-}
-.math-expr sub, .math-expr sup {
-  font-size: 0.72em;
-  line-height: 0;
-  position: relative;
-  vertical-align: baseline;
-}
-.math-expr sub { bottom: -0.28em; }
-.math-expr sup { top: -0.52em; }
-.article-figure-card {
-  margin: 32px 0;
-}
-.article-figure-card .stage-deck {
-  margin: 0;
-}
-.article-figcaption {
-  margin-top: 14px;
-  padding: 0 6px;
+.tx-math sup, .tx-math sub { font-size: 0.7em; }
+
+/* Figures: the player bare in a <figure>, no HUD chrome. */
+.tx-fig { margin: 26px 0; }
+.tx-fig amx-player { width: 100%; display: block; }
+.tx-fig figcaption {
+  margin-top: 12px;
   font-size: 13.5px;
   line-height: 1.6;
   color: var(--faint);
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-.article-fig-badge {
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent);
-  background: rgba(245, 185, 66, 0.1);
-  border: 1px solid rgba(245, 185, 66, 0.25);
-  padding: 2px 8px;
-  border-radius: 6px;
-  flex-shrink: 0;
 }
 
-/* ── Graceful WebGPU fallback ───────────────────────────────────────── */
+/* Short asides, visually quieter than the old callout boxes. */
+.tx-chapter p.tx-note {
+  border-left: 2px solid rgba(245, 185, 66, 0.5);
+  padding-left: 16px;
+  max-width: none;
+}
+
+/* Graceful WebGPU fallback ─────────────────────────────────────────── */
 /* When the browser has no WebGPU backend we must not leave seven live
    canvases competing for a dead GPU: the page freezes and the reader sees
    empty black plates. The page script swaps each <amx-player> for this
@@ -581,9 +518,9 @@ footer strong { color: var(--ink); font-weight: 600; }
   position: relative;
   display: grid;
   place-items: center;
-  padding: 56px 28px;
+  padding: 48px 28px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  border-radius: 8px;
   background:
     radial-gradient(ellipse 70% 60% at 30% 20%, rgba(245, 185, 66, 0.10), transparent 70%),
     linear-gradient(160deg, #0b0f17, #06080d);
@@ -593,7 +530,7 @@ footer strong { color: var(--ink); font-weight: 600; }
   max-width: 460px;
   text-align: center;
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 .amx-fallback-badge {
   justify-self: center;
@@ -610,7 +547,7 @@ footer strong { color: var(--ink); font-weight: 600; }
 }
 .amx-fallback-title {
   margin: 0;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 650;
   color: var(--ink);
   line-height: 1.35;
@@ -621,33 +558,12 @@ footer strong { color: var(--ink); font-weight: 600; }
   line-height: 1.6;
   color: var(--faint);
 }
-.amx-fallback-note code {
-  font-family: var(--mono);
-  font-size: 0.9em;
-  color: var(--dim);
-}
-
-/* The mental-model strip is a scrollable rail on desktop; on narrow screens it
-   must wrap instead of clipping a step in the middle of a word. */
-@media (max-width: 820px) {
-  .model-pipeline {
-    flex-wrap: wrap;
-    overflow-x: visible;
-  }
-  .model-pipeline .pipeline-arrow { display: none; }
-  .pipeline-step { white-space: normal; }
-}
-
-/* The chapter rail must clear the 56px sticky site nav instead of sliding
-   underneath it (deep-dive.css pins it at top:16px, which the nav covers). */
-.chapter-rail { top: 68px; }
-.article-section { scroll-margin-top: 132px; }
 
 /* Page-level WebGPU notice: one message instead of repeating a paragraph
    inside every figure. */
 .gpu-notice {
-  max-width: 780px;
-  margin: 8px auto 0;
+  max-width: 760px;
+  margin: 0 auto 40px;
   padding: 14px 18px;
   border: 1px solid rgba(245, 185, 66, 0.28);
   border-radius: 10px;
@@ -663,12 +579,11 @@ footer strong { color: var(--ink); font-weight: 600; }
   color: var(--dim);
 }
 
-/* Narrow viewports: the stage HUD's right-hand specs collide with the long
-   figure tag; drop the specs and tighten the tag instead of overlapping. */
+/* Narrow viewports: shrink the column padding first; the single measure
+   means nothing inside needs its own breakpoint. */
 @media (max-width: 640px) {
-  .stage-hud { padding: 0 12px; }
-  .stage-hud-specs { display: none; }
-  .stage-hud-tag { font-size: 9.5px; letter-spacing: 0.04em; }
-  .article-prose { font-size: 16px; }
-  .article-section { margin: 52px 0 68px; }
+  .tx-wrap,
+  .wrap.tx-wrap { padding: 32px 20px 48px; }
+  .tx-chapter { margin-bottom: 64px; }
+  .tx-toc { gap: 6px 14px; }
 }
