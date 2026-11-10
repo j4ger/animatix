@@ -8,6 +8,13 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="../../site.css">
   <link rel="stylesheet" href="../../site/v2.css">
+  <script>
+    /* Page budget: this article carries seven live figures. Only the one the
+       reader is looking at may run, and the shared raster budget stays modest
+       so a large display does not allocate seven full-resolution canvases. */
+    window.__amxMaxPlaying = 1;
+    window.__amxPageRasterPixels = 2200000;
+  </script>
 </head>
 <body>
   <div class="wrap transformer-article">
@@ -53,13 +60,13 @@
     <!-- Sticky Chapter Table of Contents Rail -->
     <nav class="chapter-rail" id="chapter-rail" aria-label="Chapter Table of Contents">
       <a href="#sec-overview" class="active"><span class="rn">00</span> Blueprint</a>
-      <a href="#sec-tokens"><span class="rn">01</span> Tokens &amp; Embeddings</a>
-      <a href="#sec-positional"><span class="rn">02</span> Positional Harmonics</a>
+      <a href="#sec-tokens"><span class="rn">01</span> Tokens</a>
+      <a href="#sec-positional"><span class="rn">02</span> Positions</a>
       <a href="#sec-attention"><span class="rn">03</span> Self-Attention</a>
       <a href="#sec-multihead"><span class="rn">04</span> Multi-Head</a>
-      <a href="#sec-feedforward"><span class="rn">05</span> FFN &amp; Highway</a>
-      <a href="#sec-pipeline"><span class="rn">06</span> The 12-Layer Stack</a>
-      <a href="#sec-rosetta"><span class="rn">07</span> Rosetta Stone</a>
+      <a href="#sec-feedforward"><span class="rn">05</span> FFN</a>
+      <a href="#sec-pipeline"><span class="rn">06</span> Layer Stack</a>
+      <a href="#sec-rosetta"><span class="rn">07</span> Rosetta</a>
     </nav>
 
     <!-- site-gen:works-params:start -->
@@ -108,7 +115,7 @@
               </div>
             </div>
             <div class="stage-viewport">
-              <amx-player src="scenes/overview.amx" eager autoplay loop controls hold="1.5"
+              <amx-player src="scenes/overview.amx" autoplay loop controls hold="1.5"
                           aspect="16:9" title="The full transformer architecture blueprint"></amx-player>
             </div>
           </div>
@@ -678,6 +685,72 @@
 
   <script type="module" src="../../embed/amx-player.js" data-runtime-base="../../pkg-slim"></script>
   <script src="../../site-chrome.js" data-root="../../" data-section="demos"></script>
+  <script>
+    /* Graceful no-WebGPU path.
+       A machine without a WebGPU backend leaves every <amx-player> as a blank
+       black plate that still costs a wasm boot and a live canvas, which is
+       what makes the page feel frozen. Probe the adapter once; if it is
+       missing (or a figure reports amxerror), swap that figure for a static
+       panel that keeps the surrounding explanation readable. */
+    (() => {
+      const fallback = (player) => {
+        if (!player || player.dataset.fallback === "1") return;
+        player.dataset.fallback = "1";
+        const title = player.getAttribute("title") || "Animated figure";
+        const panel = document.createElement("div");
+        panel.className = "amx-fallback";
+        const inner = document.createElement("div");
+        inner.className = "amx-fallback-inner";
+        const badge = document.createElement("span");
+        badge.className = "amx-fallback-badge";
+        badge.textContent = "Static preview";
+        const h = document.createElement("p");
+        h.className = "amx-fallback-title";
+        h.textContent = title;
+        const note = document.createElement("p");
+        note.className = "amx-fallback-note";
+        note.textContent = "Live animation needs WebGPU.";
+        inner.append(badge, h, note);
+        panel.appendChild(inner);
+        player.replaceWith(panel);
+      };
+
+      const probe = navigator.gpu
+        ? navigator.gpu.requestAdapter().then((a) => !!a).catch(() => false)
+        : Promise.resolve(false);
+
+      const showNotice = () => {
+        if (document.querySelector(".gpu-notice")) return;
+        const n = document.createElement("div");
+        n.className = "gpu-notice";
+        n.setAttribute("role", "status");
+        n.innerHTML =
+          "<strong>WebGPU is unavailable in this browser.</strong> " +
+          "The figures below show static previews. Enable WebGPU " +
+          "(Chrome 113+ on Windows/macOS, or " +
+          "<code>chrome://flags/#enable-unsafe-webgpu</code> on Linux) to watch them animate.";
+        document.querySelector(".chapter-rail")?.before(n);
+      };
+
+      probe.then((ok) => {
+        if (!ok) {
+          showNotice();
+          document.querySelectorAll("amx-player").forEach(fallback);
+        }
+      });
+
+      // A figure that boots but cannot build (adapter lost, wasm/font 404)
+      // reports amxerror; fall back for that figure only.
+      document.addEventListener(
+        "amxerror",
+        (e) => {
+          const t = e.target;
+          if (t && t.tagName === "AMX-PLAYER") fallback(t);
+        },
+        true,
+      );
+    })();
+  </script>
   <script>
     // Chapter rail scroll-spy
     (() => {
