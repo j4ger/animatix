@@ -165,7 +165,7 @@ fade-in up_top [260ms, ease: expo-out]
 up_top.opacity = 0.80 [240ms]
 lm_box: Rect, size: (590, 46), corner_radius: 12, color: surface.primary,
   stroke: accent.primary, stroke_width: 2, opacity: 0, at: (480, 190)
-lm_txt: Text, text: "Language Model Head · Linear(768 → 50,257) + Softmax", font_size: 18,
+lm_txt: Text, text: "Language Model Head · Linear(768 > 50,257) + Softmax", font_size: 18,
   color: text.primary, text_anchor: "center", at: (480, 190), opacity: 0
 lm_box.opacity = 0.95 [320ms]
 fade-in lm_txt [280ms, delay: 160ms, ease: expo-out]

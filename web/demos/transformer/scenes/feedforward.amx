@@ -86,7 +86,7 @@ fade-in head_eyebrow [260ms, ease: expo-out]
 formula_chip: Stack, at: (960, 78), size: (440, 50), opacity: 0 {
   f_bg: Rect, size: (440, 50), corner_radius: 12, color: surface.primary,
     stroke: stroke.default, stroke_width: 1.2
-  f_txt: Text, text: "FFN(x) = GELU(xW₁ + b₁)W₂ + b₂", font_size: 22, color: text.secondary
+  f_txt: Text, text: "FFN(x) = GELU(x W1 + b1) W2 + b2", font_size: 22, color: text.secondary
 }
 fade-in formula_chip [320ms, ease: expo-out]
 draw-in rail [600ms, ease: expo-out]
@@ -130,14 +130,14 @@ ffn_sub: Text, text: "associative factual memory · token alone", font_size: 16,
   text_anchor: "center", at: (895, 360), opacity: 0
 ffn_flow: Row, at: (895, 400), gap: 10, align: "center" {
   f_in: Rect, size: (36, 16), corner_radius: 4, color: accent.success, opacity: 0
-  f_arr1: Text, text: "→", font_size: 18, color: text.muted
+  f_arr1: Text, text: ">", font_size: 18, color: text.muted
   for e in exp_span {
     f_wide[e]: Rect, size: (22, 22), corner_radius: 5, color: accent.success, opacity: 0
   }
-  f_arr2: Text, text: "→", font_size: 18, color: text.muted
+  f_arr2: Text, text: ">", font_size: 18, color: text.muted
   f_out: Rect, size: (36, 16), corner_radius: 4, color: accent.success, opacity: 0
 }
-ffn_dims: Text, text: format("768 → {:.0} (GELU) → 768", 768 * expansion), font_size: 16,
+ffn_dims: Text, text: format("768 > {:.0} (GELU) > 768", 768 * expansion), font_size: 16,
   color: text.primary, text_anchor: "center", at: (895, 440), opacity: 0
 ffn_desc: Text, text: "stores factual knowledge in weights", font_size: 16, color: text.muted,
   text_anchor: "center", at: (895, 468), opacity: 0

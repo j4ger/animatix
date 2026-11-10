@@ -56,11 +56,11 @@ title_b: Text, text: "Head 2 · Syntax", font_size: 20, color: accent.success,
 title_c: Text, text: "Head 3 · Local context", font_size: 20, color: accent.info,
   text_anchor: "center", at: (805, 186), opacity: 0
 
-sub_a: Text, text: "“it” → “animal” · 0.88", font_size: 16, color: text.muted,
+sub_a: Text, text: "\"it\" > \"animal\" · 0.88", font_size: 16, color: text.muted,
   text_anchor: "center", at: (231, 214), opacity: 0
-sub_b: Text, text: "“cross” → “didn't” · 0.92", font_size: 16, color: text.muted,
+sub_b: Text, text: "\"cross\" > \"didn't\" · 0.92", font_size: 16, color: text.muted,
   text_anchor: "center", at: (518, 214), opacity: 0
-sub_c: Text, text: "“street” → “cross” · 0.85", font_size: 16, color: text.muted,
+sub_c: Text, text: "\"street\" > \"cross\" · 0.85", font_size: 16, color: text.muted,
   text_anchor: "center", at: (805, 214), opacity: 0
 
 head1_grid: Grid, cols: 3, gap: 8, at: (231, 330) {
@@ -120,7 +120,7 @@ fade-in head_eyebrow [260ms, ease: expo-out]
 formula_chip: Stack, at: (950, 78), size: (470, 50), opacity: 0 {
   f_bg: Rect, size: (470, 50), corner_radius: 12, color: surface.primary,
     stroke: stroke.default, stroke_width: 1.2
-  f_txt: Text, text: format("MultiHead = Concat(head₁..head{:.0}) W_O", heads), font_size: 22, color: text.secondary
+  f_txt: Text, text: format("MultiHead = Concat(head 1..head {:.0}) W_O", heads), font_size: 22, color: text.secondary
 }
 fade-in formula_chip [320ms, ease: expo-out]
 stagger [100ms] {
