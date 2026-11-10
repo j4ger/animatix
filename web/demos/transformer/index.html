@@ -59,6 +59,7 @@
       <a href="#sec-multihead"><span class="rn">04</span> Multi-Head</a>
       <a href="#sec-feedforward"><span class="rn">05</span> FFN &amp; Highway</a>
       <a href="#sec-pipeline"><span class="rn">06</span> The 12-Layer Stack</a>
+      <a href="#sec-rosetta"><span class="rn">07</span> Rosetta Stone</a>
     </nav>
 
     <!-- site-gen:works-params:start -->
@@ -352,6 +353,13 @@
         <strong>The Causal Masking Law:</strong>
         In bidirectional models (such as BERT encoders), tokens can look both left and right. But in generative decoders (GPT, Llama, DeepSeek), the model must never peek into the future. A causal mask matrix $M$ enforces this by setting upper-triangular affinities ($j > i$) to $-\infty$. Because $e^{-\infty} = 0$, future attention weights become zero. Notice that in our example, <code>"it"</code> is the 6th token looking backward at <code>"animal"</code> (token 2) and <code>"street"</code> (token 4) — strictly honoring the causal boundary!
       </aside>
+
+      <aside class="article-callout">
+        <strong>For Computer Vision Veterans: Dynamic Convolutions with Infinite Receptive Field:</strong>
+        In a standard CNN (ResNet, VGG), a $3 \times 3$ convolutional kernel has fixed, frozen weights and a narrow, local receptive field that expands slowly over depth. Self-Attention fundamentally reimagines this:
+        1. <strong>Global Receptive Field ($O(1)$) from Layer 1:</strong> Every token can directly query any other token in a single step, bypassing the multi-layer receptive field dilation required in CNNs.
+        2. <strong>Data-Dependent Dynamic Weights:</strong> Rather than applying static parameters, the attention filter $A = \text{softmax}(QK^T / \sqrt{d_k} + M)$ is computed at runtime from the inputs themselves. Self-Attention is mathematically an input-adaptive, dynamic depthwise convolution with infinite receptive field!
+      </aside>
     </section>
 
     <!-- ═════════════════════════════════════════════════════════════════ -->
@@ -493,6 +501,13 @@
         By decomposing $W_1$ into 3072 column vectors $k_m$ and $W_2$ into 3072 row vectors $v_m$, the matrix multiplication expands into $\text{FFN}(x) = \sum c_m v_m$.
         Each $k_m$ serves as a <strong>Key (Concept Detector)</strong>: calculating inner product affinity against the current token. When a pattern matches (e.g., 'animal entity' + 'fatigue context'), GELU fires. The corresponding $v_m$ serves as the <strong>Value (Knowledge Patch)</strong>: delivering factual updates (e.g., 'requires rest / halted motion') injected as an additive delta into the residual highway.
       </aside>
+
+      <aside class="article-callout">
+        <strong>For Computer Vision Veterans: The 1×1 Pointwise Convolution Equivalence:</strong>
+        To a vision engineer, the FFN is mathematically identical to a pair of <strong>$1 \times 1$ Pointwise Convolutions with an inverted bottleneck</strong>:
+        <br><code>\text{FFN}(x) = \text{Conv1D}_{1\times 1}(\text{GELU}(\text{Conv1D}_{1\times 1}(x)))</code><br>
+        It expands channels 4× from 768 to 3072, applies non-linearity, and projects back, operating across the sequence dimension without mixing tokens (exactly like 1×1 convolutions operate across spatial pixels without mixing coordinates). Modern vision networks like <strong>ConvNeXt</strong> and <strong>MobileNetV2</strong> adopted this inverted bottleneck directly from the Transformer!
+      </aside>
     </section>
 
     <!-- ═════════════════════════════════════════════════════════════════ -->
@@ -559,6 +574,88 @@
           </div>
         </div>
       </div>
+    </section>
+
+    <!-- ═════════════════════════════════════════════════════════════════ -->
+    <!-- Chapter 07: The Rosetta Stone for Vision & Classical ML         -->
+    <!-- ═════════════════════════════════════════════════════════════════ -->
+    <section id="sec-rosetta" class="article-section">
+      <div class="section-header">
+        <span class="section-kicker">Chapter 07 · Cross-Domain Bridges</span>
+        <h2 class="section-title">The Rosetta Stone: Transformers for the CNN Mind</h2>
+      </div>
+
+      <div class="article-prose">
+        <p>
+          For practitioners trained in computer vision and classical machine learning, shifting from Convolutional Neural Networks (CNNs) to Transformers can initially feel disorienting.
+          The tensor layouts differ, the inductive biases change, and familiar concepts like sliding windows and receptive fields seem absent.
+        </p>
+        <p>
+          In reality, the two paradigms share deep mathematical parallels. Below is a structural mapping translating every core Transformer mechanism into its familiar CNN equivalent:
+        </p>
+      </div>
+
+      <table class="evolution-table" aria-label="CNN vs Transformer Architectural Comparison">
+        <thead>
+          <tr>
+            <th>Core Dimension</th>
+            <th>Classical CNN (ResNet / ConvNeXt)</th>
+            <th>Transformer (LLM / ViT)</th>
+            <th>Cross-Domain Intuition</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Data Tensor</td>
+            <td>4D Tensor: [B, C, H, W]</td>
+            <td>3D Tensor: [B, L, D]</td>
+            <td>L = H × W (flattened spatial patches); D = C (feature channels)</td>
+          </tr>
+          <tr>
+            <td>Spatial Context</td>
+            <td>Static local kernel K × K (frozen weights)</td>
+            <td>Self-Attention (dynamic runtime weights)</td>
+            <td>Input-adaptive dynamic convolution with global O(1) receptive field</td>
+          </tr>
+          <tr>
+            <td>Channel Transformation</td>
+            <td>1×1 Pointwise Conv / Inverted Bottleneck</td>
+            <td>Feed-Forward Network (FFN: 768 → 3072 → 768)</td>
+            <td>Mathematically identical token-wise channel expansion and non-linear mapping</td>
+          </tr>
+          <tr>
+            <td>Subspace Branching</td>
+            <td>Grouped Convolution (ResNeXt cardinality)</td>
+            <td>Multi-Head Attention (12 heads × 64 dim)</td>
+            <td>Parallel orthogonal feature subspaces recombined via 1×1 projection (W_O)</td>
+          </tr>
+          <tr>
+            <td>Position &amp; Geometry</td>
+            <td>Hard-coded grid translation equivariance</td>
+            <td>Permutation-invariant + Harmonic Encodings</td>
+            <td>Weak inductive bias with high capacity replacing hard spatial constraints</td>
+          </tr>
+          <tr>
+            <td>Residual Philosophy</td>
+            <td>y = x + F(x) (branch computes feature; skip avoids loss)</td>
+            <td>x_(l+1) = x_l + &Delta;x (highway is central bus; sublayers write deltas)</td>
+            <td>Shift from "shortcut bypass" to "central shared communication bus"</td>
+          </tr>
+          <tr>
+            <td>Normalization</td>
+            <td>Batch Normalization (cross-spatial, per-channel)</td>
+            <td>Layer Normalization (per-token, cross-channel)</td>
+            <td>Independent of sequence length and batch size; zero cross-time leakage</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <aside class="article-callout" style="margin-top: 28px;">
+        <strong>The Victory of Weak Inductive Biases:</strong>
+        Why did Vision Transformers (ViT) eventually overtake traditional CNNs on massive benchmarks?
+        CNNs enforce a "hard" spatial inductive bias (nearby pixels must be related). While this prevents overfitting on small datasets, it caps model capacity on massive corpora.
+        By treating images as a bag of flattened patches with no built-in spatial bias, the Transformer gives the model freedom to discover arbitrary long-range correlations on its own.
+      </aside>
     </section>
 
     <!-- ═════════════════════════════════════════════════════════════════ -->
