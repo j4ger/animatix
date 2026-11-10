@@ -63,7 +63,26 @@ jobs:
           name: web-runtime
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          path: .
+          # `upload-artifact` roots an artifact at the least common ancestor of
+          # its paths, so the CI job's `web/pkg-slim`, `web/pkg-assets`,
+          # `web/embed/amx-player.js` and `web/fonts` arrive as `pkg-slim`,
+          # `pkg-assets`, `embed/amx-player.js` and `fonts`. Downloading into
+          # the repository root therefore left `web/pkg-slim` empty and the
+          # site assembler failed with "animatix_web_bg.wasm is missing".
+          # The artifact tree belongs one level down, at `web/`.
+          path: web
+
+      # A layout change in the upload step would otherwise surface as a
+      # misleading "wasm is missing" from the site assembler. Warn and let the
+      # build step below regenerate the runtime instead of failing the deploy.
+      - name: Check downloaded web runtime
+        if: steps.web-runtime.outcome == 'success'
+        run: |
+          for f in web/pkg-slim/animatix_web_bg.wasm web/pkg-assets/animatix_web_bg.wasm web/embed/amx-player.js; do
+            if [ ! -f "$f" ]; then
+              echo "::warning::CI artifact did not restore $f; the runtime will be rebuilt"
+            fi
+          done
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -91,8 +110,11 @@ jobs:
       - name: Site scenes
         run: scripts/ci.sh gate site-scenes
 
-      - name: Build engines (manual dispatch or no CI artifact)
-        if: github.event_name != 'workflow_run' || steps.web-runtime.outcome != 'success'
+      - name: Build engines (manual dispatch, no artifact, or incomplete artifact)
+        if: >-
+          github.event_name != 'workflow_run' ||
+          steps.web-runtime.outcome != 'success' ||
+          hashFiles('web/pkg-slim/animatix_web_bg.wasm') == ''
         # `.#web-ci` is the only shell with a wasm32 std and the pinned
         # wasm-bindgen CLI. Manual dispatch and docs-only CI runs (where the
         # path filter skipped Web Build) have no artifact, so build the same
