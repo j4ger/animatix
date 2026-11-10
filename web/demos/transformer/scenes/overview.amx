@@ -270,11 +270,9 @@ fade-out blank [260ms, ease: ease-in]
 street: LabeledBox, label: "street", width: 116, height: 54, text_size: 18, corner: 12,
   fill: surface.primary, stroke: accent.primary, stroke_width: 2.2, at: (938, 592)
 pulse street [600ms, intensity: 0.05, delay: 500ms]
-camera.zoom = 1.05 [1.2s, ease: ease-in-out]
 
 #8.8s
 loop_glow.opacity = 0.12 [900ms, ease: ease-in-out]
-camera.zoom = 1.0 [1.2s, ease: ease-in-out]
 
 // ── Rest ────────────────────────────────────────────────────────────
 #10.0s

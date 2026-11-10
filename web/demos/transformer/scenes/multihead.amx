@@ -228,12 +228,9 @@ draw-in proj_arrow [260ms, delay: 80ms, ease: expo-out]
 proj_arrow.opacity = 0.8 [240ms, delay: 80ms]
 pulse out_card [600ms, intensity: 0.03, delay: 420ms]
 
-// Payoff: push into the assembled stack and settle.
+// Payoff: assembled multi-head stack settles into resting frame.
 #5.70s
-camera.zoom = 1.035 [900ms, ease: ease-in-out]
-
-#6.60s
-camera.zoom = 1.0 [600ms, ease: ease-in-out]
+pulse out_card [600ms, intensity: 0.03, delay: 200ms]
 
 // ── Rest ────────────────────────────────────────────────────────────
 #7.10s

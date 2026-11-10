@@ -198,13 +198,9 @@ sequence {
 pulse fusion_card [600ms, intensity: 0.04, delay: 1800ms]
 fade-out cursor_stack [300ms, delay: 1900ms, ease: ease-in]
 
-// Payoff: push into the spectrum and settle.
+// Payoff: focus on the full spectrum and settle.
 #5.50s
-camera.zoom = 1.04 [1.2s, ease: ease-in-out]
-pulse fusion_card [700ms, intensity: 0.05, delay: 400ms]
-
-#6.20s
-camera.zoom = 1.0 [1.1s, ease: ease-in-out]
+pulse fusion_card [700ms, intensity: 0.05, delay: 200ms]
 
 // ── Rest ────────────────────────────────────────────────────────────
 #7.20s

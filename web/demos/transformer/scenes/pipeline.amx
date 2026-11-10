@@ -220,13 +220,9 @@ fade-in climb_dot [220ms, ease: expo-out]
 shift climb_dot [by: (0, -370), 1600ms, ease: ease-in-out]
 fade-out climb_dot [260ms, delay: 1480ms, ease: ease-in]
 
-// Payoff: push into the completed tower, then settle for the rest frame.
+// Payoff: winning prediction settles for the resting frame.
 #6.40s
-camera.zoom = 1.04 [1.0s, ease: ease-in-out]
-pulse pb0 [600ms, intensity: 0.05, delay: 300ms]
-
-#7.40s
-camera.zoom = 1.0 [0.8s, ease: ease-in-out]
+pulse pb0 [600ms, intensity: 0.05, delay: 200ms]
 
 // ── Rest ────────────────────────────────────────────────────────────
 #8.10s

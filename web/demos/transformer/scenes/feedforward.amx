@@ -178,12 +178,9 @@ sum_t: Text, text: "Residual principle: sublayers compute only additive deltas (
   font_size: 18, color: text.secondary, text_anchor: "center", at: (640, 620), opacity: 0
 fade-in sum_t [300ms, delay: 300ms, ease: expo-out]
 
-// Payoff: push toward the FFN expansion, then settle on the whole highway.
+// Payoff: delta delivered, residual highway settles into resting frame.
 #6.10s
-camera.zoom = 1.04 [1.0s, ease: ease-in-out]
-
-#7.10s
-camera.zoom = 1.0 [1.0s, ease: ease-in-out]
+pulse summary_card [600ms, intensity: 0.03, delay: 200ms]
 
 // ── Rest ────────────────────────────────────────────────────────────
 #8.10s

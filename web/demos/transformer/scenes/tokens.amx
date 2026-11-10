@@ -173,11 +173,10 @@ fade-in brace_glow [460ms, ease: expo-out]
 brace_glow.opacity = 0.34 [520ms]
 
 #5.20s
-camera.zoom = 1.045 [1.2s, ease: ease-in-out]
+pulse dim_card [600ms, intensity: 0.04, delay: 200ms]
 
 #6.60s
 brace_glow.opacity = 0.10 [900ms, ease: ease-in-out]
-camera.zoom = 1.0 [1.2s, ease: ease-in-out]
 
 // ── Rest ────────────────────────────────────────────────────────────
 #7.40s
