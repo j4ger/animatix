@@ -6,6 +6,10 @@
     "examples/animation/35_camera_moves.amx": {
       "actor.clipped": 4
     },
+    "examples/composition/25_persistence.amx": {
+      "actor.never-on-frame": 2,
+      "entrance.not-visible": 1
+    },
     "examples/data/24_plot_transitions.amx": {
       "actor.clipped": 1
     },

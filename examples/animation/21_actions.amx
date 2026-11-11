@@ -2,11 +2,14 @@
 // Compact sampler for leaf vector reveal actions.
 
 import "../../web/demos/lib/theme.amx"
-import "../../web/demos/lib/theme.amx" as theme
+import "../../web/demos/lib/stage.amx"
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-title: Text, text: "Action Surface", font_size: 36, color: text.primary, anchor: scene.top, offset: (0, 64)
+head: ActHead, kicker: "ACTIONS · ENTRANCE, MOTION & EXIT", title: "Action Surface"
+caption: Caption, text: "Four leaves, four reveal verbs — then they move and exit.", tag: "21_actions.amx"
+
+floor: StageFloor
 
 path: Path, commands: {move_to(-60, 30), curve_to(-20, -60, 30, -60, 60, 30)}, stroke: accent.primary, stroke_width: 5, at: (280, 360)
 panel: Rect, size: (120, 90), color: accent.success, at: (500, 360)
@@ -14,7 +17,9 @@ label: Polygon, points: {(-30, -30), (30, 0), (-30, 30)}, color: accent.warning,
 exit_path: Path, commands: {move_to(-50, -30), line_to(50, -30), line_to(0, 50), close()}, stroke: accent.danger, stroke_width: 5, at: (960, 360)
 
 #0.5s
-fade-in title [500ms]
+fade-in floor [600ms]
+fade-in head [500ms]
+fade-in caption [400ms]
 draw-in path [700ms]
 wipe-in panel [700ms]
 reveal-in label [700ms]

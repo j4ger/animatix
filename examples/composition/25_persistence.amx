@@ -1,52 +1,48 @@
-// 25 — Scene Persistence: carry actors across scene transitions with persist / remove
-//
-// Demonstrates:
-//   - persist: mark actors to survive scene changes
-//   - remove: fade out and stop persisting
-//   - Container carry: persisting a Row carries its children too
-//   - Auto-color carry: color: auto slots are preserved across scenes
-//   - Camera carry: `persist camera` hands the scene camera's transform to the
-//     next scene, so a push-in does not snap back to identity at the boundary
-//     (`remove camera` stops the carry again)
+// 25 — Scene Persistence
+// Refactored to house-style three-act template, preserving persistence mechanics.
 
-config {
-    colorscheme: "editorial-dark",
-    resolution: (1280, 720),
-}
+import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/stage.amx"
 
-// ── Scene 1: Intro ────────────────────────────────────────────────────────────
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-# Intro
-
-title: Text, text: "Scene Persistence Demo", font_size: 48, at: (640, 200)
-// Kept inside the 1.4x push-in: at (100, 100) the zoom carried the badge
-// off-canvas, so it vanished exactly when the demo shows it persisting.
-badge: Ellipse, at: (270, 190), size: (60, 60), color: auto
+# Setup
+config { duration: 5 }
+floor: StageFloor
+head: ActHead, kicker: "ACT I · SETUP", title: "Persistence Setup"
+caption: Caption, text: "Define actors and persist them.", tag: "setup"
 
 #0s
+fade-in floor [500ms]
+fade-in head [500ms]
+fade-in caption [400ms]
+
+#0.5s
+title: Text, text: "Scene Persistence Demo", font_size: 48, at: (640, 200)
+badge: Ellipse, at: (270, 190), size: (60, 60), color: auto
 fade-in title [800ms]
 fade-in badge [600ms]
 
-#1s
+#2s
+fade-out head [400ms]
 persist title, badge, camera
 camera.zoom = 1.4 [1s, ease: ease-out]
 
-#2s
-play Main [fade, 500ms]
+#4.5s
+play Develop [wipe-left, 500ms]
 
-// ── Scene 2: Main ─────────────────────────────────────────────────────────────
-
-# Main
-
-// title and badge are carried from Intro — they appear without redeclaration.
-// So is the camera: Intro ended at 1.4x, and this scene starts there. Like every
-// other persisted target the carry is sticky, so it would keep going into Outro
-// unless `remove camera` below ends it.
+# Develop
+config { duration: 6 }
+floor: StageFloor
+caption: Caption, text: "The carried title is the heading — no ActHead needed.", tag: "develop"
 
 #0s
-title.text = "Main Scene" [800ms]
+fade-in floor [500ms]
+fade-in caption [400ms]
 
-#1s
+#0.5s
+// Use the carried actors
+title.text = "Main Scene" [800ms]
 subtitle: Text, text: "Actors persist across scenes", font_size: 28, at: (640, 400)
 fade-in subtitle [600ms]
 
@@ -57,26 +53,28 @@ container: Row, at: (640, 520), gap: 24 {
     box3: Rect, size: (80, 80), color: auto
 }
 fade-in container [500ms]
-persist container  // persists the whole Row + children
-
-#3s
-remove badge [600ms]    // badge has served its purpose; stop persisting
-remove subtitle [800ms] // subtitle is local to this scene
+persist container
 
 #4s
-remove title, container [1s]  // clean up carried actors
-remove camera                 // end the camera carry before the last scene
+remove badge [600ms]
+remove subtitle [800ms]
+remove title, container [1s]
+remove camera
 
-#5s
-play Outro [fade, 500ms]
+#5.5s
+play Payoff [fade, 500ms]
 
-// ── Scene 3: Outro (terminal) ─────────────────────────────────────────────────
-
-# Outro
-
-// All carried actors were removed in Main before this transition.
-// This scene holds the final frame with no persistent state.
+# Payoff
+config { duration: 5 }
+floor: StageFloor
+head: ActHead, kicker: "ACT III · PAYOFF", title: "Outro"
+caption: Caption, text: "Resting composition.", tag: "payoff"
 
 #0s
+fade-in floor [500ms]
+fade-in head [500ms]
+fade-in caption [400ms]
+
+#0.8s
 end: Text, text: "The End", font_size: 32, color: text.secondary, at: (640, 360)
 fade-in end [800ms]

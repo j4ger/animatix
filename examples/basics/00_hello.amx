@@ -1,18 +1,13 @@
-// 00 — Hello: Bold Title Card
-// A dramatic opening with editorial-dark elegance.
-
 import "../../web/demos/lib/theme.amx"
-import "../../web/demos/lib/theme.amx" as theme
-import "../../web/demos/lib/ui.amx"
+import "../../web/demos/lib/stage.amx"
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "ink", resolution: (1280, 720), duration: 1.5 }
 
-card_wrap: Group, anchor: scene.center {
-  card: TitleCard,
-    title: "ANIMATIX",
-    kicker: "A DECLARATIVE DSL FOR MOTION DESIGN",
-    sub: "Layout-First Animation"
-}
+floor: StageFloor
+head: ActHead, kicker: "HELLO", title: "ANIMATIX", sub: "A declarative DSL for motion design"
+caption: Caption, text: "00_hello.amx", tag: "basics"
 
-#0.5s
-fade-in card [1s, ease: ease-out]
+#0s
+fade-in floor [600ms]
+fade-in head [500ms]
+fade-in caption [400ms, delay: 300ms]

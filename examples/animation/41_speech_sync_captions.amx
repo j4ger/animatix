@@ -1,24 +1,19 @@
-// 41 — Speech Progress Synchronization & First-Class Captions
-// Showcases:
-//   - Speech-anchored keyframes: #voice@marker and #voice["word"]
-//   - First-class Captions container with karaoke highlighting
-//   - Dynamic backdrop pill rendering behind spoken text
-//   - Kinetic UI cards synchronized to voiceover narration beats
-
 import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/stage.amx"
 import "../../web/demos/lib/ui.amx"
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
+floor: StageFloor
+head: ActHead, kicker: "VOICEOVER · SYNC", title: "Speech synchronization",
+  sub: "Speech-anchored kinetic timeline."
+caption_band: Caption, text: "Captions synchronize perfectly with every spoken word.", tag: "41_speech_sync_captions"
+
 // Audio track binding with accompanying speech transcript
 voice: Audio, source: "../assets/narration.mp3", transcript: "../assets/narration.speech.json"
 
-#0s
 // Background canvas
 bg: Rect, size: (1280, 720), color: surface.secondary, at: (640, 360)
-
-// Top category badge
-badge: Chip, label: "VOICEOVER SYNCHRONIZATION", width: 220, height: 28, color: surface.primary, text_color: accent.primary, at: (640, 90)
 
 // Hero Title
 title: Text,
@@ -63,17 +58,17 @@ subs: Captions,
   backdrop_padding: (28, 14),
   pop_scale: 1.15
 
-// Initial entrance at t=0
-fade-in badge [300ms]
+#0s
+fade-in floor [600ms]
+fade-in head [500ms]
+fade-in caption_band [400ms, delay: 300ms]
+fade-in bg [400ms]
 fade-in title [400ms]
 
-// ─────────────────────────────────────────────────────────────
 // Speech-Synchronized Cue Points
-// ─────────────────────────────────────────────────────────────
-
-// "Welcome to Animatix."
 #voice@intro:
     fade-in card_intro [400ms]
+    fade-in subs [400ms]
 
 #voice["Animatix"]:
     title.color = accent.primary [300ms]

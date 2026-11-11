@@ -1,0 +1,8 @@
+warning: Git tree '/home/j4ger/Documents/animatix' is dirty
+Using saved setting for 'extra-substituters = https://animatix.cachix.org https://nix-community.cachix.org' from ~/.local/share/nix/trusted-settings.json.
+Using saved setting for 'extra-trusted-public-keys = animatix.cachix.org-1:4UgSkwvqXx15m7MJWObI6CDWs8dbPImIIyzw/2YOMDM= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=' from ~/.local/share/nix/trusted-settings.json.
+
+[1m── gate: scene-audit (shell=nix)[0m
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.27s
+FAIL scene-audit (exit code): examples/animation/37_hud_overlay.amx
+FAIL scene-audit (exit code): examples/composition/25_persistence.amx

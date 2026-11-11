@@ -1,84 +1,74 @@
 // 14 — Multi-Scene Composition
-// Scene declarations, transitions, and per-scene configuration.
+// Refactored to house-style three-act template.
 
-config { resolution: (1280, 720) }
+import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/stage.amx"
 
-# Intro
-config { colorscheme: "editorial-dark" }
-title: Text, text: "Multi-Scene", font_size: 72, color: text.primary, anchor: scene.center, offset: (0, -30)
-sub: Text, text: "Composition & Transitions", font_size: 24, color: text.secondary, anchor: scene.center, offset: (0, 30)
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+# Setup
+config { duration: 5 }
+floor: StageFloor
+head: ActHead, kicker: "ACT I · SETUP", title: "Intro"
+caption: Caption, text: "Multi-Scene Composition.", tag: "intro"
+
+#0s
+fade-in floor [500ms]
+fade-in head [500ms]
+fade-in caption [400ms]
 
 #0.5s
+title: Text, text: "Multi-Scene", font_size: 72, color: text.primary, anchor: scene.center, offset: (0, -30)
+sub: Text, text: "Composition & Transitions", font_size: 24, color: text.secondary, anchor: scene.center, offset: (0, 30)
 fade-in title [800ms, ease: ease-out]
 fade-in sub [500ms, delay: 200ms]
 
-#2.5s
-fade-out title [400ms]
-fade-out sub [400ms]
+#4.5s
+play Develop [wipe-left, 500ms]
 
-play Diagram [fade, 400ms]
+# Develop
+config { duration: 6 }
+floor: StageFloor
+head: ActHead, kicker: "ACT II · DEVELOP", title: "Diagram"
+caption: Caption, text: "The mechanism: multiple scenes linked.", tag: "diagram"
 
-# Diagram
-config { colorscheme: "editorial-dark" }
+#0s
+fade-in floor [500ms]
+fade-in head [500ms]
+fade-in caption [400ms]
+
+#0.8s
 graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4), size: (500, 500), anchor: scene.center {
   sine: PlotCurve, kind: "cartesian", func: (x) => sin(x) * 2, color: accent.primary, width: 3
   cosine: PlotCurve, kind: "cartesian", func: (x) => cos(x) * 2, color: accent.success, width: 2
 }
-
-label: Text, text: "sin(x) and cos(x)", font_size: 18, color: text.secondary, anchor: scene.bottom, offset: (0, -60)
-
-#0.5s
 fade-in graph [800ms]
-fade-in label [400ms, delay: 300ms]
 
-#3s
-fade-out graph [400ms]
-fade-out label [400ms]
+#5.5s
+play Payoff [fade, 500ms]
 
-play Outro [wipe-left, 400ms]
+# Payoff
+config { duration: 6 }
+floor: StageFloor
+head: ActHead, kicker: "ACT III · PAYOFF", title: "Transitions"
+caption: Caption, text: "Demonstrating various transitions.", tag: "outro"
 
-# Outro
-config { colorscheme: "editorial-dark" }
-thanks: Text, text: "Thanks for watching", font_size: 64, color: text.primary, anchor: scene.center
-tag: Text, text: "animatix language", font_size: 20, color: accent.primary, anchor: scene.center, offset: (0, 50)
+#0s
+fade-in floor [500ms]
+fade-in head [500ms]
+fade-in caption [400ms]
 
 #0.5s
-fade-in thanks [700ms, ease: ease-out]
-fade-in tag [500ms, delay: 200ms]
+thanks: Text, text: "Transitions", font_size: 64, color: text.primary, anchor: scene.center
+fade-in thanks [700ms]
 
-#2s
-fade-out thanks [300ms]
-fade-out tag [300ms]
-
-play CutCard [cut, 0ms]
-
-# CutCard
-config { colorscheme: "editorial-dark" }
-cut_label: Text, text: "cut", font_size: 64, color: accent.danger, anchor: scene.center
-
-#0s
-fade-in cut_label [300ms]
-play WipeRight [wipe-right, 400ms]
-
-# WipeRight
-config { colorscheme: "editorial-dark" }
-right_label: Text, text: "wipe-right", font_size: 64, color: accent.primary, anchor: scene.center
-
-#0s
-fade-in right_label [300ms]
-play WipeUp [wipe-up, 400ms]
-
-# WipeUp
-config { colorscheme: "editorial-dark" }
-up_label: Text, text: "wipe-up", font_size: 64, color: accent.success, anchor: scene.center
-
-#0s
-fade-in up_label [300ms]
-play WipeDown [wipe-down, 400ms]
-
-# WipeDown
-config { colorscheme: "editorial-dark" }
-down_label: Text, text: "wipe-down", font_size: 64, color: accent.warning, anchor: scene.center
-
-#0s
-fade-in down_label [300ms]
+#2.5s
+// Demonstrate transitions
+transition_label: Text, text: "Transition: cut", font_size: 40, color: accent.danger, anchor: scene.center, offset: (0, 100)
+fade-in transition_label [300ms]
+#3.5s
+transition_label.text = "Transition: wipe-right" [300ms]
+#4.5s
+transition_label.text = "Transition: wipe-up" [300ms]
+#5.5s
+transition_label.text = "Transition: wipe-down" [300ms]

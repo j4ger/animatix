@@ -2,29 +2,42 @@
 // Uses always + the is_animating property query to detect keyframe-driven motion.
 
 import "../../web/demos/lib/theme.amx"
-import "../../web/demos/lib/theme.amx" as theme
+import "../../web/demos/lib/stage.amx"
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 10 }
 
-title: Text, text: "Live Focus Reticle", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 60)
-status: Text, text: "IDLE", font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -60)
+floor: StageFloor
+head: ActHead, kicker: "ANIMATION · REACTIVE", title: "Live focus reticle",
+  sub: "Property queries like `is_animating` driving continuous reactive styling."
+caption: Caption, text: "Reticle tracks keyframe motion, switching to pulse mode when idle.", tag: "06_reactive.amx"
 
-ring: Ellipse, size: (50, 50), color: accent.primary, stroke_width: 3, anchor: scene.center
-cross_h: Rect, size: (80, 2), color: accent.primary, anchor: scene.center
-cross_v: Rect, size: (2, 80), color: accent.primary, anchor: scene.center
-dot: Ellipse, size: (6, 6), color: accent.danger, anchor: scene.center
+status: Text, text: "IDLE", font_size: 18, color: text.muted, at: (640, 580)
+
+ring: Ellipse, size: (50, 50), color: accent.primary, stroke_width: 3, at: (640, 420)
+cross_h: Rect, size: (80, 2), color: accent.primary, at: (640, 420)
+cross_v: Rect, size: (2, 80), color: accent.primary, at: (640, 420)
+dot: Ellipse, size: (6, 6), color: accent.danger, at: (640, 420)
 
 #0s
-ring.at = (640, 360)
+fade-in floor [600ms]
+fade-in head [500ms]
+fade-in caption [400ms, delay: 300ms]
+stagger [80ms] {
+  fade-in ring [400ms, delay: 200ms]
+  fade-in cross_h [400ms, delay: 200ms]
+  fade-in cross_v [400ms, delay: 200ms]
+  fade-in dot [400ms, delay: 200ms]
+  fade-in status [400ms, delay: 200ms]
+}
 
 #1s
-ring.at = (360, 200) [1s, ease: ease-in-out]
+ring.at = (400, 320) [1s, ease: ease-in-out]
 
 #2.5s
-ring.at = (920, 520) [1s, ease: ease-in-out]
+ring.at = (880, 500) [1s, ease: ease-in-out]
 
 #4s
-ring.at = (640, 360) [1s, ease: ease-out]
+ring.at = (640, 420) [1s, ease: ease-out]
 
 always {
   cross_h.at = ring.at
@@ -49,14 +62,4 @@ always {
     status.text = "TRACKING — keyframe active"
     status.color = accent.warning
   }
-}
-
-#0.5s
-stagger [80ms] {
-  fade-in title [500ms]
-  fade-in ring [400ms]
-  fade-in cross_h [400ms]
-  fade-in cross_v [400ms]
-  fade-in dot [400ms]
-  fade-in status [400ms]
 }

@@ -1,18 +1,24 @@
-// 03 — Timing: Sequence, Stagger & Easing
-// Composing actions with sequence and stagger, plus the easing vocabulary.
-
 import "../../web/demos/lib/theme.amx"
-import "../../web/demos/lib/theme.amx" as theme
+import "../../web/demos/lib/stage.amx"
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "ink", resolution: (1280, 720), duration: 6 }
 
-a: Rect, size: (70, 70), color: accent.primary, at: (250, 360)
-b: Rect, size: (70, 70), color: accent.success, at: (450, 360)
-c: Rect, size: (70, 70), color: accent.warning, at: (650, 360)
-d: Rect, size: (70, 70), color: accent.danger, at: (850, 360)
-e: Rect, size: (70, 70), color: text.primary, at: (1050, 360)
+floor: StageFloor
+head: ActHead, kicker: "BASICS · TIMING", title: "Sequence, Stagger & Easing"
+caption: Caption, text: "03_timing.amx", tag: "basics"
 
-#0.5s
+a: Rect, size: (70, 70), color: accent.primary, anchor: scene.center, offset: (-400, 0)
+b: Rect, size: (70, 70), color: accent.success, anchor: scene.center, offset: (-200, 0)
+c: Rect, size: (70, 70), color: accent.warning, anchor: scene.center, offset: (0, 0)
+d: Rect, size: (70, 70), color: accent.danger, anchor: scene.center, offset: (200, 0)
+e: Rect, size: (70, 70), color: text.primary, anchor: scene.center, offset: (400, 0)
+
+#0s
+fade-in floor [600ms]
+fade-in head [500ms]
+fade-in caption [400ms]
+
+#0.6s
 stagger [120ms] {
   fade-in a [500ms, ease: ease-out]
   fade-in b [500ms, ease: ease-out]

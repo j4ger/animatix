@@ -1,30 +1,16 @@
-// 40 — Delightful Animation & Kinetic Design
-// Showcases:
-//   - Split-text reveal-in with baseline masking
-//   - Text gradient brush
-//   - Smart orthogonal Connector routing with fillet & arrow
-//   - Rolling Odometer Counter
-//   - BoundaryBox and CardNode structured components
-
 import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/stage.amx"
 import "../../web/demos/lib/ui.amx"
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-#0s
+floor: StageFloor
+head: ActHead, kicker: "KINETIC · ARCHITECTURE", title: "Autonomous Edge Topology",
+  sub: "Kinetic UI components."
+caption: Caption, text: "Complex topology visualization with rolling counter.", tag: "40_delightful_kinetic"
+
 // Canvas background
 bg: Rect, size: (1280, 720), color: surface.secondary, at: (640, 360)
-
-// Header with text gradient and split-text reveal
-header: Col, at: (640, 100), align: "center", gap: 8 {
-  badge: Chip, label: "KINETIC ARCHITECTURE", width: 180, height: 28, color: surface.primary, text_color: accent.primary, opacity: 1
-  headline: Text,
-    text: "Autonomous Edge Topology",
-    font_size: 40,
-    font_weight: "bold",
-    fill_gradient: linear(90, {"#38bdf8", "#a855f7"}),
-    text_align: "center"
-}
 
 // VPC Boundary enclosure
 vpc: BoundaryBox, label: "US-EAST EDGE CLUSTER", width: 880, height: 380, at: (640, 420), opacity: 1
@@ -59,8 +45,12 @@ kpi: Col, at: (640, 560), align: "center", gap: 4 {
   ticker: Counter, value: 1250, color: accent.primary, suffix: " req/s"
 }
 
-#0.2s
-reveal-in headline [by: word, offset_y: 20, 600ms]
+#0s
+fade-in floor [600ms]
+fade-in head [500ms]
+fade-in caption [400ms, delay: 300ms]
+fade-in bg [600ms]
+fade-in vpc [400ms]
 
 #0.6s
 fade-in client [400ms]

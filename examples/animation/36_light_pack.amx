@@ -1,12 +1,13 @@
-// 36_light_pack.amx — the same plate built from `examples/lib/light.amx`.
-//
-// The point of the pack is that a lit, still-moving stage is four declarations,
-// not forty lines of ramps and `always` maths. Compare with
-// `32_light_vocabulary.amx`, which writes the same moves inline.
-
+import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/stage.amx"
 import "../../web/demos/lib/light.amx"
 
 config { colorscheme: "vivid", resolution: (1280, 720), duration: 6.5 }
+
+floor: StageFloor
+head: ActHead, kicker: "LIGHT · PACK", title: "Light pack",
+  sub: "Declarative light and motion components."
+caption: Caption, text: "Complex lighting and motion using ready-made components.", tag: "36_light_pack"
 
 key: KeyLight, radius: 400, at: (560, 300)
 fill: CoolLight, radius: 300, at: (900, 470)
@@ -18,10 +19,9 @@ beat: Breather, gain: 0.07, rate: 2.1, at: (940, 300)
 rail: MarchingRail, length: 900, gap: 8, speed: 40, at: (640, 600)
 
 #0s
-// `Breather` and `MarchingRail` drive `scale` / `dash_offset` from `always`, and
-// an `always` write wins every frame — so their entrances stay on `opacity`,
-// which no component here touches. Mixing `settle-in` with `Breather` on one
-// actor would silently kill the entrance.
+fade-in floor [600ms]
+fade-in head [500ms]
+fade-in caption [400ms, delay: 300ms]
 fade-in card [500ms]
 fade-in beat [500ms]
 fade-in rail [700ms]

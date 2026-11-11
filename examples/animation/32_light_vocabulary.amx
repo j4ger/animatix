@@ -1,4 +1,12 @@
+import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/stage.amx"
+
 config { colorscheme: "neon-night", resolution: (1280, 720), duration: 8 }
+
+floor: StageFloor
+head: ActHead, kicker: "VISUAL · LIGHT", title: "Light vocabulary",
+  sub: "Compositional elements of light."
+caption: Caption, text: "Elements combine to form a light-based composition.", tag: "32_light_vocabulary"
 
 wash: Ellipse, size: (900, 900), at: (420, 300), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#5e5ce6"), (60%, "#5e5ce633"), (100%, "#5e5ce600")}), blend: "screen"
 
@@ -13,32 +21,35 @@ title: Text, text: "made of light", at: (640, 220), font_size: 54
 mote: Ellipse, size: (14, 14), at: (640, 400), color: lerp_color_oklab("#30d158", "#ff2d55", 0.5)
 
 #0s
-  fade-in wash [900ms]
-  settle-in bar [700ms]
-  pop-in title [600ms]
-  draw-in arc [1200ms, ease: expo-out]
-  fade-in wire [400ms]
-  pop-in mote [500ms]
-  wire.dash_offset = 0
+fade-in floor [600ms]
+fade-in head [500ms]
+fade-in caption [400ms, delay: 300ms]
+fade-in wash [900ms]
+settle-in bar [700ms]
+pop-in title [600ms]
+draw-in arc [1200ms, ease: expo-out]
+fade-in wire [400ms]
+pop-in mote [500ms]
+wire.dash_offset = 0
 
 #0.9s
-  bar.shift = (0, 0)
+bar.shift = (0, 0)
 
 #2.2s
-  bar.shift = (0, -14) [1.3s, ease: ease-in-out]
+bar.shift = (0, -14) [1.3s, ease: ease-in-out]
 
 #2.4s
-  wire.dash_offset = 340 [2.6s]
-  always {
-      let wobble = fbm(t * 0.5, 4)
-      mote.at = (640 + wobble * 220, 400 + seeded_noise(7, t * 0.8) * 60)
-    }
+wire.dash_offset = 340 [2.6s]
+always {
+  let wobble = fbm(t * 0.5, 4)
+  mote.at = (640 + wobble * 220, 400 + seeded_noise(7, t * 0.8) * 60)
+}
 
 #5s
-  move bar [to: (0, 30), 1.2s, anticipate: 90ms]
+move bar [to: (0, 30), 1.2s, anticipate: 90ms]
 
 #6.4s
-  fade-out wash [1.2s]
-  fade-out bar [900ms]
-  fade-out title [900ms]
-  wipe-out arc [900ms]
+fade-out wash [1.2s]
+fade-out bar [900ms]
+fade-out title [900ms]
+wipe-out arc [900ms]

@@ -1,20 +1,60 @@
 // 19 — Cross-File Scene Composition
-// Demonstrates importing scene files and playing them via play alias.SceneName.
+// Refactored to house-style three-act template.
 
 import "../scenes/reel_intro.amx" as intro
+import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/stage.amx"
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-# Main
-title: Text, text: "Cross-File Scenes", font_size: 36, color: text.primary, anchor: scene.center, offset: (0, -30)
-sub: Text, text: "import ../scenes/reel_intro.amx  +  play intro.IntroScene", font_size: 16, color: text.secondary, anchor: scene.center, offset: (0, 25)
+# Setup
+config { duration: 5 }
+floor: StageFloor
+head: ActHead, kicker: "ACT I · SETUP", title: "Cross-File Scenes"
+caption: Caption, text: "Importing and linking scene files.", tag: "setup"
+
+#0s
+fade-in floor [500ms]
+fade-in head [500ms]
+fade-in caption [400ms]
 
 #0.5s
+title: Text, text: "Cross-File Scenes", font_size: 36, color: text.primary, anchor: scene.center, offset: (0, -30)
+sub: Text, text: "import ../scenes/reel_intro.amx  +  play intro.IntroScene", font_size: 16, color: text.secondary, anchor: scene.center, offset: (0, 25)
 fade-in title [600ms, ease: ease-out]
 fade-in sub [400ms, delay: 200ms]
 
-#2.5s
-fade-out title [400ms]
-fade-out sub [400ms]
+#4.5s
+play Develop [wipe-left, 500ms]
 
+# Develop
+config { duration: 6 }
+floor: StageFloor
+head: ActHead, kicker: "ACT II · DEVELOP", title: "Mechanism"
+caption: Caption, text: "The mechanism is an import and a play alias.", tag: "develop"
+
+#0s
+fade-in floor [500ms]
+fade-in head [500ms]
+fade-in caption [400ms]
+
+#1s
+explanation: Text, text: "We define scenes elsewhere and play them here.", font_size: 24, color: text.primary, anchor: scene.center
+fade-in explanation [600ms]
+
+#5.5s
+play Payoff [fade, 500ms]
+
+# Payoff
+config { duration: 5 }
+floor: StageFloor
+head: ActHead, kicker: "ACT III · PAYOFF", title: "Execute"
+caption: Caption, text: "The scene is called.", tag: "payoff"
+
+#0s
+fade-in floor [500ms]
+fade-in head [500ms]
+fade-in caption [400ms]
+
+#0.8s
 play intro.IntroScene [fade, 400ms]

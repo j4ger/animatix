@@ -1,10 +1,16 @@
-config { colorscheme: "paper", resolution: (960, 540), duration: 4 }
+import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/stage.amx"
 
-label: Text, text: "ships this quarter", at: (480, 350), font_size: 26
+config { colorscheme: "paper", resolution: (1280, 720), duration: 4 }
 
-kpi: Text, text: "0%", at: (480, 250), font_size: 132
+floor: StageFloor
+head: ActHead, kicker: "UI · TICKER", title: "Count up ticker",
+  sub: "Counter 数字滚动演示。"
+caption: Caption, text: "The counter interpolates values over time.", tag: "33_count_up_ticker"
 
-rule: Rect, size: (320, 4), at: (480, 312), corner_radius: 2, fill_gradient: linear(90, {"#ff2d55", "#ff9f0a"})
+label: Text, text: "ships this quarter", at: (640, 467), font_size: 26
+kpi: Text, text: "0%", at: (640, 333), font_size: 132
+rule: Rect, size: (320, 4), at: (640, 416), corner_radius: 2, fill_gradient: linear(90, {"#ff2d55", "#ff9f0a"})
 
 always {
   let p = clamp((t - 0.4) / 1.8, 0, 1)
@@ -13,6 +19,9 @@ always {
 }
 
 #0s
-  fade-in label [400ms]
-  settle-in kpi [500ms]
-  fade-in rule [400ms]
+fade-in floor [600ms]
+fade-in head [500ms]
+fade-in caption [400ms, delay: 300ms]
+fade-in label [400ms]
+settle-in kpi [500ms]
+fade-in rule [400ms]

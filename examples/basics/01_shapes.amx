@@ -1,10 +1,12 @@
-// 01 — Primitives: Shapes, Media & Code
-// Built-in primitive types in an elegant gallery.
-
 import "../../web/demos/lib/theme.amx"
-import "../../web/demos/lib/theme.amx" as theme
+import "../../web/demos/lib/stage.amx"
+import "../../web/demos/lib/ui.amx"
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "ink", resolution: (1280, 720), duration: 6 }
+
+floor: StageFloor
+head: ActHead, kicker: "BASICS · SHAPES", title: "Primitive gallery"
+caption: Caption, text: "01_shapes.amx", tag: "basics"
 
 gallery: Grid, cols: 4, gap: 24, padding: 60, anchor: scene.center {
   text: Text, text: "Typography", font_size: 20, color: accent.primary
@@ -20,7 +22,12 @@ gallery: Grid, cols: 4, gap: 24, padding: 60, anchor: scene.center {
   arrow: Arrow, from: (-40, 20), to: (40, -20), stroke: accent.primary, stroke_width: 4, head_size: 16
 }
 
-#0.5s
+#0s
+fade-in floor [600ms]
+fade-in head [500ms]
+fade-in caption [400ms]
+
+#0.6s
 stagger [80ms] {
   fade-in text [500ms, ease: ease-out]
   fade-in math [500ms, ease: ease-out]
@@ -35,7 +42,6 @@ stagger [80ms] {
   fade-in arrow [500ms, ease: ease-out]
 }
 
-// Color rotation across the gallery
 #3s
 text.color = accent.danger [600ms]
 math.color = accent.primary [600ms]

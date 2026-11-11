@@ -2,23 +2,25 @@
 // Filter scope + effect chain (Blur, ColorGrade) + effect actions (shake, pulse, bounce).
 
 import "../../web/demos/lib/theme.amx"
-import "../../web/demos/lib/theme.amx" as theme
+import "../../web/demos/lib/stage.amx"
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 12 }
 
-bg_mark: Svg, url: "../assets/animatix-mark.svg", size: (500, 500), anchor: scene.center, opacity: 0.08
+floor: StageFloor
+head: ActHead, kicker: "ANIMATION · EFFECTS", title: "Filters & effects",
+  sub: "Demonstrating chained filter scopes and built-in procedural effects."
+caption: Caption, text: "Chained filter effects with procedural animations.", tag: "08_effects.amx"
 
-// Effects are declared as labelled children of a Filter scope, in application order.
-bg: Filter, anchor: scene.center {
+bg_mark: Svg, url: "../assets/animatix-mark.svg", size: (360, 360), at: (640, 430), opacity: 0.08
+bg: Filter, at: (640, 430) {
   bg_soft: Blur, radius: 0
   bg_grade: ColorGrade, brightness: 0.6
   bg_vignette: Vignette, amount: 0, radius: 0.5, softness: 0.75
   bg_grain: Grain, amount: 0, monochrome: true
   bg_levels: Levels, gamma: 1
-  grid: Image, url: "../assets/checker.png", size: (500, 500), anchor: scene.center
+  grid: Image, url: "../assets/checker.png", size: (360, 360), at: (640, 430)
 }
 
-// Foreground card on top of blurred background (wrapped in Filter for sepia effect)
 fg_filter: Filter, anchor: scene.center {
   fg_sepia: ColorGrade, sepia: 0
   fg_focus: Sharpen, amount: 0, radius: 2
@@ -28,79 +30,69 @@ fg_filter: Filter, anchor: scene.center {
   }
 }
 
-// A chip that slides in with motion blur, then settles.
 chip: Filter, anchor: scene.center, offset: (-420, 120) {
   chip_blur: MotionBlur, length: 0, angle: 0
-  chip_plate: Rect, size: (150, 44), color: accent.danger
+  plate: Rect, size: (130, 40), color: accent.danger
 }
 
-target: Rect, size: (60, 60), color: accent.danger, anchor: scene.center, offset: (0, 100)
-
-title: Text, text: "Filters & Effects", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 60)
+target: Rect, size: (50, 50), color: accent.danger, at: (640, 510)
 
 #0s
-bg.bg_soft.radius = 0
-bg.bg_grade.brightness = 0.6
+fade-in floor [600ms]
+fade-in head [500ms]
+fade-in caption [400ms, delay: 300ms]
+stagger [80ms] {
+  fade-in bg_mark [500ms, delay: 200ms]
+  fade-in bg [400ms, delay: 200ms]
+  fade-in fg_filter [400ms, delay: 200ms]
+  fade-in target [400ms, delay: 200ms]
+}
 
-#1.5s
-bg.bg_soft.radius = 12 [1.5s, ease: ease-out]
-bg.bg_grade.brightness = 0.3 [1.5s]
+#1.2s
+bg.bg_soft.radius = 12 [1.2s, ease: ease-out]
+bg.bg_grade.brightness = 0.3 [1.2s]
+
+#2.2s
+bg.bg_vignette.amount = 0.5 [1s, ease: ease-out]
+bg.bg_grain.amount = 0.22 [1s, ease: ease-out]
+
+#3.0s
+bg.bg_soft.radius = 0 [800ms, ease: ease-out]
+bg.bg_grade.brightness = 0.6 [800ms]
 
 #3.5s
-bg.bg_soft.radius = 0 [1s, ease: ease-out]
-bg.bg_grade.brightness = 0.6 [1s]
-
-#5s
-fg_filter.fg_sepia.sepia = 0
-
-#5.5s
-fg_filter.fg_sepia.sepia = 0.8 [1s]
-
-#7s
-fg_filter.fg_sepia.sepia = 0 [1s]
-
-#8.5s
-pulse target [400ms, intensity: 1.5]
-
-#9.5s
-shake target [500ms, intensity: 2]
-
-#10.5s
-bounce target [900ms, intensity: 24, restitution: 0.62]
-
-#2.5s
-bg.bg_vignette.amount = 0.5 [1.2s, ease: ease-out]
-bg.bg_grain.amount = 0.22 [1.2s, ease: ease-out]
-
-#3.9s
 fade-in chip [300ms]
 
-#4.0s
-chip.chip_blur.length = 24 [0.4s, ease: ease-in]
-chip.offset = (0, 120) [0.8s, ease: ease-out]
+#3.6s
+chip.chip_blur.length = 24 [300ms, ease: ease-in]
+chip.offset = (0, 0) [600ms, ease: ease-out]
 
-#4.6s
-chip.chip_blur.length = 0 [0.5s, ease: ease-out]
+#4.1s
+chip.chip_blur.length = 0 [400ms, ease: ease-out]
 
-#6.5s
-fg_filter.fg_focus.amount = 2.2 [0.9s, ease: ease-in-out]
+#5.0s
+fg_filter.fg_sepia.sepia = 0.8 [800ms]
 
-#7.6s
-fg_filter.fg_focus.amount = 0 [0.8s, ease: ease-in]
+#6.0s
+fg_filter.fg_focus.amount = 2.2 [800ms, ease: ease-in-out]
+
+#7.0s
+fg_filter.fg_focus.amount = 0 [700ms, ease: ease-in]
+
+#7.5s
+fg_filter.fg_sepia.sepia = 0 [800ms]
+
+#8.2s
+pulse target [350ms, intensity: 1.5]
+
+#8.8s
+shake target [400ms, intensity: 2]
 
 #9.0s
 // Night dip: lift the black point and pull the midtones down.
-bg.bg_levels.in_black = 0.05 [1.2s, ease: ease-in-out]
-bg.bg_levels.gamma = 0.85 [1.2s, ease: ease-in-out]
-bg.bg_grain.amount = 0.3 [1.2s]
+bg.bg_levels.in_black = 0.05 [1s, ease: ease-in-out]
+bg.bg_levels.gamma = 0.85 [1s, ease: ease-in-out]
+bg.bg_grain.amount = 0.3 [1s]
 
-#0.5s
-fade-in title [600ms, ease: ease-out]
-
-#+0.3s
-stagger [80ms] {
-  fade-in bg_mark [500ms]
-  fade-in bg [400ms]
-  fade-in fg [400ms]
-  fade-in target [400ms]
-}
+#9.6s
+bounce target [800ms, intensity: 20, restitution: 0.62]

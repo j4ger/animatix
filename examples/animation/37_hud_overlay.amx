@@ -13,6 +13,10 @@
 //   - It is a declaration, like `icon` — not a keyframed property. A scene that
 //     wants the overlay to arrive *with* the camera can simply declare it after
 //     the push instead.
+//
+// One rule to know: the frost is a copy of the frame taken after the whole frame
+// is drawn, so *everything* under the panel's rect is inside it, whenever it was
+// declared. What must stay sharp on top of the blur is a child of the scope.
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6.6 }
 

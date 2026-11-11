@@ -2,40 +2,48 @@
 // Re-declaration triggers automatic interpolation between shapes.
 
 import "../../web/demos/lib/theme.amx"
-import "../../web/demos/lib/theme.amx" as theme
+import "../../web/demos/lib/stage.amx"
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 11 }
 
-circle: Ellipse, size: (140, 140), color: accent.primary, at: (320, 360)
-rect: Rect, size: (140, 140), color: accent.success, at: (640, 360)
-poly: Polygon, points: {(0, -70), (70, 0), (0, 70), (-70, 0)}, color: accent.warning, at: (960, 360)
+floor: StageFloor
+head: ActHead, kicker: "ANIMATION · MORPH", title: "Shape transformation",
+  sub: "Automatic interpolation between primitives via re-declaration."
+caption: Caption, text: "Morphing between geometric primitives across keyframes.", tag: "05_morph.amx"
 
-#0.5s
+circle: Ellipse, size: (140, 140), color: accent.primary, at: (320, 420)
+rect: Rect, size: (140, 140), color: accent.success, at: (640, 420)
+poly: Polygon, points: {(0, -70), (70, 0), (0, 70), (-70, 0)}, color: accent.warning, at: (960, 420)
+
+#0s
+fade-in floor [600ms]
+fade-in head [500ms]
+fade-in caption [400ms, delay: 300ms]
 stagger [100ms] {
-  fade-in circle [500ms, ease: ease-out]
-  fade-in rect [500ms, ease: ease-out]
-  fade-in poly [500ms, ease: ease-out]
+  fade-in circle [500ms, delay: 200ms, ease: ease-out]
+  fade-in rect [500ms, delay: 200ms, ease: ease-out]
+  fade-in poly [500ms, delay: 200ms, ease: ease-out]
 }
 
 // Circle → Rect with auto strategy
 #2s
-circle: Rect, size: (140, 140), color: accent.danger, at: (320, 360) [1s, strategy: auto]
+circle: Rect, size: (140, 140), color: accent.danger, at: (320, 420) [1s, strategy: auto]
 
 // Rect → Ellipse with match strategy
 #3.5s
-rect: Ellipse, size: (160, 120), color: accent.primary, at: (640, 360) [1s, strategy: match]
+rect: Ellipse, size: (160, 120), color: accent.primary, at: (640, 420) [1s, strategy: match]
 
 // Diamond → Star with path arc hint
 #5s
-poly: Polygon, points: {(0, -80), (20, -25), (75, -25), (30, 10), (45, 65), (0, 35), (-45, 65), (-30, 10), (-75, -25), (-20, -25)}, color: accent.success, at: (960, 360) [1.5s, path_arc: 0.3]
+poly: Polygon, points: {(0, -80), (20, -25), (75, -25), (30, 10), (45, 65), (0, 35), (-45, 65), (-30, 10), (-75, -25), (-20, -25)}, color: accent.success, at: (960, 420) [1.5s, path_arc: 0.3]
 
 // Circle (now Rect) → Diamond with fade strategy
 #6.5s
-circle: Polygon, points: {(0, -75), (75, 0), (0, 75), (-75, 0)}, color: accent.primary, at: (320, 360) [1s, strategy: fade]
+circle: Polygon, points: {(0, -75), (75, 0), (0, 75), (-75, 0)}, color: accent.primary, at: (320, 420) [1s, strategy: fade]
 
 // Rect (now Ellipse) → Trapezoid with stretch normalization
 #6.8s
-rect: Path, commands: {move_to(-80, -45), line_to(80, -45), line_to(55, 45), line_to(-55, 45), close()}, color: accent.danger, at: (640, 360) [1s, stretch: true]
+rect: Path, commands: {move_to(-80, -45), line_to(80, -45), line_to(55, 45), line_to(-55, 45), close()}, color: accent.danger, at: (640, 420) [1s, stretch: true]
 
 // Unify colors as a finale
 #8s
