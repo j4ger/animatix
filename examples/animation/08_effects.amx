@@ -1,8 +1,8 @@
 // 08 — Filters & Effects Composition
 // Filter scope + effect chain (Blur, ColorGrade) + effect actions (shake, pulse, bounce).
 
-import "../lib/theme.amx"
-import "../lib/theme.amx" as theme
+import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/theme.amx" as theme
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 

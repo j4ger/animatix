@@ -1,7 +1,7 @@
 // brand_reel/logo.amx — scene ①: logo draw-in + sheen sweep.
 // Introduces the mascot dot (persisted across the whole reel).
 
-config { colorscheme: "gallery", dynamic_layout: true, duration: 8 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 8 }
 
 # Logo
 logo_text: Text, text: "animatix", font_size: 88, font_weight: "bold",

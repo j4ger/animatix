@@ -577,3 +577,16 @@ tracked.
   after the numeric fast paths (currently `stage/modifier_exec` is sub-µs).
 - **Verification**: `stage/build_frame_env` and `vm_vs_ir` suites; the
   `is_animating` and closure parity tests are the behavior pins.
+
+## Found by the template round, left open (2026-11-11)
+
+- **`Graph`-generated sub-actors trip the lifecycle rules.** A `Graph` + `PlotCurve`
+  evaluates tick/curve sub-actors (`plot_tick_x_0`, `curve`) whose own opacity
+  track is flat zero — the container's `draw-in` drives them. `actor.
+  opacity-never-positive` has no way to tell "container-generated fragment"
+  from "author-declared actor that never shows": `parent` is `None` for these
+  (they are evaluation-time spawns, not hierarchy children) and the label has
+  no stable marker like the `for`-loop `__` suffix. The fix is an engine-side
+  `generated_by` (or equivalent) on `ActorFact` so rules can skip what the
+  container owns. Until then `examples/templates/explain-figure.amx` uses a
+  hand-drawn `Path` to stay warning-free.

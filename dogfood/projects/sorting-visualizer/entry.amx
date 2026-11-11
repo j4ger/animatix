@@ -10,7 +10,7 @@
 // The body expands into a scoped block, so function-local `let` bindings
 // never leak into the scene.
 
-import "../../../examples/lib/tokens.amx" as tokens
+import "../../../web/demos/lib/tokens.amx" as tokens
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720), dynamic_layout: true }
 

@@ -2,10 +2,10 @@
 // Text re-declaration triggers morph transitions; letter_spacing breathes.
 // The persisted mascot rides along (re-persisted at scene end).
 
-import "../../lib/theme.amx" as theme
-import "../../lib/theme.amx"
+import "../../../web/demos/lib/theme.amx" as theme
+import "../../../web/demos/lib/theme.amx"
 
-config { colorscheme: "gallery", dynamic_layout: true, duration: 10 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 10 }
 
 # Slogan
 slogan_kicker: Text, text: "THE BIG IDEA", font_size: theme.text_sm,

@@ -90,6 +90,13 @@ pub fn build_document_with_vars(
     graph.add_source(path.clone(), source);
     for (lib_path, lib_source) in bundled_library() {
         graph.add_source(PathBuf::from(lib_path), *lib_source);
+        // Examples live under `examples/<dir>/` on disk, so their imports
+        // resolve to `../../web/demos/lib/<name>.amx`; register that shape of
+        // the same file too, or the desktop-authored scenes cannot load in the
+        // virtual entry (`main.amx` has no parent to climb past).
+        if let Some(name) = lib_path.strip_prefix("../lib/") {
+            graph.add_source(PathBuf::from(format!("../../web/demos/lib/{name}")), *lib_source);
+        }
     }
     for (module_path, module_source) in modules {
         graph.add_source(module_path.clone(), module_source.clone());

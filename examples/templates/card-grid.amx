@@ -1,0 +1,40 @@
+// card-grid.amx — 卡片网格模板：2×N MetricCard / Card 版式。
+// 适合指标对比、清单、流程步骤。网格交给 Row/Col 排布，不要手摆坐标。
+import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/stage.amx"
+import "../../web/demos/lib/ui.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720), duration: 6 }
+
+floor: StageFloor
+head: ActHead, kicker: "DATA · GRID", title: "Numbers that move"
+caption: Caption, text: "Cards enter in reading order; the grid is the layout.", tag: "card-grid"
+
+cards: Col, gap: 24, anchor: scene.center, offset: (0, 40) {
+  row_a: Row, gap: 24 {
+    c1: MetricCard, label: "Latency", value: "12ms"
+    c2: MetricCard, label: "Throughput", value: "24.5K"
+    c3: MetricCard, label: "Uptime", value: "99.9%"
+  }
+  row_b: Row, gap: 24 {
+    c4: MetricCard, label: "Errors", value: "0.01%"
+    c5: MetricCard, label: "Cost", value: "-23%"
+  }
+}
+
+#0s
+fade-in floor [600ms]
+fade-in head [500ms]
+fade-in caption [400ms]
+
+#0.6s
+stagger [140ms] {
+  pop-in c1 [480ms, ease: expo-out]
+  pop-in c2 [480ms, ease: expo-out]
+  pop-in c3 [480ms, ease: expo-out]
+  pop-in c4 [480ms, ease: expo-out]
+  pop-in c5 [480ms, ease: expo-out]
+}
+
+#4.8s
+// rest：网格完整保持。

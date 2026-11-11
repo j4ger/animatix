@@ -8,34 +8,35 @@
 /// and anything still absent surfaces as a `FileNotFound` module error.
 pub const ENTRY_PATH: &str = "main.amx";
 
-/// The repo's shared example library (`examples/lib/*.amx`), embedded at
-/// compile time and registered in the in-memory source map so example
-/// imports (`import "../lib/theme.amx"`) resolve without any disk access.
+/// The repo's one scene library (`web/demos/lib/*.amx`), embedded at compile
+/// time and registered in the in-memory source map so a scene's
+/// `import "../lib/theme.amx"` resolves without any disk access.
 ///
 /// Keys are the *resolved* import paths: `resolve_import` joins the import
-/// string onto the importing file's directory and normalizes, which maps
-/// every library reference onto the `../lib/<name>.amx` shape.
+/// string onto the importing file's directory and normalizes. Scenes under
+/// `web/demos/` resolve onto the `../lib/<name>.amx` shape; desktop-authored
+/// examples resolve to `../../web/demos/lib/<name>.amx`, which build.rs
+/// derives from the same entries rather than duplicating this table.
 ///
 /// A `const` rather than a function body because [`identity_digest`] has to read
 /// it at compile time: the embedded text is part of the artifact's fingerprint.
 const BUNDLED_LIBRARY: &[(&str, &str)] = &[
-    ("../lib/actions.amx", include_str!("../../../../examples/lib/actions.amx")),
-    ("../lib/ambience.amx", include_str!("../../../../examples/lib/ambience.amx")),
-    ("../lib/card.amx", include_str!("../../../../examples/lib/card.amx")),
-    ("../lib/charts.amx", include_str!("../../../../examples/lib/charts.amx")),
+    ("../lib/ambience.amx", include_str!("../../../../web/demos/lib/ambience.amx")),
+    ("../lib/card.amx", include_str!("../../../../web/demos/lib/card.amx")),
+    ("../lib/charts.amx", include_str!("../../../../web/demos/lib/charts.amx")),
     (
-        "../lib/colorschemes.amx",
-        include_str!("../../../../examples/lib/colorschemes.amx"),
+        "../lib/components.amx",
+        include_str!("../../../../web/demos/lib/components.amx"),
     ),
-    ("../lib/components.amx", include_str!("../../../../examples/lib/components.amx")),
-    ("../lib/figure.amx", include_str!("../../../../examples/lib/figure.amx")),
-    ("../lib/light.amx", include_str!("../../../../examples/lib/light.amx")),
-    ("../lib/palette.amx", include_str!("../../../../examples/lib/palette.amx")),
-    ("../lib/reexport.amx", include_str!("../../../../examples/lib/reexport.amx")),
-    ("../lib/slide.amx", include_str!("../../../../examples/lib/slide.amx")),
-    ("../lib/theme.amx", include_str!("../../../../examples/lib/theme.amx")),
-    ("../lib/tokens.amx", include_str!("../../../../examples/lib/tokens.amx")),
-    ("../lib/ui.amx", include_str!("../../../../examples/lib/ui.amx")),
+    ("../lib/figure.amx", include_str!("../../../../web/demos/lib/figure.amx")),
+    ("../lib/light.amx", include_str!("../../../../web/demos/lib/light.amx")),
+    ("../lib/palette.amx", include_str!("../../../../web/demos/lib/palette.amx")),
+    ("../lib/reexport.amx", include_str!("../../../../web/demos/lib/reexport.amx")),
+    ("../lib/slide.amx", include_str!("../../../../web/demos/lib/slide.amx")),
+    ("../lib/stage.amx", include_str!("../../../../web/demos/lib/stage.amx")),
+    ("../lib/theme.amx", include_str!("../../../../web/demos/lib/theme.amx")),
+    ("../lib/tokens.amx", include_str!("../../../../web/demos/lib/tokens.amx")),
+    ("../lib/ui.amx", include_str!("../../../../web/demos/lib/ui.amx")),
 ];
 
 pub fn bundled_library() -> &'static [(&'static str, &'static str)] {

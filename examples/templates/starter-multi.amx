@@ -1,0 +1,63 @@
+// starter-multi.amx — 三幕模板：复制此文件开始一个多幕讲解。
+//
+// 三幕 = 建立 / 展开 / 收束；每幕一个 ActHead + Caption，play 链接幕与幕。
+// 幕内结构参考 starter.amx。生成基线：animatix baseline <file>。
+import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/stage.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720) }
+
+# Setup
+config { duration: 5 }
+floor: StageFloor
+head: ActHead, kicker: "ACT I · SETUP", title: "State the question"
+caption: Caption, text: "One question, one visual anchor.", tag: "setup"
+
+#0s
+fade-in floor [600ms]
+fade-in head [500ms]
+fade-in caption [400ms]
+
+#1.2s
+anchor_dot: Ellipse, size: (56, 56), color: accent.primary, at: (640, 420)
+pop-in anchor_dot [500ms, ease: expo-out]
+
+#3.6s
+play Develop [wipe-left, 500ms]
+
+# Develop
+config { duration: 6 }
+floor: StageFloor
+head: ActHead, kicker: "ACT II · DEVELOP", title: "Show the mechanism"
+caption: Caption, text: "The mechanism is three moves, not ten.", tag: "develop"
+
+#0s
+fade-in floor [500ms]
+fade-in head [500ms]
+fade-in caption [400ms]
+
+#0.8s
+panel: Rect, size: (720, 260), corner_radius: 16, color: surface.primary, anchor: scene.center, offset: (0, 40)
+wipe-in panel [600ms, ease: expo-out]
+
+#4.4s
+play Payoff [fade, 500ms]
+
+# Payoff
+config { duration: 5 }
+floor: StageFloor
+head: ActHead, kicker: "ACT III · PAYOFF", title: "Land the takeaway"
+caption: Caption, text: "Rest on the answer; the loop holds it.", tag: "payoff"
+
+#0s
+fade-in floor [500ms]
+fade-in head [500ms]
+fade-in caption [400ms]
+
+#0.8s
+takeaway: Text, text: "The answer, in one line.", font_size: 40, font_weight: "bold",
+  color: text.primary, anchor: scene.center
+pop-in takeaway [600ms, ease: expo-out]
+
+#3.8s
+// rest：全片在 takeaway 的静止构图上结束。

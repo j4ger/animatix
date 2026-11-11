@@ -1,8 +1,8 @@
 // 15 — For Loop: Gallery
 // Procedural per-frame wave animation using for inside always.
 
-import "../lib/theme.amx"
-import "../lib/theme.amx" as theme
+import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/theme.amx" as theme
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 

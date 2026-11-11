@@ -1,11 +1,11 @@
 // Unaliased import registers the `gallery` colorscheme globally; the aliased
 // import exposes spacing/type tokens as `theme.*` in expressions.
-import "../lib/theme.amx"
-import "../lib/theme.amx" as theme
-import "../lib/ui.amx"
+import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/theme.amx" as theme
+import "../../web/demos/lib/ui.amx"
 
 config {
-  colorscheme: "gallery",
+  colorscheme: "ink",
   resolution: (1280, 720),
   strict_types: true,
   dynamic_layout: true,
@@ -14,7 +14,7 @@ config {
 // ── Scene 1: Title — per-letter reveal + slogan cross-fade ──────────────────
 
 # Title
-config { colorscheme: "gallery" }
+config { colorscheme: "ink" }
 
 bg_glow: Ellipse, size: (900, 900), color: surface.secondary, at: (640, 360), opacity: 0.55
 
@@ -69,7 +69,7 @@ play MorphLab [wipe-left, 600ms]
 // ── Scene 2: Morph Lab — strategy comparison ────────────────────────────────
 
 # MorphLab
-config { colorscheme: "gallery" }
+config { colorscheme: "ink" }
 
 header2: TitleCard, title: "Morph Lab", kicker: "STRATEGY COMPARISON",
   sub: "one blob, three interpolation strategies", anchor: scene.top, offset: (0, 70)
@@ -127,7 +127,7 @@ play KenBurns [wipe-left, 600ms]
 // ── Scene 3: Ken Burns — Image inside Mask, Filter breathing ────────────────
 
 # KenBurns
-config { colorscheme: "gallery" }
+config { colorscheme: "ink" }
 
 header3: TitleCard, title: "Ken Burns", kicker: "FILTER + IMAGE",
   sub: "framed motion with a breathing grade", anchor: scene.top, offset: (0, 70)
@@ -174,7 +174,7 @@ play Easing [fade, 600ms]
 // ── Scene 4: Easing Family — finale ─────────────────────────────────────────
 
 # Easing
-config { colorscheme: "gallery" }
+config { colorscheme: "ink" }
 
 header4: TitleCard, title: "Easing Family", kicker: "FINALE",
   sub: "one distance, five personalities", anchor: scene.top, offset: (0, 70)

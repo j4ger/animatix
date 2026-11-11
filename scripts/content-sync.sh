@@ -40,27 +40,28 @@ else
   python3 scripts/epicycles-plate.py --check 2>&1 | sed 's/^/       /' >&2 || true
 fi
 
-# ── 2. examples/lib ↔ the engine's bundled library ────────────────────────────
-# The wasm player has no filesystem: `bundled_library()` is how an example's
-# `import "../lib/theme.amx"` resolves in a browser. Files in the directory but
-# not in the list are invisible to the embed only.
+# ── 2. the unified scene library ↔ the engine's bundled library ──────────────
+# The wasm player has no filesystem: `bundled_library()` is how a scene's
+# `import "../lib/theme.amx"` resolves in a browser. The one true library is
+# `web/demos/lib/`; files in the directory but not in the list are invisible
+# to the embed only.
 HOST_RS=crates/animatix-web/src/host/library.rs
 bundled_keys=$(grep -oE '"\.\./lib/[A-Za-z0-9_.-]+\.amx"' "$HOST_RS" | sed 's|"\.\./lib/||; s/"$//' | sort -u)
-dir_libs=$(ls examples/lib/*.amx 2>/dev/null | xargs -n1 basename | sort -u)
+dir_libs=$(ls web/demos/lib/*.amx 2>/dev/null | xargs -n1 basename | sort -u)
 missing=$(comm -23 <(printf '%s\n' "$dir_libs") <(printf '%s\n' "$bundled_keys") | grep . || true)
 if [ -n "$missing" ]; then
   for f in $missing; do
-    fail "examples/lib/$f is not in bundled_library() — the desktop app builds scenes that import it, the web player cannot"
+    fail "web/demos/lib/$f is not in bundled_library() — the desktop app builds scenes that import it, the web player cannot"
   done
 fi
 absent=$(comm -13 <(printf '%s\n' "$dir_libs") <(printf '%s\n' "$bundled_keys") | grep . || true)
 if [ -n "$absent" ]; then
   for f in $absent; do
-    fail "bundled_library() lists ../lib/$f but examples/lib/$f does not exist (the include_str! would not compile, so this list and the manifest are disagreeing)"
+    fail "bundled_library() lists ../lib/$f but web/demos/lib/$f does not exist (the include_str! would not compile, so this list and the manifest are disagreeing)"
   done
 fi
 if [ -z "$missing" ] && [ -z "$absent" ]; then
-  ok "bundled_library() covers all $(printf '%s\n' "$dir_libs" | wc -l) files in examples/lib"
+  ok "bundled_library() covers all $(printf '%s\n' "$dir_libs" | wc -l) files in web/demos/lib"
 fi
 
 # ── 3. one font hash table ────────────────────────────────────────────────────
@@ -78,26 +79,15 @@ else
   diff <(printf '%s\n' "$script_hashes") <(printf '%s\n' "$readme_hashes") | sed 's/^/       /' >&2 || true
 fi
 
-# ── 4. web lib copies vs their source ─────────────────────────────────────────
-# Deliberate forks, with the reason. Anything identical-shaped that differs and
-# is not listed here is drift, not a fork.
-FORKS='web/demos/lib/theme.amx web/demos/transformer/lib/components.amx'
-forked() { local w; for w in $FORKS; do [ "$w" = "$1" ] && return 0; done; return 1; }
-checked_copies=0
-while read -r f; do
-  name=$(basename "$f")
-  src="examples/lib/$name"
-  [ -f "$src" ] || continue
-  if cmp -s "$f" "$src"; then
-    checked_copies=$((checked_copies + 1))
-    continue
-  fi
-  if ! forked "$f"; then
-    fail "$f differs from $src and is not a declared fork — either sync it or add it to FORKS in scripts/content-sync.sh with a reason"
-  fi
-done < <(find web -path '*/lib/*.amx' | sort)
-if [ "$FAILED" -eq 0 ]; then
-  ok "$checked_copies servable lib copies byte-identical to examples/lib; $(printf '%s\n' $FORKS | wc -l) declared forks"
+# ── 4. no lib forks ──────────────────────────────────────────────────────────
+# The library used to exist as parallel copies under examples/lib and per-demo
+# directories. It is unified at web/demos/lib/ now; this asserts no servable
+# copy drifted back into existence.
+lib_copies=$(find web -path '*/lib/*.amx' ! -path 'web/demos/lib/*' | sort)
+if [ -n "$lib_copies" ]; then
+  fail "lib copies outside web/demos/lib are forks: $(echo "$lib_copies" | tr '\n' ' ')"
+else
+  ok "one scene library: web/demos/lib (no forks)"
 fi
 
 # ── 5. shipped-but-unreferenced assets ────────────────────────────────────────

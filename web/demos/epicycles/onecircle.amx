@@ -21,8 +21,8 @@
 // full 4π, so the held frame keeps the spoke and pen off-axis — a circle with a
 // visible radius, not a dot on a hub.
 
-import "../../demos/lib/theme.amx"
-import "../../demos/lib/stage.amx"
+import "../lib/theme.amx"
+import "../lib/stage.amx"
 import "fourier.amx" as geo
 
 config { resolution: (1280, 720) }

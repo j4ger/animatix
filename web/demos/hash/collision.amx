@@ -16,8 +16,8 @@
 // readout values 28, bucket indices 22, key chips 18, arithmetic 22-26 —
 // nothing here renders below 16 px.
 
-import "../../demos/lib/theme.amx"
-import "../../demos/lib/stage.amx"
+import "../lib/theme.amx"
+import "../lib/stage.amx"
 
 config { colorscheme: "tide", resolution: (1280, 720), duration: 7.0 }
 

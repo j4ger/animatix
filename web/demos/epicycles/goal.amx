@@ -16,8 +16,8 @@
 // opacity, so frame 0 is a lit, titled stage; the wave draws *within* it.
 // House-style §1.5: nothing here renders below 16 px.
 
-import "../../demos/lib/theme.amx"
-import "../../demos/lib/stage.amx"
+import "../lib/theme.amx"
+import "../lib/stage.amx"
 import "fourier.amx" as geo
 
 config { resolution: (1280, 720) }

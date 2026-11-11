@@ -13,7 +13,7 @@
 // shared frame those instances live in.
 
 import "../../demos/lib/theme.amx"
-import "../lib/components.amx"
+import "../../demos/lib/components.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 6.0 }
 

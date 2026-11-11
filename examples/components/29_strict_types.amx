@@ -7,8 +7,8 @@
 //   - Typed action parameters: action highlight(tint: Color)
 //   - rgb() produces a Color — satisfies Color-typed params at build time
 
-import "../lib/theme.amx"
-import "../lib/theme.amx" as theme
+import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/theme.amx" as theme
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720), strict_types: true }
 

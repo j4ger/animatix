@@ -75,3 +75,24 @@ pub component LabeledBox(label: Str, width: Num = 150, height: Num = 56, text_si
     label_text: Text, text: label, font_size: text_size, color: text_color
   }
 }
+
+// ── TokenChip ──────────────────────────────────────────────────────
+// An enhanced token chip with optional sub-label (e.g. role, ID, score).
+pub component TokenChip(label: Str, sub: Str = "", width: Num = 130, height: Num = 54, text_size: Num = 18, fill: Color = surface.primary, text_color: Color = text.primary, sub_color: Color = text.muted, stroke: Color = stroke.default, stroke_width: Num = 1.4, corner: Num = 12) {
+  root: Stack, size: (width, height) {
+    bg: Rect, size: (width, height), corner_radius: corner, color: fill, stroke: stroke, stroke_width: stroke_width
+    content: Col, gap: 2, align: "center" {
+      label_text: Text, text: label, font_size: text_size, font_weight: 600, color: text_color
+      sub_text: Text, text: sub, font_size: 16, color: sub_color, opacity: if sub == "" { 0 } else { 1 }
+    }
+  }
+}
+
+// ── FormulaChip ────────────────────────────────────────────────────
+// A dark frosted formula pill for scene headers and theorems.
+pub component FormulaChip(formula: Str, width: Num = 400, height: Num = 48, text_size: Num = 20, color: Color = text.secondary) {
+  root: Stack, size: (width, height) {
+    bg: Rect, size: (width, height), corner_radius: 12, color: surface.primary, stroke: stroke.default, stroke_width: 1.2
+    formula_text: Text, text: formula, font_size: text_size, color: color
+  }
+}

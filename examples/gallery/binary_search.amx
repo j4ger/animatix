@@ -1,8 +1,8 @@
 // Binary Search Visualization
 // Visualizes binary search finding target 42 in a sorted array in O(log n).
 
-import "../lib/theme.amx"
-import "../lib/theme.amx" as theme
+import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/theme.amx" as theme
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 

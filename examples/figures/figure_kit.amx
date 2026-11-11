@@ -5,11 +5,11 @@
 //
 // Content caps respected: FigHead title 30 chars, Band labels 56 chars,
 // InfoCard sub 24 chars.
-import "../lib/theme.amx"
+import "../../web/demos/lib/theme.amx"
 
-import "../lib/figure.amx"
+import "../../web/demos/lib/figure.amx"
 
-import "../lib/ambience.amx"
+import "../../web/demos/lib/ambience.amx"
 
 config { colorscheme: "tide", resolution: (1280, 720), duration: 5 }
 

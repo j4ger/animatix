@@ -1,7 +1,7 @@
 // 26_data_math.amx — BarChart and Equation/Fragment demo
 
-import "../lib/theme.amx"
-import "../lib/theme.amx" as theme
+import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/theme.amx" as theme
 
 // Top-level config: resolution is composition-scoped
 config { resolution: (1280, 720) }

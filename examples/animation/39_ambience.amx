@@ -9,8 +9,8 @@
 //     and brightens during energetic action
 //   - Seamless loop compatibility: endpoint pinning and circular filter wrapping
 
-import "../lib/theme.amx"
-import "../lib/ambience.amx"
+import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/ambience.amx"
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6, seamless_loop: true }
 

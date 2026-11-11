@@ -9,7 +9,7 @@
 //
 // Import and instantiate like any component:
 //
-//     import "../lib/light.amx"
+//     import "./light.amx"
 //
 //     stage: KeyLight, radius: 420, at: (640, 300)
 //     rail:  MarchingRail, length: 900, at: (640, 620)

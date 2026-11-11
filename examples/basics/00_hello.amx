@@ -1,9 +1,9 @@
 // 00 — Hello: Bold Title Card
 // A dramatic opening with editorial-dark elegance.
 
-import "../lib/theme.amx"
-import "../lib/theme.amx" as theme
-import "../lib/ui.amx"
+import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/theme.amx" as theme
+import "../../web/demos/lib/ui.amx"
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 

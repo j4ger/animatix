@@ -5,8 +5,8 @@
 //   - `shrink-out` that collapses a card without fading it
 //   - `grow-in` restoring the card afterwards (the exit is reversible)
 
-import "../lib/theme.amx"
-import "../lib/ui.amx"
+import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/ui.amx"
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 

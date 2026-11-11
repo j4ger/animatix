@@ -4,7 +4,7 @@
 // not forty lines of ramps and `always` maths. Compare with
 // `32_light_vocabulary.amx`, which writes the same moves inline.
 
-import "../lib/light.amx"
+import "../../web/demos/lib/light.amx"
 
 config { colorscheme: "vivid", resolution: (1280, 720), duration: 6.5 }
 

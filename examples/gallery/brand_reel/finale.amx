@@ -1,10 +1,10 @@
 // brand_reel/finale.amx — scene ⑥: staggered regroup, Audio-beat-synced
 // pulses, fade back to the logo. The reel closes where it opened.
 
-import "../../lib/theme.amx" as theme
-import "../../lib/theme.amx"
+import "../../../web/demos/lib/theme.amx" as theme
+import "../../../web/demos/lib/theme.amx"
 
-config { colorscheme: "gallery", dynamic_layout: true, duration: 13 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 13 }
 
 # Finale
 // Audio bed: mixed during export; the pulses below are timed to its beats.

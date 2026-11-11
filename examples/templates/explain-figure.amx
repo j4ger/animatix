@@ -1,0 +1,40 @@
+// explain-figure.amx — 图表讲解模板：图 + Callout + 结论行。
+// 适合「画一个东西然后解释它」。Callout 由 DSL 结构豁免重叠（callout_target）。
+import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/stage.amx"
+import "../../web/demos/lib/figure.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720), duration: 7 }
+
+floor: StageFloor
+head: ActHead, kicker: "EXPLAIN · FIGURE", title: "Draw it, then say it"
+caption: Caption, text: "The callout lands on the drawn feature.", tag: "explain-figure"
+
+// NOTE: a Graph + PlotCurve is the idiomatic chart, but its generated
+// tick/curve sub-actors are flagged by `actor.opacity-never-positive` today
+// (see docs/roadmap.md). A hand-drawn Path keeps this template warning-free.
+plot: Path, commands: {move_to(180, 300), curve_to(360, 140, 560, 140, 740, 300),
+  curve_to(880, 400, 980, 360, 1080, 240)},
+  stroke: accent.primary, stroke_width: 5, fill_opacity: 0,
+  anchor: scene.center, offset: (-40, 20)
+
+note: Callout {
+  target: plot,
+  place: right,
+  standoff: 24,
+  label: "sin peaks at x = π/2",
+}
+
+#0s
+fade-in floor [600ms]
+fade-in head [500ms]
+fade-in caption [400ms]
+
+#0.8s
+draw-in plot [1400ms, ease: expo-out]
+
+#2.6s
+fade-in note [400ms]
+
+#5.8s
+// rest：图与标注都停住。

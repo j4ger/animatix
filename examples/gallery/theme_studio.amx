@@ -1,11 +1,11 @@
 // lint-disable: unknown-property
-import "../lib/theme.amx"
+import "../../web/demos/lib/theme.amx"
 
-import "../lib/ui.amx"
+import "../../web/demos/lib/ui.amx"
 
-import "../lib/charts.amx"
+import "../../web/demos/lib/charts.amx"
 
-config { colorscheme: "gallery", resolution: (1280, 720), strict_types: true }
+config { colorscheme: "ink", resolution: (1280, 720), strict_types: true }
 
 pub component InputRow(label: Str, width: Num = 200) {
   root: Col, size: (width, 44), gap: 4, align: "start" {

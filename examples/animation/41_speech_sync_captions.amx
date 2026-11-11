@@ -5,8 +5,8 @@
 //   - Dynamic backdrop pill rendering behind spoken text
 //   - Kinetic UI cards synchronized to voiceover narration beats
 
-import "../lib/theme.amx"
-import "../lib/ui.amx"
+import "../../web/demos/lib/theme.amx"
+import "../../web/demos/lib/ui.amx"
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 

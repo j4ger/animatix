@@ -23,8 +23,8 @@
 // guessed; staying inside them is what keeps review clean.
 //
 // Usage:
-//   import "lib/theme.amx"
-//   import "lib/figure.amx"
+//   import "../lib/theme.amx"
+//   import "../lib/figure.amx"
 //
 //   head: FigHead, kicker: "FIG 01 · TOKENIZATION", title: "Text is not the input"
 //   vocab: Band, label: "VOCABULARY IDS · 50,257 ENTRIES", at: (640, 300) {

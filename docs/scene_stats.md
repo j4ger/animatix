@@ -43,7 +43,7 @@ exploits the identity instead of adding a filter.
 |---|---|---|---|
 | 1 | **Bake pass** — sample scalar stats over time, simplify, inject as values | new `timeline/scene_stats.rs`, called from `build/entry.rs` beside the Legend scan | none (data only) |
 | 2 | **Two builtins** — `curve_at(c, t)`, `curve_smooth(c, t, tau)` | `eval_shared::eval_builtin_fn` fast path | 2 function names |
-| 3 | **Ambience recipe** — a library component that reads the stats | `examples/lib/ambience.amx` | none |
+| 3 | **Ambience recipe** — a library component that reads the stats | `web/demos/lib/ambience.amx` | none |
 
 Explicitly **no** new primitive, property, config key, keyword, `Stmt` variant,
 `Value` variant, or GPU pass. The feature is invisible to the grammar and to the
@@ -262,7 +262,7 @@ so a background scope takes the inline readback path every frame.
 
 ## The consumer: a recipe, not a mechanism
 
-Ambience ships as `examples/lib/ambience.amx`, in the lineage of `examples/lib/slide.amx`
+Ambience ships as `web/demos/lib/ambience.amx`, in the lineage of `web/demos/lib/slide.amx`
 — the deliberate choice recorded in `history/2026-10.md`: the three background recipes were
 catalogued and then landed as *primitives + builtins + recipes*, "product forms of the
 light vocabulary"; the particle item closed as *"no new primitive, no state model"*
@@ -323,7 +323,7 @@ nothing and looks correct in source.
    (`eval_builtin_fn`, `BuiltinFn` IR variant, `builtin_for_name`, the enum→name arm in
    `ir/eval.rs` which has no wildcard so the compiler enumerates it), plus
    `animatix-syntax`'s builtin declaration list for the parser/analyzer.
-5. `examples/lib/ambience.amx` + `spec.md`/`properties.md`/`primitives.md` as applicable,
+5. `web/demos/lib/ambience.amx` + `spec.md`/`properties.md`/`primitives.md` as applicable,
    and a tour scene that makes reactivity visible (the feature is invisible in a static
    frame — which is also why it needs a rendered check, not just a build check).
 

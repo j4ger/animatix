@@ -35,8 +35,8 @@
 // kickers 18, tags/labels 16 — nothing in this file renders below 16 px.
 //
 // Usage:
-//   import "lib/theme.amx"
-//   import "lib/stage.amx"
+//   import "../lib/theme.amx"
+//   import "../lib/stage.amx"
 //   config { colorscheme: "tide", resolution: (1280, 720) }
 //
 //   floor: StageFloor

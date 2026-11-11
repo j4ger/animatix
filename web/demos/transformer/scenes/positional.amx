@@ -14,7 +14,7 @@
 
 import "../../lib/theme.amx"
 import "../../lib/stage.amx"
-import "../lib/components.amx"
+import "../../lib/components.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 7.4 }
 

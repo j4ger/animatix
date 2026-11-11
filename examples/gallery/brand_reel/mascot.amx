@@ -2,10 +2,10 @@
 // Position/color continuity from the previous scenes; the feature closes
 // with `remove mascot` so the finale starts clean.
 
-import "../../lib/theme.amx" as theme
-import "../../lib/theme.amx"
+import "../../../web/demos/lib/theme.amx" as theme
+import "../../../web/demos/lib/theme.amx"
 
-config { colorscheme: "gallery", dynamic_layout: true, duration: 11 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 11 }
 
 # Mascot
 mascot_title: Text, text: "Meet the dot", font_size: 36, font_weight: "bold",

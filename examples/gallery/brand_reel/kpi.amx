@@ -1,10 +1,10 @@
 // brand_reel/kpi.amx — scene ④: KPI flash montage.
 // Four numbers flash in with count-up text overrides; the mascot re-persisted.
 
-import "../../lib/theme.amx" as theme
-import "../../lib/theme.amx"
+import "../../../web/demos/lib/theme.amx" as theme
+import "../../../web/demos/lib/theme.amx"
 
-config { colorscheme: "gallery", dynamic_layout: true, duration: 11 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 11 }
 
 # Kpi
 kpi_title: Text, text: "Numbers that move", font_size: 36, font_weight: "bold",

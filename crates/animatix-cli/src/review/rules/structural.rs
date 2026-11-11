@@ -49,6 +49,8 @@ pub(crate) fn rule_opacity_never_positive(facts: &ReviewFacts, out: &mut Vec<Rul
         .iter()
         .filter(|actor| {
             actor.visual
+                && actor.parent.is_none()      // container-driven children live or
+                                               // die with their parent's opacity
                 && !actor.is_non_content
                 && !actor.is_background
                 && !actor.label.contains("__")

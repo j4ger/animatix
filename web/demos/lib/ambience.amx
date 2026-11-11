@@ -12,7 +12,7 @@
 // Movement patterns are uniquely seeded per-scene using deterministic RNG.
 //
 // Usage as an imported component:
-//   import "lib/ambience.amx" as amb
+//   import "../lib/ambience.amx" as amb
 //   bg: amb.Ambience(tint: rgb(0.37, 0.36, 0.90), base_opacity: 0.15, tau: 0.7, seed: 42)
 
 pub component Ambience(tint: Color = rgb(0.96, 0.72, 0.26), base_opacity: Num = 0.18, tau: Num = 0.7, seed: Num = 0) {

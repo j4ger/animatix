@@ -17,8 +17,8 @@
 // captions compile at 10 px, below the house-style type floor. Rects plus one
 // label per slot let every number render at 16 px.
 
-import "../../demos/lib/theme.amx"
-import "../../demos/lib/stage.amx"
+import "../lib/theme.amx"
+import "../lib/stage.amx"
 
 config { resolution: (1280, 720) }
 
