@@ -1,0 +1,60 @@
+{
+  "frames": [
+    {
+      "index": 0,
+      "path": "snapshots/web/demos/transformer/scenes/pipeline/frame_0000_0.000s.png",
+      "time_s": 0.0
+    },
+    {
+      "index": 1,
+      "path": "snapshots/web/demos/transformer/scenes/pipeline/frame_0001_0.999s.png",
+      "time_s": 0.999
+    },
+    {
+      "index": 2,
+      "path": "snapshots/web/demos/transformer/scenes/pipeline/frame_0002_1.400s.png",
+      "time_s": 1.4
+    },
+    {
+      "index": 3,
+      "path": "snapshots/web/demos/transformer/scenes/pipeline/frame_0003_2.180s.png",
+      "time_s": 2.18
+    },
+    {
+      "index": 4,
+      "path": "snapshots/web/demos/transformer/scenes/pipeline/frame_0004_3.600s.png",
+      "time_s": 3.6
+    },
+    {
+      "index": 5,
+      "path": "snapshots/web/demos/transformer/scenes/pipeline/frame_0005_4.310s.png",
+      "time_s": 4.31
+    },
+    {
+      "index": 6,
+      "path": "snapshots/web/demos/transformer/scenes/pipeline/frame_0006_4.700s.png",
+      "time_s": 4.7
+    },
+    {
+      "index": 7,
+      "path": "snapshots/web/demos/transformer/scenes/pipeline/frame_0007_8.200s.png",
+      "time_s": 8.2
+    }
+  ],
+  "resolution": [
+    1280,
+    720
+  ],
+  "source_sha256": "3eea2477f6a2ee3e0e9659affb995231ada41b795186514c2af6a5b04364d79b",
+  "threshold": 0.001,
+  "times": [
+    0.0,
+    0.999,
+    1.4,
+    2.18,
+    3.6,
+    4.31,
+    4.7,
+    8.2
+  ]
+}

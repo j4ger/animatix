@@ -77,6 +77,7 @@ eparts|native|ubuntu-latest|rust-stable|pr
 eparts|native|macos-latest|rust-stable|pr
 eparts|native|windows-latest|rust-stable|pr
 audit|nix|ubuntu-latest|nix|pr
+scene-audit|nix|ubuntu-latest|nix|pr
 commit|nix|ubuntu-latest|nix|pr
 wasm-check|web|ubuntu-latest|nix|pr
 web-build|web-ci|ubuntu-latest|nix|pr
@@ -107,7 +108,7 @@ Fast Checks|fmt structure workflows content-sync meta-version embed-build|native
 eparts|eparts|native|ubuntu-latest|rust-stable|pr
 eparts|eparts|native|macos-latest|rust-stable|pr
 eparts|eparts|native|windows-latest|rust-stable|pr
-Check & Lint|commit audit check lint doc no-video|nix|ubuntu-latest|nix|pr
+Check & Lint|commit audit scene-audit check lint doc no-video|nix|ubuntu-latest|nix|pr
 Test & Examples|test examples|nix|ubuntu-latest|nix|pr
 Render Smoke & Scenes|render-smoke site-scenes|nix|ubuntu-latest|nix|pr
 Benchmarks|ext-bench|nix|ubuntu-latest|nix|pr
@@ -222,6 +223,27 @@ gate_no_video() {
     fi
   done
   echo "no-video: default CLI/GUI feature resolution excludes rsmpeg (video)"
+}
+
+gate_scene_audit() {
+  want_nix_shell 'scene-audit'
+  cargo build --bin animatix
+  # Share the scene walk with check_examples.sh / render_smoke.sh: component
+  # libraries and multi-file project fragments are not standalone scenes and
+  # would only produce false "no visual actors" failures here.
+  # shellcheck source=scripts/lib-scenes.sh
+  . scripts/lib-scenes.sh
+  local failed=0 f
+  while IFS= read -r f; do
+    # plugin_pulse needs the demo plugin manifest; `gate examples` already
+    # checks it with --plugin, so it is out of scope for this CPU-only gate.
+    case "$f" in */plugin_pulse.amx) continue ;; esac
+    if ! ./target/debug/animatix audit "$f" --render never --format json >/dev/null 2>&1; then
+      echo "FAIL scene-audit: $f" >&2
+      failed=1
+    fi
+  done < <(scene_files; find web/scenes -maxdepth 1 -name '*.amx' -type f | sort)
+  return "$failed"
 }
 
 gate_render_smoke() {

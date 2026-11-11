@@ -1,6 +1,6 @@
 # AI Agent Animation Quality
 
-Status: Phase 0/1 implemented as `animatix review`; phases 2–6 remain a design proposal and bring-up plan. See [`review.md`](review.md) for the shipped command.
+Status: Phase 0/1 implemented as `animatix audit`; phases 2–6 remain a design proposal and bring-up plan. See [`audit.md`](audit.md) for the shipped command.
 
 ## Purpose
 
@@ -57,10 +57,10 @@ Out of scope for the first bring-up:
    +--> animatix check (Fast CPU gate: syntax, types, never-revealed)
    |       |
    |       v (clean)
-   +--> animatix review (Automatic structural review, optional GPU pixel tier)
+   +--> animatix audit (Automatic structural review, optional GPU pixel tier)
    |       |
    |       v (clean)
-   +--> animatix verify (Strict generated-scene contract; structural by default)
+   +--> animatix baseline (Regression check: compares PNG snapshots)
    |       |
    |       v (clean)
    +--> animatix storyboard (Multi-panel contact sheet image)
@@ -92,15 +92,15 @@ Out of scope for the first bring-up:
 | `Timeline::hit_regions` | world-space AABBs per actor | overlap and layout facts |
 | `DocumentSession::timeline_index` | source line to keyframe time | issue-to-source mapping |
 | `animatix-cli image` | single-frame export | scripted frame extraction |
-| `animatix review` | deterministic structural facts, optional pixel measurements, rule issues, stable JSON report, exit policy | first-pass agent review and default automatic gate |
-| `animatix review --storyboard` | review report plus a contact-sheet image | one-call automatic + visual pass |
-| `review` JSON (`schema_version: 1`) | frame facts, issues, evidence, severity/confidence | structured review corpus |
+| `animatix audit` | deterministic structural facts, optional pixel measurements, rule issues, stable JSON report, exit policy | first-pass agent review and default automatic gate |
+| `animatix audit --storyboard` | review report plus a contact-sheet image | one-call automatic + visual pass |
+| `audit` JSON (`schema_version: 2`) | frame facts, issues, evidence, severity/confidence | structured review corpus |
 | `dogfood/projects/` and `dogfood/arena/` | focused real-content projects and A/B candidate battles | data collection and calibration |
 
 ## Data Protocol
 
 > The shipped Phase 0/1 schema is the smaller `schema_version: 1` report in
-> [`review.md`](review.md) (target/frame/summary facts plus issues). The richer
+> [`audit.md`](audit.md) (target/frame/summary facts plus issues). The richer
 > protocol below remains the target for phases 2–6.
 
 ### Scene Facts
@@ -319,7 +319,7 @@ history file so the agent can detect oscillation and avoid repeating edits.
 
 ## Implementation Phases
 
-### Phase 0: Review Protocol and Evaluator Skeleton (implemented as `animatix review`)
+### Phase 0: Review Protocol and Evaluator Skeleton (implemented as `animatix audit`)
 
 Goal: produce deterministic scene facts, a stable report, and optional rendered
 frames. This phase shipped as the `review` command in `animatix-cli` rather
@@ -337,7 +337,7 @@ Implemented:
 
 Exit criteria (met):
 
-- `cargo run --bin animatix -- review examples/projects/fft_explain.amx --format json` works without a GPU or `verify.txt`.
+- `cargo run --bin animatix -- audit examples/projects/fft_explain.amx --format json` works without a GPU.
 - The report contains actor bounds/opacity facts, keyframe timing, and issues with evidence.
 - No model or external service is required.
 
@@ -345,10 +345,10 @@ Exit criteria (met):
 
 Goal: make the evaluator useful as a first-pass reviewer.
 
-Shipped in `animatix review`:
+Shipped in `animatix audit`:
 
 - 11 default structural/render rules plus two `--policy site` resting-frame
-  rules (the full list is in [`review.md`](review.md)).
+  rules (the full list is in [`audit.md`](audit.md)).
 - Stack/Group/effect-scope/callout/legend exclusions for overlap candidates.
 - Per-issue evidence, confidence, severity, time, actor, and source line.
 - A stable `schema_version: 1` JSON report and text output.

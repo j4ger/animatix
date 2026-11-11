@@ -17,4 +17,3 @@ pub mod diagnostics;
 pub mod extensions;
 pub mod frame_source;
 pub mod review;
-pub mod verify;

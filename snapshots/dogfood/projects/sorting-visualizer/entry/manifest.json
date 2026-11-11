@@ -1,0 +1,60 @@
+{
+  "frames": [
+    {
+      "index": 0,
+      "path": "snapshots/dogfood/projects/sorting-visualizer/entry/frame_0000_0.000s.png",
+      "time_s": 0.0
+    },
+    {
+      "index": 1,
+      "path": "snapshots/dogfood/projects/sorting-visualizer/entry/frame_0001_0.800s.png",
+      "time_s": 0.8
+    },
+    {
+      "index": 2,
+      "path": "snapshots/dogfood/projects/sorting-visualizer/entry/frame_0002_2.300s.png",
+      "time_s": 2.3000000000000003
+    },
+    {
+      "index": 3,
+      "path": "snapshots/dogfood/projects/sorting-visualizer/entry/frame_0003_2.700s.png",
+      "time_s": 2.7
+    },
+    {
+      "index": 4,
+      "path": "snapshots/dogfood/projects/sorting-visualizer/entry/frame_0004_3.600s.png",
+      "time_s": 3.6
+    },
+    {
+      "index": 5,
+      "path": "snapshots/dogfood/projects/sorting-visualizer/entry/frame_0005_5.100s.png",
+      "time_s": 5.1
+    },
+    {
+      "index": 6,
+      "path": "snapshots/dogfood/projects/sorting-visualizer/entry/frame_0006_6.700s.png",
+      "time_s": 6.699999999999999
+    },
+    {
+      "index": 7,
+      "path": "snapshots/dogfood/projects/sorting-visualizer/entry/frame_0007_10.200s.png",
+      "time_s": 10.2
+    }
+  ],
+  "resolution": [
+    1280,
+    720
+  ],
+  "source_sha256": "8026bd023060adb6f278634192d2413dba7003b42a5664b02c9c339edc2425c1",
+  "threshold": 0.001,
+  "times": [
+    0.0,
+    0.8,
+    2.3000000000000003,
+    2.7,
+    3.6,
+    5.1,
+    6.699999999999999,
+    10.2
+  ]
+}

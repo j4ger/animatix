@@ -1,0 +1,60 @@
+{
+  "frames": [
+    {
+      "index": 0,
+      "path": "snapshots/dogfood/projects/taylor-sin/entry/frame_0000_0.000s.png",
+      "time_s": 0.0
+    },
+    {
+      "index": 1,
+      "path": "snapshots/dogfood/projects/taylor-sin/entry/frame_0001_3.400s.png",
+      "time_s": 3.4
+    },
+    {
+      "index": 2,
+      "path": "snapshots/dogfood/projects/taylor-sin/entry/frame_0002_6.700s.png",
+      "time_s": 6.7
+    },
+    {
+      "index": 3,
+      "path": "snapshots/dogfood/projects/taylor-sin/entry/frame_0003_9.000s.png",
+      "time_s": 9.0
+    },
+    {
+      "index": 4,
+      "path": "snapshots/dogfood/projects/taylor-sin/entry/frame_0004_10.800s.png",
+      "time_s": 10.799999999999999
+    },
+    {
+      "index": 5,
+      "path": "snapshots/dogfood/projects/taylor-sin/entry/frame_0005_13.400s.png",
+      "time_s": 13.399999999999999
+    },
+    {
+      "index": 6,
+      "path": "snapshots/dogfood/projects/taylor-sin/entry/frame_0006_19.200s.png",
+      "time_s": 19.2
+    },
+    {
+      "index": 7,
+      "path": "snapshots/dogfood/projects/taylor-sin/entry/frame_0007_22.100s.png",
+      "time_s": 22.099999999999998
+    }
+  ],
+  "resolution": [
+    1280,
+    720
+  ],
+  "source_sha256": "4afe20774ea958b7a860515d2ae18e698e041d6878eaf087300fa0177d3d6628",
+  "threshold": 0.001,
+  "times": [
+    0.0,
+    3.4,
+    6.7,
+    9.0,
+    10.799999999999999,
+    13.399999999999999,
+    19.2,
+    22.099999999999998
+  ]
+}

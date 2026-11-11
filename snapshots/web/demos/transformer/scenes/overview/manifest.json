@@ -1,0 +1,60 @@
+{
+  "frames": [
+    {
+      "index": 0,
+      "path": "snapshots/web/demos/transformer/scenes/overview/frame_0000_0.000s.png",
+      "time_s": 0.0
+    },
+    {
+      "index": 1,
+      "path": "snapshots/web/demos/transformer/scenes/overview/frame_0001_1.080s.png",
+      "time_s": 1.08
+    },
+    {
+      "index": 2,
+      "path": "snapshots/web/demos/transformer/scenes/overview/frame_0002_2.320s.png",
+      "time_s": 2.32
+    },
+    {
+      "index": 3,
+      "path": "snapshots/web/demos/transformer/scenes/overview/frame_0003_3.280s.png",
+      "time_s": 3.28
+    },
+    {
+      "index": 4,
+      "path": "snapshots/web/demos/transformer/scenes/overview/frame_0004_4.500s.png",
+      "time_s": 4.5
+    },
+    {
+      "index": 5,
+      "path": "snapshots/web/demos/transformer/scenes/overview/frame_0005_5.800s.png",
+      "time_s": 5.8
+    },
+    {
+      "index": 6,
+      "path": "snapshots/web/demos/transformer/scenes/overview/frame_0006_7.040s.png",
+      "time_s": 7.04
+    },
+    {
+      "index": 7,
+      "path": "snapshots/web/demos/transformer/scenes/overview/frame_0007_11.000s.png",
+      "time_s": 11.0
+    }
+  ],
+  "resolution": [
+    1280,
+    720
+  ],
+  "source_sha256": "c04f19107479ed2d2a47a0ea92f2c240b425cda207be9ec82fb5546abd7f15e0",
+  "threshold": 0.001,
+  "times": [
+    0.0,
+    1.08,
+    2.32,
+    3.28,
+    4.5,
+    5.8,
+    7.04,
+    11.0
+  ]
+}

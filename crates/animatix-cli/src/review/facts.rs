@@ -103,6 +103,8 @@ pub(crate) struct FrameFact {
     pub state_digest: Option<u64>,
     /// Per-actor measurements.
     pub actors: Vec<ActorFrameFact>,
+    /// (scene, label) 按 SceneProgram.items 的绘制顺序，去重。
+    pub draw_order: Vec<(String, String)>,
 }
 
 /// One build/action event retained for the entrance rule.
@@ -209,6 +211,11 @@ impl ReviewFacts {
         label: &str,
     ) -> Option<&'a ActorFrameFact> {
         frame.actors.iter().find(|actor| actor.scene == scene && actor.label == label)
+    }
+
+    /// Look up a frame at a specific time.
+    pub(crate) fn frame_at(&self, time_s: f64) -> Option<&FrameFact> {
+        self.all_frames().find(|frame| (frame.time_s - time_s).abs() < 0.001)
     }
 }
 
@@ -415,6 +422,8 @@ fn evaluate_frame(
     let program_frame = evaluate_program_frame(target, dimensions, time_s)?;
     let time_ms = (time_s * 1000.0) as u64;
     let mut by_actor: BTreeMap<(String, String), ActorFrameFact> = BTreeMap::new();
+    let mut draw_order = Vec::new();
+    let mut draw_order_set = std::collections::HashSet::new();
 
     for part in &program_frame.parts {
         let mut draw_counts: BTreeMap<&str, (u32, u32)> = BTreeMap::new();
@@ -422,6 +431,11 @@ fn evaluate_frame(
             let entry = draw_counts.entry(item.label.as_str()).or_insert((0, 0));
             entry.0 += 1;
             entry.1 += item.commands.len() as u32;
+
+            let key = (part.scene.clone(), item.label.clone());
+            if draw_order_set.insert(key.clone()) {
+                draw_order.push(key);
+            }
         }
         for item in &part.program.items {
             let bounds = part
@@ -508,6 +522,7 @@ fn evaluate_frame(
         ink_fraction: None,
         state_digest: Some(state_digest),
         actors: actor_frames,
+        draw_order,
     })
 }
 

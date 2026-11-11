@@ -7,14 +7,15 @@
 //! and `verify` cannot drift apart.
 
 pub(crate) mod facts;
+pub(crate) mod markers;
+pub(crate) mod probe;
 pub(crate) mod render;
 pub(crate) mod report;
 pub(crate) mod rules;
 pub(crate) mod samples;
 pub(crate) mod types;
-pub(crate) mod verify_rules;
 
-pub(crate) use report::{run_review, write_verify_file};
+pub(crate) use report::run_review;
 pub(crate) use types::{
     Detail, FailOn, Policy, RenderMode, ReviewOptions, SampleSpec, parse_sample_spec,
 };

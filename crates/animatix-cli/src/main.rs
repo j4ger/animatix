@@ -1,3 +1,7 @@
+#![allow(dead_code)] // Shared review/frame_source modules are compiled by both
+// the bin and the test-library target; items reachable only
+// from the latter are intentionally unused here (mirrors lib.rs).
+
 use std::path::PathBuf;
 
 pub use animatix::composition::BuildTarget;
@@ -13,7 +17,6 @@ mod diagnostics;
 mod extensions;
 mod frame_source;
 mod review;
-mod verify;
 
 #[cfg(test)]
 mod tests;
@@ -21,7 +24,6 @@ mod tests;
 pub use build::parse_set_pair;
 pub use diagnostics::OutputFormat;
 use extensions::{CliExtensions, load_cli_extensions};
-use review::types::{Detail, FailOn, RenderMode};
 
 #[derive(clap::Args, Debug, Clone)]
 struct SetArgs {
@@ -250,73 +252,20 @@ enum Commands {
         #[arg(long, default_value = "text")]
         format: OutputFormat,
     },
-    /// Strict contract gate for generated scenes
-    ///
-    /// With no `--checks` and no `verify.txt`, derives visibility, draw, ink,
-    /// reveal, resting-composition, and dead-beat checks from the scene. An
-    /// existing `verify.txt` keeps the legacy line-based pixel checker; `--auto`
-    /// forces the zero-config path. See `docs/review.md` for the report schema.
-    Verify {
-        /// Path to the .amx file
-        input: PathBuf,
+    /// Automatically audit a scene for layout, visibility, timing and ink defects
+    Audit {
         #[command(flatten)]
-        set: SetArgs,
-
-        /// Checks file (default: `verify.txt` in the input's directory)
-        #[arg(long)]
-        checks: Option<PathBuf>,
-
-        /// Use the zero-config auto verifier even when a verify.txt exists
-        #[arg(long)]
-        auto: bool,
-
-        /// Render tier: auto, always, or never
-        #[arg(long, value_enum, default_value = "auto")]
-        render: RenderMode,
-
-        /// Maximum number of issues retained in the report
-        #[arg(long, default_value_t = 20)]
-        max_issues: usize,
-
-        /// Maximum number of structural/render sample frames
-        #[arg(long, default_value_t = 32)]
-        max_frames: usize,
-
-        /// Which issue severities produce exit code 1
-        #[arg(long, value_enum, default_value = "error")]
-        fail_on: FailOn,
-
-        /// Text verbosity: summary or full
-        #[arg(long, value_enum, default_value = "summary")]
-        detail: Detail,
-
-        /// Emit a compact JSON brief for an LLM repair loop
-        #[arg(long)]
-        brief: bool,
-
-        /// Optional directory for rendered issue frames
-        #[arg(long)]
-        frames_dir: Option<PathBuf>,
-
-        /// Output image width (defaults to the file's `config { resolution: .. }`, else 1280)
-        #[arg(long)]
-        width: Option<u32>,
-
-        /// Output image height (defaults to the file's `config { resolution: .. }`, else 720)
-        #[arg(long)]
-        height: Option<u32>,
-
-        /// Output format (text or json)
-        #[arg(long, default_value = "text")]
-        format: OutputFormat,
+        args: commands::audit::AuditArgs,
     },
-    /// Automatically review an animation for layout, visibility, and timing defects
-    ///
-    /// Structural review runs on the CPU and needs no `verify.txt` and no GPU.
-    /// `--render auto` adds pixel checks when an offscreen adapter is available.
-    Review {
+    /// Emit measured scene facts as JSON, with no rule verdicts
+    Measure {
         #[command(flatten)]
-        args: commands::review::ReviewArgs,
+        args: commands::measure::MeasureArgs,
+    },
+    /// Compare or update visual regression baseline PNG snapshots
+    Baseline {
+        #[command(flatten)]
+        args: commands::baseline::BaselineArgs,
     },
     /// Format .amx files in-place
     Fmt {
@@ -538,42 +487,9 @@ fn dispatch(command: Commands, extensions: &CliExtensions) {
             commands::check::run(&file, render_smoke, &format, &set.set, extensions);
         },
 
-        Commands::Verify {
-            input,
-            checks,
-            auto,
-            render,
-            max_issues,
-            max_frames,
-            fail_on,
-            detail,
-            brief,
-            frames_dir,
-            width,
-            height,
-            set,
-            format,
-        } => {
-            commands::verify::run(
-                &input,
-                checks.as_ref(),
-                auto,
-                render,
-                max_issues,
-                max_frames,
-                fail_on,
-                detail,
-                brief,
-                frames_dir.as_ref(),
-                width,
-                height,
-                &set.set,
-                &format,
-                extensions,
-            );
-        },
-
-        Commands::Review { args } => commands::review::run(args, extensions),
+        Commands::Audit { args } => commands::audit::run(args, extensions),
+        Commands::Measure { args } => commands::measure::run(args, extensions),
+        Commands::Baseline { args } => commands::baseline::run(args, extensions),
 
         Commands::Fmt {
             paths,

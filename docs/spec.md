@@ -2496,41 +2496,32 @@ animatix gif examples/gallery/brand_reel/main.amx -o out.gif --fps 10
 
 **GUI Preview Audio:** The `animatix-gui` preview panel plays audio segments from `Audio` actors in sync with the timeline during playback. Audio files are decoded via `rodio` and cached in memory. Playback automatically starts, seeks, and pauses in sync with the timeline controller. Missing or unplayable audio files produce a warning but do not block preview.
 
-### Review and Verification
+### Audit and Measurement
 
-The authoring loop has four distinct commands; only `review` is the default
-automatic gate.
+The authoring loop has four distinct commands; `audit` is the primary automatic gate.
 
 | Command | Role | Requirements |
 |---------|------|--------------|
 | `animatix check <file>` | Build/type/diagnostic gate: parse errors, unresolved names, never-revealed warnings | None |
-| `animatix review <file>` | Automatic structural review of layout, visibility, and timing, with an optional GPU pixel tier | No `verify.txt`; GPU optional (`--render auto` skips the pixel tier when no adapter exists) |
+| `animatix audit <file>` | Automatic validation of structure, pixels, typography, and timing | GPU optional (`--render auto` skips the pixel tier when no adapter exists) |
 | `animatix storyboard <file>` | Qualitative visual review: a contact sheet of keyframe beats and the resting frame | GPU |
-| `animatix verify <file>` | Strict zero-config contract gate for generated scenes; legacy `verify.txt` checks still run when a sidecar exists | No `verify.txt`; GPU optional (`--render auto`); legacy path needs GPU |
+| `animatix baseline <file>` | Regression check: compares PNG snapshots against established baselines | GPU |
 
-`animatix review` builds the target, evaluates scene programs at sample times,
-and reports issues with a stable rule id, severity, confidence, source line,
-actor, time, evidence, and suggestion. It exits 0 when no issue reaches the
-`--fail-on` threshold, 1 when an issue does, and 2 when the review cannot run
-(build errors, `--render always` without a working adapter, or a failed
-`--storyboard`/`--emit-verify` write). Important flags:
+`animatix audit` builds the target, evaluates scene programs at sample times, and reports issues with a stable rule id, severity, confidence, source line, actor, time, evidence, and suggestion. It exits 0 when no issue reaches the `--fail-on` threshold, 1 when an issue does, and 2 when the audit cannot run (build errors, `--render always` without a working adapter, or a failed `--storyboard` write). Important flags:
 
 | Flag | Default | Meaning |
 |------|---------|---------|
-| `--policy` | `default` | `default` or `site` (site adds resting-composition checks mirroring `scripts/site-rest-check.py`) |
+| `--policy` | `default` | `default`, `generated` (for LLMs), or `site` (site adds resting-composition checks mirroring `scripts/site-rest-check.py`) |
 | `--samples` | `auto` | `auto`, `keyframes`, or a frame count `N` (at least 2) |
 | `--max-frames` | `24` | Upper bound on the automatic/regular sample grid |
 | `--render` | `auto` | `auto` (skip without an adapter), `always`, or `never` |
 | `--detail` | `summary` | `summary` or `full` text detail; JSON is always complete |
-| `--format` | `text` | `text` or `json` (`schema_version: 1`) |
-| `--fail-on` | `error` | `error`, `warning`, or `never`; cannot-run still exits 2 |
-| `--storyboard <path>` | — | Also render a storyboard PNG after the review |
-| `--frames-dir <dir>` | — | Save rendered review PNG samples |
-| `--emit-verify <path>` | — | Write suggested `verify.txt` lines; refuses to overwrite |
+| `--format` | `text` | `text` or `json` (`schema_version: 2`) |
+| `--fail-on` | `error` | `error`, `warning`, or `never` |
+| `--storyboard <path>` | — | Also render a storyboard PNG after the audit |
+| `--frames-dir <dir>` | — | Save rendered audit PNG samples |
 
-`animatix verify` is the **strict contract gate** for generated scenes: without a `verify.txt` it derives visibility, draw, ink, reveal, resting-composition, and dead-beat checks from the scene itself. It is not the default authoring gate; `animatix review` remains the tolerant structural reviewer. Legacy projects with a `verify.txt` (including the 196-check transformer corpus) keep the original line-based pixel checks and text output; `--auto` forces the new mode when a sidecar should be ignored. See
-[`review.md`](review.md) for the complete review guide, JSON schema, rule
-list, exit codes, and limitations.
+See [`audit.md`](audit.md) for the complete audit guide, schema v2, rule list, exit codes, and limitations.
 
 ### Multi-Scene Composition
 

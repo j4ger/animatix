@@ -1,0 +1,60 @@
+{
+  "frames": [
+    {
+      "index": 0,
+      "path": "snapshots/dogfood/projects/effects-wave1/entry/frame_0000_0.000s.png",
+      "time_s": 0.0
+    },
+    {
+      "index": 1,
+      "path": "snapshots/dogfood/projects/effects-wave1/entry/frame_0001_0.900s.png",
+      "time_s": 0.9
+    },
+    {
+      "index": 2,
+      "path": "snapshots/dogfood/projects/effects-wave1/entry/frame_0002_1.200s.png",
+      "time_s": 1.2
+    },
+    {
+      "index": 3,
+      "path": "snapshots/dogfood/projects/effects-wave1/entry/frame_0003_2.000s.png",
+      "time_s": 2.0
+    },
+    {
+      "index": 4,
+      "path": "snapshots/dogfood/projects/effects-wave1/entry/frame_0004_3.000s.png",
+      "time_s": 3.0
+    },
+    {
+      "index": 5,
+      "path": "snapshots/dogfood/projects/effects-wave1/entry/frame_0005_5.400s.png",
+      "time_s": 5.4
+    },
+    {
+      "index": 6,
+      "path": "snapshots/dogfood/projects/effects-wave1/entry/frame_0006_8.000s.png",
+      "time_s": 8.0
+    },
+    {
+      "index": 7,
+      "path": "snapshots/dogfood/projects/effects-wave1/entry/frame_0007_10.000s.png",
+      "time_s": 10.0
+    }
+  ],
+  "resolution": [
+    1280,
+    720
+  ],
+  "source_sha256": "db2ec48008330f9fc6f7c544c992b6d1342eb765288bd27ff49ce064165cb0aa",
+  "threshold": 0.001,
+  "times": [
+    0.0,
+    0.9,
+    1.2,
+    2.0,
+    3.0,
+    5.4,
+    8.0,
+    10.0
+  ]
+}

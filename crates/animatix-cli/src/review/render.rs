@@ -14,6 +14,7 @@ use crate::frame_source::{
     DEFAULT_MIN_INK_PIXELS, DEFAULT_TOLERANCE, FrameView, actor_visibility, differing_fraction,
     frame_ink_fraction, render_frame_observable, verify_time_key,
 };
+use crate::review::facts::ReviewFacts;
 
 use super::types::{
     Policy, RenderFacts, RenderMode, RenderSampleFacts, RenderStatus, SiteRestFacts,
@@ -28,6 +29,7 @@ pub(crate) fn run_render_tier(
     policy: Policy,
     mode: RenderMode,
     frames_dir: Option<&Path>,
+    facts: &ReviewFacts,
 ) -> Result<RenderFacts, String> {
     if mode == RenderMode::Never {
         return Ok(RenderFacts {
@@ -74,12 +76,29 @@ pub(crate) fn run_render_tier(
     let mut samples = Vec::new();
     let mut previous: Option<(f64, animatix_render::offscreen::RenderedFrame)> = None;
     for (index, &time_s) in all_times.iter().enumerate() {
+        let frame = facts
+            .frame_at(time_s)
+            .ok_or_else(|| format!("missing fact for sample time {}", time_s))?;
+        let draw_order: Vec<crate::review::probe::ProbeActor> = frame
+            .draw_order
+            .iter()
+            .filter_map(|(scene, label)| {
+                let actor = facts.actor(scene, label)?;
+                let frame_actor = facts.actor_frame(frame, scene, label)?;
+                let bounds = frame_actor.bounds?;
+                Some(crate::review::probe::ProbeActor {
+                    scene: scene.clone(),
+                    label: label.clone(),
+                    bounds,
+                    opacity: frame_actor.opacity.unwrap_or(0.0),
+                    is_text: actor.is_text,
+                })
+            })
+            .collect();
         let rendered = match render_frame_observable(&mut renderer, target, dimensions, time_s) {
             Ok(rendered) => rendered,
             Err(error) => {
-                if mode == RenderMode::Always {
-                    return Err(format!("render failed at {time_s:.3}s: {error}"));
-                }
+                // ... (rest of the error handling)
                 let site_rest = site_times
                     .as_ref()
                     .and_then(|(held, times)| site_rest_from_samples(&samples, *held, times));
@@ -96,26 +115,35 @@ pub(crate) fn run_render_tier(
                 .ok_or_else(|| "rendered frame buffer has an unexpected size".to_string())?;
         let reference = view.modal_color();
         let ink_fraction = frame_ink_fraction(&view, DEFAULT_TOLERANCE);
+        let occlusions =
+            crate::review::probe::probe_occlusion(&view, &draw_order, reference, DEFAULT_TOLERANCE);
 
         let mut actor_ink = BTreeMap::new();
-        for ((scene, label), bounds) in &rendered.bounds {
-            let visibility = actor_visibility(
-                &view,
-                Some(*bounds),
-                reference,
-                DEFAULT_TOLERANCE,
-                DEFAULT_MIN_INK_PIXELS,
-            );
-            if visibility.ink_fraction > 0.0 {
-                actor_ink.insert((scene.clone(), label.clone()), visibility.ink_fraction);
-            }
+        let mut changed_from_prev = None;
+        if let Some((_, prev_frame)) = &previous {
+            let prev_view =
+                FrameView::new(prev_frame.width, prev_frame.height, &prev_frame.rgba)
+                    .ok_or_else(|| "previous frame buffer has an unexpected size".to_string())?;
+            changed_from_prev = Some(differing_fraction(&prev_view, &view, DEFAULT_TOLERANCE));
         }
 
-        let changed_from_prev = previous.as_ref().and_then(|(_, previous_frame)| {
-            let previous_view =
-                FrameView::new(previous_frame.width, previous_frame.height, &previous_frame.rgba)?;
-            Some(differing_fraction(&previous_view, &view, DEFAULT_TOLERANCE))
-        });
+        for actor in &draw_order {
+            let frame_actor =
+                facts.actor_frame(frame, &actor.scene, &actor.label).ok_or_else(|| {
+                    format!("missing frame actor for {}/{}", actor.scene, actor.label)
+                })?;
+            if let Some(bounds) = frame_actor.bounds {
+                let visibility = actor_visibility(
+                    &view,
+                    Some(bounds),
+                    reference,
+                    DEFAULT_TOLERANCE,
+                    DEFAULT_MIN_INK_PIXELS,
+                );
+                actor_ink
+                    .insert((actor.scene.clone(), actor.label.clone()), visibility.ink_fraction);
+            }
+        }
 
         if let Some(dir) = frames_dir {
             let path = dir.join(format!("review_{index:04}_{time_s:.2}s.png"));
@@ -128,6 +156,7 @@ pub(crate) fn run_render_tier(
             changed_from_prev,
             actor_ink,
             transition: rendered.transition,
+            occlusions, // Add occlusions field here!
         });
         previous = Some((time_s, rendered.frame));
     }

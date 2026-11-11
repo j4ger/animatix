@@ -74,103 +74,51 @@ See `arena/README.md` for the full agent workflow, Web Arena controls, and feedb
 
 ## Visual Verification & Content Checks
 
-`check`/`lint` only see the build model, and a whole-frame render smoke stays
-green while a single actor silently disappears — `examples/data/07_plots.amx`
-shipped with an invisible headline curve through both gates.
+Animatix tooling provides a four-step cycle for authoring robust content: `check` → `audit` → `storyboard` → `baseline`.
 
-### 1. Primary Automatic Review (`animatix review`)
-
-`review` is the default automatic gate for new projects and does not need a
-`verify.txt`:
+### 1. Iterative Assistance (`animatix check` / `lint`)
+Run `check` and `lint` to ensure the scene parses, types correctly, and conforms to static semantics. These are iterative helpers and do not gate final output.
 
 ```bash
-cargo run --bin animatix -- review dogfood/projects/<name>/entry.amx
+cargo run --bin animatix -- check dogfood/projects/<name>/entry.amx
+cargo run --bin animatix -- lint dogfood/projects/<name>/entry.amx
 ```
 
-It builds the target, evaluates sampled frames on the CPU, and applies the
-structural rules (hidden/never-revealed actors, clipping, text overflow,
-independent overlap candidates, entrance visibility, redundant keyframes).
-When an offscreen GPU adapter is available, `--render auto` (the default) adds
-whole-frame ink, per-actor ink, beat-change, and transition-endpoint checks.
-Use `--format json` for the stable `schema_version: 1` report, `--policy site`
-for the resting-composition policy, and `--storyboard` when both the automatic
-report and a visual contact sheet are wanted. `review` exits 1 on an issue that
-reaches `--fail-on` and 2 when the review cannot run.
+### 2. Automatic Review (`animatix audit`)
+`audit` is the primary automatic gate, replacing the legacy `review` and `verify` commands. It checks layout structure, actor visibility, typography, and timing.
 
-### 2. Qualitative Visual Review (`animatix storyboard`)
+```bash
+cargo run --bin animatix -- audit dogfood/projects/<name>/entry.amx
+```
 
-For both AI agents and human authors, the qualitative visual inspection tool is
-the storyboard contact sheet:
+It builds the target, evaluates sampled frames, and reports findings. Use `--brief` for compact JSON and `--policy site` for embedded scene composition. Findings include `fix_hint` to simplify remediation. See [`docs/audit.md`](../docs/audit.md) for the JSON schema and rule details.
+
+### 3. Visual Confirmation (`animatix storyboard`)
+After `audit` results are clean, inspect the scene qualitatively:
 
 ```bash
 cargo run --bin animatix -- storyboard dogfood/projects/<name>/entry.amx
 ```
 
-This generates a multi-panel grid image (`<name>_storyboard.png`) sampling $t=0$,
-each keyframe transition beat, and the final resting frame in a single command.
-Inspect the contact sheet to verify:
-- Actors appear cleanly at their cues.
-- Layouts and labels do not collide or overflow scene boundaries.
-- The resting frame holds a finished, readable figure (not an empty plate).
+This generates a contact sheet showing cues and the final resting frame. Use it to confirm that overlaps, clippings, and compositions are intentionally designed. If visual issues exist, fix the `.amx` or add an exemption marker; do not guess.
 
-### 3. Strict Contract and Legacy Regression Floors (`animatix verify`)
-
-`animatix verify` has two modes. With no `verify.txt` beside the input it is a
-strict zero-config contract gate for generated scenes (structural rules by
-default; add `--render auto` for pixel rules). If a companion `verify.txt`
-exists it keeps the legacy line-based pixel checker:
+### 4. Regression Testing (`animatix baseline`)
+Use `baseline` to establish a regression floor for visual output:
 
 ```bash
-cargo run --bin animatix -- verify dogfood/projects/<name>/entry.amx --render never
-cargo run --bin animatix -- verify dogfood/projects/<name>/entry.amx --checks verify.txt
+cargo run --bin animatix -- baseline dogfood/projects/<name>/entry.amx
 ```
 
-The legacy checks render the frame(s) at the named times and print one PASS/FAIL
-per line. Auto mode prints a compact issue list with `fix` hints; see
-`docs/review.md` for the JSON schema.
-The file is line-based: one check per line, `#` comments and blank lines
-ignored, times are **global** composition times (see `animatix timeline`).
+This generates PNG snapshots. Only update snapshots (`--update`) after human review confirms that diffs are intentional design changes.
 
-`verify.txt` is an **optional legacy regression floor**, not a mandatory
-prerequisite for authoring new scenes. Existing projects that already carry one
-keep working unchanged. It is most useful for calibration against tricky GPU
-boundaries like `effects-wave1`:
-`dogfood/projects/effects-wave1/verify.txt` is the calibration example for the
-hard case: a full-canvas `Filter` scope whose bounds contain every other actor.
-`visible` and `reveals` on such a scope prove nothing — its region changes
-whenever any child moves, and it has ink whenever anything draws. Assert a
-whole-frame `ink` floor instead (that project uses 35–50% against a measured
-94–96%), which collapses to roughly the card's area alone when the scope loses
-its composite.
-
-| Check | Meaning |
-|---|---|
-| `visible <t> <label>` | the actor put ink inside its evaluated bounds at `t` |
-| `invisible <t> <label>` | it did not |
-| `reveals <label> <t_before> <t_after> [min_fraction]` | the actor's bounds region changed between the two times — the robust "did it appear?" check |
-| `differs <t1> <t2> [min_fraction]` | the two frames differ (the animation actually animates) |
-| `ink <t> <min_fraction>` | the whole frame is not blank |
-
-Thresholds default to 0.01 (1%) for `reveals` and 0.001 for `differs`.
-
-**Choosing the right check.** `visible` is cheap but weak when the actor's
-bounds contain other painted content: a `Graph` paints its generated axes inside
-the hosted curve's bounding box, so `visible <curve>` passes even with the curve
-missing. Use `reveals <curve> <hidden_t> <shown_t>` for that class — it measures
-the change in the actor's region, so a curve that never appears fails. A single
-actor's footprint can also be too small to threshold (a high-degree partial sum
-overlaps its siblings almost everywhere); use a scene-level `differs` there.
-
-Run `animatix review` on every project and keep the `check` warning allowlist.
-The local script below covers `check` and legacy `verify` only — it does not
-invoke `review` yet:
+The following script runs checks across dogfood projects, including the `baseline` regression floor:
 
 ```bash
 bash scripts/dogfood-verify.sh
 ```
 
-This is intentionally local-only, not CI: dogfood content tracks the language as
-it changes and the render checks need a GPU.
+This script is local-only as it requires GPU-accelerated rendering.
+
 
 ## Rules
 

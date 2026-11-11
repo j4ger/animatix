@@ -1,0 +1,60 @@
+{
+  "frames": [
+    {
+      "index": 0,
+      "path": "snapshots/web/demos/transformer/scenes/positional/frame_0000_0.000s.png",
+      "time_s": 0.0
+    },
+    {
+      "index": 1,
+      "path": "snapshots/web/demos/transformer/scenes/positional/frame_0001_0.866s.png",
+      "time_s": 0.866
+    },
+    {
+      "index": 2,
+      "path": "snapshots/web/demos/transformer/scenes/positional/frame_0002_1.196s.png",
+      "time_s": 1.196
+    },
+    {
+      "index": 3,
+      "path": "snapshots/web/demos/transformer/scenes/positional/frame_0003_1.430s.png",
+      "time_s": 1.43
+    },
+    {
+      "index": 4,
+      "path": "snapshots/web/demos/transformer/scenes/positional/frame_0004_1.800s.png",
+      "time_s": 1.8
+    },
+    {
+      "index": 5,
+      "path": "snapshots/web/demos/transformer/scenes/positional/frame_0005_2.240s.png",
+      "time_s": 2.24
+    },
+    {
+      "index": 6,
+      "path": "snapshots/web/demos/transformer/scenes/positional/frame_0006_3.800s.png",
+      "time_s": 3.8
+    },
+    {
+      "index": 7,
+      "path": "snapshots/web/demos/transformer/scenes/positional/frame_0007_7.400s.png",
+      "time_s": 7.4
+    }
+  ],
+  "resolution": [
+    1280,
+    720
+  ],
+  "source_sha256": "71783031f74700f7cd412b91bf0938c32327f1bc92df05ca8868a76272fa96fe",
+  "threshold": 0.001,
+  "times": [
+    0.0,
+    0.866,
+    1.196,
+    1.43,
+    1.8,
+    2.24,
+    3.8,
+    7.4
+  ]
+}

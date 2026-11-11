@@ -288,12 +288,12 @@ fn ast_force_prints_partial_ast_when_parse_errors_occur() {
 }
 
 #[test]
-fn review_cli_parses_every_documented_flag() {
+fn audit_cli_parses_every_documented_flag() {
     use clap::Parser;
 
     let args = crate::Args::try_parse_from([
         "animatix",
-        "review",
+        "audit",
         "demo.amx",
         "--format",
         "json",
@@ -313,14 +313,15 @@ fn review_cli_parses_every_documented_flag() {
         "frames",
         "--fail-on",
         "warning",
-        "--emit-verify",
-        "suggested.verify.txt",
+        "--brief",
+        "--evidence",
+        "evidence",
         "--set",
         "answer=42",
     ])
-    .expect("review arguments must parse");
+    .expect("audit arguments must parse");
     match args.command {
-        crate::Commands::Review { args } => {
+        crate::Commands::Audit { args } => {
             assert_eq!(args.input, PathBuf::from("demo.amx"));
             assert_eq!(args.format, crate::OutputFormat::Json);
             assert_eq!(args.policy, crate::review::Policy::Site);
@@ -331,19 +332,20 @@ fn review_cli_parses_every_documented_flag() {
             assert_eq!(args.storyboard, Some(PathBuf::from("board.png")));
             assert_eq!(args.frames_dir, Some(PathBuf::from("frames")));
             assert_eq!(args.fail_on, crate::review::FailOn::Warning);
-            assert_eq!(args.emit_verify, Some(PathBuf::from("suggested.verify.txt")));
+            assert!(args.brief);
+            assert_eq!(args.evidence, Some(PathBuf::from("evidence")));
             assert_eq!(args.set, vec![("answer".to_string(), "42".to_string())]);
         },
-        other => panic!("expected review command, got {other:?}"),
+        other => panic!("expected audit command, got {other:?}"),
     }
 }
 
 #[test]
-fn review_cli_rejects_unknown_sample_mode() {
+fn audit_cli_rejects_unknown_sample_mode() {
     use clap::Parser;
 
     assert!(
-        crate::Args::try_parse_from(["animatix", "review", "demo.amx", "--samples", "nope"])
+        crate::Args::try_parse_from(["animatix", "audit", "demo.amx", "--samples", "nope"])
             .is_err()
     );
 }

@@ -1,0 +1,60 @@
+{
+  "frames": [
+    {
+      "index": 0,
+      "path": "snapshots/web/demos/transformer/scenes/multihead/frame_0000_0.000s.png",
+      "time_s": 0.0
+    },
+    {
+      "index": 1,
+      "path": "snapshots/web/demos/transformer/scenes/multihead/frame_0001_0.850s.png",
+      "time_s": 0.85
+    },
+    {
+      "index": 2,
+      "path": "snapshots/web/demos/transformer/scenes/multihead/frame_0002_1.440s.png",
+      "time_s": 1.44
+    },
+    {
+      "index": 3,
+      "path": "snapshots/web/demos/transformer/scenes/multihead/frame_0003_2.150s.png",
+      "time_s": 2.15
+    },
+    {
+      "index": 4,
+      "path": "snapshots/web/demos/transformer/scenes/multihead/frame_0004_2.930s.png",
+      "time_s": 2.93
+    },
+    {
+      "index": 5,
+      "path": "snapshots/web/demos/transformer/scenes/multihead/frame_0005_3.390s.png",
+      "time_s": 3.39
+    },
+    {
+      "index": 6,
+      "path": "snapshots/web/demos/transformer/scenes/multihead/frame_0006_4.600s.png",
+      "time_s": 4.6
+    },
+    {
+      "index": 7,
+      "path": "snapshots/web/demos/transformer/scenes/multihead/frame_0007_7.200s.png",
+      "time_s": 7.2
+    }
+  ],
+  "resolution": [
+    1280,
+    720
+  ],
+  "source_sha256": "07af35afcac8ae24fa62054bdf4c6dd4bad0a91b0c65b93f98fb4ab6b1b6d8a1",
+  "threshold": 0.001,
+  "times": [
+    0.0,
+    0.85,
+    1.44,
+    2.15,
+    2.93,
+    3.39,
+    4.6,
+    7.2
+  ]
+}

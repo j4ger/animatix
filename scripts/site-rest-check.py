@@ -13,13 +13,14 @@ pages embed, and fails when the held frame drops far below the plateau:
     scripts/site-rest-check.py            # every scene the site plays
     scripts/site-rest-check.py web/tour   # only paths under this prefix
 
-`animatix verify` is the instrument, so the numbers are the same ones the
-transformer `*.verify.txt` files assert against.
+`animatix measure` is the instrument, so the numbers are the
+percentages of ink coverage per frame.
 
 A scene may opt out with a marker in its own source, which the script prints
 rather than skipping silently, so an exemption stays auditable:
 
     // rest-check: exempt - <why this one may rest on an empty plate>
+    // layout: allow-rest - <why this one may rest on an empty plate>
 
 That is for figures whose resting frame is *meant* to be the page behind them
 (the home page's full-bleed hero), not for a bordered figure the reader is meant
@@ -34,7 +35,7 @@ What this cannot see, on purpose: the measurement is whole-frame coverage, so it
 catches a closing beat that erases *the cast* (the defect it was written for) and
 is blind to one that erases a single actor sitting on busy pixels behind it — a
 `Glass` card's own heading can vanish here and the frame keeps its ink, because
-`verify`'s `visible <t> <label>` measures the coverage of the actor's bounds, not
+`measure`'s ink coverage measures the coverage of the actor's bounds, not
 its own pixels. Isolating one actor needs a per-actor render, which the engine
 does not offer. Figures where that matters are accepted by eye and recorded in
 `docs/history.md`.
@@ -42,6 +43,7 @@ does not offer. Figures where that matters are accepted by eye and recorded in
 
 from __future__ import annotations
 
+import json
 import pathlib
 import re
 import subprocess
@@ -115,26 +117,27 @@ def beats(path: pathlib.Path) -> list[float]:
 
 
 def measure(path: pathlib.Path, times: list[float]) -> dict[float, float]:
-    probe = path.with_name("_rest_check.txt")
-    probe.write_text("".join(f"ink {t:.2f} 0.0001\n" for t in times))
-    try:
-        out = subprocess.run(
-            [str(BIN), "verify", str(path), "--checks", str(probe)],
-            capture_output=True,
-            text=True,
-        ).stdout
-    finally:
-        probe.unlink()
+    args = [str(BIN), "measure", str(path), "--format", "json",
+            "--render", "auto", "--times", ",".join(f"{t:.2f}" for t in times)]
+    proc = subprocess.run(args, capture_output=True, text=True)
+    if proc.returncode != 0:
+        return {}   # 与原实现一致：无测量结果会让 check() 报 "no measurements"
+    data = json.loads(proc.stdout)
     return {
-        round(float(t), 2): float(ink)
-        for t, ink in re.findall(r"ink ([\d.]+) \S+ — frame ink (\d+\.\d+)%", out)
+        round(float(f["time_s"]), 2): float(f["ink_fraction"]) * 100.0
+        for f in data["frames"]
+        if f.get("ink_fraction") is not None
     }
 
 
 def exemption(path: pathlib.Path) -> str | None:
     """The reason a scene is allowed to rest on an empty plate, if it declares one."""
-    m = re.search(r"(?m)^//\s*rest-check:\s*exempt\s+-\s+(.+)$", path.read_text())
-    return m.group(1).strip() if m else None
+    text = path.read_text()
+    if m := re.search(r"(?m)^//\s*rest-check:\s*exempt\s+-\s+(.+)$", text):
+        return m.group(1).strip()
+    if m := re.search(r"(?m)^//\s*layout:\s*allow-rest\s+-\s+(.+)$", text):
+        return m.group(1).strip()
+    return None
 
 
 def check(path: pathlib.Path) -> list[str]:

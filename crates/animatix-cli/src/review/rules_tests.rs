@@ -1,9 +1,12 @@
 use super::*;
+use crate::frame_source::Box2;
 use crate::review::facts::{
     ActorFact, ActorFrameFact, BuildDiagnosticFact, FrameFact, ReviewFacts, TargetFacts,
 };
-use crate::review::types::{RenderFacts, RenderSampleFacts, TargetKind};
-use crate::review::verify_rules::evaluate_verify;
+use crate::review::markers::MarkerSet;
+use crate::review::types::{
+    Policy, RenderFacts, RenderSampleFacts, RenderStatus, Severity, TargetKind,
+};
 
 fn base_facts() -> ReviewFacts {
     ReviewFacts {
@@ -72,6 +75,7 @@ fn frame(time_s: f64, actors: Vec<ActorFrameFact>) -> FrameFact {
         state_digest: None,
         cast: actors.len(),
         actors,
+        draw_order: Vec::new(),
     }
 }
 
@@ -86,7 +90,7 @@ fn opacity_rule_flags_actors_never_positive() {
             actor_frame("solid", 1.0, None),
         ],
     )];
-    let run = evaluate(&facts, Policy::Default);
+    let run = evaluate(&facts, &MarkerSet::default(), Policy::Default);
     assert!(run.issues.iter().any(|issue| issue.rule_id == "actor.opacity-never-positive"
         && issue.actor.as_deref() == Some("ghost")));
     assert!(!run.issues.iter().any(|issue| issue.actor.as_deref() == Some("solid")));
@@ -100,7 +104,7 @@ fn never_on_frame_flags_fully_off_canvas_bounds() {
     offscreen.on_frame_fraction = 0.0;
     offscreen.padded_on_frame_fraction = 0.0;
     facts.frames = vec![frame(0.0, vec![offscreen])];
-    let run = evaluate(&facts, Policy::Default);
+    let run = evaluate(&facts, &MarkerSet::default(), Policy::Default);
     assert!(run.issues.iter().any(|issue| issue.rule_id == "actor.never-on-frame"));
 }
 
@@ -112,8 +116,11 @@ fn clipped_rule_prefers_warning_for_text() {
     facts.actors = vec![text];
     let mut frame_actor = actor_frame("caption", 1.0, Some(Box2::new(-10.0, 10.0, 50.0, 50.0)));
     frame_actor.on_frame_fraction = 0.8;
-    facts.frames = vec![frame(0.0, vec![frame_actor])];
-    let run = evaluate(&facts, Policy::Default);
+    facts.frames = vec![
+        frame(0.0, vec![frame_actor.clone()]),
+        frame(1.0, vec![frame_actor]),
+    ];
+    let run = evaluate(&facts, &MarkerSet::default(), Policy::Default);
     let issue = run
         .issues
         .iter()
@@ -141,7 +148,7 @@ fn overlap_rule_skips_ancestor_and_same_stack_pairs() {
             actor_frame("badge", 1.0, Some(Box2::new(10.0, 10.0, 40.0, 40.0))),
         ],
     )];
-    let run = evaluate(&facts, Policy::Default);
+    let run = evaluate(&facts, &MarkerSet::default(), Policy::Default);
     assert!(!run.issues.iter().any(|issue| issue.rule_id == "overlap.candidates"));
 }
 
@@ -149,15 +156,24 @@ fn overlap_rule_skips_ancestor_and_same_stack_pairs() {
 fn overlap_rule_flags_independent_content() {
     let mut facts = base_facts();
     facts.actors = vec![actor("a"), actor("b")];
-    facts.frames = vec![frame(
-        0.0,
-        vec![
-            actor_frame("a", 1.0, Some(Box2::new(0.0, 0.0, 50.0, 50.0))),
-            actor_frame("b", 1.0, Some(Box2::new(10.0, 10.0, 40.0, 40.0))),
-        ],
-    )];
-    let run = evaluate(&facts, Policy::Default);
-    assert!(run.issues.iter().any(|issue| issue.rule_id == "overlap.candidates"));
+    facts.frames = vec![
+        frame(
+            0.0,
+            vec![
+                actor_frame("a", 1.0, Some(Box2::new(0.0, 0.0, 50.0, 50.0))),
+                actor_frame("b", 1.0, Some(Box2::new(10.0, 10.0, 40.0, 40.0))),
+            ],
+        ),
+        frame(
+            1.0,
+            vec![
+                actor_frame("a", 1.0, Some(Box2::new(0.0, 0.0, 50.0, 50.0))),
+                actor_frame("b", 1.0, Some(Box2::new(10.0, 10.0, 40.0, 40.0))),
+            ],
+        ),
+    ];
+    let run = evaluate(&facts, &MarkerSet::default(), Policy::Default);
+    assert!(run.issues.iter().any(|issue| issue.rule_id == "overlap.undeclared"));
 }
 
 #[test]
@@ -170,8 +186,11 @@ fn text_overflow_rule_uses_max_width_and_overflow_mode() {
     frame_actor.text_max_width = Some(100.0);
     frame_actor.text_overflow = Some("visible".into());
     frame_actor.measured_text_width = Some(200.0);
-    facts.frames = vec![frame(0.0, vec![frame_actor])];
-    let run = evaluate(&facts, Policy::Default);
+    facts.frames = vec![
+        frame(0.0, vec![frame_actor.clone()]),
+        frame(1.0, vec![frame_actor]),
+    ];
+    let run = evaluate(&facts, &MarkerSet::default(), Policy::Default);
     let issue = run
         .issues
         .iter()
@@ -196,7 +215,7 @@ fn entrance_rule_flags_actor_not_visible_after_action() {
         frame(0.0, vec![actor_frame("title", 0.0, None)]),
         frame(1.05, vec![actor_frame("title", 0.0, None)]),
     ];
-    let run = evaluate(&facts, Policy::Default);
+    let run = evaluate(&facts, &MarkerSet::default(), Policy::Default);
     assert!(run.issues.iter().any(|issue| issue.rule_id == "entrance.not-visible"));
 }
 
@@ -210,15 +229,15 @@ fn never_revealed_rule_maps_build_diagnostic() {
         actor: Some("ghost".into()),
         source_line: None,
     }];
-    let run = evaluate(&facts, Policy::Default);
+    let run = evaluate(&facts, &MarkerSet::default(), Policy::Default);
     assert!(run.issues.iter().any(|issue| issue.rule_id == "build.never-revealed"));
 }
 
 #[test]
 fn render_rules_skip_without_render_facts() {
     let facts = base_facts();
-    let run = evaluate(&facts, Policy::Default);
-    assert_eq!(run.skipped, 3);
+    let run = evaluate(&facts, &MarkerSet::default(), Policy::Default);
+    assert_eq!(run.skipped, 5);
     assert!(run.issues.iter().all(|issue| !issue.rule_id.starts_with("frame.")));
 }
 
@@ -234,10 +253,11 @@ fn frame_blank_rule_uses_render_ink() {
             changed_from_prev: None,
             actor_ink: Default::default(),
             transition: None,
+            occlusions: Vec::new(),
         }],
         site_rest: None,
     });
-    let run = evaluate(&facts, Policy::Default);
+    let run = evaluate(&facts, &MarkerSet::default(), Policy::Default);
     assert!(run.issues.iter().any(|issue| issue.rule_id == "frame.blank"));
 }
 
@@ -249,7 +269,7 @@ fn verify_draw_missing_flags_empty_commands() {
     box_frame.draw_items = Some(1);
     box_frame.draw_commands = Some(0);
     facts.frames = vec![frame(0.0, vec![box_frame])];
-    let run = evaluate_verify(&facts);
+    let run = evaluate(&facts, &MarkerSet::default(), Policy::Default);
     assert!(run.issues.iter().any(|issue| issue.rule_id == "actor.draw-missing"));
 }
 
@@ -268,10 +288,11 @@ fn verify_ink_missing_flags_positive_opacity_without_ink() {
             changed_from_prev: None,
             actor_ink: Default::default(),
             transition: None,
+            occlusions: Vec::new(),
         }],
         site_rest: None,
     });
-    let run = evaluate_verify(&facts);
+    let run = evaluate(&facts, &MarkerSet::default(), Policy::Default);
     assert!(run.issues.iter().any(|issue| issue.rule_id == "actor.ink-missing"));
 }
 
@@ -290,6 +311,6 @@ fn site_rest_rule_ports_the_035_plateau() {
         }),
     });
     facts.site_rest = facts.render.as_ref().and_then(|render| render.site_rest.clone());
-    let run = evaluate(&facts, Policy::Site);
+    let run = evaluate(&facts, &MarkerSet::default(), Policy::Site);
     assert!(run.issues.iter().any(|issue| issue.rule_id == "rest.cast-erased"));
 }

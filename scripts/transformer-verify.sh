@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
-# Keyframe acceptance for the transformer walkthrough's seven scenes.
+# Baseline regression for the transformer walkthrough's seven scenes.
 #
-# Each scene carries `<name>.verify.txt`: a `differs` floor per beat (every
-# keyframe must change the picture), `visible`/`invisible` pairs at the cue of
-# every actor whose region the engine can observe, and an `ink` floor on the
-# frame the web player holds between loops (the finished figure, not an empty
-# plate). Floors were derived from the rendered frames, and the ink check was
-# confirmed to fail when an outro erases the composition again.
+# Each scene renders a storyboard and a final resting frame. This script
+# verifies that the current rendered output matches the baseline PNGs.
 #
-# Needs a GPU like every render gate, so it is a local/scripted gate rather
-# than part of `cargo test`. Usage: scripts/transformer-verify.sh
+# Needs a GPU, so it is a local/scripted gate rather than part of `cargo test`.
+# Usage: scripts/transformer-verify.sh
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 DIR=web/demos/transformer/scenes
@@ -17,30 +13,21 @@ BIN=${ANIMATIX_BIN:-target/debug/animatix}
 [ -x "$BIN" ] || { echo "no $BIN — run: cargo build -p animatix-cli"; exit 1; }
 fail=0
 for scene in "$DIR"/*.amx; do
-  checks="${scene%.amx}.verify.txt"
-  [ -f "$checks" ] || { echo "$(basename "$scene"): no checks file"; fail=1; continue; }
-  # A crash must not look like a pass: without this the command substitution is
-  # empty, `tail -1` prints nothing, and the loop ends with "checks passed".
-  if out=$("$BIN" verify "$scene" --checks "$checks" 2>/dev/null); then
-    :
+  if out=$("$BIN" baseline "$scene" --max-frames 8 2>&1); then
+    if [ -z "$out" ]; then
+        echo "$(basename "$scene"): baseline command produced no output" >&2
+        fail=1
+    else
+        printf '%-14s PASSED\n' "$(basename "$scene" .amx)"
+    fi
   else
     rc=$?
-    echo "$(basename "$scene"): verify command failed (exit $rc)" >&2
+    echo "$(basename "$scene"): baseline command failed (exit $rc)" >&2
     fail=1
-    continue
   fi
-  if [ -z "$out" ]; then
-    echo "$(basename "$scene"): verify produced no output" >&2
-    fail=1
-    continue
-  fi
-  line=$(printf '%s\n' "$out" | tail -1)
-  printf '%-14s %s\n' "$(basename "$scene" .amx)" "$line"
-  if printf '%s\n' "$out" | grep -q "FAIL"; then fail=1; fi
 done
 if [ "$fail" -ne 0 ]; then
-  echo "transformer keyframe checks FAILED"
-  "$BIN" verify "$DIR/tokens.amx" --checks "$DIR/tokens.verify.txt" 2>/dev/null | grep FAIL || true
+  echo "transformer baseline checks FAILED"
   exit 1
 fi
-echo "transformer keyframe checks passed"
+echo "transformer baseline checks passed"

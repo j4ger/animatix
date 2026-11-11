@@ -34,7 +34,6 @@
 //     }
 //   }
 //   card: InfoCard, title: "d_model = 768", sub: "Float32 rows", at: (1080, 500)
-
 // ── FigHead ─────────────────────────────────────────────────────────────────
 // The FIG header block, at the one house position: kicker (18 px, accent,
 // caps), display title (56 px bold — the DESIGN.md §1.5 floor; 48 px scenes
@@ -45,16 +44,13 @@
 // Content caps at 56 px: kicker ≤ 52 chars (one line), title ≤ 30 chars
 // (one line at 1088 px). Pass `kicker: ""` to omit the kicker row; the
 // opacity switch keeps the layout gap honest either way.
-
 pub component FigHead(kicker: Str = "", title: Str, accent: Color = accent.primary, title_size: Num = 56) {
   root: Col, size: (1088, 220), gap: 10, align: "start", at: (640, 120), opacity: 1 {
-    kicker_text: Text, text: kicker, font_size: 18, font_weight: 600, color: accent,
-      text_max_width: 1088, text_align: "left", opacity: if kicker == "" { 0 } else { 1 }
-    title_text: Text, text: title, font_size: title_size, font_weight: "bold", color: text.primary,
-      text_max_width: 1088, text_align: "left", opacity: 1
-    rule: Rect, size: (96, 4), color: accent, opacity: 1
-    edge: Rect, size: (1088, 1), color: (0, 0, 0, 0), opacity: 1, legend: false
-  }
+  kicker_text: Text, text: kicker, font_size: 18, font_weight: 600, color: accent, text_max_width: 1088, text_align: "left", opacity: if kicker == "" { 0 } else { 1 }
+  title_text: Text, text: title, font_size: title_size, font_weight: "bold", color: text.primary, text_max_width: 1088, text_align: "left", opacity: 1
+  rule: Rect, size: (96, 4), color: accent, opacity: 1
+  edge: Rect, size: (1088, 1), color: (0, 0, 0, 0), opacity: 1, legend: false
+    }
 }
 
 // ── Band ────────────────────────────────────────────────────────────────────
@@ -68,17 +64,15 @@ pub component FigHead(kicker: Str = "", title: Str, accent: Color = accent.prima
 //
 // Content cap: label ≤ 56 chars at 16 px. Slot children keep their own sizes;
 // the band reserves label height (20) + gap (12) above them.
-
 pub component Band(label: Str, width: Num = 1088, label_color: Color = text.muted) {
   root: Col, size: (width, 160), gap: 12, align: "start", opacity: 1 {
-    label_text: Text, text: label, font_size: 16, font_weight: 600, color: label_color,
-      text_max_width: width, text_align: "left", opacity: 1
-    row: Row, gap: 16, align: "center", opacity: 1 {
-      @slot
-      slot_fallback: Text, text: "Band content", font_size: 16, color: text.muted
+  label_text: Text, text: label, font_size: 16, font_weight: 600, color: label_color, text_max_width: width, text_align: "left", opacity: 1
+  row: Row, gap: 16, align: "center", opacity: 1 {
+  @slot
+  slot_fallback: Text, text: "Band content", font_size: 16, color: text.muted
+      }
+  edge: Rect, size: (width, 1), color: (0, 0, 0, 0), opacity: 1, legend: false
     }
-    edge: Rect, size: (width, 1), color: (0, 0, 0, 0), opacity: 1, legend: false
-  }
 }
 
 // ── InfoCard ────────────────────────────────────────────────────────────────
@@ -90,17 +84,13 @@ pub component Band(label: Str, width: Num = 1088, label_color: Color = text.mute
 //
 // Content caps: title ≤ 16 chars, sub ≤ 24 chars at the default 200 px
 // width; scale `width` with the text, not the font size.
-
 pub component InfoCard(title: Str, sub: Str = "", width: Num = 200, height: Num = 92, accent: Color = accent.primary) {
   root: Stack, size: (width, height), opacity: 1 {
-    bg: Rect, size: (width, height), corner_radius: 14, color: surface.primary,
-      stroke: stroke.default, stroke_width: 1.4
-    content: Col, gap: 4, align: "center", opacity: 1 {
-      title_text: Text, text: title, font_size: 20, font_weight: 600, color: accent,
-        text_max_width: width - 36, text_align: "center"
-      sub_text: Text, text: sub, font_size: 16, color: text.muted,
-        text_max_width: width - 36, text_align: "center", opacity: if sub == "" { 0 } else { 1 }
-      edge: Rect, size: (width - 36, 1), color: (0, 0, 0, 0), opacity: 1, legend: false
+  bg: Rect, size: (width, height), corner_radius: 14, color: surface.primary, stroke: stroke.default, stroke_width: 1.4
+  content: Col, gap: 4, align: "center", opacity: 1 {
+  title_text: Text, text: title, font_size: 20, font_weight: 600, color: accent, text_max_width: width - 36, text_align: "center"
+  sub_text: Text, text: sub, font_size: 16, color: text.muted, text_max_width: width - 36, text_align: "center", opacity: if sub == "" { 0 } else { 1 }
+  edge: Rect, size: (width - 36, 1), color: (0, 0, 0, 0), opacity: 1, legend: false
+      }
     }
-  }
 }

@@ -54,8 +54,8 @@ crates/animatix-web/tests/site_scenes.rs
                              references, through the embed's own fetch protocol,
                              in the profile that player asks for (slim/assets/full)
 scripts/transformer-verify.sh    keyframe checks for the transformer scenes
-                             (`animatix verify` per scene; needs a GPU, so it is a
-                             scripted gate like dogfood-verify, not a cargo test)
+                             (calls `animatix baseline` per scene; needs a GPU, so
+                             it is a scripted gate, not a cargo test)
 ```
 
 ### Live figure editors

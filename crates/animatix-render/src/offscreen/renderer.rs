@@ -157,7 +157,7 @@ impl OffscreenRenderer {
     /// the *same* evaluation.
     ///
     /// This is the content-level verification entry point used by
-    /// `animatix verify`: the pixels answer "did it actually draw?", the
+    /// `animatix audit`: the pixels answer "did it actually draw?", the
     /// bounds answer "where should it have drawn?". Calling the scene-only
     /// path plus a separate `evaluate_program_*` call would evaluate twice and
     /// could disagree; this keeps them consistent.

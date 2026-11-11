@@ -11,6 +11,8 @@ pub(crate) enum Policy {
     Default,
     /// Website embedding policy (`scripts/site-rest-check.py` semantics).
     Site,
+    /// LLM-generated scenes: layout defects are hard errors.
+    Generated,
 }
 
 /// Sample-time selection mode from `--samples`.
@@ -74,8 +76,25 @@ pub(crate) enum FailOn {
 }
 
 /// Issue severity.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub(crate) enum Persistence {
+    #[default]
+    Transient,
+    Held,
+}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct FixHint {
+    pub kind: &'static str,
+    pub target: Option<String>,
+    pub source_line: Option<usize>,
+    pub snippet: Option<String>,
+    pub marker: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub(crate) enum Severity {
+    #[default]
     /// Informational observation.
     Info,
     /// Likely defect; non-fatal by default.
@@ -96,8 +115,10 @@ impl Severity {
 }
 
 /// How much the rule trusts its own result.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub(crate) enum Confidence {
+    #[default]
+    Low,
     /// Direct measurement.
     High,
     /// Geometry heuristic.
@@ -108,6 +129,7 @@ impl Confidence {
     /// Stable JSON spelling.
     pub(crate) fn as_str(self) -> &'static str {
         match self {
+            Self::Low => "low",
             Self::High => "high",
             Self::Medium => "medium",
         }
@@ -156,7 +178,7 @@ impl RenderStatus {
 }
 
 /// One rule finding.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct RuleIssue {
     /// Stable rule identifier, e.g. `actor.clipped`.
     pub rule_id: &'static str,
@@ -164,6 +186,7 @@ pub(crate) struct RuleIssue {
     pub severity: Severity,
     /// Rule confidence.
     pub confidence: Confidence,
+    pub persistence: Persistence,
     /// Scene owning the finding, when known.
     pub scene: Option<String>,
     /// Sample time the finding refers to, if any.
@@ -176,6 +199,8 @@ pub(crate) struct RuleIssue {
     pub message: String,
     /// Structured measurements backing the finding.
     pub evidence: serde_json::Value,
+    pub fix_hint: Option<FixHint>,
+    pub waived_by: Option<String>,
     /// Suggested edit direction.
     pub suggestion: String,
 }
@@ -194,6 +219,7 @@ pub(crate) struct RenderSampleFacts {
     pub actor_ink: std::collections::BTreeMap<(String, String), f32>,
     /// Active transition, when this sample landed inside a blend.
     pub transition: Option<crate::frame_source::TransitionFact>,
+    pub occlusions: Vec<crate::review::probe::OcclusionFact>,
 }
 
 /// Site-policy resting-frame measurement, mirroring
@@ -240,4 +266,5 @@ pub(crate) struct ReviewOptions {
     pub fail_on: FailOn,
     /// Optional directory for rendered PNG samples.
     pub frames_dir: Option<PathBuf>,
+    pub times: Option<Vec<f64>>,
 }

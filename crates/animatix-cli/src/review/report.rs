@@ -13,10 +13,12 @@ use super::rules::{self, RuleRun};
 use super::samples;
 use super::types::{Detail, FailOn, RenderFacts, RenderStatus, ReviewOptions, RuleIssue, Severity};
 
-/// A complete review run.
-pub(crate) struct ReviewReport {
+/// A complete audit run.
+pub(crate) struct AuditReport {
     /// Input path as given on the command line.
     pub input: String,
+    /// Audit kind.
+    pub kind: &'static str,
     /// Target identity.
     pub target: TargetFacts,
     /// Render-tier result.
@@ -26,33 +28,33 @@ pub(crate) struct ReviewReport {
     /// Structural frame facts.
     pub frames: Vec<FrameFact>,
     /// Rule findings.
-    pub issues: Vec<RuleIssue>,
+    pub findings: Vec<RuleIssue>,
+    /// Aggregate audit summary.
+    pub summary: Summary,
     /// Rule checks skipped because a tier was unavailable.
     pub skipped: usize,
+    /// Coverage metrics.
+    pub coverage: Coverage,
 }
 
-impl ReviewReport {
-    /// Count issues by severity.
-    pub(crate) fn summary_counts(&self) -> (usize, usize, usize) {
-        let mut errors = 0;
-        let mut warnings = 0;
-        let mut infos = 0;
-        for issue in &self.issues {
-            match issue.severity {
-                Severity::Error => errors += 1,
-                Severity::Warning => warnings += 1,
-                Severity::Info => infos += 1,
-            }
-        }
-        (errors, warnings, infos)
+/// Compatibility alias.
+pub(crate) type ReviewReport = AuditReport;
+
+impl AuditReport {
+    pub(crate) fn issues(&self) -> &Vec<RuleIssue> {
+        &self.findings
     }
 
-    /// Exit code for the requested fail policy.
+    /// Count issues by severity.
+    #[allow(dead_code)]
+    pub(crate) fn summary_counts(&self) -> (usize, usize, usize) {
+        (self.summary.errors, self.summary.warnings, self.summary.infos)
+    }
+
     pub(crate) fn exit_code(&self, fail_on: FailOn) -> i32 {
-        let (errors, warnings, _) = self.summary_counts();
         match fail_on {
-            FailOn::Error if errors > 0 => 1,
-            FailOn::Warning if errors + warnings > 0 => 1,
+            FailOn::Error if self.summary.errors > 0 => 1,
+            FailOn::Warning if self.summary.errors + self.summary.warnings > 0 => 1,
             FailOn::Error | FailOn::Warning | FailOn::Never => 0,
         }
     }
@@ -60,28 +62,41 @@ impl ReviewReport {
     /// Serialize the stable JSON report schema. `--detail` only shortens the
     /// text report; JSON consumers always receive the complete frame list.
     pub(crate) fn to_json(&self, _detail: Detail) -> serde_json::Value {
-        let issues: Vec<serde_json::Value> = self
-            .issues
+        let findings: Vec<serde_json::Value> = self
+            .findings
             .iter()
             .map(|issue| {
                 serde_json::json!({
-                    "rule_id": issue.rule_id,
+                    "code": issue.rule_id,
                     "severity": issue.severity.as_str(),
                     "confidence": issue.confidence.as_str(),
+                    "persistence": match issue.persistence {
+                        crate::review::types::Persistence::Transient => "transient",
+                        crate::review::types::Persistence::Held => "held",
+                    },
                     "scene": issue.scene,
                     "time_s": issue.time_s,
                     "actor": issue.actor,
                     "source_line": issue.source_line,
                     "message": issue.message,
                     "evidence": issue.evidence,
+                    "fix_hint": issue.fix_hint.as_ref().map(|f| serde_json::json!({
+                        "kind": f.kind,
+                        "target": f.target,
+                        "source_line": f.source_line,
+                        "snippet": f.snippet,
+                        "marker": f.marker,
+                    })),
+                    "waived_by": issue.waived_by,
                     "suggestion": issue.suggestion,
                 })
             })
             .collect();
-        let frames: Vec<serde_json::Value> = self.frames.iter().map(frame_json).collect();
-        let (errors, warnings, infos) = self.summary_counts();
+        let frames: Vec<serde_json::Value> =
+            self.frames.iter().map(|f| frame_json(f, Some(&self.render))).collect();
         serde_json::json!({
-            "schema_version": 1,
+            "schema_version": 2,
+            "kind": self.kind,
             "input": self.input,
             "target": {
                 "kind": self.target.kind.as_str(),
@@ -94,19 +109,79 @@ impl ReviewReport {
             },
             "sample_times_s": self.sample_times_s,
             "frames": frames,
-            "issues": issues,
-            "summary": {
-                "errors": errors,
-                "warnings": warnings,
-                "infos": infos,
-                "skipped": self.skipped,
+            "coverage": {
+                "structural": self.coverage.structural,
+                "render": self.coverage.render,
+                "complete": self.coverage.complete,
+                "skipped_rules": self.coverage.skipped_rules,
+                "checks_run": self.coverage.checks_run,
+                "checks_skipped": self.coverage.checks_skipped,
             },
+            "findings": findings,
+            "summary": {
+                "errors": self.summary.errors,
+                "warnings": self.summary.warnings,
+                "infos": self.summary.infos,
+                "skipped": self.skipped,
+                "waived": self.summary.waived,
+            },
+        })
+    }
+
+    fn verdict(&self) -> &'static str {
+        if self.summary.errors > 0 {
+            "fail"
+        } else if self.summary.warnings > 0 {
+            "warn"
+        } else {
+            "pass"
+        }
+    }
+
+    /// Serialize the brief JSON report schema.
+    pub(crate) fn to_brief_json(&self) -> serde_json::Value {
+        let findings: Vec<serde_json::Value> = self
+            .findings
+            .iter()
+            .map(|issue| {
+                serde_json::json!({
+                    "code": issue.rule_id,
+                    "severity": issue.severity.as_str(),
+                    "scene": issue.scene,
+                    "time_s": issue.time_s,
+                    "actor": issue.actor,
+                    "source_line": issue.source_line,
+                    "message": issue.message,
+                    "fix_hint": issue.fix_hint.as_ref().map(|f| serde_json::json!({
+                        "kind": f.kind,
+                        "target": f.target,
+                        "source_line": f.source_line,
+                        "snippet": f.snippet,
+                        "marker": f.marker,
+                    })),
+                    "waived_by": issue.waived_by,
+                    "evidence": issue.evidence,
+                })
+            })
+            .collect();
+        serde_json::json!({
+            "schema_version": 2,
+            "kind": "audit.brief",
+            "verdict": self.verdict(),
+            "summary": {
+                "errors": self.summary.errors,
+                "warnings": self.summary.warnings,
+                "infos": self.summary.infos,
+                "skipped": self.skipped,
+                "waived": self.summary.waived,
+            },
+            "findings": findings,
         })
     }
 
     /// Print the text report.
     pub(crate) fn print_text(&self, detail: Detail) {
-        println!("review: {}", self.input);
+        println!("audit: {}", self.input);
         println!(
             "target: {}, {:.2}s, {}x{}",
             self.target.kind.as_str(),
@@ -115,48 +190,45 @@ impl ReviewReport {
             self.target.height
         );
         println!("render: {} ({})", self.render.status.as_str(), self.render.reason);
-        let (errors, warnings, infos) = self.summary_counts();
         println!(
-            "summary: {errors} error(s), {warnings} warning(s), {infos} info(s), {} skipped",
-            self.skipped
+            "summary: {} error(s), {} warning(s), {} info(s), {} skipped, {} waived",
+            self.summary.errors,
+            self.summary.warnings,
+            self.summary.infos,
+            self.skipped,
+            self.summary.waived
         );
         if detail == Detail::Full {
             for frame in &self.frames {
-                let ink = frame
-                    .ink_fraction
-                    .map(|fraction| format!("{:.3}%", fraction * 100.0))
-                    .unwrap_or_else(|| "n/a".to_string());
-                println!(
-                    "  frame {:.3}s [{}] cast={} ink={}",
-                    frame.time_s, frame.scene, frame.cast, ink
-                );
+                // Simplified display for brevity
+                println!("  frame {:.3}s [{}] cast={}", frame.time_s, frame.scene, frame.cast);
             }
         }
-        if self.issues.is_empty() {
-            println!("issues: none");
+        if self.findings.is_empty() {
+            println!("findings: none");
             return;
         }
-        for issue in &self.issues {
-            let time = issue
+        for finding in &self.findings {
+            let time = finding
                 .time_s
                 .map(|time| format!("{time:.2}s"))
                 .unwrap_or_else(|| "-".to_string());
-            let actor = issue.actor.as_deref().unwrap_or("-");
-            let line = issue
+            let actor = finding.actor.as_deref().unwrap_or("-");
+            let line = finding
                 .source_line
                 .map(|line| format!("L{line}"))
                 .unwrap_or_else(|| "L-".to_string());
             println!(
                 "  [{}] {} @ {} {} {}: {}",
-                issue.severity.as_str(),
-                issue.rule_id,
+                finding.severity.as_str(),
+                finding.rule_id,
                 time,
                 actor,
                 line,
-                issue.message
+                finding.message
             );
             if detail == Detail::Full {
-                println!("      suggestion: {}", issue.suggestion);
+                println!("      suggestion: {}", finding.suggestion);
             }
         }
     }
@@ -199,7 +271,7 @@ impl ReviewReport {
             }
         } else {
             lines.push("# render tier skipped: only structural `invisible` hints below.".into());
-            for issue in &self.issues {
+            for issue in self.issues() {
                 if issue.rule_id == "actor.opacity-never-positive"
                     && let Some(actor) = &issue.actor
                 {
@@ -211,19 +283,34 @@ impl ReviewReport {
     }
 }
 
-fn frame_json(frame: &FrameFact) -> serde_json::Value {
+fn frame_json(frame: &FrameFact, render: Option<&RenderFacts>) -> serde_json::Value {
+    let sample =
+        render.and_then(|r| r.samples.iter().find(|s| (s.time_s - frame.time_s).abs() < 0.001));
+
+    let actor_ink: serde_json::Map<String, serde_json::Value> = sample
+        .map(|s| {
+            s.actor_ink
+                .iter()
+                .map(|((scene, label), &ink)| (format!("{scene}:{label}"), serde_json::json!(ink)))
+                .collect()
+        })
+        .unwrap_or_default();
+
     serde_json::json!({
         "time_s": frame.time_s,
         "scene": frame.scene,
-        "ink_fraction": frame_ink(frame),
         "cast": frame.cast,
+        "ink_fraction": sample.map(|s| s.ink_fraction),
+        "changed_from_prev": sample.and_then(|s| s.changed_from_prev),
+        "actor_ink": actor_ink,
+        "actors": frame.actors.iter().map(|a| serde_json::json!({
+            "label": a.label,
+            "bounds": a.bounds.map(|b| vec![b.x0, b.y0, b.x1, b.y1]),
+            "opacity": a.opacity,
+            "on_frame_fraction": a.on_frame_fraction,
+            "draw_commands": a.draw_commands,
+        })).collect::<Vec<_>>(),
     })
-}
-
-fn frame_ink(frame: &FrameFact) -> Option<f32> {
-    // Filled from the render map by `run_review` before reporting; structural
-    // frames without a render measurement report null.
-    frame.ink_fraction
 }
 
 /// Run one review.
@@ -232,7 +319,10 @@ pub(crate) fn run_review(
     set: &[(String, String)],
     extensions: &CliExtensions,
     options: &ReviewOptions,
-) -> Result<ReviewReport, String> {
+    kind: &'static str,
+    brief: bool,
+    evidence_dir: Option<&Path>,
+) -> Result<AuditReport, String> {
     let (target, diagnostics) = try_load_and_build(input, extensions, set)?;
     if diagnostics.iter().any(|diagnostic| diagnostic.is_error()) {
         print_build_diagnostics(&diagnostics);
@@ -242,30 +332,89 @@ pub(crate) fn run_review(
 
     let (width, height) = configured_resolution(&target).unwrap_or((1280, 720));
     let dimensions = SceneDimensions { width, height };
-    let base_times = samples::compute_sample_times(&target, &options.samples, options.max_frames);
+    let base_times = options.times.clone().unwrap_or_else(|| {
+        samples::compute_sample_times(&target, &options.samples, options.max_frames)
+    });
     let mut facts = collect_facts(&target, dimensions, base_times, &diagnostics)?;
     resolve_actor_source_lines(input, &mut facts);
+
+    let _ = brief;
+    let source = std::fs::read_to_string(input).unwrap_or_default();
+    let mut markers = crate::review::markers::parse_markers(&source);
+    let analyzer = animatix_analyzer::Analyzer::new_with_path(&source, Some(input.to_path_buf()));
+    let labels: Vec<String> = facts.actors.iter().map(|a| a.label.clone()).collect();
+    crate::review::markers::bind_markers(&mut markers, &labels, &analyzer);
+
     let render = run_render_tier(
         &target,
         dimensions,
         &facts.frames.iter().map(|frame| frame.time_s).collect::<Vec<_>>(),
         options.policy,
         options.render,
-        options.frames_dir.as_deref(),
+        evidence_dir.or(options.frames_dir.as_deref()),
+        &facts,
     )?;
 
     apply_render_facts(&mut facts, &render);
     let RuleRun {
-        issues, skipped, ..
-    } = rules::evaluate(&facts, options.policy);
-    Ok(ReviewReport {
+        issues: findings,
+        skipped,
+        checked,
+    } = if kind == "measure" {
+        RuleRun {
+            issues: Vec::new(),
+            skipped: 0,
+            checked: 0,
+        }
+    } else {
+        rules::evaluate(&facts, &markers, options.policy)
+    };
+
+    let render_status_str = match render.status {
+        RenderStatus::Rendered => "complete",
+        RenderStatus::Skipped => "skipped",
+        RenderStatus::Failed => "failed",
+    };
+    let coverage = Coverage {
+        structural: "complete",
+        render: render_status_str,
+        complete: render_status_str == "complete",
+        skipped_rules: Vec::new(),
+        checks_run: checked,
+        checks_skipped: skipped,
+    };
+
+    // Calculate summary
+    let mut summary = Summary {
+        errors: 0,
+        warnings: 0,
+        infos: 0,
+        waived: 0,
+        skipped,
+    };
+    for finding in &findings {
+        if finding.waived_by.is_some() {
+            summary.waived += 1;
+        } else {
+            match finding.severity {
+                Severity::Error => summary.errors += 1,
+                Severity::Warning => summary.warnings += 1,
+                Severity::Info => summary.infos += 1,
+            }
+        }
+    }
+
+    Ok(AuditReport {
         input: input.display().to_string(),
+        kind,
         target: facts.target.clone(),
         render,
         sample_times_s: facts.frames.iter().map(|frame| frame.time_s).collect(),
         frames: facts.frames.clone(),
-        issues,
+        findings,
+        summary,
         skipped,
+        coverage,
     })
 }
 
@@ -302,29 +451,37 @@ fn apply_render_facts(facts: &mut ReviewFacts, render: &RenderFacts) {
 
 /// Write `--emit-verify` output. Refuses to overwrite an existing file: the
 /// suggested lines are review material, never a silent gate update.
-pub(crate) fn write_verify_file(path: &Path, report: &ReviewReport) -> Result<(), String> {
-    if path.exists() {
-        return Err(format!(
-            "refusing to overwrite existing verify file {}; pass a new path",
-            path.display()
-        ));
-    }
-    let mut text = report.suggested_verify_lines().join("\n");
-    text.push('\n');
-    std::fs::write(path, text).map_err(|error| format!("cannot write {}: {error}", path.display()))
+// DEPRECATED: stub removed
+
+#[derive(Clone, Debug)]
+pub(crate) struct Summary {
+    pub errors: usize,
+    pub warnings: usize,
+    pub infos: usize,
+    pub skipped: usize,
+    pub waived: usize,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct Coverage {
+    pub structural: &'static str,
+    pub render: &'static str,
+    pub complete: bool,
+    pub skipped_rules: Vec<String>,
+    pub checks_run: usize,
+    pub checks_skipped: usize,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::review::facts::TargetFacts;
-    use crate::review::types::{
-        Confidence, RenderFacts, RenderSampleFacts, RenderStatus, TargetKind,
-    };
+    use crate::review::types::{Confidence, RenderFacts, RenderStatus, TargetKind};
 
-    fn report_with_issue(severity: Severity) -> ReviewReport {
-        ReviewReport {
+    fn report_with_issue(severity: Severity) -> AuditReport {
+        AuditReport {
             input: "demo.amx".into(),
+            kind: "audit",
             target: TargetFacts {
                 kind: TargetKind::SingleScene,
                 duration_s: 1.0,
@@ -345,20 +502,39 @@ mod tests {
                 actors: Vec::new(),
                 ink_fraction: None,
                 state_digest: None,
+                draw_order: Vec::new(), // Added based on new FrameFact requirement
             }],
-            issues: vec![RuleIssue {
+            findings: vec![RuleIssue {
                 rule_id: "test.rule",
                 severity,
                 confidence: Confidence::High,
+                persistence: crate::review::types::Persistence::Held,
                 scene: None,
                 time_s: Some(0.0),
                 actor: Some("box".into()),
                 source_line: Some(1),
                 message: "test".into(),
                 evidence: serde_json::json!({}),
+                fix_hint: None,
+                waived_by: None,
                 suggestion: "fix it".into(),
             }],
+            summary: Summary {
+                errors: if severity == Severity::Error { 1 } else { 0 },
+                warnings: if severity == Severity::Warning { 1 } else { 0 },
+                infos: if severity == Severity::Info { 1 } else { 0 },
+                skipped: 0,
+                waived: 0,
+            },
             skipped: 3,
+            coverage: Coverage {
+                structural: "complete",
+                render: "skipped",
+                complete: false,
+                skipped_rules: Vec::new(),
+                checks_run: 10,
+                checks_skipped: 3,
+            },
         }
     }
 
@@ -368,17 +544,19 @@ mod tests {
         let json = report.to_json(Detail::Summary);
         for key in [
             "schema_version",
+            "kind",
             "input",
             "target",
             "render",
             "sample_times_s",
             "frames",
-            "issues",
+            "findings",
             "summary",
+            "coverage",
         ] {
             assert!(json.get(key).is_some(), "missing {key}");
         }
-        assert_eq!(json["schema_version"], 1);
+        assert_eq!(json["schema_version"], 2);
         assert_eq!(json["summary"]["warnings"], 1);
         assert_eq!(json["frames"].as_array().expect("frames array").len(), 1);
         let full = report.to_json(Detail::Full);
@@ -393,24 +571,5 @@ mod tests {
         assert_eq!(warning.exit_code(FailOn::Never), 0);
         let error = report_with_issue(Severity::Error);
         assert_eq!(error.exit_code(FailOn::Error), 1);
-    }
-
-    #[test]
-    fn suggested_verify_lines_use_measured_ink() {
-        let mut report = report_with_issue(Severity::Warning);
-        report.render = RenderFacts {
-            status: RenderStatus::Rendered,
-            reason: "test".into(),
-            samples: vec![RenderSampleFacts {
-                time_s: 0.0,
-                ink_fraction: 0.05,
-                changed_from_prev: None,
-                actor_ink: Default::default(),
-                transition: None,
-            }],
-            site_rest: None,
-        };
-        let lines = report.suggested_verify_lines();
-        assert!(lines.iter().any(|line| line.starts_with("ink 0.000 0.0400")));
     }
 }
