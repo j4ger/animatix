@@ -1,4 +1,4 @@
-//! Optional render tier for `animatix review`.
+//! Optional render tier for `animatix audit`.
 //!
 //! Rendering is CPU-reviewed first and GPU-checked second: structural facts are
 //! always available, while this tier adds whole-frame ink, per-actor ink, and

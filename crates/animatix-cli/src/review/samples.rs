@@ -1,4 +1,4 @@
-//! Sample-time selection for `animatix review`.
+//! Sample-time selection for `animatix audit`.
 //!
 //! `auto` reuses the storyboard's beat picker (start, keyframe beats near an
 //! even grid, rest frame); `keyframes` takes the complete keyframe set (thinned

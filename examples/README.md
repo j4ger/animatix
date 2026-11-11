@@ -15,14 +15,14 @@ From the workspace root:
 # Check / parse an example
 cargo run --bin animatix -- check examples/basics/00_hello.amx
 
-# Render a still frame
-cargo run --bin animatix -- image examples/basics/00_hello.amx
+# Validate scene with audit
+cargo run --bin animatix -- audit examples/basics/00_hello.amx
 
-# Export GIF
-cargo run --bin animatix -- gif examples/gallery/brand_reel/main.amx -o reel.gif --fps 15
+# Generate a storyboard
+cargo run --bin animatix -- storyboard examples/basics/00_hello.amx -o storyboard.png
 
-# View AST
-cargo run --bin animatix -- ast examples/components/09_components.amx --compact
+# Establish a baseline
+cargo run --bin animatix -- baseline examples/basics/00_hello.amx
 ```
 
 ## Gallery

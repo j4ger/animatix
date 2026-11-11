@@ -2507,7 +2507,7 @@ The authoring loop has four distinct commands; `audit` is the primary automatic 
 | `animatix storyboard <file>` | Qualitative visual review: a contact sheet of keyframe beats and the resting frame | GPU |
 | `animatix baseline <file>` | Regression check: compares PNG snapshots against established baselines | GPU |
 
-`animatix audit` builds the target, evaluates scene programs at sample times, and reports issues with a stable rule id, severity, confidence, source line, actor, time, evidence, and suggestion. It exits 0 when no issue reaches the `--fail-on` threshold, 1 when an issue does, and 2 when the audit cannot run (build errors, `--render always` without a working adapter, or a failed `--storyboard` write). Important flags:
+`animatix audit` builds the target, evaluates scene programs at sample times, and reports issues with a stable rule id, severity, persistence, source line, actor, time, evidence, and suggestion. It exits 0 when no issue reaches the `--fail-on` threshold, 1 when an issue does, and 2 when the audit cannot run (build errors, `--render always` without a working adapter, or a failed `--storyboard` write). Important flags:
 
 | Flag | Default | Meaning |
 |------|---------|---------|

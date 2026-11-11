@@ -28,22 +28,10 @@ candidate provides the better visual outcome, motion polish, or DSL ergonomics?"
 3. Run the standard automatic gates from the workspace root:
    ```bash
    cargo run --bin animatix -- check dogfood/projects/<name>/entry.amx
-   cargo run --bin animatix -- lint dogfood/projects/<name>/entry.amx
-   cargo run --bin animatix -- review dogfood/projects/<name>/entry.amx
+   cargo run --bin animatix -- audit dogfood/projects/<name>/entry.amx
+   cargo run --bin animatix -- storyboard dogfood/projects/<name>/entry.amx -o storyboard.png
+   cargo run --bin animatix -- baseline dogfood/projects/<name>/entry.amx
    ```
-   `animatix review` is the default automatic review gate: it needs no
-   `verify.txt` and no GPU (the pixel tier is skipped when no adapter exists).
-   A still render remains useful for eyeballing a single frame:
-   ```bash
-   cargo run --bin animatix -- image dogfood/projects/<name>/entry.amx --time 1.0 --output /tmp/dogfood.png
-   ```
-   New projects can also run the strict zero-config verifier, which adds
-   draw/ink/reveal/rest checks and needs no sidecar:
-   ```bash
-   cargo run --bin animatix -- verify dogfood/projects/<name>/entry.amx --render never
-   ```
-   Legacy projects that already carry a `verify.txt` still run the content
-   checks; use `--auto` to force the new mode when a sidecar should be ignored.
 4. When the grammar blocks the intent, create a minimal probe under
    `probes/`. The probe should reproduce the gap with the smallest possible
    `.amx`, not with the whole project.

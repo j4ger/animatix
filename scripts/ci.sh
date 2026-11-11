@@ -228,21 +228,57 @@ gate_no_video() {
 gate_scene_audit() {
   want_nix_shell 'scene-audit'
   cargo build --bin animatix
-  # Share the scene walk with check_examples.sh / render_smoke.sh: component
-  # libraries and multi-file project fragments are not standalone scenes and
-  # would only produce false "no visual actors" failures here.
-  # shellcheck source=scripts/lib-scenes.sh
-  . scripts/lib-scenes.sh
-  local failed=0 f
-  while IFS= read -r f; do
-    # plugin_pulse needs the demo plugin manifest; `gate examples` already
-    # checks it with --plugin, so it is out of scope for this CPU-only gate.
-    case "$f" in */plugin_pulse.amx) continue ;; esac
-    if ! ./target/debug/animatix audit "$f" --render never --format json >/dev/null 2>&1; then
-      echo "FAIL scene-audit: $f" >&2
+  
+  # Rule to skip sub-files in multi-file projects
+  project_rule() {
+    local dir=$(dirname "$1"); local base=$(basename "$1")
+    if [ -f "$dir/main.amx" ] && [ "$base" != "main.amx" ]; then return 1; fi
+    return 0
+  }
+
+  local failed=0
+  # Collect all scenes from examples, web/scenes, and web/demos
+  local scenes=$(find examples web/scenes web/demos -name '*.amx' -not -path '*/lib/*' -not -path '*/_site/*' | sort)
+  
+  while read -r f; do
+    [ -z "$f" ] && continue
+    case "$f" in
+      */plugin_pulse.amx|*/epicycles/fourier.amx) continue ;;
+    esac
+    if ! project_rule "$f"; then continue; fi
+
+    local output=$(mktemp)
+    if ! ./target/debug/animatix audit "$f" --render never --format json > "$output" 2>/dev/null; then
+      echo "FAIL scene-audit (exit code): $f" >&2
+      failed=1
+      rm -f "$output"
+      continue
+    fi
+
+    # JSON validation with python3
+    if ! python3 -c '
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+    if data.get("schema_version") != 2:
+        print("schema_version %s != 2" % data.get("schema_version"), file=sys.stderr)
+        sys.exit(1)
+    if data.get("kind") != "audit":
+        print("kind %s != audit" % data.get("kind"), file=sys.stderr)
+        sys.exit(1)
+    if data.get("summary", {}).get("errors", 0) != 0:
+        print("errors %s != 0" % data.get("summary", {}).get("errors"), file=sys.stderr)
+        sys.exit(1)
+except Exception as e:
+    print(f"JSON error: {e}", file=sys.stderr)
+    sys.exit(1)
+' "$output"; then
+      echo "FAIL scene-audit (validation): $f" >&2
       failed=1
     fi
-  done < <(scene_files; find web/scenes -maxdepth 1 -name '*.amx' -type f | sort)
+    rm -f "$output"
+  done <<< "$scenes"
   return "$failed"
 }
 

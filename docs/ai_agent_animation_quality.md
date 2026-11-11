@@ -94,7 +94,7 @@ Out of scope for the first bring-up:
 | `animatix-cli image` | single-frame export | scripted frame extraction |
 | `animatix audit` | deterministic structural facts, optional pixel measurements, rule issues, stable JSON report, exit policy | first-pass agent review and default automatic gate |
 | `animatix audit --storyboard` | review report plus a contact-sheet image | one-call automatic + visual pass |
-| `audit` JSON (`schema_version: 2`) | frame facts, issues, evidence, severity/confidence | structured review corpus |
+| `audit` JSON (`schema_version: 2`) | frame facts, issues, evidence, severity/persistence | structured review corpus |
 | `dogfood/projects/` and `dogfood/arena/` | focused real-content projects and A/B candidate battles | data collection and calibration |
 
 ## Data Protocol
@@ -263,8 +263,8 @@ informational warnings.
 ## Policy Configuration
 
 A project-level `review.toml` configures tolerances without changing the
-animation language. This file is future work: the shipped `animatix review`
-exposes the built-in `--policy default|site` profiles, and no `review.toml`
+animation language. This file is future work: the shipped `animatix audit`
+exposes the built-in `--policy default|generated|site` profiles, and no `review.toml`
 loading exists yet.
 
 ```toml
@@ -350,7 +350,7 @@ Shipped in `animatix audit`:
 - 11 default structural/render rules plus two `--policy site` resting-frame
   rules (the full list is in [`audit.md`](audit.md)).
 - Stack/Group/effect-scope/callout/legend exclusions for overlap candidates.
-- Per-issue evidence, confidence, severity, time, actor, and source line.
+- Per-issue evidence, persistence, severity, time, actor, and source line.
 - A stable `schema_version: 1` JSON report and text output.
 
 Still future work:
@@ -363,7 +363,7 @@ Exit criteria (partly met):
 
 - Known-good examples produce no hard errors under the default policy.
 - A seeded bad variant catches the shipped issue categories.
-- Issues include time, actor, rule id, severity, confidence, and evidence.
+- Issues include time, actor, rule id, severity, persistence, and evidence.
 
 ### Phase 2: Demo and Human Review Data
 

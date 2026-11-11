@@ -256,12 +256,12 @@ the page, not just the scene.
   escapes are `.amx`'s and which belong to the payload — a per-property or
   per-actor-kind rule, not a global one. `docs/spec.md` currently documents
   neither, which is the smaller half of the problem.
-- **`differs` compares every pixel, so thin rules are visible.** The old
-  sparse-sampling caveat is gone: a beat whose entire change is a 3px line
-  (0.26% of a 1280×720 plate) is measured at full resolution and can be
-  asserted. A region-scoped `differs` (the same idea as `reveals`, which
-  already restricts to an actor's bounds) remains a convenience for thresholds
-  that should apply to one actor's region instead of the whole frame.
+- **Region-scoped baseline comparison is still open.** `animatix baseline`
+  compares the whole rendered frame against an approved PNG at full resolution,
+  so a beat whose entire change is a 3px line (0.26% of a 1280×720 plate) is
+  visible. What is missing is a region-scoped threshold — restricting a
+  comparison to one actor's bounds — for baselines that should apply to a
+  single region instead of the whole frame.
 - **The block pulse in `pipeline.amx` is a whisper.** As the token climbs, each
   block grows to 584×83 and settles back: 1.0% of that block's region changes,
   which is legible as motion but not as an event. Left alone deliberately —
@@ -297,7 +297,7 @@ reading of the code.
   change was reverted rather than shipped as a "fix" — the leaf label evidently
   reaches the map either way. If the paint gap above gets a rendered-frame test,
   start there and settle this at the same time.
-- **`differs`/`DEAD-BEAT` sampling is meaningless for a multi-scene plate.** The
+- **`baseline`/`DEAD-BEAT` sampling is meaningless for a multi-scene plate.** The
   per-keyframe sweep samples `#Ns` stamps as absolute times, but in a file with
   `# Scene` sections those stamps are scene-local — `demos/hash/scene.amx` was
   flagged at "10.5s→11.2s" while its q3 shift at that label moves 9 831 px. The

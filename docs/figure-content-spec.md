@@ -8,9 +8,9 @@ fits**. These caps are measured at 1280×720 against the kit's fixed type
 sizes — a template whose text overflows is not a template, it is a guess.
 
 Rule of thumb: treat every cap like a title in prose — if the line wraps or
-`animatix review` reports `text.overflow`, the fix is to cut words, never to
+`animatix audit` reports `text.overflow`, the fix is to cut words, never to
 shrink the font or nudge `text_max_width` by hand. The hand-tuned
-`text_max_width` values in the old scenes are exactly the drift this kit
+text_max_width values in the old scenes are exactly the drift this kit
 exists to retire.
 
 ## FigHead — header block
@@ -69,7 +69,7 @@ exists to retire.
 
 ## Gates
 
-`animatix check` + `animatix review` on any scene using the kit must report no
+`animatix check` + `animatix audit` on any scene using the kit must report no
 `text.overflow`; `scripts/check_examples.sh` covers the kit's own example
 (`examples/figures/figure_kit.amx`), which is the executable documentation of
 every cap above.

@@ -1,6 +1,6 @@
 use crate::review::facts::{FrameFact, ReviewFacts};
 use crate::review::rules::source_line;
-use crate::review::types::{Confidence, Persistence, RuleIssue, Severity};
+use crate::review::types::{Persistence, RenderStatus, RuleIssue, Severity};
 use std::collections::BTreeMap;
 
 pub(crate) fn rule_scene_duration(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
@@ -10,7 +10,6 @@ pub(crate) fn rule_scene_duration(facts: &ReviewFacts, out: &mut Vec<RuleIssue>)
     out.push(RuleIssue {
         rule_id: "scene.duration",
         severity: Severity::Error,
-        confidence: Confidence::High,
         persistence: Persistence::Held,
         fix_hint: None,
         waived_by: None,
@@ -53,7 +52,6 @@ pub(crate) fn rule_actor_draw_missing(facts: &ReviewFacts, out: &mut Vec<RuleIss
         out.push(RuleIssue {
             rule_id: "actor.draw-missing",
             severity: Severity::Error,
-            confidence: Confidence::High,
             persistence: Persistence::Held,
             fix_hint: None,
             waived_by: None,
@@ -73,6 +71,9 @@ pub(crate) fn rule_actor_draw_missing(facts: &ReviewFacts, out: &mut Vec<RuleIss
 }
 
 pub(crate) fn rule_actor_ink_missing(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
+    if facts.render.as_ref().is_none_or(|r| r.status != RenderStatus::Rendered) {
+        return;
+    }
     let Some(render) = &facts.render else {
         return;
     };
@@ -117,7 +118,6 @@ pub(crate) fn rule_actor_ink_missing(facts: &ReviewFacts, out: &mut Vec<RuleIssu
         out.push(RuleIssue {
             rule_id: "actor.ink-missing",
             severity: Severity::Error,
-            confidence: Confidence::Medium,
             persistence: Persistence::Held,
             fix_hint: None,
             waived_by: None,
@@ -141,6 +141,9 @@ pub(crate) fn rule_actor_ink_missing(facts: &ReviewFacts, out: &mut Vec<RuleIssu
 }
 
 pub(crate) fn rule_actor_reveal_missing(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
+    if facts.render.as_ref().is_none_or(|r| r.status != RenderStatus::Rendered) {
+        return;
+    }
     let Some(render) = &facts.render else {
         return;
     };
@@ -188,7 +191,6 @@ pub(crate) fn rule_actor_reveal_missing(facts: &ReviewFacts, out: &mut Vec<RuleI
         out.push(RuleIssue {
             rule_id: "actor.reveal-missing",
             severity: Severity::Warning,
-            confidence: Confidence::Medium,
             persistence: Persistence::Held,
             fix_hint: None,
             waived_by: None,
@@ -244,7 +246,6 @@ pub(crate) fn rule_beat_static_structural(
         out.push(RuleIssue {
             rule_id: "beat.static",
             severity: Severity::Warning,
-            confidence: Confidence::Medium,
             persistence: Persistence::Held,
             fix_hint: None,
             waived_by: None,

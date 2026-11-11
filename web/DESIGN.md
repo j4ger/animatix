@@ -112,6 +112,6 @@ Dev probes (`svg-probe/*`, `multi-probe`, `perf-probe`, `var_probe`) live under
   `REST_FLOOR` itself rises to 0.80 and the marker becomes decorative.
 - `content-sync.sh`: + manifest/blocks agreement.
 - `web-smoke`, `site-scenes`, `render-smoke`: unchanged, still green.
-- Every new or rewritten scene passes the 3-step loop before commit:
-  `animatix check`, `animatix review`, `animatix storyboard` + an eyeball of the
+- Every new or rewritten scene passes the 4-step loop before commit:
+  `animatix check`, `animatix audit`, `animatix storyboard`, `animatix baseline` + an eyeball of the
   contact sheet (fullest frame, overlaps, resting frame).

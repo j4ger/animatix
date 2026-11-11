@@ -1,10 +1,10 @@
-//! `animatix review`: CPU-first deterministic animation review.
+//! `animatix audit`: CPU-first deterministic animation review.
 //!
 //! The structural tier builds the target, evaluates `SceneProgram`s at sample
 //! times with no filter backend, and derives facts that rules judge. The
 //! optional render tier adds pixel measurements (whole-frame ink, per-actor
-//! ink, beat changes) through the shared `frame_source` helpers, so `review`
-//! and `verify` cannot drift apart.
+//! ink, beat changes) through the shared `frame_source` helpers, so `audit`
+//! and `measure` cannot drift apart.
 
 pub(crate) mod facts;
 pub(crate) mod markers;

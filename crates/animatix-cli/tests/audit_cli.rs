@@ -125,3 +125,147 @@ fn audit_missing_input_is_cannot_run_exit_two() {
         .expect("run audit");
     assert_eq!(output.status.code(), Some(2));
 }
+
+#[test]
+fn audit_brief_output_format() {
+    let input = temp_project(
+        "brief",
+        "#0s\nactor1: Rect, at: (0,0), size: (10,10)\nactor2: Rect, at: (0,0), size: (10,10)\n",
+    );
+    let output = Command::new(target_bin())
+        .args([
+            "audit",
+            input.to_str().unwrap(),
+            "--brief",
+            "--format",
+            "json",
+            "--render",
+            "never",
+        ])
+        .output()
+        .expect("run audit");
+    let json = parse_stdout_json(&output);
+    assert_eq!(json["kind"], "audit.brief");
+    assert!(json.get("frames").is_none());
+    let findings = json["findings"].as_array().expect("findings array");
+    for f in findings {
+        assert!(f.get("code").is_some());
+        assert!(f.get("fix_hint").is_some());
+        assert!(f.get("waived_by").is_some());
+        assert!(f.get("evidence").is_some());
+    }
+}
+
+#[test]
+fn audit_fail_on_warning_for_overlap() {
+    let input = temp_project(
+        "overlap",
+        "#0s\nactor1: Rect, at: (0,0), size: (10,10)\nactor2: Rect, at: (0,0), size: (10,10)\n",
+    );
+    let output = Command::new(target_bin())
+        .args([
+            "audit",
+            input.to_str().unwrap(),
+            "--render",
+            "never",
+            "--fail-on",
+            "warning",
+        ])
+        .output()
+        .expect("run audit");
+    assert_eq!(output.status.code(), Some(1), "should fail with error on overlap");
+}
+
+#[test]
+fn audit_marker_waiver_end_to_end() {
+    let input = temp_project(
+        "waiver",
+        "#0s\n// layout: allow-overlap - test\nactor1: Rect, at: (0,0), size: (10,10)\nactor2: Rect, at: (0,0), size: (10,10)\n",
+    );
+    let output = Command::new(target_bin())
+        .args([
+            "audit",
+            input.to_str().unwrap(),
+            "--format",
+            "json",
+            "--render",
+            "never",
+        ])
+        .output()
+        .expect("run audit");
+    let json = parse_stdout_json(&output);
+    let findings = json["findings"].as_array().unwrap();
+    let waiver = findings
+        .iter()
+        .find(|f| f["code"] == "overlap.undeclared" && f["waived_by"] != serde_json::Value::Null)
+        .expect("should find waived finding");
+    assert_eq!(waiver["severity"], "info");
+    assert!(json["summary"]["waived"].as_u64().unwrap() >= 1);
+}
+
+#[test]
+fn audit_render_never_no_missing_actors() {
+    let input = temp_project("missing", "#0s\nactor1: Text, text: \"missing-ink\", at: (0,0)\n");
+    let output = Command::new(target_bin())
+        .args([
+            "audit",
+            input.to_str().unwrap(),
+            "--format",
+            "json",
+            "--render",
+            "never",
+        ])
+        .output()
+        .expect("run audit");
+    let json = parse_stdout_json(&output);
+    let codes: Vec<_> = json["findings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["code"].as_str().unwrap())
+        .collect();
+    assert!(!codes.contains(&"actor.ink-missing"));
+    assert!(!codes.contains(&"actor.reveal-missing"));
+}
+
+#[test]
+fn audit_times_sampling() {
+    let input = temp_project(
+        "times",
+        "#0s\nactor1: Rect, at: (0,0), size: (10,10)\n#1s\nactor1: Rect, at: (20,20), size: (10,10)\n",
+    );
+    let output = Command::new(target_bin())
+        .args([
+            "audit",
+            input.to_str().unwrap(),
+            "--format",
+            "json",
+            "--render",
+            "never",
+            "--times",
+            "0,1",
+        ])
+        .output()
+        .expect("run audit");
+    let json = parse_stdout_json(&output);
+    let frames: Vec<_> = json["frames"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["time_s"].as_f64().unwrap())
+        .collect();
+    assert!(frames.contains(&0.0));
+    assert!(frames.contains(&1.0));
+}
+
+#[test]
+fn measure_json_findings_empty() {
+    let input = temp_project("empty", "#0s\nactor1: Rect, at: (0,0), size: (10,10)\n");
+    let output = Command::new(target_bin())
+        .args(["measure", input.to_str().unwrap(), "--format", "json"])
+        .output()
+        .expect("run measure");
+    let json = parse_stdout_json(&output);
+    assert_eq!(json["kind"], "measure");
+    assert!(json["findings"].as_array().unwrap().is_empty());
+}

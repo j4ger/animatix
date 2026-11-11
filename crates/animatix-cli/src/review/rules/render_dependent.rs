@@ -1,8 +1,11 @@
 use crate::review::facts::ReviewFacts;
 use crate::review::rules::{BLANK_INK_FRACTION, STATIC_BEAT_FRACTION, source_line};
-use crate::review::types::{Confidence, Persistence, RuleIssue, Severity};
+use crate::review::types::{Persistence, RenderStatus, RuleIssue, Severity};
 
 pub(crate) fn rule_frame_blank(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
+    if facts.render.as_ref().is_none_or(|r| r.status != RenderStatus::Rendered) {
+        return;
+    }
     let Some(render) = &facts.render else {
         return;
     };
@@ -13,7 +16,6 @@ pub(crate) fn rule_frame_blank(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
         out.push(RuleIssue {
             rule_id: "frame.blank",
             severity: Severity::Warning,
-            confidence: Confidence::High,
             persistence: Persistence::Held,
             fix_hint: None,
             waived_by: None,
@@ -38,6 +40,9 @@ pub(crate) fn rule_frame_blank(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
 }
 
 pub(crate) fn rule_beat_static(facts: &ReviewFacts, out: &mut Vec<RuleIssue>, skipped: &mut usize) {
+    if facts.render.as_ref().is_none_or(|r| r.status != RenderStatus::Rendered) {
+        return;
+    }
     if facts.has_modifier_programs {
         *skipped += 1;
         return;
@@ -57,7 +62,6 @@ pub(crate) fn rule_beat_static(facts: &ReviewFacts, out: &mut Vec<RuleIssue>, sk
         out.push(RuleIssue {
             rule_id: "beat.static",
             severity: Severity::Info,
-            confidence: Confidence::Medium,
             persistence: Persistence::Held,
             fix_hint: None,
             waived_by: None,
@@ -88,6 +92,9 @@ pub(crate) fn rule_beat_static(facts: &ReviewFacts, out: &mut Vec<RuleIssue>, sk
 }
 
 pub(crate) fn rule_transition_endpoint(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
+    if facts.render.as_ref().is_none_or(|r| r.status != RenderStatus::Rendered) {
+        return;
+    }
     let Some(render) = &facts.render else {
         return;
     };
@@ -101,7 +108,6 @@ pub(crate) fn rule_transition_endpoint(facts: &ReviewFacts, out: &mut Vec<RuleIs
         out.push(RuleIssue {
             rule_id: "transition.endpoint",
             severity: Severity::Warning,
-            confidence: Confidence::Medium,
             persistence: Persistence::Held,
             fix_hint: None,
             waived_by: None,
@@ -135,7 +141,6 @@ pub(crate) fn rule_site_rest(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
         out.push(RuleIssue {
             rule_id: "rest.ink-floor",
             severity: Severity::Warning,
-            confidence: Confidence::High,
             persistence: Persistence::Held,
             fix_hint: None,
             waived_by: None,
@@ -164,7 +169,6 @@ pub(crate) fn rule_site_rest(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
         out.push(RuleIssue {
             rule_id: "rest.cast-erased",
             severity: Severity::Warning,
-            confidence: Confidence::High,
             persistence: Persistence::Held,
             fix_hint: None,
             waived_by: None,
@@ -194,6 +198,9 @@ pub(crate) fn rule_site_rest(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
 }
 
 pub(crate) fn rule_text_occluded(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
+    if facts.render.as_ref().is_none_or(|r| r.status != RenderStatus::Rendered) {
+        return;
+    }
     let Some(render) = &facts.render else {
         return;
     };
@@ -207,7 +214,6 @@ pub(crate) fn rule_text_occluded(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) 
             out.push(RuleIssue {
                 rule_id,
                 severity: Severity::Warning,
-                confidence: Confidence::High,
                 persistence: Persistence::Held,
                 fix_hint: None,
                 waived_by: None,

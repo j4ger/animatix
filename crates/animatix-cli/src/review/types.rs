@@ -1,4 +1,4 @@
-//! Review command value types shared by the structural, render, and rule tiers.
+//! Audit command value types shared by the structural, render, and rule tiers.
 
 use std::path::PathBuf;
 
@@ -11,8 +11,6 @@ pub(crate) enum Policy {
     Default,
     /// Website embedding policy (`scripts/site-rest-check.py` semantics).
     Site,
-    /// LLM-generated scenes: layout defects are hard errors.
-    Generated,
 }
 
 /// Sample-time selection mode from `--samples`.
@@ -114,28 +112,6 @@ impl Severity {
     }
 }
 
-/// How much the rule trusts its own result.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub(crate) enum Confidence {
-    #[default]
-    Low,
-    /// Direct measurement.
-    High,
-    /// Geometry heuristic.
-    Medium,
-}
-
-impl Confidence {
-    /// Stable JSON spelling.
-    pub(crate) fn as_str(self) -> &'static str {
-        match self {
-            Self::Low => "low",
-            Self::High => "high",
-            Self::Medium => "medium",
-        }
-    }
-}
-
 /// Which build shape produced the report.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum TargetKind {
@@ -184,8 +160,6 @@ pub(crate) struct RuleIssue {
     pub rule_id: &'static str,
     /// Severity used by `--fail-on`.
     pub severity: Severity,
-    /// Rule confidence.
-    pub confidence: Confidence,
     pub persistence: Persistence,
     /// Scene owning the finding, when known.
     pub scene: Option<String>,

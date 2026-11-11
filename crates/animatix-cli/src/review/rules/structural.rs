@@ -1,7 +1,7 @@
 use super::{OVERLAP_RATIO_FLOOR, source_line};
 use crate::frame_source::Box2;
 use crate::review::facts::{ActorFact, FrameFact, ReviewFacts};
-use crate::review::types::{Confidence, Persistence, RuleIssue, Severity};
+use crate::review::types::{Persistence, RuleIssue, Severity};
 use std::collections::BTreeMap;
 
 fn bounds_json(bounds: Box2) -> serde_json::Value {
@@ -23,7 +23,6 @@ pub(crate) fn rule_build_never_revealed(facts: &ReviewFacts, out: &mut Vec<RuleI
         out.push(RuleIssue {
             rule_id: "build.never-revealed",
             severity: diagnostic.severity,
-            confidence: Confidence::High,
             persistence: Persistence::Held,
             fix_hint: None,
             waived_by: None,
@@ -72,7 +71,6 @@ pub(crate) fn rule_opacity_never_positive(facts: &ReviewFacts, out: &mut Vec<Rul
         out.push(RuleIssue {
             rule_id: "actor.opacity-never-positive",
             severity: Severity::Warning,
-            confidence: Confidence::High,
             persistence: Persistence::Held,
             fix_hint: None,
             waived_by: None,
@@ -141,7 +139,6 @@ pub(crate) fn rule_never_on_frame(facts: &ReviewFacts, out: &mut Vec<RuleIssue>)
         out.push(RuleIssue {
             rule_id: "actor.never-on-frame",
             severity: Severity::Warning,
-            confidence: Confidence::High,
             persistence: Persistence::Held,
             fix_hint: None,
             waived_by: None,
@@ -169,7 +166,14 @@ pub(crate) fn rule_clipped(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
             let Some(actor) = facts.actor(&actor_frame.scene, &actor_frame.label) else {
                 continue;
             };
-            if !actor.visual || actor_frame.opacity.unwrap_or(0.0) <= 0.01 {
+            // Match the engine's build-time sampler: explicitly non-content
+            // actors (`legend: false` / hidden) and full-viewport backgrounds
+            // are decorative layers whose out-of-frame extents are intentional.
+            if !actor.visual
+                || actor.is_non_content
+                || actor.is_background
+                || actor_frame.opacity.unwrap_or(0.0) <= 0.01
+            {
                 continue;
             }
             let Some(bounds) = actor_frame.bounds else {
@@ -199,7 +203,6 @@ pub(crate) fn rule_clipped(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
             } else {
                 Severity::Info
             },
-            confidence: Confidence::High,
             persistence: Persistence::Held,
             fix_hint: None,
             waived_by: None,
@@ -223,17 +226,28 @@ pub(crate) fn rule_clipped(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
     }
 }
 
-pub(crate) fn rule_overlap_candidates(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
-    struct Candidate {
-        time_s: f64,
-        bounds_a: Box2,
-        bounds_b: Box2,
-        area: f64,
-        ratio_a: f64,
-        ratio_b: f64,
-        relation: &'static str,
-    }
-    let mut best: BTreeMap<(String, String, String), Candidate> = BTreeMap::new();
+struct OverlapCandidate {
+    time_s: f64,
+    bounds_a: Box2,
+    bounds_b: Box2,
+    area: f64,
+    ratio_a: f64,
+    ratio_b: f64,
+    relation: &'static str,
+}
+
+struct PairCandidate {
+    label_a: String,
+    label_b: String,
+    candidate: OverlapCandidate,
+}
+
+/// Largest overlap per unordered actor pair, grouped per scene into
+/// `(independent, explained)` buckets.
+fn collect_overlap_candidates(
+    facts: &ReviewFacts,
+) -> BTreeMap<String, (Vec<PairCandidate>, Vec<PairCandidate>)> {
+    let mut best: BTreeMap<(String, String, String), OverlapCandidate> = BTreeMap::new();
     for frame in facts.all_frames() {
         let visible: Vec<&crate::review::facts::ActorFrameFact> = frame
             .actors
@@ -287,7 +301,7 @@ pub(crate) fn rule_overlap_candidates(facts: &ReviewFacts, out: &mut Vec<RuleIss
                 if replace {
                     best.insert(
                         key,
-                        Candidate {
+                        OverlapCandidate {
                             time_s: frame.time_s,
                             bounds_a,
                             bounds_b,
@@ -301,45 +315,146 @@ pub(crate) fn rule_overlap_candidates(facts: &ReviewFacts, out: &mut Vec<RuleIss
             }
         }
     }
+    let mut by_scene: BTreeMap<String, (Vec<PairCandidate>, Vec<PairCandidate>)> = BTreeMap::new();
     for ((scene, label_a, label_b), candidate) in best {
-        let rule_id = if candidate.relation == "independent" {
-            "overlap.undeclared"
-        } else {
-            "overlap.explained"
+        let is_independent = candidate.relation == "independent";
+        let pair = PairCandidate {
+            label_a,
+            label_b,
+            candidate,
         };
-        let relation = candidate.relation;
-        out.push(RuleIssue {
-            rule_id,
-            severity: if rule_id == "overlap.undeclared" {
-                Severity::Warning
-            } else {
-                Severity::Info
-            },
-            confidence: Confidence::Medium,
-            persistence: Persistence::Held,
-            fix_hint: None,
-            waived_by: None,
-            scene: None,
-            time_s: Some(candidate.time_s),
-            actor: Some(format!("{label_a}, {label_b}")),
-            source_line: source_line(facts, &scene, &label_a),
-            message: format!(
-                "`{label_a}` and `{label_b}` overlap by {:.1}px² at {:.2}s ({relation}).",
-                candidate.area, candidate.time_s
-            ),
-            evidence: serde_json::json!({
-                "pair": [label_a, label_b],
-                "overlap_area": candidate.area,
-                "ratio_a": candidate.ratio_a,
-                "ratio_b": candidate.ratio_b,
-                "bounds_a": bounds_json(candidate.bounds_a),
-                "bounds_b": bounds_json(candidate.bounds_b),
-                "relation": candidate.relation,
-            }),
-            suggestion: "Check whether the overlap is intentional (annotation, decoration, \
-                         transition); if not, move one actor or add a container."
-                .to_string(),
-        });
+        let entry = by_scene.entry(scene).or_default();
+        if is_independent {
+            entry.0.push(pair);
+        } else {
+            entry.1.push(pair);
+        }
+    }
+    by_scene
+}
+
+/// Sort by descending overlap area with a stable label tie-break.
+fn sort_by_area(pairs: &mut [PairCandidate]) {
+    pairs.sort_by(|a, b| {
+        b.candidate
+            .area
+            .total_cmp(&a.candidate.area)
+            .then_with(|| a.label_a.cmp(&b.label_a))
+            .then_with(|| a.label_b.cmp(&b.label_b))
+    });
+}
+
+fn push_overlap_pair(
+    facts: &ReviewFacts,
+    scene: &str,
+    pair: &PairCandidate,
+    rule_id: &'static str,
+    severity: Severity,
+    out: &mut Vec<RuleIssue>,
+) {
+    let relation = pair.candidate.relation;
+    out.push(RuleIssue {
+        rule_id,
+        severity,
+        persistence: Persistence::Held,
+        fix_hint: None,
+        waived_by: None,
+        scene: Some(scene.to_string()),
+        time_s: Some(pair.candidate.time_s),
+        actor: Some(format!("{}, {}", pair.label_a, pair.label_b)),
+        source_line: source_line(facts, scene, &pair.label_a),
+        message: format!(
+            "`{}` and `{}` overlap by {:.1}px² at {:.2}s ({relation}).",
+            pair.label_a, pair.label_b, pair.candidate.area, pair.candidate.time_s
+        ),
+        evidence: serde_json::json!({
+            "pair": [&pair.label_a, &pair.label_b],
+            "overlap_area": pair.candidate.area,
+            "ratio_a": pair.candidate.ratio_a,
+            "ratio_b": pair.candidate.ratio_b,
+            "bounds_a": bounds_json(pair.candidate.bounds_a),
+            "bounds_b": bounds_json(pair.candidate.bounds_b),
+            "relation": pair.candidate.relation,
+        }),
+        suggestion: "Check whether the overlap is intentional (annotation, decoration, \
+                     transition); if not, move one actor or add a container."
+            .to_string(),
+    });
+}
+
+fn push_overlap_cluster(
+    scene: &str,
+    independent_total: usize,
+    sample_pairs: Vec<[String; 2]>,
+    max_time_s: f64,
+    out: &mut Vec<RuleIssue>,
+) {
+    out.push(RuleIssue {
+        rule_id: "overlap.cluster",
+        severity: Severity::Warning,
+        persistence: Persistence::Held,
+        fix_hint: None,
+        waived_by: None,
+        scene: Some(scene.to_string()),
+        time_s: Some(max_time_s),
+        actor: None,
+        source_line: None,
+        message: format!(
+            "{independent_total} independent overlapping actor pairs in scene `{scene}`; capped to top 24 largest overlaps."
+        ),
+        evidence: serde_json::json!({
+            "pair_count": independent_total,
+            "sample_pairs": sample_pairs,
+            "relation": "independent",
+            "kept": 24,
+        }),
+        suggestion: "Organize overlapping actors with a layout container (Row/Col/Stack/Grid) or add local layout waivers (`// layout: allow-overlap`).".to_string(),
+    });
+}
+
+pub(crate) fn rule_overlap_candidates(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
+    for (scene, (mut independent, mut explained)) in collect_overlap_candidates(facts) {
+        let independent_total = independent.len();
+        if independent_total > 24 {
+            sort_by_area(&mut independent);
+            let sample_pairs: Vec<[String; 2]> = independent
+                .iter()
+                .take(5)
+                .map(|p| [p.label_a.clone(), p.label_b.clone()])
+                .collect();
+            independent.truncate(24);
+            let max_time_s = independent.iter().map(|p| p.candidate.time_s).fold(0.0_f64, f64::max);
+            for pair in &independent {
+                push_overlap_pair(
+                    facts,
+                    &scene,
+                    pair,
+                    "overlap.undeclared",
+                    Severity::Warning,
+                    out,
+                );
+            }
+            push_overlap_cluster(&scene, independent_total, sample_pairs, max_time_s, out);
+        } else {
+            for pair in &independent {
+                push_overlap_pair(
+                    facts,
+                    &scene,
+                    pair,
+                    "overlap.undeclared",
+                    Severity::Warning,
+                    out,
+                );
+            }
+        }
+
+        if explained.len() > 24 {
+            sort_by_area(&mut explained);
+            explained.truncate(24);
+        }
+        for pair in &explained {
+            push_overlap_pair(facts, &scene, pair, "overlap.explained", Severity::Info, out);
+        }
     }
 }
 
@@ -371,8 +486,23 @@ pub(crate) fn overlap_relation(a: &ActorFact, b: &ActorFact, frame: &FrameFact) 
     if a.is_legend || b.is_legend {
         return "legend_host";
     }
+    if a.in_stack && (b.is_non_content || b.is_background) {
+        return "stack_layer";
+    }
+    if b.in_stack && (a.is_non_content || a.is_background) {
+        return "stack_layer";
+    }
+    if a.is_non_content || a.is_background || b.is_non_content || b.is_background {
+        return "decoration_layer";
+    }
     if frame.scene.contains(" -> ") {
         return "during_transition";
+    }
+    if a.label.contains('.')
+        || b.label.contains('.')
+        || (a.source_line.is_none() && b.source_line.is_none())
+    {
+        return "generated_batch";
     }
     "independent"
 }
@@ -437,7 +567,6 @@ pub(crate) fn rule_text_overflow(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) 
             } else {
                 Severity::Info
             },
-            confidence: Confidence::High,
             persistence: Persistence::Held,
             fix_hint: None,
             waived_by: None,
@@ -490,7 +619,6 @@ pub(crate) fn rule_entrance_not_visible(facts: &ReviewFacts, out: &mut Vec<RuleI
             out.push(RuleIssue {
                 rule_id: "entrance.not-visible",
                 severity: Severity::Warning,
-                confidence: Confidence::High,
                 persistence: Persistence::Held,
                 fix_hint: None,
                 waived_by: None,
@@ -524,7 +652,6 @@ pub(crate) fn rule_keyframe_redundant(facts: &ReviewFacts, out: &mut Vec<RuleIss
         out.push(RuleIssue {
             rule_id: "keyframe.redundant",
             severity: Severity::Info,
-            confidence: Confidence::High,
             persistence: Persistence::Held,
             fix_hint: None,
             waived_by: None,

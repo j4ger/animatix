@@ -9,41 +9,39 @@
 |---|---|---|
 | `animatix check <file>` | 源码能否构建、类型/诊断 | `--format text\|json`, `--render-smoke` |
 | `animatix lint <file>` | 静态语义问题（迭代辅助，非最终门禁） | `--deny-warnings`, `--config` |
-| `animatix audit <file>` | 结构 / 像素 / 排版 / 时序缺陷 | 见下 |
+| `animatix audit <file>` | **事实 + 证据 + 候选**：结构 / 像素 / 排版 / 时序缺陷 | 见下 |
 | `animatix measure <file>` | 纯事实（帧 ink、actor ink、bounds、beat 变化），无判定 | `--format json`（默认）, `--render`, `--samples`, `--times`, `--max-frames` |
 | `animatix baseline <file>` | 渲染产物是否变化 | `--update`, `--times`, `--max-frames`, `--threshold`, `--width`, `--height`, `--format` |
 | `animatix storyboard <file>` | 视觉证据（关键帧 + 静止帧接触表） | `-o`, `--times`, `--cols`, `--max-frames` |
 
 `audit` flags：
 
-- `--policy default|generated|site` — `default` 人类作者（宽容）；`generated` LLM 生成路径，把
-  `overlap.undeclared` / `actor.clipped` / `text.overflow` / `text.occluded` 提为 `error`；
-  `site` 嵌入场景，检查静止构图。
+- `--policy default|site` — `default` 标准模式（报告硬事实与排版观察候选）；`site` 嵌入场景，追加静止构图约束。严格性由 `--fail-on warning` 控制，机器不把几何候选伪装成定论。
 - `--format text|json`、`--brief`（LLM compact JSON，所有审查命令可用）。
 - `--render auto|always|never`（`auto` 在无 GPU 适配器时跳过像素层，结构规则照跑）。
 - `--samples auto|keyframes|N`、`--max-frames N`、`--fail-on error|warning|never`。
-- `--evidence <dir>`（按 finding 裁切 PNG）、`--set NAME=VALUE`、`--plugin <path>`、`--width/--height`。
+- `--evidence <dir>`（按 finding 裁切 PNG，路径写入 `evidence.crop_path` / `frame_path` 供直观定位）。
+- `--set NAME=VALUE`、`--plugin <path>`、`--width/--height`。
 
-退出码：`0` 干净 / `1` 达到阈值的 finding 或基线 diff / `2` 无法运行（源码缺失、构建错误、
-`--render always` 无适配器、写文件失败）。
+退出码：`0` 干净 / `1` 达到阈值的 finding 或基线 diff / `2` 无法运行（源码缺失、构建错误、`--render always` 无适配器、写文件失败）。
 
 ## 2. 生成一个场景的工作流（LLM）
 
-1. 只写 `.amx`。**不要**写断言文件、不要列时间点、不要猜 ink 阈值。
-2. `animatix audit <file> --brief --format json` → 读结构化 findings。
-3. 按每条 finding 的 `fix_hint` 改源码（`source_line` + `actor` + `code` 定位）。
-4. 重跑 `audit`，直到 `--fail-on` 阈值内干净。
-5. `animatix storyboard <file> -o board.png` 目视：关键帧 cue、重叠/裁切、静止构图。
-6. 只有当**目视确认某个重叠/越界是刻意设计**时，才在源码加豁免标记（§4），然后重跑
-   `audit`。不要凭想象加标记。
-7. `animatix baseline <file>` 比对；若 diff 图显示的变化是**你有意改的**，人工确认后再
-   `--update`。baseline 是回归资产，不是每次生成都更新。
+不用想着把所有问题都由机器规则自动兜住，主要依然依靠开发者目视审阅。工作流遵循："*Look at the PNGs before tuning automated warnings: your eye catches what the auditor misses, and the auditor catches what the eye misses.*"
 
-人类作者同样适用：`check`/`lint` 是迭代辅助，`audit` + `storyboard` 是自动 + 目视双通道。
+1. **只写 `.amx`**。**不要**写断言文件、不要列时间点、不要猜 ink 阈值。
+2. **先看图（一等步骤）**：`animatix storyboard <file> -o board.png` 或 `animatix audit <file> --evidence <dir>`，直观审阅接触表与 per-finding 证据裁切图。
+3. **看 findings（硬事实 + 观察候选）**：`animatix audit <file> --brief --format json`。
+   - 硬事实（`build.error`、`build.never-revealed`、`frame.blank`、`actor.draw-missing` 等）：必须通过修改源码修复。
+   - 观察候选（`overlap.undeclared`、`actor.clipped`、`text.overflow` 等）：结合 `crop_path` / `frame_path` / `source_line` 目视核验。
+4. **意图声明（源码标记）**：只有当**目视确认某个重叠/越界是刻意设计**时，才在具体 actor 声明前加 `// layout: allow-* - <原因>`。**标记的作用是「让下次报告更干净」，绝不是「为了让门禁通过」**。
+5. **基线回归**：`animatix baseline <file>` 比对；若 diff 图显示的变化是**你有意改的**，人工确认后再 `--update`。baseline 是回归资产，不是每次生成都更新。
+
+人类作者同样适用：`check`/`lint` 是迭代辅助，`storyboard` 目视与证据图是主判据，`audit` 提供事实与候选。
 
 ## 3. audit JSON（`schema_version: 2`）
 
-顶层：`schema_version`, `kind` (`audit`|`measure`|`baseline`), `input`,
+顶层：`schema_version`, `kind` (`audit`|`audit.brief`|`measure`|`baseline`), `input`,
 `target{kind,duration_s,resolution}`, `render{status,reason}`, `sample_times_s`, `frames[]`,
 `coverage{...}`, `findings[]`, `summary{...}`。
 
@@ -53,23 +51,18 @@
 |---|---|---|
 | `code` | string | 稳定 finding 码，决定豁免与修复策略，如 `overlap.undeclared` |
 | `severity` | error\|warning\|info | 是否被 `--fail-on` 拦截 |
-| `confidence` | high\|medium | 低置信度先目视再改 |
-| `persistence` | transient\|held | `transient` 通常是采样噪声，降为 info |
+| `persistence` | transient\|held | 事实标签（标明缺陷是存在于瞬态过渡还是持续到静止状态），不影响 severity |
 | `scene`, `time_s` | string, number\|null | 定位到场景与时间 |
 | `actor`, `source_line` | string, number\|null | **改源码的主要定位依据** |
 | `message` | string | 人读描述 |
-| `evidence` | object | `relation`, `pair`, `overlap_area`, `ratio_a/b`, `bounds_a/b`,
-  `occluder`, `probe_coverage`, `probed_points`, `covered_points` 等实测数据 |
-| `fix_hint` | object\|null | `kind` (`add-entrance`\|`move-actor`\|`add-marker`\|`fix-diagnostic`\|`resize-actor`),
-  `target`, `source_line`, `snippet`, `marker` |
+| `evidence` | object | `crop_path`, `frame_path`（指定 `--evidence` 时），以及 `relation`, `pair`, `overlap_area`, `ratio_a/b`, `bounds_a/b`, `occluder`, `probe_coverage`, `probed_points`, `covered_points` 等实测数据；`overlap.cluster` 另有 `pair_count`, `sample_pairs`, `kept` |
+| `fix_hint` | object\|null | `kind` (`add-entrance`\|`move-actor`\|`add-marker`\|`fix-diagnostic`\|`resize-actor`), `target`, `source_line`, `snippet`, `marker` |
 | `waived_by` | string\|null | 命中的豁免标记原文；非 null 表示已被有意豁免，可审计 |
 | `suggestion` | string | 人类可读的修复建议 |
 
 `summary`：`{errors, warnings, infos, skipped, waived}`。
 
-`--brief` 输出 `kind: "audit.brief"`：只含 `verdict`、`summary`、
-`findings[]{code,severity,scene,time_s,actor,source_line,message,fix_hint,waived_by,evidence 摘要}`，
-不含 `frames` 与 `suggestion` 全文。
+`--brief` 输出 `kind: "audit.brief"`：给 LLM 的是去哪看（`crop_path` / `frame_path` / `time_s` / `actor` / `source_line`）+ 硬事实与候选，不是自动修复指令。包含 `verdict`、`summary`、`findings[]{code,severity,scene,time_s,actor,source_line,message,fix_hint,waived_by,evidence 摘要}`，不含 `frames` 与 `suggestion` 全文。**默认过滤** Info 级 `overlap.explained` / `keyframe.redundant`，但保留全部 error/warning 与 `waived_by` 非空项；`--format json`（非 brief）仍输出完整 findings 供审计。`coverage.skipped_rules` 记录因无渲染而跳过的规则名。
 
 `measure` 复用同一 `frames` / `render` 结构但 `findings: []`，供脚本读取数值，不需要解析文本输出。
 `baseline` 输出 `kind: "baseline"` 与 diff 图路径。
@@ -84,29 +77,24 @@
 | `// layout: allow-occlusion - <原因>` | `text.occluded` |
 | `// layout: allow-overflow - <原因>` | `actor.clipped`, `text.overflow` |
 | `// layout: allow-rest - <原因>` | `rest.ink-floor`, `rest.cast-erased` |
-| `// layout: ignore - <原因>` | 全部布局类：`overlap.explained`, `overlap.undeclared`,
-  `text.occluded`, `actor.clipped`, `text.overflow` |
+| `// layout: ignore - <原因>` | 全部布局类：`overlap.explained`, `overlap.undeclared`, `text.occluded`, `actor.clipped`, `text.overflow` |
 
 规则：
 
-- 标记作用于该 actor **及其整个子树**。优先标在最小的装饰性 wrapper 上，不要标在大容器上
-  （会连带静默子内容，即「爆炸半径」）。
+- 标记作用于该 actor **及其整个子树**。优先标在最小的具体叶子元素或装饰性 wrapper 上，**切勿标在场景根节点或大容器上**（"never a scene/root wrapper"）。
 - 每个标记只静默表里那一类 code，不影响其它检查。
-- 能被 DSL 结构解释的重叠（同一 `Stack`/`Row`/`Col`/`Grid`/`Group` 容器内的兄弟、
-  同一 `Filter`/`Glass` 作用域、`Callout` 指向目标、`Legend`、过渡窗口内的重叠）
-  本来就是 `overlap.explained`，**不需要标记**。
-- 过渡期兼容：`// rest-check: exempt - <原因>` ≡ `allow-rest`；
-  `// house-style: <说明>` 是说明性注释，不产生豁免。
+- 能被 DSL 结构解释的重叠（同一 `Stack`/`Row`/`Col`/`Grid`/`Group` 容器内的兄弟、同一 `Filter`/`Glass` 作用域、`Callout` 指向目标、`Legend`、过渡窗口内的重叠，以及 `for`/组件实例展开的同一生成批次 `generated_batch`）本来就是 `overlap.explained`，**不需要标记**。
+- 单个场景里大量独立 actor 互相重叠会被聚合成一条 `overlap.cluster`（带有 `evidence.pair_count` / `sample_pairs`），属于观察候选（Warning）；严格性由 `--fail-on warning` 控制，机器不再将其伪装成 Error。
+- 过渡期兼容：`// rest-check: exempt - <原因>` ≡ `allow-rest`；`// house-style: <说明>` 是说明性注释，不产生豁免。
 
-**不可豁免**（任何标记都不影响）：`build.error`, `build.never-revealed`, `frame.blank`,
-`text.occluded-full`, `baseline.mismatch`, `layout.marker-invalid`。
+**不可豁免**（任何标记都不影响）：`build.error`, `build.never-revealed`, `frame.blank`, `text.occluded-full`, `baseline.mismatch`, `layout.marker-invalid`。
 
 ## 5. 禁令
 
 - 不要写 `verify.txt` 或任何手写断言文件。
-- 不要手写时间点、actor label 清单、ink 阈值或 `differs` 门槛 —— 采样时间与事实由工具从
-  场景自动派生。
-- 不要凭想象加豁免标记：必须先看 `storyboard` / 截图证明是刻意设计。
+- 不要手写时间点、actor label 清单、ink 阈值或 `differs` 门槛 —— 采样时间与事实由工具从场景自动派生。
+- 不要凭想象加豁免标记：必须先看 `storyboard` / 证据裁切图证明是刻意设计。
+- 不要为了让门禁通过而加标记；标记是目视确认意图后的清洁手段。
 - 不要猜几何：用 `evidence.bounds_*` / `probe_coverage` / `relation` 这些实测值。
 - 不要修改基线 PNG 来让 `baseline` 通过；只有人确认是意图变更才 `--update`。
 

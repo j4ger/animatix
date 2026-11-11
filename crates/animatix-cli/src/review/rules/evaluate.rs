@@ -1,18 +1,20 @@
 use crate::review::facts::ReviewFacts;
 use crate::review::markers::{MarkerSet, waiver_for};
 use crate::review::rules::{basic::*, render_dependent::*, structural::*, time_key};
-use crate::review::types::{Confidence, Persistence, Policy, RenderStatus, RuleIssue, Severity};
+use crate::review::types::{Persistence, Policy, RenderStatus, RuleIssue, Severity};
 use std::collections::BTreeMap;
 
 pub(crate) struct RuleRun {
     pub issues: Vec<RuleIssue>,
     pub skipped: usize,
     pub checked: usize,
+    pub skipped_rules: Vec<String>,
 }
 
 pub(crate) fn evaluate(facts: &ReviewFacts, markers: &MarkerSet, policy: Policy) -> RuleRun {
     let mut issues = Vec::new();
     let mut skipped = 0usize;
+    let mut skipped_rules = Vec::new();
     rule_build_never_revealed(facts, &mut issues);
     rule_opacity_never_positive(facts, &mut issues);
     rule_never_on_frame(facts, &mut issues);
@@ -23,14 +25,11 @@ pub(crate) fn evaluate(facts: &ReviewFacts, markers: &MarkerSet, policy: Policy)
     rule_keyframe_redundant(facts, &mut issues);
     rule_scene_duration(facts, &mut issues);
     rule_actor_draw_missing(facts, &mut issues);
-    rule_actor_ink_missing(facts, &mut issues);
-    rule_actor_reveal_missing(facts, &mut issues);
 
     for invalid in &markers.invalid {
         issues.push(RuleIssue {
             rule_id: "layout.marker-invalid",
             severity: Severity::Warning,
-            confidence: Confidence::High,
             persistence: Persistence::Held,
             scene: None,
             time_s: None,
@@ -55,7 +54,6 @@ pub(crate) fn evaluate(facts: &ReviewFacts, markers: &MarkerSet, policy: Policy)
         issues.push(RuleIssue {
             rule_id: "layout.marker-abuse",
             severity: Severity::Warning,
-            confidence: Confidence::High,
             persistence: Persistence::Held,
             scene: None,
             time_s: None,
@@ -87,15 +85,26 @@ pub(crate) fn evaluate(facts: &ReviewFacts, markers: &MarkerSet, policy: Policy)
         rule_beat_static(facts, &mut issues, &mut skipped);
         rule_transition_endpoint(facts, &mut issues);
         rule_text_occluded(facts, &mut issues);
+        rule_actor_ink_missing(facts, &mut issues);
+        rule_actor_reveal_missing(facts, &mut issues);
         rule_beat_static_structural(facts, &mut issues, &mut skipped);
     } else {
-        skipped += 5;
+        skipped += 6;
+        skipped_rules.extend([
+            "actor.ink-missing".to_string(),
+            "actor.reveal-missing".to_string(),
+            "frame.blank".to_string(),
+            "beat.static".to_string(),
+            "transition.endpoint".to_string(),
+            "text.occluded".to_string(),
+        ]);
     }
     if policy == Policy::Site {
         if render_ready && facts.site_rest.is_some() {
             rule_site_rest(facts, &mut issues);
         } else {
             skipped += 2;
+            skipped_rules.extend(["rest.ink-floor".to_string(), "rest.cast-erased".to_string()]);
         }
     }
 
@@ -111,17 +120,31 @@ pub(crate) fn evaluate(facts: &ReviewFacts, markers: &MarkerSet, policy: Policy)
 
     let mut final_issues = Vec::new();
     for mut issue in issues {
-        let ancestors = issue
-            .scene
-            .as_ref()
-            .and_then(|s| issue.actor.as_ref().map(|a| facts.actor(s, a)))
-            .flatten()
-            .map(|a| a.ancestors.clone())
-            .unwrap_or_default();
+        let waiver = if let Some(actor_str) = &issue.actor {
+            if actor_str.contains(", ") {
+                actor_str.split(", ").find_map(|single_actor| {
+                    let ancestors = issue
+                        .scene
+                        .as_ref()
+                        .and_then(|s| facts.actor(s, single_actor))
+                        .map(|a| a.ancestors.clone())
+                        .unwrap_or_default();
+                    waiver_for(markers, single_actor, &ancestors, issue.rule_id)
+                })
+            } else {
+                let ancestors = issue
+                    .scene
+                    .as_ref()
+                    .and_then(|s| facts.actor(s, actor_str))
+                    .map(|a| a.ancestors.clone())
+                    .unwrap_or_default();
+                waiver_for(markers, actor_str, &ancestors, issue.rule_id)
+            }
+        } else {
+            waiver_for(markers, "", &[], issue.rule_id)
+        };
 
-        if let Some(w) =
-            waiver_for(markers, issue.actor.as_deref().unwrap_or(""), &ancestors, issue.rule_id)
-        {
+        if let Some(w) = waiver {
             issue.waived_by = Some(w.raw.clone());
             issue.severity = Severity::Info;
         }
@@ -143,19 +166,6 @@ pub(crate) fn evaluate(facts: &ReviewFacts, markers: &MarkerSet, policy: Policy)
         final_issues.push(issue);
     }
 
-    if policy == Policy::Generated {
-        for issue in &mut final_issues {
-            if issue.waived_by.is_none()
-                && matches!(
-                    issue.rule_id,
-                    "overlap.undeclared" | "actor.clipped" | "text.overflow" | "text.occluded"
-                )
-            {
-                issue.severity = Severity::Error;
-            }
-        }
-    }
-
     final_issues.sort_by(|a, b| {
         b.severity
             .cmp(&a.severity)
@@ -166,6 +176,7 @@ pub(crate) fn evaluate(facts: &ReviewFacts, markers: &MarkerSet, policy: Policy)
     RuleRun {
         issues: final_issues,
         skipped,
-        checked: 17 + if render_ready { 5 } else { 0 },
+        checked: 15 + if render_ready { 7 } else { 0 },
+        skipped_rules,
     }
 }

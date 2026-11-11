@@ -1,4 +1,4 @@
-//! Structural fact collection for `animatix review`.
+//! Structural fact collection for `animatix audit`.
 //!
 //! The structural tier evaluates `SceneProgram`s on the CPU with no filter
 //! backend. Facts separate what the engine measured (bounds, inherited
@@ -57,6 +57,12 @@ pub(crate) struct ActorFact {
     pub is_callout: bool,
     /// Legend host.
     pub is_legend: bool,
+    /// Actor is non-content or hidden.
+    pub is_non_content: bool,
+    /// Actor is a full-viewport background.
+    pub is_background: bool,
+    /// Actor is part of a Stack.
+    pub in_stack: bool,
 }
 
 /// Per-actor measurements at one sample.
@@ -380,7 +386,7 @@ fn collect_actors_from_timeline(
             ancestors,
             max_effective_opacity,
             group_ancestors,
-            stack_ancestors,
+            stack_ancestors: stack_ancestors.clone(),
             effect_scope_ancestors,
             parent_is_stack,
             visual: caps.renders_visual_content(),
@@ -391,6 +397,15 @@ fn collect_actors_from_timeline(
             is_effect_scope: caps.is_effect_scope(),
             is_callout: caps.callout,
             is_legend: caps.legend_host,
+            is_non_content: animatix::timeline::legend::legend_mode_for_track(
+                id,
+                world.meta(id).first_seen_ms,
+                world,
+            ) == animatix::timeline::legend::LegendMode::Hidden,
+            is_background: animatix::timeline::legend::is_full_viewport_background(
+                world.geometry(id),
+            ),
+            in_stack: !stack_ancestors.is_empty(),
         });
     }
 }
