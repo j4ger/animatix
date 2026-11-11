@@ -4,6 +4,9 @@ use crate::review::rules::{basic::*, render_dependent::*, structural::*, time_ke
 use crate::review::types::{Persistence, Policy, RenderStatus, RuleIssue, Severity};
 use std::collections::BTreeMap;
 
+type HistoryKey = (String, Option<String>, Option<String>);
+type History = BTreeMap<HistoryKey, Vec<f64>>;
+
 pub(crate) struct RuleRun {
     pub issues: Vec<RuleIssue>,
     pub skipped: usize,
@@ -40,6 +43,7 @@ pub(crate) fn evaluate(facts: &ReviewFacts, markers: &MarkerSet, policy: Policy)
             fix_hint: None,
             waived_by: None,
             suggestion: "Fix or remove the marker; see llms.txt for the syntax.".to_string(),
+            baseline_state: None,
         });
     }
 
@@ -73,6 +77,7 @@ pub(crate) fn evaluate(facts: &ReviewFacts, markers: &MarkerSet, policy: Policy)
             suggestion:
                 "Scope each waiver to the smallest wrapper that owns the intentional layout."
                     .to_string(),
+            baseline_state: None,
         });
     }
 
@@ -108,7 +113,7 @@ pub(crate) fn evaluate(facts: &ReviewFacts, markers: &MarkerSet, policy: Policy)
         }
     }
 
-    let mut history: BTreeMap<(String, Option<String>, Option<String>), Vec<f64>> = BTreeMap::new();
+    let mut history: History = BTreeMap::new();
     for issue in &issues {
         if let Some(time_s) = issue.time_s {
             history
@@ -119,51 +124,8 @@ pub(crate) fn evaluate(facts: &ReviewFacts, markers: &MarkerSet, policy: Policy)
     }
 
     let mut final_issues = Vec::new();
-    for mut issue in issues {
-        let waiver = if let Some(actor_str) = &issue.actor {
-            if actor_str.contains(", ") {
-                actor_str.split(", ").find_map(|single_actor| {
-                    let ancestors = issue
-                        .scene
-                        .as_ref()
-                        .and_then(|s| facts.actor(s, single_actor))
-                        .map(|a| a.ancestors.clone())
-                        .unwrap_or_default();
-                    waiver_for(markers, single_actor, &ancestors, issue.rule_id)
-                })
-            } else {
-                let ancestors = issue
-                    .scene
-                    .as_ref()
-                    .and_then(|s| facts.actor(s, actor_str))
-                    .map(|a| a.ancestors.clone())
-                    .unwrap_or_default();
-                waiver_for(markers, actor_str, &ancestors, issue.rule_id)
-            }
-        } else {
-            waiver_for(markers, "", &[], issue.rule_id)
-        };
-
-        if let Some(w) = waiver {
-            issue.waived_by = Some(w.raw.clone());
-            issue.severity = Severity::Info;
-        }
-
-        if let Some(times) =
-            history.get(&(issue.rule_id.to_string(), issue.actor.clone(), issue.scene.clone()))
-        {
-            // Rule functions aggregate across sampled frames, so a single
-            // issue usually represents a persistent condition record. Never
-            // downgrade severity here: doing so turned nearly every finding
-            // into Info and made the gate a no-op.
-            issue.persistence = if times.len() >= 2 {
-                Persistence::Held
-            } else {
-                Persistence::Transient
-            };
-        }
-
-        final_issues.push(issue);
+    for issue in issues {
+        final_issues.push(apply_waivers_and_persistence(issue, facts, markers, &history));
     }
 
     final_issues.sort_by(|a, b| {
@@ -173,10 +135,100 @@ pub(crate) fn evaluate(facts: &ReviewFacts, markers: &MarkerSet, policy: Policy)
             .then_with(|| a.rule_id.cmp(b.rule_id))
             .then_with(|| a.actor.cmp(&b.actor))
     });
+
+    final_issues.extend(collect_unused_markers(&final_issues, markers));
+
     RuleRun {
         issues: final_issues,
         skipped,
         checked: 15 + if render_ready { 7 } else { 0 },
         skipped_rules,
     }
+}
+
+fn apply_waivers_and_persistence(
+    mut issue: RuleIssue,
+    facts: &ReviewFacts,
+    markers: &MarkerSet,
+    history: &History,
+) -> RuleIssue {
+    let waiver = if let Some(actor_str) = &issue.actor {
+        if actor_str.contains(", ") {
+            actor_str.split(", ").find_map(|single_actor| {
+                let ancestors = issue
+                    .scene
+                    .as_ref()
+                    .and_then(|s| facts.actor(s, single_actor))
+                    .map(|a| a.ancestors.clone())
+                    .unwrap_or_default();
+                waiver_for(markers, single_actor, &ancestors, issue.rule_id)
+            })
+        } else {
+            let ancestors = issue
+                .scene
+                .as_ref()
+                .and_then(|s| facts.actor(s, actor_str))
+                .map(|a| a.ancestors.clone())
+                .unwrap_or_default();
+            waiver_for(markers, actor_str, &ancestors, issue.rule_id)
+        }
+    } else {
+        waiver_for(markers, "", &[], issue.rule_id)
+    };
+
+    if let Some(w) = waiver {
+        issue.waived_by = Some(w.raw.clone());
+        issue.severity = Severity::Info;
+    }
+
+    if let Some(times) =
+        history.get(&(issue.rule_id.to_string(), issue.actor.clone(), issue.scene.clone()))
+    {
+        issue.persistence = if times.len() >= 2 {
+            Persistence::Held
+        } else {
+            Persistence::Transient
+        };
+    }
+    issue
+}
+
+fn collect_unused_markers(issues: &[RuleIssue], markers: &MarkerSet) -> Vec<RuleIssue> {
+    let mut out = Vec::new();
+    let mut waived_by_set = std::collections::HashSet::new();
+    for issue in issues {
+        if let Some(waived_by) = &issue.waived_by {
+            waived_by_set.insert(waived_by.to_string());
+        }
+    }
+
+    for waiver in &markers.waivers {
+        if !waived_by_set.contains(&waiver.raw) {
+            out.push(RuleIssue {
+                rule_id: "layout.marker-unused",
+                severity: Severity::Info,
+                persistence: Persistence::Held,
+                scene: None,
+                time_s: None,
+                actor: Some(waiver.label.clone()),
+                source_line: Some(waiver.line),
+                message: format!(
+                    "`{}` no longer matches any finding (reason: {})",
+                    waiver.raw, waiver.reason
+                ),
+                evidence: serde_json::json!({
+                    "kind": "marker-unused",
+                    "reason": waiver.reason,
+                    "raw": waiver.raw,
+                }),
+                fix_hint: None,
+                waived_by: None,
+                suggestion:
+                    "Delete the marker or confirm it remains for future regression prevention."
+                        .to_string(),
+                baseline_state: None,
+            });
+        }
+    }
+    out
 }

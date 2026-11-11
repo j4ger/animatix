@@ -476,6 +476,7 @@ fn compare_baseline(
     let json_value = serde_json::json!({
         "kind": "baseline",
         "verdict": if passed { "passed" } else { "failed" },
+        "schema_version": 3,
         "frames": json_frames,
         "summary": {
             "total_frames": total,

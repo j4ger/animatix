@@ -6,6 +6,8 @@
 //! ink, beat changes) through the shared `frame_source` helpers, so `audit`
 //! and `measure` cannot drift apart.
 
+pub(crate) mod budget;
+pub(crate) mod delta;
 pub(crate) mod facts;
 pub(crate) mod markers;
 pub(crate) mod probe;

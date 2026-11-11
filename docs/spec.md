@@ -2511,17 +2511,16 @@ The authoring loop has four distinct commands; `audit` is the primary automatic 
 
 | Flag | Default | Meaning |
 |------|---------|---------|
-| `--policy` | `default` | `default`, `generated` (for LLMs), or `site` (site adds resting-composition checks mirroring `scripts/site-rest-check.py`) |
-| `--samples` | `auto` | `auto`, `keyframes`, or a frame count `N` (at least 2) |
-| `--max-frames` | `24` | Upper bound on the automatic/regular sample grid |
-| `--render` | `auto` | `auto` (skip without an adapter), `always`, or `never` |
-| `--detail` | `summary` | `summary` or `full` text detail; JSON is always complete |
-| `--format` | `text` | `text` or `json` (`schema_version: 2`) |
+| `--policy` | `default` | `default` or `site` (site adds resting-composition checks) |
+| `--brief` | — | Emits `audit.brief` schema |
+| `--evidence` | — | Generates per-finding cropped/annotated PNGs |
+| `--delta` | — | Reports audit findings introduced since baseline |
+| `--budget` | — | Enforces ratchetable findings budget |
 | `--fail-on` | `error` | `error`, `warning`, or `never` |
 | `--storyboard <path>` | — | Also render a storyboard PNG after the audit |
 | `--frames-dir <dir>` | — | Save rendered audit PNG samples |
 
-See [`audit.md`](audit.md) for the complete audit guide, schema v2, rule list, exit codes, and limitations.
+See [`audit.md`](audit.md) for the complete audit guide, schema v3, rule list, exit codes, and limitations.
 
 ### Multi-Scene Composition
 

@@ -130,7 +130,7 @@ play KenBurns [wipe-left, 600ms]
 config { colorscheme: "gallery" }
 
 header3: TitleCard, title: "Ken Burns", kicker: "FILTER + IMAGE",
-  sub: "framed motion with a breathing grade", anchor: scene.top, offset: (0, 40)
+  sub: "framed motion with a breathing grade", anchor: scene.top, offset: (0, 70)
 
 frame: Rect, size: (700, 380), color: surface.secondary, anchor: scene.center, offset: (0, 110)
 

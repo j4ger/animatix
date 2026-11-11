@@ -78,6 +78,7 @@ eparts|native|macos-latest|rust-stable|pr
 eparts|native|windows-latest|rust-stable|pr
 audit|nix|ubuntu-latest|nix|pr
 scene-audit|nix|ubuntu-latest|nix|pr
+budget-audit|nix|ubuntu-latest|nix|pr
 commit|nix|ubuntu-latest|nix|pr
 wasm-check|web|ubuntu-latest|nix|pr
 web-build|web-ci|ubuntu-latest|nix|pr
@@ -108,7 +109,7 @@ Fast Checks|fmt structure workflows content-sync meta-version embed-build|native
 eparts|eparts|native|ubuntu-latest|rust-stable|pr
 eparts|eparts|native|macos-latest|rust-stable|pr
 eparts|eparts|native|windows-latest|rust-stable|pr
-Check & Lint|commit audit scene-audit check lint doc no-video|nix|ubuntu-latest|nix|pr
+Check & Lint|commit audit scene-audit budget-audit check lint doc no-video|nix|ubuntu-latest|nix|pr
 Test & Examples|test examples|nix|ubuntu-latest|nix|pr
 Render Smoke & Scenes|render-smoke site-scenes|nix|ubuntu-latest|nix|pr
 Benchmarks|ext-bench|nix|ubuntu-latest|nix|pr
@@ -229,26 +230,35 @@ gate_scene_audit() {
   want_nix_shell 'scene-audit'
   cargo build --bin animatix
   
-  # Rule to skip sub-files in multi-file projects
-  project_rule() {
-    local dir=$(dirname "$1"); local base=$(basename "$1")
-    if [ -f "$dir/main.amx" ] && [ "$base" != "main.amx" ]; then return 1; fi
-    return 0
+  local failed=0
+  # The scene walk shared with scripts/audit-budget.sh: component libraries,
+  # site copies, the plugin showcase and the pure-`pub let` module are not
+  # standalone scenes; a multi-file project is driven through its main.amx.
+  scenes() {
+    find examples web/scenes web/demos -name '*.amx' \
+      -not -path '*/lib/*' \
+      -not -path '*/_site/*' \
+      -not -path '*/plugin_pulse.amx' \
+      -not -path '*/epicycles/fourier.amx' |
+      sort |
+      while IFS= read -r amx; do
+        local dir base
+        dir=$(dirname "$amx")
+        base=$(basename "$amx")
+        if [ -f "$dir/main.amx" ] && [ "$base" != "main.amx" ]; then
+          continue
+        fi
+        printf '%s\n' "$amx"
+      done
   }
 
-  local failed=0
-  # Collect all scenes from examples, web/scenes, and web/demos
-  local scenes=$(find examples web/scenes web/demos -name '*.amx' -not -path '*/lib/*' -not -path '*/_site/*' | sort)
-  
-  while read -r f; do
+  while IFS= read -r f; do
     [ -z "$f" ] && continue
-    case "$f" in
-      */plugin_pulse.amx|*/epicycles/fourier.amx) continue ;;
-    esac
-    if ! project_rule "$f"; then continue; fi
+
+    local budget_arg="--budget .animatix/audit-budget.json --render never"
 
     local output=$(mktemp)
-    if ! ./target/debug/animatix audit "$f" --render never --format json > "$output" 2>/dev/null; then
+    if ! ./target/debug/animatix audit "$f" $budget_arg --format json > "$output" 2>/dev/null; then
       echo "FAIL scene-audit (exit code): $f" >&2
       failed=1
       rm -f "$output"
@@ -261,8 +271,8 @@ import json, sys
 try:
     with open(sys.argv[1]) as f:
         data = json.load(f)
-    if data.get("schema_version") != 2:
-        print("schema_version %s != 2" % data.get("schema_version"), file=sys.stderr)
+    if data.get("schema_version") != 3:
+        print("schema_version %s != 3" % data.get("schema_version"), file=sys.stderr)
         sys.exit(1)
     if data.get("kind") != "audit":
         print("kind %s != audit" % data.get("kind"), file=sys.stderr)
@@ -278,8 +288,14 @@ except Exception as e:
       failed=1
     fi
     rm -f "$output"
-  done <<< "$scenes"
+  done < <(scenes)
   return "$failed"
+}
+
+gate_budget_audit() {
+  want_nix_shell 'budget-audit'
+  cargo build --bin animatix
+  bash scripts/audit-budget.sh --check
 }
 
 gate_render_smoke() {

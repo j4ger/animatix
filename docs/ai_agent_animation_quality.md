@@ -94,7 +94,7 @@ Out of scope for the first bring-up:
 | `animatix-cli image` | single-frame export | scripted frame extraction |
 | `animatix audit` | deterministic structural facts, optional pixel measurements, rule issues, stable JSON report, exit policy | first-pass agent review and default automatic gate |
 | `animatix audit --storyboard` | review report plus a contact-sheet image | one-call automatic + visual pass |
-| `audit` JSON (`schema_version: 2`) | frame facts, issues, evidence, severity/persistence | structured review corpus |
+| `audit` JSON (`schema_version: 3`) | frame facts, issues, evidence anchors, severity/persistence | structured review corpus |
 | `dogfood/projects/` and `dogfood/arena/` | focused real-content projects and A/B candidate battles | data collection and calibration |
 
 ## Data Protocol

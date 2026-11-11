@@ -1,11 +1,13 @@
 //! Audit command value types shared by the structural, render, and rule tiers.
 
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 use clap::ValueEnum;
 
 /// Policy profile selected by `--policy`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub(crate) enum Policy {
     /// Built-in tolerant defaults.
     Default,
@@ -14,7 +16,7 @@ pub(crate) enum Policy {
 }
 
 /// Sample-time selection mode from `--samples`.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum SampleSpec {
     /// Storyboard-style automatic beat selection.
     #[default]
@@ -43,7 +45,8 @@ pub(crate) fn parse_sample_spec(raw: &str) -> Result<SampleSpec, String> {
 }
 
 /// Render-tier behavior from `--render`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub(crate) enum RenderMode {
     /// Render when a GPU adapter is available; otherwise skip structurally.
     Auto,
@@ -88,6 +91,9 @@ pub(crate) struct FixHint {
     pub source_line: Option<usize>,
     pub snippet: Option<String>,
     pub marker: Option<String>,
+    /// How safe it is for a tool to apply this fix without a human/vision
+    /// check: `machine` (deterministic edit), `maybe` (needs review), or None.
+    pub applicability: Option<&'static str>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
@@ -177,6 +183,7 @@ pub(crate) struct RuleIssue {
     pub waived_by: Option<String>,
     /// Suggested edit direction.
     pub suggestion: String,
+    pub baseline_state: Option<String>,
 }
 
 /// Render measurements for one sample.
@@ -241,4 +248,9 @@ pub(crate) struct ReviewOptions {
     /// Optional directory for rendered PNG samples.
     pub frames_dir: Option<PathBuf>,
     pub times: Option<Vec<f64>>,
+    pub anchors: usize,
+    pub candidates: bool,
+    pub delta: Option<PathBuf>,
+    pub budget: Option<PathBuf>,
+    pub update_budget: bool,
 }

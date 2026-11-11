@@ -291,7 +291,10 @@ fn verify_draw_missing_flags_empty_commands() {
 fn verify_ink_missing_flags_positive_opacity_without_ink() {
     let mut facts = base_facts();
     facts.actors = vec![actor("box")];
-    let box_frame = actor_frame("box", 1.0, Some(Box2::new(0.0, 0.0, 50.0, 50.0)));
+    let mut box_frame = actor_frame("box", 1.0, Some(Box2::new(0.0, 0.0, 50.0, 50.0)));
+    // Engine emitted no draw commands: this is the "declared but paints
+    // nothing" case the rule exists for (a drawing actor is trusted instead).
+    box_frame.draw_commands = Some(0);
     facts.frames = vec![frame(0.0, vec![box_frame])];
     facts.render = Some(RenderFacts {
         status: RenderStatus::Rendered,
@@ -393,13 +396,13 @@ fn test_overlap_aggregation_cap_24_and_cluster_warning_in_generated_policy() {
         run.issues.iter().filter(|i| i.rule_id == "overlap.undeclared").collect();
     assert_eq!(undeclared.len(), 24);
     for u in &undeclared {
-        assert_eq!(u.severity, Severity::Warning);
+        assert_eq!(u.severity, Severity::Info);
     }
 
     let clusters: Vec<_> = run.issues.iter().filter(|i| i.rule_id == "overlap.cluster").collect();
     assert_eq!(clusters.len(), 1);
     let cluster = clusters[0];
-    assert_eq!(cluster.severity, Severity::Warning);
+    assert_eq!(cluster.severity, Severity::Info);
     assert_eq!(cluster.actor, None);
     assert_eq!(cluster.evidence["pair_count"], 45);
     assert_eq!(cluster.evidence["kept"], 24);
@@ -490,6 +493,7 @@ fn test_brief_json_filters_info_explained_and_redundant_unless_waived() {
                 fix_hint: None,
                 waived_by: None,
                 suggestion: "".into(),
+                baseline_state: None,
             },
             RuleIssue {
                 rule_id: "keyframe.redundant",
@@ -504,6 +508,7 @@ fn test_brief_json_filters_info_explained_and_redundant_unless_waived() {
                 fix_hint: None,
                 waived_by: None,
                 suggestion: "".into(),
+                baseline_state: None,
             },
             RuleIssue {
                 rule_id: "overlap.explained",
@@ -518,6 +523,7 @@ fn test_brief_json_filters_info_explained_and_redundant_unless_waived() {
                 fix_hint: None,
                 waived_by: Some("// layout: allow-overlap".into()),
                 suggestion: "".into(),
+                baseline_state: None,
             },
             RuleIssue {
                 rule_id: "actor.clipped",
@@ -532,12 +538,14 @@ fn test_brief_json_filters_info_explained_and_redundant_unless_waived() {
                 fix_hint: None,
                 waived_by: None,
                 suggestion: "".into(),
+                baseline_state: None,
             },
         ],
         summary: crate::review::report::Summary {
             errors: 0,
             warnings: 1,
             infos: 3,
+            candidates: 3,
             skipped: 0,
             waived: 1,
         },
@@ -545,15 +553,18 @@ fn test_brief_json_filters_info_explained_and_redundant_unless_waived() {
         coverage: crate::review::report::Coverage {
             structural: "complete",
             render: "skipped",
+            evidence: "skipped",
             complete: false,
             skipped_rules: Vec::new(),
             checks_run: 10,
             checks_skipped: 0,
         },
+        delta: None,
+        budget: None,
     };
 
-    let brief = report.to_brief_json();
-    let findings = brief["findings"].as_array().expect("findings array");
+    let brief = report.to_brief_json(10, false);
+    let findings = brief["anchors"].as_array().expect("anchors array");
     assert_eq!(findings.len(), 2);
     let codes: Vec<_> = findings.iter().map(|f| f["code"].as_str().unwrap()).collect();
     assert!(codes.contains(&"overlap.explained"));

@@ -35,6 +35,8 @@ pub(crate) struct AuditReport {
     pub skipped: usize,
     /// Coverage metrics.
     pub coverage: Coverage,
+    pub delta: Option<crate::review::delta::DeltaReport>,
+    pub budget: Option<crate::review::budget::BudgetReport>,
 }
 
 impl AuditReport {
@@ -45,9 +47,18 @@ impl AuditReport {
     }
 
     pub(crate) fn exit_code(&self, fail_on: FailOn) -> i32 {
+        if self.budget.as_ref().is_some_and(|budget| !budget.exceeded.is_empty()) {
+            return 1;
+        }
+        // With `--delta`, only findings introduced since the baseline can fail
+        // the run; existing debt is the budget/ratchet's concern.
+        let (errors, warnings) = match &self.delta {
+            Some(delta) => (delta.new_errors, delta.new_warnings),
+            None => (self.summary.errors, self.summary.warnings),
+        };
         match fail_on {
-            FailOn::Error if self.summary.errors > 0 => 1,
-            FailOn::Warning if self.summary.errors + self.summary.warnings > 0 => 1,
+            FailOn::Error if errors > 0 => 1,
+            FailOn::Warning if errors + warnings > 0 => 1,
             FailOn::Error | FailOn::Warning | FailOn::Never => 0,
         }
     }
@@ -72,22 +83,30 @@ impl AuditReport {
                     "source_line": issue.source_line,
                     "message": issue.message,
                     "evidence": issue.evidence,
-                    "fix_hint": issue.fix_hint.as_ref().map(|f| serde_json::json!({
+                    "anchor": {
+                        "time_s": issue.time_s,
+                        "frame_path": issue.evidence.get("frame_path"),
+                        "crop_path": issue.evidence.get("crop_path"),
+                        "annotated_path": issue.evidence.get("annotated_path"),
+                    },
+                    "fix": issue.fix_hint.as_ref().map(|f| serde_json::json!({
                         "kind": f.kind,
                         "target": f.target,
                         "source_line": f.source_line,
                         "snippet": f.snippet,
                         "marker": f.marker,
+                        "applicability": f.applicability.unwrap_or("none"),
                     })),
                     "waived_by": issue.waived_by,
                     "suggestion": issue.suggestion,
+                    "baseline_state": issue.baseline_state,
                 })
             })
             .collect();
         let frames: Vec<serde_json::Value> =
             self.frames.iter().map(|f| frame_json(f, Some(&self.render))).collect();
         serde_json::json!({
-            "schema_version": 2,
+            "schema_version": 3,
             "kind": self.kind,
             "input": self.input,
             "target": {
@@ -108,42 +127,77 @@ impl AuditReport {
                 "skipped_rules": self.coverage.skipped_rules,
                 "checks_run": self.coverage.checks_run,
                 "checks_skipped": self.coverage.checks_skipped,
+                "evidence": self.coverage.evidence,
             },
             "findings": findings,
             "summary": {
                 "errors": self.summary.errors,
                 "warnings": self.summary.warnings,
                 "infos": self.summary.infos,
+                "candidates": self.summary.candidates,
                 "skipped": self.skipped,
                 "waived": self.summary.waived,
             },
+            "delta": self.delta.as_ref().map(|d| serde_json::json!({
+                "baseline": d.baseline,
+                "new": d.new,
+                "resolved": d.resolved,
+                "unchanged": d.unchanged,
+                "new_errors": d.new_errors,
+                "new_warnings": d.new_warnings,
+            })),
+            "budget": self.budget.as_ref().map(|b| serde_json::json!({
+                "path": b.path,
+                "exceeded": b.exceeded.iter().map(|e| serde_json::json!({
+                    "file": e.file,
+                    "code": e.code,
+                    "count": e.count,
+                    "allowed": e.allowed,
+                })).collect::<Vec<_>>(),
+                "updated": b.updated,
+            })),
         })
     }
 
     fn verdict(&self) -> &'static str {
-        if self.summary.errors > 0 {
+        let (errors, warnings) = match &self.delta {
+            Some(delta) => (delta.new_errors, delta.new_warnings),
+            None => (self.summary.errors, self.summary.warnings),
+        };
+        if errors > 0 {
             "fail"
-        } else if self.summary.warnings > 0 {
+        } else if warnings > 0 {
             "warn"
         } else {
             "pass"
         }
     }
 
-    /// Serialize the brief JSON report schema.
-    pub(crate) fn to_brief_json(&self) -> serde_json::Value {
-        let findings: Vec<serde_json::Value> = self
+    /// Serialize the brief JSON report schema: bounded "where to look" anchors.
+    pub(crate) fn to_brief_json(
+        &self,
+        anchors_limit: usize,
+        include_candidates: bool,
+    ) -> serde_json::Value {
+        let has_image = |issue: &RuleIssue| issue.evidence.get("crop_path").is_some();
+        let mut sorted: Vec<&RuleIssue> = self
             .findings
             .iter()
             .filter(|issue| {
-                if issue.waived_by.is_some() {
-                    return true;
-                }
-                if issue.severity != Severity::Info {
-                    return true;
-                }
-                !matches!(issue.rule_id, "overlap.explained" | "keyframe.redundant")
+                include_candidates || issue.severity != Severity::Info || issue.waived_by.is_some()
             })
+            .collect();
+        sorted.sort_by(|a, b| {
+            has_image(b)
+                .cmp(&has_image(a))
+                .then_with(|| b.severity.cmp(&a.severity))
+                .then_with(|| a.time_s.partial_cmp(&b.time_s).unwrap_or(std::cmp::Ordering::Equal))
+                .then_with(|| a.rule_id.cmp(b.rule_id))
+        });
+        let total = sorted.len();
+        let anchors: Vec<serde_json::Value> = sorted
+            .into_iter()
+            .take(anchors_limit)
             .map(|issue| {
                 serde_json::json!({
                     "code": issue.rule_id,
@@ -153,35 +207,58 @@ impl AuditReport {
                     "actor": issue.actor,
                     "source_line": issue.source_line,
                     "message": issue.message,
-                    "fix_hint": issue.fix_hint.as_ref().map(|f| serde_json::json!({
+                    "frame_path": issue.evidence.get("frame_path"),
+                    "crop_path": issue.evidence.get("crop_path"),
+                    "annotated_path": issue.evidence.get("annotated_path"),
+                    "waived_by": issue.waived_by,
+                    "fix": issue.fix_hint.as_ref().map(|f| serde_json::json!({
                         "kind": f.kind,
                         "target": f.target,
                         "source_line": f.source_line,
                         "snippet": f.snippet,
                         "marker": f.marker,
+                        "applicability": f.applicability.unwrap_or("none"),
                     })),
-                    "waived_by": issue.waived_by,
-                    "evidence": issue.evidence,
                 })
             })
             .collect();
         serde_json::json!({
-            "schema_version": 2,
+            "schema_version": 3,
             "kind": "audit.brief",
             "verdict": self.verdict(),
             "summary": {
                 "errors": self.summary.errors,
                 "warnings": self.summary.warnings,
                 "infos": self.summary.infos,
+                "candidates": self.summary.candidates,
                 "skipped": self.skipped,
                 "waived": self.summary.waived,
             },
-            "findings": findings,
+            "anchors": anchors,
+            "omitted": total.saturating_sub(anchors_limit),
+            "delta": self.delta.as_ref().map(|d| serde_json::json!({
+                "baseline": d.baseline,
+                "new": d.new,
+                "resolved": d.resolved,
+                "unchanged": d.unchanged,
+                "new_errors": d.new_errors,
+                "new_warnings": d.new_warnings,
+            })),
+            "budget": self.budget.as_ref().map(|b| serde_json::json!({
+                "path": b.path,
+                "exceeded": b.exceeded.iter().map(|e| serde_json::json!({
+                    "file": e.file,
+                    "code": e.code,
+                    "count": e.count,
+                    "allowed": e.allowed,
+                })).collect::<Vec<_>>(),
+                "updated": b.updated,
+            })),
         })
     }
 
     /// Print the text report.
-    pub(crate) fn print_text(&self, detail: Detail) {
+    pub(crate) fn print_text(&self, detail: Detail, include_candidates: bool) {
         println!("audit: {}", self.input);
         println!(
             "target: {}, {:.2}s, {}x{}",
@@ -199,6 +276,19 @@ impl AuditReport {
             self.skipped,
             self.summary.waived
         );
+        if let Some(delta) = &self.delta {
+            println!(
+                "delta: new={}, resolved={}, unchanged={}",
+                delta.new, delta.resolved, delta.unchanged
+            );
+        }
+        if let Some(budget) = &self.budget {
+            if !budget.exceeded.is_empty() {
+                println!("budget: exceeded for {} codes", budget.exceeded.len());
+            } else if budget.updated {
+                println!("budget: updated");
+            }
+        }
         if detail == Detail::Full {
             for frame in &self.frames {
                 // Simplified display for brevity
@@ -210,6 +300,9 @@ impl AuditReport {
             return;
         }
         for finding in &self.findings {
+            if !include_candidates && finding.severity == Severity::Info {
+                continue;
+            }
             let time = finding
                 .time_s
                 .map(|time| format!("{time:.2}s"))
@@ -230,6 +323,115 @@ impl AuditReport {
             );
             if detail == Detail::Full {
                 println!("      suggestion: {}", finding.suggestion);
+            }
+        }
+    }
+}
+
+fn write_evidence(
+    dir: &Path,
+    findings: &mut [RuleIssue],
+    render: &RenderFacts,
+    include_candidates: bool,
+) {
+    if render.status != RenderStatus::Rendered {
+        return;
+    }
+    for (finding_index, finding) in findings.iter_mut().enumerate() {
+        // Info findings are already-explained observations; cropping them
+        // would bury the actionable candidates in noise, unless --candidates
+        // is specified.
+        if finding.severity < Severity::Warning && !include_candidates {
+            continue;
+        }
+        let Some(time_s) = finding.time_s else {
+            continue;
+        };
+        // The structural tier may sample at times the render tier never
+        // rendered. Crop the nearest rendered frame and record which one,
+        // so the evidence stays honest about the frame it shows.
+        let nearest = render.samples.iter().enumerate().min_by(|(_, a), (_, b)| {
+            (a.time_s - time_s).abs().total_cmp(&(b.time_s - time_s).abs())
+        });
+        let Some((idx, sample)) = nearest else {
+            continue;
+        };
+        let frame_time_s = sample.time_s;
+        let frame_path = dir.join(format!("review_{idx:04}_{frame_time_s:.2}s.png"));
+        if !frame_path.exists() {
+            continue;
+        }
+
+        let img = image::open(&frame_path);
+        let Ok(img) = img else {
+            continue;
+        };
+        let mut img = img.to_rgba8();
+
+        let bounds = crop_bounds(&finding.evidence);
+
+        if let Some([x0, y0, x1, y1]) = bounds {
+            // Annotated overlay
+            let red = image::Rgba([255, 59, 48, 255]);
+            let w = img.width() as i32;
+            let h = img.height() as i32;
+
+            // Draw 2px border
+            for thickness in 0..2 {
+                for x in x0.saturating_sub(thickness).max(0)..x1.saturating_add(thickness).min(w) {
+                    for y in [
+                        y0.saturating_sub(thickness),
+                        y1.saturating_add(thickness).saturating_sub(1),
+                    ] {
+                        if y >= 0 && y < h {
+                            img.put_pixel(x as u32, y as u32, red);
+                        }
+                    }
+                }
+                for y in y0.saturating_sub(thickness).max(0)..y1.saturating_add(thickness).min(h) {
+                    for x in [
+                        x0.saturating_sub(thickness),
+                        x1.saturating_add(thickness).saturating_sub(1),
+                    ] {
+                        if x >= 0 && x < w {
+                            img.put_pixel(x as u32, y as u32, red);
+                        }
+                    }
+                }
+            }
+
+            let safe_code = finding.rule_id.replace(['.', '-'], "_");
+            let annotated_name =
+                format!("{safe_code}_{finding_index:04}_{frame_time_s:.2}s.annotated.png");
+            let annotated_path = dir.join(&annotated_name);
+            if img.save(&annotated_path).is_ok()
+                && let serde_json::Value::Object(ref mut map) = finding.evidence
+            {
+                map.insert("annotated_path".to_string(), serde_json::json!(annotated_path));
+            }
+
+            // Reset image for crop
+            let img = image::open(&frame_path).unwrap().to_rgba8();
+
+            let cx0 = x0.saturating_sub(16).max(0) as u32;
+            let cy0 = y0.saturating_sub(16).max(0) as u32;
+            let cx1 = x1.saturating_add(16).min(img.width() as i32).max(0) as u32;
+            let cy1 = y1.saturating_add(16).min(img.height() as i32).max(0) as u32;
+
+            let width = cx1.saturating_sub(cx0);
+            let height = cy1.saturating_sub(cy0);
+
+            if width > 0 && height > 0 {
+                let crop = image::imageops::crop_imm(&img, cx0, cy0, width, height).to_image();
+                let crop_name = format!("{safe_code}_{finding_index:04}_{frame_time_s:.2}s.png");
+                let crop_path = dir.join(&crop_name);
+                if crop.save(&crop_path).is_ok()
+                    && let serde_json::Value::Object(ref mut map) = finding.evidence
+                {
+                    map.insert("crop_path".to_string(), serde_json::json!(crop_path));
+                    map.insert("frame_path".to_string(), serde_json::json!(frame_path));
+                    map.insert("frame_time_s".to_string(), serde_json::json!(frame_time_s));
+                }
             }
         }
     }
@@ -324,66 +526,44 @@ pub(crate) fn run_review(
         rules::evaluate(&facts, &markers, options.policy)
     };
 
-    if let Some(dir) = evidence_dir
-        && render.status == RenderStatus::Rendered
-    {
-        for (finding_index, finding) in findings.iter_mut().enumerate() {
-            // Info findings are already-explained observations; cropping them
-            // would bury the actionable candidates in noise.
-            if finding.severity < Severity::Warning {
-                continue;
-            }
-            let Some(time_s) = finding.time_s else {
-                continue;
-            };
-            // The structural tier may sample at times the render tier never
-            // rendered. Crop the nearest rendered frame and record which one,
-            // so the evidence stays honest about the frame it shows.
-            let nearest = render.samples.iter().enumerate().min_by(|(_, a), (_, b)| {
-                (a.time_s - time_s).abs().total_cmp(&(b.time_s - time_s).abs())
+    let mut delta = None;
+    if let Some(path) = &options.delta {
+        let baseline = crate::review::delta::load_baseline(path)?;
+        let d = crate::review::delta::apply(&mut findings, &baseline, &path.display().to_string());
+        delta = Some(d);
+    }
+
+    let mut budget_report = None;
+    if let Some(path) = &options.budget {
+        if options.update_budget {
+            crate::review::budget::update(
+                path,
+                input.to_str().unwrap_or(""),
+                &findings,
+                options.policy,
+                options.render,
+            )?;
+            budget_report = Some(crate::review::budget::BudgetReport {
+                path: path.to_string_lossy().into(),
+                exceeded: Vec::new(),
+                updated: true,
             });
-            let Some((idx, sample)) = nearest else {
-                continue;
-            };
-            let frame_time_s = sample.time_s;
-            let frame_path = dir.join(format!("review_{idx:04}_{frame_time_s:.2}s.png"));
-            if !frame_path.exists() {
-                continue;
-            }
-
-            let img = image::open(&frame_path);
-            let Ok(img) = img else {
-                continue;
-            };
-            let img = img.to_rgba8();
-
-            let bounds = crop_bounds(&finding.evidence);
-
-            if let Some([x0, y0, x1, y1]) = bounds {
-                let x0 = (x0 - 16).max(0) as u32;
-                let y0 = (y0 - 16).max(0) as u32;
-                let x1 = (x1 + 16).min(img.width() as i32) as u32;
-                let y1 = (y1 + 16).min(img.height() as i32) as u32;
-
-                let width = x1 - x0;
-                let height = y1 - y0;
-
-                if width > 0 && height > 0 {
-                    let crop = image::imageops::crop_imm(&img, x0, y0, width, height).to_image();
-                    let safe_code = finding.rule_id.replace(['.', '-'], "_");
-                    let crop_name =
-                        format!("{safe_code}_{finding_index:04}_{frame_time_s:.2}s.png");
-                    let crop_path = dir.join(&crop_name);
-                    if crop.save(&crop_path).is_ok()
-                        && let serde_json::Value::Object(ref mut map) = finding.evidence
-                    {
-                        map.insert("crop_path".to_string(), serde_json::json!(crop_path));
-                        map.insert("frame_path".to_string(), serde_json::json!(frame_path));
-                        map.insert("frame_time_s".to_string(), serde_json::json!(frame_time_s));
-                    }
-                }
-            }
+        } else {
+            let budget = crate::review::budget::load(path)?;
+            let mut b = crate::review::budget::check(
+                &budget,
+                input.to_str().unwrap_or(""),
+                &findings,
+                options.policy,
+                options.render,
+            )?;
+            b.path = path.display().to_string();
+            budget_report = Some(b);
         }
+    }
+
+    if let Some(dir) = evidence_dir {
+        write_evidence(dir, &mut findings, &render, options.candidates);
     }
 
     let render_status_str = match render.status {
@@ -391,9 +571,17 @@ pub(crate) fn run_review(
         RenderStatus::Skipped => "skipped",
         RenderStatus::Failed => "failed",
     };
+    let evidence_str = if evidence_dir.is_none() {
+        "skipped"
+    } else if render.status == RenderStatus::Rendered {
+        "complete"
+    } else {
+        "unavailable"
+    };
     let coverage = Coverage {
         structural: "complete",
         render: render_status_str,
+        evidence: evidence_str,
         complete: render_status_str == "complete",
         skipped_rules,
         checks_run: checked,
@@ -405,6 +593,7 @@ pub(crate) fn run_review(
         errors: 0,
         warnings: 0,
         infos: 0,
+        candidates: 0,
         waived: 0,
         skipped,
     };
@@ -415,7 +604,10 @@ pub(crate) fn run_review(
             match finding.severity {
                 Severity::Error => summary.errors += 1,
                 Severity::Warning => summary.warnings += 1,
-                Severity::Info => summary.infos += 1,
+                Severity::Info => {
+                    summary.infos += 1;
+                    summary.candidates += 1;
+                },
             }
         }
     }
@@ -431,6 +623,8 @@ pub(crate) fn run_review(
         summary,
         skipped,
         coverage,
+        delta,
+        budget: budget_report,
     })
 }
 
@@ -470,6 +664,7 @@ pub(crate) struct Summary {
     pub errors: usize,
     pub warnings: usize,
     pub infos: usize,
+    pub candidates: usize,
     pub skipped: usize,
     pub waived: usize,
 }
@@ -478,6 +673,7 @@ pub(crate) struct Summary {
 pub(crate) struct Coverage {
     pub structural: &'static str,
     pub render: &'static str,
+    pub evidence: &'static str,
     pub complete: bool,
     pub skipped_rules: Vec<String>,
     pub checks_run: usize,
@@ -561,11 +757,13 @@ mod tests {
                 fix_hint: None,
                 waived_by: None,
                 suggestion: "fix it".into(),
+                baseline_state: None,
             }],
             summary: Summary {
                 errors: if severity == Severity::Error { 1 } else { 0 },
                 warnings: if severity == Severity::Warning { 1 } else { 0 },
                 infos: if severity == Severity::Info { 1 } else { 0 },
+                candidates: if severity == Severity::Info { 1 } else { 0 },
                 skipped: 0,
                 waived: 0,
             },
@@ -573,11 +771,14 @@ mod tests {
             coverage: Coverage {
                 structural: "complete",
                 render: "skipped",
+                evidence: "skipped",
                 complete: false,
                 skipped_rules: Vec::new(),
                 checks_run: 10,
                 checks_skipped: 3,
             },
+            delta: None,
+            budget: None,
         }
     }
 
@@ -599,7 +800,7 @@ mod tests {
         ] {
             assert!(json.get(key).is_some(), "missing {key}");
         }
-        assert_eq!(json["schema_version"], 2);
+        assert_eq!(json["schema_version"], 3);
         assert_eq!(json["summary"]["warnings"], 1);
         assert_eq!(json["frames"].as_array().expect("frames array").len(), 1);
         let full = report.to_json(Detail::Full);

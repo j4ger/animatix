@@ -1,6 +1,10 @@
 use crate::review::facts::ReviewFacts;
 use crate::review::rules::{BLANK_INK_FRACTION, STATIC_BEAT_FRACTION, source_line};
 use crate::review::types::{Persistence, RenderStatus, RuleIssue, Severity};
+use std::collections::BTreeMap;
+
+type OcclusionKey = (String, String, Option<String>);
+type OcclusionWorst = (f64, f64, usize, usize);
 
 pub(crate) fn rule_frame_blank(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
     if facts.render.as_ref().is_none_or(|r| r.status != RenderStatus::Rendered) {
@@ -9,34 +13,48 @@ pub(crate) fn rule_frame_blank(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
     let Some(render) = &facts.render else {
         return;
     };
-    for sample in render.samples.iter().take(12) {
-        if sample.ink_fraction >= BLANK_INK_FRACTION {
-            continue;
-        }
-        out.push(RuleIssue {
-            rule_id: "frame.blank",
-            severity: Severity::Warning,
-            persistence: Persistence::Held,
-            fix_hint: None,
-            waived_by: None,
-            scene: None,
-            time_s: Some(sample.time_s),
-            actor: None,
-            source_line: None,
-            message: format!(
-                "Rendered frame at {:.2}s is blank ({:.3}% ink).",
-                sample.time_s,
-                sample.ink_fraction * 100.0
-            ),
-            evidence: serde_json::json!({
-                "ink_fraction": sample.ink_fraction,
-                "threshold": BLANK_INK_FRACTION,
-            }),
-            suggestion: "Check that content is visible at this time (opacity, off-frame \
-                         placement, or an empty scene)."
-                .to_string(),
-        });
+    let samples: Vec<_> = render.samples.iter().take(12).collect();
+    if samples.is_empty() {
+        return;
     }
+    // A scene that paints anything at any sampled frame is not blank; a quiet
+    // opening frame is a composition choice, not a defect. Only an entirely
+    // ink-free pass over the sampled frames is reported.
+    let max_ink = samples.iter().map(|sample| sample.ink_fraction).fold(0.0_f32, f32::max);
+    if max_ink >= BLANK_INK_FRACTION {
+        return;
+    }
+    let blankest = samples
+        .iter()
+        .min_by(|a, b| a.ink_fraction.total_cmp(&b.ink_fraction))
+        .copied()
+        .expect("samples is non-empty");
+    out.push(RuleIssue {
+        rule_id: "frame.blank",
+        severity: Severity::Warning,
+        persistence: Persistence::Held,
+        fix_hint: None,
+        waived_by: None,
+        scene: None,
+        time_s: Some(blankest.time_s),
+        actor: None,
+        source_line: None,
+        message: format!(
+            "Every sampled frame is blank (max {:.3}% ink across {} samples).",
+            max_ink * 100.0,
+            samples.len()
+        ),
+        evidence: serde_json::json!({
+            "ink_fraction": blankest.ink_fraction,
+            "max_ink_fraction": max_ink,
+            "samples_checked": samples.len(),
+            "threshold": BLANK_INK_FRACTION,
+        }),
+        suggestion: "Check that content is visible (opacity, off-frame placement, or an \
+                     empty scene)."
+            .to_string(),
+        baseline_state: None,
+    });
 }
 
 pub(crate) fn rule_beat_static(facts: &ReviewFacts, out: &mut Vec<RuleIssue>, skipped: &mut usize) {
@@ -83,6 +101,7 @@ pub(crate) fn rule_beat_static(facts: &ReviewFacts, out: &mut Vec<RuleIssue>, sk
             suggestion: "Remove the dead beat or add motion/state change if the pause is \
                          unintentional."
                 .to_string(),
+            baseline_state: None,
         });
         reported += 1;
         if reported >= 12 {
@@ -129,6 +148,7 @@ pub(crate) fn rule_transition_endpoint(facts: &ReviewFacts, out: &mut Vec<RuleIs
             suggestion: "Keep ink on screen through the transition or shorten it so neither \
                          endpoint is empty."
                 .to_string(),
+            baseline_state: None,
         });
     }
 }
@@ -161,6 +181,7 @@ pub(crate) fn rule_site_rest(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
             suggestion: "Keep a resting composition on screen through the hold; do not fade the \
                          cast out before the loop rest."
                 .to_string(),
+            baseline_state: None,
         });
     }
     if rest.peak_ink_fraction > BLANK_INK_FRACTION
@@ -193,6 +214,7 @@ pub(crate) fn rule_site_rest(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
             suggestion: "Stop the closing fade before the hold, or make the final beat animate \
                          parameters instead of erasing the cast."
                 .to_string(),
+            baseline_state: None,
         });
     }
 }
@@ -204,38 +226,62 @@ pub(crate) fn rule_text_occluded(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) 
     let Some(render) = &facts.render else {
         return;
     };
+    // One finding per (text, occluder): keep the worst sample rather than
+    // repeating the same collision at every sampled frame.
+    let mut worst: BTreeMap<OcclusionKey, OcclusionWorst> = BTreeMap::new();
     for sample in &render.samples {
         for occlusion in &sample.occlusions {
-            let rule_id = if occlusion.probe_coverage >= 0.95 {
-                "text.occluded-full"
-            } else {
-                "text.occluded"
-            };
-            out.push(RuleIssue {
-                rule_id,
-                severity: Severity::Warning,
-                persistence: Persistence::Held,
-                fix_hint: None,
-                waived_by: None,
-                scene: Some(occlusion.scene.clone()),
-                time_s: Some(sample.time_s),
-                actor: Some(occlusion.label.clone()),
-                source_line: source_line(facts, &occlusion.scene, &occlusion.label),
-                message: format!(
-                    "`{}` is occluded by {:?} (coverage {:.1}%).",
-                    occlusion.label,
-                    occlusion.occluder,
-                    occlusion.probe_coverage * 100.0
-                ),
-                evidence: serde_json::json!({
-                    "occluder": occlusion.occluder,
-                    "probe_coverage": occlusion.probe_coverage,
-                    "probed_points": occlusion.probed_points,
-                    "covered_points": occlusion.covered_points,
-                }),
-                suggestion: "Move the occluder, or move the text so it is fully visible."
-                    .to_string(),
-            });
+            let key =
+                (occlusion.scene.clone(), occlusion.label.clone(), occlusion.occluder.clone());
+            let entry = worst.entry(key).or_insert((
+                0.0,
+                sample.time_s,
+                occlusion.probed_points,
+                occlusion.covered_points,
+            ));
+            if occlusion.probe_coverage > entry.0 {
+                *entry = (
+                    occlusion.probe_coverage,
+                    sample.time_s,
+                    occlusion.probed_points,
+                    occlusion.covered_points,
+                );
+            }
         }
+    }
+    for ((scene, label, occluder), (coverage, time_s, probed, covered)) in worst {
+        // A single probe point touching another glyph is not "occluded"; the
+        // grid is 27 points, so require at least a quarter of them.
+        if coverage < 0.25 {
+            continue;
+        }
+        let rule_id = if coverage >= 0.95 {
+            "text.occluded-full"
+        } else {
+            "text.occluded"
+        };
+        out.push(RuleIssue {
+            rule_id,
+            severity: Severity::Warning,
+            persistence: Persistence::Held,
+            fix_hint: None,
+            waived_by: None,
+            scene: Some(scene.clone()),
+            time_s: Some(time_s),
+            actor: Some(label.clone()),
+            source_line: source_line(facts, &scene, &label),
+            message: format!(
+                "`{label}` is occluded by {occluder:?} (coverage {:.1}%).",
+                coverage * 100.0
+            ),
+            evidence: serde_json::json!({
+                "occluder": occluder,
+                "probe_coverage": coverage,
+                "probed_points": probed,
+                "covered_points": covered,
+            }),
+            suggestion: "Move the occluder, or move the text so it is fully visible.".to_string(),
+            baseline_state: None,
+        });
     }
 }

@@ -23,6 +23,7 @@ pub(crate) fn rule_scene_duration(facts: &ReviewFacts, out: &mut Vec<RuleIssue>)
             "actors": facts.actors.len(),
         }),
         suggestion: "Add visible content and a non-zero timeline length.".to_string(),
+        baseline_state: None,
     });
 }
 
@@ -66,6 +67,7 @@ pub(crate) fn rule_actor_draw_missing(facts: &ReviewFacts, out: &mut Vec<RuleIss
             suggestion: "Check the primitive's data and draw path; an empty path or empty \
                          text is not visible."
                 .to_string(),
+            baseline_state: None,
         });
     }
 }
@@ -77,7 +79,15 @@ pub(crate) fn rule_actor_ink_missing(facts: &ReviewFacts, out: &mut Vec<RuleIssu
     let Some(render) = &facts.render else {
         return;
     };
-    let mut reported: BTreeMap<(String, String), (f64, usize)> = BTreeMap::new();
+    struct ActorInkMeasurement {
+        max_ink: f32,
+        first_time: f64,
+        occurrences: usize,
+        /// The engine emitted draw commands for this actor at some sample, so
+        /// the pixel probe's inability to resolve thin strokes is not a defect.
+        engine_drew: bool,
+    }
+    let mut measurements: BTreeMap<(String, String), ActorInkMeasurement> = BTreeMap::new();
     for sample in &render.samples {
         if sample.transition.is_some() {
             continue;
@@ -92,11 +102,18 @@ pub(crate) fn rule_actor_ink_missing(facts: &ReviewFacts, out: &mut Vec<RuleIssu
                 continue;
             };
             if !actor.visual
+                || actor.is_non_content
+                || actor.is_background
                 || actor.is_group_like
                 || actor.is_effect_scope
-                || actor_frame.opacity.unwrap_or(0.0) <= 0.01
+                || actor_frame.label.contains("__")
+            {
+                continue;
+            }
+            // Only samples where the actor is expected to paint can prove
+            // "never emits ink"; an invisible actor is judged by other rules.
+            if actor_frame.opacity.unwrap_or(0.0) <= 0.01
                 || actor_frame.padded_on_frame_fraction <= 0.0
-                || actor_frame.draw_commands == Some(0)
             {
                 continue;
             }
@@ -105,16 +122,25 @@ pub(crate) fn rule_actor_ink_missing(facts: &ReviewFacts, out: &mut Vec<RuleIssu
                 .get(&(actor_frame.scene.clone(), actor_frame.label.clone()))
                 .copied()
                 .unwrap_or(0.0);
-            if ink > 0.001 {
-                continue;
-            }
-            let entry = reported
+            let entry = measurements
                 .entry((actor_frame.scene.clone(), actor_frame.label.clone()))
-                .or_insert((sample.time_s, 0));
-            entry.1 += 1;
+                .or_insert(ActorInkMeasurement {
+                    max_ink: ink,
+                    first_time: sample.time_s,
+                    occurrences: 0,
+                    engine_drew: false,
+                });
+            entry.max_ink = entry.max_ink.max(ink);
+            entry.engine_drew |= actor_frame.draw_commands.unwrap_or(0) > 0;
+            if ink <= 0.001 {
+                entry.occurrences += 1;
+            }
         }
     }
-    for ((scene, label), (time_s, occurrences)) in reported {
+    for ((scene, label), measurement) in measurements {
+        if measurement.engine_drew || measurement.max_ink > 0.001 {
+            continue;
+        }
         out.push(RuleIssue {
             rule_id: "actor.ink-missing",
             severity: Severity::Error,
@@ -122,20 +148,19 @@ pub(crate) fn rule_actor_ink_missing(facts: &ReviewFacts, out: &mut Vec<RuleIssu
             fix_hint: None,
             waived_by: None,
             scene: Some(scene.clone()),
-            time_s: Some(time_s),
+            time_s: Some(measurement.first_time),
             actor: Some(label.clone()),
             source_line: source_line(facts, &scene, &label),
-            message: format!(
-                "`{label}` has positive opacity and on-frame bounds but no ink at {time_s:.2}s."
-            ),
+            message: format!("`{label}` has never emitted any ink across all sampled frames."),
             evidence: serde_json::json!({
-                "time_s": time_s,
+                "time_s": measurement.first_time,
                 "scene": scene,
-                "occurrences": occurrences,
+                "occurrences": measurement.occurrences,
             }),
             suggestion: "Add an entrance or verify the actor's draw data; the actor is in the \
                          frame graph but paints nothing."
                 .to_string(),
+            baseline_state: None,
         });
     }
 }
@@ -149,7 +174,13 @@ pub(crate) fn rule_actor_reveal_missing(facts: &ReviewFacts, out: &mut Vec<RuleI
     };
     let mut reported: BTreeMap<(String, String), (f64, f64)> = BTreeMap::new();
     for actor in &facts.actors {
-        if !actor.visual || actor.is_group_like || actor.is_effect_scope {
+        if !actor.visual
+            || actor.is_group_like
+            || actor.is_effect_scope
+            || actor.is_non_content
+            || actor.is_background
+            || actor.label.contains("__")
+        {
             continue;
         }
         let mut hidden: Option<(f64, f32)> = None;
@@ -180,6 +211,11 @@ pub(crate) fn rule_actor_reveal_missing(facts: &ReviewFacts, out: &mut Vec<RuleI
         else {
             continue;
         };
+        // Both ends unmeasured: the ink probe could not resolve this actor
+        // (thin strokes, tiny glyphs), so this is not evidence of a defect.
+        if hidden_ink.max(visible_ink) <= 0.01 {
+            continue;
+        }
         if visible_ink - hidden_ink > 0.01 {
             continue;
         }
@@ -209,6 +245,7 @@ pub(crate) fn rule_actor_reveal_missing(facts: &ReviewFacts, out: &mut Vec<RuleI
             suggestion: "Check that the reveal action changes the actor's own pixels, not only \
                          its parent opacity."
                 .to_string(),
+            baseline_state: None,
         });
     }
 }
@@ -262,6 +299,7 @@ pub(crate) fn rule_beat_static_structural(
                 "to_s": after.time_s,
             }),
             suggestion: "Add a value change, motion, or content change at this beat.".to_string(),
+            baseline_state: None,
         });
         reported += 1;
         if reported >= 8 {

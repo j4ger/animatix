@@ -173,6 +173,7 @@ dependencies = [
  "animatix-syntax",
  "clap",
  "image",
+ "serde",
  "serde_json",
  "tracing",
  "tracing-subscriber",

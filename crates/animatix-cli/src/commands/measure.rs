@@ -56,6 +56,11 @@ pub(crate) fn run(args: MeasureArgs, extensions: &CliExtensions) {
         fail_on: FailOn::Never,
         frames_dir: None,
         times,
+        anchors: 10,
+        candidates: false,
+        delta: None,
+        budget: None,
+        update_budget: false,
     };
     let report = match run_review(&input, &set, extensions, &options, "measure", false, None) {
         Ok(report) => report,

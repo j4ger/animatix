@@ -50,12 +50,27 @@ pub(crate) struct AuditArgs {
     /// Emit a compact JSON brief for an LLM repair loop
     #[arg(long)]
     pub(crate) brief: bool,
+    /// Maximum number of brief anchors to report (default: 10)
+    #[arg(long, default_value_t = 10)]
+    pub(crate) anchors: usize,
+    /// Include Info-level candidates in findings/brief
+    #[arg(long, default_value_t = false)]
+    pub(crate) candidates: bool,
     /// Optional directory for rendered issue frames
     #[arg(long)]
     pub(crate) evidence: Option<PathBuf>,
     /// Precise sample times in seconds (comma-separated, overrides --samples)
     #[arg(long, value_delimiter = ',')]
     pub(crate) times: Option<Vec<f64>>,
+    /// Path to a previous audit JSON for delta analysis
+    #[arg(long)]
+    pub(crate) delta: Option<PathBuf>,
+    /// Path to the audit budget JSON
+    #[arg(long)]
+    pub(crate) budget: Option<PathBuf>,
+    /// Update the audit budget with current findings
+    #[arg(long, requires = "budget")]
+    pub(crate) update_budget: bool,
 }
 
 /// Run one audit and own its exit code.
@@ -73,8 +88,13 @@ pub(crate) fn run(args: AuditArgs, extensions: &CliExtensions) {
         frames_dir,
         fail_on,
         brief,
+        anchors,
+        candidates,
         evidence,
         times,
+        delta,
+        budget,
+        update_budget,
     } = args;
     let options = ReviewOptions {
         policy,
@@ -85,6 +105,11 @@ pub(crate) fn run(args: AuditArgs, extensions: &CliExtensions) {
         fail_on,
         frames_dir,
         times,
+        anchors,
+        candidates,
+        delta,
+        budget,
+        update_budget,
     };
     let report =
         match run_review(&input, &set, extensions, &options, "audit", brief, evidence.as_deref()) {
@@ -103,7 +128,10 @@ pub(crate) fn run(args: AuditArgs, extensions: &CliExtensions) {
             None,
             None,
             None,
-            Some(sample_times.clone()),
+            1536,
+            0.005,
+            false,
+            None, // auto-detect
             sample_times.len().max(2),
             false,
             Some(path.clone()),
@@ -122,11 +150,11 @@ pub(crate) fn run(args: AuditArgs, extensions: &CliExtensions) {
     }
 
     if brief {
-        println!("{}", report.to_brief_json());
+        println!("{}", report.to_brief_json(options.anchors, options.candidates));
     } else {
         match format {
             OutputFormat::Json => println!("{}", report.to_json(options.detail)),
-            OutputFormat::Text => report.print_text(options.detail),
+            OutputFormat::Text => report.print_text(options.detail, options.candidates),
         }
     }
 

@@ -31,6 +31,18 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 BIN = ROOT / "target" / "debug" / "animatix"
 CORPORA = ("examples", "web/demos", "web/scenes")
 
+# Observation codes: geometry/aesthetics candidates, not hard defects. Counted
+# separately so the report can show "warnings (actionable)" vs "candidates".
+CANDIDATE_CODES = {
+    "overlap.undeclared",
+    "overlap.cluster",
+    "overlap.explained",
+    "actor.clipped",
+    "keyframe.redundant",
+    "beat.static",
+    "transition.endpoint",
+}
+
 def scene_files() -> list[pathlib.Path]:
     out: list[pathlib.Path] = []
     for corpus in CORPORA:
@@ -75,6 +87,8 @@ def audit(path: pathlib.Path, policy: str) -> dict | None:
 def measure(policy: str) -> dict:
     by_code: collections.Counter[str] = collections.Counter()
     by_severity: collections.Counter[str] = collections.Counter()
+    candidates = 0
+    warnings = 0
     per_corpus: dict[str, dict] = {
         c: {"files": 0, "findings": 0, "errors": 0} for c in CORPORA
     }
@@ -95,8 +109,14 @@ def measure(policy: str) -> dict:
         per_corpus[corpus]["findings"] += len(findings)
         per_corpus[corpus]["errors"] += errors
         for finding in findings:
-            by_code[finding.get("code", "?")] += 1
-            by_severity[finding.get("severity", "?")] += 1
+            code = finding.get("code", "?")
+            severity = finding.get("severity", "?")
+            by_code[code] += 1
+            by_severity[severity] += 1
+            if severity == "warning":
+                warnings += 1
+            if code in CANDIDATE_CODES:
+                candidates += 1
         per_file.append((len(findings), rel))
 
     per_file.sort(reverse=True)
@@ -105,6 +125,8 @@ def measure(policy: str) -> dict:
         "files": sum(c["files"] for c in per_corpus.values()),
         "findings": sum(c["findings"] for c in per_corpus.values()),
         "errors": sum(c["errors"] for c in per_corpus.values()),
+        "warnings": warnings,
+        "candidates": candidates,
         "by_code": dict(by_code.most_common()),
         "by_severity": dict(by_severity),
         "per_corpus": per_corpus,
@@ -116,7 +138,8 @@ def measure(policy: str) -> dict:
 
 def print_human(result: dict) -> None:
     print(f"policy={result['policy']}  files={result['files']}  "
-          f"findings={result['findings']}  errors={result['errors']}  "
+          f"findings={result['findings']}  warnings={result['warnings']}  "
+          f"candidates={result['candidates']}  errors={result['errors']}  "
           f"max_per_file={result['max_per_file']}")
     print("  by corpus:")
     for name, counts in result["per_corpus"].items():
@@ -133,6 +156,8 @@ def print_compare(before: dict, after: dict) -> int:
     print(f"findings {before['findings']} -> {after['findings']} "
           f"(delta {after['findings'] - before['findings']:+d})")
     print(f"errors   {before['errors']} -> {after['errors']}")
+    print(f"warnings {before.get('warnings', 0)} -> {after.get('warnings', 0)}")
+    print(f"candidates {before.get('candidates', 0)} -> {after.get('candidates', 0)}")
     print(f"max/file {before['max_per_file']} -> {after['max_per_file']}")
     for code in sorted(set(before["by_code"]) | set(after["by_code"])):
         b, a = before["by_code"].get(code, 0), after["by_code"].get(code, 0)

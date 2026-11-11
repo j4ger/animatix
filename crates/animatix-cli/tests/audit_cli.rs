@@ -57,7 +57,7 @@ fn audit_json_shape_and_default_exit_zero() {
     ] {
         assert!(json.get(key).is_some(), "missing `{key}` in {json}");
     }
-    assert_eq!(json["schema_version"], 2);
+    assert_eq!(json["schema_version"], 3);
     assert_eq!(json["kind"], "audit");
     assert_eq!(json["render"]["status"], "skipped");
     assert_eq!(json["target"]["kind"], "single_scene");
@@ -147,12 +147,12 @@ fn audit_brief_output_format() {
     let json = parse_stdout_json(&output);
     assert_eq!(json["kind"], "audit.brief");
     assert!(json.get("frames").is_none());
-    let findings = json["findings"].as_array().expect("findings array");
+    let findings = json["anchors"].as_array().expect("anchors array");
     for f in findings {
         assert!(f.get("code").is_some());
-        assert!(f.get("fix_hint").is_some());
+        assert!(f.get("severity").is_some());
+        assert!(f.get("fix").is_some());
         assert!(f.get("waived_by").is_some());
-        assert!(f.get("evidence").is_some());
     }
 }
 
@@ -173,7 +173,11 @@ fn audit_fail_on_warning_for_overlap() {
         ])
         .output()
         .expect("run audit");
-    assert_eq!(output.status.code(), Some(1), "should fail with error on overlap");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "overlaps are now Info and should not fail with --fail-on warning"
+    );
 }
 
 #[test]

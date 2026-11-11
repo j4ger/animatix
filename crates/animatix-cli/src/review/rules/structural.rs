@@ -1,5 +1,5 @@
 use super::{OVERLAP_RATIO_FLOOR, source_line};
-use crate::frame_source::Box2;
+use crate::frame_source::{BOUNDS_PAD, Box2};
 use crate::review::facts::{ActorFact, FrameFact, ReviewFacts};
 use crate::review::types::{Persistence, RuleIssue, Severity};
 use std::collections::BTreeMap;
@@ -38,6 +38,7 @@ pub(crate) fn rule_build_never_revealed(facts: &ReviewFacts, out: &mut Vec<RuleI
             suggestion: "Add an entrance action (fade-in, wipe-in, draw-in, reveal-in) or an \
                          explicit opacity assignment so the actor is revealed."
                 .to_string(),
+            baseline_state: None,
         });
     }
 }
@@ -46,15 +47,27 @@ pub(crate) fn rule_opacity_never_positive(facts: &ReviewFacts, out: &mut Vec<Rul
     let mut maxima: BTreeMap<(String, String), f32> = facts
         .actors
         .iter()
-        .filter(|actor| actor.visual)
+        .filter(|actor| {
+            actor.visual
+                && !actor.is_non_content
+                && !actor.is_background
+                && !actor.label.contains("__")
+        })
         .map(|actor| ((actor.scene.clone(), actor.label.clone()), actor.max_effective_opacity))
         .collect();
     for frame in facts.all_frames() {
         for actor_frame in &frame.actors {
-            let visual = facts
-                .actor(&actor_frame.scene, &actor_frame.label)
-                .is_some_and(|actor| actor.visual);
-            if !visual {
+            // `for`-generated instances (`seg__10`, `spark__0`) are internal
+            // fragments of a parent animation, not author-declared actors; the
+            // parent is what a fix should point at.
+            if actor_frame.label.contains("__") {
+                continue;
+            }
+            let actor = facts.actor(&actor_frame.scene, &actor_frame.label);
+            let visual = actor.is_some_and(|actor| actor.visual);
+            let is_non_content = actor.is_some_and(|actor| actor.is_non_content);
+            let is_background = actor.is_some_and(|actor| actor.is_background);
+            if !visual || is_non_content || is_background {
                 continue;
             }
             let entry = maxima
@@ -88,6 +101,7 @@ pub(crate) fn rule_opacity_never_positive(facts: &ReviewFacts, out: &mut Vec<Rul
             suggestion: "Check the actor's opacity and its ancestors' opacity; an actor seeded \
                          hidden needs an entrance or an explicit opacity."
                 .to_string(),
+            baseline_state: None,
         });
     }
 }
@@ -102,10 +116,16 @@ pub(crate) fn rule_never_on_frame(facts: &ReviewFacts, out: &mut Vec<RuleIssue>)
     let mut measurements: BTreeMap<(String, String), NeverOnFrameMeasurement> = BTreeMap::new();
     for frame in facts.all_frames() {
         for actor_frame in &frame.actors {
-            let visual = facts
-                .actor(&actor_frame.scene, &actor_frame.label)
-                .is_some_and(|actor| actor.visual);
-            if !visual {
+            // `for`-generated instances are internal fragments of a parent
+            // animation; the parent is what a fix should point at.
+            if actor_frame.label.contains("__") {
+                continue;
+            }
+            let actor = facts.actor(&actor_frame.scene, &actor_frame.label);
+            let visual = actor.is_some_and(|actor| actor.visual);
+            let is_non_content = actor.is_some_and(|actor| actor.is_non_content);
+            let is_background = actor.is_some_and(|actor| actor.is_background);
+            if !visual || is_non_content || is_background {
                 continue;
             }
             let entry = measurements
@@ -126,10 +146,21 @@ pub(crate) fn rule_never_on_frame(facts: &ReviewFacts, out: &mut Vec<RuleIssue>)
             continue;
         }
         let first_time = measurement.first_time;
+        let canvas = Box2::new(0.0, 0.0, facts.target.width as f64, facts.target.height as f64);
         let ever_on_frame = facts.all_frames().any(|frame| {
             facts.actor_frame(frame, &scene, &label).is_some_and(|actor_frame| {
+                let Some(frame_bounds) = actor_frame.bounds else {
+                    return false;
+                };
+                // Zero-area primitives (Line/Arrow) need padding before the
+                // intersection is meaningful; otherwise a perfectly visible
+                // hairline reads as "never on frame".
+                let intersection_area =
+                    box_intersection_area(frame_bounds.padded(BOUNDS_PAD), canvas);
+                let draws_content = actor_frame.draw_items.is_none_or(|count| count > 0);
                 actor_frame.opacity.unwrap_or(0.0) > 0.01
-                    && actor_frame.padded_on_frame_fraction > 0.0
+                    && draws_content
+                    && intersection_area > 0.5
             })
         });
         if ever_on_frame {
@@ -155,6 +186,7 @@ pub(crate) fn rule_never_on_frame(facts: &ReviewFacts, out: &mut Vec<RuleIssue>)
             suggestion: "Move the actor inside the canvas bounds, or remove it if it is no longer \
                          part of the scene."
                 .to_string(),
+            baseline_state: None,
         });
     }
 }
@@ -222,6 +254,7 @@ pub(crate) fn rule_clipped(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
             }),
             suggestion: "Move or resize the actor so its bounds stay inside the canvas."
                 .to_string(),
+            baseline_state: None,
         });
     }
 }
@@ -379,6 +412,7 @@ fn push_overlap_pair(
         suggestion: "Check whether the overlap is intentional (annotation, decoration, \
                      transition); if not, move one actor or add a container."
             .to_string(),
+        baseline_state: None,
     });
 }
 
@@ -391,7 +425,7 @@ fn push_overlap_cluster(
 ) {
     out.push(RuleIssue {
         rule_id: "overlap.cluster",
-        severity: Severity::Warning,
+        severity: Severity::Info,
         persistence: Persistence::Held,
         fix_hint: None,
         waived_by: None,
@@ -409,6 +443,7 @@ fn push_overlap_cluster(
             "kept": 24,
         }),
         suggestion: "Organize overlapping actors with a layout container (Row/Col/Stack/Grid) or add local layout waivers (`// layout: allow-overlap`).".to_string(),
+        baseline_state: None,
     });
 }
 
@@ -425,26 +460,12 @@ pub(crate) fn rule_overlap_candidates(facts: &ReviewFacts, out: &mut Vec<RuleIss
             independent.truncate(24);
             let max_time_s = independent.iter().map(|p| p.candidate.time_s).fold(0.0_f64, f64::max);
             for pair in &independent {
-                push_overlap_pair(
-                    facts,
-                    &scene,
-                    pair,
-                    "overlap.undeclared",
-                    Severity::Warning,
-                    out,
-                );
+                push_overlap_pair(facts, &scene, pair, "overlap.undeclared", Severity::Info, out);
             }
             push_overlap_cluster(&scene, independent_total, sample_pairs, max_time_s, out);
         } else {
             for pair in &independent {
-                push_overlap_pair(
-                    facts,
-                    &scene,
-                    pair,
-                    "overlap.undeclared",
-                    Severity::Warning,
-                    out,
-                );
+                push_overlap_pair(facts, &scene, pair, "overlap.undeclared", Severity::Info, out);
             }
         }
 
@@ -586,6 +607,7 @@ pub(crate) fn rule_text_overflow(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) 
             }),
             suggestion: "Raise `text_max_width`, shorten the text, or use `overflow: ellipsis`."
                 .to_string(),
+            baseline_state: None,
         });
     }
 }
@@ -606,16 +628,35 @@ pub(crate) fn rule_entrance_not_visible(facts: &ReviewFacts, out: &mut Vec<RuleI
             continue;
         };
         for target in &action.targets {
+            let actor = facts.actor(&action.scene, target);
+            if target.contains("__")
+                || actor.is_some_and(|actor| actor.is_non_content || actor.is_background)
+            {
+                continue;
+            }
+            // `delay` and easing are not part of `start_s + duration_s`, so a
+            // correctly authored entrance can still be invisible at that exact
+            // instant. Only report actors that never become visible at or after
+            // the entrance.
+            let became_visible = facts
+                .frames
+                .iter()
+                .chain(facts.probe_frames.iter())
+                .filter(|candidate| candidate.time_s + 0.005 >= after_s)
+                .any(|candidate| {
+                    facts.actor_frame(candidate, &action.scene, target).is_some_and(|actor_frame| {
+                        actor_frame.opacity.unwrap_or(0.0) > 0.01
+                            && actor_frame.bounds.is_some()
+                            && actor_frame.padded_on_frame_fraction > 0.0
+                    })
+                });
+            if became_visible {
+                continue;
+            }
             let Some(actor_frame) = facts.actor_frame(frame, &action.scene, target) else {
                 continue;
             };
             let opacity = actor_frame.opacity.unwrap_or(0.0);
-            let visible = opacity > 0.01
-                && actor_frame.bounds.is_some()
-                && actor_frame.padded_on_frame_fraction > 0.0;
-            if visible {
-                continue;
-            }
             out.push(RuleIssue {
                 rule_id: "entrance.not-visible",
                 severity: Severity::Warning,
@@ -642,6 +683,7 @@ pub(crate) fn rule_entrance_not_visible(facts: &ReviewFacts, out: &mut Vec<RuleI
                 suggestion: "Extend the entrance, raise its end opacity, or move the actor on \
                              frame before the entrance ends."
                     .to_string(),
+                baseline_state: None,
             });
         }
     }
@@ -669,6 +711,7 @@ pub(crate) fn rule_keyframe_redundant(facts: &ReviewFacts, out: &mut Vec<RuleIss
                 "time_s": fact.time_s,
             }),
             suggestion: "Remove the redundant keyframe or change its value.".to_string(),
+            baseline_state: None,
         });
     }
 }

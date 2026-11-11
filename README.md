@@ -60,7 +60,7 @@ features. The remaining switches are `perf-tracing` (default-on), `serde`,
 
 **Multi-scene:** Scene declarations, 13 transitions (cut, fade, wipes/pushes, iris, clock-wipe, zoom-through), cross-file composition, auto-routed CLI export
 
-**Tooling:** CLI renderer (image; video/GIF/WebM behind the `video` feature), checker/linter/reviewer (`animatix check`, `animatix lint`, `animatix audit`), qualitative storyboard contact sheets (`animatix storyboard`), regression testing (`animatix baseline`), GUI shell, Tree-sitter grammar, LSP server.
+**Tooling:** CLI renderer (image; video/GIF/WebM behind the `video` feature), checker/linter/reviewer (`animatix check`, `animatix lint`, `animatix audit`), qualitative storyboard contact sheets (`animatix storyboard`), regression testing (`animatix baseline`), GUI shell, Tree-sitter grammar, LSP server. Audit now features per-finding visual evidence, ratchetable budgets, and delta-based incremental review.
 
 Full language spec: [`docs/spec.md`](docs/spec.md) · All primitives: [`docs/primitives.md`](docs/primitives.md) · All properties: [`docs/properties.md`](docs/properties.md)
 

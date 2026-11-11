@@ -130,6 +130,15 @@ enum Commands {
         /// Maximum number of frames to sample when auto-detecting (default: 8)
         #[arg(long, default_value_t = 8)]
         max_frames: usize,
+        /// Maximum contact sheet width (default: 1536)
+        #[arg(long, default_value_t = 1536)]
+        max_width: u32,
+        /// Minimum ink fraction for a frame to be included in the storyboard (default: 0.005)
+        #[arg(long, default_value_t = 0.005)]
+        min_ink: f64,
+        /// Skip rendering and use time-in-interval midpoints
+        #[arg(long)]
+        fast: bool,
         /// Draw per-node content bounding boxes for debugging
         #[arg(long)]
         debug_bounds: bool,
@@ -461,6 +470,9 @@ fn dispatch(command: Commands, extensions: &CliExtensions) {
             tile_height,
             times,
             max_frames,
+            max_width,
+            min_ink,
+            fast,
             debug_bounds,
             output,
         } => {
@@ -470,6 +482,9 @@ fn dispatch(command: Commands, extensions: &CliExtensions) {
                 cols,
                 tile_width,
                 tile_height,
+                max_width,
+                min_ink,
+                fast,
                 times,
                 max_frames,
                 debug_bounds,
