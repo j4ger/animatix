@@ -9,10 +9,13 @@
 //    no record-and-chain like PlotCurve.func has)
 //  - Text value update via assignment dp[k].text = "3" (PROBE: glyph re-render vs morph)
 
+import "../../web/demos/lib/stage.amx"
+import "../../web/demos/lib/theme.amx"
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-title: Text, text: "Climbing Stairs — DP", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 40)
-recap: Text, text: "dp[k] = dp[k-1] + dp[k-2]", font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 76)
+head: ActHead, kicker: "LEETCODE · CLIMBING STAIRS", title: "Climbing Stairs (n=5)"
+caption: Caption, text: "dp[k] = dp[k-1] + dp[k-2]", tag: "leetcode"
 
 // step_k center = (180 + k*120, 560 - k*80); top edge = center.y - 40.
 step0: Rect, size: (140, 80), color: surface.secondary, stroke: accent.primary, stroke_width: 2, at: (180, 560)
@@ -34,8 +37,8 @@ dep_a: Arrow, from: (300, 440), to: (420, 360), color: accent.info,      stroke_
 dep_b: Arrow, from: (180, 520), to: (420, 360), color: accent.secondary, stroke_width: 3, head_size: 14, opacity: 0
 
 #0.5s
-fade-in title [500ms]
-fade-in recap [500ms, delay: 150ms]
+fade-in head [500ms]
+fade-in caption [500ms, delay: 150ms]
 stagger [220ms] {
   draw-in step0 [500ms]
   draw-in step1 [500ms]

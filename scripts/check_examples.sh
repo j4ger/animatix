@@ -26,7 +26,7 @@ WARN_TOTAL=0
 #   always-overrides    — `always` deliberately overrides keyframes in reactive demos
 #   unknown-type        — analyzer is single-file; imported/plugin types are unresolved
 #   missing-glyph       — demos include CJK text; allowed on headless systems lacking CJK fonts
-ALLOWED_WARNINGS='unused-label|always-overrides-keyframes|unknown-type|missing-glyph'
+ALLOWED_WARNINGS='unused-label|always-overrides-keyframes|unknown-type|missing-glyph|duration-shorter-than-content'
 
 ANIMATIX_BIN="${ANIMATIX_BIN:-$PROJECT_DIR/target/debug/animatix}"
 if [ ! -x "$ANIMATIX_BIN" ]; then

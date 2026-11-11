@@ -10,16 +10,17 @@
 // No per-frame mutable state is introduced — the random-access guarantee
 // holds, and the function body's locals never leak into the scene.
 
+import "../../web/demos/lib/stage.amx"
+import "../../web/demos/lib/theme.amx"
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720), dynamic_layout: true }
 
 let values = {2, 0, 1, 2, 1, 0}
 
 let colors = {(1, 0, 0, 1), (0.9, 0.9, 0.9, 1), (0, 0, 1, 1)}
 
-title: Text, text: "Sort Colors — Dutch National Flag", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 44)
-
-caption: Text, text: "red 0 · white 1 · blue 2 — partition via zero/i/two pointers",
-  font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 84)
+head: ActHead, kicker: "LEETCODE · SORT COLORS", title: "Sort Colors"
+caption: Caption, text: "red 0 · white 1 · blue 2 — partition via zero/i/two pointers", tag: "leetcode"
 
 row: Row, at: (640, 440), gap: 16, align: "center" {
   for k in {0, 1, 2, 3, 4, 5} {
@@ -66,7 +67,7 @@ fn dnf_pass(values: List<Num>) {
 }
 
 #0s
-fade-in title [500ms]
+fade-in head [500ms]
 fade-in caption [400ms, delay: 200ms]
 fade-in row [600ms, ease: ease-out]
 fade-in zero_p [300ms]

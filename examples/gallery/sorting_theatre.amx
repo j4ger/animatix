@@ -53,7 +53,7 @@ pub component Bars(values: List<Num>, color: Color, at: Vec2 = (640, 400), bar_w
 // ── Scene 1: Overture ───────────────────────────────────────────────────────
 
 # Overture
-config { colorscheme: "ink", dynamic_layout: true, duration: 6 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 4 }
 
 title: Text, text: "Sorting Theatre", font_size: 64, font_weight: "bold",
   color: text.primary, anchor: scene.center, offset: (0, -70)
@@ -69,13 +69,13 @@ fade-in title [700ms, ease: ease-out]
 fade-in subtitle [600ms, delay: 250ms]
 fade-in hint [500ms, delay: 450ms]
 
-#5.4s
+#3.8s
 play TheSort [fade, 500ms]
 
 // ── Scene 2: The Sort ───────────────────────────────────────────────────────
 
 # TheSort
-config { colorscheme: "ink", dynamic_layout: true, duration: 21 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 18 }
 
 sort_title: Text, text: "Insertion Sort", font_size: 40, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -117,13 +117,13 @@ stagger [80ms] {
 #1.2s
 insertion_sort(bars, {42, 17, 93, 5, 68, 31, 76, 12}, comp_ticks, swap_ticks)
 
-#19.5s
+#16.5s
 play Finale [fade, 500ms]
 
 // ── Scene 3: Finale ─────────────────────────────────────────────────────────
 
 # Finale
-config { colorscheme: "ink", dynamic_layout: true, duration: 10 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 6 }
 
 finale_title: Text, text: "Sorted", font_size: 48, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 64)

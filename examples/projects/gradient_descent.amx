@@ -2,6 +2,9 @@
 // A visual walkthrough of gradient descent on a 2D loss surface:
 // loss surface → against the gradient → roll to the minimum → step size matters.
 
+import "../../web/demos/lib/stage.amx"
+import "../../web/demos/lib/theme.amx"
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 // =============================================================================
@@ -30,8 +33,7 @@ play LossSurface [fade, 400ms]
 # LossSurface
 config { colorscheme: "editorial-dark" }
 
-step_title: Text, text: "1. The Loss Surface", font_size: 40,
-  color: text.primary, anchor: scene.top, offset: (0, 60)
+head: ActHead, kicker: "FIG 01 · THE LOSS SURFACE", title: "The Loss Surface"
 
 // Contour map of the loss function f(x, y) = x² + y²
 contours: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
@@ -46,12 +48,12 @@ field: VectorField, func: (x, y) => (x, y), density: 8,
 // Global minimum at (0, 0)
 min_dot: Ellipse, size: (12, 12), color: accent.success, at: (400, 380)
 
-caption: Text,
+caption: Caption,
   text: "Contours = equal loss  ·  Arrows = gradient (uphill)",
-  font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -40)
+  tag: "gradient_descent"
 
 #0.5s
-fade-in step_title [500ms, ease: ease-out]
+fade-in head [500ms, ease: ease-out]
 
 #1.0s
 stagger [150ms] {

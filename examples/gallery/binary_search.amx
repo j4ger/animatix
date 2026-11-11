@@ -51,7 +51,7 @@ status_card: Rect, at: (380, 530), size: (520, 56), color: surface.primary, corn
 status_text: Text, text: "Comparing array[mid] with 42...", font_size: 20, color: text.primary, at: (446, 545)
 
 #0.5s
-stagger [60ms] {
+stagger [30ms] {
   fade-in title [400ms, ease: ease-out]
   fade-in subtitle [400ms, ease: ease-out]
   fade-in target_badge [400ms, ease: ease-out]

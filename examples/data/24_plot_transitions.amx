@@ -12,7 +12,7 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 title: Text, text: "Cartesian: sin(x) → cos(x)", font_size: 28, color: text.primary, anchor: scene.top, offset: (0, 55)
 
-axes: Graph, x_domain: (-6, 6), y_domain: (-1.8, 1.8), size: (820, 520), anchor: scene.center {
+axes: Graph, x_domain: (-6, 6), y_domain: (-3, 3), size: (820, 520), anchor: scene.center {
   curve: PlotCurve, kind: "cartesian", func: (x) => sin(x), stroke_width: 3, color: accent.primary
 }
 
@@ -80,7 +80,7 @@ play Cascading [fade, 400ms]
 
 title: Text, text: "Cascading transitions", font_size: 28, color: text.primary, anchor: scene.top, offset: (0, 55)
 
-axes: Graph, x_domain: (-6, 6), y_domain: (-2, 2), size: (820, 520), anchor: scene.center {
+axes: Graph, x_domain: (-6, 6), y_domain: (-3, 3), size: (820, 520), anchor: scene.center {
   curve: PlotCurve, kind: "cartesian", func: (x) => sin(x), stroke_width: 3, color: accent.warning
 }
 

@@ -10,16 +10,10 @@
       "actor.never-on-frame": 2,
       "entrance.not-visible": 1
     },
-    "examples/data/24_plot_transitions.amx": {
-      "actor.clipped": 1
-    },
     "examples/gallery/binary_search.amx": {
       "actor.clipped": 1
     },
     "examples/gallery/dashboard_story.amx": {
-      "actor.clipped": 1
-    },
-    "examples/gallery/epicycles.amx": {
       "actor.clipped": 1
     }
   }

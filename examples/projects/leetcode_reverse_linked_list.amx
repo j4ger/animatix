@@ -8,9 +8,12 @@
 //  - no first-class edge/connector tracking two actors by reference; links are free Vec2
 //  - no list-of-actor-refs: each node/link/pointer is a separate hand-named actor
 
+import "../../web/demos/lib/stage.amx"
+import "../../web/demos/lib/theme.amx"
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-title: Text, text: "Reverse Linked List", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 44)
+head: ActHead, kicker: "LEETCODE · REVERSE LINKED LIST", title: "Reverse Linked List"
 
 null_box: Rect, size: (80, 56), fill_opacity: 0, stroke: text.muted, stroke_width: 2, at: (120, 380)
 null_t:   Text, text: "null", font_size: 18, color: text.muted, at: (120, 380)
@@ -38,7 +41,7 @@ cur_p:  Text, text: "▼ cur",  font_size: 18, color: accent.warning, at: (240, 
 next_p: Text, text: "▼ next", font_size: 18, color: accent.danger,  at: (440, 140), opacity: 0
 
 #0.5s
-fade-in title [500ms]
+fade-in head [500ms]
 stagger [90ms] {
   fade-in n0 [400ms]
   fade-in n1 [400ms]

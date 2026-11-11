@@ -18,7 +18,7 @@ config {
 // ── Scene 1: Goal — the finished square wave draws itself ───────────────────
 
 # Goal
-config { colorscheme: "ink", dynamic_layout: true, duration: 10 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 6 }
 
 goal_title: Text, text: "Drawing a Square Wave with Circles", font_size: 44,
   font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -46,13 +46,13 @@ goal_wave.stroke_progress = 1.0 [3s, ease: ease-in-out]
 #5.2s
 fade-in goal_hint [500ms]
 
-#9.2s
+#5.5s
 play OneCircle [fade, 500ms]
 
 // ── Scene 2: One Circle — constant rotation traces a sine ───────────────────
 
 # OneCircle
-config { colorscheme: "ink", dynamic_layout: true, duration: 15 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 14.3 }
 
 one_title: Text, text: "1. One circle, one sine", font_size: 36, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -102,13 +102,13 @@ always {
 #13.8s
 fade-in one_hint [400ms]
 
-#14.4s
+#7s
 play Hero [wipe-left, 500ms]
 
 // ── Scene 3: Hero — circles stack up, the wave grows into a square ──────────
 
 # Hero
-config { colorscheme: "ink", dynamic_layout: true, duration: 24 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 12 }
 
 hero_title: Text, text: "2. Stack the odd harmonics", font_size: 36, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -160,7 +160,7 @@ hero_wave.stroke_progress = 1.0 [20s, ease: linear]
 
 // Epicycle chain: every center is an analytic function of t.
 always {
-  let th = 2 * pi * clamp(t - 1.0, 0.0, 20.0) / 20.0
+  let th = 2 * pi * clamp(t - 1.0, 0.0, 10.0) / 10.0
   let r1 = 140
   let r3 = 140 / 3
   let r5 = 140 / 5
@@ -175,43 +175,43 @@ always {
   let c4y = c3y + r5 * sin(5 * th)
   c4.at = (c4x, c4y)
   tip.at = (c4x + r7 * cos(7 * th), c4y + r7 * sin(7 * th))
-  let x_now = 12.566 * clamp(t - 1.0, 0.0, 20.0) / 20.0
+  let x_now = 12.566 * clamp(t - 1.0, 0.0, 10.0) / 10.0
   let wy = (4 / pi) * (sin(x_now) + sin(3 * x_now) / 3 + sin(5 * x_now) / 5 + sin(7 * x_now) / 7)
   // Same linear mapping as the OneCircle scene (hero_graph geometry).
   wave_tip.at = (450 + 60.5 * x_now, 400 - 110 * wy)
 }
 
 // The wave grows: function transitions add harmonic after harmonic.
-#4s
+#2s
 hero_wave.func = (x) => (4 / pi) * (sin(x) + sin(3 * x) / 3) [1.5s]
 fade-in c3 [400ms]
 highlight hero_eq.m3 [color: white, blend: difference, 900ms]
 
-#5.5s
+#2.75s
 unhighlight hero_eq.m3 [400ms]
 
-#9s
+#4.5s
 hero_wave.func = (x) => (4 / pi) * (sin(x) + sin(3 * x) / 3 + sin(5 * x) / 5) [1.5s]
 fade-in c4 [400ms]
 highlight hero_eq.m5 [color: white, blend: difference, 900ms]
 
-#10.5s
+#5.25s
 unhighlight hero_eq.m5 [400ms]
 
-#14s
+#7s
 hero_wave.func = (x) => (4 / pi) * (sin(x) + sin(3 * x) / 3 + sin(5 * x) / 5 + sin(7 * x) / 7) [1.5s]
 highlight hero_eq.m7 [color: white, blend: difference, 900ms]
 
-#15.5s
+#7.75s
 unhighlight hero_eq.m7 [400ms]
 
-#21.5s
+#11s
 play Spectrum [wipe-left, 500ms]
 
 // ── Scene 4: Spectrum — 1/k amplitude decay ─────────────────────────────────
 
 # Spectrum
-config { colorscheme: "ink", dynamic_layout: true, duration: 11 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 6 }
 
 spec_title: Text, text: "3. Only odd harmonics, shrinking as 1/k", font_size: 36,
   font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -245,13 +245,13 @@ fade-in spec_eq [500ms, delay: 200ms]
 fade-in spectrum [800ms, ease: ease-out]
 fade-in spec_note [500ms, delay: 500ms]
 
-#9.8s
+#5s
 play ComplexPlane [fade, 500ms]
 
 // ── Scene 5: Complex Plane — e^{i theta} ────────────────────────────────────
 
 # ComplexPlane
-config { colorscheme: "ink", dynamic_layout: true, duration: 13 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 8 }
 
 cp_title: Text, text: "4. Why circles? Complex exponentials", font_size: 36,
   font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -270,7 +270,7 @@ vector: Line, from: (420, 400), to: (620, 400),
 vec_tip: Ellipse, size: (14, 14), color: accent.warning, at: (620, 400)
 
 cp_eq: Typst, text: "e^(i theta) = cos(theta) + i sin(theta)",
-  font_size: 26, color: accent.primary, anchor: scene.center, offset: (500, -60)
+  font_size: 20, color: accent.primary, anchor: scene.center, offset: (0, -60)
 
 cp_note: Text, text: "each circle is one term e^(i k theta) with radius a_k",
   font_size: theme.text_sm, color: text.secondary, anchor: scene.center, offset: (500, 20)

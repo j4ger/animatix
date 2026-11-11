@@ -12,7 +12,7 @@ config {
 // ── Scene 1: KPIs ───────────────────────────────────────────────────────────
 
 # KPIs
-config { colorscheme: "ink" }
+config { colorscheme: "ink", duration: 5 }
 
 header1: Group, anchor: scene.top, offset: (0, 60) {
   title: TitleCard,
@@ -54,7 +54,7 @@ play Trend [fade, 500ms]
 // ── Scene 2: Trend ──────────────────────────────────────────────────────────
 
 # Trend
-config { colorscheme: "ink" }
+config { colorscheme: "ink", duration: 7 }
 
 header2: Group, anchor: scene.top, offset: (0, 60) {
   section: SectionHeader, title: "趋势 · Trend", kicker: "02"
@@ -141,7 +141,7 @@ play Ranking [fade, 400ms]
 // ── Scene 3: Ranking Shift ──────────────────────────────────────────────────
 
 # Ranking
-config { colorscheme: "ink" }
+config { colorscheme: "ink", duration: 5 }
 
 header3: Group, anchor: scene.top, offset: (0, 60) {
   section: SectionHeader, title: "排名变化 · Ranking Shift", kicker: "03"
@@ -197,7 +197,7 @@ play Focus [fade, 400ms]
 // ── Scene 4: Focus & Takeaway ───────────────────────────────────────────────
 
 # Focus
-config { colorscheme: "ink" }
+config { colorscheme: "ink", duration: 5 }
 
 kpi_row: Row, anchor: scene.center, offset: (0, 50), gap: 24 {
   m0: MetricCard, label: "营收 Revenue", value: "128K"
@@ -240,7 +240,7 @@ play End [fade, 500ms]
 // ── Scene 5: End ────────────────────────────────────────────────────────────
 
 # End
-config { colorscheme: "ink" }
+config { colorscheme: "ink", duration: 3 }
 
 final: Group, anchor: scene.center {
   end: TitleCard,

@@ -7,6 +7,102 @@ closed work lives in [`history/README.md`](history/README.md) — do not re-add 
 
 ## Backlog & Prioritization
 
+### User-facing delivery plan (2026-11-12)
+
+The following milestones cover four priorities from the product review:
+first-run delivery, editing reliability, parameterized production, and video
+footage. All are **planned, not scheduled**; the order expresses dependencies,
+not delivery dates. Existing capabilities are the starting point, not work to
+reimplement. Detailed engine findings elsewhere in this roadmap remain the
+evidence backlog; reproduce them against current code before assigning fixes.
+
+| Priority | Milestone | User outcome | Dependency |
+|---|---|---|---|
+| P0 | First-run project and video delivery | Install, create an independent project, preview, and export a narrated MP4 without Rust or a repository checkout | Cross-platform packaging/encoding investigation |
+| P0 | Reliable editing and language behavior | Format, edit in the GUI, and animate documented properties without unexplained source or visual changes | Starts alongside first-run work; blocks broad template rollout |
+| P1 | Parameterized templates and batch production | Supply data once, preview variants, and render multiple versions of a multi-scene work | Reliable defaults, source round-trips, and export |
+| P2 | Video footage in explanatory animations | Place a recording or clip alongside diagrams and export synchronized results | Stable media/export contract; preview/export parity |
+
+#### P0 — First-run project and video delivery
+
+- **Phase A: export feasibility.** Determine a reproducible FFmpeg distribution
+  and codec strategy for macOS and Windows, then validate a minimal video-enabled
+  artifact on each supported OS. The current release pipeline only ships video
+  on Linux. Record the chosen dependency/update strategy before expanding release
+  artifacts; keep packaging commands in named `scripts/ci.sh` gates.
+- **Phase B: independent projects.** Add a project creation entry point (proposed
+  CLI `init`, with a GUI equivalent) that copies a self-contained starter and its
+  required modules/assets. Remove the need for starters to reference the source
+  repository's `web/demos/lib/` tree. Include a small narrated example using the
+  existing Audio/Captions path.
+- **Phase C: diagnosis and recovery.** Add environment/capability diagnosis
+  (proposed `doctor`) for GPU, fonts, media and encoders, with actionable errors
+  surfaced consistently in CLI and GUI. Document the installation-to-export path.
+- **Acceptance:** on a clean supported machine, a user installs the release,
+  creates a project outside the repository, previews it, and exports a 30-second
+  MP4 with audio without installing Rust. Exercise this path per supported OS.
+
+#### P0 — Reliable editing and language behavior
+
+- **Phase A: source round-trips.** Resolve the raw-string/value ambiguity noted
+  in the easing-pass findings below; pin formatter idempotence and unchanged text
+  semantics. Review GUI AST write-back for preservation of comments and unrelated
+  source, and make a single inspector edit produce a comprehensible diff.
+- **Phase B: property contracts.** Reproduce the silent frame-time no-ops and
+  divergent defaults listed below. For each property, either implement the
+  documented path or diagnose unsupported writes. Consolidate defaults across
+  build, interpolation, inspector and reference documentation; record visual
+  compatibility changes rather than silently changing existing scenes.
+- **Phase C: behavior regressions.** Turn current morph, layout and composition
+  findings into minimal runnable repros, prioritize those blocking ordinary
+  authoring, and close findings only with matching diagnostic or visual evidence.
+- **Acceptance:** repeated formatting is stable; GUI save/reopen preserves text
+  semantics; supported property writes visibly work and unsupported writes report
+  a diagnostic. Representative scenes agree across preview and export. Run the
+  applicable CI gates and attach benchmark comparisons for hot-path changes.
+
+#### P1 — Parameterized templates and batch production
+
+- **Phase A: input contract.** Design explicit work-level inputs with types,
+  defaults, required/optional status, numeric bounds, enum choices and descriptions.
+  Extend existing `--set` / `data-vars` / `setVars()` semantics to multi-scene
+  compositions with defined precedence and import/component scoping. Keep one
+  validation contract across CLI, GUI and web; do not introduce parallel schemas.
+- **Phase B: author and preview.** Generate GUI controls from that contract; add
+  JSON/CSV ingestion, data preview and field/row-specific diagnostics. Support
+  structured inputs needed by a real data-story template. Validate long text,
+  missing optional values and different image proportions. Build explicit tested
+  landscape, portrait and square layout variants on existing layout primitives.
+- **Phase C: local production.** Add a local batch queue with per-item progress,
+  cancellation, failure reporting and retry. Save effective parameters, runtime
+  version and output metadata with each job so a reviewed variant can be rendered
+  again. Cloud rendering is outside this milestone.
+- **Acceptance:** one multi-scene template consumes a dataset and produces at
+  least 30 variants without source edits; invalid rows identify their fields and
+  do not discard successful outputs. GUI/web preview and CLI export use the same
+  effective inputs. Verify the three layout variants with visual review.
+
+#### P2 — Video footage in explanatory animations
+
+- **Phase A: media contract and spike.** Specify a video actor's source, source
+  in/out points, timeline start, fit/crop, mute/volume and end-of-clip behavior.
+  Validate decoding, timestamp mapping and frame seeking before committing to a
+  backend. Keep GPU/decoder implementations in the presentation layer and media
+  state within the existing ECS contract.
+- **Phase B: native vertical slice.** Implement local-file playback, exact-time
+  scrubbing and offline export, including the clip's audio mixed with existing
+  Audio actors. Exercise overlays, scene transitions and seeks in both directions;
+  define the supported formats and VFR timestamp policy explicitly.
+- **Phase C: delivery and web boundary.** Integrate media import/inspection and
+  missing/unsupported-file diagnostics. Decide and document browser playback
+  support after the native slice; until supported, web builds must diagnose video
+  actors rather than silently omit them. Network streams and a general-purpose
+  nonlinear editor are outside this milestone.
+- **Acceptance:** a screen recording can be trimmed, cropped, annotated and
+  exported with synchronized audio; sampled frames match preview after random
+  seeks and repeated exports. Cover clip boundaries and variable-frame-rate input,
+  and measure decode/cache memory plus frame/export costs before rollout.
+
 ### Structure gate (active)
 
 The large-file/large-function programme is governed by [`ecs.md`](ecs.md) §8:
