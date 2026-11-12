@@ -1,0 +1,30 @@
+# Immutable source inputs for the Linux video-enabled distribution.
+# SHA-256 values were calculated from the upstream release/archive URLs below.
+
+UBUNTU_IMAGE='ubuntu:22.04@sha256:076e7bf82319619f28dd0aa9c02ab34b055ad37100395b4f49a2ffba04fb5e11'
+UBUNTU_24_IMAGE='ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852'
+RUST_VERSION='1.95.0'
+
+FFMPEG_VERSION='8.0.3'
+FFMPEG_ARCHIVE='ffmpeg-8.0.3.tar.xz'
+FFMPEG_URL='https://ffmpeg.org/releases/ffmpeg-8.0.3.tar.xz'
+FFMPEG_SHA256='6136812ea6d4e68bdba27e33c2a94382711cdf4f8602ffef056ff792bd6f9818'
+
+X264_REV='0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee'
+X264_ARCHIVE='x264-0480cb05.tar.gz'
+X264_URL='https://code.videolan.org/videolan/x264/-/archive/0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee/x264-0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee.tar.gz'
+X264_SHA256='d0967a1348c85dfde363bb52610403be898171493100561efa0dd05d5fd1ae50'
+
+# Gitiles archive tar mtimes depend on request time. The official GitHub
+# mirror archive is stable; compared byte-identical source trees to upstream
+# tag commit 1024874c5919305883187e2953de8fcb4c3d7fa6 and two downloads.
+LIBVPX_VERSION='1.16.0'
+LIBVPX_REV='1024874c5919305883187e2953de8fcb4c3d7fa6'
+LIBVPX_ARCHIVE='libvpx-1.16.0.tar.gz'
+LIBVPX_URL='https://codeload.github.com/webmproject/libvpx/tar.gz/refs/tags/v1.16.0'
+LIBVPX_SHA256='7a479a3c66b9f5d5542a4c6a1b7d3768a983b1e5c14c60a9396edc9b649e015c'
+
+OPUS_VERSION='1.5.2'
+OPUS_ARCHIVE='opus-1.5.2.tar.gz'
+OPUS_URL='https://github.com/xiph/opus/releases/download/v1.5.2/opus-1.5.2.tar.gz'
+OPUS_SHA256='65c1d2f78b9f2fb20082c38cbe47c951ad5839345876e46941612ee87f9a7ce1'
