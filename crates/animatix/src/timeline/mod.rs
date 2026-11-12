@@ -118,6 +118,7 @@ pub mod vello_path;
 
 use actions::process_action_with_extensions;
 pub(crate) use assignments::recompile_text_at_assignment;
+pub use build::{bind_input_loop, prepare_input_environment};
 pub use builtins::load_standard_library;
 use colorscheme::{BuiltInColorscheme, ResolvedColorscheme};
 pub use env::{CapturedEnv, Environment, EvalError, Value};

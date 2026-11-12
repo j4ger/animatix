@@ -67,11 +67,20 @@ pub(super) fn seed_namespace_exports(
     prefix: &str,
     namespace: &crate::module::Namespace,
 ) {
+    seed_namespace_environment(&mut timeline.env, diagnostics, prefix, namespace);
+}
+
+pub(super) fn seed_namespace_environment(
+    env: &mut Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    prefix: &str,
+    namespace: &crate::module::Namespace,
+) {
     for (name, expr) in &namespace.exports {
         let key = format!("{prefix}.{name}");
-        match evaluate_expr(expr, &timeline.env) {
+        match evaluate_expr(expr, env) {
             Ok(value) => {
-                timeline.env.set(&key, value);
+                env.set(&key, value);
             },
             Err(e) => {
                 diagnostics.push(
@@ -87,6 +96,6 @@ pub(super) fn seed_namespace_exports(
     }
 
     for (alias, nested) in &namespace.namespaces {
-        seed_namespace_exports(timeline, diagnostics, &format!("{prefix}.{alias}"), nested);
+        seed_namespace_environment(env, diagnostics, &format!("{prefix}.{alias}"), nested);
     }
 }
