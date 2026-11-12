@@ -17,7 +17,7 @@ if [ ! -x /package/bin/animatix ] || [ ! -x /package/bin/animatix-gui ] || [ ! -
 fi
 
 apt-get update
-apt-get install -y --no-install-recommends libvulkan1 mesa-vulkan-drivers xvfb xauth x11-utils
+apt-get install -y --no-install-recommends libvulkan1 mesa-vulkan-drivers xvfb xauth x11-utils python3
 rm -rf /var/lib/apt/lists/*
 
 mkdir -p /tmp/xdg-runtime
@@ -92,6 +92,75 @@ assert_stream out.gif v gif
 for f in out.mp4 out.webm out.gif; do
   [ -s "$f" ] || { echo "error: empty output: $f" >&2; exit 1; }
 done
+
+assert_video_frames() {
+  local file="$1" found
+  found=$(/package/bin/ffprobe -v error -select_streams v:0 -count_frames \
+    -show_entries stream=nb_read_frames -of default=noprint_wrappers=1:nokey=1 "$file")
+  [ "$found" = 5 ] || {
+    echo "error: $file decoded $found video frames; expected 5" >&2
+    exit 1
+  }
+  /package/bin/ffmpeg -v error -xerror -i "$file" -map 0:v:0 -an -f null -
+}
+
+assert_audio() {
+  local file="$1" name="$2" frame_samples="$3" raw="$testdir/$2.pcm" decode_log="$testdir/$2-decode.log" playback_duration
+  playback_duration=$(/package/bin/ffprobe -v error -show_entries format=duration \
+    -of default=noprint_wrappers=1:nokey=1 "$file")
+  awk -v duration="$playback_duration" 'BEGIN { exit !(duration >= 0.98 && duration <= 1.02) }' || {
+    echo "error: $file playback duration is ${playback_duration}s; expected 1.0s ±0.02s" >&2
+    exit 1
+  }
+  # Keep codec diagnostics (including the known Opus packet-header warning) as
+  # evidence while requiring the decoder to finish successfully.
+  /package/bin/ffmpeg -v error -xerror -i "$file" -map 0:a:0 -vn -ac 1 -ar 44100 \
+    -f s16le -y "$raw" 2>"$decode_log"
+  python3 - "$raw" "$name" "$playback_duration" "$frame_samples" <<'PY'
+import array
+import math
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+samples = array.array("h")
+samples.frombytes(path.read_bytes())
+if sys.byteorder != "little":
+    samples.byteswap()
+if not samples:
+    raise SystemExit(f"{sys.argv[2]}: decoder produced no PCM samples")
+rate = 44100
+duration = len(samples) / rate
+sample_budget = int(sys.argv[4])
+sample_error = abs(len(samples) - rate)
+if sample_error > sample_budget:
+    raise SystemExit(f"{sys.argv[2]}: decoded {len(samples)} samples ({duration:.6f}s), "
+                     f"{sample_error} samples from target; codec frame budget is {sample_budget}")
+playback_samples = min(len(samples), round(float(sys.argv[3]) * rate))
+playback = samples[:playback_samples]
+rms = math.sqrt(sum(sample * sample for sample in playback) / len(playback))
+if rms < 500:
+    raise SystemExit(f"{sys.argv[2]}: decoded audio RMS {rms:.1f} is too quiet")
+crossings = sum((left < 0) != (right < 0) for left, right in zip(playback, playback[1:]))
+frequency = crossings * rate / (2 * (len(playback) - 1))
+if not 425 <= frequency <= 455:
+    raise SystemExit(f"{sys.argv[2]}: decoded tone is {frequency:.1f}Hz, expected 440Hz")
+print(f"{sys.argv[2]} playback: {float(sys.argv[3]):.6f}s; decoded PCM: "
+      f"{len(samples)} samples ({duration:.6f}s), playback analysis: {playback_samples} samples, "
+      f"RMS {rms:.1f}, tone {frequency:.1f}Hz; "
+      f"codec frame budget: {sample_budget} samples")
+PY
+}
+
+assert_video_frames out.mp4
+assert_video_frames out.webm
+assert_video_frames out.gif
+# The locked AAC encoder emits 1024-sample frames at 44.1 kHz (23.22 ms); Opus
+# emits 960 samples at 48 kHz, or 882 after the 44.1 kHz decode resample (20 ms).
+# Compare container playback duration separately, then allow at most one final
+# codec frame of decoder padding in raw PCM.
+assert_audio out.mp4 mp4-audio 1024
+assert_audio out.webm webm-audio 882
 
 # A version flag does not start eframe or create a preview. Verify a real GUI
 # window under the clean host's virtual display, then close the test process.

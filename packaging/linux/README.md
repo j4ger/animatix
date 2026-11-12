@@ -97,3 +97,13 @@ encoded media, stream metadata, GUI window-tree evidence, and resolved runtime
 package versions are retained below
 `target/perf/distribution-refactor/native/runtime/` (or the optional second
 argument to the checker).
+
+The media check decodes all five expected video frames and verifies the
+container playback duration is within 20 ms of the one-second fixture. It also
+decodes audio to PCM and checks the 440 Hz test tone and nonzero level. The raw
+PCM sample-count budget allows one final encoded frame: AAC uses 1024 samples
+at 44.1 kHz (about 23.2 ms), and Opus uses 960 samples at 48 kHz (882 samples
+after the check's 44.1 kHz resampling). This accounts for codec frame padding
+while still rejecting the prior WebM output that decoded to only about 0.79 s.
+RMS and tone checks use only the PCM samples within the probed container
+playback duration, so AAC decoder padding does not affect the measured tone.

@@ -39,8 +39,14 @@ pub fn require_ffmpeg() -> Result<(), ExportError> {
 pub fn mux_audio_segments(
     video_path: &std::path::Path,
     segments: &[animatix::timeline::AudioSegment],
+    export_duration_s: f64,
     output_path: &std::path::Path,
 ) -> Result<(), ExportError> {
+    if !export_duration_s.is_finite() || export_duration_s <= 0.0 {
+        return Err(ExportError::VideoEncode(format!(
+            "Invalid audio mux export duration: {export_duration_s}"
+        )));
+    }
     if segments.is_empty() {
         return Ok(());
     }
@@ -134,7 +140,10 @@ pub fn mux_audio_segments(
     cmd.arg("-map").arg("[outa]");
     cmd.arg("-c:v").arg("copy");
     cmd.arg("-c:a").arg(audio_codec);
-    cmd.arg("-shortest");
+    // The intermediate WebM may report its duration as the last video packet
+    // timestamp, omitting the final frame duration. Bound muxing to the render
+    // request instead of allowing that container duration to truncate audio.
+    cmd.arg("-t").arg(format!("{export_duration_s:.9}"));
     cmd.arg(&temp_path);
 
     tracing::debug!("ffmpeg audio mux command: {:?}", cmd);
@@ -158,4 +167,29 @@ pub fn mux_audio_segments(
 
     tracing::info!("Audio muxed {} segment(s) into {}", segments.len(), output_path.display());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mux_rejects_nonpositive_or_nonfinite_export_duration() {
+        let segments = [animatix::timeline::AudioSegment {
+            source: "tone.wav".into(),
+            start_time_s: 0.0,
+            duration_s: None,
+            volume: 1.0,
+            volume_envelope: None,
+        }];
+        for duration in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            let result = mux_audio_segments(
+                std::path::Path::new("video.webm"),
+                &segments,
+                duration,
+                std::path::Path::new("out.webm"),
+            );
+            assert!(result.is_err(), "duration {duration} should be rejected");
+        }
+    }
 }

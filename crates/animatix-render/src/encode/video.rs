@@ -183,7 +183,7 @@ fn encode_video(
     };
 
     encoder.finish()?;
-    mux_audio_if_present(&audio_segments, output_file)?;
+    mux_audio_if_present(&audio_segments, duration as f64, output_file)?;
 
     info!("Render complete!");
     Ok(())
@@ -401,11 +401,12 @@ impl VideoEncoder {
 /// Collect audio segments and mux into the output file.
 fn mux_audio_if_present(
     audio_segments: &[AudioSegment],
+    export_duration_s: f64,
     output_file: &std::path::Path,
 ) -> Result<(), ExportError> {
     if !audio_segments.is_empty() {
         super::require_ffmpeg()?;
-        mux_audio_segments(output_file, audio_segments, output_file)?;
+        mux_audio_segments(output_file, audio_segments, export_duration_s, output_file)?;
     }
     Ok(())
 }
