@@ -92,7 +92,7 @@ dim_card: Stack, at: (1080, 500), size: (200, 92), opacity: 0 {
   dim_bg: Rect, size: (200, 92), corner_radius: 14, color: surface.primary,
     stroke: stroke.default, stroke_width: 1.4
   dim_col: Col, gap: 4, align: "center" {
-    dim_t1: Text, text: "d_model = 768", font_size: 20, font_weight: 600, color: accent.primary
+    dim_t1: Text, text: "d_model = 768", font_size: 20, font_weight: 600, color: accent.primary, text_max_width: 150
     dim_t2: Text, text: "Float32 coordinates", font_size: 15, color: text.muted, text_max_width: 180
   }
 }

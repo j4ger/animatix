@@ -273,7 +273,7 @@ cp_eq: Typst, text: "e^(i theta) = cos(theta) + i sin(theta)",
   font_size: 20, color: accent.primary, anchor: scene.center, offset: (0, -60)
 
 cp_note: Text, text: "each circle is one term e^(i k theta) with radius a_k",
-  font_size: theme.text_sm, color: text.secondary, anchor: scene.center, offset: (500, 20)
+  font_size: theme.text_sm, color: text.secondary, anchor: scene.center, offset: (300, 20)
 
 endnote: Text, text: "sum enough circles and even a square wave is just rotation",
   font_size: theme.text_sm, color: text.muted, anchor: scene.bottom, offset: (0, -48)
