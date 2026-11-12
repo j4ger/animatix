@@ -41,30 +41,52 @@ scenes() {
     -not -path '*/_site/*' \
     -not -path '*/plugin_pulse.amx' \
     -not -path '*/epicycles/fourier.amx' |
-    sort
+    sort |
+    while IFS= read -r scene; do
+      [ -z "$scene" ] && continue
+      dir=$(dirname "$scene")
+      base=$(basename "$scene")
+      if [ -f "$dir/main.amx" ] && [ "$base" != "main.amx" ]; then
+        continue
+      fi
+      printf '%s\n' "$scene"
+    done
 }
 
-failed=0
-while IFS= read -r scene; do
-  [ -z "$scene" ] && continue
-  dir=$(dirname "$scene")
-  base=$(basename "$scene")
-  if [ -f "$dir/main.amx" ] && [ "$base" != "main.amx" ]; then
-    continue
-  fi
-  if [ "$MODE" = "update" ]; then
+if [ "$MODE" = "update" ]; then
+  # Updating mutates a shared file, so this walk must remain serial.
+  while IFS= read -r scene; do
+    [ -z "$scene" ] && continue
     "$BIN" audit "$scene" --render never --policy default \
       --budget "$BUDGET_FILE" --update-budget --format json >/dev/null
-  else
-    if ! "$BIN" audit "$scene" --render never --policy default \
-      --budget "$BUDGET_FILE" --format json >/dev/null; then
-      echo "budget exceeded: $scene" >&2
-      failed=1
-    fi
-  fi
-done < <(scenes)
-
-if [ "$MODE" = "update" ]; then
+    printf 'OK budget-update: %s\n' "$scene"
+  done < <(scenes)
   echo "budget updated: $BUDGET_FILE"
+  exit 0
 fi
-exit "$failed"
+
+jobs="${ANIMATIX_SCENE_AUDIT_JOBS:-2}"
+if ! [[ "$jobs" =~ ^[1-4]$ ]]; then
+  echo "error: ANIMATIX_SCENE_AUDIT_JOBS must be between 1 and 4" >&2
+  exit 2
+fi
+export BIN BUDGET_FILE
+
+audit_one() {
+  local scene="$1"
+  if ! "$BIN" audit "$scene" --render never --policy default \
+    --budget "$BUDGET_FILE" --format json >/dev/null; then
+    echo "FAIL budget-audit: $scene" >&2
+    return 1
+  fi
+  printf 'OK budget-audit: %s\n' "$scene"
+}
+export -f audit_one
+
+# GNU xargs preserves spaces in each newline-delimited pathname and aggregates
+# worker failures into a nonzero status. Checks are read-only; updates above are
+# intentionally serial because every audit writes the same budget file.
+if ! scenes | xargs -d '\n' -r -n 1 -P "$jobs" bash -c 'audit_one "$1"' _; then
+  echo "budget-audit: one or more scene audits failed" >&2
+  exit 1
+fi

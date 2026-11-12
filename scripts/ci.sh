@@ -229,8 +229,13 @@ gate_no_video() {
 gate_scene_audit() {
   want_nix_shell 'scene-audit'
   cargo build --bin animatix
-  
-  local failed=0
+
+  local jobs="${ANIMATIX_SCENE_AUDIT_JOBS:-2}"
+  if ! [[ "$jobs" =~ ^[1-4]$ ]]; then
+    echo "error: ANIMATIX_SCENE_AUDIT_JOBS must be between 1 and 4" >&2
+    return 2
+  fi
+
   # The scene walk shared with scripts/audit-budget.sh: component libraries,
   # site copies, the plugin showcase and the pure-`pub let` module are not
   # standalone scenes; a multi-file project is driven through its main.amx.
@@ -252,17 +257,17 @@ gate_scene_audit() {
       done
   }
 
-  while IFS= read -r f; do
-    [ -z "$f" ] && continue
-
-    local budget_arg="--budget .animatix/audit-budget.json --render never"
-
-    local output=$(mktemp)
-    if ! ./target/debug/animatix audit "$f" $budget_arg --format json > "$output" 2>/dev/null; then
+  audit_one() {
+    local f="$1" output
+    output=$(mktemp) || {
+      echo "FAIL scene-audit (temp file): $f" >&2
+      return 1
+    }
+    if ! ./target/debug/animatix audit "$f" --budget .animatix/audit-budget.json \
+      --render never --format json > "$output" 2>/dev/null; then
       echo "FAIL scene-audit (exit code): $f" >&2
-      failed=1
       rm -f "$output"
-      continue
+      return 1
     fi
 
     # JSON validation with python3
@@ -285,11 +290,19 @@ except Exception as e:
     sys.exit(1)
 ' "$output"; then
       echo "FAIL scene-audit (validation): $f" >&2
-      failed=1
+      rm -f "$output"
+      return 1
     fi
     rm -f "$output"
-  done < <(scenes)
-  return "$failed"
+    printf 'OK scene-audit: %s\n' "$f"
+  }
+  export -f audit_one
+
+  # GNU xargs keeps each pathname intact and reports nonzero if any worker fails.
+  if ! scenes | xargs -d '\n' -r -n 1 -P "$jobs" bash -c 'audit_one "$1"' _; then
+    echo "scene-audit: one or more scene audits failed" >&2
+    return 1
+  fi
 }
 
 gate_budget_audit() {
