@@ -318,6 +318,7 @@ impl Timeline {
         props: TextChildProps,
         available_width: f32,
         time_ms: u64,
+        diagnostics: &mut Vec<Diagnostic>,
     ) {
         use crate::timeline::TrackAccessor;
 
@@ -393,6 +394,27 @@ impl Timeline {
             },
         };
         let new_half_size = compiled.half_size;
+        let measured_width = {
+            use kurbo::Shape as _;
+            compiled
+                .paths
+                .iter()
+                .map(|glyph| glyph.path.bounding_box())
+                .reduce(|bounds, glyph| bounds.union(glyph))
+                .map_or(new_half_size[0] * 2.0, |bounds| bounds.width() as f32)
+        };
+        if measured_width > effective_max_width + 0.5 {
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::LayoutSizeFallback,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "Text '{child_label}' measures {measured_width:.1}px wide at the propagated {effective_max_width:.1}px width; unbreakable content can overflow its layout cell."
+                    ),
+                )
+                .with_subject(child_label),
+            );
+        }
 
         tracing::debug!(
             "Width propagation: text '{}' remeasured to half_size={:?}",
@@ -405,6 +427,14 @@ impl Timeline {
         };
         self.world.ensure_text(child_id);
         let text = self.world.text.get_mut(child_id).expect("text component");
+
+        // The declaration-time static/hardware caches still describe the
+        // unwrapped glyph set. Layout-width recompilation must make frame
+        // evaluation read the updated path track instead of replaying those
+        // stale caches.
+        text.static_paths = None;
+        text.hardware_layout = None;
+        text.static_split_clip = None;
 
         // Update max_width track
         text.text_max_width
@@ -420,9 +450,11 @@ impl Timeline {
         };
         if anchor_offset_x != 0.0 {
             let affine = kurbo::Affine::translate((anchor_offset_x as f64, 0.0));
+            let offset = kurbo::Vec2::new(anchor_offset_x as f64, 0.0);
             for p in &mut paths_vec {
                 p.path.apply_affine(affine);
                 p.glyph_center[0] += anchor_offset_x;
+                p.bounds = p.bounds + offset;
             }
         }
 
@@ -440,6 +472,10 @@ impl Timeline {
             .ensure_layout_size(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
             .add_keyframe(time_ms, new_half_size, Easing::Linear);
         text.set_metrics(time_ms, compiled.ascent, compiled.descent, compiled.baseline_offset);
+        // Bounds cached from the declaration still describe its old glyphs.
+        // Let frame evaluation derive local bounds from the newly sampled text
+        // paths so precise bounds and picking follow the wrapped layout.
+        self.world.local_bounds.reset_at(child_id);
     }
 
     /// Compute available width for a text child based on container type.
@@ -533,13 +569,19 @@ impl Timeline {
         container_label: &str,
         container_size: [f32; 2],
         time_ms: u64,
-        _diagnostics: &mut Vec<Diagnostic>,
+        diagnostics: &mut Vec<Diagnostic>,
     ) {
         // Collect first (immutable borrow), then execute (mutable borrow).
         let jobs = self.collect_text_child_recompile_jobs(container_label, container_size, time_ms);
 
         for job in jobs {
-            self.recompile_text_with_width(&job.label, job.props, job.available_width, time_ms);
+            self.recompile_text_with_width(
+                &job.label,
+                job.props,
+                job.available_width,
+                time_ms,
+                diagnostics,
+            );
         }
     }
 }

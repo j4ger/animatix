@@ -100,7 +100,7 @@ snippet: Code { text: "let velocity = x + 1", language: "rust", font_size: 28, a
 
 ## Counter
 
-An animated rolling counter. Digit glyphs are prebaked once and rolled vertically, and every digit column shares the widest digit's advance so proportional fonts do not jitter as the value changes.
+An animated rolling counter. Digit glyphs are prebaked and rolled vertically, and every digit column shares the widest digit's advance so proportional fonts do not jitter as the value changes.
 
 **Properties:**
 - `value`: Number — the displayed number; animate or assign it to roll the digits (default `0`)
@@ -112,8 +112,10 @@ An animated rolling counter. Digit glyphs are prebaked once and rolled verticall
 - `color`: Color
 - `at`: Tuple `(x, y)`
 
-`value`, `decimals`, and `comma` are sampled every frame, including overrides
-from `always`; `prefix` and `suffix` are compiled once at build time and stay fixed.
+`value`, `decimals`, `comma`, `prefix`, and `suffix` are sampled every frame,
+including overrides from `always`. Prefix/suffix changes reuse cached text
+compilation; typography changes rebuild the matching digit and symbol glyphs.
+The digit-slot clip follows the sampled glyph metrics and affix widths.
 
 **Example:**
 ```animatix

@@ -732,7 +732,7 @@ badge_row: Row, vertical_align: "baseline" {
 
 ### Phase 7: Percentage & Intrinsic Sizing
 
-**Percentage child sizing:** Container children can be sized relative to the parent's content box using percentage strings:
+**Percentage child sizing:** Container children can use percentage dimensions:
 
 ```animatix
 Row, gap: 0 {
@@ -741,8 +741,12 @@ Row, gap: 0 {
 }
 ```
 
-- Percentage values (e.g. `"50%"`) resolve against the parent container's **content box** (after padding/gap).
-- `size: fill` is shorthand for `size: (100%, auto)` — fills the available width.
+- Row/Col percentage axes retain the declared parent-dimension basis; padding
+  and gaps are reserved separately. In a width-constrained Grid with relative
+  children, percentage widths resolve within each cell after outer padding/gaps.
+- Cross-axis `fill` uses the padded content box; main-axis `fill` takes the
+  remaining space after the other children, padding and gaps.
+- `size: fill` is shorthand for `size: (fill, auto)` — fills the available width.
 - `size: auto` or `size: fit` on a layout container makes it shrink-wrap to its children's content.
 - `size: auto` on a non-container primitive produces a build-time warning (only containers shrink-wrap).
 - `size: fill` at the top level (no parent container) produces a build-time warning.
@@ -760,10 +764,11 @@ row: Row, size: auto, gap: 10 {
 
 - **Row:**  width = sum of child widths + gaps; height = max child height.
 - **Col:**  width = max child width; height = sum of child heights + gaps.
-- **Grid:** derives column widths and row heights from the largest sampled
-  child extent in each track. General parent-constrained nested `auto`/`fill`
-  sizing and wrapped-text height propagation remain limited; see the
-  [mixed-axis sizing follow-up](roadmap.md#user-experience-feedback-follow-ups-2026-11-13).
+- **Grid:** derives intrinsic column widths and row heights from the largest
+  measured child in each track. With a resolved width and `fill`/percentage
+  children, columns share the width after padding and gaps; relative child
+  widths resolve within their cell. Nested Col/Grid text measures against
+  these widths, then wrapped heights propagate back to the parent rows.
 - `size: fit` behaves identically to `size: auto` (both rely on intrinsic sizing).
 
 **Min/Max constraints:** Clamp the resolved size of any actor (child or container):
@@ -986,6 +991,18 @@ col: Col, gap: 8, padding: 16 {
 ```
 
 > **Note:** `Row` does NOT propagate width to children (it places them side-by-side). Use `Col` or `Grid` when you want text to wrap at the container width.
+
+Nested layout resolves widths from the parent down, then publishes intrinsic
+heights from the leaves up. This is a bounded declaration-time pass, rather
+than an iterative parent/child size solver. Fixed axes and explicit
+`text_max_width` remain authoritative. A nesting depth beyond 64 emits a
+`layout-size-fallback` warning and retains earlier descendant measurements.
+Unbreakable content that exceeds the propagated width also emits this warning;
+it keeps the authored overflow policy and font size.
+Width inheritance traverses layout containers directly. A structural `Group`
+keeps its transform/union role: component roots inside such a wrapper can use
+fixed width and auto height, while relative slot inheritance through the Group
+is still a [follow-up](roadmap.md#user-experience-feedback-follow-ups-2026-11-13).
 
 ### Transform Property
 
