@@ -8,15 +8,23 @@
 
 mod api;
 mod assets;
+mod capabilities;
 mod context;
 mod debug;
 mod engine;
 mod frame;
 mod playback;
+mod prepared;
 mod readback;
+mod resource_probe;
+mod text_probe;
 
 pub use api::{build_id, engine_commit, engine_version};
+pub use capabilities::{activate_capabilities, encode_rgba_png, runtime_build_id};
 pub use engine::{create_player, debug_gpu_drain, init_engine};
+pub use prepared::{WasmPreparedProgram, prepare_source, validate_overlay_font};
+pub use resource_probe::debug_resource_stats;
+pub use text_probe::debug_text_probe;
 
 use std::cell::RefCell;
 

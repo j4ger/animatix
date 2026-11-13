@@ -1,7 +1,8 @@
 import * as core from "./core.js";
+import { cancellationError, dispatchPlayerError } from "./errors.js";
 const {
-  FRAME_RATE, DEBUG_BY_URL, LOADER_SCRIPT, RUNTIME_BASE, engineBases, REDUCED_MOTION,
-  SAVE_DATA, FADE_EACH, ICONS, enginePromises, loadEngine, instances, QUALITY_STEPS,
+  FRAME_RATE, DEBUG_BY_URL, REDUCED_MOTION,
+  SAVE_DATA, FADE_EACH, ICONS, instances, QUALITY_STEPS,
   SLOW_TICK_MS, FAST_TICK_MS, setQualityStep, tick, ensureLoop, SCROLL_SETTLE_MS,
   LOAD_MAX_DEFER_MS, LOAD_RETRY_MS, LOAD_STALL_MS, pumpLoads, enqueueLoad, dequeueLoad,
   ASPECTS,
@@ -17,7 +18,6 @@ export class AmxPlayerBase extends HTMLElement {
     "fit",
     "title",
     "aspect",
-    "profile",
     "quality",
     "presentation",
     "data-fonts",
@@ -29,6 +29,7 @@ export class AmxPlayerBase extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._state = "idle"; // idle | loading | ready | error
     this._player = null;
+    this._runtime = null;
     this._playing = false;
     this._loop = false;
     this._time = 0; // position within the playback cycle
@@ -68,14 +69,15 @@ export class AmxPlayerBase extends HTMLElement {
     this._pausedAtStep = false;
     this._blackout = false;
     this._marks = null;
-    this._fontBytesPromise = null; // page-cached data-fonts fetch; see view.js
-    this._defaultFontsPromise = null; // profile font pack; see view.js
-    this._defaultFontsProfile = null;
+    this._committedVars = {};
     this._vars = null; // merged build-time overrides; null = read `data-vars`
     this._varsTimer = null; // setVars/data-vars debounce; see view.js
-    this._varsApplied = null; // signature last pushed to the wasm player
     this._loadedSource = null; // scene text, cached for an in-place rebuild
-    this._loadedAssets = new Map(); // fetched asset payloads; see _loadScene
+    this._loadedBundle = null; // committed prepared source and resources
+    this._operationGeneration = 0;
+    this._operationController = null;
+    this._destroyed = false;
+    this._varsWaiters = [];
     this._loadWantedAt = 0; // set when the scheduler queues this player; see pumpLoads
     this._hudFlash = null;
     this._hudSkip = null;
@@ -110,6 +112,7 @@ export class AmxPlayerBase extends HTMLElement {
   }
 
   connectedCallback() {
+    if (this._destroyed) return;
     // `data-fps` / `fps` caps this embed's cadence (12..60). Re-read on every
     // attach so a DOM move cannot strand a stale value; `load.js` re-reads it
     // once the document is built.
@@ -148,7 +151,6 @@ export class AmxPlayerBase extends HTMLElement {
     }
     clearTimeout(this._renderScaleRetry);
     clearTimeout(this._resizeDebounceTimer);
-    clearTimeout(this._varsTimer);
     clearTimeout(this._hudTimer);
     clearTimeout(this._skipHudTimer);
     clearTimeout(this._singleTapTimer);
@@ -173,16 +175,19 @@ export class AmxPlayerBase extends HTMLElement {
     if (name === "hold" && this._initialized && this._duration > 0) {
       this._configureCycle();
     }
-    if (name === "quality" && this._initialized && this._player?.set_quality) {
-      // Quality is baked in at build time (plot sampling tolerance): push it
-      // to the player and rebuild. A reload refetches the scene text, which
-      // is cheap and keeps the flow identical to a fresh load.
-      try {
-        this._player.set_quality(this._quality());
-      } catch (err) {
-        console.warn(`amx-player: ${err.message}`);
-      }
-      this._resetForReload();
+    if (name === "quality" && this._initialized && this._state === "ready") {
+      this._cancelOperation();
+      this._rebuildWithQuality().catch((error) => {
+        if (error?.name !== "AbortError") {
+          console.warn(`amx-player: quality rebuild failed (${error.message})`);
+          dispatchPlayerError(this, this.getAttribute("src"), error, "build");
+        }
+      }).finally(() => {
+        // A quality change supersedes an in-flight setVars transaction. Once
+        // the current document has been restored at the new quality, run the
+        // queued variable batch so its promises cannot remain pending.
+        if (this._varsWaiters.length && this._state === "ready") this._scheduleVarsRebuild();
+      });
     }
     if (name === "data-vars" && this._initialized) {
       // Build-time variable overrides. The attribute is the declarative set, so
@@ -192,46 +197,86 @@ export class AmxPlayerBase extends HTMLElement {
       // so like `quality` this means a rebuild — but an in-place one: the loaded
       // source, fonts, fetched imports and assets all stay registered.
       this._varsFromAttribute();
-      this._scheduleVarsRebuild();
+      if (this._state === "loading") this._resetForReload();
+      else {
+        if (this._state === "ready") this._cancelOperation();
+        this._scheduleVarsRebuild(true);
+      }
     }
-    if ((name === "src" || name === "profile" || name === "data-fonts") && this._initialized) {
-      // profile selects which wasm instance backs this element; switching it
-      // is a full reload (and, for a first switch on the page, a second
-      // engine download — that is the page author's tradeoff). A changed
-      // data-fonts set invalidates the cached source and rebuilds.
-      this._fontBytesPromise = null;
-      this._resetForReload();
+    if ((name === "src" || name === "data-fonts") && this._initialized) {
+      this._resetForReload(name);
     }
   }
 
-  _resetForReload() {
+  _cancelOperation() {
+    this._operationGeneration += 1;
+    this._operationController?.abort();
+    this._operationController = null;
+    return this._operationGeneration;
+  }
+
+  _beginOperation() {
+    const generation = this._cancelOperation();
+    const controller = new AbortController();
+    this._operationController = controller;
+    return { generation, controller };
+  }
+
+  _isCurrentOperation(generation) {
+    return !this._destroyed && generation === this._operationGeneration;
+  }
+
+  _freePlayer(player = this._player) {
+    if (!player) return;
+    try {
+      player.free?.();
+    } catch (error) {
+      console.warn("amx-player: could not release player", error);
+    }
+  }
+
+  /// Explicitly destroy this player. A DOM detach is not destruction because
+  /// live editors reparent players while keeping their wasm state.
+  destroy() {
+    if (this._destroyed) return;
+    this._destroyed = true;
+    this._cancelOperation();
+    this.disconnectedCallback();
+    core.forgetInstance(this);
+    this.pause?.();
+    this._freePlayer();
+    this._player = null;
+    this._loadedBundle?.prepared?.free?.();
+    this._loadedBundle = null;
+    this._state = "destroyed";
+    if (this._canvas) this._canvas.width = this._canvas.height = 1;
+    this.shadowRoot.replaceChildren();
+    this._varsWaiters.splice(0).forEach(({ reject }) => reject(cancellationError("Player destroyed")));
+  }
+
+  _resetForReload(reason) {
+    if (this._state === "ready" && this._player) {
+      this._reloadFromAttributes(reason).catch((error) => {
+        dispatchPlayerError(this, this.getAttribute("src"), error, "resource");
+      });
+      return;
+    }
+    this._cancelOperation();
+    this._freePlayer();
+    this._loadedBundle?.prepared?.free?.();
     this._state = "idle";
     this._player = null;
     this._time = 0;
-    this._fontBytesPromise = null;
-    this._defaultFontsPromise = null;
-    this._defaultFontsProfile = null;
     // A reload builds a fresh player, so nothing has been pushed to it yet and
     // the cached document inputs belonged to the player being dropped. `_vars`
     // itself survives: the page's parameter set outlives one engine instance.
     clearTimeout(this._varsTimer);
     this._varsTimer = null;
-    this._varsApplied = null;
     this._loadedSource = null;
-    this._loadedAssets = new Map();
+    this._loadedBundle = null;
     this._invalidateRestFrame();
     this._renderSkeleton();
     this._maybeStartLoading();
-  }
-
-  /// `profile` — which engine build backs this element: "auto" (default),
-  /// "slim", "assets" or "full". Auto starts with slim, reads the scene's
-  /// required feature mask, and upgrades only when the scene needs image/SVG
-  /// assets or rich text. Explicit profiles never fall back to a smaller
-  /// package. Directories come from the loader's `data-runtime-base`.
-  _profile() {
-    const value = this.getAttribute("profile");
-    return value === "slim" || value === "assets" || value === "full" ? value : "auto";
   }
 
   /// `sealed` — page-driven mode (see the attribute docs above). Re-read on

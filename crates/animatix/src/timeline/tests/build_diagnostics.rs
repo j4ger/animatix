@@ -146,10 +146,7 @@ fn conflicting_at_and_anchor_warning() {
 }
 
 /// A Text whose content has a character the shaping path cannot cover warns
-/// `missing-glyph` at build time instead of drawing tofu in silence. U+2065
-/// is permanently unassigned and sits inside the fast path's Latin gate
-/// (0x2000–0x206F), so no font can ever map it and the warning is
-/// machine-independent.
+/// `missing-glyph` at build time instead of drawing tofu in silence. U+10FFFF is a Unicode noncharacter, so the bundled fonts do not map it.
 #[test]
 fn missing_glyph_warning_fires_for_unassignable_codepoints() {
     let source = format!(
@@ -157,7 +154,7 @@ fn missing_glyph_warning_fires_for_unassignable_codepoints() {
 config {{ resolution: (320, 180) }}
 t: Text, text: "a{}b", at: (160, 90)
 "#,
-        '\u{2065}'
+        '\u{10ffff}'
     );
     let report = support::build(&source);
     assert!(

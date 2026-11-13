@@ -1,0 +1,19 @@
+// Rich text + image capability workload for the browser runtime A/B harness.
+config { resolution: (1280, 720), duration: 2.0 }
+
+title: Text, text: "Rich text and media", font_size: 42, color: "#f2f4f8",
+  anchor: scene.center, offset: (0, -245), opacity: 1
+eq: Equation, font_size: 48, color: "#f3c76a",
+  anchor: scene.center, offset: (0, -105), opacity: 1 {
+  lhs: Fragment, text: "E"
+  eq_sign: Fragment, text: " = "
+  mass: Fragment, text: "m"
+  c2: Fragment, text: "c^2"
+}
+caption: Code, code: "fn render(frame: f32) -> Pixel", language: "rust", font_size: 22,
+  anchor: scene.center, offset: (0, 10), opacity: 1
+image: Image, url: "../../web/assets/og.png", size: (350, 197),
+  anchor: scene.center, offset: (0, 175), opacity: 1
+
+#0s
+shift image [by: (230, 0), 2000ms, ease: ease-in-out]

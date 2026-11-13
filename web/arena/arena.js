@@ -218,14 +218,16 @@
   }
 
   // Live in-browser tweak using applySource
-  function applyTweak(variantId) {
+  async function applyTweak(variantId) {
     const p = players.find((x) => x.id === variantId);
     const ta = document.getElementById(`editor-${variantId}`);
     const diag = document.getElementById(`diag-${variantId}`);
     if (!p || !ta || !diag) return;
 
+    diag.className = "diag-strip";
+    diag.textContent = "Building…";
     try {
-      const diags = p.el.applySource(ta.value);
+      const diags = await p.el.applySource(ta.value);
       const warnings = (diags || []).filter((d) => d.severity !== "error");
       if (warnings.length > 0) {
         diag.className = "diag-strip warn";

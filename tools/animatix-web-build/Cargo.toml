@@ -1,0 +1,15 @@
+[package]
+name = "animatix-web-build"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+animatix-core = { path = "../../crates/animatix-core" }
+serde_json = "1"
+ttf-parser = "0.25.1"
+# The splitter's relocation graph and shared table ABI are coupled to its
+# runtime. Keep both at this revision; lift this pin only after split-proof
+# passes with the workspace's wasm-bindgen and optimized modules.
+wasm-split-cli = "=0.8.0-alpha.3"

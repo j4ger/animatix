@@ -9,8 +9,7 @@ fonts are still used as glyph fallback for scripts the bundled set cannot cover
 
 `OpenSans-Regular.ttf` (400 normal), `OpenSans-Bold.ttf` (700 normal),
 `OpenSans-Italic.ttf` (400 italic), `OpenSans-BoldItalic.ttf` (700 italic) — four
-static faces, each carrying its own weight/style into `BUNDLED_FONTS`. Bold ships in
-every build (the slim web embed too); the two italics are `rich-text` only.
+static faces, each carrying its own weight/style into `BUNDLED_FONTS`. Web selects faces on demand; native bundles the full default set.
 
 - **License**: Apache License 2.0 (`LICENSE-OpenSans.txt`). This is the
   license of the packaged Open Sans these faces came from. (Upstream releases
@@ -24,21 +23,9 @@ every build (the slim web embed too); the two italics are `rich-text` only.
   installed (measured: identical ink at weights 400/600/800, and `fc-match
   "Open Sans"` on this box falls back to Noto Sans CJK — the bold that renders
   now is the bundled face, not a system one).
-- **Static *and* variable, by text path.** The four statics above are what the
-  plain-text fast path uses: it shapes with `ttf-parser`, which reads `fvar`
-  but never applies the deltas to outlines, so a variable face there would
-  render only its default instance. `fontdb` 0.23's lack of a variation API is
-  a separate thing — it is only used to *scan system fonts*.
-  The rich (Typst-powered) path additionally registers the variable pair
-  (`OpenSans-Variable.ttf`, `OpenSans-Italic-Variable.ttf`; axes `wght 300–800`,
-  `wdth 75–100`), whose `wght` axis Typst instances during shaping
-  (`Font::instantiate` → `FontVariations::resolve`). Serving a weight from the
-  axis instead of a face is what makes `font_weight: 625` draw 625 and an
-  animated weight ramp smoothly; measured compiled ink for one 64 pt line runs
-  510.7 / 516.4 / 522.1 / 527.7 / 533.4 / 544.6 / 555.9 px across 400…700 in
-  50-step increments. The statics stay in the book: they are the fallback for
-  families without an axis and what the fast path needs, and Typst's face
-  distance prefers the axis-capable face for any in-range request.
+- **Static and variable faces.** The plain shaper, outline extraction and GPU
+  glyph drawing use the same variation coordinates. Open Sans variable faces
+  provide continuous weights; static faces remain available as fallbacks.
 - **The cost of that swap**, measured: at a canonical weight the variable
   instance is about 0.4% wider than the packaged static (400: 508.85 → 510.67 px,
   700: 553.83 → 555.88 px for the same line), which shows up in
@@ -71,9 +58,8 @@ files from a trusted source, update the hash table (in this README and in the
 script), and re-run the script.
 ## Web font pack
 
-Native builds embed these files through the `bundled-fonts` feature. Web
-packages compile that feature out and load the same bytes from `web/fonts/`:
-`scripts/web-fonts.sh sync` generates deterministic `.gz` twins from this
-directory, and `web/fonts/manifest.json` selects the faces for the slim,
-assets and full profiles. The manifest is tracked; generated gzip files are
-not. Run `scripts/web-fonts.sh --check` after changing a font or the manifest.
+Native builds embed these files through `bundled-fonts`. The Web SDK packages
+external gzip files and a manifest describing each face, its axes and coverage.
+The player prepares only required faces before installing the scene. The SDK
+includes the license files in this directory; `scripts/web-fonts.sh --check`
+checks the font source metadata.

@@ -1190,7 +1190,8 @@ ratio upper bound is at or below the signal boundary, or its maximum plausible
 impact is below the budget; if neither conclusion is supported, it is
 inconclusive. Isolated leaves without a documented invocation scale report
 statistical changes as informational and cannot block on their own. A new or
-unclassified row fails rather than disappearing from coverage.
+unclassified row fails rather than disappearing from coverage, and every saved
+baseline ID must have a current result. Partial coverage cannot pass.
 
 The explicit policy in `scripts/perf-policy.json` uses these provisional
 budgets:
@@ -1212,8 +1213,9 @@ blocking regression.
 `scripts/perf-bench.sh evaluate [quick|full]` applies the policy to an existing
 `PERF_LOG_DIR` without measuring or changing its raw estimates. It writes a
 separate `*.policy-report.txt`. `scripts/test-perf-policy.py` covers the
-deterministic classifier boundaries. The coverage and load preflights remain
-independent integrity checks. The `demo_frame__*` Criterion rows in the opt-in
+deterministic classifier boundaries. Exact row-set matching and the load
+preflight remain independent integrity checks; the former 90% coverage option
+is retired. The `demo_frame__*` Criterion rows in the opt-in
 `full` tier use the per-frame impact role; other GPU/export results remain in
 their separate result ledger.
 

@@ -1,85 +1,17 @@
 import * as core from "./core.js";
 const {
-  FRAME_RATE, DEBUG_BY_URL, LOADER_SCRIPT, RUNTIME_BASE, engineBases, fontBase, REDUCED_MOTION,
-  SAVE_DATA, FADE_EACH, ICONS, enginePromises, loadEngine, instances, QUALITY_STEPS,
+  FRAME_RATE, DEBUG_BY_URL, REDUCED_MOTION,
+  SAVE_DATA, FADE_EACH, ICONS, instances, QUALITY_STEPS,
   SLOW_TICK_MS, FAST_TICK_MS, setQualityStep, tick, ensureLoop, SCROLL_SETTLE_MS,
   LOAD_MAX_DEFER_MS, LOAD_RETRY_MS, LOAD_STALL_MS, pumpLoads, enqueueLoad, dequeueLoad,
   ASPECTS, arbitrateConcurrency,
 } = core;
 import { AmxPlayerBase } from "./base.js";
-
-// Font bytes are page-scoped: duplicated `data-fonts` URLs across embeds share
-// one in-flight fetch, and a later element reuses the resolved bytes. A failed
-// fetch is evicted so a retry can recover instead of pinning the failure.
-const FONT_PROMISES = new Map();
-
-function fetchFontBytes(url) {
-  let pending = FONT_PROMISES.get(url);
-  if (!pending) {
-    pending = fetch(url)
-      .then((response) => {
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return response.arrayBuffer().then((buffer) => new Uint8Array(buffer));
-      })
-      .catch((err) => {
-        FONT_PROMISES.delete(url);
-        throw err;
-      });
-    FONT_PROMISES.set(url, pending);
-  }
-  return pending;
-}
-
-const FONT_PACK_PROMISES = new Map();
-
-async function gunzip(bytes) {
-  if (typeof DecompressionStream !== "function") {
-    throw new Error("this browser cannot decompress the gzip font pack");
-  }
-  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
-}
-
-/// Load the profile font pack from `fonts/manifest.json`. The manifest names
-/// only the files for that profile, so slim pages never download the rich
-/// italic/variable/math set. The page-level cache means a second embed with
-/// the same profile reuses both the manifest and the decompressed bytes.
-export function fetchFontPack(base, profile) {
-  // `assets` deliberately shares the slim face set; only `full` adds the rich
-  // italic/variable/math faces.
-  const packProfile = profile === "assets" ? "slim" : profile;
-  const key = `${base}|${packProfile}`;
-  let pending = FONT_PACK_PROMISES.get(key);
-  if (!pending) {
-    pending = (async () => {
-      const response = await fetch(`${base}/manifest.json`);
-      if (!response.ok) throw new Error(`font manifest HTTP ${response.status}`);
-      const manifest = await response.json();
-      const files = manifest.profiles?.[packProfile];
-      if (!Array.isArray(files) || files.length === 0) {
-        throw new Error(`font manifest has no '${packProfile}' profile`);
-      }
-      return Promise.all(
-        files.map(async (file) => {
-          const fontResponse = await fetch(`${base}/${file}`);
-          if (!fontResponse.ok) throw new Error(`font '${file}' HTTP ${fontResponse.status}`);
-          const buffer = await fontResponse.arrayBuffer();
-          // A proxy may have already decoded the gzip payload; do not
-          // decompress it twice.
-          const encoding = fontResponse.headers.get("content-encoding");
-          return encoding === "gzip" || encoding === "br"
-            ? new Uint8Array(buffer)
-            : gunzip(buffer);
-        }),
-      );
-    })().catch((err) => {
-      FONT_PACK_PROMISES.delete(key);
-      throw err;
-    });
-    FONT_PACK_PROMISES.set(key, pending);
-  }
-  return pending;
-}
+import { cancellationError, dispatchPlayerError, playerError } from "./errors.js";
+import {
+  fetchFontFace, fetchOverlayFont, fetchPreparedAssets, fetchModule, fetchSource,
+} from "./runtime.js";
+import { selectFontFaces } from "./font-selection.js";
 
 // ── build-time variable overrides (`data-vars` / `setVars`) ──────────
 //
@@ -532,151 +464,106 @@ export class AmxPlayerView extends AmxPlayerBase {
     return urls;
   }
 
-  /// Fetch all `data-fonts` in parallel. The page-scoped cache in
-  /// [`fetchFontBytes`] makes a page with several embeds pay once per URL.
-  _fetchFonts() {
-    if (!this._fontBytesPromise) {
-      const jobs = this._fontUrls().map(async (url) => {
-        try {
-          return await fetchFontBytes(url);
-        } catch (err) {
-          console.warn(`amx-player: font '${url}' skipped (${err.message})`);
-          return null;
-        }
-      });
-      this._fontBytesPromise = Promise.all(jobs).then((fonts) => fonts.filter(Boolean));
-    }
-    return this._fontBytesPromise;
-  }
-
-  /// The profile font pack is immutable per base/profile; cache the promise
-  /// so an auto upgrade can fetch the full pack while the engine downloads.
-  _fetchDefaultFonts(profile) {
-    if (!this._defaultFontsPromise || this._defaultFontsProfile !== profile) {
-      this._defaultFontsProfile = profile;
-      this._defaultFontsPromise = fetchFontPack(fontBase(), profile);
-    }
-    return this._defaultFontsPromise;
-  }
-
-  /// Register the profile font pack first, then page-supplied `data-fonts`.
-  /// A failed default pack is fatal: without it the wasm build has no faces
-  /// and rendering text would silently degrade to tofu.
-  async _loadFonts(module, profile) {
-    if (!this._player?.add_font) return;
-    let defaults;
-    try {
-      defaults = await this._fetchDefaultFonts(profile);
-    } catch (err) {
-      console.error(`amx-player: font pack unavailable (${err.message})`);
-      const packError = new Error(`font pack unavailable: ${err.message}`);
-      packError.code = "font-pack";
-      throw packError;
-    }
-    for (const bytes of defaults) this._player.add_font(bytes);
-    const custom = await this._fetchFonts();
-    for (const bytes of custom) this._player.add_font(bytes);
-  }
-
-  /// Fetch the scene's imports and assets, then build. Imports beyond the
-  /// bundled library close through the engine's retry protocol: a build that
-  /// stops on an unsupplied import reports the resolved path in
-  /// `missing_imports`, we fetch it relative to the scene and retry (bounded,
-  /// so a failed fetch or an engine without the API cannot spin). Assets keep
-  /// the desktop semantics — a missing one is a build error — and share one
-  /// flat namespace relative to the scene file, because the sandboxed build
-  /// resolves asset urls lexically with no per-module root.
-  async _loadScene(player, source, sceneSrc) {
-    const base = new URL(sceneSrc, document.baseURI).href;
-    const supportsImports = typeof player.add_module === "function";
-    const modules = new Map(); // resolved import path -> file text
-    const failed = new Set(); // paths whose fetch failed; never retried
-    const assets = new Map(); // resolved asset URL -> { key, payload }
-
-    // Cached for an in-place rebuild (`applySource`, `_rebuildWithVars`). The
-    // wasm player keeps registered fonts and modules across loads, but asset
-    // payloads are handed in per build, so a rebuild without this cache would
-    // drop every Image/Svg the scene loaded. Assigned before the retry loop so
-    // the Map identity is shared and a later round's fetch lands in the cache.
-    this._loadedSource = source;
-    this._loadedAssets = assets;
-
-    let result = null;
-    for (let round = 0; round < 24; round += 1) {
-      for (const [path, text] of modules) player.add_module(path, text);
-      await this._fetchAssets(player, source, modules, base, assets);
-      result = this._buildWithAssets(player, source, assets);
-
-      const missing = supportsImports ? (result?.missing_imports ?? []) : [];
-      const todo = missing.filter((path) => !modules.has(path) && !failed.has(path));
-      if (!missing.length || !todo.length) break;
-      await Promise.all(
-        todo.map(async (path) => {
-          try {
-            const response = await fetch(new URL(path, base));
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            modules.set(path, await response.text());
-          } catch (err) {
-            failed.add(path);
-            console.warn(`amx-player: import '${path}' skipped (${err.message})`);
-          }
-        }),
-      );
-    }
-    return result;
-  }
-
-  /// Fetch every asset referenced by the scene or any fetched module, once.
-  /// Each source's urls resolve against that source's own URL; the engine
-  /// receives the literal url string as the cache key.
-  async _fetchAssets(player, source, modules, base, assets) {
-    const wanted = [];
-    const collect = (text, sourceUrl) => {
-      let urls = [];
+  async _prepareDocument(runtime, source, sceneSrc, vars, signal, initialModules = null) {
+    const sourceUrl = new URL(sceneSrc, document.baseURI).href;
+    vars = scalarVars(vars ?? {});
+    const modules = new Map(initialModules ?? []);
+    let prepared;
+    let analysis;
+    for (let round = 0; round < 32; round += 1) {
+      if (signal?.aborted) throw cancellationError();
       try {
-        urls = player.list_asset_urls(text) ?? [];
-      } catch (err) {
-        console.warn(`amx-player: could not list asset urls (${err.message})`);
+        prepared = runtime.module.prepare_source(source, Object.fromEntries(modules), vars, sourceUrl);
+      } catch (error) {
+        throw playerError(error, "build");
       }
-      for (const key of urls) {
-        const resolved = new URL(key, sourceUrl).href;
-        if (!assets.has(resolved) && !wanted.some(([seen]) => seen === resolved)) {
-          wanted.push([resolved, key]);
-        }
+      try {
+        analysis = prepared.analysis();
+      } catch (error) {
+        prepared.free?.();
+        throw playerError(error, "build");
       }
-    };
-    collect(source, base);
-    for (const [path, text] of modules) collect(text, new URL(path, base).href);
+      const missing = analysis.missing_imports ?? [];
+      if (!missing.length) break;
+      const pending = missing.filter((path) => !modules.has(path));
+      if (!pending.length) {
+        prepared.free?.();
+        throw playerError(new Error(`import analysis did not close: ${pending.join(", ") || missing.join(", ")}`), "build");
+      }
+      try {
+        await Promise.all(pending.map(async (path) => {
+          const url = new URL(path, sourceUrl).href;
+          const text = await fetchModule(url, signal);
+          modules.set(path, text);
+        }));
+      } catch (error) {
+        prepared.free?.();
+        throw playerError(error, "resource");
+      }
+      prepared.free?.();
+      prepared = null;
+    }
+    if (!prepared || analysis?.missing_imports?.length) {
+      prepared?.free?.();
+      throw playerError(new Error("import graph exceeded the 32-module preparation limit"), "build");
+    }
+    if (!analysis.ok) {
+      const error = new Error(analysis.diagnostics?.find((d) => d.severity === "error")?.message ?? "source analysis failed");
+      error.kind = "build";
+      error.diagnostics = analysis.diagnostics ?? [];
+      prepared.free?.();
+      throw playerError(error, "resource");
+    }
 
-    await Promise.all(
-      wanted.map(async ([resolved, key]) => {
-        try {
-          const response = await fetch(resolved);
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          // Images cross the boundary as Uint8Array (the Rust side decodes
-          // them); SVG as text.
-          const payload = key.toLowerCase().endsWith(".svg")
-            ? await response.text()
-            : new Uint8Array(await response.arrayBuffer());
-          assets.set(resolved, { key, payload });
-        } catch (err) {
-          console.warn(`amx-player: asset '${key}' skipped (${err.message})`);
+    try {
+      await runtime.ensureCapabilities(Number(analysis.required_features ?? 0) >>> 0);
+      const assets = await fetchPreparedAssets(runtime, analysis.assets ?? [], signal);
+      const textAssets = (analysis.assets ?? []).filter((asset) => asset?.kind === "text");
+      if (textAssets.length) {
+        if (typeof prepared.prepare_transcripts !== "function") {
+          throw playerError(
+            new Error("runtime does not support external transcript preparation; rebuild the SDK"),
+            "version",
+          );
         }
-      }),
-    );
+        const assetsById = new Map(assets.map((asset) => [asset.id, asset.payload]));
+        const transcriptIds = textAssets.map((asset) => asset.id);
+        const transcriptTexts = transcriptIds.map((id) => {
+          const text = assetsById.get(id);
+          if (typeof text !== "string") {
+            throw playerError(new Error(`transcript asset '${id}' was not downloaded as text`), "resource");
+          }
+          return text;
+        });
+        try {
+          prepared.prepare_transcripts(transcriptIds, transcriptTexts);
+          analysis = prepared.analysis();
+        } catch (error) {
+          throw playerError(error, "resource");
+        }
+        if (!analysis?.ok) {
+          const error = new Error(
+            analysis?.diagnostics?.find((diagnostic) => diagnostic.severity === "error")?.message
+              ?? "transcript analysis failed",
+          );
+          error.diagnostics = analysis?.diagnostics ?? [];
+          throw playerError(error, "resource");
+        }
+      }
+      const fontFaces = selectFontFaces(runtime, analysis.fonts ?? {});
+      const defaultFonts = await Promise.all(fontFaces.map((face) => fetchFontFace(runtime, face, signal)));
+      const overlayFonts = await Promise.all(this._fontUrls().map((url) => fetchOverlayFont(runtime, url, signal)));
+      return { prepared, analysis, assets, fontBytes: [...defaultFonts, ...overlayFonts], sourceUrl, modules, vars };
+    } catch (error) {
+      prepared.free?.();
+      throw playerError(error, "resource");
+    }
   }
 
-  _buildWithAssets(player, source, assets) {
-    const assetUrls = [];
-    const assetPayloads = [];
-    for (const { key, payload } of assets.values()) {
-      assetUrls.push(key);
-      assetPayloads.push(payload);
-    }
-    if (typeof player.load_source_with_assets === "function") {
-      return player.load_source_with_assets(source, assetUrls, assetPayloads);
-    }
-    return player.load_source(source);
+  _buildPrepared(player, bundle) {
+    const assetIds = bundle.assets.map((asset) => asset.id);
+    const assetPayloads = bundle.assets.map((asset) => asset.payload);
+    return bundle.prepared.build(player, assetIds, assetPayloads, bundle.fontBytes, this._quality());
   }
 
   /// Rebuild the scene from edited text — the live-editor entry point. The
@@ -684,32 +571,85 @@ export class AmxPlayerView extends AmxPlayerBase {
   /// stays; only the document changes. Returns the build's diagnostics array
   /// on success. Throws on a failed build (with `.diagnostics` attached) and
   /// the previous scene keeps playing, so a typo never blanks the figure.
-  applySource(text) {
+  async _reloadFromAttributes(reason) {
+    const operation = this._beginOperation();
+    const { generation, controller } = operation;
+    clearTimeout(this._varsTimer);
+    this._varsTimer = null;
+    try {
+      const src = reason === "src" ? this.getAttribute("src") : this._loadedBundle.sourceUrl;
+      if (!src) throw playerError(new Error("scene src is required"), "resource");
+      const text = reason === "src" ? await fetchSource(src, controller.signal) : this._loadedSource;
+      if (!this._isCurrentOperation(generation)) throw cancellationError("Operation superseded");
+      const diagnostics = await this._applySource(text, src, operation);
+      if (!this._isCurrentOperation(generation)) throw cancellationError("Operation superseded");
+      this.dispatchEvent(new CustomEvent("amxready", { bubbles: true }));
+      return diagnostics;
+    } catch (error) {
+      if (!this._isCurrentOperation(generation)) throw cancellationError("Operation superseded", error);
+      const normalized = playerError(error, "resource");
+      if (normalized.kind !== "cancel") this._settleVarsWaiters(normalized);
+      throw normalized;
+    } finally {
+      if (generation === this._operationGeneration) this._operationController = null;
+    }
+  }
+
+  async applySource(text) {
+    return this._applySource(text, this._loadedBundle?.sourceUrl ?? this.getAttribute("src"));
+  }
+
+  async _applySource(text, sceneSrc, operation = null) {
+    if (this._destroyed) throw cancellationError("Player destroyed");
     if (this._state !== "ready" || !this._player) {
-      throw new Error("the player has not finished loading yet");
+      throw playerError(new Error("the player has not finished loading yet"), "build");
     }
-    const result = this._buildWithAssets(this._player, text, this._loadedAssets);
-    const diags = result?.diagnostics ?? [];
-    if (!result?.ok) {
-      const err = new Error(
-        diags.find((d) => d.severity === "error")?.message ?? "build failed",
-      );
-      err.diagnostics = diags;
-      throw err;
+    clearTimeout(this._varsTimer);
+    this._varsTimer = null;
+    const { generation, controller } = operation ?? this._beginOperation();
+    const runtime = this._runtime;
+    let candidate;
+    try {
+      const vars = scalarVars(this._varsObject());
+      candidate = await this._prepareDocument(runtime, text, sceneSrc, vars, controller.signal);
+      if (!this._isCurrentOperation(generation)) throw cancellationError("Operation superseded");
+      const result = this._buildPrepared(this._player, candidate);
+      const diags = result?.diagnostics ?? [];
+      if (!result?.ok) throw this._buildError(diags);
+      if (!this._isCurrentOperation(generation)) throw cancellationError("Operation superseded");
+      const oldBundle = this._loadedBundle;
+      this._installDocument(result);
+      this._loadedSource = text;
+      this._loadedBundle = candidate;
+      this._committedVars = { ...candidate.vars };
+      candidate = null;
+      if (this._playing) {
+        this._time = 0;
+        this._restTime = 0;
+      } else {
+        this._restTime = this._duration;
+        this._time = this._duration;
+      }
+      this._renderScene();
+      oldBundle?.prepared?.free?.();
+      this._settleVarsWaiters(null, diags);
+      return diags;
+    } catch (error) {
+      candidate?.prepared?.free?.();
+      if (!this._isCurrentOperation(generation)) throw cancellationError("Operation superseded", error);
+      const normalized = playerError(error, "build");
+      if (normalized.kind !== "cancel") this._settleVarsWaiters(normalized);
+      throw normalized;
+    } finally {
+      if (generation === this._operationGeneration) this._operationController = null;
     }
-    this._installDocument(result);
-    if (this._playing) {
-      this._time = 0;
-      this._restTime = 0;
-    } else {
-      // Park on the finished frame — frame 0 of these scenes is an empty
-      // stage, and an editor who hit Apply on a paused figure should see
-      // what they built, not nothing.
-      this._restTime = this._duration;
-      this._time = this._duration;
-    }
-    this._renderScene();
-    return diags;
+  }
+
+  _buildError(diags) {
+    const error = new Error(diags.find((d) => d.severity === "error")?.message ?? "build failed");
+    error.kind = "build";
+    error.diagnostics = diags;
+    return error;
   }
 
   /// Install a freshly built document's extent, landmarks and cycle, and put
@@ -763,127 +703,122 @@ export class AmxPlayerView extends AmxPlayerBase {
     this._vars = parseVarsAttribute(this.getAttribute("data-vars"));
   }
 
-  /// Push the set to the wasm player and remember what was pushed, so a change
-  /// landing mid-load is applied once the document is ready instead of lost.
-  /// Returns false when this engine build has no vars channel at all.
-  _applyVars(player) {
-    if (typeof player?.set_vars !== "function") return false;
-    const vars = scalarVars(this._varsObject());
-    try {
-      const accepted = player.set_vars(vars);
-      const given = Object.keys(vars).length;
-      if (typeof accepted === "number" && accepted < given) {
-        console.warn(`amx-player: the engine accepted ${accepted} of ${given} var override(s)`);
-      }
-      this._varsApplied = JSON.stringify(vars);
-      return true;
-    } catch (err) {
-      console.warn(`amx-player: set_vars failed (${err.message})`);
-      return false;
-    }
-  }
-
-  /// Override build-time variables and rebuild the current scene with them —
-  /// the entry point a parameter slider drives. Equivalent to the CLI's
-  /// repeatable `--set NAME=VALUE`: each name shadows the scene's own
-  /// `let NAME = …` default, and a JSON string becomes a string literal (write
-  /// numbers as numbers, not `"320"`).
-  ///
-  /// `obj` is *merged* into the vars in effect, so a slider sends just its own
-  /// name; `data-vars` remains the declarative base. The rebuild is debounced
-  /// (`VARS_DEBOUNCE_MS`) and happens in place — the loaded source, fonts,
-  /// imports and assets stay — and playback keeps its proportional position:
-  /// the same normalized `t` on the new timeline, playing state unchanged.
-  /// A set that fails to build warns and keeps the previous document, so a
-  /// value outside the scene's range never blanks the figure.
+  /// Merge build-time overrides and asynchronously rebuild the scene. Calls
+  /// within the debounce window share the same eventual result.
   setVars(obj) {
+    if (this._destroyed) return Promise.reject(cancellationError("Player destroyed"));
+    if (!this.getAttribute("src")) return Promise.reject(playerError(new Error("setVars requires a scene src"), "build"));
     if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
-      console.warn("amx-player: setVars expects an object of name -> number|string");
-      return;
+      return Promise.reject(playerError(new TypeError("setVars expects an object of name -> number|string"), "build"));
     }
     this._vars = { ...this._varsObject(), ...obj };
+    if (this._state === "loading") {
+      this._resetForReload();
+    } else if (this._state === "ready") {
+      this._cancelOperation();
+    }
+    const promise = new Promise((resolve, reject) => this._varsWaiters.push({ resolve, reject }));
     this._scheduleVarsRebuild();
+    return promise;
   }
 
   /// A copy of the vars in effect — the `data-vars` base plus every `setVars`
   /// merge — for a page reading back what it last set.
   get vars() {
-    return { ...this._varsObject() };
+    return { ...(this._state === "ready" ? this._committedVars : this._varsObject()) };
   }
 
-  _scheduleVarsRebuild() {
+  _scheduleVarsRebuild(dispatchFailure = false) {
     clearTimeout(this._varsTimer);
     this._varsTimer = null;
     if (this._state === "error") {
-      // A load that failed on the vars in effect gets one clean retry with the
-      // new set: `data-vars` in markup is the only way to be wrong before the
-      // first build, and fixing it should not need a `src` poke. Same path as
-      // the error veil's Retry button.
       this._resetForReload();
       return;
     }
-    // Before the first ready state there is no document to rebuild: the set is
-    // stored, `_playerWithEngine` pushes it when the player exists, and
-    // `_syncVars` catches a change that landed after that push.
     if (this._state !== "ready") return;
     this._varsTimer = setTimeout(() => {
       this._varsTimer = null;
-      this._rebuildWithVars();
+      this._rebuildWithVars().then(
+        (diags) => this._settleVarsWaiters(null, diags),
+        (error) => {
+          if (error?.name === "AbortError") return;
+          const normalized = playerError(error, "build");
+          this._settleVarsWaiters(normalized);
+          console.warn(`amx-player: variable rebuild failed (${normalized.message})`);
+          if (dispatchFailure) dispatchPlayerError(this, this.getAttribute("src"), normalized, "build");
+        },
+      );
     }, VARS_DEBOUNCE_MS);
   }
 
-  /// Apply a vars change that landed while a load was in flight. Called once
-  /// the document is ready; a no-op when the player already has this exact set.
-  _syncVars() {
-    if (typeof this._player?.set_vars !== "function") return;
-    if (this._varsApplied === JSON.stringify(scalarVars(this._varsObject()))) return;
-    this._rebuildWithVars();
+  _settleVarsWaiters(error, value) {
+    if (error && this._state === "ready") this._vars = { ...this._committedVars };
+    const waiters = this._varsWaiters.splice(0);
+    for (const waiter of waiters) error ? waiter.reject(error) : waiter.resolve(value);
   }
 
-  /// Rebuild the loaded document with the vars now in effect, in place.
-  _rebuildWithVars() {
+  /// Settle variables submitted while the first document was loading.
+  _syncVars() {
+    if (this._varsWaiters.length) this._settleVarsWaiters(null, this._loadedBundle?.analysis?.diagnostics ?? []);
+  }
+
+  async _rebuildWithQuality() {
+    if (this._state !== "ready" || !this._player || !this._loadedBundle) return;
+    const generation = this._cancelOperation();
+    const duration = this._duration;
+    const fraction = duration > 0 ? Math.min(Math.max(this._time / duration, 0), 1) : 0;
+    const result = this._buildPrepared(this._player, this._loadedBundle);
+    if (!this._isCurrentOperation(generation)) throw cancellationError("Operation superseded");
+    const diagnostics = result?.diagnostics ?? [];
+    if (!result?.ok) throw this._buildError(diagnostics);
+    this._installDocument(result);
+    this._time = fraction * this._duration;
+    this._restTime = this._time;
+    this._renderScene();
+    this._syncControls();
+  }
+
+  async _rebuildWithVars() {
     const player = this._player;
-    if (this._state !== "ready" || !player) return;
-    if (this._loadedSource === null) {
-      // Nothing cached to rebuild from: fall back to the full reload path,
-      // which refetches the scene and rebuilds from scratch.
-      this._resetForReload();
-      return;
-    }
-    // An engine without the vars channel keeps the document it has; rebuilding
-    // would produce the same frame and cost a build.
-    if (!this._applyVars(player)) return;
+    if (this._state !== "ready" || !player) return [];
+    if (this._loadedSource === null) throw new Error("no prepared source to rebuild");
+    const { generation, controller } = this._beginOperation();
+    const source = this._loadedSource;
+    const sceneSrc = this._loadedBundle.sourceUrl;
+    const vars = scalarVars(this._varsObject());
 
     const previousDuration = this._duration;
     const previousTime = Math.min(this._time, previousDuration);
     const frac =
       previousDuration > 0 ? Math.min(Math.max(previousTime / previousDuration, 0), 1) : 0;
 
-    let result;
+    let candidate;
     try {
-      result = this._buildWithAssets(player, this._loadedSource, this._loadedAssets);
-    } catch (err) {
-      console.warn(`amx-player: rebuilding with new vars failed (${err?.message ?? err})`);
-      return;
-    }
-    const diags = result?.diagnostics ?? [];
-    if (!result?.ok) {
-      const first = diags.find((d) => d.severity === "error") ?? diags[0];
-      console.warn(
-        `amx-player: these vars did not build; keeping the previous document (${first?.message ?? "build failed"})`,
-        diags,
+      candidate = await this._prepareDocument(
+        this._runtime, source, sceneSrc, vars, controller.signal, this._loadedBundle?.modules,
       );
-      return;
+      if (!this._isCurrentOperation(generation)) throw cancellationError("Operation superseded");
+      const result = this._buildPrepared(player, candidate);
+      const diags = result?.diagnostics ?? [];
+      if (!result?.ok) throw this._buildError(diags);
+      if (!this._isCurrentOperation(generation)) throw cancellationError("Operation superseded");
+      const previous = this._loadedBundle;
+      this._installDocument(result);
+      this._loadedBundle = candidate;
+      this._committedVars = { ...candidate.vars };
+      candidate = null;
+      this._time = frac * this._duration;
+      this._restTime = this._time;
+      this._renderScene();
+      this._syncControls();
+      previous?.prepared?.free?.();
+      return diags;
+    } catch (error) {
+      candidate?.prepared?.free?.();
+      throw error;
+    } finally {
+      if (generation === this._operationGeneration) this._operationController = null;
     }
-    this._installDocument(result);
-    // Proportional position: the same normalized t on the new timeline, so a
-    // paused figure stays where the reader left it and a playing one continues
-    // from the equivalent beat instead of restarting. `_playing` is
-    // deliberately untouched — the shared rAF loop keeps driving it.
-    this._time = frac * this._duration;
-    this._restTime = this._time;
-    this._renderScene();
-    this._syncControls();
   }
 
   /// Queue the scene load. Everything that could make a player start on its own

@@ -2,6 +2,17 @@ use super::helpers::*;
 use super::*;
 
 impl ModuleGraph {
+    /// Rewrite already parsed statements while preserving source paths and spans.
+    ///
+    /// Hosts use this after closing the import graph to attach source-relative
+    /// resource resolution before component expansion. The transform must not
+    /// change imports or declaration names; parsed modules are reused without IO.
+    pub fn map_loaded_statements(&mut self, mut transform: impl FnMut(&Path, &mut Vec<Stmt>)) {
+        for module in self.files.values_mut() {
+            transform(&module.path, &mut module.statements);
+        }
+    }
+
     /// Create an empty `ModuleGraph`.
     pub fn new() -> Self {
         ModuleGraph {

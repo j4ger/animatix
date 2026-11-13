@@ -65,7 +65,7 @@ cargo build -p animatix-cli --features video
 cargo build -p animatix-gui --features video   # GUI has no video by default
 ```
 
-Both features forward to `animatix-render/video`; the engine has none. Native CLI/GUI keep rendering, text, and SVG enabled by default; `animatix-web` exposes `rich-text`, `image-decode`, and `svg` as opt-in features for the `pkg-slim` / `pkg-assets` profiles. Other real switches are `perf-tracing` (default-on), `bundled-fonts` (native default; off in web packages), `serde`, `plugin-loading`, and `video` on CLI/GUI. Without FFmpeg, PNG/WebP still export; MP4/WebM/MOV/GIF require `video`.
+Both features forward to `animatix-render/video`; the engine has none. Native CLI/GUI keep rendering, text, and SVG enabled by default; `animatix-web` ships one SDK with on-demand rich text, image/SVG, and raster encoding capability blocks. Other real switches are `perf-tracing` (default-on), `bundled-fonts` (native default; off in web packages), `serde`, `plugin-loading`, and `video` on CLI/GUI. Without FFmpeg, PNG/WebP still export; MP4/WebM/MOV/GIF require `video`.
 
 ## Adding or Changing a Property
 

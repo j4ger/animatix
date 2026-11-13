@@ -43,16 +43,14 @@ web/demos/                   demo hub (course-style cards + posters) and the dem
                                                  QA harnesses (multi-instance, frame cost, SVG/profile)
 web/demos/transformer/       "The Transformer Architecture, Animated" — seven scenes + article page
 web/scenes/hero.amx          the homepage hero scene
-web/pkg/, web/pkg-assets/, web/pkg-slim/  build output (gitignored)
-web/fonts/                   external gzip font pack (generated; manifest tracked)
-scripts/build-web.sh         wasm build + wasm-bindgen + wasm-opt + brotli
+web/runtime/                 assembled single SDK (gitignored build output)
+web/fonts/                   source font pack policy and manifest
+scripts/build-web.sh         wasm build + wasm-bindgen + wasm-opt + brotli + zopfli
 scripts/web-fonts.sh         sync/check the external gzip font pack
 scripts/serve-web.py         local static server with brotli negotiation
 .github/workflows/pages.yml  deploys web/ + the runtime engine builds to GitHub Pages
 crates/animatix-web/tests/site_scenes.rs
-                             builds every scene an <amx-player> on these pages
-                             references, through the embed's own fetch protocol,
-                             in the profile that player asks for (slim/assets/full)
+                             builds each embedded scene using its declared runtime requirements
 scripts/transformer-verify.sh    keyframe checks for the transformer scenes
                              (calls `animatix baseline` per scene; needs a GPU, so
                              it is a scripted gate, not a cargo test)
@@ -64,31 +62,51 @@ The tour's and the demo walkthroughs' figures carry `data-editable`;
 `tour/editor.js` swaps each into a two-column view — animation beside a
 textarea — where **Apply** (or Ctrl/Cmd+Enter) rebuilds the scene in place.
 The element-level
-`applySource(text)` on the embed component loads the new source through the
-already-running engine (fonts, fetched imports and assets stay registered),
-resets the clock and landmarks, and returns the build's diagnostics — the
-same set the LSP surfaces — for the editor panel. A failed build throws with
+`applySource(text)` is asynchronous: it prepares imports, assets, fonts, and
+required runtime capabilities, then replaces the document on success. It
+resets the clock and landmarks, and returns the build's diagnostics — the same
+set the LSP surfaces — for the editor panel. A failed build throws with
 `.diagnostics` attached and the previous scene keeps playing, so a typo never
 blanks the figure. Reset restores the original source; edits live only on
 the page.
 
+Both `applySource(text)` and `setVars(obj)` return promises. `destroy()` explicitly
+releases an element's player resources; removing or reparenting the element does
+not destroy it.
+
+Calls made during the 150 ms `setVars()` debounce share one rebuild result; each
+returned promise settles with that batch. A failed or superseded source reload
+rejects outstanding variable promises and restores `player.vars` to the last
+committed values. Explicit destruction rejects pending work with
+`error.kind === "cancel"`. A detached element can be reattached with its player
+and document intact; after `destroy()`, create a new element to mount again.
+
+Loading and attribute-driven rebuild failures emit a bubbling `amxerror` event
+with `detail: { src, kind, message, error, diagnostics? }`. `kind` is one of
+`resource` (source, import, font or media fetch), `capability` (WebGPU or a
+required runtime capability), `version` (manifest, Wasm integrity or runtime
+identity mismatch), or `build` (source analysis or document build). `error` is
+an `Error` carrying the same `kind`; `diagnostics` is present when the build
+produced diagnostics. Superseded or destroyed operations reject with
+`error.kind === "cancel"` and do not emit `amxerror`. Explicit `applySource()`
+and `setVars()` failures reject their returned promises with the same
+`kind`/`diagnostics` fields instead of emitting an event for the caller's
+operation.
+
 The parameter-slider counterpart is `setVars(obj)`: build-time overrides —
 the CLI's `--set NAME=VALUE` — merged into the scene's `let` defaults and
-rebuilt in place, debounced, with the playback position preserved. See
+rebuilt asynchronously in place, debounced, with the playback position preserved. See
 `data-vars` under "Embedding scenes in any page".
 
 ## Run it
 
-The demo pages serve the playback-only profile; build all three packages (or just the profile you need):
+Build the single web SDK package:
 
 ```bash
 # Fastest way: checks staleness against crates/ and builds if needed
 scripts/ensure-web-pkg.sh             # release build (or --dev for ~20s debug rebuild)
 
-# Or manual profile builds:
-scripts/build-web.sh --slim          # playback-only (~3.99 MB raw / ~1.06 MB q11 wasm)
-scripts/build-web.sh --assets        # image/SVG, no Typst (~4.75 MB raw / ~1.29 MB q11)
-scripts/build-web.sh                 # full profile  (~21.32 MB raw / ~6.21 MB q11)
+scripts/build-web.sh                 # assembles web/runtime/ and its manifest
 python3 scripts/serve-web.py 8124    # serves web/ with live-reload no-cache headers
 # open http://127.0.0.1:8124/
 ```
@@ -109,7 +127,7 @@ which the repo's default dev shell does not.** Run it in its own shell:
 
 ```bash
 nix develop .#web-build          # rust with the wasm32 target + binaryen + brotli
-scripts/build-web.sh --slim
+scripts/build-web.sh
 ```
 
 `#default` is a GUI/dev shell: its `rust-bin` toolchain has no wasm32 std, so
@@ -148,6 +166,66 @@ and fails unless every `<amx-player>` reaches `ready` with a painted canvas. It
 is the gate that notices a runtime wiring break which `web-build`/`site-scenes`
 cannot see.
 
+The web build uses the pinned `zopfli` 1.0.3 tool only to create the base
+Wasm's gzip representation. Brotli and gzip capability/font assets have their
+own packaging paths; this pin does not imply that every package asset is
+compressed with zopfli.
+
+Two hardware checks are intentionally manual and are not PR matrix gates:
+`scripts/ci.sh gate text-visual-parity` compares browser text rendering against
+the native reference, and `scripts/ci.sh gate web-performance` measures browser
+runtime performance. Both require `WPR_GPU=1` and reject software adapters;
+the performance run also requires an idle host. Run them in `nix develop
+.#web-ci` with the final SDK build available. Their results are evidence for
+the tested machine and build, not cross-platform GPU coverage.
+
+### Web performance policy
+
+The Web performance harness keeps cold and warm paired samples, relative
+new/old cost ratios, paired absolute cost deltas, and both 95% confidence
+intervals in its JSON report. Its three primary user-impact metrics are cold
+player-ready startup, warm player-ready startup, and queue-depth-one p95
+completion latency. Warm startup creates a player in a reused context; it does
+not measure `applySource()` cached-source rebuilding.
+
+The 5% relative margin remains a signal. A primary metric blocks only when the
+lower bound of both its relative-ratio interval and absolute-delta interval
+exceeds the corresponding limits. A result is “no material regression” when
+the upper bound of either interval stays within its limit. If uncertainty
+crosses both limits, or required pairs are missing or invalid, the result stays
+inconclusive and the gate exits with status 2. The absolute floors are
+provisional engineering materiality limits, not validated product SLOs:
+at least three valid pairs are required for each metric interval.
+
+| Primary metric | Provisional absolute floor | Basis |
+| --- | ---: | --- |
+| Cold player-ready startup | 50 ms | About three 60 Hz frame intervals |
+| Warm player-ready startup | 16.7 ms | About one 60 Hz frame interval |
+| Queue-depth-one p95 completion | 0.167 ms | One percent of a 60 Hz frame interval |
+
+The relative margin and three absolute floors can be overridden with
+`WPR_RELATIVE_MARGIN`, `WPR_COLD_READY_FLOOR_MS`,
+`WPR_WARM_READY_FLOOR_MS`, and `WPR_QUEUE_DEPTH_ONE_P95_FLOOR_MS`. The chosen
+values and their provisional status are recorded in the report.
+
+CPU frame timings, source/document phases, batch throughput, JavaScript heap,
+browser-wide memory, and Wasm memory capacity are diagnostic-only; they do not
+change the primary verdict. Unsupported optional measurements are reported as
+unverified. `wasm_memory_capacity_bytes` is linear-memory buffer capacity, not
+resident memory or process RSS. `heap_bytes` is a JavaScript heap sample after
+the run, not peak memory. The browser-wide memory API may be unavailable because
+the benchmark server does not establish cross-origin isolation.
+
+Queue-depth-one latency includes `render_frame()` plus awaited
+`debug_gpu_drain()`, including browser and Wasm promise overhead; it is a
+pipeline-completion proxy, not pure GPU time or v-sync playback latency. The
+paired Student-t intervals describe the six cold and three warm pairs from one
+Chromium process. They do not cover between-process/day variance or correct for
+multiple comparisons, so the report treats only the three designated primary
+metrics as blockers. Integrity, matching quality/scale/raster dimensions,
+actual draw counts, nonempty output, and proof that each engine-created device
+uses NVIDIA remain hard checks.
+
 Nix users have a lighter option for *serving* — a single static-web-server
 binary, no Python (`nix run .#serve`, port/root overridable via `SERVE_PORT` /
 `SERVE_ROOT`): it sends `application/wasm` for the engine, compresses
@@ -157,25 +235,16 @@ twins hold), and answers with ETags so scene edits show on reload.
 Release builds go through the `wasm-release` profile (root `Cargo.toml`: fat
 LTO, one codegen unit, `panic = "abort"`) with `+simd128` enabled, kept separate
 from the `release` profile so tuning it cannot move a native benchmark baseline.
-Measured effect: the module is ~11% smaller raw and ~5% smaller brotli; frame
-time is unchanged (the browser frame is GPU-bound, and an A/B of the two builds
-could not separate them).
+The compiler profile's earlier A/B measurements are recorded in
+`docs/performance_evaluation.md`; they do not substitute for measurements of
+the current split SDK.
 
-The seven demo scenes use plain text only, so they run on the slim engine —
-about 2.3 MB over the wire at q11 (1.33 MB wasm + 0.96 MB gzip font pack)
-instead of about 9.5 MB for full (7.49 MB wasm + 2.06 MB fonts). The default
-`auto` profile starts at slim and upgrades only when a scene needs image/SVG
-or rich text; new pages need no `profile` attribute. The `assets` profile is
-the smallest package for Image/Svg scenes; `full` is for Typst markup and
-equations. Explicit profiles never fall back to a smaller package.
+The SDK package serves all scenes through one runtime; optional capability
+chunks and font faces are fetched only when required.
 
-Deploying is the same story: run the build script, copy `web/` (plus the
-`pkg*` output and `web/fonts/`) to any static host. Requirements: a WebGPU
-browser (Chrome/Edge 113+, Firefox 141+, Safari 26+); embeds show guidance
-when it's missing. The font pack is gzip and is decompressed with the native
-`DecompressionStream` API (the same browser baseline). It is loaded from the
-`fonts/` sibling by default; set `data-font-base` on the loader script when it
-is hosted elsewhere.
+Deploying is the same story: run the build script, copy `web/` including the assembled `runtime/` SDK directory to any static host. Requirements: a WebGPU-capable browser; embeds show guidance
+when it's missing. Font faces are fetched from the SDK manifest; gzip is
+decompressed with the native `DecompressionStream` API.
 
 ### GitHub Pages
 
@@ -185,19 +254,16 @@ It runs four gates from `scripts/ci.sh` and then one assembler:
 
 ```
 embed-drift     the web/embed/amx-player.js bundle builds from its src
-site-scenes     every scene the pages embed builds, in the shipped profiles
-web-build       all engine bundles, in the .#web-build shell
+site-scenes     every scene the pages embed builds against the SDK requirements
+web-build       the single SDK package, in the .#web-build shell
 web-smoke       every player on three pages reaches ready in headless Chromium
-                (runs in the same job as web-build: pkg/ is gitignored)
+                (runs in the same job as web-build: generated SDK files are gitignored)
 site-artifact   scripts/site-artifact.sh assembles _site
 ```
 
-`site-artifact` is the same script the release pipeline zips with, and it encodes
-the parts of "what the artifact is" that are easy to get wrong: `pkg-slim` and
-`pkg-assets` must be **release** builds (a `.dev` marker or a non-release
-`.build` stamp is refused, because a debug bundle is several times larger);
-the full `pkg` is not deployed; the generated `web/fonts` gzip pack is required
-and checked; `web/tools` and `web/embed/src` are never copied; and `.nojekyll`
+`site-artifact` is the same script the release pipeline zips with. It checks the
+SDK manifest, build identity, integrity metadata, and listed files; `web/tools`
+and `web/embed/src` are never copied, and `.nojekyll`
 is written because otherwise Pages runs the tree through Jekyll, which silently
 drops any directory beginning with `_`.
 
@@ -210,7 +276,7 @@ pin (and the hash in `flake.nix`) is the only version bump needed. Pages itself 
 subpath just works.
 
 `release.yml`, triggered by a `vX.Y.Z` tag, runs the whole PR gate matrix as its
-blocker and then ships `_site` and both `pkg*` bundles as release assets too —
+blocker and then ships `_site` and the SDK package as release assets too —
 same gates, same assembler, so a downloaded site and a deployed one cannot be two
 different layouts of one build.
 
@@ -219,20 +285,19 @@ different layouts of one build.
 ```html
 <script type="module" src="https://your-host/amx-player.js"></script>
 
-<!-- plain scene: the default slim engine serves it -->
+<!-- Plain Text is literal; optional features load when needed. -->
 <amx-player src="./figures/tokens.amx" autoplay loop controls
             title="From text to tokens" aspect="16:9" hold="1.5"></amx-player>
 
-<!-- a figure needing rich text / image assets: full engine, export fidelity -->
-<amx-player src="./figures/equation.amx" profile="full" quality="production"
+<!-- rich text / image scenes request their capabilities as needed -->
+<amx-player src="./figures/equation.amx" quality="production"
             title="Attention as soft maximum"></amx-player>
 ```
 
 Behavior:
 
 - **Lazy** — nothing is fetched until the element nears the viewport
-  (IntersectionObserver, 200px margin); the whole page shares one engine
-  download and one WebGPU device, no matter how many embeds.
+  (IntersectionObserver, 200px margin); the page shares one SDK runtime and one WebGPU device across its embeds.
 - **No build-time poster** — the skeleton (aspect-ratio placeholder with a
   shimmer) is replaced by the scene's *finished* frame, not its first one.
   These scenes build up from an empty stage, so frame 0 is a blank box: a
@@ -246,7 +311,7 @@ Behavior:
   bar below the picture — play/pause, landmark scrubber, time, speed),
   `hold` (seconds, default 0.7), `title` (a11y label, shown while loading),
   `aspect` (`16:9`/`4:3`/`1:1`/`9:16`, auto-detected from the scene
-  afterwards), `profile` (below), `quality` (below), `data-vars` (build-time
+  afterwards), `quality` (below), `data-vars` (build-time
   overrides, below), `sealed` and `fit` (page-driven mode, below),
   `no-veil` (suppress the generic loading veil so a page can paint its own
   `.poster-plate` under the player; error veils still show),
@@ -297,12 +362,6 @@ Behavior:
   release. Arrow keys step between landmarks, Home restarts, Space/K
   toggles. The speed chip cycles 1× → 1.5× → 2× → 0.5× (dt scaling keeps
   holds and dissolves proportional).
-- **`profile`** — per element, `"auto"` (default), `"slim"`, `"assets"` or
-  `"full"`: which engine build backs the figure. Auto starts with slim and
-  upgrades only when the scene's feature mask needs image/SVG or rich text;
-  plain pages therefore need no attribute. Explicit profiles never fall back to
-  a smaller package. Embeds sharing a profile share one engine download and one
-  WebGPU device; a page mixing profiles downloads each once.
 - **`quality`** — per element, `"draft"` (default) / `"preview"` /
   `"production"`: the build fidelity, i.e. what `BuildQuality` bakes into the
   document at build time. Draft matches the desktop GUI's editing preview;
@@ -317,8 +376,8 @@ Behavior:
   attribute holds a JSON object of number/string/boolean values — write numbers
   as numbers, because a JSON string becomes a string *literal*; `setVars`
   *merges* into the set in effect (so a slider sends just its own name) and
-  rebuilds in place, debounced ~150 ms: the loaded source, fonts, fetched
-  imports and assets stay registered, playback keeps its proportional position
+  returns a promise for the debounced rebuild (~150 ms). Playback keeps its
+  proportional position
   (the same normalized `t` on the new timeline) and a playing embed keeps
   playing. A set that does not build warns and keeps the previous document, so
   an out-of-range slider value never blanks the figure; a value the engine
@@ -379,15 +438,9 @@ Behavior:
   (needs a headed window), `AP_MANUAL=1` is the synthetic-tick mode used by CI
   (`AP_INJECT=<steps>` injects pressure deterministically). §3.7 of
   `docs/performance_evaluation.md` has the frame-cost numbers.
-- **`data-runtime-base`** goes on the `<script>` tag, not the element: it
-  names the directory tree holding the engine builds — absolute or relative
-  to the page. A value ending in `pkg`, `pkg-assets` or `pkg-slim` is the
-  legacy exact-directory form; anything else is a parent directory expected to
-  contain all three. Default: the parent of the directory this component lives
-  in; the default `auto` path starts at `pkg-slim` and upgrades on demand.
-- **`data-font-base`** also goes on the `<script>` tag and names the directory
-  holding the gzip font pack (default: the `fonts/` sibling of the engine
-  packages). Use it when the font pack is hosted on another origin or path.
+- **Custom SDK manifest** — import `configureRuntime` from the loader module
+  and call `configureRuntime({ manifestUrl })` before any player starts loading.
+  By default, the manifest is resolved beside the loader module.
 
 ### Looping
 
@@ -422,7 +475,7 @@ So arrivals go through one page-wide queue: nothing starts until the scroll has
 settled for 140 ms, and only one figure builds at a time. A figure scrolled past
 before its turn is dropped and re-queued if it comes back. Both rules are capped:
 a queue head waits at most 900 ms even on a page that never stops scrolling, and a
-`src`/`profile` change re-enters the queue immediately. The visible cost is that a
+`src` change re-enters the queue immediately. The visible cost is that a
 scene you stop on appears ~150 ms later than it used to, covered by its skeleton;
 the cost avoided was a 40–170 ms hitch in the middle of every scroll. A grid of
 figures fills in one at a time rather than all at once — the same total work, but
@@ -527,10 +580,17 @@ genuine semantic channels. New scenes should follow `web/tour/scenes/` and
   rendered at ~17% — near-invisible). Fade the container, or fade the child
   after the lift completes, never both at once.
 
-Hosting requirements for the runtime host: serve `.wasm` as
-`application/wasm`, and prefer precompressed `.br` twins (the build script
-emits them; any CDN negotiates brotli transparently). The `.amx` files may
-live anywhere CORS permits. `serve-web.py` sends `no-cache` for pages,
+Hosting requirements for the runtime host: serve JavaScript as
+`text/javascript` and Wasm as `application/wasm`. Keep the manifest's raw and
+`.gz` files together. The loader streams gzip Wasm and font files through
+browser decompression, including on static hosts without compression
+negotiation; it also recognizes responses already decoded by the host.
+The engine entry bundles its JavaScript dependencies and is executed as a
+module script with Subresource Integrity. A cross-origin SDK host must allow
+anonymous CORS with `Access-Control-Allow-Origin`; the page's CSP must permit
+that host in `script-src` and allow WebAssembly compilation. Sources and
+assets must also satisfy the page's `connect-src` and their hosts' CORS rules.
+The `.amx` files may live anywhere CORS permits. `serve-web.py` sends `no-cache` for pages,
 stylesheets and `.amx` sources (so editing a scene and reloading actually shows
 the edit) and a short `max-age` for the generated engine artifacts. Rebuild the
 component after edits:
@@ -577,15 +637,16 @@ cd web/tools && npm install && npm run build:embed
   scene and its imports). Dynamic
   `url = expr` assignments are not listed.
 - **Runtime fonts** — the web engine no longer embeds font bytes. The player
-  loads `fonts/manifest.json` and the gzip files for the active profile in
-  parallel with the engine/scene, caches them per page, and registers them
-  before the scene compiles. Set `data-fonts` on the embed for additional
+  loads the face descriptors from `runtime-manifest.json` and fetches required
+  font files alongside scene preparation, caches them per page, and registers
+  them before compilation. Set `data-fonts` on the embed for additional
   TTF/OTF URLs; those are fetched in parallel and cached too, but are
-  additive to the profile pack. A failed custom font is skipped with a
-  console warning; a missing profile font pack is a fatal, explicit
-  `font-pack` error. WOFF2 is not decodable. Without a face covering the
-  script, non-Latin text renders empty — the build warns which characters are
-  uncovered.
+  available alongside manifest-provided fonts. A failed custom font fetch
+  rejects preparation as a resource error; a font that loads but cannot satisfy
+  text compilation can fail the build. In either case the current document
+  stays visible. WOFF2 is not decodable. Browser-installed fonts are not
+  scanned; include a supported TTF/OTF face when the SDK faces do not cover the
+  scene's text.
 - **Audio tracks are not played** (no Web Audio wiring yet).
 - **Export** stays desktop-only (video via FFmpeg; PNG/WebP via raster-encode).
 - Native plugins don't exist on this platform; `libloading`-based extensions
@@ -600,17 +661,17 @@ The render stack is the desktop's — same engine crates, same vello/wgpu
 zero-readback pending-composite blit), same `TransitionCompositor` for
 multi-scene blends. What differs is the platform around it:
 
-| | Desktop (CLI / GUI) | Web full | Web slim |
-|---|---|---|---|
-| Rich text (Typst markup, Code highlighting, Math) | ✓ | ✓ | falls back to the plain fast path |
-| `Image` assets | ✓ | ✓ | hard feature-gate error |
-| `Svg` actors | ✓ | ✓ | primitive unregistered: `unknown-actor-type` warning, actor skipped |
-| System fonts | scanned | none (profile font pack + `data-fonts` only) | same |
-| Extensions (`plugin-loading`) | ✓ | ✗ | ✗ |
-| Audio | muxed at export | not played | not played |
-| Export (video / PNG / WebP) | ✓ | ✗ | ✗ |
-| Build quality | `Production` (export), `Draft` (GUI editing) | `quality` attribute: `draft` default, `preview`/`production` opt-in | same |
-| Build-time vars | `--set NAME=VALUE` | `data-vars` attribute / `setVars()` | same |
+| | Desktop (CLI / GUI) | Web SDK |
+|---|---|---|
+| Rich text (Typst markup, Code highlighting, Math) | ✓ | on-demand capability |
+| `Image` assets | ✓ | on-demand capability |
+| `Svg` actors | ✓ | on-demand capability |
+| Fonts | system scan plus bundled fonts | manifest faces plus optional `data-fonts` |
+| Extensions (`plugin-loading`) | ✓ | ✗ |
+| Audio | muxed at export | not played |
+| Export (video / PNG / WebP) | ✓ | raster encoding on demand |
+| Build quality | `Production` (export), `Draft` (GUI editing) | `quality` attribute: `draft` default, `preview`/`production` opt-in |
+| Build-time vars | `--set NAME=VALUE` | `data-vars` attribute / `setVars()` |
 
 The pixel-level consequence of that last row: plot-family actors (`Graph`,
 `PlotCurve`, `VectorField`, …) sample with 4× the tolerance under the default
@@ -628,33 +689,28 @@ presentation (the `STORAGE_BINDING` workaround), and the `debug_fill` /
 `debug_readback(t)` / `debug_svg_stats(t_ms)` / `build_id()` diagnostic
 surface.
 
-## Slim playback profile
+## Single SDK and runtime manifest
 
-The default build carries the full feature set (Typst rich text, raster
-decoding, SVG). `--slim` compiles those out — Text falls back to the plain fast
-path (no markup/Code highlighting/Math), image/SVG assets report diagnostics —
-and `--assets` keeps raster/SVG while dropping Typst. Current sizes are printed
-by the build script; q11 release measurements are about **21.32 MB full → 6.21 MB
-wasm brotli**, **4.75 MB assets → 1.29 MB q11**, and **3.99 MB slim → 1.06 MB
-q11**, before the external font pack (2.06 MB gzip across all profiles).
+The web distribution is one SDK package. Its `runtime-manifest.json` records
+the build identity, versioned modules, integrity metadata, font faces, and
+capability chunks. The loader fetches the shared runtime once and activates
+rich text, media decoding (images and SVG), or raster encoding only when the
+scene or caller needs them. Text is always literal Unicode; markup belongs in
+`Typst`, `Math`, `Code`, or `Equation`.
 
-```bash
-scripts/build-web.sh --slim     # emits web/pkg-slim/
-scripts/build-web.sh --assets   # emits web/pkg-assets/
+Build with `scripts/build-web.sh`; the assembled package is `web/runtime/`.
+Deploy that directory with the loader. The loader defaults to its sibling
+manifest, or a page can choose a manifest explicitly:
+
+```js
+import { configureRuntime } from "./runtime/amx-player.js";
+configureRuntime({ manifestUrl: "https://cdn.example/animatix/runtime-manifest.json" });
 ```
 
-(Slim carries Open Sans Regular/Bold and the Noto CJK subset in the external
-pack; full adds the italic, variable and Fira Math faces. The plain fast path
-still resolves static faces first.)
-
-`--slim` is the profile for motion-graphics embeds that use plain text only;
-`--assets` is the smallest profile for Image/Svg scenes; explainers with
-equations or styled text need the full build. The feature flags behind these
-profiles are `animatix-text/rich-text`, `animatix/image-decode` and
-`animatix/svg`; `animatix-web` exposes them as default features so
-`--no-default-features` selects the slim set. `animatix-text/bundled-fonts`
-stays on for native builds and is off in every web package, which is why the
-wasm files no longer contain font bytes.
+Configuration is page-wide and must be set before loading starts. Font faces
+are described by the manifest and fetched as needed; custom `data-fonts` remain
+available. Build size and capability-split results are generated by the
+distribution scripts and are not asserted here as acceptance evidence.
 
 ## Diagnostics & probes
 
@@ -665,10 +721,7 @@ wasm files no longer contain font bytes.
   loop, because a backgrounded/headless tab delivers no rAF callbacks at all and
   `queue.submit` returns several milliseconds before the GPU has drawn anything.
   `reps` repeats each sample and keeps the fastest (a browser frame timed from a
-  script is hostage to whatever else the machine is doing); `base` points the page
-  at a second engine build directory so two builds can be A/B'd — that is how the
-  wasm build profile was measured, and it is why the engine build lives in its own
-  directory rather than being swapped in place. The findings and the method are in
+  script is hostage to whatever else the machine is doing); `base` can point the page at an alternate SDK directory for an A/B comparison. The findings and the method are in
   `docs/performance_evaluation.md` §3.7.
 - `web/demos/multi-probe.html` — four embeds on one page; publishes
   `{players, ready, playing, wasmFetches}` on `window.__probe_state` and, with

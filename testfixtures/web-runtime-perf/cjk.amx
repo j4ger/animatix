@@ -1,0 +1,12 @@
+// CJK font fallback and vector geometry for a stable browser playback workload.
+config { resolution: (1280, 720), duration: 2.0 }
+
+title: Text, text: "动画运行时性能", font_size: 48, color: "#f2f4f8",
+  anchor: scene.center, offset: (0, -150), opacity: 1
+caption: Text, text: "字体回退 · 实时播放 · 你好", font_size: 30, color: "#9bb0c8",
+  anchor: scene.center, offset: (0, -75), opacity: 1
+panel: Rect, size: (560, 260), color: "#26364a", at: (640, 400), opacity: 1
+orb: Ellipse, size: (170, 170), color: "#f3a85b", at: (640, 400), opacity: 1
+
+#0s
+shift orb [by: (-220, 0), 2000ms, ease: ease-in-out]

@@ -11,6 +11,21 @@ If you use Nix, `nix develop` sets up Rust, FFmpeg, Tree-sitter, graphics
 dependencies, and **Cocogitto** (`cog`, used for conventional commits). Run
 `cog commit`/`cog check` inside the dev shell; outside it `cog` is not on `PATH`.
 
+Linux video-enabled release builds use `scripts/dist-linux.sh` and the pinned
+Ubuntu container. A release includes a separate corresponding-source archive
+with the exact allowlisted dirty source snapshot, `Cargo.lock`, vendored Rust
+dependencies, offline Cargo configuration, pinned media source archives, and
+the rebuild recipe. See [the Linux packaging guide](../packaging/linux/README.md)
+for its identity, validation, and rebuild steps.
+
+The source archive records a content identity for the allowlisted project files,
+including tracked edits and non-ignored untracked files. Its vendored Cargo tree
+and generated offline Cargo configuration have separate digests, checked before
+metadata/build and again when verifying the archive. The archive includes a
+`REBUILD.md` command and the pinned media source archives; use the documented
+container recipe when checking a delivered binary rather than rebuilding from
+the checkout that produced it.
+
 ---
 
 ## Development Workflows
@@ -266,7 +281,7 @@ that, and tags the commit. The version itself comes from
 commit from deploying Pages.
 
 Pushing the tag is what publishes. `release.yml` runs the whole PR gate matrix
-first, then builds the site, all three wasm profiles and the per-OS `dist` binaries
+first, then builds the site, the web SDK, and the per-OS `dist` binaries
 in parallel, and attaches them to one GitHub Release whose notes are
 `cog changelog --at v<version>`. It stays that way because the alternative — a
 `post_bump_hook` that pushes — publishes a release from a command run at a desk.
@@ -291,6 +306,18 @@ bash scripts/check-docs.sh
 ```
 
 This checks relative Markdown links under `docs/`, rejects completed-status rows still listed as active roadmap work, and fails on stale known-gap wording for completed roadmap items. CI runs it in the `doc` job.
+
+## Web distribution changes
+
+The web player and its optional capabilities ship as one SDK under
+`web/runtime/`. Use `scripts/ci.sh gate web-build web-sdk-integrity` in the
+`.#web-ci` shell for a fresh build, then `scripts/ci.sh gate
+web-distribution-check` to exercise the complete SDK and site archives after
+unpacking. SDK staging, restore, site assembly, and release packaging each
+verify the manifest against the source identity and workspace version. Do not
+copy only the player script or an individual capability file into a site.
+Pages consumes the verified CI SDK artifact when available; the source-build
+fallback runs the web build and its browser gates.
 
 ---
 

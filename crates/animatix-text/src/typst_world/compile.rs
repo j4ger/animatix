@@ -239,7 +239,7 @@ pub fn compile_typst(
     Ok(document.pages()[0].frame.clone())
 }
 
-#[cfg(feature = "rich-text")]
+#[cfg(all(feature = "rich-text", test))]
 /// Compile plain text into a Typst frame.
 pub fn compile_text(
     text: &str,

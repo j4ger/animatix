@@ -1,6 +1,10 @@
 use crate::renderer::text::{TextCompileRequest, TextStyle};
 use crate::timeline::plan::PropertyPlan;
 use crate::timeline::{EntityId, Timeline, TrackAccessor};
+use std::ops::Range;
+
+mod word_ranges;
+use word_ranges::{CaptionWordStyle, map_timed_words_to_char_ranges, style_for_glyph};
 
 /// One subtitle cue active or transcript-derived for a Captions container.
 struct ActiveCue {
@@ -8,6 +12,7 @@ struct ActiveCue {
     start_s: f64,
     end_s: f64,
     words: Vec<animatix_text::transcript::TranscriptWord>,
+    word_char_ranges: Vec<Option<Range<usize>>>,
     active_color: Option<[f32; 4]>,
 }
 
@@ -125,15 +130,16 @@ impl Timeline {
             let Some(def) = self.behavior_for_node(child_id, time_ms) else {
                 continue;
             };
+            let child_label = self.world.label(child_id).unwrap_or("");
             let ctx = crate::primitives::EvaluateCtx {
                 id: child_id,
-                label: self.world.label(child_id).unwrap_or(""),
+                label: child_label,
                 time_ms,
                 local_transform: kurbo::Affine::IDENTITY,
                 opacity: 1.0,
                 scene_dimensions,
                 background_color: self.eval_caches.background_color.get(),
-                overrides: overrides.get(self.world.label(child_id).unwrap_or("")),
+                overrides: overrides.get(child_label),
                 vector_paths: &[],
                 asset_cache: &self.asset_cache,
                 target_resolver: Some(self),
@@ -169,11 +175,14 @@ impl Timeline {
                         confidence: 1.0,
                     });
                 }
+                let word_char_ranges =
+                    map_timed_words_to_char_ranges(&cue.text, &words, child_label);
                 all_cues.push(ActiveCue {
                     text: cue.text,
                     start_s,
                     end_s,
                     words,
+                    word_char_ranges,
                     active_color: cue.active_color,
                 });
             }
@@ -192,11 +201,14 @@ impl Timeline {
 
             if let Some(t) = transcript {
                 for seg in &t.segments {
+                    let word_char_ranges =
+                        map_timed_words_to_char_ranges(&seg.text, &seg.words, node_label);
                     all_cues.push(ActiveCue {
                         text: seg.text.clone(),
                         start_s: seg.start_s,
                         end_s: seg.end_s,
                         words: seg.words.clone(),
+                        word_char_ranges,
                         active_color: None,
                     });
                 }
@@ -247,6 +259,13 @@ impl Timeline {
         let backdrop_padding =
             property_plan.sample_vec2_prop("backdrop_padding", time_ms, [16.0, 8.0]);
         let pop_scale = property_plan.sample_f32_prop("pop_scale", time_ms, 1.25);
+        let word_style = CaptionWordStyle {
+            caption_mode: &caption_mode,
+            active_color,
+            inactive_color,
+            base_color,
+            pop_scale,
+        };
 
         let active_word_idx =
             cue.words.iter().position(|w| w.start_s <= time_s && time_s < w.end_s);
@@ -297,18 +316,11 @@ impl Timeline {
                 }
 
                 for g in compiled.paths.iter() {
-                    let word_idx = g.word_idx as usize;
-                    let is_current = active_word_idx == Some(word_idx);
-                    let has_passed = active_word_idx.map(|idx| word_idx < idx).unwrap_or(false);
-
-                    let (color, scale) = caption_glyph_style(
-                        caption_mode.as_str(),
-                        is_current,
-                        has_passed,
-                        active_color,
-                        inactive_color,
-                        base_color,
-                        pop_scale,
+                    let (color, scale) = style_for_glyph(
+                        &cue.word_char_ranges,
+                        usize::from(g.char_idx),
+                        active_word_idx,
+                        &word_style,
                     );
 
                     let alpha = color[3] * caption_opacity * g.opacity;

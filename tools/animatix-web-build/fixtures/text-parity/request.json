@@ -1,0 +1,24 @@
+{
+  "cases": [
+    { "name": "literal-markup", "text": "*literal* #markup `text`", "family": "Open Sans", "size": 34, "weight": 400 },
+    { "name": "combining-mark", "text": "café é", "family": "Open Sans", "size": 34, "weight": 400 },
+    { "name": "bidi-controls", "text": "LTR 12 ‫34 (56)‬ end", "family": "Open Sans", "size": 34, "weight": 400 },
+    { "name": "cjk", "text": "中文测试与换行", "family": "Noto Sans SC Thin", "size": 34, "weight": 400, "max_width": 100 },
+    { "name": "arabic-bidi", "text": "مرحبا بالعالم 123", "family": "Noto Naskh Arabic UI", "size": 34, "weight": 400 },
+    { "name": "weight-400", "text": "Variable weight", "family": "Open Sans", "size": 34, "weight": 400 },
+    { "name": "weight-550", "text": "Variable weight", "family": "Open Sans", "size": 34, "weight": 550 },
+    { "name": "weight-700", "text": "Variable weight", "family": "Open Sans", "size": 34, "weight": 700 }
+  ],
+  "grouped": [
+    {
+      "name": "equation-fragments",
+      "markup": "#metadata(\"animatix:equation-fragment:start:0\") #box()[$E$] #metadata(\"animatix:equation-fragment:end:0\") #metadata(\"animatix:equation-fragment:start:1\") #box()[$=$] #metadata(\"animatix:equation-fragment:end:1\") #metadata(\"animatix:equation-fragment:start:2\") #box()[$m$] #metadata(\"animatix:equation-fragment:end:2\") #metadata(\"animatix:equation-fragment:start:3\") #box()[$c^2$] #metadata(\"animatix:equation-fragment:end:3\")",
+      "family": "Open Sans", "size": 38, "weight": 400, "expected_groups": 4
+    },
+    {
+      "name": "nested-styled-fragment",
+      "markup": "#metadata(\"animatix:equation-fragment:start:0\") #box()[#text(fill: rgb(\"#ff0000\"))[x #box()[y]]] #metadata(\"animatix:equation-fragment:end:0\")",
+      "family": "Open Sans", "size": 38, "weight": 400, "expected_groups": 1
+    }
+  ]
+}

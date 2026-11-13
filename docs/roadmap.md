@@ -326,18 +326,9 @@ this box, and the next session should not pretend the harness covers them:
   working WebGPU in a browser can settle it: open `/tour/` §05b and read the panel
   interior at `t=1.0` (radius 0) against `t=3.0` (radius 22) — the scene is built
   as its own A/B — via `<amx-player>`'s `debug_readback_rgba`.
-- **One page mixing both engine profiles.** `demos/svg-probe/profiles.html` loads
-  slim and full in the same document; headless hands the second engine no adapter
-  (`No suitable graphics adapter found`), so the probe reports one scene error
-  here that says nothing about the page. `web/README.md` claims a mixed page
-  downloads each profile once and holds one device per profile — that claim is
-  untested against a real browser.
-
-Then the maintenance item this batch made cheap: `cargo test -p animatix-web
---test site_scenes` in both feature sets is now the content gate, and the Pages
-job runs it plus an embed-bundle drift check. If a future scene needs the full
-profile, the fix is `profile="full"` on the element that plays it — the gate names
-the page, not just the scene.
+- **Mixed capabilities on one page.** Verify on a real WebGPU browser that plain,
+  rich-text and media players share a single engine and device, and record the
+  requests and visual results for the shipped SDK.
 
 ## Found by the transformer review, left open on purpose (2026-10-06)
 

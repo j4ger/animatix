@@ -1,0 +1,24 @@
+// Static text corpus: Latin markup literals, CJK fallback, bidi controls and variable weights.
+config { resolution: (960, 540), duration: 2.0 }
+
+literal: Text, text: "*literal* #markup `text`", font_family: "Open Sans",
+  font_size: 30, font_weight: 400, color: "#f2f4f8",
+  anchor: scene.center, offset: (0, -190), opacity: 1
+cjk: Text, text: "中文测试与换行 字体回退", font_family: "Open Sans",
+  font_size: 34, font_weight: 400, color: "#77c6ec",
+  anchor: scene.center, offset: (0, -110), opacity: 1
+arabic: Text, text: "مرحبا بالعالم 123", font_family: "Noto Naskh Arabic UI",
+  font_size: 34, font_weight: 400, color: "#ffb86b",
+  anchor: scene.center, offset: (0, -30), opacity: 1
+bidi: Text, text: "LTR 12 ‫34 (56)‬ end", font_family: "Open Sans",
+  font_size: 30, font_weight: 400, color: "#e8a4d3",
+  anchor: scene.center, offset: (0, 50), opacity: 1
+weight_regular: Text, text: "Variable weight 400", font_family: "Open Sans",
+  font_size: 28, font_weight: 400, color: "#d4deeb",
+  anchor: scene.center, offset: (0, 115), opacity: 1
+weight_medium: Text, text: "Variable weight 550", font_family: "Open Sans",
+  font_size: 28, font_weight: 550, color: "#d4deeb",
+  anchor: scene.center, offset: (0, 165), opacity: 1
+weight_bold: Text, text: "Variable weight 700", font_family: "Open Sans",
+  font_size: 28, font_weight: 700, color: "#d4deeb",
+  anchor: scene.center, offset: (0, 215), opacity: 1

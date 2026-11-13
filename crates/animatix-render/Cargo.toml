@@ -32,3 +32,6 @@ rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg8", 
 
 [dev-dependencies]
 animatix = { path = "../animatix", features = ["image-decode"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm_split = { workspace = true }

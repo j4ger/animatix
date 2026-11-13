@@ -7,11 +7,11 @@
 //!
 //! The memo-table identity is derived from the request instead of restated at
 //! each call site: [`TextCompileRequest::cache_key`] walks the request's fields
-//! plus the font-environment epoch, so adding a field cannot silently leave the
+//! plus the font-set identity, so adding a field cannot silently leave the
 //! cache key behind.
 
 use crate::compiler::TextKind;
-use crate::font_context::{DEFAULT_FONT_WEIGHT, FontContext};
+use crate::font_context::{DEFAULT_FONT_WEIGHT, FontContext, FontSetId};
 use crate::typst_world::HighlightPalette;
 
 /// Typography and solid fill for one text compilation.
@@ -120,10 +120,8 @@ impl<'a> TextCompileRequest<'a> {
 
     /// Derive the memo-table key for this request.
     ///
-    /// `font_ctx` contributes the font-environment epoch: contexts created after
-    /// [`crate::advance_font_env_epoch`] must never hit an entry shaped against
-    /// the previous font data. Every other output-affecting input is read from
-    /// the request itself.
+    /// `font_ctx` contributes the content identity of its font set. Every
+    /// other output-affecting input is read from the request itself.
     pub fn cache_key(&self, font_ctx: &FontContext) -> TextCacheKey {
         TextCacheKey {
             content: self.content.to_string(),
@@ -142,14 +140,14 @@ impl<'a> TextCompileRequest<'a> {
             max_lines: self.max_lines,
             text_align: self.text_align.to_string(),
             overflow: self.overflow.to_string(),
-            fast_path: self.allow_fast_path,
-            font_epoch: font_ctx.epoch,
+            fast_path: self.allow_fast_path || self.kind == TextKind::Text,
+            font_set_id: font_ctx.font_set_id(),
         }
     }
 }
 
 /// Identity of one memoized text compilation, derived from a
-/// [`TextCompileRequest`] plus the font-environment epoch.
+/// [`TextCompileRequest`] plus the font-set content identity.
 ///
 /// `f32` inputs are bit-cast to `u32` because floats are not `Hash`. The fields
 /// stay private: the only supported way to build a key is
@@ -181,5 +179,5 @@ pub struct TextCacheKey {
     text_align: String,
     overflow: String,
     fast_path: bool,
-    font_epoch: u64,
+    font_set_id: FontSetId,
 }

@@ -5,12 +5,11 @@
 - transparent brotli negotiation: serves the precompressed `.br` twin when
   the client advertises `Accept-Encoding: br` (a CDN does the same)
 - cache headers that keep the edit-and-reload loop working: generated engine
-  artifacts (`.wasm`, `pkg*/**.js`) are cacheable in production mode, while
+  artifacts (`.wasm`, `runtime/**.js`) are cacheable in production mode, while
   pages, stylesheets and `.amx` scene sources must be revalidated.
 - `--no-cache` mode (default in local dev): sends no-cache headers for all
   resources so rebuilds and edits take effect immediately without clearing browser cache.
-- staleness detection: checks if `web/pkg` wasm binary is older than `crates/`
-  engine sources and warns loudly on startup and via HTTP headers.
+- integrity detection: verifies the SDK manifest and source identity at startup.
 
 Usage:
   python3 scripts/serve-web.py [port] [root] [--host HOST] [--cache] [--no-cache]
@@ -107,69 +106,20 @@ WASM_STALENESS = None
 
 
 def check_wasm_staleness(web_dir):
-    """Check if web/pkg wasm files are missing or older than crates/ engine source."""
-    repo_root = None
+    """Verify the SDK by content identity when serving the source checkout."""
+    sdk = os.path.join(web_dir, "runtime")
+    if not os.path.isfile(os.path.join(sdk, "runtime-manifest.json")):
+        return {"results": [("runtime", "missing", 0)]}
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    args = ["node", os.path.join(repo, "web/tools/sdk.mjs"), "verify", sdk]
+    if os.path.realpath(web_dir) == os.path.realpath(os.path.join(repo, "web")):
+        args.append("--current")
     try:
-        repo_root = subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"],
-            cwd=web_dir if os.path.isdir(web_dir) else None,
-            stderr=subprocess.DEVNULL,
-            text=True,
-        ).strip()
-    except Exception:
-        pass
-
-    if not repo_root or not os.path.isdir(repo_root):
-        repo_root = os.path.dirname(os.path.abspath(web_dir))
-
-    crates_dir = os.path.join(repo_root, "crates")
-    if not os.path.isdir(crates_dir):
-        return None
-
-    try:
-        out = subprocess.check_output(
-            ["git", "log", "-1", "--format=%ct|%h|%s", "crates/"],
-            cwd=repo_root,
-            stderr=subprocess.DEVNULL,
-            text=True,
-        ).strip()
-        parts = out.split("|", 2)
-        crates_ts = int(parts[0])
-        crates_hash = parts[1]
-        crates_msg = parts[2]
-    except Exception:
-        return None
-
-    results = []
-    for pkg_name in ("pkg", "pkg-slim", "pkg-assets"):
-        pkg_dir = os.path.join(web_dir, pkg_name)
-        wasm = os.path.join(pkg_dir, "animatix_web_bg.wasm")
-        if not os.path.isfile(wasm):
-            results.append((pkg_name, "missing", 0))
-        else:
-            mtime = os.path.getmtime(wasm)
-            if crates_ts > mtime:
-                results.append((pkg_name, "stale", mtime))
-            else:
-                results.append((pkg_name, "fresh", mtime))
-
-    fonts_dir = os.path.join(web_dir, "fonts")
-    fonts_manifest = os.path.join(fonts_dir, "manifest.json")
-    if not os.path.isfile(fonts_manifest):
-        results.append(("fonts", "missing", 0))
-    else:
-        mtime = os.path.getmtime(fonts_dir)
-        if crates_ts > mtime:
-            results.append(("fonts", "stale", mtime))
-        else:
-            results.append(("fonts", "fresh", mtime))
-
-    return {
-        "crates_ts": crates_ts,
-        "crates_hash": crates_hash,
-        "crates_msg": crates_msg,
-        "results": results,
-    }
+        subprocess.run(args, cwd=repo, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        status = "fresh"
+    except (OSError, subprocess.CalledProcessError):
+        status = "stale"
+    return {"results": [("runtime", status, 0)]}
 
 
 def cache_control(path):
@@ -177,7 +127,7 @@ def cache_control(path):
         return "no-cache, no-store, must-revalidate"
     generated = (
         path.endswith(CACHEABLE)
-        or "/pkg" in path.replace(os.sep, "/")
+        or "/runtime/" in path.replace(os.sep, "/")
         or path.endswith(".wasm.br")
         or "/fonts/" in path.replace(os.sep, "/")
         or path.endswith(".gz")
@@ -344,7 +294,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", cache_control(self.translate_path(self.path)))
         # Attach staleness header if WASM artifacts are out-of-date
         if WASM_STALENESS and any(s == "stale" for _, s, _ in WASM_STALENESS["results"]):
-            if "/pkg" in self.path or "/fonts/" in self.path:
+            if "/runtime/" in self.path:
                 self.send_header("X-Animatix-Wasm-Stale", "true")
         super().end_headers()
 
@@ -358,18 +308,11 @@ def print_staleness_banner(staleness):
     if not stale_items and not missing_items:
         return
 
-    import datetime
-    crates_dt = datetime.datetime.fromtimestamp(staleness["crates_ts"])
     print("\n" + "=" * 72, file=sys.stderr)
     if missing_items:
-        print(f"⚠️  WARNING: WASM package(s) missing: {', '.join(missing_items)}", file=sys.stderr)
+        print("SDK is missing; run scripts/ensure-web-pkg.sh --dev", file=sys.stderr)
     if stale_items:
-        print(f"⚠️  WARNING: web/pkg wasm binary is older than crates/ engine source!", file=sys.stderr)
-        print(f"   Stale packages: {', '.join(stale_items)}", file=sys.stderr)
-        print(f"   Latest engine:  {crates_dt.strftime('%Y-%m-%d %H:%M:%S')} [{staleness['crates_hash']}]", file=sys.stderr)
-        print(f"   Scenes using newer syntax (e.g. 'settle-in') may fail in browser.", file=sys.stderr)
-    print(f"   To rebuild quickly:", file=sys.stderr)
-    print(f"     scripts/ensure-web-pkg.sh --dev", file=sys.stderr)
+        print("SDK verification failed or its source identity changed; rebuild it with scripts/ensure-web-pkg.sh --dev", file=sys.stderr)
     print("=" * 72 + "\n", file=sys.stderr)
 
 

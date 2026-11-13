@@ -24,11 +24,6 @@
 //   title      accessibility label; shown on the skeleton while loading
 //   aspect     "16:9" | "4:3" | "1:1" | "9:16" — reserve space before first frame
 //              (auto-detected from the scene afterwards)
-//   profile    "auto" (default) | "slim" | "assets" | "full" — which engine
-//              build backs this element. Auto starts slim and upgrades only
-//              when the scene needs Image/Svg assets or rich text; explicit
-//              profiles never fall back to a smaller package. Embeds sharing
-//              a profile share one engine download and device.
 //   quality    "draft" (default) | "preview" | "production" — build fidelity.
 //              Production matches a desktop export; changing it rebuilds.
 //   data-fonts space-separated TTF/OTF URLs. All fonts are fetched in
@@ -43,9 +38,6 @@
 //              Changing the attribute replaces the set in effect and rebuilds
 //              the scene in place (debounced). Overrides reach a single-scene
 //              document only; a composition reports that they did not.
-//   data-font-base  (on the loader script) base URL for the automatic font
-//              pack. Defaults to the `fonts/` sibling of the engine packages;
-//              set it when the pack is hosted on a separate origin or path.
 //   sealed     page-driven mode: no center play affordance and no click
 //              gestures — playback belongs to the page's own JS (play/pause/
 //              seek below). With `autoplay`, the scene also resumes by itself
@@ -82,22 +74,18 @@
 //
 // Scripting a ready player (besides the `sealed` mode's play()/pause()/seek()
 // and the `duration`/`time` getters):
-//   setVars(obj)  merge build-time overrides (`data-vars` shape) and rebuild in
-//              place, debounced ~150 ms: the loaded source, fonts, imports and
-//              assets stay registered, playback keeps its proportional position
-//              (the same normalized t on the new timeline) and a playing embed
-//              keeps playing. A set that does not build warns and keeps the
-//              previous document, so a slider's out-of-range value never blanks
-//              the figure. This is what a parameter-slider demo drives.
+//   setVars(obj)  merge build-time overrides and asynchronously rebuild in
+//              place, debounced ~150 ms. Calls in one debounce batch settle
+//              together; a failed build rejects and keeps the previous document.
 //   vars       getter: a copy of the overrides in effect.
-//   applySource(text)  rebuild from edited text — the live-editor entry point.
+//   applySource(text)  asynchronously prepare imports/assets/fonts and replace
+//              the document on success; rejection includes diagnostics and
+//              leaves the previous document playing.
+//   destroy()  explicitly release this element's player. DOM reparenting does
+//              not destroy it.
 //
-// The engine directories come from the loader <script>'s `data-runtime-base`
-// (absolute, or relative to the page). A value ending in `pkg-slim`,
-// `pkg-assets` or `pkg` is the legacy exact-directory form; anything else is a
-// parent directory containing the three packages. Default: the parent of the
-// directory holding this component, so an omitted attribute starts at
-// `pkg-slim` and auto-upgrades only when feature detection asks for more.
+// The SDK locates its manifest next to this module by default. Call
+// configureRuntime({ manifestUrl }) before loading to use an external host.
 //
 // Loading UX (no build-time poster required):
 //   1. skeleton with shimmer + title, correct aspect ratio
@@ -114,9 +102,8 @@
 // scene can buy itself a trailing rest by declaring a longer duration.
 //
 // Performance: all visible playing instances are driven by ONE shared
-// requestAnimationFrame loop; offscreen instances pause automatically. Embeds
-// using the same engine directory share one WebGPU context inside that wasm
-// instance; a page mixing `profile` values holds one context per profile.
+// requestAnimationFrame loop; offscreen instances pause automatically. Every
+// embed on the page shares one SDK/Wasm instance and WebGPU context.
 
 // Nominal frame rate for the debug readout. The player renders on rAF, so this
 // is a reporting grid rather than a clock: `frame = round(t * FRAME_RATE)`. The
@@ -139,3 +126,5 @@ if (!customElements.get("amx-player")) {
 installDebugHud();
 
 export { AmxPlayerElement };
+
+export { configureRuntime, debugRuntimeStats } from "./player/runtime.js";

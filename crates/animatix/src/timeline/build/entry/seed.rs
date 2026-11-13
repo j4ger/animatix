@@ -6,16 +6,12 @@
 //! `--set` overrides. Also runs the speech pre-pass so the returned AST already
 //! has speech-anchored keyframes lowered to times.
 
-use animatix_text::transcript::SpeechTranscript;
-
 use super::*;
 
 /// What the seeding phase hands to the statement walk.
 pub(super) struct SeededBuild {
     /// The input AST with speech-anchored keyframe times lowered.
     pub ast: Vec<Stmt>,
-    /// Transcripts to attach once the walk has created the actor entities.
-    pub transcripts: std::collections::HashMap<String, SpeechTranscript>,
 }
 
 /// Seed the build environment and return the AST the statement walk consumes.
@@ -126,20 +122,25 @@ pub(super) fn seed_environment(
         }
     }
 
-    // Pre-pass: collect speech transcripts from Audio/Captions declarations.
-    // The map is a build-time buffer: it lowers speech-anchored keyframe
-    // times below, then each transcript is attached to its actor's entity
-    // after the declaration walk created it.
+    // Pre-pass only when a transcript declaration exists; it is needed to
+    // lower speech-anchored keyframe times. Actual transcript components are
+    // attached later by the actor declaration path using its resolved label.
     let mut transcripts = std::collections::HashMap::new();
-    super::speech::collect_transcripts_from_ast(
-        ast,
-        &timeline.asset_cache,
-        &mut transcripts,
-        diagnostics,
-    );
+    if super::speech::needs_speech_transcript_prepass(ast) {
+        let mut transcript_env = timeline.env.clone();
+        let overridden = timeline.cli_defines.clone();
+        super::speech::collect_transcripts_from_ast(
+            ast,
+            std::sync::Arc::make_mut(&mut timeline.asset_cache),
+            &mut transcripts,
+            diagnostics,
+            &mut transcript_env,
+            &overridden,
+        );
+    }
 
     // Pre-pass: lower any speech-anchored keyframe times in the AST
     let ast = super::speech::lower_speech_keyframes(ast, &transcripts, diagnostics);
 
-    SeededBuild { ast, transcripts }
+    SeededBuild { ast }
 }

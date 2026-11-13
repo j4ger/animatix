@@ -1,7 +1,7 @@
 import * as core from "./core.js";
 const {
-  FRAME_RATE, DEBUG_BY_URL, LOADER_SCRIPT, RUNTIME_BASE, engineBases, REDUCED_MOTION,
-  SAVE_DATA, FADE_EACH, ICONS, enginePromises, loadEngine, instances, QUALITY_STEPS,
+  FRAME_RATE, DEBUG_BY_URL, REDUCED_MOTION,
+  SAVE_DATA, FADE_EACH, ICONS, instances, QUALITY_STEPS,
   SLOW_TICK_MS, FAST_TICK_MS, setQualityStep, tick, ensureLoop, SCROLL_SETTLE_MS,
   LOAD_MAX_DEFER_MS, LOAD_RETRY_MS, LOAD_STALL_MS, pumpLoads, enqueueLoad, dequeueLoad,
   ASPECTS, unparkInstance,

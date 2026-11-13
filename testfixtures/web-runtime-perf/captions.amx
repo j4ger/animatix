@@ -1,0 +1,20 @@
+// Supplemental word-pop caption workload for the optional WPR_SCENE A/B.
+// Keep the 960x540, 2s shape aligned with the primary web text scenes.
+config { resolution: (960, 540), duration: 2.0 }
+
+word_captions: Captions, at: (480, 150), caption_mode: "word", font_size: 30,
+  color: (0.95, 0.96, 0.97, 1), active_color: (0.95, 0.79, 0.41, 1), inactive_color: (0.61, 0.69, 0.78, 1), opacity: 1 {
+  opening: Cue, text: "Hello 世界 from Animatix", start: 0.0, end: 1.0
+  closing: Cue, text: "字幕 word timing test", start: 1.0, end: 2.0
+}
+
+pop_captions: Captions, at: (480, 440), caption_mode: "pop", font_size: 30,
+  color: (0.95, 0.96, 0.97, 1), active_color: (0.47, 0.84, 0.71, 1), inactive_color: (0.61, 0.69, 0.78, 1), pop_scale: 1.15, opacity: 1 {
+  opening_pop: Cue, text: "Timed words 测试 now", start: 0.0, end: 1.0
+  closing_pop: Cue, text: "中文 captions move", start: 1.0, end: 2.0
+}
+
+moving_rect: Rect, size: (150, 72), color: (0.15, 0.21, 0.29, 1), at: (640, 300), opacity: 1
+
+#0s
+shift moving_rect [by: (-220, 0), 2000ms, ease: ease-in-out]

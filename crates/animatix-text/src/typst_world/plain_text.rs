@@ -1,7 +1,7 @@
 //! Plain-text fast-path classification and glyph-coverage helpers.
 
 use crate::TextKind;
-use crate::font_context::{BUNDLED_FONTS, FontContext, bundled_face, resolve_font_family};
+use crate::font_context::FontContext;
 
 /// Returns `true` iff the string contains no Typst markup-special characters
 /// and no newlines (single-line only).
@@ -50,7 +50,7 @@ pub fn is_cjk_char(c: char) -> bool {
 
 /// Returns `true` iff the string contains only characters in Latin script ranges
 /// (Basic Latin, Latin-1 Supplement, Latin Extended-A) plus common whitespace.
-/// Non-Latin text (CJK, Arabic, Cyrillic, etc.) falls back to the Typst path.
+/// This classification is informational; ordinary Text always uses the lightweight shaper.
 pub fn is_latin_text(content: &str) -> bool {
     content.chars().all(|c| {
         let cp = c as u32;
@@ -65,17 +65,10 @@ pub fn is_latin_text(content: &str) -> bool {
     })
 }
 
-/// Characters in `content` that the render path has no glyph for and will
-/// draw as tofu. Which face set governs follows [`crate::compile_text_cached`]'s
-/// selection, cfg included: fast-path text (plain, Latin, `allow_fast_path`)
-/// is checked against the family's face plus the bundled fallback set, and
-/// everything else goes through the Typst engine, whose fallback chain draws
-/// from the whole registered database — a character no registered face covers
-/// is tofu there too.
-///
-/// Whitespace is never reported. Empty when the fast-path family cannot be
-/// loaded at all, because [`crate::fast_layout::compile_text_fast`] then fails with a proper
-/// error of its own.
+/// Characters for which the selected text path has no visible glyph.
+/// Ordinary Text uses the same prepared primary and fallback faces as its
+/// lightweight shaper; rich kinds inspect the registered rich-font database.
+/// Whitespace and shaping controls never produce missing-glyph diagnostics.
 pub fn missing_text_glyphs(
     kind: TextKind,
     content: &str,
@@ -85,50 +78,25 @@ pub fn missing_text_glyphs(
     allow_fast_path: bool,
     font_ctx: &FontContext,
 ) -> Vec<char> {
-    #[cfg(feature = "rich-text")]
-    let takes_fast_path = allow_fast_path
-        && kind == TextKind::Text
-        && is_plain_text(content)
-        && is_latin_text(content);
-    #[cfg(not(feature = "rich-text"))]
-    let takes_fast_path = true;
-    let _ = (kind, allow_fast_path);
+    let takes_fast_path = kind == TextKind::Text;
+    let _ = allow_fast_path;
 
-    let chars: Vec<char> = content.chars().filter(|c| !c.is_whitespace()).collect();
+    let chars: Vec<char> = content
+        .chars()
+        .filter(|c| !c.is_whitespace() && !crate::fast_layout::default_ignorable(*c))
+        .collect();
     let mut missing: Vec<char> = Vec::new();
 
     if takes_fast_path {
-        // Same face resolution as `compile_text_fast`: the family's bundled
-        // face if bundled, else the registered database, then every other
-        // bundled face as the per-char fallback set.
-        let resolved_family = resolve_font_family(family, font_ctx);
-        let mut faces: Vec<ttf_parser::Face<'static>> = Vec::new();
-        if let Some(bf) = bundled_face(&resolved_family, weight, style)
-            && let Ok(face) = ttf_parser::Face::parse(bf.data, 0)
-        {
-            faces.push(face);
-        }
-        if faces.is_empty() {
-            match font_ctx.load_face(&resolved_family, weight, style) {
-                Some(face) => faces.push(face),
-                // `compile_text_fast` fails with a clear error of its own in
-                // this case; the probe stays quiet rather than double-reporting.
-                None => return Vec::new(),
-            }
-        }
-        faces.extend(
-            BUNDLED_FONTS
-                .iter()
-                .filter(|bf| bf.family != resolved_family)
-                .filter_map(|bf| ttf_parser::Face::parse(bf.data, 0).ok()),
-        );
-        faces.extend(
-            font_ctx
-                .loaded_faces()
-                .into_iter()
-                .filter(|face| face.family != resolved_family)
-                .filter_map(|face| ttf_parser::Face::parse(face.data, face.index).ok()),
-        );
+        let Ok(sources) =
+            crate::fast_layout::resolve_faces(content, family, weight, style, font_ctx, "coverage")
+        else {
+            return Vec::new();
+        };
+        let faces: Vec<_> = sources
+            .iter()
+            .filter_map(|source| ttf_parser::Face::parse(&source.bytes, source.face_index).ok())
+            .collect();
 
         for c in chars {
             if !missing.contains(&c) && faces.iter().all(|face| face.glyph_index(c).is_none()) {

@@ -1,59 +1,24 @@
 import * as core from "./core.js";
 const {
-  FRAME_RATE, DEBUG_BY_URL, LOADER_SCRIPT, RUNTIME_BASE, engineBases, REDUCED_MOTION,
-  SAVE_DATA, FADE_EACH, ICONS, enginePromises, loadEngine, instances, QUALITY_STEPS,
+  FRAME_RATE, DEBUG_BY_URL, REDUCED_MOTION,
+  SAVE_DATA, FADE_EACH, ICONS, instances, QUALITY_STEPS,
   SLOW_TICK_MS, FAST_TICK_MS, setQualityStep, tick, ensureLoop, SCROLL_SETTLE_MS,
   LOAD_MAX_DEFER_MS, LOAD_RETRY_MS, LOAD_STALL_MS, pumpLoads, enqueueLoad, dequeueLoad,
   ASPECTS,
 } = core;
 import { AmxPlayerView } from "./view.js";
+import { loadRuntime, fetchSource } from "./runtime.js";
+import { dispatchPlayerError, playerError } from "./errors.js";
 export class AmxPlayerLoad extends AmxPlayerView {
   _maybeStartLoading() {
-    if (!this.getAttribute("src") || this._state !== "idle") return;
+    if (this._destroyed || !this.getAttribute("src") || this._state !== "idle") return;
     enqueueLoad(this);
-  }
-
-  _profileSupports(profile, required) {
-    const rich = required & 1;
-    const image = required & 2;
-    const svg = required & 4;
-    const unknown = required & 0x80000000;
-    if (profile === "full") return true;
-    if (profile === "assets") return rich === 0 && unknown === 0;
-    return (required & 7) === 0 && unknown === 0;
-  }
-
-  _profileForFeatures(required) {
-    const rich = required & 1;
-    const image = required & 2;
-    const svg = required & 4;
-    const unknown = required & 0x80000000;
-    if (rich !== 0 || unknown !== 0) return "full";
-    if (image !== 0 || svg !== 0) return "assets";
-    return "slim";
-  }
-
-  async _playerWithEngine(module, source, src, profile) {
-    const player = await module.create_player(this._canvas);
-    this._player = player;
-    if (typeof player.set_quality === "function") {
-      player.set_quality(this._quality());
-    }
-    // Push the build-time vars before the first build, so a `data-vars` scene
-    // compiles with its overrides instead of compiling twice.
-    this._applyVars(player);
-    await this._loadFonts(module, profile);
-    if (this.getAttribute("src") !== src) return null;
-    return {
-      module,
-      player,
-      result: await this._loadScene(player, source, src),
-    };
   }
 
   async _startLoad() {
     const src = this.getAttribute("src");
-    if (!src || this._state !== "idle") return;
+    if (!src || this._state !== "idle" || this._destroyed) return;
+    const { generation, controller } = this._beginOperation();
     this._state = "loading";
     this._skeleton?.classList.add("loading");
     if (!("gpu" in navigator)) {
@@ -61,68 +26,43 @@ export class AmxPlayerLoad extends AmxPlayerView {
       const msg = "This embed needs a WebGPU browser (Chrome 113+, Firefox 141+, Safari 26+).";
       console.warn(`amx-player: ${msg}`);
       this._showVeil(msg, true);
-      this.dispatchEvent(new CustomEvent("amxerror", { bubbles: true, detail: { src, error: "WebGPU unsupported" } }));
+      const error = playerError(new Error("WebGPU is not supported by this browser"), "capability");
+      dispatchPlayerError(this, src, error);
+      this._settleVarsWaiters?.(error);
+      if (generation === this._operationGeneration) this._operationController = null;
       return;
     }
+    let player = null;
+    let candidate = null;
     try {
-      const requested = this._profile();
-      const initialProfile = requested === "auto" ? "slim" : requested;
-      // Start font fetches before the engine download so a slow font overlaps
-      // wasm startup instead of adding another serial phase after it.
-      this._fontBytesPromise = this._fetchFonts();
-      this._defaultFontsPromise = this._fetchDefaultFonts(initialProfile);
-      const sourcePromise = fetch(src).then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.text();
-      });
-      const module = await loadEngine(initialProfile);
-      const source = await sourcePromise;
-      if (this.getAttribute("src") !== src) return; // changed while loading
-
-      let loaded = await this._playerWithEngine(module, source, src, initialProfile);
-      if (!loaded) return;
-      let required = Number(loaded.result.required_features ?? 0) >>> 0;
-
-      if (requested === "auto") {
-        const target = this._profileForFeatures(required);
-        if (target !== initialProfile) {
-          console.info(
-            `amx-player: ${src} needs ${target} engine (features ${required}), upgrading`,
-          );
-          this._defaultFontsPromise = this._fetchDefaultFonts(target);
-          const targetModule = await loadEngine(target);
-          const upgraded = await this._playerWithEngine(targetModule, source, src, target);
-          if (!upgraded) return;
-          loaded = upgraded;
-          required = Number(loaded.result.required_features ?? 0) >>> 0;
-        }
-      } else if (!this._profileSupports(requested, required)) {
-        this._state = "error";
-        const msg = `Scene requires engine features unavailable in profile="${requested}"`;
-        console.error(`amx-player: ${msg} [src="${src}"]`, { required });
-        this._showVeil(msg, true);
-        this.dispatchEvent(
-          new CustomEvent("amxerror", {
-            bubbles: true,
-            detail: { src, error: "feature-unavailable", required_features: required },
-          }),
-        );
-        return;
+      const runtime = await loadRuntime();
+      const source = await fetchSource(src, controller.signal);
+      if (!this._isCurrentOperation(generation)) return;
+      candidate = await this._prepareDocument(runtime, source, src, this._varsObject(), controller.signal);
+      if (!this._isCurrentOperation(generation)) return;
+      await runtime.initEngine();
+      if (!this._isCurrentOperation(generation)) return;
+      try {
+        player = await runtime.module.create_player(this._canvas);
+      } catch (error) {
+        throw playerError(error, "capability");
       }
-
-      this._player = loaded.player;
-      const result = loaded.result;
+      const result = this._buildPrepared(player, candidate);
       const diags = result.diagnostics ?? [];
       const errors = diags.filter((d) => d.severity === "error");
       if (!result.ok) {
-        this._state = "error";
         const first = errors[0] ?? diags[0];
-        const msg = `Scene error${first?.line ? ` (line ${first.line})` : ""}: ${first?.message ?? "build failed"}`;
-        console.error(`amx-player: ${msg} [src="${src}"]`, diags);
-        this._showVeil(msg, true);
-        this.dispatchEvent(new CustomEvent("amxerror", { bubbles: true, detail: { src, diagnostics: diags, message: msg } }));
-        return;
+        const error = new Error(`Scene error${first?.line ? ` (line ${first.line})` : ""}: ${first?.message ?? "build failed"}`);
+        error.kind = "build";
+        error.diagnostics = diags;
+        throw error;
       }
+      if (!this._isCurrentOperation(generation)) return;
+      this._runtime = runtime;
+      this._player = player;
+      this._loadedSource = source;
+      this._loadedBundle = candidate;
+      this._committedVars = { ...candidate.vars };
 
       this._duration = Math.max(result.duration_s, 0.05);
       this._canvas.width = Math.round(result.width || 1280);
@@ -206,6 +146,8 @@ export class AmxPlayerLoad extends AmxPlayerView {
       }
 
       this._state = "ready";
+      player = null;
+      candidate = null;
       // A `setVars`/`data-vars` change that landed while this load was in
       // flight is not in the document that just built; apply it now rather
       // than dropping it. A no-op when the player already has this exact set.
@@ -218,20 +160,23 @@ export class AmxPlayerLoad extends AmxPlayerView {
       }
       this.dispatchEvent(new CustomEvent("amxready", { bubbles: true }));
     } catch (err) {
+      if (!this._isCurrentOperation(generation) || err?.name === "AbortError") return;
+      if (this._player === player) this._player = null;
+      if (candidate && this._loadedBundle === candidate) {
+        this._loadedBundle = null;
+        this._loadedSource = null;
+      }
       this._state = "error";
-      console.error(`amx-player: failed to load scene "${src}":`, err);
-      const message = `Failed to load scene: ${err?.message ?? err}`;
+      const normalized = playerError(err, "resource");
+      this._settleVarsWaiters?.(normalized);
+      console.error(`amx-player: failed to load scene "${src}":`, normalized);
+      const message = `Failed to load scene: ${normalized.message}`;
       this._showVeil(message, true);
-      this.dispatchEvent(
-        new CustomEvent("amxerror", {
-          bubbles: true,
-          detail: {
-            src,
-            error: err?.code === "font-pack" ? "font-pack" : err,
-            message,
-          },
-        }),
-      );
+      dispatchPlayerError(this, src, normalized);
+    } finally {
+      candidate?.prepared?.free?.();
+      if (player && player !== this._player) this._freePlayer(player);
+      if (generation === this._operationGeneration) this._operationController = null;
     }
   }
 

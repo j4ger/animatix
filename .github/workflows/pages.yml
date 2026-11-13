@@ -1,33 +1,11 @@
-# Deploy the web site (homepage, language tour, demos) to GitHub Pages.
-#
-# The deploy artifact is the runtime web tree plus web/pkg-slim,
-# web/pkg-assets and the generated web/fonts gzip pack (web/pkg is a release
-# asset, not a site payload). CI builds those in the Web Build job and uploads
-# `web-runtime`; normal deploys download that artifact instead of rebuilding it,
-# while a manual dispatch falls back to a local build. GitHub Pages does not
-# negotiate brotli precompression, so the .br twins are dropped from the
-# artifact (the raw .wasm files are what gets served; the font pack is
-# explicitly gzip and is decompressed by the player).
-#
-# This workflow used to own three checks that PR CI did not run — the embed
-# bundle build, the site scene build in both profiles, and the wasm compile —
-# which meant a broken `web/embed/amx-player.js` could be discovered *after*
-# the merge it was supposed to protect. They are gates in scripts/ci.sh now, so
-# a PR runs exactly them; this file assembles/deploys the artifact CI built,
-# while the browser smoke stays in CI so a software-GPU retry is not paid (or
-# flaked) twice for the same commit.
-#
-# NOTE for maintainers: Pages must be enabled once in the repo settings
-# (Settings → Pages → Source: "GitHub Actions"); after that this workflow
-# owns deployments.
+# Deploy the same verified SDK artifact CI tested; every check is a ci.sh gate.
 name: Deploy site to GitHub Pages
 
 on:
   workflow_run:
     workflows: ["CI"]
     branches: [main]
-    types:
-      - completed
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -37,7 +15,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: "pages"
+  group: pages
   cancel-in-progress: false
 
 env:
@@ -49,13 +27,14 @@ jobs:
   build:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+    env:
+      ANIMATIX_ARTIFACT_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-
-      - name: Download web runtime from CI
-        id: web-runtime
+      - name: Download CI SDK
+        id: sdk
         if: github.event_name == 'workflow_run'
         continue-on-error: true
         uses: actions/download-artifact@v4
@@ -63,69 +42,31 @@ jobs:
           name: web-runtime
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          # `upload-artifact` roots an artifact at the least common ancestor of
-          # its paths, so the CI job's `web/pkg-slim`, `web/pkg-assets`,
-          # `web/embed/amx-player.js` and `web/fonts` arrive as `pkg-slim`,
-          # `pkg-assets`, `embed/amx-player.js` and `fonts`. Downloading into
-          # the repository root therefore left `web/pkg-slim` empty and the
-          # site assembler failed with "animatix_web_bg.wasm is missing".
-          # The artifact tree belongs one level down, at `web/`.
-          path: web
-
-      # A layout change in the upload step would otherwise surface as a
-      # misleading "wasm is missing" from the site assembler. Warn and let the
-      # build step below regenerate the runtime instead of failing the deploy.
-      - name: Check downloaded web runtime
-        if: steps.web-runtime.outcome == 'success'
-        run: |
-          for f in web/pkg-slim/animatix_web_bg.wasm web/pkg-assets/animatix_web_bg.wasm web/embed/amx-player.js; do
-            if [ ! -f "$f" ]; then
-              echo "::warning::CI artifact did not restore $f; the runtime will be rebuilt"
-            fi
-          done
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
-
+          path: target/downloaded-web-runtime
+      - name: Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      # A successful download that is corrupt, incomplete or from another SHA
+      # fails here. Only an absent artifact/manual dispatch may rebuild.
+      - name: Verify downloaded SDK
+        if: steps.sdk.outcome == 'success'
+        run: scripts/ci.sh gate web-artifact-restore
       - name: Install Nix
         uses: DeterminateSystems/determinate-nix-action@v3
-
       - name: Set up Cachix
         uses: cachix/cachix-action@v17
         with:
           name: animatix
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           extraPullNames: 'nix-community'
-
-      - name: Node
-        uses: actions/setup-node@v5
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: web/tools/package-lock.json
-
-      # embed-build is already in the downloaded CI artifact; site-scenes is
-      # cheap and validates the checked-out scenes against the shipped profiles.
+      - name: Build and test SDK when CI artifact is absent
+        if: github.event_name != 'workflow_run' || steps.sdk.outcome != 'success'
+        run: nix develop .#web-ci --command scripts/ci.sh gate web-split-proof web-build web-sdk-integrity text-parity web-raster-proof web-smoke web-transactions
       - name: Site scenes
-        run: scripts/ci.sh gate site-scenes
-
-      - name: Build engines (manual dispatch, no artifact, or incomplete artifact)
-        if: >-
-          github.event_name != 'workflow_run' ||
-          steps.web-runtime.outcome != 'success' ||
-          hashFiles('web/pkg-slim/animatix_web_bg.wasm') == ''
-        # `.#web-ci` is the only shell with a wasm32 std and the pinned
-        # wasm-bindgen CLI. Manual dispatch and docs-only CI runs (where the
-        # path filter skipped Web Build) have no artifact, so build the same
-        # runtime here; normal deploys use the downloaded artifact.
-        run: nix develop .#web-ci --command scripts/ci.sh gate web-build
-
-      # The same assembler the release pipeline zips with (scripts/site-artifact.sh):
-      # the .br twins dropped, .nojekyll written, both engine bundles required.
-      - name: Assemble site
-        run: scripts/ci.sh gate site-artifact
-
+        run: nix develop --command scripts/ci.sh gate site-scenes
+      - name: Assemble verified site
+        run: scripts/ci.sh gate web-artifact-verify site-artifact
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:

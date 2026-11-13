@@ -133,23 +133,8 @@ impl Timeline {
         );
         let t_start_ms = (time_ms + delay_ms) as u64;
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
-        let supports_morph_options = self
-            .world
-            .get_id(label)
-            .map(|id| self.world.shape_or_default(id))
-            .and_then(|shape| shape.vector_paths.as_ref())
-            .map(|t| !t.keyframes.is_empty())
-            .unwrap_or(false)
-            && duration_ms > 0.0;
-        if has_non_default_morph_options(morph_options) && !supports_morph_options {
-            push_modifier_diagnostic(
-                diagnostics,
-                DiagnosticCode::InvalidModifierValue,
-                "Morph-specific modifiers on actor declarations require a path-morphing re-declaration with non-zero duration; ignoring them for now."
-                    .to_string(),
-                Some(label),
-            );
-        }
+        let supports_morph_options =
+            self.validate_decl_morph_options(label, duration_ms, morph_options, diagnostics);
 
         self.apply_scheme_default_colors(
             ty,
@@ -258,6 +243,16 @@ impl Timeline {
             values,
         );
 
+        if caps.transcript {
+            super::super::speech::attach_transcript_from_props(
+                self,
+                label,
+                props,
+                &eval_env,
+                diagnostics,
+            );
+        }
+
         self.write_extension_properties_for_decl(label, ty, props, modifiers, time_ms, diagnostics);
 
         self.finalize_actor_container(label, ty, props, time_ms, parent_label, diagnostics);
@@ -297,5 +292,32 @@ impl Timeline {
                 shape.to_anchor = Some((segments[0].clone(), anchor));
             }
         }
+    }
+
+    fn validate_decl_morph_options(
+        &self,
+        label: &str,
+        duration_ms: f64,
+        morph_options: crate::timeline::morph::MorphOptions,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> bool {
+        let supports_morph_options = self
+            .world
+            .get_id(label)
+            .map(|id| self.world.shape_or_default(id))
+            .and_then(|shape| shape.vector_paths.as_ref())
+            .map(|track| !track.keyframes.is_empty())
+            .unwrap_or(false)
+            && duration_ms > 0.0;
+        if has_non_default_morph_options(morph_options) && !supports_morph_options {
+            push_modifier_diagnostic(
+                diagnostics,
+                DiagnosticCode::InvalidModifierValue,
+                "Morph-specific modifiers on actor declarations require a path-morphing re-declaration with non-zero duration; ignoring them for now."
+                    .to_string(),
+                Some(label),
+            );
+        }
+        supports_morph_options
     }
 }

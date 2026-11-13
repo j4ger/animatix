@@ -58,6 +58,8 @@ mod text;
 #[cfg(test)]
 mod timeline_core;
 #[cfg(test)]
+mod transcript_cache;
+#[cfg(test)]
 mod transform_cache;
 #[cfg(test)]
 mod variable_tracks;

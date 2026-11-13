@@ -3,9 +3,11 @@ use animatix_core::error::RenderError;
 use crate::font_context::FontContext;
 use crate::{CompiledText, TextPath, f32_color_to_rgba8};
 
+use super::layout::{ParagraphBidi, ShapedTextFragment, VisualLayoutItem};
 use super::wrapped::compile_text_fast_wrapped;
 use super::{
-    emit_shaped_glyphs, finalize_layout, resolve_faces, shape_token, space_advance, tokenize_words,
+    emit_shaped_glyphs, finalize_layout, parse_faces, resolve_faces, shape_fragment, space_advance,
+    tokenize_words,
 };
 
 /// Compile plain text into glyph paths using `rustybuzz` and `ttf_parser` directly,
@@ -54,40 +56,98 @@ pub fn compile_text_fast(
         );
     }
 
-    let resolved = resolve_faces(family, weight, style, size, font_ctx, "fast path")?;
+    let sources = resolve_faces(content, family, weight, style, font_ctx, "fast path")?;
+    let faces = parse_faces(&sources, weight, style);
+    let Some(primary) = faces.first().map(|face| &face.ttf) else {
+        return Err(RenderError::TextCompilation("No usable font face for ordinary text".into()));
+    };
+    let font_scale = size / primary.units_per_em() as f32;
+    let ascent = primary.ascender() as f32 * font_scale;
+    let descent = primary.descender() as f32 * font_scale;
     let rgba = f32_color_to_rgba8(&color);
-    let space_width = space_advance(&resolved.faces, size, letter_spacing, word_spacing);
+    let space_width = space_advance(&faces, size, letter_spacing, word_spacing);
 
     let mut glyphs: Vec<TextPath> = Vec::new();
     let mut pending_hardware = Vec::new();
     let mut x_curr: f64 = 0.0;
 
-    for (wi_idx, (word, space_before)) in tokenize_words(content).into_iter().enumerate() {
-        if wi_idx > 0 && space_before {
-            x_curr += space_width;
+    let tokens = tokenize_words(content);
+    let bidi = ParagraphBidi::new(content);
+    let mut shaped_tokens: Vec<Vec<ShapedTextFragment>> = Vec::with_capacity(tokens.len());
+    for token in &tokens {
+        let mut shaped_fragments = Vec::new();
+        for fragment in bidi.text_fragments(token.byte_start..token.byte_end) {
+            let local = fragment.range.start - token.byte_start;
+            let source_char = token.char_start + token.text[..local].chars().count();
+            let direction = if fragment.rtl {
+                rustybuzz::Direction::RightToLeft
+            } else {
+                rustybuzz::Direction::LeftToRight
+            };
+            let (width, fragment_glyphs) = shape_fragment(
+                &content[fragment.range.clone()],
+                source_char,
+                &faces,
+                size,
+                letter_spacing,
+                direction,
+            );
+            shaped_fragments.push(ShapedTextFragment {
+                range: fragment.range,
+                width,
+                glyphs: fragment_glyphs,
+            });
         }
-        let (token_width, shaped_glyphs) = shape_token(word, &resolved.faces, size, letter_spacing);
-        emit_shaped_glyphs(
-            &mut glyphs,
-            &mut pending_hardware,
-            &resolved.faces,
-            &shaped_glyphs,
-            size,
-            rgba,
-            0,
-            wi_idx as u16,
-            x_curr,
-            0.0,
-        );
-        x_curr += token_width;
+        shaped_tokens.push(shaped_fragments);
     }
 
-    Ok(finalize_layout(
-        glyphs,
-        pending_hardware,
-        &resolved.faces,
-        size,
-        resolved.ascent * resolved.font_scale,
-        resolved.descent * resolved.font_scale,
-    ))
+    let mut items = Vec::new();
+    let mut ranges = Vec::new();
+    for (token_idx, token) in tokens.iter().enumerate() {
+        if token_idx > 0 && token.space_before {
+            let gap = tokens[token_idx - 1].byte_end..token.byte_start;
+            if !gap.is_empty() {
+                if !bidi.range_has_single_level(gap.clone()) {
+                    return Err(RenderError::TextCompilation(
+                        "inter-word whitespace crosses bidi levels".into(),
+                    ));
+                }
+                items.push(VisualLayoutItem::Gap);
+                ranges.push((gap.start, gap.end));
+            }
+        }
+        for (fragment_idx, fragment) in shaped_tokens[token_idx].iter().enumerate() {
+            items.push(VisualLayoutItem::Text {
+                word_idx: token_idx,
+                fragment_idx,
+            });
+            ranges.push((fragment.range.start, fragment.range.end));
+        }
+    }
+    for item_idx in bidi.visual_order_for_ranges(&ranges, 0..content.len())? {
+        match items[item_idx] {
+            VisualLayoutItem::Gap => x_curr += space_width,
+            VisualLayoutItem::Text {
+                word_idx,
+                fragment_idx,
+            } => {
+                let fragment = &shaped_tokens[word_idx][fragment_idx];
+                emit_shaped_glyphs(
+                    &mut glyphs,
+                    &mut pending_hardware,
+                    &faces,
+                    &fragment.glyphs,
+                    size,
+                    rgba,
+                    0,
+                    word_idx.min(u16::MAX as usize) as u16,
+                    x_curr,
+                    0.0,
+                );
+                x_curr += fragment.width;
+            },
+        }
+    }
+
+    Ok(finalize_layout(glyphs, pending_hardware, &faces, size, ascent, descent))
 }

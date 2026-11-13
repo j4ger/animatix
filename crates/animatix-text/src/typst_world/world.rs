@@ -36,10 +36,18 @@ fn build_world(
 ) -> Result<TypstWorld, RenderError> {
     let mut fonts = Vec::with_capacity(BUNDLED_FONTS.len() + extra_fonts.len());
     let mut book = FontBook::new();
+    let overlay_families = font_ctx.registered_family_names();
+    let is_overlay_family =
+        |family: &str| overlay_families.iter().any(|overlay| overlay.eq_ignore_ascii_case(family));
 
     // Load bundled fonts. The parsed faces are process-wide; only the
-    // refcounted handles are cloned into this world.
-    for (bf, cached) in BUNDLED_FONTS.iter().zip(BUNDLED_FONT_FACES.iter()) {
+    // refcounted handles are cloned into this world. An explicitly registered
+    // family replaces its bundled counterpart for this compilation.
+    for (bf, cached) in BUNDLED_FONTS
+        .iter()
+        .zip(BUNDLED_FONT_FACES.iter())
+        .filter(|(bf, _)| font_ctx.include_bundled && !is_overlay_family(bf.family))
+    {
         let font = cached.clone().ok_or_else(|| {
             RenderError::TextCompilation(format!("Failed to load bundled font: {}", bf.family))
         })?;
@@ -55,26 +63,48 @@ fn build_world(
     // for any in-range request (`FontBook::distance`), so registering these faces
     // makes it the one that answers, and the ramp becomes monotone; the statics
     // stay in the book as the fallback the request would land on anyway.
-    for font in VARIABLE_FONT_FACES.iter() {
+    for font in VARIABLE_FONT_FACES
+        .iter()
+        .filter(|font| font_ctx.include_bundled && !is_overlay_family(&font.info().family))
+    {
         book.push(font.info().clone());
         fonts.push(font.clone());
     }
 
-    // Load requested extra fonts via persistent FontContext.
-    // Skip fonts that are already available as bundled fonts to avoid
-    // override with potentially different metrics (e.g. system vs mock).
-    // Load the full emphasis set (regular/bold/italic/bold-italic) so Typst
-    // can honor `*bold*`/`_italic_`/`font_weight`/`font_style` for the family.
+    // Every explicitly registered face is part of this prepared font set,
+    // even when generated Typst source (for example str.from-unicode) hides
+    // its glyphs from the source-text fallback scan. Keep registration order
+    // reversed so exact metadata ties prefer the latest registered face.
+    for font in font_ctx.registered_typst_fonts() {
+        book.push(font.info().clone());
+        fonts.push(font);
+    }
+
+    // Load requested extra fonts via persistent FontContext. Existing bundled
+    // families keep their default metrics unless the caller registered an
+    // explicit overlay. The context returns all registered overlay faces, while
+    // unregistered system families use four queried emphasis faces.
+    let mut handled_families: Vec<String> = Vec::new();
     for family in extra_fonts {
-        if fonts.iter().any(|f| f.info().family == *family) {
+        if handled_families.iter().any(|loaded| loaded.eq_ignore_ascii_case(family)) {
+            continue;
+        }
+        handled_families.push((*family).to_string());
+        let is_overlay = is_overlay_family(family);
+        if is_overlay {
+            continue;
+        }
+        if !is_overlay && fonts.iter().any(|f| f.info().family.eq_ignore_ascii_case(family)) {
             continue;
         }
         for font in font_ctx.load_font_emphasis_faces(family) {
-            if fonts.iter().any(|f| {
-                f.info().family == font.info().family
-                    && f.info().variant.weight == font.info().variant.weight
-                    && f.info().variant.style == font.info().variant.style
-            }) {
+            if !is_overlay
+                && fonts.iter().any(|f| {
+                    f.info().family == font.info().family
+                        && f.info().variant.weight == font.info().variant.weight
+                        && f.info().variant.style == font.info().variant.style
+                })
+            {
                 continue;
             }
             book.push(font.info().clone());
@@ -85,7 +115,7 @@ fn build_world(
     // Append glyph-fallback faces covering characters the requested families
     // cannot render (CJK, Cyrillic, ...). One representative face per family.
     for font in fallback_fonts {
-        if fonts.iter().any(|f| f.info().family == font.info().family) {
+        if fonts.iter().any(|f| f.info().family.eq_ignore_ascii_case(&font.info().family)) {
             continue;
         }
         book.push(font.info().clone());
@@ -103,20 +133,6 @@ fn build_world(
 
 #[cfg(feature = "rich-text")]
 impl TypstWorld {
-    /// Create a new Typst world with the given source and font context.
-    pub fn new(source: Source, font_ctx: &FontContext) -> Result<Self, RenderError> {
-        build_world(source, &[], &[], font_ctx)
-    }
-
-    /// Create a new Typst world with additional font families.
-    pub fn with_fonts(
-        source: Source,
-        fonts: &[&str],
-        font_ctx: &FontContext,
-    ) -> Result<Self, RenderError> {
-        Self::with_fonts_and_fallback(source, fonts, &[], font_ctx)
-    }
-
     /// Create a new Typst world with additional font families plus
     /// pre-collected glyph-fallback fonts (see `collect_fallback_fonts`).
     pub fn with_fonts_and_fallback(

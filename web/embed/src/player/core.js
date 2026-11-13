@@ -19,77 +19,6 @@ const DEBUG_BY_URL = /[?&]amxdebug\b/.test(location.search);
 // would otherwise read zeros forever. One page, one counter object.
 const stats = (globalThis.__amxStats ??= { steps: 0, renders: 0 });
 
-const LOADER_SCRIPT = [...document.querySelectorAll("script[type=module]")].find((s) =>
-  (s.src || "").includes("amx-player.js"),
-);
-
-const RUNTIME_BASE = (() => {
-  const src = LOADER_SCRIPT?.src || "";
-  const i = src.lastIndexOf("/amx-player.js");
-  if (i >= 0) return src.slice(0, i);
-  return new URL(".", import.meta.url).href.replace(/\/$/, "");
-})();
-
-// Engine directories per profile. Each embed picks its profile through the
-// element's `profile` attribute — "auto" (default), "slim", "assets" or
-// "full" — and the directories are derived from the loader script's
-// `data-runtime-base`. A value whose last segment is `pkg-slim`,
-// `pkg-assets` or `pkg` is the legacy exact-directory form; anything else is
-// a parent directory containing the three packages. The default parent is
-// beside this component, so an omitted attribute starts at pkg-slim and may
-// auto-upgrade from there.
-function engineDirs() {
-  const override = LOADER_SCRIPT?.getAttribute("data-runtime-base");
-  const base = override
-    ? new URL(override, document.baseURI).href.replace(/\/$/, "")
-    : `${RUNTIME_BASE}/..`;
-  const last = base.split("/").pop();
-  if (last === "pkg-slim") {
-    return {
-      slim: base,
-      assets: base.replace(/-slim$/, "-assets"),
-      full: base.replace(/-slim$/, ""),
-    };
-  }
-  if (last === "pkg-assets") {
-    return {
-      slim: base.replace(/-assets$/, "-slim"),
-      assets: base,
-      full: base.replace(/-assets$/, ""),
-    };
-  }
-  if (last === "pkg") {
-    return {
-      slim: `${base}-slim`,
-      assets: `${base}-assets`,
-      full: base,
-    };
-  }
-  return {
-    slim: `${base}/pkg-slim`,
-    assets: `${base}/pkg-assets`,
-    full: `${base}/pkg`,
-  };
-}
-
-function fontBase() {
-  const override = LOADER_SCRIPT?.getAttribute("data-font-base");
-  if (override) return new URL(override, document.baseURI).href.replace(/\/$/, "");
-  // Fonts sit beside the package directories, not inside any one profile.
-  const dirs = engineDirs();
-  return new URL("../fonts/", `${dirs.slim}/`).href.replace(/\/$/, "");
-}
-
-function engineBases(profile) {
-  const dirs = engineDirs();
-  // A package may fall back to a larger package that contains it, but never
-  // to a smaller one: silently running full scenes on slim is how values got
-  // dropped. An explicit full request never falls back.
-  if (profile === "full") return [dirs.full];
-  if (profile === "assets") return [dirs.assets, dirs.full];
-  return [dirs.slim, dirs.assets, dirs.full];
-}
-
 const REDUCED_MOTION = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 const SAVE_DATA = navigator.connection?.saveData === true;
 
@@ -114,58 +43,6 @@ const ICONS = {
   stepNext:
     '<svg width="16" height="16" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><path d="M6 4l6 5-6 5zM12 4h2v10h-2z"/></svg>',
 };
-
-// ── shared engine loading ───────────────────────────────────────────
-
-// Resolved engine directory → the module instance loading for it. Keyed by
-// directory (not profile string) so the legacy exact-directory and the new
-// parent-directory forms that resolve to the same place share one instance.
-const enginePromises = new Map();
-
-function loadEngine(profile) {
-  // One wasm instance per resolved directory: embeds sharing a profile share
-  // the download, the device and the renderer; a page mixing profiles pays
-  // for both (each ES module instantiation owns its engine context).
-  const [primary] = engineBases(profile);
-  if (!enginePromises.has(primary)) {
-    enginePromises.set(
-      primary,
-      (async () => {
-        const bases = engineBases(profile);
-        let lastError;
-        for (const [i, base] of bases.entries()) {
-          let module;
-          try {
-            module = await import(`${base}/animatix_web.js`);
-          } catch (err) {
-            // The profile is not deployed at this base — worth retrying
-            // with the other one (a single-profile host).
-            lastError = err;
-            enginePromises.delete(primary);
-            if (i + 1 < bases.length) {
-              console.info(`amx-player: no engine at ${base}, trying ${bases[i + 1]}`);
-            }
-            continue;
-          }
-          try {
-            await module.default();
-            await module.init_engine?.();
-          } catch (err) {
-            // The engine is present but cannot run here (typically no
-            // WebGPU adapter). That is not profile-specific: falling back
-            // to the other build would repeat the failure and mask this
-            // error behind a 404 — surface it instead.
-            enginePromises.delete(primary);
-            throw err;
-          }
-          return module;
-        }
-        throw lastError;
-      })(),
-    );
-  }
-  return enginePromises.get(primary);
-}
 
 // ── shared render loop ──────────────────────────────────────────────
 
@@ -656,6 +533,14 @@ function dequeueLoad(inst) {
   if (i >= 0) loadQueue.splice(i, 1);
 }
 
+function forgetInstance(inst) {
+  instances.delete(inst);
+  parkedInstances.delete(inst);
+  pausedByVisibility.delete(inst);
+  dequeueLoad(inst);
+  if (arriving === inst) { arriving = null; pumpLoads(); }
+}
+
 // ── the element ─────────────────────────────────────────────────────
 
 const ASPECTS = {
@@ -666,11 +551,11 @@ const ASPECTS = {
 };
 
 export {
-  FRAME_RATE, DEBUG_BY_URL, LOADER_SCRIPT, RUNTIME_BASE, engineBases, fontBase, REDUCED_MOTION,
-  SAVE_DATA, FADE_EACH, ICONS, enginePromises, loadEngine, instances, rafRunning,
+  FRAME_RATE, DEBUG_BY_URL, REDUCED_MOTION,
+  SAVE_DATA, FADE_EACH, ICONS, instances, rafRunning,
   lastT, QUALITY_STEPS, SLOW_TICK_MS, FAST_TICK_MS, qualityStep, slowTicks, fastTicks,
   setQualityStep, tick, ensureLoop, SCROLL_SETTLE_MS, LOAD_MAX_DEFER_MS, LOAD_RETRY_MS,
   LOAD_STALL_MS, loadQueue, arriving, loadTimer, lastScrollAt, pumpLoads, enqueueLoad,
-  dequeueLoad, ASPECTS, refreshInterval, CADENCE_STEPS, cadenceStep, pagePressure, stats,
+  dequeueLoad, forgetInstance, ASPECTS, refreshInterval, CADENCE_STEPS, cadenceStep, pagePressure, stats,
   parkedInstances, maxPlaying, parkInstance, unparkInstance, arbitrateConcurrency,
 };

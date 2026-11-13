@@ -1,0 +1,12 @@
+[package]
+name = "animatix-text-parity"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+animatix = { path = "../../crates/animatix", default-features = false }
+animatix-render = { path = "../../crates/animatix-render", default-features = false }
+animatix-web = { path = "../../crates/animatix-web", default-features = true }
+base64 = "0.22"
+serde_json = "1"

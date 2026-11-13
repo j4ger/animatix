@@ -11,8 +11,8 @@
   #out { padding: 8px 12px; color: #8fc7a3; white-space: pre-wrap; }
 </style>
 <script>
-  // Classic script, before the module bundle runs: capture errors and pick
-  // which bundle to load (new vs the pre-change legacy copy) via ?bundle=.
+  // Classic script, before the module bundle runs: capture errors for the
+  // shared SDK under test.
   window.__console_errors = [];
   const __oe = console.error.bind(console);
   console.error = (...a) => { window.__console_errors.push(a.map(String).join(" ")); __oe(...a); };
@@ -21,13 +21,11 @@
     n: Math.max(1, Number(q.get("n") || 12)),
     w: Math.max(80, Number(q.get("w") || 320)),
     h: Math.max(60, Number(q.get("h") || 180)),
-    bundle: q.get("bundle") === "legacy" ? "legacy" : "new",
     scene: q.get("scene") || "./adaptive_probe.amx",
   };
   const loader = document.createElement("script");
   loader.type = "module";
-  loader.src = window.__cfg.bundle === "legacy" ? "../embed/amx-player.legacy.js" : "../embed/amx-player.js";
-  loader.setAttribute("data-runtime-base", "../pkg-slim");
+  loader.src = "../runtime/amx-player.js";
   document.head.appendChild(loader);
 </script>
 </head>
@@ -237,7 +235,7 @@
   };
   const targetFpsVals = numbers((p) => p.targetFps);
   const summary = {
-    bundle: cfg.bundle,
+    bundle: "unified",
     n: cfg.n,
     mode,
     playersReady: ok,

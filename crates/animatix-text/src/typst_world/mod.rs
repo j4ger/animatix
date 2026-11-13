@@ -14,7 +14,5 @@ pub use compile::*;
 pub use extract::*;
 pub use geometry::*;
 pub use plain_text::*;
-#[cfg(feature = "rich-text")]
-pub use world::*;
 
 pub(crate) use extract::PathBuilder;

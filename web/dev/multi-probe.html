@@ -22,8 +22,8 @@
   <div style="height: 60vh"></div>
   <amx-player src="../demos/transformer/scenes/pipeline.amx" autoplay loop title="Pipeline (below fold)"></amx-player>
 
-  <!-- probes the same profile the demo pages serve, with a fallback to pkg -->
-  <script type="module" src="../embed/amx-player.js" data-runtime-base="../pkg-slim"></script>
+  <!-- Probes the same shared runtime directory the demo pages serve. -->
+  <script type="module" src="../runtime/amx-player.js"></script>
 
   <script type="module">
     // report engine device count + per-instance health for the CDP driver

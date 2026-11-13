@@ -30,9 +30,6 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: "0"
   GH_REPO: ${{ github.repository }}
-  NIX_CONFIG: |
-    fallback = true
-    extra-substituters = https://cache.nixos.org/
 
 jobs:
   check:
@@ -74,19 +71,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Install Nix
-        uses: DeterminateSystems/determinate-nix-action@v3
-
-      - name: Set up Cachix
-        uses: cachix/cachix-action@v17
-        with:
-          name: animatix
-          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          extraPullNames: 'nix-community'
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-
       - name: Release details
         id: details
         run: echo "title=Nightly Build ($(date -u +'%Y-%m-%d %H:%M UTC'))" >> "$GITHUB_OUTPUT"
@@ -97,7 +81,7 @@ jobs:
       - name: Build and package (video, Linux)
         env:
           ANIMATIX_RELEASE_LABEL: nightly
-        run: nix develop --command scripts/ci.sh gate dist-linux
+        run: scripts/ci.sh gate dist-linux
 
       # Delete previous rolling 'nightly' release and any legacy 'nightly-*' releases
       # to reclaim storage quota before publishing the new pre-release.

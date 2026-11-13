@@ -387,11 +387,13 @@ impl Timeline {
                     .map(|v| v.as_str().to_string())
                     .unwrap_or_default();
                     if !path.is_empty() {
-                        let normalized = self.asset_cache.normalize_asset_url(&path);
-                        if let Ok(content) = std::fs::read_to_string(&normalized)
-                            && let Ok(t) =
-                                animatix_text::transcript::parse_transcript_auto(&content)
-                        {
+                        let parsed = crate::timeline::build::speech::load_transcript_path(
+                            label,
+                            &path,
+                            std::sync::Arc::make_mut(&mut self.asset_cache),
+                            diagnostics,
+                        );
+                        if let Some(t) = parsed {
                             self.set_transcript(label, t);
                         }
                     }

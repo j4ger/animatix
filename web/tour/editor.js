@@ -55,10 +55,12 @@
     status.className = `editor-status ${tone ?? ""}`;
   }
 
-  function apply(figure, player, textarea, panel, status) {
+  async function apply(figure, player, textarea, panel, status) {
     const text = textarea.value;
+    const button = figure.querySelector(".editor-btn.primary");
+    if (button) button.disabled = true;
     try {
-      const diags = player.applySource(text);
+      const diags = await player.applySource(text);
       const warnings = diags.filter((d) => d.severity !== "error");
       renderDiags(panel, diags);
       setStatus(
@@ -71,6 +73,8 @@
     } catch (err) {
       renderDiags(panel, err.diagnostics ?? []);
       setStatus(status, `Not built: ${err.message}`, "error");
+    } finally {
+      if (button?.isConnected) button.disabled = false;
     }
   }
 

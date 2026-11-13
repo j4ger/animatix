@@ -58,6 +58,8 @@ wgpu = { workspace = true, default-features = false, features = ["std", "parking
 taffy = { version = "0.10", default-features = false, features = ["flexbox", "grid", "std", "taffy_tree"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+unicode-general-category = "1.1.0"
+unicode-segmentation = "1.13.2"
 
 [dev-dependencies]
 # The export-path drivers (`examples/export_*.rs`) drive the GPU stack, which
@@ -94,3 +96,6 @@ harness = false
 [[bench]]
 name = "gpu"
 harness = false
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm_split = { workspace = true }

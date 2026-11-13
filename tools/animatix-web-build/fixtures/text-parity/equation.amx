@@ -1,0 +1,13 @@
+config { resolution: (960, 540), duration: 2 }
+
+eq: Equation, font_size: 42, at: (480, 190), opacity: 1 {
+  lhs: Fragment, content: "E"
+  equals: Fragment, content: "="
+  mass: Fragment, content: "m"
+  c2: Fragment, content: "c^2"
+}
+
+label: Text, text: "Equation fragments: E = mc²", font_size: 26, at: (480, 320), opacity: 1
+
+#0.5s
+highlight eq.c2 [300ms]

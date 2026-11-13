@@ -1,191 +1,58 @@
 #!/usr/bin/env bash
-# Build the animatix-web wasm module, generate JS glue, optimize, and
-# precompress it into web/pkg (or web/pkg-slim / web/pkg-assets).
-#
-# Usage: scripts/build-web.sh [--slim|--assets] [--dev]
-#   (default) full release build — complete engine feature set (rich text,
-#             raster/SVG assets) — what the demos use
-#   --slim    playback-only profile: drops the Typst rich-text stack, raster
-#             image decoding, and SVG loading (~smaller wasm; Text degrades to
-#             the plain fast path, Code/Math/Svg assets report diagnostics)
-#   --assets  non-Typst asset profile: raster image decoding + SVG loading,
-#             no rich text; used by SVG/image demos without shipping the full
-#             Typst engine
-#   --dev     debug build    — faster iterate, larger wasm, no opt, no brotli
-#
-# Release builds use the `wasm-release` profile (see the root Cargo.toml: fat
-# LTO, one codegen unit, panic=abort) and enable wasm SIMD128. Neither touches
-# the `release` profile the native benchmarks build through.
-#
-# Prereqs: the `.#web-build` dev shell (wasm32 std + the pinned wasm-bindgen),
-# or a rustc with wasm32-unknown-unknown plus a wasm-bindgen-cli matching the
-# `wasm-bindgen` version pinned in crates/animatix-web/Cargo.toml.
-# wasm-opt (binaryen) and brotli are release-only; outside `.#web-build` they
-# are fetched through `nix shell` when available. A release build invoked with
-# ANIMATIX_REQUIRE_WASM_TOOLS=1 fails rather than shipping an unoptimized or
-# uncompressed bundle (the web-build gate sets it).
-#
-# The build is staged in target/web-build/ and swapped into place only after
-# every step succeeds, so a failed build can never leave a half-written pkg/
-# that the freshness check would call current. The swap also writes `.build`,
-# the stamp `scripts/ensure-web-pkg.sh` reads (HEAD, dirty, profile, variant,
-# wasm-bindgen version).
+# Build one versioned SDK: one linked program, shared-memory cold partitions,
+# external font faces, and a content/ABI manifest. No public feature profiles.
 set -euo pipefail
-
-root="$(cd "$(dirname "$0")/.." && pwd)"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
-
-# Keep the external pack in sync with the vendored native assets before every
-# build; the wasm packages themselves contain no font bytes.
-bash scripts/web-fonts.sh sync
-
-profile_args=(--profile wasm-release)
-out_profile="wasm-release"
-feature_args=(--no-default-features --features rich-text,image-decode,svg,raster-encode)
-variant="full"
-out_dir="web/pkg"
+profile=release
 for arg in "$@"; do
-  case "$arg" in
-    --dev) profile_args=(); out_profile="debug" ;;
-    --slim) feature_args=(--no-default-features); variant="slim"; out_dir="web/pkg-slim" ;;
-    --assets) feature_args=(--no-default-features --features image-decode,svg); variant="assets"; out_dir="web/pkg-assets" ;;
-  esac
+  case "$arg" in --dev) profile=dev ;; *) echo "usage: build-web.sh [--dev]" >&2; exit 2 ;; esac
 done
-
-# wasm has no auto-vectorization without an explicit target feature, and every
-# browser that can run the player (WebGPU shipped long after SIMD128) has it.
-# Append rather than assign: inside `nix develop` the shell may already carry
-# RUSTFLAGS from the stdenv, and overwriting the variable silently drops them.
-cargo_env=()
-if [ "$out_profile" != "debug" ]; then
-  cargo_env=(env RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+simd128")
-fi
-
-# Preflight the two failure modes that cost the most time, because neither
-# says what is wrong. A missing wasm32 std does not report a missing target —
-# rustc fails `can't find crate for 'std'` in every dependency and suggests
-# `rustup target add`, which is a dead end inside nix (the target may well be
-# installed under ~/.rustup; this toolchain just cannot see it). And a
-# wasm-bindgen that does not match the pinned crate version works fine until
-# the glue-generation step, several build minutes later.
-if ! ls "$(rustc --print sysroot)/lib/rustlib/wasm32-unknown-unknown" >/dev/null 2>&1; then
-  echo "error: this rustc has no wasm32-unknown-unknown std (sysroot: $(rustc --print sysroot))." >&2
-  echo "       Build the wasm engine in the shell that does:  nix develop .#web-build" >&2
+if ! command -v rustc >/dev/null || [ ! -d "$(rustc --print sysroot)/lib/rustlib/wasm32-unknown-unknown" ]; then
+  echo 'error: build in nix develop .#web-build (wasm32 std is required)' >&2
   exit 1
 fi
-
-# One source of truth for the pin (scripts/wasm-tools.sh), shared with ci.sh.
-# shellcheck source=scripts/wasm-tools.sh
 . scripts/wasm-tools.sh
 check_wbg
-wbg_version="$(wasm-bindgen --version | awk '{print $NF}')"
-
-"${cargo_env[@]}" cargo build -p animatix-web --target wasm32-unknown-unknown "${feature_args[@]}" "${profile_args[@]}"
-
-# Stage everything under target/ (gitignored, same filesystem as web/), then
-# rename it into place. A failed wasm-bindgen/wasm-opt/brotli leaves the old
-# pkg untouched instead of a partial one that looks fresh.
-stage_dir="target/web-build/${out_dir##*/}"
-rm -rf "$stage_dir"
-mkdir -p "$stage_dir"
-cleanup_stage() { [ -d "$stage_dir" ] && rm -rf "$stage_dir"; }
-trap cleanup_stage EXIT
-
-wasm-bindgen --target web --out-dir "$stage_dir" \
-  "target/wasm32-unknown-unknown/$out_profile/animatix_web.wasm"
-
-if [ "$out_profile" = "debug" ]; then
-  touch "$stage_dir/.dev"
-else
-  rm -f "$stage_dir/.dev"
+command -v wasm-opt >/dev/null || { echo 'error: wasm-opt is required for the SDK build' >&2; exit 1; }
+command -v zopfli >/dev/null || { echo 'error: zopfli is required for base Wasm gzip compression' >&2; exit 1; }
+# Resolve dependencies before fingerprinting Cargo.lock; build itself is locked.
+cargo metadata --format-version 1 --no-deps --locked >/dev/null
+cargo build --locked -p animatix-web-build
+npm --prefix web/tools ci --silent
+npm --prefix web/tools run build:embed
+stage="target/web-build/sdk-stage-$$"
+mkdir -p "$stage/bindgen" "$stage/sdk"
+trap 'rm -rf "$stage"' EXIT
+node web/tools/sdk.mjs identity "$profile" > "$stage/identity.json"
+identity=$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1])).build_id)' "$stage/identity.json")
+commit=$(git rev-parse HEAD)
+cargo_profile=wasm-release
+if [ "$profile" = dev ]; then cargo_profile=wasm-dev; fi
+env ANIMATIX_RUNTIME_BUILD_ID="$identity" ANIMATIX_GIT_SHA="$commit" \
+  RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+simd128 -C link-arg=--emit-relocs -C debuginfo=2" \
+  cargo build --locked -p animatix-web --target wasm32-unknown-unknown --profile "$cargo_profile"
+original="target/wasm32-unknown-unknown/$cargo_profile/animatix_web.wasm"
+wasm-bindgen --no-demangle --target web --out-dir "$stage/bindgen" "$original"
+target/debug/animatix-web-build split "$original" "$stage/bindgen" "$stage/sdk"
+if [ "$profile" = release ]; then
+  for module in "$stage/sdk/"*.wasm; do wasm-opt -Oz --strip-debug -o "$module" "$module"; done
 fi
-
-if [ "$out_profile" != "debug" ]; then
-  # Size-optimize the wasm (binaryen). -Oz aggressively shrinks; the one-shot
-  # cost is ~a minute, the payoff ~25-35% of the served bytes.
-  if command -v wasm-opt >/dev/null 2>&1; then
-    wasm-opt -Oz --strip-debug -o "$stage_dir/animatix_web_bg.wasm" "$stage_dir/animatix_web_bg.wasm"
-  elif [ -n "${IN_NIX_SHELL:-}" ] || command -v nix >/dev/null 2>&1; then
-    echo "wasm-opt not on PATH; trying nix shell nixpkgs#binaryen..."
-    if nix shell nixpkgs#binaryen -c bash -c \
-      'wasm-opt -Oz --strip-debug -o "$1" "$2"' _ \
-      "$stage_dir/animatix_web_bg.wasm" "$stage_dir/animatix_web_bg.wasm" 2>/dev/null; then
-      :
-    else
-      if [ "${ANIMATIX_REQUIRE_WASM_TOOLS:-0}" = 1 ]; then
-        echo "error: wasm-opt is required for a release build but is unavailable" >&2
-        exit 1
-      fi
-      echo "warning: wasm-opt unavailable — serving the unoptimized module"
-    fi
-  else
-    if [ "${ANIMATIX_REQUIRE_WASM_TOOLS:-0}" = 1 ]; then
-      echo "error: wasm-opt is required for a release build but is unavailable" >&2
-      exit 1
-    fi
-    echo "warning: wasm-opt unavailable — serving the unoptimized module"
-  fi
-
-  # Precompress the served artifacts. The level is configurable because q11 is
-  # a release-asset optimization (about 14% on full wasm) while PR/Pages builds
-  # keep q6 so the gate stays fast. A static host or CDN serves the `.br` twin
-  # when the client advertises brotli; scripts/serve-web.py negotiates them
-  # locally to prove the setup end to end.
-  brotli_avail=false
-  if command -v brotli >/dev/null 2>&1; then
-    brotli_avail=true
-  elif command -v nix >/dev/null 2>&1; then
-    if nix shell nixpkgs#brotli -c bash -c 'brotli --version' >/dev/null 2>&1; then
-      BROTLI="nix shell nixpkgs#brotli -c brotli"
-      brotli_avail=true
-    fi
-  fi
-
-  if [ "$brotli_avail" = true ]; then
-    br_level="${ANIMATIX_BROTLI_LEVEL:-6}"
-    br() { if [ -n "${BROTLI:-}" ]; then $BROTLI -q "$br_level" -f -k "$1"; else brotli -q "$br_level" -f -k "$1"; fi; }
-    for f in "$stage_dir/animatix_web_bg.wasm" "$stage_dir/animatix_web.js"; do
-      [ -f "$f" ] && br "$f"
-    done
-  else
-    if [ "${ANIMATIX_REQUIRE_WASM_TOOLS:-0}" = 1 ]; then
-      echo "error: brotli is required for a release build but is unavailable" >&2
-      exit 1
-    fi
-    echo "warning: brotli unavailable — skipping precompression"
-  fi
-else
-  echo "--dev: skipping wasm-opt and brotli"
+target/debug/animatix-web-build fonts crates/animatix-text/assets/fonts > "$stage/fonts.json"
+node web/tools/sdk.mjs assemble "$stage/sdk" "$stage/fonts.json" "$stage/identity.json"
+node web/tools/sdk.mjs verify "$stage/sdk" --current
+# Install immutable builds and atomically replace only the public symlink.
+# Hashed module URLs in the manifest prevent a previously loaded page from
+# combining a new capability module with an old shared function table.
+release="target/web-build/releases/${identity}-$$"
+mkdir -p target/web-build/releases
+mv "$stage/sdk" "$release"
+next="web/.runtime-next-$$"
+ln -s "../$release" "$next"
+if [ -e web/runtime ] && [ ! -L web/runtime ]; then
+  echo 'error: web/runtime must be a generated symlink; refusing to replace a directory' >&2
+  rm "$next"
+  exit 1
 fi
-
-# The freshness stamp. `head` + the `.build` mtime are what
-# scripts/ensure-web-pkg.sh compares: a later edit to crates/ or Cargo.* is
-# newer than the stamp, and a checkout changes HEAD. `dirty` is informational.
-head_sha=$(git rev-parse HEAD 2>/dev/null || echo unknown)
-dirty=0
-if command -v git >/dev/null 2>&1 && \
-   [ -n "$(git status --porcelain --untracked-files=normal -- crates Cargo.toml Cargo.lock 2>/dev/null)" ]; then
-  dirty=1
-fi
-cat > "$stage_dir/.build" <<EOF
-head=$head_sha
-dirty=$dirty
-profile=$([ "$out_profile" = "debug" ] && echo dev || echo release)
-variant=$variant
-wasm_bindgen=$wbg_version
-built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-EOF
-
-# Same-filesystem rename: the published pkg is either the old complete build
-# or the new complete build, never a mix.
-rm -rf "$out_dir"
-mv "$stage_dir" "$out_dir"
-trap - EXIT
-
-wasm_bytes=$(wc -c < "$out_dir/animatix_web_bg.wasm")
-gz_bytes=$(gzip -9 -c "$out_dir/animatix_web_bg.wasm" | wc -c)
-br_bytes=$([ -f "$out_dir/animatix_web_bg.wasm.br" ] && wc -c < "$out_dir/animatix_web_bg.wasm.br" || echo "n/a")
-echo "wasm ready: $out_dir/ ($([ "$out_profile" = "debug" ] && echo dev || echo release), $variant)"
-echo "  raw:    $wasm_bytes"
-echo "  gzip:   $gz_bytes"
-echo "  brotli: $br_bytes"
+node -e 'require("fs").renameSync(process.argv[1], "web/runtime")' "$next"
+node web/tools/sdk.mjs verify web/runtime

@@ -53,6 +53,7 @@ pub mod inline_keyframes;
 pub mod kurbo_shapes;
 pub(crate) mod layout;
 mod media;
+pub mod media_capability;
 /// Modifier statement execution (IR interpreter).
 pub mod modifier_exec;
 /// Modifier program runtime: lowered IR types, lowering, and execution.

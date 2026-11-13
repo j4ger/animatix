@@ -652,7 +652,7 @@ circle: Ellipse, at: (100, 100) [2s]
 
 A timed re-declaration that changes the primitive type (`Rect` → `Ellipse`, `Polygon` → `Path`, …) morphs between the two outlines over its duration: the start and end geometry are sampled into path keyframes and drawn as an interpolated path for the switch window. `strategy: match` additionally aligns closed outlines by bearing, so a square→ellipse transition keeps its width rather than folding through corner-to-axis pairing. Endpoint frames still render the endpoint primitive exactly.
 
-Timed `Text.text` and `Typst.content` assignments cross-fade both endpoint glyph sets by default, so the swap does not hard-cut at the midpoint string snapshot.
+Timed `Text.text` and `Typst.text` assignments cross-fade both endpoint glyph sets by default, so the swap does not hard-cut at the midpoint string snapshot.
 
 **Instant Change:** Zero duration or property assignment.
 ```animatix
@@ -830,7 +830,7 @@ eye/lock view toggles, `solo` round-trips through `.amx` and undo.
 | `Legend` | `at` |
 | `Polygon` | `points: {(x, y), ...}` |
 | `Path` | `commands: {move_to(...), line_to(...), curve_to(...), close()}` |
-| `Text` / `Typst` / `Code` | `text` / `code`, `font_size`, `font_family`, `font_weight`, `font_style`, `line_height`, `letter_spacing`, `word_spacing`, `text_max_width`, `text_align`, `text_anchor`, `overflow` |
+| `Text` / `Typst` / `Code` | `text`, `font_size`, `font_family`, `font_weight`, `font_style`, `line_height`, `letter_spacing`, `word_spacing`, `text_max_width`, `text_align`, `text_anchor`, `overflow` (`Code.code` is also accepted for compatibility) |
 | `Image` / `Svg` | `url` |
 | `Filter` | `bounds` (processed region); declares effect children (`Blur`, `ColorGrade`, `Sharpen`, `Vignette`, `MotionBlur`, `Grain`, `Levels`, …) whose parameters animate as `scope.stage.param` |
 | `Graph` / plots | `x_domain`, `y_domain`, `func`, `kind`, `resolution`, `density`, `levels` |
@@ -857,11 +857,11 @@ title: "Hello" [2s, ease: expo-out] // with modifiers
 
 **Typst shorthand:**
 ```animatix
-eq: $$ x^2 + y^2 $$                    // desugars to: eq: Typst, content: "x^2 + y^2"
+eq: $$ x^2 + y^2 $$                    // desugars to: eq: Typst, text: "x^2 + y^2"
 eq: $$ x^2 $$ [2s, ease: expo-out]       // with modifiers
 ```
 
-A bare `$$ ... $$` block produces a `Typst` actor. The content between `$$` delimiters is taken as raw Text (unquoted) and becomes the `text` property. A label is required. Modifiers are supported.
+A bare `$$ ... $$` block produces a `Typst` actor. The text between `$$` delimiters is taken as raw text (unquoted) and becomes the `text` property. A label is required. Modifiers are supported.
 
 ### Typography Properties
 
@@ -897,19 +897,22 @@ How a weight becomes a drawing — measured on this repo, not inferred:
   650 → 544.6, 700 → 555.9 — monotone through the canonical values, which is the
   part that matters for animation (`compile_text_instances_a_weight_no_static_face_ships`).
   The axis spans `wght 300–800`; a request outside it clamps to the end.
+- Ordinary `Text` is literal Unicode and uses the lightweight shaper; markup
+  characters such as `$`, `#`, and backticks are drawn as authored. Use
+  `Typst`, `Math`, `Code`, or `Equation` when markup or rich layout is intended.
 - Text on the **plain-text fast path resolves a face, not an axis**: the nearest
   weight among the statics that family has, style (`normal`/`italic`) deciding
   first. So `font_weight: 900` draws the 700 face, and animating a weight there
-  moves in steps. That is a real limit of the slim build, not a preference:
-  `ttf-parser` reads `fvar`/`gvar` but never applies the deltas to outlines.
+  moves in steps because the lightweight shaper selects among static faces;
+  variable-font axis interpolation is available on the rich text path.
 - Numbers reach the font stack as authored. The keyword form (`"bold"`,
   `"medium"`, …) is still accepted at the property and maps to its CSS value;
   what used to happen *after* that — collapsing every number to one of nine
   keywords before Typst saw it — is gone, and it was the whole reason continuous
   weight was unreachable.
 - The default family ships `Regular` and `Bold` statics in every build, including
-  the slim web embed, plus the variable pair on the rich path. The static italics
-  are `rich-text` only.
+  native and web lightweight shaping paths; the variable pair is used by the rich
+  text path.
 - Trading place: the variable pair answers weights the statics could not, at the
   cost of slightly different advance widths for the ones they could. Measured on
   `examples/layout/27_layout_text.amx`, the same frame before and after differs in
@@ -926,6 +929,15 @@ label: Text, text: "Hello", font_weight: 400
 label.font_weight = 700 [1s]
 label.letter_spacing = 4.0 [1s]
 ```
+
+The browser player uses the same language and typography properties, but its
+font inventory comes from the shipped SDK manifest rather than scanning host
+system fonts. Required faces are selected from text analysis and fetched before
+the document build; additional TTF/OTF files can be supplied by the embedding
+page. A missing glyph is reported during build analysis. Rich text primitives
+(`Typst`, `Math`, `Code`, `Equation`) request the web runtime capability they
+need; ordinary `Text` stays on the literal Unicode path. See the
+[web player guide](../web/README.md) for deployment and embedding details.
 
 ### Text Wrapping & Overflow
 
@@ -2685,13 +2697,13 @@ config { colorscheme: "editorial-dark" }  // overrides prelude colorscheme
 |-----|-------|----------------|-------|
 | `resolution` | Composition | ❌ No | Set once in the prelude; affects canvas size and export dimensions. Scene-level `resolution` is ignored with a warning. |
 | `strict_types` | Program | ❌ No | Enables strict type checking for the entire file. Scene-level `strict_types` is ignored. |
+| `text_fast_path` | Program | ❌ No | Accepted for compatibility; ordinary Text always uses the literal text path. |
 | `colorscheme` | Scene | ✅ Yes | Scene-level overrides prelude. Each scene can have a different colorscheme. |
 | `dynamic_layout` | Scene | ✅ Yes | Scene-level overrides prelude. Enables per-frame layout recomputation. |
 | `duration` | Scene | ✅ Yes | Scene-only; sets explicit scene duration (overrides keyframe-inferred duration). A timeline never plays past it: keyframes beyond it are unreachable, and the build warns with `duration-shorter-than-content`. |
 | `export_preset` | Composition | ❌ No | Preset name the CLI video/GIF paths pick up (e.g. `"1080p30"`); set once in the prelude. |
 | `bpm` | Scene | ✅ Yes | Tempo in beats per minute. Resolves beat stamps (`#2b`, `[4b]`) to milliseconds; absent, beats run at 120 bpm. |
 | `seamless_loop` | Scene | ✅ Yes | Declares that the scene is replayed end-to-start. The build then samples every keyframed property at the first and last frame and warns with `loop-not-seamless` when a value does not wrap — the scene camera's three axes included, since they live outside the actor tracks. Values driven by `always` blocks or plot `func` transitions are frame-time computations, not keyframes, so v1 cannot see them and does not lint them. |
-| `text_fast_path` | Program | ❌ No | Routes plain Latin `Text` through the fast shaping path (default on). |
 
 **Merge rules:**
 - The shared prelude statements are prepended to every scene's body before timeline compilation.

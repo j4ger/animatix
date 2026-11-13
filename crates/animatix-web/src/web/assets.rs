@@ -197,6 +197,10 @@ impl AmxPlayer {
             assets,
             &self.vars,
         );
+        self.install_built(built)
+    }
+
+    pub(super) fn install_built(&mut self, built: BuiltDocument) -> Result<JsValue, JsError> {
         let BuiltDocument { target, result } = built;
 
         if let Some(target) = target {
@@ -225,7 +229,7 @@ impl AmxPlayer {
 /// Render a JS object of `name -> number|string|boolean` into the engine's
 /// `(name, expression text)` pairs. `null`/`undefined` is the empty set; any
 /// other non-object is a caller error rather than a value to drop.
-fn js_var_defines(vars: &JsValue) -> Result<Vec<(String, String)>, JsError> {
+pub(super) fn js_var_defines(vars: &JsValue) -> Result<Vec<(String, String)>, JsError> {
     if vars.is_null() || vars.is_undefined() {
         return Ok(Vec::new());
     }

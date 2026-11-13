@@ -317,7 +317,9 @@ fn execute_text(
 
         for run in &hw.runs {
             let font_data = vello::peniko::FontData {
-                data: vello::peniko::Blob::new(std::sync::Arc::new(run.font_data)),
+                data: vello::peniko::Blob::new(std::sync::Arc::new(std::sync::Arc::clone(
+                    &run.font_data,
+                ))),
                 index: run.font_index,
             };
             let glyphs_iter = run.glyphs.iter().map(|g| vello::Glyph {
@@ -330,6 +332,7 @@ fn execute_text(
                 .transform(*transform)
                 .brush(&brush)
                 .brush_alpha(opacity)
+                .normalized_coords(&run.normalized_coords)
                 .draw(vello::peniko::Fill::NonZero, glyphs_iter);
         }
 

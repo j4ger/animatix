@@ -398,6 +398,7 @@ pub static EQUATION: PrimitiveInfo = PrimitiveInfo::new(
     EQUATION_CAPS,
 )
 .with_child_processing(ChildProcessingKind::Equation)
+.requires(FeatureMask::RICH_TEXT)
 .with_doc("Aggregates Typst equation fragments with animation support.");
 
 // Equation fragment sub-item (text-like caps, but no single TextKind engine)
@@ -409,6 +410,7 @@ pub static FRAGMENT: PrimitiveInfo = PrimitiveInfo::new(
     TEXT_CAPS,
 )
 .with_doc("Sub-equation fragment within an Equation container.")
+.requires(FeatureMask::RICH_TEXT)
 .with_stub("text: \"x\"");
 
 // Captions container & Cue sub-item

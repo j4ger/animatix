@@ -4,6 +4,10 @@ use super::*;
 use crate::compiler::compile_text_cached;
 use crate::request::{TextCompileRequest, TextStyle};
 
+#[cfg(feature = "rich-text")]
+#[path = "font_overlays.rs"]
+mod font_overlays;
+
 /// Compile through [`TextCompiler::compile_request`] with the defaults the old
 /// flat adapter supplied: Open Sans at 24pt, regular/normal, 1.2 line height,
 /// no extra spacing, no wrapping, left-aligned, overflow visible.
@@ -50,8 +54,8 @@ fn bundled_face_answers_a_weight_and_style_query() {
     let italic = bundled_face("Open Sans", 500.0, "italic").expect("Open Sans");
     assert_eq!((italic.weight, italic.style), (400.0, "italic"));
 
-    // Out-of-range weights clamp to the nearest shipped face: 900 has no
-    // face in this bundle, so 700 is the honest answer.
+    // Static selection still clamps to its nearest shipped face. The rich
+    // fast path separately instances the variable face through weight 800.
     assert_eq!(bundled_face("Open Sans", 900.0, "normal").unwrap().weight, 700.0);
     assert_eq!(bundled_face("Open Sans", 100.0, "normal").unwrap().weight, 400.0);
 
@@ -63,7 +67,6 @@ fn bundled_face_answers_a_weight_and_style_query() {
 /// The same query, proven through the compiler: bold text is wider than
 /// regular at the same size, and a weight the bundle has no face for lands
 /// on the nearest one rather than silently on Regular.
-#[cfg(feature = "rich-text")]
 #[test]
 fn compile_text_fast_honours_weight_for_a_bundled_family() {
     let width_of = |weight: f32| {
@@ -95,11 +98,49 @@ fn compile_text_fast_honours_weight_for_a_bundled_family() {
     let (bold, bold_count): (f32, usize) = width_of(700.0);
     assert_eq!(count, bold_count, "the same text must shape the same glyph count");
     assert!(bold > regular + 1.0, "weight 700 must be wider than 400: {bold} vs {regular}");
-    // 900 has no face: it must land on 700, not fall back to regular.
+    // Out-of-range requests clamp at the selected face's supported maximum.
     assert!(
-        (width_of(900.0).0 - bold).abs() < 0.01,
-        "weight 900 should resolve to the nearest shipped weight"
+        (width_of(900.0).0 - width_of(800.0).0).abs() < 0.01,
+        "weight 900 should clamp to the variable face maximum"
     );
+}
+
+#[test]
+fn fast_path_instances_variable_weight_through_outline_and_hardware_runs() {
+    let font_ctx = test_font_ctx();
+    let compiled = |weight| {
+        compile_text_fast(
+            "Weight makes the ink",
+            "Open Sans",
+            weight,
+            "normal",
+            64.0,
+            [1.0; 4],
+            0.0,
+            0.0,
+            &font_ctx,
+        )
+        .expect("fast variable font should compile")
+    };
+    let widths: Vec<_> = [400.0, 450.0, 500.0, 550.0, 600.0, 650.0, 700.0]
+        .into_iter()
+        .map(|weight| {
+            let result = compiled(weight);
+            let bounds = result
+                .glyphs
+                .iter()
+                .map(|glyph| glyph.bounds)
+                .reduce(|a, b| a.union(b))
+                .expect("glyph outlines");
+            let run = &result.hardware_layout.as_ref().expect("hardware glyphs").runs[0];
+            assert!(!run.normalized_coords.is_empty(), "variable axes reach Vello");
+            (bounds.width(), std::sync::Arc::clone(&run.normalized_coords))
+        })
+        .collect();
+    for pair in widths.windows(2) {
+        assert!(pair[1].0 > pair[0].0 + 0.5, "ink width should follow wght: {widths:?}");
+        assert_ne!(pair[0].1, pair[1].1, "hardware variation coordinates should follow wght");
+    }
 }
 
 /// A weight the four static faces cannot answer is drawn by instancing the
@@ -251,11 +292,10 @@ fn test_font_db() -> &'static std::sync::Arc<fontdb::Database> {
 
 /// Helper: create a default FontContext (loads system fonts, may be slow on CI).
 fn test_font_ctx() -> FontContext {
-    FontContext {
-        db: std::sync::Arc::clone(test_font_db()),
-        registered_faces: Vec::new(),
-        epoch: font_env_epoch(),
-    }
+    static CONTEXT: std::sync::OnceLock<FontContext> = std::sync::OnceLock::new();
+    CONTEXT
+        .get_or_init(|| FontContext::with_database(std::sync::Arc::clone(test_font_db())))
+        .clone()
 }
 
 /// `max_lines` must cap the number of wrapped lines the fast text path
@@ -352,6 +392,7 @@ fn bundled_default_font_covers_bold_and_italic() {
 }
 
 /// Request for a `Code` compile at the tests' default monospace typography.
+#[cfg(feature = "rich-text")]
 fn code_request<'a>(
     code: &'a str,
     language: &'a str,
@@ -366,6 +407,7 @@ fn code_request<'a>(
 
 /// Distinct glyph fill colors produced by a `Code` compilation of the same
 /// snippet under `language` ("" = plain).
+#[cfg(feature = "rich-text")]
 fn distinct_code_colors(language: &str) -> usize {
     let font_ctx = test_font_ctx();
     let cached =
@@ -388,6 +430,7 @@ fn code_highlight_adds_glyph_colors() {
 }
 
 #[test]
+#[cfg(feature = "rich-text")]
 fn unknown_highlight_language_renders_plain() {
     // An unsupported `language` warns (see compile_code) and falls back to
     // the plain single-color render — never an error, never a dropped actor.
@@ -400,6 +443,7 @@ fn unknown_highlight_language_renders_plain() {
 /// builder dropping inter-token whitespace at styled-run boundaries (which
 /// `highlighted_code_markup` avoids by keeping every space inside a token).
 #[test]
+#[cfg(feature = "rich-text")]
 fn highlight_preserves_spacing() {
     let font_ctx = test_font_ctx();
     let code = "fn main() {\n    let x = 42;\n}";
@@ -421,6 +465,7 @@ fn highlight_preserves_spacing() {
 }
 
 #[test]
+#[cfg(feature = "rich-text")]
 fn language_is_part_of_text_cache_key() {
     let font_ctx = test_font_ctx();
     let compile = |lang: &str| {
@@ -441,6 +486,7 @@ fn language_is_part_of_text_cache_key() {
 }
 
 /// A palette with distinct sentinel colours per role, for assertions.
+#[cfg(feature = "rich-text")]
 fn sentinel_palette() -> HighlightPalette {
     HighlightPalette {
         keyword: [0.0, 1.0, 0.0, 1.0],
@@ -454,6 +500,7 @@ fn sentinel_palette() -> HighlightPalette {
     }
 }
 
+#[cfg(feature = "rich-text")]
 fn compile_code_with(
     font_ctx: &FontContext,
     code: &str,
@@ -496,6 +543,7 @@ fn highlight_palette_recolours_tokens() {
 }
 
 #[test]
+#[cfg(feature = "rich-text")]
 fn palette_is_part_of_text_cache_key() {
     let font_ctx = test_font_ctx();
     let code = "fn main() {}";
@@ -523,26 +571,14 @@ fn is_latin_text_basic() {
     assert!(!is_latin_text("مرحبا"));
 }
 
-/// `load_face` hands out `Face<'static>`, which requires a process-long
-/// buffer; the buffer must be allocated once per face, not once per call.
+/// Owned face handles share their font bytes without leaking them.
 #[test]
-fn load_face_reuses_one_buffer_per_face() {
+fn load_face_reuses_shared_owned_bytes() {
     let font_ctx = test_font_ctx();
-    let id = font_ctx
-        .db
-        .query(&fontdb::Query {
-            families: &[fontdb::Family::Name("Open Sans")],
-            weight: fontdb::Weight(400),
-            style: fontdb::Style::Normal,
-            ..Default::default()
-        })
-        .expect("Open Sans is bundled");
-    let first = leaked_face_data(&font_ctx, id).expect("face data");
-    let second = leaked_face_data(&font_ctx, id).expect("face data");
-    assert!(
-        std::ptr::eq(first, second),
-        "load_face leaked a fresh buffer on the second call"
-    );
+    let first = font_ctx.load_face("Open Sans", 400.0, "normal").expect("face data");
+    let second = font_ctx.load_face("Open Sans", 400.0, "normal").expect("face data");
+    assert!(std::sync::Arc::ptr_eq(&first.bytes, &second.bytes));
+    assert!(ttf_parser::Face::parse(&first.bytes, first.face_index).is_ok());
 }
 
 #[test]
@@ -686,12 +722,12 @@ fn fast_path_caches_results() {
 }
 
 #[test]
-fn non_plain_text_routes_to_typst() {
+fn markup_characters_are_literal_text() {
     let font_ctx = test_font_ctx();
     let mut compiler = TextCompiler::new();
     compiler.text_fast_path = true;
 
-    // Text with asterisk should route to Typst (not fast path)
+    // Markup characters are part of ordinary Text in every build.
     let paths = compile_request_with_defaults(
         &mut compiler,
         "Hello *World*",
@@ -700,9 +736,10 @@ fn non_plain_text_routes_to_typst() {
         &font_ctx,
     );
 
-    assert!(!paths.is_empty(), "Should produce glyph paths via Typst");
+    assert_eq!(paths.len(), 12, "both asterisks must be visible literal glyphs");
 }
 
 mod caching;
 mod extract;
 mod layout;
+mod unicode;

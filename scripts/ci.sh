@@ -50,8 +50,8 @@ cd "$root"
 #   pr        every pull request runs it, and the release pipeline runs it first —
 #             an artifact nobody gated is an artifact that ships broken.
 #   release   build-only: the distribution jobs that produce the binaries.
-#   site      composite gates: site-artifact/dist-site/dist-wasm need the
-#             gitignored web/pkg bundles in the same job that built them, so
+#   site      composite gates: site-artifact/dist-site/dist-web-sdk need the
+#             gitignored web/runtime SDK in the same job that built them, so
 #             they are run by name from pages.yml and release.yml and are not
 #             matrix rows. `--matrix` accepts pr/release only.
 #
@@ -69,6 +69,9 @@ ext-bench|nix|ubuntu-latest|nix|pr
 doc|nix|ubuntu-latest|nix|pr
 site-scenes|nix|ubuntu-latest|nix|pr
 embed-build|native|ubuntu-latest|node|pr
+web-runtime-tests|native|ubuntu-latest|node|pr
+web-sdk-tests|native|ubuntu-latest|node|pr
+native-package-tests|native|ubuntu-latest|none|pr
 perf-policy-tests|native|ubuntu-latest|none|pr
 content-sync|native|ubuntu-latest|none|pr
 structure|native|ubuntu-latest|none|pr
@@ -84,11 +87,21 @@ commit|nix|ubuntu-latest|nix|pr
 wasm-check|web|ubuntu-latest|nix|pr
 web-build|web-ci|ubuntu-latest|nix|pr
 web-smoke|web-ci|ubuntu-latest|nix|pr
+web-split-proof|web-ci|ubuntu-latest|nix|pr
+web-sdk-integrity|web-ci|ubuntu-latest|nix|pr
+text-parity|web-ci|ubuntu-latest|nix|pr
+web-raster-proof|web-ci|ubuntu-latest|nix|pr
+web-transactions|web-ci|ubuntu-latest|nix|pr
 # Composite site-stage gates — never matrix jobs (see the stage note above).
-site-artifact|native|ubuntu-latest|none|site
-dist-site|native|ubuntu-latest|none|site
-dist-wasm|native|ubuntu-latest|none|site
-dist-linux|nix|ubuntu-latest|nix|release
+site-artifact|native|ubuntu-latest|node|site
+dist-site|native|ubuntu-latest|node|site
+dist-web-sdk|native|ubuntu-latest|node|site
+web-artifact-verify|native|ubuntu-latest|node|site
+web-artifact-stage|native|ubuntu-latest|node|site
+web-artifact-restore|native|ubuntu-latest|node|site
+text-visual-parity|web-ci|ubuntu-latest|nix|site
+web-performance|web-ci|ubuntu-latest|nix|site
+dist-linux|native|ubuntu-latest|none|release
 dist-macos|native|macos-latest|rust-stable|release
 dist-windows|native|windows-latest|rust-stable|release
 '
@@ -106,7 +119,7 @@ dist-windows|native|windows-latest|rust-stable|release
 # each job's shell/os/stage/setup against every gate it lists, so a job cannot
 # silently run a gate in the wrong environment.
 JOB_TABLE='
-Fast Checks|fmt structure workflows content-sync meta-version embed-build perf-policy-tests|native|ubuntu-latest|rust-stable node|pr
+Fast Checks|fmt structure workflows content-sync meta-version embed-build web-runtime-tests web-sdk-tests native-package-tests perf-policy-tests|native|ubuntu-latest|rust-stable node|pr
 eparts|eparts|native|ubuntu-latest|rust-stable|pr
 eparts|eparts|native|macos-latest|rust-stable|pr
 eparts|eparts|native|windows-latest|rust-stable|pr
@@ -115,8 +128,8 @@ Test & Examples|test examples|nix|ubuntu-latest|nix|pr
 Render Smoke & Scenes|render-smoke site-scenes|nix|ubuntu-latest|nix|pr
 Benchmarks|ext-bench|nix|ubuntu-latest|nix|pr
 Web Check|wasm-check|web|ubuntu-latest|nix|pr
-Web Build|web-build web-smoke|web-ci|ubuntu-latest|nix|pr
-dist-linux|dist-linux|nix|ubuntu-latest|nix|release
+Web Build|web-split-proof web-build web-sdk-integrity text-parity web-raster-proof web-smoke web-transactions|web-ci|ubuntu-latest|nix|pr
+dist-linux|dist-linux|native|ubuntu-latest|none|release
 dist-macos|dist-macos|native|macos-latest|rust-stable|release
 dist-windows|dist-windows|native|windows-latest|rust-stable|release
 '
@@ -339,14 +352,11 @@ gate_doc() {
 # past the old ten jobs.
 gate_site_scenes() {
   want_cargo
-  # A scene only the full engine can build, or an import/asset URL that resolves
-  # to nothing next to its page, shows up as a "Scene error" veil in the browser
-  # and is invisible to the engine's own suite. `--slim` is exactly
-  # `--no-default-features` (see scripts/build-web.sh), so these two runs cover
-  # both shipped bundles.
+  # The SDK contains all capabilities; browser dependency tests prove that only
+  # the required partitions are downloaded. No separate feature-profile run.
   cargo test -p animatix-web --test site_scenes
-  cargo test -p animatix-web --test site_scenes --no-default-features
 }
+
 
 gate_embed_build() {
   # Build the <amx-player> web component bundle twice from the same source and
@@ -403,36 +413,105 @@ gate_embed_build() {
   echo "embed bundle build smoke: two consecutive builds are byte-identical ($second_hash)"
 }
 
+gate_web_runtime_tests() {
+  want_node
+  node --test web/tools/runtime.test.mjs web/tools/perf-statistics.test.mjs
+}
+
+gate_web_sdk_tests() {
+  want_node
+  node scripts/web-sdk-tests.mjs
+  node --test web/tools/third-party-licenses.test.mjs
+}
+
+gate_native_package_tests() {
+  python3 scripts/native-package-tests.py
+}
+
 gate_perf_policy_tests() {
   python3 scripts/test-perf-policy.py
 }
 
+gate_web_split_proof() {
+  want_cargo; want_wasm_std 'web-split-proof'; want_nix_shell 'web-split-proof'
+  bash scripts/web-split-proof.sh
+}
+
 gate_web_build() {
   want_cargo; want_wasm_std 'web-build'; want_nix_shell 'web-build'
-  # shellcheck source=scripts/wasm-tools.sh
   . scripts/wasm-tools.sh
   check_wbg
-  # A release artifact without wasm-opt/brotli is several times larger; fail
-  # here instead of publishing it (the tools are in .#web-build/.#web-ci).
-  ANIMATIX_REQUIRE_WASM_TOOLS=1 bash scripts/build-web.sh --slim
-  ANIMATIX_REQUIRE_WASM_TOOLS=1 bash scripts/build-web.sh --assets
-  ANIMATIX_REQUIRE_WASM_TOOLS=1 bash scripts/build-web.sh
-  # The three bundles are what the pages load; a build that "succeeds" without
-  # writing all of them is how a flag typo used to reach the site.
-  for d in web/pkg-slim web/pkg-assets web/pkg; do
-    [ -f "$d/animatix_web_bg.wasm" ] || { echo "error: $d/animatix_web_bg.wasm missing after build" >&2; return 1; }
-    [ -f "$d/animatix_web.js" ] || { echo "error: $d/animatix_web.js missing after build" >&2; return 1; }
-    [ -f "$d/.build" ] || { echo "error: $d/.build stamp missing after build" >&2; return 1; }
-    [ ! -f "$d/.dev" ] || { echo "error: $d is a --dev bundle after a release build" >&2; return 1; }
-  done
-  # web-smoke loads web/embed/amx-player.js. It is gitignored, so a fresh CI
-  # checkout does not have it and artifacts do not cross jobs; build it in this
-  # job before the smoke gate serves the site.
-  gate_embed_build
-  # The size budget belongs to the build, not only to the Pages assembler: a
-  # regression that only the deploy gate catches has already reached main.
-  # `_site` and the font pack may not exist yet; size-report skips missing paths.
+  bash scripts/build-web.sh
+  gate_web_sdk_integrity
   bash scripts/size-report.sh --check
+}
+
+gate_web_sdk_integrity() {
+  want_node
+  node web/tools/sdk.mjs verify web/runtime --release --current --commit "$(git rev-parse HEAD)" --version "$(workspace_version)"
+}
+
+gate_text_parity() {
+  want_cargo; want_node; want_nix_shell 'text-parity'
+  gate_web_sdk_integrity
+  node scripts/text-parity.mjs web/runtime/runtime-manifest.json
+}
+
+gate_web_raster_proof() {
+  want_node
+  gate_web_sdk_integrity
+  node scripts/web-raster-proof.mjs web/runtime
+}
+
+# Hardware evidence gates run explicitly, outside the PR matrix. The harnesses
+# require WPR_GPU=1 and reject software adapters; performance also needs an idle
+# host, as documented in docs/performance_evaluation.md.
+gate_text_visual_parity() {
+  want_cargo; want_node; want_nix_shell 'text-visual-parity'
+  gate_web_sdk_integrity
+  node scripts/text-visual-parity.mjs
+}
+
+gate_web_performance() {
+  want_node; want_nix_shell 'web-performance'
+  gate_web_sdk_integrity
+  node scripts/web-runtime-perf.mjs
+}
+
+workspace_version() {
+  sed -nE '/^\[workspace\.package\]/,/^\[/s/^version = "([^"]+)".*/\1/p' Cargo.toml | head -1
+}
+
+gate_web_artifact_verify() {
+  want_node
+  node web/tools/sdk.mjs verify web/runtime --release --current --commit "${ANIMATIX_ARTIFACT_COMMIT:-$(git rev-parse HEAD)}" --version "$(workspace_version)"
+}
+
+gate_web_artifact_stage() {
+  gate_web_artifact_verify
+  rm -rf target/web-runtime-artifact
+  mkdir -p target/web-runtime-artifact
+  cp -RL web/runtime/. target/web-runtime-artifact/
+  node web/tools/sdk.mjs verify target/web-runtime-artifact --release
+}
+
+gate_web_artifact_restore() {
+  want_node
+  # Downloads stay separate from the public SDK until validation succeeds.
+  # A failed download can then safely fall back to a fresh source build.
+  node web/tools/sdk.mjs verify target/downloaded-web-runtime --release --current --commit "${ANIMATIX_ARTIFACT_COMMIT:-$(git rev-parse HEAD)}" --version "$(workspace_version)"
+  if [ -e web/runtime ] || [ -L web/runtime ]; then
+    echo 'error: refusing to overwrite an existing SDK during artifact restore' >&2
+    return 1
+  fi
+  cp -R target/downloaded-web-runtime web/runtime
+  gate_web_artifact_verify
+}
+
+gate_web_transactions() {
+  want_nix_shell 'web-transactions'
+  want_node; want_chromium
+  bash scripts/web-distribution-check.sh
 }
 
 gate_web_smoke() {
@@ -748,8 +827,8 @@ gate_dist_site() {
   bash scripts/dist-package.sh site
 }
 
-gate_dist_wasm() {
-  bash scripts/dist-package.sh wasm
+gate_dist_web_sdk() {
+  bash scripts/dist-package.sh web-sdk
 }
 
 # The version a shipped binary reports is the only proof the artifact matches the
@@ -767,21 +846,17 @@ check_binary() {
 }
 
 gate_dist_linux() {
-  want_nix_shell 'dist-linux'
-  local want="${ANIMATIX_RELEASE_VERSION:-}"
-  want="${want#v}"
-  # FFmpeg has to come from the dev shell: the pinned rsmpeg bindings regenerate
-  # against the headers nix provides (AGENTS.md, "Video Export"). Outside it,
-  # pkg-config finds no FFmpeg and a stale prebuilt binding.rs is used instead.
-  # A separate --target-dir because the `video` dependency graph rebuilds
-  # rsmpeg/rusty_ffmpeg; sharing target/release with the non-video gates makes
-  # each one clobber the other's build. `dist` applies fat LTO, panic=abort and
-  # symbol stripping; the explicit strip below is only a portable guard.
-  cargo build --profile dist --target-dir target-video-dist -p animatix-cli -p animatix-gui --features video
-  strip target-video-dist/dist/animatix target-video-dist/dist/animatix-gui
-  check_binary target-video-dist/dist/animatix "$want"
-  check_binary target-video-dist/dist/animatix-gui "$want"
-  bash scripts/dist-package.sh linux target-video-dist/dist
+  # The fixed Ubuntu 22.04 image supplies the baseline runtime ABI and private
+  # FFmpeg headers. Do not build portable artifacts inside the Nix dev shell.
+  command -v docker >/dev/null || { echo 'error: Docker is required for Linux distribution' >&2; return 1; }
+  bash scripts/dist-linux.sh target/dist-linux-package
+  bash scripts/dist-package.sh linux target/dist-linux-package
+  local label="${ANIMATIX_RELEASE_LABEL:-v$(workspace_version)}"
+  local unpacked=target/dist-linux-acceptance
+  rm -rf "$unpacked"
+  mkdir -p "$unpacked"
+  tar -xzf "dist/animatix-${label}-x86_64-linux-gnu-video.tar.gz" -C "$unpacked"
+  bash scripts/test-dist-linux.sh "$unpacked"
 }
 
 gate_dist_macos() {

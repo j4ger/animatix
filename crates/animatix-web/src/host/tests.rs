@@ -578,3 +578,291 @@ fn var_values_render_as_animatix_expression_text() {
     assert_eq!(vars::string_expr("two\nlines"), None);
     assert_eq!(vars::string_expr("tab\there"), None);
 }
+
+#[test]
+fn preparation_reuses_syntax_and_recomputes_variable_resources() {
+    let source = r#"
+let label = "before"
+#0.1s
+caption: Text, text: label, at: (100, 100)
+"#;
+    let first = prepare_document(
+        source,
+        &[],
+        &[("label".into(), "\"first\"".into())],
+        Some("https://example.test/scenes/demo.amx"),
+    );
+    let second = prepare_document(
+        source,
+        &[],
+        &[("label".into(), "\"second\"".into())],
+        Some("https://example.test/scenes/demo.amx"),
+    );
+    assert!(first.analysis.ok, "{:?}", first.analysis.diagnostics);
+    assert!(second.analysis.ok, "{:?}", second.analysis.diagnostics);
+    assert!(Arc::ptr_eq(&first.syntax, &second.syntax));
+    assert!(first.analysis.fonts.text.contains("first"));
+    assert!(second.analysis.fonts.text.contains("second"));
+}
+
+#[test]
+fn preparation_discovers_imports_and_resolves_relative_assets() {
+    let source = "import \"./component.amx\" as part\n#0.1s\npic: Image, url: \"./shared.png\", size: (10, 10)\n";
+    let url = Some("https://example.test/scenes/demo.amx");
+    let missing = prepare_document(source, &[], &[], url);
+    assert!(!missing.analysis.ok);
+    assert_eq!(missing.analysis.missing_imports, ["component.amx"]);
+    let modules = [(PathBuf::from("component.amx"), "export component Empty { }".to_owned())];
+    let prepared = prepare_document(source, &modules, &[], url);
+    assert!(prepared.analysis.ok, "{:?}", prepared.analysis.diagnostics);
+    assert!(prepared.analysis.assets.iter().any(|asset| asset.url
+        == "https://example.test/scenes/shared.png"
+        && asset.kind == "image"));
+}
+
+#[test]
+fn preparation_expands_exported_components_in_imported_scenes_for_resources() {
+    let source = r#"
+import "./scene.amx" as demo
+# Main
+#0.1s
+play demo.Intro
+"#;
+    let module = r#"
+pub component Card(title: Str) {
+  image: Image, url: "./card.png", size: (10, 10)
+  heading: Text, text: title, font_family: "Open Sans"
+}
+
+# Intro
+#0.1s
+card: Card, title: "Imported title"
+"#;
+    let url = Some("https://example.test/scenes/main.amx");
+    let modules = [(PathBuf::from("scene.amx"), module.to_owned())];
+    let prepared = prepare_document(source, &modules, &[], url);
+
+    assert!(prepared.analysis.ok, "{:?}", prepared.analysis.diagnostics);
+    assert!(
+        prepared.analysis.assets.iter().any(|asset| {
+            asset.url == "https://example.test/scenes/card.png" && asset.kind == "image"
+        }),
+        "assets: {:?}",
+        prepared.analysis.assets
+    );
+    assert!(
+        prepared.analysis.fonts.text.contains("Imported title"),
+        "fonts: {:?}",
+        prepared.analysis.fonts
+    );
+    assert!(
+        prepared.analysis.fonts.families.iter().any(|family| family == "Open Sans"),
+        "fonts: {:?}",
+        prepared.analysis.fonts
+    );
+}
+
+#[test]
+fn font_requirements_mark_rich_markup_for_emphasis_and_math_faces() {
+    let plain = prepare_document("#0.1s\nlabel: Text, text: \"plain\"\n", &[], &[], None);
+    assert!(!plain.analysis.fonts.rich_text);
+
+    for actor in ["Typst", "Math", "Code"] {
+        let source = format!("#0.1s\nlabel: {actor}, text: \"markup\"\n");
+        let prepared = prepare_document(&source, &[], &[], None);
+        assert!(prepared.analysis.fonts.rich_text, "{actor}: {:?}", prepared.analysis.fonts);
+    }
+}
+
+#[test]
+fn font_requirements_mark_generated_typst_text_dynamic_but_literal_text_static() {
+    for actor in ["Typst", "Math"] {
+        let source = format!("#0.1s\nlabel: {actor}, text: \"literal source\"\n");
+        let prepared = prepare_document(&source, &[], &[], None);
+        assert!(prepared.analysis.ok, "{:?}", prepared.analysis.diagnostics);
+        assert!(prepared.analysis.fonts.dynamic, "{actor}: {:?}", prepared.analysis.fonts);
+    }
+
+    for actor in ["Text", "Code"] {
+        let source = format!("#0.1s\nlabel: {actor}, text: \"literal source\"\n");
+        let prepared = prepare_document(&source, &[], &[], None);
+        assert!(prepared.analysis.ok, "{:?}", prepared.analysis.diagnostics);
+        assert!(!prepared.analysis.fonts.dynamic, "{actor}: {:?}", prepared.analysis.fonts);
+    }
+}
+
+#[test]
+fn preparation_collects_nonstandard_rendered_text_declarations_and_assignments() {
+    let source = r#"
+#0.1s
+counter: Counter, prefix: "第", suffix: "页"
+note: Callout, label: "提示"
+legend: Legend, title: "图例"
+series: Line, from: (0, 0), to: (1, 1), legend: "收入"
+series_q1: Line, from: (1, 1), to: (2, 2)
+plot: Graph, tick_labels: "both"
+counter.prefix = "计"
+note.label = "说明"
+legend.title = "指标"
+series.legend = "利润"
+"#;
+    let prepared = prepare_document(source, &[], &[], None);
+
+    assert!(prepared.analysis.ok, "{:?}", prepared.analysis.diagnostics);
+    let text = &prepared.analysis.fonts.text;
+    for expected in [
+        "第",
+        "页",
+        "提示",
+        "图例",
+        "收入",
+        "计",
+        "说明",
+        "指标",
+        "利润",
+        "Series Q1",
+    ] {
+        assert!(text.contains(expected), "missing {expected:?} in {text:?}");
+    }
+    assert!(!text.contains("both"), "tick-label mode is not rendered text: {text:?}");
+    assert!(!prepared.analysis.fonts.dynamic, "fonts: {:?}", prepared.analysis.fonts);
+}
+
+#[test]
+fn preparation_does_not_fetch_unrendered_legend_labels_or_modes() {
+    let source = r#"
+#0.1s
+shape: Rect, size: (10, 10), legend: "未展示"
+secret_label: Rect, size: (10, 10)
+hidden: Rect, size: (10, 10), legend: false
+plot: Graph, tick_labels: "auto"
+"#;
+    let prepared = prepare_document(source, &[], &[], None);
+
+    assert!(prepared.analysis.ok, "{:?}", prepared.analysis.diagnostics);
+    assert!(!prepared.analysis.fonts.text.contains("未展示"));
+    assert!(!prepared.analysis.fonts.text.contains("Secret Label"));
+    assert!(!prepared.analysis.fonts.text.contains("auto"));
+    assert!(!prepared.analysis.fonts.dynamic, "fonts: {:?}", prepared.analysis.fonts);
+}
+
+#[test]
+fn preparation_ignores_unplayed_imported_scenes_with_dynamic_assets() {
+    let source = r#"
+import "./scene.amx" as demo
+# Main
+#0.1s
+caption: Text, text: "No imported scene is played"
+"#;
+    let module = r#"
+# Unused
+#0.1s
+pic: Image, url: unresolved_asset, size: (10, 10)
+"#;
+    let prepared = prepare_document(
+        source,
+        &[(PathBuf::from("scene.amx"), module.to_owned())],
+        &[],
+        Some("https://example.test/scenes/main.amx"),
+    );
+
+    assert!(prepared.analysis.ok, "{:?}", prepared.analysis.diagnostics);
+    assert!(prepared.analysis.assets.is_empty(), "{:?}", prepared.analysis.assets);
+    assert!(
+        !prepared
+            .analysis
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "dynamic-asset"),
+        "unplayed scene diagnostics: {:?}",
+        prepared.analysis.diagnostics
+    );
+}
+
+#[test]
+fn preparation_follows_nested_play_targets_and_collects_reachable_assets() {
+    let source = r#"
+import "./scene.amx" as demo
+# Main
+#0.1s
+play demo.Intro
+"#;
+    let module = r#"
+import "./inner.amx" as inner
+# Intro
+#0.1s
+play demo.inner.Detail
+"#;
+    let nested = r#"
+# Detail
+#0.1s
+pic: Image, url: "./used.png", size: (10, 10)
+
+# Unused
+#0.1s
+bad: Image, url: unresolved_asset, size: (10, 10)
+"#;
+    let modules = [
+        (PathBuf::from("scene.amx"), module.to_owned()),
+        (PathBuf::from("inner.amx"), nested.to_owned()),
+    ];
+    let prepared =
+        prepare_document(source, &modules, &[], Some("https://example.test/scenes/main.amx"));
+
+    assert!(prepared.analysis.ok, "{:?}", prepared.analysis.diagnostics);
+    assert!(
+        prepared.analysis.assets.iter().any(|asset| {
+            asset.url == "https://example.test/scenes/used.png" && asset.kind == "image"
+        }),
+        "assets: {:?}",
+        prepared.analysis.assets
+    );
+    assert!(
+        !prepared
+            .analysis
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "dynamic-asset"),
+        "unplayed nested scene diagnostics: {:?}",
+        prepared.analysis.diagnostics
+    );
+}
+
+#[test]
+fn preparation_rejects_dynamic_asset_and_unknown_actor() {
+    let url = Some("https://example.test/scenes/demo.amx");
+    let dynamic =
+        prepare_document("#0.1s\npic: Image, url: unknown_source, size: (10, 10)\n", &[], &[], url);
+    assert!(!dynamic.analysis.ok);
+    assert!(
+        dynamic.analysis.diagnostics.iter().any(|d| d.code == "dynamic-asset"),
+        "{:?}",
+        dynamic.analysis.diagnostics
+    );
+    let unknown = prepare_document("#0.1s\nx: ImaginaryActor, at: (10, 10)\n", &[], &[], url);
+    assert!(!unknown.analysis.ok);
+    assert!(
+        unknown.analysis.diagnostics.iter().any(|d| d.code == "unknown-actor-type"),
+        "{:?}",
+        unknown.analysis.diagnostics
+    );
+}
+
+#[test]
+fn preparation_resolves_font_weight_names_before_selecting_faces() {
+    for (name, weight) in [
+        ("thin", 100.0),
+        ("medium", 500.0),
+        ("semibold", 600.0),
+        ("extrabold", 800.0),
+    ] {
+        let source = format!("#0.1s\nlabel: Text, text: \"Hello\", font_weight: \"{name}\"\n");
+        let prepared = prepare_document(&source, &[], &[], None);
+        assert!(prepared.analysis.ok, "{:?}", prepared.analysis.diagnostics);
+        assert!(
+            prepared.analysis.fonts.weights.contains(&weight),
+            "{name}: {:?}",
+            prepared.analysis.fonts.weights
+        );
+    }
+}

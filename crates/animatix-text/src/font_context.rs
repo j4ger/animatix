@@ -1,5 +1,12 @@
-use std::collections::HashMap;
+mod cache;
+
 #[cfg(feature = "rich-text")]
+use cache::cached_typst_font;
+#[cfg(feature = "rich-text")]
+pub(crate) use cache::collect_fallback_fonts;
+use cache::{cached_face_data, probe_char_face};
+
+use std::collections::HashMap;
 use std::sync::Arc;
 
 #[cfg(feature = "rich-text")]
@@ -19,26 +26,194 @@ pub struct FontContext {
     /// from the system faces in `db` so the fast path can fall back to the
     /// caller-provided font pack without scanning unrelated system fonts.
     pub(crate) registered_faces: Vec<fontdb::ID>,
-    /// Font-environment generation: memo keys include this value, so contexts
-    /// created after [`advance_font_env_epoch`] miss the stale-font cache.
-    pub(crate) epoch: u64,
+    pub(crate) include_bundled: bool,
+    /// Content fingerprint of the immutable base database inherited by this
+    /// context; overlays are folded into `font_set_id` separately.
+    base_font_digest: [u8; 32],
+    /// Content identity for the ordered font set visible to this context.
+    pub(crate) font_set_id: FontSetId,
 }
 
-/// Monotonic generation counter for the process font environment.
-static FONT_ENV_EPOCH: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+/// Stable content identity for one ordered font environment.
+///
+/// This intentionally excludes fontdb's process-local face ids: isolated font
+/// overlays can assign the same id to different bytes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct FontSetId(pub [u8; 32]);
 
-pub(crate) fn font_env_epoch() -> u64 {
-    std::sync::atomic::AtomicU64::load(&FONT_ENV_EPOCH, std::sync::atomic::Ordering::Relaxed)
+/// Owned font bytes and the index of a face inside a font collection.
+#[derive(Clone, Debug)]
+pub struct FontFaceData {
+    pub family: String,
+    pub bytes: std::sync::Arc<[u8]>,
+    pub face_index: u32,
+    pub id: Option<fontdb::ID>,
 }
 
-/// Declare that the process font environment changed and invalidate every
-/// memoized text compilation; contexts created afterwards carry the new epoch.
-pub fn advance_font_env_epoch() -> u64 {
-    use std::sync::atomic::Ordering;
-    let next = FONT_ENV_EPOCH.fetch_add(1, Ordering::Relaxed) + 1;
-    // Entries from older epochs can never be hit again; reclaim them now.
-    crate::compiler::clear_text_compile_cache();
-    next
+/// Validate that bytes contain at least one font face supported by fontdb.
+///
+/// Parsing happens in a temporary database so validation cannot mutate a
+/// process-wide font context or affect any registered font set.
+pub fn validate_supported_font_data(bytes: &[u8]) -> Result<(), &'static str> {
+    let mut database = fontdb::Database::new();
+    database.load_font_data(bytes.to_vec());
+    if database.faces().next().is_some() {
+        Ok(())
+    } else {
+        Err("font data contains no supported faces")
+    }
+}
+
+impl FontSetId {
+    fn for_context(
+        db: &fontdb::Database,
+        registered_faces: &[fontdb::ID],
+        base_font_digest: [u8; 32],
+        include_bundled: bool,
+    ) -> Self {
+        use sha2::{Digest, Sha256};
+
+        let mut hash = Sha256::new();
+        hash.update(
+            b"animatix-font-set-v3\0fallback:registered-overlay-then-bundled\0variation:wght-ital-slnt\0",
+        );
+        hash.update([u8::from(include_bundled)]);
+        if include_bundled {
+            hash.update(bundle_font_fingerprint());
+        }
+        hash.update(base_font_digest);
+
+        for id in registered_faces {
+            let Some(face) = db.face(*id) else { continue };
+            let family = face.families.first().map(|(name, _)| name.as_bytes()).unwrap_or_default();
+            hash.update((family.len() as u64).to_le_bytes());
+            hash.update(family);
+            hash.update(face.index.to_le_bytes());
+            hash.update(face.weight.0.to_le_bytes());
+            hash.update([match face.style {
+                fontdb::Style::Normal => 0,
+                fontdb::Style::Italic => 1,
+                fontdb::Style::Oblique => 2,
+            }]);
+            if let Some(bytes) = FontContext::face_data(db, *id) {
+                hash.update((bytes.len() as u64).to_le_bytes());
+                hash.update(Sha256::digest(bytes));
+            }
+        }
+        Self(hash.finalize().into())
+    }
+
+    fn database_fingerprint(db: &fontdb::Database) -> [u8; 32] {
+        use sha2::{Digest, Sha256};
+        let mut hash = Sha256::new();
+        let mut source_digests = HashMap::new();
+        hash.update(b"animatix-font-database-content-v1\0");
+        for face in db.faces() {
+            let Some(info) = db.face(face.id) else {
+                continue;
+            };
+            let family = info.families.first().map(|(name, _)| name.as_bytes()).unwrap_or_default();
+            hash.update((family.len() as u64).to_le_bytes());
+            hash.update(family);
+            hash.update(info.index.to_le_bytes());
+            hash.update(info.weight.0.to_le_bytes());
+            hash.update([match info.style {
+                fontdb::Style::Normal => 0,
+                fontdb::Style::Italic => 1,
+                fontdb::Style::Oblique => 2,
+            }]);
+            let (source, _) = db.face_source(face.id).expect("enumerated face has a source");
+            let key = match source {
+                fontdb::Source::Binary(data) => format!("binary:{:p}", Arc::as_ptr(&data)),
+                fontdb::Source::File(path) | fontdb::Source::SharedFile(path, _) => {
+                    format!("file:{}", path.display())
+                },
+            };
+            // Collections expose many faces with the same source. Hash their
+            // bytes once, while still recording every face and its ordering.
+            let digest = source_digests.entry(key).or_insert_with(|| {
+                FontContext::face_data(db, face.id)
+                    .map(|bytes| (bytes.len() as u64, <[u8; 32]>::from(Sha256::digest(bytes))))
+            });
+            if let Some((length, digest)) = digest {
+                hash.update(length.to_le_bytes());
+                hash.update(digest);
+            }
+        }
+        hash.finalize().into()
+    }
+}
+
+fn bundle_font_fingerprint() -> [u8; 32] {
+    static FINGERPRINT: std::sync::OnceLock<[u8; 32]> = std::sync::OnceLock::new();
+    *FINGERPRINT.get_or_init(|| {
+        use sha2::{Digest, Sha256};
+        let mut hash = Sha256::new();
+        // Bundle order is fallback order; identify each face by its content,
+        // metadata and collection index rather than fontdb's local id.
+        for face in BUNDLED_FONTS {
+            hash.update((face.family.len() as u64).to_le_bytes());
+            hash.update(face.family.as_bytes());
+            hash.update(face.weight.to_bits().to_le_bytes());
+            hash.update(face.style.as_bytes());
+            hash.update(0u32.to_le_bytes());
+            hash.update(Sha256::digest(face.data));
+        }
+        for face in VARIABLE_FONTS {
+            hash.update((face.family.len() as u64).to_le_bytes());
+            hash.update(face.family.as_bytes());
+            hash.update(face.weight.to_bits().to_le_bytes());
+            hash.update(face.style.as_bytes());
+            hash.update(0u32.to_le_bytes());
+            hash.update(Sha256::digest(face.data));
+        }
+        hash.finalize().into()
+    })
+}
+
+/// Shared owned copies of bundled bytes for hardware layouts. Static byte
+/// arrays cannot be represented as `Arc<[u8]>` without copying on every
+/// compile, so materialize each one exactly once.
+pub(crate) static SHARED_BUNDLED_FONT_DATA: std::sync::LazyLock<Vec<Arc<[u8]>>> =
+    std::sync::LazyLock::new(|| BUNDLED_FONTS.iter().map(|face| Arc::from(face.data)).collect());
+
+pub(crate) static SHARED_VARIABLE_FONT_DATA: std::sync::LazyLock<Vec<Arc<[u8]>>> =
+    std::sync::LazyLock::new(|| VARIABLE_FONTS.iter().map(|face| Arc::from(face.data)).collect());
+
+pub(crate) fn bundled_face_data(face: &'static BundledFont) -> FontFaceData {
+    let index = BUNDLED_FONTS
+        .iter()
+        .position(|candidate| std::ptr::eq(candidate, face))
+        .expect("bundled face is a member of BUNDLED_FONTS");
+    FontFaceData {
+        family: face.family.to_string(),
+        bytes: Arc::clone(&SHARED_BUNDLED_FONT_DATA[index]),
+        face_index: 0,
+        // Bundled face ids are local to this ordered bundle. The text cache
+        // additionally includes the bundle content in FontSetId.
+        id: None,
+    }
+}
+
+pub(crate) fn bundled_variable_face_data(
+    family: &str,
+    style: &str,
+    _weight: f32,
+) -> Option<FontFaceData> {
+    let want_italic = matches!(style, "italic" | "oblique");
+    for (index, face) in VARIABLE_FONTS.iter().enumerate() {
+        let face_italic = matches!(face.style, "italic" | "oblique");
+        if !face.family.eq_ignore_ascii_case(family) || face_italic != want_italic {
+            continue;
+        }
+        return Some(FontFaceData {
+            family: face.family.to_string(),
+            bytes: Arc::clone(&SHARED_VARIABLE_FONT_DATA[index]),
+            face_index: 0,
+            id: None,
+        });
+    }
+    None
 }
 
 /// Load (once) and cache the system font database for the whole process. The
@@ -53,6 +228,11 @@ pub(crate) fn system_fonts_db() -> &'static std::sync::Arc<fontdb::Database> {
     })
 }
 
+fn system_font_base_digest() -> [u8; 32] {
+    static DIGEST: std::sync::OnceLock<[u8; 32]> = std::sync::OnceLock::new();
+    *DIGEST.get_or_init(|| FontSetId::database_fingerprint(system_fonts_db()))
+}
+
 impl Default for FontContext {
     fn default() -> Self {
         Self::new()
@@ -60,12 +240,54 @@ impl Default for FontContext {
 }
 
 impl FontContext {
+    /// Create an isolated font context with no system or bundled faces.
+    ///
+    /// This is intended for deterministic callers that provide their complete
+    /// font set explicitly (for example, cross-target text parity probes).
+    pub fn empty() -> Self {
+        let db = std::sync::Arc::new(fontdb::Database::new());
+        let base_font_digest = FontSetId::database_fingerprint(&db);
+        let font_set_id = FontSetId::for_context(&db, &[], base_font_digest, false);
+        Self {
+            db,
+            registered_faces: Vec::new(),
+            include_bundled: false,
+            base_font_digest,
+            font_set_id,
+        }
+    }
+
     /// Create a new font context with system fonts loaded (shared process-wide).
     pub fn new() -> Self {
+        let db = std::sync::Arc::clone(system_fonts_db());
+        let base_font_digest = system_font_base_digest();
+        let font_set_id =
+            FontSetId::for_context(&db, &[], base_font_digest, cfg!(feature = "bundled-fonts"));
         Self {
-            db: std::sync::Arc::clone(system_fonts_db()),
+            db,
             registered_faces: Vec::new(),
-            epoch: font_env_epoch(),
+            include_bundled: cfg!(feature = "bundled-fonts"),
+            base_font_digest,
+            font_set_id,
+        }
+    }
+
+    /// Identity of this context's fonts and fallback ordering.
+    pub fn font_set_id(&self) -> FontSetId {
+        self.font_set_id
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_database(db: std::sync::Arc<fontdb::Database>) -> Self {
+        let base_font_digest = FontSetId::database_fingerprint(&db);
+        let font_set_id =
+            FontSetId::for_context(&db, &[], base_font_digest, cfg!(feature = "bundled-fonts"));
+        Self {
+            db,
+            registered_faces: Vec::new(),
+            include_bundled: cfg!(feature = "bundled-fonts"),
+            base_font_digest,
+            font_set_id,
         }
     }
 
@@ -76,6 +298,27 @@ impl FontContext {
     /// `_italic_`, and `font_weight`/`font_style` variants fell back to regular.
     /// Returns regular + bold + italic + bold-italic faces, empty if none.
     pub(crate) fn load_font_emphasis_faces(&self, family: &str) -> Vec<Font> {
+        // Explicitly registered fonts are an overlay, not another source to
+        // merge with the host database. Return every registered face in reverse
+        // registration order: Typst retains the first equally ranked face, which
+        // matches the fast path's latest-registration-wins policy for exact ties.
+        let registered: Vec<Font> = self
+            .registered_faces
+            .iter()
+            .rev()
+            .filter_map(|id| {
+                let face = self.db.face(*id)?;
+                if !face.families.iter().any(|(name, _)| name.eq_ignore_ascii_case(family)) {
+                    return None;
+                }
+                let data = Self::face_data(&self.db, *id)?;
+                Font::new(Bytes::new(data), face.index)
+            })
+            .collect();
+        if !registered.is_empty() {
+            return registered;
+        }
+
         let combos = [
             (fontdb::Weight::NORMAL, fontdb::Style::Normal),
             (fontdb::Weight::BOLD, fontdb::Style::Normal),
@@ -115,13 +358,64 @@ impl FontContext {
         out
     }
 
-    pub(crate) fn has_family(&self, family: &str) -> bool {
-        self.db
-            .query(&fontdb::Query {
-                families: &[fontdb::Family::Name(family)],
-                ..Default::default()
+    #[cfg(feature = "rich-text")]
+    pub(crate) fn registered_typst_fonts(&self) -> Vec<Font> {
+        let mut families: Vec<(String, Vec<Font>)> = Vec::new();
+        let mut seen_ids = std::collections::HashSet::new();
+        for id in &self.registered_faces {
+            if !seen_ids.insert(*id) {
+                continue;
+            }
+            let Some(font) = cached_typst_font(self, *id) else {
+                continue;
+            };
+            let family = font.info().family.clone();
+            let position = families.iter().position(|(name, _)| name.eq_ignore_ascii_case(&family));
+            let group = match position {
+                Some(position) => &mut families[position].1,
+                None => {
+                    families.push((family, Vec::new()));
+                    &mut families.last_mut().expect("just pushed a family").1
+                },
+            };
+            group.push(font);
+        }
+
+        families
+            .into_iter()
+            .flat_map(|(_, mut faces)| {
+                faces.reverse();
+                faces
             })
-            .is_some()
+            .collect()
+    }
+
+    #[cfg(feature = "rich-text")]
+    pub(crate) fn registered_family_names(&self) -> Vec<String> {
+        let mut families = Vec::new();
+        for id in &self.registered_faces {
+            if let Some(face) = self.db.face(*id) {
+                for (name, _) in &face.families {
+                    if !families.iter().any(|existing: &String| existing.eq_ignore_ascii_case(name))
+                    {
+                        families.push(name.clone());
+                    }
+                }
+            }
+        }
+        families
+    }
+
+    pub(crate) fn has_family(&self, family: &str) -> bool {
+        (self.include_bundled
+            && BUNDLED_FONTS.iter().any(|font| font.family.eq_ignore_ascii_case(family)))
+            || self
+                .db
+                .query(&fontdb::Query {
+                    families: &[fontdb::Family::Name(family)],
+                    ..Default::default()
+                })
+                .is_some()
     }
 
     /// Return at most one regular system face per probe character. Startup-only;
@@ -200,6 +494,9 @@ impl FontContext {
                 self.db.face(face.id)?.families.first().map(|(name, _)| name.clone())
             })
             .collect();
+        if self.include_bundled {
+            names.extend(BUNDLED_FONTS.iter().map(|font| font.family.to_string()));
+        }
         names.sort();
         names.dedup();
         names
@@ -217,23 +514,39 @@ impl FontContext {
     /// Register a batch of in-memory fonts so `font_family` can name them.
     ///
     /// Cloning the font database is the expensive part of registration, so a
-    /// batch pays it once and advances the font-environment epoch once instead
+    /// batch pays it once and computes the font-set content identity once instead
     /// of once per face. Empty batches are a no-op and do not invalidate the
     /// memoized text compilation cache.
     pub fn load_fonts<I>(&mut self, fonts: I)
     where
         I: IntoIterator<Item = Vec<u8>>,
     {
+        self.load_font_data(fonts.into_iter().map(Arc::<[u8]>::from));
+    }
+
+    /// Register shared font bytes without an extra copy. The database still
+    /// builds its own face records; the Arc keeps source data alive for every
+    /// service that borrows or shares the registered face.
+    pub fn load_font_data<I>(&mut self, fonts: I)
+    where
+        I: IntoIterator<Item = Arc<[u8]>>,
+    {
         let mut db = (*self.db).clone();
         let mut loaded = Vec::new();
         for bytes in fonts {
-            let ids = db.load_font_source(fontdb::Source::Binary(std::sync::Arc::new(bytes)));
+            let source: std::sync::Arc<dyn AsRef<[u8]> + Send + Sync> = std::sync::Arc::new(bytes);
+            let ids = db.load_font_source(fontdb::Source::Binary(source));
             loaded.extend(ids);
         }
         if !loaded.is_empty() {
             self.registered_faces.extend(loaded);
             self.db = std::sync::Arc::new(db);
-            self.epoch = advance_font_env_epoch();
+            self.font_set_id = FontSetId::for_context(
+                &self.db,
+                &self.registered_faces,
+                self.base_font_digest,
+                self.include_bundled,
+            );
         }
     }
 
@@ -242,34 +555,14 @@ impl FontContext {
         self.load_fonts(std::iter::once(bytes));
     }
 
-    /// Load a `ttf_parser::Face`; `None` if missing or not TrueType/OpenType.
-    pub fn load_face(
-        &self,
-        family: &str,
-        weight: f32,
-        style: &str,
-    ) -> Option<ttf_parser::Face<'static>> {
-        let fontdb_style = match style {
-            "italic" | "oblique" => fontdb::Style::Italic,
-            _ => fontdb::Style::Normal,
-        };
-        let id = self.db.query(&fontdb::Query {
-            families: &[fontdb::Family::Name(family)],
-            weight: fontdb::Weight(weight.round() as u16),
-            style: fontdb_style,
-            ..Default::default()
-        })?;
-        let data = leaked_face_data(self, id)?;
-        ttf_parser::Face::parse(data, 0).ok()
+    /// Load owned data for a queried face; callers parse it only while the
+    /// returned Arc is alive, so font bytes never need to be leaked.
+    pub fn load_face(&self, family: &str, weight: f32, style: &str) -> Option<FontFaceData> {
+        self.load_face_data(family, weight, style)
     }
 
     /// Load the raw face bytes and face index for a queried font.
-    pub fn load_face_data(
-        &self,
-        family: &str,
-        weight: f32,
-        style: &str,
-    ) -> Option<(&'static [u8], u32)> {
+    pub fn load_face_data(&self, family: &str, weight: f32, style: &str) -> Option<FontFaceData> {
         let fontdb_style = match style {
             "italic" | "oblique" => fontdb::Style::Italic,
             _ => fontdb::Style::Normal,
@@ -280,196 +573,100 @@ impl FontContext {
             style: fontdb_style,
             ..Default::default()
         })?;
-        let data = leaked_face_data(self, id)?;
-        let face_index = self.db.face(id).map(|f| f.index).unwrap_or(0);
-        Some((data, face_index))
+        let face = self.db.face(id)?;
+        Some(FontFaceData {
+            family: family.to_string(),
+            bytes: cached_face_data(self, id)?,
+            face_index: face.index,
+            id: Some(id),
+        })
+    }
+
+    /// Prefer an explicitly registered family over the process defaults.
+    /// Variable faces keep the same continuous weight behavior on native/web.
+    pub(crate) fn registered_face_data(
+        &self,
+        family: &str,
+        weight: f32,
+        style: &str,
+    ) -> Option<FontFaceData> {
+        let italic = matches!(style, "italic" | "oblique");
+        self.registered_faces
+            .iter()
+            .rev()
+            .filter_map(|id| {
+                let info = self.db.face(*id)?;
+                if !info.families.iter().any(|(name, _)| name.eq_ignore_ascii_case(family)) {
+                    return None;
+                }
+                let data = FontFaceData {
+                    family: family.into(),
+                    bytes: cached_face_data(self, *id)?,
+                    face_index: info.index,
+                    id: Some(*id),
+                };
+                let face = ttf_parser::Face::parse(&data.bytes, data.face_index).ok()?;
+                let wrong_style = face.is_italic() != italic;
+                let axis = face
+                    .variation_axes()
+                    .into_iter()
+                    .find(|axis| axis.tag == ttf_parser::Tag::from_bytes(b"wght"));
+                let distance = if let Some(axis) = axis {
+                    (weight - weight.clamp(axis.min_value, axis.max_value)).abs()
+                } else {
+                    (face.weight().to_number() as f32 - weight).abs()
+                };
+                Some(((wrong_style, distance), data))
+            })
+            .min_by(|(left, _), (right, _)| {
+                left.0.cmp(&right.0).then_with(|| left.1.total_cmp(&right.1))
+            })
+            .map(|(_, data)| data)
+    }
+
+    /// Find a system fallback only for characters absent from prepared faces.
+    /// The probe and face bytes are bounded, font-environment-specific caches.
+    pub(crate) fn fallback_face_for_char(&self, ch: char) -> Option<FontFaceData> {
+        let id = probe_char_face(self, ch)?;
+        let info = self.db.face(id)?;
+        Some(FontFaceData {
+            family: info.families.first()?.0.clone(),
+            bytes: cached_face_data(self, id)?,
+            face_index: info.index,
+            id: Some(id),
+        })
+    }
+
+    pub(crate) fn fallback_face_for_cluster(&self, chars: &[char]) -> Option<FontFaceData> {
+        let id = cache::probe_cluster_face(self, chars)?;
+        let info = self.db.face(id)?;
+        Some(FontFaceData {
+            family: info.families.first()?.0.clone(),
+            bytes: cached_face_data(self, id)?,
+            face_index: info.index,
+            id: Some(id),
+        })
     }
 
     /// Faces registered through [`Self::load_fonts`], in registration order.
     /// The fast path uses these as fallback when no bundled static faces are
     /// compiled in (the web font-pack build).
-    pub(crate) fn loaded_faces(&self) -> Vec<LoadedFace> {
+    pub(crate) fn loaded_faces(&self) -> Vec<FontFaceData> {
         self.registered_faces
             .iter()
             .filter_map(|id| {
                 let face = self.db.face(*id)?;
                 let family = face.families.first()?.0.clone();
-                let data = leaked_face_data(self, *id)?;
-                Some(LoadedFace {
+                let data = cached_face_data(self, *id)?;
+                Some(FontFaceData {
                     family,
-                    data,
-                    index: face.index,
+                    bytes: data,
+                    face_index: face.index,
+                    id: Some(*id),
                 })
             })
             .collect()
     }
-}
-
-// System glyph-fallback fonts
-
-/// Process-wide cache: character → first installed face covering it. `None`
-/// caches a known-uncovered char so repeated compiles skip the scan.
-#[cfg(feature = "rich-text")]
-fn char_face_cache() -> &'static std::sync::Mutex<HashMap<char, Option<fontdb::ID>>> {
-    static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<char, Option<fontdb::ID>>>> =
-        std::sync::OnceLock::new();
-    CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
-}
-
-/// Shared face data keyed by fontdb face id.
-#[cfg(feature = "rich-text")]
-type FaceData = Option<Arc<[u8]>>;
-
-/// Process-wide cache: fontdb face id → shared face data.
-#[cfg(feature = "rich-text")]
-fn face_data_cache() -> &'static std::sync::Mutex<HashMap<fontdb::ID, FaceData>> {
-    static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<fontdb::ID, FaceData>>> =
-        std::sync::OnceLock::new();
-    CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
-}
-
-#[cfg(feature = "rich-text")]
-/// Process-wide cache: fontdb face id → constructed Typst font.
-fn typst_font_cache() -> &'static std::sync::Mutex<HashMap<fontdb::ID, Font>> {
-    static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<fontdb::ID, Font>>> =
-        std::sync::OnceLock::new();
-    CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
-}
-
-/// Process-wide cache: fontdb face id → `'static` view of the face bytes.
-/// `load_face` returns `Face<'static>` because callers hold it across frames, so
-/// the allocation must live for the process and is memoized per face id.
-pub(crate) fn leaked_face_data(font_ctx: &FontContext, id: fontdb::ID) -> Option<&'static [u8]> {
-    static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<fontdb::ID, &'static [u8]>>> =
-        std::sync::OnceLock::new();
-    let mut cache = CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new())).lock().unwrap();
-    if let Some(data) = cache.get(&id) {
-        return Some(*data);
-    }
-    let data: &'static [u8] =
-        Box::leak(FontContext::face_data(&font_ctx.db, id)?.into_boxed_slice());
-    cache.insert(id, data);
-    Some(data)
-}
-
-/// Shared copy of a system face's bytes (loaded once per process).
-#[cfg(feature = "rich-text")]
-fn cached_face_data(font_ctx: &FontContext, id: fontdb::ID) -> Option<Arc<[u8]>> {
-    let mut cache = face_data_cache().lock().unwrap();
-    if let Some(data) = cache.get(&id) {
-        return data.clone();
-    }
-    let data = FontContext::face_data(&font_ctx.db, id).map(Arc::from);
-    cache.insert(id, data.clone());
-    data
-}
-
-/// Whether a parsed face can render `ch`.
-#[cfg(feature = "rich-text")]
-fn face_covers_char(data: &[u8], index: u32, ch: char) -> bool {
-    ttf_parser::Face::parse(data, index)
-        .map(|face| face.glyph_index(ch).is_some())
-        .unwrap_or(false)
-}
-
-/// Find the first installed face covering `ch`, preferring normal weight and
-/// style, non-monospaced faces. Cached per character.
-#[cfg(feature = "rich-text")]
-fn probe_char_face(font_ctx: &FontContext, ch: char) -> Option<fontdb::ID> {
-    if let Some(cached) = char_face_cache().lock().unwrap().get(&ch) {
-        return *cached;
-    }
-    let db = &font_ctx.db;
-    let mut found: Option<fontdb::ID> = None;
-    'passes: for prefer_plain in [true, false] {
-        for face in db.faces() {
-            let matches = if prefer_plain {
-                face.style == fontdb::Style::Normal
-                    && face.weight == fontdb::Weight::NORMAL
-                    && !face.monospaced
-            } else {
-                face.style == fontdb::Style::Normal && !face.monospaced
-            };
-            if !matches {
-                continue;
-            }
-            let Some(data) = cached_face_data(font_ctx, face.id) else {
-                continue;
-            };
-            if face_covers_char(data.as_ref(), face.index, ch) {
-                found = Some(face.id);
-                break 'passes;
-            }
-        }
-    }
-    char_face_cache().lock().unwrap().insert(ch, found);
-    found
-}
-
-#[cfg(feature = "rich-text")]
-/// Construct (or fetch from cache) a Typst font for a system face.
-fn cached_typst_font(font_ctx: &FontContext, id: fontdb::ID) -> Option<Font> {
-    let mut cache = typst_font_cache().lock().unwrap();
-    if let Some(font) = cache.get(&id) {
-        return Some(font.clone());
-    }
-    let data = cached_face_data(font_ctx, id)?;
-    let index = font_ctx.db.face(id)?.index;
-    let font = Font::new(Bytes::new(data), index)?;
-    cache.insert(id, font.clone());
-    Some(font)
-}
-
-#[cfg(feature = "rich-text")]
-/// Collect Typst fonts covering characters of `content` the primary family
-/// cannot render (CJK, Cyrillic, ...), without requiring `font_family`.
-/// Bounded at 8 fallback faces per compile; results are cached per face id.
-pub(crate) fn collect_fallback_fonts(
-    font_ctx: &FontContext,
-    content: &str,
-    primary_family: &str,
-    primary_weight: f32,
-    primary_style: &str,
-) -> Vec<Font> {
-    // Resolve the primary face through shared cached data (`load_face` leaks).
-    let fontdb_style = match primary_style {
-        "italic" | "oblique" => fontdb::Style::Italic,
-        _ => fontdb::Style::Normal,
-    };
-    let primary_id = font_ctx.db.query(&fontdb::Query {
-        families: &[fontdb::Family::Name(primary_family)],
-        weight: fontdb::Weight(primary_weight.round() as u16),
-        style: fontdb_style,
-        ..Default::default()
-    });
-    let primary = primary_id.and_then(|id| {
-        let index = font_ctx.db.face(id)?.index;
-        let data = cached_face_data(font_ctx, id)?;
-        Some((data, index))
-    });
-
-    let mut ids: Vec<fontdb::ID> = Vec::new();
-    for ch in content.chars() {
-        if ch.is_whitespace() {
-            continue;
-        }
-        let covered = primary
-            .as_ref()
-            .map(|(data, index)| face_covers_char(data, *index, ch))
-            .unwrap_or(false);
-        if covered {
-            continue;
-        }
-        if let Some(id) = probe_char_face(font_ctx, ch)
-            && !ids.contains(&id)
-        {
-            ids.push(id);
-        }
-        if ids.len() >= 8 {
-            break;
-        }
-    }
-    ids.iter().filter_map(|id| cached_typst_font(font_ctx, *id)).collect()
 }
 
 // Font bundle
@@ -484,13 +681,6 @@ pub(crate) struct BundledFont {
     pub(crate) data: &'static [u8],
     pub(crate) weight: f32,
     pub(crate) style: &'static str,
-}
-
-/// One face explicitly registered at runtime, for fast-path fallback.
-pub(crate) struct LoadedFace {
-    pub(crate) family: String,
-    pub(crate) data: &'static [u8],
-    pub(crate) index: u32,
 }
 
 /// The bundled face of `family` answering a weight/style query: style decides
@@ -508,8 +698,8 @@ pub(crate) fn bundled_face(family: &str, weight: f32, style: &str) -> Option<&'s
 /// Fonts embedded at compile time. Add new fonts here.
 pub(crate) static BUNDLED_FONTS: &[BundledFont] = &[
     // Open Sans static faces (Apache-2.0; provenance/SHA-256 in
-    // assets/fonts/README.md). `ttf-parser` reads `fvar` but never applies
-    // deltas, so the fast path needs static weights.
+    // assets/fonts/README.md). Static faces remain available to the rich
+    // compiler; ordinary text instances VARIABLE_FONTS consistently.
     #[cfg(feature = "bundled-fonts")]
     BundledFont {
         family: "Open Sans",
@@ -528,8 +718,7 @@ pub(crate) static BUNDLED_FONTS: &[BundledFont] = &[
         style: "normal",
     },
     // Not rich-text-gated: plain-Latin titles on the slim embed ask for bold
-    // (~220 KB). The italic faces stay gated; only a non-embedded example uses
-    // italics.
+    // (~220 KB). Ordinary text also supports italic in every build.
     #[cfg(feature = "bundled-fonts")]
     BundledFont {
         family: "Open Sans",
@@ -537,23 +726,20 @@ pub(crate) static BUNDLED_FONTS: &[BundledFont] = &[
         weight: 700.0,
         style: "normal",
     },
-    // Gated: the slim build ships Regular alone, so `bundled_face` cannot reach it.
-    #[cfg(all(feature = "rich-text", feature = "bundled-fonts"))]
+    #[cfg(feature = "bundled-fonts")]
     BundledFont {
         family: "Open Sans",
         data: include_bytes!("../assets/fonts/OpenSans-Italic.ttf"),
         weight: 400.0,
         style: "italic",
     },
-    // Gated: the slim build ships Regular alone, so `bundled_face` cannot reach it.
-    #[cfg(all(feature = "rich-text", feature = "bundled-fonts"))]
+    #[cfg(feature = "bundled-fonts")]
     BundledFont {
         family: "Open Sans",
         data: include_bytes!("../assets/fonts/OpenSans-BoldItalic.ttf"),
         weight: 700.0,
         style: "italic",
     },
-    // Gated: the slim build ships Regular alone, so `bundled_face` cannot reach it.
     #[cfg(all(feature = "rich-text", feature = "bundled-fonts"))]
     BundledFont {
         family: "Fira Math",
@@ -600,7 +786,6 @@ pub(crate) static VARIABLE_FONT_FACES: std::sync::LazyLock<Vec<Font>> = std::syn
     },
 );
 
-#[cfg(feature = "rich-text")]
 pub(crate) static VARIABLE_FONTS: &[BundledFont] = &[
     #[cfg(feature = "bundled-fonts")]
     BundledFont {
@@ -626,7 +811,7 @@ pub fn resolve_font_family(requested: &str, font_ctx: &FontContext) -> String {
     }
 
     // Exact case-insensitive match among bundled fonts.
-    for bf in BUNDLED_FONTS {
+    for bf in BUNDLED_FONTS.iter().filter(|_| font_ctx.include_bundled) {
         if bf.family.eq_ignore_ascii_case(requested) {
             return bf.family.to_string();
         }
@@ -641,9 +826,27 @@ pub fn resolve_font_family(requested: &str, font_ctx: &FontContext) -> String {
 
 /// Return a sorted list of all available font family names (bundled + system).
 pub fn available_font_families(font_ctx: &FontContext) -> Vec<String> {
-    let mut families: Vec<String> = BUNDLED_FONTS.iter().map(|bf| bf.family.to_string()).collect();
+    let mut families: Vec<String> = if font_ctx.include_bundled {
+        BUNDLED_FONTS.iter().map(|bf| bf.family.to_string()).collect()
+    } else {
+        Vec::new()
+    };
     families.extend(font_ctx.families());
     families.sort();
     families.dedup();
     families
+}
+
+#[cfg(test)]
+mod supported_font_data_tests {
+    use super::validate_supported_font_data;
+
+    #[test]
+    fn validates_supported_faces_without_accepting_empty_or_corrupt_data() {
+        let valid = include_bytes!("../assets/fonts/OpenSans-Regular.ttf");
+        assert!(validate_supported_font_data(valid).is_ok());
+        assert!(validate_supported_font_data(&[]).is_err());
+        assert!(validate_supported_font_data(b"<!doctype html><html>not a font</html>").is_err());
+        assert!(validate_supported_font_data(&valid[..valid.len() / 2]).is_err());
+    }
 }

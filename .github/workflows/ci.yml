@@ -24,6 +24,12 @@ on:
   push:
     branches: [main]
   workflow_call:
+    inputs:
+      checkout-ref:
+        description: Commit or tag to validate
+        required: false
+        type: string
+        default: ''
 
 env:
   CARGO_TERM_COLOR: always
@@ -51,7 +57,10 @@ jobs:
         with:
           # The changed-path filter needs the base commit, not a shallow tip.
           fetch-depth: 0
+          ref: ${{ inputs.checkout-ref || github.ref }}
       - id: changed
+        env:
+          CHECKOUT_REF: ${{ inputs.checkout-ref }}
         # The wasm build is the minutes-long job; skip it only when nothing that
         # can affect the engine bundles changed. Unknown base or a called
         # workflow (release) means "run it": a skipped correctness gate is worse
@@ -59,8 +68,8 @@ jobs:
         run: |
           base="${{ github.event.pull_request.base.sha || github.event.before }}"
           changed=true
-          if [ -n "$base" ] && [ "$base" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$base^{commit}" 2>/dev/null; then
-            if git diff --quiet "$base" HEAD -- crates web Cargo.toml Cargo.lock flake.nix flake.lock .cargo scripts .github/workflows; then
+          if [ -z "$CHECKOUT_REF" ] && [ -n "$base" ] && [ "$base" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$base^{commit}" 2>/dev/null; then
+            if git diff --quiet "$base" HEAD -- crates tools packaging web Cargo.toml Cargo.lock flake.nix flake.lock .cargo scripts .github/workflows; then
               changed=false
             fi
           fi
@@ -95,6 +104,7 @@ jobs:
           # and fetching it for all of them is cheaper than a conditional that a
           # later gate has to remember to keep in sync.
           fetch-depth: 0
+          ref: ${{ inputs.checkout-ref || github.ref }}
 
       # Nix source fallback can realize large native dependency closures; the
       # runner image's preinstalled Android/.NET/GHC toolchains are not used by
@@ -165,19 +175,15 @@ jobs:
             *)   scripts/ci.sh gate $GATE ;;
           esac
 
-      # Pages deploys from a fresh checkout and cannot see this job's target/.
-      # Hand it the built runtime instead of rebuilding the wasm bundles and
-      # font pack there; that also keeps the deploy from re-running the
-      # software-GPU browser smoke (CI is the gate for this exact commit).
+      # Upload real files rather than the local build's target/ symlink.
+      - name: Stage verified web SDK
+        if: contains(matrix.gate, 'web-build')
+        run: scripts/ci.sh gate web-artifact-stage
+
       - name: Upload web runtime
-        if: matrix.gate == 'web-build web-smoke'
+        if: contains(matrix.gate, 'web-build')
         uses: actions/upload-artifact@v4
         with:
           name: web-runtime
-          path: |
-            web/pkg-slim
-            web/pkg-assets
-            web/embed/amx-player.js
-            web/fonts
-          include-hidden-files: true
+          path: target/web-runtime-artifact/
           if-no-files-found: error

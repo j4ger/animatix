@@ -33,8 +33,8 @@ fn scene_image(image: image::DynamicImage) -> SceneImage {
 /// Load an image from disk into a `SceneImage`.
 #[cfg(feature = "image-decode")]
 pub fn load_image(path: &str) -> Result<SceneImage, String> {
-    let image = image::open(path).map_err(|error| error.to_string())?;
-    Ok(scene_image(image))
+    let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
+    load_image_from_bytes(&bytes)
 }
 
 /// Alias for load_image to match the naming convention used in assets.rs
@@ -47,6 +47,11 @@ pub fn load_image_file(path: &str) -> Result<SceneImage, String> {
 /// fetches the encoded bytes and hands them over).
 #[cfg(feature = "image-decode")]
 pub fn load_image_from_bytes(bytes: &[u8]) -> Result<SceneImage, String> {
+    super::media_capability::image(bytes)
+}
+
+#[cfg(feature = "image-decode")]
+pub(super) fn decode_bytes(bytes: &[u8]) -> Result<SceneImage, String> {
     let image = image::load_from_memory(bytes).map_err(|error| error.to_string())?;
     Ok(scene_image(image))
 }

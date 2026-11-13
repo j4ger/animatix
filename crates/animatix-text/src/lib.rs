@@ -12,23 +12,30 @@ pub mod compiler;
 pub mod fast_layout;
 pub mod font_context;
 pub mod request;
+mod rich_capability;
+#[cfg(target_arch = "wasm32")]
+pub use rich_capability::activate_rich_capability;
 pub mod transcript;
-pub mod typst_world;
+mod typst_world;
 
 pub use compiler::*;
 pub use fast_layout::*;
 pub use font_context::*;
 pub use request::*;
-pub use typst_world::*;
+#[cfg(test)]
+#[allow(unused_imports)]
+pub(crate) use typst_world::*;
+pub use typst_world::{
+    HighlightPalette, center_text_paths, compute_split_mask_clip, is_cjk_char, is_latin_text,
+    is_plain_text, measure_text_paths, missing_text_glyphs, parse_font_weight,
+};
 
 pub use kurbo::Shape;
 
 // Crate-internal re-exports for existing unit tests
 #[cfg(test)]
 #[allow(unused_imports)]
-pub(crate) use font_context::{
-    BUNDLED_FONTS, BundledFont, bundled_face, font_env_epoch, leaked_face_data, system_fonts_db,
-};
+pub(crate) use font_context::{BUNDLED_FONTS, BundledFont, bundled_face, system_fonts_db};
 
 /// A glyph path extracted from text, with color and opacity.
 #[derive(Debug, Clone)]

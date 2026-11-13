@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>amx-player profile &amp; quality probe</title>
+  <title>amx-player capability &amp; quality probe</title>
   <style>
     body { background: #0a0f17; color: #e2e7ee; font: 14px system-ui; margin: 0; padding: 40px; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
@@ -11,13 +11,11 @@
   </style>
 </head>
 <body>
-  <h1>Profile &amp; quality probe</h1>
+  <h1>Capability &amp; quality probe</h1>
   <pre id="report">waiting…</pre>
   <div class="row">
-    <!-- no profile attr: defaults to slim; plain-text scene fits -->
-    <div><div>default (slim)</div><amx-player src="../../demos/transformer/scenes/tokens.amx" autoplay loop title="slim default"></amx-player></div>
-    <!-- profile="assets": the smallest package with the Svg actor -->
-    <div><div>profile="assets"</div><amx-player src="scene.amx" profile="assets" autoplay loop title="assets profile"></amx-player></div>
+    <div><div>plain text</div><amx-player src="../../demos/transformer/scenes/tokens.amx" autoplay loop title="plain text"></amx-player></div>
+    <div><div>SVG capability</div><amx-player src="scene.amx" autoplay loop title="SVG capability"></amx-player></div>
   </div>
   <div class="row">
     <!-- quality: same plot scene at the two ends of the build-quality range -->
@@ -25,8 +23,8 @@
     <div><div>quality="production"</div><amx-player src="scene-quality.amx" quality="production" autoplay loop title="production"></amx-player></div>
   </div>
 
-  <script type="module" src="../../embed/amx-player.js"></script>
-  <!-- no data-runtime-base: default parent dir → pkg-slim for slim, pkg-assets for assets -->
+  <script type="module" src="../../runtime/amx-player.js"></script>
+  <!-- Both scenes use the same SDK; only the SVG scene needs its media chunk. -->
 
   <script type="module">
     const report = { errors: [], wasmFetches: null };

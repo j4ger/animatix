@@ -1008,6 +1008,32 @@ crates/
 └── eparts/                # Themed egui widget framework
 ```
 
+The browser player is distributed as one SDK package with a `runtime-manifest.json`
+that identifies the versioned engine modules, font faces, and optional capability
+chunks. Playback loads the shared runtime; rich text, media decoding, and raster
+encoding are activated on demand. This is one runtime with lazy capabilities,
+not separate slim/assets/full engines. Scene loading prepares imports, assets,
+fonts, and required capabilities before building the replacement document.
+
+The player shell treats a load or in-place document update as a generation-scoped
+transaction. New source, font, quality, or variable operations supersede older
+work; fetches receive an abort signal where they are operation-owned, and the
+generation check prevents a stale completion from replacing the current scene.
+An in-place build installs only after preparation and build succeed, preserving
+the last committed document on failure. `setVars()` batches writes during its
+debounce interval and settles all promises for that batch on success or failure.
+Detaching an element is a reparentable lifecycle event, while explicit
+`destroy()` invalidates operations and releases player resources.
+
+The SDK manifest describes the entry module, core Wasm, optional capability
+chunks, and font faces with content hashes and sizes. The JavaScript entry is
+loaded through a Subresource Integrity module script. Wasm and capability files
+are size/hash checked before instantiation; font bytes are shared in a bounded
+page cache, with cancellation reference-counted across consumers. Capability
+chunks are page-shared and initialized only after their required files load and
+verify. The build and archive verifiers also reject unlisted SDK files, so the
+same complete package can be staged for a site or shipped as a standalone SDK.
+
 ### Shared Walk Layer
 
 The `walk.rs` module in `animatix-syntax` provides shared AST traversal primitives

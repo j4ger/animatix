@@ -1,21 +1,16 @@
 //! Parse → typecheck → expand → build the document the player installs.
 
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use animatix::composition::BuildTarget;
-use animatix::extension_context::ExtensionContext;
 use animatix::renderer::text::FontContext;
 use animatix::timeline::assets::AssetCache;
 use animatix::timeline::{BuildOptions, BuildQuality, SceneDimensions};
-use animatix_core::features::FeatureMask;
-use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
-use animatix_syntax::module::{ModuleError, ModuleGraph, Namespace, SourceAccess};
 
 use crate::dto::{DiagnosticDto, LoadResultDto};
 
-use super::{ENTRY_PATH, MIN_DURATION_S, bundled_library, markers::timeline_markers};
+use super::{MIN_DURATION_S, markers::timeline_markers};
 
 /// A parsed-and-built document plus everything the JS shell needs to update
 /// the UI. `target` is `None` when the current source cannot be built; the
@@ -83,142 +78,70 @@ pub fn build_document_with_vars(
     assets: Option<Arc<AssetCache>>,
     vars: &[(String, String)],
 ) -> BuiltDocument {
-    let path = PathBuf::from(ENTRY_PATH);
-    let mut diagnostics: Vec<DiagnosticDto> = Vec::new();
+    let prepared = super::prepare_document(source, modules, vars, None);
+    build_prepared(&prepared, font_context, quality, assets)
+}
 
-    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
-    graph.add_source(path.clone(), source);
-    for (lib_path, lib_source) in bundled_library() {
-        graph.add_source(PathBuf::from(lib_path), *lib_source);
-        // Examples live under `examples/<dir>/` on disk, so their imports
-        // resolve to `../../web/demos/lib/<name>.amx`; register that shape of
-        // the same file too, or the desktop-authored scenes cannot load in the
-        // virtual entry (`main.amx` has no parent to climb past).
-        if let Some(name) = lib_path.strip_prefix("../lib/") {
-            graph.add_source(PathBuf::from(format!("../../web/demos/lib/{name}")), *lib_source);
-        }
+/// Build one prepared immutable program without reparsing or re-expanding it.
+pub fn build_prepared(
+    prepared: &super::PreparedProgram,
+    font_context: Arc<FontContext>,
+    quality: BuildQuality,
+    assets: Option<Arc<AssetCache>>,
+) -> BuiltDocument {
+    let analysis = &prepared.analysis;
+    if !analysis.ok {
+        return BuiltDocument {
+            target: None,
+            result: LoadResultDto {
+                ok: false,
+                duration_s: MIN_DURATION_S,
+                width: SceneDimensions::default().width,
+                height: SceneDimensions::default().height,
+                required_features: analysis.required_features,
+                diagnostics: analysis.diagnostics.clone(),
+                missing_imports: analysis.missing_imports.clone(),
+                markers: Vec::new(),
+                pause_points: Vec::new(),
+            },
+        };
     }
-    for (module_path, module_source) in modules {
-        graph.add_source(module_path.clone(), module_source.clone());
-    }
-
-    let mut program = match graph.load_program_with_source(&path, Some(source)) {
-        Ok(program) => program,
-        // A missing file is not a diagnostic to render — it is the shell's
-        // cue to fetch one more module and retry. Report the resolved key so
-        // the fetch target is unambiguous.
-        Err(ModuleError::FileNotFound(missing)) => {
-            return BuiltDocument {
-                target: None,
-                result: LoadResultDto {
-                    ok: false,
-                    duration_s: MIN_DURATION_S,
-                    width: SceneDimensions::default().width,
-                    height: SceneDimensions::default().height,
-                    required_features: FeatureMask::NONE.bits(),
-                    diagnostics: vec![DiagnosticDto {
-                        severity: "error".to_string(),
-                        code: "module-error".to_string(),
-                        message: format!(
-                            "Imported module '{}' is not loaded yet; fetch it relative to the \
-                             scene, register it with add_module, and call load_source again.",
-                            missing.display()
-                        ),
-                        subject: None,
-                        line: None,
-                        column: None,
-                        span: None,
-                    }],
-                    missing_imports: vec![missing.display().to_string()],
-                    markers: Vec::new(),
-                    pause_points: Vec::new(),
-                },
-            };
-        },
-        Err(err) => return built_failure(module_error_diagnostics(&err, &path)),
-    };
-
-    diagnostics.extend(program.typecheck().iter().map(DiagnosticDto::from_diagnostic));
-
-    let mut expansion_errors = Vec::new();
-    let expanded = program.expand_components(&mut expansion_errors);
-    let required_features = super::features::required_features(&expanded);
-    for error in &expansion_errors {
-        diagnostics.push(DiagnosticDto::from_diagnostic(&Diagnostic::error(
-            DiagnosticCode::UnknownAction,
-            DiagnosticPhase::Build,
-            error.clone(),
-        )));
-    }
-
-    let namespaces: HashMap<String, Namespace> = program.namespaces;
-    let context = Arc::new(ExtensionContext::new());
-
-    // `BuildTarget` detects single vs multi-scene mode. Single-scene documents
-    // opt out of the `PersistTargetNotCarried` warning: the player has no
-    // successor scene by construction, and a persisted actor simply resets
-    // between loops rather than being a mistake worth surfacing.
+    let mut diagnostics = analysis.diagnostics.clone();
     let report = BuildTarget::build_with_options(
-        &expanded,
-        &namespaces,
+        &prepared.syntax.expanded,
+        &prepared.syntax.namespaces,
         None,
         BuildOptions {
             font_context: Some(font_context),
             quality: Some(quality),
             asset_cache: assets,
-            extensions: Some(context),
+            extensions: Some(Arc::new(super::resources::extensions())),
             skip_persist_target_warning: true,
-            defines: vars,
+            defines: &prepared.vars,
             ..Default::default()
         },
     );
     let target = report.output;
-    let build_diagnostics = report.diagnostics;
-
-    diagnostics.extend(build_diagnostics.iter().map(DiagnosticDto::from_diagnostic));
-
-    // The engine only *logs* that overrides do not reach a multi-scene
-    // composition, and the browser installs no `tracing` subscriber — so the
-    // note would be lost exactly where it matters. Report it as a warning
-    // diagnostic instead: not an error, so the document still installs and
-    // plays on its authored defaults.
-    if !vars.is_empty() && matches!(target, BuildTarget::MultiScene(_)) {
+    diagnostics.extend(report.diagnostics.iter().map(DiagnosticDto::from_diagnostic));
+    if !prepared.vars.is_empty() && matches!(target, BuildTarget::MultiScene(_)) {
         diagnostics.push(DiagnosticDto {
-            severity: "warning".to_string(),
-            code: "vars-not-applied".to_string(),
-            message: "Build-time variable overrides reach a single-scene document only; this \
-                      composition keeps each scene's own `let` defaults."
-                .to_string(),
-            subject: None,
-            line: None,
-            column: None,
-            span: None,
+            severity: "warning".to_string(), code: "vars-not-applied".to_string(),
+            message: "Build-time variable overrides reach a single-scene document only; this composition keeps each scene's own defaults.".to_string(),
+            subject: None, line: None, column: None, span: None,
         });
     }
-
     let (duration_s, width, height) = document_extent(&target);
-    let markers = timeline_markers(&expanded, &target);
-    let pause_points: Vec<f64> =
-        target.pause_points().iter().map(|&ms| ms as f64 / 1000.0).collect();
+    let markers = timeline_markers(&prepared.syntax.expanded, &target);
+    let pause_points = target.pause_points().iter().map(|&ms| ms as f64 / 1000.0).collect();
     let ok = !diagnostics.iter().any(|d| d.severity == "error");
-    // A build that produced error diagnostics still parses, so a `BuildTarget`
-    // exists — but it is not a document the shell may install. Handing it over
-    // would replace the figure with the half-built scene (black, at whatever
-    // default resolution the broken source implied) even though the caller
-    // treats `ok == false` as "keep the last known good document": that is the
-    // live editor's "a typo never blanks the figure". `ok == false` therefore
-    // yields no target, matching this module's contract. The extent and
-    // markers still describe what the build saw, so a caller can report where
-    // it stopped.
-    let target = ok.then_some(target);
     BuiltDocument {
-        target,
+        target: ok.then_some(target),
         result: LoadResultDto {
             ok,
             duration_s,
             width,
             height,
-            required_features: required_features.bits(),
+            required_features: analysis.required_features,
             diagnostics,
             missing_imports: Vec::new(),
             markers,
@@ -247,40 +170,5 @@ fn document_extent(target: &BuildTarget) -> (f64, u32, u32) {
                 .unwrap_or(default_dims);
             (composition.global_duration_s.max(MIN_DURATION_S), w, h)
         },
-    }
-}
-
-fn built_failure(diagnostics: Vec<DiagnosticDto>) -> BuiltDocument {
-    BuiltDocument {
-        target: None,
-        result: LoadResultDto {
-            ok: false,
-            duration_s: MIN_DURATION_S,
-            width: SceneDimensions::default().width,
-            height: SceneDimensions::default().height,
-            required_features: FeatureMask::NONE.bits(),
-            diagnostics,
-            missing_imports: Vec::new(),
-            markers: Vec::new(),
-            pause_points: Vec::new(),
-        },
-    }
-}
-
-fn module_error_diagnostics(err: &ModuleError, path: &Path) -> Vec<DiagnosticDto> {
-    match err {
-        ModuleError::ParseErrors(errors) => errors
-            .iter()
-            .map(|e| DiagnosticDto::from_diagnostic(&e.to_diagnostic().with_path(path)))
-            .collect(),
-        other => vec![DiagnosticDto {
-            severity: "error".to_string(),
-            code: "module-error".to_string(),
-            message: other.to_string(),
-            subject: None,
-            line: None,
-            column: None,
-            span: None,
-        }],
     }
 }

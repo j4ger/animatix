@@ -4,11 +4,6 @@ use crate::fast_layout::{HardwareTextLayout, compile_text_fast, compile_text_fas
 use crate::font_context::FontContext;
 use crate::request::{TextCacheKey, TextCompileRequest, TextStyle};
 use crate::typst_world::{HighlightPalette, measure_text_paths};
-#[cfg(feature = "rich-text")]
-use crate::typst_world::{
-    compile_code, compile_math, compile_text, compile_typst, extract_glyphs_grouped,
-    extract_glyphs_with_metrics, is_latin_text, is_plain_text,
-};
 use crate::{CompiledText, TextPath};
 
 // Runtime text compilation
@@ -53,12 +48,12 @@ pub struct CachedText {
 }
 
 /// Memoized grouped Typst output (the `Equation` path): glyph paths plus one
-/// range per `#box()` wrapper.
+/// range per authored fragment.
 #[derive(Clone)]
 pub struct CachedGroupedText {
-    /// Glyph paths in draw order, as returned by [`extract_glyphs_grouped`].
+    /// Glyph paths in draw order, as returned by the rich text compiler.
     pub glyphs: std::sync::Arc<[TextPath]>,
-    /// One range per `#box()` wrapper, indexing into [`Self::glyphs`].
+    /// One range per authored fragment, indexing into [`Self::glyphs`].
     pub ranges: std::sync::Arc<[std::ops::Range<usize>]>,
 }
 
@@ -102,7 +97,7 @@ fn with_compile_cache<R>(f: impl FnOnce(&mut TextCompileCache) -> R) -> R {
 }
 
 /// Process-wide memo for grouped (Equation) compilations, keyed by the same
-/// [`TextCacheKey`] so font-epoch invalidation applies to both tables.
+/// [`TextCacheKey`] so the same font-set identity applies to both tables.
 type GroupedTextCache = std::collections::HashMap<TextCacheKey, std::sync::Arc<CachedGroupedText>>;
 
 #[cfg(not(test))]
@@ -148,9 +143,9 @@ where
     }
 }
 
-/// Drop every memoized text compilation when the font environment changes (or
-/// for cold-build benchmarks). Clears the grouped table too: it is keyed on the
-/// same font-epoch-guarded inputs.
+/// Drop memoized text compilations (also used by cold-build benchmarks).
+/// Font changes are isolated by content identity and do not require a global
+/// cache clear.
 pub fn clear_text_compile_cache() {
     with_compile_cache(|cache| cache.clear());
     with_grouped_cache(|cache| cache.clear());
@@ -177,200 +172,43 @@ fn compile_uncached(
     request: &TextCompileRequest<'_>,
     font_ctx: &FontContext,
 ) -> Result<CompiledText, RenderError> {
-    let kind = request.kind;
-    let content = request.content;
+    if request.kind != TextKind::Text {
+        return crate::rich_capability::compile(request, font_ctx);
+    }
     let style = &request.style;
-    let font_family = style.font_family;
-    let font_size = style.font_size;
-    let font_weight = style.font_weight;
-    let font_style = style.font_style;
-    let line_height = style.line_height;
-    let letter_spacing = style.letter_spacing;
-    let word_spacing = style.word_spacing;
-    let color = style.color;
-    let max_width = request.max_width;
-    let max_lines = request.max_lines;
-    let text_align = request.text_align;
-    let overflow = request.overflow;
-    // Slim playback profile: Typst is compiled out, so every kind degrades to
-    // the fast path (Code loses highlighting, Math renders its source literally).
-    #[cfg(feature = "rich-text")]
-    let use_fast_path = request.allow_fast_path
-        && kind == TextKind::Text
-        && is_plain_text(content)
-        && is_latin_text(content);
-    #[cfg(not(feature = "rich-text"))]
-    let use_fast_path = true;
-    let compiled: CompiledText = if use_fast_path {
-        tracing::debug!(
-            "text cache miss (fast path): '{}' (family={}, size={}, max_width={})",
-            content,
-            font_family,
-            font_size,
-            max_width
-        );
-        let fast_color = if kind == TextKind::Text {
-            [1.0, 1.0, 1.0, 1.0]
-        } else {
-            color
-        };
-        if max_width > 0.0 || content.contains('\n') {
-            compile_text_fast_wrapped(
-                content,
-                font_family,
-                font_weight,
-                font_style,
-                font_size,
-                line_height,
-                fast_color,
-                letter_spacing,
-                word_spacing,
-                font_ctx,
-                max_width,
-                max_lines,
-                text_align,
-                overflow,
-            )?
-        } else {
-            compile_text_fast(
-                content,
-                font_family,
-                font_weight,
-                font_style,
-                font_size,
-                fast_color,
-                letter_spacing,
-                word_spacing,
-                font_ctx,
-            )?
-        }
+    // Ordinary Text is literal on every platform; its per-glyph color is
+    // applied by the engine, independently of geometry and text cache entries.
+    let color = [1.0, 1.0, 1.0, 1.0];
+    if request.max_width > 0.0 || request.content.contains('\n') {
+        compile_text_fast_wrapped(
+            request.content,
+            style.font_family,
+            style.font_weight,
+            style.font_style,
+            style.font_size,
+            style.line_height,
+            color,
+            style.letter_spacing,
+            style.word_spacing,
+            font_ctx,
+            request.max_width,
+            request.max_lines,
+            request.text_align,
+            request.overflow,
+        )
     } else {
-        #[cfg(feature = "rich-text")]
-        {
-            tracing::debug!(
-                "text cache miss (typst): '{}' (kind={:?}, max_width={})",
-                content,
-                kind,
-                max_width
-            );
-            // `max_lines` only exists on the fast text path. Warn when a caller
-            // asks for a line cap on the Typst route with a wrap width.
-            if max_lines.is_some() && max_width > 0.0 {
-                tracing::warn!(
-                    "max_lines is not applied on the Typst text path (kind={:?}); \
-                     the request is dropped for this content",
-                    kind
-                );
-            }
-            let key_color = request.solid_rgba();
-            let typst_color = typst::visualize::Color::from_u8(
-                key_color[0],
-                key_color[1],
-                key_color[2],
-                key_color[3],
-            );
-            let frame = match kind {
-                TextKind::Text => compile_text(
-                    content,
-                    font_size,
-                    typst_color,
-                    font_family,
-                    font_ctx,
-                    font_weight,
-                    font_style,
-                    line_height,
-                    letter_spacing,
-                    word_spacing,
-                    max_width,
-                    text_align,
-                    overflow,
-                )?,
-                TextKind::Math => compile_math(
-                    content,
-                    font_size,
-                    typst_color,
-                    font_family,
-                    font_ctx,
-                    max_width,
-                    text_align,
-                    overflow,
-                )?,
-                TextKind::Code => compile_code(
-                    content,
-                    request.language,
-                    request.palette,
-                    font_size,
-                    typst_color,
-                    font_family,
-                    font_ctx,
-                    font_weight,
-                    font_style,
-                    line_height,
-                    letter_spacing,
-                    word_spacing,
-                    max_width,
-                    text_align,
-                    overflow,
-                )?,
-                TextKind::Typst => compile_typst(
-                    content,
-                    font_size,
-                    typst_color,
-                    font_family,
-                    font_ctx,
-                    font_weight,
-                    font_style,
-                    line_height,
-                    letter_spacing,
-                    word_spacing,
-                    max_width,
-                    text_align,
-                    overflow,
-                )?,
-            };
-            extract_glyphs_with_metrics(&frame)
-        }
-
-        #[cfg(not(feature = "rich-text"))]
-        {
-            tracing::debug!(
-                "text cache miss (fast fallback, rich-text disabled): '{}' (kind={:?})",
-                content,
-                kind
-            );
-            if max_width > 0.0 || content.contains('\n') {
-                compile_text_fast_wrapped(
-                    content,
-                    font_family,
-                    font_weight,
-                    font_style,
-                    font_size,
-                    line_height,
-                    color,
-                    letter_spacing,
-                    word_spacing,
-                    font_ctx,
-                    max_width,
-                    max_lines,
-                    text_align,
-                    overflow,
-                )?
-            } else {
-                compile_text_fast(
-                    content,
-                    font_family,
-                    font_weight,
-                    font_style,
-                    font_size,
-                    color,
-                    letter_spacing,
-                    word_spacing,
-                    font_ctx,
-                )?
-            }
-        }
-    };
-    Ok(compiled)
+        compile_text_fast(
+            request.content,
+            style.font_family,
+            style.font_weight,
+            style.font_style,
+            style.font_size,
+            color,
+            style.letter_spacing,
+            style.word_spacing,
+            font_ctx,
+        )
+    }
 }
 
 /// Measure a fresh compilation and memoize it under `key`, evicting when the
@@ -408,25 +246,7 @@ pub fn compile_text_cached(
     Ok(store_cached_text(key, compile_uncached(request, font_ctx)?))
 }
 
-/// Resolve the slim grouped path's typography. Only valid CSS font-style names
-/// and positive finite line-height multipliers pass through; every other value
-/// falls back to the plain-text defaults. Without this the slim profile
-/// silently replaced the caller's style with `"normal"` and `1.2`.
-#[cfg(not(feature = "rich-text"))]
-pub(crate) fn slim_grouped_typography(font_style: &str, line_height: f32) -> (&str, f32) {
-    let font_style = match font_style {
-        "normal" | "italic" | "oblique" => font_style,
-        _ => "normal",
-    };
-    let line_height = if line_height.is_finite() && line_height > 0.0 {
-        line_height
-    } else {
-        1.2
-    };
-    (font_style, line_height)
-}
-
-/// Compile Typst markup into per-`#box()` glyph groups, memoized process-wide.
+/// Compile Typst markup into metadata-marked Equation fragment groups, memoized process-wide.
 /// The Equation path recompiles per frame (~2.5ms each without this memo;
 /// `benches/equation_frame.rs`), keyed like [`compile_text_cached`].
 #[allow(clippy::too_many_arguments)] // Mirrors the compile_typst parameter set it wraps.
@@ -471,73 +291,12 @@ pub fn compile_typst_grouped_cached(
         return Ok(hit);
     }
 
-    #[cfg(feature = "rich-text")]
-    {
-        let rgba = request.solid_rgba();
-        let typst_color = typst::visualize::Color::from_u8(rgba[0], rgba[1], rgba[2], rgba[3]);
-        let frame = compile_typst(
-            typst_markup,
-            font_size,
-            typst_color,
-            font_family,
-            font_ctx,
-            font_weight,
-            font_style,
-            line_height,
-            letter_spacing,
-            word_spacing,
-            0.0,
-            "left",
-            "visible",
-        )?;
-        let (glyphs, ranges) = extract_glyphs_grouped(&frame);
-        let entry = std::sync::Arc::new(CachedGroupedText {
-            glyphs: glyphs.into(),
-            ranges: ranges.into(),
-        });
-
-        with_grouped_cache(|cache| {
-            cache.insert(key, std::sync::Arc::clone(&entry));
-            evict_text_compile_cache(cache);
-        });
-        Ok(entry)
-    }
-
-    #[cfg(not(feature = "rich-text"))]
-    {
-        // Slim profile: render the markup source as plain text in one group.
-        // The caller's requested style and line height are meaningful here;
-        // only invalid values fall back to the plain-text defaults.
-        let (font_style, line_height) = slim_grouped_typography(font_style, line_height);
-        let compiled = compile_text_fast_wrapped(
-            typst_markup,
-            font_family,
-            font_weight,
-            font_style,
-            font_size,
-            line_height,
-            color,
-            letter_spacing,
-            word_spacing,
-            font_ctx,
-            0.0,
-            None,
-            "left",
-            "visible",
-        )?;
-        // One range covering the whole group; a `vec![a..b]` here reads as an
-        // attempt to build the values in the range (clippy).
-        let ranges: Vec<_> = std::iter::once(0..compiled.glyphs.len()).collect();
-        let entry = std::sync::Arc::new(CachedGroupedText {
-            glyphs: compiled.glyphs.into(),
-            ranges: ranges.into(),
-        });
-        with_grouped_cache(|cache| {
-            cache.insert(key, std::sync::Arc::clone(&entry));
-            evict_text_compile_cache(cache);
-        });
-        Ok(entry)
-    }
+    let entry = std::sync::Arc::new(crate::rich_capability::grouped(&request, font_ctx)?);
+    with_grouped_cache(|cache| {
+        cache.insert(key, std::sync::Arc::clone(&entry));
+        evict_text_compile_cache(cache);
+    });
+    Ok(entry)
 }
 
 /// Runtime text compiler backed by the process-wide compile cache, so identical

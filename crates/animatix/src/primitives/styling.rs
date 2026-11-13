@@ -350,15 +350,6 @@ fn stamp_shape_dash(commands: &mut [RenderCommand], ctx: &EvaluateCtx) {
         return;
     }
     let offset = style.dash_offset.get(ctx.time_ms, 0.0);
-    eprintln!(
-        "DASH time={} offset={} keys={:?}",
-        ctx.time_ms,
-        offset,
-        style
-            .dash_offset
-            .as_ref()
-            .map(|t| t.keyframes.keys().copied().collect::<Vec<_>>())
-    );
     for cmd in commands.iter_mut() {
         if let RenderCommand::Paths { paths } = cmd {
             for vp in paths.iter_mut() {

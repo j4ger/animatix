@@ -18,7 +18,9 @@ impl FeatureMask {
     pub const IMAGE_DECODE: Self = Self(1 << 1);
     /// SVG asset loading (`Svg`).
     pub const SVG: Self = Self(1 << 2);
-    /// Unknown / extension primitive: only the full engine is safe.
+    /// Raster export encoding, explicitly requested by an export operation.
+    pub const RASTER_ENCODE: Self = Self(1 << 3);
+    /// Unknown / extension primitive: preparation must diagnose this bit.
     pub const UNKNOWN: Self = Self(1 << 31);
 
     /// The raw bit pattern crossing the wasm boundary.

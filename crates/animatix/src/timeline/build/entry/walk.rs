@@ -14,12 +14,11 @@ struct WalkState {
 ///
 /// Actors declared before the first keyframe are hidden by default until an
 /// entrance reveals them; the saved/restored `default_opacity` is what encodes
-/// that. Transcripts are attached after the walk because a declaration is what
-/// creates the actor entity.
+/// that. Transcript data is attached during each transcript-capable actor's
+/// actual declaration build.
 pub(super) fn walk_statements(
     timeline: &mut Timeline,
     ast: &[Stmt],
-    transcripts: std::collections::HashMap<String, animatix_text::transcript::SpeechTranscript>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut state = WalkState {
@@ -27,12 +26,6 @@ pub(super) fn walk_statements(
         current_build_time_ms: 0.0,
     };
     walk_statements_inner(timeline, ast, &mut state, diagnostics);
-
-    // Attach the pre-pass transcripts now that every declaration has created
-    // its entity.
-    for (label, transcript) in transcripts {
-        timeline.set_transcript(&label, transcript);
-    }
 
     // Names written by always blocks — a plot closure capturing one of these
     // must resample per frame (see ProceduralPlot::is_dynamic).

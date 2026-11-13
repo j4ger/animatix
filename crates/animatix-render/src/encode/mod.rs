@@ -26,6 +26,8 @@ pub mod video;
 mod export_error;
 mod ffmpeg;
 mod impls;
+#[cfg(feature = "raster-encode")]
+pub mod raster;
 #[cfg(test)]
 mod tests;
 

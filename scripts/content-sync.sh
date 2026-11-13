@@ -110,43 +110,12 @@ if [ -d web/demos/posters ]; then
   fi
 fi
 
-# ── 6. the size numbers the README quotes ─────────────────────────────────────
-# `web/README.md` quotes bundle sizes because they are the first thing someone
-# embedding the player wants. They are true of a build, and builds are gitignored,
-# so the only honest form of this check measures them against a bundle when one
-# exists and says plainly when it cannot — a silently skipped gate is a gate that
-# passes.
-for spec in "slim:--slim" "full:full profile"; do
-  label="${spec%%:*}"
-  marker="${spec#*:}"
-  # A `case`, not `[ … ] && x=`: under `set -e` a false test in a command
-  # substitution kills the whole script mid-run, which is how this check silently
-  # stopped reporting the second of its two profiles.
-  case "$label" in
-    slim) d="web/pkg-slim" ;;
-    *) d="web/pkg" ;;
-  esac
-  wasm="$d/animatix_web_bg.wasm"
-  if [ ! -f "$wasm" ]; then
-    echo "SKIP: README '$label' size claim not checked — no $wasm. Build it with: scripts/ci.sh gate web-build"
-    continue
-  fi
-  if [ -f "$d/.dev" ]; then
-    echo "SKIP: README '$label' size claim not checked — $d is a --dev build. Build release bundle with: scripts/ci.sh gate web-build"
-    continue
-  fi
-  line=$(grep -n -- "$marker" web/README.md | head -1 | cut -d: -f1)
-  [ -n "$line" ] || { echo "SKIP: README '$label' size claim not checked (marker '$marker' not found)"; continue; }
-  claim=$(sed -n "${line}p" web/README.md | grep -oE '~[0-9.]+ MB raw' | grep -oE '[0-9.]+' | head -1)
-  [ -n "$claim" ] || { echo "SKIP: README line $line carries no 'MB raw' figure for $label"; continue; }
-  actual=$(python3 -c "import os;print('%.2f' % (os.path.getsize('$wasm')/1048576))")
-  drift=$(python3 -c "print('%.1f' % (abs($actual-$claim)/$claim*100))")
-  if python3 -c "import sys; sys.exit(0 if float('$drift') <= 10 else 1)"; then
-    ok "README quotes $claim MB for $label, the bundle is $actual MB (${drift}% off)"
-  else
-    fail "README line $line says $label is ~$claim MB raw; the built bundle is $actual MB (${drift}% off) — update web/README.md from scripts/build-web.sh's own output"
-  fi
-done
+# ── 6. SDK size is reported directly from its verified manifest ───────────────
+if [ -f web/runtime/runtime-manifest.json ]; then
+  node web/tools/sdk.mjs verify web/runtime --current >/dev/null || fail "web SDK is stale or invalid"
+else
+  echo "SKIP: SDK size report — build web/runtime with scripts/ci.sh gate web-sdk"
+fi
 
 # ── 7. generated page blocks match the works manifest ─────────────────────────
 # `web/works.json` is the single source for every showcased work's identity

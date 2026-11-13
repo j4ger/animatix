@@ -16,19 +16,29 @@ Quick reference for all Animatix primitives. For the full language specification
 
 **Shorthand:** `title: "Hello World"` desugars to `Text { text: "Hello World", ... }`
 
+`Text` content is always literal Unicode, including markup-looking characters
+such as `$`, `#`, and backticks. Use `Typst`, `Math`, `Code`, or `Equation` for
+formatted or marked-up content. This behavior is the same in native and web builds.
+In the browser, faces come from the SDK font manifest and any TTF/OTF files
+provided by the embedding page; browser-installed fonts are not scanned. The
+player loads required faces before building a scene and reports missing glyphs
+in build diagnostics. Rich text primitives request their optional runtime
+capability as needed; see the [web player guide](../web/README.md).
+
 **Example:**
 ```animatix
 title: Text { text: "Hello World", font_size: 24, at: (640, 120) }
 ```
 
-Timed `text` assignments cross-fade the source and target glyph sets instead of snapping at the midpoint; `Typst.content` follows the same behavior.
+Timed `text` assignments cross-fade the source and target glyph sets instead of snapping at the midpoint; `Typst.text` follows the same behavior.
 
 ## Typst
 
-Replaces the deprecated `Math` primitive.
+Preferred rich-text primitive; the deprecated `Math` name remains accepted as
+an alias for `Typst`.
 
 **Properties:**
-- `content`: String — Typst markup content (accepts `text`, `math`, `code`, `latex` for backward compatibility)
+- `text`: String — Typst markup source
 - `font_size`: Number
 - `color`: Color
 - `at`: Tuple `(x, y)`
@@ -38,10 +48,10 @@ Replaces the deprecated `Math` primitive.
 - `highlight_padding`: Number — padding around actor bounding box (default `4.0`)
 - `highlight_radius`: Number — corner radius of highlight rectangle (default `2.0`)
 
-**Shorthand:** `$$ ... $$` desugars to a `Typst` actor with the content taken as raw text (unquoted). A label is required. Modifiers are supported.
+**Shorthand:** `$$ ... $$` desugars to a `Typst` actor whose `text` value is the raw, unquoted text between the delimiters. A label is required. Modifiers are supported.
 
 ```animatix
-eq: $$ x^2 + y^2 $$                    // desugars to: eq: Typst, content: "x^2 + y^2"
+eq: $$ x^2 + y^2 $$                    // desugars to: eq: Typst, text: "x^2 + y^2"
 eq: $$ x^2 $$ [2s, ease: bounce]       // with modifiers
 ```
 
@@ -53,7 +63,7 @@ This is distinct from Equation+Fragment per-segment highlighting — a Typst act
 
 **Example:**
 ```animatix
-eq: Typst, content: "x^2 + 3", font_size: 18, at: (640, 360)
+eq: Typst, text: "x^2 + 3", font_size: 18, at: (640, 360)
 
 #2s
   highlight eq [color: yellow, blend: multiply, 800ms]
@@ -75,7 +85,7 @@ unchanged. An empty or unrecognized `language` renders plain (a warning is
 logged for the latter, never an error).
 
 **Properties:**
-- `code`: String
+- `text`: String — source code to render (`code` is also accepted for compatibility)
 - `language`: String — highlighting language tag (`"rust"`, `"python"`, `"cpp"`, …; case-insensitive)
 - `font_size`: Number
 - `color`: Color
@@ -85,7 +95,7 @@ logged for the latter, never an error).
 
 **Example:**
 ```animatix
-snippet: Code { code: "let velocity = x + 1", language: "rust", font_size: 28, at: (640, 360) }
+snippet: Code { text: "let velocity = x + 1", language: "rust", font_size: 28, at: (640, 360) }
 ```
 
 ## Counter

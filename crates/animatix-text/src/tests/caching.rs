@@ -5,36 +5,31 @@ use crate::compiler::compile_text_cached;
 use crate::request::{TextCompileRequest, TextStyle};
 
 #[test]
-fn non_latin_text_routes_to_typst() {
+fn non_latin_text_uses_literal_fast_path() {
     let font_ctx = test_font_ctx();
     let mut compiler = TextCompiler::new();
     compiler.text_fast_path = true;
 
-    // Non-Latin text should route to Typst
-    let _paths =
+    // Plain Text is literal Unicode and stays on the lightweight shaper.
+    let paths =
         compile_request_with_defaults(&mut compiler, "中文测试", TextKind::Text, "", &font_ctx);
-
-    // Even though Typst may not render CJK with Open Sans (the bundled mock font
-    // has no .notdef outline for unavailable characters), the compilation itself
-    // should succeed without crashing.
-    // The paths may be empty if .notdef has no outline, but we at least verify
-    // that Typst was used (not the fast path) by checking the routing worked.
-    // Just verifying that compile succeeded without panic is sufficient.
+    assert_eq!(paths.len(), 4, "bundled Noto Sans SC should shape every Han glyph");
 }
 
 #[test]
-fn fast_path_disabled_via_config_falls_back() {
+fn text_fast_path_setting_does_not_change_literal_text_semantics() {
     let font_ctx = test_font_ctx();
     let mut compiler = TextCompiler::new();
     compiler.text_fast_path = false; // disabled
 
-    // Plain text should still compile via Typst
+    // The legacy switch cannot route plain Text through Typst anymore.
     let paths =
         compile_request_with_defaults(&mut compiler, "Plain Text", TextKind::Text, "", &font_ctx);
 
-    assert!(!paths.is_empty(), "Should produce glyph paths");
+    assert!(!paths.is_empty(), "literal text should produce glyph paths");
 }
 
+#[cfg(feature = "rich-text")]
 #[test]
 fn code_kind_uses_typst_not_fast_path() {
     let font_ctx = test_font_ctx();
@@ -48,6 +43,7 @@ fn code_kind_uses_typst_not_fast_path() {
     assert!(!paths.is_empty(), "Should produce glyph paths");
 }
 
+#[cfg(feature = "rich-text")]
 #[test]
 fn compile_cache_keys_on_wrapping_params() {
     let font_ctx = test_font_ctx();
@@ -206,16 +202,31 @@ fn typst_wrapping_supports_overflow_modes() {
     assert!(frame_clip.is_ok(), "Typst compile with overflow 'clip' must succeed");
 }
 
+#[cfg(feature = "rich-text")]
 #[test]
 fn grouped_typst_compile_is_memoized() {
-    let font_ctx = test_font_ctx();
+    let mut font_ctx = FontContext::empty();
+    font_ctx.load_fonts([
+        include_bytes!("../../assets/fonts/OpenSans-Variable.ttf").to_vec(),
+        include_bytes!("../../assets/fonts/FiraMath-Regular.otf").to_vec(),
+    ]);
     clear_text_compile_cache();
 
-    // Mirrors the Equation frame path: every `Fragment` is wrapped in a
-    // `#box()` so the frame exposes one group per fragment.
+    // Mirrors the Equation frame path: metadata preserves each authored
+    // fragment through Typst's transparent layout wrappers.
+    let markup = ["$E$", "$=$", "$m$", "$c^2$"]
+        .iter()
+        .enumerate()
+        .map(|(index, fragment)| {
+            format!(
+                "#metadata(\"animatix:equation-fragment:start:{index}\") #box()[{fragment}] #metadata(\"animatix:equation-fragment:end:{index}\")"
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
     let compile = || {
         compile_typst_grouped_cached(
-            "#box()[E] #box()[ = ] #box()[m] #box()[c^2]",
+            &markup,
             48.0,
             [1.0, 1.0, 1.0, 1.0],
             "",
@@ -241,100 +252,71 @@ fn grouped_typst_compile_is_memoized() {
         std::sync::Arc::ptr_eq(&first, &second),
         "memo hit must hand back the same entry"
     );
-    // The grouped shape keeps the per-fragment boundaries the Equation
-    // renderer needs to place its highlight overlays: one range per
-    // `#box()` group that actually produced glyphs.
+    // Every Equation Fragment retains its identity, including math markup.
     assert!(!first.glyphs.is_empty(), "compile should emit glyphs");
-    assert!(
-        !first.ranges.is_empty() && first.ranges.len() <= 4,
-        "one range per non-empty #box() group, got {}",
-        first.ranges.len()
-    );
+    assert_eq!(first.ranges.len(), 4, "one range per Equation Fragment");
+    assert!(first.ranges.iter().all(|range| !range.is_empty()));
 
     clear_text_compile_cache();
     assert_eq!(grouped_text_compile_cache_len(), 0, "clear must empty the grouped cache");
 }
 
-/// The slim grouped path used to hardcode `"normal"` / `1.2`, silently
-/// dropping the style and line height the caller requested. Only invalid
-/// values may fall back.
+/// Rich kinds cannot silently downgrade to literal text when unavailable.
 #[cfg(not(feature = "rich-text"))]
 #[test]
-fn slim_grouped_typography_passes_valid_values_and_falls_back() {
-    use crate::compiler::slim_grouped_typography;
-
-    assert_eq!(slim_grouped_typography("normal", 1.2), ("normal", 1.2));
-    assert_eq!(slim_grouped_typography("italic", 2.0), ("italic", 2.0));
-    assert_eq!(slim_grouped_typography("oblique", 0.8), ("oblique", 0.8));
-
-    assert_eq!(slim_grouped_typography("bogus", 2.0), ("normal", 2.0));
-    assert_eq!(slim_grouped_typography("", 2.0), ("normal", 2.0));
-    assert_eq!(slim_grouped_typography("italic", 0.0), ("italic", 1.2));
-    assert_eq!(slim_grouped_typography("italic", -1.0), ("italic", 1.2));
-    assert_eq!(slim_grouped_typography("italic", f32::NAN), ("italic", 1.2));
-    assert_eq!(slim_grouped_typography("italic", f32::INFINITY), ("italic", 1.2));
-}
-
-/// End-to-end slim check that the requested line height reaches the fast
-/// layout: two lines at 2.5 spacing must be visibly taller than at 1.0.
-#[cfg(not(feature = "rich-text"))]
-#[test]
-fn slim_grouped_text_uses_requested_line_height() {
-    let font_ctx = test_font_ctx();
-
-    let ink_height = |line_height: f32| {
-        let grouped = compile_typst_grouped_cached(
-            "one\ntwo",
+fn rich_kinds_fail_clearly_without_the_capability() {
+    let ctx = test_font_ctx();
+    for kind in [TextKind::Typst, TextKind::Math, TextKind::Code] {
+        let request = TextCompileRequest::new(kind, "x", TextStyle::new("Open Sans", 24.0));
+        let error = compile_text_cached(&request, &ctx)
+            .err()
+            .expect("rich kind must fail")
+            .to_string();
+        assert!(error.contains("rich") || error.contains("capability"), "{kind:?}: {error}");
+    }
+    assert!(
+        compile_typst_grouped_cached(
+            "hello",
             24.0,
-            [1.0, 1.0, 1.0, 1.0],
+            [1.0; 4],
             "Open Sans",
-            &font_ctx,
+            &ctx,
             400.0,
             "normal",
-            line_height,
+            1.2,
             0.0,
-            0.0,
+            0.0
         )
-        .expect("slim grouped compile should succeed");
-        assert!(!grouped.glyphs.is_empty(), "grouped compile should emit glyphs");
-        measure_text_paths(&grouped.glyphs)[1] * 2.0
-    };
-
-    let tight = ink_height(1.0);
-    let loose = ink_height(2.5);
-    assert!(
-        loose > tight + 10.0,
-        "requested line height must reach the fast path: tight={tight:.1}, loose={loose:.1}"
+        .is_err()
     );
 }
 
 #[test]
-fn font_epoch_invalidates_cache() {
+fn font_set_content_identity_separates_custom_overlays() {
     clear_text_compile_cache();
-    let compile_at_current_epoch = |font_ctx: &FontContext| {
+    let compile = |font_ctx: &FontContext| {
         let request = TextCompileRequest::new(
-            TextKind::Typst,
-            "$ e^{i\\pi} $",
+            TextKind::Text,
+            "font overlay isolation",
             TextStyle::new("Open Sans", 24.0),
         );
-        compile_text_cached(&request, font_ctx).expect("cached typst compile should succeed")
+        compile_text_cached(&request, font_ctx).expect("cached text compile should succeed")
     };
 
-    let before = compile_at_current_epoch(&test_font_ctx());
-
-    // A context created after the epoch advanced must not observe entries
-    // compiled under the previous font environment.
-    advance_font_env_epoch();
-    let fresh_ctx = test_font_ctx();
-    let after = compile_at_current_epoch(&fresh_ctx);
+    let mut first_ctx = test_font_ctx();
+    let mut second_ctx = test_font_ctx();
+    first_ctx.load_font_bytes(BUNDLED_FONTS[0].data.to_vec());
+    second_ctx.load_font_bytes(BUNDLED_FONTS[1].data.to_vec());
+    assert_ne!(first_ctx.font_set_id(), second_ctx.font_set_id());
+    let before = compile(&first_ctx);
+    let after = compile(&second_ctx);
     assert_ne!(
         before.paths.as_ptr(),
         after.paths.as_ptr(),
-        "entries from a previous font epoch must not be served to newer contexts"
+        "different font content must not share a compiled entry"
     );
-    // Within the new epoch, memoization still works.
-    let again = compile_at_current_epoch(&fresh_ctx);
-    assert_eq!(after.paths.as_ptr(), again.paths.as_ptr());
+    let again = compile(&first_ctx);
+    assert_eq!(before.paths.as_ptr(), again.paths.as_ptr());
     clear_text_compile_cache();
 }
 
@@ -472,93 +454,17 @@ fn wrapped_fast_path_produces_multiple_lines() {
     );
 }
 
-/// The probe reports tofu for whichever path will shape the text: the
-/// bundled face set on the fast path, the whole registered database on
-/// the Typst path.
+/// Coverage diagnostics use exactly the same resolved faces as literal Text.
 #[test]
 fn missing_glyph_probe_reports_uncovered_chars() {
-    let font_ctx = test_font_ctx();
-
-    // Covered Latin text: no findings.
-    assert!(
-        missing_text_glyphs(
-            TextKind::Text,
-            "softmax(QK / sqrt(d))",
-            "Open Sans",
-            400.0,
-            "normal",
-            true,
-            &font_ctx,
-        )
-        .is_empty()
-    );
-
-    // Fast-path text with an in-gate character no bundled face covers:
-    // U+02B0 (modifier letter small h) sits inside the Latin gate's
-    // modifier-letter range, so the fast path will shape it — and skip it.
-    let missing = missing_text_glyphs(
-        TextKind::Text,
-        "1st\u{02B0} order",
-        "Open Sans",
-        400.0,
-        "normal",
-        true,
-        &font_ctx,
-    );
-    assert_eq!(missing, ['\u{02B0}'], "in-gate uncovered char should be reported");
-
-    // Non-Latin content compiles through the Typst engine: the probe
-    // checks the whole registered database. Against the real system db
-    // this machine usually covers everything, so run the branch against
-    // a controlled context holding only one Open Sans face.
-    let mut bare_db = fontdb::Database::new();
-    bare_db.load_font_data(BUNDLED_FONTS[0].data.to_vec());
-    let bare_ctx = FontContext {
-        db: std::sync::Arc::new(bare_db),
-        registered_faces: Vec::new(),
-        epoch: font_env_epoch(),
+    let ctx = FontContext::with_database(std::sync::Arc::new(fontdb::Database::new()));
+    let probe = |text: &str, fast| {
+        missing_text_glyphs(TextKind::Text, text, "Open Sans", 400.0, "normal", fast, &ctx)
     };
-    let missing = missing_text_glyphs(
-        TextKind::Text,
-        "你好 \u{1F600}",
-        "Open Sans",
-        400.0,
-        "normal",
-        true,
-        &bare_ctx,
-    );
-    assert!(
-        missing.contains(&'你') && missing.contains(&'好'),
-        "CJK should be reported without a CJK face: {missing:?}"
-    );
-    assert!(missing.contains(&'\u{1F600}'), "emoji should be reported: {missing:?}");
-    assert!(!missing.contains(&'g'), "covered Latin must stay silent: {missing:?}");
-
-    // Multi-line content is never plain; the Typst branch governs.
-    assert!(
-        missing_text_glyphs(
-            TextKind::Text,
-            "multi\nline",
-            "Open Sans",
-            400.0,
-            "normal",
-            true,
-            &font_ctx,
-        )
-        .is_empty()
-    );
-    // The fast-path switch off: the Typst path governs, fast-path faces
-    // are not consulted.
-    assert!(
-        missing_text_glyphs(
-            TextKind::Text,
-            "1st\u{02B0}",
-            "Open Sans",
-            400.0,
-            "normal",
-            false,
-            &font_ctx,
-        )
-        .is_empty()
-    );
+    assert!(probe("softmax(QK / sqrt(d))", true).is_empty());
+    assert!(probe("你好", true).is_empty(), "native bundle includes Chinese fallback");
+    assert!(probe("multi\nline", true).is_empty());
+    assert!(probe("e\u{301}\u{200d}", true).is_empty(), "shaping controls are not tofu");
+    assert_eq!(probe("x\u{10ffff}", true), vec!['\u{10ffff}']);
+    assert_eq!(probe("x\u{10ffff}", false), probe("x\u{10ffff}", true));
 }

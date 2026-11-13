@@ -12,24 +12,19 @@
       // 1. Capture console.error, so a wasm panic (which the panic hook logs and
       //    then aborts on) is readable by an automated driver instead of only
       //    appearing in a devtools console.
-      // 2. `?base=<dir>` picks which engine build the page measures, so two
-      //    builds can be A/B'd from one harness. The alternative build needs its
-      //    own directory rather than a copy swapped in place: the loader only
-      //    treats `pkg` / `pkg-slim` as exact-directory names (anything else is
-      //    read as a parent holding both), and a same-URL swap risks serving the
-      //    cached bytes.
+      // 2. `?base=<dir>` picks which SDK directory the page measures, so two
+      //    builds can be A/B'd from one harness. Each directory contains its
+      //    own runtime manifest, avoiding same-URL cache ambiguity.
       window.__console_errors = [];
       const origError = console.error.bind(console);
       console.error = (...args) => {
         window.__console_errors.push(args.map(String).join(" "));
         origError(...args);
       };
-      window.__probeBase = new URLSearchParams(location.search).get("base") ?? "../pkg-slim";
-      const probeLoader = document.createElement("script");
-      probeLoader.type = "module";
-      probeLoader.src = "../embed/amx-player.js";
-      probeLoader.setAttribute("data-runtime-base", window.__probeBase);
-      document.head.appendChild(probeLoader);
+      window.__probeBase = new URLSearchParams(location.search).get("base") ?? "../runtime";
+      window.__probeLoader = import("../runtime/amx-player.js").then(({ configureRuntime }) => {
+        configureRuntime({ manifestUrl: new URL(`${window.__probeBase}/runtime-manifest.json`, document.baseURI).href });
+      });
     </script>
     <style>
       body {
@@ -94,10 +89,19 @@
         .map(Number)
         .filter((s) => s > 0 && s <= 1);
 
-      // Same URL the <amx-player> loader imports, so the page shares one wasm
-      // instance and these free functions reach the same device.
-      const engine = await import(new URL(`${window.__probeBase}/animatix_web.js`, document.baseURI).href);
-      await engine.default();
+      // Resolve the build-specific entry and wasm through the same manifest as
+      // the player, so the probe stays on the tested immutable SDK build.
+      await window.__probeLoader;
+      const manifestUrl = new URL(`${window.__probeBase}/runtime-manifest.json`, document.baseURI);
+      const manifestResponse = await fetch(manifestUrl);
+      if (!manifestResponse.ok) throw new Error(`runtime manifest HTTP ${manifestResponse.status}`);
+      const manifest = await manifestResponse.json();
+      const engine = await import(new URL(manifest.entry, manifestUrl).href);
+      const wasmFile = manifest.files[manifest.wasm];
+      const wasmResponse = await fetch(new URL(wasmFile.url, manifestUrl));
+      if (!wasmResponse.ok) throw new Error(`runtime wasm HTTP ${wasmResponse.status}`);
+      await engine.default({ module_or_path: wasmResponse });
+      await engine.ensure_capabilities?.(0, manifest.files);
       await engine.init_engine();
       // Exposed so a driver can reach the same instance without re-importing it.
       window.__engine = engine;

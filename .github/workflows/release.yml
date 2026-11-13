@@ -71,16 +71,21 @@ jobs:
   # there is one list of what green means.
   gates:
     name: Gates
+    needs: version
     uses: ./.github/workflows/ci.yml
+    with:
+      checkout-ref: ${{ needs.version.outputs.version }}
 
   plan:
     name: Plan artifacts
-    needs: gates
+    needs: [gates, version]
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.version.outputs.version }}
       - id: plan
         run: echo "matrix=$(scripts/ci.sh --matrix release)" >> "$GITHUB_OUTPUT"
 
@@ -96,6 +101,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         name: Checkout
+        with:
+          ref: ${{ needs.version.outputs.version }}
       - name: Install Nix
         if: matrix.shell == 'nix'
         uses: DeterminateSystems/determinate-nix-action@v3
@@ -131,44 +138,33 @@ jobs:
           path: dist/
           if-no-files-found: error
 
-  # The site and the three wasm runtimes. Ordered: web-build produces the bundles
-  # that both zips contain, and web-smoke loads them; both run in .#web-ci because
-  # pkg/ is gitignored and only exists after the build in the same job. The PR
-  # gate matrix already ran the same gates, but this job starts from a fresh
-  # checkout with no pkg/ and jobs do not share workspaces, so it deliberately
-  # rebuilds rather than assuming another runner's filesystem. Sharing the
-  # bundles would require uploading/downloading a pkg artifact.
-  #
-  # q11 is a release-artifact optimization: Pages drops .br, but the wasm zips
-  # ship these twins. PR and Pages builds keep the faster q6 default.
+  # Reuse the exact SDK built and exercised by the reusable CI workflow.
   site:
-    name: Site and wasm
+    name: Site and web SDK
     needs: [gates, version]
     runs-on: ubuntu-latest
     env:
       ANIMATIX_RELEASE_VERSION: ${{ needs.version.outputs.version }}
-      ANIMATIX_BROTLI_LEVEL: '11'
     steps:
       - uses: actions/checkout@v5
-      - name: Install Nix
-        uses: DeterminateSystems/determinate-nix-action@v3
-      - name: Set up Cachix
-        uses: cachix/cachix-action@v17
         with:
-          name: animatix
-          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          extraPullNames: 'nix-community'
-      - name: Build engines (slim + assets + full) and smoke the pages
-        run: nix develop .#web-ci --command scripts/ci.sh gate web-build web-smoke
-      - name: Package site + wasm
-        run: scripts/ci.sh gate site-artifact dist-site dist-wasm
+          ref: ${{ needs.version.outputs.version }}
+      - name: Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Download tested SDK
+        uses: actions/download-artifact@v4
+        with:
+          name: web-runtime
+          path: web/runtime
+      - name: Verify and package site and SDK
+        run: scripts/ci.sh gate web-artifact-verify site-artifact dist-site dist-web-sdk
       - name: Upload
         uses: actions/upload-artifact@v7
         with:
           name: artifact-site
-          path: |
-            dist/
-            _site/
+          path: dist/
           if-no-files-found: error
 
   publish:
@@ -179,6 +175,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          ref: ${{ needs.version.outputs.version }}
       - name: Install Nix
         uses: DeterminateSystems/determinate-nix-action@v3
       - name: Set up Cachix
@@ -205,10 +202,7 @@ jobs:
             echo "| asset | what it is |"
             echo "| --- | --- |"
             echo "| \`*-site.zip\` | the whole \`web/\` tree, ready to serve |"
-            echo "| \`*-wasm-slim.zip\` | playback-only engine (no Typst/raster/SVG) |"
-            echo "| \`*-wasm-assets.zip\` | raster/SVG engine without Typst |"
-            echo "| \`*-wasm-full.zip\` | full engine, the profile rich demos use |"
-            echo "| \`*-wasm-fonts.zip\` | external gzip font pack, deploy beside any wasm zip |"
+            echo "| \`*-web-sdk.zip\` | one SDK: player, optional code, fonts and verified manifest |"
             echo "| \`*-linux-gnu-video.tar.gz\` | CLI + GUI, **with** FFmpeg video export |"
             echo "| \`*-macos.zip\`, \`*-windows.zip\` | CLI + GUI, **without** video export |"
             echo

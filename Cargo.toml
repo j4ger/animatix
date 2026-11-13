@@ -14,6 +14,9 @@ members = [
     "crates/animatix-syntax",
     "crates/animatix-text",
     "crates/animatix-web",
+    "tools/animatix-web-build",
+    "tools/animatix-text-parity",
+    "tools/animatix-web-build/fixtures/split-probe",
     "crates/animatix-hybrid-bench",
     "crates/eparts"
 ]
@@ -54,6 +57,9 @@ kurbo           = "0.13.0"
 serde           = { version = "1", features = ["derive"] }
 thiserror       = "2.0"
 tracing         = "0.1"
+# The runtime must match the relocation splitter used by animatix-web-build.
+# Upgrade together, after the optimized shared-memory split-proof passes.
+wasm_split = { package = "wasm-splitter", version = "=0.8.0-alpha.3" }
 
 # Profiling support (docs/performance_evaluation.md §7): bench builds keep
 # debug symbols so `perf record`/flamegraph can resolve frames without changing
@@ -72,10 +78,8 @@ debug = true
 # one target whose frame cost is dominated by GPU work and whose CPU share is
 # paid inside a wasm sandbox.
 #
-# `opt-level = "z"` keeps the served bundle small: pkg-slim 5.42 -> 4.18 MB,
-# pkg-assets 6.54 -> 4.99 MB, pkg-full 27.96 -> 22.36 MB. The CPU share it can
-# slow is 0.3–0.8 ms of a 3.5–4.1 ms browser frame, which is GPU-bound
-# (docs/performance_evaluation.md §3.7).
+# `opt-level = "z"` keeps the served Wasm artifacts compact;
+# browser frame measurements are documented in docs/performance_evaluation.md.
 # `lto = "fat"` + one codegen unit is what buys cross-crate inlining for the
 # engine's evaluate/encode path; an A/B of those two settings could not separate
 # frame time either, only artifact size.
@@ -89,6 +93,11 @@ codegen-units = 1
 # a change. It is here so the profile does not silently acquire unwinding
 # tables if that default is ever revised.
 panic = "abort"
+
+[profile.wasm-dev]
+inherits = "wasm-release"
+opt-level = 1
+debug = true
 
 # Ship-only native profile. Kept separate from `release` so `perf-bench.sh` and
 # the profiling drivers keep an unstripped, unwind-capable binary. Measured on
@@ -113,3 +122,7 @@ strip = "symbols"
 # release contains #1664.
 [patch.crates-io]
 vello = { path = "vendor/vello" }
+# The alpha splitter drops function-alias relocations and overlapping data
+# ownership. Keep the tested local repairs until upstream incorporates them;
+# vendor/wasm-split-cli/README.md records the revision and boundary tests.
+wasm-split-cli = { path = "vendor/wasm-split-cli" }

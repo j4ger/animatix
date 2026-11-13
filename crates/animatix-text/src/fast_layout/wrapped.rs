@@ -3,9 +3,10 @@ use animatix_core::error::RenderError;
 use crate::font_context::FontContext;
 use crate::{CompiledText, TextPath, f32_color_to_rgba8};
 
+use super::layout::{ParagraphBidi, ShapedTextFragment, VisualLayoutItem};
 use super::{
-    FastPathFace, HardwarePendingGlyph, ShapedGlyph, emit_shaped_glyphs, finalize_layout,
-    resolve_faces, shape_token, space_advance, tokenize_words,
+    FastPathFace, HardwarePendingGlyph, emit_shaped_glyphs, finalize_layout, parse_faces,
+    resolve_faces, shape_fragment, space_advance, tokenize_words,
 };
 
 /// Container width used for per-line alignment when one exists.
@@ -21,19 +22,24 @@ fn alignment_width(max_width: f32, line_width: f64) -> f64 {
 /// whether a space separated it from the previous word in the paragraph.
 struct WordInfo {
     width: f64,
-    glyphs: Vec<ShapedGlyph>,
+    fragments: Vec<ShapedTextFragment>,
     space_before: bool,
+    source_start: usize,
+    source_end: usize,
 }
 
 /// One laid-out line: indices into the word table plus its total advance.
 struct LineInfo {
     words: Vec<usize>,
+    visual_items: Vec<VisualLayoutItem>,
     total_width: f64,
+    source_start: usize,
+    source_end: usize,
 }
 
 /// Typography shared by the measure and emit phases of the wrapped fast path.
 struct LayoutParams<'a> {
-    faces: &'a [FastPathFace],
+    faces: &'a [FastPathFace<'a>],
     size: f32,
     letter_spacing: f32,
     space_width: f64,
@@ -43,7 +49,10 @@ struct LayoutParams<'a> {
 }
 
 /// Shape every word and break the paragraphs into lines at `max_width`.
-fn measure_and_break(content: &str, params: &LayoutParams<'_>) -> (Vec<WordInfo>, Vec<LineInfo>) {
+fn measure_and_break(
+    content: &str,
+    params: &LayoutParams<'_>,
+) -> Result<(Vec<WordInfo>, Vec<LineInfo>), RenderError> {
     let wrap_threshold = if params.max_width > 0.0 {
         params.max_width as f64
     } else {
@@ -53,34 +62,70 @@ fn measure_and_break(content: &str, params: &LayoutParams<'_>) -> (Vec<WordInfo>
     let mut word_infos: Vec<WordInfo> = Vec::new();
     let mut lines: Vec<LineInfo> = Vec::new();
 
+    let mut paragraph_char_start = 0usize;
     for paragraph in content.split('\n') {
         let p = paragraph.strip_suffix('\r').unwrap_or(paragraph);
         let raw_tokens = tokenize_words(p);
+        let paragraph_line_start = lines.len();
+        let bidi = ParagraphBidi::new(p);
 
         if raw_tokens.is_empty() {
             lines.push(LineInfo {
                 words: Vec::new(),
+                visual_items: Vec::new(),
                 total_width: 0.0,
+                source_start: 0,
+                source_end: 0,
             });
+            paragraph_char_start += paragraph.chars().count() + 1;
             continue;
         }
 
         let mut paragraph_word_indices = Vec::with_capacity(raw_tokens.len());
-        for (w, space_before) in raw_tokens {
-            let (token_width, shaped_glyphs) =
-                shape_token(w, params.faces, params.size, params.letter_spacing);
+        for token in &raw_tokens {
+            let mut fragments = Vec::new();
+            let mut token_width = 0.0;
+            for fragment in bidi.text_fragments(token.byte_start..token.byte_end) {
+                let local = fragment.range.start - token.byte_start;
+                let source_char =
+                    paragraph_char_start + token.char_start + token.text[..local].chars().count();
+                let direction = if fragment.rtl {
+                    rustybuzz::Direction::RightToLeft
+                } else {
+                    rustybuzz::Direction::LeftToRight
+                };
+                let (width, glyphs) = shape_fragment(
+                    &p[fragment.range.clone()],
+                    source_char,
+                    params.faces,
+                    params.size,
+                    params.letter_spacing,
+                    direction,
+                );
+                token_width += width;
+                fragments.push(ShapedTextFragment {
+                    range: fragment.range,
+                    width,
+                    glyphs,
+                });
+            }
             let wi_idx = word_infos.len();
             word_infos.push(WordInfo {
                 width: token_width,
-                glyphs: shaped_glyphs,
-                space_before,
+                fragments,
+                space_before: token.space_before,
+                source_start: token.byte_start,
+                source_end: token.byte_end,
             });
             paragraph_word_indices.push(wi_idx);
         }
 
         let mut current_line = LineInfo {
             words: Vec::new(),
+            visual_items: Vec::new(),
             total_width: 0.0,
+            source_start: 0,
+            source_end: 0,
         };
 
         for &wi_idx in &paragraph_word_indices {
@@ -99,22 +144,61 @@ fn measure_and_break(content: &str, params: &LayoutParams<'_>) -> (Vec<WordInfo>
                 lines.push(current_line);
                 current_line = LineInfo {
                     words: Vec::new(),
+                    visual_items: Vec::new(),
                     total_width: 0.0,
+                    source_start: 0,
+                    source_end: 0,
                 };
             }
 
             if !current_line.words.is_empty() && wi.space_before {
                 current_line.total_width += params.space_width;
             }
+            if current_line.words.is_empty() {
+                current_line.source_start = wi.source_start;
+            }
+            current_line.source_end = wi.source_end;
             current_line.words.push(wi_idx);
             current_line.total_width += wi.width;
         }
         if !current_line.words.is_empty() {
             lines.push(current_line);
         }
+
+        for line in &mut lines[paragraph_line_start..] {
+            let mut items = Vec::new();
+            let mut ranges = Vec::new();
+            for (line_word_idx, &word_idx) in line.words.iter().enumerate() {
+                let word = &word_infos[word_idx];
+                if line_word_idx > 0 && word.space_before {
+                    let previous = &word_infos[line.words[line_word_idx - 1]];
+                    let gap = previous.source_end..word.source_start;
+                    if !gap.is_empty() {
+                        if !bidi.range_has_single_level(gap.clone()) {
+                            return Err(RenderError::TextCompilation(
+                                "inter-word whitespace crosses bidi levels".into(),
+                            ));
+                        }
+                        items.push(VisualLayoutItem::Gap);
+                        ranges.push((gap.start, gap.end));
+                    }
+                }
+                for (fragment_idx, fragment) in word.fragments.iter().enumerate() {
+                    items.push(VisualLayoutItem::Text {
+                        word_idx,
+                        fragment_idx,
+                    });
+                    ranges.push((fragment.range.start, fragment.range.end));
+                }
+            }
+            let order =
+                bidi.visual_order_for_ranges(&ranges, line.source_start..line.source_end)?;
+            line.visual_items = order.into_iter().map(|index| items[index]).collect();
+        }
+        paragraph_char_start += paragraph.chars().count() + 1;
     }
 
-    (word_infos, lines)
+    Ok((word_infos, lines))
 }
 
 /// Emit centered glyph paths for the laid-out lines: per-line alignment,
@@ -164,40 +248,44 @@ fn emit_lines(
             _ => 0.0,         // left
         };
         let is_last_line = line_idx == truncated_lines.len() - 1;
-        let is_justify = text_align == "justify" && !is_last_line && line.words.len() > 1;
+        let gap_count = line
+            .visual_items
+            .iter()
+            .filter(|item| matches!(item, VisualLayoutItem::Gap))
+            .count();
+        let is_justify = text_align == "justify" && !is_last_line && gap_count > 0;
         let extra_space_per_gap = if is_justify {
-            (alignment_width - line_width) / (line.words.len() - 1) as f64
+            (alignment_width - line_width) / gap_count as f64
         } else {
             0.0
         };
 
-        for (wi_idx_in_line, &wi_idx) in line.words.iter().enumerate() {
-            let wi = &word_infos[wi_idx];
-
-            // Add space before word (except first)
-            if wi_idx_in_line > 0 && wi.space_before {
-                if is_justify {
+        for item in &line.visual_items {
+            match *item {
+                VisualLayoutItem::Gap => {
                     x_curr += params.space_width + extra_space_per_gap;
-                } else {
-                    x_curr += params.space_width;
-                }
+                },
+                VisualLayoutItem::Text {
+                    word_idx,
+                    fragment_idx,
+                } => {
+                    let word = &word_infos[word_idx];
+                    let fragment = &word.fragments[fragment_idx];
+                    emit_shaped_glyphs(
+                        &mut glyphs,
+                        &mut pending_hardware,
+                        params.faces,
+                        &fragment.glyphs,
+                        params.size,
+                        params.rgba,
+                        line_idx as u16,
+                        word_idx as u16,
+                        x_curr + x_offset,
+                        y_curr,
+                    );
+                    x_curr += fragment.width;
+                },
             }
-
-            // Render each glyph in the word using pre-computed offsets that include kerning
-            emit_shaped_glyphs(
-                &mut glyphs,
-                &mut pending_hardware,
-                params.faces,
-                &wi.glyphs,
-                params.size,
-                params.rgba,
-                line_idx as u16,
-                wi_idx as u16,
-                x_curr + x_offset,
-                y_curr,
-            );
-            // Advance x_curr by the total word width (includes kerning)
-            x_curr += wi.width;
         }
 
         // Add ellipsis for overflow: "ellipsis" on last visible line if truncated
@@ -205,9 +293,23 @@ fn emit_lines(
             && line_idx == truncated_lines.len() - 1
             && lines.len() > truncated_lines.len()
         {
-            let (dot_w, dot_glyphs) = shape_token("…", params.faces, params.size, 0.0);
+            let (dot_w, dot_glyphs) = shape_fragment(
+                "…",
+                0,
+                params.faces,
+                params.size,
+                0.0,
+                rustybuzz::Direction::LeftToRight,
+            );
             let (_ell_w, ell_glyphs) = if dot_glyphs.is_empty() || dot_glyphs[0].glyph_id == 0 {
-                shape_token(".", params.faces, params.size, 0.0)
+                shape_fragment(
+                    ".",
+                    0,
+                    params.faces,
+                    params.size,
+                    0.0,
+                    rustybuzz::Direction::LeftToRight,
+                )
             } else {
                 (dot_w, dot_glyphs)
             };
@@ -253,7 +355,15 @@ pub fn compile_text_fast_wrapped(
     text_align: &str,
     overflow: &str,
 ) -> Result<CompiledText, RenderError> {
-    let resolved = resolve_faces(family, weight, style, size, font_ctx, "fast path wrapped")?;
+    let sources = resolve_faces(content, family, weight, style, font_ctx, "fast path wrapped")?;
+    let faces = parse_faces(&sources, weight, style);
+    let Some(primary) = faces.first().map(|face| &face.ttf) else {
+        return Err(RenderError::TextCompilation("No usable font face for ordinary text".into()));
+    };
+    let font_scale = size / primary.units_per_em() as f32;
+    let ascent = primary.ascender() as f32;
+    let descent = primary.descender() as f32;
+    let line_gap = primary.line_gap() as f32;
 
     // Line height in absolute points
     let lh_mult = if line_height.is_finite() && line_height > 0.0 {
@@ -261,23 +371,22 @@ pub fn compile_text_fast_wrapped(
     } else {
         1.2
     };
-    let line_height_pts =
-        (resolved.ascent - resolved.descent + resolved.line_gap) * resolved.font_scale * lh_mult;
+    let line_height_pts = (ascent - descent + line_gap) * font_scale * lh_mult;
 
     if content.is_empty() {
         return Ok(CompiledText {
             glyphs: Vec::new(),
-            ascent: resolved.ascent * resolved.font_scale,
-            descent: resolved.descent * resolved.font_scale,
+            ascent: ascent * font_scale,
+            descent: descent * font_scale,
             baseline_offset: 0.0,
             hardware_layout: None,
         });
     }
 
     let rgba = f32_color_to_rgba8(&color);
-    let space_width = space_advance(&resolved.faces, size, letter_spacing, word_spacing);
+    let space_width = space_advance(&faces, size, letter_spacing, word_spacing);
     let params = LayoutParams {
-        faces: &resolved.faces,
+        faces: &faces,
         size,
         letter_spacing,
         space_width,
@@ -286,12 +395,12 @@ pub fn compile_text_fast_wrapped(
         rgba,
     };
 
-    let (word_infos, lines) = measure_and_break(content, &params);
+    let (word_infos, lines) = measure_and_break(content, &params)?;
     if word_infos.is_empty() {
         return Ok(CompiledText {
             glyphs: Vec::new(),
-            ascent: resolved.ascent * resolved.font_scale,
-            descent: resolved.descent * resolved.font_scale,
+            ascent: ascent * font_scale,
+            descent: descent * font_scale,
             baseline_offset: 0.0,
             hardware_layout: None,
         });
@@ -303,9 +412,9 @@ pub fn compile_text_fast_wrapped(
     Ok(finalize_layout(
         glyphs,
         pending_hardware,
-        &resolved.faces,
+        &faces,
         size,
-        resolved.ascent * resolved.font_scale,
-        resolved.descent * resolved.font_scale,
+        ascent * font_scale,
+        descent * font_scale,
     ))
 }

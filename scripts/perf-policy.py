@@ -157,6 +157,18 @@ def validate_dirs(policy: dict, baseline_dir: Path, current_dir: Path) -> None:
             bench_id = path.stem
             role_for(policy, bench_id)
             read_estimate(path)
+    baseline_ids = {path.stem for path in estimate_files(baseline_dir)}
+    current_ids = {path.stem for path in estimate_files(current_dir)}
+    missing = sorted(baseline_ids - current_ids)
+    unexpected = sorted(current_ids - baseline_ids)
+    if missing:
+        preview = ", ".join(missing[:8])
+        suffix = " …" if len(missing) > 8 else ""
+        raise ValueError(f"current estimates are missing {len(missing)} baseline row(s): {preview}{suffix}")
+    if unexpected:
+        preview = ", ".join(unexpected[:8])
+        suffix = " …" if len(unexpected) > 8 else ""
+        raise ValueError(f"current estimates contain {len(unexpected)} row(s) without a baseline: {preview}{suffix}")
 
 
 def evaluate_dirs(policy: dict, baseline_dir: Path, current_dir: Path,
@@ -232,7 +244,6 @@ def main() -> int:
     evaluate.add_argument("--baseline-dir", type=Path, required=True)
     evaluate.add_argument("--current-dir", type=Path, required=True)
     evaluate.add_argument("--thresh", type=float, default=5.0)
-    evaluate.add_argument("--min-coverage", type=int, default=90)
     evaluate.add_argument("--format", choices=("table", "json"), default="table")
     report_check = subparsers.add_parser("validate-report")
     report_check.add_argument("--report", type=Path, required=True)
@@ -254,10 +265,8 @@ def main() -> int:
             validate_dirs(policy, args.baseline_dir, args.current_dir)
             return 0
         if args.command == "evaluate":
-            if not 1 <= args.min_coverage <= 100:
-                raise ValueError("minimum coverage must be an integer from 1 to 100")
             result = evaluate_dirs(
-                policy, args.baseline_dir, args.current_dir, args.thresh, args.min_coverage
+                policy, args.baseline_dir, args.current_dir, args.thresh, 100
             )
             result["policy"] = str(args.policy)
             result["policy_version"] = policy["version"]

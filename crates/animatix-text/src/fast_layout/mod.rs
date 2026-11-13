@@ -13,20 +13,23 @@ mod layout;
 mod shaping;
 mod wrapped;
 
+pub(crate) use layout::{default_ignorable, resolve_faces};
 pub use shaping::compile_text_fast;
 pub use wrapped::compile_text_fast_wrapped;
 
 use layout::{
-    emit_shaped_glyphs, finalize_layout, resolve_faces, shape_token, space_advance, tokenize_words,
+    emit_shaped_glyphs, finalize_layout, parse_faces, shape_fragment, space_advance, tokenize_words,
 };
 
 /// Font face with both `ttf-parser` and `rustybuzz` representations for fast-path shaping.
-pub struct FastPathFace {
-    pub ttf: ttf_parser::Face<'static>,
-    pub rb: rustybuzz::Face<'static>,
+pub struct FastPathFace<'a> {
+    pub ttf: ttf_parser::Face<'a>,
+    pub rb: rustybuzz::Face<'a>,
     pub family: String,
-    pub font_data: &'static [u8],
-    pub font_index: u32,
+    /// Owned source handle outlives the parsed borrowed face in the caller.
+    pub source: &'a crate::font_context::FontFaceData,
+    /// Normalized coordinates in the font's `fvar` axis order.
+    pub normalized_coords: Vec<i16>,
 }
 
 /// A compact hardware glyph descriptor for direct Vello hardware glyph run rendering.
@@ -43,10 +46,12 @@ pub struct HardwareGlyph {
 /// A contiguous run of glyphs sharing the same font face and font size.
 #[derive(Debug, Clone)]
 pub struct HardwareGlyphRun {
-    /// Pointer to static font bytes.
-    pub font_data: &'static [u8],
+    /// Shared font bytes retained for this run.
+    pub font_data: std::sync::Arc<[u8]>,
     /// Font index inside font collection (ttc).
     pub font_index: u32,
+    /// Normalized variable-font coordinates in the font's declared axis order.
+    pub normalized_coords: std::sync::Arc<[i16]>,
     /// Font size in points.
     pub font_size: f32,
     /// Stream of positioned glyphs.
@@ -72,18 +77,8 @@ struct ShapedGlyph {
     glyph_id: u16,
     x_offset: f64,
     y_offset: f64,
+    char_idx: u16,
 }
 
-/// Faces resolved for one fast-path compilation.
-struct ResolvedFaces {
-    /// Primary face first, then every bundled fallback face in bundle order.
-    faces: Vec<FastPathFace>,
-    /// `size / units_per_em` of the primary face.
-    font_scale: f32,
-    /// Primary-face ascent in font units (positive).
-    ascent: f32,
-    /// Primary-face descent in font units (negative).
-    descent: f32,
-    /// Primary-face line gap in font units.
-    line_gap: f32,
-}
+#[cfg(test)]
+mod unicode_tests;

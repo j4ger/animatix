@@ -43,11 +43,9 @@
 #   PERF_TASKSET_CPUS=0-3  optional `taskset -c` CPU set wrapping cargo bench.
 #   PERF_MAX_LOAD_RATIO=0.5  load-per-CPU preflight ceiling.
 #   PERF_ALLOW_LOAD=1        override the preflight (explicit, logged).
-#   PERF_MIN_BASELINE_COVERAGE=90
-#                            percent of saved baseline benches that must match
-#                            a current benchmark. A compare that matches zero
-#                            rows, or only a minority of a stale/renamed
-#                            baseline, is a broken verdict, not a pass.
+#   Every saved benchmark ID must appear in the current run. A partial suite
+#   cannot pass, even if its missing rows would leave all other results green.
+#   PERF_MIN_BASELINE_COVERAGE is retired; it cannot lower this requirement.
 #
 # Thresholds:
 #   --thresh PCT  minimum regression ratio beyond the Criterion mean-CI screen,
@@ -98,11 +96,6 @@ shift || true
 
 THRESH=5
 TIER=quick
-MIN_BASELINE_COVERAGE="${PERF_MIN_BASELINE_COVERAGE:-90}"
-if ! [[ "$MIN_BASELINE_COVERAGE" =~ ^(100|[1-9][0-9]?)$ ]]; then
-    echo "perf-bench: PERF_MIN_BASELINE_COVERAGE='$MIN_BASELINE_COVERAGE' must be an integer 1-100." >&2
-    exit 2
-fi
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --thresh)
@@ -377,7 +370,7 @@ case "$MODE" in
         fi
         if ! python3 "$POLICY_TOOL" validate --policy "$POLICY_FILE" \
             --baseline-dir "$BASELINE_DIR/$TIER" --current-dir "$LOG_DIR"; then
-            echo "perf-bench: FAIL — every baseline/current row must have exactly one policy classification." >&2
+            echo "perf-bench: FAIL — baseline and current row sets must match exactly and every row must have one policy classification." >&2
             exit 1
         fi
 
@@ -449,11 +442,8 @@ case "$MODE" in
         fi
         coverage=$((total * 100 / baseline_count))
         echo "perf-bench: $total/$baseline_count '$TIER' baseline benches compared (${coverage}% coverage), $failures material regressions, $inconclusive inconclusive rows, $policy_failures policy/baseline failures."
-        if [[ "$coverage" -lt "$MIN_BASELINE_COVERAGE" ]]; then
-            echo "perf-bench: FAIL — baseline coverage ${coverage}% is below the required ${MIN_BASELINE_COVERAGE}%." >&2
-            echo "           ${baseline_count} saved baseline(s), only ${total} matched. The baseline is" >&2
-            echo "           stale or the benchmark names changed; re-save it on a known-good commit." >&2
-            if [[ "$MODE" == "evaluate" ]]; then printf '\nFAIL: baseline coverage %s%% is below %s%%.\n' "$coverage" "$MIN_BASELINE_COVERAGE" >> "$REPORT_FILE"; fi
+        if [[ "$total" -ne "$baseline_count" ]]; then
+            echo "perf-bench: FAIL — matched $total of $baseline_count baseline rows; exact row-set validation should have prevented this." >&2
             exit 1
         fi
         if [[ "$failures" -gt 0 ]]; then

@@ -9,8 +9,8 @@ default = ["rich-text", "bundled-fonts"]
 # Rich text: Typst-powered markup (*bold*), Code blocks (syntect highlighting),
 # and Math/Equation compilation. The plain-text fast path (direct shaping via
 # ttf-parser) is always available; disabling this feature removes the Typst
-# stack (and its transitive wasmi/hayagriva/hayro/regex payload) entirely —
-# used by the slim playback-only web profile.
+# stack (and its transitive wasmi/hayagriva/hayro/regex payload) entirely for
+# minimal native/custom builds. The shipped web SDK splits this code instead.
 rich-text = ["dep:typst", "dep:typst-layout", "dep:syntect"]
 # Font bytes are embedded in native builds. Web builds disable this and load
 # the same faces from the external `web/fonts` pack instead.
@@ -26,8 +26,15 @@ tracing = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 serde_json = "1"
+sha2 = "0.10.9"
+unicode-bidi = "0.3.18"
+unicode-segmentation = "1.13.2"
+unicode-linebreak = "0.1.5"
 typst = { version = "0.15.1", optional = true }
 typst-layout = { version = "0.15.1", optional = true }
 # Reused (same version/features as typst-library) to tokenize Code bodies with
 # typst's own `raw` syntax set + theme, so highlighting matches typst exactly.
 syntect = { version = "5.3", default-features = false, features = ["parsing", "regex-fancy", "plist-load", "yaml-load"], optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm_split = { workspace = true }

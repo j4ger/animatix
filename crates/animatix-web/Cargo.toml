@@ -9,10 +9,8 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["rich-text", "image-decode", "svg", "raster-encode"]
-# Slim playback-only profile: build with --no-default-features. All engine
-# features are opt-in (deps below are default-features = false), so disabling
-# the defaults drops the Typst stack, raster decoding, and SVG loading from
-# the wasm module.
+# Optional compilation switches; the shipped SDK includes all capabilities
+# and loads their Wasm partitions on demand.
 rich-text = ["animatix/rich-text"]
 image-decode = ["animatix/image-decode"]
 svg = ["animatix/svg"]
@@ -24,6 +22,8 @@ animatix-core = { path = "../animatix-core" }
 animatix-syntax = { path = "../animatix-syntax" }
 animatix-std = { path = "../animatix-std" }
 serde = { workspace = true }
+url = "2.5"
+sha2 = "0.10.9"
 # Dropped/invalid values log through `tracing`, never `println!` (Code Style).
 # The browser has no subscriber, so a `warn!` here serves native tests and any
 # host that installs one; the wasm boundary additionally reports drops to JS by

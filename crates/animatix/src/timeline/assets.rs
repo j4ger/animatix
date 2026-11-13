@@ -1,5 +1,6 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::SystemTime;
 
 use crate::renderer::types::VelloPath;
@@ -27,6 +28,7 @@ pub struct AssetCache {
     workspace_root: Option<PathBuf>,
     svg_paths: HashMap<String, Vec<VelloPath>>,
     images: HashMap<String, SceneImage>,
+    transcripts: HashMap<String, Arc<str>>,
     usage: HashMap<String, BTreeSet<String>>,
     metadata: HashMap<String, AssetFileMetadata>,
 }
@@ -148,6 +150,36 @@ impl AssetCache {
         Ok(())
     }
 
+    /// Pre-register transcript text so a later build reads it from the asset
+    /// cache instead of the filesystem. Used by embedders that fetch resources
+    /// before starting the synchronous build.
+    pub fn insert_transcript_text(&mut self, url: &str, text: impl Into<Arc<str>>) {
+        let key = self.normalize_asset_url(url);
+        self.metadata.remove(&key);
+        self.transcripts.insert(key, text.into());
+    }
+
+    /// Return cached transcript text, or read and cache it from the native
+    /// filesystem on a miss. Web builds must pre-register text because their
+    /// filesystem is unavailable.
+    pub fn load_transcript_text(&mut self, url: &str) -> Result<Arc<str>, String> {
+        let key = self.normalize_asset_url(url);
+        if let Some(text) = self.transcripts.get(&key) {
+            return Ok(text.clone());
+        }
+        let text = std::fs::read_to_string(&key)
+            .map_err(|error| format!("failed to read transcript '{}': {error}", key))?;
+        self.record_file_metadata(&key);
+        let text: Arc<str> = Arc::from(text);
+        self.transcripts.insert(key, text.clone());
+        Ok(text)
+    }
+
+    /// Iterate over cached transcript text keyed by normalized source ID.
+    pub fn transcripts(&self) -> impl Iterator<Item = (&String, &Arc<str>)> {
+        self.transcripts.iter()
+    }
+
     /// Record that an actor uses an asset without caching its decoded payload.
     ///
     /// Audio is kept out of the visual cache because the GUI decodes it through
@@ -201,7 +233,7 @@ impl AssetCache {
     /// pre-seeded cache useless.
     pub fn invalidate_changed_assets(&mut self) {
         let mut changed: Vec<String> = Vec::new();
-        for path in self.svg_paths.keys().chain(self.images.keys()) {
+        for path in self.svg_paths.keys().chain(self.images.keys()).chain(self.transcripts.keys()) {
             if self.metadata.contains_key(path) && !self.file_metadata_matches(path) {
                 changed.push(path.clone());
             }
@@ -257,6 +289,7 @@ impl AssetCache {
     fn drop_asset(&mut self, path: &str) {
         self.svg_paths.remove(path);
         self.images.remove(path);
+        self.transcripts.remove(path);
         self.usage.remove(path);
         self.metadata.remove(path);
     }

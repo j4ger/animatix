@@ -127,6 +127,22 @@ class PerfPolicyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             policy_module.validate_dirs(self.policy, baseline_dir, current_dir)
 
+    def test_71_of_72_rows_fails_even_with_legacy_90_percent_coverage(self):
+        baseline_dir = self.root / "baseline"
+        current_dir = self.root / "current"
+        baseline_dir.mkdir()
+        current_dir.mkdir()
+        omitted = "text_rebuild__mixed_48_cold"
+        ids = [omitted, *(f"timeline_evaluate_fixture_{index}" for index in range(71))]
+        baseline_data = self.estimate("baseline-template.json", 100).read_bytes()
+        current_data = self.estimate("current-template.json", 100).read_bytes()
+        for bench_id in ids:
+            (baseline_dir / f"{bench_id}.json").write_bytes(baseline_data)
+            if bench_id != omitted:
+                (current_dir / f"{bench_id}.json").write_bytes(current_data)
+        with self.assertRaisesRegex(ValueError, "text_rebuild__mixed_48_cold"):
+            policy_module.evaluate_dirs(self.policy, baseline_dir, current_dir, 5.0, 90)
+
     def test_report_path_cannot_overwrite_an_estimate(self):
         directory = self.root / "inputs"
         directory.mkdir()

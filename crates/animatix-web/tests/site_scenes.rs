@@ -1,17 +1,14 @@
-//! Every scene the deployed site plays must build, in the engine profile the
-//! `<amx-player>` that plays it asks for.
+//! Every scene the deployed site plays must build with the unified web SDK.
 //!
-//! This is the gate the browser-only failure mode needs: a page that plays an
-//! `Svg` scene through the default slim profile, or a scene whose import or
-//! asset path resolves to nothing over HTTP, is fine on the desktop and shows
+//! This is the gate for browser-only failures: a scene whose import, asset,
+//! or runtime capability cannot be prepared is fine on the desktop but shows
 //! "Scene error" in the page. The test drives `animatix_web::host` — the same
 //! parse/build pipeline the wasm module exposes to JS — and follows the
 //! embed's own fetch protocol, so the module keys it learns, the assets it
 //! seeds and the builds it runs are the ones the player would perform.
 //!
-//! Two runs cover the profiles: `cargo test -p animatix-web` (full) and
-//! `cargo test -p animatix-web --no-default-features` (slim). A slim run skips
-//! only the scenes that *every* referencing player marks `profile="full"`.
+//! The site-scene gate runs once against the SDK's default feature set, which
+//! includes every capability. Partition loading is covered by SDK tests.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -26,10 +23,7 @@ use animatix_web::host::build_document_with_modules;
 /// A scene the site plays, and the pages that play it.
 #[derive(Default)]
 struct SceneRefs {
-    /// Pages whose player leaves `profile` at its slim default.
-    slim_pages: Vec<String>,
-    /// Pages whose player asks for `profile="full"`.
-    full_pages: Vec<String>,
+    pages: Vec<String>,
 }
 
 /// One source the player has in hand, with the directory its urls and imports
@@ -65,12 +59,12 @@ fn resolve(dir: &Path, src: &str) -> PathBuf {
     out
 }
 
-/// Pull `(src, wants_full)` out of every `<amx-player …>` tag in `html`.
+/// Pull `src` out of every `<amx-player …>` tag in `html`.
 ///
 /// Escaped samples (`&lt;amx-player`) are prose, not elements, and never match
 /// here. An attribute value containing `>` would need a real parser; none
 /// exists in the site's player tags.
-fn players(html: &str) -> Vec<(String, bool)> {
+fn players(html: &str) -> Vec<String> {
     let mut found = Vec::new();
     let mut rest = html;
     while let Some(start) = rest.find("<amx-player") {
@@ -83,7 +77,7 @@ fn players(html: &str) -> Vec<(String, bool)> {
                 .and_then(|begin| tag[begin..].find('"').map(|end| &tag[begin..begin + end]))
         };
         if let Some(src) = attr("src") {
-            found.push((src.to_string(), matches!(attr("profile"), Some("full") | Some("assets"))));
+            found.push(src.to_string());
         }
         rest = &rest[tag_end..];
     }
@@ -104,14 +98,10 @@ fn collect_players(root: &Path, into: &mut BTreeMap<PathBuf, SceneRefs>) {
             }
             let html = std::fs::read_to_string(&path).expect("html is readable");
             let rel_page = path.strip_prefix(root).unwrap().to_string_lossy().replace('\\', "/");
-            for (src, full) in players(&html) {
+            for src in players(&html) {
                 let scene = resolve(path.parent().unwrap(), &src);
                 let refs = into.entry(scene).or_default();
-                if full {
-                    refs.full_pages.push(rel_page.clone());
-                } else {
-                    refs.slim_pages.push(rel_page.clone());
-                }
+                refs.pages.push(rel_page.clone());
             }
         }
     }
@@ -129,12 +119,6 @@ fn literal_asset_urls(text: &str) -> Vec<String> {
 /// against that source's own location, `.svg` crosses as text and anything
 /// else as encoded bytes, and the literal url string is the cache key. A url
 /// with no file behind it is the page's own 404, so it is reported.
-///
-/// `unused_variables` is allowed because the slim profile can hand nothing
-/// over: with neither asset feature compiled in, reading the file is still the
-/// check and both parameters go unused — the same shape as the `unused_mut`
-/// allowance in `web.rs`'s `load_source_with_assets`.
-#[allow(unused_variables)]
 fn seed_assets(cache: &mut AssetCache, sources: &[Fetched]) -> Vec<String> {
     let mut unfetchable = Vec::new();
     for source in sources {
@@ -149,14 +133,12 @@ fn seed_assets(cache: &mut AssetCache, sources: &[Fetched]) -> Vec<String> {
             match payload {
                 Err(e) => unfetchable.push(format!("{url} (resolved to {path:?}): {e}")),
                 Ok(bytes) => {
-                    #[cfg(feature = "svg")]
                     if svg {
                         let text = String::from_utf8_lossy(&bytes);
                         if let Err(e) = cache.insert_svg_source(&url, &text) {
                             unfetchable.push(format!("{url} ({path:?}): {e}"));
                         }
                     }
-                    #[cfg(feature = "image-decode")]
                     if !svg && let Err(e) = cache.insert_image_bytes(&url, &bytes) {
                         unfetchable.push(format!("{url} ({path:?}): {e}"));
                     }
@@ -183,9 +165,6 @@ fn build_scene(scene: &Path) -> Result<(), Vec<String>> {
             text: source.clone(),
         }];
         sources.extend(modules.iter().cloned());
-        // `mut` only matters where an insert can happen: a build without
-        // either asset feature seeds nothing.
-        #[allow(unused_mut)]
         let mut cache = AssetCache::new();
         let unfetchable = seed_assets(&mut cache, &sources);
         if !unfetchable.is_empty() {
@@ -258,13 +237,8 @@ fn build_scene(scene: &Path) -> Result<(), Vec<String>> {
     Err(vec!["import retry did not converge in 24 rounds".to_string()])
 }
 
-/// The slim profile is what `pkg-slim` ships: the engine features it drops are
-/// exactly the ones a scene may not use unless its player opts in.
-const SLIM_BUILD: bool =
-    !(cfg!(feature = "svg") && cfg!(feature = "rich-text") && cfg!(feature = "image-decode"));
-
 #[test]
-fn every_scene_the_site_plays_builds_in_its_profile() {
+fn every_scene_the_site_plays_builds_with_the_sdk() {
     let root = web_root();
     let mut refs: BTreeMap<PathBuf, SceneRefs> = BTreeMap::new();
     collect_players(&root, &mut refs);
@@ -273,44 +247,24 @@ fn every_scene_the_site_plays_builds_in_its_profile() {
     let mut failures = Vec::new();
     let mut missing_files = Vec::new();
     let mut checked = 0usize;
-    let mut skipped_full_only = 0usize;
 
     for (scene, r) in &refs {
         if !scene.exists() {
-            let pages = [r.slim_pages.as_slice(), r.full_pages.as_slice()].concat();
-            missing_files.push(format!("{} (played by {:?})", scene.display(), pages));
-            continue;
-        }
-        let slim_wanted = !r.slim_pages.is_empty();
-        if SLIM_BUILD && !slim_wanted {
-            // Nothing on the site plays this scene through the slim profile, so
-            // the slim engine is not its delivery contract.
-            skipped_full_only += 1;
+            missing_files.push(format!("{} (played by {:?})", scene.display(), r.pages));
             continue;
         }
         checked += 1;
         if let Err(errors) = build_scene(scene) {
-            let pages = if slim_wanted {
-                &r.slim_pages
-            } else {
-                &r.full_pages
-            };
             failures.push(format!(
                 "{} [{}] failed to build: {}",
                 scene.display(),
-                pages.join(", "),
+                r.pages.join(", "),
                 errors.join("; ")
             ));
         }
     }
 
-    eprintln!(
-        "site scenes: {} referenced, {} built in the {} profile, {} skipped as full-only",
-        refs.len(),
-        checked,
-        if SLIM_BUILD { "slim" } else { "full" },
-        skipped_full_only
-    );
+    eprintln!("site scenes: {} referenced, {} built with the unified SDK", refs.len(), checked);
     assert!(
         missing_files.is_empty(),
         "players point at scene files that are not on disk:\n{}",
@@ -321,36 +275,5 @@ fn every_scene_the_site_plays_builds_in_its_profile() {
         "scenes the site plays do not build cleanly (warning or worse):\n{}",
         failures.join("\n")
     );
-    assert!(checked > 0, "no scene was exercised in this profile");
-}
-
-/// The embed's contract is that an attribute the page never sets still means
-/// something: a player with no `profile` runs the slim engine, so a scene that
-/// needs the full profile must say so on the element that plays it.
-#[test]
-fn full_profile_scenes_are_marked_on_their_players() {
-    if SLIM_BUILD {
-        // `every_scene_the_site_plays_builds_in_its_profile` already fails the
-        // slim run when an unmarked player reaches a full-only scene.
-        return;
-    }
-    let root = web_root();
-    let mut refs: BTreeMap<PathBuf, SceneRefs> = BTreeMap::new();
-    collect_players(&root, &mut refs);
-    let offenders: Vec<String> = refs
-        .iter()
-        .filter(|(_, r)| !r.slim_pages.is_empty())
-        .filter(|(scene, _)| {
-            let text = std::fs::read_to_string(scene).unwrap_or_default();
-            ["Svg", "Image", "Code", "Math", "Audio"]
-                .iter()
-                .any(|ty| text.contains(&format!("{ty},")))
-        })
-        .map(|(scene, r)| format!("{} (slim players: {:?})", scene.display(), r.slim_pages))
-        .collect();
-    assert!(
-        offenders.is_empty(),
-        "these scenes use full-profile actors but are played without profile=\"full\":\n{}",
-        offenders.join("\n")
-    );
+    assert!(checked > 0, "no scene was exercised");
 }

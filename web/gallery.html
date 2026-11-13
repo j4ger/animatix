@@ -21,7 +21,7 @@
       </p>
       <div class="hero-metrics">
         <span class="readout">live figures</span>
-        <span class="readout">2.3 MB slim runtime</span>
+        <span class="readout">On-demand web runtime</span>
         <span class="readout">60 FPS WebGPU</span>
         <span class="readout">theater mode ready</span>
       </div>
@@ -217,13 +217,13 @@
         on the web takes one script tag and one custom element:
       </p>
       <div class="duality">
-        <pre>&lt;script type="module" src="./embed/amx-player.js" data-runtime-base="./pkg-slim"&gt;&lt;/script&gt;
+        <pre>&lt;script type="module" src="./runtime/amx-player.js"&gt;&lt;/script&gt;
 
 &lt;amx-player src="./scenes/topology.amx" autoplay loop hold="1.5" aspect="16:9"&gt;&lt;/amx-player&gt;</pre>
         <div>
           <p style="color: var(--faint); line-height: 1.6;">
-            Vector and plain-text scenes run on the 2.3 MB <span class="readout">pkg-slim</span>
-            bundle; load the full engine for Typst equations.
+            Scenes share one SDK and download only the capabilities and fonts
+            their source needs.
           </p>
           <p><a class="btn ghost" href="./README.md">web/README.md →</a></p>
         </div>
@@ -231,7 +231,7 @@
     </section>
   </div>
 
-  <script type="module" src="./embed/amx-player.js" data-runtime-base="./pkg-slim"></script>
+  <script type="module" src="./runtime/amx-player.js"></script>
   <script src="./site-chrome.js" data-root="./" data-section="gallery"></script>
 </body>
 </html>

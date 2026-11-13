@@ -32,7 +32,7 @@
         <span class="readout">WebGPU 60 FPS</span>
         <span class="readout">Typst math core</span>
         <span class="readout">4K video export</span>
-        <span class="readout">2.3 MB slim runtime</span>
+        <span class="readout">On-demand web runtime</span>
       </div>
     </header>
 
@@ -104,7 +104,7 @@
           <span class="readout">Core runtime</span>
           <h3>Pure Rust &amp; WebGPU</h3>
           <p>Hardware-accelerated 2D vector rasterization powered by Vello and custom
-             WGSL compute shaders — native on desktop, a 2.3 MB slim runtime in the browser.</p>
+             WGSL compute shaders — native on desktop and split into on-demand capabilities in the browser.</p>
         </div>
         <div>
           <span class="readout">Typesetting</span>
@@ -271,7 +271,7 @@ cargo run -p animatix-cli --features video -- \
 
   </div>
 
-  <script type="module" src="./embed/amx-player.js"></script>
+  <script type="module" src="./runtime/amx-player.js"></script>
   <script src="./site-chrome.js" data-root="./" data-section="home"></script>
 </body>
 </html>

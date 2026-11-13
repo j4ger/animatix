@@ -36,14 +36,9 @@ impl Timeline {
         //    an unsupported placeholder.
         super::format_specs::validate_format_specs(&seeded.ast, &mut diagnostics);
 
-        // 3. Lower declarations, keyframes and actions into tracks; attach
-        //    the transcripts the seeding pass collected.
-        super::walk::walk_statements(
-            &mut timeline,
-            &seeded.ast,
-            seeded.transcripts,
-            &mut diagnostics,
-        );
+        // 3. Lower declarations, keyframes and actions into tracks. Transcript
+        //    data is attached by the actual transcript-capable actor build.
+        super::walk::walk_statements(&mut timeline, &seeded.ast, &mut diagnostics);
 
         // 4. Lower `always` bodies to IR and validate their property references.
         super::walk::lower_modifiers(&mut timeline, &mut diagnostics);

@@ -7,6 +7,8 @@ use crate::TextPath;
 #[cfg(feature = "rich-text")]
 use crate::paint_to_rgba;
 #[cfg(feature = "rich-text")]
+use animatix_core::error::RenderError;
+#[cfg(feature = "rich-text")]
 use kurbo::Affine;
 #[cfg(feature = "rich-text")]
 use typst::layout::{Frame, FrameItem, Transform};
@@ -38,16 +40,6 @@ impl ttf_parser::OutlineBuilder for PathBuilder {
     fn close(&mut self) {
         self.0.close_path();
     }
-}
-
-#[cfg(feature = "rich-text")]
-/// A shape extracted from a Typst frame, containing the curve and its transform.
-#[derive(Clone)]
-pub struct ExtractedShape {
-    /// The curve geometry of the shape.
-    pub curve: typst::visualize::Curve,
-    /// The transform applied to the shape.
-    pub transform: Transform,
 }
 
 #[cfg(feature = "rich-text")]
@@ -86,7 +78,7 @@ pub fn extract_frame_metrics(frame: &Frame) -> (f32, f32) {
     result.unwrap_or((0.0, 0.0))
 }
 
-#[cfg(feature = "rich-text")]
+#[cfg(all(feature = "rich-text", test))]
 /// Extract glyph paths from a Typst frame.
 pub fn extract_glyphs(frame: &Frame) -> Vec<TextPath> {
     let mut glyphs = Vec::new();
@@ -115,16 +107,49 @@ pub fn extract_glyphs_with_metrics(frame: &Frame) -> CompiledText {
 }
 
 #[cfg(feature = "rich-text")]
-/// Extract glyphs from a Typst frame, grouped by top-level `FrameItem::Group`.
+/// Extract glyphs from a Typst frame, grouped by explicit Equation fragment
+/// metadata when present, or by top-level groups for legacy callers.
 ///
-/// Each `#box()[content]` wrapper in Typst produces a top-level `Group` in the
-/// output frame.  This function returns:
-/// - A flat list of glyph paths (centred as a whole, not per-group).
-/// - A parallel list of index ranges, one per top-level group encountered.
+/// Equation frames carry paired `animatix:equation-fragment:{start,end}:{index}`
+/// metadata tags. These are a private plain-string bridge between the engine
+/// and this extractor; Typst frame types remain internal to this crate.
+/// Marked fragments are emitted in ordinal order, including empty ranges.
 ///
 /// Non-group text items at the top level are collected into an implicit group
-/// appended at the end (only when non-empty).
-pub fn extract_glyphs_grouped(frame: &Frame) -> (Vec<TextPath>, Vec<std::ops::Range<usize>>) {
+/// appended at the end (only when non-empty) when no Equation markers exist.
+pub fn extract_glyphs_grouped(
+    frame: &Frame,
+) -> Result<(Vec<TextPath>, Vec<std::ops::Range<usize>>), RenderError> {
+    let mut markers = Vec::new();
+    collect_fragment_markers(frame, &mut markers)?;
+    if markers.is_empty() {
+        return Ok(extract_glyphs_grouped_legacy(frame));
+    }
+    validate_fragment_markers(&markers)?;
+
+    let mut glyphs = Vec::new();
+    let mut ranges = Vec::new();
+    let mut state = GlyphLayoutState::default();
+    let mut active = None;
+    extract_marked_frame(
+        frame,
+        Transform::identity(),
+        &mut glyphs,
+        &mut ranges,
+        &mut state,
+        &mut active,
+    )?;
+    if active.is_some() || ranges.len() * 2 != markers.len() {
+        return Err(RenderError::TextCompilation(
+            "unbalanced Equation fragment metadata".to_string(),
+        ));
+    }
+    center_text_paths(&mut glyphs);
+    Ok((glyphs, ranges))
+}
+
+#[cfg(feature = "rich-text")]
+fn extract_glyphs_grouped_legacy(frame: &Frame) -> (Vec<TextPath>, Vec<std::ops::Range<usize>>) {
     let mut all_glyphs: Vec<TextPath> = Vec::new();
     let mut ranges: Vec<std::ops::Range<usize>> = Vec::new();
     let mut state = GlyphLayoutState::default();
@@ -162,6 +187,126 @@ pub fn extract_glyphs_grouped(frame: &Frame) -> (Vec<TextPath>, Vec<std::ops::Ra
     // Centre all glyphs as a whole (not per-group)
     center_text_paths(&mut all_glyphs);
     (all_glyphs, ranges)
+}
+
+#[cfg(feature = "rich-text")]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+enum FragmentMarker {
+    Start(usize),
+    End(usize),
+}
+
+#[cfg(feature = "rich-text")]
+const EQUATION_FRAGMENT_MARKER_PREFIX: &str = "animatix:equation-fragment:";
+
+#[cfg(feature = "rich-text")]
+fn fragment_marker(item: &FrameItem) -> Result<Option<FragmentMarker>, RenderError> {
+    let FrameItem::Tag(typst::introspection::Tag::Start(content, _)) = item else {
+        return Ok(None);
+    };
+    if content.elem().name() != "metadata" {
+        return Ok(None);
+    }
+    let Ok(typst::foundations::Value::Str(value)) = content.field_by_name("value") else {
+        return Ok(None);
+    };
+    let value = value.as_str();
+    let Some(rest) = value.strip_prefix(EQUATION_FRAGMENT_MARKER_PREFIX) else {
+        return Ok(None);
+    };
+    let (kind, index) = rest.split_once(':').ok_or_else(|| {
+        RenderError::TextCompilation("malformed Equation fragment metadata".to_string())
+    })?;
+    let index = index.parse().map_err(|_| {
+        RenderError::TextCompilation("malformed Equation fragment ordinal".to_string())
+    })?;
+    match kind {
+        "start" => Ok(Some(FragmentMarker::Start(index))),
+        "end" => Ok(Some(FragmentMarker::End(index))),
+        _ => Err(RenderError::TextCompilation(
+            "unknown Equation fragment metadata kind".to_string(),
+        )),
+    }
+}
+
+#[cfg(feature = "rich-text")]
+fn collect_fragment_markers(
+    frame: &Frame,
+    markers: &mut Vec<FragmentMarker>,
+) -> Result<(), RenderError> {
+    for (_, item) in frame.items() {
+        if let Some(marker) = fragment_marker(item)? {
+            markers.push(marker);
+        }
+        if let FrameItem::Group(group) = item {
+            collect_fragment_markers(&group.frame, markers)?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(feature = "rich-text")]
+fn validate_fragment_markers(markers: &[FragmentMarker]) -> Result<(), RenderError> {
+    if !markers.len().is_multiple_of(2) {
+        return Err(RenderError::TextCompilation(
+            "incomplete Equation fragment metadata".to_string(),
+        ));
+    }
+    for (index, pair) in markers.as_chunks::<2>().0.iter().enumerate() {
+        if *pair != [FragmentMarker::Start(index), FragmentMarker::End(index)] {
+            return Err(RenderError::TextCompilation(format!(
+                "invalid Equation fragment metadata at ordinal {index}"
+            )));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(feature = "rich-text")]
+fn extract_marked_frame(
+    frame: &Frame,
+    current_transform: Transform,
+    glyphs: &mut Vec<TextPath>,
+    ranges: &mut Vec<std::ops::Range<usize>>,
+    state: &mut GlyphLayoutState,
+    active: &mut Option<(usize, usize)>,
+) -> Result<(), RenderError> {
+    for (pos, item) in frame.items() {
+        let transform = current_transform.pre_concat(Transform::translate(pos.x, pos.y));
+        match item {
+            FrameItem::Group(group) => {
+                let group_transform = transform.pre_concat(group.transform);
+                extract_marked_frame(&group.frame, group_transform, glyphs, ranges, state, active)?;
+            },
+            FrameItem::Text(text) => {
+                // Spaces between fragments still advance word/line bookkeeping,
+                // but their glyphs do not belong to either adjacent range.
+                if active.is_some() {
+                    emit_text_item(text, transform, glyphs, state);
+                } else {
+                    let mut discarded = Vec::new();
+                    emit_text_item(text, transform, &mut discarded, state);
+                }
+            },
+            _ => {
+                if let Some(marker) = fragment_marker(item)? {
+                    match (marker, active.take()) {
+                        (FragmentMarker::Start(index), None) => {
+                            *active = Some((index, glyphs.len()))
+                        },
+                        (FragmentMarker::End(index), Some((open, start))) if open == index => {
+                            ranges.push(start..glyphs.len());
+                        },
+                        // The preflight validation should make these branches
+                        // unreachable; leave recovery to the final balance check.
+                        (FragmentMarker::Start(_), Some(open)) => *active = Some(open),
+                        (FragmentMarker::End(_), open) => *active = open,
+                    }
+                }
+            },
+        }
+    }
+    Ok(())
 }
 
 #[cfg(feature = "rich-text")]
@@ -279,38 +424,4 @@ fn walk_frame_for_glyphs_with_state(
 fn walk_frame_for_glyphs(frame: &Frame, current_transform: Transform, glyphs: &mut Vec<TextPath>) {
     let mut state = GlyphLayoutState::default();
     walk_frame_for_glyphs_with_state(frame, current_transform, glyphs, &mut state);
-}
-
-#[cfg(feature = "rich-text")]
-/// Extract shapes from a Typst frame.
-pub fn extract_shapes(frame: &Frame) -> Vec<ExtractedShape> {
-    let mut shapes = Vec::new();
-    walk_frame_for_shapes(frame, Transform::identity(), &mut shapes);
-    shapes
-}
-
-#[cfg(feature = "rich-text")]
-fn walk_frame_for_shapes(
-    frame: &Frame,
-    current_transform: Transform,
-    shapes: &mut Vec<ExtractedShape>,
-) {
-    for (pos, item) in frame.items() {
-        let transform = current_transform.pre_concat(Transform::translate(pos.x, pos.y));
-        match item {
-            FrameItem::Group(group) => {
-                let group_transform = transform.pre_concat(group.transform);
-                walk_frame_for_shapes(&group.frame, group_transform, shapes);
-            },
-            FrameItem::Shape(shape, _span) => {
-                if let typst::visualize::Geometry::Curve(curve) = &shape.geometry {
-                    shapes.push(ExtractedShape {
-                        curve: (*curve).clone(),
-                        transform,
-                    });
-                }
-            },
-            _ => {},
-        }
-    }
 }

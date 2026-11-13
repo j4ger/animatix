@@ -360,7 +360,9 @@
         const list = targets.length ? targets : root.querySelectorAll('amx-player');
         list.forEach((player) => {
           if (typeof player.setVars === 'function') {
-            player.setVars({ [input.dataset.var]: value });
+            player.setVars({ [input.dataset.var]: value }).catch((error) => {
+              if (error?.name !== "AbortError") console.warn("parameter rebuild failed", error);
+            });
           }
         });
       };

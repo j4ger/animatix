@@ -24,6 +24,7 @@ import { fileURLToPath } from "node:url";
 import net from "node:net";
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const WEB_ROOT = process.env.ANIMATIX_WEB_ROOT || join(ROOT, "web");
 const CHROME = process.env.CHROME || "chromium";
 const PYTHON = process.env.PYTHON || "python3";
 
@@ -188,14 +189,27 @@ function pageProbe(playerTimeoutMs, pageBudgetMs) {
       .getEntriesByType("resource")
       .map((entry) => entry.name)
       .filter((name) => /\/fonts\/[^/]+\.gz(?:[?#]|$)/.test(name));
-    if (!fontRequests.length) {
-      return { error: "no external font pack request observed" };
+    const textNeedsFonts = players.some((player) => {
+      const fonts = player._loadedBundle?.analysis?.fonts;
+      return fonts && (
+        fonts.dynamic === true
+        || fonts.rich_text === true
+        || Boolean(fonts.text)
+        || Boolean(fonts.families?.length)
+      );
+    });
+    if (textNeedsFonts && !fontRequests.length) {
+      return { error: "text scenes required fonts but no external font face was requested" };
+    }
+    if (!textNeedsFonts && fontRequests.length) {
+      return { error: "graphics-only scenes unexpectedly requested an external font face" };
     }
     return {
       players: players.length,
       canvases: results.map((result) => result.bytes),
       sources: results.map((result) => result.src),
       fontRequests: fontRequests.length,
+      textNeedsFonts,
     };
   })();
 }
@@ -214,8 +228,8 @@ function killGroup(child) {
 }
 
 async function main() {
-  if (!existsSync(join(ROOT, "web/pkg/animatix_web_bg.wasm"))) {
-    throw new Error("web/pkg/animatix_web_bg.wasm is missing — run scripts/ci.sh gate web-build first");
+  if (!existsSync(join(WEB_ROOT, "runtime/runtime-manifest.json"))) {
+    throw new Error("runtime manifest is missing — run scripts/ci.sh gate web-sdk first");
   }
 
   const sitePort = await freePort();
@@ -227,6 +241,7 @@ async function main() {
   let chromeLog = "";
   const server = spawn(PYTHON, [join(ROOT, "scripts/serve-web.py"), String(sitePort)], {
     cwd: ROOT,
+    env: { ...process.env, SERVE_ROOT: WEB_ROOT },
     detached: true,
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -320,7 +335,6 @@ async function main() {
     for (const path of PAGES) {
       const url = `${base}${path}`;
       const pageStarted = Date.now();
-      const consoleMark = consoleLog.length;
       process.stdout.write(`web-smoke: ${path} `);
       await cdp.send("Page.navigate", { url });
       await waitFor(`load of ${path}`, 120000, async () => {
@@ -337,16 +351,6 @@ async function main() {
         returnByValue: true,
       });
       const outcome = result.value || {};
-      // The deployed site ships only pkg-slim and pkg-assets (site-artifact.sh
-      // drops the full pkg). The smoke runs against web/, where pkg/ exists, so
-      // without this assertion it would happily exercise a package that 404s
-      // after deploy. Any auto-upgrade to full is a site bug, not a slow page.
-      const pageConsole = consoleLog.slice(consoleMark);
-      if (/needs full engine/.test(pageConsole)) {
-        throw new Error(
-          `${path}: scene upgraded to the full engine, but the deployed site does not ship web/pkg — this page would 404 after deploy`,
-        );
-      }
       const shaderFailure = chromeLog.match(/Error while parsing WGSL:[\s\S]{0,600}/);
       if (shaderFailure) {
         throw new Error(`${path}: GPU shader validation failed: ${shaderFailure[0]}`);

@@ -1,0 +1,6 @@
+config { resolution: (960, 540), duration: 2 }
+
+subs: Captions, at: (480, 420), caption_mode: "pop", font_size: 30, opacity: 1 {
+  first: Cue, text: "字幕与 captions", start: 0.0, end: 1.0
+  second: Cue, text: "CJK 字形 stays in the same line", start: 1.0, end: 2.0
+}

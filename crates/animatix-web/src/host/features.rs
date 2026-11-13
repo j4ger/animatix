@@ -1,9 +1,8 @@
 //! Source-level engine feature requirements.
 //!
-//! The browser shell uses this before choosing an engine package. It is a
-//! conservative union over expanded actor declarations, not a scene schema: an
-//! unknown or extension primitive maps to `UNKNOWN`, which selects the full
-//! engine rather than silently falling back to a smaller one.
+//! A conservative upper bound for source tooling, independent of runtime inputs.
+//! Prepared programs evaluate reachable declarations to select on-demand blocks;
+//! unknown or extension primitives must produce preparation diagnostics.
 
 use animatix_core::features::FeatureMask;
 use animatix_std::catalog::catalog_lookup;
@@ -35,7 +34,7 @@ fn features_for_type(ty: &str) -> FeatureMask {
         return info.required_features;
     }
     // Effect children inside a Filter/Glass scope are built-ins, not unknown
-    // primitives; they do not require the full engine.
+    // primitives; they do not require any optional capability.
     if animatix_std::is_effect(ty) {
         return FeatureMask::NONE;
     }
@@ -101,7 +100,7 @@ mod tests {
     }
 
     #[test]
-    fn unknown_primitive_requires_full_engine() {
+    fn unknown_primitive_sets_unknown_capability_bit() {
         assert!(required_features(&parse("a: CustomExtension")).contains(FeatureMask::UNKNOWN));
     }
 }

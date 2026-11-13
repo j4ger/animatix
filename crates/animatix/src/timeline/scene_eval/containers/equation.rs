@@ -154,11 +154,18 @@ impl Timeline {
             return;
         }
 
-        // Build Typst string: each fragment wrapped in #box() so they
-        // produce separate Groups in the output frame.
+        // Keep fragment identity explicit in the frame stream. Typst adds
+        // transparent layout groups around the whole paragraph, so group depth
+        // alone cannot reliably recover the authored Fragment boundaries.
         let typst_body: String = frags
             .iter()
-            .map(|f| format!("#box()[{}]", equation_markup_escaped(&f.content)))
+            .enumerate()
+            .map(|(index, f)| {
+                format!(
+                    "#metadata(\"animatix:equation-fragment:start:{index}\") #box()[{}] #metadata(\"animatix:equation-fragment:end:{index}\")",
+                    equation_markup_escaped(&f.content)
+                )
+            })
             .collect::<Vec<_>>()
             .join(" ");
 
@@ -190,8 +197,8 @@ impl Timeline {
             word_spacing,
         ) {
             Ok(compiled) => {
-                // One glyph group per #box() wrapper, resolved at
-                // compile time and shared through the memo.
+                // One glyph range per authored Fragment, resolved at compile
+                // time and shared through the memo.
                 let all_glyphs: &[TextPath] = &compiled.glyphs;
                 let ranges: &[std::ops::Range<usize>] = &compiled.ranges;
 
@@ -249,7 +256,7 @@ impl Timeline {
 }
 
 /// Highlight-layer commands for the fragments that declare one, clipped to the
-/// glyph runs the grouped compile resolved per `#box()` wrapper.
+/// glyph runs the grouped compile resolved per authored fragment.
 fn equation_highlight_commands(
     frags: &[FragInfo],
     all_glyphs: &[TextPath],
@@ -259,6 +266,9 @@ fn equation_highlight_commands(
     for (frag_idx, frag) in frags.iter().enumerate() {
         if frag.hl_opacity > 0.001 && frag_idx < ranges.len() {
             let range = &ranges[frag_idx];
+            if range.start >= range.end || range.end > all_glyphs.len() {
+                continue;
+            }
             let mut min_x = f64::INFINITY;
             let mut max_x = f64::NEG_INFINITY;
             let mut min_y = f64::INFINITY;

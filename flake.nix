@@ -64,6 +64,7 @@
             targets = [ "wasm32-unknown-unknown" ];
           })
           pkgs.binaryen
+          pkgs.zopfli
           pkgs.brotli
           pkgs.nodejs_22
           pkgs.pkg-config
@@ -164,7 +165,7 @@
         # `nix develop .#web-ci` — one shell for the `web-build` + `web-smoke`
         # CI job. The two gates must run in order in the same job: the smoke
         # loads the bundles the build just produced, and a fresh checkout has
-        # no gitignored pkg/ for a separate job to read. Chromium's Dawn gets
+        # no generated SDK for a separate job to read. Chromium's Dawn gets
         # WebGPU from the lavapipe ICD (no host GPU); node runs the CDP client
         # and python3 serves web/.
         devShells.web-ci = pkgs.mkShell {
@@ -173,6 +174,8 @@
             pkgs.nodejs_22
             pkgs.python3
             pkgs.curl
+            pkgs.zip
+            pkgs.unzip
             pkgs.mesa
             pkgs.vulkan-loader
           ];
@@ -180,12 +183,17 @@
             icdDir = "${pkgs.mesa}/share/vulkan/icd.d";
           in
             builtins.concatStringsSep ":" (map (name: "${icdDir}/${name}") (builtins.attrNames (builtins.readDir icdDir)));
+          # Glyph/visual parity also invokes the native offscreen renderer.
+          # Chromium's wrapper supplies its own loader, while that native
+          # executable needs Vulkan and the host driver on its library path.
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+            pkgs.vulkan-loader pkgs.vulkan-validation-layers pkgs.mesa
+          ] + pkgs.lib.optionalString pkgs.stdenv.isLinux ":/run/opengl-driver/lib";
         };
 
         # `nix run .#serve` — preview web/ at http://127.0.0.1:8124 with the
-        # three things the player needs: application/wasm MIME, brotli
-        # compression (dynamic — serves the same bytes as the prebuilt .br
-        # twins), and cache headers that keep the edit-and-reload loop honest.
+        # things the player needs: application/wasm MIME, package-relative raw
+        # and gzip resources, and cache headers that keep edit/reload honest.
         # That last point is why this runs scripts/serve-web.py rather than a
         # static-web-server binary: SAS's built-in Cache-Control list (no
         # override flag exists in 2.39.0) gives .css a ONE-YEAR max-age, so a

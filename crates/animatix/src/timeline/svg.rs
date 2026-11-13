@@ -57,6 +57,10 @@ pub fn center_svg_paths(paths: &mut [VelloPath]) {
 
 /// Parse an SVG string into a list of `VelloPath` objects.
 pub fn parse_svg(svg_data: &str) -> Result<Vec<VelloPath>, String> {
+    super::media_capability::svg(svg_data)
+}
+
+pub(super) fn parse_svg_impl(svg_data: &str) -> Result<Vec<VelloPath>, String> {
     let opt = Options::default();
     let tree = Tree::from_str(svg_data, &opt).map_err(|error| format!("{error:?}"))?;
 
