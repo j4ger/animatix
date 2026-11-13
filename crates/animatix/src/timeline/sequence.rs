@@ -81,29 +81,23 @@ impl Timeline {
 
         for stmt in body {
             if let Stmt::Block {
-                body: block_body, ..
+                body: block_body,
+                instance_scope,
+                span,
             } = stmt
             {
                 // Function-call blocks sequence their internal statements
                 // back-to-back, preserving the pre-expansion timing.
-                for inner in block_body {
-                    let Some(span_ms) = self.sequence_statement_span_ms(inner) else {
-                        self.process_body(
-                            cursor_time_ms,
-                            std::slice::from_ref(inner),
-                            parent_label,
-                            diagnostics,
-                        );
-                        continue;
-                    };
-                    self.process_body(
-                        cursor_time_ms,
-                        std::slice::from_ref(inner),
-                        parent_label,
-                        diagnostics,
-                    );
-                    cursor_time_ms += span_ms;
-                }
+                self.process_block_stmt(
+                    block_body,
+                    instance_scope.as_ref(),
+                    *span,
+                    cursor_time_ms,
+                    parent_label,
+                    diagnostics,
+                    true,
+                );
+                cursor_time_ms += self.sequence_statement_span_ms(stmt).unwrap_or(0.0);
                 continue;
             }
             let Some(span_ms) = self.sequence_statement_span_ms(stmt) else {

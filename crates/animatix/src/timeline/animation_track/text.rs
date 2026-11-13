@@ -301,9 +301,7 @@ pub fn apply_split_text_animation(
 
         let dy = (1.0 - p_u) * effective_offset;
         if dy != 0.0 {
-            g.path = kurbo::Affine::translate((0.0, dy as f64)) * g.path.clone();
-            g.glyph_center[1] += dy;
-            g.bounds = g.bounds + kurbo::Vec2::new(0.0, dy as f64);
+            g.translate((0.0, dy as f64));
         }
 
         if split_mask {

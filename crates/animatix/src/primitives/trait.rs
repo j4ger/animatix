@@ -203,12 +203,8 @@ fn crossfade_text_paths(
     };
     let mut source_vec = source_paths.to_vec();
     if source_offset != 0.0 {
-        let affine = kurbo::Affine::translate((source_offset as f64, 0.0));
-        let offset_vec = kurbo::Vec2::new(source_offset as f64, 0.0);
         for p in &mut source_vec {
-            p.path.apply_affine(affine);
-            p.glyph_center[0] += source_offset;
-            p.bounds = p.bounds + offset_vec;
+            p.translate((source_offset as f64, 0.0));
         }
     }
 
@@ -220,12 +216,8 @@ fn crossfade_text_paths(
     };
     let mut target_vec = target_paths.to_vec();
     if target_offset != 0.0 {
-        let affine = kurbo::Affine::translate((target_offset as f64, 0.0));
-        let offset_vec = kurbo::Vec2::new(target_offset as f64, 0.0);
         for p in &mut target_vec {
-            p.path.apply_affine(affine);
-            p.glyph_center[0] += target_offset;
-            p.bounds = p.bounds + offset_vec;
+            p.translate((target_offset as f64, 0.0));
         }
     }
 
@@ -272,13 +264,9 @@ fn evaluate_uncached_text_paths(
             };
             let delta_x = new_offset - old_offset;
             if delta_x != 0.0 {
-                let affine = kurbo::Affine::translate((delta_x as f64, 0.0));
-                let offset_vec = kurbo::Vec2::new(delta_x as f64, 0.0);
                 let mut shifted = paths.clone();
                 for p in &mut shifted {
-                    p.path.apply_affine(affine);
-                    p.glyph_center[0] += delta_x;
-                    p.bounds = p.bounds + offset_vec;
+                    p.translate((delta_x as f64, 0.0));
                 }
                 return Ok((std::sync::Arc::from(shifted), clip));
             }
@@ -306,12 +294,8 @@ fn evaluate_uncached_text_paths(
             _ => 0.0,
         };
         if anchor_offset_x != 0.0 {
-            let affine = kurbo::Affine::translate((anchor_offset_x as f64, 0.0));
-            let offset_vec = kurbo::Vec2::new(anchor_offset_x as f64, 0.0);
             for p in &mut paths_vec {
-                p.path.apply_affine(affine);
-                p.glyph_center[0] += anchor_offset_x;
-                p.bounds = p.bounds + offset_vec;
+                p.translate((anchor_offset_x as f64, 0.0));
             }
         }
         let clip = crate::timeline::dispatch::apply_split_text_animation(

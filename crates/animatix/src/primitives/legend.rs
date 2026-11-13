@@ -294,7 +294,7 @@ pub fn evaluate_legend(
         return Ok(None);
     }
 
-    use kurbo::{Affine, Rect, Shape};
+    use kurbo::{Rect, Shape};
     use vello::peniko::Color;
 
     let mut commands = Vec::new();
@@ -321,12 +321,11 @@ pub fn evaluate_legend(
             Ok(paths) => {
                 if let Some((min_x, min_y, _, max_y)) = text_bounds(&paths) {
                     let title_height = (max_y - min_y).max(0.0);
-                    let translate = Affine::translate((0.0 - min_x, y_offset - min_y));
                     let translated_paths = paths
                         .iter()
                         .map(|text_path| {
                             let mut path = text_path.clone();
-                            path.path.apply_affine(translate);
+                            path.translate((-min_x, y_offset - min_y));
                             path
                         })
                         .collect::<Vec<_>>();
@@ -392,15 +391,13 @@ pub fn evaluate_legend(
 
         if let Some((paths, (min_x, min_y, _, max_y))) = compiled_text {
             let text_height = (max_y - min_y).max(0.0);
-            let translate = Affine::translate((
-                label_offset - min_x,
-                y_offset + (row_height - text_height) / 2.0 - min_y,
-            ));
+            let translate =
+                (label_offset - min_x, y_offset + (row_height - text_height) / 2.0 - min_y);
             let translated_paths = paths
                 .iter()
                 .map(|text_path| {
                     let mut path = text_path.clone();
-                    path.path.apply_affine(translate);
+                    path.translate(translate);
                     path
                 })
                 .collect::<Vec<_>>();

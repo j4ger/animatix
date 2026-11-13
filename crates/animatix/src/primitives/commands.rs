@@ -77,12 +77,11 @@ pub fn translate_text_paths(
     if x == 0.0 && y == 0.0 {
         return paths;
     }
-    let translate = kurbo::Affine::translate((x, y));
     paths
         .iter()
         .map(|tp| {
             let mut p = tp.clone();
-            p.path.apply_affine(translate);
+            p.translate((x, y));
             p
         })
         .collect::<Vec<_>>()

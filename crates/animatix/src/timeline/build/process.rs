@@ -10,6 +10,7 @@ use crate::ast::{Action, InlineItem, LoopPattern, MatchPattern, Property, Span};
 
 mod indexed_component;
 mod loop_modifiers;
+mod scoped_instance;
 
 pub(crate) fn bind_loop_var(
     env: &mut Environment,
@@ -93,6 +94,7 @@ impl Timeline {
                     value,
                     modifiers,
                     easing,
+                    span,
                     ..
                 } => {
                     if target.is_empty() {
@@ -109,6 +111,7 @@ impl Timeline {
                             modifiers,
                             *easing,
                             time_ms,
+                            *span,
                             diagnostics,
                         );
                     }
@@ -203,9 +206,19 @@ impl Timeline {
                 | Stmt::Play { .. }
                 | Stmt::ComponentDef(..)
                 | Stmt::FnDecl { .. } => {},
-                Stmt::Block { body, .. } => {
-                    self.process_block_stmt(body, time_ms, parent_label, diagnostics)
-                },
+                Stmt::Block {
+                    body,
+                    span,
+                    instance_scope,
+                } => self.process_block_stmt(
+                    body,
+                    instance_scope.as_ref(),
+                    *span,
+                    time_ms,
+                    parent_label,
+                    diagnostics,
+                    false,
+                ),
                 Stmt::Return { value, span, .. } => {
                     let _ = (value, span);
                     diagnostics.push(Diagnostic::error(
@@ -339,6 +352,7 @@ impl Timeline {
                         &self.env,
                         diagnostics,
                         time_ms as u64,
+                        span,
                     )
                 })
                 .collect();
@@ -418,9 +432,11 @@ impl Timeline {
             Ok(val) => {
                 if let Some(locals) = self.block_scope.last_mut() {
                     // Function-local binding: visible within the
-                    // block, removed on exit, and never written to
+                    // block, restored on exit, and never written to
                     // the scene's variable tracks.
-                    locals.insert(name.to_string());
+                    locals
+                        .entry(name.to_string())
+                        .or_insert_with(|| self.env.overrides.get(name).cloned());
                     self.env.set(name, val);
                 } else {
                     self.variable_tracks
@@ -496,27 +512,6 @@ impl Timeline {
             // If wildcard exists and no arm matched, the wildcard would have caught it
             // already. If no wildcard, we already warned; fall
             // through silently.
-        }
-    }
-
-    /// Lower one block: `let` bindings inside stay local and are dropped when
-    /// the block exits.
-    fn process_block_stmt(
-        &mut self,
-        body: &[Stmt],
-        time_ms: f64,
-        parent_label: Option<&str>,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        // Function-call expansion scope: `let` bindings inside
-        // stay local and are removed when the block exits.
-        self.block_scope.push(std::collections::HashSet::new());
-        self.process_body(time_ms, body, parent_label, diagnostics);
-        if let Some(locals) = self.block_scope.pop() {
-            for name in locals {
-                self.env.overrides.remove(&name);
-                self.env.mark_mutated();
-            }
         }
     }
 
@@ -712,6 +707,7 @@ pub(crate) fn resolve_action_target_index(
     env: &Environment,
     diagnostics: &mut Vec<Diagnostic>,
     time_ms: u64,
+    span: Option<crate::ast::Span>,
 ) -> String {
     let Some(index_expr) = index else {
         return target.to_string();
@@ -732,26 +728,32 @@ pub(crate) fn resolve_action_target_index(
                         "Action target index position {} is outside '{}'; leaving the target unchanged",
                         position, target
                     ),
-                ));
+                ).with_ast_span(span));
                 target.to_string()
             }
         },
         Ok(Value::Num(n)) => {
-            diagnostics.push(Diagnostic::warning(
-                DiagnosticCode::InvalidPropertyValue,
-                DiagnosticPhase::Build,
-                format!(
-                    "Action target index for '{target}' must be a non-negative integer, got {n}"
-                ),
-            ));
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::InvalidPropertyValue,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "Action target index for '{target}' must be a non-negative integer, got {n}"
+                    ),
+                )
+                .with_ast_span(span),
+            );
             target.to_string()
         },
         _ => {
-            diagnostics.push(Diagnostic::warning(
-                DiagnosticCode::InvalidPropertyValue,
-                DiagnosticPhase::Build,
-                format!("Failed to evaluate action target index for '{target}' at build time"),
-            ));
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::InvalidPropertyValue,
+                    DiagnosticPhase::Build,
+                    format!("Failed to evaluate action target index for '{target}' at build time"),
+                )
+                .with_ast_span(span),
+            );
             target.to_string()
         },
     }
@@ -861,13 +863,34 @@ pub(crate) fn pattern_matches(pat: &MatchPattern, value: &Value) -> bool {
 
 #[cfg(test)]
 mod indexed_component_label_tests {
-    use super::indexed_component::qualify_child;
+    use super::{indexed_component::qualify_child, resolve_action_target_index};
+    use crate::ast::{Expr, Span};
+    use crate::timeline::Environment;
 
     #[test]
     fn component_children_receive_their_resolved_array_parent_identity() {
         assert_eq!(qualify_child("cards.frame", "cards__2"), "cards__2.frame");
         assert_eq!(qualify_child("cards.frame.icon", "cards__2.frame"), "cards__2.frame.icon");
+        assert_eq!(qualify_child("cards.title", "cards__2.root"), "cards__2.title");
         assert_eq!(qualify_child("layout.cards.frame", "layout.cards__2"), "layout.cards__2.frame");
         assert_eq!(qualify_child("other.frame", "cards__2"), "other.frame");
+    }
+
+    #[test]
+    fn invalid_index_diagnostic_keeps_the_action_call_site() {
+        let mut diagnostics = Vec::new();
+        let span = Span::new(12, 3, 12, 18);
+        let target = resolve_action_target_index(
+            "cards",
+            Some(&Expr::Num(1.5)),
+            Some(0),
+            &Environment::new(),
+            &mut diagnostics,
+            0,
+            Some(span),
+        );
+        assert_eq!(target, "cards");
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].location.line, Some(12));
     }
 }

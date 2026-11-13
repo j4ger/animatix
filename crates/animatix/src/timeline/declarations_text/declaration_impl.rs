@@ -35,7 +35,8 @@ impl TextDeclarationKind {
     pub(super) fn default_font_size(self) -> f32 {
         match self {
             Self::Code => 24.0,
-            Self::Text | Self::Typst | Self::Math | Self::Counter => 48.0,
+            Self::Counter => crate::primitives::counter::DEFAULT_FONT_SIZE,
+            Self::Text | Self::Typst | Self::Math => 48.0,
         }
     }
 

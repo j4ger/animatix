@@ -149,6 +149,7 @@ fn typecheck_action_param_types() {
                             }],
                             return_type: None,
                             body: vec![],
+                            instance_index: None,
                         },
                     );
                     actions

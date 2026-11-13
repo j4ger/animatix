@@ -51,6 +51,7 @@ fn inject_entry(
 
     restore_carried_entity(dest, label, entry, &geometry, is_root, source_timeline);
     carry_auxiliary_state(dest, label, entry, source_timeline);
+    dest.rebuild_carried_counter(label);
 }
 
 /// Resolve a root entry's layout-managed or container-relative position binding

@@ -108,14 +108,7 @@ evidence backlog; reproduce them against current code before assigning fixes.
 The correctness-fix evidence and disposition of AMX-01–11 are recorded in
 [`history/2026-11.md`](history/2026-11.md). Remaining work, in dependency order:
 
-1. **Indexed component methods (P1).** Check custom actions invoked after their
-   declaration loop, including constant-folded `cards[2]` and a new index
-   variable. Current instance-function lookup is keyed by the declaration name,
-   and templates can retain declaration-loop index expressions. Rebind the
-   complete method body to the invocation instance, with source provenance and
-   clear errors, rather than assuming tests inside the declaration loop prove
-   this separate scope works.
-2. **Audit coverage (AMX-11, P1).** Exercise animated size/overlap around event
+1. **Audit coverage (AMX-11, P1).** Exercise animated size/overlap around event
    boundaries and midpoints, distinguish layout-container siblings from
    intentional Stack/Group layering, and report sampling caps/skipped render
    rules. Existing overlap findings classify shared layout ancestors as
@@ -123,35 +116,20 @@ The correctness-fix evidence and disposition of AMX-01–11 are recorded in
    instance-count/identity and minimum-gap assertions, including errors for empty
    or missing targets. Do not infer an author's expected instance count from
    geometry alone or introduce a second audit framework.
-   Also verify text picking/audit bounds across content changes: code inspection
-   shows declaration-time `local_bounds` can retain the last compiled text box
-   even when glyph paths are sampled correctly. Pin bounds to sampled commands
-   before treating those measurements as temporal evidence.
-3. **Scientific color scale (P1).** Design explicit fixed/automatic domains,
+2. **Scientific color scale (P1).** Design explicit fixed/automatic domains,
    sequential/diverging palettes, invalid/out-of-range policy, shared/independent
    scales and a colorbar using the same mapping. The existing per-frame local
    normalization cannot support absolute cross-frame comparison. Build common
    tangent/projection/area helpers as components before adding native primitives.
-4. **Independent frame-sequence export (P1).** Add an export entry point that
+3. **Independent frame-sequence export (P1).** Add an export entry point that
    does not update regression baselines. Define frame interval/endpoint and
    rounding, naming, overwrite, cancellation, partial-output and retry behavior;
    reuse the existing scene build/evaluate path.
-5. **Portable authoring templates (P2).** Extend the existing figure kit with
+4. **Portable authoring templates (P2).** Extend the existing figure kit with
    tested content budgets, explicit size breakpoints and long-text/multilingual
    fixtures after layout contracts are reliable. GUI changes require the missing
    companion design document; `.amx` remains the timing authority. Reuse `always`
    for shared responsive values.
-6. **Serialized Counter carry (P2).** Rebuild derived Counter glyphs after a
-   serialized `CarryBag` is restored. `TextTracks.counter_data` already uses
-   `serde(skip)`, so preserving authored tracks alone does not restore the
-   rendering cache. Cover actual rendering after deserialization; in-memory
-   carry and serde field round-trips do not prove this separate boundary.
-7. **Relative sizing through structural Group (P2).** Define how a Grid slot
-   propagates through a component's Group wrapper to an inner Col using
-   `fill`/percentage width. Group currently publishes a union and applies
-   transforms; nested layout reflow visits layout containers directly.
-   Fixed-width/auto-height component roots measure independently and work,
-   but a general relative-width inheritance contract through Group is pending.
 
 Config `resolution` currently requires positive numeric literals: `--set W=...`
 does not make `resolution: (W, H)` an evaluated expression. Keep this limitation

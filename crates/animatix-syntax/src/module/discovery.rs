@@ -158,6 +158,7 @@ pub fn collect_component_actions(
                     params: params.clone(),
                     return_type: return_type.clone(),
                     body: body.clone(),
+                    instance_index: None,
                 },
             );
         }

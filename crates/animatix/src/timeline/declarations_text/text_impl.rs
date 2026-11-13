@@ -844,10 +844,8 @@ impl Timeline {
             _ => 0.0,
         };
         if anchor_offset_x != 0.0 {
-            let affine = kurbo::Affine::translate((anchor_offset_x as f64, 0.0));
             for p in &mut new_paths {
-                p.path.apply_affine(affine);
-                p.glyph_center[0] += anchor_offset_x;
+                p.translate((anchor_offset_x as f64, 0.0));
             }
         }
 

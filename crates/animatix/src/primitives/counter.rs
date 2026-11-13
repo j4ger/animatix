@@ -5,8 +5,6 @@
 //! fonts do not jitter horizontally, and renders vertical rolling digits
 //! with baseline/slot clipping.
 
-use kurbo::Affine;
-
 use crate::ast::{Expr, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{AssignmentCtx, EvaluateCtx, Primitive, RenderCommand};
@@ -14,6 +12,9 @@ use crate::renderer::error::RenderError;
 use crate::renderer::text::{TextCompileRequest, TextKind, TextStyle};
 use crate::renderer::types::TextPath;
 use crate::timeline::{Environment, SceneDimensions};
+
+/// Default font size shared by Counter declarations and carry-cache rebuilds.
+pub(crate) const DEFAULT_FONT_SIZE: f32 = 48.0;
 
 /// Prebaked data for rolling counter glyphs.
 #[derive(Clone, Debug)]
@@ -189,15 +190,11 @@ pub fn prebake_counter(
 }
 
 fn translate_paths(source: &[TextPath], dx: f32, dy: f32) -> Vec<TextPath> {
-    let transform = Affine::translate((dx as f64, dy as f64));
     source
         .iter()
         .map(|tp| {
             let mut new_tp = tp.clone();
-            new_tp.path = transform * &tp.path;
-            new_tp.bounds = tp.bounds + kurbo::Vec2::new(dx as f64, dy as f64);
-            new_tp.glyph_center[0] += dx;
-            new_tp.glyph_center[1] += dy;
+            new_tp.translate((dx as f64, dy as f64));
             new_tp
         })
         .collect()

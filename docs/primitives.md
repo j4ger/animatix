@@ -116,6 +116,8 @@ An animated rolling counter. Digit glyphs are prebaked and rolled vertically, an
 including overrides from `always`. Prefix/suffix changes reuse cached text
 compilation; typography changes rebuild the matching digit and symbol glyphs.
 The digit-slot clip follows the sampled glyph metrics and affix widths.
+Serialized scene carry restores the authored tracks and rebuilds derived
+Counter glyphs in the destination timeline, including subsequent affix updates.
 
 **Example:**
 ```animatix
@@ -652,6 +654,12 @@ Auto-layout-first model with declaration-time measure/place contract. Explicit `
 ## Group
 
 Participates in scene graph and transform inheritance. Does not run a layout algorithm.
+Definite authored or parent-resolved axes provide the basis for children's
+explicit `fill`/percentage sizes. Child positions and fixed sizes remain
+authored; auto/fit axes publish the placed content union. A relative child axis
+without a definite basis emits `layout-size-fallback` and keeps its earlier
+measurement. See [nested layout sizing](spec.md#text-wrapping--overflow) for the
+bounded declaration-time policy.
 
 ## Grid
 

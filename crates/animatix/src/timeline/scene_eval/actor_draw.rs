@@ -52,7 +52,34 @@ impl Timeline {
         let local_bounds: Option<kurbo::Rect> = match memo_bounds {
             Some(bounds) => bounds,
             None => {
-                if let Some(lb) = self.world.local_bounds(node_id) {
+                // `local_bounds` is a declaration-time cache. Keep its O(1) path
+                // for static text only when this command uses the exact cached
+                // glyph allocation; sampled content/typography/layout/reactive
+                // overrides have different paths and must derive bounds from
+                // their current commands. TextPath::bounds is already cached,
+                // so this union avoids recomputing glyph bezier bounds. Non-text
+                // actors retain the existing cheap cached path.
+                let uses_static_text_paths = caps.text.is_some()
+                    && self
+                        .world
+                        .text(node_id)
+                        .and_then(|text| text.static_paths.as_ref())
+                        .is_some_and(|static_paths| match commands.as_slice() {
+                            // Any extra command (notably Typst's HighlightLayer),
+                            // or a clip that extends/changes the painted geometry,
+                            // must be included by command-derived bounds.
+                            [
+                                crate::primitives::RenderCommand::Text {
+                                    paths,
+                                    clip_path: None,
+                                    ..
+                                },
+                            ] => std::sync::Arc::ptr_eq(paths, static_paths),
+                            _ => false,
+                        });
+                if (caps.text.is_none() || uses_static_text_paths)
+                    && let Some(lb) = self.world.local_bounds(node_id)
+                {
                     Some(lb)
                 } else {
                     let image_size = if caps.image_payload {

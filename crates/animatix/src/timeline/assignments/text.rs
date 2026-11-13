@@ -97,10 +97,8 @@ pub(crate) fn recompile_text_at_assignment(
         _ => 0.0,
     };
     if anchor_offset_x != 0.0 {
-        let affine = kurbo::Affine::translate((anchor_offset_x as f64, 0.0));
         for p in &mut new_paths_vec {
-            p.path.apply_affine(affine);
-            p.glyph_center[0] += anchor_offset_x;
+            p.translate((anchor_offset_x as f64, 0.0));
         }
     }
 

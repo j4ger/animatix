@@ -1,4 +1,6 @@
+use super::indexed::rebind_template_index;
 use super::*;
+use crate::ast::InstanceScope;
 
 pub(super) fn expand_stmt_list(
     stmts: Vec<Stmt>,
@@ -75,14 +77,31 @@ pub(super) fn expand_stmt(
                     let index_position =
                         action.target_index_position.get(target_index).copied().flatten();
                     // Component instance functions are more specific than module functions.
-                    if let Some(template) = registry.get(target).and_then(|m| m.get(&action.verb)) {
+                    if let Some((template_root, template, call_index, call_position)) =
+                        super::indexed::instance_method_for_target(
+                            registry,
+                            target,
+                            &action.verb,
+                            index.as_ref(),
+                            index_position,
+                        )
+                    {
                         inlined.extend(expand_target_call(
-                            template, target, &action, module_fns, stack,
+                            template,
+                            &template_root,
+                            target,
+                            call_index.as_ref(),
+                            call_position,
+                            &action,
+                            span,
+                            module_fns,
+                            stack,
                         ));
                     } else if let Some(template) = module_fns.get(&action.verb) {
                         if template.return_type.is_none() {
                             inlined.extend(expand_target_call(
-                                template, target, &action, module_fns, stack,
+                                template, target, target, None, None, &action, span, module_fns,
+                                stack,
                             ));
                         } else {
                             remaining.push(target.clone());
@@ -147,8 +166,12 @@ pub(super) fn expand_stmt(
 /// bindings do not leak.
 pub(super) fn expand_target_call(
     template: &FnTemplate,
+    template_root: &str,
     target: &str,
+    target_index: Option<&Expr>,
+    target_index_position: Option<usize>,
     action: &Action,
+    span: Option<crate::ast::Span>,
     module_fns: &HashMap<String, FnTemplate>,
     stack: &mut Vec<String>,
 ) -> Vec<Stmt> {
@@ -197,10 +220,63 @@ pub(super) fn expand_target_call(
         .cloned()
         .collect();
     let body = expand_with_params(template, &values, module_fns);
+    let parameter_prologue_len = body.len().saturating_sub(template.body.len());
     let body = rewrite_self_targets(body, target);
-    let body = apply_modifiers_to_body(body, &unconsumed);
+    let (body, snapshot) = if let (Some(declaration_index), Some(index)) =
+        (template.instance_index.as_ref(), target_index)
+    {
+        let snapshot_name = fresh_index_snapshot_name(template, index, action);
+        let snapshot_index = Expr::Ident(snapshot_name.clone());
+        let body = rebind_template_index(
+            body,
+            template_root,
+            declaration_index,
+            &snapshot_index,
+            target_index_position,
+            span,
+            &template.params,
+        );
+        (body, Some((snapshot_name, index.clone())))
+    } else {
+        (body, None)
+    };
+    let mut body = apply_modifiers_to_body(body, &unconsumed);
     stack.pop();
-    vec![Stmt::Block { body, span: None }]
+    let instance_scope = if let Some((name, value)) = snapshot {
+        body.insert(
+            0,
+            Stmt::LetDecl {
+                is_pub: false,
+                name: name.clone(),
+                value,
+                span,
+            },
+        );
+        Some(InstanceScope {
+            label: template_root.to_string(),
+            index: Expr::Ident(name),
+            index_position: target_index_position
+                .unwrap_or_else(|| template_root.split('.').count().saturating_sub(1)),
+            prologue_len: parameter_prologue_len + 1,
+        })
+    } else {
+        None
+    };
+    vec![Stmt::Block {
+        body,
+        instance_scope,
+        span,
+    }]
+}
+
+fn fresh_index_snapshot_name(template: &FnTemplate, index: &Expr, action: &Action) -> String {
+    // Invocation arguments also belong to the caller's scope. A snapshot must
+    // not shadow a caller identifier before the parameter initializers read it.
+    let occupied = format!("{:?}{:?}{:?}{:?}", template.params, template.body, index, action);
+    (0..)
+        .map(|suffix| format!("__animatix_index_snapshot_{suffix}"))
+        .find(|candidate| !occupied.contains(candidate))
+        .expect("unbounded snapshot suffix always has an unused identifier")
 }
 
 /// Expand a function-style call `highlight_key(bars, key)` into a scoped block:
@@ -233,7 +309,11 @@ pub(super) fn expand_arg_call(
     let body = expand_with_params(template, &values, module_fns);
     let body = apply_modifiers_to_body(body, &action.modifiers);
     stack.pop();
-    vec![Stmt::Block { body, span: None }]
+    vec![Stmt::Block {
+        body,
+        instance_scope: None,
+        span: None,
+    }]
 }
 
 /// Bind parameters into a function body.

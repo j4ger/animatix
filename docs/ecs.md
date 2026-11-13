@@ -118,6 +118,13 @@ Rules:
   calls `invalidate_frame_cache` first. Build-time writes go through the same
   entry points; there is no cache to invalidate yet, but the invariant is
   uniform.
+- **Lexical build scopes are not entity state.** Expanded indexed method blocks
+  carry an `InstanceScope` in the syntax AST. The build resolves its captured
+  index and specializes property reads before lowering expressions/modifiers.
+  `Timeline::block_scope` stores variable names and previous environment
+  overrides only, restores them on return, and is empty after building. Reactive
+  local values use the existing single-iteration IR scope; no actor side map or
+  frame-time string lookup is introduced for instance specialization.
 - **Frame caches are not components — but memo cells live in `World`.**
   Timeline-level caches (frame cache, transform/static-subtree flags,
   precise-bounds table, env-injection plan, layout caches) belong to
@@ -325,6 +332,10 @@ keyframe by its per-tier collapse helper (`snapshot_style_at`,
 - `CarryBag` stays label-keyed on the wire; `EntityId` is an in-memory handle
   and is never part of the `.amx` source, the carry wire format, or
   `PropertyPlan` serialization.
+- Counter glyph data is derived and skipped by serde. Injection rebuilds it
+  from the destination entity's restored text, style and tagged tracks using
+  the destination font context; it does not depend on a source glyph cache.
+  The rebuild writes through `world_mut()` so evaluation memos are invalidated.
 - New snapshot fields carry `#[serde(default)]`. The `persistence.rs` and
   `extension_context.rs` round-trip tests are extended, not replaced.
 

@@ -105,10 +105,19 @@ pub fn walk_stmt<'ast, V: AstVisitor<'ast> + ?Sized>(visitor: &mut V, stmt: &'as
                 visitor.visit_modifier(modifier);
             }
         },
-        Stmt::Sequence { body, .. }
-        | Stmt::Always { body, .. }
-        | Stmt::Block { body, .. }
-        | Stmt::Scene { body, .. } => {
+        Stmt::Block {
+            body,
+            instance_scope,
+            ..
+        } => {
+            if let Some(scope) = instance_scope {
+                visitor.visit_expr(&scope.index);
+            }
+            for stmt in body {
+                visitor.visit_stmt(stmt);
+            }
+        },
+        Stmt::Sequence { body, .. } | Stmt::Always { body, .. } | Stmt::Scene { body, .. } => {
             for s in body {
                 visitor.visit_stmt(s);
             }
@@ -495,8 +504,16 @@ pub fn walk_fold_stmt<F: AstFolder + ?Sized>(folder: &mut F, stmt: Stmt) -> Stmt
         | Stmt::FnDecl { .. }
         | Stmt::Config { .. }
         | Stmt::Scene { .. } => fold_stmt_compound(folder, stmt),
-        Stmt::Block { body, span } => Stmt::Block {
+        Stmt::Block {
+            body,
+            instance_scope,
+            span,
+        } => Stmt::Block {
             body: folder.fold_stmts(body),
+            instance_scope: instance_scope.map(|mut scope| {
+                scope.index = folder.fold_expr(scope.index);
+                scope
+            }),
             span,
         },
         Stmt::Return { value, span } => Stmt::Return {

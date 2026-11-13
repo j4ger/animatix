@@ -252,6 +252,156 @@ title.text = "Omega" [2s]
     assert!(!text_paths_at(&timeline, "title", 11_000).is_empty());
 }
 
+fn assert_program_text_bounds_match_commands(
+    timeline: &Timeline,
+    label: &str,
+    time_s: f64,
+) -> Option<kurbo::Rect> {
+    let mut filter_backend = None;
+    let program = timeline.evaluate_program_with_debug(
+        time_s,
+        SceneDimensions {
+            width: 640,
+            height: 360,
+        },
+        DebugRenderOptions {
+            compute_hit_regions: true,
+            ..Default::default()
+        },
+        &mut filter_backend,
+    );
+    assert!(
+        program.diagnostics.iter().all(|diagnostic| !diagnostic.is_error()),
+        "text frame should not report render/compile errors: {:?}",
+        program.diagnostics
+    );
+    let Some(item) = program.items.iter().find(|item| item.label == label) else {
+        assert!(!program.precise_bounds.contains_key(label), "empty text has no precise bounds");
+        assert!(!timeline.hit_regions().iter().any(|(name, _)| name == label));
+        return None;
+    };
+    let mut local = None;
+    for command in &item.commands {
+        if let Some(bounds) = command.local_bounds(None) {
+            local = Some(local.map_or(bounds, |existing: kurbo::Rect| existing.union(bounds)));
+        }
+    }
+    let expected = crate::timeline::scene_eval::transform_rect_bbox(&item.transform, local?);
+    let actual = program.precise_bounds.get(label).copied().expect("precise bounds");
+    assert_eq!(actual, expected, "precise bounds must use the sampled glyph commands");
+    let hit = timeline
+        .hit_regions()
+        .into_iter()
+        .find(|(name, _)| name == label)
+        .map(|(_, rect)| rect)
+        .expect("text hit region");
+    assert_eq!(hit, expected, "picking must use the sampled glyph commands");
+    Some(actual)
+}
+
+#[test]
+fn sampled_text_bounds_follow_replacements_typography_and_reverse_seek() {
+    let timeline = super::support::build_timeline(
+        r#"
+#0s
+title: Text, text: "WWWWWWWW", font_size: 28, at: (200, 100)
+formula: Typst, text: "$x + y$", font_size: 28, at: (200, 180)
+math: Math, text: "x^2 + y^2", font_size: 28, at: (420, 180)
+code: Code, text: "fn main() {}", font_size: 28, at: (200, 260)
+reactive: Text, text: "i", font_size: 28, at: (420, 100)
+always { reactive.text = if (t < 1.0) { "i" } else { "MMMMMMMM" } }
+
+#1s
+highlight formula [1s]
+
+#10s
+title.text = "i" [0s]
+title.font_size = 72 [0s]
+formula.text = "$x^2 + y^2 + z^2$" [0s]
+code.text = "fn much_longer_name() { return 42; }" [0s]
+
+#20s
+title.text = "" [0s]
+
+#21s
+title.text = "MMMMMMMMMMMM" [0s]
+"#,
+    );
+
+    let initial_title = assert_program_text_bounds_match_commands(&timeline, "title", 0.0)
+        .expect("initial title bounds");
+    let initial_formula = assert_program_text_bounds_match_commands(&timeline, "formula", 0.0)
+        .expect("initial formula bounds");
+    let mut filter_backend = None;
+    let initial_program = timeline.evaluate_program_with_debug(
+        2.0,
+        SceneDimensions {
+            width: 640,
+            height: 360,
+        },
+        DebugRenderOptions::default(),
+        &mut filter_backend,
+    );
+    let formula_item = initial_program
+        .items
+        .iter()
+        .find(|item| item.label == "formula")
+        .expect("Typst item");
+    assert!(
+        assert_program_text_bounds_match_commands(&timeline, "formula", 2.0)
+            .is_some_and(|bounds| bounds.width() > initial_formula.width()),
+        "highlight padding should expand the bounds"
+    );
+    assert!(
+        formula_item.commands.iter().any(|command| matches!(
+            command,
+            crate::primitives::RenderCommand::HighlightLayer { .. }
+        )),
+        "Typst highlight should exercise the multi-command bounds path"
+    );
+    let initial_math = assert_program_text_bounds_match_commands(&timeline, "math", 0.0)
+        .expect("initial Math bounds");
+    assert!(initial_math.width() > 0.0);
+    let initial_code = assert_program_text_bounds_match_commands(&timeline, "code", 0.0)
+        .expect("initial code bounds");
+    let reactive_short = assert_program_text_bounds_match_commands(&timeline, "reactive", 0.0)
+        .expect("reactive text bounds");
+    let reactive_long = assert_program_text_bounds_match_commands(&timeline, "reactive", 2.0)
+        .expect("reactive text bounds");
+    assert!(reactive_long.width() > reactive_short.width(), "always text updates bounds");
+
+    // Check the frame immediately before, at, and after each discrete write,
+    // then revisit the past to pin seek direction independence.
+    for time_s in [9.999, 10.0, 10.001, 0.0, 10.0, 19.999] {
+        assert_program_text_bounds_match_commands(&timeline, "title", time_s);
+        assert_program_text_bounds_match_commands(&timeline, "formula", time_s);
+        assert_program_text_bounds_match_commands(&timeline, "math", time_s);
+        assert_program_text_bounds_match_commands(&timeline, "code", time_s);
+    }
+    let small_title = assert_program_text_bounds_match_commands(&timeline, "title", 10.0)
+        .expect("replacement title bounds");
+    assert!(small_title.width() < initial_title.width(), "short replacement shrinks bounds");
+    let updated_formula = assert_program_text_bounds_match_commands(&timeline, "formula", 10.0)
+        .expect("updated formula bounds");
+    assert_ne!(updated_formula, initial_formula, "Typst content changes its bounds");
+    let updated_code = assert_program_text_bounds_match_commands(&timeline, "code", 10.0)
+        .expect("updated code bounds");
+    assert!(updated_code.width() > initial_code.width(), "longer code expands bounds");
+
+    assert!(
+        assert_program_text_bounds_match_commands(&timeline, "title", 20.0).is_none(),
+        "empty replacement emits no bounds"
+    );
+    let final_title = assert_program_text_bounds_match_commands(&timeline, "title", 21.0)
+        .expect("second replacement bounds");
+    assert!(final_title.width() > initial_title.width());
+    assert_eq!(
+        assert_program_text_bounds_match_commands(&timeline, "title", 0.0),
+        Some(initial_title),
+        "reverse seek restores original sampled bounds"
+    );
+}
+
 #[test]
 fn counter_always_value_is_sampled_on_forward_and_reverse_frame_evaluation() {
     let timeline = build_output(

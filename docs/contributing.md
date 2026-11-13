@@ -309,10 +309,11 @@ This checks relative Markdown links under `docs/`, rejects completed-status rows
 
 ## Web distribution changes
 
-The web player and its optional capabilities ship as one SDK under
-`web/runtime/`. Use `scripts/ci.sh gate web-build web-sdk-integrity` in the
+The web player and its optional capabilities ship as one SDK in the generated
+`runtime/` directory under `web/`; that output is absent from a clean checkout.
+Use `scripts/ci.sh gate web-build web-sdk-integrity` in the
 `.#web-ci` shell for a fresh build, then `scripts/ci.sh gate
-web-distribution-check` to exercise the complete SDK and site archives after
+web-transactions` to exercise the complete SDK and site archives after
 unpacking. SDK staging, restore, site assembly, and release packaging each
 verify the manifest against the source identity and workspace version. Do not
 copy only the player script or an individual capability file into a site.

@@ -38,6 +38,8 @@ mod glass;
 #[cfg(test)]
 mod graph_contracts;
 #[cfg(test)]
+mod group_relative_sizes;
+#[cfg(test)]
 mod keyframe_times;
 #[cfg(test)]
 mod layout;
@@ -61,6 +63,8 @@ mod stagger;
 mod taffy_layout;
 #[cfg(test)]
 mod text;
+#[cfg(test)]
+mod text_path_bounds;
 #[cfg(test)]
 mod text_time_regressions;
 #[cfg(test)]

@@ -2,7 +2,6 @@
 
 use std::sync::Arc;
 
-use kurbo::Affine;
 use vello::peniko::Color;
 
 use crate::primitives::build_arrow_path;
@@ -118,12 +117,11 @@ pub fn evaluate_callout(
         if let Some(text_ctx) = text_ctx {
             let (paths, _) = evaluate_text_paths(ctx, text_ctx, TextKind::Text, 24.0)?;
 
-            let translate = Affine::translate((offset_x, offset_y));
             let translated_paths: Vec<crate::renderer::types::TextPath> = paths
                 .iter()
                 .map(|tp| {
                     let mut p = tp.clone();
-                    p.path.apply_affine(translate);
+                    p.translate((offset_x, offset_y));
                     p
                 })
                 .collect();

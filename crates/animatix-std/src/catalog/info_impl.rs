@@ -355,7 +355,7 @@ pub static STACK: PrimitiveInfo = PrimitiveInfo::new(
 .with_doc("Z-ordered overlapping layout container.");
 pub static GROUP: PrimitiveInfo =
     PrimitiveInfo::new("Group", "Group", icon_glyphs::FOLDER, ActorCategory::Container, GROUP_CAPS)
-        .with_doc("Hierarchical grouping container without layout constraints.");
+        .with_doc("Structural grouping and transform inheritance without arranging children.");
 pub static MASK: PrimitiveInfo = PrimitiveInfo::new(
     "Mask",
     "Mask",

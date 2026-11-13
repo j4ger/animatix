@@ -319,3 +319,67 @@ b: Box, size: 40
         .expect("component instance should expand inside scene body");
     assert_eq!(box_actor, "Rect");
 }
+
+#[test]
+fn multi_actor_component_preserves_relative_size_on_group_and_fills_inner_root() {
+    let source = r#"
+pub component Card() {
+  root: Col, size: (50%, auto)
+  caption: Text
+}
+card: Card
+"#;
+    let (stmts, errors) = crate::parser::parse_source(source);
+    assert!(errors.is_empty(), "unexpected parse errors: {errors:?}");
+    let stmts = stmts.unwrap();
+    let mut components = std::collections::HashMap::new();
+    for stmt in &stmts {
+        if let Stmt::ComponentDef(def, _) = stmt {
+            components.insert(
+                def.name.clone(),
+                super::super::ComponentEntry {
+                    definition: def.clone(),
+                    actions: Default::default(),
+                    source_path: std::path::PathBuf::new(),
+                },
+            );
+        }
+    }
+    let (expanded, _) = expand_statements(&stmts, &components);
+    let (group_props, children) = expanded
+        .iter()
+        .find_map(|stmt| match stmt {
+            Stmt::ActorDecl {
+                label,
+                ty,
+                props,
+                children,
+                ..
+            } if label == "card" && ty == "Group" => Some((props, children)),
+            _ => None,
+        })
+        .expect("multi-actor component wrapper Group");
+    let original_size = Expr::Tuple(vec![Expr::Percent(50.0), Expr::Ident("auto".into())]);
+    assert!(
+        group_props
+            .iter()
+            .any(|property| property.name == "size" && property.value == original_size),
+        "wrapper must keep the authored relative size: {group_props:?}"
+    );
+
+    let root_props = children
+        .iter()
+        .find_map(|item| match item {
+            InlineItem::Labeled { label, props, .. } if label == "card.root" => Some(props),
+            _ => None,
+        })
+        .expect("rewritten inner root actor");
+    assert!(
+        root_props.iter().any(|property| {
+            property.name == "size"
+                && property.value
+                    == Expr::Tuple(vec![Expr::Ident("fill".into()), Expr::Ident("auto".into())])
+        }),
+        "relative root width must fill the Group's allocated cell: {root_props:?}"
+    );
+}

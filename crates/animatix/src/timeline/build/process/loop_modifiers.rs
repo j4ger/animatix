@@ -1,4 +1,4 @@
-//! Preserve build-loop bindings in reactive bodies using the existing IR scope.
+//! Preserve build-time lexical bindings in reactive bodies using the existing IR scope.
 
 use super::*;
 
@@ -8,12 +8,17 @@ impl Timeline {
         body: Vec<Stmt>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        if self.build_loop_scopes.is_empty() || body.is_empty() {
+        if (self.build_loop_scopes.is_empty() && self.block_scope.is_empty()) || body.is_empty() {
             self.modifiers.extend(body);
             return;
         }
         let mut bindings = std::collections::BTreeMap::new();
-        for name in self.build_loop_scopes.iter().flatten() {
+        let names = self
+            .build_loop_scopes
+            .iter()
+            .flatten()
+            .chain(self.block_scope.iter().flat_map(|scope| scope.keys()));
+        for name in names {
             if let Some(value) = self.env.get(name) {
                 if let Some(expr) = crate::timeline::value_parser::value_to_expr(&value) {
                     bindings.insert(name.clone(), expr);
@@ -21,7 +26,7 @@ impl Timeline {
                     diagnostics.push(Diagnostic::warning(
                         DiagnosticCode::InvalidPropertyValue,
                         DiagnosticPhase::Build,
-                        format!("Reactive loop capture '{name}' cannot capture {value:?}; use scalar/list loop values."),
+                        format!("Reactive lexical capture '{name}' cannot capture {value:?}; use scalar/list values."),
                     ));
                 }
             }
@@ -29,7 +34,7 @@ impl Timeline {
         let (names, values): (Vec<_>, Vec<_>) = bindings.into_iter().unzip();
         // A single-iteration lexical scope preserves shadowing by runtime
         // loops/locals and avoids substituting identifiers in expression trees.
-        // Global scene variables remain frame-time reads; only loop locals bind.
+        // Global scene variables remain frame-time reads; only lexical locals bind.
         self.modifiers.push(Stmt::ForLoop {
             var: LoopPattern::Tuple(names),
             index_var: None,

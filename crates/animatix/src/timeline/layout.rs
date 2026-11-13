@@ -42,8 +42,11 @@ use crate::renderer::text::{TextCompileRequest, TextKind, TextStyle};
 mod container;
 mod engine;
 mod grid;
+mod group;
 mod linear;
 mod positions;
+
+const MAX_NESTED_LAYOUT_DEPTH: usize = 64;
 
 pub(crate) use engine::LayoutContainerCache;
 pub use positions::LayoutPositions;
@@ -449,12 +452,8 @@ impl Timeline {
             _ => 0.0,
         };
         if anchor_offset_x != 0.0 {
-            let affine = kurbo::Affine::translate((anchor_offset_x as f64, 0.0));
-            let offset = kurbo::Vec2::new(anchor_offset_x as f64, 0.0);
             for p in &mut paths_vec {
-                p.path.apply_affine(affine);
-                p.glyph_center[0] += anchor_offset_x;
-                p.bounds = p.bounds + offset;
+                p.translate((anchor_offset_x as f64, 0.0));
             }
         }
 

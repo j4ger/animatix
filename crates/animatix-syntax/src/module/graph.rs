@@ -496,6 +496,7 @@ impl ModuleGraph {
                         params: params.clone(),
                         return_type: return_type.clone(),
                         body: body.clone(),
+                        instance_index: None,
                     },
                 );
             },

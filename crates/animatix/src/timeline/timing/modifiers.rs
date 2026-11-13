@@ -67,6 +67,7 @@ pub(crate) fn push_unknown_target_path_diagnostic(
     subject: &str,
     target_key: &str,
     suggestion: Option<&str>,
+    span: Option<crate::ast::Span>,
 ) {
     let hint = suggestion
         .map(|candidate| format!(" Did you mean '{candidate}'?"))
@@ -79,7 +80,8 @@ pub(crate) fn push_unknown_target_path_diagnostic(
                 "Assignment target '{target_key}' does not resolve to a declared actor or nested label; ignoring this assignment.{hint}"
             ),
         )
-        .with_subject(subject),
+        .with_subject(subject)
+        .with_ast_span(span),
     );
 }
 

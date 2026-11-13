@@ -23,6 +23,7 @@ impl Timeline {
         modifiers: &[Modifier],
         explicit_easing: Option<Easing>,
         time_ms: f64,
+        span: Option<crate::ast::Span>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         if target.is_empty() {
@@ -42,6 +43,7 @@ impl Timeline {
             modifiers,
             explicit_easing,
             time_ms,
+            span,
             diagnostics,
         ) else {
             return;
@@ -79,6 +81,7 @@ impl Timeline {
         modifiers: &[Modifier],
         explicit_easing: Option<Easing>,
         time_ms: f64,
+        span: Option<crate::ast::Span>,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Option<AssignmentPlan> {
         let eval_env = self.build_eval_env(time_ms as u64);
@@ -106,7 +109,7 @@ impl Timeline {
                                         "Assignment target index for '{}' must be a non-negative integer, got {}",
                                         base, n
                                     ),
-                                ));
+                                ).with_ast_span(span));
                                 TargetSegment::Static(base.clone())
                             },
                             _ => {
@@ -117,7 +120,7 @@ impl Timeline {
                                         "Failed to evaluate assignment target index for '{}' at build time",
                                         base
                                     ),
-                                ));
+                                ).with_ast_span(span));
                                 TargetSegment::Static(base.clone())
                             },
                         }
@@ -188,6 +191,7 @@ impl Timeline {
                     &assignment_subject,
                     &assignment_target_key(&target),
                     suggestion,
+                    span,
                 );
                 return None;
             },

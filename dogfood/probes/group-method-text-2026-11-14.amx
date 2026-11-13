@@ -1,0 +1,31 @@
+// Narrow/wide: --set W=420 / --set W=840. Inspect at 0, 1.999, 2, 3 seconds.
+// Custom methods run outside the declaration loop and through a new index.
+config { resolution: (960, 760), duration: 4 }
+let W = 840
+pub component Card(title: Str) {
+  root: Col, size: fill, padding: 12, gap: 10 {
+    heading: Text, text: title, font_size: 22
+    body: Text, text: "结构 Group 将确定的网格宽度传给内部容器，中文按最终槽位换行，真实高度应反馈给下一行。", font_size: 18
+    bar: Rect, size: (80, 6), color: blue
+  }
+  marker: Rect, size: (6, 6), at: (15 - W / 4, 0), color: green
+  fn highlight { bar.color = green }
+}
+#0s
+heading: Text, text: "Group constraints / indexed methods", font_size: 28, at: (480, 40)
+grid: Grid, size: (W, auto), cols: 2, gap: 18, padding: 12, at: (480, 290) {
+  for title, i in {"第一张卡片", "第二张卡片"} {
+    cards[i]: Card, title: title
+  }
+  next_first: Rect, size: (120, 12), color: red
+  next_second: Rect, size: (120, 12), color: red
+}
+changing: Text, text: "Before: a long line", font_size: 28, at: (480, 580)
+count: Counter, value: 12, prefix: "$", suffix: " old", font_size: 36, at: (480, 660)
+#2s
+for unused, j in {0, 1} {
+  highlight cards[j]
+}
+changing.text = "After" [0s]
+count.prefix = "USD "
+count.suffix = " / month"

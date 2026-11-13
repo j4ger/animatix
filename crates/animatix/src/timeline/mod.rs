@@ -217,9 +217,9 @@ pub struct Timeline {
     pub(crate) world: World,
     pub(crate) background_color: PropertyTrack<[f32; 4]>,
     pub(crate) env: Environment,
-    /// Scope stack for `Stmt::Block` expansion: `let` names bound inside a block,
-    /// removed on exit so they never leak into the scene or variable tracks.
-    pub(crate) block_scope: Vec<std::collections::HashSet<String>>,
+    /// Build-only lexical scopes: local names and the overrides they shadow.
+    /// Restored on exit; these are variables, never entity state or scene tracks.
+    pub(crate) block_scope: Vec<std::collections::HashMap<String, Option<Value>>>,
     /// Build-only loop names, used to capture reactive bodies at their declaration.
     /// Empty after the build walk; these are lexical variables, not actor state.
     pub(crate) build_loop_scopes: Vec<Vec<String>>,

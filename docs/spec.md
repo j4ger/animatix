@@ -999,10 +999,17 @@ than an iterative parent/child size solver. Fixed axes and explicit
 `layout-size-fallback` warning and retains earlier descendant measurements.
 Unbreakable content that exceeds the propagated width also emits this warning;
 it keeps the authored overflow policy and font size.
-Width inheritance traverses layout containers directly. A structural `Group`
-keeps its transform/union role: component roots inside such a wrapper can use
-fixed width and auto height, while relative slot inheritance through the Group
-is still a [follow-up](roadmap.md#user-experience-feedback-follow-ups-2026-11-13).
+A structural `Group` passes definite authored or parent-resolved size axes to
+children that explicitly request `fill` or a percentage. It preserves child
+positions and fixed sizes; it does not arrange or implicitly stretch children.
+At the top level, relative Group axes resolve against the scene dimensions,
+so full-screen component wrappers retain a definite backdrop box.
+Auto/fit axes publish the placed content union. An unresolved relative axis
+emits `layout-size-fallback` and retains the earlier intrinsic measurement,
+rather than solving a circular parent/content constraint. Explicit percentages
+compose at each authored Group boundary. For a component with a generated
+Group wrapper, the root's relative size is applied at the wrapper once; its
+inner root fills that resolved axis.
 
 ### Transform Property
 
@@ -1796,6 +1803,12 @@ pulse btn [amount: 1.3, 200ms]
 - Named invocation modifiers bind to action parameters. `pulse btn [amount: 1.3, 200ms]` binds `amount` and overrides timing. Bound params may also be used as field paths in the body, e.g. `point.x` after `point` is bound.
 - Use `self` to refer to the component instance. `self.scale` rewrites to `btn.scale`.
 - Multi-target invocation (`pulse btn1, btn2`) expands the action body once per matching target, rewriting `self` to each concrete target.
+- Indexed instances can be invoked after their declaration loop, for example
+  `pulse buttons[2]` or `pulse buttons[j]` in a separate loop. Nested instance
+  paths bind to the invocation index; method parameters and local loop bindings
+  retain their own lexical scope. Invalid target indices report the call site.
+  Internal property reads bind to that same instance before expression/`always`
+  compilation. Nested calls restore shadowed caller variables on return.
 - Actions work inside `sequence`, `stagger`, and keyframes with correct timing.
 
 **Limitations:**
@@ -2474,7 +2487,10 @@ Returns a `Value::Object` with typed fields. Field reads (`p.x`, `p.a.b`) are im
   multi-scene composition reports that they are not applied. Names that the file
   never declares also resolve fine at build time, but the analyzer has no way to
   know about them and may report `unresolved-variable`.
-- **Frame-time text bounds:** `always` text/content overrides recompile glyph paths and support explicit empty content, but do not remeasure `geometry.size`/layout size for the current frame.
+- **Frame-time text bounds:** Picking and precise audit bounds follow sampled
+  glyph commands, including discrete content changes, `always` overrides and
+  empty text. These changes do not remeasure `geometry.size`/layout size for the
+  current frame; declaration-time layout remains separate from painted bounds.
 - ~~**Static Geometry:** Structural geometry inputs like `Polygon.points` and `Path.commands` are declaration-time only and cannot be animated dynamically frame-by-frame.~~ Both now support timed assignments with path morphing.
 
 ---

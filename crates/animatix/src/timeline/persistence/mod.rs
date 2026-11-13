@@ -154,6 +154,7 @@ pub struct CarriedChildOrder {
 }
 
 mod carry;
+mod counter;
 mod inject;
 mod snapshot;
 

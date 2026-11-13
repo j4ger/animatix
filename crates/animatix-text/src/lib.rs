@@ -60,6 +60,18 @@ pub struct TextPath {
 }
 
 impl TextPath {
+    /// Translate glyph geometry and its cached spatial metadata together.
+    pub fn translate(&mut self, offset: impl Into<kurbo::Vec2>) {
+        let offset = offset.into();
+        if offset == kurbo::Vec2::ZERO || self.path.is_empty() {
+            return;
+        }
+        self.path.apply_affine(kurbo::Affine::translate(offset));
+        self.bounds = self.bounds + offset;
+        self.glyph_center[0] += offset.x as f32;
+        self.glyph_center[1] += offset.y as f32;
+    }
+
     /// Create a new TextPath with basic fields and default layout indices.
     pub fn new(path: BezPath, color: [u8; 4], opacity: f32) -> Self {
         use kurbo::Shape as _;

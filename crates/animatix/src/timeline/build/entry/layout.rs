@@ -102,11 +102,8 @@ impl Timeline {
         // yet: its parent is still being built. Leave default text widths
         // untouched so they cannot be mistaken for authored `text_max_width`
         // values during the later top-down reflow.
-        let defer_width_propagation = self
-            .world
-            .get_id(label)
-            .and_then(|id| self.world.hierarchy(id).parent)
-            .is_some_and(|parent_id| matches!(self.world.actor_type(parent_id), "Col" | "Grid"));
+        let defer_width_propagation =
+            self.world.get_id(label).is_some_and(|id| self.defer_nested_text_width(id));
         if !defer_width_propagation {
             // Text wrapping must use a declared fixed/relative box when one
             // exists. The intrinsic size above is child-derived and can be
@@ -159,6 +156,8 @@ impl Timeline {
                 self.world
                     .label(*child_id)
                     .is_some_and(|child_label| self.container_layout(child_label).is_some())
+                    || (self.world.caps(*child_id).is_group_like()
+                        && self.group_needs_layout_reflow(*child_id))
             })
         });
         let has_auto_extent = self.world.get_id(label).is_some_and(|id| {

@@ -7,6 +7,8 @@ mod inline_actions;
 mod rewrite;
 pub mod source_map;
 
+pub use inline_actions::specialize_instance_property_reads;
+
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::{fmt, fs};
@@ -70,6 +72,10 @@ pub struct FnTemplate {
     pub return_type: Option<crate::ast::TypeAnnotation>,
     /// Body statements of the function.
     pub body: Vec<Stmt>,
+    /// Declaration-time index expression for an indexed component instance.
+    /// Set only on instance-scoped component methods so their bodies can be
+    /// rebound when invoked with a different array index.
+    pub instance_index: Option<Expr>,
 }
 
 /// Maps instance label → fn_name → function template.

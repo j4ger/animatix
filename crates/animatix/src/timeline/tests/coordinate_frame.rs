@@ -87,6 +87,7 @@ fn assignment_rebuild_uses_coordinate_frame() {
         &[],
         None,
         500.0,
+        None,
         &mut diagnostics,
     );
     assert!(

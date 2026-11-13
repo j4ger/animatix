@@ -203,6 +203,109 @@ count.font_size = 64 [0s]
     assert!(bounds.width() > clip.height(), "carried precise bounds use dynamic glyphs");
 }
 
+#[cfg(feature = "serde")]
+#[test]
+fn serialized_counter_carry_rebuilds_glyphs_from_carried_tracks() {
+    let mut source = build_output(
+        r#"
+#0s
+count: Counter, value: 12, prefix: "$", suffix: "k", font_family: "Open Sans", font_size: 32, at: (300, 180)
+#1s
+count.value = 1234567 [0s]
+count.prefix = "USD " [0s]
+count.suffix = " million" [0s]
+count.font_family = "serif" [0s]
+count.font_size = 64 [0s]
+count.decimals = 2 [0s]
+count.comma = true [0s]
+"#,
+    );
+    source.set_persistence_flag("count", true);
+    let carry = source.compute_carry_bag(1_000, true);
+    let json = serde_json::to_string(&carry).expect("carry serializes");
+    let restored: crate::timeline::persistence::CarryBag =
+        serde_json::from_str(&json).expect("carry deserializes");
+    assert!(
+        restored.entries["count"].text.counter_data.is_none(),
+        "glyph cache remains derived and skipped by serde"
+    );
+
+    // Make the predecessor cache unavailable too: injection must rebuild from
+    // the carried tracks, not borrow glyphs from the source timeline.
+    let source_id = source.world.tracks.get_id("count").expect("source Counter");
+    source.world_mut().text.get_mut(source_id).expect("source text").counter_data = None;
+    let mut next_scene = Timeline::new();
+    next_scene.inject_carry_bag(&restored, &source, 0, [640.0, 360.0], &mut Vec::new());
+
+    let reference = build_output(
+        r#"count: Counter, value: 1234567, prefix: "USD ", suffix: " million", font_family: "serif", font_size: 64, decimals: 2, comma: true, at: (300, 180)"#,
+    );
+    let (restored_paths, restored_clip, restored_bounds) = counter_frame(&next_scene, 0.0);
+    let (reference_paths, reference_clip, _) = counter_frame(&reference, 0.0);
+    assert!(same_glyph_geometry(&restored_paths, &reference_paths));
+    assert_eq!(restored_clip, reference_clip);
+    assert!(restored_bounds.width() > restored_clip.height());
+
+    let id = next_scene.world.tracks.get_id("count").expect("restored Counter");
+    next_scene.world_mut().write_property_field(
+        id,
+        crate::timeline::property_registry::ActorField::Tagged("prefix"),
+        crate::timeline::property_engine::PropertyValue::String("EUR ".to_owned()),
+        1_000,
+        1_000,
+        crate::easing::Easing::Linear,
+        &mut Vec::new(),
+    );
+    next_scene.world_mut().write_property_field(
+        id,
+        crate::timeline::property_registry::ActorField::Tagged("suffix"),
+        crate::timeline::property_engine::PropertyValue::String(" net".to_owned()),
+        1_000,
+        1_000,
+        crate::easing::Easing::Linear,
+        &mut Vec::new(),
+    );
+    let cloned_scene = next_scene.clone();
+    let (modified_paths, modified_clip, _) = counter_frame(&cloned_scene, 1.0);
+    assert_ne!(modified_clip, restored_clip, "post-carry affix writes update the render clip");
+    let (reverse_paths, reverse_clip, _) = counter_frame(&cloned_scene, 0.0);
+    assert!(same_glyph_geometry(&reverse_paths, &restored_paths));
+    assert_eq!(reverse_clip, restored_clip, "clone can seek back across affix changes");
+    let (forward_again, forward_clip, _) = counter_frame(&cloned_scene, 1.0);
+    assert!(same_glyph_geometry(&forward_again, &modified_paths));
+    assert_eq!(forward_clip, modified_clip);
+
+    let mut default_source = build_output("#0s\ncount: Counter");
+    default_source.set_persistence_flag("count", true);
+    let default_bag = default_source.compute_carry_bag(0, true);
+    let default_json = serde_json::to_string(&default_bag).expect("default carry serializes");
+    let default_restored: crate::timeline::persistence::CarryBag =
+        serde_json::from_str(&default_json).expect("default carry deserializes");
+    let default_source_id = default_source.world.tracks.get_id("count").expect("source Counter");
+    default_source
+        .world_mut()
+        .text
+        .get_mut(default_source_id)
+        .expect("source text")
+        .counter_data = None;
+    let mut default_next = Timeline::new();
+    default_next.inject_carry_bag(
+        &default_restored,
+        &default_source,
+        0,
+        [640.0, 360.0],
+        &mut Vec::new(),
+    );
+    let default_reference = build_output("#0s\ncount: Counter");
+    let (default_paths, default_clip, _) = counter_frame(&default_next, 0.0);
+    let (expected_default_paths, expected_default_clip, _) = counter_frame(&default_reference, 0.0);
+    assert!(same_glyph_geometry(&default_paths, &expected_default_paths));
+    assert_eq!(
+        default_clip, expected_default_clip,
+        "omitted Counter properties restore canonical defaults"
+    );
+}
+
 #[test]
 fn omitted_counter_defaults_hold_until_the_first_future_assignment() {
     let animated = build_output(

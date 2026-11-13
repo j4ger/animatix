@@ -16,6 +16,8 @@ use substitute::*;
 mod cycles;
 mod entry;
 mod expand;
+pub(super) mod indexed;
+pub use indexed::specialize_instance_property_reads;
 mod params;
 mod substitute;
 #[cfg(test)]

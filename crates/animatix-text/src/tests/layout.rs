@@ -443,3 +443,23 @@ fn cached_multiline_text_with_zero_width_has_finite_positions() {
         }
     }
 }
+
+#[test]
+fn translating_glyph_paths_preserves_spatial_metadata() {
+    use kurbo::Shape as _;
+    let mut glyph = crate::TextPath::new(
+        kurbo::Rect::new(-4.0, -3.0, 12.0, 9.0).to_path(0.1),
+        [1, 2, 3, 255],
+        0.75,
+    );
+    glyph.line_idx = 2;
+    glyph.word_idx = 3;
+    glyph.char_idx = 7;
+    glyph.translate((51.0, -19.0));
+    assert_eq!(glyph.bounds, glyph.path.bounding_box());
+    assert_eq!(glyph.bounds, kurbo::Rect::new(47.0, -22.0, 63.0, -10.0));
+    assert_eq!(glyph.glyph_center, [55.0, -16.0]);
+    assert_eq!((glyph.line_idx, glyph.word_idx, glyph.char_idx), (2, 3, 7));
+    assert_eq!(glyph.color, [1, 2, 3, 255]);
+    assert_eq!(glyph.opacity, 0.75);
+}

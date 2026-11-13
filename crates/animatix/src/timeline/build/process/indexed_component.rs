@@ -4,7 +4,9 @@ use crate::ast::{Expr, Property, is_array_member_label};
 use animatix_syntax::visit::{AstFolder, walk_fold_expr};
 
 /// Return the source-side component path and its resolved array-instance path.
-/// For example, `cards__2.frame` maps `cards.frame` to `cards__2.frame`.
+/// For example, any descendant under `cards__2` maps `cards` to `cards__2`.
+/// Stop at the array root: component descendants may have absolute source
+/// labels such as `cards.title` even beneath a renamed wrapper child `.root`.
 pub(super) fn alias(parent_label: &str) -> Option<(String, String)> {
     let segments: Vec<&str> = parent_label.split('.').collect();
     for (index, segment) in segments.iter().enumerate() {
@@ -14,10 +16,10 @@ pub(super) fn alias(parent_label: &str) -> Option<(String, String)> {
                 .take(index)
                 .copied()
                 .chain(std::iter::once(base))
-                .chain(segments.iter().skip(index + 1).copied())
                 .collect::<Vec<_>>()
                 .join(".");
-            return Some((source_prefix, parent_label.to_string()));
+            let concrete_prefix = segments[..=index].join(".");
+            return Some((source_prefix, concrete_prefix));
         }
     }
     None

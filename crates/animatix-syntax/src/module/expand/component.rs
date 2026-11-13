@@ -427,6 +427,7 @@ pub(super) fn expand_component_instance(
                             instance_label,
                             instance_array_index.as_ref(),
                         ),
+                        instance_index: instance_array_index.clone(),
                     },
                 );
                 None
@@ -436,6 +437,11 @@ pub(super) fn expand_component_instance(
         .collect();
 
     let (expanded_stmts, mut registry) = expand_statements_inner(&filtered, components, ctx);
+    specialize_nested_instance_methods(
+        &mut registry,
+        instance_label,
+        instance_array_index.as_ref(),
+    );
     let expanded_stmts = specialize_component_references(
         expanded_stmts,
         instance_label,
@@ -446,6 +452,22 @@ pub(super) fn expand_component_instance(
     }
     ctx.depth -= 1;
 
+    assemble_component_instance(
+        expanded_stmts,
+        instance_label,
+        root_label.as_deref(),
+        forwarded,
+        registry,
+    )
+}
+
+fn assemble_component_instance(
+    expanded_stmts: Vec<Stmt>,
+    instance_label: &str,
+    root_label: Option<&str>,
+    forwarded: Vec<Property>,
+    registry: InstanceFnRegistry,
+) -> (Vec<Stmt>, InstanceFnRegistry) {
     // Split the expanded body into actor declarations (which can become
     // container children) and behavior statements (`always`, assignments, ...)
     // that must stay at the enclosing statement list.
@@ -492,6 +514,10 @@ pub(super) fn expand_component_instance(
                 // Snapshot the instance root's authored size so the wrapper
                 // Group carries the component's bounds for layout parents.
                 root_size = props.iter().find(|p| p.name == "size").cloned();
+                // The wrapper receives the authored relative size. Its root
+                // child then fills that allocated cell instead of applying
+                // the same percentage a second time.
+                normalize_group_root_size(props);
             }
             if let Some(inline) = stmt_to_inline_item(&stmt) {
                 children.push(inline);
@@ -542,6 +568,65 @@ pub(super) fn expand_component_instance(
     let mut out = actors;
     out.extend(hoisted);
     (out, registry)
+}
+
+/// Convert relative dimensions on a multi-actor component's inner root to
+/// `fill`; the wrapper Group owns the original authored dimensions.
+fn normalize_group_root_size(props: &mut [Property]) {
+    let Some(size) = props.iter_mut().find(|property| property.name == "size") else {
+        return;
+    };
+    size.value = match &size.value {
+        Expr::Tuple(axes) => Expr::Tuple(axes.iter().map(relative_axis_to_fill).collect()),
+        Expr::Percent(_) => Expr::Ident("fill".to_string()),
+        Expr::Str(value) if value == "fill" || is_percent_literal(value) => {
+            Expr::Ident("fill".to_string())
+        },
+        _ => size.value.clone(),
+    };
+}
+
+fn relative_axis_to_fill(axis: &Expr) -> Expr {
+    match axis {
+        Expr::Percent(_) => Expr::Ident("fill".to_string()),
+        Expr::Str(value) if value == "fill" || is_percent_literal(value) => {
+            Expr::Ident("fill".to_string())
+        },
+        Expr::Ident(value) if value == "fill" => Expr::Ident("fill".to_string()),
+        _ => axis.clone(),
+    }
+}
+
+fn is_percent_literal(value: &str) -> bool {
+    value.strip_suffix('%').is_some_and(|number| number.parse::<f64>().is_ok())
+}
+
+/// Carry an indexed parent component's identity into methods on nested
+/// component instances. Their labels include the parent path (for example
+/// `cards.badge`), while the array index belongs to the parent's first path
+/// segment. A nested component with its own index keeps its more specific
+/// binding.
+fn specialize_nested_instance_methods(
+    registry: &mut InstanceFnRegistry,
+    instance_label: &str,
+    instance_index: Option<&Expr>,
+) {
+    let Some(index) = instance_index else {
+        return;
+    };
+    for (label, methods) in registry {
+        if !label.strip_prefix(instance_label).is_some_and(|rest| rest.starts_with('.')) {
+            continue;
+        }
+        for template in methods.values_mut() {
+            if template.instance_index.is_some() {
+                continue;
+            }
+            template.body =
+                specialize_component_references(template.body.clone(), instance_label, Some(index));
+            template.instance_index = Some(index.clone());
+        }
+    }
 }
 
 pub(super) fn component_bindings(
@@ -611,5 +696,22 @@ mod component_index_tests {
         assert_eq!(action.targets, vec!["layout.cards.title"]);
         assert_eq!(action.target_index, vec![Some(Expr::Num(3.0))]);
         assert_eq!(action.target_index_position, vec![Some(1)]);
+    }
+
+    #[test]
+    fn group_root_size_normalizes_only_literal_relative_axes() {
+        let mut props = vec![Property {
+            name: "size".into(),
+            value: Expr::Tuple(vec![Expr::Str("50%".into()), Expr::Str("fit".into())]),
+            value_span: None,
+            trailing_comment: None,
+        }];
+        normalize_group_root_size(&mut props);
+        assert_eq!(
+            props[0].value,
+            Expr::Tuple(vec![Expr::Ident("fill".into()), Expr::Str("fit".into())]),
+        );
+        assert_eq!(relative_axis_to_fill(&Expr::Num(120.0)), Expr::Num(120.0));
+        assert_eq!(relative_axis_to_fill(&Expr::Ident("auto".into())), Expr::Ident("auto".into()));
     }
 }

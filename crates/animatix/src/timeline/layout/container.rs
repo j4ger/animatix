@@ -24,7 +24,7 @@ impl Timeline {
         self.apply_container_layout(container_label, time_ms as f64, diagnostics);
     }
 
-    fn remeasure_container_extent(
+    pub(super) fn remeasure_container_extent(
         &mut self,
         container_id: crate::timeline::EntityId,
         time_ms: u64,
@@ -77,7 +77,7 @@ impl Timeline {
         self.publish_measured_container_extent(&label, measured_size, time_ms);
     }
 
-    fn reflow_nested_children(
+    pub(super) fn reflow_nested_children(
         &mut self,
         parent_id: crate::timeline::EntityId,
         time_ms: u64,
@@ -87,7 +87,6 @@ impl Timeline {
         // The scene hierarchy is acyclic. This hard bound protects builds from
         // pathological nesting and makes the sizing policy finite: each node
         // gets one final-width text measure and one bottom-up size publication.
-        const MAX_NESTED_LAYOUT_DEPTH: usize = 64;
         if depth >= MAX_NESTED_LAYOUT_DEPTH {
             let label = self.world.label(parent_id).unwrap_or("<unknown>");
             tracing::warn!(
@@ -111,6 +110,18 @@ impl Timeline {
             let Some(child_label) = self.world.label(child_id).map(str::to_string) else {
                 continue;
             };
+            if self.world.caps(child_id).is_group_like() {
+                if self.group_needs_layout_reflow(child_id) {
+                    self.reflow_group_children(
+                        child_id,
+                        time_ms,
+                        diagnostics,
+                        depth + 1,
+                        [true; 2],
+                    );
+                }
+                continue;
+            }
             if self.container_layout(&child_label).is_none() {
                 continue;
             }
@@ -226,7 +237,8 @@ impl Timeline {
     /// Publish the union of a `Group`'s children as the group's own extent.
     ///
     /// `Group` is a structural wrapper: it lays nothing out and paints nothing,
-    /// so its layout extent is exactly the placed extent of its children. A
+    /// so auto axes use the placed extent of its children. Definite authored
+    /// or parent-assigned axes retain their resolved box. A
     /// group nested in a Row/Col otherwise publishes the default 100×100 box,
     /// which inflates the main axis and reports a cross-extent unrelated to the
     /// content it wraps (`*_wrap: Group` around a single text line).
@@ -234,6 +246,15 @@ impl Timeline {
         let Some(group_id) = self.world.get_id(label) else {
             return;
         };
+        self.publish_group_extent_in_box(group_id, time_ms, [None; 2]);
+    }
+
+    pub(super) fn publish_group_extent_in_box(
+        &mut self,
+        group_id: crate::timeline::EntityId,
+        time_ms: u64,
+        assigned_box: [Option<f32>; 2],
+    ) {
         let children: Vec<crate::timeline::EntityId> =
             self.world.hierarchy(group_id).children.clone();
         let mut half = [0.0f32, 0.0f32];
@@ -246,12 +267,27 @@ impl Timeline {
             half[0] = half[0].max(position[0].abs() + child_half[0]);
             half[1] = half[1].max(position[1].abs() + child_half[1]);
         }
-        if half[0] <= 0.0 && half[1] <= 0.0 {
-            return;
+        if let Some(spec) = self.world.geometry(group_id).size_spec {
+            for (axis, dimension) in [spec.width, spec.height].into_iter().enumerate() {
+                match dimension {
+                    super::super::taffy_layout::SizeSpec::Fixed(size) => half[axis] = size / 2.0,
+                    super::super::taffy_layout::SizeSpec::Fill
+                    | super::super::taffy_layout::SizeSpec::Percent(_) => {
+                        if let Some(size) = assigned_box[axis] {
+                            half[axis] = size / 2.0;
+                        }
+                    },
+                    _ => {}, // Auto/Fit axes publish the placed content union.
+                }
+            }
         }
-        // A declared fixed size stays authoritative.
-        if self.world.geometry(group_id).size_spec.is_some_and(|spec| spec.is_fixed()) {
-            return;
+        for (axis, value) in half.iter_mut().enumerate() {
+            *value = super::group::clamp_group_axis(
+                self.world.geometry(group_id),
+                time_ms,
+                axis,
+                *value * 2.0,
+            ) / 2.0;
         }
         self.world
             .geometry

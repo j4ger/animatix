@@ -330,10 +330,12 @@ pub enum Stmt {
     },
 
     /// A scoped statement block from timeline-function expansion; local `let`
-    /// bindings are removed when the block exits.
+    /// bindings stay local and shadowed caller bindings are restored on exit.
     Block {
         /// Body statements.
         body: Vec<Stmt>,
+        /// Build-time specialization metadata for an indexed component method.
+        instance_scope: Option<InstanceScope>,
         /// Source span for this block.
         span: Option<Span>,
     },
@@ -390,4 +392,20 @@ pub enum Stmt {
 
     /// Standalone comment statement.
     Comment(String, Option<Span>),
+}
+
+/// Build-time context attached to an indexed component-method call block.
+/// The engine evaluates `index` after the leading `prologue_len` statements,
+/// then specializes source-root property reads in the remaining body.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct InstanceScope {
+    /// Source component path used by method-body property reads.
+    pub label: String,
+    /// Invocation index expression, evaluated in the block's build scope.
+    pub index: Expr,
+    /// Path segment position that receives the array index.
+    pub index_position: usize,
+    /// Number of leading statements to build before resolving `index`.
+    pub prologue_len: usize,
 }

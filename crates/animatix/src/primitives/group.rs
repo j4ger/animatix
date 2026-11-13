@@ -16,20 +16,18 @@ impl Primitive for GroupPrimitive {
         "Group"
     }
 
-    /// Forward the children's union extent to the layout.
+    /// Resolve explicit relative child sizes and publish the group's extent.
     ///
     /// A Group is a structural wrapper — it paints nothing and lays nothing
-    /// out — so the extent it should publish to a parent Row/Col is exactly the
-    /// placed extent of its children. Without this the group contributes its
-    /// default 100×100 box, inflating the parent's main axis and reporting a
-    /// cross-extent unrelated to the content (`*_wrap: Group` nesting).
+    /// out. Definite axes constrain explicit relative children; auto axes use
+    /// the placed content union instead of a phantom default 100×100 box.
     fn finalize_container_build(
         &self,
         ctx: &mut BuildCtx,
         label: &str,
         _props: &[Property],
     ) -> Result<(), Vec<Diagnostic>> {
-        ctx.timeline.publish_group_measured_extent(label, ctx.time_ms as u64);
+        ctx.timeline.finalize_group_layout(label, ctx.time_ms as u64, ctx.diagnostics);
         Ok(())
     }
 

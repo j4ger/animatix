@@ -553,6 +553,7 @@ fn ast_only_variants_still_print_their_content() {
     assert_eq!(format_stmt_raw(&comment, 0, 2), "// a standalone note");
 
     let block = Stmt::Block {
+        instance_scope: None,
         body: vec![Stmt::Comment(" inside".into(), None)],
         span: None,
     };
