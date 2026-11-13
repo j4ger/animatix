@@ -202,15 +202,152 @@ fn counter_comma_override(ctx: &EvaluateCtx) -> Option<bool> {
     }
 }
 
+fn counter_string_property(ctx: &EvaluateCtx, property: &'static str, default: &str) -> String {
+    if let Some(value) = ctx.overrides.and_then(|overrides| overrides.get(property)) {
+        return match value {
+            crate::timeline::Value::Str(value) => value.clone(),
+            other => {
+                tracing::debug!("Counter {property} override has the wrong type: {other:?}");
+                default.to_owned()
+            },
+        };
+    }
+    match ctx.read_property_value(ActorField::Tagged(property), ctx.time_ms) {
+        Some(crate::timeline::property_engine::PropertyValue::String(value)) => value,
+        Some(other) => {
+            tracing::debug!("Counter {property} property has the wrong type: {other:?}");
+            default.to_owned()
+        },
+        None => default.to_owned(),
+    }
+}
+
+struct CounterFrameTypography {
+    font_family: String,
+    font_size: f32,
+    font_weight: f32,
+    font_style: String,
+    line_height: f32,
+}
+
+fn counter_frame_typography(
+    ctx: &EvaluateCtx,
+    data: &crate::primitives::counter::CounterData,
+) -> CounterFrameTypography {
+    let tracks = ctx.text.expect("Counter requires text tracks");
+    let mut typography = CounterFrameTypography {
+        font_family: tracks.font_family.get(ctx.time_ms, data.font_family.clone()),
+        font_size: tracks.font_size.get(ctx.time_ms, data.font_size),
+        font_weight: tracks.font_weight.get(ctx.time_ms, data.font_weight),
+        font_style: tracks.font_style.get(ctx.time_ms, data.font_style.clone()),
+        line_height: tracks.line_height.get(ctx.time_ms, data.line_height),
+    };
+    if let Some(overrides) = ctx.overrides {
+        if let Some(crate::timeline::Value::Str(value)) = overrides.get("font_family") {
+            typography.font_family.clone_from(value);
+        }
+        if let Some(crate::timeline::Value::Num(value)) = overrides.get("font_size") {
+            typography.font_size = *value as f32;
+        }
+        if let Some(crate::timeline::Value::Num(value)) = overrides.get("font_weight") {
+            typography.font_weight = *value as f32;
+        }
+        if let Some(crate::timeline::Value::Str(value)) = overrides.get("font_style") {
+            typography.font_style.clone_from(value);
+        }
+        if let Some(crate::timeline::Value::Num(value)) = overrides.get("line_height") {
+            typography.line_height = *value as f32;
+        }
+        for (property, value) in [
+            ("font_family", overrides.get("font_family")),
+            ("font_style", overrides.get("font_style")),
+        ] {
+            if let Some(value) = value
+                && !matches!(value, crate::timeline::Value::Str(_))
+            {
+                tracing::debug!("Counter {property} override has the wrong type: {value:?}");
+            }
+        }
+        for (property, value) in [
+            ("font_size", overrides.get("font_size")),
+            ("font_weight", overrides.get("font_weight")),
+            ("line_height", overrides.get("line_height")),
+        ] {
+            if let Some(value) = value
+                && !matches!(value, crate::timeline::Value::Num(_))
+            {
+                tracing::debug!("Counter {property} override has the wrong type: {value:?}");
+            }
+        }
+    }
+    if typography.font_family.is_empty() {
+        typography.font_family = crate::renderer::text::DEFAULT_FONT_FAMILY.to_owned();
+    }
+    typography
+}
+
 /// Evaluate draw commands for a `Counter` actor.
 pub fn evaluate_counter(
     ctx: &EvaluateCtx,
-    _text_ctx: Option<&mut TextCompileCtx>,
+    text_ctx: Option<&mut TextCompileCtx>,
 ) -> Result<Option<Vec<RenderCommand>>, RenderError> {
     let style = ctx.style;
-    let Some(data) = ctx.text.and_then(|t| t.counter_data.as_ref()) else {
+    let Some(base_data) = ctx.text.and_then(|t| t.counter_data.as_ref()) else {
         return Ok(None);
     };
+
+    let prefix = counter_string_property(ctx, "prefix", &base_data.prefix_text);
+    let suffix = counter_string_property(ctx, "suffix", &base_data.suffix_text);
+
+    // Counter glyphs are prebaked at declaration time. Frame-time typography
+    // and affix changes need a matching glyph set; compile_text_cached keeps
+    // repeated samples bounded and shares the result with ordinary text.
+    let mut dynamic_data = None;
+    let mut dynamic_prefix = None;
+    let mut dynamic_suffix = None;
+    if let Some(text_ctx) = text_ctx {
+        let typography = counter_frame_typography(ctx, base_data);
+        let font_changed = typography.font_family != base_data.font_family
+            || typography.font_size != base_data.font_size
+            || typography.font_weight != base_data.font_weight
+            || typography.font_style != base_data.font_style
+            || typography.line_height != base_data.line_height;
+        if font_changed {
+            dynamic_data = Some(
+                crate::primitives::counter::prebake_counter(
+                    &typography.font_family,
+                    typography.font_size,
+                    typography.font_weight,
+                    &typography.font_style,
+                    typography.line_height,
+                    base_data.color_rgba,
+                    base_data.initial_value,
+                    base_data.decimals,
+                    base_data.use_comma,
+                    &prefix,
+                    &suffix,
+                    text_ctx.font_context,
+                )?
+                .data,
+            );
+        } else {
+            if prefix != base_data.prefix_text {
+                dynamic_prefix = Some(crate::primitives::counter::compile_counter_affix(
+                    &prefix,
+                    base_data,
+                    text_ctx.font_context,
+                )?);
+            }
+            if suffix != base_data.suffix_text {
+                dynamic_suffix = Some(crate::primitives::counter::compile_counter_affix(
+                    &suffix,
+                    base_data,
+                    text_ctx.font_context,
+                )?);
+            }
+        }
+    }
+    let data = dynamic_data.as_ref().unwrap_or(base_data);
 
     let value = counter_numeric_override(ctx, "value").unwrap_or_else(|| {
         match ctx.read_property_value(ActorField::Tagged("value"), ctx.time_ms) {
@@ -233,8 +370,14 @@ pub fn evaluate_counter(
         }
     });
 
-    let (paths, clip_rect) =
-        crate::primitives::counter::render_counter_columns(data, value, decimals, use_comma);
+    let (paths, clip_rect) = crate::primitives::counter::render_counter_columns_with_affixes(
+        data,
+        value,
+        decimals,
+        use_comma,
+        dynamic_prefix.as_ref(),
+        dynamic_suffix.as_ref(),
+    );
 
     let tint_color = style.color.as_ref().map(|color_track| {
         let col = color_track.evaluate(ctx.time_ms);

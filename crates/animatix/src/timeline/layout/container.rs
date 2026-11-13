@@ -3,6 +3,142 @@
 use super::*;
 
 impl Timeline {
+    /// Reflow nested containers after their parent has resolved final child
+    /// widths. Build order is bottom-up, but wrapped text needs constraints
+    /// from the final parent cell; this walk applies those widths top-down and
+    /// publishes the resulting intrinsic heights bottom-up.
+    pub(crate) fn reflow_nested_layouts(
+        &mut self,
+        container_label: &str,
+        time_ms: u64,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        // One mutation transaction covers the recursive geometry/text writes,
+        // including callers that reflow an already-evaluated timeline.
+        self.invalidate_frame_cache();
+        let Some(container_id) = self.world.get_id(container_label) else {
+            return;
+        };
+        self.reflow_nested_children(container_id, time_ms, diagnostics, 0);
+        self.remeasure_container_extent(container_id, time_ms);
+        self.apply_container_layout(container_label, time_ms as f64, diagnostics);
+    }
+
+    fn remeasure_container_extent(
+        &mut self,
+        container_id: crate::timeline::EntityId,
+        time_ms: u64,
+    ) {
+        let Some(label) = self.world.label(container_id).map(str::to_string) else {
+            return;
+        };
+        let Some(metadata) = self.container_layout(&label).cloned() else {
+            return;
+        };
+        let children = self.layout_children_for(container_id);
+        let extents: Vec<super::ChildExtent> = children
+            .iter()
+            .filter_map(|child| {
+                self.world.geometry(child.id).layout_size_last().map(|half_size| {
+                    super::ChildExtent {
+                        half_size,
+                        placement_mode: child.placement_mode,
+                    }
+                })
+            })
+            .collect();
+        let (specs, constraints, parent_content_size) =
+            self.collect_child_layout_specs(container_id, &children, time_ms);
+        let mut measured_size = super::compute_container_size_with_specs(
+            &extents,
+            &metadata,
+            &specs,
+            &constraints,
+            parent_content_size,
+        );
+        let geometry = self.world.geometry(container_id);
+        if let (Some(spec), Some(current_half)) = (geometry.size_spec, geometry.layout_size_last())
+        {
+            if matches!(
+                spec.width,
+                crate::timeline::taffy_layout::SizeSpec::Fill
+                    | crate::timeline::taffy_layout::SizeSpec::Percent(_)
+            ) {
+                measured_size[0] = current_half[0] * 2.0;
+            }
+            if matches!(
+                spec.height,
+                crate::timeline::taffy_layout::SizeSpec::Fill
+                    | crate::timeline::taffy_layout::SizeSpec::Percent(_)
+            ) {
+                measured_size[1] = current_half[1] * 2.0;
+            }
+        }
+        self.publish_measured_container_extent(&label, measured_size, time_ms);
+    }
+
+    fn reflow_nested_children(
+        &mut self,
+        parent_id: crate::timeline::EntityId,
+        time_ms: u64,
+        diagnostics: &mut Vec<Diagnostic>,
+        depth: usize,
+    ) {
+        // The scene hierarchy is acyclic. This hard bound protects builds from
+        // pathological nesting and makes the sizing policy finite: each node
+        // gets one final-width text measure and one bottom-up size publication.
+        const MAX_NESTED_LAYOUT_DEPTH: usize = 64;
+        if depth >= MAX_NESTED_LAYOUT_DEPTH {
+            let label = self.world.label(parent_id).unwrap_or("<unknown>");
+            tracing::warn!(
+                "nested layout reflow stopped at depth {MAX_NESTED_LAYOUT_DEPTH} for '{label}'"
+            );
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::LayoutSizeFallback,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "Nested layout reflow stopped at depth {MAX_NESTED_LAYOUT_DEPTH} for '{label}'; descendants keep their pre-parent measurements."
+                    ),
+                )
+                .with_subject(label),
+            );
+            return;
+        }
+
+        let child_ids = self.world.hierarchy(parent_id).children.clone();
+        for child_id in child_ids {
+            let Some(child_label) = self.world.label(child_id).map(str::to_string) else {
+                continue;
+            };
+            if self.container_layout(&child_label).is_none() {
+                continue;
+            }
+
+            // Parent layout has already written the child's resolved slot size
+            // when its size spec is auto/fill/percent. Fixed dimensions remain
+            // authored and are retained by the same geometry track.
+            let child_size = {
+                let geometry = self.world.geometry(child_id);
+                geometry
+                    .layout_size_last()
+                    .or_else(|| geometry.size.as_ref().map(|track| track.last_value()))
+                    .unwrap_or([0.0, 0.0])
+                    .map(|half| half * 2.0)
+            };
+
+            self.propagate_text_child_widths(&child_label, child_size, time_ms, diagnostics);
+            self.apply_container_layout(&child_label, time_ms as f64, diagnostics);
+            self.reflow_nested_children(child_id, time_ms, diagnostics, depth + 1);
+
+            // Descendants may have acquired wrapped heights. Recompute this
+            // container from those final child extents before returning to its
+            // parent, then place its children once against the final sizes.
+            self.remeasure_container_extent(child_id, time_ms);
+            self.apply_container_layout(&child_label, time_ms as f64, diagnostics);
+        }
+    }
+
     fn push_layout_size_exclusion_diagnostic(
         diagnostics: &mut Vec<Diagnostic>,
         container_label: &str,
@@ -180,20 +316,18 @@ impl Timeline {
         let mut size_specs: Vec<Option<ChildSizeSpec>> = Vec::with_capacity(children.len());
         let mut constraints: Vec<SizeConstraints> = Vec::with_capacity(children.len());
 
-        // The parent content box drives `Percent`/`Fill` child sizing. Prefer
-        // the container's *declared* size: on the first pass no child has a
-        // resolved `layout_size` yet, so deriving the box from the resolved
-        // track would resolve percentages against zero (or against the
-        // container's own content-driven size, a circle). Only when the author
-        // declared no size does the resolved track apply.
+        // The parent content box drives `Percent`/`Fill` child sizing. During
+        // nested reflow, the parent may have just assigned a narrower Grid
+        // cell than the container's earlier build-time `size` track. The
+        // resolved layout size is the final slot in that case; use authored
+        // size only when no resolved extent exists yet.
         let parent_content_size = {
             let geometry = self.world.geometry(container_id);
             geometry
-                .size
-                .as_ref()
-                .map(|t| t.last_value())
-                .or_else(|| geometry.layout_size_get(time_ms))
+                .layout_size_get(time_ms)
                 .or_else(|| geometry.layout_size_last())
+                .or_else(|| geometry.size.as_ref().map(|t| t.evaluate(time_ms)))
+                .or_else(|| geometry.size.as_ref().map(|t| t.last_value()))
                 .map(|s| [s[0] * 2.0, s[1] * 2.0])
                 .unwrap_or([0.0, 0.0])
         };

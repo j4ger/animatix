@@ -219,28 +219,7 @@ fi
 echo ""
 echo "5. Code-span repo paths"
 echo "-----------------------"
-PATH_FAILED=0
-while IFS= read -r file; do
-    [ -f "$file" ] || continue
-    while IFS= read -r span; do
-        [ -n "$span" ] || continue
-        if [[ "$span" == *"<"* || "$span" == *">"* || "$span" == *"*"* \
-            || "$span" == *"{"* || "$span" == *"}"* || "$span" == *"?"* \
-            || "$span" == *"://"* || "$span" == *" "* || "$span" == *"..."* ]]; then
-            continue
-        fi
-        path="${span%:*}"
-        case "$path" in
-            crates/* | scripts/* | web/* | examples/* | docs/*) ;;
-            *) continue ;;
-        esac
-        if [ ! -e "$ROOT/$path" ] && [ ! -e "$ROOT/${path%/}" ]; then
-            echo "  STALE PATH: $file -> $span"
-            PATH_FAILED=1
-        fi
-    done < <(perl -ne 'while (/`([^`]+)`/g) { print "$1\n" }' "$file")
-done < <(find "$ROOT/docs" -name '*.md' -type f -not -path "*/history/*" | sort)
-if [ "$PATH_FAILED" -eq 0 ]; then
+if python3 "$ROOT/scripts/check-doc-paths.py" "$ROOT"; then
     echo "  PASSED"
 else
     FAILED=1

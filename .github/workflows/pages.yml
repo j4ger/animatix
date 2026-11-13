@@ -43,15 +43,6 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: target/downloaded-web-runtime
-      - name: Node
-        uses: actions/setup-node@v5
-        with:
-          node-version: '22'
-      # A successful download that is corrupt, incomplete or from another SHA
-      # fails here. Only an absent artifact/manual dispatch may rebuild.
-      - name: Verify downloaded SDK
-        if: steps.sdk.outcome == 'success'
-        run: scripts/ci.sh gate web-artifact-restore
       - name: Install Nix
         uses: DeterminateSystems/determinate-nix-action@v3
       - name: Set up Cachix
@@ -60,13 +51,18 @@ jobs:
           name: animatix
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           extraPullNames: 'nix-community'
+      # A successful download that is corrupt, incomplete or from another SHA
+      # fails here. Only an absent artifact/manual dispatch may rebuild.
+      - name: Verify downloaded SDK
+        if: steps.sdk.outcome == 'success'
+        run: nix develop --command scripts/ci.sh gate web-artifact-restore
       - name: Build and test SDK when CI artifact is absent
         if: github.event_name != 'workflow_run' || steps.sdk.outcome != 'success'
         run: nix develop .#web-ci --command scripts/ci.sh gate web-split-proof web-build web-sdk-integrity text-parity web-raster-proof web-smoke web-transactions
       - name: Site scenes
         run: nix develop --command scripts/ci.sh gate site-scenes
       - name: Assemble verified site
-        run: scripts/ci.sh gate web-artifact-verify site-artifact
+        run: nix develop --command scripts/ci.sh gate web-artifact-verify site-artifact
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:

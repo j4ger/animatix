@@ -32,8 +32,20 @@ pub struct CounterData {
     pub minus: (Vec<TextPath>, f32),
     /// Prefix paths and width.
     pub prefix: (Vec<TextPath>, f32),
+    /// Prefix source text, used to detect frame-time changes.
+    pub prefix_text: String,
     /// Suffix paths and width.
     pub suffix: (Vec<TextPath>, f32),
+    /// Suffix source text, used to detect frame-time changes.
+    pub suffix_text: String,
+    /// Typography used to compile the cached glyph set.
+    pub font_family: String,
+    pub font_size: f32,
+    pub font_weight: f32,
+    pub font_style: String,
+    pub line_height: f32,
+    /// Compilation tint; actual per-frame tint is carried by the render command.
+    pub color_rgba: [f32; 4],
     /// Initial value.
     pub initial_value: f32,
     /// Decimals count.
@@ -105,9 +117,12 @@ pub fn prebake_counter(
 
     // Center each digit in col_width
     let mut digits = Vec::with_capacity(10);
-    for (paths, w) in raw_digits {
-        let dx = (col_width - w) / 2.0;
-        digits.push(translate_paths(&paths, dx, 0.0));
+    for (paths, _width) in raw_digits {
+        // A compiled digit is already centered around x=0. Move that origin
+        // to the center of each fixed-width column; subtracting half of the
+        // glyph width here would left-shift wide digits into the preceding
+        // prefix/comma column.
+        digits.push(translate_paths(&paths, col_width / 2.0, 0.0));
     }
 
     let compile_sym = |sym: &str| -> Result<(Vec<TextPath>, f32), RenderError> {
@@ -146,7 +161,15 @@ pub fn prebake_counter(
         dot,
         minus,
         prefix,
+        prefix_text: prefix_str.to_owned(),
         suffix,
+        suffix_text: suffix_str.to_owned(),
+        font_family: font_family.to_owned(),
+        font_size,
+        font_weight,
+        font_style: font_style.to_owned(),
+        line_height,
+        color_rgba,
         initial_value,
         decimals,
         use_comma,
@@ -172,6 +195,7 @@ fn translate_paths(source: &[TextPath], dx: f32, dy: f32) -> Vec<TextPath> {
         .map(|tp| {
             let mut new_tp = tp.clone();
             new_tp.path = transform * &tp.path;
+            new_tp.bounds = tp.bounds + kurbo::Vec2::new(dx as f64, dy as f64);
             new_tp.glyph_center[0] += dx;
             new_tp.glyph_center[1] += dy;
             new_tp
@@ -184,6 +208,45 @@ pub fn render_counter_columns(
     value: f32,
     decimals: u32,
     use_comma: bool,
+) -> (Vec<TextPath>, kurbo::Rect) {
+    render_counter_columns_with_affixes(data, value, decimals, use_comma, None, None)
+}
+
+/// Compile one counter prefix/suffix with the existing bounded text cache.
+pub fn compile_counter_affix(
+    text: &str,
+    data: &CounterData,
+    font_ctx: &crate::renderer::text::FontContext,
+) -> Result<(Vec<TextPath>, f32), RenderError> {
+    if text.is_empty() {
+        return Ok((Vec::new(), 0.0));
+    }
+    let request = TextCompileRequest {
+        allow_fast_path: true,
+        ..TextCompileRequest::new(
+            TextKind::Text,
+            text,
+            TextStyle {
+                font_weight: data.font_weight,
+                font_style: &data.font_style,
+                line_height: data.line_height,
+                color: data.color_rgba,
+                ..TextStyle::new(&data.font_family, data.font_size)
+            },
+        )
+    };
+    let compiled = crate::renderer::text::compile_text_cached(&request, font_ctx)?;
+    Ok((compiled.paths.to_vec(), compiled.half_size[0] * 2.0))
+}
+
+/// Render with optional frame-time prefix and suffix glyphs.
+pub fn render_counter_columns_with_affixes(
+    data: &CounterData,
+    value: f32,
+    decimals: u32,
+    use_comma: bool,
+    prefix_override: Option<&(Vec<TextPath>, f32)>,
+    suffix_override: Option<&(Vec<TextPath>, f32)>,
 ) -> (Vec<TextPath>, kurbo::Rect) {
     let is_negative = value < 0.0;
     let abs_val = value.abs() as f64;
@@ -237,8 +300,9 @@ pub fn render_counter_columns(
     if is_negative && data.minus.1 > 0.0 {
         items.push(ColItem::Symbol(&data.minus.0, data.minus.1));
     }
-    if data.prefix.1 > 0.0 {
-        items.push(ColItem::Symbol(&data.prefix.0, data.prefix.1));
+    let prefix = prefix_override.unwrap_or(&data.prefix);
+    if prefix.1 > 0.0 {
+        items.push(ColItem::Symbol(&prefix.0, prefix.1));
     }
 
     let int_digit_count = int_str.len();
@@ -262,8 +326,9 @@ pub fn render_counter_columns(
         }
     }
 
-    if data.suffix.1 > 0.0 {
-        items.push(ColItem::Symbol(&data.suffix.0, data.suffix.1));
+    let suffix = suffix_override.unwrap_or(&data.suffix);
+    if suffix.1 > 0.0 {
+        items.push(ColItem::Symbol(&suffix.0, suffix.1));
     }
 
     let total_width: f32 = items
@@ -281,7 +346,9 @@ pub fn render_counter_columns(
     for item in items {
         match item {
             ColItem::Symbol(sym_paths, w) => {
-                out_paths.extend(translate_paths(sym_paths, x, 0.0));
+                // Compiled symbol paths are centered around their origin, while
+                // `x` is the left edge of the symbol's advance slot.
+                out_paths.extend(translate_paths(sym_paths, x + w / 2.0, 0.0));
                 x += w;
             },
             ColItem::Digit(d, roll) => {
