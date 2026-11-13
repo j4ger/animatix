@@ -2,6 +2,7 @@
 // Browser acceptance against a complete SDK/site, including subpath hosting.
 // SwiftShader proves function here; it is deliberately not a performance gate.
 import assert from 'node:assert/strict';
+import { Cdp } from './cdp-client.mjs';
 import { compareRgbaFrames } from './rgba-comparison.mjs';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
@@ -260,39 +261,6 @@ const server = createServer(async (request, response) => {
   } catch (error) { response.writeHead(500); response.end(error.message); }
 });
 
-class Cdp {
-  constructor(url) { this.socket = new WebSocket(url); this.next = 0; this.pending = new Map(); }
-  async open() {
-    await new Promise((resolve, reject) => { this.socket.addEventListener('open', resolve, { once: true }); this.socket.addEventListener('error', reject, { once: true }); });
-    this.socket.addEventListener('message', ({ data }) => {
-      const message = JSON.parse(data);
-      if (message.method) this.onEvent?.(message);
-      const pending = this.pending.get(message.id);
-      if (!pending) return;
-      this.pending.delete(message.id);
-      message.error ? pending.reject(new Error(JSON.stringify(message.error))) : pending.resolve(message.result);
-    });
-  }
-  send(method, params = {}, timeoutMs = 30_000) {
-    return new Promise((resolve, reject) => {
-      const id = ++this.next;
-      const timer = setTimeout(() => {
-        this.pending.delete(id);
-        reject(new Error(`CDP ${method} timed out after ${timeoutMs}ms`));
-      }, timeoutMs);
-      this.pending.set(id, {
-        resolve: value => { clearTimeout(timer); resolve(value); },
-        reject: error => { clearTimeout(timer); reject(error); },
-      });
-      this.socket.send(JSON.stringify({ id, method, params }));
-    });
-  }
-  async evaluate(expression) {
-    const result = await this.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
-    if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
-    return result.result.value;
-  }
-}
 
 async function waitFor(description, probe, limit = 30_000) {
   const end = Date.now() + limit;
@@ -901,7 +869,7 @@ async function main() {
     };
     let suiteTimer;
     try {
-      report = await Promise.race([cdp.evaluate(`(${browserTests.toString()})(${JSON.stringify(sources)}, (${exerciseResourceInventory.toString()}), (${compareRgbaFrames.toString()}))`), new Promise((_, reject) => { suiteTimer = setTimeout(() => reject(new Error('browser transaction suite timed out')), timeout * 2); })]);
+      report = await Promise.race([cdp.evaluate(`(${browserTests.toString()})(${JSON.stringify(sources)}, (${exerciseResourceInventory.toString()}), (${compareRgbaFrames.toString()}))`, timeout * 2), new Promise((_, reject) => { suiteTimer = setTimeout(() => reject(new Error('browser transaction suite timed out')), timeout * 2); })]);
     } finally { clearTimeout(suiteTimer); }
     if (hardwareGpu) assert(!/swiftshader|llvmpipe|software/i.test(JSON.stringify(report.adapter)), `hardware GPU required: ${JSON.stringify(report.adapter)}`);
     verifyLoading();
