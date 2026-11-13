@@ -18,7 +18,7 @@ import tarfile
 
 
 ROOT_FILES = {
-    "Cargo.toml", "Cargo.lock", "LICENSE", "rust-toolchain.toml",
+    "Cargo.toml", "Cargo.lock", "LICENSE", "rust-toolchain.toml", "logo.svg",
 }
 SOURCE_DIRS = {
     "crates", "vendor", "tools", "examples", "docs", "packaging/linux",
@@ -27,7 +27,7 @@ SOURCE_DIRS = {
 SOURCE_SCRIPTS = {
     "scripts/dist-linux.sh", "scripts/dist-linux-container.sh",
     "scripts/dist-package.sh", "scripts/test-dist-linux.sh",
-    "scripts/native-package-check.py", "scripts/native-package-tests.py",
+    "scripts/native-package-check.py", "scripts/native-package-tests.py", "scripts/update-icons.py",
 }
 SECRET_NAME = re.compile(r"(?:^\.env(?:$|\.)|^(?:credentials|secrets)(?:\.(?:json|toml|txt|yaml|yml|env))?$|^id_(?:rsa|ed25519)(?:$|[._-])|\.(?:pem|key|p12|pfx)$|^\.netrc$|^\.npmrc$)", re.I)
 MEDIA_KEYS = ("FFMPEG_ARCHIVE", "X264_ARCHIVE", "LIBVPX_ARCHIVE", "OPUS_ARCHIVE")

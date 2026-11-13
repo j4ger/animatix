@@ -177,6 +177,12 @@ mkdir -p "$stage/bin" "$stage/libexec" "$stage/lib" \
   "$stage/share/licenses/animatix" "$stage/share/sources"
 install -m 0755 "$target/dist/animatix" "$stage/libexec/animatix"
 install -m 0755 "$target/dist/animatix-gui" "$stage/libexec/animatix-gui"
+# Desktop identity matches the GUI viewport's app_id / X11 WM_CLASS.
+install -Dm 0644 "$project/packaging/linux/io.github.j4ger.animatix.desktop" "$stage/share/applications/io.github.j4ger.animatix.desktop"
+install -Dm 0644 "$project/logo.svg" "$stage/share/icons/hicolor/scalable/apps/io.github.j4ger.animatix.svg"
+install -Dm 0644 "$project/crates/animatix-gui/assets/icon.png" "$stage/share/icons/hicolor/256x256/apps/io.github.j4ger.animatix.png"
+install -Dm 0644 "$project/crates/animatix-gui/assets/icon-512.png" "$stage/share/icons/hicolor/512x512/apps/io.github.j4ger.animatix.png"
+install -m 0755 "$project/packaging/linux/install-desktop.py" "$stage/install-desktop.py"
 install -m 0755 "$prefix/usr/bin/ffmpeg" "$stage/bin/ffmpeg"
 install -m 0755 "$prefix/usr/bin/ffprobe" "$stage/bin/ffprobe"
 cp -a "$prefix"/usr/lib/libav*.so* "$prefix"/usr/lib/libsw*.so* "$stage/lib/"

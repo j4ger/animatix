@@ -2,6 +2,8 @@
 // Browser acceptance against a complete SDK/site, including subpath hosting.
 // SwiftShader proves function here; it is deliberately not a performance gate.
 import assert from 'node:assert/strict';
+import { Cdp } from './cdp-client.mjs';
+import { compareRgbaFrames } from './rgba-comparison.mjs';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -259,39 +261,6 @@ const server = createServer(async (request, response) => {
   } catch (error) { response.writeHead(500); response.end(error.message); }
 });
 
-class Cdp {
-  constructor(url) { this.socket = new WebSocket(url); this.next = 0; this.pending = new Map(); }
-  async open() {
-    await new Promise((resolve, reject) => { this.socket.addEventListener('open', resolve, { once: true }); this.socket.addEventListener('error', reject, { once: true }); });
-    this.socket.addEventListener('message', ({ data }) => {
-      const message = JSON.parse(data);
-      if (message.method) this.onEvent?.(message);
-      const pending = this.pending.get(message.id);
-      if (!pending) return;
-      this.pending.delete(message.id);
-      message.error ? pending.reject(new Error(JSON.stringify(message.error))) : pending.resolve(message.result);
-    });
-  }
-  send(method, params = {}, timeoutMs = 30_000) {
-    return new Promise((resolve, reject) => {
-      const id = ++this.next;
-      const timer = setTimeout(() => {
-        this.pending.delete(id);
-        reject(new Error(`CDP ${method} timed out after ${timeoutMs}ms`));
-      }, timeoutMs);
-      this.pending.set(id, {
-        resolve: value => { clearTimeout(timer); resolve(value); },
-        reject: error => { clearTimeout(timer); reject(error); },
-      });
-      this.socket.send(JSON.stringify({ id, method, params }));
-    });
-  }
-  async evaluate(expression) {
-    const result = await this.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
-    if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
-    return result.result.value;
-  }
-}
 
 async function waitFor(description, probe, limit = 30_000) {
   const end = Date.now() + limit;
@@ -304,7 +273,7 @@ async function waitFor(description, probe, limit = 30_000) {
 
 // The only browser-side access to private state is observability: installed
 // player/source identity, build count and GPU readback. Operations use the SDK.
-async function browserTests(sources, exerciseInventory) {
+async function browserTests(sources, exerciseInventory, compareFrames) {
   const results = [];
   const frames = {};
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -622,13 +591,34 @@ async function browserTests(sources, exerciseInventory) {
   await test('overlay-failure-retains-frame-and-retry-recovers', async () => {
     await p.applySource(sources.english);
     const before = await pixels(p); const installed = p._loadedSource; const player = p._player;
+    const state = () => ({ time: p.time, playing: p._playing, renderScale: p._renderScale,
+      revision: p._renderRevision, canvas: [p._canvas.width, p._canvas.height],
+      vars: p.vars, state: p._state, generation: p._operationGeneration });
+    const beforeState = state();
     const failed = new Promise(resolve => p.addEventListener('amxerror', resolve, { once: true }));
     p.setAttribute('data-fonts', './retryfont.ttf');
     const failure = await within(failed, 'failed overlay request did not report an error');
     await until(() => !p._operationController, 'failed overlay transaction did not settle');
     check(failure.detail?.kind === 'resource', 'failed overlay did not report a resource error');
     check(p._state === 'ready' && p._player === player && p._loadedSource === installed, 'failed overlay replaced the installed player or source');
-    check((await pixels(p)).hash === before.hash, 'failed overlay changed the rendered frame');
+    const after = await pixels(p);
+    const hasGlyphs = frame => frame.bytes.some((value, index) => index % 4 === 0 && value > 128 && frame.bytes[index + 1] > 128 && frame.bytes[index + 2] > 128);
+    // A no-operation control reproduces one RGB edge pixel changing 82 to 83.
+    // Bound that raster rounding explicitly; alpha and every other pixel stay exact.
+    const sameFrame = compareFrames(before, after, 1, 1);
+    if (!sameFrame || !hasGlyphs(before) || !hasGlyphs(after)) {
+      snapshot('failed-overlay-before', before); snapshot('failed-overlay-after', after);
+      window.__failureState = { before: beforeState, after: state(),
+        frames: [before, after].map(({ width, height, hash }) => ({ width, height, hash })) };
+      try {
+        const repeated = await pixels(p); snapshot('failed-overlay-repeated', repeated);
+        window.__failureState.frames.push({ width: repeated.width, height: repeated.height, hash: repeated.hash });
+      } catch (error) { window.__failureState.repeatError = error.message; }
+      window.__failureFrames = Object.fromEntries(Object.entries(frames).filter(([name]) => name.startsWith('failed-overlay-')));
+    }
+    check(hasGlyphs(before), 'overlay baseline rendered no visible glyph pixels');
+    check(hasGlyphs(after), 'failed overlay lost visible glyph pixels');
+    check(sameFrame, 'failed overlay changed the rendered frame beyond one RGB rounding pixel');
     const recovered = new Promise((resolve, reject) => {
       p.addEventListener('amxready', () => resolve(p), { once: true });
       p.addEventListener('amxerror', event => reject(new Error(event.detail?.message || 'overlay retry failed')), { once: true });
@@ -879,7 +869,7 @@ async function main() {
     };
     let suiteTimer;
     try {
-      report = await Promise.race([cdp.evaluate(`(${browserTests.toString()})(${JSON.stringify(sources)}, (${exerciseResourceInventory.toString()}))`), new Promise((_, reject) => { suiteTimer = setTimeout(() => reject(new Error('browser transaction suite timed out')), timeout * 2); })]);
+      report = await Promise.race([cdp.evaluate(`(${browserTests.toString()})(${JSON.stringify(sources)}, (${exerciseResourceInventory.toString()}), (${compareRgbaFrames.toString()}))`, timeout * 2), new Promise((_, reject) => { suiteTimer = setTimeout(() => reject(new Error('browser transaction suite timed out')), timeout * 2); })]);
     } finally { clearTimeout(suiteTimer); }
     if (hardwareGpu) assert(!/swiftshader|llvmpipe|software/i.test(JSON.stringify(report.adapter)), `hardware GPU required: ${JSON.stringify(report.adapter)}`);
     verifyLoading();
@@ -899,9 +889,13 @@ async function main() {
     process.stdout.write(`web-transactions: ${report.passed.length} checks passed; ${EVIDENCE}\n`);
   } catch (error) {
     const browserState = cdp
-      ? await cdp.evaluate(`({ passed: window.__transactions || [], active: window.__activeTransaction || null, failure: window.__transactionFailure || null })`).catch(() => null)
+      ? await cdp.evaluate(`({ passed: window.__transactions || [], active: window.__activeTransaction || null, failure: window.__transactionFailure || null, frameState: window.__failureState || null, frames: window.__failureFrames || {} })`).catch(() => null)
       : null;
+    for (const [name, frame] of Object.entries(browserState?.frames || {})) {
+      writeFileSync(join(EVIDENCE, `${name}.png`), encodeFramePng(frame));
+    }
     writeFileSync(join(EVIDENCE, 'report.json'), JSON.stringify({
+      frame_state: browserState?.frameState,
       passed: report?.passed ?? browserState?.passed ?? [],
       active: browserState?.active ?? null,
       failure: browserState?.failure ?? { message: error.message, stack: error.stack },

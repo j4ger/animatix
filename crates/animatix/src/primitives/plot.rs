@@ -170,6 +170,7 @@ path_plot_primitive!(
     [
         Property::new("resolution", Expr::Num(96.0)),
         Property::new(
+            // Default isolines bracket zero.
             "levels",
             Expr::List(vec![Expr::Num(-2.0), Expr::Num(0.0), Expr::Num(2.0)]),
         ),

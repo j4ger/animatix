@@ -11,6 +11,19 @@ import unittest
 api = runpy.run_path(str(Path(__file__).with_name("native-package-check.py")))
 source_api = runpy.run_path(str(Path(__file__).resolve().parent.parent / "packaging/linux/source-package.py"))
 ROOT = Path(__file__).resolve().parent.parent
+ICON_SOURCE_FILES = (
+    "logo.svg", "scripts/update-icons.py", "crates/animatix-gui/build.rs",
+    "crates/animatix-gui/assets/icon.png", "crates/animatix-gui/assets/icon-512.png",
+    "crates/animatix-gui/assets/icon.ico", "crates/animatix-gui/assets/icon.icns",
+    "packaging/linux/io.github.j4ger.animatix.desktop", "packaging/linux/install-desktop.py",
+)
+
+
+def add_icon_sources(root):
+    for name in ICON_SOURCE_FILES:
+        target = root / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT / name).read_bytes())
 
 
 def macho(dependency="/usr/lib/libSystem.B.dylib", cpu=0x100000C):
@@ -104,9 +117,11 @@ class PackageTests(unittest.TestCase):
             (root / "crates/dirty.rs").write_text("untracked source\n")
             (root / "crates/.env.api").write_text("secret\n")
             (root / "target").mkdir(); (root / "target/build.rs").write_text("ignored build output\n")
+            add_icon_sources(root)
             destination = root / "target/source-copy"
             identity = source_api["snapshot"](root, destination)
             files = {entry["path"] for entry in identity["files"]}
+            self.assertTrue(set(ICON_SOURCE_FILES).issubset(files))
             self.assertIn("crates/dirty.rs", files)
             self.assertIn("crates/server.pem", files)
             self.assertNotIn("crates/.env.api", files)
@@ -122,6 +137,7 @@ class PackageTests(unittest.TestCase):
             (project / "Cargo.lock").write_text("version = 4\n")
             (project / "LICENSE").write_text("license\n")
             (project / "crates").mkdir(); (project / "crates/core.rs").write_text("source\n")
+            add_icon_sources(project)
             media = root / "media"; media.mkdir()
             lock_values = []
             for key, archive in zip(source_api["MEDIA_KEYS"], ("ffmpeg.tar.xz", "x264.tar.gz", "vpx.tar.gz", "opus.tar.gz")):
@@ -129,7 +145,7 @@ class PackageTests(unittest.TestCase):
                 (media / archive).write_bytes(payload)
                 checksum_key = {"FFMPEG_ARCHIVE": "FFMPEG_SHA256", "X264_ARCHIVE": "X264_SHA256", "LIBVPX_ARCHIVE": "LIBVPX_SHA256", "OPUS_ARCHIVE": "OPUS_SHA256"}[key]
                 lock_values.extend([f"{key}='{archive}'", f"{checksum_key}='{__import__('hashlib').sha256(payload).hexdigest()}'"])
-            (project / "packaging/linux").mkdir(parents=True)
+            (project / "packaging/linux").mkdir(parents=True, exist_ok=True)
             (project / "packaging/linux/sources.lock").write_text("\n".join(lock_values) + "\n")
             with __import__("unittest.mock", fromlist=["patch"]).patch.dict(os.environ, {
                 "ANIMATIX_SOURCE_COMMIT": "b" * 40, "ANIMATIX_SOURCE_DIRTY": "false",
@@ -155,6 +171,8 @@ class PackageTests(unittest.TestCase):
             with tarfile.open(first, "r:gz") as archive:
                 archive.extractall(unpacked)
             extracted_source = next(unpacked.iterdir())
+            for name in ICON_SOURCE_FILES:
+                self.assertEqual((extracted_source / name).read_bytes(), (ROOT / name).read_bytes())
             with __import__("unittest.mock", fromlist=["patch"]).patch.dict(os.environ, {
                 "ANIMATIX_SOURCE_COMMIT": "b" * 40, "ANIMATIX_SOURCE_DIRTY": "false",
                 "ANIMATIX_SOURCE_TREE_SHA256": identity["source_tree_sha256"],

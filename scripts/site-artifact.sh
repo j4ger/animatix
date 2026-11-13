@@ -25,7 +25,7 @@ node web/tools/sdk.mjs verify web/runtime --release --current --commit "$(git re
 stage="${out}.staging-$$"
 trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage"
-entries=(index.html gallery.html site.css site-chrome.js site assets demos tour recipes arena scenes)
+entries=(logo.svg index.html gallery.html site.css site-chrome.js site assets demos tour recipes arena scenes)
 for entry in "${entries[@]}"; do
   [ -e "web/$entry" ] || { echo "error: missing runtime content web/$entry" >&2; exit 1; }
   cp -R "web/$entry" "$stage/$entry"

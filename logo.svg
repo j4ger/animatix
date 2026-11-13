@@ -1,48 +1,29 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140" width="100%" height="100%">
-  <defs>
-    <linearGradient id="gradSolid" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#6366F1" />
-      <stop offset="100%" stop-color="#A855F7" />
-    </linearGradient>
-
-    <linearGradient id="gradDash" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#F59E0B" />
-      <stop offset="100%" stop-color="#EF4444" />
-    </linearGradient>
-
-    <linearGradient id="maskFadeLeft" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="white" stop-opacity="1" />
-      <stop offset="70%" stop-color="white" stop-opacity="0.5" />
-      <stop offset="100%" stop-color="white" stop-opacity="0" />
-    </linearGradient>
-    <mask id="maskLeft">
-      <rect width="100%" height="100%" fill="url(#maskFadeLeft)" />
-    </mask>
-
-    <linearGradient id="maskFadeRight" x1="100%" y1="0%" x2="0%" y2="0%">
-      <stop offset="0%" stop-color="white" stop-opacity="1" />
-      <stop offset="70%" stop-color="white" stop-opacity="0.5" />
-      <stop offset="100%" stop-color="white" stop-opacity="0" />
-    </linearGradient>
-    <mask id="maskRight">
-      <rect width="100%" height="100%" fill="url(#maskFadeRight)" />
-    </mask>
-  </defs>
-
-  <rect width="140" height="140" rx="28" fill="#0B1120" />
-
-  <g fill="#1E293B">
-    <circle cx="35" cy="35" r="1.8" />
-    <circle cx="70" cy="35" r="1.8" />
-    <circle cx="105" cy="35" r="1.8" />
-    <circle cx="35" cy="70" r="1.8" />
-    <circle cx="105" cy="70" r="1.8" />
-    <circle cx="35" cy="105" r="1.8" />
-    <circle cx="70" cy="105" r="1.8" />
-    <circle cx="105" cy="105" r="1.8" />
-  </g>
-
-  <circle cx="56" cy="70" r="28" fill="none" stroke="url(#gradSolid)" stroke-width="4" stroke-linecap="round" mask="url(#maskLeft)" />
-
-  <circle cx="84" cy="70" r="28" fill="none" stroke="url(#gradDash)" stroke-width="3" stroke-linecap="round" stroke-dasharray="6 5" mask="url(#maskRight)" />
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+<title id="title">Animatix — shapes in motion</title>
+<desc id="desc">Three flat playful shapes: an amber rounded square, a cyan circle and an ivory triangle, overlapping within a tilted dashed keyframe boundary on a black rounded app tile.</desc>
+<defs>
+  <filter id="contact-shadow" x="-30%" y="-30%" width="160%" height="170%" color-interpolation-filters="sRGB">
+    <feGaussianBlur in="SourceAlpha" stdDeviation="3.5"/>
+    <feOffset dx="2" dy="5" result="blur"/>
+    <feFlood flood-color="#00162b" flood-opacity=".28"/>
+    <feComposite in2="blur" operator="in"/>
+  </filter>
+  <clipPath id="circle-clip"><circle cx="314" cy="302" r="101"/></clipPath>
+  <clipPath id="shapes-clip"><circle cx="314" cy="302" r="101"/><rect x="106" y="124" width="196" height="196" rx="37" transform="rotate(-24 204 222)"/></clipPath>
+  <rect id="square-shape" x="106" y="124" width="196" height="196" rx="37" transform="rotate(-24 204 222)"/>
+  <path id="triangle-shape" d="M 196 269 C 206 255 224 259 230 275 L 258 349 C 264 365 256 378 240 381 L 167 394 C 144 398 133 376 147 358 Z"/>
+</defs>
+<rect id="tile" width="512" height="512" rx="112" fill="#000000"/>
+<g id="keyframe-boundary" transform="rotate(-10 256 256)" fill="#fff4df">
+  <path id="frame-dashes" d="M 120 92 H 137 M 420 120 V 137 M 120 420 H 137 M 92 120 V 137 M 156 92 H 173 M 420 156 V 173 M 156 420 H 173 M 92 156 V 173 M 192 92 H 209 M 420 192 V 209 M 192 420 H 209 M 92 192 V 209 M 228 92 H 245 M 420 228 V 245 M 228 420 H 245 M 92 228 V 245 M 264 92 H 281 M 420 264 V 281 M 264 420 H 281 M 92 264 V 281 M 300 92 H 317 M 420 300 V 317 M 300 420 H 317 M 92 300 V 317 M 336 92 H 353 M 420 336 V 353 M 336 420 H 353 M 92 336 V 353 M 372 92 H 389 M 420 372 V 389 M 372 420 H 389 M 92 372 V 389" fill="none" stroke="#fff4df" stroke-width="6.4" stroke-linecap="round"/>
+  <g id="keyframe-handles"><rect x="81" y="81" width="22" height="22" rx="2.2" transform="rotate(45 92 92)"/>
+<rect x="409" y="81" width="22" height="22" rx="2.2" transform="rotate(45 420 92)"/>
+<rect x="409" y="409" width="22" height="22" rx="2.2" transform="rotate(45 420 420)"/>
+<rect x="81" y="409" width="22" height="22" rx="2.2" transform="rotate(45 92 420)"/></g>
+</g>
+<circle id="cyan-circle" cx="314" cy="302" r="101" fill="#00cdd6"/>
+<g clip-path="url(#circle-clip)"><use href="#square-shape" filter="url(#contact-shadow)"/></g>
+<use id="amber-square" href="#square-shape" fill="#ffad08"/>
+<g clip-path="url(#shapes-clip)"><use href="#triangle-shape" filter="url(#contact-shadow)"/></g>
+<use id="ivory-triangle" href="#triangle-shape" fill="#fff4df"/>
 </svg>

@@ -37,6 +37,11 @@ test -s /package/share/licenses/animatix/LICENSE || {
   echo 'error: Animatix license is missing from the package' >&2
   exit 1
 }
+test -s /package/share/applications/io.github.j4ger.animatix.desktop
+test -s /package/share/icons/hicolor/scalable/apps/io.github.j4ger.animatix.svg
+test -s /package/share/icons/hicolor/256x256/apps/io.github.j4ger.animatix.png
+test -s /package/share/icons/hicolor/512x512/apps/io.github.j4ger.animatix.png
+test -x /package/install-desktop.py
 metadata=/package/share/BUILD-METADATA.txt
 grep -Eq '^source_commit=[0-9a-f]{40}$' "$metadata"
 grep -Eq '^source_dirty=(true|false)$' "$metadata"

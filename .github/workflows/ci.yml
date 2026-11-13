@@ -142,14 +142,6 @@ jobs:
         with:
           key: ${{ matrix.shell }}
 
-      - name: Node
-        if: contains(matrix.setup, 'node')
-        uses: actions/setup-node@v5
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: web/tools/package-lock.json
-
       # Environment hints from the setup column (rust-*, node, nix, none) are
       # handled by the steps above; the wasm-bindgen CLI now comes from the
       # .#web-build / .#web-ci dev shells, so this is a no-op for them.
@@ -178,7 +170,7 @@ jobs:
       # Upload real files rather than the local build's target/ symlink.
       - name: Stage verified web SDK
         if: contains(matrix.gate, 'web-build')
-        run: scripts/ci.sh gate web-artifact-stage
+        run: nix develop --command scripts/ci.sh gate web-artifact-stage
 
       - name: Upload web runtime
         if: contains(matrix.gate, 'web-build')
@@ -187,3 +179,13 @@ jobs:
           name: web-runtime
           path: target/web-runtime-artifact/
           if-no-files-found: error
+
+      # Retain synthetic transaction frames on failure without weakening checks.
+      - name: Upload web transaction failure evidence
+        if: failure() && contains(matrix.gate, 'web-transactions')
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-transaction-failure
+          path: target/perf/distribution-refactor/web-transactions/
+          if-no-files-found: ignore
+          retention-days: 7

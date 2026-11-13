@@ -443,6 +443,35 @@ cog check --from <commit-sha>
 
 CI enforces conventional commits on every pull request.
 
+### CI environment boundary
+
+Linux project gates use the tool versions locked by `flake.lock`: the default
+Nix shell for native checks and site assembly, `.#web-build` for wasm checks,
+and `.#web-ci` for browser tests. Enter each from a clean shell, not from another
+devshell. `scripts/ci.sh gate` checks the shell identity as well as Nix presence;
+`scripts/ci.sh shell eparts` resolves the current operating system rather than
+the first registry row. All project checks still belong in the gate registry.
+
+`.#dist-driver` is intentionally different: it supplies only orchestration tools
+for the existing Docker Linux distribution pipeline. The Ubuntu 22.04 build ABI,
+pinned container Rust, FFmpeg closure and clean Ubuntu runtime acceptance remain
+unchanged; no Nix libraries are injected into the shipped application. A running
+Docker daemon is required outside the shell. Nix does not provide that daemon.
+
+Windows/macOS eparts and distribution gates remain native to exercise the actual
+OS toolchain and executable formats. Their rustup stable channel remains a known
+floating-version exception, distinct from the flake-locked Rust and Docker's
+fixed Rust baseline; this migration does not upgrade either release toolchain.
+GitHub checkout, matrix planning, artifact transfer and publishing are workflow
+control-plane/bootstrap steps, not project gates, and remain outside devshells.
+This standardizes tool inputs, not fully hermetic builds: Cargo/npm downloads,
+security advisory data and Docker's documented apt inputs still have their own
+network and reproducibility boundaries.
+
+The documentation path checker recognizes only the generated `web/runtime/`
+root when it is absent in a fresh checkout. Paths below that root and other
+missing web paths are still checked; this is not a general generated-path bypass.
+
 ---
 
 *For the language specification, see [`spec.md`](spec.md). For the system architecture, see [`architecture.md`](architecture.md). For work items, see [`roadmap.md`](roadmap.md).

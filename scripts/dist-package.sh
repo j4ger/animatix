@@ -8,7 +8,7 @@
 #
 # Usage: scripts/dist-package.sh <platform> [<bin-dir>]
 #   linux          animatix + animatix-gui, `video` built, .tar.gz
-#   macos          same two binaries, no `video`, .zip
+#   macos          CLI/GUI binaries + Finder Animatix.app, no `video`, .zip
 #   windows        same two .exe, no `video`, .zip
 #   site           the deployed tree (scripts/site-artifact.sh), .zip
 #   web-sdk        one verified SDK, including optional code and font faces
@@ -63,6 +63,13 @@ case "$platform" in
       [ -x "$bindir/bin/$binary" ] || { echo "error: $bindir/bin/$binary missing" >&2; exit 1; }
     done
     [ -d "$bindir/lib" ] && [ -d "$bindir/share" ] || { echo 'error: Linux runtime closure/metadata missing' >&2; exit 1; }
+    for asset in install-desktop.py \
+      share/applications/io.github.j4ger.animatix.desktop \
+      share/icons/hicolor/scalable/apps/io.github.j4ger.animatix.svg \
+      share/icons/hicolor/256x256/apps/io.github.j4ger.animatix.png \
+      share/icons/hicolor/512x512/apps/io.github.j4ger.animatix.png; do
+      [ -f "$bindir/$asset" ] || { echo "error: Linux desktop integration missing: $asset" >&2; exit 1; }
+    done
     source_archive="$bindir.source.tar.gz"
     [ -f "$source_archive" ] || { echo "error: corresponding source archive missing: $source_archive" >&2; exit 1; }
     python3 packaging/linux/source-package.py verify "$source_archive" >/dev/null
@@ -91,6 +98,12 @@ case "$platform" in
       [ -f "$bindir/$b$ext" ] || { echo "error: $bindir/$b$ext missing" >&2; exit 1; }
     done
     for b in animatix animatix-gui; do cp "$bindir/$b$ext" "$stage/"; done
+    if [ "$platform" = macos ]; then
+      python3 scripts/package-macos.py "$bindir/animatix-gui" "$stage/Animatix.app" "$V"
+      python3 scripts/platform-icon-check.py macos "$stage/Animatix.app"
+    else
+      python3 scripts/platform-icon-check.py windows "$stage/animatix-gui.exe"
+    fi
     for license in LICENSE LICENSE-MIT LICENSE-APACHE; do
       if [ -f "$license" ]; then cp "$license" "$stage/"; fi
     done

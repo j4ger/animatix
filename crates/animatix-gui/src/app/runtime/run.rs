@@ -22,14 +22,22 @@ pub fn run_gui(path: Option<PathBuf>, perf_log_path: Option<PathBuf>, script: Op
     let window_size = persistence.as_ref().and_then(|p| p.window_size);
     let window_maximized = persistence.as_ref().and_then(|p| p.window_maximized).unwrap_or(false);
 
-    let viewport = egui::ViewportBuilder::default()
+    let mut viewport = egui::ViewportBuilder::default()
         .with_title("Animatix")
+        .with_app_id("io.github.j4ger.animatix")
         .with_inner_size(
             window_size
                 .map(|[w, h]| egui::Vec2::new(w, h))
                 .unwrap_or(egui::vec2(INITIAL_WINDOW_SIZE.0 as f32, INITIAL_WINDOW_SIZE.1 as f32)),
         )
         .with_maximized(window_maximized);
+
+    // The desktop-file ID and window app ID must match for Linux shell grouping.
+    // Embed the image so standalone binaries do not depend on their working directory.
+    match eframe::icon_data::from_png_bytes(include_bytes!("../../../assets/icon.png")) {
+        Ok(icon) => viewport = viewport.with_icon(icon),
+        Err(error) => tracing::warn!("could not decode app icon: {error}"),
+    }
 
     let options = eframe::NativeOptions {
         viewport,
