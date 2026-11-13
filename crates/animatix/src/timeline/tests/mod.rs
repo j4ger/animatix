@@ -30,6 +30,8 @@ mod container_helpers;
 #[cfg(test)]
 mod coordinate_frame;
 #[cfg(test)]
+mod counter_affixes;
+#[cfg(test)]
 mod frame_dedup;
 #[cfg(test)]
 mod glass;

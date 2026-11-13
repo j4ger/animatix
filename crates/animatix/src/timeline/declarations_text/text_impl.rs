@@ -708,6 +708,32 @@ impl Timeline {
             self.font_context.as_ref(),
         )?;
 
+        // Seed Counter-specific defaults at its declaration. Without a
+        // declaration-time slot, the first later assignment becomes the
+        // property's first keyframe and PropertyTrack samples that boundary
+        // value even before its timestamp (for example, `decimals = 2` at 1s
+        // would affect frame 0).
+        let counter_property_defaults = [
+            ("value", crate::timeline::property_engine::PropertyValue::F32(0.0)),
+            ("prefix", crate::timeline::property_engine::PropertyValue::String(String::new())),
+            ("suffix", crate::timeline::property_engine::PropertyValue::String(String::new())),
+            ("decimals", crate::timeline::property_engine::PropertyValue::U32(0)),
+            ("comma", crate::timeline::property_engine::PropertyValue::Bool(false)),
+        ];
+        for (name, default) in counter_property_defaults {
+            if !props.iter().any(|property| property.name == name) {
+                self.world.write_property_field(
+                    track_id,
+                    crate::timeline::property_registry::ActorField::Tagged(name),
+                    default,
+                    t_end_ms,
+                    t_end_ms,
+                    Easing::Linear,
+                    diagnostics,
+                );
+            }
+        }
+
         let text = self.world.text.get_mut(track_id).expect("text component");
         let geometry = self.world.geometry.get_mut(track_id);
 

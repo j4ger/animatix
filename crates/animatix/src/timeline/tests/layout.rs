@@ -1,5 +1,6 @@
-use super::support::build_output;
+use super::support::{build, build_output};
 use super::*;
+use kurbo::Shape;
 
 #[test]
 fn test_stack_align_start_and_end() {
@@ -407,6 +408,218 @@ outer: Col, size: (420, 320), at: (320, 180), gap: 10 {
             half_size[1] * 2.0
         );
     }
+}
+
+#[test]
+fn fixed_width_grid_reflows_nested_wrapped_text_and_auto_height() {
+    for width in [420.0f32, 840.0] {
+        let source = format!(
+            r#"
+config {{ resolution: (1200, 900) }}
+#0s
+cards: Grid, size: ({width}, auto), cols: 2, gap: 18, padding: 12, at: (600, 420) {{
+  first: Col, size: fill, padding: 12, gap: 8 {{
+    first_body: Col, size: fill, gap: 4 {{
+      chinese: Text, text: "嵌套网格中的文字应当根据最终单元格宽度换行，并把真实高度反馈给上层容器。", font_size: 18, transform: (1, 0.15, 0.25, 1, 4, -3)
+      formula: Typst, text: "$x^2 + frac(a, b)$", font_size: 18
+      explicit: Text, text: "Keep the authored width", font_size: 18, text_max_width: 64
+      empty: Text, text: "", font_size: 18
+    }}
+  }}
+  second: Col, size: fill, padding: 12, gap: 8 {{
+    second_body: Col, size: fill {{
+      fallback: Text, text: "A deliberately long unbroken word Supercalifragilisticexpialidocious plus fallback glyphs ΩЖ漢字.", font_size: 18, font_family: "Animatix Missing Layout Test Font"
+    }}
+  }}
+  next_first: Rect, size: (120, 12), color: red
+  next_second: Rect, size: (120, 12), color: red
+}}
+"#
+        );
+        let report = build(&source);
+        assert!(
+            report.diagnostics.iter().all(|diagnostic| !diagnostic.is_error()),
+            "Typst/math compilation or layout build failed: {:?}",
+            report.diagnostics
+        );
+        let timeline = report.output;
+        let max_width = |label: &str| {
+            let id = timeline.world.get_id(label).expect("text entity");
+            timeline.world.text_or_default(id).text_max_width.get(0, 0.0)
+        };
+        let chinese_width = max_width("chinese");
+        let fallback_width = max_width("fallback");
+        let expected_cell_width = (width - 24.0 - 18.0) / 2.0 - 24.0;
+        let extent = |label: &str| {
+            let id = timeline.world.get_id(label).expect("layout entity");
+            timeline.world.geometry(id).layout_size_last().unwrap_or([0.0, 0.0])
+        };
+        assert!(
+            (chinese_width - expected_cell_width).abs() < 1.0,
+            "width={width}: nested Chinese text should receive the final card content width {expected_cell_width}, got {chinese_width}; grid/card/body half extents: {:?}/{:?}/{:?}",
+            extent("cards"),
+            extent("first"),
+            extent("first_body")
+        );
+        assert!(
+            (fallback_width - expected_cell_width).abs() < 1.0,
+            "width={width}: fallback-font text should receive the final card content width {expected_cell_width}, got {fallback_width}"
+        );
+        assert_eq!(max_width("explicit"), 64.0, "authored text width must stay fixed");
+
+        let size = |label: &str| {
+            let id = timeline.world.get_id(label).expect("layout entity");
+            timeline.world.geometry(id).layout_size_last().expect("measured extent")
+        };
+        let body_size = size("first_body");
+        let first_size = size("first");
+        let second_size = size("second");
+        let grid_size = size("cards");
+        assert!(
+            body_size[1] > 20.0,
+            "wrapped nested body should have multiple lines: {body_size:?}"
+        );
+        let glyph_bounds = |label: &str| {
+            let id = timeline.world.get_id(label).expect("text entity");
+            let text = timeline.world.text_or_default(id);
+            assert!(
+                text.static_paths.is_none(),
+                "recompiled '{label}' must not reuse the declaration's stale static glyph cache"
+            );
+            text.evaluate_paths(timeline.world.style(id), 0)
+                .into_iter()
+                .map(|path| path.path.bounding_box())
+                .reduce(|bounds, path| bounds.union(path))
+                .expect("recompiled text should contain drawable glyph paths")
+        };
+        let command_bounds = |label: &str| {
+            let id = timeline.world.get_id(label).expect("text entity");
+            timeline
+                .world
+                .text_or_default(id)
+                .evaluate_paths(timeline.world.style(id), 0)
+                .into_iter()
+                .map(|path| path.bounds)
+                .reduce(|bounds, path| bounds.union(path))
+                .expect("text command should contain drawable glyph bounds")
+        };
+        let chinese_bounds = glyph_bounds("chinese");
+        assert!(
+            chinese_bounds.width() <= expected_cell_width as f64 + 1.0,
+            "rendered CJK glyph paths should fit the measured wrap width: {chinese_bounds:?}"
+        );
+        assert!(
+            chinese_bounds.height() > 35.0,
+            "rendered CJK glyph paths should occupy multiple lines: {chinese_bounds:?}"
+        );
+        let fallback_bounds = glyph_bounds("fallback");
+        assert!(
+            fallback_bounds.height() > 20.0,
+            "fallback-font paths should have valid measured bounds: {fallback_bounds:?}"
+        );
+        let overflow_warning = report.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
+                && diagnostic.location.subject.as_deref() == Some("fallback")
+                && diagnostic.message.contains("unbreakable content")
+        });
+        let actual_glyph_overflow = fallback_bounds.width() > expected_cell_width as f64 + 0.5;
+        assert_eq!(
+            overflow_warning,
+            actual_glyph_overflow,
+            "long-word overflow warning should match measured glyph bounds (width={} vs cell={expected_cell_width}): {:?}",
+            fallback_bounds.width(),
+            report.diagnostics
+        );
+        assert!(glyph_bounds("formula").height() > 0.0, "Typst formula should compile to paths");
+
+        let text_id = timeline.world.get_id("chinese").expect("CJK text entity");
+        assert_eq!(timeline.world.local_bounds(text_id), None);
+        timeline.evaluate_with_debug(
+            0.0,
+            crate::timeline::SceneDimensions {
+                width: 1200,
+                height: 900,
+            },
+            crate::timeline::DebugRenderOptions {
+                compute_hit_regions: true,
+                ..Default::default()
+            },
+            &mut None,
+        );
+        let local_bounds = command_bounds("chinese");
+        let world_transform = timeline
+            .actor_world_affine(
+                "chinese",
+                0,
+                crate::timeline::SceneDimensions {
+                    width: 1200,
+                    height: 900,
+                },
+            )
+            .expect("CJK actor world transform")
+            * kurbo::Affine::new([1.0, 0.15, 0.25, 1.0, 4.0, -3.0]);
+        let expected_world_bounds =
+            crate::timeline::scene_eval::transform_rect_bbox(&world_transform, local_bounds);
+        let precise_bounds = timeline
+            .precise_bounds_for("chinese")
+            .expect("frame evaluation records precise text bounds");
+        let hit_bounds = timeline
+            .hit_regions()
+            .into_iter()
+            .find(|(label, _)| label == "chinese")
+            .map(|(_, bounds)| bounds)
+            .expect("frame evaluation records a CJK hit region");
+        let rects_match = |actual: kurbo::Rect, expected: kurbo::Rect| {
+            (actual.x0 - expected.x0).abs() < 0.1
+                && (actual.y0 - expected.y0).abs() < 0.1
+                && (actual.x1 - expected.x1).abs() < 0.1
+                && (actual.y1 - expected.y1).abs() < 0.1
+        };
+        assert!(
+            rects_match(precise_bounds, expected_world_bounds),
+            "precise bounds should follow transformed wrapped glyph paths: actual={precise_bounds:?}, expected={expected_world_bounds:?}"
+        );
+        assert!(
+            rects_match(hit_bounds, expected_world_bounds),
+            "hit region should follow transformed wrapped glyph paths: actual={hit_bounds:?}, expected={expected_world_bounds:?}"
+        );
+        assert!(first_size[1] * 2.0 >= body_size[1] * 2.0 + 20.0);
+        assert!(
+            grid_size[1] * 2.0 >= first_size[1].max(second_size[1]) * 2.0,
+            "Grid auto height should include both reflowed cards: grid={grid_size:?}, cards={first_size:?}/{second_size:?}"
+        );
+
+        let first_id = timeline.world.get_id("first").expect("first card");
+        let next_id = timeline.world.get_id("next_first").expect("next row");
+        let first_y = timeline.world.geometry(first_id).position.last([0.0, 0.0])[1];
+        let next_y = timeline.world.geometry(next_id).position.last([0.0, 0.0])[1];
+        let next_half_height = size("next_first")[1];
+        let physical_gap = (next_y - first_y).abs() - first_size[1] - next_half_height;
+        assert!(
+            physical_gap >= 18.0 - 0.5,
+            "the following grid row should preserve the 18px gap: first_y={first_y}, next_y={next_y}, actual_gap={physical_gap}, first_half_height={}, next_half_height={next_half_height}",
+            first_size[1],
+        );
+    }
+}
+
+#[test]
+fn propagated_width_reports_an_unbreakable_glyph_without_shrinking_the_font() {
+    let report = build(
+        "#0s\ncolumn: Col, size: (1, auto) {\n\
+         wide: Text, text: \"W\", font_size: 200\n}",
+    );
+    assert!(
+        report.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
+                && diagnostic.location.subject.as_deref() == Some("wide")
+                && diagnostic.message.contains("unbreakable content")
+        }),
+        "impossible width must produce a layout diagnostic: {:?}",
+        report.diagnostics
+    );
+    let id = report.output.get_entity_id("wide").unwrap();
+    assert_eq!(report.output.world().text_or_default(id).font_size.get(0, 0.0), 200.0);
 }
 
 #[test]

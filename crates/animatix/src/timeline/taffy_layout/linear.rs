@@ -176,24 +176,50 @@ pub fn compute_taffy_linear_layout_with_specs(
 
     let mut taffy: TaffyTree<()> = TaffyTree::new();
     let mut child_nodes: Vec<NodeId> = Vec::with_capacity(children.len());
+    let is_row = layout_type == LayoutType::Row;
+    let content_size = [
+        (parent_content_size[0] - padding[0] - padding[2]).max(0.0),
+        (parent_content_size[1] - padding[1] - padding[3]).max(0.0),
+    ];
 
     for (i, child) in children.iter().enumerate() {
-        let spec = size_specs.get(i).copied().flatten();
+        let spec = size_specs.get(i).copied().flatten().map(|mut spec| {
+            // Cross-axis fill does not participate in flex-grow. Resolve it
+            // against the parent's content box so Col children fill available
+            // width (and Row children can fill available height) before
+            // descendants measure their own content.
+            if !is_row && content_size[0] > 0.0 && matches!(spec.width, SizeSpec::Fill) {
+                spec.width = SizeSpec::Fixed(content_size[0]);
+            }
+            if is_row && content_size[1] > 0.0 && matches!(spec.height, SizeSpec::Fill) {
+                spec.height = SizeSpec::Fixed(content_size[1]);
+            }
+            spec
+        });
         let cons = constraints.get(i).copied().unwrap_or_default();
+        // Preserve existing percentage resolution against the declared parent
+        // dimensions. Only the explicit cross-axis Fill dimensions above are
+        // pre-resolved against the padded content box.
         let style = build_child_style(spec, child.half_size, cons, parent_content_size);
         let node = taffy.new_leaf(style).expect("taffy new_leaf should succeed");
         child_nodes.push(node);
     }
 
-    // Check if any spec needs parent sizing (Percent or Fill)
-    let needs_parent_size = size_specs.iter().any(|spec| {
-        spec.as_ref().is_some_and(|s| {
-            matches!(s.width, SizeSpec::Percent(_) | SizeSpec::Fill)
-                || matches!(s.height, SizeSpec::Percent(_) | SizeSpec::Fill)
+    // Only main-axis percentages/fill need a definite container extent for
+    // flex distribution. Cross-axis Fill is already resolved against the
+    // content box above; treating it as a parent-size dependency made a Col
+    // with `size: fill` width inherit a stale fixed height instead of
+    // shrink-wrapping its wrapped children.
+    let needs_parent_main_size = size_specs.iter().any(|spec| {
+        spec.as_ref().is_some_and(|spec| {
+            if is_row {
+                matches!(spec.width, SizeSpec::Percent(_) | SizeSpec::Fill)
+            } else {
+                matches!(spec.height, SizeSpec::Percent(_) | SizeSpec::Fill)
+            }
         })
     });
 
-    let is_row = layout_type == LayoutType::Row;
     let container_style = Style {
         display: Display::Flex,
         flex_direction: if is_row {
@@ -209,12 +235,12 @@ pub fn compute_taffy_linear_layout_with_specs(
         // When children have percentage/fill specs, set the container's main-axis size
         // from parent_content_size so Taffy can distribute space correctly.
         size: Size {
-            width: if is_row && needs_parent_size && parent_content_size[0] > 0.0 {
+            width: if is_row && needs_parent_main_size && parent_content_size[0] > 0.0 {
                 Dimension::length(parent_content_size[0])
             } else {
                 Dimension::auto()
             },
-            height: if !is_row && needs_parent_size && parent_content_size[1] > 0.0 {
+            height: if !is_row && needs_parent_main_size && parent_content_size[1] > 0.0 {
                 Dimension::length(parent_content_size[1])
             } else {
                 Dimension::auto()
@@ -234,23 +260,24 @@ pub fn compute_taffy_linear_layout_with_specs(
     };
 
     // Also pass definite available space so percentage/fill children can resolve correctly
-    let available =
-        if needs_parent_size && (parent_content_size[0] > 0.0 || parent_content_size[1] > 0.0) {
-            Size {
-                width: if is_row {
-                    AvailableSpace::Definite(parent_content_size[0])
-                } else {
-                    AvailableSpace::MaxContent
-                },
-                height: if is_row {
-                    AvailableSpace::MaxContent
-                } else {
-                    AvailableSpace::Definite(parent_content_size[1])
-                },
-            }
-        } else {
-            Size::MAX_CONTENT
-        };
+    let available = if needs_parent_main_size
+        && (parent_content_size[0] > 0.0 || parent_content_size[1] > 0.0)
+    {
+        Size {
+            width: if is_row {
+                AvailableSpace::Definite(parent_content_size[0])
+            } else {
+                AvailableSpace::MaxContent
+            },
+            height: if is_row {
+                AvailableSpace::MaxContent
+            } else {
+                AvailableSpace::Definite(parent_content_size[1])
+            },
+        }
+    } else {
+        Size::MAX_CONTENT
+    };
     let container_node = taffy
         .new_with_children(container_style, &child_nodes)
         .expect("taffy new_with_children should succeed");

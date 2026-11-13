@@ -361,6 +361,11 @@ mod tests {
             "from",
             "to",
             "head_size",
+            "value",
+            "decimals",
+            "comma",
+            "prefix",
+            "suffix",
         ];
         for name in FRAME_READ {
             let schema = lookup_property(name).unwrap_or_else(|| {

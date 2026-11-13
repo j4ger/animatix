@@ -1,0 +1,34 @@
+// Build with --set W=420 (narrow) or --set W=840 (wide).
+// Inspect nested wrapped text and the row below it; no authored card heights.
+// Counter affixes change at 2s and can be checked by seeking backwards.
+config { resolution: (960, 760), duration: 4 }
+let W = 840
+
+#0s
+heading: Text, text: "Nested Grid / dynamic Counter", font_size: 28, at: (480, 40)
+cards: Grid, size: (W, auto), cols: 2, gap: 18, padding: 12, at: (480, 270) {
+  first: Col, size: fill, padding: 12, gap: 10 {
+    first_title: Text, text: "中文自动换行", font_size: 22
+    first_body: Col, size: fill, gap: 6 {
+      chinese: Text, text: "嵌套网格中的文字应当根据最终单元格宽度换行，并把真实高度反馈给上层容器。", font_size: 18
+      first_end: Rect, size: (80, 6), color: blue
+    }
+  }
+  second: Col, size: fill, padding: 12, gap: 10 {
+    second_title: Text, text: "Wrapped nested paragraph", font_size: 22
+    second_body: Col, size: fill, gap: 6 {
+      paragraph: Text, text: "A narrow cell wraps this paragraph and reserves all of its height. Supercalifragilisticexpialidocious.", font_size: 18
+      second_end: Rect, size: (80, 6), color: green
+    }
+  }
+  next_first: Rect, size: (120, 12), color: red
+  next_second: Rect, size: (120, 12), color: red
+}
+
+count: Counter, value: 12, prefix: "$", suffix: " old", font_size: 36, at: (480, 640)
+always {
+  count.value = 12 + t * 500
+  count.prefix = if t < 2 { "$" } else { "USD " }
+  count.suffix = if t < 2 { " old" } else { " / month" }
+  count.comma = true
+}

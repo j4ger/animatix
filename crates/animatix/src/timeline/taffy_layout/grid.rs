@@ -10,7 +10,7 @@ pub fn compute_taffy_grid_layout(
     padding: [f32; 4],
     cols: usize,
 ) -> TaffyLayoutOutput {
-    compute_taffy_grid_layout_internal(children, gap, padding, cols, false, |_i, child| {
+    compute_taffy_grid_layout_internal(children, gap, padding, cols, false, None, |_i, child| {
         fixed_leaf_style(child.half_size)
     })
 }
@@ -25,11 +25,46 @@ pub fn compute_taffy_grid_layout_with_specs(
     constraints: &[SizeConstraints],
     parent_content_size: [f32; 2],
 ) -> TaffyLayoutOutput {
-    compute_taffy_grid_layout_internal(children, gap, padding, cols, true, |i, child| {
-        let spec = size_specs.get(i).copied().flatten();
-        let cons = constraints.get(i).copied().unwrap_or_default();
-        build_child_style(spec, child.half_size, cons, parent_content_size)
-    })
+    let size_tracks_to_parent = size_specs
+        .iter()
+        .flatten()
+        .any(|spec| matches!(spec.width, SizeSpec::Fill | SizeSpec::Percent(_)));
+    let cols = cols.max(1);
+    let cell_width = if size_tracks_to_parent && parent_content_size[0] > 0.0 {
+        (parent_content_size[0] - padding[0] - padding[2] - gap[0] * (cols - 1) as f32)
+            .max(cols as f32)
+            / cols as f32
+    } else {
+        parent_content_size[0]
+    };
+    let child_parent_content_size = [cell_width, parent_content_size[1]];
+    compute_taffy_grid_layout_internal(
+        children,
+        gap,
+        padding,
+        cols,
+        true,
+        size_tracks_to_parent.then_some(parent_content_size[0]),
+        |i, child| {
+            let spec = size_specs.get(i).copied().flatten().map(|mut spec| {
+                if !size_tracks_to_parent || parent_content_size[0] <= 0.0 {
+                    return spec;
+                }
+                // Grid items with an auto/fill width do not reliably stretch
+                // to fixed template tracks in Taffy. Resolve their relative
+                // width against this cell explicitly so nested containers see
+                // the final width before measuring text.
+                spec.width = match spec.width {
+                    SizeSpec::Fill => SizeSpec::Fixed(cell_width),
+                    SizeSpec::Percent(percent) => SizeSpec::Fixed(cell_width * percent),
+                    other => other,
+                };
+                spec
+            });
+            let cons = constraints.get(i).copied().unwrap_or_default();
+            build_child_style(spec, child.half_size, cons, child_parent_content_size)
+        },
+    )
 }
 
 fn compute_taffy_grid_layout_internal(
@@ -38,6 +73,7 @@ fn compute_taffy_grid_layout_internal(
     padding: [f32; 4],
     cols: usize,
     clamp_tracks: bool,
+    track_budget_width: Option<f32>,
     mut child_style: impl FnMut(usize, &ChildExtent) -> Style,
 ) -> TaffyLayoutOutput {
     if children.is_empty() {
@@ -68,7 +104,17 @@ fn compute_taffy_grid_layout_internal(
     }
 
     // Compute column widths and row heights (including manual children for sizing)
-    let (col_widths, row_heights) = compute_grid_tracks(children, cols, rows);
+    let (mut col_widths, row_heights) = compute_grid_tracks(children, cols, rows);
+    if let Some(budget) = track_budget_width.filter(|width| width.is_finite() && *width > 0.0) {
+        // Relative-width Grid children need final cell widths before nested
+        // text can be measured. A single equal-track allocation gives every
+        // column a stable share of the declared content box; wrapped height
+        // then feeds back into the per-row intrinsic tracks below. Grids with
+        // only intrinsic children keep their content-derived track widths.
+        let content_width =
+            (budget - padding[0] - padding[2] - gap[0] * (cols - 1) as f32).max(cols as f32);
+        col_widths.fill(content_width / cols as f32);
+    }
 
     let map_track = |track: f32| {
         let len = if clamp_tracks { track.max(1.0) } else { track };
