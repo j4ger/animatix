@@ -33,7 +33,15 @@
   const wordmark = document.createElement("a");
   wordmark.className = "wordmark";
   wordmark.href = root;
-  wordmark.innerHTML = "Animatix<i>.</i>";
+  wordmark.setAttribute("aria-label", "Animatix home");
+  const mark = document.createElement("img");
+  mark.src = root + "logo.svg";
+  mark.alt = ""; // The adjacent wordmark already names the home link.
+  mark.width = 32;
+  mark.height = 32;
+  const name = document.createElement("span");
+  name.innerHTML = "Animatix<i>.</i>";
+  wordmark.append(mark, name);
   const linksBox = document.createElement("div");
   linksBox.className = "site-links";
   for (const [href, label, key] of links) {

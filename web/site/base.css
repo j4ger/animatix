@@ -407,8 +407,10 @@ nav.site .site-inner {
 nav.site .wordmark {
   font-family: var(--sans); font-size: 18px; font-weight: 800;
   letter-spacing: -0.025em; color: var(--ink); text-decoration: none;
-  display: inline-flex; align-items: center; gap: 2px;
+  display: inline-flex; align-items: center; gap: 8px;
 }
+
+nav.site .wordmark img { display: block; flex: none; }
 
 nav.site .wordmark i { font-style: normal; color: var(--accent); }
 
@@ -483,3 +485,8 @@ nav.site .ruler .ruler-tick {
   nav.site .site-links a { padding: 5px 8px; font-size: 12.5px; }
 }
 
+
+/* Leave room for navigation on narrow phones. */
+@media (max-width: 400px) {
+  nav.site .wordmark > span { display: none; }
+}

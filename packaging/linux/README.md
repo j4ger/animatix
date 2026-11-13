@@ -107,3 +107,19 @@ after the check's 44.1 kHz resampling). This accounts for codec frame padding
 while still rejecting the prior WebM output that decoded to only about 0.79 s.
 RMS and tone checks use only the PCM samples within the probed container
 playback duration, so AAC decoder padding does not affect the measured tone.
+
+## Desktop launcher and icon
+
+After unpacking to a stable location, run `python3 install-desktop.py` from the
+package root. This installs only the current user's application-menu entry and
+hicolor icons under `$XDG_DATA_HOME` (normally `~/.local/share`). No sudo, file
+associations, or system-wide settings are changed. The desktop ID, icon name,
+and GUI app ID are `io.github.j4ger.animatix`, so X11/Wayland desktops can group
+the running window with its launcher. Desktop shells may refresh their menus
+asynchronously. The runtime window icon is also embedded in the executable.
+
+The installed entry points to this package's absolute executable path. Keep the
+package in place and rerun the installer after moving it. To remove the entry,
+remove `applications/io.github.j4ger.animatix.desktop` and the matching
+`icons/hicolor/{scalable,256x256,512x512}/apps/io.github.j4ger.animatix.*` files
+from that same user data directory. The package itself remains untouched.

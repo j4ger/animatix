@@ -1,3 +1,5 @@
+<p><img src="logo.svg" width="112" height="112" alt="Animatix logo"></p>
+
 # Animatix
 
 Animatix is a declarative animation language and Rust rendering engine for building explanatory math, diagram, and vector animations. It ships a CLI renderer, an egui-based desktop GUI, a Tree-sitter grammar, and an LSP server.

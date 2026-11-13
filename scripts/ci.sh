@@ -426,6 +426,8 @@ gate_web_sdk_tests() {
 
 gate_native_package_tests() {
   python3 scripts/native-package-tests.py
+  python3 scripts/platform-icon-tests.py
+  python3 scripts/icon-tests.py
 }
 
 gate_perf_policy_tests() {
