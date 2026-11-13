@@ -136,6 +136,68 @@ card.opacity = 1
 }
 
 #[test]
+fn native_relative_document_base_loads_audio_transcript_without_double_joining() {
+    let source = r#"
+voice: Audio, source: "../assets/narration.mp3", transcript: "../assets/narration.speech.json"
+subs: Captions, transcript: "../assets/narration.speech.json"
+card: Rect, opacity: 0
+#voice@intro
+card.opacity = 1
+"#;
+    let relative_root = std::path::PathBuf::from("target")
+        .join(format!("animatix_transcript_relative_base_{}", std::process::id()));
+    let document_dir = relative_root.join("animation");
+    let asset_dir = relative_root.join("assets");
+    std::fs::remove_dir_all(&relative_root).ok();
+    std::fs::create_dir_all(&document_dir).expect("create relative document directory");
+    std::fs::create_dir_all(&asset_dir).expect("create relative asset directory");
+    let source_assets =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/assets");
+    std::fs::copy(
+        source_assets.join("narration.speech.json"),
+        asset_dir.join("narration.speech.json"),
+    )
+    .expect("copy real transcript fixture");
+    std::fs::copy(source_assets.join("narration.mp3"), asset_dir.join("narration.mp3"))
+        .expect("copy real audio fixture");
+
+    let mut cache = AssetCache::new();
+    cache.set_base_dirs(Some(&document_dir), None);
+    let transcript_identity = cache.normalize_asset_url("../assets/narration.speech.json");
+    let report = Timeline::build_with_options(
+        &parse(source),
+        &Default::default(),
+        BuildOptions::default().with_asset_cache(Arc::new(cache)),
+    );
+
+    assert!(
+        report.diagnostics.iter().all(|diagnostic| !diagnostic.is_error()),
+        "{:?}",
+        report.diagnostics
+    );
+    for label in ["voice", "subs"] {
+        let transcript = report.output.transcript(label).expect("native transcript attaches");
+        assert!(transcript.find_marker("intro").is_some());
+        let assets = report.output.asset_cache().assets_for(label).collect::<Vec<_>>();
+        assert!(
+            assets.iter().any(|asset| asset.as_str() == transcript_identity.as_str()),
+            "usage tracks the single-normalized transcript resource identity: {assets:?}"
+        );
+    }
+    let card = report.output.get_entity_id("card").expect("card actor");
+    assert!(
+        report
+            .output
+            .world()
+            .property_keyframe_times(card, crate::timeline::ActorField::Opacity)
+            .contains(&113),
+        "the relative native transcript's marker must lower the speech anchor"
+    );
+    drop(report);
+    std::fs::remove_dir_all(relative_root).expect("remove relative transcript fixture");
+}
+
+#[test]
 fn transcript_cache_normalizes_ids_and_preserves_preloaded_text_on_invalidation() {
     let root =
         std::env::temp_dir().join(format!("animatix_transcript_cache_{}", std::process::id()));

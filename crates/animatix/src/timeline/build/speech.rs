@@ -200,8 +200,11 @@ pub(crate) fn load_transcript_path(
     asset_cache: &mut AssetCache,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<SpeechTranscript> {
+    // The cache loader owns canonicalization of the caller's raw resource path.
+    // Keep the normalized identity for usage tracking, but do not pass it back
+    // to the loader or a relative document base would be applied twice.
     let normalized = asset_cache.normalize_asset_url(path);
-    match asset_cache.load_transcript_text(&normalized) {
+    match asset_cache.load_transcript_text(path) {
         Ok(content) => match animatix_text::transcript::parse_transcript_auto(&content) {
             Ok(parsed) => {
                 asset_cache.record_usage(&normalized, label);
