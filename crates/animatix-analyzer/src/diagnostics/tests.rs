@@ -17,6 +17,7 @@ fn unknown_action_detected() {
             modifiers: vec![],
             byte_span: None,
             target_index: vec![],
+            target_index_position: vec![],
         },
         None,
     )];
@@ -74,6 +75,7 @@ fn undefined_label_detected() {
             modifiers: vec![],
             byte_span: None,
             target_index: vec![],
+            target_index_position: vec![],
         },
         None,
     )];
@@ -102,6 +104,7 @@ fn the_reserved_camera_is_a_target_only_for_persistence_actions() {
                 modifiers: vec![],
                 byte_span: None,
                 target_index: vec![],
+                target_index_position: vec![],
             },
             None,
         )];

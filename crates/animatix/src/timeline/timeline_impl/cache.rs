@@ -62,20 +62,35 @@ impl Timeline {
             // No referenced-roots analysis: every track injects fully.
             return EnvInjectDecision::Wildcard(true);
         };
-        if !roots.contains(label) {
+        // This decision is baked per entity into EnvInjectionPlan. Match a
+        // generated instance to its source-side component path without adding
+        // a label lookup to frame evaluation.
+        let source_label;
+        let reference_label = if roots.contains(label) {
+            label
+        } else if label.contains("__") {
+            source_label = label
+                .split('.')
+                .map(|part| crate::ast::is_array_member_label(part).unwrap_or(part))
+                .collect::<Vec<_>>()
+                .join(".");
+            source_label.as_str()
+        } else {
+            return EnvInjectDecision::Skip;
+        };
+        if !roots.contains(reference_label) {
             return EnvInjectDecision::Skip;
         }
         // A wildcard actor or any `{wildcard}__`-prefixed label injects fully.
-        let is_wildcard = self.wildcard_actors.contains(label)
+        let is_wildcard = self.wildcard_actors.contains(reference_label)
             || self.wildcard_actors.iter().any(|w| label.starts_with(&format!("{w}__")));
         if is_wildcard {
             return EnvInjectDecision::Wildcard(self.is_animating_used);
         }
-        let base = label.split_once("__").map(|(b, _)| b).unwrap_or(label);
         match self
             .referenced_properties
             .get(label)
-            .or_else(|| self.referenced_properties.get(base))
+            .or_else(|| self.referenced_properties.get(reference_label))
         {
             Some(p) => EnvInjectDecision::Props(p, self.is_animating_used),
             None => EnvInjectDecision::NoProps,

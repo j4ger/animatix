@@ -11,7 +11,6 @@ pub(crate) fn recompile_text_at_assignment(
     t_start_ms: u64,
     t_end_ms: u64,
     easing: Easing,
-    instant_delayed: bool,
     duration_ms: f64,
     font_ctx: &crate::renderer::text::FontContext,
     text_compiler: &mut crate::renderer::text::TextCompiler,
@@ -33,9 +32,8 @@ pub(crate) fn recompile_text_at_assignment(
         // the previously declared string interpolates all the way into the new
         // one, and the cross-fade branch in `primitives` then compiles and draws
         // *both* strings for the whole preceding gap — the roadmap's "static
-        // keyframe `.text =` assignments overprint". `preserve_instant_delayed_value`
-        // already does the fencing for delayed steps; an undated assignment needs
-        // exactly the same thing one millisecond earlier.
+        // keyframe `.text =` assignments overprint". The helper fences both
+        // delayed and undated instant assignments one millisecond before the step.
         preserve_instant_delayed_value(&mut text.text_content, t_start_ms);
     }
     text.text_content
@@ -124,7 +122,7 @@ pub(crate) fn recompile_text_at_assignment(
             start_layout_size,
             Easing::Linear,
         );
-    } else if instant_delayed {
+    } else {
         preserve_instant_delayed_value(&mut text.text_paths, t_start_ms);
         preserve_instant_delayed_value(&mut geometry.size, t_start_ms);
         preserve_instant_delayed_value(&mut geometry.layout_size, t_start_ms);

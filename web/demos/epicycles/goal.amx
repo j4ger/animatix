@@ -46,7 +46,7 @@ cap3: Caption, text: "Act III · The finished square wave holds, drawn once and 
 
 // ── the working diagram ─────────────────────────────────────────────
 goal_graph: Graph, at: (geo.graph_cx, geo.cy), size: (geo.graph_w, plot_h),
-  x_domain: (0, geo.span), y_domain: (geo.y_lo, geo.y_hi), grid: "false", ticks: "false", tick_labels: "false", opacity: 1 {
+  x_domain: (0, geo.span), y_domain: (geo.y_lo, geo.y_hi), grid: false, ticks: false, tick_labels: "false", opacity: 1 {
   hi: PlotCurve, kind: "cartesian", func: (x) => 1,
     stroke: stroke.default, stroke_width: 1.5, dash_pattern: {9, 7}, opacity: 1
   lo: PlotCurve, kind: "cartesian", func: (x) => -1,

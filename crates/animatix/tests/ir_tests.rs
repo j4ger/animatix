@@ -585,6 +585,44 @@ fn ir_nested_modifier_targets_execute() {
 }
 
 #[test]
+fn ir_nested_loops_restore_shadowed_bindings_even_after_errors() {
+    let loop_stmt = |body| ModifierIrStmt::For {
+        var: LoopPattern::Single("item".into()),
+        index_var: Some("i".into()),
+        iterable: CompiledExpr::Const(Value::List(vec![Value::Num(10.0), Value::Num(20.0)].into())),
+        body,
+    };
+    let mut env = Environment::new();
+    env.set("item", Value::Num(7.0));
+    env.set("i", Value::Num(9.0));
+    let inner = ModifierIrStmt::For {
+        var: LoopPattern::Single("item".into()),
+        index_var: Some("i".into()),
+        iterable: CompiledExpr::Const(Value::List(vec![Value::Num(42.0)].into())),
+        body: vec![],
+    };
+    let program = ModifierIrProgram::new(vec![loop_stmt(vec![
+        inner,
+        ModifierIrStmt::Let {
+            name: "outer_index".into(),
+            value: CompiledExpr::LoadEnv("i".into()),
+        },
+    ])]);
+    execute_modifier_ir(&program, &mut env, &mut ModifierOverrides::default()).unwrap();
+    assert_eq!(env.get("outer_index"), Some(Value::Num(1.0)));
+    assert_eq!(env.get("item"), Some(Value::Num(7.0)));
+    assert_eq!(env.get("i"), Some(Value::Num(9.0)));
+
+    let failing = ModifierIrProgram::new(vec![loop_stmt(vec![ModifierIrStmt::Let {
+        name: "unreachable_result".into(),
+        value: CompiledExpr::LoadEnv("missing_loop_value".into()),
+    }])]);
+    assert!(execute_modifier_ir(&failing, &mut env, &mut ModifierOverrides::default()).is_err());
+    assert_eq!(env.get("item"), Some(Value::Num(7.0)));
+    assert_eq!(env.get("i"), Some(Value::Num(9.0)));
+}
+
+#[test]
 fn ir_for_loop_binds_index_var() {
     // Test for-loops through the IR interpreter, including loop variable cleanup.
     let stmt = Stmt::ForLoop {
@@ -719,6 +757,63 @@ fn ir_for_loop_tuple_destructures_color() {
     execute_modifier_ir(&program, &mut env, &mut overrides).expect("IR execution should succeed");
     assert_eq!(env.get("__captured_color"), Some(Value::Num(0.1)));
     assert_eq!(env.get("r"), None, "loop variables should be cleaned up");
+}
+
+#[test]
+fn indexed_dotted_targets_keep_prefix_and_match_fast_and_generic_execution() {
+    let statements = vec![Stmt::Assignment {
+        target: vec![
+            TargetSegment::Static("parent".to_string()),
+            TargetSegment::Indexed {
+                base: "cards".to_string(),
+                index: Box::new(ident("i")),
+            },
+            TargetSegment::Static("title_text".to_string()),
+        ],
+        property: "opacity".to_string(),
+        value: num(0.5),
+        modifiers: vec![],
+        easing: None,
+        value_span: None,
+        span: None,
+    }];
+    let fast = animatix::timeline::modifier_runtime::ir::lower_modifier_body(&statements)
+        .expect("lower indexed assignment");
+    let indexed = fast.statements.first().expect("one assignment");
+    assert!(matches!(
+        indexed,
+        ModifierIrStmt::AssignIndexed {
+            base,
+            index_position: 1,
+            ..
+        } if base == "parent.cards.title_text"
+    ));
+    let mut written = std::collections::HashSet::new();
+    fast.collect_written_targets(&mut written);
+    assert!(written.contains("parent.cards.title_text"));
+    assert!(written.contains("parent.cards"));
+    let mut excluded = std::collections::HashSet::new();
+    fast.collect_stats_excluded_targets(&mut excluded);
+    assert!(excluded.contains("parent.cards.title_text"));
+    assert!(excluded.contains("parent.cards"));
+
+    let run = |program: &ModifierIrProgram| {
+        let mut env = Environment::new();
+        env.set("i", Value::Num(3.0));
+        let mut overrides = ModifierOverrides::default();
+        execute_modifier_ir(program, &mut env, &mut overrides).expect("execute assignment");
+        overrides
+    };
+    let fast_overrides = run(&fast);
+    let generic = ModifierIrProgram::without_fast(fast.statements.clone());
+    let generic_overrides = run(&generic);
+    assert_eq!(fast_overrides, generic_overrides);
+    assert_eq!(
+        fast_overrides
+            .get("parent.cards__3.title_text")
+            .and_then(|properties| properties.get("opacity")),
+        Some(&Value::Num(0.5))
+    );
 }
 
 fn load_fixture_program(source: &str) -> Vec<Stmt> {

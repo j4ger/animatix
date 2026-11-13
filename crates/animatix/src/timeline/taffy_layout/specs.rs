@@ -82,6 +82,26 @@ impl ChildSizeSpec {
         matches!(self.width, SizeSpec::Percent(_) | SizeSpec::Fill)
             || matches!(self.height, SizeSpec::Percent(_) | SizeSpec::Fill)
     }
+
+    /// Use the current measured geometry for fixed dimensions during dynamic
+    /// layout. A fixed declaration seeds the initial geometry, but a later
+    /// `size` animation updates `layout_size`; treating the declaration as
+    /// permanently fixed would make animated literal sizes differ from
+    /// equivalent expression-sized declarations.
+    pub(crate) fn measured_dimensions(self) -> Self {
+        Self {
+            width: if matches!(self.width, SizeSpec::Fixed(_)) {
+                SizeSpec::Auto
+            } else {
+                self.width
+            },
+            height: if matches!(self.height, SizeSpec::Fixed(_)) {
+                SizeSpec::Auto
+            } else {
+                self.height
+            },
+        }
+    }
 }
 
 /// Parse a single dimension expression (Expr) into a SizeSpec.

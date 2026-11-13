@@ -107,17 +107,23 @@ fn exec_block(stmts: &[Stmt], env: &mut Environment) -> Result<Flow, EvalError> 
                 body,
                 ..
             } => {
-                for (idx, value) in for_iter_values(iterable, env).into_iter().enumerate() {
-                    super::build::bind_loop_var(env, var, value, idx, &mut Vec::new());
-                    if let Some(iv) = index_var {
-                        env.set(iv, Value::Num(idx as f64));
+                let scope = super::env::LoopScope::capture(env, var, index_var.as_deref());
+                let result: Result<Flow, EvalError> = (|| {
+                    for (idx, value) in for_iter_values(iterable, env).into_iter().enumerate() {
+                        super::build::bind_loop_var(env, var, value, idx, &mut Vec::new());
+                        if let Some(iv) = index_var {
+                            env.set(iv, Value::Num(idx as f64));
+                        }
+                        if let Flow::Return(value) = exec_block(body, env)? {
+                            return Ok(Flow::Return(value));
+                        }
                     }
-                    if let Flow::Return(value) = exec_block(body, env)? {
-                        super::build::remove_loop_vars(env, var, index_var);
-                        return Ok(Flow::Return(value));
-                    }
+                    Ok(Flow::Continue)
+                })();
+                scope.restore(env);
+                if let Flow::Return(value) = result? {
+                    return Ok(Flow::Return(value));
                 }
-                super::build::remove_loop_vars(env, var, index_var);
             },
             Stmt::Return { value, .. } => {
                 let value = match value {

@@ -1,4 +1,5 @@
 use super::*;
+use crate::visit::{AstFolder, walk_fold_stmt};
 
 pub(super) fn expand_statements_inner(
     statements: &[Stmt],
@@ -40,8 +41,15 @@ pub(super) fn expand_inline_items(
             } => {
                 if let Some(component) = components.get(ty) {
                     let (instance_stmts, instance_registry) = expand_component_instance(
-                        label, props, children, component, components, ctx,
+                        label,
+                        array_index,
+                        props,
+                        children,
+                        component,
+                        components,
+                        ctx,
                     );
+                    let instance_stmts = carry_instance_array_index(instance_stmts, array_index);
                     merge_registry(registry, instance_registry);
                     for stmt in instance_stmts {
                         match stmt_to_inline_item(&stmt) {
@@ -75,6 +83,7 @@ pub(super) fn expand_inline_items(
                     let anon_label = ctx.next_anon_label();
                     let (instance_stmts, instance_registry) = expand_component_instance(
                         &anon_label,
+                        &None,
                         props,
                         children,
                         component,
@@ -132,6 +141,148 @@ pub(super) fn expand_inline_items(
         }
     }
     (result, hoisted)
+}
+
+/// Keep an indexed component declaration's identity on the expanded root.
+/// The build loop resolves this expression after binding the loop variables,
+/// just as it does for an indexed primitive declaration.
+pub(super) fn carry_instance_array_index(
+    mut statements: Vec<Stmt>,
+    array_index: &Option<Expr>,
+) -> Vec<Stmt> {
+    let Some(index) = array_index else {
+        return statements;
+    };
+    if let Some(Stmt::ActorDecl { array_index, .. }) =
+        statements.iter_mut().find(|stmt| matches!(stmt, Stmt::ActorDecl { .. }))
+    {
+        *array_index = Some(index.clone());
+    }
+    statements
+}
+
+/// Attach an indexed component's root index to its internal actor targets.
+/// Declarations keep their source labels for hierarchy construction; indexed
+/// assignments and actions carry the root index so build/runtime resolution
+/// can address the concrete instance.
+fn specialize_component_references(
+    statements: Vec<Stmt>,
+    instance_label: &str,
+    index: Option<&Expr>,
+) -> Vec<Stmt> {
+    let Some(index) = index else {
+        return statements;
+    };
+    let mut folder = ComponentIndexFolder {
+        root: instance_label,
+        index,
+    };
+    folder.fold_stmts(statements)
+}
+
+struct ComponentIndexFolder<'a> {
+    root: &'a str,
+    index: &'a Expr,
+}
+
+impl AstFolder for ComponentIndexFolder<'_> {
+    fn fold_stmt(&mut self, stmt: Stmt) -> Stmt {
+        match stmt {
+            Stmt::Assignment {
+                target,
+                property,
+                value,
+                modifiers,
+                easing,
+                value_span,
+                span,
+            } => {
+                let target = self.specialize_target_path(target);
+                Stmt::Assignment {
+                    target,
+                    property,
+                    value: self.fold_expr(value),
+                    modifiers: modifiers.into_iter().map(|m| self.fold_modifier(m)).collect(),
+                    easing,
+                    value_span,
+                    span,
+                }
+            },
+            Stmt::ReactiveBinding {
+                target,
+                property,
+                value,
+                value_span,
+                span,
+            } => Stmt::ReactiveBinding {
+                target: self.specialize_target_path(target),
+                property,
+                value: self.fold_expr(value),
+                value_span,
+                span,
+            },
+            other => walk_fold_stmt(self, other),
+        }
+    }
+    fn fold_action(&mut self, action: crate::ast::Action) -> crate::ast::Action {
+        ComponentIndexFolder::fold_action(self, action)
+    }
+}
+
+impl ComponentIndexFolder<'_> {
+    fn specialize_target_path(
+        &self,
+        mut target: Vec<crate::ast::TargetSegment>,
+    ) -> Vec<crate::ast::TargetSegment> {
+        let root_segments: Vec<&str> = self.root.split('.').collect();
+        let root_len = root_segments.len();
+        if target.len() < root_len {
+            return target;
+        }
+        let matches_root = target.iter().take(root_len).zip(&root_segments).all(
+            |(segment, root_segment)| {
+                matches!(segment, crate::ast::TargetSegment::Static(label) if label == root_segment)
+            },
+        );
+        if matches_root {
+            target[root_len - 1] = crate::ast::TargetSegment::Indexed {
+                base: root_segments[root_len - 1].to_string(),
+                index: Box::new(self.index.clone()),
+            };
+        }
+        target
+    }
+
+    fn fold_action(&mut self, mut action: crate::ast::Action) -> crate::ast::Action {
+        if action.target_index.len() < action.targets.len() {
+            action.target_index.resize(action.targets.len(), None);
+        }
+        if action.target_index_position.len() < action.targets.len() {
+            action.target_index_position.resize(action.targets.len(), None);
+        }
+        for ((target, index), position) in action
+            .targets
+            .iter()
+            .zip(&mut action.target_index)
+            .zip(&mut action.target_index_position)
+        {
+            let targets_instance = target == self.root
+                || target.strip_prefix(self.root).is_some_and(|rest| rest.starts_with('.'));
+            if targets_instance && index.is_none() {
+                *index = Some(self.index.clone());
+                *position = Some(self.root.split('.').count().saturating_sub(1));
+            }
+        }
+        action.args = action.args.into_iter().map(|arg| self.fold_expr(arg)).collect();
+        action.modifiers = action.modifiers.into_iter().map(|m| self.fold_modifier(m)).collect();
+        action.target_index = action
+            .target_index
+            .into_iter()
+            .map(|index| index.map(|expr| self.fold_expr(expr)))
+            .collect();
+        action.target_index_position.resize(action.targets.len(), None);
+        action
+    }
 }
 
 /// Convert a statement back into an inline item for container children.
@@ -195,6 +346,7 @@ fn multiply_instance_opacity(props: &mut Vec<Property>, instance_opacity: &Prope
 
 pub(super) fn expand_component_instance(
     instance_label: &str,
+    instance_array_index: &Option<Expr>,
     instance_props: &[Property],
     instance_children: &[InlineItem],
     component: &ComponentEntry,
@@ -234,6 +386,8 @@ pub(super) fn expand_component_instance(
             rewrite_stmt(stmt, instance_label, root_label.as_deref(), &known_labels, &bindings)
         })
         .collect::<Vec<_>>();
+    let rewritten =
+        specialize_component_references(rewritten, instance_label, instance_array_index.as_ref());
 
     // Universal actor properties (opacity/at/anchor/offset) written on the
     // instance. These are forwarded onto the expanded root actor (single-root
@@ -268,7 +422,11 @@ pub(super) fn expand_component_instance(
                     crate::module::FnTemplate {
                         params: params.clone(),
                         return_type: return_type.clone(),
-                        body: body.clone(),
+                        body: specialize_component_references(
+                            body.clone(),
+                            instance_label,
+                            instance_array_index.as_ref(),
+                        ),
                     },
                 );
                 None
@@ -278,6 +436,11 @@ pub(super) fn expand_component_instance(
         .collect();
 
     let (expanded_stmts, mut registry) = expand_statements_inner(&filtered, components, ctx);
+    let expanded_stmts = specialize_component_references(
+        expanded_stmts,
+        instance_label,
+        instance_array_index.as_ref(),
+    );
     if !instance_actions.is_empty() {
         registry.insert(instance_label.to_string(), instance_actions);
     }
@@ -407,4 +570,46 @@ pub(super) fn first_labeled_stmt(body: &[Stmt]) -> Option<String> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod component_index_tests {
+    use super::*;
+    use crate::ast::TargetSegment;
+
+    #[test]
+    fn dotted_instance_prefix_indexes_the_component_root_segment() {
+        let index = Expr::Num(3.0);
+        let mut folder = ComponentIndexFolder {
+            root: "layout.cards",
+            index: &index,
+        };
+        assert_eq!(
+            folder.specialize_target_path(vec![
+                TargetSegment::Static("layout".into()),
+                TargetSegment::Static("cards".into()),
+                TargetSegment::Static("title".into()),
+            ]),
+            vec![
+                TargetSegment::Static("layout".into()),
+                TargetSegment::Indexed {
+                    base: "cards".into(),
+                    index: Box::new(Expr::Num(3.0)),
+                },
+                TargetSegment::Static("title".into()),
+            ]
+        );
+        let action = folder.fold_action(crate::ast::Action {
+            verb: "fade-in".into(),
+            targets: vec!["layout.cards.title".into()],
+            target_index: vec![None],
+            target_index_position: vec![None],
+            args: vec![],
+            modifiers: vec![],
+            byte_span: None,
+        });
+        assert_eq!(action.targets, vec!["layout.cards.title"]);
+        assert_eq!(action.target_index, vec![Some(Expr::Num(3.0))]);
+        assert_eq!(action.target_index_position, vec![Some(1)]);
+    }
 }

@@ -30,6 +30,23 @@ fn property_types_line_up_with_descriptors() {
     }
 }
 
+#[test]
+fn graph_grid_and_ticks_are_typed_as_booleans() {
+    let types = raw_property_types();
+    for name in ["grid", "ticks"] {
+        let ty = types
+            .iter()
+            .find_map(|(property, ty)| (*property == name).then_some(ty))
+            .unwrap_or_else(|| panic!("missing `{name}` type row"));
+        assert_eq!(*ty, Type::Bool, "`{name}` is a runtime boolean flag");
+        let descriptor = PROPERTY_DESCRIPTORS
+            .iter()
+            .find(|descriptor| descriptor.name == name)
+            .expect("core descriptor");
+        assert_eq!(descriptor.value_kind, PropertyValueKind::Bool);
+    }
+}
+
 /// [`PropertyId`] is the descriptor row index, and serialized plans carry
 /// those ids, so the order is an interface. This pins the total count and a
 /// set of sentinel ids: appending rows is fine, but reordering or removing

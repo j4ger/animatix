@@ -563,6 +563,30 @@ fn test_grid_layout_with_specs() {
 }
 
 #[test]
+fn grid_placement_preserves_child_size_specs_and_constraints() {
+    let children = vec![make_child(100.0, 50.0, PlacementMode::LayoutManaged)];
+    let specs = vec![Some(ChildSizeSpec::fixed([50.0, 25.0]))];
+    let constraints = vec![SizeConstraints {
+        min_width: Some(140.0),
+        max_width: Some(150.0),
+        min_height: Some(20.0),
+        max_height: Some(30.0),
+    }];
+
+    let output = compute_taffy_grid_layout_with_specs(
+        &children,
+        [0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0],
+        1,
+        &specs,
+        &constraints,
+        [400.0, 300.0],
+    );
+
+    assert_eq!(output.positions[0].size, [140.0, 30.0]);
+}
+
+#[test]
 fn test_constraints_default() {
     let c = SizeConstraints::default();
     assert_eq!(c.min_width, None);

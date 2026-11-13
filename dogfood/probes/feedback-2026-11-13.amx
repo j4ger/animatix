@@ -1,0 +1,32 @@
+// Current-branch regression probe for AMX-01/02/03/05/06/07/08.
+// Review at 0, 1, 1.999, 2, 3 and 4 seconds; seek backwards as well.
+config { resolution: (960, 600), dynamic_layout: true, duration: 5 }
+
+pub component Card(title: Str) {
+  frame: Rect, size: (200, 70), color: blue
+  title_text: Text, text: title, font_size: 24, color: white
+}
+
+#0s
+title: Text, text: "BEFORE", font_size: 40, at: (480, 50)
+for title, i in {"Alpha", "Beta", "Gamma"} {
+  cards[i]: Card, title: title, at: (230 + i * 250, 140)
+}
+
+row: Row, at: (480, 270), gap: 12 {
+  first: Rect, size: (90, 80), color: blue
+  second: Rect, size: (90, 80), color: red
+  third: Rect, size: (90, 80), color: green
+}
+first.size = (180, 80) [2s]
+
+heat: Heatmap, func: (x, y) => 1, resolution: 8, size: (180, 140), at: (180, 440), color: red
+graph: Graph, size: (260, 140), at: (490, 440), grid: true, ticks: true
+count: Counter, value: 0, font_size: 36, prefix: "$", at: (790, 440)
+always {
+  count.value = t * 25
+}
+
+#2s
+title.text = "AFTER" [0s]
+scene.background_color = "#141b27"

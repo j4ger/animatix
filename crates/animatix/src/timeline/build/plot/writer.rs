@@ -166,6 +166,7 @@ impl Timeline {
     ) -> PlotActorProps {
         let PlotPropBag {
             initial_size,
+            numeric_size_axes: _,
             x_domain,
             y_domain,
             t_domain,

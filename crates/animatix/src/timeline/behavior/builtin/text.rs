@@ -169,6 +169,39 @@ pub fn evaluate_typst(
     )
 }
 
+fn counter_numeric_override(ctx: &EvaluateCtx, property: &str) -> Option<f32> {
+    match ctx.overrides.and_then(|overrides| overrides.get(property)) {
+        Some(crate::timeline::Value::Num(value)) => Some(*value as f32),
+        Some(other) => {
+            tracing::debug!("Counter {property} override has the wrong type: {other:?}");
+            None
+        },
+        None => None,
+    }
+}
+
+fn counter_decimals_override(ctx: &EvaluateCtx) -> Option<u32> {
+    match ctx.overrides.and_then(|overrides| overrides.get("decimals")) {
+        Some(crate::timeline::Value::Num(value)) => Some((*value).max(0.0) as u32),
+        Some(other) => {
+            tracing::debug!("Counter decimals override has the wrong type: {other:?}");
+            None
+        },
+        None => None,
+    }
+}
+
+fn counter_comma_override(ctx: &EvaluateCtx) -> Option<bool> {
+    match ctx.overrides.and_then(|overrides| overrides.get("comma")) {
+        Some(crate::timeline::Value::Bool(value)) => Some(*value),
+        Some(other) => {
+            tracing::debug!("Counter comma override has the wrong type: {other:?}");
+            None
+        },
+        None => None,
+    }
+}
+
 /// Evaluate draw commands for a `Counter` actor.
 pub fn evaluate_counter(
     ctx: &EvaluateCtx,
@@ -179,20 +212,26 @@ pub fn evaluate_counter(
         return Ok(None);
     };
 
-    let value = match ctx.read_property_value(ActorField::Tagged("value"), ctx.time_ms) {
-        Some(crate::timeline::property_engine::PropertyValue::F32(n)) => n,
-        _ => data.initial_value,
-    };
+    let value = counter_numeric_override(ctx, "value").unwrap_or_else(|| {
+        match ctx.read_property_value(ActorField::Tagged("value"), ctx.time_ms) {
+            Some(crate::timeline::property_engine::PropertyValue::F32(n)) => n,
+            _ => data.initial_value,
+        }
+    });
 
-    let decimals = match ctx.read_property_value(ActorField::Tagged("decimals"), ctx.time_ms) {
-        Some(crate::timeline::property_engine::PropertyValue::U32(n)) => n,
-        _ => data.decimals,
-    };
+    let decimals = counter_decimals_override(ctx).unwrap_or_else(|| {
+        match ctx.read_property_value(ActorField::Tagged("decimals"), ctx.time_ms) {
+            Some(crate::timeline::property_engine::PropertyValue::U32(n)) => n,
+            _ => data.decimals,
+        }
+    });
 
-    let use_comma = match ctx.read_property_value(ActorField::Tagged("comma"), ctx.time_ms) {
-        Some(crate::timeline::property_engine::PropertyValue::Bool(b)) => b,
-        _ => data.use_comma,
-    };
+    let use_comma = counter_comma_override(ctx).unwrap_or_else(|| {
+        match ctx.read_property_value(ActorField::Tagged("comma"), ctx.time_ms) {
+            Some(crate::timeline::property_engine::PropertyValue::Bool(b)) => b,
+            _ => data.use_comma,
+        }
+    });
 
     let (paths, clip_rect) =
         crate::primitives::counter::render_counter_columns(data, value, decimals, use_comma);

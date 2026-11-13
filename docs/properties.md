@@ -296,8 +296,8 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 | `levels` | Vec2 | — | — | ContourSet |
 | `tolerance` | F32 | — | — | PlotCurve |
 | `max_depth` | F32 | — | — | PlotCurve, ContourSet |
-| `grid` | String | — | — | Graph |
-| `ticks` | String | — | — | Graph |
+| `grid` | Bool | — | — | Graph |
+| `ticks` | Bool | — | — | Graph |
 | `tick_labels` | String | — | — | Graph |
 | `x_scale` | String | — | — | Graph |
 | `y_scale` | String | — | — | Graph |

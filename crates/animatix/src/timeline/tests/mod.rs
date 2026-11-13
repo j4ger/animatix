@@ -20,6 +20,8 @@ mod child_order;
 #[cfg(test)]
 mod colorscheme;
 #[cfg(test)]
+mod component_arrays;
+#[cfg(test)]
 mod components;
 #[cfg(test)]
 mod connector;
@@ -31,6 +33,8 @@ mod coordinate_frame;
 mod frame_dedup;
 #[cfg(test)]
 mod glass;
+#[cfg(test)]
+mod graph_contracts;
 #[cfg(test)]
 mod keyframe_times;
 #[cfg(test)]
@@ -55,6 +59,8 @@ mod stagger;
 mod taffy_layout;
 #[cfg(test)]
 mod text;
+#[cfg(test)]
+mod text_time_regressions;
 #[cfg(test)]
 mod timeline_core;
 #[cfg(test)]

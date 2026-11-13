@@ -71,6 +71,7 @@ fn extension_layout_container_expands_for_leaf_actions() {
         }],
         byte_span: None,
         target_index: vec![],
+        target_index_position: vec![],
     };
     let mut diagnostics = Vec::new();
     process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
@@ -133,6 +134,7 @@ fn every_registered_action_name_resolves_and_executes() {
             modifiers: vec![],
             byte_span: None,
             target_index: vec![],
+            target_index_position: vec![],
         };
         let mut diagnostics = Vec::new();
 
@@ -159,6 +161,7 @@ fn unknown_actions_emit_diagnostics() {
         }],
         byte_span: None,
         target_index: vec![],
+        target_index_position: vec![],
     };
     let mut timeline = Timeline::new();
     let mut diagnostics = Vec::new();
@@ -244,6 +247,7 @@ fn pulse_frequency_modifier_produces_unsupported_modifier_key() {
         ],
         byte_span: None,
         target_index: vec![],
+        target_index_position: vec![],
     };
 
     let mut diagnostics = Vec::new();
@@ -287,6 +291,7 @@ fn make_action(verb: &str, targets: &[&str]) -> Action {
         }],
         byte_span: None,
         target_index: vec![],
+        target_index_position: vec![],
     }
 }
 
@@ -369,6 +374,7 @@ fn swap_action_sets_child_order_keyframe() {
         }],
         byte_span: None,
         target_index: vec![],
+        target_index_position: vec![],
     };
     let mut diagnostics = Vec::new();
 
@@ -430,6 +436,7 @@ fn swap_action_detects_overlapping_swaps() {
         }],
         byte_span: None,
         target_index: vec![],
+        target_index_position: vec![],
     };
     let mut diagnostics = Vec::new();
     process_action(&action1, 0.0, &mut timeline, &mut diagnostics, None);
@@ -446,6 +453,7 @@ fn swap_action_detects_overlapping_swaps() {
         }],
         byte_span: None,
         target_index: vec![],
+        target_index_position: vec![],
     };
     let mut diagnostics2 = Vec::new();
     process_action(&action2, 200.0, &mut timeline, &mut diagnostics2, None);
@@ -465,6 +473,7 @@ fn reorder_action_requires_exactly_one_target() {
         modifiers: vec![],
         byte_span: None,
         target_index: vec![],
+        target_index_position: vec![],
     };
     let mut timeline = Timeline::new();
     let mut diagnostics = Vec::new();
@@ -514,6 +523,7 @@ fn reorder_action_sets_child_order_keyframe() {
         ],
         byte_span: None,
         target_index: vec![],
+        target_index_position: vec![],
     };
     let mut diagnostics = Vec::new();
 
@@ -556,6 +566,7 @@ fn reorder_action_detects_overlapping_reorders() {
         ],
         byte_span: None,
         target_index: vec![],
+        target_index_position: vec![],
     };
     let mut diagnostics = Vec::new();
     process_action(&action1, 0.0, &mut timeline, &mut diagnostics, None);
@@ -581,6 +592,7 @@ fn reorder_action_detects_overlapping_reorders() {
         ],
         byte_span: None,
         target_index: vec![],
+        target_index_position: vec![],
     };
     let mut diagnostics2 = Vec::new();
     process_action(&action2, 200.0, &mut timeline, &mut diagnostics2, None);
@@ -609,6 +621,7 @@ fn swap_action_bounds_transition_to_duration() {
         }],
         byte_span: None,
         target_index: vec![],
+        target_index_position: vec![],
     };
     process_action(&action1, 0.0, &mut timeline, &mut Vec::new(), None);
 
@@ -623,6 +636,7 @@ fn swap_action_bounds_transition_to_duration() {
         }],
         byte_span: None,
         target_index: vec![],
+        target_index_position: vec![],
     };
     process_action(&action2, 1000.0, &mut timeline, &mut Vec::new(), None);
 
@@ -683,6 +697,7 @@ fn swap_action_animates_positions_smoothly() {
         }],
         byte_span: None,
         target_index: vec![],
+        target_index_position: vec![],
     };
     process_action(&action, 2000.0, &mut timeline, &mut Vec::new(), None);
 

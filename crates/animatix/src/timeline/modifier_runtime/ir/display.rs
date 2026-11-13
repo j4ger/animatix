@@ -71,10 +71,24 @@ impl fmt::Display for DisplayStmt<'_> {
             },
             ModifierIrStmt::AssignIndexed {
                 base,
+                index_position,
                 index: _,
                 property,
                 value,
-            } => write!(f, "assign {}[<expr>].{} = {}", base, property, DisplayExpr(value)),
+            } => {
+                write!(f, "assign ")?;
+                for (position, segment) in base.split('.').enumerate() {
+                    if position > 0 {
+                        write!(f, ".")?;
+                    }
+                    if position == *index_position {
+                        write!(f, "{segment}[<expr>]")?;
+                    } else {
+                        write!(f, "{segment}")?;
+                    }
+                }
+                write!(f, ".{} = {}", property, DisplayExpr(value))
+            },
             ModifierIrStmt::Noop => write!(f, "noop"),
         }
     }

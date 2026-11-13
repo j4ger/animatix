@@ -17,6 +17,7 @@ impl Timeline {
             background_color: bg_track,
             env: Environment::new(),
             block_scope: Vec::new(),
+            build_loop_scopes: Vec::new(),
             primitive_registry: std::sync::Arc::new(crate::primitives::PrimitiveRegistry::new()),
             behavior_registry: std::sync::Arc::new(
                 crate::timeline::behavior::BehaviorRegistry::new(),

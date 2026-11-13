@@ -341,7 +341,8 @@ pub(crate) fn build_vector_field_paths(
 ///
 /// Samples `source` on a `resolution × resolution` grid, normalizes each
 /// sample to [0,1] across the min/max range, and draws filled rectangles
-/// at varying alpha using the actor's `color`.
+/// at varying alpha using the actor's `color`. A constant finite field uses
+/// the scale midpoint; non-finite samples are transparent.
 pub(crate) fn build_heatmap_paths(
     env: &mut Environment,
     source: &FuncSource,
@@ -382,7 +383,6 @@ pub(crate) fn build_heatmap_paths(
 
     crate::timeline::utils::enable_eval_cache();
 
-    let range = (max_val - min_val).max(1e-10);
     let mut vello_paths = Vec::with_capacity(res * res);
 
     let cr = (color[0] * 255.0) as u8;
@@ -392,8 +392,8 @@ pub(crate) fn build_heatmap_paths(
     for yi in 0..res {
         for xi in 0..res {
             let val = values[yi * res + xi];
-            let normalized = ((val - min_val) / range).clamp(0.0, 1.0);
-            let alpha = (normalized * 255.0) as u8;
+            let normalized = heatmap_intensity(val, min_val, max_val);
+            let alpha = (normalized * f64::from(color[3].clamp(0.0, 1.0)) * 255.0) as u8;
 
             // Compute cell screen coordinates
             let sx0 = -(full_size[0] / 2.0) + full_size[0] * xi as f64 / res as f64;
@@ -423,6 +423,24 @@ pub(crate) fn build_heatmap_paths(
     }
 
     vello_paths
+}
+
+/// Normalize finite samples without losing tiny ranges or overflowing large ones.
+fn heatmap_intensity(value: f64, min: f64, max: f64) -> f64 {
+    if !value.is_finite() {
+        return 0.0; // Invalid/missing field samples deliberately paint transparent cells.
+    }
+    if min == max {
+        return 0.5;
+    }
+    let range = max - min;
+    if range.is_finite() {
+        ((value - min) / range).clamp(0.0, 1.0)
+    } else {
+        // Opposite finite extremes can overflow the subtraction, even though
+        // their normalized positions are well defined.
+        ((value * 0.5 - min * 0.5) / (max * 0.5 - min * 0.5)).clamp(0.0, 1.0)
+    }
 }
 
 /// Build VelloPaths for a ContourSet.
@@ -640,6 +658,94 @@ mod fast_field_tests {
             Box::new(compile_expr(&expr).expect("compile field body")),
             CapturedEnv::default(),
         )
+    }
+
+    #[test]
+    fn heatmap_constant_fields_are_visible_and_respect_color_alpha() {
+        for value in [-7.0, 0.0, 1.0] {
+            let paths = build_heatmap_paths(
+                &mut Environment::new(),
+                &source_for(Expr::Num(value)),
+                [-1.0, 1.0],
+                [-1.0, 1.0],
+                [100.0, 100.0],
+                2,
+                [1.0, 0.0, 0.0, 0.8],
+            );
+            assert_eq!(paths.len(), 4);
+            assert!(paths.iter().all(|path| {
+                path.fill == Some(vello::peniko::Color::from_rgba8(255, 0, 0, 102))
+            }));
+        }
+    }
+
+    #[test]
+    fn heatmap_missing_samples_stay_transparent() {
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let paths = build_heatmap_paths(
+                &mut Environment::new(),
+                &source_for(Expr::Num(value)),
+                [-1.0, 1.0],
+                [-1.0, 1.0],
+                [100.0, 100.0],
+                2,
+                [1.0, 0.0, 0.0, 1.0],
+            );
+            assert!(
+                paths.iter().all(|path| {
+                    path.fill == Some(vello::peniko::Color::from_rgba8(255, 0, 0, 0))
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn heatmap_invalid_cells_do_not_change_the_finite_color_range() {
+        for (invalid, finite, expected_alpha) in [
+            (f64::INFINITY, Expr::Ident("x".into()), [0, 0, 255]),
+            (f64::NAN, Expr::Num(1.0), [127, 0, 127]),
+        ] {
+            let body = Expr::Conditional(
+                Box::new(Expr::Binary(
+                    Box::new(Expr::Ident("x".into())),
+                    crate::ast::BinaryOp::Eq,
+                    Box::new(Expr::Num(0.0)),
+                )),
+                Box::new(Expr::Num(invalid)),
+                Box::new(finite),
+            );
+            // Cell centers -1, 0, 1 produce finite values on either side of
+            // an explicitly non-finite middle column. DSL division is guarded
+            // by safe_div, so division by zero is not an invalid-sample fixture.
+            let paths = build_heatmap_paths(
+                &mut Environment::new(),
+                &source_for(body),
+                [-1.5, 1.5],
+                [-1.5, 1.5],
+                [100.0, 100.0],
+                3,
+                [1.0, 0.0, 0.0, 1.0],
+            );
+            assert_eq!(paths.len(), 9);
+            for (index, path) in paths.iter().enumerate() {
+                assert_eq!(
+                    path.fill,
+                    Some(vello::peniko::Color::from_rgba8(255, 0, 0, expected_alpha[index % 3]))
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn heatmap_normalization_preserves_small_and_extreme_ranges() {
+        for (min, max) in [(0.0, 1.0), (0.0, 1e-100), (-f64::MAX, f64::MAX)] {
+            assert_eq!(heatmap_intensity(min, min, max), 0.0);
+            assert_eq!(heatmap_intensity(max, min, max), 1.0);
+            let midpoint = min * 0.5 + max * 0.5;
+            assert!((heatmap_intensity(midpoint, min, max) - 0.5).abs() < 1e-12);
+            assert_eq!(heatmap_intensity(f64::NAN, min, max), 0.0);
+            assert_eq!(heatmap_intensity(f64::INFINITY, min, max), 0.0);
+        }
     }
 
     #[test]

@@ -67,8 +67,23 @@ pub fn format_action(a: &Action) -> String {
         .targets
         .iter()
         .zip(a.target_index.iter())
-        .map(|(target, index)| match index {
-            Some(expr) => format!("{}[{}]", target, format_expr(expr)),
+        .enumerate()
+        .map(|(target_index, (target, index))| match index {
+            Some(expr) => {
+                let mut segments: Vec<String> = target.split('.').map(str::to_string).collect();
+                let position = a
+                    .target_index_position
+                    .get(target_index)
+                    .copied()
+                    .flatten()
+                    .unwrap_or_else(|| segments.len().saturating_sub(1));
+                if let Some(segment) = segments.get_mut(position) {
+                    *segment = format!("{}[{}]", segment, format_expr(expr));
+                    segments.join(".")
+                } else {
+                    format!("{}[{}]", target, format_expr(expr))
+                }
+            },
             None => target.clone(),
         })
         .collect::<Vec<_>>()

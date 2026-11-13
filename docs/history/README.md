@@ -17,7 +17,7 @@ mixed history and open work). Split into monthly volumes on 2026-10-29; the old
 | [`2026-08.md`](2026-08.md) | August 2026 | 10 entries |
 | [`2026-09.md`](2026-09.md) | September 2026 | 21 entries |
 | [`2026-10.md`](2026-10.md) | October 2026 | 31 entries |
-| [`2026-11.md`](2026-11.md) | November 2026 | 1 entry |
+| [`2026-11.md`](2026-11.md) | November 2026 | 2 entries |
 
 ## August 2026 — [`2026-08.md`](2026-08.md)
 
@@ -93,6 +93,7 @@ mixed history and open work). Split into monthly volumes on 2026-10-29; the old
 ## November 2026 — [`2026-11.md`](2026-11.md)
 
 - Author Review, Effect Contract, and Motion Additions (2026-11-01)
+- 用户体验反馈：正确性修复与实施评估 (2026-11-13)
 
 ## Themes
 

@@ -227,6 +227,7 @@ mod tests {
             modifiers: vec![],
             byte_span: None,
             target_index: vec![],
+            target_index_position: vec![],
         };
 
         let mut diagnostics = Vec::new();
@@ -251,6 +252,7 @@ mod tests {
             modifiers: vec![],
             byte_span: None,
             target_index: vec![],
+            target_index_position: vec![],
         };
 
         let mut diagnostics = Vec::new();
@@ -278,6 +280,7 @@ mod tests {
             }],
             byte_span: None,
             target_index: vec![],
+            target_index_position: vec![],
         };
 
         let mut diagnostics = Vec::new();
@@ -304,6 +307,7 @@ mod tests {
             modifiers: vec![],
             byte_span: None,
             target_index: vec![],
+            target_index_position: vec![],
         };
 
         let mut diagnostics = Vec::new();
@@ -331,6 +335,7 @@ mod tests {
             modifiers: vec![],
             byte_span: None,
             target_index: vec![],
+            target_index_position: vec![],
         };
 
         let mut diagnostics = Vec::new();
@@ -362,6 +367,7 @@ mod tests {
             modifiers: vec![],
             byte_span: None,
             target_index: vec![],
+            target_index_position: vec![],
         };
 
         let mut diagnostics = Vec::new();
@@ -394,6 +400,7 @@ mod tests {
             }],
             byte_span: None,
             target_index: vec![],
+            target_index_position: vec![],
         };
 
         let mut diagnostics = Vec::new();
@@ -419,6 +426,7 @@ mod tests {
             modifiers: vec![],
             byte_span: None,
             target_index: vec![],
+            target_index_position: vec![],
         };
 
         let mut diagnostics = Vec::new();
@@ -446,6 +454,7 @@ mod tests {
                         modifiers: vec![],
                         byte_span: None,
                         target_index: vec![],
+                        target_index_position: vec![],
                     },
                     None,
                 ),
@@ -477,6 +486,7 @@ mod tests {
                         }],
                         byte_span: None,
                         target_index: vec![],
+                        target_index_position: vec![],
                     },
                     None,
                 ),

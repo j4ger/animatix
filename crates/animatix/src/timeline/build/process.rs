@@ -1,10 +1,15 @@
 //! Main AST statement processor: dispatches to actor declaration, assignment,
 //! sequence, stagger, always, for-loop, and let-decl handlers.
 
+use std::borrow::Cow;
+
 use tracing::instrument;
 
 use super::*;
 use crate::ast::{Action, InlineItem, LoopPattern, MatchPattern, Property, Span};
+
+mod indexed_component;
+mod loop_modifiers;
 
 pub(crate) fn bind_loop_var(
     env: &mut Environment,
@@ -109,7 +114,7 @@ impl Timeline {
                     }
                 },
                 Stmt::Always { body, .. } => {
-                    self.modifiers.extend(body.clone());
+                    self.collect_scoped_modifiers(body.clone(), diagnostics);
                 },
                 Stmt::ReactiveBinding {
                     target,
@@ -118,15 +123,18 @@ impl Timeline {
                     value_span,
                     ..
                 } => {
-                    self.modifiers.push(Stmt::Assignment {
-                        target: target.clone(),
-                        property: property.clone(),
-                        value: value.clone(),
-                        modifiers: vec![],
-                        easing: None,
-                        value_span: *value_span,
-                        span: None,
-                    });
+                    self.collect_scoped_modifiers(
+                        vec![Stmt::Assignment {
+                            target: target.clone(),
+                            property: property.clone(),
+                            value: value.clone(),
+                            modifiers: vec![],
+                            easing: None,
+                            value_span: *value_span,
+                            span: None,
+                        }],
+                        diagnostics,
+                    );
                 },
                 Stmt::ForLoop {
                     var,
@@ -265,12 +273,30 @@ impl Timeline {
                 ),
             ));
         }
-        let resolved_label =
-            resolve_array_index(label, array_index, &self.env, diagnostics, time_ms as u64);
+        let qualified_label = parent_label
+            .map(|parent| indexed_component::qualify_child(label, parent))
+            .unwrap_or_else(|| label.to_string());
+        let qualified_props = match parent_label.and_then(indexed_component::alias) {
+            Some((source_prefix, concrete_prefix)) => {
+                Cow::Owned(indexed_component::specialize_property_paths(
+                    props,
+                    &source_prefix,
+                    &concrete_prefix,
+                ))
+            },
+            None => Cow::Borrowed(props),
+        };
+        let resolved_label = resolve_array_index(
+            &qualified_label,
+            array_index,
+            &self.env,
+            diagnostics,
+            time_ms as u64,
+        );
         self.process_actor_decl(
             &resolved_label,
             ty,
-            props,
+            qualified_props.as_ref(),
             modifiers,
             children,
             time_ms,
@@ -282,7 +308,7 @@ impl Timeline {
         // in hand, including the ones whose `process_*_decl` returns
         // before the generic property walk. See
         // `Timeline::apply_camera_follow_decl`.
-        self.apply_camera_follow_decl(&resolved_label, props, diagnostics);
+        self.apply_camera_follow_decl(&resolved_label, qualified_props.as_ref(), diagnostics);
     }
 
     /// Lower one action statement: resolve `name[expr]` targets against the
@@ -304,10 +330,12 @@ impl Timeline {
                 .targets
                 .iter()
                 .zip(action.target_index.iter())
-                .map(|(target, index)| {
+                .enumerate()
+                .map(|(target_index, (target, index))| {
                     resolve_action_target_index(
                         target,
                         index.as_ref(),
+                        action.target_index_position.get(target_index).copied().flatten(),
                         &self.env,
                         diagnostics,
                         time_ms as u64,
@@ -315,6 +343,7 @@ impl Timeline {
                 })
                 .collect();
             resolved.target_index = vec![None; resolved.targets.len()];
+            resolved.target_index_position = vec![None; resolved.targets.len()];
             resolved
         } else {
             action.clone()
@@ -545,6 +574,8 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         let step_ms = parse_for_loop_step(modifiers, diagnostics);
+        let scope = crate::timeline::env::LoopScope::capture(&self.env, var, index_var.as_deref());
+        self.build_loop_scopes.push(scope.names().map(str::to_string).collect());
         for (idx, value) in for_iter_values(iterable, &self.env).into_iter().enumerate() {
             bind_loop_var(&mut self.env, var, value, idx, diagnostics);
             if let Some(iv) = index_var {
@@ -552,8 +583,8 @@ impl Timeline {
             }
             self.process_body(time_ms + step_ms * idx as f64, body, parent_label, diagnostics);
         }
-        // Clean up loop variables after the loop exits
-        remove_loop_vars(&mut self.env, var, index_var);
+        self.build_loop_scopes.pop();
+        scope.restore(&mut self.env);
     }
 
     /// Same as process_for_loop_stmts but for InlineItem bodies.
@@ -567,6 +598,8 @@ impl Timeline {
         parent_label: &str,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
+        let scope = crate::timeline::env::LoopScope::capture(&self.env, var, index_var.as_deref());
+        self.build_loop_scopes.push(scope.names().map(str::to_string).collect());
         for (idx, value) in for_iter_values(iterable, &self.env).into_iter().enumerate() {
             bind_loop_var(&mut self.env, var, value, idx, diagnostics);
             if let Some(iv) = index_var {
@@ -574,33 +607,8 @@ impl Timeline {
             }
             self.process_inline_items(time_ms, body, parent_label, diagnostics);
         }
-        // Clean up loop variables after the loop exits
-        remove_loop_vars(&mut self.env, var, index_var);
-    }
-}
-
-/// Remove loop variables from the environment after the loop exits.
-/// Closures captured them at creation time, so it's safe to clean up.
-pub(crate) fn remove_loop_vars(
-    env: &mut Environment,
-    var: &LoopPattern,
-    index_var: &Option<String>,
-) {
-    match var {
-        LoopPattern::Single(name) => {
-            env.overrides.remove(name);
-            env.mark_mutated();
-        },
-        LoopPattern::Tuple(names) => {
-            for name in names {
-                env.overrides.remove(name);
-                env.mark_mutated();
-            }
-        },
-    }
-    if let Some(iv) = index_var {
-        env.overrides.remove(iv);
-        env.mark_mutated();
+        self.build_loop_scopes.pop();
+        scope.restore(&mut self.env);
     }
 }
 
@@ -693,13 +701,14 @@ fn parse_for_loop_step(modifiers: &[Modifier], diagnostics: &mut Vec<Diagnostic>
 ///
 /// Plain targets pass through unchanged. For an indexed target the index
 /// expression is evaluated (loop variables and `let` bindings are in scope at
-/// build time) and the last path segment is replaced with `base__N`, matching
-/// `resolve_array_index`. An unresolved or invalid index emits a diagnostic
+/// build time). The typed position selects which dotted-path segment receives
+/// the concrete array suffix. An unresolved or invalid index emits a diagnostic
 /// and leaves the base name in place so the normal unknown-target path
 /// reports it.
 pub(crate) fn resolve_action_target_index(
     target: &str,
     index: Option<&Expr>,
+    index_position: Option<usize>,
     env: &Environment,
     diagnostics: &mut Vec<Diagnostic>,
     time_ms: u64,
@@ -710,12 +719,21 @@ pub(crate) fn resolve_action_target_index(
     let eval_env = build_eval_env_static(env, time_ms);
     match evaluate_expr(index_expr, &eval_env) {
         Ok(Value::Num(n)) if n >= 0.0 && n == n.floor() => {
-            let (prefix, base) = target.rsplit_once('.').unwrap_or(("", target));
-            let resolved = crate::ast::array_actor_label(base, n as usize);
-            if prefix.is_empty() {
-                resolved
+            let mut segments: Vec<String> = target.split('.').map(str::to_string).collect();
+            let position = index_position.unwrap_or_else(|| segments.len().saturating_sub(1));
+            if let Some(segment) = segments.get_mut(position) {
+                *segment = crate::ast::array_actor_label(segment, n as usize);
+                segments.join(".")
             } else {
-                format!("{prefix}.{resolved}")
+                diagnostics.push(Diagnostic::warning(
+                    DiagnosticCode::InvalidPropertyValue,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "Action target index position {} is outside '{}'; leaving the target unchanged",
+                        position, target
+                    ),
+                ));
+                target.to_string()
             }
         },
         Ok(Value::Num(n)) => {
@@ -838,5 +856,18 @@ pub(crate) fn pattern_matches(pat: &MatchPattern, value: &Value) -> bool {
             },
             _ => false,
         },
+    }
+}
+
+#[cfg(test)]
+mod indexed_component_label_tests {
+    use super::indexed_component::qualify_child;
+
+    #[test]
+    fn component_children_receive_their_resolved_array_parent_identity() {
+        assert_eq!(qualify_child("cards.frame", "cards__2"), "cards__2.frame");
+        assert_eq!(qualify_child("cards.frame.icon", "cards__2.frame"), "cards__2.frame.icon");
+        assert_eq!(qualify_child("layout.cards.frame", "layout.cards__2"), "layout.cards__2.frame");
+        assert_eq!(qualify_child("other.frame", "cards__2"), "other.frame");
     }
 }

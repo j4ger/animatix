@@ -44,6 +44,36 @@ fn normalize_root(name: &str) -> String {
     }
 }
 
+/// Actor labels can themselves be dotted (component descendants). Retain
+/// each possible actor/property split; only existing entities consume a slot
+/// when the injection plan is built.
+fn collect_path_references<'a>(parts: impl Iterator<Item = &'a str>, scan: &mut ReferenceScan) {
+    let parts: Vec<_> = parts.collect();
+    let mut actor = String::new();
+    for pair in parts.windows(2) {
+        if !actor.is_empty() {
+            actor.push('.');
+        }
+        actor.push_str(pair[0]);
+        let prop = pair[1];
+        scan.roots.insert(actor.clone());
+        let entry = scan.referenced_properties.entry(actor.clone()).or_default();
+        entry.insert(prop.to_string());
+        match prop {
+            "x" | "y" => {
+                entry.insert("at".to_string());
+            },
+            "radius" => {
+                entry.insert("size".to_string());
+            },
+            "r" | "g" | "b" | "a" => {
+                entry.insert("color".to_string());
+            },
+            _ => {}, // Other properties need no aggregate parent injection.
+        }
+    }
+}
+
 fn collect_expr_roots(expr: &Expr, scan: &mut ReferenceScan) {
     match expr {
         Expr::Num(_) | Expr::Percent(_) | Expr::Str(_) | Expr::Bool(_) | Expr::Null => {},
@@ -51,27 +81,8 @@ fn collect_expr_roots(expr: &Expr, scan: &mut ReferenceScan) {
             if name.starts_with("scene.stats") {
                 scan.stats_used = true;
             }
-            if let Some((actor, rest)) = name.split_once('.') {
-                let actor_root = normalize_root(actor);
-                scan.roots.insert(actor_root.clone());
-                let prop = match rest.split_once('.') {
-                    Some((p, _)) => p,
-                    None => rest,
-                };
-                let entry = scan.referenced_properties.entry(actor_root).or_default();
-                entry.insert(prop.to_string());
-                match prop {
-                    "x" | "y" => {
-                        entry.insert("at".to_string());
-                    },
-                    "radius" => {
-                        entry.insert("size".to_string());
-                    },
-                    "r" | "g" | "b" | "a" => {
-                        entry.insert("color".to_string());
-                    },
-                    _ => {}, // Non-compound scalar properties do not need aggregate parent injection.
-                }
+            if name.contains('.') {
+                collect_path_references(name.split('.'), scan);
             } else {
                 scan.roots.insert(name.clone());
                 scan.wildcard_actors.insert(name.clone());
@@ -82,23 +93,7 @@ fn collect_expr_roots(expr: &Expr, scan: &mut ReferenceScan) {
                 scan.stats_used = true;
             }
             if parts.len() >= 2 {
-                let actor = normalize_root(&parts[0]);
-                let prop = &parts[1];
-                scan.roots.insert(actor.clone());
-                let entry = scan.referenced_properties.entry(actor).or_default();
-                entry.insert(prop.clone());
-                match prop.as_str() {
-                    "x" | "y" => {
-                        entry.insert("at".to_string());
-                    },
-                    "radius" => {
-                        entry.insert("size".to_string());
-                    },
-                    "r" | "g" | "b" | "a" => {
-                        entry.insert("color".to_string());
-                    },
-                    _ => {}, // Non-compound scalar properties do not need aggregate parent injection.
-                }
+                collect_path_references(parts.iter().flat_map(|part| part.split('.')), scan);
             } else if let Some(first) = parts.first() {
                 let root = normalize_root(first);
                 scan.roots.insert(root.clone());

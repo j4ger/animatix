@@ -112,7 +112,8 @@ An animated rolling counter. Digit glyphs are prebaked once and rolled verticall
 - `color`: Color
 - `at`: Tuple `(x, y)`
 
-`value`, `decimals`, and `comma` are sampled every frame, so they animate; `prefix` and `suffix` are compiled once at build time and stay fixed.
+`value`, `decimals`, and `comma` are sampled every frame, including overrides
+from `always`; `prefix` and `suffix` are compiled once at build time and stay fixed.
 
 **Example:**
 ```animatix
@@ -458,6 +459,14 @@ Pixel-level scalar field visualization using colored rectangles.
 - `y_domain`: Tuple `(min, max)`
 - `size`: Tuple `(width, height)`
 - `color`: Color — used as the "hot" color (alpha varies by scalar value)
+
+Each sample pass automatically normalizes its finite values from minimum
+(transparent) to maximum (the authored color's alpha). A constant finite field,
+including zero or a negative constant, uses the midpoint alpha. NaN and infinite
+samples are transparent and do not contribute to the range; an entirely
+non-finite field is transparent. Very small and very large finite ranges retain
+their relative intensity. This automatic range is local to each heatmap and each
+frame; it does not preserve an absolute color scale across changing fields.
 
 ## ContourSet
 

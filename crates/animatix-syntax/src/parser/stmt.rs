@@ -533,15 +533,16 @@ fn actor_decl_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
         .boxed()
 }
 
-/// Parse an action target, accepting a leaf expression index.
+/// Parse an action target, accepting one expression index at any path segment.
 fn action_target_parser<'src>(
     target: TargetParser<'src>,
-) -> StmtBoxed<'src, (String, Option<Expr>)> {
+) -> StmtBoxed<'src, (String, Option<Expr>, Option<usize>)> {
     target
         .try_map(|segments, span| {
             let count = segments.len();
             let mut key: Vec<String> = Vec::with_capacity(count);
             let mut index = None;
+            let mut index_position = None;
             for (pos, segment) in segments.into_iter().enumerate() {
                 match segment {
                     TargetSegment::Static(s) => key.push(s),
@@ -549,18 +550,19 @@ fn action_target_parser<'src>(
                         base,
                         index: index_expr,
                     } => {
-                        if pos != count - 1 {
+                        if index.is_some() {
                             return Err(Rich::custom(
                                 span,
-                                "action targets only support an index on the last path segment",
+                                "action targets only support one indexed path segment",
                             ));
                         }
                         key.push(base);
                         index = Some(*index_expr);
+                        index_position = Some(pos);
                     },
                 }
             }
-            Ok((key.join("."), index))
+            Ok((key.join("."), index, index_position))
         })
         .boxed()
 }
@@ -574,8 +576,8 @@ fn not_a_statement_head<'src>() -> impl Parser<'src, StrInput<'src>, (), ParserE
 }
 
 fn action_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
-    // Action targets accept a leaf expression index: `swap bars[j], bars[j+1]`
-    // projects to targets ["bars", "bars"] + target_index [Some(j), Some(j+1)].
+    // Action targets accept one expression index per dotted path: `swap
+    // bars[j], row.b[j+1]` projects to string paths plus typed index metadata.
     let action_target = action_target_parser(ctx.target.clone());
 
     common::ident_occ(OccurrenceKind::Action)
@@ -634,14 +636,21 @@ fn action_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
         )
         .then(ctx.modifiers.clone())
         .map_with(
-            |(((verb, targets), args), modifiers),
+            |(((verb, parsed_targets), args), modifiers),
              extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
-                let (targets, target_index) = targets.into_iter().unzip();
+                let (mut targets, mut target_index, mut target_index_position) =
+                    (Vec::new(), Vec::new(), Vec::new());
+                for (target, index, position) in parsed_targets {
+                    targets.push(target);
+                    target_index.push(index);
+                    target_index_position.push(position);
+                }
                 Stmt::Action(
                     Action {
                         verb,
                         targets,
                         target_index,
+                        target_index_position,
                         args,
                         modifiers,
                         byte_span: Some(extra.span()),
@@ -751,6 +760,7 @@ fn fn_decl_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
                             verb,
                             targets: Vec::new(),
                             target_index: Vec::new(),
+                            target_index_position: Vec::new(),
                             args,
                             modifiers: Vec::new(),
                             byte_span: None,

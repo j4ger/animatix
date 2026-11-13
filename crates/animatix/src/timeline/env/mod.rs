@@ -52,9 +52,11 @@ pub struct CapturedEnv(pub HashMap<String, Value>);
 mod captured;
 mod environment;
 mod errors;
+mod loop_scope;
 mod object_path;
 mod value;
 
 pub use environment::Environment;
+pub(crate) use loop_scope::LoopScope;
 pub(crate) use value::EnvStamp;
 pub use value::Value;

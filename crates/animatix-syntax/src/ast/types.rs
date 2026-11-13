@@ -63,15 +63,20 @@ pub struct Action {
     /// "C"]`).
     ///
     /// An indexed target like `bars[j]` stores the base projection `"bars"`
-    /// here and the index expression in [`Action::target_index`]; the runtime
-    /// resolves it to `"bars__N"` against the build environment before
-    /// dispatching the action.
+    /// here and the index expression in [`Action::target_index`]. Dotted paths
+    /// keep their string form (for example, `cards.title`) while
+    /// [`Action::target_index_position`] identifies the indexed segment.
     pub targets: Vec<String>,
-    /// Optional leaf index expression per target, aligned with `targets`.
+    /// Optional index expression per target, aligned with `targets`.
     ///
     /// `None` for plain targets, `Some(expr)` for `name[expr]` targets. Only
-    /// the last path segment may carry an index; the parser rejects others.
+    /// one path segment may carry an index; runtime resolves it to
+    /// `{segment}__N` against the build environment before dispatch.
     pub target_index: Vec<Option<Expr>>,
+    /// Indexed path segment per target, aligned with `targets` and
+    /// `target_index`. Source targets currently default to the leaf segment;
+    /// component expansion may attach the root segment's index instead.
+    pub target_index_position: Vec<Option<usize>>,
     /// Positional arguments (e.g. `to (100, 100)`).
     pub args: Vec<Expr>,
     /// Named modifiers (e.g. `[2s, ease: bounce]`).

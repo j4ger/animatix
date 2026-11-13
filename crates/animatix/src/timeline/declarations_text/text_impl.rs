@@ -170,6 +170,19 @@ impl Timeline {
 
         self.world.ensure_text(track_id);
         let text = self.world.text.get_mut(track_id).expect("text component");
+        if duration_ms == 0.0 {
+            // A declaration at a future keyframe is a step. Fence the discrete
+            // content before adding the new endpoint so it cannot interpolate
+            // or cross-fade through the preceding interval.
+            preserve_instant_delayed_value(&mut text.text_content, t_start_ms);
+        } else {
+            let start_value = text.text_content.get(t_start_ms, String::new());
+            text.text_content.ensure(String::new()).add_keyframe(
+                t_start_ms,
+                start_value,
+                Easing::Linear,
+            );
+        }
         Self::apply_text_track_keyframes(text, &parsed, t_end_ms, easing, kind);
 
         if kind == TextDeclarationKind::Counter {
@@ -192,7 +205,6 @@ impl Timeline {
             &label_str,
             &parsed,
             duration_ms,
-            delay_ms,
             t_start_ms,
             t_end_ms,
             easing,
@@ -722,7 +734,6 @@ impl Timeline {
         _label_str: &str,
         parsed: &ParsedTextProperties,
         duration_ms: f64,
-        delay_ms: f64,
         t_start_ms: u64,
         t_end_ms: u64,
         easing: Easing,
@@ -838,7 +849,7 @@ impl Timeline {
                 start_layout_size,
                 Easing::Linear,
             );
-        } else if delay_ms > 0.0 {
+        } else {
             preserve_instant_delayed_value(&mut text.text_paths, t_start_ms);
             preserve_instant_delayed_value(&mut geometry.size, t_start_ms);
             preserve_instant_delayed_value(&mut geometry.layout_size, t_start_ms);
@@ -850,12 +861,18 @@ impl Timeline {
                 Easing::Linear,
             );
         }
-        text.static_split_clip = crate::renderer::text::compute_split_mask_clip(&new_paths);
-        text.static_paths = if duration_ms == 0.0 {
+        // The static glyph cache is valid only for a single, timeless content
+        // state. Later declarations need frame-time sampling of their tracks.
+        let has_static_content = duration_ms == 0.0
+            && text.text_content.as_ref().is_some_and(|track| track.keyframes().len() == 1);
+        text.static_paths = if has_static_content {
             Some(std::sync::Arc::from(new_paths.clone()))
         } else {
             None
         };
+        text.static_split_clip = has_static_content
+            .then(|| crate::renderer::text::compute_split_mask_clip(&new_paths))
+            .flatten();
         text.hardware_layout = if duration_ms == 0.0 && anchor_offset_x == 0.0 {
             compiled.hardware_layout.clone()
         } else {

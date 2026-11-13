@@ -85,7 +85,9 @@ impl Timeline {
         // Block-scoped (function-local) bindings shadow scene variable tracks
         // with the same name, so they are skipped here.
         for (name, track) in &self.variable_tracks {
-            if self.block_scope.iter().any(|scope| scope.contains(name)) {
+            if self.block_scope.iter().any(|scope| scope.contains(name))
+                || self.build_loop_scopes.iter().any(|scope| scope.contains(name))
+            {
                 continue;
             }
             if let Some(value) = track.evaluate(time_ms) {

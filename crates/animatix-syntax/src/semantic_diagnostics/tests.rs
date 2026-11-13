@@ -118,6 +118,54 @@ fn empty_container_is_still_unused() {
     assert!(labels.iter().any(|m| m.contains("holder")));
 }
 
+#[test]
+fn seeded_scene_properties_are_not_reported_as_undefined_actor_labels() {
+    let (stmts, errors) = crate::parser::parse_source("scene.background_color = white\n");
+    assert!(errors.is_empty(), "unexpected parse errors: {errors:?}");
+    let stmts = stmts.unwrap();
+    let symbols = SymbolTable::build_from_ast(&stmts);
+    let diagnostics = collect_semantic_diagnostics(&stmts, &symbols, &[], "");
+    assert!(
+        !diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagnosticCode::UndefinedLabel),
+        "scene.background_color is a seeded runtime target: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn graph_grid_and_ticks_share_the_runtime_boolean_contract() {
+    let check = |source: &str| {
+        let (stmts, errors) = crate::parser::parse_source(source);
+        assert!(errors.is_empty(), "unexpected parse errors: {errors:?}");
+        let stmts = stmts.unwrap();
+        let symbols = SymbolTable::build_from_ast(&stmts);
+        collect_semantic_diagnostics(&stmts, &symbols, &[], source)
+    };
+
+    let valid = check(
+        r#"
+let enabled = true
+g: Graph, grid: enabled, ticks: enabled
+pub component GraphCard(draw: Bool) {
+  hosted: Graph, grid: draw, ticks: draw
+}
+instance: GraphCard, draw: true
+"#,
+    );
+    assert!(
+        !valid.iter().any(|diagnostic| diagnostic.code == DiagnosticCode::TypeMismatch),
+        "boolean variables and typed component parameters should be accepted: {valid:?}"
+    );
+
+    let invalid = check(r#"g: Graph, grid: "true", ticks: "false""#);
+    let mismatches: Vec<_> = invalid
+        .iter()
+        .filter(|diagnostic| diagnostic.code == DiagnosticCode::TypeMismatch)
+        .collect();
+    assert_eq!(mismatches.len(), 2, "strings must be rejected for boolean flags: {invalid:?}");
+}
+
 fn unknown_types(stmts: &[Stmt], symbols: &SymbolTable) -> Vec<String> {
     collect_semantic_diagnostics(stmts, symbols, &[], "")
         .into_iter()

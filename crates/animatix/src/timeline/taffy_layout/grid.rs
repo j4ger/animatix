@@ -56,8 +56,13 @@ fn compute_taffy_grid_layout_internal(
     // remain identical even when some children are manually positioned.
     let mut child_nodes: Vec<NodeId> = Vec::with_capacity(children.len());
     for (i, child) in children.iter().enumerate() {
+        let row = i / cols;
+        let col = i % cols;
+        let mut style = child_style(i, child);
+        style.grid_row = line((row + 1) as i16);
+        style.grid_column = line((col + 1) as i16);
         let node = taffy
-            .new_leaf(child_style(i, child))
+            .new_leaf(style)
             .expect("taffy new_leaf should succeed for valid child size");
         child_nodes.push(node);
     }
@@ -98,24 +103,12 @@ fn compute_taffy_grid_layout_internal(
         .new_leaf(container_style)
         .expect("taffy new_leaf should succeed for grid container style");
 
-    // Add children with grid placement
-    for (i, child_node) in child_nodes.iter().enumerate() {
+    // Add children; their size and constraint styles were combined with the
+    // grid placement before node creation so placement cannot overwrite them.
+    for child_node in &child_nodes {
         taffy
             .add_child(container_node, *child_node)
             .expect("taffy add_child should succeed for valid parent and child nodes");
-        // Set grid placement using the line() helper from prelude
-        let row = i / cols;
-        let col = i % cols;
-        taffy
-            .set_style(
-                *child_node,
-                Style {
-                    grid_row: line((row + 1) as i16),
-                    grid_column: line((col + 1) as i16),
-                    ..Default::default()
-                },
-            )
-            .expect("taffy set_style should succeed for valid child node and grid placement");
     }
 
     // Compute layout

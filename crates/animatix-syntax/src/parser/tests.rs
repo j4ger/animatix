@@ -777,6 +777,19 @@ fn parse_dotted_indexed_action_target() {
     let a = snippet_action("swap row.b[j], row.b[j+1] [300ms]");
     assert_eq!(a.targets, vec!["row.b", "row.b"]);
     assert!(a.target_index.iter().all(Option::is_some));
+    assert_eq!(a.target_index_position, vec![Some(1), Some(1)]);
+}
+
+#[test]
+fn parse_root_indexed_dotted_action_target_and_format_it() {
+    let action = snippet_action("fade-in cards[j].title_text [300ms]");
+    assert_eq!(action.targets, vec!["cards.title_text"]);
+    assert_eq!(action.target_index, vec![Some(Expr::Ident("j".into()))]);
+    assert_eq!(action.target_index_position, vec![Some(0)]);
+    assert_eq!(
+        crate::format_core::format_action(&action),
+        "fade-in cards[j].title_text [300ms]"
+    );
 }
 
 #[test]

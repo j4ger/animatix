@@ -38,6 +38,52 @@ fn test_expand_preserves_forloop_index_var() {
 }
 
 #[test]
+fn indexed_component_instances_keep_the_loop_index_on_the_expanded_root() {
+    let source = r#"
+pub component MetricCard(value: Num) {
+  frame: Rect, size: (120, 80)
+  value_text: Text, text: value
+}
+for value, i in {10, 20, 30} {
+  cards[i]: MetricCard, value: value
+}
+"#;
+    let (stmts, errors) = crate::parser::parse_source(source);
+    assert!(errors.is_empty(), "unexpected parse errors: {errors:?}");
+    let stmts = stmts.unwrap();
+    let mut components = std::collections::HashMap::new();
+    for stmt in &stmts {
+        if let Stmt::ComponentDef(def, _) = stmt {
+            components.insert(
+                def.name.clone(),
+                super::super::ComponentEntry {
+                    definition: def.clone(),
+                    actions: Default::default(),
+                    source_path: std::path::PathBuf::new(),
+                },
+            );
+        }
+    }
+    let (expanded, _registry) = expand_statements(&stmts, &components);
+    let Stmt::ForLoop { body, .. } =
+        expanded.iter().find(|stmt| matches!(stmt, Stmt::ForLoop { .. })).unwrap()
+    else {
+        panic!("expected for loop");
+    };
+    let roots: Vec<_> = body
+        .iter()
+        .filter_map(|stmt| match stmt {
+            Stmt::ActorDecl {
+                label, array_index, ..
+            } if label == "cards" => Some(array_index.as_ref()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(roots.len(), 1);
+    assert!(matches!(roots[0], Some(Expr::Ident(index)) if index == "i"));
+}
+
+#[test]
 fn test_component_always_survives_container_instantiation() {
     // Regression: a component body's `always` (and other non-declaration
     // statements) were silently dropped when the component was

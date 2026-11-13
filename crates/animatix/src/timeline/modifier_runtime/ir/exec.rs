@@ -86,6 +86,7 @@ pub(crate) fn execute_stmt(
         },
         ModifierIrStmt::AssignIndexed {
             base,
+            index_position,
             index,
             property,
             value,
@@ -114,7 +115,16 @@ pub(crate) fn execute_stmt(
             OVERRIDE_LABEL.with_borrow_mut(|label_buf| {
                 label_buf.clear();
                 use std::fmt::Write;
-                let _ = write!(label_buf, "{base}__{n}");
+                for (position, segment) in base.split('.').enumerate() {
+                    if position > 0 {
+                        label_buf.push('.');
+                    }
+                    if position == *index_position {
+                        let _ = write!(label_buf, "{segment}__{n}");
+                    } else {
+                        label_buf.push_str(segment);
+                    }
+                }
                 record_override(overrides, label_buf.as_str(), property, &value);
                 apply_override_incremental(frame_env, label_buf.as_str(), property, value);
             });
@@ -153,39 +163,27 @@ pub(crate) fn execute_stmt(
                 other => vec![other],
             };
 
-            for (idx, item) in items.into_iter().enumerate() {
-                if idx >= 100_000 {
-                    return Err(EvalError::TypeMismatch(
-                        "for-loop exceeded 100,000 iterations".to_string(),
-                    ));
-                }
-                bind_loop_var(frame_env, var, item);
-                if let Some(index_var) = index_var {
-                    frame_env.set(index_var, Value::Num(idx as f64));
-                }
-                for stmt in body {
-                    execute_stmt(stmt, frame_env, overrides)?;
-                }
-            }
-
-            // Clear loop variables from the override layer so they do not leak
-            // into subsequent statements.
-            match var {
-                LoopPattern::Single(name) => {
-                    frame_env.overrides.remove(name);
-                    frame_env.mark_mutated();
-                },
-                LoopPattern::Tuple(names) => {
-                    for name in names {
-                        frame_env.overrides.remove(name);
-                        frame_env.mark_mutated();
+            let scope =
+                crate::timeline::env::LoopScope::capture(frame_env, var, index_var.as_deref());
+            let result: Result<(), EvalError> = (|| {
+                for (idx, item) in items.into_iter().enumerate() {
+                    if idx >= 100_000 {
+                        return Err(EvalError::TypeMismatch(
+                            "for-loop exceeded 100,000 iterations".to_string(),
+                        ));
                     }
-                },
-            }
-            if let Some(index_var) = index_var {
-                frame_env.overrides.remove(index_var);
-                frame_env.mark_mutated();
-            }
+                    bind_loop_var(frame_env, var, item);
+                    if let Some(index_var) = index_var {
+                        frame_env.set(index_var, Value::Num(idx as f64));
+                    }
+                    for stmt in body {
+                        execute_stmt(stmt, frame_env, overrides)?;
+                    }
+                }
+                Ok(())
+            })();
+            scope.restore(frame_env);
+            result?;
         },
         ModifierIrStmt::Noop => {},
     }

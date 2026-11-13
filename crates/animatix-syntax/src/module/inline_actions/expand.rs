@@ -45,6 +45,7 @@ pub(super) fn expand_stmt(
             let mut inlined = Vec::new();
             let mut remaining = Vec::new();
             let mut remaining_index = Vec::new();
+            let mut remaining_positions = Vec::new();
 
             if action.targets.is_empty() {
                 // Function-style call `highlight_key(bars, key)` (or `f()`):
@@ -71,6 +72,8 @@ pub(super) fn expand_stmt(
             } else {
                 for (target_index, target) in action.targets.iter().enumerate() {
                     let index = action.target_index.get(target_index).cloned().flatten();
+                    let index_position =
+                        action.target_index_position.get(target_index).copied().flatten();
                     // Component instance functions are more specific than module functions.
                     if let Some(template) = registry.get(target).and_then(|m| m.get(&action.verb)) {
                         inlined.extend(expand_target_call(
@@ -84,10 +87,12 @@ pub(super) fn expand_stmt(
                         } else {
                             remaining.push(target.clone());
                             remaining_index.push(index);
+                            remaining_positions.push(index_position);
                         }
                     } else {
                         remaining.push(target.clone());
                         remaining_index.push(index);
+                        remaining_positions.push(index_position);
                     }
                 }
             }
@@ -98,6 +103,7 @@ pub(super) fn expand_stmt(
                         verb: action.verb,
                         targets: remaining,
                         target_index: remaining_index,
+                        target_index_position: remaining_positions,
                         args: action.args,
                         modifiers: action.modifiers,
                         byte_span: action.byte_span,

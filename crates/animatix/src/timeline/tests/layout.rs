@@ -307,3 +307,178 @@ row: Row, at: (320, 180), gap: 0, align: "center" {
         .expect("nested Col publishes a measured layout_size");
     assert_eq!(half, [150.0, 50.0]);
 }
+
+/// A dynamic Row must size each slot from the sampled size track, regardless
+/// of whether the declaration used literals or a build-time expression.
+#[test]
+fn dynamic_row_reflows_literal_size_animation_with_measured_bounds() {
+    use crate::timeline::SceneDimensions;
+
+    let source = |width: &str| {
+        format!(
+            r#"
+config {{ resolution: (640, 360), dynamic_layout: true }}
+let initial_width = 90
+#0s
+row: Row, size: (500, 180), at: (320, 180), gap: 12 {{
+  a: Rect, size: ({width}, 120)
+  b: Rect, size: (90, 120)
+}}
+a.size = (180, 60) [2s]
+"#
+        )
+    };
+    let dimensions = SceneDimensions {
+        width: 640,
+        height: 360,
+    };
+
+    let bounds = |timeline: &Timeline, label: &str, time_ms: u64| {
+        let affine = timeline
+            .actor_world_affine(label, time_ms, dimensions)
+            .expect("actor transform");
+        let coeffs = affine.as_coeffs();
+        let id = timeline.world.get_id(label).expect("actor entity");
+        let half = timeline.world.geometry(id).size.get(time_ms, [0.0, 0.0]);
+        let center = [coeffs[4] as f32, coeffs[5] as f32];
+        [
+            [center[0] - half[0], center[0] + half[0]],
+            [center[1] - half[1], center[1] + half[1]],
+        ]
+    };
+
+    let horizontal_gap = |a: [[f32; 2]; 2], b: [[f32; 2]; 2]| b[0][0] - a[0][1];
+    for initial_width in ["90", "initial_width"] {
+        let timeline = build_output(&source(initial_width));
+        let a0 = bounds(&timeline, "a", 0);
+        let b0 = bounds(&timeline, "b", 0);
+        let a2 = bounds(&timeline, "a", 2000);
+        let b2 = bounds(&timeline, "b", 2000);
+
+        assert!(
+            (horizontal_gap(a0, b0) - 12.0).abs() < 0.1,
+            "initial gap for {initial_width}: {}",
+            horizontal_gap(a0, b0)
+        );
+        assert!(
+            (horizontal_gap(a2, b2) - 12.0).abs() < 0.1,
+            "animated gap for {initial_width}: {}",
+            horizontal_gap(a2, b2)
+        );
+        assert!((a2[1][1] - a2[1][0] - 60.0).abs() < 0.1);
+        assert!((b2[1][1] - b2[1][0] - 120.0).abs() < 0.1);
+        assert!((a2[1][0] + a2[1][1] - b2[1][0] - b2[1][1]).abs() < 0.1);
+    }
+}
+
+#[test]
+fn mixed_container_size_seeds_fixed_literal_and_expression_axes() {
+    let source = r#"
+config { resolution: (640, 360), dynamic_layout: true }
+let W = 180
+#0s
+outer: Col, size: (420, 320), at: (320, 180), gap: 10 {
+  fixed: Col, size: (240, auto), gap: 0 {
+    fixed_child: Rect, size: (80, 40)
+  }
+  expression: Col, size: (W, auto), gap: 0 {
+    expression_child: Rect, size: (70, 30)
+  }
+}
+"#;
+    let timeline = build_output(source);
+
+    for (label, expected_width) in [("fixed", 240.0), ("expression", 180.0)] {
+        let id = timeline.world.get_id(label).expect("column entity");
+        let half_size = timeline
+            .world
+            .geometry(id)
+            .layout_size_last()
+            .expect("column measured layout size");
+        assert!(
+            (half_size[0] * 2.0 - expected_width).abs() < 0.1,
+            "{label} column width should remain {expected_width}, got {}",
+            half_size[0] * 2.0
+        );
+        let expected_height = if label == "fixed" { 40.0 } else { 30.0 };
+        assert!(
+            (half_size[1] * 2.0 - expected_height).abs() < 0.1,
+            "{label} column auto height should measure {expected_height}, got {}",
+            half_size[1] * 2.0
+        );
+    }
+}
+
+#[test]
+fn dynamic_col_grid_reflow_uses_sampled_sizes_without_scaling_slots() {
+    use crate::timeline::SceneDimensions;
+
+    let dimensions = SceneDimensions {
+        width: 640,
+        height: 360,
+    };
+    let center = |timeline: &Timeline, label: &str, time_ms| {
+        let affine = timeline
+            .actor_world_affine(label, time_ms, dimensions)
+            .expect("actor transform");
+        let coeffs = affine.as_coeffs();
+        [coeffs[4] as f32, coeffs[5] as f32]
+    };
+
+    for (container, positioning_axis) in [("Col", 1), ("Grid", 0)] {
+        let container_props = if container == "Grid" { "cols: 2, " } else { "" };
+        let source = format!(
+            r#"
+config {{ resolution: (640, 360), dynamic_layout: true }}
+#0s
+layout: {container}, {container_props}size: (400, 280), at: (320, 180), gap: 12 {{
+  a: Rect, size: (90, 90), scale: 2
+  b: Rect, size: (90, 90)
+}}
+a.size = (180, 60) [2s]
+"#
+        );
+        let timeline = build_output(&source);
+        let a0 = center(&timeline, "a", 0);
+        let b0 = center(&timeline, "b", 0);
+        let a2 = center(&timeline, "a", 2000);
+        let b2 = center(&timeline, "b", 2000);
+        let separation =
+            |a: [f32; 2], b: [f32; 2]| (b[positioning_axis] - a[positioning_axis]).abs();
+
+        let initial_expected = 45.0 + 12.0 + 45.0;
+        let animated_expected = if container == "Col" {
+            30.0 + 12.0 + 45.0
+        } else {
+            90.0 + 12.0 + 45.0
+        };
+        assert!(
+            (separation(a0, b0) - initial_expected).abs() < 0.1,
+            "{container} initial slot distance: {}",
+            separation(a0, b0)
+        );
+        assert!(
+            (separation(a2, b2) - animated_expected).abs() < 0.1,
+            "{container} animated slot distance: {}",
+            separation(a2, b2)
+        );
+
+        let a_id = timeline.world.get_id("a").expect("scaled child");
+        let a_affine = timeline
+            .actor_world_affine("a", 2000, dimensions)
+            .expect("scaled actor transform");
+        assert!(
+            (a_affine.as_coeffs()[0].abs() - 2.0).abs() < 0.01,
+            "the scale should remain a visual transform"
+        );
+        assert_eq!(
+            timeline
+                .world
+                .geometry(a_id)
+                .layout_size_get(2000)
+                .expect("sampled layout size"),
+            [90.0, 30.0],
+            "scale must not change the layout size track"
+        );
+    }
+}

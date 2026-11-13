@@ -31,6 +31,7 @@ pub(super) fn insert_action(
             verb: verb.into(),
             targets: targets.to_vec(),
             target_index: vec![None; targets.len()],
+            target_index_position: vec![None; targets.len()],
             args: args.to_vec(),
             modifiers: modifiers.to_vec(),
             byte_span: None,

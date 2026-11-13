@@ -307,7 +307,7 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("gap", V::F32, F::empty(), ContainerLayoutGroup, val!(f32 0.0)),
     b!("gradient_extend", V::String, F::ASSIGNABLE_A, GradientExtend, val!(str "pad")),
     b!("gradient_space", V::String, F::ASSIGNABLE_A, GradientSpace, val!(str "oklab")),
-    b!("grid", V::String, F::empty(), PlotDomainGroup, val!(str "auto")),
+    b!("grid", V::Bool, F::empty(), PlotDomainGroup, val!(bool false)),
     b!("head_size", V::F32, F::PATH_AI, HeadSize, val!(f32 10.0)),
     b!(
         "height",
@@ -483,7 +483,7 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("text_anchor", V::String, F::ASSIGNABLE_A, TextAnchor, val!(str "center")),
     b!("text_max_width", V::F32, F::ASSIGNABLE_A, TextMaxWidth, val!(f32 240.0)),
     b!("tick_labels", V::String, F::empty(), PlotDomainGroup, val!(str "auto")),
-    b!("ticks", V::String, F::empty(), PlotDomainGroup, val!(str "auto")),
+    b!("ticks", V::Bool, F::empty(), PlotDomainGroup, val!(bool false)),
     b!("title", V::String, F::ASSIGNABLE_A, Tagged("legend_title"), val!(str "")),
     b!("to", V::Vec2, F::SPATIAL_PATH_AI, LineTo, val!(vec2 100.0, 0.0)),
     b!("to_offset", V::Vec2, F::ASSIGNABLE_AI, CalloutToOffset, val!(vec2 0.0, 0.0)),

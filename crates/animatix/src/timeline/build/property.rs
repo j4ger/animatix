@@ -13,6 +13,9 @@ use crate::ast::Property;
 /// are specific to it.
 pub(super) struct PlotPropBag {
     pub initial_size: [f32; 2],
+    /// Which axes evaluate numerically, so expressions and literals have the
+    /// same fixed-size semantics while keywords and percentages stay dynamic.
+    pub numeric_size_axes: [bool; 2],
     pub x_domain: [f64; 2],
     pub y_domain: [f64; 2],
     pub t_domain: [f64; 2],
@@ -32,6 +35,7 @@ impl Default for PlotPropBag {
     fn default() -> Self {
         Self {
             initial_size: DEFAULT_LAYOUT_HALF_SIZE,
+            numeric_size_axes: [false, false],
             x_domain: [-10.0, 10.0],
             y_domain: [-10.0, 10.0],
             t_domain: [0.0, std::f64::consts::TAU],
@@ -89,16 +93,55 @@ impl PlotPropBag {
                 // A non-numeric size spec (`percent`, `auto`, `fill`, …) is
                 // applied by the layout path; the numeric pair only seeds the
                 // half-size both plot layouts and bounds use.
-                let size_val = evaluate_expr_with_lookup_diagnostic(
+                if let Expr::Tuple(items) = &prop.value
+                    && items.len() == 2
+                {
+                    for (axis, item) in items.iter().enumerate() {
+                        // A mixed fixed/auto tuple cannot evaluate as a Vec2.
+                        // Seed each numeric axis independently so the fixed
+                        // dimension survives while auto remains content-sized.
+                        let is_percent = match item {
+                            Expr::Percent(_) => true,
+                            Expr::Str(value) => value
+                                .strip_suffix('%')
+                                .is_some_and(|pct| pct.parse::<f32>().is_ok()),
+                            _ => false,
+                        };
+                        let is_auto_keyword = matches!(
+                            item,
+                            Expr::Ident(value) | Expr::Str(value)
+                                if matches!(value.as_str(), "auto" | "fit" | "fill")
+                        );
+                        if is_percent || is_auto_keyword {
+                            continue;
+                        }
+                        match evaluate_expr_with_lookup_diagnostic(
+                            item,
+                            eval_env,
+                            diagnostics,
+                            &prop_subject,
+                        ) {
+                            Some(Value::Num(value)) => {
+                                self.initial_size[axis] = value as f32 / 2.0;
+                                self.numeric_size_axes[axis] = true;
+                            },
+                            Some(value) => tracing::warn!(
+                                "{}: numeric size dimension expected a number, got {:?}",
+                                prop_subject,
+                                value
+                            ),
+                            None => {}, // Evaluation failure already produced a diagnostic.
+                        }
+                    }
+                } else if let Some(Value::Vec2([w, h])) = evaluate_expr_with_lookup_diagnostic(
                     &prop.value,
                     eval_env,
                     diagnostics,
                     &prop_subject,
-                )
-                .unwrap_or(Value::Num(0.0));
-                if let Value::Vec2([w, h]) = size_val {
+                ) {
                     self.initial_size[0] = w as f32 / 2.0;
                     self.initial_size[1] = h as f32 / 2.0;
+                    self.numeric_size_axes = [true, true];
                 }
             },
             "radius" => {
@@ -237,6 +280,7 @@ impl Timeline {
         let initial_eval_env = self.build_eval_env(time_ms as u64);
         let PlotPropBag {
             initial_size,
+            numeric_size_axes,
             x_domain,
             y_domain,
             t_domain,
@@ -261,8 +305,17 @@ impl Timeline {
                 // consumes the prepared value. Repeated keys keep the first
                 // declaration, like the old single-pass apply loop.
                 "size" if size_decl.is_none() => {
+                    let mut spec = crate::timeline::taffy_layout::parse_size_spec(&prop.value);
+                    if numeric_size_axes[0] {
+                        spec.width =
+                            crate::timeline::taffy_layout::SizeSpec::Fixed(initial_size[0] * 2.0);
+                    }
+                    if numeric_size_axes[1] {
+                        spec.height =
+                            crate::timeline::taffy_layout::SizeSpec::Fixed(initial_size[1] * 2.0);
+                    }
                     size_decl = Some(ParsedSizeDecl {
-                        spec: crate::timeline::taffy_layout::parse_size_spec(&prop.value),
+                        spec,
                         value: prop.value.clone(),
                     });
                 },

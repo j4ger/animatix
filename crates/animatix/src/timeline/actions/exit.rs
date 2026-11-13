@@ -76,6 +76,7 @@ mod tests {
                         }],
                         byte_span: None,
                         target_index: vec![],
+                        target_index_position: vec![],
                     },
                     None,
                 ),

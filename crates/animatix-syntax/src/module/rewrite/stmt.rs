@@ -86,6 +86,7 @@ impl AstFolder for ModuleRewriter<'_> {
                         .into_iter()
                         .map(|opt| opt.map(|expr| self.fold_expr(expr)))
                         .collect(),
+                    target_index_position: action.target_index_position,
                 },
                 span,
             ),

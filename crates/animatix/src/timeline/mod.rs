@@ -220,6 +220,9 @@ pub struct Timeline {
     /// Scope stack for `Stmt::Block` expansion: `let` names bound inside a block,
     /// removed on exit so they never leak into the scene or variable tracks.
     pub(crate) block_scope: Vec<std::collections::HashSet<String>>,
+    /// Build-only loop names, used to capture reactive bodies at their declaration.
+    /// Empty after the build walk; these are lexical variables, not actor state.
+    pub(crate) build_loop_scopes: Vec<Vec<String>>,
     /// Runtime primitive registry used by builds that supply extensions.
     pub(crate) primitive_registry: std::sync::Arc<crate::primitives::PrimitiveRegistry>,
     /// Dense, O(1) indexable behavior registry for built-ins and extensions.

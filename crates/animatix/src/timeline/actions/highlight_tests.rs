@@ -183,6 +183,7 @@ fn highlight_action(verb: &str, targets: &[&str], duration: &str) -> Stmt {
             }],
             byte_span: None,
             target_index: vec![],
+            target_index_position: vec![],
         },
         None,
     )
@@ -309,6 +310,7 @@ fn different_equations_independent() {
                 }],
                 byte_span: None,
                 target_index: vec![],
+                target_index_position: vec![],
             },
             None,
         ));
@@ -379,6 +381,7 @@ fn highlight_with_color_and_blend_no_unsupported_modifier_warning() {
                 ],
                 byte_span: None,
                 target_index: vec![],
+                target_index_position: vec![],
             },
             None,
         ));

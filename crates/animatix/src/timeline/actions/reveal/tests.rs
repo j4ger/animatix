@@ -114,6 +114,7 @@ fn action_stmt(verb: &str, target: &str, duration_s: f64) -> Stmt {
             }],
             byte_span: None,
             target_index: vec![],
+            target_index_position: vec![],
         },
         None,
     )
@@ -253,6 +254,7 @@ fn reveal_out_preserves_prior_state_for_delayed_instant_change() {
                     ],
                     byte_span: None,
                     target_index: vec![],
+                    target_index_position: vec![],
                 },
                 None,
             ),

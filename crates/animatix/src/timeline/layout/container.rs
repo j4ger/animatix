@@ -64,10 +64,22 @@ impl Timeline {
         let Some(container_id) = self.world.get_id(container_label) else {
             return;
         };
-        if self.world.geometry(container_id).size_spec.is_some_and(|spec| spec.is_fixed()) {
+        let size_spec = self.world.geometry(container_id).size_spec;
+        if size_spec.is_some_and(|spec| spec.is_fixed()) {
             return;
         }
-        let half = [size[0] / 2.0, size[1] / 2.0];
+        let half = size_spec.map_or([size[0] / 2.0, size[1] / 2.0], |spec| {
+            [
+                match spec.width {
+                    crate::timeline::taffy_layout::SizeSpec::Fixed(width) => width / 2.0,
+                    _ => size[0] / 2.0,
+                },
+                match spec.height {
+                    crate::timeline::taffy_layout::SizeSpec::Fixed(height) => height / 2.0,
+                    _ => size[1] / 2.0,
+                },
+            ]
+        });
         self.world
             .geometry
             .get_mut(container_id)
@@ -188,7 +200,13 @@ impl Timeline {
 
         for cl in children {
             let geometry = self.world.geometry(cl.id);
-            size_specs.push(geometry.size_spec);
+            size_specs.push(geometry.size_spec.map(|spec| {
+                if self.dynamic_layout {
+                    spec.measured_dimensions()
+                } else {
+                    spec
+                }
+            }));
             let min_w = geometry.min_width.get(time_ms, 0.0);
             let max_w = geometry.max_item_width.get(time_ms, f32::INFINITY);
             let min_h = geometry.min_height.get(time_ms, 0.0);

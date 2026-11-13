@@ -123,7 +123,7 @@ declare_property_descriptors! {
         Applicable::Actors(&[
             "BarChart", "Col", "Grid", "Group", "Legend", "Mask", "Row", "Stack",
         ]), F32),
-    "grid" => (Applicable::PlotHost, String),
+    "grid" => (Applicable::PlotHost, Bool),
     "head_size" => (Applicable::Any(&[
             Applicable::ShapeKinds(&[ShapeKind::Arrow]),
             Applicable::Callout,
@@ -194,7 +194,7 @@ declare_property_descriptors! {
             Applicable::Actors(&["Captions"]),
         ]), F32),
     "tick_labels" => (Applicable::PlotHost, String),
-    "ticks" => (Applicable::PlotHost, String),
+    "ticks" => (Applicable::PlotHost, Bool),
     "title" => (Applicable::LegendHost, String),
     "to" => (Applicable::Actors(&["Arrow", "Callout", "Connector", "Line"]), Vec2),
     "to_offset" => (Applicable::Callout, Vec2),

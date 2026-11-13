@@ -660,6 +660,12 @@ title: Text, text: "New" [0s]
 title.text = "New"
 ```
 
+An instant text change at `#T` holds the previous glyphs and measured size for
+samples before `T`, and selects the new content at `T`. Explicit `[0s]` follows
+the same boundary rule. Future changes must not alter earlier frames, including
+when seeking backwards. A nonzero text transition starts at its authored time
+and runs for its declared duration.
+
 **Property-Level Animation:**
 ```animatix
 morpher.size = (100, 100) [2s, ease: ease-out]
@@ -686,6 +692,13 @@ Implemented: `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`.
 - **Group:** Non-layout grouping/transform inheritance. A Group publishes the union of its children's placed extents to a parent layout, so `*_wrap: Group` wrappers only reserve the space their content actually uses.
 
 **Declaration-time measure/place contract:** Layout containers consume each child's `size` track at timeline build; children with explicit `at` opt into manual placement instead.
+
+With `config { dynamic_layout: true }`, layout slots use the current sampled
+layout size, including animations seeded with literal numeric dimensions.
+Writing the same initial size as a literal or a variable does not select a
+different reflow policy. Percentage/fill dimensions continue to resolve against
+the parent content box. Visual transforms such as `scale` do not resize layout
+slots; their painted bounds can therefore overlap neighboring slots.
 
 **Warning:** Setting `at` or `position` on a child of a layout container (Row/Col/Grid/Stack) triggers a build-time warning. The container still owns the layout slot; the authored value is applied as a manual local offset on top of that slot, so the actor keeps its slot but can overlap its siblings. Use `transform` for visual offsets that leave the parent's layout algorithm untouched. A bare `offset` on a layout-managed child is ignored (it only modifies an `at`/`anchor` binding) and reported as `ignored-offset`.
 
@@ -747,7 +760,10 @@ row: Row, size: auto, gap: 10 {
 
 - **Row:**  width = sum of child widths + gaps; height = max child height.
 - **Col:**  width = max child width; height = sum of child heights + gaps.
-- **Grid:** uses Taffy's `Auto` track sizing when no explicit template is given.
+- **Grid:** derives column widths and row heights from the largest sampled
+  child extent in each track. General parent-constrained nested `auto`/`fill`
+  sizing and wrapped-text height propagation remain limited; see the
+  [mixed-axis sizing follow-up](roadmap.md#user-experience-feedback-follow-ups-2026-11-13).
 - `size: fit` behaves identically to `size: auto` (both rely on intrinsic sizing).
 
 **Min/Max constraints:** Clamp the resolved size of any actor (child or container):
@@ -1604,9 +1620,17 @@ fade-in bars[0] [300ms]
 Array-indexed declarations work inside containers (`Row`, `Col`, `Grid`,
 `Graph`, etc.) and at the top level inside keyframes.
 
+Component instances keep the same indexed identity as primitive declarations;
+their child actors and component-internal references belong to that instance.
+An action target may index one segment of a dotted path, for example
+`fade-in cards[i].title_text [300ms]` or `fade-in panel.bars[i] [300ms]`.
+
 **Limitations:**
 - Generated actor labels use `__` as an internal separator (reserved prefix).
 - Array index expressions must evaluate to non-negative integers.
+- Nested loops restore shadowed outer loop variables on exit. Reactive bodies
+  declared inside a build-time loop capture its scalar/list locals and index;
+  ordinary scene variables continue to be sampled each frame.
 - `always` blocks reject actor declarations (array-indexed or otherwise).
 - Very large generated arrays should prefer specialized primitives like
   `BarChart` for performance.

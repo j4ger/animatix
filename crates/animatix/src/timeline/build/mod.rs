@@ -26,7 +26,7 @@ pub use entry::{BuildOptions, CarryInput};
 pub use inputs::{bind_input_loop, prepare_input_environment};
 pub(super) use keyframe_utils::{insert_start_keyframes, preserve_delayed_values};
 pub(super) use plot::{PlotCurveParams, build_graph_axis_paths, build_plot_curve_paths};
-pub(crate) use process::{bind_loop_var, pattern_matches, remove_loop_vars};
+pub(crate) use process::{bind_loop_var, pattern_matches};
 
 use super::*;
 use crate::timeline::plot::PlotCurveKind;

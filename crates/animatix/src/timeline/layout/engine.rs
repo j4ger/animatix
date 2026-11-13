@@ -275,7 +275,7 @@ impl LayoutEngine {
             let mut cons = Vec::with_capacity(layout_children.len());
             for child in layout_children {
                 let geometry = world.geometry(child.id);
-                specs.push(geometry.size_spec);
+                specs.push(geometry.size_spec.map(|spec| spec.measured_dimensions()));
                 let min_w = geometry.min_width.get(time_ms, 0.0);
                 let min_h = geometry.min_height.get(time_ms, 0.0);
                 let max_h = geometry.max_height.get(time_ms, f32::INFINITY);

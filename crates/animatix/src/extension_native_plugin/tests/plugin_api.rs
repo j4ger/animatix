@@ -174,6 +174,7 @@ fn native_action_context_writes_extension_keyframe() {
         modifiers: vec![],
         byte_span: None,
         target_index: vec![],
+        target_index_position: vec![],
     };
     let mut diagnostics = Vec::new();
     adapter.execute(&action, 0.0, &mut timeline, &mut diagnostics);

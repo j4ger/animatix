@@ -258,12 +258,14 @@ impl<'a> StmtExpander<'a> {
         if let Some(component) = self.components.get(ty) {
             let (instance_stmts, instance_registry) = expand_component_instance(
                 label,
+                array_index,
                 props,
                 children,
                 component,
                 self.components,
                 self.ctx,
             );
+            let instance_stmts = carry_instance_array_index(instance_stmts, array_index);
             merge_registry(self.registry, instance_registry);
             self.output.extend(instance_stmts);
         } else {

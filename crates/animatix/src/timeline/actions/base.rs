@@ -124,6 +124,7 @@ mod tests {
             modifiers: vec![],
             byte_span: None,
             target_index: vec![],
+            target_index_position: vec![],
         };
         let mut diagnostics = Vec::new();
         let timing = ActionTiming::parse(&action, 1000.0, &mut diagnostics);

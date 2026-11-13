@@ -240,6 +240,7 @@ fn property_kind_from_value_type(value_type: ValueType) -> PropertyKind {
     match value_type {
         ValueType::F32 => PropertyKind::F32,
         ValueType::U32 => PropertyKind::U32,
+        ValueType::Bool => PropertyKind::Bool,
         ValueType::Vec2 => PropertyKind::Vec2,
         ValueType::Vec4 | ValueType::Color => PropertyKind::Vec4,
         ValueType::String => PropertyKind::String,
@@ -571,6 +572,18 @@ mod tests {
         let slot = plan.get_mut(position).expect("mutable position slot");
         assert_eq!(slot.track.add_keyframe(0, PropertyValue::Vec2([10.0, 20.0])), Some(()));
         assert_eq!(slot.track.sample(0), Some(PropertyValue::Vec2([10.0, 20.0])));
+    }
+
+    #[test]
+    fn graph_grid_and_ticks_use_boolean_plan_slots() {
+        let plan = PropertyPlan::for_actor(
+            &animatix_std::caps_for_type("Graph").expect("Graph is a built-in"),
+            "Graph",
+        );
+        for name in ["grid", "ticks"] {
+            let id = property_id(name).expect("Graph flag has a descriptor id");
+            assert_eq!(plan.get(id).map(|slot| slot.kind), Some(PropertyKind::Bool));
+        }
     }
 
     /// `legend` (tagged sum) and `callout_place` (typed `CalloutPlace` track)

@@ -68,14 +68,43 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<Vec<ModifierIrStmt>, IrLowerError>
                 }]);
             }
 
-            // Check if any segment is Indexed — if so, emit AssignIndexed.
-            // The last segment (property) is always Static; for runtime-indexed
-            // targets like `bars[i].color` we extract the Indexed segment's base
-            // and compile the index expression for frame-time evaluation.
-            let indexed_seg = target.iter().find(|s| matches!(s, TargetSegment::Indexed { .. }));
-            if let Some(TargetSegment::Indexed { base, index }) = indexed_seg {
+            // Check whether the actor path contains a runtime index. Keep the
+            // full path and the indexed path segment so dotted component targets
+            // such as `cards[i].title.opacity` retain both root and child.
+            let indexed_position =
+                target.iter().position(|s| matches!(s, TargetSegment::Indexed { .. }));
+            if let Some(position) = indexed_position
+                && let TargetSegment::Indexed { base, index } = &target[position]
+            {
+                let mut indexed_path = Vec::new();
+                for segment in &target[..position] {
+                    match segment {
+                        TargetSegment::Static(label) => indexed_path.push(label.clone()),
+                        TargetSegment::Indexed { .. } => {
+                            return Err(IrLowerError::UnsupportedStatement(
+                                "multiple indexed target segments",
+                            ));
+                        },
+                    }
+                }
+                let index_position =
+                    indexed_path.iter().map(|part| part.split('.').count()).sum::<usize>()
+                        + base.split('.').count()
+                        - 1;
+                indexed_path.push(base.clone());
+                for segment in target.iter().skip(position + 1) {
+                    match segment {
+                        TargetSegment::Static(label) => indexed_path.push(label.clone()),
+                        TargetSegment::Indexed { .. } => {
+                            return Err(IrLowerError::UnsupportedStatement(
+                                "multiple indexed target segments",
+                            ));
+                        },
+                    }
+                }
                 Ok(vec![ModifierIrStmt::AssignIndexed {
-                    base: base.clone(),
+                    base: indexed_path.join("."),
+                    index_position,
                     index: compile_expr(index)?,
                     property: property.clone(),
                     value: compile_expr(value)?,

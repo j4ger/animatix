@@ -393,6 +393,7 @@ fn insert_snippet_into_keyframe() {
             modifiers: vec![],
             byte_span: None,
             target_index: vec![],
+            target_index_position: vec![],
         },
         None,
     )];

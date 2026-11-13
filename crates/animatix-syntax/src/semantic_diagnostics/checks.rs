@@ -123,7 +123,11 @@ fn check_assignment(
         let label = seg.label_str();
         // `camera` is the reserved scene-camera target, never a declared
         // actor; the engine routes its assignments without a track.
-        let is_defined = label == animatix_core::property::CAMERA_TARGET
+        // `scene.background_color` is a seeded runtime target and intentionally
+        // has no actor declaration. Keep other scene assignments diagnosable.
+        let is_scene_background = label == "scene" && property == "background_color";
+        let is_defined = is_scene_background
+            || label == animatix_core::property::CAMERA_TARGET
             || symbols.labels.contains_key(label)
             || is_array_member_label(label).is_some_and(|base| symbols.array_labels.contains(base))
             || is_component_array_member(symbols, label);

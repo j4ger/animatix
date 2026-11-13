@@ -509,6 +509,7 @@ fn optimize_stmts(
             },
             ModifierIrStmt::AssignIndexed {
                 base,
+                index_position,
                 index,
                 property,
                 value,
@@ -519,6 +520,7 @@ fn optimize_stmts(
                 stats.combine(s2);
                 out.push(ModifierIrStmt::AssignIndexed {
                     base,
+                    index_position,
                     index: opt_idx,
                     property,
                     value: opt_val,

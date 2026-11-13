@@ -197,6 +197,9 @@ are the identity accessors, and `visible`, `locked`, `camera_follow`,
 - `modifier_written_targets` / `frame_written_vars`: which actor labels and
   variables modifier blocks write — the label set is authored in the source.
 - `block_scope`: `let` names bound per `Stmt::Block` expansion.
+- `build_loop_scopes`: temporary lexical loop names during the build walk,
+  used to capture loop-local values in reactive bodies. Empty after building;
+  these are variable scopes, not per-entity state.
 - Layout admission (`ContainerLayoutChild`) and resolved positions
   (`LayoutPositions`) are keyed by `EntityId` end to end; labels appear only
   at the GUI/action boundary.

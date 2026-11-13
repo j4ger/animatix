@@ -65,7 +65,6 @@ pub(crate) fn handle_text_assignment(
         ctx.t_start_ms,
         ctx.t_end_ms,
         ctx.easing,
-        ctx.instant_delayed,
         ctx.duration_ms,
         ctx.font_context,
         ctx.text_compiler,

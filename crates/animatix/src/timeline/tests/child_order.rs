@@ -46,6 +46,7 @@ fn reorder_action_stores_ids() {
         ],
         byte_span: None,
         target_index: vec![],
+        target_index_position: vec![],
     };
     let mut diagnostics = Vec::new();
     process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);

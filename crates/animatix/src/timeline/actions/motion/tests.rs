@@ -22,6 +22,7 @@ fn motion_action(verb: &str, modifier: &str, target: &str, value: Expr) -> Stmt 
             ],
             byte_span: None,
             target_index: vec![],
+            target_index_position: vec![],
         },
         None,
     )

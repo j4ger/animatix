@@ -240,11 +240,14 @@ pub enum ModifierIrStmt {
         value: CompiledExpr,
     },
     /// Assign a value to a runtime-indexed target (e.g. `bars[i].color = red`).
-    /// The base is the array label, index is compiled to a frame-time expression,
-    /// property is the last segment (always static), and value is the RHS.
+    /// `base` is the complete actor path with the indexed segment kept at
+    /// `index_position`; index is compiled to a frame-time expression, property
+    /// is the actor's property, and value is the RHS.
     AssignIndexed {
-        /// Array base label (e.g. "bars").
+        /// Complete actor path without a concrete array index.
         base: String,
+        /// Segment position receiving the evaluated index.
+        index_position: usize,
         /// Frame-time index expression.
         index: CompiledExpr,
         /// Property name to assign.
@@ -350,8 +353,18 @@ impl ModifierIrProgram {
                             out.insert(first.clone());
                         }
                     },
-                    ModifierIrStmt::AssignIndexed { base, .. } => {
+                    ModifierIrStmt::AssignIndexed {
+                        base,
+                        index_position,
+                        ..
+                    } => {
                         out.insert(base.clone());
+                        let indexed_target =
+                            base.split('.').take(index_position + 1).collect::<Vec<_>>().join(".");
+                        out.insert(indexed_target.clone());
+                        if let Some(root) = indexed_target.split('.').next() {
+                            out.insert(root.to_string());
+                        }
                     },
                     ModifierIrStmt::If {
                         then_branch,
@@ -396,10 +409,16 @@ impl ModifierIrProgram {
                     } if is_spatial_or_presence_property(property) => {
                         record_target(target, out);
                     },
-                    ModifierIrStmt::AssignIndexed { base, property, .. }
-                        if is_spatial_or_presence_property(property) =>
-                    {
+                    ModifierIrStmt::AssignIndexed {
+                        base,
+                        index_position,
+                        property,
+                        ..
+                    } if is_spatial_or_presence_property(property) => {
                         out.insert(base.clone());
+                        let indexed_target =
+                            base.split('.').take(index_position + 1).collect::<Vec<_>>().join(".");
+                        out.insert(indexed_target);
                     },
                     ModifierIrStmt::If {
                         then_branch,
