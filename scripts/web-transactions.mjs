@@ -2,6 +2,7 @@
 // Browser acceptance against a complete SDK/site, including subpath hosting.
 // SwiftShader proves function here; it is deliberately not a performance gate.
 import assert from 'node:assert/strict';
+import { compareRgbaFrames } from './rgba-comparison.mjs';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -304,7 +305,7 @@ async function waitFor(description, probe, limit = 30_000) {
 
 // The only browser-side access to private state is observability: installed
 // player/source identity, build count and GPU readback. Operations use the SDK.
-async function browserTests(sources, exerciseInventory) {
+async function browserTests(sources, exerciseInventory, compareFrames) {
   const results = [];
   const frames = {};
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -633,7 +634,11 @@ async function browserTests(sources, exerciseInventory) {
     check(failure.detail?.kind === 'resource', 'failed overlay did not report a resource error');
     check(p._state === 'ready' && p._player === player && p._loadedSource === installed, 'failed overlay replaced the installed player or source');
     const after = await pixels(p);
-    if (after.hash !== before.hash) {
+    const hasGlyphs = frame => frame.bytes.some((value, index) => index % 4 === 0 && value > 128 && frame.bytes[index + 1] > 128 && frame.bytes[index + 2] > 128);
+    // A no-operation control reproduces one RGB edge pixel changing 82 to 83.
+    // Bound that raster rounding explicitly; alpha and every other pixel stay exact.
+    const sameFrame = compareFrames(before, after, 1, 1);
+    if (!sameFrame || !hasGlyphs(before) || !hasGlyphs(after)) {
       snapshot('failed-overlay-before', before); snapshot('failed-overlay-after', after);
       window.__failureState = { before: beforeState, after: state(),
         frames: [before, after].map(({ width, height, hash }) => ({ width, height, hash })) };
@@ -643,7 +648,9 @@ async function browserTests(sources, exerciseInventory) {
       } catch (error) { window.__failureState.repeatError = error.message; }
       window.__failureFrames = Object.fromEntries(Object.entries(frames).filter(([name]) => name.startsWith('failed-overlay-')));
     }
-    check(after.hash === before.hash, 'failed overlay changed the rendered frame');
+    check(hasGlyphs(before), 'overlay baseline rendered no visible glyph pixels');
+    check(hasGlyphs(after), 'failed overlay lost visible glyph pixels');
+    check(sameFrame, 'failed overlay changed the rendered frame beyond one RGB rounding pixel');
     const recovered = new Promise((resolve, reject) => {
       p.addEventListener('amxready', () => resolve(p), { once: true });
       p.addEventListener('amxerror', event => reject(new Error(event.detail?.message || 'overlay retry failed')), { once: true });
@@ -894,7 +901,7 @@ async function main() {
     };
     let suiteTimer;
     try {
-      report = await Promise.race([cdp.evaluate(`(${browserTests.toString()})(${JSON.stringify(sources)}, (${exerciseResourceInventory.toString()}))`), new Promise((_, reject) => { suiteTimer = setTimeout(() => reject(new Error('browser transaction suite timed out')), timeout * 2); })]);
+      report = await Promise.race([cdp.evaluate(`(${browserTests.toString()})(${JSON.stringify(sources)}, (${exerciseResourceInventory.toString()}), (${compareRgbaFrames.toString()}))`), new Promise((_, reject) => { suiteTimer = setTimeout(() => reject(new Error('browser transaction suite timed out')), timeout * 2); })]);
     } finally { clearTimeout(suiteTimer); }
     if (hardwareGpu) assert(!/swiftshader|llvmpipe|software/i.test(JSON.stringify(report.adapter)), `hardware GPU required: ${JSON.stringify(report.adapter)}`);
     verifyLoading();

@@ -432,7 +432,7 @@ gate_embed_build() {
 
 gate_web_runtime_tests() {
   want_node
-  node --test web/tools/runtime.test.mjs web/tools/perf-statistics.test.mjs
+  node --test web/tools/runtime.test.mjs web/tools/perf-statistics.test.mjs scripts/rgba-comparison.test.mjs
 }
 
 gate_web_sdk_tests() {
