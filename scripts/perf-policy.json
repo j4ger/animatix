@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "budgets_ns": {
+    "frame": 167000,
+    "action": 100000
+  },
+  "rules": [
+    {
+      "role": "sentinel",
+      "pattern": "^property_plan_lookup_and_sample$",
+      "absolute_limit_ns": 10000,
+      "reason": "Existing emergency health sentinel for the extension property-plan lookup leaf."
+    },
+    {
+      "role": "action",
+      "pattern": "^(analyzer_update__.*|build_reactive_timeline|code_compile__.*|full_pipeline__.*|stage__rebuild|text_rebuild__.*)$",
+      "reason": "One complete edit/update/build action; 100 µs is a provisional 1% share of the documented 10 ms small-scene edit/rebuild target."
+    },
+    {
+      "role": "frame_batch",
+      "pattern": "^(equation_frame_100frames|reactive_evaluate_100frames|reactive_playback_100frames|static_evaluate_100frames|scrub_.*_100frames)$",
+      "frames": 100,
+      "reason": "Explicit 100-frame batch; compare its per-frame delta with the provisional frame budget share."
+    },
+    {
+      "role": "frame",
+      "pattern": "^(demo_frame__.*|evaluate_[0-9]+_actors(_no_cache)?|full_[0-9]+|many_actors_evaluate_no_cache|mixed_50visible_50offscreen|modifier_evaluate_at_.*|offscreen_100_actors|reactive_cached_frame|sample_all_tracks|static_[0-9]+_actors(_hit_regions|_scene_only|_with_items)?|timeline_evaluate_.*|visible_100_actors|stage__(build_frame_env|eval_total|modifier_exec|sample))$",
+      "reason": "One frame or one direct frame-path stage; 167 µs is a provisional 1% share of the documented 16.7 ms frame budget."
+    },
+    {
+      "role": "signal_only",
+      "pattern": "^(analyzer_diagnostics(_configured)?__.*|env_[0-9]+|interpolate_.*|property_track_evaluate)$",
+      "reason": "Isolated leaf with no documented invocation scale; show statistical and absolute deltas, but do not block on this row alone."
+    }
+  ],
+  "unknown_policy": "fail"
+}

@@ -5,13 +5,11 @@
 > *what* is measured, *how* it is measured reproducibly, *where* the results are
 > stored, and *what* the first optimization targets should be.
 
-> **Current status:** CI integration is deliberately **paused** while the harness
-> is proven in local optimization rounds. Everything in this doc runs locally via
-> `scripts/perf-bench.sh` (`save` → optimize → `compare`). That `compare` is
-> **manual evidence, not a PR gate** — no perf check is in `scripts/ci.sh`'s gate
-> table; the local workflow (idle-machine preflight, baseline metadata, reading a
-> failure) is §4.1. Re-enable CI only after the gate is stable and non-flaky
-> (roadmap PF-2).
+> **Current status:** CPU policy unit tests and the fixed property-plan health
+> sentinel run in CI. The comparative `scripts/perf-bench.sh compare` still
+> requires an explicit saved baseline and remains **manual evidence, not a PR
+> gate**; CI does not measure or compare the 72-row Criterion suite. The local
+> workflow (idle-machine preflight, baseline metadata, reading a result) is §4.1.
 
 ## 1. Why this exists
 
@@ -55,7 +53,7 @@ targets, so benchmark IDs and Criterion groups are unchanged:
 | Parse-only / build-only | `build` | `full_pipeline.rs` | isolation of parse vs. build stage cost |
 | Text-heavy rebuild | `text` | `text_rebuild.rs` | `Timeline::build` for a 48-actor mixed Text/Code/Typst scene, warm (cache hits) vs cold (`clear_text_compile_cache` per iter) |
 | Code highlight compile | `text` | `code_highlight.rs` | `compile_text_cached` for a `Code` body: plain fence vs highlighted spans vs highlighted with a colorscheme palette (cache cleared per iter — the GUI rebuild-per-keystroke cost) |
-| Per-demo frame cost | `gpu` | `demos_frame_cost.rs` | steady-state GPU frame time for every example demo (evaluate → vello rasterize → effect chains → readback), loaded through the CLI's module path — the 30fps-preview gate |
+| Per-demo frame cost | `gpu` | `demos_frame_cost.rs` | one steady-state GPU frame per iteration for every example demo (evaluate → vello rasterize → effect chains → readback), loaded through the CLI's module path |
 | Frame evaluation | `frame` | `timeline_eval.rs` | `Timeline::evaluate` at several times (cache hit) |
 | Frame evaluation (no cache) | `frame` | `scaling_no_cache.rs` | full re-evaluation cost |
 | Scene scaling | `frame` | `scaling.rs`, `scaling_breakdown.rs` | `evaluate` vs. actor count (10→200), with a full/env split at 50/100/200 |
@@ -73,22 +71,23 @@ The editor-intelligence suite lives in its own crate because the layering is
 one-way: the engine does not depend on `animatix-analyzer`, so the engine's
 benches cannot reach it. `scripts/perf-bench.sh` covers both crates.
 
-### 2.2 CI gate today
+### 2.2 CPU guardrails today
 
-`scripts/extension-bench.sh` runs only **two** benches — the `vm` target's
-`property_plan_lookup_and_sample` and the `frame` target's `timeline_evaluate_*`
-benches, selected by Criterion filter — in *quick* mode and asserts
-**one** absolute threshold (`property_plan_lookup_and_sample ≤ 10_000 ns`) in
-`.github/workflows/ci.yml`.
+`scripts/extension-bench.sh` runs the property-plan lookup and timeline evaluation
+filters in quick mode. Its 10,000 ns limit applies only to
+`property_plan_lookup_and_sample` as an emergency primitive health sentinel; it
+does not define normal regression materiality. `scripts/perf-bench.sh compare`
+compares all saved CPU rows; `evaluate` applies the same policy to existing
+Criterion JSON without running or rewriting benchmarks.
 
 ### 2.3 Gaps identified
 
 Despite the breadth above, several things are missing for a *trustworthy*
 optimization loop:
 
-1. **No long-lived baseline / regression tracking.** Only one bench has any
-   threshold; every other bench regresses silently. There is no saved baseline to
-   diff against, and no notion of "% change vs. last known-good".
+1. **Baselines need intentional refresh and review.** CPU rows have saved
+   comparison support, but baseline provenance and cross-machine drift still
+   limit what one result can say about a particular change.
 2. **No label grouping by UX surface.** Benches are organized by *implementation
    area*, not by *user-visible property* (rebuild latency, scrub frame latency,
    export throughput). It is hard to answer "is authoring faster?"
@@ -1170,48 +1169,86 @@ frame time. Raw samples and fits: `target/perf/gpu-scaling.json`.
 
 ---
 
-## 4. How regressions are caught (gates)
+## 4. How CPU regressions are screened
 
-1. **Noise-adaptive relative gate** (`scripts/perf-bench.sh compare`): loads the
-   last saved baseline and flags a bench as a regression only when its mean rose
-   by more than **K combined standard deviations** of both runs (default `K=3`,
-   so `limit = max(3·(σ_base+σ_cur)/μ_base, THRESH)`) with an absolute floor of
-   `THRESH` (default **+5%**, `--thresh`). This is deliberate: stable leaf
-   benches (tiny σ) get a tight ~5% bound, while noisy build/planner benches
-   (large σ) get a wide bound, so real slowdowns are caught and run-to-run noise
-   is not. `compare` exits non-zero on any flagged regression. `extension-bench.sh`
-   wraps the same idea for the existing absolute guardrail.
-2. **Absolute guardrail** (existing, kept): `extension-bench.sh --max-plan-ns`
-   for the one fixed hot leaf (`property_plan_lookup_and_sample`).
-3. **GPU/export** (merged into the result ledger, not a gate in headless CI;
-   becomes a gate in the GPU CI runner once one exists).
+`scripts/perf-bench.sh compare` first screens each paired Criterion estimate
+using the `mean.confidence_interval` bounds already recorded in both JSON files.
+For baseline interval `[bₗ,bᵤ]` and current interval `[cₗ,cᵤ]`, it reports the
+conservative ratio interval `[cₗ/bᵤ − 1, cᵤ/bₗ − 1]` and delta interval
+`[cₗ − bᵤ, cᵤ − bₗ]`. This is an interval screen from two within-run Criterion
+estimates, **not a global confidence interval**: it does not model process-to-
+process or session-level variation. Overlap at a decision boundary is
+`INCONCLUSIVE` (exit 2), never a green result. Missing, non-finite, zero, or
+malformed estimates fail closed. Raw Criterion JSON and the saved baseline are
+left untouched.
 
-Rationale: a *relative* gate catches regressions regardless of machine speed; an
-*absolute* gate catches catastrophic slow-downs. A pure fixed-percentage gate
-would either false-flag noisy build benches (seen empirically: `build_time` sways
-±15–20% run-to-run on the same machine) or go blind on tight leaves — hence the
-standard-deviation rule, which adapts to each bench's own noise.
+The default `--thresh 5` is a **relative signal boundary**, not a pass/fail
+materiality threshold. A directly user-facing row blocks only when its entire
+ratio interval is above that boundary **and** its conservative absolute delta
+clears the row's provisional impact budget. A row is non-material when its
+ratio upper bound is at or below the signal boundary, or its maximum plausible
+impact is below the budget; if neither conclusion is supported, it is
+inconclusive. Isolated leaves without a documented invocation scale report
+statistical changes as informational and cannot block on their own. A new or
+unclassified row fails rather than disappearing from coverage.
+
+The explicit policy in `scripts/perf-policy.json` uses these provisional
+budgets:
+
+| Workload role | Impact budget | Derivation |
+| --- | ---: | --- |
+| One frame | 167 µs | 1% of the existing 16.7 ms frame target |
+| One edit/build action | 100 µs | 1% of the existing 10 ms small-scene rebuild target |
+| 100-frame batch | 167 µs per frame | Named 100-frame fixture divided by its explicit frame count |
+| Isolated leaf | informational | No guessed invocation multiplier; review an aggregate path instead |
+
+These are engineering budget shares, not perceptual facts or new elapsed-time
+SLOs for every fixture. They are intentionally configurable in the JSON policy
+and should be recalibrated when end-to-end measurements provide better evidence.
+The separately named `property_plan_lookup_and_sample` 10 µs check remains an
+emergency health sentinel only; it does not turn ordinary leaf drift into a
+blocking regression.
+
+`scripts/perf-bench.sh evaluate [quick|full]` applies the policy to an existing
+`PERF_LOG_DIR` without measuring or changing its raw estimates. It writes a
+separate `*.policy-report.txt`. `scripts/test-perf-policy.py` covers the
+deterministic classifier boundaries. The coverage and load preflights remain
+independent integrity checks. The `demo_frame__*` Criterion rows in the opt-in
+`full` tier use the per-frame impact role; other GPU/export results remain in
+their separate result ledger.
+
+### Why interval and impact both matter
+
+A relative-only rule can elevate tiny but user-invisible changes; an absolute-
+only rule can ignore a clear slowdown in an important path. The combined policy
+requires both evidence that the regression exceeds the configured relative
+signal boundary and an absolute cost large enough to matter at the workload
+boundary. It never infers repeated call counts from a benchmark name. For
+example, a 57 ns change to one analyzer diagnostics query remains visible as an
+informational micro signal; only a measured user-action or aggregate path can
+establish whether repeated work makes it consequential.
+
+Criterion's per-run intervals also cannot establish that two sessions share the
+same process-level state. If they overlap the decision boundary, the result
+stays inconclusive and should be repeated in a clean window or compared with an
+adjacent A/B control. Do not refresh the baseline merely to turn an inconclusive
+or failing comparison green.
 
 **Known limitation (observed 2026-08-31):** sub-100ns leaf benches
 (`timeline_evaluate_*`) can drift **+5–8% between benchmark sessions** on the
 same machine while staying internally consistent within a session (all three
 `timeline_evaluate_*` moved from ~90.5 ns to ~97 ns together — CPU frequency /
-code-layout shift, not a code change). Protocol when the gate flags such a leaf:
-(1) re-run the bench *filtered* — if the whole session level shifted, siblings
-move too and the flag is environmental; (2) only treat it as real if the
-filtered re-run reproduces the delta against a same-session comparison. A
-verified optimization lands with a re-saved baseline, which also resets the
-session level.
+code-layout shift, not a code change). This is historical evidence for making
+isolated leaf rows informational under the current policy. For a user-facing
+path that is inconclusive, repeat an adjacent A/B with an untouched control;
+do not interpret a fresh isolated leaf run against a different-session baseline
+as proof.
 
-**Tiny-bench absolute gate (added 2026-09-14):** the percentage floor alone
-flagged `interpolate_f32` on every run — 0.9 ns → 1.1 ns, a 0.2 ns absolute
-move that is code-layout/inlining drift rather than an algorithmic change, but
-23% relative. Benches whose *baseline* mean is below `PERF_TINY_NS` (default
-10 ns) now also require an absolute increase above `PERF_TINY_NS_DELTA`
-(default 1 ns) before the gate fails, so a genuine slowdown on the same bench
-(0.9 ns → 3 ns) still fails while layout noise does not. Heavier benches whose
-session-level drift dominates (see the 2026-09-01 note below) still need an
-adjacent A/B or `--thresh`; the gate cannot infer that from within-run σ.
+**Superseded tiny-leaf rule (2026-09-14):** the old `PERF_TINY_NS` exception
+used an absolute 1 ns delta for sub-10 ns baselines. The workload policy above
+replaces that special case: isolated leaves are informational unless an
+explicit emergency sentinel applies. This avoids treating a large percentage
+on a tiny primitive as user impact without inventing how often it runs.
 
 **Known limitation (observed 2026-09-01):** that drift is not confined to
 sub-100ns leaves — on 45–55 µs benches a whole session can shift **2–3.5%**,

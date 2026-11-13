@@ -23,7 +23,8 @@
 #
 # Usage:
 #   scripts/perf-bench.sh save [quick|full] [--thresh PCT]   # record the tier's baseline
-#   scripts/perf-bench.sh compare [quick|full] [--thresh PCT] # rerun; regressions fail
+#   scripts/perf-bench.sh compare [quick|full] [--thresh PCT] # rerun; material regressions fail
+#   scripts/perf-bench.sh evaluate [quick|full]               # classify saved JSON only
 #   scripts/perf-bench.sh run [quick|full]                    # just run, no guard
 #
 #   PERF_BASELINE_DIR=/path scripts/perf-bench.sh save full   # baselines live in
@@ -49,11 +50,11 @@
 #                            baseline, is a broken verdict, not a pass.
 #
 # Thresholds:
-#   --thresh PCT  percentage (mean) a bench may regress before `compare` fails, e.g. 5 => +5%.
-#   Absolute guardrails are handled separately by scripts/extension-bench.sh.
+#   --thresh PCT  minimum regression ratio beyond the Criterion mean-CI screen,
+#                 e.g. 5 => +5%; impact policy decides whether it blocks.
 #
-# Exit codes: 0 pass, 1 regressions/insufficient baseline coverage,
-#             2 usage/preflight/environment, 3 no baseline to compare against.
+# Exit codes: 0 pass, 1 material regression/policy/coverage failure,
+#             2 usage/preflight/environment or inconclusive interval, 3 no baseline.
 
 set -euo pipefail
 
@@ -96,7 +97,6 @@ MODE="${1:-compare}"
 shift || true
 
 THRESH=5
-K=3   # combined std-dev multiples before a real regression is declared
 TIER=quick
 MIN_BASELINE_COVERAGE="${PERF_MIN_BASELINE_COVERAGE:-90}"
 if ! [[ "$MIN_BASELINE_COVERAGE" =~ ^(100|[1-9][0-9]?)$ ]]; then
@@ -119,6 +119,11 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [[ "$MODE" != "save" && "$MODE" != "run" && "$MODE" != "compare" && "$MODE" != "evaluate" ]]; then
+    echo "perf-bench: unknown mode '$MODE' (expected save|run|compare|evaluate)" >&2
+    exit 2
+fi
 
 mkdir -p "$BASELINE_DIR/$TIER" "$LOG_DIR"
 
@@ -316,48 +321,19 @@ print("perf-bench: baseline metadata: " + str(m.get("tier", "?")) + " saved "
 PY
 }
 
-# Python3 helper: compare two Criterion estimates files (baseline vs current).
-# Regression rule (see docs/performance_evaluation.md §4) is statistically
-# principled and noise-adaptive: fail only when the current mean exceeds the
-# baseline mean by more than K standard deviations of the *combined* run
-# variance (a conservative t-style bound), with an absolute floor of THRESH%.
-# This keeps noisy build/planner benches (wide std_dev) from false-flagging,
-# while tight leaf benches (tiny std_dev) stay sensitive. Independent of any
-# Criterion subcommand; reads each run's own `mean`/`std_dev` point estimates.
-#
-# Sub-`TINY_NS` benches get a second gate: a tight leaf bench has a tiny
-# within-run std_dev, so the percentage floor alone flagged a 0.9ns -> 1.1ns
-# shift (a 0.2ns absolute move, indistinguishable from code-layout/inlining
-# drift) as a 23% regression on every run. For those, an absolute increase of
-# more than TINY_NS_DELTA is also required, so a genuine slowdown (1ns -> 3ns)
-# still fails while layout noise does not.
-#
-# Prints: "mean_baseline mean_current chg_pct limit_pct verdict" (space-separated).
-compare_estimates() {
-    python3 -c '
-import json,sys
-K=float(sys.argv[1])
-FLOOR=float(sys.argv[2])
-TINY_NS=float(sys.argv[5]) if len(sys.argv) > 5 else 10.0
-TINY_NS_DELTA=float(sys.argv[6]) if len(sys.argv) > 6 else 1.0
-b=json.load(open(sys.argv[3]))
-c=json.load(open(sys.argv[4]))
-bm=b["mean"]["point_estimate"]; bs=b["std_dev"]["point_estimate"]
-cm=c["mean"]["point_estimate"]; cs=c["std_dev"]["point_estimate"]
-chg=(cm-bm)/bm*100
-noise=K*(bs+cs)/bm*100      # combined-std bound, expressed in % of baseline
-limit=max(noise, FLOOR)
-verdict="ok"
-if cm > bm and chg > limit:
-    tiny = bm < TINY_NS
-    if tiny and (cm - bm) <= TINY_NS_DELTA:
-        # Layout/inlining drift on a sub-nanosecond bench, not a real change.
-        verdict="ok"
-    else:
-        verdict="REGRESSION"
-print(f"{bm} {cm} {chg:.2f} {limit:.2f} {verdict}")
-' "$K" "$THRESH" "$1" "$2" "${PERF_TINY_NS:-10}" "${PERF_TINY_NS_DELTA:-1}"
-}
+POLICY_FILE="${PERF_POLICY_FILE:-scripts/perf-policy.json}"
+POLICY_TOOL="scripts/perf-policy.py"
+
+# collect_new removes its destination before copying fresh estimates. Refuse
+# overlapping baseline/log paths before creating either path or starting cargo.
+BASELINE_PATH="$(realpath -m -- "$BASELINE_DIR")"
+LOG_PATH="$(realpath -m -- "$LOG_DIR")"
+case "$BASELINE_PATH/" in
+    "$LOG_PATH/"*) echo "perf-bench: baseline path must not be equal to or inside the log path." >&2; exit 2 ;;
+esac
+case "$LOG_PATH/" in
+    "$BASELINE_PATH/"*) echo "perf-bench: log path must not be equal to or inside the baseline path." >&2; exit 2 ;;
+esac
 
 case "$MODE" in
     save)
@@ -376,7 +352,7 @@ case "$MODE" in
         run_suite
         ;;
 
-    compare)
+    compare|evaluate)
         baseline_count="$(find "$BASELINE_DIR/$TIER" -maxdepth 1 -name '*.json' ! -name 'META.json' | wc -l | tr -d ' ')"
         if [[ "$baseline_count" -eq 0 ]]; then
             echo "perf-bench: no '$TIER' baseline found under $BASELINE_DIR/$TIER." >&2
@@ -384,30 +360,82 @@ case "$MODE" in
             exit 3
         fi
         show_baseline_meta
-        preflight
-        echo "perf-bench: running the '$TIER' tier and comparing against its baseline (regression beyond combined-noise bound or +${THRESH}% floor fails)..."
-        run_suite
-        collect_new "$LOG_DIR"
+        if [[ "$MODE" == "compare" ]]; then
+            preflight
+            echo "perf-bench: running the '$TIER' tier; statistical signals are screened by workload materiality..."
+            run_suite
+            collect_new "$LOG_DIR"
+        elif [[ ! -d "$LOG_DIR" ]]; then
+            echo "perf-bench: evaluate-only current results not found under $LOG_DIR." >&2
+            exit 3
+        fi
+
+        current_count="$(find "$LOG_DIR" -maxdepth 1 -name '*.json' ! -name 'META.json' | wc -l | tr -d ' ')"
+        if [[ "$current_count" -eq 0 ]]; then
+            echo "perf-bench: no saved current estimates found under $LOG_DIR." >&2
+            exit 3
+        fi
+        if ! python3 "$POLICY_TOOL" validate --policy "$POLICY_FILE" \
+            --baseline-dir "$BASELINE_DIR/$TIER" --current-dir "$LOG_DIR"; then
+            echo "perf-bench: FAIL — every baseline/current row must have exactly one policy classification." >&2
+            exit 1
+        fi
+
+        REPORT_FILE="${PERF_POLICY_REPORT_FILE:-${LOG_DIR}.policy-report.txt}"
+        if [[ "$MODE" == "evaluate" ]]; then
+            if ! python3 "$POLICY_TOOL" validate-report --report "$REPORT_FILE" \
+                --baseline-dir "$BASELINE_DIR/$TIER" --current-dir "$LOG_DIR"; then
+                echo "perf-bench: FAIL — policy report must not alias a raw baseline/current JSON file." >&2
+                exit 1
+            fi
+            mkdir -p "$(dirname "$REPORT_FILE")"
+            : > "$REPORT_FILE"
+            POLICY_VERSION="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$POLICY_FILE")"
+            POLICY_SHA256="$(sha256sum "$POLICY_FILE" | awk '{print $1}')"
+            printf 'Policy-only evaluation: %s\nBaseline: %s\nCurrent estimates: %s\nPolicy: %s\n\n' \
+                "$(date -Is)" "$BASELINE_DIR/$TIER" "$LOG_DIR" "$POLICY_FILE" >> "$REPORT_FILE"
+            printf 'Policy version: %s\nPolicy SHA256: %s\nInterval scope: Criterion per-run mean confidence-interval screen; excludes cross-process/session variance.\n\n' \
+                "$POLICY_VERSION" "$POLICY_SHA256" >> "$REPORT_FILE"
+            echo "perf-bench: policy-only evaluation; raw baseline/current estimates are unchanged. Report: $REPORT_FILE"
+        fi
 
         failures=0
         total=0
         new_benches=0
-        current_count="$(find "$LOG_DIR" -maxdepth 1 -name '*.json' | wc -l | tr -d ' ')"
-        # print header
-        printf "%-46s %13s %13s %9s %8s  %s\n" "bench" "baseline(ns)" "current(ns)" "%chg" "limit%" "verdict"
+        policy_failures=0
+        inconclusive=0
+        header="$(printf "%-46s %12s %12s %11s %9s %16s %18s %-14s %-12s %16s %12s %s" "bench" "baseline(ns)" "current(ns)" "delta(ns)" "mean%" "ratio-CI(%)" "delta-CI(ns)" "role" "screen" "impact-CI(ns)" "budget(ns)" "verdict")"
+        printf '%s\n' "$header"
+        if [[ "$MODE" == "evaluate" ]]; then printf '%s\n' "$header" >> "$REPORT_FILE"; fi
         for cur in "$LOG_DIR"/*.json; do
+            [[ -f "$cur" ]] || continue
             id="$(basename "$cur" .json)"
             base="$BASELINE_DIR/$TIER/${id}.json"
             if [[ ! -f "$base" ]]; then
-                new_benches=$((new_benches + 1))   # new bench not in baseline: skip
+                new_benches=$((new_benches + 1))
+                policy_failures=$((policy_failures + 1))
+                printf -v line "%-46s %12s %12s %11s %9s %16s %18s %-14s %-12s %16s %12s %s" "$id" "-" "-" "-" "-" "-" "-" "unbaselined" "-" "-" "-" "FAIL"
+                printf '%s\n' "$line"
+                if [[ "$MODE" == "evaluate" ]]; then printf '%s\n' "$line" >> "$REPORT_FILE"; fi
                 continue
             fi
-            read -r base_ns cur_ns chg limit_pct verdict < <(compare_estimates "$base" "$cur")
-            total=$((total+1))
-            if [[ "$verdict" == "REGRESSION" ]]; then
-                failures=$((failures+1))
+            if ! row="$(python3 "$POLICY_TOOL" classify --policy "$POLICY_FILE" --id "$id" \
+                --baseline "$base" --current "$cur" --thresh "$THRESH")"; then
+                policy_failures=$((policy_failures + 1))
+                printf "%-46s %13s %13s %11s %9s %8s %-14s %12s %12s %s\n" "$id" "-" "-" "-" "-" "-" "invalid" "-" "-" "FAIL" >&2
+                continue
             fi
-            printf "%-46s %13.1f %13.1f %9s %8s  %s\n" "$id" "$base_ns" "$cur_ns" "$chg%" "$limit_pct%" "$verdict"
+            read -r base_ns cur_ns delta_ns chg ratio_lower ratio_upper delta_lower delta_upper stat_status role impact_lower impact_upper budget verdict <<< "$row"
+            total=$((total+1))
+            if [[ "$verdict" == "BLOCK" ]]; then
+                failures=$((failures+1))
+            elif [[ "$verdict" == "INCONCLUSIVE" ]]; then
+                inconclusive=$((inconclusive+1))
+            fi
+            printf -v line "%-46s %12.1f %12.1f %11.1f %8.2f%% [%7.2f,%7.2f]%% [%8.1f,%8.1f] %-14s %-12s [%7s,%7s] %12s %s" \
+                "$id" "$base_ns" "$cur_ns" "$delta_ns" "$chg" "$ratio_lower" "$ratio_upper" "$delta_lower" "$delta_upper" "$role" "$stat_status" "$impact_lower" "$impact_upper" "$budget" "$verdict"
+            printf '%s\n' "$line"
+            if [[ "$MODE" == "evaluate" ]]; then printf '%s\n' "$line" >> "$REPORT_FILE"; fi
         done
 
         echo ""
@@ -416,25 +444,39 @@ case "$MODE" in
             echo "           ${baseline_count} saved baseline(s), ${current_count} current estimate(s)," >&2
             echo "           ${new_benches} current bench(es) have no baseline entry." >&2
             echo "           A compare that matched nothing cannot prove anything; re-save the baseline." >&2
+            if [[ "$MODE" == "evaluate" ]]; then printf '\nFAIL: zero current rows matched baseline.\n' >> "$REPORT_FILE"; fi
             exit 2
         fi
         coverage=$((total * 100 / baseline_count))
-        echo "perf-bench: $total/$baseline_count '$TIER' baseline benches compared (${coverage}% coverage; ${new_benches} new bench(es) skipped), $failures real regressions detected."
+        echo "perf-bench: $total/$baseline_count '$TIER' baseline benches compared (${coverage}% coverage), $failures material regressions, $inconclusive inconclusive rows, $policy_failures policy/baseline failures."
         if [[ "$coverage" -lt "$MIN_BASELINE_COVERAGE" ]]; then
             echo "perf-bench: FAIL — baseline coverage ${coverage}% is below the required ${MIN_BASELINE_COVERAGE}%." >&2
             echo "           ${baseline_count} saved baseline(s), only ${total} matched. The baseline is" >&2
             echo "           stale or the benchmark names changed; re-save it on a known-good commit." >&2
+            if [[ "$MODE" == "evaluate" ]]; then printf '\nFAIL: baseline coverage %s%% is below %s%%.\n' "$coverage" "$MIN_BASELINE_COVERAGE" >> "$REPORT_FILE"; fi
             exit 1
         fi
         if [[ "$failures" -gt 0 ]]; then
-            echo "perf-bench: FAIL — benchmark regressions detected." >&2
+            echo "perf-bench: FAIL — Criterion mean-CI regression screen and provisional workload-impact budget both exceeded." >&2
+            if [[ "$MODE" == "evaluate" ]]; then printf '\nFAIL: %s material regressions.\n' "$failures" >> "$REPORT_FILE"; fi
             exit 1
         fi
-        echo "perf-bench: PASS."
+        if [[ "$policy_failures" -gt 0 ]]; then
+            echo "perf-bench: FAIL — unbaselined, unknown, or malformed benchmark rows cannot be classified." >&2
+            if [[ "$MODE" == "evaluate" ]]; then printf '\nFAIL: %s policy/baseline failures.\n' "$policy_failures" >> "$REPORT_FILE"; fi
+            exit 1
+        fi
+        if [[ "$inconclusive" -gt 0 ]]; then
+            echo "perf-bench: INCONCLUSIVE — intervals overlap the statistical or impact boundary; repeat in a clean window." >&2
+            if [[ "$MODE" == "evaluate" ]]; then printf '\nINCONCLUSIVE: repeat in a clean window.\n' >> "$REPORT_FILE"; fi
+            exit 2
+        fi
+        echo "perf-bench: PASS (statistical signals below impact budgets are informational)."
+        if [[ "$MODE" == "evaluate" ]]; then printf '\nPASS: no blocking material regressions.\n' >> "$REPORT_FILE"; fi
         ;;
 
     *)
-        echo "usage: $0 {save|compare|run} [quick|full] [--thresh PCT]" >&2
+        echo "usage: $0 {save|compare|evaluate|run} [quick|full] [--thresh PCT]" >&2
         exit 2
         ;;
 esac

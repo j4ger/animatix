@@ -2,11 +2,12 @@
 # Baseline benchmarks for the extension abstraction.
 #
 # Usage:
-#   scripts/extension-bench.sh [--quick] [--max-plan-ns 10]
+#   scripts/extension-bench.sh [--quick] [--max-plan-ns 10000]
 #
 # --quick uses Criterion's quick mode, which is enough for local regression
 # checks but should not be treated as a release benchmark.
-# --max-plan-ns fails if property_plan_lookup_and_sample exceeds the threshold.
+# --max-plan-ns is an emergency health sentinel for the specifically named
+# property-plan lookup leaf. It is not a general performance-drift threshold.
 #
 # The two benches live in the merged `vm` and `frame` targets, so this runs
 # them by Criterion filter rather than by target name.
@@ -25,6 +26,10 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --max-plan-ns)
+            if [[ $# -lt 2 || ! "$2" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+                echo "--max-plan-ns requires a finite nonnegative number" >&2
+                exit 2
+            fi
             MAX_PLAN_NS="$2"
             shift 2
             ;;
@@ -47,7 +52,8 @@ if [[ -n "$MAX_PLAN_NS" ]]; then
         | head -1 \
         | awk '{print $1}')"
     if [[ -z "$PLAN_NS" ]]; then
-        echo "could not parse property_plan_lookup_and_sample" >&2
+        echo "no fresh property_plan_lookup_and_sample result in this command output" >&2
+        echo "refusing to apply the sentinel to a stale Criterion estimate" >&2
         exit 2
     fi
     if awk "BEGIN { exit !($PLAN_NS > $MAX_PLAN_NS) }"; then

@@ -69,6 +69,7 @@ ext-bench|nix|ubuntu-latest|nix|pr
 doc|nix|ubuntu-latest|nix|pr
 site-scenes|nix|ubuntu-latest|nix|pr
 embed-build|native|ubuntu-latest|node|pr
+perf-policy-tests|native|ubuntu-latest|none|pr
 content-sync|native|ubuntu-latest|none|pr
 structure|native|ubuntu-latest|none|pr
 meta-version|native|ubuntu-latest|rust-stable|pr
@@ -105,7 +106,7 @@ dist-windows|native|windows-latest|rust-stable|release
 # each job's shell/os/stage/setup against every gate it lists, so a job cannot
 # silently run a gate in the wrong environment.
 JOB_TABLE='
-Fast Checks|fmt structure workflows content-sync meta-version embed-build|native|ubuntu-latest|rust-stable node|pr
+Fast Checks|fmt structure workflows content-sync meta-version embed-build perf-policy-tests|native|ubuntu-latest|rust-stable node|pr
 eparts|eparts|native|ubuntu-latest|rust-stable|pr
 eparts|eparts|native|macos-latest|rust-stable|pr
 eparts|eparts|native|windows-latest|rust-stable|pr
@@ -400,6 +401,10 @@ gate_embed_build() {
     return 1
   fi
   echo "embed bundle build smoke: two consecutive builds are byte-identical ($second_hash)"
+}
+
+gate_perf_policy_tests() {
+  python3 scripts/test-perf-policy.py
 }
 
 gate_web_build() {
