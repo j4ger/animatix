@@ -110,7 +110,7 @@ reveal-in sub [500ms, by: line, offset_y: 15, mask: baseline]
 fn test_counter_declaration_and_prebaked_data() {
     let source = r#"
 #0s
-c: Counter, value: 1234, prefix: "$", suffix: " /mo", decimals: 2, comma: true, at: (300, 200)
+c: Counter, value: 1234, font_family: "Open Sans", font_size: 72, prefix: "$", suffix: " 次", decimals: 2, comma: true, at: (300, 200)
 "#;
     let timeline = build_output(source);
     let track = timeline.world.tracks.get_id("c").expect("counter track");
@@ -125,6 +125,52 @@ c: Counter, value: 1234, prefix: "$", suffix: " /mo", decimals: 2, comma: true, 
     assert!(data.suffix.1 > 0.0, "Suffix width should be non-empty");
     assert!(data.comma.1 > 0.0, "Comma width should be non-empty");
     assert!(data.dot.1 > 0.0, "Dot width should be non-empty");
+    assert!(data.ascent > 0.0, "Counter ascent should be positive");
+    assert!(data.descent < 0.0, "Counter descent should retain its negative sign");
+    assert!(
+        (data.slot_height - (data.ascent - data.descent)).abs() < 0.01,
+        "Slot should span the positive ascent and negative descent"
+    );
+
+    use kurbo::Shape;
+
+    let (_, clip) = crate::primitives::counter::render_counter_columns(data, 1234.0, 0, true);
+    assert!(clip.y0 < 0.0 && clip.y1 > 0.0);
+    for (value, decimals) in [(1234.0, 0), (-1234.5, 2)] {
+        let (paths, static_clip) =
+            crate::primitives::counter::render_counter_columns(data, value, decimals, true);
+        for path in paths {
+            let bounds = path.path.bounding_box();
+            assert!(
+                bounds.y0 >= static_clip.y0,
+                "static value {value} path starts above clip: {bounds:?} vs {static_clip:?}"
+            );
+            assert!(
+                bounds.y1 <= static_clip.y1,
+                "static value {value} path ends below clip: {bounds:?} vs {static_clip:?}"
+            );
+        }
+    }
+
+    // At a half-step, outgoing and incoming glyphs both intersect the
+    // one-slot viewport, while each complete outline extends beyond it.
+    let mut rolling_data = data.clone();
+    rolling_data.prefix.1 = 0.0;
+    rolling_data.suffix.1 = 0.0;
+    let (rolling, rolling_clip) =
+        crate::primitives::counter::render_counter_columns(&rolling_data, 4.5, 0, false);
+    let current_len = rolling_data.digits[4].len();
+    let next_len = rolling_data.digits[5].len();
+    assert_eq!(rolling.len(), current_len + next_len);
+    for group in [&rolling[..current_len], &rolling[current_len..]] {
+        let bounds = group
+            .iter()
+            .map(|path| path.path.bounding_box())
+            .reduce(|a, b| a.union(b))
+            .expect("rolling glyph outline");
+        assert!(bounds.y1 > rolling_clip.y0 && bounds.y0 < rolling_clip.y1);
+        assert!(bounds.y0 < rolling_clip.y0 || bounds.y1 > rolling_clip.y1);
+    }
 
     let size = geometry.size.get(0, [0.0, 0.0]);
     assert!(size[0] > 0.0 && size[1] > 0.0, "Initial half size should be non-zero");

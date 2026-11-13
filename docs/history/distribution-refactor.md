@@ -70,10 +70,16 @@ not included in source releases.
   functional and visual results are for the fd9 SDK/source revision; they do
   not verify the later policy SDK build or its pending performance comparison.
 - Generated Typst text has a diagnostic browser case for selecting its dynamic
-  CJK fallback; native tests cover generated-text out-of-coverage errors. The
-  earlier counter-prefix clipping observation was reproduced on the old
-  renderer too, so it is pre-existing rather than a regression introduced by
-  this change.
+  CJK fallback; native tests cover generated-text out-of-coverage errors. Human
+  visual review found the Counter fixture's half-height clipping. Diagnosis
+  traced it to applying signed negative font descent and baseline clipping in
+  centered-text paths. The current fix preserves negative descent, sizes the
+  layout slot from ascent minus descent, and applies clipping only for centered
+  paths. Reproducing the clipping in the old renderer does not make it
+  acceptable. Focused Counter tests pass 3/3. `final-counter-native-gates.log`
+  records passing formatting, structure, workspace check, lint, tests, no-video,
+  and eparts; engine tests pass 1,048 and text tests 87. Current-Web visual
+  confirmation is still pending.
 - `final-linux-duration-gate.log` records Linux container runtime checks on
   Ubuntu 22.04 and 24.04 after the audio-duration correction. The MP4 container
   duration is 1.0 s, with 1.021678 s decoded AAC due to one 1024-sample
@@ -145,9 +151,10 @@ not included in source releases.
   The plain-text sheet crops out the differing literal line and compares the
   shared CJK, Arabic, bidi, and weight lines. Human visual review found whole
   Chinese phrases highlight together, Latin timing is correct, RLE brackets
-  are ordered correctly, and weight 550 appears between 400 and 700. The old
-  and new counter both retain the pre-existing half-height clipping. The stale
-  earlier contact sheet remains superseded.
+  are ordered correctly, and weight 550 appears between 400 and 700. Counter's
+  half-height clipping was diagnosed and the centered-text path has been
+  corrected; final native gates and current-Web visual confirmation for this
+  fix remain pending. The stale earlier contact sheet remains superseded.
 - License generation now includes canonical SPDX references for the pinned
   `fax` 0.2.6, `fax_derive` 0.2.0, and `glidesort` 0.1.2 revisions, separately
   from upstream license texts. Their `missingLicenseText` status remains true:

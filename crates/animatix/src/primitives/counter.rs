@@ -88,15 +88,17 @@ pub fn prebake_counter(
         };
         let compiled = crate::renderer::text::compile_text_cached(&request, font_ctx)?;
         ascent = ascent.max(compiled.ascent);
-        descent = descent.max(compiled.descent);
+        // Font descents are negative. Keep the most negative value so the
+        // complete line box is available for rolling and clipping.
+        descent = descent.min(compiled.descent);
         let w = compiled.half_size[0] * 2.0;
         widths.push(w);
         raw_digits.push((compiled.paths.to_vec(), w));
     }
 
     let col_width = widths.iter().copied().fold(0.0f32, f32::max);
-    let slot_height = if (ascent + descent) > 0.0 {
-        ascent + descent
+    let slot_height = if (ascent - descent) > 0.0 {
+        ascent - descent
     } else {
         font_size * line_height
     };
@@ -300,11 +302,16 @@ pub fn render_counter_columns(
         }
     }
 
+    // Digit paths are centered around y=0 by the text compiler. Clip one
+    // complete slot around that origin; ascent is positive and descent is
+    // negative, so their baseline-relative values cannot be used directly as
+    // centered path coordinates.
+    let half_slot = (slot_h / 2.0) as f64;
     let clip_rect = kurbo::Rect::new(
         -total_width as f64 / 2.0 - 4.0,
-        -data.ascent as f64 - 2.0,
+        -half_slot - 2.0,
         total_width as f64 / 2.0 + 4.0,
-        data.descent as f64 + 2.0,
+        half_slot + 2.0,
     );
 
     (out_paths, clip_rect)
