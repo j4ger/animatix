@@ -179,3 +179,13 @@ jobs:
           name: web-runtime
           path: target/web-runtime-artifact/
           if-no-files-found: error
+
+      # Retain synthetic transaction frames on failure without weakening checks.
+      - name: Upload web transaction failure evidence
+        if: failure() && contains(matrix.gate, 'web-transactions')
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-transaction-failure
+          path: target/perf/distribution-refactor/web-transactions/
+          if-no-files-found: ignore
+          retention-days: 7

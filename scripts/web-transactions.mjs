@@ -622,13 +622,28 @@ async function browserTests(sources, exerciseInventory) {
   await test('overlay-failure-retains-frame-and-retry-recovers', async () => {
     await p.applySource(sources.english);
     const before = await pixels(p); const installed = p._loadedSource; const player = p._player;
+    const state = () => ({ time: p.time, playing: p._playing, renderScale: p._renderScale,
+      revision: p._renderRevision, canvas: [p._canvas.width, p._canvas.height],
+      vars: p.vars, state: p._state, generation: p._operationGeneration });
+    const beforeState = state();
     const failed = new Promise(resolve => p.addEventListener('amxerror', resolve, { once: true }));
     p.setAttribute('data-fonts', './retryfont.ttf');
     const failure = await within(failed, 'failed overlay request did not report an error');
     await until(() => !p._operationController, 'failed overlay transaction did not settle');
     check(failure.detail?.kind === 'resource', 'failed overlay did not report a resource error');
     check(p._state === 'ready' && p._player === player && p._loadedSource === installed, 'failed overlay replaced the installed player or source');
-    check((await pixels(p)).hash === before.hash, 'failed overlay changed the rendered frame');
+    const after = await pixels(p);
+    if (after.hash !== before.hash) {
+      snapshot('failed-overlay-before', before); snapshot('failed-overlay-after', after);
+      window.__failureState = { before: beforeState, after: state(),
+        frames: [before, after].map(({ width, height, hash }) => ({ width, height, hash })) };
+      try {
+        const repeated = await pixels(p); snapshot('failed-overlay-repeated', repeated);
+        window.__failureState.frames.push({ width: repeated.width, height: repeated.height, hash: repeated.hash });
+      } catch (error) { window.__failureState.repeatError = error.message; }
+      window.__failureFrames = Object.fromEntries(Object.entries(frames).filter(([name]) => name.startsWith('failed-overlay-')));
+    }
+    check(after.hash === before.hash, 'failed overlay changed the rendered frame');
     const recovered = new Promise((resolve, reject) => {
       p.addEventListener('amxready', () => resolve(p), { once: true });
       p.addEventListener('amxerror', event => reject(new Error(event.detail?.message || 'overlay retry failed')), { once: true });
@@ -899,9 +914,13 @@ async function main() {
     process.stdout.write(`web-transactions: ${report.passed.length} checks passed; ${EVIDENCE}\n`);
   } catch (error) {
     const browserState = cdp
-      ? await cdp.evaluate(`({ passed: window.__transactions || [], active: window.__activeTransaction || null, failure: window.__transactionFailure || null })`).catch(() => null)
+      ? await cdp.evaluate(`({ passed: window.__transactions || [], active: window.__activeTransaction || null, failure: window.__transactionFailure || null, frameState: window.__failureState || null, frames: window.__failureFrames || {} })`).catch(() => null)
       : null;
+    for (const [name, frame] of Object.entries(browserState?.frames || {})) {
+      writeFileSync(join(EVIDENCE, `${name}.png`), encodeFramePng(frame));
+    }
     writeFileSync(join(EVIDENCE, 'report.json'), JSON.stringify({
+      frame_state: browserState?.frameState,
       passed: report?.passed ?? browserState?.passed ?? [],
       active: browserState?.active ?? null,
       failure: browserState?.failure ?? { message: error.message, stack: error.stack },
