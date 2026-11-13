@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { combinePrimaryVerdict, comparePaired } from './perf-statistics.mjs';
-import { parseScenes } from '../../scripts/web-runtime-perf.mjs';
+import { contentType, parseScenes } from '../../scripts/web-runtime-perf.mjs';
 
 const compare = (oldValues, newValues, absoluteThreshold, options = {}) => comparePaired(oldValues, newValues, {
   threshold: 1.05,
@@ -104,4 +104,10 @@ test('empty Web performance scene lists fail closed and bounded scenes are retai
   assert.deepEqual(parseScenes('english.amx, cjk.amx'), ['english.amx', 'cjk.amx']);
   assert.throws(() => parseScenes(', ,'), /at least one scene/);
   assert.throws(() => parseScenes(Array(11).fill('scene.amx').join(',')), /at most 10 scenes/);
+});
+
+test('Web performance server serves generated HTML pages as documents', () => {
+  assert.equal(contentType('/old-page.html'), 'text/html; charset=utf-8');
+  assert.equal(contentType('/fresh/runtime/amx-player.js'), 'text/javascript');
+  assert.equal(contentType('/fresh/runtime/runtime.wasm'), 'application/wasm');
 });

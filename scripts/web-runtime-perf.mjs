@@ -79,6 +79,15 @@ export function parseScenes(value = undefined) {
   if (scenes.length > 10) throw new Error('WPR_SCENE accepts at most 10 scenes per run');
   return scenes;
 }
+export function contentType(path) {
+  if (path.endsWith('.html')) return 'text/html; charset=utf-8';
+  if (path.endsWith('.wasm')) return 'application/wasm';
+  if (path.endsWith('.js') || path.endsWith('.mjs')) return 'text/javascript';
+  if (path.endsWith('.json')) return 'application/json';
+  if (path.endsWith('.amx')) return 'text/plain';
+  if (path.endsWith('.png')) return 'image/png';
+  return 'application/octet-stream';
+}
 const SCENES = parseScenes(process.env.WPR_SCENE);
 const OUT = resolve(ROOT, process.env.WPR_OUT || 'target/perf/web-runtime.json');
 const CHROME = process.env.CHROME || 'chromium';
@@ -235,12 +244,26 @@ export function page(kind) {
       assertNvidiaDeviceRequests();
       const player=el._player;
       if(!player) throw Error('element ready without a player');
+      const startupRaster={scale:player.render_scale(),raster:[player.raster_width(),player.raster_height()]};
+      // This comparison holds the engine raster fixed; it does not measure
+      // either embed's adaptive quality governor.
+      el.pause?.();
+      el._qualityScale=scale;
+      el._pixelScale=1;
+      el._adaptBudget=()=>{};
+      el._applyRenderScale=()=>{};
       player.set_render_scale(scale);
       const duration=player.duration_s();
       if(!Number.isFinite(duration)||duration<=0)throw Error('player reported invalid scene duration: '+duration);
       const sampleTime=(index,count)=>duration*((index+0.5)/count);
       const frameTimes=Array.from({length:frames},(_,index)=>sampleTime(index,frames));
       const drawStats=()=>player.debug_dedup_stats();
+      const fixedRaster=phase=>{
+        const actualScale=player.render_scale(), raster=[player.raster_width(),player.raster_height()];
+        if(Math.abs(actualScale-scale)>0.001)throw Error(phase+' changed fixed render scale: requested '+scale+', actual '+actualScale);
+        if(raster[0]!==Math.round(player.scene_width()*scale)||raster[1]!==Math.round(player.scene_height()*scale))throw Error(phase+' changed fixed raster dimensions: '+JSON.stringify(raster));
+        return {scale:actualScale,raster};
+      };
       const assertDraws=(before,after,requested,phase)=>{
         const drawn=after.drawn-before.drawn, deduped=after.deduped-before.deduped;
         if(drawn!==requested)throw Error(phase+' rendered '+drawn+'/'+requested+' requested GPU frames (deduped '+deduped+')');
@@ -250,6 +273,7 @@ export function page(kind) {
       const readPixels=()=>new Promise((resolve,reject)=>{let done=false;const timer=setTimeout(()=>{if(!done)reject(Error('GPU readback timeout'))},10000);player.debug_readback_rgba(0,(value)=>{done=true;clearTimeout(timer);resolve(value)})});
       await readPixels();
       const rows=[];
+      const rasterPhases={before_cpu:fixedRaster('before CPU samples')};
       const cpuBefore=drawStats();
       for(let rep=0;rep<3;rep++) {
         const cpu=[];
@@ -257,18 +281,23 @@ export function page(kind) {
         rows.push({cpu_ms_per_frame:cpu,cpu_p50_ms:quantile(cpu,.5),cpu_p95_ms:quantile(cpu,.95),time_window_s:[frameTimes[0],frameTimes.at(-1)]});
       }
       const cpuDraws=assertDraws(cpuBefore,drawStats(),3*frames,'CPU frame samples');
+      rasterPhases.after_cpu=fixedRaster('after CPU samples');
       await window.__engine.debug_gpu_drain();
       const batchBefore=drawStats();
+      rasterPhases.before_drained_batch=fixedRaster('before drained batch');
       const gpuStart=performance.now();
       for(const time of frameTimes)player.render_frame(time);
       await window.__engine.debug_gpu_drain();
       const wallMs=(performance.now()-gpuStart);
       const batchDraws=assertDraws(batchBefore,drawStats(),frames,'drained batch');
+      rasterPhases.after_drained_batch=fixedRaster('after drained batch');
       const drainedFrames=[];
       const queueTimes=Array.from({length:drainFrames},(_,index)=>sampleTime(index,drainFrames));
       const queueBefore=drawStats();
+      rasterPhases.before_queue_depth_one=fixedRaster('before queue-depth-one samples');
       for(const time of queueTimes){const t=performance.now();player.render_frame(time);await window.__engine.debug_gpu_drain();drainedFrames.push(performance.now()-t)}
       const queueDraws=assertDraws(queueBefore,drawStats(),drainFrames,'queue-depth-one samples');
+      rasterPhases.after_queue_depth_one=fixedRaster('after queue-depth-one samples');
       const pixels=await readPixels();
       const bytes=pixels.bytes;const ink=inkCount(bytes,pixels.width,pixels.height);
       if(ink.pixels < 100) throw Error('GPU pixel assertion failed: frame has no visible ink against its corner background');
@@ -279,7 +308,7 @@ export function page(kind) {
       const fontResources=performance.getEntriesByType('resource').filter(entry=>/[.](?:ttf|otf)(?:[.][0-9a-f]{16,})?[.]gz([?]|$)/i.test(entry.name)).map(entry=>({url:new URL(entry.name).pathname,duration_ms:entry.duration,transfer_bytes:entry.transferSize,encoded_bytes:entry.encodedBodySize}));
       const runtimeResources=performance.getEntriesByType('resource').filter(entry=>{const path=new URL(entry.name).pathname;return path.includes('/old/pkg')||path.includes('/fresh/runtime/')}).map(entry=>({url:new URL(entry.name).pathname,duration_ms:entry.duration,transfer_bytes:entry.transferSize,encoded_bytes:entry.encodedBodySize}));
       assertNvidiaDeviceRequests();
-      window.__result={kind:${JSON.stringify(kind)},startup_ms:startupMs,document_load_ms:phases.document_load_ms,prepare_ms:phases.prepare_ms,build_ms:phases.build_ms,legacy_load_scene_ms:phases.legacy_load_scene_ms,scene_duration_s:duration,sample_time_window_s:[frameTimes[0],frameTimes.at(-1)],queue_time_window_s:[queueTimes[0],queueTimes.at(-1)],gpu_draws:{cpu_samples:cpuDraws,drained_batch:batchDraws,queue_depth_one:queueDraws},frame_samples:rows,drained_batch_ms:wallMs,drained_per_frame_ms:wallMs/frames,throughput_fps:1000*frames/wallMs,queue_depth_one_frame_samples:drainedFrames,queue_depth_one_frame_p50_ms:quantile(drainedFrames,.5),queue_depth_one_frame_p95_ms:quantile(drainedFrames,.95),quality,requested_scale:scale,actual_scale:player.render_scale(),scene:[player.scene_width(),player.scene_height()],raster:[player.raster_width(),player.raster_height()],profile_used:window.__engineProfile??null,capabilities:manifest?Object.keys(manifest.capabilities??{}):[],font_stats:window.__debugRuntimeStats?.()??null,font_resources:fontResources,runtime_resources:runtimeResources,device_adapters:window.__deviceAdapterInfo,pixel_assertion:{width:pixels.width,height:pixels.height,ink_pixels:ink.pixels,background_rgba:ink.background,sha256:pixelHash},wasm_memory_count:wasmMemories.size,wasm_memory_capacity_bytes:Array.from(wasmMemories).reduce((total,memory)=>total+memory.buffer.byteLength,0),heap_bytes:heapBytes,user_agent_memory_bytes:userAgentMemory?.bytes??null,ua:navigator.userAgent};
+      window.__result={kind:${JSON.stringify(kind)},startup_ms:startupMs,document_load_ms:phases.document_load_ms,prepare_ms:phases.prepare_ms,build_ms:phases.build_ms,legacy_load_scene_ms:phases.legacy_load_scene_ms,scene_duration_s:duration,sample_time_window_s:[frameTimes[0],frameTimes.at(-1)],queue_time_window_s:[queueTimes[0],queueTimes.at(-1)],gpu_draws:{cpu_samples:cpuDraws,drained_batch:batchDraws,queue_depth_one:queueDraws},frame_samples:rows,drained_batch_ms:wallMs,drained_per_frame_ms:wallMs/frames,throughput_fps:1000*frames/wallMs,queue_depth_one_frame_samples:drainedFrames,queue_depth_one_frame_p50_ms:quantile(drainedFrames,.5),queue_depth_one_frame_p95_ms:quantile(drainedFrames,.95),quality,requested_scale:scale,actual_scale:player.render_scale(),startup_raster:startupRaster,fixed_raster_phases:rasterPhases,scene:[player.scene_width(),player.scene_height()],raster:[player.raster_width(),player.raster_height()],profile_used:window.__engineProfile??null,capabilities:manifest?Object.keys(manifest.capabilities??{}):[],font_stats:window.__debugRuntimeStats?.()??null,font_resources:fontResources,runtime_resources:runtimeResources,device_adapters:window.__deviceAdapterInfo,pixel_assertion:{width:pixels.width,height:pixels.height,ink_pixels:ink.pixels,background_rgba:ink.background,sha256:pixelHash},wasm_memory_count:wasmMemories.size,wasm_memory_capacity_bytes:Array.from(wasmMemories).reduce((total,memory)=>total+memory.buffer.byteLength,0),heap_bytes:heapBytes,user_agent_memory_bytes:userAgentMemory?.bytes??null,ua:navigator.userAgent};
     } catch(e) { window.__failure=errorText(e); }
   </script>`;
 }
@@ -295,14 +324,13 @@ function summarize(values) {
 async function staticServer(stage, port) {
   const { createServer } = await import('node:http');
   const roots = { '/old/': join(stage,'old'), '/fresh/': join(stage,'fresh'), '/repo/': ROOT };
-  const mime = path => path.endsWith('.wasm') ? 'application/wasm' : path.endsWith('.js') || path.endsWith('.mjs') ? 'text/javascript' : path.endsWith('.json') ? 'application/json' : path.endsWith('.amx') ? 'text/plain' : path.endsWith('.png') ? 'image/png' : 'application/octet-stream';
   const server = createServer((req,res)=>{
     try {
       const url = new URL(req.url, `http://localhost:${port}`); let path;
       if(url.pathname==='/old-page.html') path=join(stage,'old-page.html');
       else if(url.pathname==='/fresh-page.html') path=join(stage,'fresh-page.html');
       else { const root=Object.entries(roots).find(([prefix])=>url.pathname.startsWith(prefix)); if(!root) throw Error('not found'); path=resolve(root[1], decodeURIComponent(url.pathname.slice(root[0].length))); if(!path.startsWith(root[1]+sep)&&path!==root[1]) throw Error('invalid path'); }
-      const bytes=readFileSync(path); const cache=/page\.html$|scene\.amx$/.test(path)?'no-store':'public, max-age=3600'; res.writeHead(200,{'content-type':mime(path),'cache-control':cache,'access-control-allow-origin':'*'}); res.end(bytes);
+      const bytes=readFileSync(path); const cache=/page\.html$|scene\.amx$/.test(path)?'no-store':'public, max-age=3600'; res.writeHead(200,{'content-type':contentType(path),'cache-control':cache,'access-control-allow-origin':'*'}); res.end(bytes);
     } catch { res.writeHead(404);res.end('not found'); }
   });
   await new Promise((ok,no)=>{server.once('error',no);server.listen(port,'127.0.0.1',ok)}); return server;
@@ -357,8 +385,9 @@ async function measureScene(scene, stage, chrome, sitePort, staging) {
   if(adapters.some(adapter=>!adapter.nvidia_verified)) fail(`engine used an adapter that is not verified as NVIDIA: ${JSON.stringify(adapters)}`);
   if(adapters.some(adapter=>/swiftshader|llvmpipe|software raster/i.test(`${adapter.description} ${adapter.device} ${adapter.vendor}`))) fail(`software WebGPU adapter detected: ${JSON.stringify(adapters)}`);
   const cpuFrame = (row, percentile) => quantile(row.frame_samples.flatMap(sample => sample.cpu_ms_per_frame), percentile);
+  const startupComparable=measurements.every(pair=>pair.old.startup_raster.scale===pair.fresh.startup_raster.scale&&JSON.stringify(pair.old.startup_raster.raster)===JSON.stringify(pair.fresh.startup_raster.raster));
   const pairedValues = {
-    cold_startup_ms: measurements.map(pair => [pair.old.startup_ms, pair.fresh.startup_ms]),
+    cold_startup_ms: measurements.map(pair => startupComparable ? [pair.old.startup_ms, pair.fresh.startup_ms] : [null,null]),
     document_load_ms: measurements.map(pair => [pair.old.document_load_ms, pair.fresh.document_load_ms]),
     cpu_frame_p50_ms: measurements.map(pair => [cpuFrame(pair.old, .5), cpuFrame(pair.fresh, .5)]),
     cpu_frame_p95_ms: measurements.map(pair => [cpuFrame(pair.old, .95), cpuFrame(pair.fresh, .95)]),
@@ -424,6 +453,8 @@ async function measureScene(scene, stage, chrome, sitePort, staging) {
   return {
     scene,
     settings_match: settingsMatch,
+    cold_startup_comparable: startupComparable,
+    cold_startup_incomparability_reason: startupComparable ? null : 'old and current startup scale or raster dimensions differed before fixed-scale pinning',
     hard_failures: hardFailures,
     visual_status: visualStatus,
     pixel_hashes_match: pixelHashesMatch,
@@ -459,7 +490,7 @@ async function main() {
     if(!nvidia) fail(`Chromium did not report the NVIDIA adapter: ${JSON.stringify(gpuSystem.gpu?.devices||[])}`);
     const scenarios={};
     for(const scene of SCENES) { scenarios[scene]=await measureScene(scene,stage,chrome,sitePort,staging); }
-  const result={schema_version:4,baseline_commit:OLD_COMMIT,created_at:new Date().toISOString(),browser:run(CHROME,['--version']),gpu_icd:process.env.VK_ICD_FILENAMES,gpu_system:gpuSystem.gpu,quality:QUALITY,render_scale:SCALE,canvas:[WIDTH,HEIGHT],frames:FRAME_COUNT,cold_pairs:REPS,warm_pairs:WARM_REPS,warmup_pairs:WARMUPS,queue_depth_one_frames:DRAIN_FRAMES,performance_policy:PERFORMANCE_POLICY,scenarios,notes:['WPR_SCENE accepts one workspace-relative .amx path or a comma-separated scene list. Default scenarios cover English text, CJK fallback and combined rich-text/image capabilities.','Cold A/B pairs alternate order in fresh contexts with cache disabled; warm runs reuse one context with cache enabled. Warm startup measures a new player reaching ready in a reused context; it is not an applySource() cached-source rebuild.','The primary user-impact metrics are cold player-ready startup, warm player-ready startup, and queue-depth-one p95 completion latency. Relative and paired absolute-delta intervals are both retained.','Blocking requires the paired 95% lower bounds to clear both the 5% relative margin and the metric-specific provisional absolute floor. No-material status requires either upper bound to stay within its floor; remaining overlap or incomplete required pairs is inconclusive (exit 2). These engineering floors are not validated product SLOs.','The paired Student-t intervals cover within-run pairs in one Chromium process; they are not family-wise intervals and do not estimate between-process/day variation. Six cold and three warm pairs provide limited uncertainty estimates.','CPU p50/p95, document/phase timings, batch throughput, JS heap, browser-wide memory, and Wasm capacity are diagnostic-only and never affect the primary verdict. Unsupported optional measurements are explicitly unverified.','Every engine-created WebGPU device must report NVIDIA (vendor 0x10de or NVIDIA info); the host GPU list alone is insufficient.','Each queue-depth-one sample renders one frame and awaits debug_gpu_drain; its latency includes browser/WASM promise overhead and is not pure GPU time or v-sync playback latency.','Sustained throughput is reported in frames per second from the batched frame loop plus debug_gpu_drain; it is diagnostic, not a playback SLO.','Legacy load_scene, fresh preparation, and fresh synchronous build timings are stage details, not directly comparable A/B phases.','wasm_memory_capacity_bytes is the sum of unique exported WebAssembly.Memory buffer byte lengths after rendering; it reflects linear-memory capacity, not resident memory, and excludes GPU allocations and non-exported memories.','Visual hashes are reported separately because legacy/current text rendering may legitimately differ; the hard pixel assertion rejects empty output. SDK integrity and actual-draw checks remain hard failures.','heap_bytes is Chromium usedJSHeapSize at the end of the sample, not peak process memory. user_agent_memory_bytes is browser-wide when supported; this harness does not establish cross-origin isolation, so unsupported readings remain unverified.']};
+    const result={schema_version:4,baseline_commit:OLD_COMMIT,created_at:new Date().toISOString(),browser:run(CHROME,['--version']),gpu_icd:process.env.VK_ICD_FILENAMES,gpu_system:gpuSystem.gpu,quality:QUALITY,render_scale:SCALE,canvas:[WIDTH,HEIGHT],frames:FRAME_COUNT,cold_pairs:REPS,warm_pairs:WARM_REPS,warmup_pairs:WARMUPS,queue_depth_one_frames:DRAIN_FRAMES,performance_policy:PERFORMANCE_POLICY,scenarios,notes:['WPR_SCENE accepts one workspace-relative .amx path or a comma-separated scene list. Default scenarios cover English text, CJK fallback and combined rich-text/image capabilities.','Cold A/B pairs alternate order in fresh contexts with cache disabled; warm runs reuse one context with cache enabled. Warm startup measures a new player reaching ready in a reused context; it is not an applySource() cached-source rebuild.','Frame-cost comparisons pin the engine raster to the requested scale, disable the embed adaptive quality governor in the benchmark page, and verify exact scale and raster dimensions before and after each measured phase. The startup scale/raster is reported before pinning. This isolates equal-resolution renderer cost and does not measure adaptive playback behavior.','The primary user-impact metrics are cold player-ready startup, warm player-ready startup, and queue-depth-one p95 completion latency. Relative and paired absolute-delta intervals are both retained.','Blocking requires the paired 95% lower bounds to clear both the 5% relative margin and the metric-specific provisional absolute floor. No-material status requires either upper bound to stay within its floor; remaining overlap or incomplete required pairs is inconclusive (exit 2). These engineering floors are not validated product SLOs.','The paired Student-t intervals cover within-run pairs in one Chromium process; they are not family-wise intervals and do not estimate between-process/day variation. Six cold and three warm pairs provide limited uncertainty estimates.','CPU p50/p95, document/phase timings, batch throughput, JS heap, browser-wide memory, and Wasm capacity are diagnostic-only and never affect the primary verdict. Unsupported optional measurements are explicitly unverified.','Every engine-created WebGPU device must report NVIDIA (vendor 0x10de or NVIDIA info); the host GPU list alone is insufficient.','Each queue-depth-one sample renders one frame and awaits debug_gpu_drain; its latency includes browser/WASM promise overhead and is not pure GPU time or v-sync playback latency.','Sustained throughput is reported in frames per second from the batched frame loop plus debug_gpu_drain; it is diagnostic, not a playback SLO.','Legacy load_scene, fresh preparation, and fresh synchronous build timings are stage details, not directly comparable A/B phases.','wasm_memory_capacity_bytes is the sum of unique exported WebAssembly.Memory buffer byte lengths after rendering; it reflects linear-memory capacity, not resident memory, and excludes GPU allocations and non-exported memories.','Visual hashes are reported separately because legacy/current text rendering may legitimately differ; the hard pixel assertion rejects empty output. SDK integrity and actual-draw checks remain hard failures. The legacy frame hash is a measurement reference, not a visual golden.','heap_bytes is Chromium usedJSHeapSize at the end of the sample, not peak process memory. user_agent_memory_bytes is browser-wide when supported; this harness does not establish cross-origin isolation, so unsupported readings remain unverified.']};
     mkdirSync(dirname(OUT),{recursive:true});writeFileSync(OUT,JSON.stringify(result,null,2)+'\n');process.stdout.write(JSON.stringify(result,null,2)+'\n');
     const verdicts=Object.values(scenarios).map(scenario=>scenario.verdict);
     if(verdicts.some(verdict=>verdict==='regression'||verdict==='hard-failure')) process.exitCode=1;

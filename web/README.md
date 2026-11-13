@@ -188,6 +188,14 @@ player-ready startup, warm player-ready startup, and queue-depth-one p95
 completion latency. Warm startup creates a player in a reused context; it does
 not measure `applySource()` cached-source rebuilding.
 
+Frame-cost comparisons pin the engine raster to the requested scale and disable
+the embed's adaptive quality controller in the benchmark page. The report
+includes the startup raster before pinning and verifies the fixed scale and
+raster dimensions before and after each measured phase. This isolates renderer
+cost at equal resolution; it does not measure adaptive playback behavior. The
+legacy frame hash is a measurement reference, not a visual golden. Review the
+current renderer's captured frames for visual quality.
+
 The 5% relative margin remains a signal. A primary metric blocks only when the
 lower bound of both its relative-ratio interval and absolute-delta interval
 exceeds the corresponding limits. A result is “no material regression” when
