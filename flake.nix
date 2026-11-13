@@ -71,14 +71,24 @@
         ] ++ wasm-bindgen-cli;
       in
       {
+        # Only orchestration lives in Nix: portable binaries and acceptance
+        # still run in the Ubuntu ABI-baseline containers, never against /nix/store.
+        devShells.dist-driver = pkgs.mkShell {
+          ANIMATIX_CI_SHELL = "dist-driver";
+          packages = with pkgs; [ docker-client python3 bash git coreutils
+            findutils gnugrep gnused gawk gnutar gzip ];
+        };
+
         devShells.default = with pkgs; mkShell rec {
+          ANIMATIX_CI_SHELL = "nix";
           buildInputs = [
             ffmpeg
             pkg-config
             rustPlatform.bindgenHook
             alsa-lib
             pipewire  # Provides libasound_module_pcm_pipewire.so for ALSA
-            nodejs
+            nodejs_22
+            bash git coreutils findutils gnugrep gnused gawk zip unzip perl
             # scripts/perf-bench.sh computes its regression verdict in Python;
             # without it the harness printed nothing and exited 0 — a green perf
             # gate that had compared nothing. It now refuses to run, so the shell
@@ -159,6 +169,7 @@
         # `ls $(rustc --print sysroot)/lib/rustlib/`; it must list
         # wasm32-unknown-unknown. From a login shell, or with `env -i`, it does.
         devShells.web-build = pkgs.mkShell {
+          ANIMATIX_CI_SHELL = "web";
           packages = webBuildPackages;
         };
 
@@ -169,6 +180,7 @@
         # WebGPU from the lavapipe ICD (no host GPU); node runs the CDP client
         # and python3 serves web/.
         devShells.web-ci = pkgs.mkShell {
+          ANIMATIX_CI_SHELL = "web-ci";
           packages = webBuildPackages ++ [
             pkgs.chromium
             pkgs.nodejs_22

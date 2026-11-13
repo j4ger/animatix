@@ -13,11 +13,11 @@
 # humans all run the same gate names, and the CI matrix is *generated from this
 # file* (`--list`), so a gate cannot exist in CI and not locally, or the reverse.
 #
-# The `shell=` column is the load-bearing part. Animatix needs four different
+# The `shell=` column is the load-bearing part. Animatix needs five different
 # environments and the wrong one fails in a way that looks like a code bug:
 #
-#   native  plain runner + rustup toolchain. Stays native for checks that need
-#           no system libraries (fmt, meta-version, eparts on mac/win).
+#   native  macOS/Windows OS verification with their native SDK/toolchain.
+#   dist-driver Nix tools orchestrating the isolated Ubuntu Docker distribution.
 #   nix     `nix develop` — provides ALSA + FFmpeg headers + Vulkan/Mesa + cog + cargo-audit.
 #   web     `nix develop .#web-build` — wasm32 std + the pinned wasm-bindgen CLI.
 #   web-ci  `nix develop .#web-ci` — web-build plus Chromium/node/python for web-smoke.
@@ -58,7 +58,7 @@ cd "$root"
 # Adding a gate here is the whole job: `--list` feeds the matrix, so CI picks it
 # up. Nothing in .github/ has to learn its name.
 GATE_TABLE='
-fmt|native|ubuntu-latest|rust-stable|pr
+fmt|nix|ubuntu-latest|nix|pr
 lint|nix|ubuntu-latest|nix|pr
 check|nix|ubuntu-latest|nix|pr
 test|nix|ubuntu-latest|nix|pr
@@ -68,16 +68,16 @@ examples|nix|ubuntu-latest|nix|pr
 ext-bench|nix|ubuntu-latest|nix|pr
 doc|nix|ubuntu-latest|nix|pr
 site-scenes|nix|ubuntu-latest|nix|pr
-embed-build|native|ubuntu-latest|node|pr
-web-runtime-tests|native|ubuntu-latest|node|pr
-web-sdk-tests|native|ubuntu-latest|node|pr
-native-package-tests|native|ubuntu-latest|none|pr
-perf-policy-tests|native|ubuntu-latest|none|pr
-content-sync|native|ubuntu-latest|none|pr
-structure|native|ubuntu-latest|none|pr
-meta-version|native|ubuntu-latest|rust-stable|pr
-workflows|native|ubuntu-latest|none|pr
-eparts|native|ubuntu-latest|rust-stable|pr
+embed-build|nix|ubuntu-latest|nix|pr
+web-runtime-tests|nix|ubuntu-latest|nix|pr
+web-sdk-tests|nix|ubuntu-latest|nix|pr
+native-package-tests|nix|ubuntu-latest|nix|pr
+perf-policy-tests|nix|ubuntu-latest|nix|pr
+content-sync|nix|ubuntu-latest|nix|pr
+structure|nix|ubuntu-latest|nix|pr
+meta-version|nix|ubuntu-latest|nix|pr
+workflows|nix|ubuntu-latest|nix|pr
+eparts|nix|ubuntu-latest|nix|pr
 eparts|native|macos-latest|rust-stable|pr
 eparts|native|windows-latest|rust-stable|pr
 audit|nix|ubuntu-latest|nix|pr
@@ -93,15 +93,15 @@ text-parity|web-ci|ubuntu-latest|nix|pr
 web-raster-proof|web-ci|ubuntu-latest|nix|pr
 web-transactions|web-ci|ubuntu-latest|nix|pr
 # Composite site-stage gates — never matrix jobs (see the stage note above).
-site-artifact|native|ubuntu-latest|node|site
-dist-site|native|ubuntu-latest|node|site
-dist-web-sdk|native|ubuntu-latest|node|site
-web-artifact-verify|native|ubuntu-latest|node|site
-web-artifact-stage|native|ubuntu-latest|node|site
-web-artifact-restore|native|ubuntu-latest|node|site
+site-artifact|nix|ubuntu-latest|nix|site
+dist-site|nix|ubuntu-latest|nix|site
+dist-web-sdk|nix|ubuntu-latest|nix|site
+web-artifact-verify|nix|ubuntu-latest|nix|site
+web-artifact-stage|nix|ubuntu-latest|nix|site
+web-artifact-restore|nix|ubuntu-latest|nix|site
 text-visual-parity|web-ci|ubuntu-latest|nix|site
 web-performance|web-ci|ubuntu-latest|nix|site
-dist-linux|native|ubuntu-latest|none|release
+dist-linux|dist-driver|ubuntu-latest|nix|release
 dist-macos|native|macos-latest|rust-stable|release
 dist-windows|native|windows-latest|rust-stable|release
 '
@@ -119,8 +119,8 @@ dist-windows|native|windows-latest|rust-stable|release
 # each job's shell/os/stage/setup against every gate it lists, so a job cannot
 # silently run a gate in the wrong environment.
 JOB_TABLE='
-Fast Checks|fmt structure workflows content-sync meta-version embed-build web-runtime-tests web-sdk-tests native-package-tests perf-policy-tests|native|ubuntu-latest|rust-stable node|pr
-eparts|eparts|native|ubuntu-latest|rust-stable|pr
+Fast Checks|fmt structure workflows content-sync meta-version embed-build web-runtime-tests web-sdk-tests native-package-tests perf-policy-tests|nix|ubuntu-latest|nix|pr
+eparts|eparts|nix|ubuntu-latest|nix|pr
 eparts|eparts|native|macos-latest|rust-stable|pr
 eparts|eparts|native|windows-latest|rust-stable|pr
 Check & Lint|commit audit scene-audit budget-audit check lint doc no-video|nix|ubuntu-latest|nix|pr
@@ -129,7 +129,7 @@ Render Smoke & Scenes|render-smoke site-scenes|nix|ubuntu-latest|nix|pr
 Benchmarks|ext-bench|nix|ubuntu-latest|nix|pr
 Web Check|wasm-check|web|ubuntu-latest|nix|pr
 Web Build|web-split-proof web-build web-sdk-integrity text-parity web-raster-proof web-smoke web-transactions|web-ci|ubuntu-latest|nix|pr
-dist-linux|dist-linux|native|ubuntu-latest|none|release
+dist-linux|dist-linux|dist-driver|ubuntu-latest|nix|release
 dist-macos|dist-macos|native|macos-latest|rust-stable|release
 dist-windows|dist-windows|native|windows-latest|rust-stable|release
 '
@@ -142,15 +142,32 @@ shell_for() {
     nix) echo 'nix develop --command' ;;
     web) echo 'nix develop .#web-build --command' ;;
     web-ci) echo 'nix develop .#web-ci --command' ;;
+    dist-driver) echo 'nix develop .#dist-driver --command' ;;
     none) echo '' ;;
     *) echo "unknown shell: $1" >&2; return 1 ;;
   esac
 }
 
-gate_shell() { awk -F'|' -v g="$1" '$1==g {print $2; exit}' <<<"$GATE_TABLE"; }
-gate_os() { awk -F'|' -v g="$1" '$1==g {print $3; exit}' <<<"$GATE_TABLE"; }
-gate_setup() { awk -F'|' -v g="$1" '$1==g {print $4; exit}' <<<"$GATE_TABLE"; }
-gate_stage() { awk -F'|' -v g="$1" '$1==g {print $5; exit}' <<<"$GATE_TABLE"; }
+# Repeated gate names (eparts) have different requirements on each OS.
+# RUNNER_OS is supplied by Actions; local queries derive it from uname.
+gate_field() {
+  local platform="${RUNNER_OS:-$(uname -s)}" runner
+  case "$platform" in
+    Linux) runner=ubuntu-latest ;;
+    macOS|Darwin) runner=macos-latest ;;
+    Windows|MINGW*|MSYS*|CYGWIN*) runner=windows-latest ;;
+    *) echo "error: unsupported platform: $platform" >&2; return 1 ;;
+  esac
+  awk -F'|' -v g="$1" -v col="$2" -v os="$runner" '
+    $1==g { count++; value=$col; if ($3==os) { found=1; selected=$col } }
+    END { if (found) print selected; else if (count==1) print value;
+          else { print "error: no unambiguous gate row for " g " on " os > "/dev/stderr"; exit 1 } }
+  ' <<<"$GATE_TABLE"
+}
+gate_shell() { gate_field "$1" 2; }
+gate_os() { gate_field "$1" 3; }
+gate_setup() { gate_field "$1" 4; }
+gate_stage() { gate_field "$1" 5; }
 
 # ── environment assertions ────────────────────────────────────────────────────
 # Each gate checks the environment it was promised, because the interesting
@@ -645,106 +662,8 @@ MSG
   # be compatible with every gate it runs. The old check compared gate names
   # only, which let a `web` gate run in a `web-ci` job and a site-stage gate sit
   # in no matrix at all without a word.
-  python3 - "$GATE_TABLE" "$JOB_TABLE" <<'PY' || return 1
-import sys
-
-ALLOWED_SHELLS = {"native", "nix", "web", "web-ci", "none"}
-ALLOWED_STAGES = {"pr", "release", "site"}
-
-def parse_rows(text, ncols, label):
-    rows = []
-    for lineno, line in enumerate(text.strip().splitlines(), 1):
-        if not line.strip() or line.lstrip().startswith("#"):
-            continue
-        parts = [p.strip() for p in line.split("|")]
-        if len(parts) != ncols:
-            print(f"error: {label} row {lineno} has {len(parts)} columns, expected {ncols}: {line}",
-                  file=sys.stderr)
-            sys.exit(1)
-        rows.append(parts)
-    return rows
-
-def setup_tokens(text):
-    # `none` means "no setup", not a token the job must also list.
-    tokens = set(text.split())
-    tokens.discard("none")
-    return tokens
-
-gates = []
-for name, shell, os_name, setup, stage in parse_rows(sys.argv[1], 5, "GATE_TABLE"):
-    if shell not in ALLOWED_SHELLS:
-        print(f"error: gate '{name}' has unknown shell '{shell}'", file=sys.stderr)
-        sys.exit(1)
-    if stage not in ALLOWED_STAGES:
-        print(f"error: gate '{name}' has unknown stage '{stage}'", file=sys.stderr)
-        sys.exit(1)
-    gates.append({
-        "name": name, "shell": shell, "os": os_name, "stage": stage,
-        "setup": setup_tokens(setup),
-    })
-
-jobs = []
-for name, gate_list, shell, os_name, setup, stage in parse_rows(sys.argv[2], 6, "JOB_TABLE"):
-    if shell not in ALLOWED_SHELLS:
-        print(f"error: job '{name}' has unknown shell '{shell}'", file=sys.stderr)
-        sys.exit(1)
-    if stage not in {"pr", "release"}:
-        print(f"error: job '{name}' has stage '{stage}'; JOB_TABLE jobs are pr/release only",
-              file=sys.stderr)
-        sys.exit(1)
-    jobs.append({
-        "name": name, "gates": gate_list.split(), "shell": shell, "os": os_name,
-        "stage": stage, "setup": setup_tokens(setup),
-    })
-
-seen = set()
-for gate in gates:
-    key = (gate["name"], gate["shell"], gate["os"], gate["stage"], tuple(sorted(gate["setup"])))
-    if key in seen:
-        print(f"error: duplicate GATE_TABLE row for {gate['name']} on {gate['os']}", file=sys.stderr)
-        sys.exit(1)
-    seen.add(key)
-
-def compatible(gate, job):
-    return (gate["shell"] == job["shell"] and gate["os"] == job["os"]
-            and gate["stage"] == job["stage"]
-            and gate["setup"].issubset(job["setup"]))
-
-bad = False
-for job in jobs:
-    for gate_name in job["gates"]:
-        candidates = [g for g in gates if g["name"] == gate_name]
-        if not candidates:
-            print(f"error: job '{job['name']}' schedules unknown gate '{gate_name}'", file=sys.stderr)
-            bad = True
-            continue
-        if not any(compatible(g, job) for g in candidates):
-            print(f"error: job '{job['name']}' ({job['shell']}/{job['os']}/{job['stage']}, "
-                  f"setup={sorted(job['setup'])}) is incompatible with gate '{gate_name}'", file=sys.stderr)
-            for g in candidates:
-                print(f"  gate row: {g['shell']}/{g['os']}/{g['stage']} setup={sorted(g['setup'])}",
-                      file=sys.stderr)
-            bad = True
-
-for gate in gates:
-    if gate["stage"] == "site":
-        if any(gate["name"] in job["gates"] for job in jobs):
-            print(f"error: site-stage composite gate '{gate['name']}' must not be a JOB_TABLE job",
-                  file=sys.stderr)
-            bad = True
-        continue
-    if not any(gate["name"] in job["gates"] and compatible(gate, job) for job in jobs):
-        print(f"error: gate '{gate['name']}' ({gate['shell']}/{gate['os']}/{gate['stage']}) "
-              f"has no compatible JOB_TABLE row", file=sys.stderr)
-        bad = True
-
-if bad:
-    sys.exit(1)
-site_gates = sorted({g["name"] for g in gates if g["stage"] == "site"})
-print("GATE_TABLE and JOB_TABLE parity verified (shell/os/setup/stage)")
-if site_gates:
-    print("site-stage composite gates (run by name, not matrix jobs): " + ", ".join(site_gates))
-PY
+  python3 scripts/ci-environment-tests.py
+  python3 scripts/ci-registry-check.py "$GATE_TABLE" "$JOB_TABLE"
 }
 
 gate_eparts() {
@@ -846,6 +765,7 @@ check_binary() {
 }
 
 gate_dist_linux() {
+  # The Nix dist-driver provides orchestration tools only.
   # The fixed Ubuntu 22.04 image supplies the baseline runtime ABI and private
   # FFmpeg headers. Do not build portable artifacts inside the Nix dev shell.
   command -v docker >/dev/null || { echo 'error: Docker is required for Linux distribution' >&2; return 1; }
@@ -931,6 +851,15 @@ run_gate() {
     return 2
   fi
   printf '\n\033[1m── gate: %s (shell=%s)\033[0m\n' "$name" "$(gate_shell "$name")"
+  local required
+  required="$(gate_shell "$name")"
+  if [ "$required" != native ] && [ "$required" != none ]; then
+    want_nix_shell "$name"
+    if [ "${ANIMATIX_CI_SHELL:-}" != "$required" ]; then
+      echo "error: $name requires shell=$required; got ${ANIMATIX_CI_SHELL:-unmarked}. Start from a clean shell: $(shell_for "$required") scripts/ci.sh gate $name" >&2
+      return 1
+    fi
+  fi
   "$fn"
 }
 
