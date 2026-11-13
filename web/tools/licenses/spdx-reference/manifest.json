@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "source": {
+    "name": "SPDX License List data",
+    "repository": "https://github.com/spdx/license-list-data",
+    "tag": "v3.29.0",
+    "revision": "31ba1a50e5397e00a304dbadc76531740e89ee48"
+  },
+  "licenses": [
+    {
+      "spdx_id": "MIT",
+      "path": "texts/MIT.txt",
+      "source_url": "https://raw.githubusercontent.com/spdx/license-list-data/31ba1a50e5397e00a304dbadc76531740e89ee48/text/MIT.txt",
+      "sha256": "b05785f9f18e6716bab63424b11454513b9943a222595b70411009202fc592b5"
+    },
+    {
+      "spdx_id": "Apache-2.0",
+      "path": "texts/Apache-2.0.txt",
+      "source_url": "https://raw.githubusercontent.com/spdx/license-list-data/31ba1a50e5397e00a304dbadc76531740e89ee48/text/Apache-2.0.txt",
+      "sha256": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff"
+    }
+  ],
+  "packages": [
+    {
+      "name": "fax",
+      "version": "0.2.6",
+      "license_expression": "MIT",
+      "repository": "https://github.com/pdf-rs/fax",
+      "revision": "40b226eb97b391355e971fd95a8dd532a4c127a0",
+      "path_in_vcs": "",
+      "registry_checksum": "f05de7d48f37cd6730705cbca900770cab77a89f413d23e100ad7fad7795a0ab",
+      "authors": ["Sebastian K <s3bk@protonmail.com>"],
+      "spdx_ids": ["MIT"]
+    },
+    {
+      "name": "fax_derive",
+      "version": "0.2.0",
+      "license_expression": "MIT",
+      "repository": "https://github.com/pdf-rs/fax",
+      "revision": "40b226eb97b391355e971fd95a8dd532a4c127a0",
+      "path_in_vcs": "derive",
+      "registry_checksum": "a0aca10fb742cb43f9e7bb8467c91aa9bcb8e3ffbc6a6f7389bb93ffc920577d",
+      "authors": ["Sebastian K <s3bk@protonmail.com>"],
+      "spdx_ids": ["MIT"]
+    },
+    {
+      "name": "glidesort",
+      "version": "0.1.2",
+      "license_expression": "MIT OR Apache-2.0",
+      "repository": "https://github.com/orlp/glidesort",
+      "revision": "c4df9518ec23a424a867b3d50967f0aaafe3c0fd",
+      "path_in_vcs": "",
+      "registry_checksum": "f2e102e6eb644d3e0b186fc161e4460417880a0a0b87d235f2e5b8fb30f2e9e0",
+      "authors": ["Orson Peters <orsonpeters@gmail.com>"],
+      "spdx_ids": ["MIT", "Apache-2.0"]
+    }
+  ]
+}
