@@ -88,14 +88,35 @@ def prepare_mold_source(repo: Path, output: ExperimentOutput,
             f"mold checkout SHA mismatch: expected {revision}, got {actual_revision or verify.returncode}"
         )
 
+    cargo_lock = source_dir / "Cargo.lock"
+    if not cargo_lock.is_file():
+        raise ExperimentFailure(f"pinned mold source has no Cargo.lock: {cargo_lock}")
+    cargo_lock_sha256_before = _file_sha256(cargo_lock)
     target = output.owned_target("mold-build-target", reset=True)
     build_env = _mold_source_build_environment(target)
     build = run_timed(
         "macos-mold-source-build",
-        ["cargo", "build", "--release", "--bin", "mold", "--features", ",".join(MOLD_MACHO_FEATURES)],
+        ["cargo", "build", "--locked", "--release", "--bin", "mold",
+         "--features", ",".join(MOLD_MACHO_FEATURES)],
         source_dir, build_env, output.logs_dir / "macos-mold-build.log", timeout_seconds=7200,
     )
+    try:
+        cargo_lock_sha256_after = _file_sha256(cargo_lock)
+        cargo_lock_error = None
+    except OSError as error:
+        cargo_lock_sha256_after = None
+        cargo_lock_error = str(error)
+    build["cargo_lock_path"] = str(cargo_lock)
+    build["cargo_lock_sha256_before"] = cargo_lock_sha256_before
+    build["cargo_lock_sha256_after"] = cargo_lock_sha256_after
+    build["cargo_lock_unchanged"] = cargo_lock_sha256_after == cargo_lock_sha256_before
+    if cargo_lock_error:
+        build["cargo_lock_error"] = cargo_lock_error
     output.append_record(build)
+    if not build["cargo_lock_unchanged"]:
+        raise ExperimentFailure(
+            f"pinned mold Cargo.lock changed during build; inspect {build['log_path']}"
+        )
     if build["exit_code"] or build["timed_out"]:
         raise ExperimentFailure(f"building pinned mold failed; see {build['log_path']}")
     binary = target / "release" / "mold"
@@ -114,6 +135,10 @@ def prepare_mold_source(repo: Path, output: ExperimentOutput,
         "source_repository": MOLD_SOURCE_REPOSITORY,
         "source_revision": revision,
         "source_actual_revision": actual_revision,
+        "cargo_lock_path": str(cargo_lock),
+        "cargo_lock_sha256_before": cargo_lock_sha256_before,
+        "cargo_lock_sha256_after": cargo_lock_sha256_after,
+        "cargo_lock_unchanged": cargo_lock_sha256_after == cargo_lock_sha256_before,
         "source_path": str(source_dir),
         "binary_path": str(binary),
         "binary_sha256": _file_sha256(binary),
