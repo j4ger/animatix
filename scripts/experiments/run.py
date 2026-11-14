@@ -22,6 +22,7 @@ from scripts.experiments.common import (
     ExperimentFailure, ExperimentOutput, run_timed, source_fingerprint,
 )
 from scripts.experiments.compat import run_linker_compatibility
+from scripts.experiments.gui_probe import mac_environment_preflight
 from scripts.experiments.linkers import (
     MOLD_SOURCE_REV, collect_elf_linker_evidence, collect_rustc_link_evidence,
     collect_wrapper_evidence, linker_arms, parse_rustc_link_invocations,
@@ -712,6 +713,42 @@ def run_linker_experiment(repo: Path, output_path: Path, platform: str,
         output.metadata["source_fingerprint_before"] = fingerprint_before
         output.metadata["mold_candidate"] = {"source_revision": mold_source_rev if platform == "macos" else None}
         output.write_metadata()
+        if platform == "macos":
+            preflight_path = (output.directory / "compatibility" / "macos" /
+                              "environment-preflight" / "preflight-window.png")
+            try:
+                preflight = mac_environment_preflight(preflight_path, timeout=45)
+            except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+                reason = str(error)
+                failure = {"phase": "environment-preflight", "reason": reason}
+                failures.append(failure)
+                output.append_record({"type": "environment-failure", "platform": platform, **failure})
+                output.metadata["macos_gui_preflight"] = {
+                    "status": "failed", "screenshot_path": str(preflight_path), "reason": reason,
+                }
+                fingerprint_after = source_fingerprint(repo)
+                output.metadata["source_fingerprint_after"] = fingerprint_after
+                if fingerprint_before != fingerprint_after:
+                    integrity = {"phase": "source-integrity",
+                                 "reason": "workspace source changed during the preflight"}
+                    failures.append(integrity)
+                    output.append_record({"type": "failure", "platform": platform, **integrity})
+                output.metadata["failures"] = failures
+                output.metadata["completed_at_utc"] = datetime.now(timezone.utc).isoformat()
+                output.metadata["result"] = {
+                    "status": "environment-preflight-failed", "measurement_count": 0,
+                    "arms": [], "warm_rounds": warm_rounds, "cold_rounds": cold_rounds,
+                    "compatibility": [],
+                    "environment_preflight": output.metadata["macos_gui_preflight"],
+                }
+                output.write_metadata()
+                raise ExperimentFailure(
+                    f"macOS GUI environment preflight failed before linker setup; inspect {output.metadata_path}"
+                ) from error
+            output.metadata["macos_gui_preflight"] = {"status": "passed", **preflight}
+            output.append_record({"type": "environment-preflight", "platform": platform,
+                                 "status": "passed", **preflight})
+            output.write_metadata()
         mold_binary = None
         if platform == "macos":
             try:
@@ -792,6 +829,7 @@ def run_linker_experiment(repo: Path, output_path: Path, platform: str,
                 "CLI help/version and PNG image render; GUI help/version and visible window launch; "
                 "macOS additionally checks native dependencies, app bundle/icon, ZIP, and packaged GUI launch"
             ),
+            "environment_preflight": output.metadata.get("macos_gui_preflight"),
         }
         output.write_metadata()
     if failures:

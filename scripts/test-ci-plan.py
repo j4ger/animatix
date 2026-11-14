@@ -236,7 +236,8 @@ class PlannerTests(unittest.TestCase):
     def test_dot_paths_preserve_hidden_directories_and_reject_traversal(self):
         self.assertEqual(PLAN.normalize_repo_path("./.github/workflows/ci.yml"), ".github/workflows/ci.yml")
         self.assertEqual(PLAN.normalize_repo_path(".cargo/config.toml"), ".cargo/config.toml")
-        for path in ("/tmp/a", "C:\\repo\\file", "../outside", "crates/../Cargo.lock", "foo\\..\\secret"):
+        for path in ("/tmp/a", "C:\\repo\\file", "../outside", "crates/../Cargo.lock",
+                     "foo\\..\\secret", "crates\\animatix-gui\\src\\app.rs"):
             with self.subTest(path=path), self.assertRaises(PLAN.PlanError):
                 PLAN.normalize_repo_path(path)
         for path in ("./.github/workflows/ci.yml", ".cargo/config.toml"):

@@ -89,10 +89,14 @@ competing benchmarks during a measurement. Cold builds and warm execution are
 separate populations. Five paired warm rounds and three cold rounds are the
 default; failed candidates remain failed evidence, never a silent fallback.
 
-Hosted manual trials set dev/test debug information to zero so independent
-candidate targets fit their disks; macOS application trials keep the `dist`
-profile. They record those overrides and are not evidence about the default
-debug profile. Local trials can retain the default profile on a larger disk.
+Hosted Linux linker trials use the normal dev/test debug level (`2`) and
+four Cargo build jobs, with one workload per runner and unused image SDKs
+removed to reserve disk for independent candidate targets. Linux runner trials
+and hosted macOS linker trials keep dev/test debug information at zero; macOS
+application packaging still exercises the `dist` profile. Evidence records
+these settings. Linux linker results represent the normal debug profile; the
+runner and macOS debug-zero results do not. Local trials can use other profiles,
+but comparisons across profiles are not interchangeable.
 For the reference check comparison, pass a pre-generator commit through
 `ANIMATIX_REFERENCE_BASE_SHA` and run the named
 `property-reference-experiment` gate in the experiment shell.

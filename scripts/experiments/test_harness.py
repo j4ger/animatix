@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from pathlib import Path
 import fcntl
 import json
@@ -21,6 +22,16 @@ from scripts.experiments.coverage import parse_cargo_executed_ids, parse_doc_ids
 
 
 class ExperimentOutputTests(unittest.TestCase):
+    def test_nix_wrapper_delegate_parser_requires_exactly_one_store_target(self):
+        wrapper = "#!/bin/bash\nif test -x /bin/true; then\n    linker=/nix/store/abc-binutils/bin/ld.bfd\nfi\n"
+        self.assertEqual(
+            linkers._parse_nix_wrapper_delegate(wrapper),
+            Path("/nix/store/abc-binutils/bin/ld.bfd"),
+        )
+        ambiguous = wrapper + "linker=/nix/store/other/bin/ld.bfd\n"
+        with self.assertRaisesRegex(ExperimentFailure, "found 2"):
+            linkers._parse_nix_wrapper_delegate(ambiguous)
+
     def test_only_marked_target_can_be_reset(self):
         with tempfile.TemporaryDirectory() as temporary:
             repo = Path(temporary)
@@ -54,6 +65,31 @@ class ExperimentOutputTests(unittest.TestCase):
             with self.assertRaises(ExperimentFailure):
                 ExperimentOutput(repo, Path("target/experiments/linker"), "linker", {})
             self.assertTrue(keep.exists())
+
+    def test_macos_gui_preflight_failure_is_recorded_before_mold_setup(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repo = Path(temporary)
+            output_path = Path("target/experiments/linker-macos-preflight")
+            with mock.patch.object(experiment_run, "_machine_info", return_value={}), \
+                 mock.patch.object(experiment_run, "source_fingerprint", return_value={"revision": "test"}), \
+                 mock.patch.object(ExperimentOutput, "machine_lock", return_value=nullcontext()), \
+                 mock.patch.object(experiment_run, "mac_environment_preflight",
+                                   side_effect=RuntimeError("Automation permission denied")), \
+                 mock.patch.object(experiment_run, "prepare_mold_source") as build_mold:
+                with self.assertRaisesRegex(ExperimentFailure, "environment preflight failed before linker setup"):
+                    experiment_run.run_linker_experiment(
+                        repo, output_path, "macos", warm_rounds=1, cold_rounds=0, workloads=("cli",),
+                    )
+                build_mold.assert_not_called()
+
+            output = repo / output_path
+            metadata = json.loads((output / "metadata.json").read_text())
+            record = json.loads((output / "records.jsonl").read_text().splitlines()[0])
+            self.assertEqual(metadata["macos_gui_preflight"]["status"], "failed")
+            self.assertEqual(metadata["result"]["status"], "environment-preflight-failed")
+            self.assertEqual(metadata["result"]["measurement_count"], 0)
+            self.assertEqual(metadata["failures"][0]["phase"], "environment-preflight")
+            self.assertEqual(record["type"], "environment-failure")
 
     def test_recorded_output_cannot_mix_runs_or_source_revisions(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -241,6 +277,17 @@ class CargoStreamCoverageTests(unittest.TestCase):
 
 
 class LinkerEvidenceTests(unittest.TestCase):
+    def test_mold_source_build_honors_selected_toolchain_with_stable_fallback(self):
+        target = Path("target/mold")
+        with mock.patch.dict(os.environ, {"RUSTUP_TOOLCHAIN": "1.100.0"}, clear=True):
+            selected = linkers._mold_source_build_environment(target)
+        self.assertEqual(selected["RUSTUP_TOOLCHAIN"], "1.100.0")
+        self.assertEqual(selected["CARGO_TARGET_DIR"], str(target))
+
+        with mock.patch.dict(os.environ, {}, clear=True):
+            fallback = linkers._mold_source_build_environment(target)
+        self.assertEqual(fallback["RUSTUP_TOOLCHAIN"], "stable")
+
     def test_cargo_executable_artifacts_only_coalesce_identical_identity(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -514,7 +561,10 @@ class LinkerEvidenceTests(unittest.TestCase):
                 path.write_text("#!/bin/sh\necho test-tool\n")
                 path.chmod(0o755)
                 tools[name] = str(path)
-            with mock.patch.object(linkers.shutil, "which", side_effect=lambda name: tools.get(name)):
+            with mock.patch.object(linkers.shutil, "which", side_effect=lambda name: tools.get(name)), \
+                 mock.patch.object(linkers, "_nix_linker_wrapper_inventory",
+                                   side_effect=lambda path: {"wrapper_path": str(path)}), \
+                 mock.patch.object(linkers, "_rust_default_lld_inventory", return_value={"test": True}):
                 arms, inventory, failures = linkers.linker_arms("linux", output)
             self.assertEqual([arm["id"] for arm in arms], ["default", "system-bfd", "mold"])
             self.assertFalse(failures)

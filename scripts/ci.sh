@@ -93,6 +93,7 @@ dist-web-sdk|nix|ubuntu-latest|nix|site
 web-artifact-verify|nix|ubuntu-latest|nix|site
 web-artifact-stage|nix|ubuntu-latest|nix|site
 web-artifact-restore|nix|ubuntu-latest|nix|site
+web-artifact-absence|none|ubuntu-latest|none|control
 text-visual-parity|web-ci|ubuntu-latest|nix|site
 web-performance|web-ci|ubuntu-latest|nix|site
 dist-linux|dist-driver|ubuntu-latest|nix|release
@@ -102,8 +103,8 @@ ci-plan|none|ubuntu-latest|none|control
 ci-result|none|ubuntu-latest|none|control
 native-cli-artifact|nix|ubuntu-latest|nix|control
 verify-native-cli|nix|ubuntu-latest|nix|control
-contract-layout-experiment|nix|ubuntu-latest|nix|control
-font-profile-experiment|nix|ubuntu-latest|nix|control
+contract-layout-experiment|nix|ubuntu-latest|nix|experiment
+font-profile-experiment|nix|ubuntu-latest|nix|experiment
 linker-experiment|nix|ubuntu-latest|nix|experiment
 linker-experiment|native|macos-latest|rust-stable|experiment
 runner-experiment|nix|ubuntu-latest|nix|experiment
@@ -141,6 +142,8 @@ Linker Experiment|linker-experiment|nix|ubuntu-latest|nix|experiment|linker-linu
 Linker Experiment|linker-experiment|native|macos-latest|rust-stable|experiment|linker-macos
 Runner Experiment|runner-experiment|nix|ubuntu-latest|nix|experiment|runner-linux
 Property Reference Experiment|property-reference-experiment|nix|ubuntu-latest|nix|experiment|property-reference-linux
+Contract Layout Experiment|contract-layout-experiment|nix|ubuntu-latest|nix|experiment|contract-layout-linux
+Font Profile Experiment|font-profile-experiment|nix|ubuntu-latest|nix|experiment|font-profile-linux
 '
 
 # The commands each gate expects to be run by. Kept as prose so `ci.sh shell`
@@ -600,10 +603,15 @@ gate_web_artifact_stage() {
   node web/tools/sdk.mjs verify target/web-runtime-artifact --release
 }
 
+gate_web_artifact_absence() {
+  python3 scripts/ci-control.py artifact-absence \
+    --run-id "${ANIMATIX_SOURCE_RUN_ID:?missing source workflow run ID}" --name web-runtime
+}
+
 gate_web_artifact_restore() {
   want_node
   # Downloads stay separate from the public SDK until validation succeeds.
-  # A failed download can then safely fall back to a fresh source build.
+  # Only API-confirmed missing/expired artifacts may fall back to a source build.
   node web/tools/sdk.mjs verify target/downloaded-web-runtime --release --current --commit "${ANIMATIX_ARTIFACT_COMMIT:-$(git rev-parse HEAD)}" --version "$(workspace_version)"
   if [ -e web/runtime ] || [ -L web/runtime ]; then
     echo 'error: refusing to overwrite an existing SDK during artifact restore' >&2

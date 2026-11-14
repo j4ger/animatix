@@ -175,7 +175,11 @@ def package_for_path(path: str, roots: dict[str, Path], repo: Path):
 
 def normalize_repo_path(path: str) -> str:
     """Reject unsafe/non-repository paths and normalize only a leading ./."""
-    normalized = path.replace("\\", "/")
+    # git diff emits slash-separated paths; a POSIX filename containing a
+    # literal backslash must not masquerade as a known package path.
+    if "\\" in path:
+        raise PlanError(f"literal backslash is not a Git repository path: {path!r}")
+    normalized = path
     while normalized.startswith("./"):
         normalized = normalized[2:]
     parts = normalized.split("/")

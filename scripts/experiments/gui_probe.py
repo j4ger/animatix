@@ -10,7 +10,9 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+import tempfile
 import time
+from collections.abc import Mapping
 
 
 def _image_record(path: Path) -> dict:
@@ -37,43 +39,75 @@ def _terminate_group(process: subprocess.Popen, timeout: float = 5):
         process.wait()
 
 
+def _linux_child_env(profile_root: Path, base_env: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Return a private X11 environment for a Linux GUI child, without mutating the caller."""
+    env = dict(os.environ if base_env is None else base_env)
+    display = env.get("DISPLAY", "")
+    display_number = display[1:].split(".", 1)[0] if display.startswith(":") else ""
+    if not display_number.isdigit():
+        raise RuntimeError("Linux GUI probe requires an Xvfb DISPLAY (launch it under xvfb-run)")
+
+    env.pop("WAYLAND_DISPLAY", None)
+    env.pop("WAYLAND_SOCKET", None)
+    profile_root = profile_root.resolve()
+    for variable, directory in (
+        ("XDG_CONFIG_HOME", "config"),
+        ("XDG_DATA_HOME", "data"),
+        ("XDG_CACHE_HOME", "cache"),
+    ):
+        path = profile_root / directory
+        path.mkdir(parents=True, exist_ok=True)
+        env[variable] = str(path)
+    env["XDG_SESSION_TYPE"] = "x11"
+    return env
+
+
 def _linux_probe(binary: Path, scene: Path, screenshot: Path, timeout: float) -> dict:
     for tool in ("xdotool", "import"):
         if not shutil_which(tool):
             raise RuntimeError(f"required Linux GUI probe tool is missing: {tool}")
     screenshot.parent.mkdir(parents=True, exist_ok=True)
-    process = subprocess.Popen([str(binary), str(scene)], start_new_session=True)
-    deadline = time.monotonic() + timeout
-    windows = []
-    visible_since = None
-    try:
-        while time.monotonic() < deadline:
-            if process.poll() is not None:
-                raise RuntimeError(f"GUI exited before opening a visible window: {process.returncode}")
-            found = subprocess.run(
-                ["xdotool", "search", "--onlyvisible", "--name", "Animatix"],
-                capture_output=True, text=True, check=False,
-            )
-            windows = [item for item in found.stdout.splitlines() if item.strip()]
-            if found.returncode == 0 and windows:
-                if visible_since is None:
-                    visible_since = time.monotonic()
-                if time.monotonic() - visible_since >= 3:
-                    capture = subprocess.run(
-                        ["import", "-window", "root", str(screenshot)], capture_output=True,
-                        text=True, check=False, timeout=30,
-                    )
-                    if capture.returncode:
-                        raise RuntimeError(f"ImageMagick screenshot failed: {capture.stderr.strip()}")
-                    record = _image_record(screenshot)
-                    record.update({"platform": "linux", "window_ids": windows, "process_pid": process.pid})
-                    return record
-            else:
-                visible_since = None
-            time.sleep(0.25)
-        raise RuntimeError(f"GUI window did not appear within {timeout}s")
-    finally:
-        _terminate_group(process)
+    with tempfile.TemporaryDirectory(prefix="animatix-gui-profile-", dir=screenshot.parent) as profile:
+        child_env = _linux_child_env(Path(profile))
+        process = subprocess.Popen(
+            [str(binary), str(scene)], env=child_env, start_new_session=True,
+        )
+        deadline = time.monotonic() + timeout
+        windows = []
+        visible_since = None
+        try:
+            while time.monotonic() < deadline:
+                if process.poll() is not None:
+                    raise RuntimeError(f"GUI exited before opening a visible window: {process.returncode}")
+                found = subprocess.run(
+                    ["xdotool", "search", "--onlyvisible", "--name", "Animatix"],
+                    capture_output=True, text=True, check=False,
+                )
+                windows = [item for item in found.stdout.splitlines() if item.strip()]
+                if found.returncode == 0 and windows:
+                    if visible_since is None:
+                        visible_since = time.monotonic()
+                    if time.monotonic() - visible_since >= 3:
+                        capture = subprocess.run(
+                            ["import", "-window", "root", str(screenshot)], capture_output=True,
+                            text=True, check=False, timeout=30,
+                        )
+                        if capture.returncode:
+                            raise RuntimeError(f"ImageMagick screenshot failed: {capture.stderr.strip()}")
+                        record = _image_record(screenshot)
+                        record.update({
+                            "platform": "linux", "window_ids": windows, "process_pid": process.pid,
+                            "display": child_env["DISPLAY"], "xdg_session_type": "x11",
+                            "xdg_profile_isolated": True,
+                        })
+                        return record
+                else:
+                    visible_since = None
+                time.sleep(0.25)
+            raise RuntimeError(f"GUI window did not appear within {timeout}s")
+        finally:
+            _terminate_group(process)
+
 
 
 def _pids_named(name: str) -> set[int]:
@@ -114,6 +148,28 @@ def _mac_window_names(process_name: str) -> list[str]:
     if not value or value == "missing value":
         return []
     return [name.strip() for name in value.split(",") if name.strip()]
+
+
+def mac_environment_preflight(screenshot: Path, timeout: float = 45) -> dict:
+    """Check the hosted macOS display and capture permissions before long builds."""
+    screenshot.parent.mkdir(parents=True, exist_ok=True)
+    launch = subprocess.run(
+        ["open", "-a", "Finder", str(screenshot.parent)], capture_output=True,
+        text=True, check=False, timeout=30,
+    )
+    if launch.returncode:
+        raise RuntimeError(f"could not open Finder for GUI preflight: {launch.stderr.strip()}")
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        windows = _mac_window_names("Finder")
+        if windows:
+            record = _mac_capture(screenshot)
+            record.update({"platform": "macos", "application": "Finder",
+                           "window_names": windows})
+            return record
+        time.sleep(0.25)
+    raise RuntimeError(f"Finder window did not appear within {timeout}s during macOS GUI preflight")
 
 
 def _mac_binary_probe(binary: Path, scene: Path, screenshot: Path, timeout: float) -> dict:

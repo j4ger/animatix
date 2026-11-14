@@ -29,6 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ANIMATIX_ARTIFACT_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+      ANIMATIX_SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -51,16 +52,22 @@ jobs:
           name: animatix
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           extraPullNames: 'nix-community'
+      - name: Confirm failed download means SDK artifact is absent or expired
+        id: sdk_absence
+        if: github.event_name == 'workflow_run' && steps.sdk.outcome != 'success'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: nix develop --command scripts/ci.sh gate web-artifact-absence
       # A successful download that is corrupt, incomplete or from another SHA
       # fails here. Only an absent artifact/manual dispatch may rebuild.
       - name: Verify downloaded SDK
         if: steps.sdk.outcome == 'success'
         run: nix develop --command scripts/ci.sh gate web-artifact-restore
       - name: Build and test SDK when CI artifact is absent
-        if: github.event_name != 'workflow_run' || steps.sdk.outcome != 'success'
+        if: github.event_name != 'workflow_run' || (steps.sdk.outcome != 'success' && steps.sdk_absence.outcome == 'success')
         run: nix develop .#web-ci --command scripts/ci.sh gate web-split-proof web-build web-sdk-integrity text-parity web-raster-proof web-smoke web-transactions
       - name: Site scenes
-        if: github.event_name != 'workflow_run' || steps.sdk.outcome != 'success'
+        if: github.event_name != 'workflow_run' || (steps.sdk.outcome != 'success' && steps.sdk_absence.outcome == 'success')
         run: nix develop --command scripts/ci.sh gate site-scenes
       - name: Assemble verified site
         run: nix develop --command scripts/ci.sh gate web-artifact-verify site-artifact

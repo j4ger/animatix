@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import binascii
+import hashlib
 import json
 import os
 import struct
@@ -120,6 +121,60 @@ class CompatibilityTests(unittest.TestCase):
                  mock.patch.dict(os.environ, {"ANIMATIX_EXPECTED_LLD_SHA256": "0" * 64}):
                 with self.assertRaisesRegex(ExperimentFailure, "SHA-256 differs"):
                     linkers._find_macos_lld()
+
+    def test_linux_child_environment_is_private_x11_profile(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            profile = Path(temporary) / "gui-profile"
+            parent = {
+                "DISPLAY": ":99", "WAYLAND_DISPLAY": "wayland-0", "WAYLAND_SOCKET": "/tmp/socket",
+                "XDG_SESSION_TYPE": "wayland", "XDG_CONFIG_HOME": "/user/config",
+                "XDG_DATA_HOME": "/user/data", "XDG_CACHE_HOME": "/user/cache", "PATH": "/usr/bin",
+            }
+            original = dict(parent)
+            child = gui_probe._linux_child_env(profile, parent)
+            self.assertEqual(parent, original)
+            self.assertEqual(child["DISPLAY"], ":99")
+            self.assertEqual(child["XDG_SESSION_TYPE"], "x11")
+            self.assertNotIn("WAYLAND_DISPLAY", child)
+            self.assertNotIn("WAYLAND_SOCKET", child)
+            self.assertEqual(child["PATH"], "/usr/bin")
+            for variable, directory in (("XDG_CONFIG_HOME", "config"),
+                                        ("XDG_DATA_HOME", "data"),
+                                        ("XDG_CACHE_HOME", "cache")):
+                self.assertEqual(Path(child[variable]), profile.resolve() / directory)
+                self.assertTrue(Path(child[variable]).is_dir())
+            with self.assertRaisesRegex(RuntimeError, "xvfb-run"):
+                gui_probe._linux_child_env(profile, {"WAYLAND_DISPLAY": "wayland-0"})
+
+    def test_smoke_scene_copy_preserves_bytes_and_library_tree(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            repo = root / "repo"
+            scene = repo / "examples/basics/00_hello.amx"
+            library = repo / "web/demos/lib"
+            scene.parent.mkdir(parents=True)
+            library.mkdir(parents=True)
+            scene_bytes = b'import "../../web/demos/lib/theme.amx"\nimport "../../web/demos/lib/stage.amx"\nconfig {}\n'
+            scene.write_bytes(scene_bytes)
+            (library / "theme.amx").write_bytes(b"theme source\n")
+            (library / "stage.amx").write_bytes(b"stage source\n")
+            (library / "shared.amx").write_bytes(b"additional sibling\n")
+            smoke_root = root / "owned-output"
+
+            staged_scene, proof = compat._stage_smoke_scene(
+                repo, Path("examples/basics/00_hello.amx"), smoke_root,
+            )
+
+            self.assertEqual(staged_scene.read_bytes(), scene_bytes)
+            self.assertTrue(proof["relative_layout_mirrored"])
+            source_files = [scene, *sorted(path for path in library.rglob("*") if path.is_file())]
+            self.assertEqual(len(proof["files"]), len(source_files))
+            for record in proof["files"]:
+                source_path = Path(record["source"])
+                destination = Path(record["destination"])
+                self.assertEqual(source_path.read_bytes(), destination.read_bytes())
+                self.assertEqual(record["source_sha256"], record["destination_sha256"])
+                self.assertEqual(record["source_sha256"], hashlib.sha256(source_path.read_bytes()).hexdigest())
 
     def test_macos_window_probe_requires_and_returns_real_window_names(self):
         result = mock.Mock(returncode=0, stdout="Animatix, Settings\n", stderr="")

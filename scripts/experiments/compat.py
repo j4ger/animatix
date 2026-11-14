@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 import shutil
@@ -16,6 +17,63 @@ from scripts.experiments.linkers import (
     collect_elf_linker_evidence, collect_rustc_link_evidence,
     collect_wrapper_evidence,
 )
+
+
+def _stage_smoke_scene(repo: Path, source: Path, smoke_root: Path) -> tuple[Path, dict]:
+    """Mirror the smoke scene and its imported demo library into owned output."""
+    repo = Path(repo).resolve()
+    source = Path(source)
+    source = (repo / source).resolve() if not source.is_absolute() else source.resolve()
+    try:
+        source_relative = source.relative_to(repo)
+    except ValueError as error:
+        raise ExperimentFailure(f"smoke scene is outside the workspace: {source}") from error
+    if not source.is_file():
+        raise ExperimentFailure(f"compatibility smoke scene is missing: {source}")
+
+    library = (repo / "web/demos/lib").resolve()
+    try:
+        library_relative = library.relative_to(repo)
+    except ValueError as error:
+        raise ExperimentFailure(f"smoke library is outside the workspace: {library}") from error
+    if not library.is_dir():
+        raise ExperimentFailure(f"compatibility smoke library is missing: {library}")
+    for path in library.rglob("*"):
+        if path.is_symlink():
+            raise ExperimentFailure(f"smoke library contains a symlink: {path}")
+        if not path.is_dir() and not path.is_file():
+            raise ExperimentFailure(f"smoke library contains a non-file entry: {path}")
+
+    fixture_root = Path(smoke_root).resolve() / "source-tree"
+    if fixture_root.exists() and any(fixture_root.iterdir()):
+        raise ExperimentFailure(f"smoke fixture directory is not fresh: {fixture_root}")
+    fixture_root.mkdir(parents=True, exist_ok=True)
+    staged_scene = fixture_root / source_relative
+    staged_scene.parent.mkdir(parents=True, exist_ok=True)
+    staged_scene.write_bytes(source.read_bytes())
+    staged_library = fixture_root / library_relative
+    shutil.copytree(library, staged_library)
+
+    source_files = [source, *sorted(path for path in library.rglob("*") if path.is_file())]
+    files = []
+    for original in source_files:
+        relative = original.relative_to(repo)
+        destination = fixture_root / relative
+        source_bytes = original.read_bytes()
+        staged_bytes = destination.read_bytes()
+        source_hash = hashlib.sha256(source_bytes).hexdigest()
+        destination_hash = hashlib.sha256(staged_bytes).hexdigest()
+        if source_bytes != staged_bytes or source_hash != destination_hash:
+            raise ExperimentFailure(f"smoke fixture copy differs from source: {relative}")
+        files.append({
+            "path": relative.as_posix(), "source": str(original),
+            "destination": str(destination), "bytes": len(source_bytes),
+            "source_sha256": source_hash, "destination_sha256": destination_hash,
+        })
+    return staged_scene, {
+        "staged_scene": str(staged_scene), "staged_library": str(staged_library),
+        "relative_layout_mirrored": True, "files": files,
+    }
 
 
 SMOKE_SCENE = Path("examples/basics/00_hello.amx")
@@ -253,8 +311,6 @@ def _run_mac_package(output: ExperimentOutput, repo: Path, platform: str, arm: d
 def run_linker_compatibility(output: ExperimentOutput, repo: Path, platform: str,
                              arm: dict, targets: dict) -> dict:
     """Exercise the measured CLI/GUI binaries from one linker arm."""
-    if not SMOKE_SCENE.is_file():
-        raise ExperimentFailure(f"compatibility smoke scene is missing: {SMOKE_SCENE}")
     cli = Path(targets["cli"]["binary_path"])
     gui = Path(targets["gui"]["binary_path"])
     if not cli.is_file() or not gui.is_file():
@@ -271,10 +327,11 @@ def run_linker_compatibility(output: ExperimentOutput, repo: Path, platform: str
 
     smoke_root = output.directory / "compatibility" / platform / arm["id"]
     smoke_root.mkdir(parents=True, exist_ok=True)
+    smoke_scene, smoke_fixture = _stage_smoke_scene(repo, SMOKE_SCENE, smoke_root)
     png = smoke_root / "hello.png"
     render = _run(
         output, repo, platform, arm, None, "cli-image-render",
-        [str(cli), "image", str(SMOKE_SCENE), "--time", "1.0", "--width", "320", "--height", "180",
+        [str(cli), "image", str(smoke_scene), "--time", "1.0", "--width", "320", "--height", "180",
          "--output", str(png)],
         timeout=1800,
     )
@@ -283,11 +340,11 @@ def run_linker_compatibility(output: ExperimentOutput, repo: Path, platform: str
     if platform == "linux":
         gui_command = ["xvfb-run", "-a", sys.executable,
                        "scripts/experiments/gui_probe.py", "linux", str(gui),
-                       str(SMOKE_SCENE), str(smoke_root / "gui.png"), "--timeout", "90"]
+                       str(smoke_scene), str(smoke_root / "gui.png"), "--timeout", "90"]
         gui_probe = _run(output, repo, platform, arm, None, "gui-launch", gui_command, timeout=150)
     elif platform == "macos":
         gui_command = [sys.executable, "scripts/experiments/gui_probe.py", "macos-bundle",
-                       str(smoke_root / "package/Animatix.app"), str(SMOKE_SCENE),
+                       str(smoke_root / "package/Animatix.app"), str(smoke_scene),
                        str(smoke_root / "gui.png"), "--timeout", "90"]
         # Construct and check the application package before attempting GUI launch.
         package_record = _run_mac_package(output, repo, platform, arm, None, cli, gui, {})
@@ -324,6 +381,7 @@ def run_linker_compatibility(output: ExperimentOutput, repo: Path, platform: str
         "gui_version_log": gui_version["log_path"],
         "render_log": render["log_path"],
         "rendered_image": image,
+        "smoke_fixture": smoke_fixture,
         "gui_launch_log": gui_probe["log_path"],
         "gui_probe_output": Path(gui_probe["log_path"]).read_text(encoding="utf-8", errors="replace").strip(),
         "linker_evidence": linker_evidence,

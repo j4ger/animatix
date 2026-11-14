@@ -9,6 +9,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qs, urlparse
 from unittest.mock import patch
 
 from ci_topology import artifact, transform
@@ -114,6 +116,107 @@ class ControlTests(unittest.TestCase):
             record = json.loads(output.read_text())
             self.assertEqual(record["exit_code"], 1)
             self.assertGreaterEqual(record["elapsed_seconds"], 0)
+
+
+class ArtifactAbsenceTests(unittest.TestCase):
+    class Response:
+        def __init__(self, payload):
+            self.payload = json.dumps(payload).encode()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return self.payload
+
+    def lookup(self, payloads):
+        requests = []
+
+        def opener(request, timeout):
+            requests.append((request, timeout))
+            page = int(parse_qs(urlparse(request.full_url).query)["page"][0])
+            payload = payloads[page - 1]
+            if isinstance(payload, BaseException):
+                raise payload
+            return self.Response(payload)
+
+        result = CONTROL.confirm_artifact_unavailable(
+            "owner/repo", "12345", "web-runtime", "secret-token",
+            "https://api.github.test", opener,
+        )
+        return result, requests
+
+    def test_confirmed_missing_artifact_allows_fallback(self):
+        result, requests = self.lookup([{"total_count": 0, "artifacts": []}])
+        self.assertEqual(result, "missing")
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(requests[0][0].get_header("Authorization"), "Bearer secret-token")
+
+    def test_confirmed_expired_artifact_allows_fallback(self):
+        result, _requests = self.lookup([{
+            "total_count": 1,
+            "artifacts": [{"id": 1, "name": "web-runtime", "expired": True,
+                           "workflow_run": {"id": 12345}}],
+        }])
+        self.assertEqual(result, "expired")
+
+    def test_present_nonexpired_artifact_blocks_fallback(self):
+        with self.assertRaisesRegex(ValueError, "exists and is not expired"):
+            self.lookup([{
+                "total_count": 1,
+                "artifacts": [{"id": 1, "name": "web-runtime", "expired": False,
+                               "workflow_run": {"id": 12345}}],
+            }])
+
+    def test_api_auth_and_network_errors_block_fallback_without_leaking_token(self):
+        for failure in (
+            HTTPError("https://api.github.test", 401, "Unauthorized", {}, None),
+            URLError("network unavailable"),
+        ):
+            with self.subTest(failure=type(failure).__name__), self.assertRaises(ValueError) as raised:
+                self.lookup([failure])
+            self.assertNotIn("secret-token", str(raised.exception))
+
+    def test_lookup_paginates_before_confirming_absence(self):
+        first_page = {
+            "total_count": 101,
+            "artifacts": [{"id": index, "name": f"other-{index}", "expired": False}
+                          for index in range(1, 101)],
+        }
+        second_page = {
+            "total_count": 101,
+            "artifacts": [{"id": 101, "name": "web-runtime", "expired": False,
+                           "workflow_run": {"id": 12345}}],
+        }
+        with self.assertRaisesRegex(ValueError, "exists and is not expired"):
+            self.lookup([first_page, second_page])
+
+    def test_missing_artifact_name_in_any_inventory_row_blocks_fallback(self):
+        with self.assertRaisesRegex(ValueError, "malformed artifact identity/status"):
+            self.lookup([{
+                "total_count": 1,
+                "artifacts": [{"id": 1, "expired": False}],
+            }])
+
+    def test_empty_artifact_name_in_any_inventory_row_blocks_fallback(self):
+        with self.assertRaisesRegex(ValueError, "malformed artifact identity/status"):
+            self.lookup([{
+                "total_count": 1,
+                "artifacts": [{"id": 1, "name": "", "expired": False}],
+            }])
+
+    def test_invalid_artifact_id_or_missing_expiration_status_blocks_fallback(self):
+        for item in (
+            {"id": 0, "name": "other", "expired": False},
+            {"id": 2, "name": "other"},
+        ):
+            with self.subTest(item=item), self.assertRaisesRegex(
+                ValueError, "malformed artifact identity/status",
+            ):
+                self.lookup([{"total_count": 1, "artifacts": [item]}])
 
 
 if __name__ == "__main__":

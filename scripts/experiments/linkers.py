@@ -55,6 +55,15 @@ def _run_setup(output: ExperimentOutput, platform: str, name: str,
     return record
 
 
+def _mold_source_build_environment(target: Path) -> dict[str, str]:
+    """Keep mold's source build on the experiment's selected Rust toolchain."""
+    return {
+        "CARGO_TARGET_DIR": str(target),
+        "CARGO_INCREMENTAL": "0",
+        "RUSTUP_TOOLCHAIN": os.environ.get("RUSTUP_TOOLCHAIN") or "stable",
+    }
+
+
 def prepare_mold_source(repo: Path, output: ExperimentOutput,
                         revision: str) -> tuple[Path, dict]:
     """Fetch and build macOS mold from a pinned commit in owned directories."""
@@ -80,11 +89,7 @@ def prepare_mold_source(repo: Path, output: ExperimentOutput,
         )
 
     target = output.owned_target("mold-build-target", reset=True)
-    build_env = {
-        "CARGO_TARGET_DIR": str(target),
-        "CARGO_INCREMENTAL": "0",
-        "RUSTUP_TOOLCHAIN": "stable",
-    }
+    build_env = _mold_source_build_environment(target)
     build = run_timed(
         "macos-mold-source-build",
         ["cargo", "build", "--release", "--bin", "mold", "--features", ",".join(MOLD_MACHO_FEATURES)],
@@ -218,13 +223,106 @@ os.execve(callee, [argv0, *sys.argv[1:]], os.environ.copy())
             "callee_sha256": callee_hash, "argv0": argv0}
 
 
+def _parse_nix_wrapper_delegate(wrapper_text: str) -> Path:
+    """Read the single literal linker= target from an immutable Nix wrapper."""
+    matches = re.findall(r"(?m)^[ \t]*linker=(/nix/store/[^\s\"']+)[ \t]*$", wrapper_text)
+    if len(matches) != 1:
+        raise ExperimentFailure(
+            f"expected one literal /nix/store linker= delegate, found {len(matches)}"
+        )
+    return Path(matches[0])
+
+
+def _linux_elf_inventory(path: Path, probe_version: bool = True) -> dict:
+    candidate = Path(path)
+    try:
+        resolved = candidate.resolve(strict=True)
+        with resolved.open("rb") as binary:
+            magic = binary.read(4)
+    except OSError as error:
+        raise ExperimentFailure(f"cannot inspect linker candidate {candidate}: {error}") from error
+    if magic != b"\x7fELF":
+        raise ExperimentFailure(f"linker candidate is not an ELF executable: {resolved}")
+    if probe_version:
+        version = _tool_version([str(candidate), "--version"])
+        if version["exit_code"] != 0:
+            raise ExperimentFailure(f"linker candidate version probe failed for {resolved}: {version}")
+    else:
+        version = {"command": None, "exit_code": None,
+                   "version": "not probed: generic Rust LLD driver requires the ld.lld argv[0] alias"}
+    return {
+        "path": str(candidate), "resolved_path": str(resolved),
+        "sha256": _file_sha256(resolved), "size_bytes": resolved.stat().st_size,
+        "elf_magic": magic.hex(), "version_probe": version,
+    }
+
+
+def _nix_linker_wrapper_inventory(path: Path) -> dict:
+    """Resolve only Nix's explicit linker= wrapper target; never infer generic binaries."""
+    wrapper = _absolute_keep_alias(path)
+    try:
+        resolved_wrapper = wrapper.resolve(strict=True)
+    except OSError as error:
+        raise ExperimentFailure(f"cannot resolve Nix linker wrapper {wrapper}: {error}") from error
+    if not str(resolved_wrapper).startswith("/nix/store/"):
+        raise ExperimentFailure(f"expected an immutable Nix store wrapper, got {resolved_wrapper}")
+    try:
+        wrapper_text = resolved_wrapper.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        raise ExperimentFailure(f"cannot read Nix linker wrapper {resolved_wrapper}: {error}") from error
+    delegate = _parse_nix_wrapper_delegate(wrapper_text)
+    try:
+        resolved_delegate = delegate.resolve(strict=True)
+    except OSError as error:
+        raise ExperimentFailure(f"cannot resolve Nix linker delegate {delegate}: {error}") from error
+    if not str(resolved_delegate).startswith("/nix/store/"):
+        raise ExperimentFailure(f"Nix linker delegate leaves the immutable store: {resolved_delegate}")
+    delegate_inventory = _linux_elf_inventory(delegate)
+    return {
+        "wrapper_path": str(wrapper), "wrapper_resolved_path": str(resolved_wrapper),
+        "wrapper_sha256": _file_sha256(resolved_wrapper),
+        "wrapper_size_bytes": resolved_wrapper.stat().st_size,
+        "delegate": delegate_inventory,
+    }
+
+
+def _rust_default_lld_inventory() -> dict:
+    """Record Rust's actual sysroot LLD and its Nix gcc-ld dispatch target."""
+    details = subprocess.run(["rustc", "-Vv"], capture_output=True, text=True,
+                            check=False, timeout=15)
+    sysroot = subprocess.run(["rustc", "--print", "sysroot"], capture_output=True,
+                            text=True, check=False, timeout=15)
+    if details.returncode or sysroot.returncode:
+        raise ExperimentFailure(
+            f"cannot identify Rust's default LLD toolchain: rustc -Vv={details.returncode}, "
+            f"rustc --print sysroot={sysroot.returncode}"
+        )
+    host_match = re.search(r"(?m)^host: (.+)$", details.stdout)
+    host = host_match.group(1).strip() if host_match else None
+    if not host:
+        raise ExperimentFailure("rustc -Vv did not report its host triple for LLD inventory")
+    sysroot_path = Path(sysroot.stdout.strip())
+    target_bin = sysroot_path / "lib" / "rustlib" / host / "bin"
+    rust_lld = _linux_elf_inventory(target_bin / "rust-lld", probe_version=False)
+    dispatch_path = target_bin / "gcc-ld" / "ld.lld"
+    dispatch = (_nix_linker_wrapper_inventory(dispatch_path) if dispatch_path.is_file()
+                else {"status": "not-present", "path": str(dispatch_path)})
+    return {
+        "rustc_host": host, "rustc_sysroot": str(sysroot_path),
+        "vendored_rust_lld": rust_lld,
+        "default_gcc_ld_lld_dispatch": dispatch,
+        "selection_evidence": "per-run rustc linker command records capture the -B gcc-ld search path and -fuse-ld=lld flags",
+    }
+
+
 def _mold_linux_inventory() -> dict | None:
     path = shutil.which("mold")
     if not path:
         return None
     executable = _absolute_keep_alias(path)
     return {"path": str(executable), "sha256": _file_sha256(executable),
-            **_tool_version([str(executable), "--version"])}
+            **_tool_version([str(executable), "--version"]),
+            "nix_wrapper_chain": _nix_linker_wrapper_inventory(executable)}
 
 
 def linker_arms(platform: str, output: ExperimentOutput,
@@ -235,6 +333,7 @@ def linker_arms(platform: str, output: ExperimentOutput,
         clang = shutil.which("clang")
         bfd = shutil.which("ld.bfd")
         mold = _mold_linux_inventory()
+        bfd_chain = _nix_linker_wrapper_inventory(_absolute_keep_alias(bfd)) if bfd else None
         # Rust 1.90+ defaults are intentionally measured as configured by this
         # toolchain. -v is diagnostic only; it does not select a linker.
         arms = [{"id": "default", "env": {"RUSTFLAGS": "-C link-arg=-v",
@@ -247,6 +346,7 @@ def linker_arms(platform: str, output: ExperimentOutput,
             bfd_abs = _absolute_keep_alias(bfd)
             wrapper = output.directory / "linker-wrappers" / "ld.bfd"
             bfd_audit = _make_audit_wrapper(wrapper, bfd_abs, bfd_abs.name)
+            bfd_audit["nix_wrapper_chain"] = bfd_chain
             arms.append({
                 "id": "system-bfd",
                 "env": {"RUSTFLAGS": f"-C linker={clang_abs} -C linker-features=-lld -C link-arg=--ld-path={wrapper} -C link-arg=-v",
@@ -263,6 +363,7 @@ def linker_arms(platform: str, output: ExperimentOutput,
             mold_path = Path(mold["path"])
             wrapper = output.directory / "linker-wrappers" / "mold"
             mold_audit = _make_audit_wrapper(wrapper, mold_path, mold_path.name)
+            mold_audit["nix_wrapper_chain"] = mold["nix_wrapper_chain"]
             arms.append({
                 "id": "mold",
                 "env": {"RUSTFLAGS": f"-C linker={clang_abs} -C linker-features=-lld -C link-arg=--ld-path={wrapper} -C link-arg=-v",
@@ -272,7 +373,9 @@ def linker_arms(platform: str, output: ExperimentOutput,
             })
         inventory = {
             "clang": _tool_version([str(_absolute_keep_alias(clang)), "--version"]) if clang else None,
+            "rust_default_lld": _rust_default_lld_inventory(),
             "system_linker": {"path": str(_absolute_keep_alias(bfd)), "sha256": _file_sha256(_absolute_keep_alias(bfd)),
+                              "nix_wrapper_chain": bfd_chain if bfd else None,
                               **_tool_version([str(_absolute_keep_alias(bfd)), "--version"]),
                               "wrapper": next((arm["audit"] for arm in arms if arm["id"] == "system-bfd"), None)} if bfd else None,
             "nix_mold": mold,

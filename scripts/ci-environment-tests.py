@@ -56,7 +56,8 @@ class Environments(unittest.TestCase):
         self.assertNotIn("experiment", {row["stage"] for row in normal})
         experiments = json.loads(ci("--matrix", "experiment").stdout)["include"]
         self.assertEqual({row["id"] for row in experiments},
-                         {"linker-linux", "linker-macos", "runner-linux", "property-reference-linux"})
+                         {"linker-linux", "linker-macos", "runner-linux", "property-reference-linux",
+                          "contract-layout-linux", "font-profile-linux"})
         self.assertNotEqual(ci("all", "experiment").returncode, 0)
 
     def test_repeated_gate_resolves_current_platform(self):

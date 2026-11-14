@@ -172,8 +172,13 @@ def analyze_jobs(jobs, topology, source=""):
         if any(job.get("conclusion") != "success" for job in consumers):
             issues.append("shared CLI consumer job did not succeed")
 
-    run_ids = {job.get("run_id") for job in jobs if job.get("run_id") is not None}
+    raw_run_ids = [job.get("run_id") for job in jobs]
+    valid_run_ids = [run_id for run_id in raw_run_ids
+                     if type(run_id) is int and run_id > 0]
+    run_ids = set(valid_run_ids)
     source_shas = {job.get("head_sha") for job in jobs if job.get("head_sha")}
+    if len(valid_run_ids) != len(jobs):
+        issues.append("one or more jobs have a missing or invalid positive workflow run ID")
     if len(run_ids) > 1:
         issues.append("jobs JSON contains multiple workflow runs")
     if len(source_shas) != 1:
@@ -216,7 +221,7 @@ def analyze_jobs(jobs, topology, source=""):
     return {
         "source_file": source,
         "topology": topology,
-        "run_id": next(iter(run_ids)) if len(run_ids) == 1 else None,
+        "run_id": next(iter(run_ids)) if len(run_ids) == 1 and len(valid_run_ids) == len(jobs) else None,
         "head_sha": next(iter(source_shas)) if len(source_shas) == 1 else None,
         "run_url": jobs[0].get("run_url"),
         "job_count": len(jobs),
@@ -244,12 +249,41 @@ def median(records, field):
     return statistics.median(values) if values else None
 
 
+def _run_id_issues(batches):
+    """Reject reused or missing GitHub run IDs before counting evidence samples."""
+    issues = {}
+    owners = {}
+    for topology, records in batches.items():
+        seen = set()
+        for index, record in enumerate(records, 1):
+            run_id = record.get("run_id")
+            if type(run_id) is not int or run_id <= 0:
+                issues.setdefault(topology, []).append(
+                    f"sample {index} has no positive workflow run ID"
+                )
+                continue
+            if run_id in seen:
+                issues.setdefault(topology, []).append(
+                    f"workflow run ID {run_id} is reused within {topology} samples"
+                )
+            seen.add(run_id)
+            owners.setdefault(run_id, set()).add(topology)
+    for run_id, topologies in owners.items():
+        if len(topologies) > 1:
+            for topology in topologies:
+                issues.setdefault(topology, []).append(
+                    f"workflow run ID {run_id} is reused across topology arms"
+                )
+    return issues
+
+
 def compare(batches, min_runs=3, min_wall_improvement=0.10,
             max_runner_regression=0.05, max_failure_regression=0.10):
     baseline = batches.get("baseline", [])
     all_shas = {record.get("head_sha") for runs in batches.values() for record in runs}
     common_source = len(all_shas) == 1 and None not in all_shas
     comparisons = {}
+    run_id_issues = _run_id_issues(batches)
     for candidate in ("grouped", "shared-cli"):
         runs = batches.get(candidate, [])
         reasons = []
@@ -261,6 +295,9 @@ def compare(batches, min_runs=3, min_wall_improvement=0.10,
             reasons.append("one or more workflow runs failed")
         if not common_source:
             reasons.append("baseline and candidates must use the same verified source commit")
+        identity_issues = run_id_issues.get("baseline", []) + run_id_issues.get(candidate, [])
+        if identity_issues:
+            reasons.append("incomplete workflow run ID evidence: " + "; ".join(identity_issues))
         base_path = median(baseline, "critical_path_seconds")
         candidate_path = median(runs, "critical_path_seconds")
         base_minutes = median(baseline, "runner_minutes")

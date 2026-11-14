@@ -10,6 +10,9 @@ import platform
 import subprocess
 import sys
 import time
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote
+from urllib.request import Request, urlopen
 
 from ci_topology import artifact, transform
 
@@ -112,6 +115,95 @@ def require_success(needs, topology="baseline"):
     print("CI Required: plan and every selected matrix job succeeded")
 
 
+def confirm_artifact_unavailable(repository, run_id, artifact_name, token=None,
+                                 api_url=None, opener=None):
+    """Return missing/expired only after the run-scoped Actions API confirms it.
+
+    Any extant non-expired artifact, incomplete listing, or API problem is an
+    error so callers cannot turn download/auth/network failures into rebuilds.
+    """
+    owner_repo = repository.split("/") if isinstance(repository, str) else []
+    if len(owner_repo) != 2 or not all(owner_repo):
+        raise ValueError("GitHub repository must be owner/name; refusing SDK rebuild")
+    try:
+        run_id = int(run_id)
+    except (TypeError, ValueError) as error:
+        raise ValueError("workflow run ID is missing or invalid; refusing SDK rebuild") from error
+    if run_id <= 0 or not artifact_name:
+        raise ValueError("workflow run ID or artifact name is invalid; refusing SDK rebuild")
+    if not token:
+        raise ValueError("GitHub API token is missing; refusing SDK rebuild")
+
+    api_url = (api_url or "https://api.github.com").rstrip("/")
+    owner, name = (quote(part, safe="") for part in owner_repo)
+    endpoint = f"{api_url}/repos/{owner}/{name}/actions/runs/{run_id}/artifacts"
+    opener = opener or urlopen
+    artifacts = []
+    expected_total = None
+    page = 1
+    per_page = 100
+    while expected_total is None or len(artifacts) < expected_total:
+        request = Request(
+            f"{endpoint}?per_page={per_page}&page={page}",
+            headers={
+                "Accept": "application/vnd.github+json",
+                "Authorization": f"Bearer {token}",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+        try:
+            with opener(request, timeout=20) as response:
+                data = json.loads(response.read().decode("utf-8"))
+        except HTTPError as error:
+            raise ValueError(
+                f"GitHub Actions artifact lookup returned HTTP {error.code}; refusing SDK rebuild"
+            ) from None
+        except (URLError, OSError, TimeoutError):
+            raise ValueError("GitHub Actions artifact lookup failed; refusing SDK rebuild") from None
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            raise ValueError("GitHub Actions artifact lookup returned invalid JSON; refusing SDK rebuild") from None
+        if not isinstance(data, dict) or not isinstance(data.get("artifacts"), list):
+            raise ValueError("GitHub Actions artifact lookup returned an invalid response; refusing SDK rebuild")
+        total = data.get("total_count")
+        if isinstance(total, bool) or not isinstance(total, int) or total < 0:
+            raise ValueError("GitHub Actions artifact lookup omitted total_count; refusing SDK rebuild")
+        if expected_total is None:
+            expected_total = total
+        elif total != expected_total:
+            raise ValueError("GitHub Actions artifact inventory changed during lookup; refusing SDK rebuild")
+        batch = data["artifacts"]
+        if any(not isinstance(item, dict) for item in batch):
+            raise ValueError("GitHub Actions artifact lookup returned a malformed item; refusing SDK rebuild")
+        if any(
+            type(item.get("id")) is not int or item["id"] <= 0
+            or not isinstance(item.get("name"), str) or not item["name"]
+            or not isinstance(item.get("expired"), bool)
+            for item in batch
+        ):
+            raise ValueError("GitHub Actions artifact lookup returned malformed artifact identity/status; refusing SDK rebuild")
+        artifacts.extend(batch)
+        if len(artifacts) >= expected_total:
+            break
+        if not batch:
+            raise ValueError("GitHub Actions artifact listing was incomplete; refusing SDK rebuild")
+        page += 1
+
+    artifact_ids = [item["id"] for item in artifacts]
+    if len(artifacts) != expected_total or len(artifact_ids) != len(set(artifact_ids)):
+        raise ValueError("GitHub Actions artifact inventory was incomplete or duplicated; refusing SDK rebuild")
+
+    matches = [item for item in artifacts if item.get("name") == artifact_name]
+    for item in matches:
+        run = item.get("workflow_run")
+        if run is not None and (not isinstance(run, dict) or run.get("id") != run_id):
+            raise ValueError("GitHub returned an artifact for a different workflow run; refusing SDK rebuild")
+    if any(not item["expired"] for item in matches):
+        raise ValueError(
+            f"artifact {artifact_name!r} exists and is not expired for run {run_id}; refusing SDK rebuild"
+        )
+    return "expired" if matches else "missing"
+
+
 
 def github_plan(policy_path):
     policy = json.loads(Path(policy_path).read_text())
@@ -159,6 +251,9 @@ def main():
         action = commands.add_parser(name)
         action.add_argument("source")
         action.add_argument("destination", nargs="?", default=".")
+    absence = commands.add_parser("artifact-absence")
+    absence.add_argument("--run-id", required=True)
+    absence.add_argument("--name", required=True)
     arguments = parser.parse_args()
     try:
         if arguments.mode == "time":
@@ -167,6 +262,14 @@ def main():
             return github_plan(arguments.policy)
         if arguments.mode in {"stage-cli", "verify-cli"}:
             artifact(arguments.mode, arguments.source, arguments.destination)
+            return 0
+        if arguments.mode == "artifact-absence":
+            status = confirm_artifact_unavailable(
+                os.environ.get("GITHUB_REPOSITORY"), arguments.run_id, arguments.name,
+                token=os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN"),
+                api_url=os.environ.get("GITHUB_API_URL"),
+            )
+            print(f"confirmed SDK artifact {status} for workflow run {arguments.run_id}")
             return 0
         require_success(json.loads(os.environ.get("ANIMATIX_CI_NEEDS", "{}")),
                         os.environ.get("ANIMATIX_CI_TOPOLOGY", "baseline"))

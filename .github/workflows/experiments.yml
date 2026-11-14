@@ -43,17 +43,18 @@ jobs:
     timeout-minutes: 360
     name: Linker Linux (${{ matrix.workload }})
     env:
-      # Three independent warm targets must fit the hosted SSD. These settings
-      # belong only to the manual experiment, never ordinary CI or releases.
-      CARGO_PROFILE_DEV_DEBUG: '0'
-      CARGO_PROFILE_TEST_DEBUG: '0'
-      CARGO_BUILD_JOBS: '2'
+      # Match ordinary hosted CI's debug profile. One workload runs per job;
+      # remove unused runner SDKs below to reserve disk for independent targets.
+      CARGO_PROFILE_DEV_DEBUG: '2'
+      CARGO_PROFILE_TEST_DEBUG: '2'
+      CARGO_BUILD_JOBS: '4'
     steps:
       - uses: actions/checkout@v5
       - name: Free disk space for isolated build targets
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
-            /usr/local/share/boost /usr/local/share/chromium
+            /usr/local/share/boost /usr/local/share/chromium \
+            /opt/hostedtoolcache/CodeQL /usr/share/swift
           sudo apt-get clean
           df -h /
       - uses: DeterminateSystems/determinate-nix-action@v3
@@ -115,6 +116,7 @@ jobs:
       - name: Run linker experiment gate
         timeout-minutes: 330
         env:
+          RUSTUP_TOOLCHAIN: '1.100.0'
           ANIMATIX_EXPERIMENT_OUTPUT: target/experiments/linker-macos-${{ matrix.workload }}
           ANIMATIX_EXPERIMENT_WARM_ROUNDS: ${{ inputs.warm_rounds }}
           ANIMATIX_EXPERIMENT_COLD_ROUNDS: ${{ inputs.cold_rounds }}
