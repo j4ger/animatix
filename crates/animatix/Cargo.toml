@@ -16,12 +16,11 @@ name = "engine_contracts"
 path = "tests/engine_contracts.rs"
 
 [features]
-# Rendering, text, and SVG are part of the engine, not options: the build and
-# evaluate paths construct `vello::Scene`s, compile text, and parse SVG
-# unconditionally, and the `FilterBackend` seam is typed in `wgpu`/`vello`
-# (the GPU *presentation* stack lives in `animatix-render`). Modelling them as
-# features produced `#[cfg(not(feature = ...))]` branches that no supported
-# build could ever compile, so they were removed.
+# Rendering is part of the engine pipeline, not an optional feature: scene
+# evaluation constructs `vello::Scene`s and the `FilterBackend` seam uses
+# `wgpu`/`vello` types (the GPU presentation stack lives in `animatix-render`).
+# Rich text, image decoding, and SVG asset loading are separate capabilities
+# enabled by default below and can be disabled independently.
 default = ["perf-tracing", "rich-text", "image-decode", "svg", "bundled-fonts"]
 # Rich text (Typst markup / Code highlighting / Math). Off in the slim
 # playback-only web profile; Text falls back to the plain fast path.

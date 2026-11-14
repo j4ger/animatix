@@ -34,9 +34,9 @@ impl Primitive for FilterPrimitive {
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
     {
-        // Filter has no visual content of its own; children are rendered
-        // to a sub-scene and post-processed in render_node_children.
-        // Return empty commands so the trait-dispatch path computes hit regions.
+        // Filter has no render commands of its own; its children are rendered to
+        // a sub-scene and post-processed by the Timeline container path selected
+        // from the parent's `ChildProcessing` capability.
         Ok(Some(vec![]))
     }
 

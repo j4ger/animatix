@@ -4,8 +4,8 @@
 //! cues (`Cue` actors or loaded from an external transcript file) with karaoke,
 //! word-pop, and kinetic line styling.
 //!
-//! The actual rendering is performed in `scene_eval.rs` (`render_captions_children`),
-//! reached through `render_children_by_id()`.
+//! The actual rendering is performed by the Timeline path selected from the
+//! parent's `ChildProcessing` capability in `scene_eval::render_node_children`.
 
 use crate::ast::{Expr, Property};
 use crate::primitives::{Primitive, RenderChildrenCtx, RenderCommand};
@@ -48,8 +48,8 @@ impl Primitive for CaptionsPrimitive {
         _ctx: &crate::primitives::EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<RenderCommand>>, crate::renderer::error::RenderError> {
-        // Captions rendering is handled by `Timeline::render_captions_children_ctx`
-        // via `render_children_by_id()`. Return empty commands so hit regions are registered.
+        // Captions has no own render commands; its children are rendered by the
+        // Timeline path selected from the parent's `ChildProcessing` capability.
         Ok(Some(vec![]))
     }
 

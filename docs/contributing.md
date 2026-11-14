@@ -449,8 +449,8 @@ touch-point checklist is:
    `EntityMut::<domain>_mut()`. Do not let call sites touch the store directly.
 4. **Delete the old field/table** in the same change, and route every call site
    through the accessor. `rustc` is the checklist; a dual write is a bug.
-5. **Snapshot** — extend `snapshot_entity_at` / `restore_entity` and the
-   `CarryBag` round-trip test.
+5. **Snapshot** — follow [the ECS component checklist](ecs.md#7-adding-a-component)
+   for the per-tier snapshot helpers, carry injection, and round-trip test.
 6. **Tests** — component presence, snapshot round-trip, and
    `frame_cache_invalidates_on_component_write`.
 7. **Docs** — update `docs/ecs.md` §2 and `docs/architecture.md` §2. A

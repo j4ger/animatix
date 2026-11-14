@@ -3,8 +3,8 @@ use kurbo::Shape;
 use crate::timeline::{DEFAULT_LAYOUT_HALF_SIZE, EntityId, Timeline, TrackAccessor};
 
 impl Timeline {
-    /// Mask strategy: children render inside the Mask's clip geometry. Reached
-    /// only through `MaskPrimitive::render_children_by_id`.
+    /// Mask strategy selected by `ChildProcessingKind::Mask`: children render
+    /// inside the Mask's clip geometry.
     fn render_mask_children(
         &self,
         node_id: EntityId,

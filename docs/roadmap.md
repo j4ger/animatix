@@ -281,9 +281,12 @@ This came out of closing the last open item of the phase-2 gallery handoff
 (closure record in `docs/history/2026-10.md`, "Phase 2 handoff — closed out";
 `BarChart` missing from the `gap` applicability row), which also produced
 `bar_chart_gap_is_applicable_to_bar_chart` in
-`crates/animatix/tests/applicability_table_agrees_with_reads.rs` — the generic
-test in that file cannot see BarChart, because the chart's properties are read by
-the shared plot builder rather than by a file in `src/primitives/`.
+the `applicability_table_agrees_with_reads` module (source file
+`crates/animatix/tests/applicability_table_agrees_with_reads.rs`), now compiled
+under the consolidated `engine_contracts` target in
+`crates/animatix/tests/engine_contracts.rs`. Its generic test cannot see
+BarChart, because the chart's properties are read by the shared plot builder
+rather than by a file in `src/primitives/`.
 
 ## Motion-vocabulary round — what it left open (2026-10-05)
 

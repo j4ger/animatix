@@ -443,14 +443,16 @@ pub trait Primitive: Send + Sync {
         None
     }
 
-    /// Local-space clip geometry when this primitive is used as a `Mask`'s
+    /// Local-space clip geometry hook for a primitive used as a `Mask`'s
     /// `clip_shape` child.
     ///
     /// Defaults to the primitive's own evaluation output, so any path-producing shape
-    /// can clip without an override. Plot geometry is excluded (time-varying and
-    /// stroke-trimmed, not a fill region); `None` means "not usable as a clip" and the
-    /// caller warns and falls back to a rectangular clip. The path is in local space —
-    /// the caller composes the child and mask transforms.
+    /// can provide a clip without an override. Plot geometry is excluded (time-varying
+    /// and stroke-trimmed, not a fill region); `None` means "not usable as a clip" and
+    /// a caller may warn and fall back to a rectangular clip. The path is in local
+    /// space. The hook and its native adapter callback remain available, but the
+    /// current scene-evaluation Mask path evaluates the child's `BehaviorDef` directly
+    /// and does not call this method.
     fn clip_path(&self, ctx: &EvaluateCtx, caps: &ActorCaps) -> Option<kurbo::BezPath> {
         if caps.plot_geometry {
             return None;
@@ -474,9 +476,10 @@ pub trait Primitive: Send + Sync {
         None
     }
 
-    /// Render this primitive's children directly by `EntityId`, avoiding string
-    /// lookups on the hot render path. The only child-render entry point the scene
-    /// evaluator calls.
+    /// Render these child IDs directly, avoiding label lookups on the render path.
+    /// The default implementation renders them generically. The scene evaluator
+    /// currently routes child processing from `ActorCaps::child_processing` and
+    /// does not call this method.
     fn render_children_by_id(
         &self,
         ctx: &mut RenderChildrenCtx<'_, '_, '_>,

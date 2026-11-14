@@ -2,10 +2,9 @@ use crate::timeline::effects::{EffectChain, EffectRegion};
 use crate::timeline::{EntityId, SceneDimensions, Timeline};
 
 impl Timeline {
-    /// Adapter used by the [`crate::primitives::Primitive::render_children_by_id`]
-    /// Filter strategy: children render into an offscreen scene, the Filter's
-    /// post-processing is applied, and the result is composited back. Reached
-    /// only through `FilterPrimitive::render_children_by_id`.
+    /// Filter strategy selected by `ChildProcessingKind::Filter`: children render
+    /// into an offscreen scene, post-processing is applied, and the result is
+    /// composited back.
     fn render_filter_children(
         &self,
         node_id: EntityId,

@@ -6,8 +6,9 @@ use animatix_core::caps::ActorCaps;
 
 /// Compact identifier for an actor behavior in the behavior table.
 ///
-/// Built-in primitives occupy indices `0..36` in [`crate::primitives::BUILT_INS`] order;
-/// extension primitives receive dynamically assigned indices `>= 36`.
+/// Built-in primitives use their index in the enabled rows of
+/// [`crate::primitives::BUILT_INS`]. Extension primitives receive IDs from the
+/// next registry slot after those built-in rows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BehaviorId(pub u16);

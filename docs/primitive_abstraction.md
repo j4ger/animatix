@@ -10,17 +10,18 @@ recorded in `roadmap.md`; completed work moved to `docs/history/`.
 
 ## 1. The model today
 
-`crates/animatix/src/primitives/mod.rs` defines `Primitive`; the primitive
-registry (`crates/animatix/src/primitives/registry.rs`) stores built-ins and
-extensions uniformly as `Builtin(&'static dyn Primitive)` /
-`Extension(Arc<dyn Primitive>)`. The following are trait-driven with no
-per-type branching in the pipeline:
+`crates/animatix/src/primitives/mod.rs` defines `Primitive` and the `BuiltIn`
+row type. The primitive registry (`crates/animatix/src/primitives/registry.rs`)
+stores built-ins as `Builtin(&'static BuiltIn)` and extensions as
+`Extension(Arc<dyn Primitive>)`. Each built-in row keeps its catalog card,
+behavior trait object, and family function pointers together. The following
+concerns have these current dispatch paths:
 
 | Concern | Entry point | Notes |
 |---|---|---|
 | Per-actor drawing | `BehaviorDef` family dispatch | `scene_eval::evaluate_node` dispatches; `Primitive::evaluate` serves as the extension-adapter surface. |
-| Child rendering | `Primitive::render_children_by_id(&mut RenderChildrenCtx, &[EntityId])` | `scene_eval::render_node_children` contains no `ChildProcessing` branch; `Filter`/`Mask`/`Equation` override it. |
-| Mask clip geometry | `BehaviorDef` family dispatch | Plot geometry excluded (`plot_geometry`); `Primitive::clip_path` serves as extension-adapter surface. |
+| Child rendering | `ChildProcessing` capability dispatch | `scene_eval::render_node_children` matches the parent capability and routes to the Timeline implementation for Filter, Glass, Mask, Equation, Captions, or generic children. `Primitive::render_children_by_id` remains a public helper, but the scene evaluator does not currently call it. |
+| Mask clip geometry | Child `BehaviorDef` evaluation | The current mask path evaluates the clip child, collects path commands, and composes transforms; it does not call `Primitive::clip_path`. That method and its native adapter callback remain available, and the callback has a direct test. |
 | Equation fragments | `BehaviorDef` family dispatch | `Primitive::equation_fragment` serves as the extension-adapter surface. |
 | Identity | `World` component identity | `World::actor_type` plus the `BehaviorId` component; `set_identity` derives the capability projection. No per-actor aggregate struct. |
 | Native extensions | `crates/animatix-plugin-api` + `extension_native_plugin/` | `repr(C)` callbacks: `build`, `evaluate`, `handle_assignment`, `finalize_container_build`, `default_props`, `default_color_key`, `clip_path`, `equation_fragment` (ABI snapshot 9). |

@@ -36,10 +36,8 @@ impl Primitive for EquationPrimitive {
         _ctx: &crate::primitives::EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<RenderCommand>>, crate::renderer::error::RenderError> {
-        // Equation rendering is handled by `Timeline::render_equation_children`
-        // (reached through this primitive's `render_children_by_id` override). Return
-        // empty commands so the trait-dispatch path computes hit regions for the
-        // container itself.
+        // Equation has no own render commands; its children are rendered by the
+        // Timeline path selected from the parent's `ChildProcessing` capability.
         Ok(Some(vec![]))
     }
 

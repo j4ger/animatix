@@ -31,9 +31,8 @@ impl Primitive for MaskPrimitive {
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
     {
-        // Mask has no visual content of its own; children are handled
-        // by render_node_children with clipping. Return empty commands
-        // so the trait-dispatch path computes hit regions.
+        // Mask has no own render commands; the Timeline container path selected
+        // from the parent's `ChildProcessing` capability renders its children.
         Ok(Some(vec![]))
     }
 

@@ -1,10 +1,10 @@
 use crate::timeline::{EntityId, Timeline, TrackAccessor};
 
 impl Timeline {
-    /// Glass strategy: the panel's children render into their own sub-scene, a
-    /// backdrop pass is queued first so the pixels *behind* the panel are
-    /// blurred, and the children are composited above that blur. Reached only
-    /// through `GlassPrimitive::render_children_by_id`.
+    /// Glass strategy selected by `ChildProcessingKind::Glass`: the panel's
+    /// children render into their own sub-scene, a backdrop pass is queued first
+    /// so the pixels *behind* the panel are blurred, then the children are
+    /// composited above that blur.
     ///
     /// The order of the two queue entries is the whole trick: the drain composites
     /// in queue order, so `backdrop` then `children` reproduces the depth the walk

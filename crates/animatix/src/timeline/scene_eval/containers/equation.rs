@@ -29,7 +29,7 @@ pub(crate) fn equation_markup_escaped(content: &str) -> String {
 
 impl Timeline {
     /// Equation strategy: fragment children aggregate into one Typst document.
-    /// Reached only through `EquationPrimitive::render_children_by_id`.
+    /// Selected by `ChildProcessingKind::Equation` in the scene evaluator.
     fn render_equation_children(
         &self,
         node_id: EntityId,

@@ -148,7 +148,7 @@ Rules:
 | `EntityMeta` | id, label, actor_type, first_seen_ms, visible, locked, camera_follow, parallax, hidden_by_default | optional (reads fall back to `EntityMeta::DEFAULT`) |
 | `DeclarationSpan` | `Span` of the actor declaration (absent when the parser had none) | optional |
 | `ActorCaps` | category, child_processing, shape, text, flags | every entity (`RequiredStore<ActorCaps>`) |
-| `BehaviorId` | 0..36 for built-ins, dynamically assigned for extensions | every entity (`RequiredStore<BehaviorId>`) |
+| `BehaviorId` | Enabled `BUILT_INS` row indices; extensions are assigned after the built-in rows | every entity (`RequiredStore<BehaviorId>`) |
 | `SceneHierarchyComponent` | `parent: Option<EntityId>`, `children: Vec<EntityId>` | every entity (`RequiredStore<SceneHierarchyComponent>`) |
 | `RootSet` | `Vec<EntityId>` (insertion order) | resource |
 | `GeometryTracks` | position/size/layout_size/rotation/scale/transform/placement/callout/connector/volume | every entity (`RequiredStore<GeometryTracks>`) |
@@ -219,7 +219,7 @@ Adding a resource instead of a component is a decision to document in the PR:
 The behavior layer decouples actor identity and lifecycle from monolithic trait objects. Every entity in `World` has a required `BehaviorId` component that maps in $O(1)$ time to an immutable `BehaviorDef` stored in `BehaviorRegistry`.
 
 #### BehaviorId and BehaviorDef
-- `BehaviorId(u16)`: A compact, Copy-friendly integer handle. Indices `0..36` are statically reserved for built-in primitives in canonical order; runtime extension primitives receive dynamically allocated indices `>= 36`.
+- `BehaviorId(u16)`: A compact, Copy-friendly integer handle. Enabled rows of `BUILT_INS` occupy the initial contiguous range in canonical order; runtime extensions receive IDs after those rows in registration order.
 - `BehaviorDef`: Stores the immutable definition of an actor behavior:
   - `id: BehaviorId`
   - `name: Box<str>` (authored type name, e.g. `"Rect"`, `"Text"`, `"Graph"`)

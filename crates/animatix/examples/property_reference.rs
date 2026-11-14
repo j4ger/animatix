@@ -167,6 +167,17 @@ fn render_tables(
     specs: &HashMap<&'static str, &PropertySpec>,
     runtime: &HashMap<&'static str, &'static animatix::timeline::PropertySchema>,
 ) -> Result<String, Box<dyn Error>> {
+    let marker_prefix = "<!-- generated-property-table:";
+    let marker_count = doc.matches(marker_prefix).count();
+    let expected_marker_count = groups.len() * 2;
+    if marker_count != expected_marker_count {
+        return Err(invalid(format!(
+            "expected {} marker pairs ({} total markers), found {marker_count}",
+            groups.len(),
+            expected_marker_count
+        )));
+    }
+
     let mut rendered = doc.to_owned();
     for group in groups {
         let start_marker = format!("<!-- generated-property-table:{}:start -->", group.id);
@@ -311,6 +322,27 @@ mod tests {
         };
         let error = render_tables("prose only", &[group], &specs, &runtime)
             .expect_err("missing marker pair must fail");
+        assert!(error.to_string().contains("marker pair"));
+    }
+
+    #[test]
+    fn rejects_orphaned_generated_table_markers() {
+        let (spec_rows, runtime) = inputs();
+        let specs = index_specs(&spec_rows).expect("unique property names");
+        let group = Group {
+            id: "legend".to_owned(),
+            properties: vec!["legend".to_owned()],
+        };
+        let doc = concat!(
+            "<!-- generated-property-table:legend:start -->\n",
+            "table\n",
+            "<!-- generated-property-table:legend:end -->\n",
+            "<!-- generated-property-table:orphan:start -->\n",
+            "stale table\n",
+            "<!-- generated-property-table:orphan:end -->\n"
+        );
+        let error = render_tables(doc, &[group], &specs, &runtime)
+            .expect_err("unconfigured generated regions must fail");
         assert!(error.to_string().contains("marker pair"));
     }
 
