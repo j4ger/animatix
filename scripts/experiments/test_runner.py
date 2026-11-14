@@ -22,6 +22,16 @@ SPEC.loader.exec_module(RUNNER)
 
 
 class RunnerCoverageTests(unittest.TestCase):
+    def test_nested_sensitive_modules_execute_each_selected_case_once(self):
+        names = ("offscreen::tests::draw", "offscreen::tests::readback_reuse_tests::reuse",
+                 "filter_backend::tests::mask")
+        cases = [{"name": name, "id": f"animatix-render::unit::{name}"} for name in names]
+        groups = RUNNER._case_groups([{"package_name": "animatix-render", "target_name": "unit",
+                                       "cases": cases}])
+        invocations = [case["id"] for group in groups.values() for case in group["cases"]]
+        self.assertCountEqual(invocations, [case["id"] for case in cases])
+        self.assertEqual(len(invocations), len(set(invocations)))
+
     def test_runner_direct_entrypoint_bootstraps_repo_imports_without_pythonpath(self):
         env = os.environ.copy()
         env.pop("PYTHONPATH", None)

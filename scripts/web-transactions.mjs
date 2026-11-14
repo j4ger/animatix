@@ -828,7 +828,7 @@ async function main() {
   const profile = mkdtempSync(join(tmpdir(), 'amx-transactions-'));
   const chrome = spawn(process.env.CHROME || 'chromium', [
     ...(hardwareGpu ? [] : ['--headless=new']), '--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu-sandbox', '--enable-unsafe-webgpu',
-    ...(hardwareGpu ? ['--use-vulkan=native', '--enable-features=Vulkan,WebGPUService', '--ignore-gpu-blocklist'] : ['--disable-vulkan-surface', '--use-angle=vulkan', '--use-vulkan=swiftshader', '--enable-features=Vulkan']),
+    ...(hardwareGpu ? ['--use-vulkan=native', '--enable-features=Vulkan,WebGPUService', '--ignore-gpu-blocklist'] : ['--enable-unsafe-swiftshader', '--disable-vulkan-surface', '--use-angle=vulkan', '--use-vulkan=swiftshader', '--enable-features=Vulkan']),
     '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-extensions',
     '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank',
   ], { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });

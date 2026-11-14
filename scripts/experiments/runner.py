@@ -255,6 +255,19 @@ def _case_groups(harnesses: list[dict]) -> dict[str, dict]:
                                             "filter": filter_text, "categories": set(),
                                             "cases": [], "harness": harness})
             group["categories"].update(categories)
+    # A parent module's substring filter already includes nested modules.
+    # Keep a disjoint invocation plan so Cargo and nextest stress each ID once.
+    disjoint = {}
+    for key, group in sorted(groups.items(), key=lambda item: len(item[1]["filter"])):
+        parent = next((existing for existing in disjoint.values()
+                       if existing["package"] == group["package"]
+                       and existing["binary"] == group["binary"]
+                       and existing["filter"] in group["filter"]), None)
+        if parent is not None:
+            parent["categories"].update(group["categories"])
+        else:
+            disjoint[key] = group
+    groups = disjoint
     for group in groups.values():
         matching = [case for case in group["harness"]["cases"] if group["filter"] in case["name"]]
         group["cases"] = matching
@@ -306,8 +319,13 @@ def _execute_harness_item(item: dict, env: dict[str, str], log_dir: Path, run_ta
     command = [executable]
     if filter_text is not None:
         command.append(filter_text)
+    if item.get("skip_tests") is not None:
+        command.append("--exact")
+        for name in item["skip_tests"]:
+            command.extend(["--skip", name])
     command.append("--test-threads=1")
-    safe_binary = re.sub(r"[^A-Za-z0-9_.-]+", "_", item["target_name"])
+    safe_binary = re.sub(r"[^A-Za-z0-9_.-]+", "_",
+                         f"{item['package_name']}--{item['target_name']}")
     suffix = re.sub(r"[^A-Za-z0-9_.-]+", "_", filter_text or "all")[:80]
     log_path = log_dir / f"{run_tag}-{safe_binary}-{suffix}.log"
     started = time.monotonic()
@@ -422,15 +440,21 @@ def _run_dispatch(output: ExperimentOutput, target_dir: Path, arm_id: str, round
     for harness in harnesses:
         cases = harness["cases"]
         filters = None
+        skip_tests = None
         if selected_groups is not None:
             matching = [group for group in selected_groups
                         if group["package"] == harness["package_name"] and group["binary"] == harness["target_name"]]
             if not matching:
                 continue
-            filters = sorted({group["filter"] for group in matching})
+            selected_names = {case["name"] for group in matching for case in group["cases"]}
+            # Libtest has no include-union option. Run this target once and
+            # exclude the complement with exact skips, avoiding overlapping
+            # module filters and repeated process/font initialization.
+            skip_tests = sorted(case["name"] for case in cases if case["name"] not in selected_names)
         items.append({"package_name": harness["package_name"], "target_name": harness["target_name"],
                       "manifest_dir": harness["manifest_dir"], "executable": harness["executable"],
                       "package_env": harness.get("package_env", {}), "filters": filters,
+                      "skip_tests": skip_tests,
                       "cases": harness["cases"]})
     if selected_groups is not None:
         selected_ids = sorted({case["id"] for group in selected_groups for case in group["cases"]})
