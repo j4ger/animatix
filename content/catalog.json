@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "description": "Review overrides only. Showcase identity and presentation stay in web/works.json; scripts/content-catalog.py discovers the complete inventory.",
+  "entries": [
+    {
+      "id": "gradient-walkthrough",
+      "source": "web/demos/gradient/scene.amx",
+      "decision": "merge",
+      "reason": "Preserve visual work; replace hand-copy assembly with generation.",
+      "source_review": true,
+      "related_sources": [
+        "web/demos/gradient/losssurface.amx",
+        "web/demos/gradient/gradientdirection.amx",
+        "web/demos/gradient/descent.amx",
+        "web/demos/gradient/learningrate.amx"
+      ],
+      "visual_review": "storyboard-sampled",
+      "review_report": "docs/content-review-2026-11.md",
+      "reviewed_sha256": "67d5ab5e06bf000e89d3d7ac1f32054f37f1f7f00b393477740fbe8d04cc9ae5"
+    },
+    {
+      "id": "epicycles-walkthrough",
+      "source": "web/demos/epicycles/scene.amx",
+      "decision": "keep",
+      "reason": "Preserve generated assembly; tune overlapping text in act crossfades.",
+      "source_review": true,
+      "generator": "scripts/epicycles-plate.py",
+      "generated_from": [
+        "web/demos/epicycles/goal.amx",
+        "web/demos/epicycles/onecircle.amx",
+        "web/demos/epicycles/hero.amx",
+        "web/demos/epicycles/spectrum.amx",
+        "web/demos/epicycles/complexplane.amx"
+      ],
+      "visual_review": "storyboard-sampled",
+      "review_report": "docs/content-review-2026-11.md",
+      "reviewed_sha256": "d5043d4c5a6717be7930504e411da862e145fbb7bee78b13280fc3661cf1d984"
+    },
+    {
+      "id": "ambience-contract-example",
+      "source": "examples/animation/39_ambience.amx",
+      "decision": "review",
+      "reason": "Overlaps the web ambience example, but scene_stats.rs exercises its population contract. Preserve until teaching and regression roles are separated.",
+      "source_review": true,
+      "related_sources": [
+        "web/demos/ambience.amx"
+      ]
+    },
+    {
+      "id": "array-layout",
+      "source": "examples/generation/array_layout.amx",
+      "kind": "example",
+      "status": "experimental",
+      "decision": "keep",
+      "reason": "Focused array/Grid teaching prototype; four sampled frames have clear layout.",
+      "visual_review": "storyboard-sampled",
+      "review_report": "docs/content-review-2026-11.md",
+      "reviewed_sha256": "f9a461165b446f78ec2c85f457a2ccaf371cf32db33954566dfd9f1195961efe"
+    },
+    {
+      "id": "phase-interference",
+      "source": "examples/gallery/phase_interference.amx",
+      "kind": "showcase",
+      "status": "experimental",
+      "decision": "keep",
+      "reason": "Native six-frame review: coherent equal-scale wave lanes and visible cancellation; remains unpublished experimental.",
+      "visual_review": "storyboard-sampled",
+      "review_report": "docs/content-review-2026-11.md",
+      "reviewed_sha256": "2883054631c7d0e117278b3e412ab965b3f1293792655cc66e38356fdacec80f"
+    },
+    {
+      "source": "examples/layout/02_layout.amx",
+      "id": "layout-containers",
+      "decision": "rework",
+      "reason": "Useful API exercise; unlabeled edge groups do not yet teach one concept clearly.",
+      "visual_review": "storyboard-sampled",
+      "review_report": "docs/content-review-2026-11.md",
+      "reviewed_sha256": "faf9a29b9653d7af55c460da0aa9473df2840528869116d4e9b3ff78cdfa70cb"
+    },
+    {
+      "source": "examples/generation/28_generation_reactive.amx",
+      "id": "generation-reactive",
+      "decision": "rework",
+      "reason": "Split Group, Mask, array and always into focused lessons.",
+      "visual_review": "storyboard-sampled",
+      "review_report": "docs/content-review-2026-11.md",
+      "reviewed_sha256": "f972df7baea2e1e614f11d328b841b67110600581ca678d5082b63720b1e0d3a"
+    },
+    {
+      "source": "examples/gallery/epicycles.amx",
+      "id": "epicycles-reference",
+      "decision": "rework",
+      "reason": "Useful narrative source; small dim annotations require visual rework.",
+      "visual_review": "storyboard-sampled",
+      "review_report": "docs/content-review-2026-11.md",
+      "reviewed_sha256": "0af68586091a2cdaa48392500436d98d5a91f2b086c47ea0009adf5427bfe579"
+    }
+  ]
+}

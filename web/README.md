@@ -518,7 +518,7 @@ cd web/tools && npm install && npm run build:embed
 ## Engine layering
 
 - **Parse/typecheck/expand** — `animatix-syntax`'s module system in
-  `SourcesOnly` mode. The played document, the shared `examples/lib/*.amx`
+  `SourcesOnly` mode. The played document, the shared `web/demos/lib/*.amx`
   library (embedded at compile time, so repo examples resolve their imports),
   and any fetched import modules live in the in-memory source map; no disk
   access exists on the platform.
@@ -704,9 +704,9 @@ distribution scripts and are not asserted here as acceptance evidence.
 - `cargo test -p animatix-web` — the parse→build pipeline (repo examples and
   all seven transformer scenes, embedded via `include_str!`) runs natively in
   the normal test suite. The scenes import the shared
-  `examples/lib/components.amx` (a `LabeledBox` chip component); like every
-  `examples/lib/*.amx`, it is **embedded into the wasm at build time** —
+  `web/demos/lib/components.amx` (a `LabeledBox` chip component); like every
+  `web/demos/lib/*.amx`, it is **embedded into the wasm at build time** —
   editing it requires a `scripts/build-web.sh` rerun, and until then the
   browser shows `Unknown actor type …` while every native test stays green.
-  The CLI resolves the same import through the
-  `web/demos/transformer/lib` symlink.
+  The CLI resolves imports directly to `web/demos/lib/` through each
+  source file’s relative path; no transformer-local library copy is needed.

@@ -134,21 +134,16 @@ cargo run --bin animatix -- check examples/projects/plugin_pulse.amx \
   --plugin crates/animatix-plugin-demo/demo.amx-plugin.toml
 ```
 
-## Library Modules (`lib/`)
+## Shared modules
 
-Reusable modules imported by examples and available for dogfood projects.
+Examples import the single library in [`web/demos/lib/`](../web/demos/lib/).
+There is no separate `examples/lib` copy. The library includes theme tokens,
+figure layouts, cards, charts, stage helpers, and ambience components. Use the
+relative import already shown by the relevant example.
 
-| File | Purpose |
-|------|---------|
-| `lib/palette.amx` | `pub let` color exports |
-| `lib/tokens.amx` | Design token constants |
-| `lib/reexport.amx` | Re-export chain example |
-| `lib/card.amx` | Reusable `Card` component |
-| `lib/slide.amx` | Reusable `Slide` layout with slots |
-| `lib/components.amx` | Reusable components for future demos |
-| `lib/figure.amx` | Figure kit: `FigHead` / `Band` / `InfoCard` layout templates (see `docs/figure-content-spec.md`) |
-| `lib/actions.amx` | Reusable custom action blocks |
-| `lib/colorschemes.amx` | Custom `Colorscheme` definitions |
+For the full source inventory and review status, see the
+[content catalog](../docs/content-catalog.md). The tables above are a reading
+route, not an exhaustive file list or a visual-quality certification.
 
 ## Assets (`assets/`)
 
