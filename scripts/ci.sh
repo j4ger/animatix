@@ -949,7 +949,7 @@ run_gate() {
   # The measured child has its own errexit context. `if "$fn"` or `"$fn" ||`
   # here would disable errexit throughout a gate and could turn failures green.
   if [ "${ANIMATIX_GATE_CHILD:-}" != 1 ]; then
-    python3 scripts/ci-control.py time --gate "$name" -- \
+    python3 scripts/ci-control.py time --gate "$name" --shell "$(gate_shell "$name")" -- \
       env ANIMATIX_GATE_CHILD=1 bash "$root/scripts/ci.sh" gate "$name"
     return
   fi

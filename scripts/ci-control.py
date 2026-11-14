@@ -17,8 +17,15 @@ from urllib.request import Request, urlopen
 from ci_topology import artifact, transform
 
 
-def environment_snapshot(directory):
+def environment_snapshot(directory, declared_shell="unknown"):
     """Keep runner/tool facts next to timings, including cold topology trials."""
+    actual_shell = os.environ.get("ANIMATIX_CI_SHELL") or (
+        "nix" if os.environ.get("IN_NIX_SHELL") else "unmarked"
+    )
+    shell_key = "".join(
+        char if char.isalnum() or char in "-_" else "_"
+        for char in f"{declared_shell}-{actual_shell}"
+    )
     def probe(command):
         try:
             result = subprocess.run(command, capture_output=True, text=True, timeout=5)
@@ -29,7 +36,7 @@ def environment_snapshot(directory):
     revision = probe(["git", "rev-parse", "HEAD"])
     commit = revision.get("output", "unknown") if revision.get("exit_code") == 0 else "unknown"
     label = "-".join((os.environ.get("GITHUB_RUN_ID", "local"),
-                      os.environ.get("GITHUB_JOB", "gate"), commit[:12]))
+                      os.environ.get("GITHUB_JOB", "gate"), commit[:12], shell_key))
     path = directory / f"environment-{label}.json"
     if path.exists():
         return path.name
@@ -49,22 +56,32 @@ def environment_snapshot(directory):
             ram = int(probe(command).get("output", ""))
         except ValueError:
             pass
+    if declared_shell == "none":
+        tools = {
+            "rustc": {"skipped": "gate declares shell=none"},
+            "cargo": {"skipped": "gate declares shell=none"},
+            "nix": probe(["nix", "--version"]),
+        }
+    else:
+        tools = {
+            "rustc": probe([os.environ.get("RUSTC", "rustc"), "-vV"]),
+            "cargo": probe(["cargo", "--version"]),
+            "nix": probe(["nix", "--version"]),
+        }
     facts = {"commit": commit, "image": {name: os.environ.get(name) for name in
              ("ImageOS", "ImageVersion", "RUNNER_OS", "RUNNER_ARCH", "RUNNER_NAME")},
              "uname": list(platform.uname()), "cpu_model": cpu, "cpu_count": os.cpu_count(),
              "ram_bytes": ram, "shell": os.environ.get("ANIMATIX_CI_SHELL"),
+             "declared_shell": declared_shell, "actual_shell": actual_shell,
              "cargo_environment": {key: value for key, value in os.environ.items()
                                    if key.startswith(("CARGO_PROFILE_", "CARGO_BUILD_"))},
-             "tools": {name: probe(command) for name, command in {
-                 "rustc": [os.environ.get("RUSTC", "rustc"), "-vV"],
-                 "cargo": ["cargo", "--version"], "nix": ["nix", "--version"],
-             }.items()}}
+             "tools": tools}
     directory.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(facts, indent=2) + "\n")
     return path.name
 
 
-def timed_gate(gate, command):
+def timed_gate(gate, command, declared_shell="unknown"):
     """Run an independent shell so wrapping a function never disables errexit."""
     if command[:1] == ["--"]:
         command = command[1:]
@@ -73,7 +90,7 @@ def timed_gate(gate, command):
     started = datetime.now(timezone.utc).isoformat()
     before = time.monotonic()
     destination = Path(os.environ.get("ANIMATIX_GATE_TIMINGS", "target/ci/timings.jsonl"))
-    environment_file = environment_snapshot(destination.parent)
+    environment_file = environment_snapshot(destination.parent, declared_shell)
     try:
         result = subprocess.run(command, check=False)
         status = result.returncode
@@ -243,6 +260,8 @@ def main():
     commands = parser.add_subparsers(dest="mode", required=True)
     timer = commands.add_parser("time")
     timer.add_argument("--gate", required=True)
+    timer.add_argument("--shell", default="unknown",
+                       help="shell declared for this gate in scripts/ci.sh")
     timer.add_argument("command", nargs=argparse.REMAINDER)
     commands.add_parser("required")
     plan = commands.add_parser("plan")
@@ -257,7 +276,7 @@ def main():
     arguments = parser.parse_args()
     try:
         if arguments.mode == "time":
-            return timed_gate(arguments.gate, arguments.command)
+            return timed_gate(arguments.gate, arguments.command, arguments.shell)
         if arguments.mode == "plan":
             return github_plan(arguments.policy)
         if arguments.mode in {"stage-cli", "verify-cli"}:

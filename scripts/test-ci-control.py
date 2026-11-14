@@ -103,6 +103,55 @@ class ControlTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             CONTROL.require_success({"plan": {"result": "success"}})
 
+    def test_environment_snapshots_are_shell_scoped_and_skip_rust_for_none(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            calls = []
+
+            def fake_probe(command, **_kwargs):
+                calls.append(command)
+                return subprocess.CompletedProcess(command, 0, "fixture-output", "")
+
+            base_env = {"GITHUB_RUN_ID": "fixture-run", "GITHUB_JOB": "control",
+                        "RUNNER_OS": "Linux"}
+            with patch.object(CONTROL.subprocess, "run", side_effect=fake_probe), \
+                 patch.dict(os.environ, base_env, clear=True):
+                none_unmarked_name = CONTROL.environment_snapshot(root, "none")
+                none_unmarked = json.loads((root / none_unmarked_name).read_text())
+                self.assertEqual(none_unmarked["declared_shell"], "none")
+                self.assertEqual(none_unmarked["actual_shell"], "unmarked")
+                self.assertEqual(none_unmarked["tools"]["rustc"],
+                                 {"skipped": "gate declares shell=none"})
+                self.assertEqual(none_unmarked["tools"]["cargo"],
+                                 {"skipped": "gate declares shell=none"})
+                self.assertFalse(any(Path(command[0]).name in {"rustc", "cargo", "rustup"}
+                                     for command in calls))
+
+                with patch.dict(os.environ, {"ANIMATIX_CI_SHELL": "nix"}):
+                    none_nix_name = CONTROL.environment_snapshot(root, "none")
+                    none_nix = json.loads((root / none_nix_name).read_text())
+                    self.assertEqual(none_nix["actual_shell"], "nix")
+                    self.assertNotEqual(none_nix_name, none_unmarked_name)
+                    self.assertFalse(any(Path(command[0]).name in {"rustc", "cargo", "rustup"}
+                                         for command in calls))
+
+                    nix_name = CONTROL.environment_snapshot(root, "nix")
+                    nix = json.loads((root / nix_name).read_text())
+                    self.assertEqual(nix["declared_shell"], "nix")
+                    self.assertEqual(nix["actual_shell"], "nix")
+                    self.assertNotIn(nix_name, {none_unmarked_name, none_nix_name})
+                    self.assertEqual(nix["tools"]["rustc"]["exit_code"], 0)
+                    self.assertEqual(nix["tools"]["cargo"]["exit_code"], 0)
+                    called = {Path(command[0]).name for command in calls}
+                    self.assertTrue({"rustc", "cargo", "nix"}.issubset(called))
+
+    def test_time_cli_passes_declared_shell_to_collector(self):
+        argv = [str(SCRIPT), "time", "--gate", "probe", "--shell", "none", "--", "true"]
+        with patch.object(sys, "argv", argv), \
+             patch.object(CONTROL, "timed_gate", return_value=0) as timed:
+            self.assertEqual(CONTROL.main(), 0)
+        timed.assert_called_once_with("probe", ["--", "true"], "none")
+
     def test_gate_failure_remains_failure_and_is_recorded(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "timings.jsonl"
