@@ -1,0 +1,402 @@
+{
+  "schema": 1,
+  "evidence": "Actual workspace graph and registered matrix; shadow keeps all jobs for every case. Classification assertions passed before enabling workflow selection.",
+  "status": "pass",
+  "cases": [
+    {
+      "case": "docs",
+      "paths": [
+        "docs/architecture.md"
+      ],
+      "candidate_job_ids": [
+        "doc-links"
+      ],
+      "job_ids": [
+        "fast-checks",
+        "doc-links",
+        "eparts-linux",
+        "eparts-macos",
+        "eparts-windows",
+        "check-lint",
+        "test-examples",
+        "render-scenes",
+        "benchmarks",
+        "web-check",
+        "web-build"
+      ],
+      "force_full": false,
+      "reason": "paths classified by workspace dependency graph",
+      "affected_packages": []
+    },
+    {
+      "case": "gui",
+      "paths": [
+        "crates/animatix-gui/src/source_edit/mod.rs"
+      ],
+      "candidate_job_ids": [
+        "fast-checks",
+        "doc-links",
+        "check-lint",
+        "test-examples"
+      ],
+      "job_ids": [
+        "fast-checks",
+        "doc-links",
+        "eparts-linux",
+        "eparts-macos",
+        "eparts-windows",
+        "check-lint",
+        "test-examples",
+        "render-scenes",
+        "benchmarks",
+        "web-check",
+        "web-build"
+      ],
+      "force_full": false,
+      "reason": "paths classified by workspace dependency graph",
+      "affected_packages": [
+        "animatix-gui"
+      ]
+    },
+    {
+      "case": "engine",
+      "paths": [
+        "crates/animatix/src/lib.rs"
+      ],
+      "candidate_job_ids": [
+        "fast-checks",
+        "doc-links",
+        "check-lint",
+        "test-examples",
+        "render-scenes",
+        "benchmarks",
+        "web-check",
+        "web-build"
+      ],
+      "job_ids": [
+        "fast-checks",
+        "doc-links",
+        "eparts-linux",
+        "eparts-macos",
+        "eparts-windows",
+        "check-lint",
+        "test-examples",
+        "render-scenes",
+        "benchmarks",
+        "web-check",
+        "web-build"
+      ],
+      "force_full": false,
+      "reason": "paths classified by workspace dependency graph",
+      "affected_packages": [
+        "animatix",
+        "animatix-cli",
+        "animatix-gui",
+        "animatix-hybrid-bench",
+        "animatix-plugin-tooling",
+        "animatix-render",
+        "animatix-text-parity",
+        "animatix-web"
+      ]
+    },
+    {
+      "case": "web",
+      "paths": [
+        "crates/animatix-web/src/lib.rs"
+      ],
+      "candidate_job_ids": [
+        "fast-checks",
+        "doc-links",
+        "check-lint",
+        "test-examples",
+        "web-check",
+        "web-build"
+      ],
+      "job_ids": [
+        "fast-checks",
+        "doc-links",
+        "eparts-linux",
+        "eparts-macos",
+        "eparts-windows",
+        "check-lint",
+        "test-examples",
+        "render-scenes",
+        "benchmarks",
+        "web-check",
+        "web-build"
+      ],
+      "force_full": false,
+      "reason": "paths classified by workspace dependency graph",
+      "affected_packages": [
+        "animatix-text-parity",
+        "animatix-web"
+      ]
+    },
+    {
+      "case": "scene",
+      "paths": [
+        "examples/basics/scene.amx"
+      ],
+      "candidate_job_ids": [
+        "fast-checks",
+        "doc-links",
+        "test-examples",
+        "render-scenes"
+      ],
+      "job_ids": [
+        "fast-checks",
+        "doc-links",
+        "eparts-linux",
+        "eparts-macos",
+        "eparts-windows",
+        "check-lint",
+        "test-examples",
+        "render-scenes",
+        "benchmarks",
+        "web-check",
+        "web-build"
+      ],
+      "force_full": false,
+      "reason": "paths classified by workspace dependency graph",
+      "affected_packages": []
+    },
+    {
+      "case": "eparts",
+      "paths": [
+        "crates/eparts/src/lib.rs"
+      ],
+      "candidate_job_ids": [
+        "fast-checks",
+        "doc-links",
+        "eparts-linux",
+        "eparts-macos",
+        "eparts-windows",
+        "check-lint",
+        "test-examples"
+      ],
+      "job_ids": [
+        "fast-checks",
+        "doc-links",
+        "eparts-linux",
+        "eparts-macos",
+        "eparts-windows",
+        "check-lint",
+        "test-examples",
+        "render-scenes",
+        "benchmarks",
+        "web-check",
+        "web-build"
+      ],
+      "force_full": false,
+      "reason": "paths classified by workspace dependency graph",
+      "affected_packages": [
+        "animatix-gui",
+        "eparts"
+      ]
+    },
+    {
+      "case": "font",
+      "paths": [
+        "web/fonts/index.json"
+      ],
+      "candidate_job_ids": [
+        "fast-checks",
+        "doc-links",
+        "test-examples",
+        "render-scenes",
+        "web-build"
+      ],
+      "job_ids": [
+        "fast-checks",
+        "doc-links",
+        "eparts-linux",
+        "eparts-macos",
+        "eparts-windows",
+        "check-lint",
+        "test-examples",
+        "render-scenes",
+        "benchmarks",
+        "web-check",
+        "web-build"
+      ],
+      "force_full": false,
+      "reason": "paths classified by workspace dependency graph",
+      "affected_packages": []
+    },
+    {
+      "case": "lock",
+      "paths": [
+        "Cargo.lock"
+      ],
+      "candidate_job_ids": [
+        "fast-checks",
+        "doc-links",
+        "eparts-linux",
+        "eparts-macos",
+        "eparts-windows",
+        "check-lint",
+        "test-examples",
+        "render-scenes",
+        "benchmarks",
+        "web-check",
+        "web-build"
+      ],
+      "job_ids": [
+        "fast-checks",
+        "doc-links",
+        "eparts-linux",
+        "eparts-macos",
+        "eparts-windows",
+        "check-lint",
+        "test-examples",
+        "render-scenes",
+        "benchmarks",
+        "web-check",
+        "web-build"
+      ],
+      "force_full": true,
+      "reason": "workspace, lock, toolchain, or Nix input changed",
+      "affected_packages": []
+    },
+    {
+      "case": "unknown",
+      "paths": [
+        "unknown-build-policy.toml"
+      ],
+      "candidate_job_ids": [
+        "fast-checks",
+        "doc-links",
+        "eparts-linux",
+        "eparts-macos",
+        "eparts-windows",
+        "check-lint",
+        "test-examples",
+        "render-scenes",
+        "benchmarks",
+        "web-check",
+        "web-build"
+      ],
+      "job_ids": [
+        "fast-checks",
+        "doc-links",
+        "eparts-linux",
+        "eparts-macos",
+        "eparts-windows",
+        "check-lint",
+        "test-examples",
+        "render-scenes",
+        "benchmarks",
+        "web-check",
+        "web-build"
+      ],
+      "force_full": true,
+      "reason": "unclassified path changed: unknown-build-policy.toml",
+      "affected_packages": []
+    },
+    {
+      "case": "delete",
+      "paths": [
+        "crates/animatix-syntax/src/removed.rs"
+      ],
+      "candidate_job_ids": [
+        "fast-checks",
+        "doc-links",
+        "check-lint",
+        "test-examples",
+        "render-scenes",
+        "benchmarks",
+        "web-check",
+        "web-build"
+      ],
+      "job_ids": [
+        "fast-checks",
+        "doc-links",
+        "eparts-linux",
+        "eparts-macos",
+        "eparts-windows",
+        "check-lint",
+        "test-examples",
+        "render-scenes",
+        "benchmarks",
+        "web-check",
+        "web-build"
+      ],
+      "force_full": false,
+      "reason": "paths classified by workspace dependency graph",
+      "affected_packages": [
+        "animatix",
+        "animatix-analyzer",
+        "animatix-cli",
+        "animatix-gui",
+        "animatix-hybrid-bench",
+        "animatix-lsp",
+        "animatix-plugin-tooling",
+        "animatix-render",
+        "animatix-syntax",
+        "animatix-text-parity",
+        "animatix-web"
+      ]
+    },
+    {
+      "case": "rename-old-new",
+      "paths": [
+        "crates/animatix-gui/src/old.rs",
+        "crates/animatix-web/src/new.rs"
+      ],
+      "candidate_job_ids": [
+        "fast-checks",
+        "doc-links",
+        "check-lint",
+        "test-examples",
+        "web-check",
+        "web-build"
+      ],
+      "job_ids": [
+        "fast-checks",
+        "doc-links",
+        "eparts-linux",
+        "eparts-macos",
+        "eparts-windows",
+        "check-lint",
+        "test-examples",
+        "render-scenes",
+        "benchmarks",
+        "web-check",
+        "web-build"
+      ],
+      "force_full": false,
+      "reason": "paths classified by workspace dependency graph",
+      "affected_packages": [
+        "animatix-gui",
+        "animatix-text-parity",
+        "animatix-web"
+      ]
+    },
+    {
+      "case": "property-reference",
+      "paths": [
+        "docs/properties.md"
+      ],
+      "candidate_job_ids": [
+        "doc-links",
+        "check-lint"
+      ],
+      "job_ids": [
+        "fast-checks",
+        "doc-links",
+        "eparts-linux",
+        "eparts-macos",
+        "eparts-windows",
+        "check-lint",
+        "test-examples",
+        "render-scenes",
+        "benchmarks",
+        "web-check",
+        "web-build"
+      ],
+      "force_full": false,
+      "reason": "paths classified by workspace dependency graph",
+      "affected_packages": []
+    }
+  ]
+}

@@ -1,19 +1,8 @@
 name: CI
 
-# Every check this workflow runs is a gate in scripts/ci.sh, and the job matrix is
-# generated from that file (`scripts/ci.sh --list`). Adding a gate there adds it
-# here — there is no list in .github/ to forget to update.
-#
-# The old version of this file had ten hand-written jobs and could not see the
-# three checks that actually protect the site (wasm compile, site_scenes, embed
-# bundle drift), because those lived in pages.yml and only ran after merge. The
-# `workflows` gate now fails the build if any workflow types a cargo or scripts/
-# command directly instead of calling a gate, which is what keeps it from drifting
-# back.
-#
-# It is also callable: release.yml runs this whole matrix as its release blocker,
-# so "the tag is green" and "the PR is green" are the same set of checks rather
-# than a second list someone maintains next to the first.
+# Gate definitions and job matrices live in scripts/ci.sh. The PR planner
+# selects registered jobs by dependency; main and release callers run them all.
+# CI Required collects every selected result, including planner failures.
 
 on:
   pull_request:
@@ -30,6 +19,11 @@ on:
         required: false
         type: string
         default: ''
+      topology:
+        description: Explicit experimental layout; releases retain baseline
+        required: false
+        type: string
+        default: baseline
 
 env:
   CARGO_TERM_COLOR: always
@@ -52,43 +46,28 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
+      topology: ${{ steps.plan.outputs.topology }}
+      shared_render_gates: ${{ steps.plan.outputs.shared_render_gates }}
     steps:
       - uses: actions/checkout@v5
         with:
           # The changed-path filter needs the base commit, not a shallow tip.
           fetch-depth: 0
           ref: ${{ inputs.checkout-ref || github.ref }}
-      - id: changed
-        env:
-          CHECKOUT_REF: ${{ inputs.checkout-ref }}
-        # The wasm build is the minutes-long job; skip it only when nothing that
-        # can affect the engine bundles changed. Unknown base or a called
-        # workflow (release) means "run it": a skipped correctness gate is worse
-        # than a redundant build.
-        run: |
-          base="${{ github.event.pull_request.base.sha || github.event.before }}"
-          changed=true
-          if [ -z "$CHECKOUT_REF" ] && [ -n "$base" ] && [ "$base" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$base^{commit}" 2>/dev/null; then
-            if git diff --quiet "$base" HEAD -- crates tools packaging web Cargo.toml Cargo.lock flake.nix flake.lock .cargo scripts .github/workflows; then
-              changed=false
-            fi
-          fi
-          echo "web=$changed" >> "$GITHUB_OUTPUT"
       - id: plan
-        # pr-stage only. The release-stage rows (dist-linux, dist-macos,
-        # dist-windows) build the shippable binaries — running them here would
-        # cost three full release builds on every pull request.
         env:
-          WEB_CHANGED: ${{ steps.changed.outputs.web }}
-        run: |
-          # Keep the path filter, but apply it when generating the matrix.
-          # `matrix` is not available to a job-level `if` in Actions.
-          if [ "$WEB_CHANGED" = "true" ]; then
-            matrix="$(scripts/ci.sh --matrix pr)"
-          else
-            matrix="$(scripts/ci.sh --matrix pr --skip-web)"
-          fi
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          ANIMATIX_CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          ANIMATIX_CI_CHECKOUT_REF: ${{ inputs.checkout-ref }}
+          ANIMATIX_CI_SELECTION: ${{ vars.ANIMATIX_CI_SELECTION || 'enabled' }}
+          ANIMATIX_CI_TOPOLOGY: ${{ inputs.topology || 'baseline' }}
+        run: scripts/ci.sh gate ci-plan
+      - name: Upload selection evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-plan
+          path: target/ci/
+
 
   gate:
     name: ${{ matrix.name }}
@@ -138,6 +117,9 @@ jobs:
         with:
           components: rustfmt
       - name: Rust cache
+        # Explicit topology trials measure fresh Cargo targets on every host;
+        # ordinary PR/main/release checks retain their normal Rust cache.
+        if: github.event_name != 'workflow_dispatch' || inputs.checkout-ref == ''
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.shell }}
@@ -149,22 +131,23 @@ jobs:
         shell: bash
         env:
           SETUP: ${{ matrix.setup }}
-        run: scripts/ci.sh setup $SETUP
+        run: scripts/ci.sh setup "$SETUP"
 
       - name: Gate
         shell: bash
         env:
           GATE: ${{ matrix.gate }}
           GATE_SHELL: ${{ matrix.shell }}
+          ANIMATIX_GATE_TIMINGS: target/ci/timings.jsonl
         # ci.sh never enters a shell itself — devshells prepend to PATH, so an
         # outer rustc wins and the wasm gate fails looking like a code fault.
         # The matrix's shell column is what says which shell this job owes it.
         run: |
           case "$GATE_SHELL" in
-            web) nix develop .#web-build --command scripts/ci.sh gate $GATE ;;
-            web-ci) nix develop .#web-ci --command scripts/ci.sh gate $GATE ;;
-            nix) nix develop --command scripts/ci.sh gate $GATE ;;
-            *)   scripts/ci.sh gate $GATE ;;
+            web) nix develop .#web-build --command scripts/ci.sh gate "$GATE" ;;
+            web-ci) nix develop .#web-ci --command scripts/ci.sh gate "$GATE" ;;
+            nix) nix develop --command scripts/ci.sh gate "$GATE" ;;
+            *)   scripts/ci.sh gate "$GATE" ;;
           esac
 
       # Upload real files rather than the local build's target/ symlink.
@@ -189,3 +172,79 @@ jobs:
           path: target/perf/distribution-refactor/web-transactions/
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Upload gate timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: timings-${{ matrix.id }}
+          path: target/ci/timings.jsonl
+          if-no-files-found: warn
+
+  native_cli:
+    name: Experimental CLI Producer
+    if: ${{ needs.plan.outputs.topology == 'shared-cli' }}
+    needs: plan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.checkout-ref || github.ref }}
+      - uses: DeterminateSystems/determinate-nix-action@v3
+      - uses: Swatinem/rust-cache@v2
+        if: github.event_name != 'workflow_dispatch' || inputs.checkout-ref == ''
+        with:
+          key: nix
+      - name: Build identified native CLI
+        run: nix develop --command scripts/ci.sh gate native-cli-artifact
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-cli
+          path: target/ci/native-cli/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: timings-native-cli
+          path: target/ci/timings.jsonl
+          if-no-files-found: warn
+
+  shared_render:
+    name: Experimental Shared CLI Consumer
+    if: ${{ needs.plan.outputs.topology == 'shared-cli' }}
+    needs: [plan, native_cli]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.checkout-ref || github.ref }}
+      - uses: DeterminateSystems/determinate-nix-action@v3
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-cli
+          path: target/ci/native-cli
+      - name: Verify and consume the registered render gates
+        env:
+          ANIMATIX_SHARED_CLI: ${{ github.workspace }}/target/ci/native-cli
+          GATES: ${{ needs.plan.outputs.shared_render_gates }}
+        run: nix develop --command scripts/ci.sh gate verify-native-cli "$GATES"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: timings-shared-render
+          path: target/ci/timings.jsonl
+
+  required:
+    name: CI Required
+    if: ${{ always() }}
+    needs: [plan, gate, native_cli, shared_render]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.checkout-ref || github.ref }}
+      - name: Require every selected job
+        env:
+          ANIMATIX_CI_NEEDS: ${{ toJSON(needs) }}
+          ANIMATIX_CI_TOPOLOGY: ${{ needs.plan.outputs.topology }}
+        run: scripts/ci.sh gate ci-result

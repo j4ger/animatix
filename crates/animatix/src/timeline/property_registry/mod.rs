@@ -2,15 +2,15 @@
 //!
 //! The canonical schema system for all actor properties.
 //!
-//! Every property in Animatix is described by a `PropertySchema` entry in the
-//! static `PROPERTY_REGISTRY`. Each schema specifies:
+//! `PROPERTY_REGISTRY` joins the core descriptor table with the engine-only
+//! `BINDINGS` table by property name. Each composed schema specifies:
 //!
 //! - `name` — Canonical source-text name (`"color"`, `"radius"`, `"gap"`, `"padding"`)
 //! - `value_type` — Which rust type the property value carries
 //! - `flags` — Feature flags (ANIMATED, ASSIGNABLE, INJECTABLE, LAYOUT_AFFECTING)
 //! - `field` — Which `ActorField` storage location this maps to
-//! - `applicable` — Which actor kinds the property is valid for (joined from the
-//!   core descriptor table)
+//! - `applicable` — Which actor kinds the property is valid for (from the core
+//!   descriptor table)
 //! - `default_value` / `read_source` — Defaulting and frame-time reads
 //!
 //! ## Dispatch flow
@@ -22,10 +22,11 @@
 //!
 //! ## Adding a new property
 //!
-//! 1. Add a descriptor row to `animatix_core::property::PROPERTY_DESCRIPTORS`
-//! 2. Add a binding row to `BINDINGS` below (a new `ActorField` if new storage
-//!    is needed)
-//! 3. Add the type-system row in `animatix-syntax::schema`
+//! 1. Add a row to `animatix_core::property::PROPERTY_DESCRIPTORS` for the
+//!    name, applicability, storage kind, and any non-default `AuthoredTypeHint`.
+//! 2. Add a binding row to `BINDINGS` below for the runtime value type, flags,
+//!    storage field, default, and read source.
+//! 3. The syntax type view derives from the descriptor; it has no parallel row.
 //!
 //! For most animated properties that is all — the generic engine handles
 //! parsing, keyframing, assignments, and environment injection automatically.

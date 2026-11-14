@@ -126,7 +126,7 @@ jobs:
           GATE_SHELL: ${{ matrix.shell }}
           SETUP: ${{ matrix.setup }}
         run: |
-          scripts/ci.sh setup $SETUP
+          scripts/ci.sh setup "$SETUP"
           case "$GATE_SHELL" in
             dist-driver) nix develop .#dist-driver --command scripts/ci.sh gate "$GATE" ;;
             nix) nix develop --command scripts/ci.sh gate "$GATE" ;;

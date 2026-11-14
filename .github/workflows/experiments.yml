@@ -1,0 +1,154 @@
+name: Maintenance Experiments
+
+on:
+  workflow_call:
+    inputs:
+      suite:
+        description: Experiment suite to run
+        required: false
+        type: string
+        default: all
+      warm_rounds:
+        description: Warm relink/runner rounds
+        required: false
+        type: number
+        default: 5
+      cold_rounds:
+        description: Fresh-target rounds
+        required: false
+        type: number
+        default: 3
+      mold_source_rev:
+        description: Exact mold commit SHA for the macOS linker candidate
+        required: false
+        type: string
+        default: 331ac663668dc0b1f4949403854613b9b1913025
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: maintenance-experiments-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  linker-linux:
+    if: ${{ inputs.suite == 'linker' || inputs.suite == 'all' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: [cli, gui, workspace-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    name: Linker Linux (${{ matrix.workload }})
+    steps:
+      - uses: actions/checkout@v5
+      - name: Free disk space for isolated build targets
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
+            /usr/local/share/boost /usr/local/share/chromium
+          sudo apt-get clean
+          df -h /
+      - uses: DeterminateSystems/determinate-nix-action@v3
+      - name: Run linker experiment gate
+        env:
+          ANIMATIX_EXPERIMENT_OUTPUT: target/experiments/linker-linux-${{ matrix.workload }}
+          ANIMATIX_EXPERIMENT_WARM_ROUNDS: ${{ inputs.warm_rounds }}
+          ANIMATIX_EXPERIMENT_COLD_ROUNDS: ${{ inputs.cold_rounds }}
+          ANIMATIX_LINKER_WORKLOADS: ${{ matrix.workload }}
+        run: nix develop .#experiments --command scripts/ci.sh gate linker-experiment
+      - name: Upload Linux linker evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linker-linux-${{ matrix.workload }}-evidence
+          path: |
+            target/experiments/linker-linux-${{ matrix.workload }}/metadata.json
+            target/experiments/linker-linux-${{ matrix.workload }}/records.jsonl
+            target/experiments/linker-linux-${{ matrix.workload }}/logs/
+            target/experiments/linker-linux-${{ matrix.workload }}/compatibility/
+          if-no-files-found: warn
+          retention-days: 14
+
+  linker-macos:
+    if: ${{ inputs.suite == 'linker' || inputs.suite == 'all' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: [cli, gui, workspace-tests]
+    runs-on: macos-latest
+    timeout-minutes: 360
+    name: Linker macOS (${{ matrix.workload }})
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install and verify pinned LLVM 21 linker candidate
+        shell: bash
+        run: |
+          brew install llvm@21
+          LLVM_PREFIX="$(brew --prefix llvm@21)"
+          LLD="$LLVM_PREFIX/bin/ld64.lld"
+          test -x "$LLD"
+          "$LLD" --version | tee target-llvm-version.txt
+          grep -Eq '(^|[^0-9])21\.1\.8([^0-9]|$)' target-llvm-version.txt
+          mkdir -p target/ci
+          shasum -a 256 "$LLD" | tee target/ci/llvm-21-ld64-lld.sha256
+          echo "$LLVM_PREFIX/bin" >> "$GITHUB_PATH"
+          echo "ANIMATIX_EXPECTED_LLD_SHA256=$(awk '{print $1}' target/ci/llvm-21-ld64-lld.sha256)" >> "$GITHUB_ENV"
+      - name: Run linker experiment gate
+        env:
+          ANIMATIX_EXPERIMENT_OUTPUT: target/experiments/linker-macos-${{ matrix.workload }}
+          ANIMATIX_EXPERIMENT_WARM_ROUNDS: ${{ inputs.warm_rounds }}
+          ANIMATIX_EXPERIMENT_COLD_ROUNDS: ${{ inputs.cold_rounds }}
+          ANIMATIX_MOLD_SOURCE_REV: ${{ inputs.mold_source_rev }}
+          ANIMATIX_LINKER_WORKLOADS: ${{ matrix.workload }}
+        run: scripts/ci.sh gate linker-experiment
+      - name: Upload macOS linker evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linker-macos-${{ matrix.workload }}-evidence
+          path: |
+            target/experiments/linker-macos-${{ matrix.workload }}/metadata.json
+            target/experiments/linker-macos-${{ matrix.workload }}/records.jsonl
+            target/experiments/linker-macos-${{ matrix.workload }}/logs/
+            target/experiments/linker-macos-${{ matrix.workload }}/compatibility/
+            target/ci/llvm-21-ld64-lld.sha256
+            target-llvm-version.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+  runner-linux:
+    if: ${{ inputs.suite == 'runner' || inputs.suite == 'all' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v5
+      - name: Free disk space for isolated build targets
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
+            /usr/local/share/boost /usr/local/share/chromium
+          sudo apt-get clean
+          df -h /
+      - uses: DeterminateSystems/determinate-nix-action@v3
+      - name: Run test runner experiment gate
+        env:
+          ANIMATIX_EXPERIMENT_OUTPUT: target/experiments/runner-linux
+          ANIMATIX_EXPERIMENT_WARM_ROUNDS: ${{ inputs.warm_rounds }}
+          ANIMATIX_EXPERIMENT_COLD_ROUNDS: ${{ inputs.cold_rounds }}
+        run: nix develop .#experiments --command scripts/ci.sh gate runner-experiment
+      - name: Upload runner evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runner-linux-evidence
+          path: |
+            target/experiments/runner-linux/metadata.json
+            target/experiments/runner-linux/records.jsonl
+            target/experiments/runner-linux/logs/
+          if-no-files-found: warn
+          retention-days: 14

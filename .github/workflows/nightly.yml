@@ -20,6 +20,12 @@ on:
         required: false
         type: boolean
         default: true
+      experiment_suite:
+        description: 'Run experiments only; never build or publish a nightly'
+        required: false
+        type: choice
+        options: [none, linker, runner, all, ci-baseline, ci-grouped, ci-shared-cli]
+        default: none
 
 permissions:
   contents: write
@@ -32,7 +38,38 @@ env:
   GH_REPO: ${{ github.repository }}
 
 jobs:
+  experiments:
+    if: ${{ github.event_name == 'workflow_dispatch' && contains(fromJSON('["linker","runner","all"]'), inputs.experiment_suite) }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/experiments.yml
+    with:
+      suite: ${{ inputs.experiment_suite }}
+
+  ci_baseline:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.experiment_suite == 'ci-baseline' }}
+    uses: ./.github/workflows/ci.yml
+    with:
+      checkout-ref: ${{ github.sha }}
+      topology: baseline
+
+  ci_grouped:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.experiment_suite == 'ci-grouped' }}
+    uses: ./.github/workflows/ci.yml
+    with:
+      checkout-ref: ${{ github.sha }}
+      topology: grouped
+
+  ci_shared_cli:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.experiment_suite == 'ci-shared-cli' }}
+    uses: ./.github/workflows/ci.yml
+    with:
+      checkout-ref: ${{ github.sha }}
+      topology: shared-cli
+
   check:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.experiment_suite == '' || inputs.experiment_suite == 'none' }}
     name: Check for changes
     runs-on: ubuntu-latest
     outputs:

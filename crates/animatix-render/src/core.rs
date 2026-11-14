@@ -14,23 +14,13 @@ use super::fullscreen_blit::FullscreenBlitPipeline;
 /// anywhere — that `render_to_texture` leaves no cross-call state which changes
 /// what a *later* render draws.
 ///
-/// Upstream's image-atlas residency change (vello #1558, between revs
-/// `d8686d52` and `17166312`) broke exactly that assumption: an image-bearing
-/// render drew nothing whenever a non-image render ran between two image
-/// renders, which is our multi-scope shape. The workspace therefore pins Vello
-/// to `d8686d52` (see the `vello` entries in the `Cargo.toml`s) and guards the
-/// boundary with `tests/vello_img_probe.rs`, which reproduces the failing
-/// sequence against a bare renderer.
-///
-/// Before moving the pin forward: run that test — it asserts, so a vanished
-/// image fails the run rather than printing a number to be read — then
-/// `animatix video dogfood/projects/effects-wave1/entry.amx` and confirm the
-/// checker backdrop survives every frame. `docs/roadmap.md` tracks the pin.
-///
-/// Probing the pin forward is not just a rev change: upstream vello's current
-/// `main` builds against wgpu 30 while this workspace pins 29, so the two
-/// `wgpu::Device` types do not unify and nothing compiles until the wgpu bump
-/// lands (measured 2026-10-04 against `f3000c8d`).
+/// Upstream issue #1948 (the patchless-resolve variant of #1558) broke that
+/// assumption: an image-free render could discard the persistent image atlas,
+/// so the next image render drew nothing. The workspace uses Vello 0.11.0 with
+/// a local patch in the root `Cargo.toml` that keeps the atlas alive across
+/// image-free renders. `tests/vello_img_probe.rs` asserts the A–H boundary
+/// sequence; the remaining upstream fix and patch removal condition are tracked
+/// in `docs/roadmap.md`.
 pub struct RendererCore {
     /// The underlying Vello renderer instance.
     pub renderer: Renderer,

@@ -102,67 +102,21 @@ See [§16 Multi-Scene Composition](#16-multi-scene-composition) below.
 
 ### Timeline and the ECS world
 
-Timeline data is organized as a dependency-free Entity-Component-System (ECS) paired with a behavior family system layer. `docs/ecs.md` is the normative design; this section is the summary.
+`Timeline` owns a dependency-free `World` of stable `EntityId`s and typed
+component stores, plus scene-level resources, layout state, and evaluation
+caches. Required and sparse component stores hold per-actor state; systems
+operate on entity ids, while labels remain at source, serialization, and UI
+boundaries. Per-actor snapshots are stored by component tier in `CarryBag`.
 
-```
-Timeline {
-    world: World,                      // entities + typed component stores
-    behaviors: BehaviorRegistry,       // BehaviorId -> BehaviorDef table
-    background_color, env, camera, colorscheme, assets, font context,
-    layout engine, duration/config, frame caches, modifiers …
-}
-
-World {
-    entities: EntityStore,                  // EntityId -> label maps + alive check
-    roots: Vec<EntityId>,                   // root entities in insertion order
-    
-    // Required stores (every entity has an entry):
-    hierarchy:       RequiredStore<SceneHierarchyComponent>,
-    actor_types:     RequiredStore<String>,
-    caps:            RequiredStore<ActorCaps>,
-    behavior:        RequiredStore<BehaviorId>,
-    geometry:        RequiredStore<GeometryTracks>,
-    style:           RequiredStore<StyleTracks>,
-    property_plan:   RequiredStore<PropertyPlan>,
-    tagged_tracks:   RequiredStore<TaggedTracksComponent>,
-    memo cells:      shape_memos / pending_shape_bounds / bounds_slots,
-
-    // Optional stores (sparse, ComponentStore<T> / Vec<Option<T>>):
-    shape:           ComponentStore<ShapeTracks>,
-    text:            ComponentStore<TextTracks>,
-    highlight:       ComponentStore<HighlightTracks>,
-    plot_payload:    ComponentStore<PlotPayload>,
-    svg_payload:     ComponentStore<SvgPayload>,
-    image_payload:   ComponentStore<ImagePayload>,
-    container_layout:ComponentStore<ContainerMetadata>,
-    child_order:     ComponentStore<ChildOrderComponent>,
-    coordinate_frame:ComponentStore<CoordinateFrameComponent>,
-    persistence:     ComponentStore<PersistenceComponent>,
-    auto_color:      ComponentStore<AutoColorComponent>,
-    transcript:      ComponentStore<TranscriptComponent>,
-    legend:          ComponentStore<LegendTracks>,
-    effects:         ComponentStore<EffectChainTrack>,
-    meta:            ComponentStore<EntityMeta>,
-    decl_span:       ComponentStore<Span>,
-    caps_overrides:  ComponentStore<ActorCaps>,
-}
-```
-
-Entities are append-only and identified by `EntityId(u32)`; structural GUI
-deletes rebuild the whole timeline, so ids are never reused. Required components exist on every entity; optional components are
-looked up with `Option`. `EntityRef`/`EntityMut` are the access surface, and
-labels are converted to ids at the build/expression/serialization/GUI boundary.
-Frame caches (`bounds_slot`, shape/vector-path memos) live in `EvalCaches`, not
-in components.
-
-Per-actor keyframed data is split into the component domains listed above;
-there is no aggregate per-actor struct left. `CarryBag` serializes the per-tier
-snapshots directly; see `docs/ecs.md` §5.
+`docs/ecs.md` is the normative storage contract: it lists the component stores,
+explains spawn/hierarchy and snapshot behavior, and defines the component-change
+checklist and structure gate. This overview intentionally omits that inventory;
+update `ecs.md` when the ECS model changes.
 
 The plot host's `CoordinateFrameComponent` is the sole source for a hosted
-child's coordinate resolution. The `{label}_x_domain` / `_y_domain` / `_padding`
-env entries are derived from it at build time and exist only as authored
-expression variables; build and rebuild paths never fall back to them.
+child's coordinate resolution. `{label}_x_domain`, `_y_domain`, and `_padding`
+env entries are derived from it at build time for authored expressions; build
+and rebuild paths do not fall back to those values.
 
 ### Behavior Family Systems and Extension Adapter
 
@@ -473,20 +427,23 @@ The property system uses a **registry-driven generic engine** to eliminate N×M 
 
 ### Schema
 
-Every property is described by a static `PropertySchema` record:
+The property contract has three views with distinct owners:
 
-```rust
-struct PropertySchema {
-    name: &'static str,
-    value_type: ValueType,      // F32, Vec2, Color, String, etc.
-    flags: PropertyFlags,       // ANIMATED | LAYOUT_AFFECTING | ASSIGNABLE | INJECTABLE | SPATIAL | PRESENCE | PATH_AFFECTING
-    field: ActorField,          // Which storage tier to WRITE (build-time)
-    group: Option<GroupMembership>, // For compound cross-property resolution
-    read_source: ReadSource,    // How to READ (frame-time env injection)
-}
-```
+- `animatix-core::property::PROPERTY_DESCRIPTORS` declares the canonical name,
+  applicability, coarse `PropertyValueKind`, and `AuthoredTypeHint`. The hint
+  preserves source-language forms that cannot be inferred from the coarser
+  storage kind; `Default` derives the historical mapping.
+- `animatix-syntax` derives its type-system view from those descriptors. It
+  does not maintain a second property-type row.
+- `animatix::timeline::property_registry::BINDINGS` declares each runtime
+  `ValueType`, flags, storage field, default, and frame-time read source.
+  `PROPERTY_REGISTRY` joins descriptors and bindings by name into a
+  process-wide `LazyLock<Vec<PropertySchema>>`, sorted by name and paired with cached name/id indexes.
 
-The `PROPERTY_REGISTRY` is a static sorted slice. Lookup is O(log n) binary search.
+`PropertyValueKind`, syntax `Type`, and engine `ValueType` serve different
+consumers and have different precision. In particular, an authored `Any` stays
+unconstrained in syntax even when its engine binding has a concrete runtime
+representation.
 
 `ValueType::Sum` models named variants with optional payloads. Parsing selects a variant by literal
 or payload type, and `PropertyValue::Variant` stores the selected name plus payload. This lets
@@ -777,87 +734,33 @@ Actors and effects share one identity model:
 
 ### Adding a new built-in primitive
 
-Rendering is trait-dispatched; adding a primitive is one identity card, one
-behaviour file, and one registration line — no parallel metadata anywhere:
+Built-ins pair an `animatix-std` identity card with an engine behaviour row.
+Their frame evaluation goes through family function pointers; extension
+primitives use the `Primitive` adapter. The `BUILT_INS` row binds the two by
+symbol and is also the stable built-in `BehaviorId` order.
 
-```rust
-// animatix-std/src/catalog.rs — the identity card (single metadata source),
-// built with a const-fn constructor and listed in CATALOG (presentation
-// order only).
-pub static TRIANGLE: PrimitiveInfo = PrimitiveInfo::shape(
-    "Triangle",
-    "Triangle",
-    icon_glyphs::TRIANGLE,
-    ShapeKind::Polygon,
-);
+1. Add the identity card to `animatix-std/src/catalog.rs` and `CATALOG`.
+   This owns author-visible identity, display, category, and capabilities.
+2. Implement behavior in `animatix/src/primitives/` and the relevant family
+   system in `timeline/behavior/builtin/`; add a `BuiltIn::new` row with its
+   evaluation function and optional custom build hook. Registration tests pin
+   the identity/behavior pairing and row order.
+3. If the primitive adds properties, append its rows to
+   `animatix_core::property::PROPERTY_DESCRIPTORS`. Set a non-default
+   `AuthoredTypeHint` only when the source-language type differs from the
+   value-kind default. Add matching runtime rows to `BINDINGS` with the
+   `ValueType`, flags, storage, default, and read source. The syntax view
+   derives from the descriptors; there is no separate syntax row.
+4. `PropertyId` is the descriptor row index and serialized plans store those
+   ids: append rows, never reorder or remove them. The id/type snapshot tests
+   guard both ordering and authored type behavior.
+5. Update `docs/primitives.md` and `docs/spec.md` for author-visible behavior;
+   include rendering and hit-region coverage when the primitive draws.
 
-// animatix/src/primitives/triangle.rs — the behaviour (engine side)
-pub struct TrianglePrimitive;
-pub const TRIANGLE: TrianglePrimitive = TrianglePrimitive;
-
-impl Primitive for TrianglePrimitive {
-    fn type_name(&self) -> &'static str { "Triangle" }
-
-    fn build(&self, ctx: &mut BuildCtx, label: &str, props: &[Property],
-             modifiers: &[Modifier], children: &[InlineItem]) -> Result<(), Vec<Diagnostic>> {
-        ctx.timeline.process_inline_actor_decl(self.type_name(), label, props,
-                                               modifiers, ctx.time_ms, ctx.parent_label);
-        Ok(())
-    }
-
-    fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
-        let path = build_triangle_path(ctx.state.size);
-        Some(vec![build_vello_path(path, ctx.style)])
-    }
-
-    fn default_props(&self, scene: &SceneDimensions) -> Vec<Property> { vec![...] }
-}
-
-// animatix/src/primitives/mod.rs — the registration row: card and behaviour
-// referenced by symbol, so the two lists cannot drift positionally.
-pub static BUILT_INS: &[BuiltIn] = &[
-    // … existing rows …
-    BuiltIn::new(&animatix_std::catalog::TRIANGLE, &TRIANGLE),
-];
-```
-
-Steps:
-1. Add the identity card: a `pub static <NAME>: PrimitiveInfo` in
-   `animatix-std/src/catalog.rs` (display name, category, icon, capabilities,
-   child processing, shape/text projection) and its name in `CATALOG`
-   (presentation order). This is the single metadata source — the runtime, the
-   parser crate's `builtin_primitive_specs()`, and `builtins::types()` all
-   derive from it.
-2. Create `animatix/src/primitives/<name>.rs` implementing the behaviour
-   methods of `Primitive` (`build`/`evaluate`/`render`/`default_props`).
-3. Add a `BuiltIn::new(&animatix_std::catalog::<NAME>, &<NAME>::CONST)` row
-   to the `BUILT_INS` array in `primitives/mod.rs`. The card is referenced by
-   symbol; tests pin the name pairing and the catalog/behaviour set equality.
-4. If the primitive declares properties, add the row to
-   `animatix_core::property::PROPERTY_DESCRIPTORS` — the single declaration of
-   name, `Applicable` predicate, and finite value kind. Two derivations follow
-   from it:
-   - `animatix-syntax` adds the type-system view (`raw_property_types()`, same
-     order, pinned by `property_types_line_up_with_descriptors`);
-   - `animatix` adds the runtime binding (`BINDINGS` in
-     `timeline/property_registry/`: plan-slot `ValueType`, flags, storage
-     field, default, read source), joined into `PROPERTY_REGISTRY` by name.
-
-   A capability-shaped predicate means new actor types matching it pick the
-   property up with no per-primitive edits at all. `PropertyId` is the row
-   index and serialized plans store it, so **append** rows rather than
-   reordering them (`property_id_order_is_pinned` guards the order).
-5. Document in `docs/primitives.md` / `docs/spec.md` (including the LLM
-   checklist name list and its mirror in `AGENTS.md`); add render/hit-region
-   tests if the primitive draws.
-
-The metadata registry is the `animatix-std` catalog itself (the former
-`ActorKindMeta` was replaced by `PrimitiveInfo`), and each engine `BUILT_INS`
-row references its card by symbol — only name-set drift remains possible, and
-the pairing test catches it. External primitives register through
-`PrimitiveRegistry` or `ExtensionContext` with their own `PrimitiveInfo` card
-(the same data shape the native ABI descriptor carries); external properties
-are stored in the actor's `PropertyPlan`/`DynTrack` slots.
+A capability-shaped applicability predicate can admit future actor types
+without another primitive-specific edit. External primitives register through
+`PrimitiveRegistry`/`ExtensionContext` with an identity card and the extension
+adapter; their dynamic properties use `PropertyPlan`/`DynTrack` slots.
 
 ### When to group primitives
 

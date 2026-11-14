@@ -14,7 +14,7 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 - `crates/animatix-analyzer`, `crates/animatix-lsp`: language intelligence and its LSP wrapper; update the analyzer when syntax changes.
 - `crates/animatix-web`: wasm32 playback (no in-browser editor); `SourcesOnly` module reuse, offscreen vello blitted to WebGPU; web packages ship the external `web/fonts` pack; site/embed docs in `web/README.md`.
 - `crates/animatix-plugin-api`, `-demo`, `-tooling`: native plugin C ABI, example, tooling. `crates/eparts`: themed egui widgets.
-- `crates/animatix-syntax/src/token.rs`: the single lossless tokenizer (parser input, LSP tokens, GUI highlighting).
+- `crates/animatix-syntax/src/token/`: the single lossless tokenizer (parser input, LSP tokens, GUI highlighting).
 - `docs`: `roadmap.md` is remaining work only, `docs/history/` is the archive (`history.md` is a pointer), `docs/ecs.md` is normative ECS + structure contract. `examples/` has demos; `dogfood/` has in-progress projects and probes.
 
 ## Key Docs
@@ -69,9 +69,9 @@ Both features forward to `animatix-render/video`; the engine has none. Native CL
 
 ## Adding or Changing a Property
 
-`animatix-core::property::PROPERTY_DESCRIPTORS` is the single declaration (name, `Applicable`, value kind). Three things must line up, or tests fail:
+`animatix-core::property::PROPERTY_DESCRIPTORS` is the single declaration (name, `Applicable`, value kind, and exceptional `AuthoredTypeHint`). Three things must line up, or tests fail:
 
-1. `animatix-syntax::schema::raw_property_types()` — the type-system view, index-aligned (`property_types_line_up_with_descriptors`).
+1. `animatix-syntax::schema::raw_property_types()` — the derived type-system view, index-aligned (`property_types_line_up_with_descriptors`).
 2. `animatix::timeline::property_registry::BINDINGS` — engine binding (plan-slot `ValueType`, flags, storage field, default, read source), joined into `PROPERTY_REGISTRY` by name (`every_binding_has_a_descriptor`, `value_kinds_agree_with_descriptors`); an unbound descriptor must appear in `UNBOUND_DESCRIPTORS` with a reason.
 3. The frame-time read path and its `ANIMATED` flag (`frame_consumed_properties_are_flagged_animated`).
 

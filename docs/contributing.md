@@ -52,6 +52,57 @@ cargo run -p animatix-cli --features video -- gif examples/projects/fft_explain.
 cargo run --bin animatix-gui -- examples/projects/fft_explain.amx
 ```
 
+### CI selection and build experiments
+
+`scripts/ci.sh` owns gates, stable job IDs and matrices. Pull-request selection
+uses workspace path dependencies conservatively, including optional, build and
+dev dependencies. Unknown inputs or unavailable base commits select every job;
+main pushes and release callers always use the full matrix. Selection starts in
+selective mode after the twelve representative shadow cases recorded in
+`docs/history/maintenance-ci-shadow.json`. `target/ci/plan.json` records the
+candidate and effective plans. Set the repository variable
+`ANIMATIX_CI_SELECTION=shadow` to execute the complete matrix while reviewing
+selection evidence. Keep `CI Required` as
+the stable required check when migrating branch protection; it rejects failed,
+cancelled or missing selected jobs.
+
+Run `scripts/ci.sh plan --event pull_request --base <sha> --head <sha>` to inspect
+a plan. Gates write exit-preserving measurements to `target/ci/timings.jsonl`;
+`ANIMATIX_GATE_TIMINGS` can select another evidence path. `doc-links` checks
+handwritten documentation without compiling Rust; `doc` checks Rustdoc and the
+generated property reference. The workspace test gate includes the native
+`site_scenes` target; its standalone gate remains available for manual site builds.
+
+Build experiments are manual and never part of default PR/release/all runs:
+
+```bash
+nix develop .#experiments --command scripts/ci.sh gate linker-experiment
+nix develop .#experiments --command scripts/ci.sh gate runner-experiment
+scripts/ci.sh --matrix experiment
+```
+
+The experiment shell supplies mold, LLD and nextest pinned by `flake.lock` without
+changing normal linker/runner defaults. Candidates use owned build directories
+and record their source, tools, commands, failures, wall time and process-tree
+memory. Run experiments serially on fixed source; do not edit source or run
+competing benchmarks during a measurement. Cold builds and warm execution are
+separate populations. Five paired warm rounds and three cold rounds are the
+default; failed candidates remain failed evidence, never a silent fallback.
+
+GPU tests belong in `animatix-render` or must be explicitly included in the
+nextest GPU group before enabling parallel execution. Nextest does not replace
+Cargo doctests or example compilation. Unique temporary paths do not isolate
+process-global caches: engine tests using the text dependency see its production
+cache even though the text crate's own unit tests use thread-local caches.
+
+The engine's public integration suites remain independent modules inside the
+`engine_contracts` target, sharing one process-wide font database. For example,
+`cargo test -p animatix --test engine_contracts ir_tests::test_name` selects a
+case from the former `ir_tests` target. Keep these tests serial until their
+shared process-state assumptions have been checked. Source-size reports can be
+reproduced with `python3 scripts/maintenance-inventory.py`; source attributes are
+not substitutes for executable test-ID inventories.
+
 ### Property metadata and generated reference
 
 Core property descriptors declare `AuthoredTypeHint` only where the authoring
@@ -229,7 +280,7 @@ require('lspconfig').animatix.setup {
 ## Testing
 
 ```bash
-scripts/ci.sh gate fmt lint check test   # in a shell that can build the workspace
+scripts/ci.sh gate fmt lint check test doc doc-links   # inside nix develop
 scripts/ci.sh gates                      # every gate and the shell each needs
 ```
 

@@ -35,10 +35,11 @@
 //!    and behaviour cannot drift positionally; a primitive added to the catalog without a
 //!    row fails the pairing test instead of panicking when `BehaviorRegistry` is
 //!    constructed.
-//! 4. If the primitive has properties, add the three aligned rows (core descriptor, syntax
-//!    type row, engine binding); `timeline::property_registry` documents the join and the
-//!    tests that fail until they agree. Append descriptor rows — the row index is the
-//!    serialized `PropertyId`.
+//! 4. If the primitive has properties, add a core descriptor (with a non-default
+//!    `AuthoredTypeHint` only when needed) and an engine binding. The syntax type view
+//!    derives from the descriptor; `timeline::property_registry` documents the join and
+//!    the tests that fail until the tables agree. Append descriptor rows — the row index
+//!    is the serialized `PropertyId`.
 //! 5. Document it (docs/primitives.md, docs/spec.md) and add render/hit-region coverage if it
 //!    draws.
 //!

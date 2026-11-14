@@ -1,17 +1,9 @@
 #!/usr/bin/env bash
 # The one definition of "is this green".
 #
-# Before this file, the answer lived in three GitHub workflows that could not see
-# each other: `ci.yml` ran ten jobs on PR but never built wasm, never ran
-# `site_scenes` and never checked the embed bundle; `pages.yml` did all three, but
-# only on push to main — so the gate that catches a broken `web/embed/amx-player.js`
-# fired *after* the merge it was supposed to protect. The same commands were typed
-# out 3-4 ways (apt lines, the wasm-bindgen pin, the `.amx` walk), and a fix to one
-# copy left the others behind.
-#
-# Every check is a named *gate* here. `ci.yml`, `pages.yml`, `release.yml` and
-# humans all run the same gate names, and the CI matrix is *generated from this
-# file* (`--list`), so a gate cannot exist in CI and not locally, or the reverse.
+# Gates and job IDs are registered below. Workflows consume generated matrices;
+# PR selection falls back to the full matrix on uncertainty. Every gate runs in an
+# independent measured shell so failures retain their original exit status.
 #
 # The `shell=` column is the load-bearing part. Animatix needs five different
 # environments and the wrong one fails in a way that looks like a code bug:
@@ -21,7 +13,7 @@
 #   nix     `nix develop` — provides ALSA + FFmpeg headers + Vulkan/Mesa + cog + cargo-audit.
 #   web     `nix develop .#web-build` — wasm32 std + the pinned wasm-bindgen CLI.
 #   web-ci  `nix develop .#web-ci` — web-build plus Chromium/node/python for web-smoke.
-#   none    needs no Rust toolchain at all (content-sync, workflows).
+#   none    pure planner/result orchestration, with no Rust toolchain.
 #
 # `ci.sh` deliberately never enters a shell itself. DevShells *prepend* to PATH
 # rather than replacing it, so entering one from inside another (or from a
@@ -45,15 +37,15 @@ cd "$root"
 # ── the registry ──────────────────────────────────────────────────────────────
 # name | shell | os | setup tokens | stage
 #
-# Three stages, because a release owes a different set of things than a pull
-# request:
-#   pr        every pull request runs it, and the release pipeline runs it first —
-#             an artifact nobody gated is an artifact that ships broken.
+# Automatic stages and explicit-only orchestration/experiments:
+#   pr        eligible PR checks; main and release callers run the full set.
 #   release   build-only: the distribution jobs that produce the binaries.
 #   site      composite gates: site-artifact/dist-site/dist-web-sdk need the
 #             gitignored web/runtime SDK in the same job that built them, so
 #             they are run by name from pages.yml and release.yml and are not
-#             matrix rows. `--matrix` accepts pr/release only.
+#             matrix rows.
+#   control   orchestration gates, never matrix jobs.
+#   experiment explicit manual matrices; excluded from default/all execution.
 #
 # Adding a gate here is the whole job: `--list` feeds the matrix, so CI picks it
 # up. Nothing in .github/ has to learn its name.
@@ -67,7 +59,9 @@ render-smoke|nix|ubuntu-latest|nix|pr
 examples|nix|ubuntu-latest|nix|pr
 ext-bench|nix|ubuntu-latest|nix|pr
 doc|nix|ubuntu-latest|nix|pr
-site-scenes|nix|ubuntu-latest|nix|pr
+doc-links|nix|ubuntu-latest|nix|pr
+ci-policy-tests|nix|ubuntu-latest|nix|pr
+site-scenes|nix|ubuntu-latest|nix|site
 embed-build|nix|ubuntu-latest|nix|pr
 web-runtime-tests|nix|ubuntu-latest|nix|pr
 web-sdk-tests|nix|ubuntu-latest|nix|pr
@@ -104,10 +98,20 @@ web-performance|web-ci|ubuntu-latest|nix|site
 dist-linux|dist-driver|ubuntu-latest|nix|release
 dist-macos|native|macos-latest|rust-stable|release
 dist-windows|native|windows-latest|rust-stable|release
+ci-plan|none|ubuntu-latest|none|control
+ci-result|none|ubuntu-latest|none|control
+native-cli-artifact|nix|ubuntu-latest|nix|control
+verify-native-cli|nix|ubuntu-latest|nix|control
+contract-layout-experiment|nix|ubuntu-latest|nix|control
+font-profile-experiment|nix|ubuntu-latest|nix|control
+linker-experiment|nix|ubuntu-latest|nix|experiment
+linker-experiment|native|macos-latest|rust-stable|experiment
+runner-experiment|nix|ubuntu-latest|nix|experiment
+property-reference-experiment|nix|ubuntu-latest|nix|experiment
 '
 
 # ── CI matrix jobs ────────────────────────────────────────────────────────────
-# name | gates | shell | os | setup tokens | stage
+# name | gates | shell | os | setup tokens | stage | stable id
 #
 # Consolidated jobs for CI. Rather than spawning a separate VM for each
 # individual gate (which caused 21 runners to hammer GitHub API and Nix caches,
@@ -119,19 +123,24 @@ dist-windows|native|windows-latest|rust-stable|release
 # each job's shell/os/stage/setup against every gate it lists, so a job cannot
 # silently run a gate in the wrong environment.
 JOB_TABLE='
-Fast Checks|fmt structure workflows content-sync meta-version embed-build web-runtime-tests web-sdk-tests native-package-tests perf-policy-tests|nix|ubuntu-latest|nix|pr
-eparts|eparts|nix|ubuntu-latest|nix|pr
-eparts|eparts|native|macos-latest|rust-stable|pr
-eparts|eparts|native|windows-latest|rust-stable|pr
-Check & Lint|commit audit scene-audit budget-audit check lint doc no-video|nix|ubuntu-latest|nix|pr
-Test & Examples|test examples|nix|ubuntu-latest|nix|pr
-Render Smoke & Scenes|render-smoke site-scenes|nix|ubuntu-latest|nix|pr
-Benchmarks|ext-bench|nix|ubuntu-latest|nix|pr
-Web Check|wasm-check|web|ubuntu-latest|nix|pr
-Web Build|web-split-proof web-build web-sdk-integrity text-parity web-raster-proof web-smoke web-transactions|web-ci|ubuntu-latest|nix|pr
-dist-linux|dist-linux|dist-driver|ubuntu-latest|nix|release
-dist-macos|dist-macos|native|macos-latest|rust-stable|release
-dist-windows|dist-windows|native|windows-latest|rust-stable|release
+Fast Checks|fmt structure workflows content-sync meta-version embed-build web-runtime-tests web-sdk-tests native-package-tests perf-policy-tests|nix|ubuntu-latest|nix|pr|fast-checks
+Documentation Links|commit doc-links ci-policy-tests|nix|ubuntu-latest|nix|pr|doc-links
+eparts|eparts|nix|ubuntu-latest|nix|pr|eparts-linux
+eparts|eparts|native|macos-latest|rust-stable|pr|eparts-macos
+eparts|eparts|native|windows-latest|rust-stable|pr|eparts-windows
+Check & Lint|audit scene-audit budget-audit check lint doc no-video|nix|ubuntu-latest|nix|pr|check-lint
+Test & Examples|test examples|nix|ubuntu-latest|nix|pr|test-examples
+Render Smoke & Scenes|render-smoke|nix|ubuntu-latest|nix|pr|render-scenes
+Benchmarks|ext-bench|nix|ubuntu-latest|nix|pr|benchmarks
+Web Check|wasm-check|web|ubuntu-latest|nix|pr|web-check
+Web Build|web-split-proof web-build web-sdk-integrity text-parity web-raster-proof web-smoke web-transactions|web-ci|ubuntu-latest|nix|pr|web-build
+dist-linux|dist-linux|dist-driver|ubuntu-latest|nix|release|dist-linux
+dist-macos|dist-macos|native|macos-latest|rust-stable|release|dist-macos
+dist-windows|dist-windows|native|windows-latest|rust-stable|release|dist-windows
+Linker Experiment|linker-experiment|nix|ubuntu-latest|nix|experiment|linker-linux
+Linker Experiment|linker-experiment|native|macos-latest|rust-stable|experiment|linker-macos
+Runner Experiment|runner-experiment|nix|ubuntu-latest|nix|experiment|runner-linux
+Property Reference Experiment|property-reference-experiment|nix|ubuntu-latest|nix|experiment|property-reference-linux
 '
 
 # The commands each gate expects to be run by. Kept as prose so `ci.sh shell`
@@ -344,7 +353,12 @@ gate_budget_audit() {
 
 gate_render_smoke() {
   want_cargo
-  cargo build --bin animatix
+  if [ -n "${ANIMATIX_SHARED_CLI:-}" ]; then
+    python3 scripts/ci-control.py verify-cli "$ANIMATIX_SHARED_CLI"
+    export ANIMATIX_BIN="$ANIMATIX_SHARED_CLI/animatix"
+  else
+    cargo build --bin animatix
+  fi
   ANIMATIX_REQUIRE_GPU=1 bash scripts/render_smoke.sh
 }
 
@@ -363,11 +377,82 @@ gate_doc() {
   want_cargo
   RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
   cargo run -p animatix --example property_reference -- --check
-  bash scripts/check-docs.sh
 }
 
-# The four gates PR CI was missing. Each one exists because a real defect walked
-# past the old ten jobs.
+gate_doc_links() { bash scripts/check-docs.sh; }
+
+gate_ci_policy_tests() {
+  python3 scripts/test-ci-control.py
+  python3 scripts/test-ci-plan.py
+  python3 -m unittest discover -s scripts/experiments -p 'test_*.py'
+}
+
+gate_ci_plan() {
+  mkdir -p target/ci
+  local event="${GITHUB_EVENT_NAME:-workflow_dispatch}"
+  [ -z "${ANIMATIX_CI_CHECKOUT_REF:-}" ] || event=workflow_call
+  python3 scripts/ci-plan.py --repo "$root" --event "$event" \
+    --base "${ANIMATIX_CI_BASE:-}" --head "${GITHUB_SHA:-HEAD}" > target/ci/plan.json
+  python3 scripts/ci-control.py plan target/ci/plan.json
+}
+
+gate_ci_result() { python3 scripts/ci-control.py required; }
+
+gate_native_cli_artifact() {
+  cargo build -p animatix-cli --locked
+  python3 scripts/ci-control.py stage-cli target/debug/animatix target/ci/native-cli
+}
+
+gate_verify_native_cli() {
+  python3 scripts/ci-control.py verify-cli "${ANIMATIX_SHARED_CLI:?missing artifact directory}"
+}
+
+gate_contract_layout_experiment() {
+  python3 scripts/experiments/contracts.py \
+    --before-json "${ANIMATIX_CONTRACT_BEFORE_JSON:?missing original Cargo artifact log}" \
+    --after-json "${ANIMATIX_CONTRACT_AFTER_JSON:?missing consolidated Cargo artifact log}" \
+    --output "${ANIMATIX_EXPERIMENT_OUTPUT:-target/experiments/contracts}" \
+    --rounds "${ANIMATIX_EXPERIMENT_WARM_ROUNDS:-5}"
+}
+
+gate_font_profile_experiment() {
+  local -a cli_args=()
+  if [ -n "${ANIMATIX_FONT_CLI_BEFORE:-}${ANIMATIX_FONT_CLI_AFTER:-}" ]; then
+    cli_args=(--cli-before "${ANIMATIX_FONT_CLI_BEFORE:?missing original CLI executable}" \
+              --cli-after "${ANIMATIX_FONT_CLI_AFTER:?missing optimized CLI executable}")
+  fi
+  python3 scripts/experiments/font_profile.py \
+    --before "${ANIMATIX_FONT_BEFORE:?missing original text test executable}" \
+    --after "${ANIMATIX_FONT_AFTER:?missing optimized text test executable}" \
+    --output "${ANIMATIX_EXPERIMENT_OUTPUT:-target/experiments/font-profile}" \
+    --rounds "${ANIMATIX_EXPERIMENT_WARM_ROUNDS:-5}" "${cli_args[@]}"
+}
+
+gate_linker_experiment() {
+  local platform=linux
+  [ "${RUNNER_OS:-$(uname -s)}" != macOS ] && [ "$(uname -s)" != Darwin ] || platform=macos
+  python3 scripts/experiments/run.py linker --platform "$platform" \
+    --output "${ANIMATIX_EXPERIMENT_OUTPUT:-target/experiments/linker}" \
+    --warm-rounds "${ANIMATIX_EXPERIMENT_WARM_ROUNDS:-${ANIMATIX_EXPERIMENT_ROUNDS:-5}}" \
+    --cold-rounds "${ANIMATIX_EXPERIMENT_COLD_ROUNDS:-3}"
+}
+
+gate_runner_experiment() {
+  ANIMATIX_REQUIRE_GPU=1 python3 scripts/experiments/run.py runner \
+    --output "${ANIMATIX_EXPERIMENT_OUTPUT:-target/experiments/runner}" \
+    --warm-rounds "${ANIMATIX_EXPERIMENT_WARM_ROUNDS:-${ANIMATIX_EXPERIMENT_ROUNDS:-5}}" \
+    --cold-rounds "${ANIMATIX_EXPERIMENT_COLD_ROUNDS:-3}"
+}
+
+gate_property_reference_experiment() {
+  python3 scripts/experiments/reference.py \
+    --baseline-ref "${ANIMATIX_REFERENCE_BASE_SHA:?missing pre-generator baseline commit}" \
+    --output "${ANIMATIX_EXPERIMENT_OUTPUT:-target/experiments/property-reference}" \
+    --warm-rounds "${ANIMATIX_EXPERIMENT_WARM_ROUNDS:-5}" \
+    --cold-rounds "${ANIMATIX_EXPERIMENT_COLD_ROUNDS:-3}"
+}
+
+# Web content and SDK boundary checks.
 gate_site_scenes() {
   want_cargo
   # The SDK contains all capabilities; browser dependency tests prove that only
@@ -853,6 +938,13 @@ run_gate() {
     gate_names >&2
     return 2
   fi
+  # The measured child has its own errexit context. `if "$fn"` or `"$fn" ||`
+  # here would disable errexit throughout a gate and could turn failures green.
+  if [ "${ANIMATIX_GATE_CHILD:-}" != 1 ]; then
+    python3 scripts/ci-control.py time --gate "$name" -- \
+      env ANIMATIX_GATE_CHILD=1 bash "$root/scripts/ci.sh" gate "$name"
+    return
+  fi
   printf '\n\033[1m── gate: %s (shell=%s)\033[0m\n' "$name" "$(gate_shell "$name")"
   local required
   required="$(gate_shell "$name")"
@@ -875,25 +967,28 @@ rows() {
 }
 
 job_rows() {
-  awk -F'|' -v s="${1:-}" 'NF>1 && $1!="" && (s=="" || s=="all" || $6==s) { printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $3, $4, $5, $6 }' <<<"$JOB_TABLE"
+  awk -F'|' -v s="${1:-}" 'NF>1 && $1!="" && ((s=="" || s=="all") ? ($6=="pr" || $6=="release") : $6==s) { printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $3, $4, $5, $6, $7 }' <<<"$JOB_TABLE"
 }
 
 stage="${2:-}"
 case "${1:-}" in
+  plan)
+    shift
+    python3 scripts/ci-plan.py --repo "$root" "$@"
+    ;;
   --list)
     rows "$stage"
     ;;
   --matrix)
     case "$stage" in
-      ""|all|pr|release) ;;
+      ""|all|pr|release|experiment) ;;
       *)
-        echo "error: --matrix supports pr|release only; '$stage' gates are composite (run by name)" >&2
+        echo "error: --matrix supports pr|release|experiment only; '$stage' gates are composite (run by name)" >&2
         exit 2
         ;;
     esac
-    # The web build is path-filtered in ci.yml. Filter the generated matrix
-    # here rather than putting `matrix` in a job-level `if`: that context is
-    # not available at job scope and makes the whole workflow invalid.
+    # Retain the manual --skip-web compatibility filter. Hosted CI selection
+    # uses the dependency planner and never puts matrix context in a job-level if.
     if [ "${3:-}" = "--skip-web" ]; then
       job_rows "$stage" | grep -v '^Web Build'$'\t' || true
     else
@@ -903,8 +998,8 @@ import json, sys
 rows = [l.rstrip("\n").split("\t") for l in sys.stdin if l.strip()]
 print(json.dumps({"include": [
     {"name": "%s (%s)" % (n, o) if not n.endswith(")") else n,
-     "gate": g, "shell": s, "os": o, "setup": d, "stage": st}
-    for n, g, s, o, d, st in rows]}))
+     "gate": g, "shell": s, "os": o, "setup": d, "stage": st, "id": ident}
+    for n, g, s, o, d, st, ident in rows]}))
 '
     ;;
   gates)
@@ -929,7 +1024,15 @@ print(json.dumps({"include": [
     done
     ;;
   all)
-    gate_names "$stage" | while read -r g; do run_gate "$g"; done
+    if [ -z "$stage" ] || [ "$stage" = all ]; then
+      { gate_names pr; gate_names release; } | awk '!seen[$0]++' |
+        while read -r g; do run_gate "$g"; done
+    elif [ "$stage" = experiment ] || [ "$stage" = control ]; then
+      echo "error: experiment/control gates require an explicit gate name" >&2
+      exit 2
+    else
+      gate_names "$stage" | while read -r g; do run_gate "$g"; done
+    fi
     ;;
   ""|-h|--help)
     sed -n '1,/^set -euo pipefail/p' "${BASH_SOURCE[0]}" | sed '$d' | sed 's/^# \{0,1\}//'

@@ -28,7 +28,7 @@ class Environments(unittest.TestCase):
         self.assertTrue(rows)
         for row in rows:
             gate, shell, platform, setup, stage = row.split("\t")
-            if platform == "ubuntu-latest":
+            if platform == "ubuntu-latest" and stage != "control":
                 self.assertIn(shell, {"nix", "web", "web-ci", "dist-driver"}, gate)
                 self.assertEqual(setup, "nix", gate)
                 self.assertEqual(shell == "dist-driver", gate == "dist-linux")
@@ -43,13 +43,21 @@ class Environments(unittest.TestCase):
     def test_registry_rejects_native_linux_and_wrong_job_shell(self):
         validator = ROOT / "scripts/ci-registry-check.py"
         cases = [
-            ("fmt|native|ubuntu-latest|rust-stable|pr", "Fast|fmt|native|ubuntu-latest|rust-stable|pr"),
-            ("fmt|nix|ubuntu-latest|nix|pr", "Fast|fmt|web-ci|ubuntu-latest|nix|pr"),
-            ("fmt|dist-driver|ubuntu-latest|nix|pr", "Fast|fmt|dist-driver|ubuntu-latest|nix|pr"),
+            ("fmt|native|ubuntu-latest|rust-stable|pr", "Fast|fmt|native|ubuntu-latest|rust-stable|pr|fast"),
+            ("fmt|nix|ubuntu-latest|nix|pr", "Fast|fmt|web-ci|ubuntu-latest|nix|pr|fast"),
+            ("fmt|dist-driver|ubuntu-latest|nix|pr", "Fast|fmt|dist-driver|ubuntu-latest|nix|pr|fast"),
         ]
         for gates, jobs in cases:
             result = subprocess.run(["python3", str(validator), gates, jobs], capture_output=True)
             self.assertNotEqual(result.returncode, 0)
+
+    def test_experiments_are_explicit_and_never_in_default_matrix(self):
+        normal = json.loads(ci("--matrix").stdout)["include"]
+        self.assertNotIn("experiment", {row["stage"] for row in normal})
+        experiments = json.loads(ci("--matrix", "experiment").stdout)["include"]
+        self.assertEqual({row["id"] for row in experiments},
+                         {"linker-linux", "linker-macos", "runner-linux", "property-reference-linux"})
+        self.assertNotEqual(ci("all", "experiment").returncode, 0)
 
     def test_repeated_gate_resolves_current_platform(self):
         for platform, expected in (("Linux", "nix develop --command"), ("macOS", ""), ("Windows", "")):
@@ -64,10 +72,24 @@ class Environments(unittest.TestCase):
             self.assertIn("shell=nix", result.stderr)
 
     def test_direct_workflow_gates_use_nix(self):
+        rows = [line.split("\t") for line in ci("--list").stdout.splitlines()]
         for path in (ROOT / ".github/workflows").glob("*.yml"):
+            runner = None
             for line in path.read_text().splitlines():
+                if line.startswith("  ") and not line.startswith("   "):
+                    runner = None
+                if line.strip().startswith("runs-on:"):
+                    runner = line.split("runs-on:", 1)[1].strip()
                 if "run: scripts/ci.sh gate" in line:
-                    self.fail(f"bare project gate in {path.name}: {line}")
+                    gate = line.split("run: scripts/ci.sh gate", 1)[1].strip()
+                    matching = [row for row in rows if row[0] == gate]
+                    self.assertTrue(matching, f"unregistered gate in {path.name}: {gate}")
+                    # Bare native commands are valid on their registered host;
+                    # pure control gates also need no Nix shell on Linux.
+                    self.assertTrue(any(
+                        shell == "none" or (shell == "native" and platform == runner)
+                        for _, shell, platform, _, _ in matching),
+                        f"bare project gate outside registered environment in {path.name}: {line}")
         nightly = (ROOT / ".github/workflows/nightly.yml").read_text()
         self.assertIn("nix develop .#dist-driver --command scripts/ci.sh gate dist-linux", nightly)
         driver = (ROOT / "scripts/dist-linux.sh").read_text()

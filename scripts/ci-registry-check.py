@@ -3,7 +3,7 @@
 import sys
 
 ALLOWED_SHELLS = {"native", "nix", "web", "web-ci", "dist-driver", "none"}
-ALLOWED_STAGES = {"pr", "release", "site"}
+ALLOWED_STAGES = {"pr", "release", "site", "experiment", "control"}
 
 def parse_rows(text, ncols, label):
     rows = []
@@ -32,7 +32,7 @@ for name, shell, os_name, setup, stage in parse_rows(sys.argv[1], 5, "GATE_TABLE
     if stage not in ALLOWED_STAGES:
         print(f"error: gate '{name}' has unknown stage '{stage}'", file=sys.stderr)
         sys.exit(1)
-    if os_name == "ubuntu-latest" and (shell not in {"nix", "web", "web-ci", "dist-driver"} or setup != "nix"):
+    if os_name == "ubuntu-latest" and not (stage == "control" and shell == "none" and setup == "none") and (shell not in {"nix", "web", "web-ci", "dist-driver"} or setup != "nix"):
         sys.exit(f"error: Linux gate {name} must use a Nix environment")
     if (shell == "dist-driver") != (name == "dist-linux"):
         sys.exit("error: only dist-linux may use the isolated Docker driver")
@@ -42,15 +42,18 @@ for name, shell, os_name, setup, stage in parse_rows(sys.argv[1], 5, "GATE_TABLE
     })
 
 jobs = []
-for name, gate_list, shell, os_name, setup, stage in parse_rows(sys.argv[2], 6, "JOB_TABLE"):
+for name, gate_list, shell, os_name, setup, stage, identifier in parse_rows(sys.argv[2], 7, "JOB_TABLE"):
     if shell not in ALLOWED_SHELLS:
         print(f"error: job '{name}' has unknown shell '{shell}'", file=sys.stderr)
         sys.exit(1)
-    if stage not in {"pr", "release"}:
-        print(f"error: job '{name}' has stage '{stage}'; JOB_TABLE jobs are pr/release only",
+    if stage not in {"pr", "release", "experiment"}:
+        print(f"error: job '{name}' has stage '{stage}'; JOB_TABLE jobs are pr/release/experiment only",
               file=sys.stderr)
         sys.exit(1)
+    if not identifier or any(job["id"] == identifier for job in jobs):
+        sys.exit(f"error: empty or duplicate job id: {identifier}")
     jobs.append({
+        "id": identifier,
         "name": name, "gates": gate_list.split(), "shell": shell, "os": os_name,
         "stage": stage, "setup": setup_tokens(setup),
     })
@@ -85,9 +88,9 @@ for job in jobs:
             bad = True
 
 for gate in gates:
-    if gate["stage"] == "site":
+    if gate["stage"] in {"site", "control"}:
         if any(gate["name"] in job["gates"] for job in jobs):
-            print(f"error: site-stage composite gate '{gate['name']}' must not be a JOB_TABLE job",
+            print(f"error: composite gate '{gate['name']}' must not be a JOB_TABLE job",
                   file=sys.stderr)
             bad = True
         continue

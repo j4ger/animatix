@@ -60,6 +60,7 @@ jobs:
         if: github.event_name != 'workflow_run' || steps.sdk.outcome != 'success'
         run: nix develop .#web-ci --command scripts/ci.sh gate web-split-proof web-build web-sdk-integrity text-parity web-raster-proof web-smoke web-transactions
       - name: Site scenes
+        if: github.event_name != 'workflow_run' || steps.sdk.outcome != 'success'
         run: nix develop --command scripts/ci.sh gate site-scenes
       - name: Assemble verified site
         run: nix develop --command scripts/ci.sh gate web-artifact-verify site-artifact
