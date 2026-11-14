@@ -17,6 +17,7 @@ from scripts.experiments import run as experiment_run
 from scripts.experiments.common import (
     ExperimentFailure, ExperimentOutput, run_timed, source_fingerprint,
 )
+from scripts.experiments import common as experiment_common
 from scripts.experiments import linkers
 from scripts.experiments.coverage import parse_cargo_executed_ids, parse_doc_ids
 
@@ -154,7 +155,9 @@ class ExperimentOutputTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             repo = Path(temporary)
             output = ExperimentOutput(repo, Path("target/experiments/runner"), "runner", {})
-            lock_path = Path("/tmp") / f"animatix-experiment-machine-{os.getuid()}.lock"
+            lock_dir = Path(temporary) / "shared-locks"
+            lock_dir.mkdir()
+            lock_path = lock_dir / f"animatix-experiment-machine-{os.getuid()}.lock"
             child_code = (
                 "import fcntl, sys\n"
                 "with open(sys.argv[1], 'a+') as lock_file:\n"
@@ -164,7 +167,8 @@ class ExperimentOutputTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as first_tmp, tempfile.TemporaryDirectory() as second_tmp:
                 self.assertNotEqual(first_tmp, second_tmp)
                 child_env = {**os.environ, "TMPDIR": second_tmp}
-                with mock.patch.dict(os.environ, {"TMPDIR": first_tmp}):
+                with mock.patch.object(experiment_common, "MACHINE_LOCK_DIRECTORY", lock_dir), \
+                     mock.patch.dict(os.environ, {"TMPDIR": first_tmp}):
                     with output.machine_lock():
                         blocked = subprocess.run(
                             [sys.executable, "-c", child_code, str(lock_path)],

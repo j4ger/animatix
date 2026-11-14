@@ -237,11 +237,10 @@ gate_check() {
 
 gate_test() {
   want_cargo
-  # Render tests need an adapter; without this they skip silently and report green
-  # while exercising no pixels (see `animatix_render::testing`).
-  # Serialize GPU-backed tests: headless Vello/WGPU teardown can SIGSEGV when
-  # renderer tests run concurrently on one adapter.
-  ANIMATIX_REQUIRE_GPU=1 cargo test --workspace -- --test-threads=1
+  # Build once with workspace feature unification; verify every active test ID.
+  # Keep engine/renderer harnesses serial and require a GPU adapter; run at most
+  # two other harnesses concurrently, with one libtest thread per process.
+  python3 scripts/workspace-tests.py
 }
 
 gate_no_video() {
@@ -387,6 +386,7 @@ gate_doc_links() { bash scripts/check-docs.sh; }
 gate_ci_policy_tests() {
   python3 scripts/test-ci-control.py
   python3 scripts/test-ci-plan.py
+  python3 -m unittest discover -s scripts/ci -p 'test_*.py'
   python3 -m unittest discover -s scripts/experiments -p 'test_*.py'
 }
 

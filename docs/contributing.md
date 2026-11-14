@@ -73,6 +73,17 @@ handwritten documentation without compiling Rust; `doc` checks Rustdoc and the
 generated property reference. The workspace test gate includes the native
 `site_scenes` target; its standalone gate remains available for manual site builds.
 
+The `test` gate builds the workspace once with Cargo's existing feature union,
+then executes the resulting test harnesses. Engine and renderer harnesses run
+serially; other harnesses use at most two CPU workers, with one libtest thread
+per process. Every active test ID must appear in the results, and renderer
+checks require an adapter through `ANIMATIX_REQUIRE_GPU=1`. Workspace doctests
+run separately after the harnesses. The no-run build retains Rust example
+compilation; the `examples` gate still checks the `.amx` catalogue. Cargo build
+and doctest commands inherit the caller's incremental setting. Raw inventories,
+plans and per-harness logs are kept in unique directories under
+`target/ci/workspace-tests/`.
+
 Build experiments are manual and never part of default PR/release/all runs:
 
 ```bash
@@ -81,8 +92,9 @@ nix develop .#experiments --command scripts/ci.sh gate runner-experiment
 scripts/ci.sh --matrix experiment
 ```
 
-The experiment shell supplies mold, LLD and nextest pinned by `flake.lock` without
-changing normal linker/runner defaults. Candidates use owned build directories
+The experiment shell supplies mold, LLD and nextest pinned by `flake.lock`.
+Installing those tools does not select an alternative linker or Nextest.
+Candidates use owned build directories
 and record their source, tools, commands, failures, wall time and process-tree
 memory. Run experiments serially on fixed source; do not edit source or run
 competing benchmarks during a measurement. Cold builds and warm execution are

@@ -8,7 +8,6 @@ target directory.
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 import argparse
 import hashlib
@@ -18,11 +17,8 @@ from pathlib import Path
 import platform
 import re
 import shutil
-import signal
 import subprocess
 import sys
-import threading
-import time
 import tomllib
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -30,6 +26,13 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.experiments.common import ExperimentFailure, ExperimentOutput, run_timed
+from scripts.ci.workspace_tests import (
+    WorkspaceTestError,
+    build_test_inventory as _build_test_inventory,
+    execute_harness_item as _execute_harness_item,
+    execute_harness_plan as _execute_harness_plan,
+    package_maps as _shared_package_maps,
+)
 from scripts.experiments.coverage import (
     CASE_ALIAS, canonical_ids as _canonical_ids, coverage_diff as _coverage_diff,
     historical_canonical_ids as _historical_canonical_ids, ignored_ids as _ignored_ids,
@@ -70,9 +73,6 @@ def _select_runner_arm_ids(selection: str | None) -> list[str]:
         raise ExperimentFailure("ANIMATIX_RUNNER_ARMS must include baseline and at least one candidate")
     return [arm for arm in RUNNER_ARM_IDS if arm in requested]
 
-_ACTIVE_HARNESS_GROUPS: dict[int, subprocess.Popen] = {}
-_ACTIVE_HARNESS_LOCK = threading.RLock()
-_DISPATCH_SHUTTING_DOWN = False
 def _metadata(repo: Path) -> dict:
     result = subprocess.run(
         ["cargo", "metadata", "--no-deps", "--format-version=1"], cwd=repo,
@@ -114,63 +114,18 @@ def _prepare_artifacts(repo: Path, output: ExperimentOutput, workspace_members: 
 
 
 def _package_maps(metadata: dict) -> tuple[set[str], dict[str, dict]]:
-    members = set(metadata["workspace_members"])
-    return members, {package["id"]: package for package in metadata["packages"] if package["id"] in members}
+    try:
+        return _shared_package_maps(metadata)
+    except WorkspaceTestError as error:
+        raise ExperimentFailure(str(error)) from error
 
 
-def _cargo_cases(artifacts: list[dict], package_by_id: dict[str, dict], target_dir: Path | None = None) -> tuple[list[dict], list[dict]]:
-    cases: list[dict] = []
-    harnesses = []
-    for artifact in artifacts:
-        package = package_by_id[artifact["package_id"]]
-        executable = Path(artifact["executable"])
-        list_env = {**os.environ, "ANIMATIX_REQUIRE_GPU": "1", "CARGO_INCREMENTAL": "0"}
-        if target_dir:
-            list_env["CARGO_TARGET_DIR"] = str(target_dir)
-        listed = subprocess.run(
-            [str(executable), "--list", "--format", "terse"], cwd=Path(package["manifest_path"]).parent,
-            env=list_env, capture_output=True, text=True, check=False, timeout=60,
-        )
-        if listed.returncode:
-            raise ExperimentFailure(f"test listing failed for {executable}: {listed.stderr[-1000:]}")
-        ignored = subprocess.run(
-            [str(executable), "--ignored", "--list", "--format", "terse"], cwd=Path(package["manifest_path"]).parent,
-            env=list_env, capture_output=True, text=True, check=False, timeout=60,
-        )
-        if ignored.returncode:
-            raise ExperimentFailure(f"ignored-test listing failed for {executable}: {ignored.stderr[-1000:]}")
-        names = _parse_test_list(listed.stdout)
-        ignored_names = set(_parse_test_list(ignored.stdout))
-        pkg = package["name"]
-        target_name = artifact["target_name"]
-        active = []
-        for name in names:
-            case = {"id": f"{pkg}::{target_name}::{name}", "package": pkg,
-                    "binary": target_name, "name": name, "ignored": name in ignored_names}
-            cases.append(case)
-            if not case["ignored"]:
-                active.append(case)
-        harnesses.append({
-            **artifact, "package_name": pkg, "manifest_dir": str(Path(package["manifest_path"]).parent),
-            "package_env": {
-                "CARGO_MANIFEST_DIR": str(Path(package["manifest_path"]).parent),
-                "CARGO_PKG_NAME": package.get("name", ""),
-                "CARGO_PKG_VERSION": package.get("version", ""),
-                "CARGO_PKG_AUTHORS": ":".join(package.get("authors", [])),
-                "CARGO_PKG_DESCRIPTION": package.get("description") or "",
-                "CARGO_PKG_HOMEPAGE": package.get("homepage") or "",
-                "CARGO_PKG_REPOSITORY": package.get("repository") or "",
-                "CARGO_PKG_LICENSE": package.get("license") or "",
-            },
-            "cases": active,
-        })
-    # Cargo occasionally emits duplicate artifact records for a target. Keep IDs
-    # strict and make that visible instead of silently deduplicating coverage.
-    ids = [case["id"] for case in cases]
-    if len(ids) != len(set(ids)):
-        duplicates = sorted({case_id for case_id in ids if ids.count(case_id) > 1})
-        raise ExperimentFailure(f"duplicate canonical test IDs: {duplicates[:12]}")
-    return harnesses, cases
+def _cargo_cases(artifacts: list[dict], package_by_id: dict[str, dict],
+                 target_dir: Path | None = None) -> tuple[list[dict], list[dict]]:
+    try:
+        return _build_test_inventory(artifacts, package_by_id, target_dir)
+    except WorkspaceTestError as error:
+        raise ExperimentFailure(str(error)) from error
 
 
 def _nextest_cases(repo: Path, target_dir: Path, output: ExperimentOutput,
@@ -343,158 +298,12 @@ def _write_plan(path: Path, plan: dict) -> None:
     path.write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def _signal_process_group(process_group: int, sig: int) -> None:
-    try:
-        os.killpg(process_group, sig)
-    except ProcessLookupError:
-        pass
-
-
-def _terminate_harness_group(process: subprocess.Popen, grace_seconds: float = 1.0) -> None:
-    """Terminate a harness and every child that inherited its private group."""
-    _signal_process_group(process.pid, signal.SIGTERM)
-    try:
-        process.wait(timeout=grace_seconds)
-    except subprocess.TimeoutExpired:
-        pass
-    _signal_process_group(process.pid, signal.SIGKILL)
-    try:
-        process.wait(timeout=1)
-    except subprocess.TimeoutExpired:
-        pass
-
-
-def _stop_active_harness_groups(signum: int, _frame) -> None:
-    """Clean nested child sessions when the outer run_timed deadline fires."""
-    global _DISPATCH_SHUTTING_DOWN
-    with _ACTIVE_HARNESS_LOCK:
-        _DISPATCH_SHUTTING_DOWN = True
-        processes = list(_ACTIVE_HARNESS_GROUPS.values())
-    for process in processes:
-        _signal_process_group(process.pid, signal.SIGTERM)
-    time.sleep(0.1)
-    for process in processes:
-        _signal_process_group(process.pid, signal.SIGKILL)
-    raise SystemExit(128 + signum)
-
-
-def _execute_harness_item(item: dict, env: dict[str, str], log_dir: Path, run_tag: str,
-                          filter_text: str | None = None, timeout_seconds: float = 3600) -> dict:
-    executable = item["executable"]
-    command = [executable]
-    if filter_text is not None:
-        command.append(filter_text)
-    if item.get("skip_tests") is not None:
-        command.append("--exact")
-        for name in item["skip_tests"]:
-            command.extend(["--skip", name])
-    command.append("--test-threads=1")
-    safe_binary = re.sub(r"[^A-Za-z0-9_.-]+", "_",
-                         f"{item['package_name']}--{item['target_name']}")
-    suffix = re.sub(r"[^A-Za-z0-9_.-]+", "_", filter_text or "all")[:80]
-    log_path = log_dir / f"{run_tag}-{safe_binary}-{suffix}.log"
-    stderr_log_path = log_dir / f"{run_tag}-{safe_binary}-{suffix}.stderr.log"
-    started = time.monotonic()
-    process = None
-    status = 127
-    timed_out = False
-    error = None
-    try:
-        harness_env = {**env, **item.get("package_env", {})}
-        with log_path.open("wb") as log, stderr_log_path.open("wb") as stderr_log:
-            with _ACTIVE_HARNESS_LOCK:
-                if _DISPATCH_SHUTTING_DOWN:
-                    raise RuntimeError("dispatch is shutting down")
-                process = subprocess.Popen(
-                    command, cwd=item["manifest_dir"], env=harness_env,
-                    stdout=log, stderr=stderr_log, start_new_session=True,
-                )
-                _ACTIVE_HARNESS_GROUPS[process.pid] = process
-            try:
-                status = process.wait(timeout=timeout_seconds)
-            except subprocess.TimeoutExpired:
-                timed_out = True
-                error = f"timed out after {timeout_seconds:g} seconds"
-                _terminate_harness_group(process)
-                status = 124
-            else:
-                # A test can exit after leaving a helper behind; don't leak it
-                # into the following targets or into the next measured arm.
-                _signal_process_group(process.pid, signal.SIGTERM)
-                time.sleep(0.02)
-                _signal_process_group(process.pid, signal.SIGKILL)
-        if process is not None:
-            with _ACTIVE_HARNESS_LOCK:
-                _ACTIVE_HARNESS_GROUPS.pop(process.pid, None)
-    except OSError as exception:
-        error = str(exception)
-        status = 127
-    except RuntimeError as exception:
-        error = str(exception)
-        status = 125
-    finally:
-        if process is not None:
-            with _ACTIVE_HARNESS_LOCK:
-                _ACTIVE_HARNESS_GROUPS.pop(process.pid, None)
-    if status < 0:
-        status = 128 - status
-    by_name = {case["name"]: case["id"] for case in item.get("cases", [])}
-    observed = _parse_libtest_results(log_path) if log_path.exists() else []
-    executed_ids = sorted(by_name[row["name"]] for row in observed
-                          if row["status"] in {"ok", "FAILED"} and row["name"] in by_name)
-    ignored_ids = sorted(by_name[row["name"]] for row in observed
-                         if row["status"] == "ignored" and row["name"] in by_name)
-    return {"package": item["package_name"], "binary": item["target_name"],
-            "filter": filter_text, "command": command, "log_path": str(log_path),
-            "stderr_log_path": str(stderr_log_path),
-            "exit_code": status, "elapsed_seconds": time.monotonic() - started,
-            "timed_out": timed_out, "error": error,
-            "executed_ids": executed_ids, "ignored_ids": ignored_ids,
-            "observed_test_results": observed}
-
-
 def _execute_plan(plan_path: Path, result_path: Path) -> int:
-    plan = json.loads(plan_path.read_text(encoding="utf-8"))
-    env = {**os.environ, **plan.get("env", {}), "ANIMATIX_REQUIRE_GPU": "1", "CARGO_INCREMENTAL": "0"}
-    target = Path(env.get("CARGO_TARGET_DIR", "target")).resolve()
-    lib_dirs = [str(target / "debug" / "deps"), str(target / "debug")]
-    for variable in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
-        existing = env.get(variable)
-        env[variable] = os.pathsep.join([*lib_dirs, *([existing] if existing else [])])
-    items = plan["items"]
-    log_dir = Path(plan["log_dir"])
-    log_dir.mkdir(parents=True, exist_ok=True)
-    serial_packages = set(plan.get("serial_packages", []))
-    serial = [item for item in items if item["package_name"] in serial_packages]
-    parallel = [item for item in items if item["package_name"] not in serial_packages]
-    results = []
-    global _DISPATCH_SHUTTING_DOWN
-    _DISPATCH_SHUTTING_DOWN = False
-    prior_handlers = {sig: signal.getsignal(sig) for sig in (signal.SIGTERM, signal.SIGINT)}
-    for sig in prior_handlers:
-        signal.signal(sig, _stop_active_harness_groups)
+    """Compatibility wrapper; scheduling lives in scripts.ci.workspace_tests."""
     try:
-        for item in serial:
-            filters = item.get("filters") or [None]
-            for filter_text in filters:
-                result = _execute_harness_item(item, env, log_dir, plan["run_tag"], filter_text)
-                results.append(result)
-        max_workers = max(1, int(plan.get("max_workers", 1)))
-        jobs = [(item, filter_text) for item in parallel for filter_text in (item.get("filters") or [None])]
-        if jobs:
-            with ThreadPoolExecutor(max_workers=max_workers) as pool:
-                futures = {pool.submit(_execute_harness_item, item, env, log_dir,
-                                       plan["run_tag"], filter_text): (item, filter_text)
-                           for item, filter_text in jobs}
-                for future in as_completed(futures):
-                    results.append(future.result())
-    finally:
-        for sig, handler in prior_handlers.items():
-            signal.signal(sig, handler)
-    status = 1 if any(result["exit_code"] for result in results) else 0
-    result_path.write_text(json.dumps({"exit_code": status, "harnesses": results},
-                                      indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return status
+        return _execute_harness_plan(plan_path, result_path)
+    except WorkspaceTestError as error:
+        raise ExperimentFailure(str(error)) from error
 
 
 def _run_dispatch(output: ExperimentOutput, target_dir: Path, arm_id: str, round_number: int,
@@ -609,8 +418,8 @@ def _run_dispatch(output: ExperimentOutput, target_dir: Path, arm_id: str, round
             "serial_packages": ["animatix", "animatix-render"], "run_tag": f"{arm_id}-{round_number}",
             "log_dir": str(log_dir)}
     _write_plan(plan_path, plan)
-    dispatch = [sys.executable, str(Path(__file__).resolve()), "--execute-plan", str(plan_path),
-                "--result", str(result_path)]
+    dispatch = [sys.executable, str(output.repo / "scripts" / "workspace-tests.py"),
+                "--execute-plan", str(plan_path), "--result", str(result_path)]
     run = run_timed(f"runner-{arm_id}-{round_number}", dispatch, output.repo, command_env,
                     output.logs_dir / f"{arm_id}-round-{round_number}.log", timeout_seconds=7200)
     output.append_record({"type": "runner-suite", "arm": arm_id, "round": round_number,

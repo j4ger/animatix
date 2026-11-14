@@ -37,7 +37,7 @@ owners and the isolation boundaries found during the maintenance pass.
 | Text parity executable: `animatix-text-parity` | No Rust unit-test attributes; `src/main.rs` is the probe executable | The `text-parity` gate builds/runs it through `scripts/text-parity.mjs`, comparing native probe output with the generated Wasm SDK using checked-in scenes and fonts. This is gate-level executable coverage, not a package unit-test suite. |
 | Split proof fixture: `animatix-split-probe` (`tools/animatix-web-build/fixtures/split-probe`) | No Rust test attributes; `src/lib.rs` is compiled for wasm32 | `web-split-proof` uses this as a deterministic compile/split boundary fixture; it is build-proof input, not a unit-test target. |
 | No Rust unit-test attributes: `animatix-hybrid-bench`, `animatix-plugin-demo` | The inventory found no `#[test]` or `#[cfg(test)]` source in these two packages | Benchmark and demo surfaces are build/example coverage, not unit-test evidence. `animatix-text-parity` and `animatix-split-probe` also have no Rust test attributes; their executable and compile-proof roles are listed separately. |
-| CI scripts | Twelve Python unittest modules under `scripts/` and `scripts/experiments/` | Filesystem tests use temporary directories; subprocess tests use mocks or explicit cwd/env arguments. `test-ci-control.py` changes CWD only inside a temporary directory and restores it in `finally`; `patch.dict` scopes environment overrides. |
+| CI scripts | Thirteen Python unittest modules under `scripts/`, `scripts/ci/`, and `scripts/experiments/` | Filesystem tests use temporary directories; subprocess tests use mocks or explicit cwd/env arguments. `test-ci-control.py` changes CWD only inside a temporary directory and restores it in `finally`; `patch.dict` scopes environment overrides. The shared scheduler tests cover malformed artifact JSON, omitted test results, timeout cleanup, and inherited Cargo settings. |
 | Node/web SDK validation | `web/tools/runtime.test.mjs`, `web/tools/perf-statistics.test.mjs`, `web/tools/third-party-licenses.test.mjs`; `scripts/rgba-comparison.test.mjs`, `scripts/cdp-client.test.mjs`, `scripts/web-sdk-tests.mjs` | Registered `web-runtime-tests`, `web-sdk-tests`, `web-sdk-integrity`, `text-parity`, `web-raster-proof`, `web-smoke`, and `web-transactions` gates exercise Node tooling and browser-facing SDK/build paths. These checks are inventoried separately from the Python unittest modules. |
 
 ## Isolation screening and boundaries
@@ -47,11 +47,11 @@ parallel mode. The scan covered all 19 Cargo workspace packages (16 package
 directories under `crates/`, including `eparts`, plus three packages under
 `tools/`), active Python and Node test entrypoints, and the CI/contributor
 guidance. Fifteen packages currently contain Rust test attributes; the four
-without them are identified above. Twelve Python unittest modules were found:
+without them are identified above. Thirteen Python unittest modules were found:
 `scripts/test-ci-control.py`, `scripts/test-ci-plan.py`,
 `scripts/test-perf-policy.py`, `scripts/ci-environment-tests.py`,
 `scripts/icon-tests.py`, `scripts/native-package-tests.py`,
-`scripts/platform-icon-tests.py`, and
+`scripts/platform-icon-tests.py`, `scripts/ci/test_workspace_tests.py`, and
 `scripts/experiments/test_compat.py`, `scripts/experiments/test_harness.py`,
 `scripts/experiments/test_identity.py`, `scripts/experiments/test_runner.py`,
 and `scripts/experiments/test_topology.py`. Node/web SDK tests and build-proof

@@ -19,6 +19,7 @@ from typing import Mapping, Sequence
 
 MARKER_NAME = ".animatix-experiment-owner.json"
 TARGET_MARKER_NAME = ".animatix-owned-target.json"
+MACHINE_LOCK_DIRECTORY = Path("/tmp")
 
 
 class ExperimentFailure(RuntimeError):
@@ -151,7 +152,7 @@ class ExperimentOutput:
     def machine_lock(self):
         """Serialize costly measurements that share one host or workspace."""
         # Nix gives each shell its own TMPDIR; measurements still share a host.
-        lock_path = Path("/tmp") / f"animatix-experiment-machine-{os.getuid()}.lock"
+        lock_path = MACHINE_LOCK_DIRECTORY / f"animatix-experiment-machine-{os.getuid()}.lock"
         with lock_path.open("a+") as lock_file:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
             try:

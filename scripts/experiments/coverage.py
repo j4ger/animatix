@@ -8,6 +8,13 @@ import re
 import xml.etree.ElementTree as ET
 
 from scripts.experiments.common import ExperimentFailure
+from scripts.ci.workspace_tests import (
+    LIBTEST_RESULT_RE,
+    WorkspaceTestError,
+    parse_cargo_test_artifacts as _parse_cargo_test_artifacts,
+    parse_libtest_results,
+    parse_test_list,
+)
 
 
 CASE_ALIAS = {
@@ -16,60 +23,17 @@ CASE_ALIAS = {
     "scale_requires_positive_numeric_by_modifier": "motion_actions_reject_invalid_modifier_values",
     "shift_requires_by_vec2_modifier": "motion_actions_reject_invalid_modifier_values",
 }
-TEST_LIST_RE = re.compile(r"^(.*?)\s*:\s*test\s*$")
 DOC_RESULT_RE = re.compile(r"^test\s+(.+?)\s+\.\.\.\s+(ok|FAILED|ignored)(?:\s+\(.*\))?\s*$")
-LIBTEST_RESULT_RE = re.compile(r"^test\s+(.+?)\s+\.\.\.\s+(ok|FAILED|ignored)\s*$")
 LIBTEST_START_RE = re.compile(r"^running\s+(\d+)\s+tests?\s*$")
 LIBTEST_SUMMARY_RE = re.compile(r"^test result:")
 
 
 def parse_artifacts(path: Path, workspace_members: set[str], target_dir: Path | None = None) -> list[dict]:
-    """Read Cargo JSON and keep executable workspace test artifacts."""
-    artifacts = []
-    seen = set()
-    for line in Path(path).read_text(encoding="utf-8", errors="replace").splitlines():
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(record, dict) or record.get("reason") != "compiler-artifact" or not record.get("executable"):
-            continue
-        if record.get("package_id") not in workspace_members:
-            continue
-        target = record.get("target", {})
-        profile = record.get("profile", {})
-        if not target.get("test") or not profile.get("test"):
-            continue
-        executable = Path(record["executable"]).resolve()
-        if not executable.is_file():
-            continue
-        if target_dir is not None and not executable.is_relative_to(Path(target_dir).resolve()):
-            raise ExperimentFailure(f"test executable is outside the selected target directory: {executable}")
-        key = (record["package_id"], target.get("name"), str(executable))
-        if key in seen:
-            continue
-        seen.add(key)
-        artifacts.append({
-            "package_id": record["package_id"], "package_name": None,
-            "target_name": target.get("name", executable.name),
-            "features": record.get("features", []),
-            "profile": profile,
-            "target_kind": target.get("kind", []),
-            "manifest_path": record.get("manifest_path"),
-            "executable": str(executable),
-        })
-    if not artifacts:
-        raise ExperimentFailure(f"no executable workspace test artifacts found in {path}")
-    return artifacts
-
-
-def parse_test_list(text: str) -> list[str]:
-    names = []
-    for line in text.splitlines():
-        match = TEST_LIST_RE.match(line.strip())
-        if match:
-            names.append(match.group(1))
-    return names
+    """Keep the experiment API while sharing the CI-owned Cargo parser."""
+    try:
+        return _parse_cargo_test_artifacts(path, workspace_members, target_dir)
+    except WorkspaceTestError as error:
+        raise ExperimentFailure(str(error)) from error
 
 
 def parse_nextest_listing(data: dict) -> tuple[list[dict], int]:
@@ -169,15 +133,6 @@ def coverage_diff(expected: set[str], actual: set[str]) -> dict:
     return {"expected_count": len(expected), "actual_count": len(actual),
             "missing": sorted(expected - actual), "unexpected": sorted(actual - expected),
             "equal": expected == actual}
-
-
-def parse_libtest_results(log_path: Path) -> list[dict]:
-    results = []
-    for line in Path(log_path).read_text(encoding="utf-8", errors="replace").splitlines():
-        match = LIBTEST_RESULT_RE.match(line.strip())
-        if match:
-            results.append({"name": match.group(1), "status": match.group(2)})
-    return results
 
 
 def parse_doc_ids(records: list[dict]) -> list[str]:
