@@ -37,7 +37,7 @@ def identity():
             "worktree_diff": hashlib.sha256(output("git", "diff", "HEAD", "--").encode()).hexdigest(),
             "rustc": output("rustc", "-vV"), "cargo_lock": digest("Cargo.lock"),
             "flake_lock": digest("flake.lock"), "profile": "dev",
-            "features": "animatix-cli/default", "rustflags": os.environ.get("RUSTFLAGS", ""),
+            "features": "workspace-defaults/bin:animatix", "rustflags": os.environ.get("RUSTFLAGS", ""),
             "encoded_rustflags": os.environ.get("CARGO_ENCODED_RUSTFLAGS", ""),
             "build_target": os.environ.get("CARGO_BUILD_TARGET", ""),
             "cargo_environment": {key: value for key, value in os.environ.items()

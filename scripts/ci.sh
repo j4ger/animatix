@@ -399,7 +399,7 @@ gate_ci_plan() {
 gate_ci_result() { python3 scripts/ci-control.py required; }
 
 gate_native_cli_artifact() {
-  cargo build -p animatix-cli --locked
+  cargo build --bin animatix --locked
   python3 scripts/ci-control.py stage-cli target/debug/animatix target/ci/native-cli
 }
 
