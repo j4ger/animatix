@@ -25,13 +25,14 @@ image = { workspace = true, features = ["png", "gif", "jpeg", "webp"], optional 
 pollster = { workspace = true }
 tracing = { workspace = true }
 wgpu = { workspace = true, default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
-# Vello 0.11 (crates.io). Upstream #1558 (image-atlas residency) is fixed in
-# vello 0.9.0; `tests/vello_img_probe.rs` still asserts the A–H matrix.
+# The workspace patches Vello 0.11.0 to `vendor/vello` for the #1948
+# patchless-resolve atlas regression; `tests/vello_img_probe.rs` guards the A–H matrix.
 vello = { workspace = true }
 rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg8", "link_system_ffmpeg"], optional = true }
 
 [dev-dependencies]
 animatix = { path = "../animatix", features = ["image-decode"] }
+tempfile = "3"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm_split = { workspace = true }

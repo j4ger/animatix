@@ -1,12 +1,8 @@
 use animatix_syntax::ast::{Expr, Stmt, Time};
-use animatix_syntax::parser::parse_source;
 use animatix_syntax::walk::time_to_seconds;
 
 use super::super::apply::{SourceEdit, apply_edit};
-
-fn parse(source: &str) -> Vec<Stmt> {
-    parse_source(source).0.expect("failed to parse test source")
-}
+use super::super::test_support::parse;
 
 #[test]
 fn insert_keyframe_block() {

@@ -1,0 +1,9 @@
+# Renderer tests share headless wgpu resources. Keep the whole package in one
+# group so future GPU tests are serialized even when their names do not mention
+# GPU explicitly. CPU-only renderer tests can be split out after measured need.
+[test-groups]
+renderer-gpu = { max-threads = 1 }
+
+[[profile.default.overrides]]
+filter = "package(animatix-render)"
+test-group = "renderer-gpu"

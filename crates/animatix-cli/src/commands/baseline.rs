@@ -727,9 +727,8 @@ mod tests {
 
     #[test]
     fn test_manifest_validation() {
-        let dir = std::env::temp_dir().join(format!("baseline_test_{}", std::process::id()));
-        let _ = std::fs::create_dir_all(&dir);
-        let manifest_path = dir.join("manifest.json");
+        let dir = tempfile::tempdir().unwrap();
+        let manifest_path = dir.path().join("manifest.json");
 
         let valid_json = serde_json::json!({
             "source_sha256": "abcdef123456",
@@ -789,7 +788,5 @@ mod tests {
         )
         .unwrap_err();
         assert!(err_times.contains("sample times mismatch"));
-
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }

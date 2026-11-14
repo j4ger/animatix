@@ -125,20 +125,22 @@ mod tests {
 
     #[test]
     fn registry_watcher_reloads_after_directory_change() {
-        let dir = std::env::temp_dir()
-            .join(format!("eparts-theme-registry-watch-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("create temp dir");
-        write_theme(&dir, "base", "#101418");
-        std::fs::write(dir.join("child.json"), r##"{ "name":"child", "extends":"base" }"##)
+        let dir = tempfile::Builder::new()
+            .prefix("eparts-theme-registry-watch-")
+            .tempdir()
+            .expect("create temp dir");
+        write_theme(dir.path(), "base", "#101418");
+        std::fs::write(dir.path().join("child.json"), r##"{ "name":"child", "extends":"base" }"##)
             .unwrap();
 
-        let mut watcher = ThemeRegistryWatcher::with_debounce(&dir, Duration::from_millis(50))
-            .expect("create watcher");
+        let mut watcher =
+            ThemeRegistryWatcher::with_debounce(dir.path(), Duration::from_millis(50))
+                .expect("create watcher");
         std::thread::sleep(Duration::from_millis(100));
 
         // Change the base file so the child's inherited value changes.
         std::fs::write(
-            dir.join("base.json"),
+            dir.path().join("base.json"),
             r##"{ "name":"base", "dark": { "surface": { "base": "#abcdef" } } }"##,
         )
         .unwrap();
@@ -158,7 +160,5 @@ mod tests {
             std::thread::sleep(Duration::from_millis(20));
         }
         assert!(saw_reload, "expected registry reload after base change");
-
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }

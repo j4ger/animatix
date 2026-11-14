@@ -6,7 +6,6 @@
 
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use animatix::timeline::SceneDimensions;
 
@@ -15,6 +14,24 @@ use crate::app::document::DocumentSession;
 use crate::app::persistence::default_tree;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore, WorkspaceStore};
 use crate::editor::EditorBuffer;
+
+/// A unique test directory removed when its fixture drops.
+pub(crate) struct TestTempDir(tempfile::TempDir);
+
+impl TestTempDir {
+    pub(crate) fn new(label: &str) -> Self {
+        Self(
+            tempfile::Builder::new()
+                .prefix(&format!("animatix-gui-{label}-"))
+                .tempdir()
+                .expect("create GUI test temp dir"),
+        )
+    }
+
+    pub(crate) fn path(&self) -> &std::path::Path {
+        self.0.path()
+    }
+}
 
 /// A `DocumentStore` over a placeholder source that does not parse.
 ///
@@ -40,27 +57,18 @@ pub(crate) fn make_document_store(source: &str) -> DocumentStore {
     DocumentStore::new(document, editor)
 }
 
-/// A `DocumentStore` produced by the real disk-loading path.
+/// A loaded document plus the guard that owns its on-disk fixture.
 ///
 /// Some tests need a session that came through `DocumentSession::load` (a real
-/// `file_path`, workspace resolution, asset base dirs). The temp directory is
-/// not cleaned up, matching the long-standing convention of `document.rs`.
-pub(crate) fn document_store_loaded(source: &str) -> DocumentStore {
-    let unique = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system time should be after unix epoch")
-        .as_nanos();
-    let dir = std::env::temp_dir().join(format!(
-        "animatix_test_domain_{}_{}",
-        std::process::id(),
-        unique
-    ));
-    std::fs::create_dir_all(&dir).expect("create temp test dir");
-    let path = dir.join("test.amx");
+/// `file_path`, workspace resolution, asset base dirs). The returned guard
+/// keeps that file alive until the test releases the fixture.
+pub(crate) fn document_store_loaded(source: &str) -> (TestTempDir, DocumentStore) {
+    let dir = TestTempDir::new("document-loaded");
+    let path = dir.path().join("test.amx");
     std::fs::write(&path, source).expect("write test source");
     let document = DocumentSession::load(path).expect("load parsed document");
     let editor = EditorBuffer::new(&document.file_path, document.source_text.clone());
-    DocumentStore::new(document, editor)
+    (dir, DocumentStore::new(document, editor))
 }
 
 /// A preview store over the given duration and scene dimensions.

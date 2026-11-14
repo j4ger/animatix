@@ -817,7 +817,8 @@ fn indexed_dotted_targets_keep_prefix_and_match_fast_and_generic_execution() {
 }
 
 fn load_fixture_program(source: &str) -> Vec<Stmt> {
-    let temp_path = std::env::temp_dir().join("animatix_test_reactive.amx");
+    let temp_dir = tempfile::tempdir().expect("create temp fixture directory");
+    let temp_path = temp_dir.path().join("animatix_test_reactive.amx");
     fs::write(&temp_path, source).expect("write temp fixture should succeed");
     ModuleGraph::new()
         .load_program(&temp_path)

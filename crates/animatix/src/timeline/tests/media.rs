@@ -3,11 +3,10 @@ use std::path::PathBuf;
 use super::support::build_ignoring_warnings;
 use super::*;
 use crate::diagnostics::DiagnosticCode;
+use crate::test_support::TestTempDir;
 
-fn write_test_svg(name: &str, width: u32, rect_width: u32) -> PathBuf {
-    let dir = std::env::temp_dir().join("animatix_svg_url_tests");
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join(name);
+fn write_test_svg(temp_dir: &TestTempDir, name: &str, width: u32, rect_width: u32) -> PathBuf {
+    let path = temp_dir.path().join(name);
     let source = format!(
         r#"<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="20">
   <rect x="0" y="0" width="{rect_width}" height="10"/>
@@ -20,10 +19,8 @@ fn write_test_svg(name: &str, width: u32, rect_width: u32) -> PathBuf {
 
 /// only used by the `image-decode` test below
 #[cfg(feature = "image-decode")]
-fn write_test_png(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join("animatix_image_usage_tests");
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join(name);
+fn write_test_png(temp_dir: &TestTempDir, name: &str) -> PathBuf {
+    let path = temp_dir.path().join(name);
     let rgba = ::image::RgbaImage::from_raw(4, 4, vec![255; 64]).unwrap();
     rgba.save(&path).unwrap();
     path
@@ -31,8 +28,9 @@ fn write_test_png(name: &str) -> PathBuf {
 
 #[test]
 fn timed_svg_url_assignment_keyframes_paths_and_size() {
-    let svg_a = write_test_svg("svg_url_a.svg", 40, 10);
-    let svg_b = write_test_svg("svg_url_b.svg", 80, 20);
+    let temp_dir = TestTempDir::new("media-svg-url");
+    let svg_a = write_test_svg(&temp_dir, "svg_url_a.svg", 40, 10);
+    let svg_b = write_test_svg(&temp_dir, "svg_url_b.svg", 80, 20);
     let source = format!(
         r#"
 #0s
@@ -87,8 +85,9 @@ icon.url = "{}" [1s]
 
 #[test]
 fn repeated_svg_url_assignments_are_visible_to_property_introspection() {
-    let svg_a = write_test_svg("svg_url_repeat_a.svg", 40, 10);
-    let svg_b = write_test_svg("svg_url_repeat_b.svg", 80, 20);
+    let temp_dir = TestTempDir::new("media-svg-repeat");
+    let svg_a = write_test_svg(&temp_dir, "svg_url_repeat_a.svg", 40, 10);
+    let svg_b = write_test_svg(&temp_dir, "svg_url_repeat_b.svg", 80, 20);
     let source = format!(
         r#"
 #0s
@@ -119,7 +118,8 @@ icon.url = "{}" [500ms]
 
 #[test]
 fn invalid_svg_url_assignment_reports_media_load_failure() {
-    let svg_a = write_test_svg("svg_url_bad_a.svg", 40, 10);
+    let temp_dir = TestTempDir::new("media-svg-invalid");
+    let svg_a = write_test_svg(&temp_dir, "svg_url_bad_a.svg", 40, 10);
     let source = format!(
         r#"
 #0s
@@ -150,9 +150,10 @@ icon.url = "/nonexistent/animatix-missing.svg"
 #[cfg(feature = "image-decode")]
 #[test]
 fn asset_usage_tracks_svg_image_and_audio_actors() {
-    let svg = write_test_svg("asset_usage.svg", 40, 10);
-    let png = write_test_png("asset_usage.png");
-    let audio = std::env::temp_dir().join("animatix_audio_usage.wav");
+    let temp_dir = TestTempDir::new("media-asset-usage");
+    let svg = write_test_svg(&temp_dir, "asset_usage.svg", 40, 10);
+    let png = write_test_png(&temp_dir, "asset_usage.png");
+    let audio = temp_dir.path().join("animatix_audio_usage.wav");
     let source = format!(
         r#"
 #0s

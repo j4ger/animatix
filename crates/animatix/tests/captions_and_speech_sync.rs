@@ -11,17 +11,17 @@ const DIMS: SceneDimensions = SceneDimensions {
     height: 1080,
 };
 
-fn setup_temp_workspace(test_name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("amx_speech_test_{test_name}"));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(&dir).expect("create temp dir");
-    dir
+fn setup_temp_workspace(test_name: &str) -> tempfile::TempDir {
+    tempfile::Builder::new()
+        .prefix(&format!("amx_speech_test_{test_name}_"))
+        .tempdir()
+        .expect("create temp dir")
 }
 
 #[test]
 fn test_declarative_captions_with_cue_children() {
     let dir = setup_temp_workspace("decl_captions");
-    let amx_path = dir.join("main.amx");
+    let amx_path = dir.path().join("main.amx");
 
     let source = r#"
 subs: Captions, opacity: 1.0, at: (960, 900), font_size: 36.0, caption_mode: "word", backdrop: true {
@@ -57,8 +57,8 @@ subs: Captions, opacity: 1.0, at: (960, 900), font_size: 36.0, caption_mode: "wo
 #[test]
 fn test_captions_with_speech_transcript() {
     let dir = setup_temp_workspace("transcript_captions");
-    let json_path = dir.join("narration.speech.json");
-    let amx_path = dir.join("main.amx");
+    let json_path = dir.path().join("narration.speech.json");
+    let amx_path = dir.path().join("main.amx");
 
     let transcript_json = r#"{
     "duration": 5.0,
@@ -112,8 +112,8 @@ subs: Captions, opacity: 1.0, transcript: "{}", caption_mode: "karaoke", backdro
 #[test]
 fn test_speech_anchored_keyframes() {
     let dir = setup_temp_workspace("speech_keyframes");
-    let json_path = dir.join("narration.speech.json");
-    let amx_path = dir.join("main.amx");
+    let json_path = dir.path().join("narration.speech.json");
+    let amx_path = dir.path().join("main.amx");
 
     let transcript_json = r#"{
     "duration": 5.0,
@@ -179,8 +179,8 @@ box: Rect, opacity: 0.0, at: (100, 100), size: (50.0, 50.0)
 #[test]
 fn test_speech_keyframe_missing_marker_diagnostic() {
     let dir = setup_temp_workspace("missing_marker");
-    let json_path = dir.join("narration.speech.json");
-    let amx_path = dir.join("main.amx");
+    let json_path = dir.path().join("narration.speech.json");
+    let amx_path = dir.path().join("main.amx");
 
     let transcript_json = r#"{
     "duration": 5.0,
@@ -263,7 +263,7 @@ fn test_demo_scene_captions_evaluation() {
 #[test]
 fn test_cue_without_a_window_warns() {
     let dir = setup_temp_workspace("cue_no_window");
-    let amx_path = dir.join("main.amx");
+    let amx_path = dir.path().join("main.amx");
     let source = r#"
 subs: Captions, opacity: 1.0, at: (960, 900) {
     implicit: Cue, text: "no window"

@@ -19,6 +19,9 @@ mod error;
 mod keyframe_edits;
 mod scene_edits;
 
+#[cfg(test)]
+mod test_support;
+
 pub use apply::{
     SourceEdit, apply_edit, canonical_to_source, find_actor_decl, source_to_canonical,
 };

@@ -91,11 +91,8 @@ mod tests {
 
     #[test]
     fn writes_one_parseable_line_per_frame() {
-        let dir =
-            std::env::temp_dir().join(format!("animatix-perf-log-test-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("perf.jsonl");
-        let _ = std::fs::remove_file(&path);
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("perf.jsonl");
 
         {
             let mut sink = PerfLogSink::open(&path).unwrap();
@@ -118,9 +115,6 @@ mod tests {
 
         let second: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
         assert!(second["stages"].as_object().unwrap().is_empty());
-
-        let _ = std::fs::remove_file(&path);
-        let _ = std::fs::remove_dir(&dir);
     }
 
     #[test]
@@ -128,17 +122,13 @@ mod tests {
         // Opening a sink on a directory succeeds on some platforms but every
         // write fails; either way record_frame must not panic and must stop
         // attempting I/O after the first failure.
-        let dir =
-            std::env::temp_dir().join(format!("animatix-perf-log-err-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("not-writable");
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("not-writable");
         std::fs::create_dir(&path).unwrap(); // A directory as the log target.
 
         if let Ok(mut sink) = PerfLogSink::open(&path) {
             sink.record_frame(&sample_metrics(), Vec::new(), 0, [0.0, 0.0]);
             sink.record_frame(&sample_metrics(), Vec::new(), 0, [0.0, 0.0]);
         }
-
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -144,11 +144,12 @@ card: Rect, opacity: 0
 #voice@intro
 card.opacity = 1
 "#;
-    let relative_root = std::path::PathBuf::from("target")
-        .join(format!("animatix_transcript_relative_base_{}", std::process::id()));
-    let document_dir = relative_root.join("animation");
-    let asset_dir = relative_root.join("assets");
-    std::fs::remove_dir_all(&relative_root).ok();
+    let relative_root = crate::test_support::TestTempDir::new_in(
+        std::path::Path::new("target"),
+        "transcript-relative-base",
+    );
+    let document_dir = relative_root.path().join("animation");
+    let asset_dir = relative_root.path().join("assets");
     std::fs::create_dir_all(&document_dir).expect("create relative document directory");
     std::fs::create_dir_all(&asset_dir).expect("create relative asset directory");
     let source_assets =
@@ -194,15 +195,13 @@ card.opacity = 1
         "the relative native transcript's marker must lower the speech anchor"
     );
     drop(report);
-    std::fs::remove_dir_all(relative_root).expect("remove relative transcript fixture");
 }
 
 #[test]
 fn transcript_cache_normalizes_ids_and_preserves_preloaded_text_on_invalidation() {
-    let root =
-        std::env::temp_dir().join(format!("animatix_transcript_cache_{}", std::process::id()));
+    let root = crate::test_support::TestTempDir::new("transcript-cache");
     let mut cache = AssetCache::new();
-    cache.set_base_dirs(Some(&root), None);
+    cache.set_base_dirs(Some(root.path()), None);
     cache.insert_transcript_text("texts/captions.vtt", VTT);
 
     let text = cache
@@ -222,14 +221,12 @@ fn transcript_cache_normalizes_ids_and_preserves_preloaded_text_on_invalidation(
 
 #[test]
 fn filesystem_transcript_cache_invalidates_changed_file_content() {
-    let root =
-        std::env::temp_dir().join(format!("animatix_transcript_file_cache_{}", std::process::id()));
-    std::fs::create_dir_all(&root).expect("create transcript fixture directory");
-    let path = root.join("captions.vtt");
+    let root = crate::test_support::TestTempDir::new("transcript-file-cache");
+    let path = root.path().join("captions.vtt");
     std::fs::write(&path, "WEBVTT\n").expect("write initial transcript");
 
     let mut cache = AssetCache::new();
-    cache.set_base_dirs(Some(&root), None);
+    cache.set_base_dirs(Some(root.path()), None);
     let first = cache.load_transcript_text("captions.vtt").expect("read native transcript");
     assert_eq!(first.as_ref(), "WEBVTT\n");
 

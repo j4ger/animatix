@@ -1,14 +1,10 @@
 use animatix_syntax::ast::{ComponentDef, Expr, InlineItem, Property, Stmt};
-use animatix_syntax::parser::parse_source;
 
 use super::super::apply::{
     SourceEdit, apply_edit, find_actor_decl_mut, find_assignment_mut, find_prop_mut,
     time_to_seconds,
 };
-
-fn parse(source: &str) -> Vec<Stmt> {
-    parse_source(source).0.expect("failed to parse test source")
-}
+use super::super::test_support::parse;
 
 #[test]
 fn set_existing_property() {

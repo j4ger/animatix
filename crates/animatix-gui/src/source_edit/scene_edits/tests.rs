@@ -1,12 +1,8 @@
 use animatix_syntax::ast::{Stmt, Transition};
-use animatix_syntax::parser::parse_source;
 use animatix_syntax::to_source::stmts_to_source;
 
 use super::super::apply::{SourceEdit, apply_edit};
-
-fn parse(source: &str) -> Vec<Stmt> {
-    parse_source(source).0.expect("failed to parse test source")
-}
+use super::super::test_support::parse;
 
 #[test]
 fn add_scene_appends_new_scene() {

@@ -318,9 +318,8 @@ fn native_append_image_rejects_uncached_explicit_url() {
 
 #[test]
 fn native_append_image_resolves_cached_url() {
-    let dir = std::env::temp_dir().join("animatix_native_image_url_tests");
-    std::fs::create_dir_all(&dir).expect("create temp dir");
-    let path = dir.join(format!("native_image_url_{}.png", std::process::id()));
+    let temp_dir = crate::test_support::TestTempDir::new("native-image-url");
+    let path = temp_dir.path().join("native_image_url.png");
     let rgba = ::image::RgbaImage::from_raw(2, 2, vec![255; 16]).expect("rgba pixels");
     rgba.save(&path).expect("save image");
 

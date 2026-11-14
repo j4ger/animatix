@@ -4,7 +4,15 @@ use super::transform::*;
 use super::*;
 // The path-data parser moved to an ungated module (so the `slim` web build can
 // still compile `Path, icon:`); the importer's tests exercise its helpers too.
+use crate::test_support::TestTempDir;
 use crate::timeline::path_data::{parse_svg_path_data, tokenize_path_data};
+
+fn write_test_svg(source: &str) -> (TestTempDir, std::path::PathBuf) {
+    let temp_dir = TestTempDir::new("svg-import");
+    let path = temp_dir.path().join("fixture.svg");
+    std::fs::write(&path, source).expect("write SVG fixture");
+    (temp_dir, path)
+}
 
 #[test]
 fn test_parse_color_family() {
@@ -112,7 +120,6 @@ fn test_parse_svg_path_family() {
 
 #[test]
 fn test_import_simple_svg_file() {
-    // Create a temporary SVG file
     let svg_content = r#"<?xml version="1.0"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
   <rect x="10" y="10" width="50" height="30" fill="red"/>
@@ -121,9 +128,7 @@ fn test_import_simple_svg_file() {
     <rect x="0" y="0" width="20" height="20" fill="green"/>
   </g>
 </svg>"#;
-    let dir = std::env::temp_dir();
-    let path = dir.join("test_import_simple.svg");
-    std::fs::write(&path, svg_content).unwrap();
+    let (_temp_dir, path) = write_test_svg(svg_content);
 
     let stmts = import_svg(&path).unwrap();
     std::fs::remove_file(&path).ok();
@@ -194,9 +199,7 @@ fn test_import_with_transform() {
         transform="translate(200, 150) rotate(45) scale(2)"
         fill="#ff8800" stroke="#333" stroke-width="3"/>
 </svg>"##;
-    let dir = std::env::temp_dir();
-    let path = dir.join("test_transform.svg");
-    std::fs::write(&path, svg_content).unwrap();
+    let (_temp_dir, path) = write_test_svg(svg_content);
 
     let stmts = import_svg(&path).unwrap();
     std::fs::remove_file(&path).ok();
@@ -293,9 +296,7 @@ fn test_viewbox_config() {
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
   <rect x="10" y="10" width="50" height="30" fill="red"/>
 </svg>"#;
-    let dir = std::env::temp_dir();
-    let path = dir.join("test_viewbox.svg");
-    std::fs::write(&path, svg_content).unwrap();
+    let (_temp_dir, path) = write_test_svg(svg_content);
 
     let stmts = import_svg(&path).unwrap();
     std::fs::remove_file(&path).ok();
@@ -318,9 +319,7 @@ fn test_viewbox_fallback_width_height() {
 <svg xmlns="http://www.w3.org/2000/svg" width="640" height="480">
   <rect x="0" y="0" width="100" height="100" fill="blue"/>
 </svg>"#;
-    let dir = std::env::temp_dir();
-    let path = dir.join("test_viewbox_fallback.svg");
-    std::fs::write(&path, svg_content).unwrap();
+    let (_temp_dir, path) = write_test_svg(svg_content);
 
     let stmts = import_svg(&path).unwrap();
     std::fs::remove_file(&path).ok();
@@ -341,9 +340,7 @@ fn test_no_viewbox_no_config() {
 <svg xmlns="http://www.w3.org/2000/svg">
   <rect x="0" y="0" width="100" height="100" fill="green"/>
 </svg>"#;
-    let dir = std::env::temp_dir();
-    let path = dir.join("test_no_viewbox.svg");
-    std::fs::write(&path, svg_content).unwrap();
+    let (_temp_dir, path) = write_test_svg(svg_content);
 
     let stmts = import_svg(&path).unwrap();
     std::fs::remove_file(&path).ok();
@@ -365,9 +362,7 @@ fn test_stroke_dasharray() {
         fill="none" stroke="black" stroke-width="2"
         stroke-dasharray="5,3,2,3"/>
 </svg>"#;
-    let dir = std::env::temp_dir();
-    let path = dir.join("test_dasharray.svg");
-    std::fs::write(&path, svg_content).unwrap();
+    let (_temp_dir, path) = write_test_svg(svg_content);
 
     let stmts = import_svg(&path).unwrap();
     std::fs::remove_file(&path).ok();
@@ -397,9 +392,7 @@ fn test_stroke_dasharray_space_separated() {
   <path d="M10 10 L100 10" fill="none" stroke="red"
         stroke-dasharray="10 5 2 5"/>
 </svg>"#;
-    let dir = std::env::temp_dir();
-    let path = dir.join("test_dasharray_space.svg");
-    std::fs::write(&path, svg_content).unwrap();
+    let (_temp_dir, path) = write_test_svg(svg_content);
 
     let stmts = import_svg(&path).unwrap();
     std::fs::remove_file(&path).ok();
@@ -434,9 +427,7 @@ fn test_gradient_url_fill_approximation() {
   </defs>
   <rect x="10" y="10" width="100" height="80" fill="url(#grad)"/>
 </svg>"##;
-    let dir = std::env::temp_dir();
-    let path = dir.join("test_gradient_url.svg");
-    std::fs::write(&path, svg_content).unwrap();
+    let (_temp_dir, path) = write_test_svg(svg_content);
 
     let stmts = import_svg(&path).unwrap();
     std::fs::remove_file(&path).ok();
@@ -484,9 +475,7 @@ fn test_gradient_url_stroke() {
   </defs>
   <rect x="0" y="0" width="50" height="50" fill="none" stroke="url(#mygrad)" stroke-width="3"/>
 </svg>"##;
-    let dir = std::env::temp_dir();
-    let path = dir.join("test_gradient_stroke.svg");
-    std::fs::write(&path, svg_content).unwrap();
+    let (_temp_dir, path) = write_test_svg(svg_content);
 
     let stmts = import_svg(&path).unwrap();
     std::fs::remove_file(&path).ok();
@@ -517,9 +506,7 @@ fn test_unknown_gradient_url_fill_none() {
 <svg xmlns="http://www.w3.org/2000/svg">
   <rect x="0" y="0" width="50" height="50" fill="url(#missing)"/>
 </svg>"##;
-    let dir = std::env::temp_dir();
-    let path = dir.join("test_unknown_gradient.svg");
-    std::fs::write(&path, svg_content).unwrap();
+    let (_temp_dir, path) = write_test_svg(svg_content);
 
     let stmts = import_svg(&path).unwrap();
     std::fs::remove_file(&path).ok();
@@ -556,9 +543,7 @@ fn test_defs_skip_gracefully() {
   </defs>
   <rect x="0" y="0" width="50" height="50" fill="black"/>
 </svg>"##;
-    let dir = std::env::temp_dir();
-    let path = dir.join("test_defs_skip.svg");
-    std::fs::write(&path, svg_content).unwrap();
+    let (_temp_dir, path) = write_test_svg(svg_content);
 
     let stmts = import_svg(&path).unwrap();
     std::fs::remove_file(&path).ok();
@@ -576,9 +561,7 @@ fn test_polygon_conversion() {
 <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
   <polygon points="0,0 50,0 50,50 0,50" fill="#ff8800"/>
 </svg>"##;
-    let dir = std::env::temp_dir();
-    let path = dir.join("test_polygon.svg");
-    std::fs::write(&path, svg_content).unwrap();
+    let (_temp_dir, path) = write_test_svg(svg_content);
 
     let stmts = import_svg(&path).unwrap();
     std::fs::remove_file(&path).ok();
@@ -609,9 +592,7 @@ fn test_polyline_conversion() {
 <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
   <polyline points="10,20 30,40 50,60" fill="none" stroke="blue" stroke-width="2"/>
 </svg>"#;
-    let dir = std::env::temp_dir();
-    let path = dir.join("test_polyline.svg");
-    std::fs::write(&path, svg_content).unwrap();
+    let (_temp_dir, path) = write_test_svg(svg_content);
 
     let stmts = import_svg(&path).unwrap();
     std::fs::remove_file(&path).ok();
@@ -652,9 +633,7 @@ fn test_radial_gradient_url_fill() {
   </defs>
   <circle cx="50" cy="50" r="40" fill="url(#rgrad)"/>
 </svg>"##;
-    let dir = std::env::temp_dir();
-    let path = dir.join("test_radial_gradient.svg");
-    std::fs::write(&path, svg_content).unwrap();
+    let (_temp_dir, path) = write_test_svg(svg_content);
 
     let stmts = import_svg(&path).unwrap();
     std::fs::remove_file(&path).ok();

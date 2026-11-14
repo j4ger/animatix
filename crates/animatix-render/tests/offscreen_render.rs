@@ -11,7 +11,7 @@ use animatix_render::offscreen::{OffscreenRenderer, RenderedFrame};
 
 mod common;
 
-use common::solid_rect_timeline;
+use common::{build, build_checked, parse, solid_rect_timeline};
 
 /// `None` means "no GPU here, skip" — unless `ANIMATIX_REQUIRE_GPU` is set,
 /// in which case the helper panics (see `animatix_render::testing`).
@@ -23,25 +23,6 @@ fn new_renderer() -> Option<OffscreenRenderer> {
             None
         },
     }
-}
-
-fn parse(source: &str) -> Vec<animatix_syntax::ast::Stmt> {
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    ast.expect("AST")
-}
-
-/// Parse + build a fixture without judging build diagnostics.
-fn build(source: &str) -> Timeline {
-    Timeline::build_with_diagnostics(&parse(source), &std::collections::HashMap::new()).output
-}
-
-/// Parse + build a fixture that is expected to be diagnostic-clean.
-fn build_checked(source: &str) -> Timeline {
-    let report =
-        Timeline::build_with_diagnostics(&parse(source), &std::collections::HashMap::new());
-    assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
-    report.output
 }
 
 fn build_with_quality(source: &str, quality: BuildQuality) -> Timeline {
@@ -942,10 +923,8 @@ fade-out box [500ms]
 "#,
     );
 
-    let tmp_dir =
-        std::env::temp_dir().join(format!("animatix_storyboard_test_{}", std::process::id()));
-    std::fs::create_dir_all(&tmp_dir).unwrap();
-    let out_path = tmp_dir.join("test_storyboard.png");
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let out_path = tmp_dir.path().join("test_storyboard.png");
 
     let settings = animatix_render::encode::StoryboardSettings {
         cols: Some(3),
@@ -972,7 +951,6 @@ fade-out box [500ms]
     assert!(metadata.len() > 100, "storyboard image must have non-trivial size");
 
     let _ = std::fs::remove_file(&out_path);
-    let _ = std::fs::remove_dir(&tmp_dir);
 }
 
 #[test]

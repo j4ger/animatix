@@ -28,11 +28,11 @@ fn stores() -> Stores {
 }
 
 /// Same triple over a fully parsed document.
-fn parsed_stores(source: &str) -> Stores {
+fn parsed_stores(source: &str) -> (crate::app::test_support::TestTempDir, Stores) {
+    let (fixture, document_store) = document_store_loaded(source);
     (
-        document_store_loaded(source),
-        preview_store(5.0, SceneDimensions::default()),
-        ui_store(),
+        fixture,
+        (document_store, preview_store(5.0, SceneDimensions::default()), ui_store()),
     )
 }
 
@@ -218,7 +218,8 @@ fn set_transition_without_ast_aborts_pending_snapshot() {
 
 #[test]
 fn create_actor_finalizes_undo_snapshot_and_undo_restores_source() {
-    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
+    let (_fixture, (mut document_store, mut preview_store, mut ui_store)) =
+        parsed_stores(TEST_SOURCE);
     let original_source = document_store.source.document.source_text.clone();
     preview_store.preview.playback.scrub_to(2.0);
 
@@ -256,7 +257,8 @@ fn create_actor_finalizes_undo_snapshot_and_undo_restores_source() {
 
 #[test]
 fn create_actor_adds_to_ast_and_updates_source() {
-    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
+    let (_fixture, (mut document_store, mut preview_store, mut ui_store)) =
+        parsed_stores(TEST_SOURCE);
 
     actor::handle_create_actor(
         &mut document_store,
@@ -309,7 +311,8 @@ fn create_actor_adds_to_ast_and_updates_source() {
 
 #[test]
 fn rename_actor_successfully_changes_label() {
-    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
+    let (_fixture, (mut document_store, mut preview_store, mut ui_store)) =
+        parsed_stores(TEST_SOURCE);
 
     ui_store.selection.selected_actors.insert("box".to_string());
 
@@ -361,7 +364,8 @@ fn rename_actor_successfully_changes_label() {
 
 #[test]
 fn rename_actor_noop_when_old_equals_new() {
-    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
+    let (_fixture, (mut document_store, mut preview_store, mut ui_store)) =
+        parsed_stores(TEST_SOURCE);
 
     let source_before = document_store.source.document.source_text.clone();
 
@@ -386,7 +390,8 @@ fn rename_actor_fails_with_invalid_label() {
     // 1) empty label rejected with 'empty' status
     // 2) duplicate existing label rejected with 'already exists' status
     for (new_name, expected_status) in [("", "empty"), ("circle", "already exists")] {
-        let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
+        let (_fixture, (mut document_store, mut preview_store, mut ui_store)) =
+            parsed_stores(TEST_SOURCE);
         let source_before = document_store.source.document.source_text.clone();
 
         actor::handle_rename_actor(
@@ -423,7 +428,8 @@ fn delete_selected_actors_removes_from_ast() {
         (vec!["box"], vec!["circle"]),
         (vec!["box", "circle"], vec![]),
     ] {
-        let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
+        let (_fixture, (mut document_store, mut preview_store, mut ui_store)) =
+            parsed_stores(TEST_SOURCE);
 
         for label in &to_delete {
             ui_store.selection.selected_actors.insert(label.to_string());
@@ -481,7 +487,8 @@ fn delete_selected_actors_removes_from_ast() {
 
 #[test]
 fn delete_selected_actors_with_empty_selection_is_noop() {
-    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
+    let (_fixture, (mut document_store, mut preview_store, mut ui_store)) =
+        parsed_stores(TEST_SOURCE);
 
     let source_before = document_store.source.document.source_text.clone();
 
@@ -501,7 +508,7 @@ fn delete_selected_actors_with_empty_selection_is_noop() {
 
 #[test]
 fn save_writes_editor_text_to_disk() {
-    let (mut document_store, mut preview_store, _) = parsed_stores(TEST_SOURCE);
+    let (_fixture, (mut document_store, mut preview_store, _)) = parsed_stores(TEST_SOURCE);
 
     let original_text = document_store.source.editor.text().to_string();
     let modified_text = format!("{}\n// comment after save\n", original_text);
@@ -525,7 +532,7 @@ fn save_writes_editor_text_to_disk() {
 
 #[test]
 fn save_unchanged_text_does_not_lose_data() {
-    let (mut document_store, mut preview_store, _) = parsed_stores(TEST_SOURCE);
+    let (_fixture, (mut document_store, mut preview_store, _)) = parsed_stores(TEST_SOURCE);
 
     let original_text = document_store.source.editor.text().to_string();
 
@@ -604,7 +611,8 @@ graph: Rect, size: (400, 400)
 
 #[test]
 fn select_scene_switches_active_scene_and_seeks() {
-    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(MULTI_SCENE_SOURCE);
+    let (_fixture, (mut document_store, mut preview_store, mut ui_store)) =
+        parsed_stores(MULTI_SCENE_SOURCE);
 
     // Should be a composition with two scenes
     assert!(
@@ -647,7 +655,8 @@ fn select_scene_switches_active_scene_and_seeks() {
 
 #[test]
 fn select_scene_noop_for_invalid_scene() {
-    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(MULTI_SCENE_SOURCE);
+    let (_fixture, (mut document_store, mut preview_store, mut ui_store)) =
+        parsed_stores(MULTI_SCENE_SOURCE);
 
     let effects = scene::handle_select_scene(
         &mut document_store,
@@ -669,7 +678,8 @@ fn select_scene_noop_for_invalid_scene() {
 
 #[test]
 fn select_scene_noop_without_composition() {
-    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
+    let (_fixture, (mut document_store, mut preview_store, mut ui_store)) =
+        parsed_stores(TEST_SOURCE);
 
     // Single-scene document has no composition
     assert!(

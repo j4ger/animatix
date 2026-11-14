@@ -7,6 +7,13 @@ rust-version.workspace = true
 # per-suite files are `mod`ules of them. Without this, Cargo would also
 # build each suite file as a target of its own.
 autobenches = false
+# Public-contract suites share one process/font database; their modules and
+# individually addressable regression cases remain separate.
+autotests = false
+
+[[test]]
+name = "engine_contracts"
+path = "tests/engine_contracts.rs"
 
 [features]
 # Rendering, text, and SVG are part of the engine, not options: the build and
@@ -51,8 +58,8 @@ smallvec = "1"
 
 typst = { version = "0.15.1" }
 usvg = { version = "0.47.0", optional = true }
-# Vello 0.11 (crates.io). Upstream #1558 (image-atlas residency) is fixed in
-# vello 0.9.0; `tests/vello_img_probe.rs` still asserts the A–H matrix.
+# The workspace patches Vello 0.11.0 to `vendor/vello` for the #1948
+# patchless-resolve atlas regression; `tests/vello_img_probe.rs` guards the A–H matrix.
 vello = { workspace = true }
 wgpu = { workspace = true, default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
 taffy = { version = "0.10", default-features = false, features = ["flexbox", "grid", "std", "taffy_tree"] }
@@ -70,6 +77,7 @@ animatix-render = { path = "../animatix-render" }
 criterion = { version = "0.5", features = ["html_reports"] }
 dhat = "0.3"
 serde_json = "1"
+tempfile = "3"
 
 # Six semantic targets; each is a wrapper over the original per-suite files in
 # `benches/`, which stay `mod`ules so benchmark IDs and groups do not change.

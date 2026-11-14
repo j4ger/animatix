@@ -663,14 +663,11 @@ import "./lib.amx"
 let sorted = dnf({3, 2, 1})
 let scaled = bump(2, 4)
 "#;
-    let dir = std::env::temp_dir().join(format!("animatix_pubfn_{}", std::process::id()));
-    std::fs::create_dir_all(&dir).expect("create dir");
-    std::fs::write(dir.join("lib.amx"), lib).expect("write lib");
-    let scene_path = dir.join("scene.amx");
+    let dir = crate::test_support::TestTempDir::new("pubfn");
+    std::fs::write(dir.path().join("lib.amx"), lib).expect("write lib");
+    let scene_path = dir.path().join("scene.amx");
     std::fs::write(&scene_path, scene).expect("write scene");
     let timeline = build_module_file(&scene_path).expect("scene builds");
-    let _ = std::fs::remove_dir_all(&dir);
-
     let sorted = timeline.variable_tracks.get("sorted").expect("sorted");
     assert_eq!(
         sorted.evaluate(0),

@@ -68,6 +68,11 @@ wasm_split = { package = "wasm-splitter", version = "=0.8.0-alpha.3" }
 [profile.bench]
 debug = true
 
+# Font-set fingerprints hash substantial font data during process startup.
+# Candidate for paired CLI/test measurements; release/dist remain unchanged.
+[profile.dev.package.sha2]
+opt-level = 3
+
 [profile.profiling]
 inherits = "release"
 debug = true

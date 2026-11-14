@@ -4,6 +4,7 @@ use animatix_syntax::module::ModuleGraph;
 use animatix_syntax::parser::parse_source;
 
 use super::*;
+use crate::test_support::TestTempDir;
 use crate::timeline::camera::CAMERA_TARGET;
 
 // Fixtures
@@ -66,11 +67,10 @@ fn build_cross_file(
     tag: &str,
     scenes: &str,
     play_line: &str,
-) -> (std::path::PathBuf, BuildReport<Composition>) {
-    let dir = std::env::temp_dir().join(format!("animatix_test_{tag}_{}", std::process::id()));
-    let _ = std::fs::create_dir_all(&dir);
-    let scenes_file = dir.join("scenes.amx");
-    let main_file = dir.join("main.amx");
+) -> (TestTempDir, BuildReport<Composition>) {
+    let dir = TestTempDir::new(tag);
+    let scenes_file = dir.path().join("scenes.amx");
+    let main_file = dir.path().join("main.amx");
     std::fs::write(&scenes_file, scenes).unwrap();
     std::fs::write(
         &main_file,
@@ -451,7 +451,7 @@ fn test_scene_config_colorscheme_no_warning() {
 
 #[test]
 fn test_cross_file_scene_basic() {
-    let (dir, report) = build_cross_file(
+    let (_dir, report) = build_cross_file(
         "basic",
         "# FadeIn\n#0s\nlabel: Text, text: \"Fade In Scene\"\nfade-in label [500ms]\n",
         "play scenes.FadeIn [fade, 300ms]",
@@ -471,15 +471,13 @@ fn test_cross_file_scene_basic() {
     assert_eq!(edge.to_scene, "scenes.FadeIn");
     assert_eq!(edge.transition.id, "fade");
     assert_eq!(edge.transition.duration_ms, 300);
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn test_cross_file_scene_not_found() {
     // "scenes.NonExistent" names a scene that does not exist under that
     // namespace, so it must produce PlayTargetNotFound.
-    let (dir, report) = build_cross_file(
+    let (_dir, report) = build_cross_file(
         "notfound",
         "# ExistingScene\n#0s\nlabel: Text, text: \"Hi\"\n",
         "play scenes.NonExistent",
@@ -489,12 +487,11 @@ fn test_cross_file_scene_not_found() {
         "Expected PlayTargetNotFound diagnostic. Diagnostics: {:?}",
         report.diagnostics
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn test_cross_file_scene_duration_preserved() {
-    let (dir, report) = build_cross_file(
+    let (_dir, report) = build_cross_file(
         "duration",
         "# TimedScene\nconfig { duration: 5.0 }\n#0s\nlabel: Text, text: \"Timed\"\n",
         "play scenes.TimedScene",
@@ -504,8 +501,6 @@ fn test_cross_file_scene_duration_preserved() {
     let timed_scene = scene(&report.output, "scenes.TimedScene");
     assert_eq!(timed_scene.explicit_duration_s, Some(5.0));
     assert_eq!(timed_scene.duration_s, 5.0);
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 // Scene persistence carry tests

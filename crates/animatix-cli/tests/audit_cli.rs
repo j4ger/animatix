@@ -23,7 +23,7 @@ fn audit_json_shape_and_default_exit_zero() {
     // `ghost` is declared before the first keyframe and never revealed, so the
     // build layer produces a never-revealed warning. Structural audit must
     // surface it and still exit 0 under the default '--fail-on error'.
-    let input = temp_project(
+    let (_project, input) = temp_project(
         "json",
         "#0s\nghost: Text, text: \"hidden\", at: (10, 10)\n#1s\nfade-in ghost [100ms]\n",
     );
@@ -72,13 +72,11 @@ fn audit_json_shape_and_default_exit_zero() {
             assert!(frame.get(key).is_some(), "frame missing `{key}`: {frame}");
         }
     }
-
-    std::fs::remove_dir_all(input.parent().expect("temp parent")).ok();
 }
 
 #[test]
 fn audit_fail_on_warning_exits_one_but_never_exits_zero() {
-    let input = temp_project(
+    let (_project, input) = temp_project(
         "exit",
         "#0s\nghost: Text, text: \"hidden\", at: (10, 10)\n#1s\nfade-in ghost [100ms]\n",
     );
@@ -113,8 +111,6 @@ fn audit_fail_on_warning_exits_one_but_never_exits_zero() {
         .output()
         .expect("run relaxed audit");
     assert_eq!(relaxed.status.code(), Some(0), "warnings must never fail under --fail-on never");
-
-    std::fs::remove_dir_all(input.parent().expect("temp parent")).ok();
 }
 
 #[test]
@@ -128,7 +124,7 @@ fn audit_missing_input_is_cannot_run_exit_two() {
 
 #[test]
 fn audit_brief_output_format() {
-    let input = temp_project(
+    let (_project, input) = temp_project(
         "brief",
         "#0s\nactor1: Rect, at: (0,0), size: (10,10)\nactor2: Rect, at: (0,0), size: (10,10)\n",
     );
@@ -158,7 +154,7 @@ fn audit_brief_output_format() {
 
 #[test]
 fn audit_fail_on_warning_for_overlap() {
-    let input = temp_project(
+    let (_project, input) = temp_project(
         "overlap",
         "#0s\nactor1: Rect, at: (0,0), size: (10,10)\nactor2: Rect, at: (0,0), size: (10,10)\n",
     );
@@ -182,7 +178,7 @@ fn audit_fail_on_warning_for_overlap() {
 
 #[test]
 fn audit_marker_waiver_end_to_end() {
-    let input = temp_project(
+    let (_project, input) = temp_project(
         "waiver",
         "#0s\n// layout: allow-overlap - test\nactor1: Rect, at: (0,0), size: (10,10)\nactor2: Rect, at: (0,0), size: (10,10)\n",
     );
@@ -209,7 +205,8 @@ fn audit_marker_waiver_end_to_end() {
 
 #[test]
 fn audit_render_never_no_missing_actors() {
-    let input = temp_project("missing", "#0s\nactor1: Text, text: \"missing-ink\", at: (0,0)\n");
+    let (_project, input) =
+        temp_project("missing", "#0s\nactor1: Text, text: \"missing-ink\", at: (0,0)\n");
     let output = Command::new(target_bin())
         .args([
             "audit",
@@ -234,7 +231,7 @@ fn audit_render_never_no_missing_actors() {
 
 #[test]
 fn audit_times_sampling() {
-    let input = temp_project(
+    let (_project, input) = temp_project(
         "times",
         "#0s\nactor1: Rect, at: (0,0), size: (10,10)\n#1s\nactor1: Rect, at: (20,20), size: (10,10)\n",
     );
@@ -264,7 +261,7 @@ fn audit_times_sampling() {
 
 #[test]
 fn measure_json_findings_empty() {
-    let input = temp_project("empty", "#0s\nactor1: Rect, at: (0,0), size: (10,10)\n");
+    let (_project, input) = temp_project("empty", "#0s\nactor1: Rect, at: (0,0), size: (10,10)\n");
     let output = Command::new(target_bin())
         .args(["measure", input.to_str().unwrap(), "--format", "json"])
         .output()

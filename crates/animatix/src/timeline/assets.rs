@@ -316,6 +316,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
+    use crate::test_support::TestTempDir;
 
     fn test_svg_path(name: &str) -> PathBuf {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -324,15 +325,8 @@ mod tests {
         path
     }
 
-    fn test_dir() -> PathBuf {
-        let dir =
-            std::env::temp_dir().join(format!("animatix_asset_cache_tests_{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
-    fn write_test_svg(name: &str, rect_width: u32) -> PathBuf {
-        let path = test_dir().join(name);
+    fn write_test_svg(temp_dir: &TestTempDir, name: &str, rect_width: u32) -> PathBuf {
+        let path = temp_dir.path().join(name);
         let source = format!(
             r#"<svg xmlns="http://www.w3.org/2000/svg" width="60" height="20">
   <rect x="0" y="0" width="{rect_width}" height="10"/>
@@ -372,8 +366,9 @@ mod tests {
 
     #[test]
     fn invalidate_changed_assets_reloads_only_changed_path() {
-        let changed = write_test_svg("changed.svg", 10);
-        let kept = write_test_svg("kept.svg", 20);
+        let temp_dir = TestTempDir::new("asset-cache-invalidate");
+        let changed = write_test_svg(&temp_dir, "changed.svg", 10);
+        let kept = write_test_svg(&temp_dir, "kept.svg", 20);
         let changed_str = changed.display().to_string();
         let kept_str = kept.display().to_string();
 
@@ -406,8 +401,9 @@ mod tests {
 
     #[test]
     fn prune_unreferenced_drops_only_unused_paths() {
-        let used = write_test_svg("used.svg", 10);
-        let unused = write_test_svg("unused.svg", 20);
+        let temp_dir = TestTempDir::new("asset-cache-prune");
+        let used = write_test_svg(&temp_dir, "used.svg", 10);
+        let unused = write_test_svg(&temp_dir, "unused.svg", 20);
         let used_str = used.display().to_string();
         let unused_str = unused.display().to_string();
 
@@ -426,11 +422,11 @@ mod tests {
 
     #[test]
     fn relative_urls_resolve_against_document_dir() {
-        let dir = std::env::temp_dir().join("animatix_asset_base_dir_tests");
+        let temp_dir = TestTempDir::new("asset-cache-relative-url");
         let mut cache = AssetCache::new();
-        cache.set_base_dirs(Some(&dir), None);
+        cache.set_base_dirs(Some(temp_dir.path()), None);
         let key = cache.normalize_asset_url("img/logo.png");
-        assert_eq!(Path::new(&key), dir.join("img/logo.png").as_path());
+        assert_eq!(Path::new(&key), temp_dir.path().join("img/logo.png").as_path());
         assert_eq!(
             cache.normalize_asset_url("https://example.com/logo.png"),
             "https://example.com/logo.png"
@@ -439,7 +435,8 @@ mod tests {
 
     #[test]
     fn rebuild_with_existing_cache_preserves_usage() {
-        let path = write_test_svg("rebuild.svg", 10);
+        let temp_dir = TestTempDir::new("asset-cache-rebuild");
+        let path = write_test_svg(&temp_dir, "rebuild.svg", 10);
         let source = format!("#0s\nicon: Svg {{ url: \"{}\" }}\n", path.display());
         let (ast, parse_errors) = animatix_syntax::parser::parse_source(&source);
         assert!(parse_errors.is_empty(), "Parse errors: {parse_errors:?}");

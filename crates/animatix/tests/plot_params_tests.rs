@@ -19,7 +19,8 @@ const DIMS: SceneDimensions = SceneDimensions {
 
 /// Write `.amx` source to a unique temp file, parse + expand, then build a Timeline.
 fn build_timeline_from_source(test_name: &str, source: &str) -> Timeline {
-    let temp_path = std::env::temp_dir().join(format!("animatix_plot_params_test_{test_name}.amx"));
+    let temp_dir = tempfile::tempdir().expect("create temp fixture directory");
+    let temp_path = temp_dir.path().join(format!("{test_name}.amx"));
     fs::write(&temp_path, source).expect("write temp fixture should succeed");
     let ast = ModuleGraph::new()
         .load_program(&temp_path)
@@ -272,7 +273,8 @@ fn undefined_name_in_plot_func_still_warns_at_build_time() {
 #0s
 curve: PlotCurve, func: (x) => sin(freq * x), domain: (0, 6.28), samples: 100
 "#;
-    let temp_path = std::env::temp_dir().join("animatix_plot_params_test_typo.amx");
+    let temp_dir = tempfile::tempdir().expect("create temp fixture directory");
+    let temp_path = temp_dir.path().join("typo.amx");
     fs::write(&temp_path, source).expect("write temp fixture should succeed");
     let ast = ModuleGraph::new()
         .load_program(&temp_path)

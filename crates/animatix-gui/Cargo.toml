@@ -49,6 +49,7 @@ required-features = ["dev-screenshots"]
 
 [dev-dependencies]
 chumsky = "0.12"
+tempfile = "3"
 
 [build-dependencies]
 # Also available on non-Windows hosts for Windows cross-compilation.

@@ -65,24 +65,6 @@ fn move_animates_motion_offset_to_target_value() {
 }
 
 #[test]
-fn move_requires_to_vec2_modifier() {
-    let ast = vec![Stmt::Keyframe {
-        time: Time::Seconds(0.0),
-        body: vec![circle_decl("badge"), move_action("badge", Expr::Num(10.0))],
-        span: None,
-    }];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == DiagnosticCode::InvalidModifierValue)
-    );
-}
-
-#[test]
 fn rotate_animates_rotation_track_over_duration() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
@@ -103,27 +85,6 @@ fn rotate_animates_rotation_track_over_duration() {
 }
 
 #[test]
-fn rotate_requires_numeric_by_modifier() {
-    let ast = vec![Stmt::Keyframe {
-        time: Time::Seconds(0.0),
-        body: vec![
-            circle_decl("badge"),
-            rotate_action("badge", Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0)])),
-        ],
-        span: None,
-    }];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == DiagnosticCode::InvalidModifierValue)
-    );
-}
-
-#[test]
 fn scale_animates_scale_track_over_duration() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
@@ -138,24 +99,6 @@ fn scale_animates_scale_track_over_duration() {
     assert!((geometry.scale.get(0, 1.0) - 1.0).abs() < f32::EPSILON);
     assert!((geometry.scale.get(1000, 1.0) - 1.5).abs() < 0.0001);
     assert!(report.diagnostics.is_empty());
-}
-
-#[test]
-fn scale_requires_positive_numeric_by_modifier() {
-    let ast = vec![Stmt::Keyframe {
-        time: Time::Seconds(0.0),
-        body: vec![circle_decl("badge"), scale_action("badge", Expr::Num(0.0))],
-        span: None,
-    }];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == DiagnosticCode::InvalidModifierValue)
-    );
 }
 
 #[test]
@@ -179,21 +122,32 @@ fn shift_animates_motion_offset_over_duration() {
 }
 
 #[test]
-fn shift_requires_by_vec2_modifier() {
-    let ast = vec![Stmt::Keyframe {
-        time: Time::Seconds(0.0),
-        body: vec![circle_decl("badge"), shift_action("badge", Expr::Num(10.0))],
-        span: None,
-    }];
+fn motion_actions_reject_invalid_modifier_values() {
+    type ModifierCase = (&'static str, &'static str, fn(&str, Expr) -> Stmt, Expr);
+    let cases: [ModifierCase; 4] = [
+        ("move", "to", move_action, Expr::Num(10.0)),
+        ("rotate", "by", rotate_action, Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0)])),
+        ("scale", "by", scale_action, Expr::Num(0.0)),
+        ("shift", "by", shift_action, Expr::Num(10.0)),
+    ];
 
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    for (verb, modifier, action, invalid_value) in cases {
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![circle_decl("badge"), action("badge", invalid_value)],
+            span: None,
+        }];
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == DiagnosticCode::InvalidModifierValue)
-    );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagnosticCode::InvalidModifierValue),
+            "{verb} with invalid `{modifier}` modifier should report InvalidModifierValue: {:?}",
+            report.diagnostics
+        );
+    }
 }
 
 #[test]

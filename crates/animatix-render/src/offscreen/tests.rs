@@ -3,6 +3,7 @@ use super::*;
 // Shared with `tests/offscreen_render.rs` so the two suites cannot drift.
 #[path = "../../tests/common/mod.rs"]
 mod common;
+use self::common::{build, build_checked};
 
 /// One renderer, or `None` after applying the suite's GPU skip policy.
 fn new_renderer() -> Option<OffscreenRenderer> {
@@ -13,29 +14,6 @@ fn new_renderer() -> Option<OffscreenRenderer> {
             None
         },
     }
-}
-
-fn parse(source: &str) -> Vec<animatix_syntax::ast::Stmt> {
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {parse_errors:?}");
-    ast.expect("AST")
-}
-
-fn build(source: &str) -> Timeline {
-    animatix::timeline::Timeline::build_with_diagnostics(
-        &parse(source),
-        &std::collections::HashMap::new(),
-    )
-    .output
-}
-
-fn build_checked(source: &str) -> Timeline {
-    let report = animatix::timeline::Timeline::build_with_diagnostics(
-        &parse(source),
-        &std::collections::HashMap::new(),
-    );
-    assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
-    report.output
 }
 
 const FRAME: SceneDimensions = SceneDimensions {

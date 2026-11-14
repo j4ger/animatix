@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import platform
 import shutil
 import signal
 import subprocess
@@ -23,6 +24,30 @@ TARGET_MARKER_NAME = ".animatix-owned-target.json"
 
 class ExperimentFailure(RuntimeError):
     """An experiment setup or measured command failed."""
+
+
+def host_snapshot() -> dict:
+    """Record the host and image for comparisons on the same measured machine."""
+    cpu = platform.processor()
+    if Path("/proc/cpuinfo").is_file():
+        cpu = next((line.split(":", 1)[1].strip()
+                    for line in Path("/proc/cpuinfo").read_text().splitlines()
+                    if line.startswith("model name")), cpu)
+    try:
+        memory = os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE")
+    except (ValueError, OSError):
+        probe = subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True)
+        memory = int(probe.stdout.strip()) if probe.returncode == 0 else None
+    return {
+        "uname": list(platform.uname()), "cpu_model": cpu,
+        "cpu_count": os.cpu_count(),
+        "cpu_affinity": sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None,
+        "load_average": list(os.getloadavg()),
+        "physical_memory_bytes": memory,
+        "runner_image": {key: os.environ[key] for key in
+                         ("ImageOS", "ImageVersion", "RUNNER_OS", "RUNNER_ARCH", "RUNNER_NAME")
+                         if key in os.environ},
+    }
 
 
 class ExperimentOutput:
@@ -48,6 +73,10 @@ class ExperimentOutput:
             raise ExperimentFailure(f"refusing unmarked nonempty experiment output: {self.directory}")
         else:
             self._write_json(marker, expected)
+        if self.records_path.exists() and self.records_path.stat().st_size:
+            raise ExperimentFailure(
+                f"output already contains a recorded run; choose a fresh namespace: {self.directory}"
+            )
         self.logs_dir.mkdir(parents=True, exist_ok=True)
 
     @property

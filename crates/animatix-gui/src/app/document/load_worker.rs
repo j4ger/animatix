@@ -147,6 +147,7 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
+    use crate::app::test_support::TestTempDir;
 
     fn assert_send<T: Send>() {}
 
@@ -157,17 +158,8 @@ mod tests {
 
     #[test]
     fn load_worker_returns_a_built_document() {
-        let unique = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let dir = std::env::temp_dir().join(format!(
-            "animatix_load_worker_{}_{}",
-            std::process::id(),
-            unique
-        ));
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("scene.amx");
+        let dir = TestTempDir::new("load-worker");
+        let path = dir.path().join("scene.amx");
         std::fs::write(&path, "#0s\nbox: Rect, size: (100, 100)\n").unwrap();
 
         let mut worker = LoadWorker::start();
@@ -176,7 +168,7 @@ mod tests {
                 path.clone(),
                 Arc::new(ExtensionContext::new()),
                 ExtensionManifest::default(),
-                Some(dir.clone()),
+                Some(dir.path().to_path_buf()),
                 7,
             )
             .expect("submit load");
@@ -189,6 +181,5 @@ mod tests {
         assert!(document.source_text.contains("box:"));
 
         drop(worker);
-        std::fs::remove_dir_all(dir).ok();
     }
 }

@@ -1225,10 +1225,9 @@ fn unary_minus_on_dotted_path_resolves_in_graph_domain() {
 
 #[test]
 fn unary_minus_on_imported_module_path_resolves_in_graph_domain() {
-    let dir = std::env::temp_dir().join(format!("animatix_geo_{}", std::process::id()));
-    std::fs::create_dir_all(&dir).expect("create dir");
-    std::fs::write(dir.join("geo.amx"), "pub let y_hi = 1.75\n").expect("write geo");
-    let scene_path = dir.join("scene.amx");
+    let dir = crate::test_support::TestTempDir::new("geo-import");
+    std::fs::write(dir.path().join("geo.amx"), "pub let y_hi = 1.75\n").expect("write geo");
+    let scene_path = dir.path().join("scene.amx");
     std::fs::write(
         &scene_path,
         "import \"./geo.amx\" as geo\ng: Graph, opacity: 1.0, size: (400, 300), x_domain: (-5, 5), y_domain: (-geo.y_hi, geo.y_hi)\n",
@@ -1249,5 +1248,4 @@ fn unary_minus_on_imported_module_path_resolves_in_graph_domain() {
         },
         other => panic!("expected Vec2([-1.75, 1.75]) for g_y_domain, got {other:?}"),
     }
-    let _ = std::fs::remove_dir_all(&dir);
 }

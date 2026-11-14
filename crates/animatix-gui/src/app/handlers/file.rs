@@ -720,11 +720,9 @@ pub fn handle_rebuild_response(
 
 #[cfg(test)]
 mod tests {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
     use super::*;
     use crate::app::document::version::SourceHash;
-    use crate::app::test_support::{make_document_store, preview_store, ui_store};
+    use crate::app::test_support::{TestTempDir, make_document_store, preview_store, ui_store};
     use crate::editor::EditorBuffer;
 
     #[test]
@@ -754,14 +752,8 @@ mod tests {
 
     #[test]
     fn save_document_reports_error_without_clearing_dirty() {
-        let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
-        let dir = std::env::temp_dir().join(format!(
-            "animatix_save_failure_{}_{}",
-            std::process::id(),
-            unique
-        ));
-        std::fs::create_dir_all(&dir).unwrap();
-        let target = dir.join("scene.amx");
+        let dir = TestTempDir::new("save-failure");
+        let target = dir.path().join("scene.amx");
         std::fs::create_dir_all(&target).unwrap();
 
         let document = DocumentSession::from_source(target.clone(), "#0s\n".to_string()).unwrap();
@@ -775,14 +767,9 @@ mod tests {
 
     #[test]
     fn save_as_failure_preserves_document_path_and_dirty_state() {
-        let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
-        let dir = std::env::temp_dir().join(format!(
-            "animatix_save_as_failure_{}_{}",
-            std::process::id(),
-            unique
-        ));
-        std::fs::create_dir_all(&dir).unwrap();
-        let original = dir.join("scene.amx");
+        let dir = TestTempDir::new("save-as-failure");
+        let dir_path = dir.path();
+        let original = dir_path.join("scene.amx");
         let source = "#0s\nbox: Rect, size: (100, 100)\n";
         std::fs::write(&original, source).unwrap();
 
@@ -792,19 +779,20 @@ mod tests {
         store.source.document.is_dirty = true;
 
         let mut workspace_store = WorkspaceStore::new(
-            dir.clone(),
-            HashSet::from([dir.clone()]),
+            dir_path.to_path_buf(),
+            HashSet::from([dir_path.to_path_buf()]),
             Vec::new(),
-            dir.join("workspace.ron"),
+            dir_path.join("workspace.ron"),
             None,
             None,
         );
         let mut preview_store = preview_store(1.0, store.source.document.scene_dimensions);
-        let mut plugin_manager = DocumentPluginManager::new(original.clone(), dir.clone());
+        let mut plugin_manager =
+            DocumentPluginManager::new(original.clone(), dir_path.to_path_buf());
 
         // A directory at the target path makes `save_to_disk` fail after the
         // document path has already been switched to the target.
-        let target = dir.join("blocked.amx");
+        let target = dir_path.join("blocked.amx");
         std::fs::create_dir_all(&target).unwrap();
 
         let effects = handle_save_as(

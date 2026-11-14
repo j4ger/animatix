@@ -152,8 +152,6 @@ pub enum ThemeRegistryError {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
     use super::*;
 
     fn write_theme(dir: &Path, name: &str, extends: Option<&str>, base: &str) {
@@ -164,20 +162,20 @@ mod tests {
         std::fs::write(dir.join(format!("{name}.json")), json).unwrap();
     }
 
-    fn temp_dir(label: &str) -> PathBuf {
-        let dir = std::env::temp_dir()
-            .join(format!("eparts-theme-registry-{label}-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
+    fn temp_dir(label: &str) -> tempfile::TempDir {
+        tempfile::Builder::new()
+            .prefix(&format!("eparts-theme-registry-{label}-"))
+            .tempdir()
+            .unwrap()
     }
 
     #[test]
     fn registry_resolves_inheritance_in_stable_order() {
         let dir = temp_dir("inherit");
-        write_theme(&dir, "base", None, "#101418");
-        write_theme(&dir, "child", Some("base"), "#202428");
+        write_theme(dir.path(), "base", None, "#101418");
+        write_theme(dir.path(), "child", Some("base"), "#202428");
 
-        let registry = ThemeRegistry::from_directory(&dir).expect("load registry");
+        let registry = ThemeRegistry::from_directory(dir.path()).expect("load registry");
         assert_eq!(registry.names(), vec!["base", "child"]);
 
         let child = registry.resolved("child").expect("child resolved");
@@ -192,47 +190,39 @@ mod tests {
             base.dark_theme().palette.surface.base,
             egui::Color32::from_rgb(0x10, 0x14, 0x18)
         );
-
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
     fn registry_rejects_missing_base() {
         let dir = temp_dir("missing");
-        write_theme(&dir, "child", Some("missing"), "#202428");
+        write_theme(dir.path(), "child", Some("missing"), "#202428");
 
-        let err = ThemeRegistry::from_directory(&dir).expect_err("should fail");
+        let err = ThemeRegistry::from_directory(dir.path()).expect_err("should fail");
         assert!(matches!(err, ThemeRegistryError::MissingBase { .. }));
-
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
     fn registry_rejects_extension_cycle() {
         let dir = temp_dir("cycle");
-        write_theme(&dir, "a", Some("b"), "#101418");
-        write_theme(&dir, "b", Some("a"), "#202428");
+        write_theme(dir.path(), "a", Some("b"), "#101418");
+        write_theme(dir.path(), "b", Some("a"), "#202428");
 
-        let err = ThemeRegistry::from_directory(&dir).expect_err("should fail");
+        let err = ThemeRegistry::from_directory(dir.path()).expect_err("should fail");
         assert!(matches!(err, ThemeRegistryError::ExtensionLoop(cycle) if cycle.len() >= 2));
-
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
     fn registry_keeps_child_override_over_base() {
         let dir = temp_dir("override");
-        write_theme(&dir, "base", None, "#101418");
+        write_theme(dir.path(), "base", None, "#101418");
         let child_json = r##"{ "name":"child", "extends":"base",
             "dark": { "surface": { "base": "#ff0000" }, "text": { "primary": "#00ff00" } } }"##;
-        std::fs::write(dir.join("child.json"), child_json).unwrap();
+        std::fs::write(dir.path().join("child.json"), child_json).unwrap();
 
-        let registry = ThemeRegistry::from_directory(&dir).expect("load registry");
+        let registry = ThemeRegistry::from_directory(dir.path()).expect("load registry");
         let theme = registry.resolved("child").unwrap().dark_theme();
         assert_eq!(theme.palette.surface.base, egui::Color32::from_rgb(0xff, 0, 0));
         assert_eq!(theme.palette.text.primary, egui::Color32::from_rgb(0, 0xff, 0));
         assert_eq!(theme.palette.surface.panel, Theme::dark().palette.surface.panel);
-
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }
