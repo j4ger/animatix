@@ -7,31 +7,28 @@ mod camera;
 mod handles;
 mod overlay;
 mod selection;
-mod state;
 
 #[cfg(test)]
 mod tests;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use animatix::timeline::{SceneDimensions, Timeline};
 
 use crate::app::PreviewPaneState;
 use crate::app::commands::ActionQueue;
 use crate::app::preview::performance::PerformanceMetrics;
-use crate::app::preview::{self, DragState, selection as preview_selection};
+use crate::app::preview::{self, selection as preview_selection};
 
 pub(crate) struct PreviewContext<'a> {
     pub scene_dimensions: SceneDimensions,
     pub preview: &'a mut PreviewPaneState,
     pub preview_texture_id: Option<egui::TextureId>,
     pub commands: &'a mut ActionQueue,
-    pub drag_state: &'a mut DragState,
     pub selection: &'a mut preview_selection::SelectionState,
     pub selected_actors: &'a mut HashSet<String>,
     pub hit_regions: &'a [(String, kurbo::Rect)],
     pub timeline: Option<&'a Timeline>,
-    pub pivot_offsets: &'a mut HashMap<String, [f32; 2]>,
     pub tool_mode: &'a mut preview::ToolMode,
     pub composition: Option<&'a animatix::composition::Composition>,
     pub active_scene: Option<&'a str>,

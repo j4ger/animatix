@@ -4,14 +4,13 @@ use std::collections::HashSet;
 
 use egui::Vec2;
 
-use crate::app::design_tokens::spatial::STROKE_WIDTH;
 use crate::app::design_tokens::spatial::preview::MIN_ZOOM as PREVIEW_MIN_ZOOM;
 use crate::app::design_tokens::typography::TextRole;
+use crate::app::preview;
 use crate::app::preview::overlay_ops::{
     PreviewOverlayOp, cycle_indicator_ops, execute_overlay_ops, hover_highlight_ops,
     layout_debug_ops, motion_path_ops,
 };
-use crate::app::preview::{self, DragState};
 
 use super::PreviewContext;
 
@@ -127,38 +126,6 @@ impl PreviewContext<'_> {
         }
         execute_overlay_ops(ui.painter(), &ops, &tx);
 
-        if self.preview.overlay.show_snap_guides
-            && let DragState::Move { primary, .. } | DragState::Scale { actor: primary, .. } =
-                &self.drag_state
-        {
-            self.draw_snap_guides(ui, preview_rect, primary);
-        }
-
-        if self.preview.overlay.show_snap_guides
-            && let Some(ref label) = self.preview.snap.snap_hud_label
-            && let Some(mouse) = ui.ctx().input(|i| i.pointer.latest_pos())
-        {
-            let hud_pos = mouse + Vec2::new(12.0, -24.0);
-            let galley = ui.painter().layout_no_wrap(
-                label.clone(),
-                TextRole::BodyS.font_id(),
-                theme.palette.status.success,
-            );
-            let padding = Vec2::new(8.0, 4.0);
-            let bg_rect = egui::Rect::from_min_size(hud_pos, galley.size() + padding * 2.0);
-            ui.painter().rect_filled(bg_rect, 3.0, theme.palette.overlay.tooltip_bg);
-            ui.painter().rect_stroke(
-                bg_rect,
-                3.0,
-                egui::Stroke::new(
-                    STROKE_WIDTH,
-                    crate::app::design_tokens::semantic::canvas::snap_guide_line(),
-                ),
-                egui::StrokeKind::Outside,
-            );
-            ui.painter().galley(hud_pos + padding, galley, theme.palette.status.success);
-        }
-
         // ── Performance HUD ──
         if self.preview.overlay.show_performance_hud {
             preview::overlay::render_performance_hud(
@@ -189,105 +156,6 @@ impl PreviewContext<'_> {
                 galley,
                 theme.palette.text.muted,
             );
-        }
-    }
-
-    pub(crate) fn draw_snap_guides(
-        &self,
-        ui: &mut egui::Ui,
-        preview_rect: egui::Rect,
-        primary: &str,
-    ) {
-        let primary_props = self.get_actor_props(primary);
-        let primary_rect = if let Some(p) = primary_props {
-            let hw = p.size[0] / 2.0;
-            let hh = p.size[1] / 2.0;
-            let corners = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
-            let mut min_x = f32::INFINITY;
-            let mut min_y = f32::INFINITY;
-            let mut max_x = f32::NEG_INFINITY;
-            let mut max_y = f32::NEG_INFINITY;
-            for corner in &corners {
-                let world = preview::local_to_world(*corner, p.position, p.rotation);
-                let screen = self.preview_scene_to_screen(preview_rect, world);
-                min_x = min_x.min(screen.x);
-                min_y = min_y.min(screen.y);
-                max_x = max_x.max(screen.x);
-                max_y = max_y.max(screen.y);
-            }
-            egui::Rect::from_min_max(egui::pos2(min_x, min_y), egui::pos2(max_x, max_y))
-        } else {
-            self.hit_regions
-                .iter()
-                .find(|(l, _)| l == primary)
-                .map(|(_, bounds)| {
-                    let tl = self.preview_scene_to_screen(
-                        preview_rect,
-                        kurbo::Point::new(bounds.x0, bounds.y0),
-                    );
-                    let br = self.preview_scene_to_screen(
-                        preview_rect,
-                        kurbo::Point::new(bounds.x1, bounds.y1),
-                    );
-                    egui::Rect::from_min_max(tl, br)
-                })
-                .unwrap_or(preview_rect)
-        };
-
-        let theme = eparts::theme(ui);
-        let threshold = 8.0;
-        let guide_color = theme.palette.accent.subtle;
-        let guide_stroke = egui::Stroke::new(STROKE_WIDTH, guide_color);
-
-        for (label, bounds) in self.hit_regions {
-            if label == primary || self.selected_actors.contains(label) {
-                continue;
-            }
-            let tl =
-                self.preview_scene_to_screen(preview_rect, kurbo::Point::new(bounds.x0, bounds.y0));
-            let br =
-                self.preview_scene_to_screen(preview_rect, kurbo::Point::new(bounds.x1, bounds.y1));
-            let other_rect = egui::Rect::from_min_max(tl, br);
-
-            let px = [
-                primary_rect.min.x,
-                primary_rect.max.x,
-                primary_rect.center().x,
-            ];
-            let py = [
-                primary_rect.min.y,
-                primary_rect.max.y,
-                primary_rect.center().y,
-            ];
-            let ox = [other_rect.min.x, other_rect.max.x, other_rect.center().x];
-            let oy = [other_rect.min.y, other_rect.max.y, other_rect.center().y];
-
-            for &px in &px {
-                for &ox in &ox {
-                    if (px - ox).abs() < threshold {
-                        ui.painter().line_segment(
-                            [
-                                egui::pos2(px, preview_rect.min.y),
-                                egui::pos2(px, preview_rect.max.y),
-                            ],
-                            guide_stroke,
-                        );
-                    }
-                }
-            }
-            for &py in &py {
-                for &oy in &oy {
-                    if (py - oy).abs() < threshold {
-                        ui.painter().line_segment(
-                            [
-                                egui::pos2(preview_rect.min.x, py),
-                                egui::pos2(preview_rect.max.x, py),
-                            ],
-                            guide_stroke,
-                        );
-                    }
-                }
-            }
         }
     }
 

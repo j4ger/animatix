@@ -10,7 +10,7 @@ use crate::app::design_tokens::spatial::{RADIUS_L, STROKE_WIDTH, preview as prev
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::panels::{RULER_SIZE, nice_tick_interval};
 pub(crate) use crate::app::preview::context::PreviewContext;
-use crate::app::preview::{self, DragState, fit_preview, selection};
+use crate::app::preview::{self, fit_preview, selection};
 
 /// Floating Presentation HUD: pill hovering at the bottom center of the canvas in presentation mode.
 mod hud;

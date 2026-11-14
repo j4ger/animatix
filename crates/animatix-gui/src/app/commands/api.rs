@@ -28,7 +28,6 @@ impl Command {
             | Self::StepPrevious
             | Self::TogglePresentationMode
             | Self::SelectScene(_)
-            | Self::SetSelectedKeyframes(_)
             | Self::ToggleEditorSync
             | Self::EditorChanged
             | Self::Undo
@@ -78,7 +77,7 @@ impl ShellAction {
     pub(crate) fn allowed_in_workbench(&self) -> bool {
         match self {
             Self::Command(command) => command.allowed_in_workbench(),
-            Self::View(super::ViewAction::OpenInsertionPalette) | Self::Drag(_) => false,
+            Self::View(super::ViewAction::OpenInsertionPalette) => false,
             Self::View(_) => true,
         }
     }

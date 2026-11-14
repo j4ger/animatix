@@ -3,17 +3,9 @@ use egui::Pos2;
 /// High-level gesture events produced by the gesture router.
 #[derive(Debug, Clone)]
 pub enum Gesture {
-    Start {
-        pos: Pos2,
-        modifiers: egui::Modifiers,
-    },
-    Move {
-        pos: Pos2,
-        modifiers: egui::Modifiers,
-    },
-    End {
-        modifiers: egui::Modifiers,
-    },
+    Start { pos: Pos2 },
+    Move { pos: Pos2 },
+    End { modifiers: egui::Modifiers },
 }
 
 /// Result from a gesture handler indicating whether it claimed the gesture.

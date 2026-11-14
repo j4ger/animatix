@@ -80,8 +80,10 @@ not expand editing permissions: timeline controls still change review state only
 
 The icon-first workbench was exercised on native Linux at approximately 1180 px
 and 836 px window widths, including tooltip discovery, source-marker navigation,
-menu dismissal with Escape, and setting/clearing review loops. The GUI's 423 unit
-tests, workspace all-targets check, formatting and structure gates passed. The
+menu dismissal with Escape, and setting/clearing review loops. After removing obsolete visual-editor plumbing, the GUI's 411 unit tests,
+workspace all-targets check, strict workspace Clippy (`-D warnings`), formatting
+and structure gates passed. Tests covering deleted transform handles were
+removed; actual marquee selection and Escape cancellation have regression tests. The
 icon tests verify readable click-event names and disabled-action behavior; this
 is not a claim of end-to-end screen-reader certification.
 

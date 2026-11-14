@@ -82,3 +82,80 @@ impl GestureHandler for MarqueeGesture {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::commands::ActionQueue;
+    use crate::app::preview::{
+        ToolMode, context::PreviewContext, performance::PerformanceMetrics,
+        selection::SelectionState,
+    };
+    use std::collections::HashSet;
+
+    #[test]
+    fn marquee_end_selects_hits_and_clears_transient_state_without_source_commands() {
+        let dimensions = animatix::timeline::SceneDimensions {
+            width: 100,
+            height: 100,
+        };
+        let mut preview = crate::app::PreviewPaneState::new(1.0, dimensions);
+        preview.viewport.preview_pan = egui::vec2(50.0, 50.0);
+        let mut commands = ActionQueue::default();
+        let mut selection = SelectionState::default();
+        let mut selected = HashSet::from(["previous".to_owned()]);
+        let regions = vec![
+            ("inside".to_owned(), kurbo::Rect::new(20.0, 20.0, 30.0, 30.0)),
+            ("outside".to_owned(), kurbo::Rect::new(80.0, 80.0, 90.0, 90.0)),
+        ];
+        let mut tool = ToolMode::Select;
+        let mut performance = PerformanceMetrics::new();
+        let mut ctx = PreviewContext {
+            scene_dimensions: dimensions,
+            preview: &mut preview,
+            preview_texture_id: None,
+            commands: &mut commands,
+            selection: &mut selection,
+            selected_actors: &mut selected,
+            hit_regions: &regions,
+            timeline: None,
+            tool_mode: &mut tool,
+            composition: None,
+            active_scene: None,
+            performance_metrics: &mut performance,
+            debug_layout: false,
+            debug_spacing: false,
+            rebuild_in_progress: false,
+            has_scene: true,
+            source_text: Some("#0s\n"),
+        };
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(100.0, 100.0));
+        for event in [
+            Gesture::Start {
+                pos: egui::pos2(10.0, 10.0),
+            },
+            Gesture::Move {
+                pos: egui::pos2(60.0, 60.0),
+            },
+            Gesture::End {
+                modifiers: egui::Modifiers::NONE,
+            },
+        ] {
+            assert_eq!(MarqueeGesture.handle(&event, &mut ctx, rect), GestureResult::Claimed);
+        }
+        assert_eq!(*ctx.selected_actors, HashSet::from(["inside".to_owned()]));
+        assert!(ctx.selection.marquee_start.is_none());
+        assert!(ctx.selection.marquee_current.is_none());
+        assert!(ctx.commands.is_empty());
+        assert_eq!(
+            MarqueeGesture.handle(
+                &Gesture::End {
+                    modifiers: egui::Modifiers::NONE
+                },
+                &mut ctx,
+                rect
+            ),
+            GestureResult::Ignored
+        );
+    }
+}

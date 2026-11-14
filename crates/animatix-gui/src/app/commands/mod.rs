@@ -131,8 +131,6 @@ pub enum Command {
         property: String,
         time_s: f64,
     },
-    /// Set the canonical keyframe multi-selection in the UI store.
-    SetSelectedKeyframes(Vec<KeyframeId>),
     /// Move a keyframe to a new time. Emitted by timeline drag.
     MoveKeyframe {
         scene: Option<String>,
@@ -252,19 +250,6 @@ pub enum ViewAction {
     OpenCommandPalette,
     OpenPluginStatus,
     OpenFindReplace,
-    DeselectActors,
-}
-
-// ── Drag events ─────────────────────────────────────────────────────────
-
-/// Drag lifecycle events that bookend inspector or canvas drag interactions.
-/// These are used for snapshot guards and cursor state, not for document
-/// mutations directly.
-#[derive(Debug, Clone)]
-pub enum DragEvent {
-    DragEnded,
-    InspectorInputDragStarted,
-    InspectorInputDragEnded,
 }
 
 // ── Unified action wrapper ──────────────────────────────────────────────
@@ -273,12 +258,10 @@ pub enum DragEvent {
 ///
 /// `Command` variants are domain-level mutations that can be undone.
 /// `ViewAction` variants affect UI visibility only.
-/// `DragEvent` variants are interaction bookkeeping.
 #[derive(Debug, Clone)]
 pub enum ShellAction {
     Command(Command),
     View(ViewAction),
-    Drag(DragEvent),
 }
 
 // ── Property edit types ─────────────────────────────────────────────────

@@ -7,7 +7,6 @@
 //! method.
 
 use crate::app::document::timeline_diff::KeyframeId;
-use crate::app::preview::DragState;
 use crate::app::stores::*;
 use crate::source_edit;
 

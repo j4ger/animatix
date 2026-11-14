@@ -513,9 +513,7 @@ impl GuiShell {
             expanded_properties: &mut self.ui_store.view.expanded_properties,
             selected_actors: &mut self.ui_store.selection.selected_actors,
             hit_regions: &self.ui_store.selection.hit_regions,
-            drag_state: &mut self.ui_store.interaction.drag_state,
             selection: &mut self.ui_store.selection.selection,
-            pivot_offsets: &mut self.ui_store.pivot_offsets,
             tool_mode: &mut self.ui_store.view.tool_mode,
             sidebar_tab: &mut self.ui_store.sidebar_tab,
             compact,
@@ -524,7 +522,6 @@ impl GuiShell {
             debug_layout: self.ui_store.view.debug_layout,
             debug_spacing: self.ui_store.view.debug_spacing,
             timeline_focused: &mut self.ui_store.view.timeline_focused,
-            selected_keyframes: &mut self.ui_store.selection.selected_keyframes,
         };
         tree.ui(&mut behavior, ui);
     }

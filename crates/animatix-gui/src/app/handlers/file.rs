@@ -664,18 +664,22 @@ pub fn handle_rebuild_response(
 
     // Defend the acceptance boundary too: a partial output carrying errors
     // must never replace a renderable last-good document.
-    let result = response.result.and_then(|output| {
-        if let Some(error) = output.diagnostics.iter().find(|diagnostic| {
-            diagnostic.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error
-        }) {
-            return Err(crate::app::document::rebuild_output::RebuildFailure {
-                error: error.message.clone(),
-                diagnostics: output.diagnostics,
-                partial_source_index: Some(output.source_index),
-            });
-        }
-        Ok(output)
-    });
+    let result = match response.result {
+        Ok(output) => {
+            if let Some(error) = output.diagnostics.iter().find(|diagnostic| {
+                diagnostic.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error
+            }) {
+                Err(crate::app::document::rebuild_output::RebuildFailure {
+                    error: error.message.clone(),
+                    diagnostics: output.diagnostics,
+                    partial_source_index: Some(output.source_index),
+                })
+            } else {
+                Ok(output)
+            }
+        },
+        Err(error) => Err(error),
+    };
     match result {
         Ok(output) => {
             let (previous, previous_time, selected_actors, selected_keyframes, active_scene) =

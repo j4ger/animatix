@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use egui::{Color32, Rect, Stroke, Visuals};
 use egui_tiles::{Behavior, SimplificationOptions, TileId, UiResponse};
@@ -21,9 +21,7 @@ pub(crate) struct WorkspaceBehavior<'a> {
     pub(crate) expanded_properties: &'a mut HashSet<String>,
     pub(crate) selected_actors: &'a mut HashSet<String>,
     pub(crate) hit_regions: &'a [(String, kurbo::Rect)],
-    pub(crate) drag_state: &'a mut preview::DragState,
     pub(crate) selection: &'a mut selection::SelectionState,
-    pub(crate) pivot_offsets: &'a mut HashMap<String, [f32; 2]>,
     pub(crate) tool_mode: &'a mut preview::ToolMode,
     pub(crate) sidebar_tab: &'a mut crate::app::panels::SidebarTab,
     /// True when the window is narrow enough for the compact sidebar icon rail.
@@ -35,8 +33,6 @@ pub(crate) struct WorkspaceBehavior<'a> {
     pub(crate) debug_spacing: bool,
     /// Set by the timeline panel each frame; true when the panel has pointer interaction.
     pub(crate) timeline_focused: &'a mut bool,
-    /// Canonical keyframe selection, shared by the timeline and Curves editor.
-    pub(crate) selected_keyframes: &'a mut Vec<crate::app::document::timeline_diff::KeyframeId>,
 }
 
 impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
@@ -93,12 +89,10 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     preview: &mut self.preview_store.preview,
                     preview_texture_id: self.preview_texture_id,
                     commands: self.commands,
-                    drag_state: self.drag_state,
                     selection: self.selection,
                     selected_actors: self.selected_actors,
                     hit_regions: self.hit_regions,
                     timeline: active_tl,
-                    pivot_offsets: self.pivot_offsets,
                     tool_mode: self.tool_mode,
                     composition: self.document_store.source.document.composition.as_ref(),
                     active_scene: self.document_store.source.document.active_scene.as_deref(),

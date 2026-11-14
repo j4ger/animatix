@@ -15,7 +15,6 @@ impl GuiShell {
         match action {
             ShellAction::Command(cmd) => self.handle_command(cmd),
             ShellAction::View(view) => self.handle_view_action(view),
-            ShellAction::Drag(drag) => self.handle_drag_event(drag),
         }
     }
 
@@ -112,28 +111,6 @@ impl GuiShell {
                 self.ui_store.find_last_match = None;
                 vec![]
             },
-            ViewAction::DeselectActors => {
-                self.ui_store.selection.selected_actors.clear();
-                self.ui_store.selection.selection.clear_tapped_place();
-                vec![]
-            },
         }
-    }
-
-    fn handle_drag_event(&mut self, drag: DragEvent) -> Vec<Effect> {
-        let effects = match drag {
-            DragEvent::DragEnded => ui::handle_drag_ended(&mut self.ui_store),
-            DragEvent::InspectorInputDragStarted => {
-                ui::handle_inspector_input_drag_started(&mut self.ui_store)
-            },
-            DragEvent::InspectorInputDragEnded => {
-                ui::handle_inspector_input_drag_ended(&mut self.ui_store)
-            },
-        };
-        // Flush any deferred source edits once the drag interaction ends.
-        if matches!(drag, DragEvent::DragEnded | DragEvent::InspectorInputDragEnded) {
-            self.flush_pending_drag_edits();
-        }
-        effects
     }
 }

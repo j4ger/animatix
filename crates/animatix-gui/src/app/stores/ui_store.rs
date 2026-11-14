@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -9,8 +9,8 @@ use crate::app::commands::{ActionQueue, ShellAction};
 use crate::app::components::toast::ToastQueue;
 use crate::app::document::timeline_diff::KeyframeId;
 use crate::app::panels::SidebarTab;
+use crate::app::preview::ToolMode;
 use crate::app::preview::selection::SelectionState;
-use crate::app::preview::{DragState, ToolMode};
 
 /// Selection state for the UI.
 pub struct SelectionStore {
@@ -34,7 +34,6 @@ impl SelectionStore {
 
 /// Interaction state (drag, inspector input, snapshots).
 pub struct InteractionStore {
-    pub drag_state: DragState,
     pub drag_snapshot_taken: bool,
     pub inspector_input_drag_active: bool,
     /// Pending source edits, flushed when the drag ends. A Vec preserves list-
@@ -46,7 +45,6 @@ pub struct InteractionStore {
 impl InteractionStore {
     fn new() -> Self {
         Self {
-            drag_state: DragState::None,
             drag_snapshot_taken: false,
             inspector_input_drag_active: false,
             pending_drag_source_edits: Vec::new(),
@@ -56,12 +54,11 @@ impl InteractionStore {
     /// True if any drag interaction is active; the canonical check, preferred over
     /// inspecting individual flags.
     pub fn is_dragging(&self) -> bool {
-        !matches!(self.drag_state, DragState::None) || self.inspector_input_drag_active
+        self.inspector_input_drag_active
     }
 
     /// Reset all drag-related state. Called when any drag interaction ends.
     pub fn reset_drag_state(&mut self) {
-        self.drag_state = DragState::None;
         self.inspector_input_drag_active = false;
         self.drag_snapshot_taken = false;
     }
@@ -302,7 +299,6 @@ pub struct UiStore {
     pub keyframe_mode: bool,
     pub cursor_time_s: Option<f64>,
     pub keyframe_merge_window_s: f64,
-    pub pivot_offsets: HashMap<String, [f32; 2]>,
     pub sidebar_tab: SidebarTab,
     pub rebuild_debounce_ms: u64,
     pub scrub_step_s: f64,
@@ -348,7 +344,6 @@ impl UiStore {
             keyframe_mode: false,
             cursor_time_s: None,
             keyframe_merge_window_s: 0.05,
-            pivot_offsets: HashMap::new(),
             sidebar_tab: SidebarTab::Project,
             rebuild_debounce_ms: 150,
             scrub_step_s: 0.1,
@@ -409,7 +404,6 @@ impl UiStore {
         self.selection.selected_keyframes = snapshot.selected_keyframes;
         self.view.timeline_scroll_offset = snapshot.timeline_scroll_offset as f32;
         self.view.tool_mode = snapshot.tool_mode;
-        self.interaction.drag_state = crate::app::preview::DragState::None;
     }
 }
 

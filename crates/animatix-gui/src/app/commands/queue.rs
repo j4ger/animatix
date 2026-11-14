@@ -118,7 +118,6 @@ impl Command {
             } => {
                 format!("Delete keyframe {actor}.{property}")
             },
-            Self::SetSelectedKeyframes(ids) => format!("Select {} keyframes", ids.len()),
             Self::MoveKeyframe {
                 actor, property, ..
             } => {

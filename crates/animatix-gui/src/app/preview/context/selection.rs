@@ -1,7 +1,7 @@
 //! Canvas click, context-menu, and selection handling.
 
 use crate::app::commands::{Command, ShellAction, ViewAction};
-use crate::app::preview::{self, DragState, selection};
+use crate::app::preview::{self, selection};
 
 use super::PreviewContext;
 
@@ -16,7 +16,7 @@ impl PreviewContext<'_> {
             return;
         }
 
-        let is_dragging = !matches!(self.drag_state, DragState::None);
+        let is_dragging = self.selection.marquee_start.is_some();
 
         let hit_regions = self.hit_regions;
 

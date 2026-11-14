@@ -33,7 +33,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                 handle_middle_click_pan(ctx, ui, preview_rect);
                 clear_frame_snap_state(ctx);
 
-                let is_dragging = !matches!(ctx.drag_state, DragState::None);
+                let is_dragging = ctx.selection.marquee_start.is_some();
                 if !in_presentation {
                     handle_canvas_interaction(ctx, ui, preview_rect, &response, is_dragging);
                 }

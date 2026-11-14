@@ -104,9 +104,6 @@ impl GuiShell {
                 property,
                 time_s,
             } => self.command_delete_keyframe(scene, actor, property, time_s),
-            Command::SetSelectedKeyframes(keyframes) => {
-                self.command_set_selected_keyframes(keyframes)
-            },
             Command::MoveKeyframe {
                 scene,
                 actor,
@@ -608,10 +605,6 @@ impl GuiShell {
             property,
             time_s,
         )
-    }
-
-    fn command_set_selected_keyframes(&mut self, keyframes: Vec<KeyframeId>) -> Vec<Effect> {
-        ui::handle_set_selected_keyframes(&mut self.ui_store, keyframes)
     }
 
     fn command_move_keyframe(

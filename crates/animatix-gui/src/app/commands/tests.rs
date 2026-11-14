@@ -99,18 +99,6 @@ mod workbench_boundary_tests {
     }
 
     #[test]
-    fn drag_completion_cannot_commit_visual_edits() {
-        let mut shell = shell();
-        let before = shell.document_store.source.document.source_text.clone();
-        let effects = shell.handle_action(ShellAction::Drag(DragEvent::DragEnded));
-        assert!(
-            matches!(effects.first(), Some(Effect::Status(message)) if message.contains("Read-only"))
-        );
-        assert_eq!(shell.document_store.source.document.source_text, before);
-        assert!(shell.document_store.history.undo_stack.is_empty());
-    }
-
-    #[test]
     fn source_navigation_opens_compact_code_drawer() {
         let mut shell = shell();
         shell.ui_store.view.compact = true;

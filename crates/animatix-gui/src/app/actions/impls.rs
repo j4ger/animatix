@@ -179,36 +179,6 @@ impl GuiShell {
         self.preview_store.preview_dirty = true;
     }
 
-    /// Flush all pending drag edits to source.
-    pub(crate) fn flush_pending_drag_edits(&mut self) {
-        let pending: Vec<panels::PropertyEdit> =
-            std::mem::take(&mut self.ui_store.interaction.pending_drag_source_edits);
-        if pending.is_empty() {
-            return;
-        }
-
-        for edit in pending {
-            if edit.property == "child_order" {
-                if let Err(err) = self.apply_child_order_source_edit(&edit) {
-                    tracing::error!("flush child_order failed: {}", err);
-                }
-                continue;
-            }
-
-            let result = if edit.create_keyframe {
-                self.apply_keyframe_source_edit(&edit)
-            } else {
-                self.apply_property_source_edit(&edit)
-            };
-
-            if let Err(err) = result {
-                tracing::error!("flush edit failed for {}.{}: {}", edit.actor, edit.property, err);
-            }
-        }
-
-        self.preview_store.preview_dirty = true;
-    }
-
     // ── Private helpers ────────────────────────────────────────────
 
     fn is_dragging(&self) -> bool {

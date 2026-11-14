@@ -30,6 +30,4 @@ pub mod ruler;
 pub mod track_lanes;
 pub mod track_tree;
 
-pub(crate) use content::{
-    TimelineContext, TimelineCoords, draw_loop_region, render_timeline_content,
-};
+pub(crate) use content::{TimelineContext, TimelineCoords, render_timeline_content};

@@ -13,7 +13,7 @@
 use animatix::timeline::Timeline;
 use egui::{Align2, Color32, FontId, Pos2, Rect, StrokeKind, Vec2};
 
-use super::{PreviewTransform, local_to_world};
+use super::PreviewTransform;
 use crate::app::design_tokens::spatial::STROKE_WIDTH;
 
 /// Colors used by the layout debug overlay.
@@ -95,13 +95,6 @@ pub enum PreviewOverlayOp {
     CircleStroke {
         center: kurbo::Point,
         radius: f32,
-        stroke: OverlayStroke,
-    },
-    Arc {
-        center: kurbo::Point,
-        radius: f32,
-        start_angle: f32,
-        end_angle: f32,
         stroke: OverlayStroke,
     },
     Text {

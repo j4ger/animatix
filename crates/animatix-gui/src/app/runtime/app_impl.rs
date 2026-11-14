@@ -409,22 +409,9 @@ impl AnimatixApp {
         }
     }
 
-    /// Escape: leave presentation mode, cancel a drag, or return to the select tool.
+    /// Escape: leave presentation mode, cancel a marquee, or return to selection.
     fn handle_escape_shortcut(&mut self) {
-        use crate::app::preview::{DragState, ToolMode};
-
-        if self.shell.preview_store.preview.playback.presentation_mode {
-            self.shell
-                .ui_store
-                .pending_actions
-                .push_back(Command::TogglePresentationMode.into());
-        } else if !matches!(self.shell.ui_store.interaction.drag_state, DragState::None) {
-            self.shell.ui_store.interaction.drag_state = DragState::None;
-            self.shell.preview_store.preview.status = "Drag cancelled".to_string();
-        } else if self.shell.ui_store.view.tool_mode != ToolMode::Select {
-            self.shell.ui_store.view.tool_mode = ToolMode::Select;
-            self.shell.preview_store.preview.status = "Tool: Select".to_string();
-        }
+        apply_escape_shortcut(&mut self.shell.ui_store, &mut self.shell.preview_store.preview);
     }
 
     pub(super) fn sync_preview_surface(&mut self, frame: &mut eframe::Frame) -> Result<(), String> {
@@ -589,5 +576,45 @@ impl AnimatixApp {
         }
 
         Ok(())
+    }
+}
+
+/// Shared Escape handler, independent of the GPU surface so cancellation is testable.
+fn apply_escape_shortcut(
+    ui_store: &mut crate::app::stores::UiStore,
+    preview: &mut crate::app::PreviewPaneState,
+) {
+    use crate::app::preview::ToolMode;
+    if preview.playback.presentation_mode {
+        ui_store.pending_actions.push_back(Command::TogglePresentationMode.into());
+    } else if ui_store.selection.selection.marquee_start.take().is_some() {
+        ui_store.selection.selection.marquee_current = None;
+        preview.status = "Selection cancelled".to_string();
+    } else if ui_store.view.tool_mode != ToolMode::Select {
+        ui_store.view.tool_mode = ToolMode::Select;
+        preview.status = "Tool: Select".to_string();
+    }
+}
+
+#[cfg(test)]
+mod escape_tests {
+    use super::apply_escape_shortcut;
+    use crate::app::test_support::{preview_store, ui_store};
+
+    #[test]
+    fn escape_cancels_marquee_without_changing_selected_objects_or_source_commands() {
+        let mut ui = ui_store();
+        let mut preview = preview_store(2.0, crate::app::DEFAULT_PREVIEW_SIZE);
+        ui.selection.selection.marquee_start = Some(egui::pos2(10.0, 20.0));
+        ui.selection.selection.marquee_current = Some(egui::pos2(100.0, 120.0));
+        ui.selection.selected_actors.insert("box".into());
+        apply_escape_shortcut(&mut ui, &mut preview.preview);
+        assert!(ui.selection.selection.marquee_start.is_none());
+        assert!(ui.selection.selection.marquee_current.is_none());
+        assert!(ui.selection.selected_actors.contains("box"));
+        assert!(ui.pending_actions.is_empty());
+        assert_eq!(preview.preview.status, "Selection cancelled");
+        apply_escape_shortcut(&mut ui, &mut preview.preview);
+        assert!(ui.pending_actions.is_empty());
     }
 }

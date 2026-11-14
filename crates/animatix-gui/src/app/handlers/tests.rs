@@ -6,7 +6,6 @@ use animatix_syntax::ast::Stmt;
 use crate::app::commands::Effect;
 use crate::app::document::plugins::DocumentPluginManager;
 use crate::app::handlers::*;
-use crate::app::preview::DragState;
 use crate::app::test_support::{
     document_store_empty, document_store_loaded, preview_store, ui_store, workspace_store,
 };
@@ -137,25 +136,6 @@ fn show_inspector_returns_empty() {
     assert!(effects.is_empty());
 }
 
-// ── DragEnded ────────────────────────────────────────────────────
-
-#[test]
-fn drag_ended_resets_drag_state() {
-    let mut ui_store = ui_store();
-    ui_store.interaction.drag_snapshot_taken = true;
-    ui_store.interaction.inspector_input_drag_active = true;
-
-    let effects = ui::handle_drag_ended(&mut ui_store);
-
-    assert!(
-        matches!(ui_store.interaction.drag_state, DragState::None),
-        "expected DragState::None after DragEnded"
-    );
-    assert!(!ui_store.interaction.drag_snapshot_taken);
-    assert!(!ui_store.interaction.inspector_input_drag_active);
-    assert!(effects.is_empty());
-}
-
 // ── Undo / Redo ──────────────────────────────────────────────────
 
 #[test]
@@ -174,32 +154,6 @@ fn redo_with_empty_stack_does_nothing() {
     assert!(effects.is_empty());
     assert!(document_store.history.undo_stack.is_empty());
     assert!(document_store.history.redo_stack.is_empty());
-}
-
-// ── InspectorInputDragStarted / Ended ────────────────────────────
-
-#[test]
-fn inspector_input_drag_started_sets_flag() {
-    let mut ui_store = ui_store();
-    ui_store.interaction.inspector_input_drag_active = false;
-    let effects = ui::handle_inspector_input_drag_started(&mut ui_store);
-    assert!(ui_store.interaction.inspector_input_drag_active);
-    assert!(effects.is_empty());
-}
-
-#[test]
-fn inspector_input_drag_ended_resets_flags() {
-    let mut ui_store = ui_store();
-    ui_store.interaction.inspector_input_drag_active = true;
-    ui_store.interaction.drag_snapshot_taken = true;
-    let effects = ui::handle_inspector_input_drag_ended(&mut ui_store);
-    assert!(!ui_store.interaction.inspector_input_drag_active);
-    assert!(!ui_store.interaction.drag_snapshot_taken);
-    assert!(
-        matches!(ui_store.interaction.drag_state, DragState::None),
-        "expected DragState::None after InspectorInputDragEnded"
-    );
-    assert!(effects.is_empty());
 }
 
 // ── ToggleExpandDir ──────────────────────────────────────────────
@@ -632,11 +586,8 @@ fn open_file_populates_document_state() {
     assert!(document_store.history.undo_stack.is_empty());
     assert!(document_store.history.redo_stack.is_empty());
 
-    // UI state should be reset
-    assert!(
-        matches!(ui_store.interaction.drag_state, DragState::None),
-        "drag state should be None after open"
-    );
+    // Opening a document does not retain actor selection.
+    assert!(ui_store.selection.selected_actors.is_empty());
 }
 
 // ── Scene selection ───────────────────────────────────────────────

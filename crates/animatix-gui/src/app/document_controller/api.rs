@@ -108,31 +108,12 @@ impl DocumentController<'_> {
         // Commit source — scope block drops stmts borrow before accessing self
         self.commit_ast_in_place(Vec::new());
 
-        // Select new actor and start move drag
+        // Select the new actor; the workbench has no spatial drag editor.
         self.ui_store.selection.selected_actors.clear();
         self.ui_store.selection.selected_actors.insert(new_label.clone());
         self.preview_store.preview_dirty = true;
         self.preview_store.preview.status =
             format!("Duplicated '{}' → '{}'", original_label, new_label);
-
-        // Start move drag for the new actor at the original position
-        let time_ms = (self.preview_store.preview.playback.current_time_s() * 1000.0) as u64;
-        if let Some(timeline) = self.document_store.source.document.active_timeline()
-            && let Some(id) = timeline.get_entity_id(original_label)
-        {
-            let position = timeline
-                .world()
-                .geometry(id)
-                .position
-                .as_ref()
-                .map(|p| p.evaluate(time_ms))
-                .unwrap_or([0.0, 0.0]);
-            self.ui_store.interaction.drag_state = DragState::Move {
-                primary: new_label.clone(),
-                actors: vec![(new_label, position)],
-                start_scene: kurbo::Point::new(position[0] as f64, position[1] as f64),
-            };
-        }
     }
 
     /// Delete all selected actors from the source AST.

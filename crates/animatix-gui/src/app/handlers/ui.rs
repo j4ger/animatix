@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use crate::app::WorkspaceTab;
 use crate::app::commands::{Effect, UndoEntry};
 use crate::app::components::toast::Toast;
-use crate::app::document::timeline_diff::KeyframeId;
 use crate::app::stores::{DocumentStore, ExportStore, PreviewStore, UiStore};
 
 /// Show the Inspector tab, or hide the detail region when it is already the
@@ -149,21 +148,6 @@ pub fn handle_open_export_dialog(
         let path = suggest_export_filename(export_store, document_store);
         export_store.export_state.output_path = path.to_string_lossy().to_string();
     }
-    vec![]
-}
-
-pub fn handle_drag_ended(ui_store: &mut UiStore) -> Vec<Effect> {
-    ui_store.interaction.reset_drag_state();
-    vec![]
-}
-
-pub fn handle_inspector_input_drag_started(ui_store: &mut UiStore) -> Vec<Effect> {
-    ui_store.interaction.inspector_input_drag_active = true;
-    vec![]
-}
-
-pub fn handle_inspector_input_drag_ended(ui_store: &mut UiStore) -> Vec<Effect> {
-    ui_store.interaction.reset_drag_state();
     vec![]
 }
 
@@ -343,48 +327,10 @@ fn suggest_export_filename(export_store: &ExportStore, document_store: &Document
     workspace.join(format!("{}_export.{ext}", stem))
 }
 
-pub fn handle_set_selected_keyframes(
-    ui_store: &mut crate::app::stores::UiStore,
-    keyframes: Vec<KeyframeId>,
-) -> Vec<Effect> {
-    ui_store.selection.selected_keyframes = keyframes;
-    vec![]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::app::test_support::ui_store;
-
-    fn keyframe_id(scene: Option<&str>, actor: &str, property: &str, time_ms: u64) -> KeyframeId {
-        KeyframeId {
-            scene: scene.map(ToOwned::to_owned),
-            actor: actor.to_string(),
-            property: property.to_string(),
-            time_ms,
-        }
-    }
-
-    #[test]
-    fn handle_set_selected_keyframes_populates_store() {
-        let mut ui_store = ui_store();
-        let keyframes = vec![
-            keyframe_id(Some("Intro"), "Actor1", "position", 1000),
-            keyframe_id(None, "Actor2", "rotation", 2000),
-        ];
-        let _effects = handle_set_selected_keyframes(&mut ui_store, keyframes.clone());
-        assert_eq!(ui_store.selection.selected_keyframes, keyframes);
-    }
-
-    #[test]
-    fn handle_set_selected_keyframes_replaces_previous() {
-        let mut ui_store = ui_store();
-        let first = vec![keyframe_id(None, "A", "p", 1)];
-        let _ = handle_set_selected_keyframes(&mut ui_store, first);
-        let second = vec![keyframe_id(Some("Intro"), "B", "q", 2)];
-        let _ = handle_set_selected_keyframes(&mut ui_store, second.clone());
-        assert_eq!(ui_store.selection.selected_keyframes, second);
-    }
 
     #[test]
     fn show_curves_activates_the_bottom_tab_and_toggles_off_on_repeat() {

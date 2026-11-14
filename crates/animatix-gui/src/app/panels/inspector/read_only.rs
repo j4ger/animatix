@@ -270,7 +270,7 @@ fn cached_source_location(
     )
         .hash(&mut hasher);
     let fingerprint = hasher.finish();
-    let cache_id = egui::Id::new("inspector_source_location");
+    let cache_id = egui::Id::unique("inspector_source_location");
     if let Some(cache) = ui.ctx().data(|data| data.get_temp::<SourceLocationCache>(cache_id))
         && cache.fingerprint == fingerprint
     {

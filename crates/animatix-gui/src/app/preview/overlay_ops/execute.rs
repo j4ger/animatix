@@ -69,26 +69,6 @@ pub fn execute_overlay_ops(
                 let screen_radius = scene_radius_to_screen(tx, *radius);
                 painter.circle_stroke(scene_to_screen(tx, *center), screen_radius, stroke);
             },
-            PreviewOverlayOp::Arc {
-                center,
-                radius,
-                start_angle,
-                end_angle,
-                stroke,
-            } => {
-                let center = scene_to_screen(tx, *center);
-                let radius = scene_radius_to_screen(tx, *radius);
-                let segments = 8;
-                for i in 0..segments {
-                    let t0 = i as f32 / segments as f32;
-                    let t1 = (i + 1) as f32 / segments as f32;
-                    let a0 = start_angle + (end_angle - start_angle) * t0;
-                    let a1 = start_angle + (end_angle - start_angle) * t1;
-                    let p0 = Pos2::new(center.x + radius * a0.cos(), center.y + radius * a0.sin());
-                    let p1 = Pos2::new(center.x + radius * a1.cos(), center.y + radius * a1.sin());
-                    painter.line_segment([p0, p1], stroke);
-                }
-            },
             PreviewOverlayOp::Text {
                 pos,
                 anchor,

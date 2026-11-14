@@ -315,14 +315,6 @@ impl Axis {
         Pos2::new(self.x(time_s), self.y(val))
     }
 
-    /// Value at a Y pixel, for vertical drags. Deliberately unclamped: dragging
-    /// past the top must raise a keyframe above the graphed maximum, or the
-    /// data-derived window would pin the edit. Painters clamp for display.
-    pub fn value_at_y(&self, y: f32) -> f32 {
-        let t = (y - self.plot_rect.top()) / self.plot_rect.height().max(0.001);
-        self.max_val - t * self.val_range()
-    }
-
     /// Time in seconds at an X pixel, for scrub/drag hit-testing.
     pub fn time_at_x(&self, x: f32) -> f64 {
         let frac = ((x - self.plot_rect.left()) / self.plot_rect.width().max(0.001)).clamp(0.0, 1.0)
@@ -420,19 +412,6 @@ pub(crate) fn draw_curve(
     }
 }
 
-pub(crate) fn draw_playhead(painter: &Painter, axis: &Axis, current_time_s: f64, theme: Theme) {
-    let x = axis.x(current_time_s);
-    if x >= axis.plot_rect.left() && x <= axis.plot_rect.right() {
-        painter.line_segment(
-            [
-                Pos2::new(x, axis.plot_rect.top()),
-                Pos2::new(x, axis.plot_rect.bottom()),
-            ],
-            Stroke::new(1.5, theme.palette.status.warning),
-        );
-    }
-}
-
 /// Shared test fixture: two `Rect`s animating the same property.
 #[cfg(test)]
 pub(crate) fn two_actor_timeline() -> Timeline {
@@ -475,17 +454,6 @@ mod tests {
         let axis = Axis::new(rect(), 4.0, 0.0, 1.0);
         assert!((axis.time_at_x(25.0) - 1.0).abs() < 0.001);
         assert!((axis.time_at_x(100.0) - 4.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn axis_value_at_y_is_inverted() {
-        let axis = Axis::new(rect(), 1.0, 0.0, 10.0);
-        // Top of the plot is the maximum, bottom the minimum.
-        assert!((axis.value_at_y(0.0) - 10.0).abs() < 0.001);
-        assert!((axis.value_at_y(50.0) - 0.0).abs() < 0.001);
-        assert!((axis.value_at_y(25.0) - 5.0).abs() < 0.001);
-        // Above the plot top must extrapolate past the graphed max.
-        assert!(axis.value_at_y(-25.0) > 10.0);
     }
 
     #[test]
