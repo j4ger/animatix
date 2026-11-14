@@ -68,6 +68,7 @@
           pkgs.brotli
           pkgs.nodejs_22
           pkgs.pkg-config
+          pkgs.python3  # Gate timing and matrix orchestration use the same runner everywhere.
         ] ++ wasm-bindgen-cli;
       in
       {
@@ -132,6 +133,15 @@
 		export LD_LIBRARY_PATH="${builtins.toString (pkgs.lib.makeLibraryPath buildInputs)}";
 		export ALSA_PLUGIN_DIR="${pkgs.pipewire}/lib/alsa-lib";
           '';
+        };
+
+        # Build experiments are opt-in; tool versions follow flake.lock and do
+        # not change the linker or test runner used by ordinary builds.
+        devShells.experiments = pkgs.mkShell {
+          inputsFrom = [ self.devShells.${system}.default ];
+          packages = [ pkgs.mold pkgs.cargo-nextest pkgs.llvmPackages.lld pkgs.xvfb-run ];
+          ANIMATIX_CI_SHELL = "nix";
+          inherit (self.devShells.${system}.default) VK_LAYER_PATH VK_ICD_FILENAMES;
         };
 
         # Chromium + the agent-browser CLI for driving the web/ demo pages
