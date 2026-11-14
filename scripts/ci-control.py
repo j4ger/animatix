@@ -6,11 +6,59 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import platform
 import subprocess
 import sys
 import time
 
 from ci_topology import artifact, transform
+
+
+def environment_snapshot(directory):
+    """Keep runner/tool facts next to timings, including cold topology trials."""
+    def probe(command):
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=5)
+            return {"command": command, "exit_code": result.returncode,
+                    "output": (result.stdout + result.stderr).strip()}
+        except (OSError, subprocess.TimeoutExpired) as error:
+            return {"command": command, "error": str(error)}
+    revision = probe(["git", "rev-parse", "HEAD"])
+    commit = revision.get("output", "unknown") if revision.get("exit_code") == 0 else "unknown"
+    label = "-".join((os.environ.get("GITHUB_RUN_ID", "local"),
+                      os.environ.get("GITHUB_JOB", "gate"), commit[:12]))
+    path = directory / f"environment-{label}.json"
+    if path.exists():
+        return path.name
+    cpu = platform.processor()
+    if Path("/proc/cpuinfo").is_file():
+        cpu = next((line.split(":", 1)[1].strip() for line in Path("/proc/cpuinfo").read_text().splitlines()
+                    if line.startswith("model name")), cpu)
+    try:
+        ram = os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE")
+    except (AttributeError, OSError, ValueError):
+        ram = None
+    if ram is None:
+        command = (["sysctl", "-n", "hw.memsize"] if platform.system() == "Darwin" else
+                   ["powershell", "-NoProfile", "-Command",
+                    "(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory"])
+        try:
+            ram = int(probe(command).get("output", ""))
+        except ValueError:
+            pass
+    facts = {"commit": commit, "image": {name: os.environ.get(name) for name in
+             ("ImageOS", "ImageVersion", "RUNNER_OS", "RUNNER_ARCH", "RUNNER_NAME")},
+             "uname": list(platform.uname()), "cpu_model": cpu, "cpu_count": os.cpu_count(),
+             "ram_bytes": ram, "shell": os.environ.get("ANIMATIX_CI_SHELL"),
+             "cargo_environment": {key: value for key, value in os.environ.items()
+                                   if key.startswith(("CARGO_PROFILE_", "CARGO_BUILD_"))},
+             "tools": {name: probe(command) for name, command in {
+                 "rustc": [os.environ.get("RUSTC", "rustc"), "-vV"],
+                 "cargo": ["cargo", "--version"], "nix": ["nix", "--version"],
+             }.items()}}
+    directory.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(facts, indent=2) + "\n")
+    return path.name
 
 
 def timed_gate(gate, command):
@@ -21,6 +69,8 @@ def timed_gate(gate, command):
         raise ValueError("missing gate command")
     started = datetime.now(timezone.utc).isoformat()
     before = time.monotonic()
+    destination = Path(os.environ.get("ANIMATIX_GATE_TIMINGS", "target/ci/timings.jsonl"))
+    environment_file = environment_snapshot(destination.parent)
     try:
         result = subprocess.run(command, check=False)
         status = result.returncode
@@ -34,8 +84,8 @@ def timed_gate(gate, command):
         "elapsed_seconds": time.monotonic() - before, "exit_code": status,
         "commit": os.environ.get("GITHUB_SHA"),
         "job": os.environ.get("GITHUB_JOB"),
+        "environment_file": environment_file,
     }
-    destination = Path(os.environ.get("ANIMATIX_GATE_TIMINGS", "target/ci/timings.jsonl"))
     destination.parent.mkdir(parents=True, exist_ok=True)
     with destination.open("a", encoding="utf-8") as output:
         output.write(json.dumps(record, sort_keys=True) + "\n")

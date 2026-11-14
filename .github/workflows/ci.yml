@@ -178,7 +178,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: timings-${{ matrix.id }}
-          path: target/ci/timings.jsonl
+          path: |
+            target/ci/timings.jsonl
+            target/ci/environment-*.json
           if-no-files-found: warn
 
   native_cli:
@@ -212,7 +214,9 @@ jobs:
         if: always()
         with:
           name: timings-native-cli
-          path: target/ci/timings.jsonl
+          path: |
+            target/ci/timings.jsonl
+            target/ci/environment-*.json
           if-no-files-found: warn
 
   shared_render:
@@ -244,7 +248,9 @@ jobs:
         if: always()
         with:
           name: timings-shared-render
-          path: target/ci/timings.jsonl
+          path: |
+            target/ci/timings.jsonl
+            target/ci/environment-*.json
 
   required:
     name: CI Required
