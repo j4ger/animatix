@@ -19,7 +19,7 @@ pub(crate) fn preset_regions(preset: LayoutPreset) -> PresetRegions {
         LayoutPreset::Animate => PresetRegions {
             left: (LEFT_RATIO, LEFT_MIN, LEFT_MAX),
             detail: (DETAIL_INSPECTOR_RATIO, DETAIL_INSPECTOR_MIN, DETAIL_INSPECTOR_MAX),
-            bottom: (BOTTOM_RATIO, BOTTOM_MIN, BOTTOM_MAX),
+            bottom: (0.32, 220.0, 420.0),
             tab: WorkspaceTab::Inspector,
             hide_surroundings: false,
         },

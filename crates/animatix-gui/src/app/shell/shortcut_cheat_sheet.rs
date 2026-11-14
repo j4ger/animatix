@@ -58,7 +58,7 @@ const SHORTCUT_GROUPS: &[(&str, &[CheatSheetEntry])] = &[
         ],
     ),
     (
-        "Tools",
+        "Selection",
         &[
             CheatSheetEntry::Gesture {
                 key: "Esc",
@@ -94,20 +94,20 @@ const SHORTCUT_GROUPS: &[(&str, &[CheatSheetEntry])] = &[
         "Canvas",
         &[
             CheatSheetEntry::Gesture {
-                key: "Drag body",
-                desc: "Move actor",
+                key: "Drag",
+                desc: "Marquee selection",
             },
             CheatSheetEntry::Gesture {
-                key: "Drag handle",
-                desc: "Scale / Rotate",
+                key: "Click",
+                desc: "Inspect actor",
             },
             CheatSheetEntry::Gesture {
-                key: "Shift + drag",
-                desc: "Constrain / Snap",
+                key: "Shift + click",
+                desc: "Extend selection",
             },
             CheatSheetEntry::Gesture {
-                key: "Alt + drag",
-                desc: "Duplicate",
+                key: "Alt + click",
+                desc: "Locate source",
             },
             CheatSheetEntry::Gesture {
                 key: "Middle-drag",
@@ -144,7 +144,7 @@ const SHORTCUT_GROUPS: &[(&str, &[CheatSheetEntry])] = &[
             },
             CheatSheetEntry::Gesture {
                 key: "\u{2190} / \u{2192}",
-                desc: "Scrub (no selection)",
+                desc: "Scrub timeline",
             },
         ],
     ),
@@ -308,11 +308,10 @@ fn shortcut_row(
                 .iter()
                 .flat_map(|name| shortcut_hints_for_name(registry, name, ui.ctx()))
                 .collect();
-            let key = if hints.is_empty() {
-                names.join(" / ")
-            } else {
-                hints.join(" / ")
-            };
+            if hints.is_empty() {
+                return;
+            }
+            let key = hints.join(" / ");
             shortcut_row_inner(ui, &key, desc, col_w, sp.base.row_s);
         },
         CheatSheetEntry::Gesture { key, desc } => {

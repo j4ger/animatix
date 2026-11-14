@@ -129,7 +129,7 @@ pub(super) fn preview_floating_hud_ui(
     use egui_phosphor::regular as icons;
 
     let theme = eparts::theme(ui);
-    let hud_width = 460.0_f32.min(canvas_rect.width() - 24.0);
+    let hud_width = 280.0_f32.min(canvas_rect.width() - 24.0);
     let hud_height = 36.0;
 
     if hud_width < 120.0 {
@@ -167,44 +167,7 @@ pub(super) fn preview_floating_hud_ui(
         ui.horizontal_centered(|ui| {
             ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
 
-            // Tool switcher: 6 primary tools
-            let tools: [(ToolMode, &str, &str, &str); 6] = [
-                (ToolMode::Select, icons::CURSOR, "Select", "Select tool (V)"),
-                (ToolMode::Move, icons::HAND_GRABBING, "Move", "Move tool (G)"),
-                (ToolMode::Rotate, icons::ARROW_CLOCKWISE, "Rotate", "Rotate tool (R)"),
-                (ToolMode::Scale, icons::ARROWS_OUT_SIMPLE, "Scale", "Scale tool (S)"),
-                (ToolMode::Vertex, icons::POLYGON, "Vertex", "Vertex tool (A)"),
-                (ToolMode::Pivot, icons::CROSSHAIR, "Pivot", "Pivot tool (P)"),
-            ];
-            for (mode, icon, label, tip) in tools {
-                let active = *ctx.tool_mode == mode;
-                let resp = ui.add(Button::ghost("").with_icon(icon).active(active));
-                text_tooltip(ui, resp.id.with(("tool", label)), &resp, tip);
-                if resp.clicked() {
-                    *ctx.tool_mode = mode;
-                    ctx.preview.status = format!("Tool: {label}");
-                }
-            }
-
-            toolbar_separator(ui);
-
-            // Snapping toggle
-            let snap = ctx.preview.snap.snap_enabled;
-            let snap_resp = ui.add(Button::ghost("").with_icon(icons::MAGNET).active(snap));
-            text_tooltip(
-                ui,
-                snap_resp.id.with("snap_tip"),
-                &snap_resp,
-                if snap {
-                    "Snapping on (hold Alt to bypass)"
-                } else {
-                    "Snapping off"
-                },
-            );
-            if snap_resp.clicked() {
-                ctx.preview.snap.snap_enabled = !snap;
-            }
-
+            ui.label(egui::RichText::new("Review").small().color(theme.palette.text.secondary));
             toolbar_separator(ui);
 
             // View toggles

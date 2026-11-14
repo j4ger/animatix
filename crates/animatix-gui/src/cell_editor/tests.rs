@@ -48,3 +48,18 @@ fn swap_cell_indices_keeps_unrelated_pending_action_target() {
     state.swap_cell_indices(0, 1);
     assert_eq!(state.pending_action, Some(CellAction::Delete { index: 2 }));
 }
+
+#[test]
+fn speech_anchor_headers_keep_raw_lexemes_and_are_not_zero_seconds() {
+    let source = "#voice@intro:\n    box.opacity = 1\n#voice[\"DSL\"]:\n    box.scale = 2\n";
+    let mut cells = super::parse_cells(source);
+    assert_eq!(cells[0].display_timestamp().as_deref(), Some("voice@intro:"));
+    assert_eq!(cells[1].display_timestamp().as_deref(), Some("voice[\"DSL\"]:"));
+    assert_eq!(cells[0].time_s(), None);
+    assert_eq!(cells[1].time_s(), None);
+    cells[0].set_body("    box.opacity = 0.5".into());
+    let edited = super::cells_to_source(&cells);
+    assert!(edited.contains("#voice@intro:"));
+    assert!(edited.contains("#voice[\"DSL\"]:"));
+    assert!(!edited.contains("#0s"));
+}

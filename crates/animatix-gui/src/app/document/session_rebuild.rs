@@ -88,6 +88,16 @@ impl DocumentSession {
                 ..Default::default()
             },
         );
+        let mut all_diagnostics = result.type_diagnostics;
+        all_diagnostics.extend(report.diagnostics);
+        if let Some(error) = all_diagnostics.iter().find(|diagnostic| {
+            diagnostic.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error
+        }) {
+            let message = error.message.clone();
+            self.diagnostics = all_diagnostics;
+            self.last_rebuild_error = Some(message.clone());
+            return Err(GuiError::Build { message });
+        }
         self.last_rebuild_error = None;
         self.duration_s = report.output.duration_s().max(0.1);
         self.scene_dimensions = document_scene_dimensions(&result.expanded_statements);
@@ -97,8 +107,6 @@ impl DocumentSession {
         self.namespaces = result.namespaces;
         self.components = result.components;
         self.module_fns = result.module_fns;
-        let mut all_diagnostics = result.type_diagnostics;
-        all_diagnostics.extend(report.diagnostics);
         self.diagnostics = all_diagnostics;
         // Carry the plot path cache across rebuilds. It is keyed by parameter
         // hash, so entries for unchanged plots survive and only edited

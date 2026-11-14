@@ -30,10 +30,6 @@ pub(crate) struct WorkspaceBehavior<'a> {
     pub(crate) compact: bool,
     /// Compact-mode overlay drawer slot (opened by the sidebar rail).
     pub(crate) compact_drawer: &'a mut Option<crate::app::panels::CompactDrawer>,
-    pub(crate) property_view_mode: &'a mut crate::app::panels::inspector::PropertyViewMode,
-    pub(crate) keyframe_view_mode: &'a mut crate::app::panels::inspector::KeyframeViewMode,
-    pub(crate) keyframe_mode: bool,
-    pub(crate) rotation_snap_degrees: f32,
     pub(crate) snap_fps: f32,
     pub(crate) debug_layout: bool,
     pub(crate) debug_spacing: bool,
@@ -56,21 +52,17 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                 let asset_cache = timeline.map(|t| t.asset_cache());
                 let mut ctx = sidebar::SidebarContext {
                     active_scene: self.document_store.source.document.active_scene.as_deref(),
-                    is_composition: self.document_store.source.document.is_composition(),
                     composition: self.document_store.source.document.composition.as_ref(),
                     current_file: &self.document_store.source.document.file_path,
                     expanded_dirs: &mut self.workspace_store.expanded_dirs,
                     file_tree: &self.workspace_store.file_tree,
-                    preview: &mut self.preview_store.preview,
                     commands: self.commands,
-                    scene_dimensions: self.document_store.source.document.scene_dimensions,
                     timeline,
                     selected_actors: self.selected_actors,
                     collapsed_actors: self.collapsed_actors,
                     sidebar_tab: self.sidebar_tab,
                     compact: self.compact,
                     compact_drawer: self.compact_drawer,
-                    editor: &mut self.document_store.source.editor,
                     components: &self.document_store.source.document.components,
                     asset_cache,
                 };
@@ -92,6 +84,10 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
             WorkspaceTab::Preview => {
                 let active_tl = self.document_store.source.document.active_timeline();
                 let has_scene = active_tl.map(|tl| !tl.tracks().is_empty()).unwrap_or(false);
+                let source_current = !self.preview_store.has_pending_rebuild()
+                    && !self.preview_store.rebuild_in_progress
+                    && self.preview_store.in_flight_rebuild.is_none()
+                    && self.document_store.source.document.last_rebuild_error.is_none();
                 let mut ctx = preview_panel::PreviewContext {
                     scene_dimensions: self.document_store.source.document.scene_dimensions,
                     preview: &mut self.preview_store.preview,
@@ -104,33 +100,35 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     timeline: active_tl,
                     pivot_offsets: self.pivot_offsets,
                     tool_mode: self.tool_mode,
-                    rotation_snap_degrees: self.rotation_snap_degrees,
                     composition: self.document_store.source.document.composition.as_ref(),
                     active_scene: self.document_store.source.document.active_scene.as_deref(),
-                    keyframe_mode: self.keyframe_mode,
                     performance_metrics: &mut self.preview_store.performance_metrics,
                     debug_layout: self.debug_layout,
                     debug_spacing: self.debug_spacing,
                     rebuild_in_progress: self.preview_store.rebuild_in_progress,
                     has_scene,
-                    source_text: Some(self.document_store.source.document.source_text.as_str()),
+                    source_text: source_current
+                        .then_some(self.document_store.source.document.source_text.as_str()),
                 };
                 preview_panel::preview_panel_ui(&mut ctx, ui);
             },
             WorkspaceTab::Inspector => {
                 let active_tl = self.document_store.source.document.active_timeline();
                 let mut ctx = inspector::InspectorContext {
-                    preview: &mut self.preview_store.preview,
+                    preview: &self.preview_store.preview,
                     timeline: active_tl,
                     composition: self.document_store.source.document.composition.as_ref(),
                     active_scene: self.document_store.source.document.active_scene.as_deref(),
                     selected_actors: self.selected_actors,
                     commands: self.commands,
-                    keyframe_mode: self.keyframe_mode,
+                    raw_statements: self.document_store.source.document.raw_statements.as_deref(),
+                    source_path: &self.document_store.source.document.file_path,
+                    source_text: &self.document_store.source.document.source_text,
+                    source_current: !self.preview_store.has_pending_rebuild()
+                        && !self.preview_store.rebuild_in_progress
+                        && self.preview_store.in_flight_rebuild.is_none()
+                        && self.document_store.source.document.last_rebuild_error.is_none(),
                     scene_dimensions: self.document_store.source.document.scene_dimensions,
-                    pivot_offsets: self.pivot_offsets,
-                    property_view_mode: self.property_view_mode,
-                    keyframe_view_mode: self.keyframe_view_mode,
                 };
                 inspector::inspector_panel_ui(&mut ctx, ui);
             },
@@ -146,39 +144,6 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                         resolved_timeline,
                     );
                 }
-                // Build per-scene keyframe time cache from composition
-                let scene_keyframe_times: HashMap<String, Vec<f64>> = self
-                    .document_store
-                    .source
-                    .document
-                    .composition
-                    .as_ref()
-                    .map(|comp| {
-                        comp.declaration_order
-                            .iter()
-                            .filter_map(|name| {
-                                let scene = comp.scenes.get(name)?;
-                                let mut times: Vec<f64> = scene.timeline.tracks().iter()
-                                .flat_map(|(_, id)| {
-                                    crate::app::document::timeline_diff::collect_actor_keyframes(
-                                        scene.timeline.world().geometry(id),
-                                        scene.timeline.world().style(id),
-                                        scene.timeline.world().shape_or_default(id),
-                                        scene.timeline.world().text_or_default(id),
-                                        None,
-                                    )
-                                    .into_iter()
-                                    .map(|(ms, _)| ms as f64 / 1000.0)
-                                })
-                                .collect();
-                                times.sort_by(|a, b| a.total_cmp(b));
-                                times.dedup_by(|a, b| (*a - *b).abs() < 0.001);
-                                Some((name.clone(), times))
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default();
-
                 let active_scene =
                     self.document_store.source.document.active_scene.as_deref().or_else(|| {
                         self.document_store
@@ -188,7 +153,27 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                             .as_ref()
                             .and_then(|c| c.declaration_order.first().map(String::as_str))
                     });
+                let audio_segments = self.document_store.source.document.all_audio_segments();
+                let audio_revision = self
+                    .document_store
+                    .source
+                    .document
+                    .audio_waveform_revision(self.document_store.generation.0);
                 let mut ctx = timeline_panel::TimelineContext {
+                    source_text: &self.document_store.source.document.source_text,
+                    source_current: !self.preview_store.has_pending_rebuild()
+                        && !self.preview_store.rebuild_in_progress
+                        && self.preview_store.in_flight_rebuild.is_none()
+                        && self.document_store.source.document.last_rebuild_error.is_none(),
+                    statements: self
+                        .document_store
+                        .source
+                        .document
+                        .raw_statements
+                        .as_deref()
+                        .unwrap_or(&[]),
+                    audio_segments: &audio_segments,
+                    audio_revision,
                     preview: &mut self.preview_store.preview,
                     timeline: resolved_timeline,
                     composition: self.document_store.source.document.composition.as_ref(),
@@ -197,7 +182,6 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     collapsed_actors: self.collapsed_actors,
                     expanded_properties: self.expanded_properties,
                     selected_actors: self.selected_actors,
-                    scene_keyframe_times: &scene_keyframe_times,
                     snap_fps: self.snap_fps,
                     timeline_focused: self.timeline_focused,
                 };
@@ -214,15 +198,21 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                             .as_ref()
                             .and_then(|c| c.declaration_order.first().map(String::as_str))
                     });
+                let composition = self.document_store.source.document.composition.as_ref();
+                let scene =
+                    composition.and_then(|c| active_scene.and_then(|name| c.scenes.get(name)));
                 let mut ctx = curves_panel::CurvesContext {
-                    preview: &mut self.preview_store.preview,
+                    preview: &self.preview_store.preview,
                     timeline: resolved_timeline,
-                    active_scene,
+                    scene_offset_s: composition
+                        .and_then(|c| active_scene.and_then(|name| c.scene_start_times.get(name)))
+                        .copied()
+                        .unwrap_or(0.0),
+                    scene_duration_s: scene
+                        .map(|scene| scene.duration_s)
+                        .unwrap_or(self.preview_store.preview.playback.duration_s),
                     selected_actors: self.selected_actors,
-                    selected_keyframes: self.selected_keyframes,
                     commands: self.commands,
-                    snap_fps: self.snap_fps,
-                    timeline_focused: self.timeline_focused,
                 };
                 curves_panel::curves_panel_ui(&mut ctx, ui);
             },
@@ -257,7 +247,13 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
     /// Pixel floor for every tile: panes never collapse into unusable slivers
     /// (design doc §9 "px 兜底").
     fn min_size(&self) -> f32 {
-        120.0
+        // The compact sidebar is intentionally a narrow rail. A larger global
+        // tile floor overrides its explicit share and leaves a blank column.
+        if self.compact {
+            super::COMPACT_RAIL_WIDTH
+        } else {
+            120.0
+        }
     }
 
     fn tab_bar_height(&self, _style: &egui::Style) -> f32 {

@@ -126,13 +126,17 @@ fn parse_keyframe_header(trimmed: &str) -> Option<(String, bool, BraceKind)> {
 }
 
 pub(super) fn parse_timestamp_seconds(timestamp: &str) -> f64 {
+    numeric_timestamp_seconds(timestamp).unwrap_or(0.0)
+}
+
+pub(super) fn numeric_timestamp_seconds(timestamp: &str) -> Option<f64> {
     let raw = timestamp.trim_start_matches('+').trim();
     if let Some(value) = raw.strip_suffix("ms") {
-        value.trim().parse::<f64>().unwrap_or(0.0) / 1000.0
+        value.trim().parse::<f64>().ok().map(|n| n / 1000.0)
     } else if let Some(value) = raw.strip_suffix('s') {
-        value.trim().parse::<f64>().unwrap_or(0.0)
+        value.trim().parse::<f64>().ok()
     } else {
-        raw.parse::<f64>().unwrap_or(0.0)
+        raw.parse::<f64>().ok()
     }
 }
 

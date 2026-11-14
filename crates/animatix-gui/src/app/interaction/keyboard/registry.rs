@@ -35,7 +35,9 @@ impl ShortcutRegistry {
     pub fn names(&self) -> Vec<String> {
         let mut names = Vec::new();
         for (_, info) in &self.shortcuts {
-            if !names.iter().any(|name: &String| name.as_str() == info.name) {
+            if info.action.allowed_in_workbench()
+                && !names.iter().any(|name: &String| name.as_str() == info.name)
+            {
                 names.push(info.name.to_string());
             }
         }
@@ -520,7 +522,14 @@ impl ShortcutRegistry {
     /// binding for the same key is registered.
     pub fn check(&self, ctx: &Context, focus: &FocusContext) -> Option<&KeyboardAction> {
         for (shortcut, info) in &self.shortcuts {
-            if !focus.can_handle(info.scope) {
+            if !info.action.allowed_in_workbench() || !focus.can_handle(info.scope) {
+                continue;
+            }
+            // TextEdit owns its text undo history. The shell runs before the
+            // editor, so consuming these here would swallow source undo/redo.
+            if focus.text_edit_focused
+                && matches!(info.action, KeyboardAction::Undo | KeyboardAction::Redo)
+            {
                 continue;
             }
             if ctx.input_mut(|i| i.consume_shortcut(shortcut)) {
@@ -534,7 +543,7 @@ impl ShortcutRegistry {
     pub fn shortcuts_for_name(&self, name: &str) -> Vec<&KeyboardShortcut> {
         self.shortcuts
             .iter()
-            .filter(|(_, info)| info.name == name)
+            .filter(|(_, info)| info.name == name && info.action.allowed_in_workbench())
             .map(|(shortcut, _)| shortcut)
             .collect()
     }
@@ -551,7 +560,8 @@ impl ShortcutRegistry {
         self.shortcuts
             .iter()
             .find(|(_, info)| {
-                std::mem::discriminant(action) == std::mem::discriminant(&info.action)
+                info.action.allowed_in_workbench()
+                    && std::mem::discriminant(action) == std::mem::discriminant(&info.action)
             })
             .map(|(shortcut, _)| shortcut)
     }

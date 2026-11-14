@@ -30,6 +30,28 @@ impl PlaybackController {
         self.current_time_s = self.current_time_s.clamp(0.0, max_duration);
     }
 
+    /// Clear a review loop when a source edit makes its interval unreachable.
+    pub(crate) fn validate_review_loop(&mut self) -> bool {
+        match (self.loop_start_s, self.loop_end_s) {
+            (None, None) => false,
+            (Some(start), Some(end))
+                if start.is_finite()
+                    && end.is_finite()
+                    && start >= 0.0
+                    && end > start
+                    && end <= self.duration_s =>
+            {
+                false
+            },
+            _ => {
+                self.loop_start_s = None;
+                self.loop_end_s = None;
+                self.ping_pong_direction = 1;
+                true
+            },
+        }
+    }
+
     /// Advance by one frame at the given fps. Stops playback.
     pub(crate) fn frame_step_forward(&mut self, fps: f32) {
         let step = 1.0 / fps.max(1.0) as f64;
@@ -197,6 +219,48 @@ impl PlaybackController {
         if self.presentation_mode {
             self.is_playing = false;
             self.paused_at_step = true;
+        }
+    }
+}
+
+#[cfg(test)]
+mod review_loop_tests {
+    use crate::app::PreviewPaneState;
+    use animatix::timeline::SceneDimensions;
+    #[test]
+    fn source_shrink_clears_unreachable_loop_but_preserves_valid_loop() {
+        let mut p = PreviewPaneState::new(
+            10.0,
+            SceneDimensions {
+                width: 640,
+                height: 360,
+            },
+        );
+        p.playback.loop_start_s = Some(2.0);
+        p.playback.loop_end_s = Some(7.0);
+        assert!(!p.playback.validate_review_loop());
+        p.playback.duration_s = 5.0;
+        assert!(p.playback.validate_review_loop());
+        assert_eq!(p.playback.loop_start_s, None);
+        assert_eq!(p.playback.loop_end_s, None);
+    }
+    #[test]
+    fn malformed_review_loop_is_not_carried_into_playback() {
+        let mut p = PreviewPaneState::new(
+            10.0,
+            SceneDimensions {
+                width: 640,
+                height: 360,
+            },
+        );
+        for (a, b) in [
+            (Some(f64::NAN), Some(2.0)),
+            (Some(3.0), Some(2.0)),
+            (None, Some(2.0)),
+        ] {
+            p.playback.loop_start_s = a;
+            p.playback.loop_end_s = b;
+            assert!(p.playback.validate_review_loop());
         }
     }
 }

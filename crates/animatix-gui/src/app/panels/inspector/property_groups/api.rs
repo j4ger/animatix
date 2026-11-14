@@ -1,9 +1,6 @@
 //! Property build/display helpers shared by the property group modules.
 
-use crate::app::commands::PropertyValue as GuiPropertyValue;
-use animatix::timeline::{
-    EntityId, LEGEND_SUM_VARIANTS, PropertyValue, ShapeType, SumVariant, ValueType,
-};
+use animatix::timeline::{EntityId, LEGEND_SUM_VARIANTS, PropertyValue, ShapeType, ValueType};
 
 use super::{PropertyEntry, PropertyKind};
 
@@ -210,74 +207,5 @@ pub(super) fn value_to_kind(value: PropertyValue, ty: ValueType, name: &str) -> 
             "[{:.2}, {:.2}, {:.2}, {:.2}, {:.2}, {:.2}]",
             v[0], v[1], v[2], v[3], v[4], v[5]
         )),
-    }
-}
-
-// ─── Rendering ────────────────────────────────────────────────────────────
-
-pub(super) fn gui_value_for_sum_variant(variant: &SumVariant, buf: String) -> GuiPropertyValue {
-    match variant.literal {
-        Some(animatix::timeline::property_registry::SumLiteral::Bool(value)) => {
-            GuiPropertyValue::Bool(value)
-        },
-        Some(animatix::timeline::property_registry::SumLiteral::Str(value)) => {
-            GuiPropertyValue::String(value.to_string())
-        },
-        None => match variant.value_type {
-            ValueType::String => GuiPropertyValue::String(buf),
-            ValueType::Bool => GuiPropertyValue::Bool(true),
-            _ => GuiPropertyValue::String(buf),
-        },
-    }
-}
-
-/// Convert a PropertyEntry's current value to a GuiPropertyValue for keyframe creation.
-pub(super) fn entry_to_gui_value(entry: &PropertyEntry) -> Option<GuiPropertyValue> {
-    match &entry.kind {
-        PropertyKind::Vec2 { x, y } => Some(GuiPropertyValue::Vec2([*x, *y])),
-        PropertyKind::Float(v) => Some(GuiPropertyValue::F32(*v)),
-        PropertyKind::U32(v) => Some(GuiPropertyValue::F32(*v as f32)),
-        PropertyKind::Bool(v) => Some(GuiPropertyValue::Bool(*v)),
-        PropertyKind::Color(rgba) => Some(GuiPropertyValue::Color(*rgba)),
-        PropertyKind::Text(t) => Some(GuiPropertyValue::String(t.clone())),
-        PropertyKind::Enum { value, .. } => Some(GuiPropertyValue::String(value.clone())),
-        PropertyKind::EnumOwned { value, .. } => Some(GuiPropertyValue::String(value.clone())),
-        PropertyKind::Sum { variants, value } => match value {
-            PropertyValue::Variant { name, value: inner } => {
-                let index = variants.iter().position(|variant| variant.name == name).unwrap_or(0);
-                let buf = match inner.as_ref() {
-                    PropertyValue::String(s) => s.clone(),
-                    _ => String::new(),
-                };
-                Some(gui_value_for_sum_variant(&variants[index], buf))
-            },
-            _ => None,
-        },
-        PropertyKind::Union { value, .. } => match value {
-            PropertyValue::Bool(b) => Some(GuiPropertyValue::Bool(*b)),
-            PropertyValue::String(s) => Some(GuiPropertyValue::String(s.clone())),
-            PropertyValue::F32(v) => Some(GuiPropertyValue::F32(*v)),
-            PropertyValue::U32(v) => Some(GuiPropertyValue::F32(*v as f32)),
-            PropertyValue::Vec2(v) => Some(GuiPropertyValue::Vec2(*v)),
-            PropertyValue::Color(v) | PropertyValue::Vec4(v) => Some(GuiPropertyValue::Color(*v)),
-            _ => None,
-        },
-    }
-}
-
-/// Return a unit suffix for numeric property names.
-pub(super) fn unit_suffix(name: &str) -> &'static str {
-    match name {
-        "position" | "motion_offset" | "size" | "layout_size" | "line_from" | "line_to" => "px",
-        "stroke_width" => "px",
-        "rotation" => "°",
-        "scale" => "×",
-        "opacity" | "fill_opacity" | "stroke_progress" => "",
-        "font_size" => "pt",
-        "blur" => "px",
-        "brightness" | "contrast" | "saturate" | "sepia" => "",
-        "hue_rotate" => "°",
-        "volume" => "%",
-        _ => "",
     }
 }

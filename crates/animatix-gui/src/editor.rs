@@ -338,6 +338,9 @@ impl EditorBuffer {
             self.cell_state.scroll_to_cell = Some(cell_idx);
         }
 
+        // Compare cell state before/after rendering, not normalized cells against
+        // original bytes. Merely opening Code must never reserialize the file.
+        let source_before_render = crate::cell_editor::cells_to_source(&self.cells);
         // Track source changes from the cell editor
         let mut source_changed = false;
         let mut new_source = String::new();
@@ -358,11 +361,10 @@ impl EditorBuffer {
         }
 
         // Defensive: egui TextEdit handles Ctrl-Z internally and may not fire
-        // response.changed(). Reconstruct source from cells and compare with our
-        // cached text. If they diverge, something changed internally (undo, etc.)
-        // and we must sync.
+        // response.changed(). Detect actual in-frame cell edits (undo, etc.),
+        // without treating parser/serializer normalization as a user edit.
         let reconstructed = crate::cell_editor::cells_to_source(&self.cells);
-        if !source_changed && reconstructed != self.text {
+        if !source_changed && reconstructed != source_before_render {
             source_changed = true;
             new_source = reconstructed;
         }
@@ -382,27 +384,8 @@ impl EditorBuffer {
             structurally_changed = self.apply_cell_action(action);
         }
 
-        // ── Auto-remove empty cells that lost focus ────────────────────────
-        // When focus moves from cell A to cell B (or leaves the editor),
-        // cell A is removed if it became empty while it was focused.
-        let prev = self.cell_state.prev_focused_cell;
-        let curr = self.cell_state.focused_cell;
-        if prev != curr
-            && let Some(prev_idx) = prev
-            && prev_idx < self.cells.len()
-            && self.cells[prev_idx].is_empty()
-        {
-            self.cells.remove(prev_idx);
-            structurally_changed = true;
-            // Adjust current focus if it was after the removed cell
-            if let Some(ref mut c) = self.cell_state.focused_cell
-                && *c > prev_idx
-            {
-                *c -= 1;
-            }
-        }
-        self.cell_state.prev_focused_cell = self.cell_state.focused_cell;
-
+        // Empty keyframes may be deliberate duration/anchor markers. Removal
+        // is an explicit cell action, never a side effect of moving focus.
         if source_changed || structurally_changed {
             if structurally_changed {
                 new_source = crate::cell_editor::cells_to_source(&self.cells);
@@ -742,5 +725,47 @@ mod tests {
         // Line 3: box.pos = (0, 0)
         // Line 4: box.color = #fff (this is where the caret sits)
         assert_eq!(editor.cursor_line, Some(4));
+    }
+    #[test]
+    fn source_navigation_render_preserves_original_bytes() {
+        let speech = include_str!("../../../examples/animation/41_speech_sync_captions.amx");
+        for source in [
+            speech,
+            "// cue\r\n#voice[\"DSL\"]:\r\n    box.opacity = 1",
+            "#0s { box: Rect }\n",
+        ] {
+            let path = PathBuf::from("test.amx");
+            let mut editor = EditorBuffer::new(&path, source.to_string());
+            let line =
+                source.lines().position(|line| line.contains("#voice[\"DSL\"]")).unwrap_or(0);
+            editor.focus_diagnostic(line, 0);
+            let ctx = Context::default();
+            for _ in 0..3 {
+                ctx.run_ui(egui::RawInput::default(), |ui| {
+                    let response = editor.show(ui);
+                    assert!(!response.changed(), "navigation/render must not signal an edit");
+                })
+                .drop_without_applying_deltas();
+                assert_eq!(editor.text(), source, "opening/focusing Code must preserve every byte");
+            }
+        }
+    }
+    #[test]
+    fn navigating_away_from_empty_end_marker_does_not_remove_it() {
+        let source = "#0s\nbox: Rect\n#5s\n";
+        let mut editor = EditorBuffer::new(&PathBuf::from("test.amx"), source.into());
+        let ctx = Context::default();
+        editor.focus_diagnostic(2, 0);
+        ctx.run_ui(egui::RawInput::default(), |ui| {
+            editor.show(ui);
+        })
+        .drop_without_applying_deltas();
+        editor.focus_diagnostic(0, 0);
+        ctx.run_ui(egui::RawInput::default(), |ui| {
+            assert!(!editor.show(ui).changed());
+        })
+        .drop_without_applying_deltas();
+        assert_eq!(editor.text(), source);
+        assert_eq!(editor.cells.len(), 2);
     }
 }

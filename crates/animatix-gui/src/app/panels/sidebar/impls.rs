@@ -122,8 +122,6 @@ pub(crate) fn sidebar_tab_content_ui(
                 ProjectSection::Assets => {
                     let mut actx = AssetsContext {
                         asset_cache: ctx.asset_cache,
-                        commands: ctx.commands,
-                        scene_dimensions: ctx.scene_dimensions,
                     };
                     assets_content_ui(&mut actx, ui);
                 },
@@ -147,10 +145,6 @@ pub(crate) fn sidebar_tab_content_ui(
                         active_scene: ctx.active_scene,
                         selected_actors: ctx.selected_actors,
                         collapsed_actors: ctx.collapsed_actors,
-                        commands: ctx.commands,
-                        preview: ctx.preview,
-                        scene_dimensions: ctx.scene_dimensions,
-                        is_composition: ctx.is_composition,
                     };
                     layers_content_ui(&mut lctx, ui);
                 },
@@ -167,9 +161,6 @@ pub(crate) fn sidebar_tab_content_ui(
         SidebarTab::Library => {
             let mut cctx = ComponentsContext {
                 components: ctx.components,
-                commands: ctx.commands,
-                scene_dimensions: ctx.scene_dimensions,
-                source_text: ctx.editor.text(),
             };
             components_content_ui(&mut cctx, ui);
         },

@@ -1,9 +1,7 @@
-//! Shared F-curve sampling, mapping and painting for the Inspector's graph
-//! editor and the bottom Curves editor: sampling math and axis mapping live here,
-//! callers own the surrounding frame.
+//! Read-only F-curve sampling, mapping and painting for curve review.
 
 use animatix::timeline::{
-    ActorField, EntityId, PROPERTY_REGISTRY, Timeline, ValueType, allowed_property_indices,
+    EntityId, PROPERTY_REGISTRY, Timeline, ValueType, allowed_property_indices,
 };
 use animatix_syntax::easing::Easing;
 use egui::{Color32, Painter, Pos2, Rect, Stroke};
@@ -15,30 +13,20 @@ use crate::app::design_tokens::spatial::STROKE_WIDTH;
 /// Number of polyline segments used to approximate one eased keyframe span.
 const SEGMENTS_PER_SPAN: usize = 20;
 
-/// One graphed channel of one property. `Vec2` yields two channels (`.X`, `.Y`),
-/// `Color`/`Vec4` four (`.R`, `.G`, `.B`, `.A`); `channel` is the component index
-/// used when an edit writes one component back through
-/// [`PropertyValue`](animatix::timeline::PropertyValue).
+/// One read-only sampled channel of one animated property.
 #[derive(Debug, Clone)]
 pub(crate) struct CurveChannel {
     /// Legend label — actor-qualified when more than one actor is graphed.
     pub label: String,
     /// Label without the actor prefix, kept for tooltips and diagnostics.
     pub base_label: String,
-    /// Actor this channel belongs to; edits address it by this name.
+    /// Actor this channel belongs to.
     pub actor: String,
     pub color: Color32,
     /// Sampled keyframes as `(time_s, value)`.
     pub points: Vec<(f64, f32)>,
     /// Easing for the segment ending at the matching point index.
     pub segment_easing: Vec<Easing>,
-    /// Storage field, for easing/keyframe lookups.
-    pub field: ActorField,
-    /// Canonical property name (e.g. `position`), the identity used by
-    /// [`KeyframeId`](crate::app::document::timeline_diff::KeyframeId).
-    pub property: &'static str,
-    /// Component index within the property value.
-    pub channel: usize,
 }
 
 /// Sample every animated channel of a track. Properties with fewer than two
@@ -65,7 +53,7 @@ pub(crate) fn collect_curves(
         }
 
         let value_type = schema.value_type;
-        let mut push = |label: String, color: Color32, channel: usize, points: Vec<(f64, f32)>| {
+        let mut push = |label: String, color: Color32, _channel: usize, points: Vec<(f64, f32)>| {
             if points.len() < 2 {
                 return;
             }
@@ -85,9 +73,6 @@ pub(crate) fn collect_curves(
                 color,
                 points,
                 segment_easing,
-                field: schema.field,
-                property: schema.name,
-                channel,
             });
         };
 
@@ -448,35 +433,6 @@ pub(crate) fn draw_playhead(painter: &Painter, axis: &Axis, current_time_s: f64,
     }
 }
 
-/// Write `new_value` into component `channel`. Returns `false` on type/arity
-/// mismatch, leaving the value untouched so callers can report the mismatch.
-pub(crate) fn set_channel(
-    value: &mut animatix::timeline::PropertyValue,
-    channel: usize,
-    new_value: f32,
-) -> bool {
-    use animatix::timeline::PropertyValue;
-    match (value, channel) {
-        (PropertyValue::F32(v), 0) => {
-            *v = new_value;
-            true
-        },
-        (PropertyValue::Vec2(v), c) if c < 2 => {
-            v[c] = new_value;
-            true
-        },
-        (PropertyValue::Vec4(v), c) if c < 4 => {
-            v[c] = new_value;
-            true
-        },
-        (PropertyValue::Color(v), c) if c < 4 => {
-            v[c] = new_value;
-            true
-        },
-        _ => false,
-    }
-}
-
 /// Shared test fixture: two `Rect`s animating the same property.
 #[cfg(test)]
 pub(crate) fn two_actor_timeline() -> Timeline {
@@ -607,20 +563,5 @@ a.to = (40, 20)
         let last = to_y.points.last().expect("points");
         assert!((last.0 - 1.0).abs() < 0.001, "last point time: {last:?}");
         assert!((last.1 - 20.0).abs() < 0.001, "last point value: {last:?}");
-    }
-
-    #[test]
-    fn set_channel_targets_the_right_component() {
-        use animatix::timeline::PropertyValue;
-        let mut v = PropertyValue::Vec2([1.0, 2.0]);
-        assert!(set_channel(&mut v, 1, 9.0));
-        assert_eq!(v, PropertyValue::Vec2([1.0, 9.0]));
-
-        let mut c = PropertyValue::Color([0.0, 0.0, 0.0, 1.0]);
-        assert!(set_channel(&mut c, 3, 0.5));
-        assert_eq!(c, PropertyValue::Color([0.0, 0.0, 0.0, 0.5]));
-
-        // Out-of-range channel is rejected rather than silently writing.
-        assert!(!set_channel(&mut v, 5, 1.0));
     }
 }

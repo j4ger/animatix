@@ -145,6 +145,10 @@ impl GuiShell {
                 .show(ui, |ui| self.toolbar_ui(ui, &mut commands));
         }
 
+        if !self.ui_store.view.welcome_open {
+            self.workbench_status_ui(ui);
+        }
+
         let diagnostics = self.document_store.combined_diagnostics();
 
         // Diagnostics panel (collapsible)
@@ -201,14 +205,6 @@ impl GuiShell {
             self.compact_sidebar_drawer_ui(ui, workspace_rect, &mut drawer_cmds);
             self.compact_detail_drawer_ui(ui, workspace_rect, &mut drawer_cmds);
             self.handle_actions(drawer_cmds);
-        }
-
-        // Safety net: the preview panel clears the Library drag payload on
-        // release, but it does not render on the welcome screen (or if the
-        // preview pane is ever hidden). Drop any leftover payload once the
-        // pointer is up so a stale drag cannot drop on a later frame.
-        if ui.input(|i| i.pointer.any_released()) {
-            panels::clear_library_drag(ui.ctx());
         }
 
         // Settings modal overlay (rendered on top of everything)
@@ -524,10 +520,6 @@ impl GuiShell {
             sidebar_tab: &mut self.ui_store.sidebar_tab,
             compact,
             compact_drawer: &mut self.ui_store.view.compact_drawer,
-            property_view_mode: &mut self.ui_store.property_view_mode,
-            keyframe_view_mode: &mut self.ui_store.keyframe_view_mode,
-            keyframe_mode: self.ui_store.keyframe_mode,
-            rotation_snap_degrees: self.ui_store.rotation_snap_degrees,
             snap_fps: self.ui_store.snap_fps,
             debug_layout: self.ui_store.view.debug_layout,
             debug_spacing: self.ui_store.view.debug_spacing,

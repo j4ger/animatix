@@ -1,17 +1,13 @@
 //! Timeline track lanes rendering: scene tracks, speech/transcript tracks, action blocks,
 //! and empty property lane affordances.
 
-use std::collections::HashMap;
-
-use animatix::composition::Composition;
 use animatix::timeline::Timeline;
-use egui::{Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, Vec2};
+use egui::{Align2, Color32, FontId, Pos2, Rect, Sense, Stroke};
 
-use super::{TimelineCoords, draw_loop_region};
+use super::TimelineCoords;
 use crate::app::PreviewPaneState;
 use crate::app::commands::{ActionQueue, Command, PropertyEdit, ShellAction};
 use crate::app::components::text_tooltip;
-use crate::app::design_tokens::semantic::timeline;
 use crate::app::design_tokens::spatial::timeline::KF_HALF as KF_DIAMOND_HALF;
 use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH, Spatial};
 use crate::app::design_tokens::typography::TextRole;
@@ -95,11 +91,9 @@ pub(crate) type ActionDragState = (usize, u64, Edge, f32, f64, f64);
 /// with a keyframe density strip and duration label inside each block.
 mod action;
 mod empty;
-mod scene;
 mod speech;
 
 pub(crate) use action::render_action_blocks;
 pub(crate) use empty::render_empty_property_lane;
 pub(crate) use impls::{action_category_color, property_group_color, property_group_for_prop};
-pub(crate) use scene::render_scene_track;
-pub(crate) use speech::render_speech_track;
+pub(crate) use speech::{render_speech_track, speech_row_count};

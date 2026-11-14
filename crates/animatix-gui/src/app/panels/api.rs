@@ -1,10 +1,8 @@
 //! Panel-level helpers shared by the app shell: sidebar view labels, the
-//! library drag payload store, default-actor selection, ruler tick spacing,
+//! ruler tick spacing,
 //! and the uniform panel frame.
 
-use animatix::primitives;
-
-use super::{LibraryDragPayload, SidebarTab};
+use super::SidebarTab;
 
 /// Human-readable label for a top-level sidebar view.
 pub(crate) fn sidebar_tab_label(tab: SidebarTab) -> &'static str {
@@ -13,49 +11,6 @@ pub(crate) fn sidebar_tab_label(tab: SidebarTab) -> &'static str {
         SidebarTab::Outline => "Outline",
         SidebarTab::Library => "Library",
     }
-}
-
-/// Well-known egui data id for the in-flight library drag payload.
-///
-/// egui's data store lives on the shared `Context`, so a payload inserted by a
-/// sidebar row is readable from the preview panel in the same frame.
-pub(crate) fn library_drag_id() -> egui::Id {
-    egui::Id::unique("library_drag_payload")
-}
-
-/// Store the in-flight library drag payload.
-pub(crate) fn set_library_drag(ctx: &egui::Context, payload: LibraryDragPayload) {
-    ctx.data_mut(|d| d.insert_temp(library_drag_id(), payload));
-}
-
-/// Read the in-flight library drag payload, if a library row is being dragged.
-pub(crate) fn library_drag(ctx: &egui::Context) -> Option<LibraryDragPayload> {
-    ctx.data(|d| d.get_temp(library_drag_id()))
-}
-
-/// Drop the in-flight library drag payload (after a drop, Escape, or a release
-/// outside the canvas).
-pub(crate) fn clear_library_drag(ctx: &egui::Context) {
-    ctx.data_mut(|d| d.remove::<LibraryDragPayload>(library_drag_id()));
-}
-
-/// Label stem for a dropped payload: `Image`/`Svg` get lower-case asset stems,
-/// components keep their declared name.
-pub(crate) fn library_drag_label_base(payload: &LibraryDragPayload) -> String {
-    match payload.ty.as_str() {
-        "Image" => "image".to_string(),
-        "Svg" => "svg".to_string(),
-        other => other.to_string(),
-    }
-}
-
-/// Returns the canonical default actor type: the first non-advanced Shape actor.
-pub(crate) fn default_actor_type() -> &'static str {
-    primitives::primitive_catalog()
-        .iter()
-        .find(|meta| meta.category == animatix::timeline::ActorCategory::Shape && !meta.advanced)
-        .and_then(|meta| meta.static_type_name())
-        .unwrap_or("Rect")
 }
 
 /// Compute a "nice" tick interval for ruler marks.

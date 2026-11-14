@@ -18,19 +18,13 @@ impl PreviewContext<'_> {
 
         let is_dragging = !matches!(self.drag_state, DragState::None);
 
-        // Filter out locked actors from hit regions for selection purposes
-        let unlocked_hit_regions: Vec<(String, kurbo::Rect)> = self
-            .hit_regions
-            .iter()
-            .filter(|(label, _)| !self.timeline.is_some_and(|t| t.is_actor_locked(label)))
-            .cloned()
-            .collect();
+        let hit_regions = self.hit_regions;
 
         if response.secondary_clicked()
             && !is_dragging
             && let Some(click_pos) = response.interact_pointer_pos()
         {
-            self.handle_preview_right_click(_preview_rect, click_pos, &unlocked_hit_regions);
+            self.handle_preview_right_click(_preview_rect, click_pos, hit_regions);
         }
 
         let menu_item_clicked = self.handle_preview_context_menu(ui);
@@ -52,7 +46,7 @@ impl PreviewContext<'_> {
             && !suppress_click
             && let Some(click_pos) = response.interact_pointer_pos()
         {
-            self.handle_preview_click(ui, _preview_rect, click_pos, &unlocked_hit_regions);
+            self.handle_preview_click(ui, _preview_rect, click_pos, hit_regions);
         }
 
         if response.double_clicked()
@@ -68,20 +62,15 @@ impl PreviewContext<'_> {
         &mut self,
         preview_rect: egui::Rect,
         click_pos: egui::Pos2,
-        unlocked_hit_regions: &[(String, kurbo::Rect)],
+        hit_regions: &[(String, kurbo::Rect)],
     ) {
         let scene_dimensions = self.scene_dimensions;
         let zoom = self.preview.viewport.preview_zoom;
         let pan = self.preview.viewport.preview_pan;
-        selection::handle_right_click(
-            self.selection,
-            unlocked_hit_regions,
-            click_pos,
-            move |screen| {
-                let tx = preview::PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan);
-                tx.screen_to_scene(screen)
-            },
-        );
+        selection::handle_right_click(self.selection, hit_regions, click_pos, move |screen| {
+            let tx = preview::PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan);
+            tx.screen_to_scene(screen)
+        });
     }
 
     /// Draw the open context menu and apply the actor or action it selects.
@@ -90,55 +79,12 @@ impl PreviewContext<'_> {
     fn handle_preview_context_menu(&mut self, ui: &mut egui::Ui) -> bool {
         let mut menu_item_clicked = false;
         if self.selection.context_menu_open {
-            let effective: Vec<String> = if self.selected_actors.is_empty() {
-                self.selection.context_menu_actors.first().cloned().into_iter().collect()
-            } else {
-                self.selected_actors.iter().cloned().collect()
-            };
-            let any_locked = effective
-                .iter()
-                .any(|label| self.timeline.is_some_and(|t| t.is_actor_locked(label)));
-            let any_hidden = effective
-                .iter()
-                .any(|label| self.timeline.is_some_and(|t| !t.is_actor_visible(label)));
-
-            let (selected, action, close, _rect) = selection::draw_context_menu(
-                ui,
-                self.selection,
-                self.selected_actors,
-                any_locked,
-                any_hidden,
-            );
+            let (selected, close, _rect) =
+                selection::draw_context_menu(ui, self.selection, self.selected_actors);
             menu_item_clicked = close;
             if let Some(actor) = selected {
                 self.selected_actors.clear();
                 self.selected_actors.insert(actor);
-            } else if let Some(action) = action {
-                // Actions operate on the current selection; with nothing
-                // selected, fall back to the actor under the cursor.
-                if self.selected_actors.is_empty() {
-                    self.selected_actors.extend(effective.iter().cloned());
-                }
-                use selection::ContextMenuAction as A;
-                match action {
-                    A::Duplicate => {
-                        self.commands.push_back(Command::DuplicateSelectedActors.into())
-                    },
-                    A::Delete => self.commands.push_back(Command::DeleteSelectedActors.into()),
-                    A::Group => self.commands.push_back(Command::GroupSelectedActors.into()),
-                    A::Ungroup => self.commands.push_back(Command::UngroupSelectedActors.into()),
-                    A::ToggleLock => {
-                        for label in &effective {
-                            self.commands.push_back(Command::ToggleActorLock(label.clone()).into());
-                        }
-                    },
-                    A::ToggleVisibility => {
-                        for label in &effective {
-                            self.commands
-                                .push_back(Command::ToggleActorVisibility(label.clone()).into());
-                        }
-                    },
-                }
             }
             if close {
                 self.selection.context_menu_open = false;
@@ -153,7 +99,7 @@ impl PreviewContext<'_> {
         ui: &mut egui::Ui,
         preview_rect: egui::Rect,
         click_pos: egui::Pos2,
-        unlocked_hit_regions: &[(String, kurbo::Rect)],
+        hit_regions: &[(String, kurbo::Rect)],
     ) {
         let scene_dimensions = self.scene_dimensions;
         let zoom = self.preview.viewport.preview_zoom;
@@ -162,7 +108,7 @@ impl PreviewContext<'_> {
         selection::handle_click(
             self.selection,
             self.selected_actors,
-            unlocked_hit_regions,
+            hit_regions,
             click_pos,
             move |screen| {
                 let tx = preview::PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan);
@@ -200,44 +146,12 @@ impl PreviewContext<'_> {
             });
             if let Some(line) = found_line {
                 self.commands.push_back(ShellAction::Command(Command::ScrollToLine(line, 0)));
-                self.commands.push_back(ShellAction::View(ViewAction::ShowCode));
             }
         }
     }
 
-    /// Double-click on a text actor starts inline text editing.
-    fn handle_preview_double_click(&mut self, preview_rect: egui::Rect, click_pos: egui::Pos2) {
-        let scene_dimensions = self.scene_dimensions;
-        let zoom = self.preview.viewport.preview_zoom;
-        let pan = self.preview.viewport.preview_pan;
-        let scene_point = {
-            let tx = preview::PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan);
-            tx.screen_to_scene(click_pos)
-        };
-
-        // Find a text-type actor at the click position (skip locked actors)
-        let text_actor = self
-            .hit_regions
-            .iter()
-            .filter(|(_, bounds)| {
-                // Check if click is within bounds
-                scene_point.x >= bounds.x0
-                    && scene_point.x <= bounds.x1
-                    && scene_point.y >= bounds.y0
-                    && scene_point.y <= bounds.y1
-            })
-            .filter(|(label, _)| {
-                // Skip locked actors
-                !self.timeline.is_some_and(|t| t.is_actor_locked(label))
-            })
-            .filter(|(label, _)| self.get_text_property(label).is_some())
-            .map(|(label, _)| label.clone())
-            .next();
-
-        if let Some(actor) = text_actor {
-            self.selected_actors.clear();
-            self.selected_actors.insert(actor.clone());
-            self.start_inline_edit(&actor, preview_rect);
-        }
+    /// Double click inspects, never edits evaluated text.
+    fn handle_preview_double_click(&mut self, _preview_rect: egui::Rect, _click_pos: egui::Pos2) {
+        self.commands.push_back(ShellAction::View(ViewAction::ShowInspector));
     }
 }

@@ -149,18 +149,7 @@ pub(crate) struct SnapState {
     pub snap_lines_h: Vec<f32>,
     pub snap_lines_v: Vec<f32>,
     pub snap_line_color: Option<Color32>,
-    pub snap_enabled: bool,
-    pub snap_threshold: f32,
     pub snap_hud_label: Option<String>,
-}
-
-/// State for in-place text editing on the preview canvas.
-pub(crate) struct InlineTextEditState {
-    pub actor: String,
-    pub property: String,
-    pub current_value: String,
-    pub screen_pos: egui::Pos2,
-    pub screen_size: egui::Vec2,
 }
 
 /// Severity level for preview status messages.
@@ -193,8 +182,6 @@ pub(crate) struct PreviewPaneState {
     /// Keyframe times that were recently rewritten by `adjust_following_relative_keyframe`.
     /// Rendered with an amber flash in the timeline panel for ~300 ms.
     pub flashed_keyframe_times: Vec<(f64, std::time::Instant)>,
-    /// In-place text editing state (activated by double-clicking text actors).
-    pub inline_edit: Option<InlineTextEditState>,
 }
 
 struct GuiShell {

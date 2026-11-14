@@ -1,4 +1,4 @@
-use super::parser::parse_timestamp_seconds;
+use super::parser::numeric_timestamp_seconds;
 
 /// A single editable cell in the notebook editor.
 #[derive(Clone, Debug)]
@@ -106,7 +106,9 @@ impl Cell {
 
     pub fn time_s(&self) -> Option<f64> {
         match self {
-            Self::Keyframe { time_s, .. } => Some(*time_s),
+            Self::Keyframe {
+                timestamp, time_s, ..
+            } => numeric_timestamp_seconds(timestamp).map(|_| *time_s),
             _ => None,
         }
     }
@@ -207,7 +209,11 @@ impl Cell {
                 ..
             } => {
                 let text = timestamp.trim_start_matches('+');
-                let seconds = parse_timestamp_seconds(text);
+                let Some(seconds) = numeric_timestamp_seconds(text) else {
+                    // Speech anchors and scene names are source expressions,
+                    // not numeric zero timestamps.
+                    return Some(timestamp.clone());
+                };
                 let formatted = format_duration_s(seconds);
                 if *is_relative {
                     Some(format!("+{}", formatted))

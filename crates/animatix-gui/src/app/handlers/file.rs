@@ -22,14 +22,26 @@ use crate::app::utils::has_source_load_failure;
 pub(crate) fn sync_preview_from_document(
     document_store: &DocumentStore,
     preview_store: &mut PreviewStore,
-    status: String,
+    mut status: String,
     reset_time: bool,
     stop_playback: bool,
 ) {
     preview_store.preview.playback.duration_s = document_store.source.document.duration_s.max(0.1);
     preview_store.preview.playback.pause_points_s = document_store.source.document.pause_points_s();
-    preview_store.preview.dimensions = document_store.source.document.scene_dimensions;
+    let dimensions = document_store.source.document.scene_dimensions;
+    let canvas_changed = preview_store.preview.dimensions.width != dimensions.width
+        || preview_store.preview.dimensions.height != dimensions.height;
+    preview_store.preview.dimensions = dimensions;
+    // Preserve the user's view on ordinary edits, but do not keep a viewport
+    // centered on an old/failed canvas size after a successful rebuild.
+    if canvas_changed {
+        preview_store.preview.viewport.preview_pan =
+            egui::Vec2::new(dimensions.width as f32 / 2.0, dimensions.height as f32 / 2.0);
+        preview_store.preview.fit_zoom_requested = true;
+    }
     if reset_time {
+        preview_store.preview.playback.loop_start_s = None;
+        preview_store.preview.playback.loop_end_s = None;
         preview_store.preview.playback.scrub_to(0.0);
         preview_store.preview.viewport.preview_zoom = 1.0;
         preview_store.preview.viewport.preview_pan = egui::Vec2::new(
@@ -38,6 +50,9 @@ pub(crate) fn sync_preview_from_document(
         );
     } else {
         preview_store.preview.playback.clamp_time();
+    }
+    if preview_store.preview.playback.validate_review_loop() {
+        status.push_str(" • review loop cleared: interval no longer fits");
     }
     if stop_playback {
         preview_store.preview.playback.is_playing = false;
@@ -647,7 +662,21 @@ pub fn handle_rebuild_response(
 
     preview_store.rebuild_in_progress = false;
 
-    match response.result {
+    // Defend the acceptance boundary too: a partial output carrying errors
+    // must never replace a renderable last-good document.
+    let result = response.result.and_then(|output| {
+        if let Some(error) = output.diagnostics.iter().find(|diagnostic| {
+            diagnostic.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error
+        }) {
+            return Err(crate::app::document::rebuild_output::RebuildFailure {
+                error: error.message.clone(),
+                diagnostics: output.diagnostics,
+                partial_source_index: Some(output.source_index),
+            });
+        }
+        Ok(output)
+    });
+    match result {
         Ok(output) => {
             let (previous, previous_time, selected_actors, selected_keyframes, active_scene) =
                 capture_rebuild_view_state(document_store, preview_store, ui_store);
@@ -693,6 +722,31 @@ mod tests {
     use crate::app::document::version::SourceHash;
     use crate::app::test_support::{make_document_store, preview_store, ui_store};
     use crate::editor::EditorBuffer;
+
+    #[test]
+    fn changed_canvas_reframes_without_resetting_review_time() {
+        let path = PathBuf::from("review.amx");
+        let mut document = DocumentSession::from_source(
+            path.clone(),
+            "config { resolution: (800, 500), duration: 7 }\n#0s\nbox: Rect".into(),
+        )
+        .unwrap();
+        document.rebuild().unwrap();
+        let editor = EditorBuffer::new(&path, document.source_text.clone());
+        let store = DocumentStore::new(document, editor);
+        let mut preview = preview_store(
+            7.0,
+            animatix::timeline::SceneDimensions {
+                width: 1920,
+                height: 1080,
+            },
+        );
+        preview.preview.playback.current_time_s = 2.0;
+        sync_preview_from_document(&store, &mut preview, "Ready".into(), false, false);
+        assert_eq!(preview.preview.viewport.preview_pan, egui::vec2(400.0, 250.0));
+        assert!(preview.preview.fit_zoom_requested);
+        assert_eq!(preview.preview.playback.current_time_s, 2.0);
+    }
 
     #[test]
     fn save_document_reports_error_without_clearing_dirty() {

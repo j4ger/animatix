@@ -21,71 +21,11 @@ pub(super) fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut eg
         for name in names {
             let entry = &ctx.components[name];
             let row_id = ui.scope_id().with(name);
-            let response = row::Row::new(name)
+            row::Row::new(name)
                 .icon(Some(egui_phosphor::regular::CUBE))
                 .label_color(t.palette.text.secondary)
-                .sense(egui::Sense::click_and_drag())
-                .right(|ui| {
-                    let jump_btn = ui.add(
-                        Button::icon(egui_phosphor::regular::ARROW_SQUARE_OUT)
-                            .with_size(eparts::Size::Sm),
-                    );
-                    text_tooltip(ui, jump_btn.id.with("jump_tip"), &jump_btn, "Jump to definition");
-                    if jump_btn.clicked() {
-                        let patterns = [
-                            format!("pub component {}", name),
-                            format!("component {}", name),
-                        ];
-                        let found_line = ctx
-                            .source_text
-                            .lines()
-                            .position(|line| patterns.iter().any(|p| line.trim().starts_with(p)));
-                        if let Some(line) = found_line {
-                            ctx.commands
-                                .push_back(ShellAction::Command(Command::ScrollToLine(line, 0)));
-                            // The editor lives in the detail region's Code tab,
-                            // not the sidebar; open that tab instead.
-                            ctx.commands.push_back(ShellAction::View(ViewAction::ShowCode));
-                        }
-                    }
-                })
+                .sense(egui::Sense::click())
                 .show(ui, row_id);
-
-            let pos = [
-                ctx.scene_dimensions.width as f32 / 2.0,
-                ctx.scene_dimensions.height as f32 / 2.0,
-            ];
-            let template = crate::app::primitives::ActorTemplate::for_primitive(
-                name,
-                Some(pos),
-                ctx.scene_dimensions,
-                None,
-            );
-
-            if response.response.double_clicked() {
-                // Instantiate component with default props
-                ctx.commands.push_back(
-                    Command::CreateActor {
-                        ty: template.ty.clone(),
-                        label: template.label.clone(),
-                        position: pos,
-                        props: template.props.clone(),
-                    }
-                    .into(),
-                );
-            }
-
-            // Drag-to-place: hand the preview panel the actor to create at the
-            // drop point. The payload mirrors the double-click instantiate above.
-            if response.drag_started {
-                crate::app::panels::set_library_drag(
-                    ui.ctx(),
-                    crate::app::panels::LibraryDragPayload {
-                        ty: template.ty,
-                        props: template.props,
-                    },
-                );
-            }
 
             // Slots display
             let slots: Vec<String> = entry
@@ -145,35 +85,6 @@ pub(super) fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut eg
                     );
                 });
             }
-
-            response.response.context_menu(|ui| {
-                let entries = vec![MenuEntry::item_with_icon(
-                    egui_phosphor::regular::PLUS,
-                    "Instantiate",
-                )];
-                if render_menu(ui, &entries).is_some() {
-                    let pos = [
-                        ctx.scene_dimensions.width as f32 / 2.0,
-                        ctx.scene_dimensions.height as f32 / 2.0,
-                    ];
-                    let template = crate::app::primitives::ActorTemplate::for_primitive(
-                        name,
-                        Some(pos),
-                        ctx.scene_dimensions,
-                        None,
-                    );
-                    ctx.commands.push_back(
-                        Command::CreateActor {
-                            ty: template.ty,
-                            label: template.label,
-                            position: pos,
-                            props: template.props,
-                        }
-                        .into(),
-                    );
-                    ui.close();
-                }
-            });
         }
     });
 }

@@ -12,7 +12,6 @@ use rulers::*;
 
 pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
     let theme = eparts::theme(ui);
-    ctx.preview.overlay.set_theme(theme);
     egui::Frame::new()
         .fill(egui::Color32::TRANSPARENT)
         .inner_margin(egui::Margin::ZERO)

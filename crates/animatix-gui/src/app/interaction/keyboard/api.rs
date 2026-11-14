@@ -15,3 +15,24 @@ impl FocusContext {
         }
     }
 }
+
+impl KeyboardAction {
+    /// Legacy bindings remain parseable, but cannot activate spatial edits.
+    pub(crate) fn allowed_in_workbench(&self) -> bool {
+        !matches!(
+            self,
+            Self::DuplicateSelection
+                | Self::DeleteSelection
+                | Self::GroupSelection
+                | Self::UngroupSelection
+                | Self::SetMoveTool
+                | Self::SetScaleTool
+                | Self::SetRotateTool
+                | Self::SetVertexTool
+                | Self::SetPivotTool
+                | Self::OpenInsertionPalette
+                | Self::CopySelection
+                | Self::PasteClipboard
+        )
+    }
+}

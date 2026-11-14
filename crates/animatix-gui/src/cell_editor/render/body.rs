@@ -190,7 +190,7 @@ pub(super) fn render_keyframe_cell(
     start_line: usize,
     end_line: usize,
 ) -> egui::Response {
-    let time_s = cell.time_s().unwrap_or(0.0);
+    let time_s = cell.time_s();
     let header_lines = match cell {
         Cell::Keyframe {
             attached_comment, ..
@@ -223,8 +223,13 @@ pub(super) fn render_keyframe_cell(
             render_timestamp_editor(ui, cell, source_changed, state, index);
 
             // Play
-            if header_btn(ui, egui_phosphor::regular::PLAY, "Play from this keyframe") {
-                on_scrub_to_time(time_s);
+            if let Some(time_s) = time_s {
+                if header_btn(ui, egui_phosphor::regular::PLAY, "Play from this keyframe") {
+                    on_scrub_to_time(time_s);
+                }
+            } else {
+                ui.label("source anchor")
+                    .on_hover_text("Use the resolved timeline marker to seek this anchor");
             }
         },
     )

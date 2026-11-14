@@ -5,7 +5,7 @@
 //! module declarations and re-exports. Drawing order, hit regions, scroll and
 //! zoom inputs are unchanged from the monolithic version.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::time::Duration;
 
 use animatix::composition::Composition;
@@ -18,13 +18,14 @@ use super::ruler::{
 };
 use super::track_lanes::{
     ActionDragState, property_group_color, property_group_for_prop, render_action_blocks,
-    render_empty_property_lane, render_scene_track, render_speech_track,
+    render_empty_property_lane, render_speech_track, speech_row_count,
 };
 use super::track_tree::{
     ActorRowHeaderLayout, build_actor_tree, render_actor_row_header, render_property_row_header,
 };
+use super::{audio, markers, review};
 use crate::app::PreviewPaneState;
-use crate::app::commands::{ActionQueue, Command, ShellAction};
+use crate::app::commands::{ActionQueue, Command};
 use crate::app::components::layout;
 use crate::app::design_tokens::semantic::timeline;
 use crate::app::design_tokens::spatial::{STROKE_WIDTH, Spatial};
@@ -41,7 +42,7 @@ pub(crate) struct TimelineCoords {
 
 impl TimelineCoords {
     pub fn time_to_x(&self, t: f64) -> f32 {
-        let frac = ((t - self.scroll_s) / self.visible_s).clamp(0.0, 1.0) as f32;
+        let frac = ((t - self.scroll_s) / self.visible_s) as f32;
         self.bar_origin_x + frac * self.bar_width
     }
 
@@ -76,6 +77,11 @@ pub(crate) fn draw_loop_region(
 
 pub(crate) struct TimelineContext<'a> {
     pub preview: &'a mut PreviewPaneState,
+    pub statements: &'a [animatix_syntax::ast::Stmt],
+    pub source_current: bool,
+    pub source_text: &'a str,
+    pub audio_segments: &'a [animatix::timeline::AudioSegment],
+    pub audio_revision: u64,
     pub timeline: Option<&'a Timeline>,
     pub composition: Option<&'a Composition>,
     pub active_scene: Option<&'a str>,
@@ -83,8 +89,6 @@ pub(crate) struct TimelineContext<'a> {
     pub collapsed_actors: &'a mut HashSet<String>,
     pub expanded_properties: &'a mut HashSet<String>,
     pub selected_actors: &'a mut HashSet<String>,
-    /// Cached per-scene keyframe time positions (for density strip rendering).
-    pub scene_keyframe_times: &'a HashMap<String, Vec<f64>>,
     pub snap_fps: f32,
     /// Set by the panel each frame; true when the panel or its children received pointer
     /// interaction.
@@ -129,6 +133,9 @@ struct TimelineSections {
     ruler_bot: f32,
     scene_track_top: f32,
     scene_track_bot: f32,
+    marker_top: f32,
+    audio_top: f32,
+    audio_bot: f32,
     speech_track_top: f32,
     speech_track_bot: f32,
     actor_first_top: f32,
@@ -141,7 +148,8 @@ fn layout_sections(
     content_top: f32,
     sp: &Spatial,
     has_composition: bool,
-    has_transcripts: bool,
+    transcript_rows: usize,
+    has_audio: bool,
     total_track_rows: usize,
 ) -> TimelineSections {
     let ruler_top = content_top;
@@ -150,14 +158,17 @@ fn layout_sections(
     let scene_track_top = ruler_bot;
     let scene_track_bot = scene_track_top + sp.timeline.track_row_height;
 
-    let speech_track_top = if has_composition {
+    let marker_top = if has_composition {
         scene_track_bot
     } else {
         ruler_bot
     };
-    let speech_track_bot = speech_track_top + sp.timeline.track_row_height;
+    let audio_top = marker_top + 36.0;
+    let audio_bot = audio_top + if has_audio { 56.0 } else { 0.0 };
+    let speech_track_top = audio_bot;
+    let speech_track_bot = speech_track_top + transcript_rows as f32 * sp.timeline.track_row_height;
 
-    let actor_first_top = if has_transcripts {
+    let actor_first_top = if transcript_rows > 0 {
         speech_track_bot
     } else {
         speech_track_top
@@ -172,6 +183,9 @@ fn layout_sections(
         ruler_bot,
         scene_track_top,
         scene_track_bot,
+        marker_top,
+        audio_top,
+        audio_bot,
         speech_track_top,
         speech_track_bot,
         actor_first_top,
@@ -206,26 +220,6 @@ impl TimelineInteractionState {
             action_drag,
             multi_selected,
         }
-    }
-
-    fn save(&self, ui: &egui::Ui, panel_id: egui::Id) {
-        let kf_drag_data_id = panel_id.with("kf_drag").with("data");
-        let action_drag_data_id = panel_id.with("action_drag").with("data");
-        let kf_multi_select_id = panel_id.with("kf_multi");
-
-        ui.data_mut(|d| {
-            if let Some(drag) = self.new_kf_drag.clone() {
-                d.insert_temp(kf_drag_data_id, drag);
-            } else {
-                d.remove::<KfDrag>(kf_drag_data_id);
-            }
-            d.insert_temp(kf_multi_select_id, self.multi_selected.clone());
-            if let Some(drag) = self.new_action_drag {
-                d.insert_temp(action_drag_data_id, drag);
-            } else {
-                d.remove::<ActionDragState>(action_drag_data_id);
-            }
-        });
     }
 }
 
@@ -506,7 +500,6 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
         collapsed_actors,
         expanded_properties,
         selected_actors,
-        scene_keyframe_times,
         ..
     } = ctx;
 
@@ -535,7 +528,15 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
     let speech_snap_targets = collect_speech_snap_targets(*timeline);
     let mut interaction = TimelineInteractionState::load(ui, panel_id);
 
-    // ── Timeline-local toolbar (zoom). Playback transport is global now. ──
+    let mut source_markers = markers::collect_markers(ctx.statements, *timeline, *composition);
+    if ctx.source_current {
+        super::marker_source::locate_cached(ui, ctx.source_text, &mut source_markers);
+    }
+    if !ctx.source_current {
+        source_markers.iter_mut().for_each(|marker| marker.line = None);
+        ui.weak("Last successful build · source navigation paused until rebuild succeeds");
+    }
+    let show_debug = review::toolbar(ui, preview, &source_markers, commands, panel_id);
     render_zoom_strip(ui, preview, &sp);
 
     // ── All content lives inside the ScrollArea ──
@@ -543,15 +544,20 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
         let viewport = TimelineViewport::new(ui, preview, &sp, duration_s);
         handle_timeline_navigation(ui, preview, &viewport.coords, duration_s);
 
-        let has_transcripts = timeline.is_some_and(|tl| tl.transcripts_iter().next().is_some());
+        let transcript_rows = speech_row_count(*timeline);
         let (actor_tree, extra_prop_lanes) =
             actor_rows(*timeline, collapsed_actors, expanded_properties);
-        let total_track_rows = actor_tree.len() + extra_prop_lanes;
+        let total_track_rows = if show_debug {
+            actor_tree.len() + extra_prop_lanes
+        } else {
+            0
+        };
         let sections = layout_sections(
             viewport.scroll_rect.top(),
             &sp,
             composition.is_some(),
-            has_transcripts,
+            transcript_rows,
+            !ctx.audio_segments.is_empty(),
             total_track_rows,
         );
 
@@ -564,28 +570,33 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
         render_ruler_and_scrubber(ui, &viewport, &sections, &sp, theme, commands);
         let playhead_x = viewport.coords.time_to_x(preview.playback.current_time_s());
 
-        // ── Scene track (composition only) ──
         if let Some(comp) = composition {
-            render_scene_track(
+            review::scene_track(
                 ui,
                 comp,
+                viewport.scroll_rect,
                 sections.scene_track_top,
                 sections.scene_track_bot,
-                viewport.scroll_rect,
                 &viewport.coords,
-                duration_s,
-                scene_keyframe_times,
-                preview,
                 commands,
-                playhead_x,
-                panel_id,
-                theme,
-                &sp,
             );
         }
+        let marker_rect = Rect::from_min_max(
+            Pos2::new(viewport.scroll_rect.left(), sections.marker_top),
+            Pos2::new(viewport.scroll_rect.right(), sections.marker_top + 36.0),
+        );
+        markers::render_markers(ui, marker_rect, &viewport.coords, &source_markers, commands);
+        render_audio_lane(
+            ui,
+            &viewport,
+            &sections,
+            ctx.audio_segments,
+            ctx.audio_revision,
+            commands,
+        );
 
         // ── Speech / audio transcript track ──
-        if has_transcripts {
+        if transcript_rows > 0 {
             render_speech_track(
                 ui,
                 *timeline,
@@ -595,43 +606,49 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
                 &viewport.coords,
                 preview,
                 commands,
-                playhead_x,
+                composition
+                    .and_then(|c| active_scene.and_then(|name| c.scene_start_times.get(name)))
+                    .copied()
+                    .unwrap_or(0.0),
                 panel_id,
                 theme,
                 &sp,
             );
         }
 
-        // ── Actor tracks (tree structure, all actors) ──
-        {
-            let mut rows = TimelineRowCtx {
-                timeline: *timeline,
-                coords: &viewport.coords,
-                scroll_rect: viewport.scroll_rect,
-                bar_origin_x: viewport.coords.bar_origin_x,
-                playhead_x,
-                active_scene,
-                scene_for_selection: scene_for_selection.clone(),
-                shift_held,
-                snap_fps,
-                speech_snap_targets: &speech_snap_targets,
-                theme,
-                sp: &sp,
-                preview,
-                collapsed_actors,
-                expanded_properties,
-                selected_actors,
-                commands,
-                multi_selected: &mut interaction.multi_selected,
-                kf_drag: interaction.kf_drag.as_ref(),
-                new_kf_drag: &mut interaction.new_kf_drag,
-                action_drag: interaction.action_drag.as_ref(),
-                new_action_drag: &mut interaction.new_action_drag,
-            };
-            let mut current_y = sections.actor_first_top;
-            for (track_idx, (actor_label, depth)) in actor_tree.iter().enumerate() {
-                current_y = rows.render_actor_row(ui, actor_label, *depth, track_idx, current_y);
-            }
+        // Debug only: retained legacy property visualization cannot emit writes.
+        if show_debug {
+            ui.add_enabled_ui(false, |ui| {
+                let mut rows = TimelineRowCtx {
+                    timeline: *timeline,
+                    coords: &viewport.coords,
+                    scroll_rect: viewport.scroll_rect,
+                    bar_origin_x: viewport.coords.bar_origin_x,
+                    playhead_x,
+                    active_scene,
+                    scene_for_selection: scene_for_selection.clone(),
+                    shift_held,
+                    snap_fps,
+                    speech_snap_targets: &speech_snap_targets,
+                    theme,
+                    sp: &sp,
+                    preview,
+                    collapsed_actors,
+                    expanded_properties,
+                    selected_actors,
+                    commands,
+                    multi_selected: &mut interaction.multi_selected,
+                    kf_drag: interaction.kf_drag.as_ref(),
+                    new_kf_drag: &mut interaction.new_kf_drag,
+                    action_drag: interaction.action_drag.as_ref(),
+                    new_action_drag: &mut interaction.new_action_drag,
+                };
+                let mut current_y = sections.actor_first_top;
+                for (track_idx, (actor_label, depth)) in actor_tree.iter().enumerate() {
+                    current_y =
+                        rows.render_actor_row(ui, actor_label, *depth, track_idx, current_y);
+                }
+            });
         }
 
         // ── Range slider for work/export region ──
@@ -657,20 +674,6 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
             theme,
         );
 
-        // ── Save keyframe drag + multi-select state ──
-        let prev_multi_selected = interaction.multi_selected.clone();
-        interaction.save(ui, panel_id);
-
-        // ── Mirror keyframe selection into the shared store ──
-        if interaction.multi_selected != prev_multi_selected {
-            mirror_keyframe_selection(
-                &interaction.multi_selected,
-                *timeline,
-                *composition,
-                commands,
-            );
-        }
-
         // Draw clip rect border
         ui.painter().rect_stroke(
             viewport.scroll_rect,
@@ -679,6 +682,26 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
             egui::StrokeKind::Inside,
         );
     });
+}
+
+fn render_audio_lane(
+    ui: &mut egui::Ui,
+    viewport: &TimelineViewport,
+    sections: &TimelineSections,
+    segments: &[animatix::timeline::AudioSegment],
+    revision: u64,
+    commands: &mut ActionQueue,
+) {
+    if segments.is_empty() {
+        return;
+    }
+    let rect = Rect::from_min_max(
+        Pos2::new(viewport.scroll_rect.left(), sections.audio_top),
+        Pos2::new(viewport.scroll_rect.right(), sections.audio_bot),
+    );
+    if let Some(time) = audio::render_audio_track(ui, rect, &viewport.coords, segments, revision) {
+        commands.push_back(Command::ScrubTo(time).into());
+    }
 }
 
 /// Click-to-focus and the focus ring that scopes Delete to keyframes.
@@ -852,27 +875,4 @@ fn collect_actor_lanes(timeline: &Timeline, id: EntityId) -> Vec<(String, Vec<u6
         timeline.world().text_or_default(id),
         None,
     )
-}
-
-/// Push the canonical (scene-qualified) keyframe selection into the shell store.
-fn mirror_keyframe_selection(
-    multi_selected: &[KeyframeId],
-    timeline: Option<&Timeline>,
-    composition: Option<&Composition>,
-    commands: &mut ActionQueue,
-) {
-    let canonical: Vec<KeyframeId> = multi_selected
-        .iter()
-        .filter(|id| {
-            let scene_timeline = match &id.scene {
-                None => timeline,
-                Some(name) => {
-                    composition.and_then(|comp| comp.scenes.get(name)).map(|scene| &scene.timeline)
-                },
-            };
-            scene_timeline.is_some_and(|tl| tl.has_actor(&id.actor))
-        })
-        .cloned()
-        .collect();
-    commands.push_back(ShellAction::Command(Command::SetSelectedKeyframes(canonical)));
 }

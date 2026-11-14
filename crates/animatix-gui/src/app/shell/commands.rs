@@ -122,9 +122,10 @@ impl GuiShell {
     pub(crate) fn sync_active_scene_from_time(&mut self) {
         if let Some(composition) = self.document_store.source.document.composition.as_ref() {
             let previous_scene = self.document_store.source.document.active_scene.clone();
-            let (scene, _, _) =
-                composition.evaluate(self.preview_store.preview.playback.current_time_s());
-            let scene = (!scene.is_empty()).then_some(scene);
+            let scene = crate::app::document::review_scene_at_time(
+                composition,
+                self.preview_store.preview.playback.current_time_s(),
+            );
             if scene != previous_scene {
                 // Keyframe selections are scene-qualified; automatic playback
                 // crossing a scene boundary must not replay old-scene entries.

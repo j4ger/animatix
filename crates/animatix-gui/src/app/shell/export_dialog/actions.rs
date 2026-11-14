@@ -112,7 +112,25 @@ impl GuiShell {
         self.export_store.export_state.output_path = path.to_string_lossy().to_string();
     }
 
+    fn export_source_is_ready(&mut self) -> bool {
+        if self.document_store.source.document.last_rebuild_error.is_some()
+            || self.document_store.showing_last_good()
+            || self.document_store.snapshot_is_stale()
+            || self.preview_store.has_pending_rebuild()
+        {
+            self.export_store.export_status = ExportStatus::Failed(
+                "Build the current source successfully before exporting".into(),
+            );
+            return false;
+        }
+        true
+    }
+
     pub(super) fn start_export(&mut self) {
+        // Recheck at submission: source may change while the dialog is open.
+        if !self.export_source_is_ready() {
+            return;
+        }
         // Join any finished thread first so a stale handle cannot block a new export.
         self.export_store.poll_export_status();
         if self.export_store.export_thread.is_some() {

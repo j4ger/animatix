@@ -25,14 +25,25 @@ impl GuiShell {
                 ui.set_width(ui.available_width());
                 ui.set_height(sp.toolbar.height);
 
-                ui.horizontal_centered(|ui| {
-                    ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_4, 0.0);
-
-                    self.toolbar_file_section(ui, commands, &t);
-                    self.toolbar_scene_breadcrumb(ui, commands, &t, &sp);
-                    self.toolbar_center_controls(ui, commands, &t, &sp);
-                    self.toolbar_right_controls(ui, commands, &sp);
-                });
+                if ui.available_width() < 1000.0 {
+                    // Keep transport and workspace controls on separate rows;
+                    // a right-to-left group otherwise paints over timecode.
+                    ui.horizontal_centered(|ui| {
+                        self.toolbar_file_section(ui, commands, &t);
+                        self.toolbar_right_controls(ui, commands, &sp);
+                    });
+                    ui.horizontal_centered(|ui| {
+                        self.toolbar_center_controls(ui, commands, &t, &sp);
+                    });
+                } else {
+                    ui.horizontal_centered(|ui| {
+                        ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_4, 0.0);
+                        self.toolbar_file_section(ui, commands, &t);
+                        self.toolbar_scene_breadcrumb(ui, commands, &t, &sp);
+                        self.toolbar_center_controls(ui, commands, &t, &sp);
+                        self.toolbar_right_controls(ui, commands, &sp);
+                    });
+                }
             });
 
         // Subtle bottom hairline
@@ -318,29 +329,7 @@ impl GuiShell {
             super::transport::transport_ui(ui, &mut self.preview_store.preview, commands);
             ui.separator();
 
-            // Auto-key / record toggle. This is the single control
-            // that decides whether property edits write keyframes at
-            // the playhead, so it must always be visible.
-            let recording = self.ui_store.keyframe_mode;
-            let rec_btn = ui.add(
-                Button::ghost("")
-                    .with_icon(egui_phosphor::regular::RECORD)
-                    .with_tooltip(if recording {
-                        "Auto-key ON — property edits write keyframes at the playhead"
-                    } else {
-                        "Auto-key OFF — edits change the base value; click a ◆ to key"
-                    })
-                    .active(recording)
-                    .icon_color(if recording {
-                        t.palette.status.error
-                    } else {
-                        t.palette.text.muted
-                    })
-                    .hover_icon_color(t.palette.status.error),
-            );
-            if rec_btn.clicked() {
-                self.ui_store.keyframe_mode = !recording;
-            }
+            ui.label(egui::RichText::new("CODE-FIRST").small().color(t.palette.text.muted));
 
             // Debug dropdown (grouped debug toggles)
             ui.menu_button(

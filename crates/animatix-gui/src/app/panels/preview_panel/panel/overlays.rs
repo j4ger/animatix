@@ -7,7 +7,7 @@ pub(super) fn draw_preview_overlays(
     ui: &mut egui::Ui,
     preview_rect: egui::Rect,
     theme: &eparts::Theme,
-    is_dragging: bool,
+    _is_dragging: bool,
 ) {
     let overlay_tx = ctx.preview_transform(preview_rect);
     // ── Scene bounds overlay ──
@@ -52,5 +52,5 @@ pub(super) fn draw_preview_overlays(
         crate::app::preview::overlay_ops::execute_overlay_ops(ui.painter(), &ops, &overlay_tx);
     }
 
-    ctx.render_preview_selection_overlay(ui, preview_rect, is_dragging);
+    ctx.render_review_selection_overlay(ui, preview_rect);
 }

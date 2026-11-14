@@ -15,7 +15,6 @@ impl CellEditorState {
         swap_opt(&mut self.focused_cell);
         swap_opt(&mut self.scroll_to_cell);
         swap_opt(&mut self.highlighted_cell);
-        swap_opt(&mut self.prev_focused_cell);
         swap_opt(&mut self.pending_cursor_cell);
         swap_opt(&mut self.editing_timestamp_cell);
         if let Some(action) = self.pending_action.as_mut() {

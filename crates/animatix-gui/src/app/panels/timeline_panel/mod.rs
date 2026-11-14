@@ -20,8 +20,12 @@
 //! The implementation lives in [`content`]; `track_lanes`, `track_tree`,
 //! `keyframes`, and `ruler` are the per-section drawing modules.
 
+mod audio;
 mod content;
 pub mod keyframes;
+mod marker_source;
+mod markers;
+mod review;
 pub mod ruler;
 pub mod track_lanes;
 pub mod track_tree;

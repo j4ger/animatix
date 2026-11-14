@@ -13,10 +13,7 @@
 use animatix::timeline::Timeline;
 use egui::{Align2, Color32, FontId, Pos2, Rect, StrokeKind, Vec2};
 
-use super::{
-    ActorProps, PreviewTransform, local_to_world, pivot_world, rotation_handle_world,
-    world_handle_positions,
-};
+use super::{PreviewTransform, local_to_world};
 use crate::app::design_tokens::spatial::STROKE_WIDTH;
 
 /// Colors used by the layout debug overlay.
@@ -114,18 +111,6 @@ pub enum PreviewOverlayOp {
         font: FontId,
         color: Color32,
     },
-    Arrow {
-        from: kurbo::Point,
-        to: kurbo::Point,
-        stroke: OverlayStroke,
-    },
-    Badge {
-        pos: kurbo::Point,
-        text: String,
-        bg: Color32,
-        fg: Color32,
-        border_stroke: OverlayStroke,
-    },
     Screen(ScreenOverlayOp),
 }
 
@@ -136,14 +121,11 @@ mod impls;
 mod interaction;
 mod layout;
 mod motion;
-mod selection;
 
 use impls::*;
 
-pub use execute::{execute_overlay_ops, scale_handle_positions};
+pub use execute::execute_overlay_ops;
 pub use guides::{actor_label_ops, grid_ops, snap_guide_ops};
-pub use interaction::{ghost_overlay_ops, hover_highlight_ops, reorder_overlay_ops};
+pub use interaction::hover_highlight_ops;
 pub use layout::{layout_debug_ops, scene_bounds_ops};
 pub use motion::{cycle_indicator_ops, motion_path_ops};
-
-pub use selection::{multi_selection_overlay_ops, selection_overlay_ops};

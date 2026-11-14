@@ -21,10 +21,7 @@ mod tests;
 pub use crate::app::commands::{PropertyEdit, PropertyValue};
 
 pub(super) use api::nice_tick_interval;
-pub(crate) use api::{
-    clear_library_drag, default_actor_type, library_drag, library_drag_label_base, panel_frame,
-    set_library_drag, sidebar_tab_label,
-};
+pub(crate) use api::{panel_frame, sidebar_tab_label};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum SidebarTab {
@@ -55,20 +52,6 @@ pub(crate) enum CompactDrawer {
     Sidebar,
     /// Inspector / Code, promoted to a right overlay.
     Detail,
-}
-
-/// An in-flight Library/Asset row drag, carrying the actor to create at the
-/// drop point.
-///
-/// Built by the sidebar rows exactly like the double-click instantiate path
-/// (see `components_content_ui` / `assets_content_ui`) and consumed by the
-/// preview panel, which owns the scene transform.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct LibraryDragPayload {
-    /// Actor type name (a component name, or `"Image"` / `"Svg"`).
-    pub ty: String,
-    /// Properties to attach (e.g. the asset `url`).
-    pub props: Vec<animatix_syntax::ast::Property>,
 }
 
 pub(super) const RULER_SIZE: f32 = 20.0;

@@ -180,6 +180,11 @@ impl DocumentStore {
         self.source.text().hash(&mut hasher);
         let hash = hasher.finish();
 
+        let success = success
+            && self.source.document.last_rebuild_error.is_none()
+            && !self.source.document.diagnostics.iter().any(|diagnostic| {
+                diagnostic.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error
+            });
         if success {
             // Skip re-publishing if current is already Clean with the same hash
             if let Some(ref current) = self.current

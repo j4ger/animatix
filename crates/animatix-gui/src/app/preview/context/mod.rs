@@ -8,7 +8,6 @@ mod handles;
 mod overlay;
 mod selection;
 mod state;
-mod text;
 
 #[cfg(test)]
 mod tests;
@@ -34,10 +33,8 @@ pub(crate) struct PreviewContext<'a> {
     pub timeline: Option<&'a Timeline>,
     pub pivot_offsets: &'a mut HashMap<String, [f32; 2]>,
     pub tool_mode: &'a mut preview::ToolMode,
-    pub rotation_snap_degrees: f32,
     pub composition: Option<&'a animatix::composition::Composition>,
     pub active_scene: Option<&'a str>,
-    pub keyframe_mode: bool,
     /// Performance metrics for the HUD overlay.
     pub performance_metrics: &'a mut PerformanceMetrics,
     /// Show layout debug overlay (container labels, slot outlines, sizes).

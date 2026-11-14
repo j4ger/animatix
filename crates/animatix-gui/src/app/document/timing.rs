@@ -46,3 +46,30 @@ pub fn timeline_keyframe_times_s(
         Vec::new()
     }
 }
+
+/// Match the scene actually displayed at a completed transition / instant cut.
+/// `Composition::evaluate` retains the outgoing scene during its boundary epsilon.
+pub(crate) fn review_scene_at_time(composition: &Composition, time_s: f64) -> Option<String> {
+    let (scene, _, blend) = composition.evaluate(time_s);
+    let scene = match blend {
+        Some(blend) if blend.progress >= 1.0 => blend.to_scene,
+        _ => scene,
+    };
+    (!scene.is_empty()).then_some(scene)
+}
+
+#[cfg(test)]
+mod review_tests {
+    use super::*;
+    #[test]
+    fn exact_cut_boundary_inspects_the_visible_incoming_scene() {
+        let mut document = crate::app::document::DocumentSession::from_source(
+            "cut.amx".into(),
+            "# Intro\nconfig { duration: 3 }\n#0s\na: Rect\n# Main\nconfig { duration: 6 }\n#0s\nb: Rect".into(),
+        ).unwrap();
+        document.rebuild().unwrap();
+        let composition = document.composition.as_ref().unwrap();
+        assert_eq!(review_scene_at_time(composition, 2.9).as_deref(), Some("Intro"));
+        assert_eq!(review_scene_at_time(composition, 3.0).as_deref(), Some("Main"));
+    }
+}

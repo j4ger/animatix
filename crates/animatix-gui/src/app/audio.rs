@@ -3,6 +3,8 @@
 //! Uses `rodio` for audio output. Decodes audio segments into PCM buffers
 //! and plays them synchronized with the timeline playback controller.
 
+pub(crate) mod waveform;
+
 use std::collections::{HashMap, VecDeque};
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 

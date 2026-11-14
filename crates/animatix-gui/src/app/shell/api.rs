@@ -3,6 +3,15 @@ use super::*;
 impl GuiShell {
     /// Handle a single action, returning any collected side effects.
     pub(crate) fn handle_action(&mut self, action: ShellAction) -> Vec<Effect> {
+        if !action.allowed_in_workbench() {
+            // Stale persisted UI and externally queued commands obey the same
+            // rule as visible controls. Do not snapshot or mutate the document.
+            self.ui_store.interaction.pending_drag_source_edits.clear();
+            self.ui_store.interaction.reset_drag_state();
+            return vec![Effect::Status(
+                "Read-only review — edit source code to change the scene".into(),
+            )];
+        }
         match action {
             ShellAction::Command(cmd) => self.handle_command(cmd),
             ShellAction::View(view) => self.handle_view_action(view),
@@ -76,7 +85,18 @@ impl GuiShell {
                 vec![]
             },
             ViewAction::OpenExportDialog => {
-                ui::handle_open_export_dialog(&mut self.export_store, &self.document_store)
+                if self.document_store.source.document.last_rebuild_error.is_some()
+                    || self.document_store.showing_last_good()
+                    || self.document_store.snapshot_is_stale()
+                    || self.preview_store.has_pending_rebuild()
+                {
+                    vec![Effect::Status(
+                        "Export unavailable: wait for a successful build of the current source"
+                            .into(),
+                    )]
+                } else {
+                    ui::handle_open_export_dialog(&mut self.export_store, &self.document_store)
+                }
             },
             ViewAction::OpenCommandPalette => {
                 self.ui_store.view.command_palette_open = true;

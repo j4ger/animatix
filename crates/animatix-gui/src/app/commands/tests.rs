@@ -37,3 +37,102 @@ mod command_queue_tests {
         assert!(remaining.is_empty(), "drain_into should consume every queued command");
     }
 }
+
+mod workbench_boundary_tests {
+    use super::*;
+    use crate::app::{GuiShell, WorkspaceTab, persistence};
+
+    fn shell() -> GuiShell {
+        let mut shell =
+            GuiShell::load(std::path::PathBuf::from("missing-workbench-test.amx"), false);
+        shell.document_store = crate::app::test_support::make_document_store("#0s\n");
+        shell
+    }
+
+    #[test]
+    fn visual_mutations_do_not_change_source_or_history() {
+        let mut shell = shell();
+        let before = shell.document_store.source.document.source_text.clone();
+        for command in [
+            Command::AddScene("unwanted".into()),
+            Command::DeleteSelectedActors,
+            Command::DuplicateSelectedActors,
+            Command::GroupSelectedActors,
+            Command::PasteActors,
+        ] {
+            let effects = shell.handle_action(command.into());
+            assert!(
+                matches!(effects.first(), Some(Effect::Status(message)) if message.contains("Read-only"))
+            );
+            assert_eq!(shell.document_store.source.document.source_text, before);
+            assert!(shell.document_store.history.undo_stack.is_empty());
+        }
+    }
+
+    #[test]
+    fn source_editor_changes_remain_authoritative() {
+        let mut shell = shell();
+        shell
+            .document_store
+            .source
+            .editor
+            .set_document(std::path::Path::new("test.amx"), "#0s\n#1s\n".into());
+        shell.handle_action(Command::EditorChanged.into());
+        assert_eq!(shell.document_store.source.document.source_text, "#0s\n#1s\n");
+        assert!(shell.preview_store.has_pending_rebuild());
+    }
+
+    #[test]
+    fn source_navigation_reveals_code_without_toggling_it_closed() {
+        let mut shell = shell();
+        shell.ui_store.view.compact = false;
+        persistence::set_active_detail_tab(&mut shell.ui_store.view.tree, WorkspaceTab::Inspector);
+        persistence::set_detail_visible(&mut shell.ui_store.view.tree, false);
+        for _ in 0..2 {
+            shell.handle_action(Command::ScrollToLine(1, 1).into());
+            assert!(persistence::detail_visible(&shell.ui_store.view.tree));
+            assert_eq!(
+                persistence::active_detail_tab(&shell.ui_store.view.tree),
+                Some(WorkspaceTab::Code)
+            );
+        }
+    }
+
+    #[test]
+    fn drag_completion_cannot_commit_visual_edits() {
+        let mut shell = shell();
+        let before = shell.document_store.source.document.source_text.clone();
+        let effects = shell.handle_action(ShellAction::Drag(DragEvent::DragEnded));
+        assert!(
+            matches!(effects.first(), Some(Effect::Status(message)) if message.contains("Read-only"))
+        );
+        assert_eq!(shell.document_store.source.document.source_text, before);
+        assert!(shell.document_store.history.undo_stack.is_empty());
+    }
+
+    #[test]
+    fn source_navigation_opens_compact_code_drawer() {
+        let mut shell = shell();
+        shell.ui_store.view.compact = true;
+        shell.ui_store.view.compact_drawer = None;
+        shell.handle_action(Command::ScrollToLine(1, 1).into());
+        assert_eq!(
+            shell.ui_store.view.compact_drawer,
+            Some(crate::app::panels::CompactDrawer::Detail)
+        );
+        assert_eq!(
+            persistence::active_detail_tab(&shell.ui_store.view.tree),
+            Some(WorkspaceTab::Code)
+        );
+    }
+
+    #[test]
+    fn pending_build_blocks_export_dialog() {
+        let mut shell = shell();
+        shell.handle_action(Command::EditorChanged.into());
+        let effects = shell.handle_action(ShellAction::View(ViewAction::OpenExportDialog));
+        assert!(
+            matches!(effects.first(), Some(Effect::Status(message)) if message.contains("Export unavailable"))
+        );
+    }
+}

@@ -175,7 +175,7 @@ impl AnimatixApp {
         let has_selection = !self.shell.ui_store.selection.selected_actors.is_empty();
         let focus = FocusContext {
             text_edit_focused: ctx.text_edit_focused(),
-            inline_edit_active: self.shell.preview_store.preview.inline_edit.is_some(),
+            inline_edit_active: false,
             command_palette_open: self.shell.ui_store.view.command_palette_open,
             find_replace_open: self.shell.ui_store.view.find_replace_open,
             unsaved_dialog_open: self.shell.ui_store.unsaved_changes.is_open,
@@ -346,79 +346,32 @@ impl AnimatixApp {
         }
     }
 
-    /// Apply an arrow-key nudge: presentation step, selection move, or scrub.
+    /// Arrow keys navigate time, even when an evaluated actor is selected.
     fn handle_nudge_shortcut(
         &mut self,
-        ctx: &egui::Context,
-        has_selection: bool,
+        _ctx: &egui::Context,
+        _has_selection: bool,
         dx: f32,
-        dy: f32,
+        _dy: f32,
     ) {
-        let scrub_step_s = self.shell.ui_store.scrub_step_s;
-        if self.shell.preview_store.preview.playback.presentation_mode {
+        let command = if self.shell.preview_store.preview.playback.presentation_mode {
             if dx > 0.0 {
-                self.shell.ui_store.pending_actions.push_back(Command::StepNext.into());
+                Some(Command::StepNext)
             } else if dx < 0.0 {
-                self.shell.ui_store.pending_actions.push_back(Command::StepPrevious.into());
-            }
-        } else if has_selection {
-            let shift_pressed = ctx.input(|i| i.modifiers.shift);
-            let nudge_step = if shift_pressed {
-                self.shell.ui_store.nudge_step_shift_px
-            } else if self.shell.preview_store.preview.overlay.show_grid {
-                self.shell.preview_store.preview.overlay.grid_size
+                Some(Command::StepPrevious)
             } else {
-                self.shell.ui_store.nudge_step_px
-            };
-            let dx = dx * nudge_step;
-            let dy = dy * nudge_step;
-
-            let time_ms =
-                (self.shell.preview_store.preview.playback.current_time_s() * 1000.0) as u64;
-            let keyframe_mode = self.shell.ui_store.keyframe_mode;
-            let selected: Vec<String> =
-                self.shell.ui_store.selection.selected_actors.iter().cloned().collect();
-            let nudge_data: Vec<(String, [f32; 2])> = self
-                .shell
-                .document_store
-                .source
-                .document
-                .active_timeline()
-                .map(|t| {
-                    selected
-                        .iter()
-                        .filter_map(|actor| {
-                            t.get_entity_id(actor).and_then(|id| {
-                                t.world().geometry(id).position.as_ref().map(|p| {
-                                    let pos = p.evaluate(time_ms);
-                                    (actor.clone(), [pos[0] + dx, pos[1] + dy])
-                                })
-                            })
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-            for (actor, new_pos) in &nudge_data {
-                self.shell.handle_property_edit(crate::app::panels::PropertyEdit::new(
-                    actor.clone(),
-                    "position",
-                    crate::app::panels::PropertyValue::Vec2(*new_pos),
-                    keyframe_mode,
-                    None,
-                ));
+                None
             }
+        } else if dx != 0.0 {
+            Some(Command::ScrubTo(
+                self.shell.preview_store.preview.playback.current_time_s()
+                    + dx as f64 * self.shell.ui_store.scrub_step_s,
+            ))
         } else {
-            // No selection: left/right arrows become frame stepping
-            if dx < 0.0 {
-                let new_time =
-                    self.shell.preview_store.preview.playback.current_time_s() - scrub_step_s;
-                self.shell.ui_store.pending_actions.push_back(Command::ScrubTo(new_time).into());
-            } else if dx > 0.0 {
-                let new_time =
-                    self.shell.preview_store.preview.playback.current_time_s() + scrub_step_s;
-                self.shell.ui_store.pending_actions.push_back(Command::ScrubTo(new_time).into());
-            }
-            // Up/down arrows without selection are intentionally ignored
+            None
+        };
+        if let Some(command) = command {
+            self.shell.ui_store.pending_actions.push_back(command.into());
         }
     }
 

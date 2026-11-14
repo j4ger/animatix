@@ -116,29 +116,6 @@ mod tests {
     }
 
     #[test]
-    fn selection_overlay_emits_outline_and_handles() {
-        let props = ActorProps {
-            position: [50.0, 50.0],
-            size: [20.0, 10.0],
-            rotation: 0.0,
-            pivot_offset: [0.0, 0.0],
-        };
-        let ops = selection_overlay_ops(&theme(), Some(&props), None, false, true, 1.0, tx());
-        assert!(
-            ops.iter().any(|op| matches!(op, PreviewOverlayOp::Line { .. })),
-            "selection overlay should emit bounding-box lines"
-        );
-        assert!(
-            ops.iter().any(|op| matches!(op, PreviewOverlayOp::CircleFill { .. })),
-            "selection overlay should emit handle fills"
-        );
-        assert!(
-            ops.iter().any(|op| matches!(op, PreviewOverlayOp::Arc { .. })),
-            "selection overlay should emit rotation arcs"
-        );
-    }
-
-    #[test]
     fn hover_highlight_emits_dashed_outline_and_label() {
         let rect = kurbo::Rect::new(10.0, 10.0, 30.0, 20.0);
         let ops = hover_highlight_ops(&theme(), "box", rect, tx());

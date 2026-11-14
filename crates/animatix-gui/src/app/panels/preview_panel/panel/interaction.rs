@@ -1,6 +1,5 @@
 //! Preview panel body.
 
-use super::drag::*;
 use super::hud::*;
 use super::*;
 
@@ -166,7 +165,7 @@ pub(super) fn handle_canvas_interaction(
         ctx.commands.push_back(Command::ScrubTo(new_time).into());
     }
 
-    crate::app::preview::gesture_router::GestureRouter::handle_preview_gestures(
+    crate::app::preview::gesture_router::GestureRouter::handle_review_gestures(
         ctx,
         ui,
         preview_rect,
@@ -184,15 +183,9 @@ pub(super) fn handle_canvas_interaction(
     };
 
     if !ctx.selection.context_menu_open {
-        let unlocked_hit_regions: Vec<(String, kurbo::Rect)> = ctx
-            .hit_regions
-            .iter()
-            .filter(|(label, _)| !ctx.timeline.is_some_and(|t| t.is_actor_locked(label)))
-            .cloned()
-            .collect();
         selection::update_hover(
             ctx.selection,
-            &unlocked_hit_regions,
+            ctx.hit_regions,
             pointer_pos,
             screen_to_scene,
             is_dragging,
@@ -202,7 +195,9 @@ pub(super) fn handle_canvas_interaction(
     }
 
     ctx.handle_preview_selection(ui, preview_rect, response);
-    ctx.render_preview_cursor_feedback(ui, preview_rect);
+    if ctx.selection.hovered_actor.is_some() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
     ctx.render_preview_overlays(ui, preview_rect);
 }
 
@@ -223,67 +218,18 @@ pub(super) fn handle_presentation_input(
 pub(super) fn handle_file_drop(
     ctx: &mut PreviewContext<'_>,
     ui: &mut egui::Ui,
-    preview_rect: egui::Rect,
+    _preview_rect: egui::Rect,
     response: &egui::Response,
 ) {
-    // ── File drop ──
     if response.hovered() {
-        let dropped_files = ui.input(|i| i.raw.dropped_files.clone());
-        for file in dropped_files {
-            // eframe 0.37 exposes `DroppedFile` as a trait object; `path` is an accessor.
+        for file in ui.input(|i| i.raw.dropped_files.clone()) {
             let path = file.path().to_path_buf();
-            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
-            let path_str = path.to_string_lossy().to_string();
-
-            // .amx files: open directly instead of creating an actor
-            if ext == "amx" {
+            if path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("amx")) {
                 ctx.commands.push_back(Command::OpenFile(path).into());
-                continue;
+            } else {
+                ctx.preview.status =
+                    "Add media in source code; dropping it cannot change the scene".into();
             }
-
-            let drop_pos = if let Some(mouse) = ui.ctx().input(|i| i.pointer.latest_pos()) {
-                let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
-                [scene.x as f32, scene.y as f32]
-            } else {
-                [
-                    ctx.scene_dimensions.width as f32 / 2.0,
-                    ctx.scene_dimensions.height as f32 / 2.0,
-                ]
-            };
-            let label = crate::app::utils::labels::unique_label(
-                None,
-                if ext == "svg" { "svg" } else { "image" },
-            );
-            let (ty, props) = if ext == "svg" {
-                (
-                    "Svg".to_string(),
-                    vec![animatix_syntax::ast::Property {
-                        name: "url".into(),
-                        value: animatix_syntax::ast::Expr::Str(path_str),
-                        value_span: None,
-                        trailing_comment: None,
-                    }],
-                )
-            } else {
-                (
-                    "Image".to_string(),
-                    vec![animatix_syntax::ast::Property {
-                        name: "url".into(),
-                        value: animatix_syntax::ast::Expr::Str(path_str),
-                        value_span: None,
-                        trailing_comment: None,
-                    }],
-                )
-            };
-            ctx.commands.push_back(
-                Command::CreateActor {
-                    ty,
-                    label,
-                    position: drop_pos,
-                    props,
-                }
-                .into(),
-            );
         }
     }
 }
@@ -292,44 +238,8 @@ pub(super) fn show_selection_editors(
     ctx: &mut PreviewContext<'_>,
     ui: &mut egui::Ui,
     preview_rect: egui::Rect,
-    is_dragging: bool,
+    _is_dragging: bool,
 ) {
-    // ── Library drag-to-place ──
-    // A Library/Asset row sets a payload while it is dragged; we own
-    // the scene transform, so the drop point is resolved here.
-    library_drag_drop_ui(ctx, ui, preview_rect);
-
-    // Inline text editor (double-click on text actors)
-    ctx.render_inline_text_editor(ui, preview_rect);
-
-    // Floating property cards for selected actors (hide when inline editing)
-    if !is_dragging
-        && ctx.selected_actors.len() == 1
-        && ctx.preview.inline_edit.is_none()
-        && let Some(actor) = ctx.selected_actors.iter().next()
-        && let Some(props) = ctx.get_actor_props(actor)
-    {
-        let screen_pos = ctx.preview_scene_to_screen(
-            preview_rect,
-            kurbo::Point::new(props.position[0] as f64, props.position[1] as f64),
-        );
-        preview::property_popup::show_property_popup(
-            ui,
-            actor,
-            &props,
-            screen_pos,
-            ctx.commands,
-            is_dragging,
-            ctx.timeline,
-            ctx.preview.playback.current_time_s(),
-            ctx.scene_dimensions,
-            ctx.preview.viewport.preview_zoom,
-            preview_rect,
-            ctx.preview.viewport.preview_pan,
-            ctx.active_scene,
-        );
-    }
-
-    // Render the Floating Tool Island HUD hovering over the canvas
+    // Preview has no inline editors or drag-to-place path.
     preview_floating_hud_ui(ctx, ui, preview_rect);
 }

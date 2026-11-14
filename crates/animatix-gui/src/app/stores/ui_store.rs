@@ -9,7 +9,6 @@ use crate::app::commands::{ActionQueue, ShellAction};
 use crate::app::components::toast::ToastQueue;
 use crate::app::document::timeline_diff::KeyframeId;
 use crate::app::panels::SidebarTab;
-use crate::app::panels::inspector::{KeyframeViewMode, PropertyViewMode};
 use crate::app::preview::selection::SelectionState;
 use crate::app::preview::{DragState, ToolMode};
 
@@ -305,8 +304,6 @@ pub struct UiStore {
     pub keyframe_merge_window_s: f64,
     pub pivot_offsets: HashMap<String, [f32; 2]>,
     pub sidebar_tab: SidebarTab,
-    pub property_view_mode: PropertyViewMode,
-    pub keyframe_view_mode: KeyframeViewMode,
     pub rebuild_debounce_ms: u64,
     pub scrub_step_s: f64,
     pub nudge_step_px: f32,
@@ -353,8 +350,6 @@ impl UiStore {
             keyframe_merge_window_s: 0.05,
             pivot_offsets: HashMap::new(),
             sidebar_tab: SidebarTab::Project,
-            property_view_mode: PropertyViewMode::Semantic,
-            keyframe_view_mode: KeyframeViewMode::List,
             rebuild_debounce_ms: 150,
             scrub_step_s: 0.1,
             nudge_step_px: 1.0,
@@ -463,8 +458,6 @@ mod tests {
         assert!(!store.keyframe_mode);
         assert_eq!(store.cursor_time_s, None);
         assert_eq!(store.sidebar_tab, SidebarTab::Project);
-        assert_eq!(store.property_view_mode, PropertyViewMode::Semantic);
-        assert_eq!(store.keyframe_view_mode, KeyframeViewMode::List);
         assert_eq!(store.scrub_step_s, 0.1);
         assert_eq!(store.nudge_step_px, 1.0);
         assert_eq!(store.rotation_snap_degrees, 15.0);

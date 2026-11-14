@@ -5,8 +5,8 @@ impl LayoutPreset {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::Animate => "Animate",
-            Self::Code => "Code",
+            Self::Animate => "Review",
+            Self::Code => "Write",
             Self::Inspect => "Inspect",
             Self::Focus => "Focus",
         }

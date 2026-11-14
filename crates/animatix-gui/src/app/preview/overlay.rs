@@ -26,18 +26,6 @@ pub struct PreviewOverlay {
     pub show_performance_hud: bool,
     /// Grid size in pixels.
     pub grid_size: f32,
-    /// Theme captured from the preview frame for drag/overlay rendering.
-    pub(crate) current_theme: eparts::Theme,
-}
-
-impl PreviewOverlay {
-    pub(crate) fn set_theme(&mut self, theme: eparts::Theme) {
-        self.current_theme = theme;
-    }
-
-    pub(crate) fn current_theme(&self) -> eparts::Theme {
-        self.current_theme
-    }
 }
 
 impl Default for PreviewOverlay {
@@ -52,7 +40,6 @@ impl Default for PreviewOverlay {
             show_motion_paths: true,
             show_performance_hud: false,
             grid_size: 20.0,
-            current_theme: eparts::Theme::dark(),
         }
     }
 }

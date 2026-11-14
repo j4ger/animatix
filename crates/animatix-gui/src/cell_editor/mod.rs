@@ -84,9 +84,6 @@ pub struct CellEditorState {
     pub highlighted_cell: Option<usize>,
     /// Optional structural edit that the caller can apply to the backing cell list.
     pub pending_action: Option<CellAction>,
-    /// The cell that had focus on the previous frame. Used to detect when
-    /// the user moved focus away from a cell so we can auto-remove it if empty.
-    pub prev_focused_cell: Option<usize>,
     /// Diagnostics mapped to this cell's line range, for showing error indicators.
     pub diagnostics: Vec<CellDiagnostic>,
     /// Semantic highlights for each cell.

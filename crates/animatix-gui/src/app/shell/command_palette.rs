@@ -160,6 +160,7 @@ impl GuiShell {
             keywords: "zoom fit all",
         });
 
+        items.retain(|item| item.action.allowed_in_workbench());
         items
     }
 }
@@ -221,7 +222,7 @@ fn push_palette_view_items(items: &mut Vec<PaletteItem>) {
         keywords: "code source editor panel detail",
     });
     items.push(PaletteItem {
-        label: "Toggle Curves Editor".into(),
+        label: "Toggle Curves Review".into(),
         icon: egui_phosphor::regular::CHART_LINE,
         action: ShellAction::View(ViewAction::ShowCurves),
         keywords: "curves graph fcurve keyframe easing panel bottom",

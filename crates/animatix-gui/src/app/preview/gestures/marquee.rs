@@ -54,10 +54,6 @@ impl GestureHandler for MarqueeGesture {
                         }
 
                         for (label, bounds) in ctx.hit_regions {
-                            let is_locked = ctx.timeline.is_some_and(|t| t.is_actor_locked(label));
-                            if is_locked {
-                                continue;
-                            }
                             let center = egui::pos2(
                                 ((bounds.x0 + bounds.x1) / 2.0) as f32,
                                 ((bounds.y0 + bounds.y1) / 2.0) as f32,

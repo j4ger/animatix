@@ -35,3 +35,14 @@ fn restore_defaults_keeps_target_but_resets_encoding() {
     assert_eq!(state.export_scope, ExportScope::WholeComposition);
     assert_eq!(state.output_path, "custom/path.webp");
 }
+
+#[test]
+fn export_submission_rechecks_source_after_dialog_opened() {
+    let mut shell = GuiShell::load(PathBuf::from("missing-export-boundary.amx"), false);
+    shell.document_store = crate::app::test_support::make_document_store("#0s\n");
+    shell.handle_action(crate::app::commands::Command::EditorChanged.into());
+    shell.start_export();
+    assert!(matches!(shell.export_store.export_status, ExportStatus::Failed(ref error)
+        if error.contains("current source")));
+    assert!(shell.export_store.export_thread.is_none());
+}

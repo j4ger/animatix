@@ -98,26 +98,6 @@ pub fn execute_overlay_ops(
             } => {
                 painter.text(scene_to_screen(tx, *pos), *anchor, text, font.clone(), *color);
             },
-            PreviewOverlayOp::Arrow { from, to, stroke } => {
-                let from = scene_to_screen(tx, *from);
-                let to = scene_to_screen(tx, *to);
-                painter.arrow(from, to - from, stroke);
-            },
-            PreviewOverlayOp::Badge {
-                pos,
-                text,
-                bg,
-                fg,
-                border_stroke,
-            } => {
-                let pos = scene_to_screen(tx, *pos);
-                let galley = painter.layout_no_wrap(text.clone(), FontId::proportional(12.0), *fg);
-                let size = galley.size() + Vec2::new(8.0, 4.0);
-                let rect = Rect::from_center_size(pos, size);
-                painter.rect_filled(rect, 2.0, *bg);
-                painter.rect_stroke(rect, 2.0, border_stroke, StrokeKind::Outside);
-                painter.galley(rect.min + Vec2::new(4.0, 2.0), galley, *fg);
-            },
             PreviewOverlayOp::Screen(screen) => execute_screen_op(painter, screen),
         }
     }
@@ -297,20 +277,3 @@ pub(super) fn push_screen_text(
 
 pub(super) const DASH_LEN: f32 = 4.0;
 pub(super) const GAP_LEN: f32 = 3.0;
-pub(super) const HANDLE_SIZE: f32 = 8.0;
-pub(super) const ROTATION_OFFSET: f32 = 24.0;
-pub(super) const ROTATION_RADIUS: f32 = 6.0;
-pub(super) const CROSS_SIZE: f32 = 8.0;
-
-pub fn scale_handle_positions(sel_rect: kurbo::Rect) -> [kurbo::Point; 8] {
-    [
-        kurbo::Point::new(sel_rect.x0, sel_rect.y0),
-        kurbo::Point::new(sel_rect.x1, sel_rect.y0),
-        kurbo::Point::new(sel_rect.x1, sel_rect.y1),
-        kurbo::Point::new(sel_rect.x0, sel_rect.y1),
-        kurbo::Point::new(sel_rect.x0 + (sel_rect.x1 - sel_rect.x0) / 2.0, sel_rect.y0),
-        kurbo::Point::new(sel_rect.x1, sel_rect.y0 + (sel_rect.y1 - sel_rect.y0) / 2.0),
-        kurbo::Point::new(sel_rect.x0 + (sel_rect.x1 - sel_rect.x0) / 2.0, sel_rect.y1),
-        kurbo::Point::new(sel_rect.x0, sel_rect.y0 + (sel_rect.y1 - sel_rect.y0) / 2.0),
-    ]
-}

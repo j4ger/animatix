@@ -44,11 +44,13 @@ use animatix_syntax::source_index::SourceIndex;
 pub(crate) use load::extension_manifest_for_path;
 pub(crate) use save::default_file_path;
 pub(crate) use save::{clear_recovery, recovery_is_newer, recovery_path, write_recovery};
-pub(crate) use timing::timeline_keyframe_times_s;
+pub(crate) use timing::{review_scene_at_time, timeline_keyframe_times_s};
 
 /// The loaded `.amx` document: source text, the program built from it, and the
 /// diagnostics of the last attempt.
 pub struct DocumentSession {
+    /// Unique in-process identity for derived media caches, including same-file reopen.
+    waveform_identity: u64,
     pub file_path: PathBuf,
     pub source_text: String,
     pub raw_statements: Option<Vec<Stmt>>,

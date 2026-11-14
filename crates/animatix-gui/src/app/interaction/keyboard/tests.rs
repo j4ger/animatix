@@ -123,7 +123,7 @@ fn show_text_edits(
 }
 
 #[test]
-fn backspace_canvas_shortcut_fires_when_no_text_focus() {
+fn backspace_canvas_shortcut_cannot_delete_in_review() {
     let ctx = Context::default();
     let registry = ShortcutRegistry::new();
     let input = test_input(vec![egui::Event::Key {
@@ -136,7 +136,7 @@ fn backspace_canvas_shortcut_fires_when_no_text_focus() {
 
     ctx.begin_pass(input);
     let action = registry.check(&ctx, &canvas_focus(false));
-    assert!(matches!(action, Some(KeyboardAction::DeleteSelection)));
+    assert!(action.is_none());
     ctx.end_pass().drop_without_applying_deltas();
 }
 
@@ -171,19 +171,25 @@ fn shortcuts_for_name_returns_all_redo_bindings() {
 }
 
 #[test]
-fn tool_shortcuts_are_unambiguous() {
+fn only_review_tool_shortcuts_are_available() {
     let registry = ShortcutRegistry::new();
     assert_eq!(registry.shortcuts_for_name("Select Tool").len(), 1);
-    assert_eq!(registry.shortcuts_for_name("Move Tool").len(), 1);
-    assert_eq!(registry.shortcuts_for_name("Scale Tool").len(), 1);
-    assert_eq!(registry.shortcuts_for_name("Rotate Tool").len(), 1);
-    assert_eq!(registry.shortcuts_for_name("Vertex Tool").len(), 1);
-    assert_eq!(registry.shortcuts_for_name("Pivot Tool").len(), 1);
-
-    let vertex = registry.shortcut_for(&KeyboardAction::SetVertexTool).unwrap();
-    assert_eq!(vertex.logical_key, Key::A);
-    let select = registry.shortcut_for(&KeyboardAction::SetSelectTool).unwrap();
-    assert_eq!(select.logical_key, Key::V);
+    for name in [
+        "Move Tool",
+        "Scale Tool",
+        "Rotate Tool",
+        "Vertex Tool",
+        "Pivot Tool",
+        "Delete",
+        "Duplicate",
+    ] {
+        assert!(registry.shortcuts_for_name(name).is_empty(), "{name} must not be available");
+    }
+    assert!(registry.shortcut_for(&KeyboardAction::SetVertexTool).is_none());
+    assert_eq!(
+        registry.shortcut_for(&KeyboardAction::SetSelectTool).unwrap().logical_key,
+        Key::V
+    );
 }
 
 #[test]
@@ -293,4 +299,28 @@ fn overrides_do_not_mutate_a_separate_registry() {
     let overridden_save = overridden_registry.shortcut_for(&KeyboardAction::Save).unwrap();
     assert_ne!(default_save.modifiers, overridden_save.modifiers);
     assert!(!default_registry.current_saved("Save").unwrap().alt);
+}
+
+#[test]
+fn source_undo_redo_shortcuts_are_not_consumed_by_shell() {
+    let registry = ShortcutRegistry::new();
+    for modifiers in [
+        Modifiers::COMMAND,
+        Modifiers::COMMAND.plus(Modifiers::SHIFT),
+    ] {
+        let ctx = Context::default();
+        ctx.begin_pass(test_input(vec![egui::Event::Key {
+            key: Key::Z,
+            physical_key: Some(Key::Z),
+            pressed: true,
+            repeat: false,
+            modifiers,
+        }]));
+        assert!(registry.check(&ctx, &canvas_focus(true)).is_none());
+        assert!(
+            ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(modifiers, Key::Z))),
+            "the native source TextEdit must still receive undo/redo"
+        );
+        ctx.end_pass().drop_without_applying_deltas();
+    }
 }

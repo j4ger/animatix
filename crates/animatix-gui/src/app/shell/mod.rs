@@ -3,6 +3,7 @@ mod command_dispatch;
 mod commands;
 mod frame;
 mod update;
+mod workbench_status;
 
 pub mod autosave;
 pub mod command_palette;

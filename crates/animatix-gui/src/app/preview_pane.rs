@@ -32,8 +32,6 @@ impl PreviewPaneState {
                 snap_lines_h: vec![],
                 snap_lines_v: vec![],
                 snap_line_color: None,
-                snap_enabled: true,
-                snap_threshold: 10.0,
                 snap_hud_label: None,
             },
             status: "Loaded file".to_string(),
@@ -46,7 +44,6 @@ impl PreviewPaneState {
             timeline_scroll_offset: 0.0,
             fit_zoom_requested: false,
             flashed_keyframe_times: Vec::new(),
-            inline_edit: None,
         }
     }
 

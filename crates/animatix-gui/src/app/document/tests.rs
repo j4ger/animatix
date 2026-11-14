@@ -561,3 +561,51 @@ fn document_session_and_snapshot_expose_pause_points() {
     assert_eq!(pts.len(), 2);
     assert_eq!(pts, vec![0.0, 1.0]);
 }
+
+#[test]
+fn malformed_actor_cannot_replace_successful_preview() {
+    let mut document = DocumentSession::from_source(
+        std::path::PathBuf::from("test.amx"),
+        "#0s\nbox: Rect, size: (100, 100)\n".into(),
+    )
+    .unwrap();
+    document.rebuild().unwrap();
+    document.set_source_text("#0s\nbox: ???\n".into());
+    assert!(
+        document.rebuild().is_err(),
+        "invalid actor syntax cannot count as a successful build: {:?}",
+        document.diagnostics
+    );
+}
+
+#[test]
+fn malformed_actor_worker_preserves_last_good_snapshot() {
+    use crate::app::{handlers::file::handle_rebuild_response, test_support};
+    let mut store = test_support::make_document_store("#0s\nbox: Rect, size: (100, 100)\n");
+    store.publish_rebuild_result(true);
+    let before = store.last_good_snapshot().unwrap();
+    let mut preview = test_support::preview_store(1.0, store.source.document.scene_dimensions);
+    let mut ui = test_support::ui_store();
+    store.replace_text("#0s\nbox: ???\n".into());
+    let mut worker = super::rebuild::RebuildWorker::start();
+    worker.submit(&store.source).unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    let response = loop {
+        if let Some(response) = worker.poll().pop() {
+            break response;
+        }
+        assert!(std::time::Instant::now() < deadline, "worker did not return");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    };
+    assert!(response.result.is_err(), "recovery output must be a failure");
+    handle_rebuild_response(&mut store, &mut preview, &mut ui, response);
+    assert!(store.showing_last_good());
+    assert!(std::sync::Arc::ptr_eq(&before, &store.last_good_snapshot().unwrap()));
+    assert!(store.source.document.last_rebuild_error.is_some());
+    assert!(store.source.document.active_timeline().unwrap().has_actor("box"));
+    assert!(preview.preview.error.is_some());
+    // A caller accidentally publishing `true` still cannot bless error diagnostics.
+    store.publish_rebuild_result(true);
+    assert!(store.showing_last_good());
+    assert!(std::sync::Arc::ptr_eq(&before, &store.last_good_snapshot().unwrap()));
+}

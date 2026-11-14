@@ -272,24 +272,6 @@ pub(crate) fn lane_schema(
         .or_else(|| allowed().find(|schema| schema.field == field))
 }
 
-/// Collect one flattened keyframe time per actor property, sorted by time.
-/// Only one entry per actor/time is retained: the UI renders one diamond there.
-pub(crate) fn collect_actor_keyframes(
-    geometry: &animatix::timeline::animation_track::GeometryTracks,
-    style: &animatix::timeline::animation_track::StyleTracks,
-    shape: &animatix::timeline::animation_track::ShapeTracks,
-    text: &animatix::timeline::animation_track::TextTracks,
-    effects: Option<&animatix::timeline::effects::EffectChainTrack>,
-) -> Vec<(u64, String)> {
-    let mut result = Vec::new();
-    for (property, times) in collect_per_property_keyframes(geometry, style, shape, text, effects) {
-        result.extend(times.into_iter().map(|time_ms| (time_ms, property.clone())));
-    }
-    result.sort_by_key(|(time_ms, _)| *time_ms);
-    result.dedup_by(|a, b| a.0 == b.0);
-    result
-}
-
 /// Stable view of the compiled target used as a diff baseline.
 ///
 /// Captured before a rebuild because applying a rebuild replaces the previous

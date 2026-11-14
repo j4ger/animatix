@@ -5,18 +5,16 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use animatix::timeline::{SceneDimensions, Timeline};
+use animatix::timeline::Timeline;
 use animatix_syntax::to_source::ToSource;
-use egui::{RichText, Vec2};
+use egui::Vec2;
 
-use crate::app::commands::{ActionQueue, Command, ShellAction, ViewAction};
-use crate::app::components::button::Button;
+use crate::app::FileTreeEntry;
+use crate::app::commands::{ActionQueue, Command, ShellAction};
 use crate::app::components::context_menu::{MenuEntry, render_menu};
-use crate::app::components::{layout, row, text_tooltip};
+use crate::app::components::{layout, row};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::panels::{CompactDrawer, SidebarTab};
-use crate::app::{FileTreeEntry, PreviewPaneState};
-use crate::editor::EditorBuffer;
 use eparts::TextField;
 
 /// Id used to persist the explorer filter string in egui's data store.
@@ -32,21 +30,17 @@ const LAYERS_FILTER_ID: &str = "layers_filter";
 /// so their signatures don't depend on the full surface.
 pub(crate) struct SidebarContext<'a> {
     pub active_scene: Option<&'a str>,
-    pub is_composition: bool,
     pub composition: Option<&'a animatix::composition::Composition>,
     pub current_file: &'a Path,
     pub expanded_dirs: &'a mut HashSet<PathBuf>,
     pub file_tree: &'a [FileTreeEntry],
-    pub preview: &'a mut PreviewPaneState,
     pub commands: &'a mut ActionQueue,
     pub timeline: Option<&'a Timeline>,
     pub selected_actors: &'a mut HashSet<String>,
     pub collapsed_actors: &'a mut HashSet<String>,
     pub sidebar_tab: &'a mut SidebarTab,
-    pub editor: &'a mut EditorBuffer,
     pub components: &'a HashMap<String, animatix_syntax::module::ComponentEntry>,
     pub asset_cache: Option<&'a animatix::timeline::assets::AssetCache>,
-    pub scene_dimensions: SceneDimensions,
     /// True when the window is narrow enough to render the compact icon rail
     /// instead of the tab bar + content.
     pub compact: bool,
@@ -68,10 +62,6 @@ pub(crate) struct LayersContext<'a> {
     pub active_scene: Option<&'a str>,
     pub selected_actors: &'a mut HashSet<String>,
     pub collapsed_actors: &'a mut HashSet<String>,
-    pub commands: &'a mut ActionQueue,
-    pub preview: &'a mut PreviewPaneState,
-    pub scene_dimensions: SceneDimensions,
-    pub is_composition: bool,
 }
 
 pub(crate) struct ScenesContext<'a> {
@@ -82,16 +72,10 @@ pub(crate) struct ScenesContext<'a> {
 
 pub(crate) struct ComponentsContext<'a> {
     pub components: &'a HashMap<String, animatix_syntax::module::ComponentEntry>,
-    pub commands: &'a mut ActionQueue,
-    pub scene_dimensions: SceneDimensions,
-    /// Source text for finding component definition lines (jump-to-definition).
-    pub source_text: &'a str,
 }
 
 pub(crate) struct AssetsContext<'a> {
     pub asset_cache: Option<&'a animatix::timeline::assets::AssetCache>,
-    pub commands: &'a mut ActionQueue,
-    pub scene_dimensions: SceneDimensions,
 }
 
 /// Sub-view within the merged Project tab.

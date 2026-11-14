@@ -154,8 +154,10 @@ pub fn handle_frame_step_backward(
 
 fn sync_active_scene_from_time(document_store: &mut DocumentStore, preview_store: &PreviewStore) {
     if let Some(composition) = document_store.source.document.composition.as_ref() {
-        let (scene, _, _) = composition.evaluate(preview_store.preview.playback.current_time_s);
-        document_store.source.document.active_scene = (!scene.is_empty()).then_some(scene);
+        document_store.source.document.active_scene = crate::app::document::review_scene_at_time(
+            composition,
+            preview_store.preview.playback.current_time_s,
+        );
     }
 }
 

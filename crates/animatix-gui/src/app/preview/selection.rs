@@ -172,26 +172,11 @@ pub(crate) fn handle_click(
 /// Draw the right-click context menu for actor selection.
 /// Returns the selected actor (if any), whether to close the menu,
 /// and the screen-space rect of the menu for outside-click detection.
-/// Actions offered by the canvas context menu (below the actor picker).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum ContextMenuAction {
-    Duplicate,
-    Delete,
-    Group,
-    Ungroup,
-    ToggleLock,
-    ToggleVisibility,
-}
-
 pub(crate) fn draw_context_menu(
     ui: &mut egui::Ui,
     selection: &SelectionState,
     current_selected: &HashSet<String>,
-    any_locked: bool,
-    any_hidden: bool,
-) -> (Option<String>, Option<ContextMenuAction>, bool, Option<egui::Rect>) {
-    use egui_phosphor::regular as icons;
-
+) -> (Option<String>, bool, Option<egui::Rect>) {
     let menu_pos = selection.context_menu_pos.unwrap_or_default();
     let actors = &selection.context_menu_actors;
     let n = actors.len();
@@ -214,30 +199,6 @@ pub(crate) fn draw_context_menu(
             enabled: true,
         }
     }));
-    entries.push(MenuEntry::separator());
-    entries.push(MenuEntry::item_with_icon(icons::COPY, "Duplicate"));
-    entries.push(MenuEntry::item_with_icon(icons::TRASH, "Delete"));
-    entries.push(MenuEntry::separator());
-    entries.push(MenuEntry::item_with_icon(icons::SELECTION_PLUS, "Group"));
-    entries.push(MenuEntry::item_with_icon(icons::SQUARES_FOUR, "Ungroup"));
-    entries.push(MenuEntry::separator());
-    entries.push(MenuEntry::item_with_icon(
-        if any_locked {
-            icons::LOCK_SIMPLE_OPEN
-        } else {
-            icons::LOCK_SIMPLE
-        },
-        if any_locked { "Unlock" } else { "Lock" },
-    ));
-    entries.push(MenuEntry::item_with_icon(
-        if any_hidden {
-            icons::EYE
-        } else {
-            icons::EYE_SLASH
-        },
-        if any_hidden { "Show" } else { "Hide" },
-    ));
-
     let (clicked_idx, menu_rect) = render_floating_menu(
         ui.ctx(),
         egui::Id::unique("selection_context_menu"),
@@ -245,30 +206,12 @@ pub(crate) fn draw_context_menu(
         &entries,
     );
 
-    // Index layout: 0 header, 1 separator, 2..2+n actors, then 2+n separator and
-    // the fixed action block.
-    let actor_base = 2usize;
-    let action_base = actor_base + n + 1;
-    let mut selected_actor = None;
-    let mut action = None;
-    if let Some(idx) = clicked_idx {
-        if idx >= actor_base && idx < actor_base + n {
-            selected_actor = actors.get(idx - actor_base).cloned();
-        } else {
-            action = match idx.checked_sub(action_base) {
-                Some(0) => Some(ContextMenuAction::Duplicate),
-                Some(1) => Some(ContextMenuAction::Delete),
-                Some(3) => Some(ContextMenuAction::Group),
-                Some(4) => Some(ContextMenuAction::Ungroup),
-                Some(6) => Some(ContextMenuAction::ToggleLock),
-                Some(7) => Some(ContextMenuAction::ToggleVisibility),
-                _ => None,
-            };
-        }
-    }
-    let close = selected_actor.is_some() || action.is_some();
-
-    (selected_actor, action, close, Some(menu_rect))
+    let selected_actor = clicked_idx
+        .and_then(|index| index.checked_sub(2))
+        .filter(|index| *index < n)
+        .and_then(|index| actors.get(index).cloned());
+    let close = selected_actor.is_some();
+    (selected_actor, close, Some(menu_rect))
 }
 
 #[cfg(test)]

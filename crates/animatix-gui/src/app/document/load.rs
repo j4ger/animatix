@@ -71,6 +71,7 @@ impl DocumentSession {
         extension_manifest: ExtensionManifest,
     ) -> Self {
         Self {
+            waveform_identity: super::audio::fresh_waveform_identity(),
             file_path,
             source_text,
             raw_statements: None,

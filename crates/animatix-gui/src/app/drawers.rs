@@ -90,19 +90,15 @@ impl GuiShell {
                                 .document
                                 .active_scene
                                 .as_deref(),
-                            is_composition: self.document_store.source.document.is_composition(),
                             composition: self.document_store.source.document.composition.as_ref(),
                             current_file: &self.document_store.source.document.file_path,
                             expanded_dirs: &mut self.workspace_store.expanded_dirs,
                             file_tree: &self.workspace_store.file_tree,
-                            preview: &mut self.preview_store.preview,
                             commands,
-                            scene_dimensions: self.document_store.source.document.scene_dimensions,
                             timeline,
                             selected_actors: &mut self.ui_store.selection.selected_actors,
                             collapsed_actors: &mut self.ui_store.view.collapsed_actors,
                             sidebar_tab: &mut self.ui_store.sidebar_tab,
-                            editor: &mut self.document_store.source.editor,
                             components: &self.document_store.source.document.components,
                             asset_cache,
                             compact: false,
@@ -210,7 +206,7 @@ impl GuiShell {
                                 let active_tl =
                                     self.document_store.source.document.active_timeline();
                                 let mut ctx = panels::inspector::InspectorContext {
-                                    preview: &mut self.preview_store.preview,
+                                    preview: &self.preview_store.preview,
                                     timeline: active_tl,
                                     composition: self
                                         .document_store
@@ -226,15 +222,28 @@ impl GuiShell {
                                         .as_deref(),
                                     selected_actors: &mut self.ui_store.selection.selected_actors,
                                     commands,
-                                    keyframe_mode: self.ui_store.keyframe_mode,
+                                    raw_statements: self
+                                        .document_store
+                                        .source
+                                        .document
+                                        .raw_statements
+                                        .as_deref(),
+                                    source_path: &self.document_store.source.document.file_path,
+                                    source_text: &self.document_store.source.document.source_text,
+                                    source_current: !self.preview_store.has_pending_rebuild()
+                                        && !self.preview_store.rebuild_in_progress
+                                        && self.preview_store.in_flight_rebuild.is_none()
+                                        && self
+                                            .document_store
+                                            .source
+                                            .document
+                                            .last_rebuild_error
+                                            .is_none(),
                                     scene_dimensions: self
                                         .document_store
                                         .source
                                         .document
                                         .scene_dimensions,
-                                    pivot_offsets: &mut self.ui_store.pivot_offsets,
-                                    property_view_mode: &mut self.ui_store.property_view_mode,
-                                    keyframe_view_mode: &mut self.ui_store.keyframe_view_mode,
                                 };
                                 panels::inspector::inspector_panel_ui(&mut ctx, ui);
                             },

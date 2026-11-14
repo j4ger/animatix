@@ -1,22 +1,19 @@
 pub mod context;
-pub mod drag_utils;
 pub mod gesture;
 pub mod gesture_router;
 pub mod gestures;
 pub mod overlay;
 pub mod overlay_ops;
 pub mod performance;
-pub mod property_popup;
 pub mod selection;
 pub mod time_lens;
 
 use std::collections::HashSet;
 
-use animatix::timeline::{PlacementMode, SceneDimensions, Timeline, TrackAccessor};
-use egui::{Pos2, Stroke, Vec2};
+use animatix::timeline::SceneDimensions;
+use egui::Vec2;
 
 use super::DEFAULT_PREVIEW_SIZE;
-use crate::app::design_tokens::spatial::STROKE_WIDTH;
 
 // ─── Preview Transform ──────────────────────────────────────────────────────
 
