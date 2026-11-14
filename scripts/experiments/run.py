@@ -167,6 +167,8 @@ def _machine_info(repo: Path, experiment: str, platform: str, rounds: dict,
         "rounds": rounds,
         "workloads": {name: _workload_command(name, platform) for name in workloads},
         "execution": {
+            "cargo_environment": {key: value for key, value in os.environ.items()
+                                  if key.startswith(("CARGO_PROFILE_", "CARGO_BUILD_"))},
             "parallel_measurements": 1,
             "cargo_incremental": "0",
             "cold_target_definition": "fresh owned CARGO_TARGET_DIR per workload and linker arm; Cargo registry and toolchain caches may be warm",

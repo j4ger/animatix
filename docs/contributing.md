@@ -89,6 +89,14 @@ competing benchmarks during a measurement. Cold builds and warm execution are
 separate populations. Five paired warm rounds and three cold rounds are the
 default; failed candidates remain failed evidence, never a silent fallback.
 
+Hosted manual trials set dev/test debug information to zero so independent
+candidate targets fit their disks; macOS application trials keep the `dist`
+profile. They record those overrides and are not evidence about the default
+debug profile. Local trials can retain the default profile on a larger disk.
+For the reference check comparison, pass a pre-generator commit through
+`ANIMATIX_REFERENCE_BASE_SHA` and run the named
+`property-reference-experiment` gate in the experiment shell.
+
 GPU tests belong in `animatix-render` or must be explicitly included in the
 nextest GPU group before enabling parallel execution. Nextest does not replace
 Cargo doctests or example compilation. Unique temporary paths do not isolate

@@ -42,6 +42,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     name: Linker Linux (${{ matrix.workload }})
+    env:
+      # Three independent warm targets must fit the hosted SSD. These settings
+      # belong only to the manual experiment, never ordinary CI or releases.
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_BUILD_JOBS: '2'
     steps:
       - uses: actions/checkout@v5
       - name: Free disk space for isolated build targets
@@ -80,6 +86,10 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 360
     name: Linker macOS (${{ matrix.workload }})
+    env:
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_BUILD_JOBS: '1'
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -89,8 +99,8 @@ jobs:
       - name: Install and verify pinned LLVM 21 linker candidate
         shell: bash
         run: |
-          brew install llvm@21
-          LLVM_PREFIX="$(brew --prefix llvm@21)"
+          brew install lld@21
+          LLVM_PREFIX="$(brew --prefix lld@21)"
           LLD="$LLVM_PREFIX/bin/ld64.lld"
           test -x "$LLD"
           "$LLD" --version | tee target-llvm-version.txt
@@ -126,6 +136,10 @@ jobs:
     if: ${{ inputs.suite == 'runner' || inputs.suite == 'all' }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    env:
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_BUILD_JOBS: '2'
     steps:
       - uses: actions/checkout@v5
       - name: Free disk space for isolated build targets

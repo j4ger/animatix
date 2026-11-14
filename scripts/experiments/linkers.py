@@ -126,7 +126,7 @@ def _find_macos_lld() -> Path:
     brew = shutil.which("brew")
     if not candidate and brew:
         prefix = subprocess.run(
-            [brew, "--prefix", "llvm@21"], capture_output=True, text=True, check=False,
+            [brew, "--prefix", "lld@21"], capture_output=True, text=True, check=False,
         )
         if prefix.returncode == 0:
             candidate_path = Path(prefix.stdout.strip()) / "bin" / "ld64.lld"
