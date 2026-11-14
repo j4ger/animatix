@@ -340,7 +340,7 @@
   }
 
   // Parameter rails (web/DESIGN.md §3): each slider row generated from
-  // web/works.json drives every player in the deck through `setVars`, which
+  // web/works.json drives eligible players through `setVars`, which
   // rebuilds the scene in place via the engine's one `--set` mechanism. A
   // scene that does not declare the variable simply ignores the override.
   function initParamRails(root) {
@@ -351,13 +351,12 @@
         const value = Number(input.value);
         if (out) out.textContent = String(value);
         // `setVars` is a synchronous wasm rebuild (23–54 ms) on every player.
-        // Broadcasting it to all slides turned one slider drag into N queued
-        // long tasks; only the slide the reader is looking at needs the change.
-        // Fall back to the rail's own slide, then to every player only when no
-        // slide can be identified (older markup without .deck-slide wrappers).
+        // A rail inside a slide targets that slide; a deck-level rail targets
+        // the whole deck. Compositions may opt out with data-param-static
+        // because the engine does not apply build-time vars to their acts.
         const scope = row?.closest('.deck-slide, section.chapter') || root;
-        const targets = scope.querySelectorAll('amx-player');
-        const list = targets.length ? targets : root.querySelectorAll('amx-player');
+        const targets = scope.querySelectorAll('amx-player:not([data-param-static])');
+        const list = targets.length ? targets : root.querySelectorAll('amx-player:not([data-param-static])');
         list.forEach((player) => {
           if (typeof player.setVars === 'function') {
             player.setVars({ [input.dataset.var]: value }).catch((error) => {

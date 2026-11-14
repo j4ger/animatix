@@ -5,8 +5,8 @@
     {
       "id": "gradient-walkthrough",
       "source": "web/demos/gradient/scene.amx",
-      "decision": "merge",
-      "reason": "Preserve visual work; replace hand-copy assembly with generation.",
+      "decision": "keep",
+      "reason": "Generated from four canonical acts; drift checked in content-sync. Complete plate uses defaults; sliders apply to standalone figures.",
       "source_review": true,
       "related_sources": [
         "web/demos/gradient/losssurface.amx",
@@ -15,8 +15,15 @@
         "web/demos/gradient/learningrate.amx"
       ],
       "visual_review": "storyboard-sampled",
-      "review_report": "docs/content-review-2026-11.md",
-      "reviewed_sha256": "67d5ab5e06bf000e89d3d7ac1f32054f37f1f7f00b393477740fbe8d04cc9ae5"
+      "review_report": "docs/gradient-content-review.md",
+      "reviewed_sha256": "10f6c4daf292c2050f6d6f681e3e0cbb304ca49b404000d0afda0e7a5f462ac1",
+      "generator": "scripts/gradient-plate.py",
+      "generated_from": [
+        "web/demos/gradient/losssurface.amx",
+        "web/demos/gradient/gradientdirection.amx",
+        "web/demos/gradient/descent.amx",
+        "web/demos/gradient/learningrate.amx"
+      ]
     },
     {
       "id": "epicycles-walkthrough",

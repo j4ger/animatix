@@ -3,7 +3,7 @@
 // The closing act turns the slider into the subject. Three panels share one
 // loss bowl and one start point; only the build-time learning rate differs:
 //
-//   left   lr = 0.02  → 24 steps barely leave the rim
+//   left   lr = 0.02  → 24 steps reduce loss slowly
 //   middle lr = `lr`  → the deck's slider target (default 0.10, converges)
 //   right  lr = 0.35  → the x factor 1 − 4·lr is negative, so the path zigzags
 //
@@ -44,8 +44,8 @@ head_rule: Rect, size: (96, 4), color: accent.primary,
   anchor: scene.top_left, offset: (96, 150), opacity: 1
 
 cap1: Caption, text: "Act I · One bowl, three rates: the step size writes the ending.", tag: "learningrate.amx"
-cap2: Caption, text: "Act II · Left 0.02 crawls; right 0.35 overshoots; the middle is your lr.", tag: "learningrate.amx", opacity: 0
-cap3: Caption, text: format("Act III · {} steps at your rate — the middle panel earns the basin.", steps), tag: "learningrate.amx", opacity: 0
+cap2: Caption, text: "Act II · Left 0.02 crawls; right 0.35 zigzags and converges.", tag: "learningrate.amx", opacity: 0
+cap3: Caption, text: format("Act III · {} steps at your rate — read the resulting loss.", steps), tag: "learningrate.amx", opacity: 0
 
 // ── the three plates ───────────────────────────────────────────────
 panel_left: Rect, size: (350, 400), corner_radius: 18, color: surface.secondary,
@@ -56,17 +56,17 @@ panel_right: Rect, size: (350, 400), corner_radius: 18, color: surface.secondary
   opacity: 0.55, stroke: accent.danger, stroke_width: 1.4, at: (1030, 430), legend: false
 
 // ── panel headers ──────────────────────────────────────────────────
-h_left_kick: Text, text: "TOO SMALL", font_size: 16, font_weight: 600, font_family: "mono",
+h_left_kick: Text, text: "SLOWER", font_size: 16, font_weight: 600, font_family: "mono",
   color: text.muted, at: (250, 252)
 h_left_rate: Text, text: format("lr {:.2}", r_left), font_size: 20, font_weight: "bold",
   color: text.secondary, at: (250, 280)
 
-h_mid_kick: Text, text: "YOUR RATE", font_size: 16, font_weight: 600, font_family: "mono",
+h_mid_kick: Text, text: if lr >= 0.5 { "NO CONVERGENCE" } else { "YOUR RATE" }, font_size: 16, font_weight: 600, font_family: "mono",
   color: accent.success, at: (640, 252)
 h_mid_rate: Text, text: format("lr {:.2}", lr), font_size: 20, font_weight: "bold",
   color: text.primary, at: (640, 280)
 
-h_right_kick: Text, text: "TOO BIG", font_size: 16, font_weight: 600, font_family: "mono",
+h_right_kick: Text, text: "ZIGZAGS", font_size: 16, font_weight: 600, font_family: "mono",
   color: accent.danger, at: (1030, 252)
 h_right_rate: Text, text: format("lr {:.2}", r_right), font_size: 20, font_weight: "bold",
   color: text.secondary, at: (1030, 280)
@@ -100,7 +100,7 @@ mid_glow: Ellipse, size: (180, 180), at: (640, 455), blend: "screen", opacity: 0
   fill_gradient: radial((0.5, 0.5), 0.55, {(0%, accent.success * 0.55), (45%, accent.success * 0.18), (100%, (0, 0, 0, 0))})
 
 // ── the paths, each precomputed at build time ─────────────────────
-// Left: lr = 0.02 — 24 steps, still well short of the basin.
+// Left: lr = 0.02 — 24 steps reduce loss more slowly than the other convergent rates.
 let lx = x0
 let ly = y0
 for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} {
@@ -150,9 +150,9 @@ mid_ball: Ellipse, size: (18, 18), at: (640 + x0 * 40, 455 - y0 * 40), opacity: 
 // Per-panel verdicts, computed at build time from the same iterates.
 verdict_left: Text, text: format("crawls · L {:.2}", 2 * lx^2 + ly^2), font_size: 16,
   font_family: "mono", color: text.muted, at: (250, 616), opacity: 1
-verdict_mid: Text, text: format("converges · L {:.2}", 2 * mx^2 + my^2), font_size: 16,
+verdict_mid: Text, text: format("{} · L {:.2}", if lr >= 0.5 { "oscillates" } else { if lr > 0.25 { "zigzags" } else { "converges" } }, 2 * mx^2 + my^2), font_size: 16,
   font_family: "mono", color: accent.success, at: (640, 616), opacity: 1
-verdict_right: Text, text: format("overshoots · L {:.2}", 2 * rx^2 + ry^2), font_size: 16,
+verdict_right: Text, text: format("converges · L {:.2}", 2 * rx^2 + ry^2), font_size: 16,
   font_family: "mono", color: accent.danger, at: (1030, 616), opacity: 1
 
 // ── top-right readouts ────────────────────────────────────────────
@@ -211,13 +211,13 @@ for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 
 pop-in mid_ball [360ms, ease: expo-out]
 
 #6.25s
-mid_glow.opacity = 1.0 [320ms, ease: expo-out]
+mid_glow.opacity = if lr < 0.5 { 1.0 } else { 0.0 } [320ms, ease: expo-out]
 pulse basin_mid [620ms, intensity: 0.06]
 basin_mid.stroke_width = 3.0 [320ms, ease: expo-out]
 camera.zoom = 1.04 [1.2s, ease: ease-in-out]
 
 #7.0s
-mid_glow.opacity = 0.3 [800ms, ease: ease-in-out]
+mid_glow.opacity = if lr < 0.5 { 0.3 } else { 0.0 } [800ms, ease: ease-in-out]
 basin_mid.stroke_width = 1.8 [800ms, ease: ease-in-out]
 camera.zoom = 1.0 [1.0s, ease: ease-in-out]
 

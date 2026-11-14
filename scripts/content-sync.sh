@@ -32,6 +32,20 @@ FAILED=0
 fail() { echo "FAIL: $*" >&2; FAILED=1; }
 ok() { echo "ok: $*"; }
 
+# Gradient math, parameter bounds and opt-out wiring must stay consistent.
+if python3 scripts/check-gradient-content.py; then
+  ok "gradient math and parameter contracts"
+else
+  fail "gradient content contract mismatch"
+fi
+
+# Gradient uses the same single-source assembly policy as Epicycles.
+if python3 scripts/gradient-plate.py --check; then
+  ok "gradient plate matches canonical acts"
+else
+  fail "gradient plate is stale"
+fi
+
 # ── 1. generated plates match their sources ───────────────────────────────────
 if python3 scripts/epicycles-plate.py --check >/dev/null 2>&1; then
   ok "web/demos/epicycles/scene.amx is what epicycles-plate.py generates"

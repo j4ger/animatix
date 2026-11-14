@@ -27,7 +27,7 @@
       <div class="hero-intro">
         <p class="lede">
           Training a neural network is often described as "learning".
-          Mechanically, it is a particle rolling downhill on a high-dimensional loss surface.
+          Here we use discrete gradient-descent steps on a quadratic loss bowl, not a physical rolling simulation.
           Dissect the loss landscape, gradient vectors, learning rates, and descent trajectories below.
         </p>
       </div>
@@ -48,6 +48,7 @@
       </div>
     </div>
 <!-- site-gen:works-params:end -->
+    <p class="readout">Parameters rebuild the individual figures below. The complete walkthrough uses the default rate 0.10 and 24 steps.</p>
 
     <div class="deck-slides-container">
 
@@ -59,7 +60,7 @@
             <div class="stage-hud">
               <div class="stage-hud-tag">
                 <span class="live-dot"></span>
-                <span>Fig 00 // Complete Optimization Suite · 6 Beats</span>
+                <span>Fig 00 // Complete Optimization Suite · 4 Acts</span>
               </div>
               <div class="stage-hud-specs">
                 <span>shared runtime</span>
@@ -67,7 +68,7 @@
               </div>
             </div>
             <div class="stage-viewport">
-              <amx-player src="scene.amx" eager autoplay loop controls hold="2"
+              <amx-player src="scene.amx" data-param-static eager autoplay loop controls hold="2"
                           aspect="16:9" title="The full gradient descent walkthrough"></amx-player>
             </div>
           </div>
@@ -259,9 +260,13 @@
               <span class="briefing-kicker">04 · Hyperparameter Tuning</span>
               <h2 class="briefing-title">Step Size Decides Everything</h2>
               <p class="briefing-hook">
-                Too small (<code class="inline">η = 0.05</code>): crawl agonizingly slow.
-                Too large (<code class="inline">η = 1.05</code>): overshoot and explode into catastrophic divergence.
-                Just right (<code class="inline">η = 0.35</code>): rapid exponential settle.
+                For <code class="inline">L(x,y) = 2x² + y²</code>, the fixed left rate
+                <code class="inline">η = 0.02</code> converges slowly. The middle uses your slider
+                (default <code class="inline">η = 0.10</code>). The fixed right rate
+                <code class="inline">η = 0.35</code> zigzags but still converges.
+                At <code class="inline">η = 0.50</code>, x alternates without shrinking:
+                bounded oscillation, not divergence. Convergence requires
+                <code class="inline">0 &lt; η &lt; 0.50</code>; larger rates diverge.
               </p>
             </div>
             <a class="btn-stage-src" href="learningrate.amx" target="_blank" rel="noopener noreferrer">

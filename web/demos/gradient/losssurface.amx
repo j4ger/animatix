@@ -34,7 +34,7 @@ head: ActHead, kicker: "FIG 01 · THE LOSS SURFACE", title: "The shape of loss",
 
 cap1: Caption, text: "Act I · Rings of equal loss; the innermost loop is the basin.", tag: "losssurface.amx"
 cap2: Caption, text: "Act II · Arrows are the gradient: everywhere they point uphill.", tag: "losssurface.amx", opacity: 0
-cap3: Caption, text: "Act III · Downhill is the fall line — follow it and the basin collects you.", tag: "losssurface.amx", opacity: 0
+cap3: Caption, text: "Act III · This straight probe lowers loss; it is not a gradient-descent path.", tag: "losssurface.amx", opacity: 0
 
 // ── the surface plate ──────────────────────────────────────────────
 // A constant panel (visible at t=0) anchors the map inside the frame. The plot
@@ -72,7 +72,7 @@ start_label: Text, text: "START", font_size: 16, font_family: "mono", color: tex
 
 fall_line: Line, from: (768, 301), to: (480, 445), stroke: accent.success, stroke_width: 2.2,
   dash_pattern: {10, 8}, opacity: 0
-fall_label: Text, text: "−∇L · fall line", font_size: 16, font_family: "mono", color: accent.success,
+fall_label: Text, text: "straight probe", font_size: 16, font_family: "mono", color: accent.success,
   at: (700, 356), opacity: 0
 
 // The basin marker: a screen-blended bloom under a ring and a core dot.
@@ -91,7 +91,7 @@ probe_glow: Ellipse, size: (92, 92), at: (768, 301), blend: "screen", opacity: 0
   fill_gradient: radial((0.5, 0.5), 0.5, {(0%, accent.primary * 0.60), (58%, accent.primary * 0.16), (100%, (0, 0, 0, 0))})
 
 // ── the reading rail ────────────────────────────────────────────────
-loss_chip: Readout, label: "LOSS AT THE BASIN", value: "0.00", at: (1085, 285)
+loss_chip: Readout, label: "LOSS AT PROBE", value: "29.16", at: (1085, 285)
 start_chip: Readout, label: "LOSS AT START", value: "29.16", at: (1085, 390)
 
 eq_card: Rect, size: (250, 190), corner_radius: 16, color: surface.primary,
@@ -156,8 +156,8 @@ camera.zoom = 1.0 [1.1s, ease: ease-in-out]
 // The whole surface — heat, five contour rings, gradient field, fall line,
 // probe and basin marker — holds. Nothing erases.
 
-// The probe rides the fall line as an analytic function of time; both chips
-// count down live, while their declared values keep the resting frame legible.
+// This illustrative straight probe is not the negative-gradient trajectory.
+// Only current loss changes; LOSS AT START remains the initial 29.16.
 always {
   let p = clamp((t - 4.35) / 1.45, 0, 1)
   let e = p * p * (3 - 2 * p)
@@ -165,5 +165,4 @@ always {
   probe_glow.at = probe.at
   let loss = 29.16 * (1 - e)^2
   loss_chip.value_text.text = format("{:.2}", loss)
-  start_chip.value_text.text = format("{:.2}", 29.16 * (1 - e)^2)
 }
