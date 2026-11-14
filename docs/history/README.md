@@ -10,6 +10,11 @@ mixed history and open work). Split into monthly volumes on 2026-10-29; the old
 `Completed Tracks` wrapper was dissolved into the volumes by entry date, and
 `history.md` is a thin pointer kept for old links.
 
+## Focused studies
+
+- [Maintenance, CI, and linker decisions](maintenance-ci.md) — measured maintenance changes, experiments, and completed decisions for November 2026.
+- [Test maintenance and isolation audit](test-maintenance-audit.md) — workspace-wide ownership inventory and fixture changes; this is not executed-coverage evidence.
+
 ## Volumes
 
 | Volume | Period | Contents |
