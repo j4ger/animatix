@@ -522,234 +522,120 @@ play LearningRate [wipe-left, 420ms]
 
 // Canonical source: learningrate.amx
 # LearningRate
-config { colorscheme: "ember", duration: 8.1 }
-
-// The live slider and the fixed comparison rates. The middle panel is the one
-// `--set lr=N` rebuilds; the outer two stay as readable archetypes.
+config { colorscheme: "editorial-dark", duration: 10 }
 let lr = 0.1
 let steps = 24
 let r_left = 0.02
 let r_right = 0.35
-
 let x0 = 3.4
 let y0 = 1.6
+let initial_loss = 2 * x0^2 + y0^2
+let cyan = "#65D9E8"
+let coral = "#FF947D"
+let gold = "#F4D47B"
 
-floor: StageFloor, glow: 1.1
+#0s
+background: Rect, size: (1280,720), at: (640,360), color: "#0D1520"
+kicker: Text, text: "GRADIENT DESCENT / 04", font_size: 16, color: "#90A4B8", text_anchor: "left", at: (64,44)
+title: Text, text: "How fast does loss fall?", font_size: 46, font_weight: "bold", color: "#F3F5F7", text_anchor: "left", at: (64,94)
+subtitle: Text, text: "Same starting point. Different learning rates.", font_size: 22, color: "#ADBCCA", text_anchor: "left", at: (64,146)
 
-// Compact head: the three panels need the top band that stage.ActHead owns,
-// so this is the 150 px variant at the same editorial x=96 column.
-head_kicker: Text, text: "FIG 04 · STEP SIZE MATTERS", font_size: 18, font_weight: 600,
-  color: accent.primary, text_align: "left", text_anchor: "left",
-  anchor: scene.top_left, offset: (96, 44), opacity: 1
-head_title: Text, text: "How big should a step be?", font_size: 48, font_weight: "bold",
-  color: text.primary, text_align: "left", text_anchor: "left",
-  anchor: scene.top_left, offset: (96, 96), opacity: 1
-head_rule: Rect, size: (96, 4), color: accent.primary,
-  anchor: scene.top_left, offset: (96, 150), opacity: 1
+legend_left_dot: Ellipse, size: (10,10), color: cyan, at: (72,206)
+legend_left: Text, text: "0.02 · smaller steps", font_size: 19, color: cyan, text_anchor: "left", at: (90,206)
+legend_mid_dot: Ellipse, size: (10,10), color: gold, at: (328,206)
+legend_mid: Text, text: format("{:.2} · your choice",lr), font_size: 19, color: gold, text_anchor: "left", at: (346,206)
+legend_right_dot: Ellipse, size: (10,10), color: coral, at: (612,206)
+legend_right: Text, text: "0.35 · larger steps", font_size: 19, color: coral, text_anchor: "left", at: (630,206)
 
-cap1: Caption, text: "Act I · One bowl, three rates: the step size writes the ending.", tag: "learningrate.amx"
-cap2: Caption, text: "Act II · Left 0.02 crawls; right 0.35 zigzags and converges.", tag: "learningrate.amx", opacity: 0
-cap3: Caption, text: format("Act III · {} steps at your rate — read the resulting loss.", steps), tag: "learningrate.amx", opacity: 0
+// Main figure: one common axis, no optical competition between tall ellipses.
+axis_title: Text, text: "Loss remaining", font_size: 16, color: "#90A4B8", text_anchor: "left", at: (64,266)
+y100: Text, text: "100%", font_size: 16, color: "#90A4B8", text_anchor: "right", at: (97,310)
+y50: Text, text: "50%", font_size: 16, color: "#90A4B8", text_anchor: "right", at: (97,430)
+y0: Text, text: "0", font_size: 16, color: "#90A4B8", text_anchor: "right", at: (97,550)
+for y,i in {310,430,550} {
+  guide[i]: Line, from: (112,y), to: (864,y), stroke: "#344455", stroke_width: 1
+}
+x0_label: Text, text: "0", font_size: 16, color: "#90A4B8", at: (112,578)
+xmid_label: Text, text: format("{:.0}", steps/2), font_size: 16, color: "#90A4B8", at: (488,578)
+xend_label: Text, text: format("{:.0}", steps), font_size: 16, color: "#90A4B8", at: (864,578)
+x_title: Text, text: "Updates", font_size: 16, color: "#90A4B8", at: (488,615)
+separator: Line, from: (920,248), to: (920,620), stroke: "#344455", stroke_width: 1
 
-// ── the three plates ───────────────────────────────────────────────
-panel_left: Rect, size: (350, 400), corner_radius: 18, color: surface.secondary,
-  opacity: 0.55, stroke: stroke.default, stroke_width: 1.2, at: (250, 430), legend: false
-panel_mid: Rect, size: (350, 400), corner_radius: 18, color: surface.secondary,
-  opacity: 0.55, stroke: accent.success, stroke_width: 1.6, at: (640, 430), legend: false
-panel_right: Rect, size: (350, 400), corner_radius: 18, color: surface.secondary,
-  opacity: 0.55, stroke: accent.danger, stroke_width: 1.4, at: (1030, 430), legend: false
+rate_label: Text, text: "Your learning rate", font_size: 16, color: "#90A4B8", text_anchor: "left", at: (968,272)
+rate_value: Text, text: format("{:.2}",lr), font_size: 52, color: gold, text_anchor: "left", at: (968,323)
+step_value: Text, text: "Before the first update,", font_size: 19, color: "#ADBCCA", text_anchor: "left", at: (968,400)
+loss_value: Text, text: "100% remains", font_size: 28, color: gold, text_anchor: "left", at: (968,437)
+state: Text, text: if lr >= 0.5 { "Stuck in a loop" } else { if lr > 0.25 { "Overshoot, then settle" } else { "Closing in" } }, font_size: 21, font_weight: "bold", color: "#F3F5F7", text_anchor: "left", at: (968,518)
+explain_a: Text, text: if lr >= 0.5 { "x keeps changing sides." } else { if lr > 0.25 { "x changes sides," } else { "Both coordinates move" } }, font_size: 18, color: "#ADBCCA", text_anchor: "left", at: (968,556)
+explain_b: Text, text: if lr >= 0.5 { "Its distance never shrinks." } else { if lr > 0.25 { "but loss keeps falling." } else { "toward the minimum." } }, font_size: 18, color: "#ADBCCA", text_anchor: "left", at: (968,584)
+comparison_note: Text, opacity: 1, text: if lr == r_right { "L(x, y) = 2x² + y²   ·   Gold and coral share the same rate." } else { if lr == r_left { "L(x, y) = 2x² + y²   ·   Gold and cyan share the same rate." } else { "L(x, y) = 2x² + y²   ·   Each dot is one update." } }, font_size: 18, color: "#90A4B8", text_anchor: "left", at: (64,678)
 
-// ── panel headers ──────────────────────────────────────────────────
-h_left_kick: Text, text: "SLOWER", font_size: 16, font_weight: 600, font_family: "mono",
-  color: text.muted, at: (250, 252)
-h_left_rate: Text, text: format("lr {:.2}", r_left), font_size: 20, font_weight: "bold",
-  color: text.secondary, at: (250, 280)
-
-h_mid_kick: Text, text: if lr >= 0.5 { "NO CONVERGENCE" } else { "YOUR RATE" }, font_size: 16, font_weight: 600, font_family: "mono",
-  color: accent.success, at: (640, 252)
-h_mid_rate: Text, text: format("lr {:.2}", lr), font_size: 20, font_weight: "bold",
-  color: text.primary, at: (640, 280)
-
-h_right_kick: Text, text: "ZIGZAGS", font_size: 16, font_weight: 600, font_family: "mono",
-  color: accent.danger, at: (1030, 252)
-h_right_rate: Text, text: format("lr {:.2}", r_right), font_size: 20, font_weight: "bold",
-  color: text.secondary, at: (1030, 280)
-
-// ── the three bowls ────────────────────────────────────────────────
-heat_left: Ellipse, size: (320, 320), at: (250, 455), blend: "screen", opacity: 0.8,
-  fill_gradient: radial((0.5, 0.5), 0.58, {(0%, accent.success * 0.24), (55%, accent.primary * 0.08), (100%, accent.danger * 0.24)})
-heat_mid: Ellipse, size: (320, 320), at: (640, 455), blend: "screen", opacity: 0.8,
-  fill_gradient: radial((0.5, 0.5), 0.58, {(0%, accent.success * 0.24), (55%, accent.primary * 0.08), (100%, accent.danger * 0.24)})
-heat_right: Ellipse, size: (320, 320), at: (1030, 455), blend: "screen", opacity: 0.8,
-  fill_gradient: radial((0.5, 0.5), 0.58, {(0%, accent.success * 0.24), (55%, accent.primary * 0.08), (100%, accent.danger * 0.24)})
-
-contours_left: ContourSet, func: (x, y) => 2 * x^2 + y^2, levels: {1, 4, 9, 16},
-  x_domain: (-3.75, 3.75), y_domain: (-3.75, 3.75), size: (300, 300), at: (250, 455),
-  resolution: 96, color: accent.primary, stroke_width: 1.8, opacity: 0.62
-contours_mid: ContourSet, func: (x, y) => 2 * x^2 + y^2, levels: {1, 4, 9, 16},
-  x_domain: (-3.75, 3.75), y_domain: (-3.75, 3.75), size: (300, 300), at: (640, 455),
-  resolution: 96, color: accent.primary, stroke_width: 1.8, opacity: 0.62
-contours_right: ContourSet, func: (x, y) => 2 * x^2 + y^2, levels: {1, 4, 9, 16},
-  x_domain: (-3.75, 3.75), y_domain: (-3.75, 3.75), size: (300, 300), at: (1030, 455),
-  resolution: 96, color: accent.primary, stroke_width: 1.8, opacity: 0.62
-
-// ── basin markers ─────────────────────────────────────────────────
-basin_left: Ellipse, size: (44, 44), stroke: accent.success, stroke_width: 1.6, opacity: 0.75, at: (250, 455)
-basin_mid: Ellipse, size: (44, 44), stroke: accent.success, stroke_width: 1.8, opacity: 0.85, at: (640, 455)
-basin_right: Ellipse, size: (44, 44), stroke: accent.success, stroke_width: 1.6, opacity: 0.75, at: (1030, 455)
-basin_left_core: Ellipse, size: (9, 9), color: accent.success, at: (250, 455), opacity: 0.8
-basin_mid_core: Ellipse, size: (10, 10), color: accent.success, at: (640, 455), opacity: 1
-basin_right_core: Ellipse, size: (9, 9), color: accent.success, at: (1030, 455), opacity: 0.8
-mid_glow: Ellipse, size: (180, 180), at: (640, 455), blend: "screen", opacity: 0.3,
-  fill_gradient: radial((0.5, 0.5), 0.55, {(0%, accent.success * 0.55), (45%, accent.success * 0.18), (100%, (0, 0, 0, 0))})
-
-// ── the paths, each precomputed at build time ─────────────────────
-// Left: lr = 0.02 — 24 steps reduce loss more slowly than the other convergent rates.
 let lx = x0
 let ly = y0
 for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} {
   let nx = if i < steps { lx - r_left * 4 * lx } else { lx }
   let ny = if i < steps { ly - r_left * 2 * ly } else { ly }
-  lseg[i]: Line, from: (250 + lx * 40, 455 - ly * 40), to: (250 + nx * 40, 455 - ny * 40),
-    stroke: text.muted, stroke_width: 2.2, opacity: 0
-  ldot[i]: Ellipse, size: (5, 5), color: text.secondary, at: (250 + lx * 40, 455 - ly * 40), opacity: 0
+  if i < steps {
+    lseg[i]: Line, from: (112 + i * 752/steps, 550 - (2*lx^2 + ly^2)/initial_loss*240),
+      to: (112 + (i+1)*752/steps, 550 - (2*nx^2 + ny^2)/initial_loss*240), stroke: cyan, stroke_width: 2, opacity: 0
+    ldot[i]: Ellipse, size: (5,5), color: cyan,
+      at: (112 + (i+1)*752/steps, 550 - (2*nx^2 + ny^2)/initial_loss*240), opacity: 0
+  }
   let lx = if i < steps { nx } else { lx }
   let ly = if i < steps { ny } else { ly }
 }
 
-// Middle: lr = the slider — the live comparison.
-let mx = x0
-let my = y0
-for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} {
-  let nx = if i < steps { mx - lr * 4 * mx } else { mx }
-  let ny = if i < steps { my - lr * 2 * my } else { my }
-  mseg[i]: Line, from: (640 + mx * 40, 455 - my * 40), to: (640 + nx * 40, 455 - ny * 40),
-    stroke: accent.success, stroke_width: 3.0, opacity: 0
-  mdot[i]: Ellipse, size: (7, 7), color: accent.secondary, at: (640 + mx * 40, 455 - my * 40), opacity: 0
-  let mx = if i < steps { nx } else { mx }
-  let my = if i < steps { ny } else { my }
-}
-
-// Right: lr = 0.35 — the x factor goes negative and the path overshoots.
 let rx = x0
 let ry = y0
 for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} {
   let nx = if i < steps { rx - r_right * 4 * rx } else { rx }
   let ny = if i < steps { ry - r_right * 2 * ry } else { ry }
-  rseg[i]: Line, from: (1030 + rx * 40, 455 - ry * 40), to: (1030 + nx * 40, 455 - ny * 40),
-    stroke: accent.danger, stroke_width: 2.2, opacity: 0
-  rdot[i]: Ellipse, size: (5, 5), color: text.secondary, at: (1030 + rx * 40, 455 - ry * 40), opacity: 0
+  if i < steps {
+    rseg[i]: Line, from: (112 + i * 752/steps, 550 - (2*rx^2 + ry^2)/initial_loss*240),
+      to: (112 + (i+1)*752/steps, 550 - (2*nx^2 + ny^2)/initial_loss*240), stroke: coral, stroke_width: 2, opacity: 0
+    rdot[i]: Ellipse, size: (5,5), color: coral,
+      at: (112 + (i+1)*752/steps, 550 - (2*nx^2 + ny^2)/initial_loss*240), opacity: 0
+  }
   let rx = if i < steps { nx } else { rx }
   let ry = if i < steps { ny } else { ry }
 }
 
-// The static end markers for the fixed-rate lanes, and the moving middle ball.
-left_ball: Ellipse, size: (16, 16), at: (250 + lx * 40, 455 - ly * 40), opacity: 0,
-  fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffffff"), (45%, "#f4efe2"), (100%, "#6e6a62")})
-right_ball: Ellipse, size: (16, 16), at: (1030 + rx * 40, 455 - ry * 40), opacity: 0,
-  fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffffff"), (45%, "#f4efe2"), (100%, "#6e6a62")})
-mid_ball: Ellipse, size: (18, 18), at: (640 + x0 * 40, 455 - y0 * 40), opacity: 0,
-  fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffffff"), (45%, "#f4efe2"), (100%, "#6e6a62")})
-
-// Per-panel verdicts, computed at build time from the same iterates.
-verdict_left: Text, text: format("crawls · L {:.2}", 2 * lx^2 + ly^2), font_size: 16,
-  font_family: "mono", color: text.muted, at: (250, 616), opacity: 1
-verdict_mid: Text, text: format("{} · L {:.2}", if lr >= 0.5 { "oscillates" } else { if lr > 0.25 { "zigzags" } else { "converges" } }, 2 * mx^2 + my^2), font_size: 16,
-  font_family: "mono", color: accent.success, at: (640, 616), opacity: 1
-verdict_right: Text, text: format("converges · L {:.2}", 2 * rx^2 + ry^2), font_size: 16,
-  font_family: "mono", color: accent.danger, at: (1030, 616), opacity: 1
-
-// ── top-right readouts ────────────────────────────────────────────
-step_chip: Readout, label: "STEPS", value: format("{:.0}", steps), at: (1085, 76)
-loss_chip: Readout, label: "LOSS · YOUR RATE", value: format("{:.2}", 2 * mx^2 + my^2), at: (1085, 176)
-
-// ── Act I · three plates arrive ───────────────────────────────────
-#0.05s
-stagger [110ms] {
-  wipe-in panel_left [520ms, ease: expo-out]
-  wipe-in panel_mid [520ms, ease: expo-out]
-  wipe-in panel_right [520ms, ease: expo-out]
+let mx = x0
+let my = y0
+for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} {
+  let nx = if i < steps { mx - lr * 4 * mx } else { mx }
+  let ny = if i < steps { my - lr * 2 * my } else { my }
+  if i < steps {
+    mseg[i]: Line, from: (112 + i * 752/steps, 550 - (2*mx^2 + my^2)/initial_loss*240),
+      to: (112 + (i+1)*752/steps, 550 - (2*nx^2 + ny^2)/initial_loss*240), stroke: gold, stroke_width: 3, opacity: 0
+    mdot[i]: Ellipse, size: (5,5), color: gold,
+      at: (112 + (i+1)*752/steps, 550 - (2*nx^2 + ny^2)/initial_loss*240), opacity: 0
+  }
+  let mx = if i < steps { nx } else { mx }
+  let my = if i < steps { ny } else { my }
 }
-fade-in heat_left [700ms, delay: 200ms, ease: expo-out]
-fade-in heat_mid [700ms, delay: 310ms, ease: expo-out]
-fade-in heat_right [700ms, delay: 420ms, ease: expo-out]
-draw-in contours_left [800ms, delay: 300ms, ease: expo-out]
-draw-in contours_mid [800ms, delay: 410ms, ease: expo-out]
-draw-in contours_right [800ms, delay: 520ms, ease: expo-out]
-fade-in basin_left [400ms, delay: 700ms, ease: expo-out]
-fade-in basin_mid [400ms, delay: 700ms, ease: expo-out]
-fade-in basin_right [400ms, delay: 700ms, ease: expo-out]
 
-// ── Act II · name the regimes ────────────────────────────────────
-#2.2s
-fade-out cap1 [240ms, ease: ease-in]
-fade-in cap2 [280ms, delay: 200ms, ease: expo-out]
-fade-in h_left_kick [320ms, ease: expo-out]
-fade-in h_left_rate [320ms, delay: 100ms, ease: expo-out]
-fade-in h_mid_kick [320ms, delay: 220ms, ease: expo-out]
-fade-in h_mid_rate [320ms, delay: 320ms, ease: expo-out]
-fade-in h_right_kick [320ms, delay: 440ms, ease: expo-out]
-fade-in h_right_rate [320ms, delay: 540ms, ease: expo-out]
-fade-in verdict_left [300ms, delay: 620ms, ease: expo-out]
-fade-in verdict_mid [300ms, delay: 680ms, ease: expo-out]
-fade-in verdict_right [300ms, delay: 740ms, ease: expo-out]
+selected_dot: Ellipse, size: (12,12), color: gold, at: (112,310)
+selected_halo: Ellipse, size: (28,28), fill_opacity: 0, stroke: gold, stroke_width: 1, opacity: 0.45, at: (112,310)
 
-// ── Act III · the paths and the middle payoff ────────────────────
-#4.5s
-fade-out cap2 [240ms, ease: ease-in]
-fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
-for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} [step: 32ms] {
-  draw-in lseg[i] [100ms, ease: expo-out]
-  fade-in ldot[i] [80ms, ease: expo-out]
-  draw-in rseg[i] [100ms, delay: 14ms, ease: expo-out]
-  fade-in rdot[i] [80ms, delay: 14ms, ease: expo-out]
-}
-fade-in left_ball [260ms, delay: 1.62s, ease: expo-out]
-fade-in right_ball [260ms, delay: 1.68s, ease: expo-out]
-
-#4.9s
-for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} [step: 32ms] {
-  draw-in mseg[i] [100ms, ease: expo-out]
-  fade-in mdot[i] [80ms, ease: expo-out]
-}
-pop-in mid_ball [360ms, ease: expo-out]
-
-#6.25s
-mid_glow.opacity = if lr < 0.5 { 1.0 } else { 0.0 } [320ms, ease: expo-out]
-pulse basin_mid [620ms, intensity: 0.06]
-basin_mid.stroke_width = 3.0 [320ms, ease: expo-out]
-camera.zoom = 1.04 [1.2s, ease: ease-in-out]
-
-#7.0s
-mid_glow.opacity = if lr < 0.5 { 0.3 } else { 0.0 } [800ms, ease: ease-in-out]
-basin_mid.stroke_width = 1.8 [800ms, ease: ease-in-out]
-camera.zoom = 1.0 [1.0s, ease: ease-in-out]
-
-// ── Rest ─────────────────────────────────────────────────────────
-#7.5s
-// Three bowls, three paths, three verdicts, both readouts and the settled
-// middle bloom hold; nothing erases.
-
-// The middle ball rides the build-time path, with the sign walk that makes
-// lr > 0.25 fold back across the valley; the counters tick with it.
 always {
-  let raw = clamp((t - 4.95) / 1.55, 0, 1) * steps
-  let n = clamp(floor(raw), 0, steps - 1)
-  let f = clamp(raw - n, 0, 1)
+  // Step through actual iterates. No continuous-space transit masquerades as an update.
+  let n = floor(clamp((t-1)/6,0,1)*steps)
   let kx = 1 - 4 * lr
   let ky = 1 - 2 * lr
-  let sx0 = if kx < 0 { if n % 2 == 1 { -1 } else { 1 } } else { 1 }
-  let sx1 = if kx < 0 { if (n + 1) % 2 == 1 { -1 } else { 1 } } else { 1 }
-  let sy0 = if ky < 0 { if n % 2 == 1 { -1 } else { 1 } } else { 1 }
-  let sy1 = if ky < 0 { if (n + 1) % 2 == 1 { -1 } else { 1 } } else { 1 }
-  let xn = x0 * pow(abs(kx), n) * sx0
-  let xn1 = x0 * pow(abs(kx), n + 1) * sx1
-  let yn = y0 * pow(abs(ky), n) * sy0
-  let yn1 = y0 * pow(abs(ky), n + 1) * sy1
-  let bx = xn + (xn1 - xn) * f
-  let by = yn + (yn1 - yn) * f
-  mid_ball.at = (640 + bx * 40, 455 - by * 40)
-  let loss = 2 * bx^2 + by^2
-  loss_chip.value_text.text = format("{:.2}", loss)
-  step_chip.value_text.text = format("{:.0}", clamp(floor(raw), 0, steps))
+  let ratio = (2*x0^2*pow(abs(kx),2*n) + y0^2*pow(abs(ky),2*n))/initial_loss
+  selected_dot.at = (112 + n*752/steps, 550 - ratio*240)
+  selected_halo.at = selected_dot.at
+  step_value.text = if n == 0 { "Before the first update," } else { if n == 1 { "After 1 update," } else { format("After {:.0} updates,", n) } }
+  loss_value.text = if ratio < 0.001 { "<0.1% remains" } else { format("{:.1}% remains", ratio*100) }
+  for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} {
+    if i < steps {
+      lseg[i].opacity = if n > i { 1 } else { 0 }
+      ldot[i].opacity = if n > i { 1 } else { 0 }
+      rseg[i].opacity = if n > i { 1 } else { 0 }
+      rdot[i].opacity = if n > i { 1 } else { 0 }
+      mseg[i].opacity = if n > i { 1 } else { 0 }
+      mdot[i].opacity = if n > i { 1 } else { 0 }
+    }
+  }
 }

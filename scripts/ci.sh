@@ -68,6 +68,7 @@ examples|nix|ubuntu-latest|nix|pr
 ext-bench|nix|ubuntu-latest|nix|pr
 doc|nix|ubuntu-latest|nix|pr
 site-scenes|nix|ubuntu-latest|nix|pr
+site-build|nix|ubuntu-latest|nix|pr
 embed-build|nix|ubuntu-latest|nix|pr
 web-runtime-tests|nix|ubuntu-latest|nix|pr
 web-sdk-tests|nix|ubuntu-latest|nix|pr
@@ -125,7 +126,7 @@ eparts|eparts|native|macos-latest|rust-stable|pr
 eparts|eparts|native|windows-latest|rust-stable|pr
 Check & Lint|commit audit scene-audit budget-audit check lint doc no-video|nix|ubuntu-latest|nix|pr
 Test & Examples|test examples|nix|ubuntu-latest|nix|pr
-Render Smoke & Scenes|render-smoke site-scenes|nix|ubuntu-latest|nix|pr
+Render Smoke & Scenes|render-smoke site-scenes site-build|nix|ubuntu-latest|nix|pr
 Benchmarks|ext-bench|nix|ubuntu-latest|nix|pr
 Web Check|wasm-check|web|ubuntu-latest|nix|pr
 Web Build|web-split-proof web-build web-sdk-integrity text-parity web-raster-proof web-smoke web-transactions|web-ci|ubuntu-latest|nix|pr
@@ -367,11 +368,25 @@ gate_doc() {
 
 # The four gates PR CI was missing. Each one exists because a real defect walked
 # past the old ten jobs.
+gate_site_build() {
+  want_nix_shell 'site-build'
+  bash scripts/site-build.sh
+}
+
 gate_site_scenes() {
   want_cargo
   # The SDK contains all capabilities; browser dependency tests prove that only
   # the required partitions are downloaded. No separate feature-profile run.
   cargo test -p animatix-web --test site_scenes
+  # Astro source pages are not HTML: explicitly check the canonical new scenes.
+  cargo build --bin animatix
+  local scene count=0
+  for scene in web/content/scenes/*.amx; do
+    [ -f "$scene" ] || continue
+    target/debug/animatix check "$scene" || return 1
+    count=$((count + 1))
+  done
+  [ "$count" -ge 10 ] || { echo "error: expected at least 10 canonical site scenes, found $count" >&2; return 1; }
 }
 
 

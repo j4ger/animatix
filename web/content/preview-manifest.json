@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "works": [
+    {
+      "id": "one-rule-many-forms",
+      "source": "scenes/one-rule-many-forms.amx",
+      "source_sha256": "f2264893dc7b6bae79b2609fe473887c16248e19d37280364a0f6faa43a7d0fc",
+      "poster": "posters/one-rule-many-forms.png",
+      "poster_time_seconds": 6.5,
+      "poster_sha256": "c676801d22d209ecb3fae3de792e5ee8796c1a123f4d9b08013fbfd8a6f2aedb",
+      "recording": "previews/one-rule-many-forms.mp4",
+      "recording_sha256": "8b8af5d7412683be78645178f8e3117069746ad5a7828b8c328e0d923beed233",
+      "duration_seconds": 20.0,
+      "width": 1280,
+      "height": 720,
+      "fps": "24/1",
+      "audio": false,
+      "parameters": "authored defaults",
+      "renderer": "native CLI with video at authored 1280x720; FFmpeg 24fps timestamp normalization, no crop or resize"
+    },
+    {
+      "id": "when-waves-meet",
+      "source": "scenes/when-waves-meet.amx",
+      "source_sha256": "b124d267bdb14cbf678a076a604b1e840d7e64ce984f8a62fc1dab97507c1b5f",
+      "poster": "posters/when-waves-meet.png",
+      "poster_time_seconds": 15,
+      "poster_sha256": "11bb915dee57e9c980add801b462d50390b0f71d32c2b4ca2010cc81049bee6d",
+      "recording": "previews/when-waves-meet.mp4",
+      "recording_sha256": "ad8cc752d0b6a75cfcb36057bacf950e471e073ff9a939c50741a3b991567a15",
+      "duration_seconds": 28.0,
+      "width": 1280,
+      "height": 720,
+      "fps": "24/1",
+      "audio": false,
+      "parameters": "authored defaults",
+      "renderer": "native CLI with video at authored 1280x720; FFmpeg 24fps timestamp normalization, no crop or resize"
+    },
+    {
+      "id": "words-keep-time",
+      "source": "scenes/words-keep-time.amx",
+      "source_sha256": "94518011c0e9b6a32f94ba0be423980175dd385800e2e91477fbe44140df8784",
+      "poster": "posters/words-keep-time.png",
+      "poster_time_seconds": 20,
+      "poster_sha256": "d96ab46d5019b7b18fdce67af7f3f9fba6b280dfc003dd5f1d8371c0f6abc534",
+      "recording": "previews/words-keep-time.mp4",
+      "recording_sha256": "0698325c309bca2f5737d07f6bf3d543f8ba6720f591cb2de8bd29bbde292857",
+      "duration_seconds": 20.0,
+      "width": 1280,
+      "height": 720,
+      "fps": "24/1",
+      "audio": false,
+      "parameters": "authored defaults",
+      "renderer": "native CLI with video at authored 1280x720; FFmpeg 24fps timestamp normalization, no crop or resize"
+    }
+  ]
+}

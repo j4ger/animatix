@@ -83,6 +83,20 @@ def check() -> None:
         match = re.search(rf"^let {name} = ([0-9.]+)$", rates, re.M)
         require(match is not None and float(match[1]) == value, f"{name}: comparison rate changed")
 
+    # Learning-rate figure now compares normalized loss on a shared Cartesian axis.
+    # Equal references must have identical plotted loss; no arbitrary rescaling.
+    require("let initial_loss = 2 * x0^2 + y0^2" in rates, "normalization must use the common initial loss")
+    require("2*x0^2*pow(abs(kx),2*n) + y0^2*pow(abs(ky),2*n)" in rates, "readout must use loss at the discrete iterate")
+    require("let n = floor(clamp((t-1)/6,0,1)*steps)" in rates, "selected marker must sample discrete optimizer steps")
+    require("550 - ratio*240" in rates, "selected loss marker must share the plot's loss scale")
+    for rate in (0.02, 0.10, 0.35, 0.50):
+        for x,y in iterates(rate,3.4,1.6,48):
+            require(0 <= (2*x*x+y*y)/25.68 <= 1+1e-12, "supported loss curve must remain within 0–100%")
+
+    require('"<0.1% remains"' in rates, "small positive losses must not be presented as exact zero")
+    require('"After 1 update,"' in rates, "single-step readout must preserve natural grammar")
+    require('"Its distance never shrinks."' in rates, "boundary explanation must distinguish sign flips from convergence")
+
     work = next(w for w in json.loads((ROOT / "web/works.json").read_text())["works"] if w["id"] == "gradient")
     page = Page()
     page.feed((HERE / "index.html").read_text())

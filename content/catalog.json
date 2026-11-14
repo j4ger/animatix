@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Review overrides only. Showcase identity and presentation stay in web/works.json; scripts/content-catalog.py discovers the complete inventory.",
+  "description": "Legacy content review overrides only. Legacy identity stays in web/works.json; the new Astro collection and lessons use web/app/src/lib/content.ts and canonical web/content/scenes sources. scripts/content-catalog.py discovers the inventory.",
   "entries": [
     {
       "id": "gradient-walkthrough",
@@ -101,6 +101,16 @@
       "visual_review": "storyboard-sampled",
       "review_report": "docs/content-review-2026-11.md",
       "reviewed_sha256": "0af68586091a2cdaa48392500436d98d5a91f2b086c47ea0009adf5427bfe579"
+    },
+    {
+      "id": "gradient-rate-comparison",
+      "source": "web/demos/gradient/learningrate.amx",
+      "kind": "showcase",
+      "decision": "keep",
+      "reason": "Shared loss-versus-iteration view; native 0.10/0.35/0.50 frames and discrete-step storyboard visually reviewed.",
+      "visual_review": "storyboard-sampled",
+      "review_report": "docs/comparison-layout.md",
+      "reviewed_sha256": "ca7e2a64c9730507cdc85287df7bd568baa7bacc39791430b44413c16c639b7b"
     }
   ]
 }

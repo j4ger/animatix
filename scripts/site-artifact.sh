@@ -22,14 +22,17 @@ case "$out" in
 esac
 version="$(sed -nE '/^\[workspace\.package\]/,/^\[/s/^version = "([^"]+)".*/\1/p' Cargo.toml | head -1)"
 node web/tools/sdk.mjs verify web/runtime --release --current --commit "$(git rev-parse HEAD)" --version "$version"
+bash scripts/site-build.sh
 stage="${out}.staging-$$"
 trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage"
-entries=(logo.svg index.html gallery.html site.css site-chrome.js site assets demos tour recipes arena scenes)
+entries=(logo.svg index.html gallery.html site.css site-chrome.js site assets demos tour recipes arena scenes content)
 for entry in "${entries[@]}"; do
   [ -e "web/$entry" ] || { echo "error: missing runtime content web/$entry" >&2; exit 1; }
   cp -R "web/$entry" "$stage/$entry"
 done
+# New site overlays the legacy URLs; canonical content is copied above.
+cp -R web/app/dist/. "$stage/"
 # The build's public runtime is a symlink into target/. Distributions contain
 # real files; they must never retain a link to the builder's private directory.
 cp -RL web/runtime "$stage/runtime"
@@ -37,6 +40,7 @@ node web/tools/sdk.mjs verify "$stage/runtime" --release
 if find "$stage/runtime" -type l -print -quit | grep -q .; then
   echo 'error: SDK assembly retained a builder symlink' >&2; exit 1
 fi
+python3 scripts/site-check.py "$stage" --assembled
 touch "$stage/.nojekyll"
 for forbidden in tools pkg pkg-slim pkg-assets fonts embed node_modules; do
   [ ! -e "$stage/$forbidden" ] || { echo "error: unexpected legacy/development path $forbidden" >&2; exit 1; }

@@ -1,0 +1,17 @@
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6 }
+#0s
+background: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
+// Three absolute # markers: no hidden cumulative timing.
+left: Rect, at: (460, 360), size: (100, 100), corner_radius: 20, color: "#65D9E8", opacity: 0.2
+middle: Rect, at: (640, 360), size: (100, 100), corner_radius: 20, color: "#ABA4FA", opacity: 0.2
+right: Rect, at: (820, 360), size: (100, 100), corner_radius: 20, color: "#F4D47B", opacity: 0.2
+#1s
+left.opacity = 1 [500ms]
+#2s
+middle.opacity = 1 [500ms]
+#3s
+right.opacity = 1 [500ms]
+#4s
+left.rotation = 0.12 [500ms]
+middle.rotation = 0.12 [500ms]
+right.rotation = 0.12 [500ms]

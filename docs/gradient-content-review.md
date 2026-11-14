@@ -1,5 +1,10 @@
 # Gradient: mathematical and parameter review
 
+This records the initial correction of the contour-card version. The current
+learning-rate figure uses a shared loss-versus-iteration plot; see
+[the redesigned comparison](comparison-layout.md). The mathematical and slider
+contracts below still apply.
+
 This revision retains all five source URLs and the existing deck. It changes
 content and assembly, not the engine or optimizer semantics.
 
