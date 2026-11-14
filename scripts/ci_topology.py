@@ -19,7 +19,7 @@ def transform(jobs, topology):
     if any(job["shell"] != "nix" or job["os"] != "ubuntu-latest" for job in native):
         raise ValueError("cannot merge jobs with incompatible environments")
     if topology == "shared-cli":
-        return [job for job in jobs if job["id"] != "render-scenes"], native[-1]["gate"]
+        return [job for job in jobs if job["id"] not in {"test-examples", "render-scenes"}], native[-1]["gate"]
     if topology != "grouped":
         raise ValueError(f"unknown CI topology: {topology}")
     gates = list(dict.fromkeys(gate for job in native for gate in job["gate"].split()))

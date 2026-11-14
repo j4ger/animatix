@@ -128,6 +128,7 @@ def github_plan(policy_path):
         raise ValueError("ANIMATIX_CI_SELECTION must be shadow or enabled")
     chosen = jobs if selection == "shadow" else [job for job in jobs if job["id"] in selected]
     topology = os.environ.get("ANIMATIX_CI_TOPOLOGY", "baseline")
+    producer_gates = next((job["gate"] for job in chosen if job["id"] == "test-examples"), "") if topology == "shared-cli" else ""
     chosen, render_gates = transform(chosen, topology)
     matrix = {"include": chosen}
     policy.update(effective_selection=selection, effective_topology=topology,
@@ -141,7 +142,7 @@ def github_plan(policy_path):
     if output:
         with open(output, "a", encoding="utf-8") as stream:
             stream.write("matrix=" + json.dumps(matrix, separators=(",", ":")) + "\n")
-            stream.write(f"topology={topology}\nshared_render_gates={render_gates}\n")
+            stream.write(f"topology={topology}\nshared_render_gates={render_gates}\nnative_cli_gates={producer_gates}\n")
     return 0
 
 

@@ -57,6 +57,10 @@ class ControlTests(unittest.TestCase):
         shared, special = transform(jobs, "shared-cli")
         self.assertEqual(special, "render-smoke")
         self.assertNotIn("render-scenes", {row["id"] for row in shared})
+        self.assertNotIn("test-examples", {row["id"] for row in shared})
+        self.assertEqual({gate for row in jobs for gate in row["gate"].split()},
+                         {gate for row in shared for gate in row["gate"].split()}
+                         | set(special.split()) | set(jobs[1]["gate"].split()))
         jobs[0]["shell"] = "web"
         with self.assertRaises(ValueError):
             transform(jobs, "grouped")

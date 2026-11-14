@@ -48,6 +48,7 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
       topology: ${{ steps.plan.outputs.topology }}
       shared_render_gates: ${{ steps.plan.outputs.shared_render_gates }}
+      native_cli_gates: ${{ steps.plan.outputs.native_cli_gates }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -203,8 +204,12 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || inputs.checkout-ref == ''
         with:
           key: nix
-      - name: Build identified native CLI
-        run: nix develop --command scripts/ci.sh gate native-cli-artifact
+      # Reuse the CLI already built by the registered Test & Examples work;
+      # a separate producer would add another complete application build.
+      - name: Run registered tests and stage the identified CLI
+        env:
+          GATES: ${{ needs.plan.outputs.native_cli_gates }}
+        run: nix develop --command scripts/ci.sh gate "$GATES" native-cli-artifact
       - uses: actions/upload-artifact@v4
         with:
           name: native-cli
