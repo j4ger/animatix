@@ -139,7 +139,7 @@
         # not change the linker or test runner used by ordinary builds.
         devShells.experiments = pkgs.mkShell {
           inputsFrom = [ self.devShells.${system}.default ];
-          packages = [ pkgs.mold pkgs.cargo-nextest pkgs.llvmPackages.lld pkgs.xvfb-run ];
+          packages = [ pkgs.mold pkgs.cargo-nextest pkgs.llvmPackages.lld pkgs.xvfb-run pkgs.xdotool pkgs.imagemagick ];
           ANIMATIX_CI_SHELL = "nix";
           inherit (self.devShells.${system}.default) VK_LAYER_PATH VK_ICD_FILENAMES;
         };
