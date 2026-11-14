@@ -15,7 +15,7 @@
 
 Animatix has three latency- and throughput-sensitive surfaces:
 
-1. **Interactive authoring (GUI)** — every keystroke / value edit can trigger a
+1. **Interactive authoring (GUI)** — every source edit can trigger a
    full **rebuild** (parse → typecheck → expand → `Timeline::build`) plus one or
    more **frame evaluations** and a **GPU render**. The perceived "snappiness" of
    the IDE is dominated by these two costs.

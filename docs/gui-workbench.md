@@ -78,21 +78,21 @@ not expand editing permissions: timeline controls still change review state only
 
 ### Validation and remaining platform checks
 
-The icon-first workbench was exercised on native Linux at approximately 1180 px
-and 836 px window widths, including tooltip discovery, source-marker navigation,
-menu dismissal with Escape, and setting/clearing review loops. After removing obsolete visual-editor plumbing, the GUI's 411 unit tests,
-workspace all-targets check, strict workspace Clippy (`-D warnings`), formatting
-and structure gates passed. Tests covering deleted transform handles were
-removed; actual marquee selection and Escape cancellation have regression tests. The
-icon tests verify readable click-event names and disabled-action behavior; this
-is not a claim of end-to-end screen-reader certification.
+The November workbench pass recorded native Linux checks at approximately 1180 px
+and 836 px window widths: tooltip discovery, source-marker navigation, menu
+cancellation and review-loop controls. GUI unit tests, workspace checks, strict
+Clippy, formatting and structure gates passed for that change. This is historical
+coverage, not a guarantee that a later revision passes those checks.
 
-The test machine had no usable audio output device. Waveform decoding and visual
-seeking were verified, but neither PCM output capture nor audible synchronization
-was verified. Windows and macOS runtime acceptance remains outstanding.
+Remaining acceptance work:
 
-A known launch-path issue was observed with the speech demo: launching the GUI
-with a relative `.amx` path could leave its audio asset unavailable, while opening
-the same file by absolute path resolved the waveform. Use an absolute document
-path as the current workaround. Relative-path media resolution needs a separate
-regression test and fix; icon changes do not address it.
+- The test machine had no usable audio output device. Waveform decoding and
+  visual seeking were checked, but audible playback and synchronization were not.
+- Windows and macOS runtime acceptance remains outstanding.
+- Icon tests cover readable click-event names and disabled actions, not end-to-end
+  screen-reader certification.
+- A relative document path could leave the speech demo's audio asset unavailable;
+  opening the same document by absolute path resolved the waveform. Use an
+  absolute path until media-path resolution has a regression test and fix.
+
+For interface implementation guidance, see [GUI design language](gui_design_language.md).

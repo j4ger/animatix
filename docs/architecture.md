@@ -148,8 +148,7 @@ World {
 }
 ```
 
-Entities are append-only and identified by `EntityId(u32)`; structural GUI
-deletes rebuild the whole timeline, so ids are never reused. Required components exist on every entity; optional components are
+Entities are append-only and identified by `EntityId(u32)`; source changes rebuild the whole timeline, so ids are never reused. Required components exist on every entity; optional components are
 looked up with `Option`. `EntityRef`/`EntityMut` are the access surface, and
 labels are converted to ids at the build/expression/serialization/GUI boundary.
 Frame caches (`bounds_slot`, shape/vector-path memos) live in `EvalCaches`, not
@@ -245,14 +244,11 @@ Children without seeded `layout_size` are excluded from layout admission. Legacy
 
 When `config { dynamic_layout: true }` is enabled, admitted children are re-sampled from `layout_size` per frame and positions are recomputed. Membership remains static (build-time admission only); `gap`, `padding`, `align`, `cols` do not animate.
 
-### GUI Reorder Interaction
+### Layout Order in the Workbench
 
-The GUI supports canvas drag-to-reorder for layout-managed children:
-1. **Drag start** on a layout-managed child enters `Reorder` mode instead of `Move`
-2. **Mouse tracking** projects the cursor onto the container's main axis and computes an insertion index against sibling center positions
-3. **Visual feedback** shows a ghost at the original position and an accent-blue drop line at the insertion point
-4. **Drop** emits a `child_order` property edit targeting the container; the edit pipeline resolves the label order to `EntityId`s, updates `ContainerMetadata.child_order`, and persists the new order to source via AST mutation
-5. **Inspector** also exposes up/down arrow buttons for each child when a container is selected
+Author layout order and `swap`/`reorder` actions in `.amx`. The GUI displays the
+result but does not offer canvas reordering or inspector property edits. Its
+command boundary rejects these mutations; see [GUI workbench](gui-workbench.md).
 
 ---
 
@@ -639,53 +635,27 @@ Colorschemes provide declarative color contracts with two pieces:
 
 ---
 
-## 12. Source Write-Back (GUI)
+## 12. Source Editing and the GUI Boundary
 
-The GUI inspector persists edits back to `.amx` source via **AST mutation + re-serialization**:
+The workbench is code-first: scene changes come from the source editor or an
+external editor. Inspection, canvas selection, timeline navigation and source
+jumps do not mutate the scene. `Command::allowed_in_workbench` rejects legacy
+property, keyframe, insertion-palette and structural-edit commands before they
+reach the executor. See [GUI workbench](gui-workbench.md) for the current UI.
 
-```
-source_text ──parse──► AST (Vec<Stmt>)
-      ▲                    │
-      │                    │ GUI edits mutate AST
-      │                    ▼
-   write back         to_source::stmts_to_source()
-```
+The crate retains a semantic `source_edit/` API and AST serialization machinery.
+These are implementation capabilities, not currently exposed inspector or
+canvas editing features:
 
-**Components:**
-- `to_source::ToSource` — serializes every AST node back to `.amx` syntax
-- `source_edit/` — semantic edit API (`SetProperty`, `InsertProperty`, `InsertKeyframe`, `InsertAction`, `InsertActor`)
+- `SourceEdit` represents property, action, actor and scene mutations.
+- `source_edit::apply_edit` applies semantic changes to the AST.
+- `to_source::ToSource` serializes the result to `.amx`.
 
-**Benefits over old byte-span surgery:** no span invalidation, no re-parsing, robust property aliasing.
-
-**Trade-offs:** formatting is normalized; inline comments after properties are preserved via `Property.trailing_comment`, but blank lines and indentation style are not.
-
-For the full formatting rules, see [`spec.md`](spec.md) §Appendix A: Source Formatting Specification.
-
-### Insertion Mechanism
-
-The GUI provides a unified insertion palette (`/` key) for inserting primitives, actions, and snippets. All insertions go through `SourceEdit` → AST mutation → re-serialization (no raw text surgery).
-
-**Three layers:**
-1. **`SourceEdit`** — semantic edit types (`InsertActor`, `InsertAction`)
-2. **`InsertionRequest`** — bridge between palette UI and `SourceEdit`
-3. **`InsertionPalette`** — fuzzy-searchable overlay populated from `PRIMITIVES`, action registry, and analyzer snippets
-
-**Key design properties:**
-- **Auto-extensible** — adding a primitive to `PRIMITIVES` or action to the registry automatically surfaces it in the palette
-- **Context-aware** — palette defaults to actions in keyframe cells, primitives in code cells
-- **Timeline-safe** — existing keyframes' absolute times never shift; new keyframes inherit the preceding style (relative/absolute)
-
-**Six insertion rules:**
-1. Exact time, never nearest — create a keyframe if none exists at the target time
-2. Cursor-in-cell wins over playhead
-3. Style inheritance — new keyframes match the preceding keyframe's style
-4. Absolute times are sacred — existing events keep their absolute times
-5. No micro-fragmentation — within 50ms of existing keyframe, append instead
-6. Visual confirmation — status bar explains what happened
-
-### SourceEdit Coverage
-
-All GUI structural edits now route through `SourceEdit` → AST mutation → re-serialization. This includes delete, duplicate, paste, ungroup, and scene reordering. The previously direct-mutated `DuplicateActor` and `PasteActors` operations are now `SourceEdit::DuplicateActor` and `SourceEdit::PasteActors` variants implemented in `source_edit/actor_edits.rs`.
+Serialization normalizes formatting. Property trailing comments have explicit
+storage, but original blank lines and indentation are not preserved. Any future
+timeline write-back must preserve unrelated source and resolve source locations
+unambiguously; retaining these APIs alone does not establish that contract.
+See [source formatting](spec.md#appendix-a-source-formatting-specification).
 
 ---
 
@@ -876,7 +846,7 @@ Not every visual variation needs its own primitive. The rule of thumb:
 
 Targeted `Callout` actors (those with a `target` property) need to compute the arrow attach point from another actor's bounds. This geometry is centralised in `timeline/callout_geometry.rs`:
 
-- `derive_callout_geometry(input, resolver)` is the single source of truth for `from`, `to`, `label_point`, attach side, and standoff. Both the renderer and the GUI (preview handles, drag gestures) call this helper so they stay in sync.
+- `derive_callout_geometry(input, resolver)` is the single source of truth for `from`, `to`, `label_point`, attach side, and standoff. Rendering and retained GUI geometry helpers share this computation. The current workbench does not expose callout drag handles.
 - The `TargetResolver` trait (implemented by `SceneEval`) exposes only what primitives need: actor existence, kind, and world-space bounds/affine at a given time. Primitives no longer receive an unrestricted `&Timeline` reference.
 - Bounds are resolved via the target's accumulated world transform (`actor_world_affine`), so actors nested inside scaled or rotated parents attach correctly. Precise shape/path/text bounds are a known deferred item (see Active Work in `docs/roadmap.md`).
 - A missing target name is diagnosed at build time (`CalloutTargetNotFound`) so the error surfaces in the editor rather than producing per-frame render log spam.
@@ -901,7 +871,10 @@ Core concepts:
 - `OrphanScene` — warning when a scene is not the target of any `play` edge
 - `InvalidConfigValue` — warning when a scene config sets a composition-scoped key
 
-**GUI:** The sidebar scene list supports drag-to-reorder, context menus (duplicate, delete, set active), and per-scene inspector (duration, start time, background color, transition target/type/duration/easing). `SourceEdit` variants cover: `ReorderScenes`, `SetPlayTarget`, `SetTransition`, `SetSceneDuration`, `RenameScene`, `AddScene`, `DeleteScene`, `DuplicateScene`, `ExtractScene`, `MoveToScene`.
+**GUI:** The workbench shows scene strips and supports scene selection, playback,
+scrubbing and source navigation. Scene order, duration and transitions are edited
+in `.amx`, not through inspector controls. Legacy `SourceEdit` scene variants
+remain in the code but are blocked by the workbench command boundary.
 
 ---
 
@@ -1110,4 +1083,4 @@ variant coverage is reviewed when new AST variants are added.
 ### GUI Shell
 - Destructive document-replacement commands route through one Save/Discard/Cancel dialog and replay the follow-up via `pending_action`.
 - Keyframe identity is scene-qualified `KeyframeId { scene, actor, property, time_ms }`; panels emit commands rather than mutating shared stores.
-- Snap resolution returns corrected coordinates and writes visual feedback as a side effect, keeping geometry resolution separate from preview state.
+- Canvas manipulation and property/keyframe mutations are disabled by the workbench command boundary; retained snapping helpers are not an active editing surface.

@@ -393,11 +393,8 @@ warning, exactly like built-ins.
 
 ## 9. Editor support
 
-The GUI insertion palette lists the built-in catalog (the "Effects" tab, built
-from `EFFECTS`) and inserts `label: Blur` at the head of a selected `Filter`
-scope's body, ahead of its content. A newly inserted stage sits at its identity
-values, so set or animate its parameters from the Inspector's "Effects" group;
-effect parameters also get timeline lanes (`stage.param`, `stage.enabled`). The
-analyzer validates effect parameter names and types in both declarations and
-`scope.stage.param` assignments.
-
+Author effect stages and parameter animation in `.amx`. The workbench previews
+the result and offers read-only inspection; its insertion palette and inspector
+write-back are disabled. The analyzer validates effect parameter names and types
+in declarations and `scope.stage.param` assignments. See the
+[GUI workbench](gui-workbench.md) for the editing boundary.

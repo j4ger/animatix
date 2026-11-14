@@ -21,7 +21,7 @@ exists to retire.
 | title   | 56 px bold  | ≤ 30 chars, one line                  |
 
 - `title_size` may rise (58–64) for a short title, never drop below 56
-  (web/DESIGN.md §1.5 floor).
+  (web/DESIGN.md, Scene composition rule 5 floor).
 - Kicker format: `FIG NN · SECTION NAME` — the figure number is the page's
   anchor, not decoration.
 - The title states the question or the claim ("Text is not the input",

@@ -1,41 +1,41 @@
-# Animatix Documentation
+# Documentation
 
-| Document | Audience | Description |
-|----------|----------|-------------|
-| [`spec.md`](spec.md) | Users | Language specification: syntax, primitives, actions, modifiers, imports, reactive system, multi-scene composition |
-| [`primitives.md`](primitives.md) | Users | Quick reference for every scene primitive, graph primitive, and container |
-| [`properties.md`](properties.md) | Users | Property reference table: all actor properties, types, and applicability |
-| [`effects.md`](effects.md) | Users | Effect chain model: built-in effects, parameters, support regions, and the second-input ABI |
-| [`audit.md`](audit.md) | Users | `animatix audit` guide: command roles, flags, JSON schema, rules, exit codes, and limitations |
-| [`extension_authoring.md`](extension_authoring.md) | Contributors | Registering primitives, actions, functions, and native plugins |
-| [`architecture.md`](architecture.md) | Contributors | System architecture: pipeline, data structures, runtime, layout, rendering, property system, composition |
-| [`ecs.md`](ecs.md) | Contributors | Timeline entity/component design: `World` stores, label→id boundary, component checklist, snapshots, structure gate |
-| [`primitive_abstraction.md`](primitive_abstraction.md) | Contributors | Primitive trait model: what is unified, accepted boundaries, remaining non-uniformity, deferred decisions, and a recommended order |
-| [`series_construction.md`](series_construction.md) | Contributors | LG-1 design note: building multi-part series from scenes, composition, and generated wrappers |
-| [`delightful_animation_plan.md`](delightful_animation_plan.md) | Contributors | Kinetic typography, physics handoff, camera, and transition plan (Waves 1–4) |
-| [`ai_agent_animation_quality.md`](ai_agent_animation_quality.md) | Contributors | AI agent review/evaluation architecture and bring-up plan |
-| [`scene_stats.md`](scene_stats.md) | Contributors | Design note for scene statistics (roadmap STAT-1): build-time baked derived curves read from `always`, and why smoothing is a pure function |
-| [`handoff_silent_drops.md`](handoff_silent_drops.md) | Contributors | Handoff for WP6/WP7/WP8: silent-drop gates, verification discipline, and remaining work |
-| [`performance_evaluation.md`](performance_evaluation.md) | Contributors | Performance evaluation framework: layers, harnesses, noise floors, and recorded measurements |
-| [`contributing.md`](contributing.md) | Contributors | Build/test workflows, project structure, LSP setup, error model, commit messages |
-| [`../web/README.md`](../web/README.md) | Users | Browser player: `<amx-player>` embed component, transformer demo, slim playback build |
-| [`../dogfood/README.md`](../dogfood/README.md) | Both | In-progress real-content projects and grammar probes |
-| [`gui_design_language.md`](gui_design_language.md) | Contributors | GUI visual design language, token system, component taxonomy, interaction model |
-| [`roadmap.md`](roadmap.md) | Both | Canonical source of truth for *remaining* work |
-| [`history/README.md`](history/README.md) | Contributors | Chronological archive of completed, resolved, and closed work (evidence, not tasks) |
+## Start here
 
-## Quick Reference
+- [Language tour](https://amx.j4ger.dev/tour/) — learn through animated examples.
+- [Showcase](https://amx.j4ger.dev/demos/) — watch finished scenes in the browser.
+- [Examples](../examples/README.md) — run and adapt `.amx` files.
+- [Desktop workbench](gui-workbench.md) — preview, review timing, and navigate to source.
+- [Build and run](contributing.md) — native tools, Nix shells, and export setup.
+- [Browser player](../web/README.md) — embed animations and build the website.
 
-- **Language spec matrix**: `spec.md` §Language Status Matrix
-- **All primitives**: `primitives.md`
-- **All properties**: `properties.md`
-- **Effect chain and parameters**: `effects.md`
-- **Audit, storyboard, and regression**: `audit.md`
-- **System architecture**: `architecture.md`
-- **Timeline ECS / component storage**: `ecs.md`
-- **Primitive abstraction status/gaps**: `primitive_abstraction.md`
-- **Performance method and measurements**: `performance_evaluation.md`
-- **How to build/test**: `contributing.md` §Development Workflows
-- **What's next**: `roadmap.md`
-- **What landed and why**: `history/README.md`
-- **Dogfooding**: `../dogfood/README.md`
+## Write animations
+
+| Reference | Covers |
+| --- | --- |
+| [Language](spec.md) | Syntax, timing, expressions, imports, and composition |
+| [Primitives](primitives.md) | Shapes, text, plots, audio, and containers |
+| [Properties](properties.md) | Types, applicability, and animation support |
+| [Effects](effects.md) | Effect chains, parameters, and support regions |
+| [Visual review](audit.md) | Storyboards, audit evidence, and regression checks |
+| [Figure content](figure-content-spec.md) | Figure-kit templates and text budgets |
+
+## Contribute
+
+Start with the [contribution guide](../CONTRIBUTING.md). For implementation details:
+
+- [Architecture](architecture.md) and [timeline ECS contract](ecs.md)
+- [Extension authoring](extension_authoring.md) and [primitive abstraction](primitive_abstraction.md)
+- [Performance evaluation](performance_evaluation.md)
+- [GUI design language](gui_design_language.md) and [application identity](branding.md)
+- [Dogfooding](../dogfood/README.md): projects, probes, and comparisons
+
+## Plans and history
+
+[Roadmap](roadmap.md) tracks remaining work; [history](history/README.md) records completed work and its evidence. Design notes describe proposals or implementation rationale, not a separate feature checklist:
+
+- [Animation direction](delightful_animation_plan.md)
+- [AI-assisted animation review](ai_agent_animation_quality.md)
+- [Multi-part series](series_construction.md)
+- [Scene statistics](scene_stats.md)
+- [Silent-drop verification handoff](handoff_silent_drops.md)

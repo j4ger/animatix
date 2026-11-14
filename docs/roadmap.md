@@ -46,8 +46,9 @@ evidence backlog; reproduce them against current code before assigning fixes.
 
 - **Phase A: source round-trips.** Resolve the raw-string/value ambiguity noted
   in the easing-pass findings below; pin formatter idempotence and unchanged text
-  semantics. Review GUI AST write-back for preservation of comments and unrelated
-  source, and make a single inspector edit produce a comprehensible diff.
+  semantics. Keep the workbench source-only. Before adding timeline write-back,
+  require small, comprehensible diffs that preserve comments and unrelated source;
+  inspector property editing is not a goal.
 - **Phase B: property contracts.** Reproduce the silent frame-time no-ops and
   divergent defaults listed below. For each property, either implement the
   documented path or diagnose unsupported writes. Consolidate defaults across
@@ -68,8 +69,9 @@ evidence backlog; reproduce them against current code before assigning fixes.
   Extend existing `--set` / `data-vars` / `setVars()` semantics to multi-scene
   compositions with defined precedence and import/component scoping. Keep one
   validation contract across CLI, GUI and web; do not introduce parallel schemas.
-- **Phase B: author and preview.** Generate GUI controls from that contract; add
-  JSON/CSV ingestion, data preview and field/row-specific diagnostics. Support
+- **Phase B: author and preview.** Author inputs in code and expose read-only
+  inspection in the workbench; add JSON/CSV ingestion, data preview and
+  field/row-specific diagnostics. Support
   structured inputs needed by a real data-story template. Validate long text,
   missing optional values and different image proportions. Build explicit tested
   landscape, portrait and square layout variants on existing layout primitives.
@@ -266,7 +268,6 @@ the behaviour is *wrong* or merely *shaped badly*; what it did land is archived 
 | 9 | **Curve names that promise physics.** An easing is a scalar map over progress between two values; it can only modulate travel *along* that line, so no easing can produce an arc. `bounce` was renamed `bounce-in` and the boundary is now written into `docs/spec.md`, but `elastic` still promises a spring and delivers a progress wobble. |
 | 10 | **Headless cannot see the site's primary surface.** Partly solved 2026-10-03: `AmxPlayer::debug_readback_rgba(t, cb)` hands back the frame's RGBA bytes, which a browser harness turns into a PNG through an `OffscreenCanvas` — verified end to end against `web/demos/matrix/`, capturing a real 1280×720 WebGPU frame out of headless Chromium (usage in `web/README.md`). Still open: it captures the *scene*, not the *page* (site chrome, scroll-reveal and hover furniture remain invisible), and a probe frame costs seconds, so it is a review tool rather than a CI gate. |
 | 11 | **Nothing keeps the corpus on its motion vocabulary.** The site was 155-of-207 annotations on one quadratic curve, with ~880 timed statements carrying no ease at all (so: Linear). Fixed by convention plus `docs/spec.md`'s reference table, but nothing enforces it — a scene can slide back to monoculture unnoticed. A lint over "which role uses which curve" is the durable version of this pass. |
-| 12 | **The GUI cannot author a parameterized ease.** `ease: cubic-bezier(…)` / `spring(…)` parse, evaluate, plot in the curve panel and round-trip through source, but the inspector's dropdown is registry-driven and offers only named curves. Editing control points needs a small numeric editor in the keyframe table. |
 
 ## Property values inside a container are not checked at all (2026-10-03)
 

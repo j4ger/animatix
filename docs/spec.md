@@ -56,7 +56,7 @@ Use these rules when generating `.amx` files:
 | Multi-Scene | `play SceneName [transition, duration]` | Yes | Runtime-real | Yes | Yes | Scene-level play statements with transition types |
 | Multi-Scene | `BuildTarget::build_with_options()` | — | Runtime-real | Yes | Yes | Per-scene timeline building, edge resolution, global time mapping |
 | Multi-Scene | CLI export (video/GIF/image) | — | Runtime-real | Yes | Yes | `render_*_composition` functions; auto-routing via `BuildTarget` |
-| Multi-Scene | GUI scene list / composition timeline | Yes | Runtime-real | Yes | Yes | Sidebar scene tab, composition scene track, and scene source edits shipped |
+| Multi-Scene | GUI scene list / composition timeline | Yes | Runtime-real | Yes | Yes | Scene navigation and composition tracks; edit scene definitions in source |
 | Multi-Scene | Transition blending (dual render) | Yes | Runtime-real | Yes | Yes | Phase 7; `TransitionCompositor` + WGSL shader; wired in CLI preview, GUI preview, and export |
 | Multi-Scene | Cross-file scene composition | Yes | Runtime-real | Yes | Yes | `import "file.amx" as alias` + `play alias.SceneName`; namespace scene registry |
 
@@ -546,11 +546,8 @@ Overlapping swaps on the same container are disallowed and emit a diagnostic.
 
 **How it works:** The `swap` action writes a keyframe to a per-container `child_orders` track at `time + duration`. During evaluation, if the current time falls between two child-order keyframes, layout positions are computed for both orders and interpolated with easing. This produces smooth sliding motion without `motion_offset` hacks.
 
-**GUI Reorder (Implemented)**
-
-The GUI supports canvas drag-to-reorder for layout-managed children. Dragging a child inside a Row/Col/Grid container projects the mouse onto the main axis and computes an insertion index. Visual feedback includes a ghost at the original position and an accent-blue drop line. On release, the new order is persisted to source via AST mutation of the container's `children` block.
-
-The inspector also exposes up/down arrow buttons for each child when a container is selected.
+**GUI:** Layout order is authored in source. The current workbench previews
+`swap`/`reorder` but does not provide canvas drag-to-reorder or inspector writes.
 
 **`reorder`**
 
@@ -837,8 +834,7 @@ children disappear with it. Ancestors of a soloed actor stay traversable (a
 soloed actor nested inside a container still draws, at its ancestor's
 transform), and multiple soloed actors simply show together. `visible: false`
 wins over `solo`: an explicitly hidden actor is neither drawn nor counted as
-soloed, so it cannot suppress the rest of the scene. Unlike the GUI's
-eye/lock view toggles, `solo` round-trips through `.amx` and undo.
+soloed, so it cannot suppress the rest of the scene. `solo` is an authored property and round-trips through `.amx`.
 
 **Callout targeted mode** places the arrow tip automatically on a named actor's edge. When `target` is set:
 
@@ -847,7 +843,7 @@ eye/lock view toggles, `solo` round-trips through `.amx` and undo.
 - `standoff` (default `40.0`) offsets the tip from the resolved edge; `to_offset` adds a fine-grained manual tweak on top.
 - A missing or unknown `target` name is reported as a build-time `CalloutTargetNotFound` diagnostic rather than a per-frame render warning.
 - Array actors use source-level syntax: `target: bars[2]` in declarations, and `note.target = bars[i]` when `i` is bound in an assignment. Internal generated labels like `bars__2` are an implementation detail and should not appear in user source.
-- **GUI affordances:** selecting a targeted `Callout` in the preview shows four edge handles around the target for clicking/dragging `place`, a standoff drag handle on the tail axis, and a label drag handle. Hold **Shift** while dragging to detach from the target — the current `from`/`to` values are baked into the source and `target` is removed, converting to manual mode without a visual jump.
+- **GUI:** Inspect the resolved callout and jump to its declaration; author `target`, `place`, `standoff` and manual endpoints in source. The workbench does not expose drag handles.
 | `Legend` | `at` |
 | `Polygon` | `points: {(x, y), ...}` |
 | `Path` | `commands: {move_to(...), line_to(...), curve_to(...), close()}` |
@@ -2607,7 +2603,7 @@ animatix gif examples/composition/19_cross_file_scenes.amx --width 640 --height 
 
 ## 18. Multi-Scene Composition
 
-> **Status:** Parser, composition engine, CLI export, transition blending, cross-file scene composition, GUI scene list, composition scene track, and scene editing are shipped.
+> **Status:** Parser, composition engine, CLI export, transition blending, cross-file scene composition, GUI scene navigation and composition scene tracks are shipped. Scene editing is source-only in the workbench.
 
 ### Composition Invariants
 
@@ -2940,7 +2936,7 @@ Semantics that are easy to miss:
 
 ## Appendix A: Source Formatting Specification
 
-> Scope: serializer output (`animatix::to_source`) and GUI write-back.
+> Scope: serializer output (`animatix::to_source`), including retained semantic source-edit APIs. The workbench does not expose inspector write-back.
 > Goal: deterministic, readable `.amx` source that matches hand-authored style.
 
 ### A.1 General Principles
@@ -3041,4 +3037,4 @@ play NextScene [fade, 300ms]
 
 ### A.8 Write-Back Pipeline
 
-The GUI inspector mutates the AST via `source_edit::apply_edit`, then the entire file is re-serialized. Formatting is applied at the **serialization layer only** (`animatix::to_source`). No formatting state is carried through the edit; the serializer is the single source of truth for layout.
+The retained semantic edit API applies AST changes via `source_edit::apply_edit` and re-serializes the file. It is not exposed by the current read-only inspector. Formatting is applied at the **serialization layer** (`animatix::to_source`), not carried as editor layout state.

@@ -1,93 +1,61 @@
-<p><img src="logo.svg" width="112" height="112" alt="Animatix logo"></p>
+<p align="center">
+  <img src="logo.svg" width="80" height="80" alt="Animatix">
+</p>
+<h1 align="center">Animatix</h1>
+<p align="center"><strong>Scenes in code. Stories in motion.</strong></p>
+<p align="center">A declarative language for explanatory animations, built in Rust.</p>
+<p align="center">
+  <a href="https://amx.j4ger.dev/demos/"><strong>See it in motion ↗</strong></a>
+  &nbsp; · &nbsp;
+  <a href="https://amx.j4ger.dev/tour/">Language tour</a>
+  &nbsp; · &nbsp;
+  <a href="docs/README.md">Documentation</a>
+</p>
 
-# Animatix
+<p align="center">
+  <a href="https://amx.j4ger.dev/demos/transformer/">
+    <img src="snapshots/web/demos/transformer/scenes/overview/frame_0007_11.000s.png" width="800" alt="A Transformer architecture animated in Animatix: attention, feed-forward layers, and the next-token loop.">
+  </a>
+  <br>
+  <sub>Made with Animatix. <a href="https://amx.j4ger.dev/demos/transformer/">Watch the Transformer walkthrough →</a></sub>
+</p>
 
-Animatix is a declarative animation language and Rust rendering engine for building explanatory math, diagram, and vector animations. It ships a CLI renderer, an egui-based desktop GUI, a Tree-sitter grammar, and an LSP server.
+## A scene in a few lines
 
-**Live on the web:** [j4ger.github.io/animatix](https://j4ger.github.io/animatix/) — the project homepage, a tour of the language, and demos that compile and play `.amx` scenes in your browser (WebGPU).
-
-## Example
+Describe the scene, then say what changes and when.
 
 ```animatix
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 title: Text, text: "ANIMATIX", font_size: 96, color: text.primary, anchor: scene.center
-accent: Rect, size: (60, 3), color: accent.primary, anchor: scene.center, offset: (0, -30)
+accent: Rect, size: (60, 3), color: accent.primary, anchor: scene.center, offset: (0, -80)
 
 #0.5s
 fade-in title [1s, ease: ease-out]
+fade-in accent [800ms]
 accent.size = (640, 3) [800ms, ease: ease-out]
 ```
 
-## Quick Start
+## Try it locally
 
-```bash
-cargo build
+**Download** · See [releases](https://github.com/j4ger/animatix/releases) for available builds. The current [Linux x86-64 nightly](https://github.com/j4ger/animatix/releases/tag/nightly) is a development snapshot, not a standalone installer; see [download caveats](docs/contributing.md#downloaded-builds). For a matching build environment, use Nix below.
 
-# Live preview
-cargo run --bin animatix -- render examples/basics/00_hello.amx
+<details>
+<summary><strong>Build from source with Nix</strong></summary>
 
-# Export
-cargo run --bin animatix -- image examples/data/07_plots.amx -o frame.png
+With [Nix](https://nixos.org/download/) and flakes enabled, open the hello scene:
 
-# Video/GIF/WebM export (requires the `video` feature, see AGENTS.md)
-cargo run -p animatix-cli --features video -- video examples/gallery/fft_explain.amx -o showcase.mp4 --fps 30
-cargo run -p animatix-cli --features video -- gif examples/gallery/brand_reel/main.amx -o reel.gif --fps 15
-
-# Named export presets are shared by CLI and GUI and can be set in config:
-cargo run -p animatix-cli --features video -- video examples/gallery/fft_explain.amx --export-preset 1080p30 -o showcase.mp4
-
-# GUI
-cargo run --bin animatix-gui -- examples/gallery/brand_reel/main.amx
+```sh
+git clone https://github.com/j4ger/animatix.git
+cd animatix
+nix develop
+cargo run --bin animatix-gui -- examples/basics/00_hello.amx
 ```
 
-Nix users: `nix develop` sets up all dependencies.
+For CLI rendering, video export, and other build setups, see the [development guide](docs/contributing.md).
 
-Feature targets: rendering, text, and SVG are part of the engine, not optional
-features. The remaining switches are `perf-tracing` (default-on), `serde`,
-`plugin-loading`, and — on the CLI/GUI — `video`, which pulls in FFmpeg through
-`animatix-render`. `cargo build -p animatix-cli` therefore never needs FFmpeg.
+</details>
 
-## What's Shipped
+---
 
-**Primitives:** `Text`, `Typst`, `Code`, `Math`, `Svg`, `Image`, `Audio`, `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Equation`/`Fragment`, `Connector`, `Counter`, `Callout`, `Legend`, `Captions`, `Cue`
-
-**Plotting:** `Graph`, `PlotCurve` (cartesian/polar/parametric/implicit), `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`
-
-**Containers:** `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Glass`, `Mask`
-
-**Animation:** Keyframes, morphing, 25 built-in actions (`fade-in`, `draw-in`, `move`, `shift`, `rotate`, `scale`, `grow-in`, `shrink-out`, `swap`, `reorder`, `shake`, `pulse`, `bounce`, …), easing curves, sequence/stagger composition
-
-**Language:** Reactive `always` blocks, compile-time `for`, `pub component` with slots, module imports, gradual type system, colorschemes
-
-**Multi-scene:** Scene declarations, 13 transitions (cut, fade, wipes/pushes, iris, clock-wipe, zoom-through), cross-file composition, auto-routed CLI export
-
-**Tooling:** CLI renderer (image; video/GIF/WebM behind the `video` feature), checker/linter/reviewer (`animatix check`, `animatix lint`, `animatix audit`), qualitative storyboard contact sheets (`animatix storyboard`), regression testing (`animatix baseline`), GUI shell, Tree-sitter grammar, LSP server. Audit now features per-finding visual evidence, ratchetable budgets, and delta-based incremental review.
-
-Full language spec: [`docs/spec.md`](docs/spec.md) · All primitives: [`docs/primitives.md`](docs/primitives.md) · All properties: [`docs/properties.md`](docs/properties.md)
-
-## Examples
-
-A curated set of 50 runnable entry demos in [`examples/`](examples/) covering shapes, layout, timing, morphing, reactive expressions, plotting, effects, components, modules, multi-scene, and more. See [`examples/README.md`](examples/README.md).
-
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| [`docs/spec.md`](docs/spec.md) | Language specification and status matrix |
-| [`docs/architecture.md`](docs/architecture.md) | System architecture and design decisions |
-| [`docs/figure-content-spec.md`](docs/figure-content-spec.md) | Figure-kit templates and the per-template text budget |
-| [`docs/contributing.md`](docs/contributing.md) | Development workflows and project structure |
-| [`docs/roadmap.md`](docs/roadmap.md) | Planned features and known gaps |
-| [`docs/gui_design_language.md`](docs/gui_design_language.md) | GUI design language and migration plan |
-| [`dogfood/README.md`](dogfood/README.md) | In-progress real-content projects and grammar probes |
-
-## For Developers
-
-```bash
-cargo build
-cargo test
-cargo clippy --all-targets -- -D warnings
-```
-
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for contribution guidelines and [`docs/contributing.md`](docs/contributing.md) for detailed workflows.
+[Contributing](CONTRIBUTING.md) · [MIT license](LICENSE)

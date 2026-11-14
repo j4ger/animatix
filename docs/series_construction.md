@@ -1,6 +1,8 @@
 # Series Construction (LG-1) — Design Note
 
-Status: approved 2026-09-06. Tracks roadmap LG-1; evidence in
+Status: design approved 2026-09-06; the listed builtins and block-bodied
+closures are now implemented. This note preserves their rationale and contract,
+not an open implementation task. See [the language reference](spec.md) and
 `dogfood/projects/taylor-sin/notes.md`.
 
 ## Motivation
