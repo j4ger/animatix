@@ -1,0 +1,142 @@
+# Frozen pre-AuthoredTypeHint syntax type snapshot: PropertyId, name, Type display.
+# Keep this complete so schema refactors cannot silently narrow or widen authored types.
+0	align	Str
+1	anchor	Any
+2	ascent	Num
+3	at	Vec2
+4	background_color	Color | Str
+5	bar_colors	Any
+6	bar_width	Num | Str
+7	baseline	Num
+8	bounds	Vec4
+9	char_progress	Num
+10	code	Str
+11	color	Color | Str
+12	cols	Num
+13	commands	Any
+14	data	Any
+15	density	Num
+16	descent	Num
+17	direction	Str
+18	fill_opacity	Num
+19	font_family	Str
+20	font_size	Num
+21	font_style	Str
+22	font_weight	Num | Str
+23	from	Vec2
+24	func	Any
+25	gap	Num | Str
+26	grid	Bool
+27	head_size	Num
+28	height	Num
+29	highlight_color	Color | Str
+30	highlight_opacity	Num
+31	highlight_padding	Num
+32	highlight_radius	Num
+33	kind	Str
+34	label	Str
+35	label_at	Vec2
+36	label_color	Color | Str
+37	legend	Bool | Str
+38	letter_spacing	Num
+39	levels	Any
+40	line_cap	Num
+41	line_height	Num
+42	line_join	Num
+43	max_depth	Num
+44	max_height	Num
+45	max_value	Num | Str
+46	max_width	Num
+47	min_height	Num
+48	min_width	Num
+49	offset	Vec2
+50	opacity	Num
+51	overflow	Str
+52	padding	Num
+53	place	Str
+54	points	List<Vec2>
+55	position	Vec2
+56	radius_x	Num
+57	radius_y	Num
+58	resolution	Num
+59	rotation	Num
+60	scale	Num
+61	shift	Vec2
+62	show_axis	Bool | Str
+63	show_labels	Bool | Str
+64	size	Vec2
+65	solo	Bool
+66	source	Str
+67	standoff	Num
+68	stroke	Color | Str
+69	stroke_progress	Num
+70	stroke_width	Num
+71	swatch_size	Num
+72	t_domain	Vec2
+73	target	Any
+74	text	Str
+75	text_align	Str
+76	text_max_width	Num
+77	tick_labels	Str
+78	ticks	Bool
+79	title	Str
+80	to	Vec2
+81	to_offset	Vec2
+82	tolerance	Num
+83	transform	Vec2 | Vec4 | (Num, Num, Num, Num, Num, Num)
+84	url	Str
+85	vertical_align	Str
+86	volume	Num
+87	width	Num
+88	word_spacing	Num
+89	x_domain	Vec2
+90	x_range	Any
+91	x_scale	Str
+92	y_domain	Vec2
+93	y_range	Any
+94	y_scale	Str
+95	corner_radius	Num
+96	language	Str
+97	dash_offset	Num
+98	dash_pattern	List<Num>
+99	blend	Str
+100	fill_gradient	Any
+101	stroke_gradient	Any
+102	gradient_extend	Str
+103	gradient_space	Str
+104	icon	Str
+105	camera_follow	Any
+106	parallax	Num
+107	routing	Str
+108	arrow	Bool
+109	split_by	Str
+110	split_stagger	Num
+111	split_offset_y	Num
+112	split_mask	Bool
+113	value	Num
+114	prefix	Str
+115	suffix	Str
+116	decimals	Num
+117	comma	Bool
+118	idle	Str
+119	shadow	Vec4
+120	shadow_color	Color
+121	rotate_x	Num
+122	rotate_y	Num
+123	perspective	Num
+124	shared_id	Str
+125	caption_mode	Str
+126	active_color	Color
+127	inactive_color	Color
+128	backdrop	Bool
+129	backdrop_color	Color
+130	backdrop_radius	Num
+131	backdrop_padding	Vec2
+132	pop_scale	Num
+133	max_lines	Num
+134	transition_time	Num
+135	transcript	Str
+136	start	Num
+137	end	Num
+138	text_anchor	Str
+139	max_item_width	Num

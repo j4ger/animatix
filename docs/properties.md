@@ -1,12 +1,9 @@
 # Animatix Property Reference
 
-> Canonical quick-reference list of all actor properties, maintained by hand but pinned:
-> `cargo test -p animatix-core --test properties_doc` checks that every
-> `PROPERTY_DESCRIPTORS` row has a table entry (and vice versa), and
-> `scripts/check-docs.sh` compares the explicit actor lists in the Applies-to column
-> against the descriptor rows.
-> The descriptor table is authoritative; update this table in the same change.
-> For property value types and usage, see [`spec.md`](spec.md).
+> Generated property tables are derived from the syntax property specs and the engine registry.
+> The docs-only group map controls presentation order; it does not define property semantics.
+> Run `cargo run -p animatix --example property_reference -- --write` to update them;
+> the docs gate checks the generated output. For value examples and usage, see [`spec.md`](spec.md).
 
 ---
 
@@ -15,74 +12,90 @@
 | Column | Meaning |
 |--------|---------|
 | **Property** | Canonical name as used in source text |
-| **Type** | Value type: `F32`, `Vec2`, `Vec4` (Color), `String`, `U32`, etc. |
+| **Type** | Authored expression type from the language type system. `Any` remains unconstrained. |
+| **Runtime kind** | Engine value representation; `BuildTimeOnly` has no animated track. |
 | **Animated** | Supports keyframe animation (`✓`) or not (`—`) |
-| **Assignable** | Can be set via `actor.prop = value` (`✓`) or not (`—`) |
-| **Applies to** | Which actor kinds support this property |
+| **Assignable** | Supports the generic property assignment path (`✓`) or not (`—`); dedicated transition paths are explained in prose |
+| **Applies to** | Exact built-in actor types from the catalog; scene/internal-only entries are explained in prose |
+
+`Any` means the type checker does not constrain the expression; runtime property
+handling can still reject an unsupported value. Runtime kinds describe that
+representation separately and do not narrow the type-checker contract.
 
 ---
 
 ## Legend Participation
 
-| Property | Type | Animated | Assignable | Applies to |
-|----------|------|----------|------------|------------|
-| `legend` | `Bool \| Str` | ✓ | ✓ | Everything |
+<!-- generated-property-table:legend-participation:start -->
+| Property | Type | Runtime kind | Animated | Assignable | Applies to |
+|----------|------|--------------|----------|------------|------------|
+| `legend` | `Bool \| Str` | `Sum<auto: Bool, hidden: Bool, label: String>` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+<!-- generated-property-table:legend-participation:end -->
 
 ## Legend Primitive
 
-| Property | Type | Animated | Assignable | Applies to |
-|----------|------|----------|------------|------------|
-| `title` | Str | — | — | Legend |
-| `label_color` | Color / auto | — | — | Legend |
-| `swatch_size` | F32 | — | — | Legend |
+<!-- generated-property-table:legend-primitive:start -->
+| Property | Type | Runtime kind | Animated | Assignable | Applies to |
+|----------|------|--------------|----------|------------|------------|
+| `title` | `Str` | `String` | ✓ | ✓ | `Legend` |
+| `label_color` | `Color \| Str` | `Color` | ✓ | ✓ | `Legend` |
+| `swatch_size` | `Num` | `F32` | ✓ | ✓ | `Legend` |
+<!-- generated-property-table:legend-primitive:end -->
+
+`label_color: auto` chooses a color with contrast against the scene background;
+an explicit color overrides that choice.
 
 `Legend` also reads the shared rows `font_size` and `text_max_width` (under
 Text) and `gap` (under Containers).
 
 ## Geometry
 
-| Property | Type | Animated | Assignable | Applies to |
-|----------|------|----------|------------|------------|
-| `position` | Vec2 | ✓ | ✓ | Everything |
-| `at` | Vec2 | ✓ | ✓ | Everything |
-| `offset` | Vec2 | ✓ | ✓ | Everything |
-| `anchor` | SceneAnchor | ✓ | ✓ | Everything |
-| `size` | Vec2 | ✓ | ✓ | Sized actors |
-| `corner_radius` | F32 | ✓ | ✓ | Rect, Glass, Connector |
-| `width` | F32 | ✓ | ✓ | Sized actors |
-| `height` | F32 | ✓ | ✓ | Sized actors |
-| `min_width` | F32 | ✓ | ✓ | Sized actors |
-| `min_height` | F32 | ✓ | ✓ | Sized actors |
-| `max_height` | F32 | ✓ | ✓ | Sized actors |
-| `max_item_width` | F32 | ✓ | ✓ | Sized actors |
-| `rotation` | F32 | ✓ | ✓ | Everything |
-| `scale` | F32 | ✓ | ✓ | Everything |
-| `transform` | Transform | ✓ | ✓ | Everything |
-| `rotate_x` | F32 | ✓ | ✓ | Everything |
-| `rotate_y` | F32 | ✓ | ✓ | Everything |
-| `perspective` | F32 | ✓ | ✓ | Everything |
+<!-- generated-property-table:geometry:start -->
+| Property | Type | Runtime kind | Animated | Assignable | Applies to |
+|----------|------|--------------|----------|------------|------------|
+| `position` | `Vec2` | `Vec2` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+| `at` | `Vec2` | `Vec2` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+| `offset` | `Vec2` | `Vec2` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+| `anchor` | `Any` | `SceneAnchor` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+| `size` | `Vec2` | `Vec2` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+| `corner_radius` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Glass`, `Connector` |
+| `width` | `Num` | `F32` | ✓ | — | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Image`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Filter`, `Glass` |
+| `height` | `Num` | `F32` | ✓ | — | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Image`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Filter`, `Glass` |
+| `min_width` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Image`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Filter`, `Glass` |
+| `min_height` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Image`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Filter`, `Glass` |
+| `max_height` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Image`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Filter`, `Glass` |
+| `max_item_width` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Image`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Filter`, `Glass` |
+| `rotation` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+| `scale` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+| `transform` | `Vec2 \| Vec4 \| (Num, Num, Num, Num, Num, Num)` | `Transform` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+| `rotate_x` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+| `rotate_y` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+| `perspective` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+<!-- generated-property-table:geometry:end -->
 
 ## Style
 
-| Property | Type | Animated | Assignable | Applies to |
-|----------|------|----------|------------|------------|
-| `color` | Color | ✓ | ✓ | All drawables |
-| `opacity` | F32 | ✓ | ✓ | Everything |
-| `fill_opacity` | F32 | ✓ | ✓ | All shapes except Line |
-| `stroke` | Color | ✓ | ✓ | All stroke paths |
-| `stroke_width` | F32 | ✓ | ✓ | All stroke paths |
-| `stroke_progress` | F32 | ✓ | ✓ | All stroke paths |
-| `dash_pattern` | F32List | ✓ | ✓ | All stroke paths |
-| `dash_offset` | F32 | ✓ | ✓ | All stroke paths |
-| `blend` | Str | ✓ | ✓ | Everything |
-| `fill_gradient` | Gradient | ✓ | ✓ | All shapes except Line, text-like actors |
-| `stroke_gradient` | Gradient | ✓ | ✓ | All stroke paths |
-| `gradient_extend` | Str | ✓ | ✓ | Shapes, text-like actors, and stroke paths |
-| `gradient_space` | Str | ✓ | ✓ | Shapes, text-like actors, and stroke paths |
-| `shadow` | Vec4 | ✓ | ✓ | All shapes except Line |
-| `shadow_color` | Color | ✓ | ✓ | All shapes except Line |
-| `solo` | Bool | — | ✓ | Everything |
-| `idle` | Str | ✓ | ✓ | Everything |
+<!-- generated-property-table:style:start -->
+| Property | Type | Runtime kind | Animated | Assignable | Applies to |
+|----------|------|--------------|----------|------------|------------|
+| `color` | `Color \| Str` | `Color` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+| `opacity` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+| `fill_opacity` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Arrow`, `Polygon`, `Path` |
+| `stroke` | `Color \| Str` | `Color` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
+| `stroke_width` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
+| `stroke_progress` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
+| `dash_pattern` | `List<Num>` | `F32List` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
+| `dash_offset` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
+| `blend` | `Str` | `String` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+| `fill_gradient` | `Any` | `Gradient` | ✓ | ✓ | `Rect`, `Ellipse`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter` |
+| `stroke_gradient` | `Any` | `Gradient` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
+| `gradient_extend` | `Str` | `String` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
+| `gradient_space` | `Str` | `String` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
+| `shadow` | `Vec4` | `Vec4` | ✓ | ✓ | `Rect`, `Ellipse`, `Arrow`, `Polygon`, `Path` |
+| `shadow_color` | `Color` | `Color` | ✓ | ✓ | `Rect`, `Ellipse`, `Arrow`, `Polygon`, `Path` |
+| `solo` | `Bool` | `Bool` | — | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+| `idle` | `Str` | `String` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+<!-- generated-property-table:style:end -->
 
 `dash_pattern` takes a brace list of alternating segment and gap lengths in scene
 pixels (`dash_pattern: {8, 6}`); animating `dash_offset` gives marching ants.
@@ -137,9 +150,11 @@ hue over time.
 
 Only applicable to `Filter` actors. See [`architecture.md`](architecture.md) §6 "Post-Processing (Filter)".
 
-| Property | Type | Animated | Assignable | Applies to |
-|----------|------|----------|------------|------------|
-| `bounds` | Vec4 | ✓ | ✓ | Filter |
+<!-- generated-property-table:filter:start -->
+| Property | Type | Runtime kind | Animated | Assignable | Applies to |
+|----------|------|--------------|----------|------------|------------|
+| `bounds` | `Vec4` | `Vec4` | ✓ | ✓ | `Filter` |
+<!-- generated-property-table:filter:end -->
 
 `bounds` is the registry-backed clip rectangle for the processed region.
 Effect parameters (`Blur.radius`, `Bloom.intensity`, and the rest) are **not**
@@ -149,48 +164,52 @@ parameter and identity tables.
 
 ## Shape-Specific
 
-| Property | Type | Animated | Assignable | Applies to |
-|----------|------|----------|------------|------------|
-| `radius_x` | F32 | ✓ | ✓ | Ellipse |
-| `radius_y` | F32 | ✓ | ✓ | Ellipse |
-| `shift` | Vec2 | ✓ | ✓ | Everything |
-| `line_cap` | U32 | ✓ | ✓ | All shapes |
-| `line_join` | U32 | ✓ | ✓ | All shapes |
-| `from` | Vec2 | ✓ | ✓ | Arrow, Callout, Connector, Line |
-| `to` | Vec2 | ✓ | ✓ | Arrow, Callout, Connector, Line |
-| `head_size` | F32 | ✓ | ✓ | Arrow, Callout |
-| `points` | PointList | ✓ | ✓ | Polygon |
-| `commands` | CommandList | ✓ | ✓ | Path |
-| `icon` | Str (build-time) | — | — | Path |
-| `routing` | String | ✓ | ✓ | Connector |
-| `arrow` | Bool | ✓ | ✓ | Connector |
-| `label` | String | ✓ | ✓ | Callout |
-| `label_at` | Vec2 | ✓ | ✓ | Callout |
-| `place` | PlacementMode | — | ✓ | Callout |
-| `target` | String (build-time) | — | ✓ | Callout |
-| `standoff` | F32 | ✓ | ✓ | Callout |
-| `to_offset` | Vec2 | ✓ | ✓ | Callout |
+<!-- generated-property-table:shape-specific:start -->
+| Property | Type | Runtime kind | Animated | Assignable | Applies to |
+|----------|------|--------------|----------|------------|------------|
+| `radius_x` | `Num` | `F32` | ✓ | ✓ | `Ellipse` |
+| `radius_y` | `Num` | `F32` | ✓ | ✓ | `Ellipse` |
+| `shift` | `Vec2` | `Vec2` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+| `line_cap` | `Num` | `U32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path` |
+| `line_join` | `Num` | `U32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path` |
+| `from` | `Vec2` | `Vec2` | ✓ | ✓ | `Line`, `Arrow`, `Callout`, `Connector` |
+| `to` | `Vec2` | `Vec2` | ✓ | ✓ | `Line`, `Arrow`, `Callout`, `Connector` |
+| `head_size` | `Num` | `F32` | ✓ | ✓ | `Arrow`, `Callout` |
+| `points` | `List<Vec2>` | `PointList` | ✓ | ✓ | `Polygon` |
+| `commands` | `Any` | `CommandList` | ✓ | ✓ | `Path` |
+| `icon` | `Str` | `BuildTimeOnly` | — | — | `Path` |
+| `routing` | `Str` | `String` | ✓ | ✓ | `Connector` |
+| `arrow` | `Bool` | `Bool` | ✓ | ✓ | `Connector` |
+| `label` | `Str` | `String` | ✓ | ✓ | `Callout` |
+| `label_at` | `Vec2` | `Vec2` | ✓ | ✓ | `Callout` |
+| `place` | `Str` | `Enum<auto, top, bottom, left, right, above, below>` | — | ✓ | `Callout` |
+| `target` | `Any` | `BuildTimeOnly` | — | ✓ | `Callout` |
+| `standoff` | `Num` | `F32` | ✓ | ✓ | `Callout` |
+| `to_offset` | `Vec2` | `Vec2` | ✓ | ✓ | `Callout` |
+<!-- generated-property-table:shape-specific:end -->
 
 ## Text / Typst / Code
 
-| Property | Type | Animated | Assignable | Applies to |
-|----------|------|----------|------------|------------|
-| `text` | String | ✓ | ✓ | Text-like actors |
-| `code` | String | ✓ | ✓ | Code |
-| `language` | String | — | ✓ | Code |
-| `font_family` | String | — | ✓ | Text, Typst, Code, Math, Captions |
-| `font_size` | F32 | ✓ | ✓ | Text, Typst, Code, Math, Captions, Counter, Cue, Equation, Legend |
-| `font_style` | String | ✓ | ✓ | Text, Typst, Code, Math, Captions |
-| `font_weight` | F32 | ✓ | ✓ | Text, Typst, Code, Math, Captions |
-| `line_height` | F32 | ✓ | ✓ | Text, Typst, Code, Math, Captions |
-| `letter_spacing` | F32 | ✓ | ✓ | Text, Typst, Code, Math, Captions |
-| `word_spacing` | F32 | ✓ | ✓ | Text, Typst, Code, Math, Captions |
-| `max_width` | F32 | ✓ | ✓ | Text, Typst, Code, Math |
-| `text_max_width` | F32 | ✓ | ✓ | Text, Typst, Code, Math, Captions, Legend |
-| `text_align` | String | ✓ | ✓ | Text-like actors |
-| `text_anchor` | String | ✓ | ✓ | Text-like actors |
-| `overflow` | String | ✓ | ✓ | Text-like actors |
-| `char_progress` | F32 | ✓ | ✓ | Text-like actors |
+<!-- generated-property-table:text-typst-code:start -->
+| Property | Type | Runtime kind | Animated | Assignable | Applies to |
+|----------|------|--------------|----------|------------|------------|
+| `text` | `Str` | `String` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter` |
+| `code` | `Str` | `String` | ✓ | — | `Code` |
+| `language` | `Str` | `String` | ✓ | ✓ | `Code` |
+| `font_family` | `Str` | `String` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter`, `Captions` |
+| `font_size` | `Num` | `F32` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter`, `Equation`, `Captions`, `Cue`, `Legend` |
+| `font_style` | `Str` | `String` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter`, `Captions` |
+| `font_weight` | `Num \| Str` | `F32` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter`, `Captions` |
+| `line_height` | `Num` | `F32` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter`, `Captions` |
+| `letter_spacing` | `Num` | `F32` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Captions` |
+| `word_spacing` | `Num` | `F32` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter`, `Captions` |
+| `max_width` | `Num` | `F32` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst` |
+| `text_max_width` | `Num` | `F32` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter`, `Captions`, `Legend` |
+| `text_align` | `Str` | `String` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter` |
+| `text_anchor` | `Str` | `String` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter` |
+| `overflow` | `Str` | `String` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter` |
+| `char_progress` | `Num` | `F32` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter` |
+<!-- generated-property-table:text-typst-code:end -->
 
 `language` is the syntax-highlighting tag for `Code` (Typst's built-in `raw`
 languages, e.g. `"rust"`, `"python"`, `"cpp"`; matched case-insensitively).
@@ -202,68 +221,80 @@ maps to a named scheme colour, resolved at build like any other `color`).
 
 ### Split text
 
-| Property | Type | Animated | Assignable | Applies to |
-|----------|------|----------|------------|------------|
-| `split_by` | String | ✓ | ✓ | Text-like actors |
-| `split_stagger` | F32 | ✓ | ✓ | Text-like actors |
-| `split_offset_y` | F32 | ✓ | ✓ | Text-like actors |
-| `split_mask` | Bool | ✓ | ✓ | Text-like actors |
+<!-- generated-property-table:split-text:start -->
+| Property | Type | Runtime kind | Animated | Assignable | Applies to |
+|----------|------|--------------|----------|------------|------------|
+| `split_by` | `Str` | `String` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter` |
+| `split_stagger` | `Num` | `F32` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter` |
+| `split_offset_y` | `Num` | `F32` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter` |
+| `split_mask` | `Bool` | `Bool` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter` |
+<!-- generated-property-table:split-text:end -->
 
 ### Captions and cues
 
-| Property | Type | Animated | Assignable | Applies to |
-|----------|------|----------|------------|------------|
-| `caption_mode` | String | ✓ | ✓ | Captions |
-| `active_color` | Color | ✓ | ✓ | Captions, Cue |
-| `inactive_color` | Color | ✓ | ✓ | Captions |
-| `backdrop` | Bool | ✓ | ✓ | Captions |
-| `backdrop_color` | Color | ✓ | ✓ | Captions |
-| `backdrop_radius` | F32 | ✓ | ✓ | Captions |
-| `backdrop_padding` | Vec2 | ✓ | ✓ | Captions |
-| `pop_scale` | F32 | ✓ | ✓ | Captions |
-| `max_lines` | U32 | ✓ | ✓ | Captions |
-| `transition_time` | F32 | ✓ | ✓ | Captions |
-| `start` | F32 | ✓ | ✓ | Cue |
-| `end` | F32 | ✓ | ✓ | Cue |
+<!-- generated-property-table:captions-and-cues:start -->
+| Property | Type | Runtime kind | Animated | Assignable | Applies to |
+|----------|------|--------------|----------|------------|------------|
+| `caption_mode` | `Str` | `String` | ✓ | ✓ | `Captions` |
+| `active_color` | `Color` | `Color` | ✓ | ✓ | `Captions`, `Cue` |
+| `inactive_color` | `Color` | `Color` | ✓ | ✓ | `Captions` |
+| `backdrop` | `Bool` | `Bool` | ✓ | ✓ | `Captions` |
+| `backdrop_color` | `Color` | `Color` | ✓ | ✓ | `Captions` |
+| `backdrop_radius` | `Num` | `F32` | ✓ | ✓ | `Captions` |
+| `backdrop_padding` | `Vec2` | `Vec2` | ✓ | ✓ | `Captions` |
+| `pop_scale` | `Num` | `F32` | ✓ | ✓ | `Captions` |
+| `max_lines` | `Num` | `U32` | ✓ | ✓ | `Captions` |
+| `transition_time` | `Num` | `F32` | ✓ | ✓ | `Captions` |
+| `start` | `Num` | `F32` | ✓ | ✓ | `Cue` |
+| `end` | `Num` | `F32` | ✓ | ✓ | `Cue` |
+<!-- generated-property-table:captions-and-cues:end -->
 
 ### Counter
 
-| Property | Type | Animated | Assignable | Applies to |
-|----------|------|----------|------------|------------|
-| `value` | F32 | ✓ | ✓ | Counter |
-| `prefix` | String | ✓ | ✓ | Counter |
-| `suffix` | String | ✓ | ✓ | Counter |
-| `decimals` | U32 | ✓ | ✓ | Counter |
-| `comma` | Bool | ✓ | ✓ | Counter |
+<!-- generated-property-table:counter:start -->
+| Property | Type | Runtime kind | Animated | Assignable | Applies to |
+|----------|------|--------------|----------|------------|------------|
+| `value` | `Num` | `F32` | ✓ | ✓ | `Counter` |
+| `prefix` | `Str` | `String` | ✓ | ✓ | `Counter` |
+| `suffix` | `Str` | `String` | ✓ | ✓ | `Counter` |
+| `decimals` | `Num` | `U32` | ✓ | ✓ | `Counter` |
+| `comma` | `Bool` | `Bool` | ✓ | ✓ | `Counter` |
+<!-- generated-property-table:counter:end -->
 
 ### Equation and fragment highlights
 
-| Property | Type | Animated | Assignable | Applies to |
-|----------|------|----------|------------|------------|
-| `highlight_color` | Color | ✓ | — | Equation, Fragment, Typst |
-| `highlight_opacity` | F32 | ✓ | — | Equation, Fragment, Typst |
-| `highlight_padding` | F32 | ✓ | — | Equation, Fragment, Typst |
-| `highlight_radius` | F32 | ✓ | — | Equation, Fragment, Typst |
+<!-- generated-property-table:equation-and-fragment-highlights:start -->
+| Property | Type | Runtime kind | Animated | Assignable | Applies to |
+|----------|------|--------------|----------|------------|------------|
+| `highlight_color` | `Color \| Str` | `Color` | ✓ | — | `Typst`, `Equation`, `Fragment` |
+| `highlight_opacity` | `Num` | `F32` | ✓ | — | `Typst`, `Equation`, `Fragment` |
+| `highlight_padding` | `Num` | `F32` | ✓ | — | `Typst`, `Equation`, `Fragment` |
+| `highlight_radius` | `Num` | `F32` | ✓ | — | `Typst`, `Equation`, `Fragment` |
+<!-- generated-property-table:equation-and-fragment-highlights:end -->
 
 ### Text metrics (internal)
 
-| Property | Type | Animated | Assignable | Applies to |
-|----------|------|----------|------------|------------|
-| `ascent` | F32 | ✓ | — | Text metrics (internal) |
-| `descent` | F32 | ✓ | — | Text metrics (internal) |
-| `baseline` | F32 | ✓ | — | Text metrics (internal) |
+<!-- generated-property-table:text-metrics-internal:start -->
+| Property | Type | Runtime kind | Animated | Assignable | Applies to |
+|----------|------|--------------|----------|------------|------------|
+| `ascent` | `Num` | `F32` | ✓ | — | — |
+| `descent` | `Num` | `F32` | ✓ | — | — |
+| `baseline` | `Num` | `F32` | ✓ | — | — |
+<!-- generated-property-table:text-metrics-internal:end -->
 
 `ascent`, `descent`, and `baseline` are written by the text build path and are
 not author-facing; they are listed here because they are descriptor rows.
 
 ## Media
 
-| Property | Type | Animated | Assignable | Applies to |
-|----------|------|----------|------------|------------|
-| `url` | String | ✓ | ✓ | Image, Svg |
-| `source` | String | — | — | Audio |
-| `volume` | F32 | — | — | Audio |
-| `transcript` | String | — | ✓ | Audio, Captions |
+<!-- generated-property-table:media:start -->
+| Property | Type | Runtime kind | Animated | Assignable | Applies to |
+|----------|------|--------------|----------|------------|------------|
+| `url` | `Str` | `String` | — | ✓ | `Image`, `Svg` |
+| `source` | `Str` | `String` | — | ✓ | `Audio` |
+| `volume` | `Num` | `F32` | ✓ | ✓ | `Audio` |
+| `transcript` | `Str` | `String` | — | ✓ | `Audio`, `Captions` |
+<!-- generated-property-table:media:end -->
 
 `source` is the path to the audio asset. `volume` is a multiplier (0.0–1.0) applied at export time.
 Audio actors support timing modifiers (`duration`, delay) for clip placement on the global timeline. See [`spec.md`](spec.md) §9 "Audio".
@@ -275,35 +306,43 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 
 ## Plotting
 
-| Property | Type | Animated | Assignable | Applies to |
-|----------|------|----------|------------|------------|
-| `func` | BuildTimeOnly | — | Transitions | PlotCurve, VectorField, Heatmap, ContourSet |
-| `data` | BuildTimeOnly | — | Transitions | BarChart |
-| `bar_width` | F32 / auto | — | — | BarChart |
-| `bar_colors` | BuildTimeOnly | — | — | BarChart |
-| `direction` | String | — | — | BarChart |
-| `max_value` | F32 / auto | — | — | BarChart |
-| `show_axis` | Bool/String | — | — | BarChart |
-| `show_labels` | Bool/String | — | — | BarChart |
-| `x_domain` | Vec2 | — | — | Graph, PlotCurve, VectorField, Heatmap, ContourSet, NumberPlane |
-| `y_domain` | Vec2 | — | — | Graph, PlotCurve, VectorField, Heatmap, ContourSet, NumberPlane |
-| `x_range` | Vec2 | — | — | Graph, NumberPlane, PlotCurve |
-| `y_range` | Vec2 | — | — | Graph, NumberPlane, PlotCurve |
-| `t_domain` | Vec2 | — | — | PlotCurve |
-| `kind` | String | — | — | PlotCurve |
-| `resolution` | F32 | — | — | PlotCurve, Heatmap, ContourSet |
-| `density` | F32 | — | — | VectorField |
-| `levels` | Vec2 | — | — | ContourSet |
-| `tolerance` | F32 | — | — | PlotCurve |
-| `max_depth` | F32 | — | — | PlotCurve, ContourSet |
-| `grid` | Bool | — | — | Graph |
-| `ticks` | Bool | — | — | Graph |
-| `tick_labels` | String | — | — | Graph |
-| `x_scale` | String | — | — | Graph |
-| `y_scale` | String | — | — | Graph |
+<!-- generated-property-table:plotting:start -->
+| Property | Type | Runtime kind | Animated | Assignable | Applies to |
+|----------|------|--------------|----------|------------|------------|
+| `func` | `Any` | `BuildTimeOnly` | — | — | `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet` |
+| `data` | `Any` | `BuildTimeOnly` | — | — | `BarChart` |
+| `bar_width` | `Num \| Str` | `F32` | — | — | `BarChart` |
+| `bar_colors` | `Any` | `BuildTimeOnly` | — | — | `BarChart` |
+| `direction` | `Str` | `String` | — | — | `BarChart` |
+| `max_value` | `Num \| Str` | `F32` | — | — | `BarChart` |
+| `show_axis` | `Bool \| Str` | `BuildTimeOnly` | — | — | `BarChart` |
+| `show_labels` | `Bool \| Str` | `BuildTimeOnly` | — | — | `BarChart` |
+| `x_domain` | `Vec2` | `Vec2` | — | — | `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart` |
+| `y_domain` | `Vec2` | `Vec2` | — | — | `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart` |
+| `x_range` | `Any` | `Vec2` | — | — | `Graph`, `PlotCurve`, `NumberPlane` |
+| `y_range` | `Any` | `Vec2` | — | — | `Graph`, `PlotCurve`, `NumberPlane` |
+| `t_domain` | `Vec2` | `Vec2` | — | — | `PlotCurve` |
+| `kind` | `Str` | `String` | — | — | `PlotCurve` |
+| `resolution` | `Num` | `F32` | — | — | `PlotCurve`, `Heatmap`, `ContourSet` |
+| `density` | `Num` | `F32` | — | — | `VectorField` |
+| `levels` | `Any` | `Vec2` | — | — | `ContourSet` |
+| `tolerance` | `Num` | `F32` | — | — | `PlotCurve` |
+| `max_depth` | `Num` | `F32` | — | — | `PlotCurve`, `ContourSet` |
+| `grid` | `Bool` | `Bool` | — | — | `Graph` |
+| `ticks` | `Bool` | `Bool` | — | — | `Graph` |
+| `tick_labels` | `Str` | `String` | — | — | `Graph` |
+| `x_scale` | `Str` | `String` | — | — | `Graph` |
+| `y_scale` | `Str` | `String` | — | — | `Graph` |
+<!-- generated-property-table:plotting:end -->
 
 `func` transitions use assignment modifiers, e.g. `[1s]` for output blending or
 `[1s, blend: opacity]` for cross-fading the two generated plot outputs.
+`func` and `data` use dedicated transition handlers rather than generic
+property tracks; the timed assignment behavior is described below.
+
+For `BarChart`, `bar_width` also accepts `"auto"` and derives its width from the
+available chart space. `max_value: auto` scales to the largest data value; pin it
+when comparing bar heights across data transitions.
 
 > **Note on `data` assignment:** `BarChart.data` accepts a timed assignment that
 > races the bars between two datasets, matched by label — see
@@ -315,22 +354,33 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 
 ## Containers
 
-| Property | Type | Animated | Assignable | Applies to |
-|----------|------|----------|------------|------------|
-| `gap` | F32 | — | — | Row, Col, Grid, Stack, Group, Mask, Legend, BarChart (BarChart also accepts `auto`) |
-| `padding` | F32 | — | — | Row, Col, Grid, Stack, Graph |
-| `align` | String | — | — | Row, Col, Grid |
-| `cols` | U32 | — | — | Grid |
-| `vertical_align` | String | — | — | Col, Row |
+<!-- generated-property-table:containers:start -->
+| Property | Type | Runtime kind | Animated | Assignable | Applies to |
+|----------|------|--------------|----------|------------|------------|
+| `gap` | `Num \| Str` | `F32` | — | — | `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Legend` |
+| `padding` | `Num` | `F32` | — | — | `Graph`, `Row`, `Col`, `Grid`, `Stack` |
+| `align` | `Str` | `String` | — | — | `Row`, `Col`, `Grid`, `Stack` |
+| `cols` | `Num` | `U32` | — | — | `Grid` |
+| `vertical_align` | `Str` | `String` | — | — | `Row`, `Col` |
+<!-- generated-property-table:containers:end -->
+
+`BarChart.gap` also accepts `"auto"` to derive spacing from the available chart
+width.
 
 ## Scene
 
-| Property | Type | Animated | Assignable | Applies to |
-|----------|------|----------|------------|------------|
-| `background_color` | Color | ✓ | ✓ | Scene (via `scene.background_color`) |
-| `camera_follow` | Bool | — | — | Everything (declaration only; read on root actors) |
-| `parallax` | F32 | — | — | Everything (declaration only; read on root actors) |
-| `shared_id` | String | — | ✓ | Everything |
+<!-- generated-property-table:scene:start -->
+| Property | Type | Runtime kind | Animated | Assignable | Applies to |
+|----------|------|--------------|----------|------------|------------|
+| `background_color` | `Color \| Str` | `Color` | ✓ | ✓ | — |
+| `camera_follow` | `Any` | `BuildTimeOnly` | — | — | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+| `parallax` | `Num` | `F32` | — | — | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+| `shared_id` | `Str` | `String` | — | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+<!-- generated-property-table:scene:end -->
+
+`background_color` is scene-level and is assigned as `scene.background_color`;
+it does not apply to actor declarations. `parallax` is read on root actors when
+the scene camera transform is applied.
 
 > **Note on `camera_follow`:** the scene camera wraps every root subtree, and
 > `camera_follow: false` takes one of them back out — the HUD, watermark or
@@ -362,7 +412,15 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 
 ---
 
-*Source of truth: `animatix_core::property::PROPERTY_DESCRIPTORS` (name, applicability, value kind) joined with the engine's `BINDINGS` in `crates/animatix/src/timeline/property_registry/` (plan-slot type, flags, storage field, default). If you add a property, add the descriptor row, the parser's type row, and the engine binding, then update this table.*
+*Source of truth: `animatix_core::property::PROPERTY_DESCRIPTORS` declares names,
+applicability, value kinds and authored-type hints. Syntax derives its input
+types from those descriptors; the engine's `BINDINGS` in
+`crates/animatix/src/timeline/property_registry/` supplies storage types, flags,
+fields and defaults. Add the descriptor and engine binding, then regenerate
+the marked tables with
+`cargo run -p animatix --example property_reference -- --write`.
+`docs/property-reference-groups.json` stores presentation groups only;
+the docs gate checks complete coverage and generated contents.*
 
 ---
 

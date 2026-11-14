@@ -30,6 +30,33 @@ fn property_types_line_up_with_descriptors() {
     }
 }
 
+/// Preserve the exact syntax type at every serialized `PropertyId` while the
+/// authoring hints move from name-based overrides into the shared descriptors.
+#[test]
+fn authored_type_hints_preserve_the_legacy_property_id_types() {
+    let specs = property_specs();
+    let expected = include_str!("legacy_property_types.tsv");
+    let rows: Vec<_> = expected
+        .lines()
+        .filter(|line| !line.starts_with('#') && !line.is_empty())
+        .collect();
+    assert_eq!(rows.len(), specs.len(), "the full property type snapshot is incomplete");
+
+    for (row, spec) in rows.into_iter().zip(specs) {
+        let mut columns = row.splitn(3, '\t');
+        let id: u32 = columns.next().expect("snapshot id").parse().expect("snapshot id is numeric");
+        let name = columns.next().expect("snapshot name");
+        let expected_type = columns.next().expect("snapshot type");
+        assert_eq!(spec.id.0, id, "PropertyId changed for `{name}`");
+        assert_eq!(spec.name, name, "property order changed at id {id}");
+        assert_eq!(
+            spec.ty.to_string(),
+            expected_type,
+            "authoring type changed for PropertyId({id}) `{name}`"
+        );
+    }
+}
+
 #[test]
 fn graph_grid_and_ticks_are_typed_as_booleans() {
     let types = raw_property_types();

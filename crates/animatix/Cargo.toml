@@ -79,6 +79,10 @@ dhat = "0.3"
 serde_json = "1"
 tempfile = "3"
 
+[[example]]
+name = "property_reference"
+test = true
+
 # Six semantic targets; each is a wrapper over the original per-suite files in
 # `benches/`, which stay `mod`ules so benchmark IDs and groups do not change.
 [[bench]]

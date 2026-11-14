@@ -362,6 +362,7 @@ gate_ext_bench() {
 gate_doc() {
   want_cargo
   RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
+  cargo run -p animatix --example property_reference -- --check
   bash scripts/check-docs.sh
 }
 

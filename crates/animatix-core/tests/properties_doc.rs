@@ -1,7 +1,7 @@
 //! Pin `docs/properties.md` to the descriptor table.
 //!
-//! The reference table is hand-maintained, but it must not drift: every
-//! canonical descriptor needs a row, and every documented property name must
+//! The generated tables and handwritten prose must agree: every canonical
+//! descriptor needs a row, and every documented property name must
 //! either be a descriptor or one of the explicitly-listed aliases below.
 //!
 //! The alias list is deliberately explicit rather than derived: a name that is

@@ -5,8 +5,7 @@
 #   - every relative Markdown link under docs/ must resolve to an existing file
 #   - docs/roadmap.md must not keep completed-status rows in any table
 #   - active docs must not carry stale known-gap wording for completed roadmap items
-#   - docs/properties.md Applies-to actor lists must match PROPERTY_DESCRIPTORS
-#     for the rows pinned below
+# Generated property cells are verified by the doc gate, not parsed from Rust.
 #   - code spans that name a repo path (`crates/…`, `scripts/…`, `web/…`) must resolve
 #   - active docs must cite symbols, not `file.rs:NNN` line numbers
 #
@@ -132,92 +131,12 @@ if [ "$STALE_FOUND" -eq 0 ]; then
     echo "  PASSED"
 fi
 
-# ── 4. Property reference applicability ─────────────────────────────────────
-echo ""
-echo "4. Property reference Applies-to actor lists"
-echo "--------------------------------------------"
-PROPERTY_DOC="$ROOT/docs/properties.md"
-PROPERTY_SOURCE="$ROOT/crates/animatix-core/src/property.rs"
-APPLIES_FAILED=0
-
-normalize_actor_list() {
-    tr ',' '\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | sed '/^$/d' \
-        | sort | paste -sd ',' -
-}
-
-# Read the actor names from a one-line `Applicable::Actors(&[...])` descriptor row.
-descriptor_actor_list() {
-    local prop="$1"
-    local row
-    row=$(grep -F "\"$prop\" => (Applicable::Actors(&[" "$PROPERTY_SOURCE" | head -n 1)
-    [ -n "$row" ] || return 1
-    printf '%s\n' "$row" \
-        | sed 's/.*Applicable::Actors(&\[//; s/\].*//' \
-        | grep -o '"[A-Za-z][A-Za-z0-9]*"' \
-        | tr -d '"' \
-        | normalize_actor_list
-}
-
-documented_applies_to() {
-    local prop="$1"
-    grep -E "^\| \`$prop\` \|" "$PROPERTY_DOC" | head -n 1 | cut -d'|' -f6 \
-        | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
-}
-
-check_actor_row() {
-    local prop="$1"
-    local expected actual
-    if ! expected=$(descriptor_actor_list "$prop"); then
-        echo "  MISSING DESCRIPTOR: $prop"
-        APPLIES_FAILED=1
-        return
-    fi
-    actual=$(documented_applies_to "$prop" || true)
-    if [ "$(printf '%s' "$actual" | normalize_actor_list)" != \
-         "$(printf '%s' "$expected" | normalize_actor_list)" ]; then
-        echo "  APPLIES-TO MISMATCH: $prop"
-        echo "    docs:       $actual"
-        echo "    descriptor: $expected"
-        APPLIES_FAILED=1
-    fi
-}
-
-# The explicit actor-list rows that have drifted before. Keep this list growing
-# when a capability-shaped row is rewritten as an `Applicable::Actors` list.
-for prop in from to corner_radius padding x_range y_range; do
-    check_actor_row "$prop"
-done
-
-# `head_size` is an `Any` row: an Arrow shape kind plus the Callout capability,
-# so its documentation is a two-actor list rather than one `Actors` array.
-HEAD_SIZE_ROW=$(grep -F '"head_size" => (Applicable::Any' -A4 "$PROPERTY_SOURCE" || true)
-if ! grep -q 'Applicable::ShapeKinds(&\[ShapeKind::Arrow\])' <<<"$HEAD_SIZE_ROW" \
-    || ! grep -q 'Applicable::Callout' <<<"$HEAD_SIZE_ROW"; then
-    echo "  MISSING DESCRIPTOR: head_size (Any row changed shape)"
-    APPLIES_FAILED=1
-else
-    actual=$(documented_applies_to head_size || true)
-    if [ "$(printf '%s' "$actual" | normalize_actor_list)" != \
-         "$(printf '%s' 'Arrow, Callout' | normalize_actor_list)" ]; then
-        echo "  APPLIES-TO MISMATCH: head_size"
-        echo "    docs:       $actual"
-        echo "    descriptor: Arrow, Callout"
-        APPLIES_FAILED=1
-    fi
-fi
-
-if [ "$APPLIES_FAILED" -eq 0 ]; then
-    echo "  PASSED"
-else
-    FAILED=1
-fi
-
-# ── 5. Code-span repo paths ──────────────────────────────────────────────────
+# ── 4. Code-span repo paths ──────────────────────────────────────────────────
 # A path in backticks is navigation: if it does not resolve, the reader follows
 # a dead end. Only repo-root paths are checked (a bare `utils.rs` is ambiguous
 # prose shorthand); commands, placeholders and globs are skipped.
 echo ""
-echo "5. Code-span repo paths"
+echo "4. Code-span repo paths"
 echo "-----------------------"
 if python3 "$ROOT/scripts/check-doc-paths.py" "$ROOT"; then
     echo "  PASSED"
@@ -225,12 +144,12 @@ else
     FAILED=1
 fi
 
-# ── 6. Line-number citations ─────────────────────────────────────────────────
+# ── 5. Line-number citations ─────────────────────────────────────────────────
 # A `file.rs:123` citation is stale the moment the file is edited, and these
 # have already pointed at the wrong line repeatedly. Cite a symbol instead.
 # History pages are exempt: they record what a file looked like at the time.
 echo ""
-echo "6. Line-number citations"
+echo "5. Line-number citations"
 echo "-----------------------"
 LINE_FAILED=0
 while IFS= read -r file; do

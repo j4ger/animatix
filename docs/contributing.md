@@ -52,6 +52,26 @@ cargo run -p animatix-cli --features video -- gif examples/projects/fft_explain.
 cargo run --bin animatix-gui -- examples/projects/fft_explain.amx
 ```
 
+### Property metadata and generated reference
+
+Core property descriptors declare `AuthoredTypeHint` only where the authoring
+type cannot be derived from `PropertyValueKind`. Syntax maps those hints to its
+own types; the engine continues to own runtime bindings. Adding a property does
+not require another name-based syntax type branch. Serialized `PropertyId` rows
+remain append-only.
+
+`PropertyDescriptor::new(name, applicable, value_kind)` is unchanged. External
+struct literals must supply `authored_type: AuthoredTypeHint::Default`, or migrate
+to the constructor and its const `with_authored_type` builder. This source-level
+API migration does not change accepted DSL types or serialized IDs.
+
+Regenerate the reference with
+`cargo run -p animatix --example property_reference -- --write`, then verify with
+`--check`. The docs-owned grouping array contains presentation categories only;
+input types, applicability and runtime flags come from the existing schemas.
+Keep explanations and alias rows outside generated markers. An authoring `Any`
+is not narrowed by the separately displayed runtime representation.
+
 ### Tokenizer/Tooling Validation
 
 For syntax or highlighting changes, run the syntax, analyzer, GUI, and LSP tests after updating `crates/animatix-syntax/src/token/`.

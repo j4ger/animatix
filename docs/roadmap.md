@@ -146,14 +146,6 @@ production function >200 lines (tests >300), or a stale allowlist row. A split
 deletes its row and never raises one. [`ecs.md`](ecs.md) is the normative
 description of the timeline storage, not a work list.
 
-### Property reference generator (deferred)
-
-[`properties.md`](properties.md) is hand-maintained. A generator over
-`animatix-core::property::PROPERTY_DESCRIPTORS` would remove the drift risk, but
-the reference is grouped by user-facing categories rather than descriptor order,
-so the generator needs a category map first. Until then the name pin test and
-`scripts/check-docs.sh`'s Applies-to check keep the table honest.
-
 ### Web playback performance (active)
 
 > **Instrument warning, 2026-10-03.** `debug_bench_frames` on a *demo* page is
