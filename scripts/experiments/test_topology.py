@@ -41,6 +41,18 @@ def baseline_jobs(fail=False):
 
 
 class TopologyTests(unittest.TestCase):
+    def test_unset_actions_timestamps_are_not_measured_durations(self):
+        jobs = baseline_jobs()
+        jobs[1]["steps"].append({"name": "Build skipped", "started_at": "0001-01-01T00:00:00Z",
+                                 "completed_at": timestamp(60)})
+        result = TOPOLOGY.analyze_jobs(jobs, "baseline")
+        self.assertTrue(result["complete"])
+        self.assertEqual(result["named_build_step_seconds"], 0)
+        jobs[1]["completed_at"] = "0001-01-01T00:00:00Z"
+        incomplete = TOPOLOGY.analyze_jobs(jobs, "baseline")
+        self.assertFalse(incomplete["complete"])
+        self.assertIsNone(incomplete["runner_minutes"])
+
     def test_actions_job_timing_critical_path_and_step_buckets(self):
         result = TOPOLOGY.analyze_jobs(baseline_jobs(fail=True), "baseline", "fixture.json")
         self.assertTrue(result["complete"], result["issues"])

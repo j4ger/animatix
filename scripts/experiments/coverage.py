@@ -19,6 +19,8 @@ CASE_ALIAS = {
 TEST_LIST_RE = re.compile(r"^(.*?)\s*:\s*test\s*$")
 DOC_RESULT_RE = re.compile(r"^test\s+(.+?)\s+\.\.\.\s+(ok|FAILED|ignored)(?:\s+\(.*\))?\s*$")
 LIBTEST_RESULT_RE = re.compile(r"^test\s+(.+?)\s+\.\.\.\s+(ok|FAILED|ignored)\s*$")
+LIBTEST_START_RE = re.compile(r"^running\s+(\d+)\s+tests?\s*$")
+LIBTEST_SUMMARY_RE = re.compile(r"^test result:")
 
 
 def parse_artifacts(path: Path, workspace_members: set[str], target_dir: Path | None = None) -> list[dict]:
@@ -184,6 +186,16 @@ def parse_doc_ids(records: list[dict]) -> list[str]:
         path = record.get("log_path")
         if not path or not Path(path).exists():
             continue
+        stderr_path = record.get("stderr_log_path")
+        if stderr_path:
+            # Dispatch records name a package/binary directly; their stderr is
+            # from the test process, not Cargo's `Doc-tests` stream.
+            if all(key in record for key in ("package", "binary", "filter")):
+                continue
+            sections = _parse_cargo_stream_sections(Path(path), Path(stderr_path))
+            for block in sections["doc_blocks"]:
+                ids.extend(row["name"] for row in block["results"])
+            continue
         in_doc_tests = False
         for line in Path(path).read_text(encoding="utf-8", errors="replace").splitlines():
             if re.match(r"^\s*Doc-tests\s+", line):
@@ -199,7 +211,112 @@ def parse_doc_ids(records: list[dict]) -> list[str]:
     return sorted(ids)
 
 
-def parse_cargo_executed_ids(log_path: Path, harnesses: list[dict]) -> tuple[list[str], list[dict]]:
+def _parse_libtest_blocks(stdout_path: Path) -> list[dict]:
+    blocks = []
+    current = None
+    for line in Path(stdout_path).read_text(encoding="utf-8", errors="replace").splitlines():
+        stripped = line.strip()
+        start = LIBTEST_START_RE.match(stripped)
+        if start:
+            if current is not None:
+                raise ExperimentFailure("Cargo stdout started a new test block before the previous result")
+            current = {"test_count": int(start.group(1)), "results": []}
+            continue
+        if current is None:
+            continue
+        if LIBTEST_SUMMARY_RE.match(stripped):
+            if len(current["results"]) != current["test_count"]:
+                raise ExperimentFailure(
+                    "Cargo stdout test block listed "
+                    f"{len(current['results'])} results but announced {current['test_count']}"
+                )
+            blocks.append(current)
+            current = None
+            continue
+        match = LIBTEST_RESULT_RE.match(stripped)
+        if match:
+            current["results"].append({"name": match.group(1), "status": match.group(2)})
+    if current is not None:
+        raise ExperimentFailure("Cargo stdout ended before a test-result summary")
+    return blocks
+
+
+def _parse_cargo_stderr_headings(stderr_path: Path) -> list[dict]:
+    headings = []
+    for line in Path(stderr_path).read_text(encoding="utf-8", errors="replace").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("Doc-tests "):
+            headings.append({"kind": "doc-tests", "heading": stripped})
+            continue
+        if stripped.startswith("Running "):
+            executable = (stripped[stripped.rfind("(") + 1:-1]
+                          if "(" in stripped and stripped.endswith(")") else None)
+            headings.append({"kind": "harness", "heading": stripped, "executable": executable})
+    return headings
+
+
+def _parse_cargo_stream_sections(stdout_path: Path, stderr_path: Path) -> dict:
+    """Pair Cargo unit headings and separate rustdoc output blocks by phase."""
+    headings = _parse_cargo_stderr_headings(stderr_path)
+    blocks = _parse_libtest_blocks(stdout_path)
+    doc_start = next((index for index, heading in enumerate(headings)
+                      if heading["kind"] == "doc-tests"), len(headings))
+    unit_headings = headings[:doc_start]
+    doc_headings = headings[doc_start:]
+    if any(heading["kind"] != "doc-tests" for heading in doc_headings):
+        raise ExperimentFailure("Cargo emitted a test-harness heading after the doc-test phase began")
+    if len(blocks) < len(unit_headings):
+        raise ExperimentFailure(
+            "Cargo stdout has fewer complete test blocks than unit-test headings: "
+            f"{len(blocks)} blocks for {len(unit_headings)} harnesses"
+        )
+    unit_blocks = blocks[:len(unit_headings)]
+    doc_blocks = blocks[len(unit_headings):]
+    if doc_blocks and not doc_headings:
+        raise ExperimentFailure("Cargo stdout contains doc-test blocks without a Doc-tests heading")
+    return {
+        "unit_sections": list(zip(unit_headings, unit_blocks)),
+        "doc_headings": doc_headings,
+        "doc_blocks": doc_blocks,
+    }
+
+
+def _harness_for_cargo_heading(heading: dict, by_path: dict, by_basename: dict) -> dict | None:
+    executable_text = heading["executable"]
+    if not executable_text:
+        return None
+    executable = str(Path(executable_text).resolve())
+    current = by_path.get(executable)
+    if current is not None:
+        return current
+    candidates = by_basename.get(Path(executable_text).name, [])
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def parse_cargo_executed_ids(log_path: Path, harnesses: list[dict],
+                             stderr_path: Path | None = None) -> tuple[list[str], list[dict]]:
+    if stderr_path is not None:
+        by_path = {str(Path(item["executable"]).resolve()): item for item in harnesses}
+        by_basename: dict[str, list[dict]] = {}
+        for item in harnesses:
+            by_basename.setdefault(Path(item["executable"]).name, []).append(item)
+        observed_ids = []
+        sections = _parse_cargo_stream_sections(log_path, stderr_path)
+        for heading, block in sections["unit_sections"]:
+            current = _harness_for_cargo_heading(heading, by_path, by_basename)
+            if current is None:
+                raise ExperimentFailure(f"Cargo test heading does not identify a listed harness: {heading['heading']}")
+            for row in block["results"]:
+                if row["status"] not in {"ok", "FAILED"}:
+                    continue
+                matches = [case for case in current["cases"] if case["name"] == row["name"]]
+                if len(matches) != 1:
+                    raise ExperimentFailure(
+                        f"Cargo result `{row['name']}` matched {len(matches)} listed cases in {heading['heading']}"
+                    )
+                observed_ids.append(matches[0]["id"])
+        return sorted(set(observed_ids)), []
+
     by_path = {str(Path(item["executable"]).resolve()): item for item in harnesses}
     by_basename: dict[str, list[dict]] = {}
     for item in harnesses:

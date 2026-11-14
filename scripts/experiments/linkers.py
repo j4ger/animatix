@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import subprocess
 
@@ -156,7 +157,8 @@ def _make_audit_wrapper(wrapper_path: Path, callee: Path, argv0: str) -> dict:
     callee_abs = _absolute_keep_alias(callee)
     callee_hash = _file_sha256(callee_abs)
     source = f'''#!/usr/bin/env python3
-import hashlib, json, os, sys, time
+import hashlib, json, os, shlex, sys, time
+from pathlib import Path
 callee = {str(callee_abs)!r}
 argv0 = {argv0!r}
 log = os.environ.get("ANIMATIX_LINKER_AUDIT_LOG")
@@ -166,14 +168,43 @@ h = hashlib.sha256()
 with open(callee, "rb") as f:
     for chunk in iter(lambda: f.read(1048576), b""):
         h.update(chunk)
-args = sys.argv[1:]
+args = list(sys.argv[1:])
+response_files = []
+def expand_response_files(arguments, ancestry=(), depth=0):
+    if depth > 16:
+        raise RuntimeError("linker response files exceed maximum nesting depth")
+    expanded = []
+    for argument in arguments:
+        if not argument.startswith("@") or argument == "@":
+            expanded.append(argument)
+            continue
+        path = Path(argument[1:])
+        if not path.is_absolute():
+            path = Path.cwd() / path
+        path = path.resolve(strict=True)
+        if path in ancestry:
+            raise RuntimeError("recursive linker response file: " + str(path))
+        payload = path.read_bytes()
+        if len(payload) > 8 * 1024 * 1024:
+            raise RuntimeError("linker response file exceeds 8 MiB: " + str(path))
+        tokens = shlex.split(payload.decode("utf-8"), posix=True)
+        response_files.append({{"path": str(path), "sha256": hashlib.sha256(payload).hexdigest(),
+                                "size_bytes": len(payload)}})
+        expanded.extend(expand_response_files(tokens, ancestry + (path,), depth + 1))
+    return expanded
+
+expanded_args = expand_response_files(args)
 output = None
-for index, arg in enumerate(args):
-    if arg == "-o" and index + 1 < len(args):
-        output = args[index + 1]
+for index, arg in enumerate(expanded_args):
+    if arg == "-o" and index + 1 < len(expanded_args):
+        output = expanded_args[index + 1]
+        break
+    if arg.startswith("--output="):
+        output = arg.split("=", 1)[1]
         break
 record = {{"time": time.time(), "wrapper": sys.argv[0], "callee": callee,
-          "argv0": argv0, "argv": args, "cwd": os.getcwd(),
+          "argv0": argv0, "argv": args, "expanded_argv": expanded_args,
+          "response_files": response_files, "cwd": os.getcwd(),
           "output_path": os.path.abspath(output) if output else None,
           "callee_sha256": h.hexdigest()}}
 with open(log, "a", encoding="utf-8") as f:
@@ -364,6 +395,84 @@ def collect_elf_linker_evidence(executables: list[Path], expected: str,
     return evidence
 
 
+_RUSTC_LINK_LOG_PREFIX = "rustc_codegen_ssa::back::link "
+
+
+def parse_rustc_link_invocations(log_path: Path, cwd: Path) -> list[dict]:
+    """Extract actual rustc linker commands and their `-o` destinations.
+
+    `RUSTC_LOG=rustc_codegen_ssa::back::link=info` records the full driver
+    argv while leaving rustc's configured linker selection untouched. Keep the
+    command after environment assignments so callers can audit flags such as
+    `-fuse-ld=lld` without serializing the runner's complete PATH.
+    """
+    invocations = []
+    try:
+        lines = Path(log_path).read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError as error:
+        raise ExperimentFailure(f"cannot read rustc linker log {log_path}: {error}") from error
+    for line in lines:
+        marker = line.find(_RUSTC_LINK_LOG_PREFIX)
+        if marker < 0:
+            continue
+        payload = line[marker + len(_RUSTC_LINK_LOG_PREFIX):].strip()
+        try:
+            tokens = shlex.split(payload, posix=True)
+        except ValueError:
+            continue
+        command_start = 0
+        while command_start < len(tokens) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", tokens[command_start]):
+            command_start += 1
+        if command_start >= len(tokens):
+            continue
+        command = tokens[command_start:]
+        output = None
+        for index, argument in enumerate(command):
+            if argument == "-o" and index + 1 < len(command):
+                output = command[index + 1]
+                break
+            if argument.startswith("--output="):
+                output = argument.split("=", 1)[1]
+                break
+        if not output:
+            continue
+        output_path = Path(output)
+        if not output_path.is_absolute():
+            output_path = Path(cwd) / output_path
+        output_path = Path(os.path.abspath(output_path))
+        invocations.append({
+            "output_path": str(output_path),
+            "driver": command[0],
+            "command": command,
+            "log_line": line,
+        })
+    return invocations
+
+
+def collect_rustc_link_evidence(log_path: Path, expected_outputs: list[Path],
+                                cwd: Path) -> list[dict]:
+    """Require a rustc-recorded linker invocation for each expected output."""
+    invocations = parse_rustc_link_invocations(log_path, cwd)
+    if not invocations:
+        raise ExperimentFailure(
+            f"rustc emitted no actual linker commands in {log_path}; RUSTC_LOG evidence is required"
+        )
+    by_output: dict[str, list[dict]] = {}
+    for invocation in invocations:
+        key = str(Path(invocation["output_path"]).resolve())
+        by_output.setdefault(key, []).append(invocation)
+    evidence = []
+    for output in expected_outputs:
+        key = str(Path(output).resolve())
+        matches = by_output.get(key, [])
+        if len(matches) != 1:
+            raise ExperimentFailure(
+                f"rustc linker log must contain exactly one invocation for {key}; found {len(matches)}"
+            )
+        evidence.append(matches[0])
+    return evidence
+
+
 def collect_wrapper_evidence(log_path: Path, expected: dict,
                              expected_outputs: list[Path] | None = None) -> list[dict]:
     try:
@@ -373,6 +482,19 @@ def collect_wrapper_evidence(log_path: Path, expected: dict,
     if not records:
         raise ExperimentFailure(f"linker wrapper was configured but never executed: {log_path}")
     for record in records:
+        expanded = record.get("expanded_argv")
+        if not isinstance(expanded, list) or not isinstance(record.get("cwd"), str):
+            raise ExperimentFailure(f"linker wrapper audit lacks expanded argv evidence in {log_path}")
+        derived_output = None
+        for index, argument in enumerate(expanded):
+            if argument == "-o" and index + 1 < len(expanded):
+                derived_output = os.path.abspath(os.path.join(record["cwd"], expanded[index + 1]))
+                break
+            if argument.startswith("--output="):
+                derived_output = os.path.abspath(os.path.join(record["cwd"], argument.split("=", 1)[1]))
+                break
+        if record.get("output_path") != derived_output:
+            raise ExperimentFailure(f"linker wrapper output path disagrees with expanded argv in {log_path}")
         if record.get("callee_sha256") != expected["callee_sha256"]:
             raise ExperimentFailure(f"linker wrapper callee hash mismatch in {log_path}")
         if Path(record.get("callee", "")).name != Path(expected["callee_path"]).name and expected["argv0"] != "ld64.mold":

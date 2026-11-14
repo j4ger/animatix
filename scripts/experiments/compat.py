@@ -13,7 +13,8 @@ import zlib
 
 from scripts.experiments.common import ExperimentFailure, ExperimentOutput, run_timed
 from scripts.experiments.linkers import (
-    collect_elf_linker_evidence, collect_wrapper_evidence,
+    collect_elf_linker_evidence, collect_rustc_link_evidence,
+    collect_wrapper_evidence,
 )
 
 
@@ -148,6 +149,13 @@ def _assert_png(path: Path) -> dict:
 def _linker_binary_evidence(platform: str, arm: dict,
                             binaries: list[tuple[Path, dict]], output: ExperimentOutput) -> dict | list[dict]:
     paths = [binary for binary, _ in binaries]
+    rustc_invocations = []
+    for binary, info in binaries:
+        build_log = Path(info["linker_log_path"])
+        link_output = Path(info.get("link_output_path", str(binary)))
+        rustc_invocations.extend(collect_rustc_link_evidence(
+            build_log, [link_output], output.repo,
+        ))
     if arm.get("audit"):
         invocation_evidence = []
         artifact_evidence = []
@@ -163,9 +171,12 @@ def _linker_binary_evidence(platform: str, arm: dict,
                 artifact_evidence.extend(collect_elf_linker_evidence(
                     [binary], arm["artifact_identity"], allow_unknown=True,
                 ))
-        return {"artifacts": artifact_evidence, "actual_linker_invocations": invocation_evidence}
+        return {"artifacts": artifact_evidence,
+                "rustc_linker_invocations": rustc_invocations,
+                "actual_linker_invocations": invocation_evidence}
     if platform == "linux":
-        return collect_elf_linker_evidence(paths, arm["expected_linker"])
+        return {"artifacts": collect_elf_linker_evidence(paths, arm["expected_linker"]),
+                "actual_linker_invocations": rustc_invocations}
     expected_path = arm.get("expected_linker_path")
     if not expected_path:
         raise ExperimentFailure("Apple linker arm lacks its resolved ld path")
@@ -173,7 +184,7 @@ def _linker_binary_evidence(platform: str, arm: dict,
     # emitted by the invoked clang driver, not a configured-linker string.
     traces = []
     for binary, info in binaries:
-        log = Path(info["build_log"])
+        log = Path(info["linker_log_path"])
         text = log.read_text(encoding="utf-8", errors="replace")
         matching = [line for line in text.splitlines() if expected_path in line]
         if not matching:
@@ -181,7 +192,8 @@ def _linker_binary_evidence(platform: str, arm: dict,
                 f"Apple ld path {expected_path!r} was not observed while linking {binary.name}"
             )
         traces.extend({"artifact": str(binary), "observed_driver_trace": line} for line in matching)
-    return traces
+    return {"actual_linker_invocations": rustc_invocations,
+            "apple_linker_verbose_evidence": traces}
 
 
 def _mac_version(repo: Path) -> str:

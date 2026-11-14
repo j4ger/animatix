@@ -38,12 +38,37 @@ from scripts.experiments.coverage import (
     parse_nextest_junit_ids as _parse_nextest_junit_ids,
     parse_nextest_listing as _parse_nextest_listing, parse_test_list as _parse_test_list,
 )
+from scripts.experiments.runner_identity import (
+    recheck_binary_hashes as _recheck_nextest_binary_hashes,
+    verify_nextest_listing as _verify_nextest_listing,
+)
 
 
 BUILD_COMMAND = ["cargo", "test", "--workspace", "--no-run", "--locked", "--message-format=json"]
 BASELINE_COMMAND = ["cargo", "test", "--workspace", "--locked", "--", "--test-threads=1"]
 DOC_COMMAND = ["cargo", "test", "--workspace", "--doc", "--locked", "--", "--test-threads=1"]
 EXAMPLES_COMMAND = ["cargo", "check", "--workspace", "--examples", "--locked"]
+RUNNER_ARM_IDS = ("baseline", "cargo2", "cargo4", "nextest2", "nextest4")
+
+
+def _select_runner_arm_ids(selection: str | None) -> list[str]:
+    """Parse an optional comma-separated arm cohort in canonical order."""
+    if selection is None:
+        return list(RUNNER_ARM_IDS)
+    requested = [part.strip() for part in selection.split(",")]
+    if not selection.strip() or any(not arm for arm in requested):
+        raise ExperimentFailure("ANIMATIX_RUNNER_ARMS must be a comma-separated list of runner arms")
+    duplicates = sorted({arm for arm in requested if requested.count(arm) > 1})
+    if duplicates:
+        raise ExperimentFailure(f"ANIMATIX_RUNNER_ARMS contains duplicate arms: {duplicates}")
+    unknown = sorted(set(requested) - set(RUNNER_ARM_IDS))
+    if unknown:
+        raise ExperimentFailure(f"ANIMATIX_RUNNER_ARMS contains unknown arms: {unknown}")
+    if "baseline" not in requested:
+        raise ExperimentFailure("ANIMATIX_RUNNER_ARMS must include baseline")
+    if len(requested) < 2:
+        raise ExperimentFailure("ANIMATIX_RUNNER_ARMS must include baseline and at least one candidate")
+    return [arm for arm in RUNNER_ARM_IDS if arm in requested]
 
 _ACTIVE_HARNESS_GROUPS: dict[int, subprocess.Popen] = {}
 _ACTIVE_HARNESS_LOCK = threading.RLock()
@@ -73,11 +98,12 @@ def _prepare_artifacts(repo: Path, output: ExperimentOutput, workspace_members: 
         build_record = None
     else:
         build_log = output.logs_dir / f"{label}-test-no-run.jsonl"
+        build_stderr = output.logs_dir / f"{label}-test-no-run.stderr.log"
         env = {"CARGO_TARGET_DIR": str(target_dir), "CARGO_INCREMENTAL": "0", "CARGO_TERM_COLOR": "never",
                "ANIMATIX_REQUIRE_GPU": "1"}
         build_record = run_timed(
             f"runner-{label}-prepare", BUILD_COMMAND, repo, env, build_log,
-            timeout_seconds=7200,
+            timeout_seconds=7200, stderr_path=build_stderr,
         )
         output.append_record({"type": "prepare-build", "label": label, **build_record})
         if build_record["exit_code"] or build_record["timed_out"]:
@@ -148,7 +174,8 @@ def _cargo_cases(artifacts: list[dict], package_by_id: dict[str, dict], target_d
 
 
 def _nextest_cases(repo: Path, target_dir: Path, output: ExperimentOutput,
-                   filter_expr: str | None = None, label: str = "all") -> tuple[list[dict], dict]:
+                   artifacts: list[dict], filter_expr: str | None = None,
+                   label: str = "all") -> tuple[list[dict], dict, dict]:
     command = ["cargo", "nextest", "list", "--workspace", "--locked", "--message-format", "json"]
     if filter_expr:
         command.extend(["-E", filter_expr])
@@ -159,7 +186,9 @@ def _nextest_cases(repo: Path, target_dir: Path, output: ExperimentOutput,
         capture_output=True, text=True, check=False, timeout=300,
     )
     log_path = output.logs_dir / f"nextest-list-{label}.json"
-    log_path.write_text(result.stdout + result.stderr, encoding="utf-8")
+    stderr_path = output.logs_dir / f"nextest-list-{label}.stderr.log"
+    log_path.write_text(result.stdout, encoding="utf-8")
+    stderr_path.write_text(result.stderr, encoding="utf-8")
     if result.returncode:
         raise ExperimentFailure(f"cargo nextest list failed: {result.stderr[-2000:]}")
     try:
@@ -167,7 +196,43 @@ def _nextest_cases(repo: Path, target_dir: Path, output: ExperimentOutput,
     except json.JSONDecodeError as error:
         raise ExperimentFailure(f"nextest list returned invalid JSON: {error}") from error
     cases, suite_count = _parse_nextest_listing(data)
-    return cases, {"command": command, "json_path": str(log_path), "suite_count": suite_count}
+    try:
+        identity = _verify_nextest_listing(
+            data, artifacts, target_dir, exact_suite_set=filter_expr is None,
+        )
+    except ExperimentFailure as error:
+        output.append_record({"type": "nextest-binary-identity-listing", "label": label,
+                              "verified": False, "json_path": str(log_path),
+                              "stderr_path": str(stderr_path), "error": str(error)})
+        raise
+    identity_path = f"nextest-binary-identity-{label}.json"
+    output.write_json(identity_path, identity)
+    output.append_record({"type": "nextest-binary-identity-listing", "label": label,
+                          "verified": True, "identity_sha256": identity["identity_sha256"],
+                          "target_directory": identity["target_directory"],
+                          "listed_suite_count": identity["listed_suite_count"],
+                          "prepared_artifact_count": identity["prepared_artifact_count"],
+                          "identity_path": str(output.directory / identity_path)})
+    return cases, {"command": command, "json_path": str(log_path),
+                   "stderr_path": str(stderr_path), "suite_count": suite_count,
+                   "identity_sha256": identity["identity_sha256"],
+                   "identity_path": str(output.directory / identity_path)}, identity
+
+
+def _record_nextest_identity_check(output: ExperimentOutput, identity: dict,
+                                   target_dir: Path, arm_id: str, round_number: int,
+                                   phase: str) -> dict:
+    try:
+        checked = _recheck_nextest_binary_hashes(identity, target_dir)
+    except ExperimentFailure as error:
+        output.append_record({"type": "nextest-binary-identity-check", "arm": arm_id,
+                              "round": round_number, "phase": phase,
+                              "passed": False, "error": str(error)})
+        raise
+    record = {"type": "nextest-binary-identity-check", "arm": arm_id,
+              "round": round_number, "phase": phase, "passed": True, **checked}
+    output.append_record(record)
+    return record
 
 
 def _nextest_filter_expression(groups: list[dict]) -> str:
@@ -328,6 +393,7 @@ def _execute_harness_item(item: dict, env: dict[str, str], log_dir: Path, run_ta
                          f"{item['package_name']}--{item['target_name']}")
     suffix = re.sub(r"[^A-Za-z0-9_.-]+", "_", filter_text or "all")[:80]
     log_path = log_dir / f"{run_tag}-{safe_binary}-{suffix}.log"
+    stderr_log_path = log_dir / f"{run_tag}-{safe_binary}-{suffix}.stderr.log"
     started = time.monotonic()
     process = None
     status = 127
@@ -335,13 +401,13 @@ def _execute_harness_item(item: dict, env: dict[str, str], log_dir: Path, run_ta
     error = None
     try:
         harness_env = {**env, **item.get("package_env", {})}
-        with log_path.open("wb") as log:
+        with log_path.open("wb") as log, stderr_log_path.open("wb") as stderr_log:
             with _ACTIVE_HARNESS_LOCK:
                 if _DISPATCH_SHUTTING_DOWN:
                     raise RuntimeError("dispatch is shutting down")
                 process = subprocess.Popen(
                     command, cwd=item["manifest_dir"], env=harness_env,
-                    stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
+                    stdout=log, stderr=stderr_log, start_new_session=True,
                 )
                 _ACTIVE_HARNESS_GROUPS[process.pid] = process
             try:
@@ -380,6 +446,7 @@ def _execute_harness_item(item: dict, env: dict[str, str], log_dir: Path, run_ta
                          if row["status"] == "ignored" and row["name"] in by_name)
     return {"package": item["package_name"], "binary": item["target_name"],
             "filter": filter_text, "command": command, "log_path": str(log_path),
+            "stderr_log_path": str(stderr_log_path),
             "exit_code": status, "elapsed_seconds": time.monotonic() - started,
             "timed_out": timed_out, "error": error,
             "executed_ids": executed_ids, "ignored_ids": ignored_ids,
@@ -432,7 +499,8 @@ def _execute_plan(plan_path: Path, result_path: Path) -> int:
 
 def _run_dispatch(output: ExperimentOutput, target_dir: Path, arm_id: str, round_number: int,
                   harnesses: list[dict], mode: str, workers: int, selected_groups: list[dict] | None = None,
-                  docs: bool = True, nextest_cases: list[dict] | None = None) -> dict:
+                  docs: bool = True, nextest_cases: list[dict] | None = None,
+                  nextest_identity: dict | None = None) -> dict:
     log_dir = output.logs_dir / "harnesses" / arm_id / f"round-{round_number}"
     log_dir.mkdir(parents=True, exist_ok=True)
     selected_ids = None
@@ -464,6 +532,8 @@ def _run_dispatch(output: ExperimentOutput, target_dir: Path, arm_id: str, round
     command_env = {"CARGO_TARGET_DIR": str(target_dir), "CARGO_INCREMENTAL": "0",
                    "CARGO_TERM_COLOR": "never", "ANIMATIX_REQUIRE_GPU": "1"}
     if mode == "nextest":
+        if nextest_identity is None:
+            raise ExperimentFailure("nextest dispatch has no verified binary identity snapshot")
         config_path, junit_path = _write_nextest_config(output.repo, output, arm_id, round_number)
         if selected_groups is None:
             command = ["cargo", "nextest", "run", "--workspace", "--locked", "--no-fail-fast",
@@ -474,8 +544,21 @@ def _run_dispatch(output: ExperimentOutput, target_dir: Path, arm_id: str, round
                        "--test-threads", str(workers), "-E",
                        _nextest_filter_expression(selected_groups)]
         command.extend(["--config-file", str(config_path)])
+        identity_before = _record_nextest_identity_check(
+            output, nextest_identity, target_dir, arm_id, round_number, "before",
+        )
         run = run_timed(f"runner-{arm_id}-{round_number}", command, output.repo, command_env,
                         output.logs_dir / f"{arm_id}-round-{round_number}.log", timeout_seconds=7200)
+        try:
+            identity_after = _record_nextest_identity_check(
+                output, nextest_identity, target_dir, arm_id, round_number, "after",
+            )
+        except ExperimentFailure:
+            output.append_record({"type": "runner-suite", "arm": arm_id, "round": round_number,
+                                  "mode": mode, "workers": workers,
+                                  "binary_identity_sha256": nextest_identity["identity_sha256"],
+                                  "binary_identity_verified": False, **run})
+            raise
         actual_ids = []
         suite_details = []
         coverage = {"equal": False, "expected_count": len(selected_ids), "actual_count": 0,
@@ -493,24 +576,30 @@ def _run_dispatch(output: ExperimentOutput, target_dir: Path, arm_id: str, round
                 run["exit_code"] = 1
         output.append_record({"type": "runner-suite", "arm": arm_id, "round": round_number,
                               "mode": mode, "workers": workers, "selected_ids": selected_ids,
+                              "binary_identity_sha256": nextest_identity["identity_sha256"],
+                              "binary_identity_verified": True,
+                              "binary_identity_checks": [identity_before, identity_after],
                               "actual_ids": actual_ids, "test_id_coverage": coverage,
                               "junit_path": str(junit_path), "junit_suites": suite_details,
                               "report_error": report_error, **run})
         if run["exit_code"] or run["timed_out"]:
             return {**run, "selected_ids": selected_ids, "actual_ids": actual_ids,
+                    "binary_identity_sha256": nextest_identity["identity_sha256"],
                     "test_id_coverage": coverage, "junit_path": str(junit_path),
                     "report_error": report_error, "doc_ids": [], "dispatch_details": []}
         details = []
         if docs:
             doc = run_timed(f"runner-{arm_id}-docs-{round_number}", DOC_COMMAND, output.repo,
                             command_env, output.logs_dir / f"{arm_id}-docs-round-{round_number}.log",
-                            timeout_seconds=7200)
+                            timeout_seconds=7200,
+                            stderr_path=output.logs_dir / f"{arm_id}-docs-round-{round_number}.stderr.log")
             output.append_record({"type": "runner-docs", "arm": arm_id, "round": round_number, **doc})
             details.append(doc)
             run = {**run, "exit_code": doc["exit_code"], "timed_out": doc["timed_out"],
                    "elapsed_seconds": run["elapsed_seconds"] + doc["elapsed_seconds"],
                    "peak_tree_rss_bytes": max(run["peak_tree_rss_bytes"], doc["peak_tree_rss_bytes"])}
         return {**run, "selected_ids": selected_ids, "actual_ids": actual_ids,
+                "binary_identity_sha256": nextest_identity["identity_sha256"],
                 "test_id_coverage": coverage, "junit_path": str(junit_path),
                 "doc_ids": _parse_doc_ids(details), "dispatch_details": details}
 
@@ -541,7 +630,8 @@ def _run_dispatch(output: ExperimentOutput, target_dir: Path, arm_id: str, round
     if docs:
         doc = run_timed(f"runner-{arm_id}-docs-{round_number}", DOC_COMMAND, output.repo,
                         command_env, output.logs_dir / f"{arm_id}-docs-round-{round_number}.log",
-                        timeout_seconds=7200)
+                        timeout_seconds=7200,
+                        stderr_path=output.logs_dir / f"{arm_id}-docs-round-{round_number}.stderr.log")
         output.append_record({"type": "runner-docs", "arm": arm_id, "round": round_number, **doc})
         details.append(doc)
         run = {**run, "exit_code": doc["exit_code"], "timed_out": doc["timed_out"],
@@ -559,10 +649,13 @@ def _run_full_baseline(output: ExperimentOutput, target_dir: Path, round_number:
     env = {"CARGO_TARGET_DIR": str(target_dir), "CARGO_INCREMENTAL": "0",
            "CARGO_TERM_COLOR": "never", "ANIMATIX_REQUIRE_GPU": "1"}
     run = run_timed(f"runner-baseline-{round_number}", BASELINE_COMMAND, output.repo, env,
-                    output.logs_dir / f"baseline-round-{round_number}.log", timeout_seconds=7200)
+                    output.logs_dir / f"baseline-round-{round_number}.log", timeout_seconds=7200,
+                    stderr_path=output.logs_dir / f"baseline-round-{round_number}.stderr.log")
     output.append_record({"type": "runner-suite", "arm": "baseline", "round": round_number,
                           "mode": "cargo-workspace-serial", "workers": 1, **run})
-    actual_ids, unresolved = _parse_cargo_executed_ids(Path(run["log_path"]), harnesses)
+    actual_ids, unresolved = _parse_cargo_executed_ids(
+        Path(run["log_path"]), harnesses, Path(run["stderr_log_path"]),
+    )
     expected_ids = sorted(case["id"] for harness in harnesses for case in harness["cases"])
     run["selected_ids"] = expected_ids
     run["actual_ids"] = actual_ids
@@ -610,6 +703,8 @@ def run_runner_experiment(repo: Path, output: ExperimentOutput, warm_rounds: int
     if warm_rounds < 1 or cold_rounds < 0:
         raise ExperimentFailure("warm_rounds must be at least 1 and cold_rounds nonnegative")
     repo = Path(repo).resolve()
+    runner_arm_selection = os.environ.get("ANIMATIX_RUNNER_ARMS")
+    selected_arm_ids = _select_runner_arm_ids(runner_arm_selection)
     target_env = os.environ.get("CARGO_TARGET_DIR")
     target_dir = Path(existing_target_dir or target_env or (repo / "target")).resolve()
     if build_artifact_json is None:
@@ -626,6 +721,10 @@ def run_runner_experiment(repo: Path, output: ExperimentOutput, warm_rounds: int
             "baseline_target_dir": str(baseline_target),
             "precompiled_artifact_json": str(build_artifact_json.resolve()) if build_artifact_json else None,
             "baseline_artifact_json": baseline_artifact_json,
+            "arm_selection_source": "ANIMATIX_RUNNER_ARMS" if runner_arm_selection is not None else "default",
+            "selected_arms": selected_arm_ids,
+            "available_arms": list(RUNNER_ARM_IDS),
+            "partial_cohort": selected_arm_ids != list(RUNNER_ARM_IDS),
             "feature_union": "one cargo test --workspace --no-run build per target; no cargo -p splitting",
             "coverage_identity": "package::target::test-name; ignored tests listed but excluded from execution coverage",
             "case_aliases": CASE_ALIAS,
@@ -643,7 +742,7 @@ def run_runner_experiment(repo: Path, output: ExperimentOutput, warm_rounds: int
                         "WGPU_BACKEND", "WGPU_POWER_PREF", "XDG_RUNTIME_DIR", "DISPLAY",
                         "WAYLAND_DISPLAY", "VK_ICD_FILENAMES", "VK_LAYER_PATH",
                         "FONTCONFIG_FILE", "FONTCONFIG_PATH", "XDG_CACHE_HOME",
-                        "RUST_TEST_THREADS", "CARGO_TARGET_DIR",
+                        "RUST_TEST_THREADS", "CARGO_TARGET_DIR", "ANIMATIX_RUNNER_ARMS",
                     ) if key in os.environ
                 },
             },
@@ -683,29 +782,45 @@ def run_runner_experiment(repo: Path, output: ExperimentOutput, warm_rounds: int
 
     preflight_failures = []
     preflight_failed_arms = set()
-    try:
-        nextest_cases, nextest_list = _nextest_cases(repo, target_dir, output)
-        nextest_available = True
-    except (ExperimentFailure, OSError, subprocess.SubprocessError) as error:
-        nextest_cases, nextest_list = [], {"error": str(error)}
+    selected_nextest_ids = [arm for arm in selected_arm_ids if arm.startswith("nextest")]
+    if selected_nextest_ids:
+        try:
+            nextest_cases, nextest_list, nextest_identity = _nextest_cases(
+                repo, target_dir, output, harness_artifacts,
+            )
+            nextest_available = True
+        except (ExperimentFailure, OSError, subprocess.SubprocessError) as error:
+            nextest_cases, nextest_list, nextest_identity = [], {"error": str(error)}, None
+            nextest_available = False
+            preflight_failed_arms.update(selected_nextest_ids)
+            preflight_failures.append({"reason": "nextest list unavailable", "details": str(error)})
+        coverage = _coverage_diff(_canonical_ids(cargo_cases), _canonical_ids(nextest_cases))
+        ignored_coverage = _coverage_diff(_ignored_ids(cargo_cases), _ignored_ids(nextest_cases))
+    else:
+        nextest_cases, nextest_list, nextest_identity = [], {"not_selected": True}, None
         nextest_available = False
-        preflight_failed_arms.update({"nextest2", "nextest4"})
-        preflight_failures.append({"reason": "nextest list unavailable", "details": str(error)})
-    coverage = _coverage_diff(_canonical_ids(cargo_cases), _canonical_ids(nextest_cases))
-    ignored_coverage = _coverage_diff(_ignored_ids(cargo_cases), _ignored_ids(nextest_cases))
+        coverage = {"equal": True, "not_applicable": True, "expected_count": len(_canonical_ids(cargo_cases)),
+                    "actual_count": 0, "missing": [], "unexpected": []}
+        ignored_coverage = {"equal": True, "not_applicable": True,
+                            "expected_count": len(_ignored_ids(cargo_cases)),
+                            "actual_count": 0, "missing": [], "unexpected": []}
     output.write_json("test-coverage.json", {
         "cargo_active_ids": sorted(_canonical_ids(cargo_cases)),
         "cargo_ignored_ids": sorted(_ignored_ids(cargo_cases)),
         "nextest_ids": sorted(_canonical_ids(nextest_cases)),
         "nextest_ignored_ids": sorted(_ignored_ids(nextest_cases)),
         "nextest_listing": nextest_list,
+        "nextest_selected": bool(selected_nextest_ids),
+        "nextest_binary_identity_verified": nextest_identity is not None,
+        "nextest_binary_identity_sha256": (nextest_identity["identity_sha256"]
+                                            if nextest_identity else None),
         "coverage": coverage,
         "ignored_coverage": ignored_coverage,
     })
-    if not coverage["equal"] or not ignored_coverage["equal"]:
+    if selected_nextest_ids and (not coverage["equal"] or not ignored_coverage["equal"]):
         output.append_record({"type": "coverage-mismatch", "active": coverage,
                               "ignored": ignored_coverage})
-        preflight_failed_arms.update({"nextest2", "nextest4"})
+        preflight_failed_arms.update(selected_nextest_ids)
         preflight_failures.append({"reason": "Cargo and nextest active/ignored test ID sets differ",
                                    "coverage": coverage, "ignored_coverage": ignored_coverage})
 
@@ -737,13 +852,13 @@ def run_runner_experiment(repo: Path, output: ExperimentOutput, warm_rounds: int
         try:
             sensitive_expr = _nextest_filter_expression(list(sensitive.values()))
         except ExperimentFailure as error:
-            preflight_failed_arms.update({"nextest2", "nextest4"})
+            preflight_failed_arms.update(selected_nextest_ids)
             preflight_failures.append({"reason": "nextest sensitive filter construction failed", "details": str(error)})
     sensitive_nextest = []
     if sensitive_expr and nextest_available and not (preflight_failed_arms & {"nextest2", "nextest4"}):
         try:
-            sensitive_nextest, sensitive_listing = _nextest_cases(
-                repo, target_dir, output, sensitive_expr, "sensitive",
+            sensitive_nextest, sensitive_listing, _sensitive_identity = _nextest_cases(
+                repo, target_dir, output, harness_artifacts, sensitive_expr, "sensitive",
             )
             sensitive_diff = _coverage_diff(set(sensitive_cases), _canonical_ids(sensitive_nextest))
             output.write_json("sensitive-nextest-coverage.json", {
@@ -755,7 +870,7 @@ def run_runner_experiment(repo: Path, output: ExperimentOutput, warm_rounds: int
             if not sensitive_diff["equal"]:
                 raise ExperimentFailure("nextest sensitive filter does not select the exact intended case set")
         except (ExperimentFailure, OSError, subprocess.SubprocessError) as error:
-            preflight_failed_arms.update({"nextest2", "nextest4"})
+            preflight_failed_arms.update(selected_nextest_ids)
             preflight_failures.append({"reason": "nextest sensitive filter validation failed", "details": str(error)})
 
     cpu_cap = _available_cpus()
@@ -766,6 +881,7 @@ def run_runner_experiment(repo: Path, output: ExperimentOutput, warm_rounds: int
         {"id": "nextest2", "kind": "nextest", "requested_workers": 2},
         {"id": "nextest4", "kind": "nextest", "requested_workers": 4},
     ]
+    requested_arms = [arm for arm in requested_arms if arm["id"] in selected_arm_ids]
     effective_by_kind_and_cap = {}
     arms = []
     for arm in requested_arms:
@@ -790,7 +906,8 @@ def run_runner_experiment(repo: Path, output: ExperimentOutput, warm_rounds: int
                     result = _run_full_baseline(output, baseline_target, round_number, baseline_harnesses)
                 else:
                     result = _run_dispatch(output, target_dir, arm_id, round_number, harnesses,
-                                           arm["kind"], arm["workers"], nextest_cases=nextest_cases)
+                                           arm["kind"], arm["workers"], nextest_cases=nextest_cases,
+                                           nextest_identity=nextest_identity)
             except (ExperimentFailure, OSError, subprocess.SubprocessError, ValueError) as error:
                 failed_arms.add(arm_id)
                 failures.append({"arm": arm_id, "round": round_number,
@@ -843,7 +960,8 @@ def run_runner_experiment(repo: Path, output: ExperimentOutput, warm_rounds: int
                     else:
                         result = _run_dispatch(output, target_dir, arm_id + "-sensitive", repetition,
                                                harnesses, arm["kind"], arm["workers"], selected_groups,
-                                               docs=False, nextest_cases=nextest_cases)
+                                               docs=False, nextest_cases=nextest_cases,
+                                               nextest_identity=nextest_identity)
                 except (ExperimentFailure, OSError, subprocess.SubprocessError, ValueError) as error:
                     result = {"exit_code": 1, "timed_out": False, "elapsed_seconds": 0.0,
                               "peak_tree_rss_bytes": 0, "error": str(error), "selected_ids": sensitive_cases}
@@ -933,10 +1051,29 @@ def run_runner_experiment(repo: Path, output: ExperimentOutput, warm_rounds: int
         # Do not surface any candidate as qualified unless all required coverage,
         # sample-count, RSS, documentation, and examples gates completed.
         qualified = []
+    all_strategies_selected = selected_arm_ids == list(RUNNER_ARM_IDS)
+    if successful:
+        status = "complete" if all_strategies_selected else "complete-selected-cohort"
+    else:
+        status = "failed-or-inconclusive"
+    if qualified and all_strategies_selected:
+        decision = "candidate-meets-10-percent-and-rss-gates"
+    elif qualified:
+        decision = "selected-cohort-candidate-meets-10-percent-and-rss-gates"
+    elif all_strategies_selected:
+        decision = "retain-cargo-default"
+    else:
+        decision = "selected-cohort-has-no-qualifying-candidate"
     result = {
         "exit_code": 0 if successful else 1,
-        "status": "complete" if successful else "failed-or-inconclusive",
+        "status": status,
+        "selected_arms": selected_arm_ids,
+        "available_arms": list(RUNNER_ARM_IDS),
+        "partial_cohort": not all_strategies_selected,
+        "selected_cohort_complete": successful,
+        "all_strategies_complete": successful and all_strategies_selected,
         "coverage_complete": coverage_complete,
+        "all_strategy_coverage_complete": coverage_complete and all_strategies_selected,
         "arms": arms,
         "warm_rounds_requested": warm_rounds,
         "cold_rounds_requested": cold_rounds,
@@ -954,7 +1091,7 @@ def run_runner_experiment(repo: Path, output: ExperimentOutput, warm_rounds: int
         "examples_compile_coverage": examples,
         "summary": summary,
         "qualified_candidates": qualified,
-        "decision": "candidate-meets-10-percent-and-rss-gates" if qualified else "retain-cargo-default",
+        "decision": decision,
         "failures": failures,
         "limitations": [
             "Doctest coverage is compared by parsed rustdoc result IDs; if rustdoc emits no IDs, zero IDs are reported and that limitation is visible in records.",
@@ -964,6 +1101,8 @@ def run_runner_experiment(repo: Path, output: ExperimentOutput, warm_rounds: int
     output.write_json("runner-summary.json", result)
     output.metadata["runner_experiment"]["summary"] = {
         "status": result["status"], "qualified_candidates": qualified,
+        "selected_arms": selected_arm_ids,
+        "all_strategies_complete": result["all_strategies_complete"],
         "coverage_equal": coverage["equal"], "failures": failures,
     }
     output.write_metadata()

@@ -23,8 +23,9 @@ from scripts.experiments.common import (
 )
 from scripts.experiments.compat import run_linker_compatibility
 from scripts.experiments.linkers import (
-    MOLD_SOURCE_REV, collect_elf_linker_evidence, collect_wrapper_evidence,
-    linker_arms, prepare_mold_source, validate_revision,
+    MOLD_SOURCE_REV, collect_elf_linker_evidence, collect_rustc_link_evidence,
+    collect_wrapper_evidence, linker_arms, parse_rustc_link_invocations,
+    prepare_mold_source, validate_revision,
 )
 
 
@@ -172,7 +173,7 @@ def _machine_info(repo: Path, experiment: str, platform: str, rounds: dict,
             "parallel_measurements": 1,
             "cargo_incremental": "0",
             "cold_target_definition": "fresh owned CARGO_TARGET_DIR per workload and linker arm; Cargo registry and toolchain caches may be warm",
-            "warm_target_definition": "one warmed owned target per workload and linker arm; each measured run removes only that workload's output executable(s) to force a warm relink",
+            "warm_target_definition": "one warmed owned target per workload and linker arm; each measured run removes the exact rustc linker output and Cargo executable for every workload artifact, then requires fresh=false and a new link invocation",
             "workspace_target_is_never_cleaned": True,
         },
     }
@@ -187,8 +188,8 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _executables_from_cargo_log(log_path: Path, target: Path) -> list[Path]:
-    executables = set()
+def _cargo_executable_artifacts(log_path: Path, target: Path) -> list[dict]:
+    artifacts: dict[Path, dict] = {}
     for line in log_path.read_text(encoding="utf-8", errors="replace").splitlines():
         try:
             record = json.loads(line)
@@ -202,8 +203,28 @@ def _executables_from_cargo_log(log_path: Path, target: Path) -> list[Path]:
         candidate = Path(executable).resolve()
         if not candidate.is_relative_to(target.resolve()):
             raise ExperimentFailure(f"Cargo reported an executable outside owned target: {candidate}")
-        executables.add(candidate)
-    return sorted(executables)
+        artifact = {
+            "path": candidate,
+            "fresh": record.get("fresh"),
+            "package_id": record.get("package_id"),
+            "target_name": record.get("target", {}).get("name"),
+            "target_kind": record.get("target", {}).get("kind", []),
+            "profile": record.get("profile", {}),
+        }
+        previous = artifacts.get(candidate)
+        if previous and any(previous[key] != artifact[key] for key in artifact):
+            differing = [key for key in artifact if previous[key] != artifact[key]]
+            raise ExperimentFailure(
+                f"Cargo reported conflicting executable artifact identity for {candidate}: "
+                f"{differing}"
+            )
+        artifacts[candidate] = artifact
+    return [artifacts[path] for path in sorted(artifacts)]
+
+
+def _executables_from_cargo_log(log_path: Path, target: Path) -> list[Path]:
+    """Compatibility helper for callers that need only Cargo's executable paths."""
+    return [artifact["path"] for artifact in _cargo_executable_artifacts(log_path, target)]
 
 
 def _select_workload_executables(executables: list[Path], target: Path,
@@ -216,21 +237,136 @@ def _select_workload_executables(executables: list[Path], target: Path,
     return [path for path in executables if path.resolve() == expected]
 
 
+def _select_workload_artifacts(artifacts: list[dict], target: Path,
+                               platform: str, workload: str) -> list[dict]:
+    paths = _select_workload_executables(
+        [artifact["path"] for artifact in artifacts], target, platform, workload,
+    )
+    selected = set(paths)
+    return [artifact for artifact in artifacts if artifact["path"] in selected]
+
+
+def _require_fresh_relinks(artifacts: list[dict], workload: str, arm_id: str) -> None:
+    stale = [str(artifact["path"]) for artifact in artifacts if artifact.get("fresh") is not False]
+    if stale:
+        raise ExperimentFailure(
+            f"measured {workload}/{arm_id} run did not relink every Cargo executable "
+            f"(fresh must be false): {stale[:8]}"
+        )
+
+
+def _map_linker_outputs(artifacts: list[dict], invocations: list[dict],
+                        target: Path) -> list[dict]:
+    """Match each Cargo executable to one real rustc `-o` output by inode/hash."""
+    target_root = target.resolve()
+    usable = []
+    output_hashes: dict[Path, str] = {}
+    for invocation in invocations:
+        output = Path(invocation["output_path"]).resolve()
+        if not output.is_relative_to(target_root):
+            continue
+        if output.is_file():
+            try:
+                if output not in output_hashes:
+                    output_hashes[output] = _sha256(output)
+                output_hash = output_hashes[output]
+            except OSError:
+                continue
+            usable.append((output, invocation, output_hash))
+    mapped_outputs: set[Path] = set()
+    result = []
+    for artifact in artifacts:
+        cargo_path = artifact["path"].resolve()
+        if not cargo_path.is_file():
+            raise ExperimentFailure(f"Cargo executable artifact is missing: {cargo_path}")
+        cargo_hash = _sha256(cargo_path)
+        same_inode = []
+        same_hash = []
+        for output, invocation, output_hash in usable:
+            if output_hash != cargo_hash:
+                continue
+            same_hash.append((output, invocation))
+            try:
+                if os.path.samefile(cargo_path, output):
+                    same_inode.append((output, invocation))
+            except OSError:
+                pass
+        candidates = same_inode or same_hash
+        if len(candidates) != 1:
+            raise ExperimentFailure(
+                f"Cargo executable {cargo_path} must map to exactly one actual linker output "
+                f"by same-inode/hash evidence; found {len(candidates)}"
+            )
+        linker_output, invocation = candidates[0]
+        if linker_output in mapped_outputs:
+            raise ExperimentFailure(
+                f"multiple Cargo executable artifacts map to one linker output: {linker_output}"
+            )
+        mapped_outputs.add(linker_output)
+        result.append({
+            "cargo_executable": str(cargo_path),
+            "cargo_fresh": artifact.get("fresh"),
+            "package_id": artifact.get("package_id"),
+            "target_name": artifact.get("target_name"),
+            "target_kind": artifact.get("target_kind"),
+            "linker_output": str(linker_output),
+            "sha256": cargo_hash,
+            "same_inode": bool(same_inode),
+            "proof": "same-inode-and-sha256" if same_inode else "unique-sha256",
+            "driver": invocation["driver"],
+        })
+    return result
+
+
+def _invalidate_warm_outputs(target: Path, mappings: list[dict]) -> list[dict]:
+    """Delete only the measured workload's linked outputs and Cargo hardlinks."""
+    target_root = target.resolve()
+    paths: dict[Path, dict] = {}
+    for mapping in mappings:
+        for key in ("linker_output", "cargo_executable"):
+            lexical = Path(mapping[key])
+            resolved = lexical.resolve(strict=True)
+            if not resolved.is_relative_to(target_root) or not resolved.is_file():
+                raise ExperimentFailure(f"refusing to invalidate an unowned Cargo output: {lexical}")
+            if _sha256(resolved) != mapping["sha256"]:
+                raise ExperimentFailure(f"Cargo output changed since warmup: {resolved}")
+            paths.setdefault(resolved, {
+                "path": str(resolved), "sha256": mapping["sha256"],
+                "roles": [], "inode": resolved.stat().st_ino,
+            })["roles"].append(key)
+    if not paths:
+        raise ExperimentFailure("warm relink has no mapped Cargo/linker executable outputs")
+    for path in paths:
+        path.unlink()
+    return list(paths.values())
+
+
 def _run_cargo_build(output: ExperimentOutput, platform: str, phase: str, arm: dict,
                      workload: str, command: list[str], target: Path,
                      round_number: int | None, timed: bool) -> dict:
     run_name = f"{platform}-{workload}-{phase}-{arm['id']}" + (f"-{round_number}" if round_number is not None else "")
     audit_log = output.logs_dir / f"{run_name}.linker-audit.jsonl"
+    if arm.get("audit"):
+        audit_log.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            audit_log.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError as error:
+            raise ExperimentFailure(f"cannot reset owned linker audit log {audit_log}: {error}") from error
+    cargo_log = output.logs_dir / f"{run_name}.log"
+    linker_log = output.logs_dir / f"{run_name}.linker.log"
     env = {
         **arm["env"],
         "CARGO_TARGET_DIR": str(target),
         "CARGO_INCREMENTAL": "0",
         "CARGO_TERM_COLOR": "never",
+        "RUSTC_LOG": "rustc_codegen_ssa::back::link=info",
         "ANIMATIX_LINKER_AUDIT_LOG": str(audit_log) if arm.get("audit") else None,
     }
     run = run_timed(
         run_name, command, output.repo, env,
-        output.logs_dir / f"{run_name}.log", timeout_seconds=7200,
+        cargo_log, timeout_seconds=7200, stderr_path=linker_log,
     )
     run.update({
         "platform": platform,
@@ -242,44 +378,74 @@ def _run_cargo_build(output: ExperimentOutput, platform: str, phase: str, arm: d
         "target_dir": str(target),
         "rustflags": arm["env"].get("RUSTFLAGS"),
         "expected_linker": arm.get("expected_linker"),
+        "cargo_json_log_path": str(cargo_log),
+        "linker_log_path": str(linker_log),
     })
     output.append_record(run)
     if run["exit_code"] or run["timed_out"]:
         raise ExperimentFailure(f"Cargo {phase} failed for {arm['id']}; see {run['log_path']}")
 
-    executables = _executables_from_cargo_log(Path(run["log_path"]), target)
-    executables = _select_workload_executables(executables, target, platform, workload)
-    if not executables:
-        raise ExperimentFailure(f"Cargo produced no executable artifacts for {workload}/{arm['id']}; see {run['log_path']}")
+    artifacts = _select_workload_artifacts(
+        _cargo_executable_artifacts(cargo_log, target),
+        target, platform, workload,
+    )
+    if not artifacts:
+        raise ExperimentFailure(f"Cargo produced no executable artifacts for {workload}/{arm['id']}; see {cargo_log}")
+    executables = [artifact["path"] for artifact in artifacts]
+    if timed:
+        _require_fresh_relinks(artifacts, workload, arm["id"])
+    invocations = parse_rustc_link_invocations(linker_log, output.repo)
+    mappings = _map_linker_outputs(artifacts, invocations, target)
+    actual_outputs = [Path(mapping["linker_output"]) for mapping in mappings]
     run["executable_artifacts"] = [str(path) for path in executables]
     run["executable_sha256"] = [
         {"path": str(path), "sha256": _sha256(path)} for path in executables
     ]
     run["audit_log_path"] = str(audit_log) if arm.get("audit") else None
+    run["link_output_artifacts"] = mappings
+    run["rustc_link_invocations"] = collect_rustc_link_evidence(
+        linker_log, actual_outputs, output.repo,
+    )
     if platform == "linux":
         if arm.get("audit"):
             artifact_evidence = collect_elf_linker_evidence(
                 executables, arm["artifact_identity"], allow_unknown=True,
             )
             audit_evidence = collect_wrapper_evidence(
-                audit_log, arm["audit"], executables,
+                audit_log, arm["audit"], actual_outputs,
             )
-            evidence = {"artifacts": artifact_evidence, "actual_linker_invocations": audit_evidence}
+            evidence = {"artifacts": artifact_evidence,
+                        "rustc_linker_invocations": run["rustc_link_invocations"],
+                        "actual_linker_invocations": audit_evidence}
         else:
-            evidence = collect_elf_linker_evidence(executables, arm["expected_linker"])
+            evidence = {
+                "artifacts": collect_elf_linker_evidence(executables, arm["expected_linker"]),
+                "actual_linker_invocations": run["rustc_link_invocations"],
+            }
     elif arm.get("audit"):
-        evidence = collect_wrapper_evidence(audit_log, arm["audit"], executables)
+        evidence = {
+            "rustc_linker_invocations": run["rustc_link_invocations"],
+            "actual_linker_invocations": collect_wrapper_evidence(
+                audit_log, arm["audit"], actual_outputs,
+            ),
+        }
     else:
         expected_path = arm.get("expected_linker_path")
-        lines = Path(run["log_path"]).read_text(encoding="utf-8", errors="replace").splitlines()
-        evidence = [line for line in lines if expected_path and expected_path in line]
-        if not evidence:
+        lines = linker_log.read_text(encoding="utf-8", errors="replace").splitlines()
+        apple_evidence = [line for line in lines if expected_path and expected_path in line]
+        if not apple_evidence:
             raise ExperimentFailure(
                 f"Apple ld path {expected_path!r} was not observed in clang's executed-linker output"
             )
+        evidence = {
+            "rustc_linker_invocations": run["rustc_link_invocations"],
+            "apple_linker_verbose_evidence": apple_evidence,
+        }
     run["linker_evidence"] = evidence
     output.append_record({"type": "linker-evidence", "platform": platform,
                           "workload": workload, "phase": phase, "arm": arm["id"], "round": round_number,
+                          "link_output_artifacts": mappings,
+                          "rustc_link_invocations": run["rustc_link_invocations"],
                           "evidence": evidence})
     return run
 
@@ -298,8 +464,10 @@ def _prime_warm_targets(output: ExperimentOutput, platform: str, workload: str,
             warm_targets[arm["id"]] = {
                 "target": target,
                 "executables": [Path(path) for path in run["executable_artifacts"]],
+                "link_output_artifacts": run["link_output_artifacts"],
                 "audit_log_path": run.get("audit_log_path"),
                 "build_log": run["log_path"],
+                "linker_log_path": run["linker_log_path"],
             }
             output.append_record({"type": "warm-target", "platform": platform,
                                   "workload": workload, "arm": arm["id"],
@@ -333,9 +501,10 @@ def _stage_compatibility_binary(output: ExperimentOutput, platform: str, arm_id:
         raise ExperimentFailure(f"staged {workload} binary hash changed for {arm_id}")
     return {
         "binary_path": str(staged_binary),
-        "link_output_path": str(source["binary"]),
+        "link_output_path": str(source.get("link_output_path", source["binary"])),
         "audit_log_path": source.get("audit_log_path"),
         "build_log": source["build_log"],
+        "linker_log_path": source.get("linker_log_path", source["build_log"]),
         "sha256": staged_hash,
         "staging_method": staging_method,
         "workload": workload,
@@ -359,11 +528,21 @@ def _ensure_compatibility_targets(output: ExperimentOutput, platform: str,
                     output, platform, "compatibility-build", arm, workload,
                     _workload_command(workload, platform), target, None, False,
                 )
+                binary_path = Path(record["executable_artifacts"][0])
+                linked = next((row for row in record["link_output_artifacts"]
+                               if Path(row["cargo_executable"]) == binary_path), None)
+                if linked is None:
+                    raise ExperimentFailure(
+                        f"no actual linker output matched compatibility binary {binary_path}"
+                    )
                 source = {
-                    "binary": record["executable_artifacts"][0],
+                    "binary": str(binary_path),
+                    "link_output_path": linked["linker_output"],
                     "audit_log_path": record.get("audit_log_path"),
                     "build_log": record["log_path"],
-                    "sha256": record["executable_sha256"][0]["sha256"],
+                    "linker_log_path": record["linker_log_path"],
+                    "sha256": next(row["sha256"] for row in record["executable_sha256"]
+                                    if Path(row["path"]) == binary_path),
                     "measured_build": False,
                 }
                 per_arm[workload] = _stage_compatibility_binary(
@@ -406,15 +585,14 @@ def _measure_linker(output: ExperimentOutput, platform: str, arms: list[dict],
                         if not item:
                             continue
                         target = item["target"]
-                        removed = []
-                        for executable in item["executables"]:
-                            if executable.exists():
-                                executable.unlink()
-                                removed.append(str(executable))
-                        if not removed:
+                        try:
+                            removed = _invalidate_warm_outputs(
+                                target, item["link_output_artifacts"],
+                            )
+                        except (ExperimentFailure, OSError) as error:
                             failure = {"arm": arm["id"], "workload": workload,
                                        "phase": phase, "round": round_number,
-                                       "reason": "warm relink had no owned executables to remove"}
+                                       "reason": str(error)}
                             failures.append(failure)
                             failed_arms.add(arm["id"])
                             output.append_record({"type": "failure", "platform": platform, **failure})
@@ -429,19 +607,34 @@ def _measure_linker(output: ExperimentOutput, platform: str, arms: list[dict],
                             output, platform, phase, arm, workload, command,
                             target, round_number, True,
                         )
+                        if phase == "warm":
+                            warm_targets[arm["id"]]["link_output_artifacts"] = record["link_output_artifacts"]
                         record["removed_owned_executables"] = removed
                         measured.append(record)
                         if workload in {"cli", "gui"} and phase == "warm":
+                            binary_path = Path(record["executable_artifacts"][0])
+                            linked = next((row for row in record["link_output_artifacts"]
+                                           if Path(row["cargo_executable"]) == binary_path), None)
+                            if linked is None:
+                                raise ExperimentFailure(
+                                    f"no actual linker output matched measured binary {binary_path}"
+                                )
                             compatibility_sources[arm["id"]] = {
-                                "binary": record["executable_artifacts"][0],
+                                "binary": str(binary_path),
+                                "link_output_path": linked["linker_output"],
                                 "audit_log_path": record.get("audit_log_path"),
                                 "build_log": record["log_path"],
-                                "sha256": record["executable_sha256"][0]["sha256"],
+                                "linker_log_path": record["linker_log_path"],
+                                "sha256": next(row["sha256"] for row in record["executable_sha256"]
+                                                if Path(row["path"]) == binary_path),
+                                "measured_build": True,
                             }
                         output.append_record({"type": "measurement-detail", "platform": platform,
                                               "workload": workload, "phase": phase,
                                               "arm": arm["id"], "round": round_number,
                                               "removed_owned_executables": removed,
+                                              "link_output_artifacts": record["link_output_artifacts"],
+                                              "rustc_link_invocations": record["rustc_link_invocations"],
                                               "executable_sha256": record["executable_sha256"],
                                               "elapsed_seconds": record["elapsed_seconds"],
                                               "peak_tree_rss_bytes": record["peak_tree_rss_bytes"],

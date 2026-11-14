@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import fcntl
 import hashlib
 import json
@@ -12,7 +12,6 @@ import platform
 import shutil
 import signal
 import subprocess
-import tempfile
 import threading
 import time
 from typing import Mapping, Sequence
@@ -151,7 +150,8 @@ class ExperimentOutput:
     @contextmanager
     def machine_lock(self):
         """Serialize costly measurements that share one host or workspace."""
-        lock_path = Path(tempfile.gettempdir()) / "animatix-experiment-machine.lock"
+        # Nix gives each shell its own TMPDIR; measurements still share a host.
+        lock_path = Path("/tmp") / f"animatix-experiment-machine-{os.getuid()}.lock"
         with lock_path.open("a+") as lock_file:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
             try:
@@ -279,12 +279,22 @@ def source_fingerprint(repo: Path) -> dict:
 
 def run_timed(name: str, command: Sequence[str], cwd: Path | str,
               env: Mapping[str, str | None] | None, log_path: Path | str,
-              timeout_seconds: float | None = None) -> dict:
-    """Run one serial measurement, retaining full logs and sampling child RSS."""
+              timeout_seconds: float | None = None,
+              stderr_path: Path | str | None = None) -> dict:
+    """Run one measurement and sample child RSS.
+
+    With ``stderr_path``, ``log_path`` contains stdout and diagnostics are kept
+    separately; otherwise both streams share ``log_path``.
+    """
     command = [str(part) for part in command]
     cwd = Path(cwd).resolve()
     log_path = Path(log_path).resolve()
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    stderr_log_path = Path(stderr_path).resolve() if stderr_path is not None else None
+    if stderr_log_path == log_path:
+        raise ValueError("stdout and stderr log paths must differ")
+    if stderr_log_path is not None:
+        stderr_log_path.parent.mkdir(parents=True, exist_ok=True)
     child_env = os.environ.copy()
     for key, value in (env or {}).items():
         if value is None:
@@ -297,10 +307,12 @@ def run_timed(name: str, command: Sequence[str], cwd: Path | str,
     timed_out = False
     error = None
     process = None
-    with log_path.open("wb") as log_file:
+    stderr_context = stderr_log_path.open("wb") if stderr_log_path is not None else nullcontext(None)
+    with log_path.open("wb") as log_file, stderr_context as stderr_file:
         try:
             process = subprocess.Popen(
-                command, cwd=cwd, env=child_env, stdout=log_file, stderr=subprocess.STDOUT,
+                command, cwd=cwd, env=child_env, stdout=log_file,
+                stderr=stderr_file if stderr_log_path is not None else subprocess.STDOUT,
                 start_new_session=True,
             )
             while process.poll() is None:
@@ -338,6 +350,7 @@ def run_timed(name: str, command: Sequence[str], cwd: Path | str,
         "command": command,
         "cwd": str(cwd),
         "log_path": str(log_path),
+        "stderr_log_path": str(stderr_log_path) if stderr_log_path is not None else None,
         "elapsed_seconds": elapsed,
         "exit_code": status,
         "timed_out": timed_out,

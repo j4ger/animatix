@@ -69,7 +69,9 @@ wasm_split = { package = "wasm-splitter", version = "=0.8.0-alpha.3" }
 debug = true
 
 # Font-set fingerprints hash substantial font data during process startup.
-# Candidate for paired CLI/test measurements; release/dist remain unchanged.
+# Five paired CLI/test startups confirmed the benefit without a memory increase.
+# Keep this dev/test override while font initialization hashes that data;
+# release/dist already optimize this dependency.
 [profile.dev.package.sha2]
 opt-level = 3
 

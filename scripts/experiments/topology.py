@@ -25,7 +25,9 @@ SETUP_PREFIXES = (
 def instant(value):
     if not value:
         return None
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    # Actions uses year 0001 for steps that have not acquired a timestamp.
+    return parsed if parsed.year > 1 else None
 
 
 def elapsed(start, end):

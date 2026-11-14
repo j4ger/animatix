@@ -78,13 +78,21 @@ class CompatibilityTests(unittest.TestCase):
             audit.write_text(json.dumps({
                 "callee": str(callee), "callee_sha256": callee_hash,
                 "argv0": "ld.bfd", "argv": ["-o", str(linked_output)],
+                "expanded_argv": ["-o", str(linked_output)], "response_files": [],
+                "cwd": str(root),
                 "output_path": str(linked_output),
             }) + "\n")
+            linker_log = root / "logs/build.linker.log"
+            linker_log.write_text(
+                ' INFO rustc_codegen_ssa::back::link LC_ALL="C" "cc" "-o" '
+                f'"{linked_output}"\n',
+            )
             output = ExperimentOutput(root, Path("target/experiments/linker"), "linker", {})
             arm = {"id": "system-bfd", "artifact_identity": "gnu", "audit": {
                 "callee_path": str(callee), "callee_sha256": callee_hash, "argv0": "ld.bfd",
             }}
-            info = {"audit_log_path": str(audit), "link_output_path": str(linked_output)}
+            info = {"audit_log_path": str(audit), "link_output_path": str(linked_output),
+                    "linker_log_path": str(linker_log)}
             no_comment = subprocess.CompletedProcess(
                 ["readelf"], 0, "There is no .comment section in this file.\n", "",
             )
@@ -94,6 +102,8 @@ class CompatibilityTests(unittest.TestCase):
                     "linux", arm, [(staged, info)], output,
                 )
             self.assertEqual(evidence["artifacts"][0]["detected"], "unknown")
+            self.assertEqual(evidence["rustc_linker_invocations"][0]["output_path"],
+                             str(linked_output))
             invocation = evidence["actual_linker_invocations"][0]
             self.assertEqual(invocation["output_path"], str(linked_output))
 

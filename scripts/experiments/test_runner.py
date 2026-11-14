@@ -22,6 +22,28 @@ SPEC.loader.exec_module(RUNNER)
 
 
 class RunnerCoverageTests(unittest.TestCase):
+    def test_runner_arm_selection_defaults_to_all_five(self):
+        self.assertEqual(RUNNER._select_runner_arm_ids(None), [
+            "baseline", "cargo2", "cargo4", "nextest2", "nextest4",
+        ])
+
+    def test_runner_arm_selection_is_canonical_and_requires_baseline(self):
+        self.assertEqual(
+            RUNNER._select_runner_arm_ids(" nextest4, cargo2, baseline "),
+            ["baseline", "cargo2", "nextest4"],
+        )
+        for selection, message in (
+            ("baseline", "at least one candidate"),
+            ("cargo2,nextest2", "must include baseline"),
+            ("baseline,cargo2,cargo2", "duplicate arms"),
+            ("baseline,unknown", "unknown arms"),
+            ("baseline,,cargo2", "comma-separated list"),
+            ("", "comma-separated list"),
+        ):
+            with self.subTest(selection=selection):
+                with self.assertRaisesRegex(RUNNER.ExperimentFailure, message):
+                    RUNNER._select_runner_arm_ids(selection)
+
     def test_nested_sensitive_modules_execute_each_selected_case_once(self):
         names = ("offscreen::tests::draw", "offscreen::tests::readback_reuse_tests::reuse",
                  "filter_backend::tests::mask")
