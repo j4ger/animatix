@@ -49,10 +49,13 @@ pub(crate) fn transport_ui(
 
     // Play / Pause
     if ui
-        .add(
-            Button::icon(button::play_pause_icon(preview.playback.is_playing))
-                .with_tooltip("Play/Pause (Space)"),
-        )
+        .add(Button::icon(button::play_pause_icon(preview.playback.is_playing)).with_tooltip(
+            if preview.playback.is_playing {
+                "Pause (Space)"
+            } else {
+                "Play (Space)"
+            },
+        ))
         .clicked()
     {
         commands.push_back(Command::TogglePlayback.into());
@@ -132,7 +135,7 @@ pub(crate) fn transport_ui(
     if ui
         .add(
             Button::ghost("")
-                .with_icon(egui_phosphor::regular::ARROW_COUNTER_CLOCKWISE)
+                .with_icon(egui_phosphor::regular::REPEAT)
                 .with_tooltip("Toggle loop playback")
                 .active(loop_active),
         )
@@ -152,7 +155,7 @@ pub(crate) fn transport_ui(
     if ui
         .add(
             Button::ghost("")
-                .with_icon(egui_phosphor::regular::ARROWS_CLOCKWISE)
+                .with_icon(egui_phosphor::regular::ARROWS_LEFT_RIGHT)
                 .with_tooltip("Toggle ping-pong playback (bounce at boundaries)")
                 .active(ping_pong_active),
         )

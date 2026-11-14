@@ -219,19 +219,26 @@ pub(crate) fn render_markers(
 }
 
 pub(crate) fn marker_menu(ui: &mut egui::Ui, markers: &[TimingMarker], commands: &mut ActionQueue) {
-    ui.menu_button(format!("# {} markers", markers.len()), |ui| {
-        ui.label("Direct scene/top-level # markers · source order");
-        ui.weak("Generated loop/component timing is not expanded here.");
-        for marker in markers {
-            if ui.button(marker_label(marker)).clicked() {
-                navigate(marker, commands);
-                ui.close();
+    let _ = crate::app::components::icon_menu(
+        ui,
+        egui_phosphor::regular::DIAMOND,
+        &format!("Source markers · {} authored anchors", markers.len()),
+        |ui| {
+            ui.label("Direct scene/top-level # markers · source order");
+            ui.weak("Generated loop/component timing is not expanded here.");
+            for marker in markers {
+                if ui.button(marker_label(marker)).clicked() {
+                    navigate(marker, commands);
+                    ui.close();
+                }
             }
-        }
-        if markers.iter().any(|m| m.time_s.is_none()) {
-            ui.label("Unresolved timing is never guessed (beat / missing speech or scene anchor).");
-        }
-    });
+            if markers.iter().any(|m| m.time_s.is_none()) {
+                ui.label(
+                    "Unresolved timing is never guessed (beat / missing speech or scene anchor).",
+                );
+            }
+        },
+    );
 }
 
 #[cfg(test)]

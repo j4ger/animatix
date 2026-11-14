@@ -63,3 +63,34 @@ GUI markers. Identical Audio/Captions transcripts share a review row.
 Inspector values are sampled tracks/defaults, not a full post-layout ECS dump.
 Expression-driven and layout-derived final values can differ. Direct source links
 are withheld for stale builds and ambiguous/generated/imported declarations.
+
+### Compact controls
+
+Workbench actions use the existing Phosphor icon family, with descriptive tooltips
+and readable accessibility names rather than glyph-only names. Playback, source
+marker navigation, review loops and panel controls remain separate groups. Selected
+view modes retain a visible active state; unavailable actions remain disabled.
+
+Filename, preview validity, timecode, scene names, track names and panel headings
+remain text because they describe the current document rather than an action.
+Action descriptions and keyboard shortcuts belong in tooltips. Iconification does
+not expand editing permissions: timeline controls still change review state only.
+
+### Validation and remaining platform checks
+
+The icon-first workbench was exercised on native Linux at approximately 1180 px
+and 836 px window widths, including tooltip discovery, source-marker navigation,
+menu dismissal with Escape, and setting/clearing review loops. The GUI's 423 unit
+tests, workspace all-targets check, formatting and structure gates passed. The
+icon tests verify readable click-event names and disabled-action behavior; this
+is not a claim of end-to-end screen-reader certification.
+
+The test machine had no usable audio output device. Waveform decoding and visual
+seeking were verified, but neither PCM output capture nor audible synchronization
+was verified. Windows and macOS runtime acceptance remains outstanding.
+
+A known launch-path issue was observed with the speech demo: launching the GUI
+with a relative `.amx` path could leave its audio asset unavailable, while opening
+the same file by absolute path resolved the waveform. Use an absolute document
+path as the current workaround. Relative-path media resolution needs a separate
+regression test and fix; icon changes do not address it.

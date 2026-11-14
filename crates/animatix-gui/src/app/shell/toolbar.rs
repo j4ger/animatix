@@ -33,14 +33,14 @@ impl GuiShell {
                         self.toolbar_right_controls(ui, commands, &sp);
                     });
                     ui.horizontal_centered(|ui| {
-                        self.toolbar_center_controls(ui, commands, &t, &sp);
+                        self.toolbar_center_controls(ui, commands, &sp);
                     });
                 } else {
                     ui.horizontal_centered(|ui| {
                         ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_4, 0.0);
                         self.toolbar_file_section(ui, commands, &t);
                         self.toolbar_scene_breadcrumb(ui, commands, &t, &sp);
-                        self.toolbar_center_controls(ui, commands, &t, &sp);
+                        self.toolbar_center_controls(ui, commands, &sp);
                         self.toolbar_right_controls(ui, commands, &sp);
                     });
                 }
@@ -157,76 +157,84 @@ impl GuiShell {
         reload_tip: &str,
         rebuild_tip: &str,
     ) {
-        ui.menu_button(egui_phosphor::regular::CARET_DOWN, |ui| {
-            let new_btn = ui.button(format!("{} New scene", egui_phosphor::regular::FILE_PLUS));
-            if new_btn.clicked() {
-                commands.push_back(ShellAction::View(ViewAction::NewFile));
-                ui.close();
-            }
-            let open_btn = ui.button(format!("{} Open file…", egui_phosphor::regular::FOLDER_OPEN));
-            if open_btn.clicked() {
-                commands.push_back(ShellAction::View(ViewAction::OpenFileDialog));
-                ui.close();
-            }
-
-            // Recent files, newest first.
-            self.toolbar_recent_files_menu(ui, commands);
-            ui.separator();
-
-            let save_btn = ui.button(format!("{} Save", egui_phosphor::regular::FLOPPY_DISK));
-            text_tooltip(ui, save_btn.id.with("save_tip"), &save_btn, save_tip);
-            if save_btn.clicked() {
-                commands.push_back(Command::Save.into());
-                ui.close();
-            }
-            let save_as_btn =
-                ui.button(format!("{} Save As…", egui_phosphor::regular::FLOPPY_DISK));
-            if save_as_btn.clicked() {
-                commands.push_back(ShellAction::View(ViewAction::SaveAsDialog));
-                ui.close();
-            }
-            let export_btn = ui.button(format!("{} Export…", egui_phosphor::regular::EXPORT));
-            text_tooltip(
-                ui,
-                export_btn.id.with("export_tip"),
-                &export_btn,
-                "Export image, video or GIF",
-            );
-            if export_btn.clicked() {
-                commands.push_back(ShellAction::View(ViewAction::OpenExportDialog));
-                ui.close();
-            }
-            ui.separator();
-            let reload_btn =
-                ui.button(format!("{} Reload from disk", egui_phosphor::regular::ARROW_CLOCKWISE));
-            text_tooltip(ui, reload_btn.id.with("reload_tip"), &reload_btn, reload_tip);
-            if reload_btn.clicked() {
-                commands.push_back(Command::Reload.into());
-                ui.close();
-            }
-            let rebuild_btn =
-                ui.button(format!("{} Rebuild timeline", egui_phosphor::regular::HARD_DRIVES));
-            text_tooltip(ui, rebuild_btn.id.with("rebuild_tip"), &rebuild_btn, rebuild_tip);
-            if rebuild_btn.clicked() {
-                commands.push_back(Command::Rebuild.into());
-                ui.close();
-            }
-            ui.separator();
-            let workspace_btn =
-                ui.button(format!("{} Switch workspace…", egui_phosphor::regular::FOLDER_NOTCH));
-            text_tooltip(
-                ui,
-                workspace_btn.id.with("workspace_tip"),
-                &workspace_btn,
-                "Change workspace directory",
-            );
-            if workspace_btn.clicked() {
-                if let Some(path) = rfd::FileDialog::new().pick_folder() {
-                    commands.push_back(Command::SwitchWorkspace(path).into());
+        let _ = crate::app::components::icon_menu(
+            ui,
+            egui_phosphor::regular::CARET_DOWN,
+            "File actions",
+            |ui| {
+                let new_btn = ui.button(format!("{} New scene", egui_phosphor::regular::FILE_PLUS));
+                if new_btn.clicked() {
+                    commands.push_back(ShellAction::View(ViewAction::NewFile));
+                    ui.close();
                 }
-                ui.close();
-            }
-        });
+                let open_btn =
+                    ui.button(format!("{} Open file…", egui_phosphor::regular::FOLDER_OPEN));
+                if open_btn.clicked() {
+                    commands.push_back(ShellAction::View(ViewAction::OpenFileDialog));
+                    ui.close();
+                }
+
+                // Recent files, newest first.
+                self.toolbar_recent_files_menu(ui, commands);
+                ui.separator();
+
+                let save_btn = ui.button(format!("{} Save", egui_phosphor::regular::FLOPPY_DISK));
+                text_tooltip(ui, save_btn.id.with("save_tip"), &save_btn, save_tip);
+                if save_btn.clicked() {
+                    commands.push_back(Command::Save.into());
+                    ui.close();
+                }
+                let save_as_btn =
+                    ui.button(format!("{} Save As…", egui_phosphor::regular::FLOPPY_DISK));
+                if save_as_btn.clicked() {
+                    commands.push_back(ShellAction::View(ViewAction::SaveAsDialog));
+                    ui.close();
+                }
+                let export_btn = ui.button(format!("{} Export…", egui_phosphor::regular::EXPORT));
+                text_tooltip(
+                    ui,
+                    export_btn.id.with("export_tip"),
+                    &export_btn,
+                    "Export image, video or GIF",
+                );
+                if export_btn.clicked() {
+                    commands.push_back(ShellAction::View(ViewAction::OpenExportDialog));
+                    ui.close();
+                }
+                ui.separator();
+                let reload_btn = ui.button(format!(
+                    "{} Reload from disk",
+                    egui_phosphor::regular::ARROW_CLOCKWISE
+                ));
+                text_tooltip(ui, reload_btn.id.with("reload_tip"), &reload_btn, reload_tip);
+                if reload_btn.clicked() {
+                    commands.push_back(Command::Reload.into());
+                    ui.close();
+                }
+                let rebuild_btn =
+                    ui.button(format!("{} Rebuild timeline", egui_phosphor::regular::HARD_DRIVES));
+                text_tooltip(ui, rebuild_btn.id.with("rebuild_tip"), &rebuild_btn, rebuild_tip);
+                if rebuild_btn.clicked() {
+                    commands.push_back(Command::Rebuild.into());
+                    ui.close();
+                }
+                ui.separator();
+                let workspace_btn = ui
+                    .button(format!("{} Switch workspace…", egui_phosphor::regular::FOLDER_NOTCH));
+                text_tooltip(
+                    ui,
+                    workspace_btn.id.with("workspace_tip"),
+                    &workspace_btn,
+                    "Change workspace directory",
+                );
+                if workspace_btn.clicked() {
+                    if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                        commands.push_back(Command::SwitchWorkspace(path).into());
+                    }
+                    ui.close();
+                }
+            },
+        );
     }
 
     fn toolbar_recent_files_menu(&mut self, ui: &mut egui::Ui, commands: &mut ActionQueue) {
@@ -316,7 +324,6 @@ impl GuiShell {
         &mut self,
         ui: &mut egui::Ui,
         commands: &mut ActionQueue,
-        t: &eparts::Theme,
         sp: &crate::app::design_tokens::spatial::Spatial,
     ) {
         // ── Center: record + debug. Canvas view controls (grid,
@@ -329,13 +336,11 @@ impl GuiShell {
             super::transport::transport_ui(ui, &mut self.preview_store.preview, commands);
             ui.separator();
 
-            ui.label(egui::RichText::new("CODE-FIRST").small().color(t.palette.text.muted));
-
             // Debug dropdown (grouped debug toggles)
-            ui.menu_button(
-                RichText::new("Debug")
-                    .size(TextRole::BodyS.size())
-                    .color(t.palette.text.secondary),
+            let _ = crate::app::components::icon_menu(
+                ui,
+                egui_phosphor::regular::BUG,
+                "Preview overlays",
                 |ui| {
                     let mut bounds = self.ui_store.view.debug_bounds;
                     if ui.add(Checkbox::new(&mut bounds).label("Bounds")).clicked() {
@@ -395,7 +400,8 @@ impl GuiShell {
             let inspector_active = active_tab == Some(crate::app::WorkspaceTab::Inspector);
             let inspector_resp = ui.add(
                 Button::ghost("")
-                    .with_icon(egui_phosphor::regular::SLIDERS)
+                    .with_icon(egui_phosphor::regular::MAGNIFYING_GLASS)
+                    .with_tooltip("Inspect scene and object properties (read-only)")
                     .active(inspector_active),
             );
             text_tooltip(
@@ -415,8 +421,12 @@ impl GuiShell {
                 ui.ctx(),
             );
             let code_active = active_tab == Some(crate::app::WorkspaceTab::Code);
-            let code_resp = ui
-                .add(Button::ghost("").with_icon(egui_phosphor::regular::CODE).active(code_active));
+            let code_resp = ui.add(
+                Button::ghost("")
+                    .with_icon(egui_phosphor::regular::CODE)
+                    .with_tooltip("Code editor")
+                    .active(code_active),
+            );
             text_tooltip(ui, code_resp.id.with("code_tip"), &code_resp, &code_tip);
             if code_resp.clicked() {
                 commands.push_back(ShellAction::View(ViewAction::ShowCode));
@@ -466,18 +476,23 @@ impl GuiShell {
         }
 
         // Layout presets + reset (design doc §9.2)
-        ui.menu_button("Layout", |ui| {
-            for preset in crate::app::LayoutPreset::ALL {
-                if ui.button(preset.label()).clicked() {
-                    commands.push_back(ShellAction::View(ViewAction::ApplyLayout(preset)));
+        let _ = crate::app::components::icon_menu(
+            ui,
+            egui_phosphor::regular::SQUARES_FOUR,
+            "Workspace layout",
+            |ui| {
+                for preset in crate::app::LayoutPreset::ALL {
+                    if ui.button(preset.label()).clicked() {
+                        commands.push_back(ShellAction::View(ViewAction::ApplyLayout(preset)));
+                        ui.close();
+                    }
+                }
+                ui.separator();
+                if ui.button("Reset layout").clicked() {
+                    commands.push_back(ShellAction::View(ViewAction::ResetLayout));
                     ui.close();
                 }
-            }
-            ui.separator();
-            if ui.button("Reset layout").clicked() {
-                commands.push_back(ShellAction::View(ViewAction::ResetLayout));
-                ui.close();
-            }
-        });
+            },
+        );
     }
 }

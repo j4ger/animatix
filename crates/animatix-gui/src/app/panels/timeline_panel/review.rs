@@ -5,6 +5,7 @@ use super::{
 };
 use crate::app::PreviewPaneState;
 use crate::app::commands::{ActionQueue, Command};
+use crate::app::components::button::Button;
 use animatix::composition::Composition;
 use egui::{Align2, FontId, Pos2, Rect, Sense, Stroke};
 
@@ -22,17 +23,36 @@ pub(crate) fn toolbar(
         ui.weak("Global seconds · read-only");
         markers::marker_menu(ui, markers, commands);
         let current = preview.playback.current_time_s();
-        for (label, forward) in [("‹ Marker", false), ("Marker ›", true)] {
+        for (icon, label, forward) in [
+            (
+                egui_phosphor::regular::CARET_LEFT,
+                "Previous source marker · jump and reveal source",
+                false,
+            ),
+            (
+                egui_phosphor::regular::CARET_RIGHT,
+                "Next source marker · jump and reveal source",
+                true,
+            ),
+        ] {
             let target = adjacent_marker(markers, current, forward);
-            if ui.add_enabled(target.is_some(), egui::Button::new(label)).clicked()
+            if ui
+                .add_enabled(target.is_some(), Button::icon(icon).with_tooltip(label))
+                .clicked()
                 && let Some(marker) = target
             {
                 markers::navigate(marker, commands);
             }
         }
+        let has_loop =
+            preview.playback.loop_start_s.is_some() || preview.playback.loop_end_s.is_some();
         if ui
-            .button("Loop visible")
-            .on_hover_text("Preview-only loop over the visible timeline interval")
+            .add(
+                Button::ghost("")
+                    .with_icon(egui_phosphor::regular::REPEAT)
+                    .with_tooltip("Set loop to visible interval · preview only")
+                    .active(has_loop),
+            )
             .clicked()
         {
             let duration = preview.playback.duration_s;
@@ -43,12 +63,27 @@ pub(crate) fn toolbar(
                 preview.playback.loop_end_s = Some(end);
             }
         }
-        if ui.button("Clear loop").clicked() {
+        if ui
+            .add_enabled(
+                has_loop,
+                Button::icon(egui_phosphor::regular::X).with_tooltip("Clear review loop"),
+            )
+            .clicked()
+        {
             preview.playback.loop_start_s = None;
             preview.playback.loop_end_s = None;
         }
-        ui.checkbox(&mut debug, "Debug tracks")
-            .on_hover_text("Read-only evaluated property tracks, not authored timing");
+        if ui
+            .add(
+                Button::ghost("")
+                    .with_icon(egui_phosphor::regular::WAVEFORM)
+                    .with_tooltip("Show evaluated property tracks · read-only, not authored timing")
+                    .active(debug),
+            )
+            .clicked()
+        {
+            debug = !debug;
+        }
     });
     ui.data_mut(|d| d.insert_temp(debug_id, debug));
     debug
