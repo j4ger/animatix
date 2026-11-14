@@ -54,7 +54,7 @@ jobs:
         with:
           # The changed-path filter needs the base commit, not a shallow tip.
           fetch-depth: 0
-          ref: ${{ inputs.checkout-ref || github.ref }}
+          ref: ${{ inputs.checkout-ref || github.sha }}
       - id: plan
         env:
           ANIMATIX_CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -84,7 +84,7 @@ jobs:
           # and fetching it for all of them is cheaper than a conditional that a
           # later gate has to remember to keep in sync.
           fetch-depth: 0
-          ref: ${{ inputs.checkout-ref || github.ref }}
+          ref: ${{ inputs.checkout-ref || github.sha }}
 
       # Nix source fallback can realize large native dependency closures; the
       # runner image's preinstalled Android/.NET/GHC toolchains are not used by
@@ -192,7 +192,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.checkout-ref || github.ref }}
+          ref: ${{ inputs.checkout-ref || github.sha }}
       - name: Free disk space
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
@@ -232,7 +232,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.checkout-ref || github.ref }}
+          ref: ${{ inputs.checkout-ref || github.sha }}
       - name: Free disk space
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
@@ -265,7 +265,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.checkout-ref || github.ref }}
+          ref: ${{ inputs.checkout-ref || github.sha }}
       - name: Require every selected job
         env:
           ANIMATIX_CI_NEEDS: ${{ toJSON(needs) }}

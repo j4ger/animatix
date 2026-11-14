@@ -72,6 +72,24 @@ class Environments(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("shell=nix", result.stderr)
 
+    def test_ci_checkouts_pin_event_sha_by_default(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        lines = workflow.splitlines()
+        checkout_refs = []
+        for index, line in enumerate(lines):
+            if line.strip() != "- uses: actions/checkout@v5":
+                continue
+            indent = len(line) - len(line.lstrip())
+            body = []
+            for candidate in lines[index + 1:]:
+                if candidate.strip() and len(candidate) - len(candidate.lstrip()) <= indent:
+                    break
+                body.append(candidate.strip())
+            refs = [entry for entry in body if entry.startswith("ref:")]
+            self.assertEqual(refs, ["ref: ${{ inputs.checkout-ref || github.sha }}"])
+            checkout_refs.extend(refs)
+        self.assertEqual(len(checkout_refs), 5)
+
     def test_direct_workflow_gates_use_nix(self):
         rows = [line.split("\t") for line in ci("--list").stdout.splitlines()]
         for path in (ROOT / ".github/workflows").glob("*.yml"):

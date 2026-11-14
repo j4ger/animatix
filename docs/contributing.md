@@ -122,8 +122,10 @@ cache even though the text crate's own unit tests use thread-local caches.
 The engine's public integration suites remain independent modules inside the
 `engine_contracts` target, sharing one process-wide font database. For example,
 `cargo test -p animatix --test engine_contracts ir_tests::test_name` selects a
-case from the former `ir_tests` target. Keep these tests serial until their
-shared process-state assumptions have been checked. Source-size reports can be
+case from the former `ir_tests` target. Add new contract modules to
+`tests/engine_contracts.rs`; a separate executable requires an explicit
+`[[test]]` entry because this package sets `autotests = false`. Keep these tests
+serial until their shared process-state assumptions have been checked. Source-size reports can be
 reproduced with `python3 scripts/maintenance-inventory.py`; source attributes are
 not substitutes for executable test-ID inventories.
 
