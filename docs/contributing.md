@@ -73,6 +73,10 @@ Run formatting and the gates affected by your change before committing. A
 single-crate check is not evidence that the GUI, analyzer, LSP or wasm build
 passes. Public API doc comments are required by the affected crates' lint rules.
 
+The `no-video` gate also checks the minimal engine's normal dependency graph:
+disabling all optional features must exclude Typst and syntax-highlighting
+dependencies. Rich text enters through `animatix-text/rich-text` only.
+
 | Change | Additional validation |
 | --- | --- |
 | Syntax or highlighting | Update the lossless tokenizer in `crates/animatix-syntax/src/token/`; test syntax, analyzer, GUI and LSP together. |

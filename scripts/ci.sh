@@ -239,10 +239,15 @@ gate_no_video() {
   # Build the default user-facing binaries, run the engine with every optional
   # feature off, and inspect the resolved feature graph: rsmpeg is pulled in
   # only by animatix-render/video, so its presence means a default build turned
-  # video on.
+  # video on. The minimal engine must also exclude rich-text dependencies.
   cargo build -p animatix-cli -p animatix-gui
   cargo check -p animatix --no-default-features
   local pkg tree
+  tree=$(cargo tree -p animatix --no-default-features -e normal --prefix none --format '{p}')
+  if grep -Eq '^(typst([_-][[:alnum:]_-]+)?|syntect) v' <<<"$tree"; then
+    echo "error: minimal engine dependencies include the rich-text stack" >&2
+    return 1
+  fi
   for pkg in animatix-cli animatix-gui; do
     if ! tree="$(cargo tree -e features -p "$pkg" 2>/dev/null)"; then
       echo "error: cargo tree failed for $pkg; cannot verify the video feature is off" >&2
@@ -253,7 +258,7 @@ gate_no_video() {
       return 1
     fi
   done
-  echo "no-video: default CLI/GUI feature resolution excludes rsmpeg (video)"
+  echo "no-video: minimal engine excludes rich text; default CLI/GUI exclude rsmpeg (video)"
 }
 
 gate_scene_audit() {

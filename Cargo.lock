@@ -143,7 +143,6 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tracing",
- "typst",
  "unicode-general-category",
  "unicode-segmentation",
  "usvg",
