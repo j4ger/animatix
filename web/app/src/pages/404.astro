@@ -1,0 +1,5 @@
+---
+import Page from '../layouts/Page.astro';
+import {url} from '../lib/content';
+---
+<Page title="Page not found"><section class="section"><p class="eyebrow">404 / Out of frame</p><h1>This scene is missing.</h1><p>The link may have moved. Find a new starting point below.</p><div class="actions"><a class="button primary" href={url('')}>Back home</a><a class="button" href={url('showcase/')}>Explore the works</a></div></section></Page>

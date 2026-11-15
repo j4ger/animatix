@@ -1,0 +1,81 @@
+# Deploy the same verified SDK artifact CI tested; every check is a ci.sh gate.
+name: Deploy site to Cloudflare Pages
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: cloudflare-pages-production
+  cancel-in-progress: false
+
+env:
+  NIX_CONFIG: |
+    fallback = true
+    extra-substituters = https://cache.nixos.org/
+
+jobs:
+  build:
+    if: ${{ vars.CLOUDFLARE_PAGES_PROJECT != '' && ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')) }}
+    runs-on: ubuntu-latest
+    env:
+      ANIMATIX_ARTIFACT_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+      ANIMATIX_SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Download CI SDK
+        id: sdk
+        if: github.event_name == 'workflow_run'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: web-runtime
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: target/downloaded-web-runtime
+      - name: Install Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+      - name: Set up Cachix
+        uses: cachix/cachix-action@v17
+        with:
+          name: animatix
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          extraPullNames: 'nix-community'
+      - name: Confirm failed download means SDK artifact is absent or expired
+        id: sdk_absence
+        if: github.event_name == 'workflow_run' && steps.sdk.outcome != 'success'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: nix develop --command scripts/ci.sh gate web-artifact-absence
+      # A successful download that is corrupt, incomplete or from another SHA
+      # fails here. Only an absent artifact/manual dispatch may rebuild.
+      - name: Verify downloaded SDK
+        if: steps.sdk.outcome == 'success'
+        run: nix develop --command scripts/ci.sh gate web-artifact-restore
+      - name: Build and test SDK when CI artifact is absent
+        if: github.event_name != 'workflow_run' || (steps.sdk.outcome != 'success' && steps.sdk_absence.outcome == 'success')
+        run: nix develop .#web-ci --command scripts/ci.sh gate web-split-proof web-build web-sdk-integrity text-parity web-raster-proof web-smoke web-transactions
+      - name: Site scenes
+        if: github.event_name != 'workflow_run' || (steps.sdk.outcome != 'success' && steps.sdk_absence.outcome == 'success')
+        run: nix develop --command scripts/ci.sh gate site-scenes
+      - name: Assemble verified site
+        env:
+          SITE_BASE: /
+        run: nix develop --command scripts/ci.sh gate web-artifact-verify site-artifact
+      - name: Prepare pinned uploader and check Pages limits
+        run: nix develop --command scripts/ci.sh gate cloudflare-prepare
+      - name: Deploy verified site to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+        run: nix develop --command scripts/ci.sh gate cloudflare-deploy

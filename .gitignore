@@ -64,3 +64,8 @@ web/embed/amx-player.legacy.js
 
 # Alternate static-site assembly/verification outputs.
 _site-*/
+
+# Pinned Cloudflare upload CLI (not shipped with the site).
+web/deploy/node_modules/
+web/deploy/.wrangler/
+.wrangler/

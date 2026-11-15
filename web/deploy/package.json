@@ -1,0 +1,6 @@
+{
+  "name": "animatix-cloudflare-deploy",
+  "private": true,
+  "description": "Pinned uploader only; Nix and the existing SDK pipeline own builds. Update Wrangler deliberately with its lockfile and deployment checks.",
+  "devDependencies": { "wrangler": "4.162.0" }
+}

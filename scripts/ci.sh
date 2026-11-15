@@ -88,6 +88,8 @@ text-parity|web-ci|ubuntu-latest|nix|pr
 web-raster-proof|web-ci|ubuntu-latest|nix|pr
 web-transactions|web-ci|ubuntu-latest|nix|pr
 # Composite site-stage gates — never matrix jobs (see the stage note above).
+cloudflare-prepare|nix|ubuntu-latest|nix|site
+cloudflare-deploy|nix|ubuntu-latest|nix|site
 site-artifact|nix|ubuntu-latest|nix|site
 dist-site|nix|ubuntu-latest|nix|site
 dist-web-sdk|nix|ubuntu-latest|nix|site
@@ -457,8 +459,24 @@ gate_property_reference_experiment() {
 }
 
 # Web content and SDK boundary checks.
+gate_cloudflare_prepare() {
+  want_nix_shell 'cloudflare-prepare'
+  python3 scripts/cloudflare-deploy-test.py
+  python3 scripts/cloudflare-site-check-test.py
+  python3 scripts/cloudflare-site-check.py _site
+  npm --prefix web/deploy ci --no-audit --no-fund
+  npm --prefix web/deploy exec --offline -- wrangler --version
+}
+
+gate_cloudflare_deploy() {
+  want_nix_shell 'cloudflare-deploy'
+  bash scripts/cloudflare-deploy.sh
+}
+
 gate_site_build() {
   want_nix_shell 'site-build'
+  python3 scripts/cloudflare-deploy-test.py
+  python3 scripts/cloudflare-site-check-test.py
   bash scripts/site-build.sh
 }
 
