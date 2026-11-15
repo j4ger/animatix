@@ -23,7 +23,6 @@ btn.color = red"#,
     };
     assert!(apply_edit(&mut stmts, edit).is_ok());
 
-    // Should have 3 top-level keyframes now
     assert_eq!(stmts.len(), 3);
 
     // The new keyframe should be a RelativeKeyframe after the #2s one
@@ -78,7 +77,6 @@ circle: Ellipse, radius: 50"#,
         panic!("Expected Keyframe at index 0, got {:?}", stmts[0]);
     }
 
-    // Second statement is the new relative keyframe
     if let Stmt::RelativeKeyframe { offset, body, .. } = &stmts[1] {
         assert_eq!(*offset, Time::Milliseconds(500));
         assert_eq!(body.len(), 1);
@@ -108,10 +106,8 @@ btn.color = red"#,
     };
     assert!(apply_edit(&mut stmts, edit).is_ok());
 
-    // Should have 3 top-level statements
     assert_eq!(stmts.len(), 3);
 
-    // New keyframe at index 1
     if let Stmt::RelativeKeyframe { offset, .. } = &stmts[1] {
         assert_eq!(*offset, Time::Milliseconds(500));
     } else {
@@ -320,7 +316,6 @@ btn.color = blue"#,
     };
     assert!(apply_edit(&mut stmts, edit).is_ok());
 
-    // First keyframe should now be at 3s
     if let Stmt::Keyframe { time, .. } = &stmts[1] {
         assert_eq!(*time, Time::Seconds(3.0));
     } else {
@@ -358,7 +353,6 @@ btn.color = blue"#,
     };
     assert!(apply_edit(&mut stmts, edit).is_ok());
 
-    // First relative keyframe should now have offset 3s
     if let Stmt::RelativeKeyframe { offset, .. } = &stmts[1] {
         assert_eq!(*offset, Time::Seconds(3.0));
     } else {
@@ -393,7 +387,6 @@ btn.color = red"#,
     };
     assert!(apply_edit(&mut stmts, edit).is_ok());
 
-    // Should still be at 2s
     if let Stmt::Keyframe { time, .. } = &stmts[1] {
         assert_eq!(*time, Time::Seconds(2.0));
     } else {

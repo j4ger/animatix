@@ -1,7 +1,4 @@
-//! Utility functions — temporary migration helpers.
-//!
-//! Kept as functions until all callers can use pre-computed semantic
-//! constants or local animation helpers.
+//! Color interpolation, alpha scaling and contrast helpers.
 
 use egui::Color32;
 
@@ -18,10 +15,7 @@ pub fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
 
 /// Return `color` with its premultiplied channels scaled by `factor`.
 ///
-/// This is the widget-facing replacement for calling
-/// [`egui::Color32::linear_multiply`] / `gamma_multiply` at runtime: it derives
-/// a faded alpha variant of a theme token without any per-frame colour math on
-/// the token itself. Rounding matches `Color32::gamma_multiply`.
+/// Rounding matches [`Color32::gamma_multiply`].
 pub fn with_alpha(color: Color32, factor: f32) -> Color32 {
     let factor = factor.clamp(0.0, 1.0);
     Color32::from_rgba_premultiplied(
@@ -45,10 +39,7 @@ pub const WCAG_AA_TEXT: f64 = 4.5;
 /// WCAG AA contrast threshold for large text and active UI components (3:1).
 pub const WCAG_AA_UI: f64 = 3.0;
 
-/// Compute WCAG 2.x relative luminance for an sRGB `Color32`.
-///
-/// Transparent colors are composited onto white so semi-transparent tokens can
-/// still be compared without callers manually resolving the underlying surface.
+/// Compute relative luminance from the stored RGB channels, without compositing.
 pub fn relative_luminance(color: Color32) -> f64 {
     let channel = |channel: u8| {
         let srgb = f64::from(channel) / 255.0;

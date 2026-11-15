@@ -1,15 +1,6 @@
 //! Fixtures shared by the crate's GPU-backed unit tests.
-//!
-//! Compiled only under `#[cfg(test)]`, so nothing here reaches a consumer of
-//! the library.
 
-/// Request a headless wgpu device and queue, or `None` when no adapter is
-/// available.
-///
-/// `label` names the device in backend logs, so a failing suite can tell which
-/// test file created it. The request forces the fallback adapter so it works
-/// on CI and headless boxes; callers treat `None` as "skip the GPU
-/// assertions".
+/// Request a fallback device for headless tests; return `None` if unavailable.
 pub(crate) async fn create_headless_device(label: &str) -> Option<(wgpu::Device, wgpu::Queue)> {
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
     let adapter = instance

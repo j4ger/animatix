@@ -35,6 +35,45 @@ fn make_env() -> TypeEnv<'static> {
     TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())))
 }
 
+fn make_rich_probe_env() -> TypeEnv<'static> {
+    let components = HashMap::from([(
+        "Probe".to_string(),
+        ComponentEntry {
+            definition: ComponentDef {
+                name: "Probe".to_string(),
+                params: vec![
+                    ParamDef {
+                        name: "p".to_string(),
+                        param_type: Some(TypeAnnotation::Vec3),
+                        default: None,
+                    },
+                    ParamDef {
+                        name: "pair".to_string(),
+                        param_type: Some(TypeAnnotation::Tuple(vec![
+                            TypeAnnotation::Str,
+                            TypeAnnotation::Num,
+                        ])),
+                        default: None,
+                    },
+                    ParamDef {
+                        name: "mapper".to_string(),
+                        param_type: Some(TypeAnnotation::Function {
+                            params: vec![TypeAnnotation::Num],
+                            ret: Box::new(TypeAnnotation::Num),
+                        }),
+                        default: None,
+                    },
+                ],
+                body: vec![],
+                is_pub: false,
+            },
+            source_path: std::path::PathBuf::new(),
+            actions: HashMap::new(),
+        },
+    )]);
+    TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())))
+}
+
 #[test]
 fn typecheck_accepts_valid_props() {
     let env = make_env();
@@ -335,44 +374,7 @@ fn named_color_list_accepted_for_list_color_param() {
 
 #[test]
 fn rich_type_annotations_accept_matching_values() {
-    let mut components = HashMap::new();
-    components.insert(
-        "Probe".to_string(),
-        ComponentEntry {
-            definition: ComponentDef {
-                name: "Probe".to_string(),
-                params: vec![
-                    ParamDef {
-                        name: "p".to_string(),
-                        param_type: Some(TypeAnnotation::Vec3),
-                        default: None,
-                    },
-                    ParamDef {
-                        name: "pair".to_string(),
-                        param_type: Some(TypeAnnotation::Tuple(vec![
-                            TypeAnnotation::Str,
-                            TypeAnnotation::Num,
-                        ])),
-                        default: None,
-                    },
-                    ParamDef {
-                        name: "mapper".to_string(),
-                        param_type: Some(TypeAnnotation::Function {
-                            params: vec![TypeAnnotation::Num],
-                            ret: Box::new(TypeAnnotation::Num),
-                        }),
-                        default: None,
-                    },
-                ],
-                body: vec![],
-                is_pub: false,
-            },
-            source_path: std::path::PathBuf::new(),
-            actions: HashMap::new(),
-        },
-    );
-    let mut env =
-        TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())));
+    let mut env = make_rich_probe_env();
     let stmts = vec![actor_with_props(
         "probe",
         "Probe",
@@ -407,44 +409,7 @@ fn rich_type_annotations_accept_matching_values() {
 
 #[test]
 fn rich_type_annotations_reject_mismatched_values() {
-    let mut components = HashMap::new();
-    components.insert(
-        "Probe".to_string(),
-        ComponentEntry {
-            definition: ComponentDef {
-                name: "Probe".to_string(),
-                params: vec![
-                    ParamDef {
-                        name: "p".to_string(),
-                        param_type: Some(TypeAnnotation::Vec3),
-                        default: None,
-                    },
-                    ParamDef {
-                        name: "pair".to_string(),
-                        param_type: Some(TypeAnnotation::Tuple(vec![
-                            TypeAnnotation::Str,
-                            TypeAnnotation::Num,
-                        ])),
-                        default: None,
-                    },
-                    ParamDef {
-                        name: "mapper".to_string(),
-                        param_type: Some(TypeAnnotation::Function {
-                            params: vec![TypeAnnotation::Num],
-                            ret: Box::new(TypeAnnotation::Num),
-                        }),
-                        default: None,
-                    },
-                ],
-                body: vec![],
-                is_pub: false,
-            },
-            source_path: std::path::PathBuf::new(),
-            actions: HashMap::new(),
-        },
-    );
-    let mut env =
-        TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())));
+    let mut env = make_rich_probe_env();
     let stmts = vec![actor_with_props(
         "probe",
         "Probe",

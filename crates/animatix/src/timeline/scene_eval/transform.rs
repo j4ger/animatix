@@ -126,9 +126,7 @@ impl Timeline {
         let position =
             resolve_bound_position(binding, base_position, parent_transform, scene_dimensions);
 
-        // ── Spatial properties: read through registry-based helpers ──
-        // Note: shift is handled manually because "shift" is not yet in the
-        // property registry (despite being injectable into the environment).
+        // Shift uses the Vec2 motion-offset track; node overrides take precedence.
         let motion_offset =
             if let Some(Value::Vec2(v)) = node_overrides.and_then(|ov| ov.get("shift")) {
                 [v[0] as f32, v[1] as f32]
