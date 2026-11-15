@@ -83,3 +83,59 @@ The actual ID set matches exactly, with no newly ignored cases. Doctest identiti
 and statuses also match (2 passed, 27 existing ignored; line offsets excluded).
 All ten registered gates listed above passed again. Local Cargo builds used two
 workers without changing product/CI settings; timings are not speedup evidence.
+
+## Third pass: initialization cost (baseline `c1c2f225`)
+
+Three Luna xhigh agents audited engine/text, GPU rendering and consumers, then
+cross-reviewed the changes. All test IDs and independent pixel checks stay.
+
+| Test | Removed work | Retained contract |
+| --- | --- | --- |
+| `missing_glyph_warning_fires_for_unassignable_codepoints` | Scanning every host font for an unassignable scalar; supply the existing Open Sans fixture through `BuildOptions` instead. | Same source `a\u{10ffff}b`, implicit default family and cold missing-character lookup. Check `ab` is covered, then require the build's `MissingGlyph` diagnostic to name `U+10FFFF`. System/registered/bundled fallback and cache tests remain separate. |
+| `build_quality_changes_plot_sampling_output` | Four scene builds become two; the render and geometry checks use the same Draft/Production timelines. | Same source, qualities, sample times, path-element ratio and nonblank-pixel assertions. |
+| `storyboard_renders_multiframe_grid_to_disk` | Remove the preflight renderer; the storyboard API creates its own renderer. | Same three samples and grid/file assertions. Only renderer-creation errors follow the local no-GPU policy; required-GPU CI still fails. Other errors fail. |
+
+Local measurements use Linux 7.2.10, Ryzen AI 9 HX 370 (24 logical CPUs),
+Rust/Cargo 1.99.1 and the pinned default Nix shell. Compare saved baseline and
+candidate workspace test binaries, with identical features and test profiles
+(opt-level 0, debug 2). Each arm runs engine lib (1,088 cases) then offscreen
+integration (19 cases) serially, using CI package environment/working directory,
+`--test-threads=1` and `ANIMATIX_REQUIRE_GPU=1`. No source edits, builds or other
+performance experiments run during these five AB/BA pairs. OS/shader caches are
+warm; each arm starts new processes. These are execution measurements, not cold
+builds or hosted CI end-to-end timings.
+
+| Pair/order | Engine A (s) | Engine B (s) | Offscreen A (s) | Offscreen B (s) |
+| --- | ---: | ---: | ---: | ---: |
+| 1 (AB) | 26.46 | 7.69 | 16.37 | 16.35 |
+| 2 (BA) | 32.14 | 7.87 | 16.45 | 16.02 |
+| 3 (AB) | 33.47 | 7.54 | 16.84 | 16.53 |
+| 4 (BA) | 32.26 | 8.08 | 16.87 | 16.16 |
+| 5 (AB) | 23.84 | 7.70 | 16.71 | 16.49 |
+
+Engine median is **32.14→7.70 s (−76.0%, 24.44 s saved)**; the largest
+per-process peak RSS across five runs is **709.4→219.2 MiB** (Linux `wait4`,
+not aggregate process-tree memory). Offscreen median is **16.71→16.35 s**;
+that small 2.2% difference does not establish a material speedup. Retain its
+confirmed setup deduplication without claiming otherwise. Combined median for
+these two sequential harnesses is **48.59→24.07 s**; hosted CI gains depend on
+its font inventory and must be measured there.
+
+Reproduce by building baseline and candidate separately inside `nix develop`
+with `CARGO_BUILD_JOBS=2 cargo test --workspace --no-run --locked
+--message-format=json`, saving the two executables, then running the five orders
+above with the recorded CI harness environment. Build workers affect preparation
+only. Raw identities, hashes, matched features/profiles, rows, outputs and RSS
+are in local `target/maintenance-evidence/pruning3-compare/`.
+
+Keep CLI subprocess/exit-code tests, site import retries, GPU lifecycle/pixel
+checks and text cache tests independent. Existing font contexts already share
+the system DB; more wrapper sharing would not remove another scan. A shared
+syntax corpus AST cache has no measured material benefit to justify added state.
+No production or frame/export hot-path code, feature union or runner policy changes.
+
+Final validation: all ten applicable registered gates above passed. The complete
+32-harness runtime set matches the baseline exactly: 2,452 passed IDs, no new
+ignores. Doctest identities/statuses also match (2 passed, 27 existing ignored;
+line offsets excluded). Invalid-ICD checks confirm local no-GPU skip and
+required-GPU failure. Independent review confirmed the measurements and mapping.

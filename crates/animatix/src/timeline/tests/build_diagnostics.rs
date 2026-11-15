@@ -146,7 +146,8 @@ fn conflicting_at_and_anchor_warning() {
 }
 
 /// A Text whose content has a character the shaping path cannot cover warns
-/// `missing-glyph` at build time instead of drawing tofu in silence. U+10FFFF is a Unicode noncharacter, so the bundled fonts do not map it.
+/// `missing-glyph` at build time instead of drawing tofu in silence.
+/// U+10FFFF is a Unicode noncharacter, so the fixture font does not map it.
 #[test]
 fn missing_glyph_warning_fires_for_unassignable_codepoints() {
     let source = format!(
@@ -156,12 +157,36 @@ t: Text, text: "a{}b", at: (160, 90)
 "#,
         '\u{10ffff}'
     );
-    let report = support::build(&source);
+    // A supplied face keeps the diagnostic fixture independent of host font count.
+    let mut font_context = crate::renderer::text::FontContext::empty();
+    font_context.load_font_bytes(
+        include_bytes!("../../../../animatix-text/assets/fonts/OpenSans-Regular.ttf").to_vec(),
+    );
     assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.code == crate::diagnostics::DiagnosticCode::MissingGlyph),
+        crate::renderer::text::missing_text_glyphs(
+            crate::renderer::text::TextKind::Text,
+            "ab",
+            "Open Sans",
+            400.0,
+            "normal",
+            true,
+            &font_context,
+        )
+        .is_empty(),
+        "the fixture font must cover the surrounding Latin characters"
+    );
+
+    let report = Timeline::build_with_options(
+        &support::parse(&source),
+        &std::collections::HashMap::new(),
+        crate::timeline::BuildOptions::default()
+            .with_font_context(std::sync::Arc::new(font_context)),
+    );
+    assert!(
+        report.diagnostics.iter().any(|d| {
+            d.code == crate::diagnostics::DiagnosticCode::MissingGlyph
+                && d.message.contains("U+10FFFF")
+        }),
         "expected a missing-glyph warning, got: {:?}",
         report.diagnostics
     );
