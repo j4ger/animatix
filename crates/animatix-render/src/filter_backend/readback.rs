@@ -18,6 +18,7 @@ impl GpuFilterBackend {
             // A scene uses a handful of distinct ROIs; if churn ever exceeds
             // the cap, start over rather than growing unbounded.
             self.region_scratch.clear();
+            self.effect_bind_group_cache.clear();
         }
         if let Some(scratch) = self.region_scratch.get(&(width, height)) {
             return scratch.clone();

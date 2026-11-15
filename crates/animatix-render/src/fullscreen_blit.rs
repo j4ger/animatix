@@ -10,6 +10,7 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use wgpu::util::DeviceExt;
 
 const FULLSCREEN_BLIT_VS: &str = r#"
 struct VertexOutput {
@@ -28,7 +29,7 @@ fn main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
 }
 "#;
 
-/// Fragment params, 48 bytes, written by [`FullscreenBlitPipeline::write_params`].
+/// Fragment params, 48 bytes, packed by [`FullscreenBlitPipeline::params`].
 ///
 /// A plain composite only uses `alpha`; a backdrop composite also samples a
 /// sub-rectangle of its texture and clips the result to a rounded rect. Both
@@ -235,6 +236,8 @@ impl FullscreenBlitPipeline {
 
     /// Blit `src_view` into `dst_view` with the given alpha using an external encoder.
     /// Callers can batch multiple blits into a single command buffer.
+    /// Parameters are uploaded in command order through a temporary staging buffer;
+    /// prefer [`Self::blit_batch`] for layers sharing one destination.
     pub fn blit_with_encoder(
         &self,
         device: &wgpu::Device,
@@ -258,18 +261,12 @@ impl FullscreenBlitPipeline {
         );
     }
 
-    /// Write the 48-byte fragment params.
+    /// Pack the 48-byte fragment params.
     ///
     /// Layout is `alpha, radius, dst_size, src_rect, use_src_rect` — a
     /// `[f32; 12]` written verbatim, so the WGSL struct and this array must stay
     /// in the same order.
-    fn write_params(
-        &self,
-        queue: &wgpu::Queue,
-        alpha: f32,
-        mask: Option<&BlitMask>,
-        dst_size: Option<[u32; 2]>,
-    ) {
+    fn params(alpha: f32, mask: Option<&BlitMask>, dst_size: Option<[u32; 2]>) -> [f32; 12] {
         let mut p = [0f32; 12];
         p[0] = alpha;
         if let Some(m) = mask {
@@ -284,7 +281,25 @@ impl FullscreenBlitPipeline {
             p[7] = m.src_rect[3];
             p[8] = 1.0;
         }
-        queue.write_buffer(&self.alpha_buffer, 0, bytemuck::cast_slice(&p));
+        p
+    }
+
+    // Queue writes happen before the submitted command buffers, so they cannot
+    // snapshot parameters for successive draws within an external encoder.
+    // Record the upload at the draw's position instead. Immediate-submit APIs
+    // retain their queue-write fast path and do not allocate this staging buffer.
+    fn upload_params_with_encoder(
+        &self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        bytes: &[u8],
+    ) {
+        let staging = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Animatix Encoded Blit Params"),
+            contents: bytes,
+            usage: wgpu::BufferUsages::COPY_SRC,
+        });
+        encoder.copy_buffer_to_buffer(&staging, 0, &self.alpha_buffer, 0, bytes.len() as u64);
     }
 
     /// Blit `src_view` into `dst_view` at `dst_origin`, covering `dst_size`
@@ -356,7 +371,7 @@ impl FullscreenBlitPipeline {
     pub fn blit_rect_masked_with_encoder(
         &self,
         device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        _queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
         src_view: &wgpu::TextureView,
         dst_view: &wgpu::TextureView,
@@ -365,7 +380,20 @@ impl FullscreenBlitPipeline {
         alpha: f32,
         mask: Option<&BlitMask>,
     ) {
-        self.write_params(queue, alpha, mask, dst_size);
+        let params = Self::params(alpha, mask, dst_size);
+        self.upload_params_with_encoder(device, encoder, bytemuck::cast_slice(&params));
+        self.encode_blit(device, encoder, src_view, dst_view, dst_origin, dst_size);
+    }
+
+    fn encode_blit(
+        &self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        src_view: &wgpu::TextureView,
+        dst_view: &wgpu::TextureView,
+        dst_origin: [f32; 2],
+        dst_size: Option<[u32; 2]>,
+    ) {
         let bind_group = self.get_or_create_bind_group(device, src_view);
 
         {
@@ -395,19 +423,25 @@ impl FullscreenBlitPipeline {
         }
     }
 
-    /// Blit a chunk of layers (up to [`MAX_BATCH_LAYERS`]) in a single render pass
-    /// with dynamic uniform offsets.
+    /// Blit layers in chunks of [`MAX_BATCH_LAYERS`] with dynamic uniform offsets.
+    /// Each chunk records its parameter upload before its render pass, so multiple
+    /// chunks or calls can safely share an encoder and a single submission.
     pub fn blit_batch_chunk_with_encoder(
         &self,
         device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        _queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
         dst_view: &wgpu::TextureView,
         chunk: &[BatchedBlitItem<'_>],
     ) {
-        if chunk.is_empty() {
-            return;
+        for chunk in chunk.chunks(MAX_BATCH_LAYERS) {
+            let params_bytes = Self::batch_params(chunk);
+            self.upload_params_with_encoder(device, encoder, &params_bytes);
+            self.encode_batch_chunk(device, encoder, dst_view, chunk);
         }
+    }
+
+    fn batch_params(chunk: &[BatchedBlitItem<'_>]) -> Vec<u8> {
         let count = chunk.len().min(MAX_BATCH_LAYERS);
         let mut params_bytes = vec![0u8; count * BATCH_BLIT_STRIDE as usize];
         for (i, item) in chunk[..count].iter().enumerate() {
@@ -431,7 +465,17 @@ impl FullscreenBlitPipeline {
             params_bytes[offset..offset + BLIT_PARAMS_SIZE as usize]
                 .copy_from_slice(bytemuck::cast_slice(&p));
         }
-        queue.write_buffer(&self.alpha_buffer, 0, &params_bytes);
+        params_bytes
+    }
+
+    fn encode_batch_chunk(
+        &self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        dst_view: &wgpu::TextureView,
+        chunk: &[BatchedBlitItem<'_>],
+    ) {
+        let count = chunk.len().min(MAX_BATCH_LAYERS);
 
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Animatix Batched Fullscreen Blit Pass"),
@@ -483,7 +527,9 @@ impl FullscreenBlitPipeline {
             let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Animatix Batched Fullscreen Blit Encoder"),
             });
-            self.blit_batch_chunk_with_encoder(device, queue, &mut encoder, dst_view, chunk);
+            let params_bytes = Self::batch_params(chunk);
+            queue.write_buffer(&self.alpha_buffer, 0, &params_bytes);
+            self.encode_batch_chunk(device, &mut encoder, dst_view, chunk);
             queue.submit(std::iter::once(encoder.finish()));
         }
     }
@@ -505,17 +551,9 @@ impl FullscreenBlitPipeline {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Animatix Masked Blit Encoder"),
         });
-        self.blit_rect_masked_with_encoder(
-            device,
-            queue,
-            &mut encoder,
-            src_view,
-            dst_view,
-            dst_origin,
-            Some(dst_size),
-            alpha,
-            mask,
-        );
+        let params = Self::params(alpha, mask, Some(dst_size));
+        queue.write_buffer(&self.alpha_buffer, 0, bytemuck::cast_slice(&params));
+        self.encode_blit(device, &mut encoder, src_view, dst_view, dst_origin, Some(dst_size));
         queue.submit(std::iter::once(encoder.finish()));
     }
 
@@ -530,23 +568,16 @@ impl FullscreenBlitPipeline {
         queue: &wgpu::Queue,
         src_view: &wgpu::TextureView,
         dst_view: &wgpu::TextureView,
-        width: u32,
-        height: u32,
+        _width: u32,
+        _height: u32,
         alpha: f32,
     ) {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Animatix Fullscreen Blit Encoder"),
         });
-        self.blit_with_encoder(
-            device,
-            queue,
-            &mut encoder,
-            src_view,
-            dst_view,
-            width,
-            height,
-            alpha,
-        );
+        let params = Self::params(alpha, None, None);
+        queue.write_buffer(&self.alpha_buffer, 0, bytemuck::cast_slice(&params));
+        self.encode_blit(device, &mut encoder, src_view, dst_view, [0.0, 0.0], None);
         queue.submit(std::iter::once(encoder.finish()));
     }
 }

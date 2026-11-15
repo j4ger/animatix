@@ -316,6 +316,14 @@ impl TransitionCompositor {
         })
     }
 
+    /// Release cached input views when their render targets are replaced.
+    ///
+    /// The pipeline remains reusable; clearing this binding prevents a resized
+    /// preview from retaining the previous pair of full-frame textures.
+    pub fn clear_cached_textures(&self) {
+        *self.bind_group_cache.borrow_mut() = None;
+    }
+
     /// Composite two scene textures into the output texture using the given
     /// transition progress, type, and easing.
     pub fn render(

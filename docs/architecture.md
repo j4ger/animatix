@@ -250,6 +250,11 @@ vello.encode(&mut encoder) → render_pass.draw(encoder)
 - **PNG/WebP**: CPU-side RGBA buffer for single frames
 - **Video/GIF**: Parallel frame rendering + FFmpeg muxing
 
+The GUI samples an `Rgba8UnormSrgb` view of its current `Rgba8Unorm` render or
+transition-composite texture. This preserves the preview's sRGB interpretation
+without a full-frame copy into a separate sampling texture. Rendering uses the
+Unorm view; egui's registered texture is updated when the active target changes.
+
 ### Post-Processing (Filter)
 
 `Filter` is a **compositing scope**: it renders its content children to an
@@ -292,7 +297,7 @@ the `EFFECTS` bootstrap array. Plugin effects wrap FFI-declared data
 | `timeline/effects/track.rs` | `EffectChainTrack` / `EffectStage` — animatable storage (`DynTrack`-backed parameters) |
 | `timeline/effects/chain.rs` | `EffectChain`, `EffectRegion`, `PendingComposite`, `FilterBackend` |
 | `timeline/build/effect.rs` | Lowering: effect children become stages on the owning scope's chain |
-| `animatix-render/src/filter_backend/` | `GpuFilterBackend` — GPU render, per-pass dispatch and submit, readback / zero-readback composite |
+| `animatix-render/src/filter_backend/` | `GpuFilterBackend` — GPU render, ordered effect dispatch, readback / zero-readback composite |
 | `timeline/scene_eval/` | Renders the scope's content to a sub-scene, samples the chain, derives the ROI, dispatches the backend |
 
 Adding a built-in effect is one new file plus one `EFFECTS` entry: the identity
@@ -308,7 +313,7 @@ Evaluate content children → vello::Scene (sub-scene)
 GpuFilterBackend::render_scene_to_image_gpu_filtered()  (or …_to_pending_composite)
   → GPU render the sub-scene to texture A
   → per effect, per declared pass, ping-pong A ↔ B
-    (one CommandEncoder and queue.submit per pass — see docs/effects.md §4.6)
+    (seed, passes and harvest share one encoder/submit — see docs/effects.md §4.6)
   → readback, or park a PendingComposite from the dynamic TexturePool for a viewport-scoped blit
   ↓
 Composite at region origin (readback path) or batched blit with dynamic uniform offsets (zero-readback path)
@@ -326,11 +331,11 @@ Composite at region origin (readback path) or batched blit with dynamic uniform 
   scratch targets are sized to the region, quantized to 64-px steps, and cached
   per quantized size, so a region that grows or shrinks between frames rarely
   reallocates; only a whole-scene region allocates canvas-sized textures.
-- **Per-pass submit & Texture Pooling.** Each effect pass is encoded and
-  submitted in its own `CommandEncoder` / `queue.submit()`: back-to-back compute
-  passes sharing ping-pong textures in one encoder are not portable across
-  drivers (probe 009), so they are deliberately not fused (see
-  `docs/effects.md` §4.6). Intermediate pending composites come from an internal
+- **Chain submit & Texture Pooling.** Seed copies, ordered compute passes, and
+  harvest share one `CommandEncoder` / `queue.submit()`, with independent
+  per-instance author uniforms and per-pass contexts. Separate submissions
+  remain the pixel-test reference and stage-dump path (see `docs/effects.md`
+  §4.6). Intermediate pending composites come from an internal
   `TexturePool` recycled per-frame by the engine's `drain_pending_layers` via
   `FilterBackend::recycle_pending_composite`.
 - **Second input (ABI v2).** Binding 5 carries the pre-chain original of the
