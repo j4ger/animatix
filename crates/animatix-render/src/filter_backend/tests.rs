@@ -1402,3 +1402,133 @@ fn drop_shadow_softness_spreads_the_silhouette() {
         "softness 6 must cast a partial-coverage penumbra at x=12, got alpha {alpha}"
     );
 }
+
+fn blue_drop_shadow_chain(offset: [f32; 2], softness: f32) -> EffectChain {
+    blue_drop_shadow_chain_with_alpha(offset, softness, 1.0)
+}
+
+fn blue_drop_shadow_chain_with_alpha(
+    offset: [f32; 2],
+    softness: f32,
+    color_alpha: f32,
+) -> EffectChain {
+    effect_chain(
+        "DropShadow",
+        vec![
+            EffectParamValue::Vec2(offset),
+            EffectParamValue::F32(softness),
+            EffectParamValue::Vec4([0.0, 0.0, 1.0, color_alpha]),
+        ],
+    )
+}
+
+/// DropShadow samples a half-alpha silhouette for its blue shadow. The
+/// shadow-only texel must carry straight blue RGB with half alpha, while an
+/// opaque silhouette keeps its historical opaque-blue result.
+#[test]
+fn drop_shadow_keeps_translucent_colored_shadow_rgb_straight() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let rect = kurbo::Rect::new(20.0, 16.0, 36.0, 48.0);
+    let translucent = filled_scene(vello::peniko::Color::from_rgba8(255, 0, 0, 128), rect);
+    let chain = blue_drop_shadow_chain([8.0, 0.0], 0.0);
+    let image = render(&mut backend, &translucent, DIMS, &chain);
+    let shadow_only = scene_pixel(&image, 40, 32);
+    assert_eq!(
+        shadow_only[3], 128,
+        "half-alpha silhouette should cast half-alpha shadow: {shadow_only:?}"
+    );
+    assert!(
+        shadow_only[2] >= 248 && shadow_only[0] <= 8 && shadow_only[1] <= 8,
+        "shadow-only RGB must remain straight blue instead of being scaled by alpha: {shadow_only:?}"
+    );
+
+    let opaque = filled_scene(vello::peniko::Color::WHITE, rect);
+    let opaque_image = render(&mut backend, &opaque, DIMS, &chain);
+    let opaque_shadow = scene_pixel(&opaque_image, 40, 32);
+    assert_eq!(opaque_shadow, [0, 0, 255, 255], "opaque shadow output must remain unchanged");
+
+    // Exercise the shadow-color alpha independently of source transparency.
+    let half_opacity_chain = blue_drop_shadow_chain_with_alpha([8.0, 0.0], 0.0, 0.5);
+    let half_opacity_image = render(&mut backend, &opaque, DIMS, &half_opacity_chain);
+    let half_opacity_shadow = scene_pixel(&half_opacity_image, 40, 32);
+    assert_eq!(
+        half_opacity_shadow[3], 128,
+        "opaque silhouette with 50% shadow alpha should produce alpha 128: {half_opacity_shadow:?}"
+    );
+    assert!(
+        half_opacity_shadow[2] >= 248 && half_opacity_shadow[0] <= 8 && half_opacity_shadow[1] <= 8,
+        "50% blue shadow color must keep straight blue RGB: {half_opacity_shadow:?}"
+    );
+}
+
+/// A half-alpha red source over a half-alpha blue shadow has alpha 0.75 and
+/// straight RGB (2/3 red, 1/3 blue) after premultiplied over composition.
+#[test]
+fn drop_shadow_composites_translucent_content_over_shadow() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let scene = filled_scene(
+        vello::peniko::Color::from_rgba8(255, 0, 0, 128),
+        kurbo::Rect::new(20.0, 16.0, 36.0, 48.0),
+    );
+    let image = render(&mut backend, &scene, DIMS, &blue_drop_shadow_chain([8.0, 0.0], 0.0));
+    let overlap = scene_pixel(&image, 32, 32);
+    assert!(
+        overlap[3].abs_diff(192) <= 2,
+        "overlap alpha should be approximately 0.75, got {overlap:?}"
+    );
+    assert!(
+        overlap[0].abs_diff(170) <= 4 && overlap[1] <= 4 && overlap[2].abs_diff(85) <= 4,
+        "overlap RGB should be straight-alpha red 170 / blue 85, got {overlap:?}"
+    );
+}
+
+/// Zero-alpha inputs must produce transparent black, without NaNs or shadow
+/// color leaking into pixels that have no silhouette coverage.
+#[test]
+fn drop_shadow_zero_alpha_input_does_not_leak_color() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let scene = filled_scene(
+        vello::peniko::Color::from_rgba8(20, 80, 255, 0),
+        kurbo::Rect::new(20.0, 16.0, 36.0, 48.0),
+    );
+    let image = render(&mut backend, &scene, DIMS, &blue_drop_shadow_chain([8.0, 0.0], 0.0));
+    for (x, y) in [(28, 32), (40, 32)] {
+        let pixel = scene_pixel(&image, x, y);
+        assert_eq!(
+            pixel,
+            [0, 0, 0, 0],
+            "zero-alpha input must stay transparent black at ({x},{y}), got {pixel:?}"
+        );
+    }
+}
+
+/// Softness creates a partially covered colored shadow. Its alpha is reduced
+/// by coverage, while its straight blue RGB remains fully saturated.
+#[test]
+fn drop_shadow_soft_penumbra_keeps_colored_rgb_straight() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let scene = filled_scene(
+        vello::peniko::Color::from_rgba8(255, 0, 0, 128),
+        kurbo::Rect::new(24.0, 16.0, 56.0, 48.0),
+    );
+    let image = render(&mut backend, &scene, DIMS, &blue_drop_shadow_chain([-8.0, 0.0], 6.0));
+    // As in the opaque softness check above, x=12 is four pixels beyond the
+    // hard edge at x=16, so only the penumbra reaches this shadow-only pixel.
+    let penumbra = scene_pixel(&image, 12, 32);
+    assert!(
+        (8..150).contains(&penumbra[3]),
+        "softness should leave partial alpha at the penumbra: {penumbra:?}"
+    );
+    assert!(
+        penumbra[2] >= 248 && penumbra[0] <= 8 && penumbra[1] <= 8,
+        "soft penumbra RGB must stay straight blue despite partial coverage: {penumbra:?}"
+    );
+}

@@ -92,12 +92,19 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
     let shadow_alpha = shadow_cover * params.color.a;
 
-    // The render target is premultiplied, so compose "original over shadow"
-    // in premultiplied space and keep the result premultiplied.
+    // Vello's rgba_sep output is straight alpha. Convert both layers to
+    // premultiplied color for Porter-Duff "original over shadow", then
+    // unpremultiply because the next effect pass reads straight alpha too.
     let texel = textureLoad(src, vec2<i32>(coord), 0);
-    let shadow_rgb = params.color.rgb * shadow_alpha;
-    let out_alpha = texel.a + shadow_alpha * (1.0 - texel.a);
-    let out_rgb = texel.rgb + shadow_rgb * (1.0 - texel.a);
+    let source_alpha = texel.a;
+    let out_alpha = source_alpha + shadow_alpha * (1.0 - source_alpha);
+    let source_premul = texel.rgb * source_alpha;
+    let shadow_premul = params.color.rgb * shadow_alpha;
+    let out_premul = source_premul + shadow_premul * (1.0 - source_alpha);
+    var out_rgb = vec3<f32>(0.0);
+    if (out_alpha > 0.0) {
+        out_rgb = out_premul / out_alpha;
+    }
     textureStore(dst, coord, vec4<f32>(out_rgb, out_alpha));
 }
 "#
