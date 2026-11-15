@@ -25,7 +25,12 @@ class Icons(unittest.TestCase):
         svg = ET.parse(ROOT / "logo.svg")
         self.assertEqual(svg.getroot().attrib["viewBox"], "0 0 512 512")
         links = 0
-        for page in (ROOT / "web").rglob("*.html"):
+        # Authored compatibility pages only. Generated Astro output has URL-root
+        # paths, and is validated by site-check in both root/base builds.
+        tracked = subprocess.check_output(
+            ["git", "ls-files", "-z", "web/**/*.html", "web/*.html"], cwd=ROOT
+        ).decode().split("\0")
+        for page in (ROOT / name for name in tracked if name):
             for href in re.findall(r'<link rel="icon"[^>]+href="([^"]+)"', page.read_text()):
                 self.assertEqual((page.parent / href).resolve(), ROOT / "web/logo.svg")
                 links += 1

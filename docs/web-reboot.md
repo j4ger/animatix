@@ -49,7 +49,7 @@ The first review exposed an unclear premise in two works. One Rule now explains 
 
 Six lessons now explain the concept before the exercise. Source fetches and player-module registration have bounded waits and retryable errors. The editor warns before discarding unsaved edits, distinguishes diagnostics for an older submitted version, and disables downloading before the initial source arrives. Successful preset changes restart playback so a user at the held ending can actually see the new rule.
 
-Publication uses an independent generated site manifest with exact new-page and bundle hashes. Old compatibility pages cannot hide a missing new route. The manifest check does not depend on the builder's current `web/app/dist`. Every site-build also checks the `/animatix/` base variant. Nix supplies the toolchain; npm's lock and `npm ci` supply the JavaScript dependency graph. This is still not an offline Nix dependency closure.
+Publication uses an independent generated site manifest with exact new-page and bundle hashes. Old compatibility pages cannot hide a missing new route. The manifest check does not depend on the builder's current generated Astro output directory. Every site-build also checks the `/animatix/` base variant. Nix supplies the toolchain; npm's lock and `npm ci` supply the JavaScript dependency graph. This is still not an offline Nix dependency closure.
 
 ### Final native gates
 

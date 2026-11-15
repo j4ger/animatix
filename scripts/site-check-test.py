@@ -119,6 +119,22 @@ class SiteCheckTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(b'stale or missing preview source: lesson', result.stderr)
 
+    def test_favicon_uses_deployment_root_and_existing_logo(self):
+        self.pages()
+        logo = self.source / 'web/logo.svg'
+        logo.write_text('<svg/>')
+        for base in ('/', '/animatix/'):
+            href = base + 'logo.svg'
+            (self.root/'index.html').write_text(f'<link rel="icon" href="{href}">')
+            self.assertEqual(self.run_check(base=base).returncode, 0)
+            (self.root/'index.html').write_text('<link rel="icon" href="/wrong.svg">')
+            result = self.run_check(base=base)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(b'favicon must reference deployment logo', result.stderr)
+        (self.root/'index.html').write_text('<link rel="icon" href="/logo.svg">')
+        logo.unlink()
+        self.assertNotEqual(self.run_check().returncode, 0)
+
     def test_stale_preview_fails(self):
         self.assembly()
         (self.root/'content/poster0.png').write_bytes(b'changed')

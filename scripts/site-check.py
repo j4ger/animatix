@@ -14,8 +14,11 @@ class Links(HTMLParser):
     def __init__(self):
         super().__init__()
         self.urls = []
+        self.icons = []
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
+        if tag == "link" and "icon" in attrs.get("rel", "").split():
+            self.icons.append(attrs.get("href", ""))
         for name in ('src', 'href', 'poster', 'data-recording', 'data-source', 'data-module'):
             if name in attrs:
                 self.urls.append(attrs[name])
@@ -100,6 +103,9 @@ def main():
     for page in pages:
         parser = Links()
         parser.feed(page.read_text())
+        for icon in parser.icons:
+            if icon != base + '/logo.svg':
+                errors.append(f'{page.relative_to(output)}: favicon must reference deployment logo: {icon}')
         for raw in parser.urls:
             url = urlsplit(raw)
             if url.scheme or url.netloc or not url.path:
