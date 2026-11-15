@@ -81,8 +81,15 @@ def main():
     work = Path(tempfile.mkdtemp(prefix="animatix-sdk-consumer-"))
     started = time.monotonic()
     original_env = dict(os.environ)
+    # Resolve the platform version-manager shim before changing HOME. Children
+    # use the actual selected Node bin directory, not the shim's private config.
+    node = Path(subprocess.check_output(["node", "-p", "process.execPath"], text=True, timeout=15).strip()).resolve()
+    if not node.is_absolute() or not node.is_file():
+        raise RuntimeError("selected Node executable unavailable")
+    if subprocess.check_output([str(node), "--version"], text=True, timeout=15).strip() != "v24.14.0":
+        raise RuntimeError("expected platform NODE_VERSION=24.14.0")
     # Retain PATH for platform-selected Node, but never inherited secrets/overrides.
-    clean = {"PATH": os.environ.get("PATH", os.defpath), "HOME": str(work),
+    clean = {"PATH": str(node.parent) + os.pathsep + os.environ.get("PATH", os.defpath), "HOME": str(work),
              "TMPDIR": str(work), "LANG": "C.UTF-8", "SITE_BASE": "/",
              "ASTRO_TELEMETRY_DISABLED": "1", "npm_config_cache": str(work / "npm")}
     def budget():

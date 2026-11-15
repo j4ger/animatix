@@ -161,3 +161,10 @@ uses a fresh credential-free child environment, stops after 10 minutes or below
 3 GiB free, and always exits 1. The only API-triggered build in this proof checks
 out the exact already-successful CI commit; Git auto-trigger filtering stays on
 the experiment branch. Afterward restore the lightweight capability probe.
+
+First Release-transport proof verified successful same-SHA CI and the exact ZIP
+digest in Cloudflare. It then stopped because its clean HOME hid the platform's
+Node shim configuration. Select `NODE_VERSION=24.14.0` for this experiment and
+resolve the actual Node executable before clearing the environment; only its bin
+directory is carried into the clean child PATH. No host credentials or version
+manager settings are copied. Restore the temporary build variable afterward.
