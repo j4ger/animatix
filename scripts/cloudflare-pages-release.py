@@ -6,8 +6,6 @@ journal blocks all subsequent sends after an uncertain POST. No external actor
 may update deploy/pages or trigger deployments while this publisher is enabled.
 """
 import base64
-import datetime
-import uuid
 import json
 import os
 import subprocess
@@ -49,7 +47,7 @@ class API:
             # Pages Git deployment creation uses multipart, not JSON. Only the
             # fixed release branch is supplied; commit_hash is metadata only.
             boundary = 'animatix-pages-release-boundary'
-            if set(data) != {'branch', 'commit_message'} or data['branch'] != PAGES.RELEASE_BRANCH:
+            if set(data) != {'branch'} or data['branch'] != PAGES.RELEASE_BRANCH:
                 raise RuntimeError('invalid deployment request fields')
             payload = ''.join(
                 f'--{boundary}\r\nContent-Disposition: form-data; name="{key}"\r\n\r\n{value}\r\n'
@@ -109,15 +107,6 @@ def deployment_status(deployment, sha):
     return deployment['latest_stage']['status']
 
 
-def receipt_matches(deployment, state):
-    """Never adopt an older same-SHA build as the receipt of an unknown send."""
-    metadata = deployment['deployment_trigger']['metadata']
-    created = datetime.datetime.fromisoformat(deployment['created_on'].replace('Z', '+00:00'))
-    if (not state.get('ticket') or metadata.get('commit_message') != state['ticket']
-            or created.tzinfo is None or created.timestamp() < state['requested_at']):
-        raise RuntimeError('deployment does not match persisted request ticket/time')
-
-
 def active(deployment):
     return not deployment.get('is_skipped') and deployment['latest_stage']['status'] not in TERMINAL
 
@@ -125,14 +114,13 @@ def active(deployment):
 def reconcile(api, state, rev, sleep=time.sleep):
     phase = state['phase']
     if phase == 'intent':
-        raise RuntimeError('unknown POST outcome: operator must identify deployment before resuming')
+        raise RuntimeError('unknown POST outcome: frozen; no safe receipt correlation is available')
     if phase == 'blocked':
         raise RuntimeError('previous deployment failed: operator recovery required')
     if phase != 'waiting':
         return state, rev
     for _ in range(180):
         deployment = api.cf('/deployments/' + state['deployment_id'])
-        receipt_matches(deployment, state)
         status = deployment_status(deployment, state['sha'])
         if status in TERMINAL:
             if status == 'success':
@@ -186,10 +174,9 @@ def release(api, sha):
         api.gh('git/refs/heads/' + PAGES.RELEASE_BRANCH, 'PATCH', {'sha': sha, 'force': False})
     if api.head(PAGES.RELEASE_BRANCH) != sha:
         raise RuntimeError('release branch drift')
-    state = dict(state, phase='intent', requested_at=int(time.time()), ticket='animatix-pages:' + str(uuid.uuid4()))
+    state = dict(state, phase='intent', requested_at=int(time.time()))
     rev = api.save(state, rev)  # Persist BEFORE the one external send.
-    deployment = api.cf('/deployments', 'POST', {'branch': PAGES.RELEASE_BRANCH, 'commit_message': state['ticket']})
-    receipt_matches(deployment, state)
+    deployment = api.cf('/deployments', 'POST', {'branch': PAGES.RELEASE_BRANCH})
     deployment_status(deployment, sha)
     state = dict(state, phase='waiting', deployment_id=deployment['id'])
     rev = api.save(state, rev)
@@ -211,25 +198,12 @@ def initialize(api):
     api.save({'schema': 1, 'phase': 'complete', 'sha': sha, 'deployment_id': current['id']}, None)
 
 
-def adopt(api, deployment_id):
-    """Explicit operator recovery after independently locating a lost receipt."""
-    state, rev = api.journal()
-    if state['phase'] != 'intent' or api.head(PAGES.RELEASE_BRANCH) != state['sha']:
-        raise RuntimeError('only a frozen send intent can adopt a verified receipt')
-    result = api.cf('/deployments/' + deployment_id)
-    deployment_status(result, state['sha'])
-    receipt_matches(result, state)
-    # Adoption never sends a POST. The next invocation waits/reconciles it.
-    api.save(dict(state, phase='waiting', deployment_id=result['id']), rev)
-
-
 def recover_failed(api):
     """Explicit operator recovery only after the failed request is terminal."""
     state, rev = api.journal()
     if state['phase'] != 'blocked':
         raise RuntimeError('not a known failed transaction')
     result = api.cf('/deployments/' + state['deployment_id'])
-    receipt_matches(result, state)
     if deployment_status(result, state['sha']) not in {'failure', 'canceled'}:
         raise RuntimeError('failure is no longer confirmed')
     if any(active(d) for d in api.deployments()):
@@ -243,10 +217,8 @@ def main():
         return recover_failed(api)
     if sys.argv[1:] == ['--initialize']:
         return initialize(api)
-    if len(sys.argv) == 3 and sys.argv[1] == '--adopt':
-        return adopt(api, sys.argv[2])
     if sys.argv[1:]:
-        raise RuntimeError('usage: [--initialize | --adopt DEPLOYMENT_ID]')
+        raise RuntimeError('usage: [--initialize | --recover-failed]')
     if (os.environ.get('GITHUB_REPOSITORY') != REPO or os.environ.get('GITHUB_REF') != 'refs/heads/main'
             or os.environ.get('NEEDS_PAGES_SIGN_RESULT') != 'success'):
         raise RuntimeError('only successful main signing may release')

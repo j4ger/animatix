@@ -126,11 +126,14 @@ comes from the journal, whose Contents API updates use the preceding file SHA:
 
 - `preparing`: no deployment request was sent; safely recover a partial ref move.
 - `intent`: persisted before POST; if its response is lost, freeze rather than
-  resend or advance another commit. An operator must identify the actual build
-  and use `--adopt DEPLOYMENT_ID`; this validates project/branch/SHA and the
-  unique request ticket persisted before sending (plus creation time), writes the
-  receipt, and sends no deployment. A false-negative empty listing is not proof
-  that POST did not execute. If no receipt can be established, stay stopped.
+  resend or advance another commit. **There is no `--adopt` or reset command.**
+  Real Pages Git API tests showed that a supplied `commit_message` ticket is
+  replaced by the Git commit message. SHA, timestamps and a matching success
+  therefore cannot prove which request a deployment belongs to. Even an
+  operator-selected same-SHA ID cannot safely unlock this transaction. Resolve
+  through provider evidence that all possible requests are settled, or retire
+  this project/publisher through a separately reviewed recovery plan. An empty
+  listing is not proof that POST did not execute. Do not erase the journal.
 - `waiting`: record the ID and reconcile the same build after cancellation or
   timeout. No subsequent candidate advances until this build is terminal.
 - `complete`: require the successful build to be canonical. Skip a candidate

@@ -36,7 +36,6 @@ class Fake:
             return self.project
         if method == 'POST':
             self.sent += 1
-            self.result['deployment_trigger']['metadata']['commit_message'] = data['commit_message']
             if self.fail_send:
                 raise TimeoutError('lost response')
         return self.result
@@ -142,26 +141,16 @@ class ReleaseTests(unittest.TestCase):
                 r.release(api, NEW)
             self.assertNotEqual(api.state['phase'], 'complete')
 
-    def test_operator_adopts_receipt_without_send(self):
+    def test_same_sha_success_cannot_unfreeze_unknown_post(self):
         api = Fake()
-        api.state = {'schema': 1, 'phase': 'intent', 'sha': NEW, 'ticket': 'ticket', 'requested_at': 1}
+        api.state = {'schema': 1, 'phase': 'intent', 'sha': NEW, 'requested_at': 1}
         api.heads['deploy/pages'] = NEW
-        r.adopt(api, 'deployment-1')
-        self.assertEqual(api.state['phase'], 'waiting')
-        self.assertEqual(api.sent, 0)
-
-    def test_old_same_sha_receipt_cannot_unfreeze_unknown_send(self):
-        api = Fake()
-        api.state = {'schema': 1, 'phase': 'intent', 'sha': NEW, 'ticket': 'new-ticket', 'requested_at': 1}
-        api.heads['deploy/pages'] = NEW
-        with self.assertRaisesRegex(RuntimeError, 'ticket/time'):
-            r.adopt(api, 'deployment-1')
+        api.records = [deployment()]
+        with self.assertRaisesRegex(RuntimeError, 'unknown POST'):
+            r.release(api, NEW)
         self.assertEqual(api.state['phase'], 'intent')
-        api.result['deployment_trigger']['metadata']['commit_message'] = 'new-ticket'
-        api.result['created_on'] = '1970-01-01T00:00:00Z'
-        with self.assertRaisesRegex(RuntimeError, 'ticket/time'):
-            r.adopt(api, 'deployment-1')
         self.assertEqual(api.sent, 0)
+        self.assertFalse(hasattr(r, 'adopt'))
 
     def test_operator_recovery_needs_known_terminal_failure(self):
         api = Fake()
