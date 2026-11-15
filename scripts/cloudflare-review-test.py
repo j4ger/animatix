@@ -119,6 +119,18 @@ class ReviewTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             f.a.version_check(lambda *args, **kwargs: valid, f.CONFIG, f.VERSION)
 
+    def test_candidate_jobs_override_implicit_ancestor_success(self):
+        # GitHub propagates skips through the ancestor chain by default. These
+        # jobs must rely on their explicit required-result gate and still cancel.
+        workflow = Path('.github/workflows/ci.yml').read_text()
+        for job, dependency, switch in [('cloudflare_candidate', 'required', 'ANIMATIX_CF_CANDIDATE'),
+                                         ('cloudflare_candidate_dispatch', 'cloudflare_candidate', 'ANIMATIX_CF_PREVIEW_DISPATCH')]:
+            block = workflow.split('  '+job+':', 1)[1]
+            condition = next(line.strip() for line in block.splitlines() if line.strip().startswith('if:'))
+            self.assertIn('!cancelled()', condition)
+            self.assertIn("needs."+dependency+".result == 'success'", condition)
+            self.assertIn("vars."+switch+" == 'enabled'", condition)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -272,10 +272,12 @@ jobs:
           ANIMATIX_CI_TOPOLOGY: ${{ needs.plan.outputs.topology }}
         run: scripts/ci.sh gate ci-result
 
+  # Optional experimental ancestors may be skipped. Override implicit success(),
+  # while requiring the aggregate CI result and respecting cancellation.
   cloudflare_candidate:
     name: Sign isolated Cloudflare candidate
     needs: required
-    if: ${{ needs.required.result == 'success' && github.event_name == 'push' && github.repository == 'j4ger/animatix' && github.ref == 'refs/heads/feat/cloudflare-candidate-preview' && vars.ANIMATIX_CF_CANDIDATE == 'enabled' }}
+    if: ${{ !cancelled() && needs.required.result == 'success' && github.event_name == 'push' && github.repository == 'j4ger/animatix' && github.ref == 'refs/heads/feat/cloudflare-candidate-preview' && vars.ANIMATIX_CF_CANDIDATE == 'enabled' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -315,7 +317,7 @@ jobs:
   cloudflare_candidate_dispatch:
     name: Dispatch isolated Cloudflare candidate
     needs: cloudflare_candidate
-    if: ${{ needs.cloudflare_candidate.result == 'success' && vars.ANIMATIX_CF_PREVIEW_DISPATCH == 'enabled' }}
+    if: ${{ !cancelled() && needs.cloudflare_candidate.result == 'success' && vars.ANIMATIX_CF_PREVIEW_DISPATCH == 'enabled' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

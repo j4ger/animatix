@@ -362,3 +362,50 @@ upload permission and token type compatibility without exposing its value, then
 record the returned UUID, Worker tag and trigger UUID. Only then enable the
 reviewed target and the two separate GitHub candidate/signing dispatch switches.
 Keep activation disabled throughout upload and immutable-URL acceptance.
+
+
+### Skipped-ancestor signing correction
+
+For source `c3b4d23c0ea12de1487000a9c0a5c9995982dcc3`, CI run `43723595056`
+passed and retained SDK artifact `14165977734` (archive SHA256
+`439b504f402b5d7e34aaa920a6314f0a6198902348827ea5b054ad969ae1d0e7`).
+The initial signer skipped. Re-running only CI Required with the signing switch
+enabled produced a successful aggregate in attempt 2, but signer job
+`132857274003` still skipped. Its log endpoint returned BlobNotFound, so the
+exact expanded condition was unavailable; this is not evidence of a token error
+or of an SDK failure.
+
+There is a concrete condition defect: optional native-CLI/shared-render ancestors
+normally skip, CI Required uses `always()`, but the downstream candidate jobs
+had no status function. GitHub's implicit `success()` propagates skipped ancestors
+through the chain even after a successful direct aggregate. Both candidate jobs
+now use `!cancelled()` and retain explicit direct-dependency success and opt-in
+checks. See [GitHub job dependency semantics](https://docs.github.com/actions/using-jobs/using-jobs-in-a-workflow).
+This is a source-level fix; actual hosted signing still needs acceptance.
+
+Repeating the old run cannot pick up changed workflow YAML. Do not repeat the
+failed signing-only recovery suggestion for this old revision or rerun its full
+matrix: both retain the broken condition. The safe continuation under the current
+same-commit policy is one new branch CI run at the repaired commit, with only
+`ANIMATIX_CF_CANDIDATE=enabled` set before pushing and preview dispatch disabled.
+This runs the existing baseline matrix once, including one Nix Web SDK build,
+then signs its original artifact. It does not run a second SDK build on
+Cloudflare. After this corrected signer has actually run, signing-only renewal
+can reuse that run's SDK; the aggregate remains a required success prerequisite.
+
+The old SDK bytes cannot simply be relabeled for the repaired SHA: the current
+policy binds site, SDK source, producer, checkout and attestation signer digest
+to one SHA. Reuse across different source commits would require a separately
+reviewed schema for SDK build-input identity and separate signer provenance.
+That trust-model expansion is intentionally not smuggled into this recovery.
+The previous SDK remains retained for comparison; no old signature is forged,
+no TTL is removed, and no arbitrary source is accepted.
+
+The dedicated trigger is now verified as
+`afb53392-b40b-4a76-b9f9-71fd2bb3ffc1`, with Worker tag
+`2084ce245de94d90aa46f7e33f8303c4` and registered `animatix-deploy` token UUID
+`c863eb06-126a-42e1-8649-88d7b85dd7ea`. These identifiers are recorded with the
+local target still disabled. Read-only diagnostic build
+`58158f06-8e83-4350-a6e5-7df8c9f5ac2e` confirmed HTTP 200 on the isolated
+Worker's legacy versions endpoint, then intentionally failed at `exit 1`.
+All trigger settings were restored. Read access does not establish upload rights.
