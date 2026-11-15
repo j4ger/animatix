@@ -17,6 +17,12 @@ source of truth; no timing sidecar is introduced.
    current, rebuilding, failed, and out-of-date previews. A successful preview is
    not an audit result. A failed build preserves the last successful image.
 
+The editor uses one source-text buffer. Keyframe headers, comments and blank
+lines are directly editable alongside the rest of the file. The old notebook
+cells, structural cell actions and semantic AST-edit API have been retired.
+Syntax highlighting, completion, find/replace, explicit formatting, diagnostics
+and source navigation remain available.
+
 ## Read-only boundaries
 
 Inspector fields, canvas transforms, object insertion, scene reordering and
@@ -39,7 +45,7 @@ separate platform check.
 The workbench remains source-first, with read-only inspection and timing review.
 It does not implement arbitrary visual editing or drag-to-rewrite timing. Any
 future authoring surface must use a narrowly scoped, visible and undoable source
-patch, with source revision checks. Existing AST reserialization is not a safe substitute.
+patch, with source revision checks. Whole-file AST reserialization is not a safe substitute.
 
 An integrated audit/storyboard evidence browser and complete component/loop source
 provenance are still separate work. Raw source, derived build state and workspace

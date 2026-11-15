@@ -602,19 +602,11 @@ file, playback and review operations; legacy property, keyframe, insertion-palet
 and structural-edit commands and their GUI writers have been retired.
 See [GUI workbench](gui-workbench.md) for the current UI.
 
-The crate retains a semantic `source_edit/` API and AST serialization machinery.
-These are implementation capabilities, not currently exposed inspector or
-canvas editing features:
-
-- `SourceEdit` represents property, action, actor and scene mutations.
-- `source_edit::apply_edit` applies semantic changes to the AST.
-- `to_source::ToSource` serializes the result to `.amx`.
-
-Serialization normalizes formatting. Property trailing comments have explicit
-storage, but original blank lines and indentation are not preserved. Any future
-timeline write-back must preserve unrelated source and resolve source locations
-unambiguously; retaining these APIs alone does not establish that contract.
-See [source formatting](spec.md#appendix-a-source-formatting-specification).
+The unused GUI semantic `source_edit/` API has been retired. Source text is the
+editing model; ordinary edits do not pass through AST mutation and serialization.
+Explicit formatting still uses the syntax crate's formatter. Any future timeline
+write-back must preserve unrelated source and resolve source locations
+unambiguously. See [source formatting](spec.md#appendix-a-source-formatting-specification).
 
 ---
 
@@ -778,8 +770,8 @@ Core concepts:
 
 **GUI:** The workbench shows scene strips and supports scene selection, playback,
 scrubbing and source navigation. Scene order, duration and transitions are edited
-in `.amx`, not through inspector controls. Legacy `SourceEdit` scene variants
-remain in the code but are blocked by the workbench command boundary.
+in `.amx`, not through inspector controls. The legacy semantic scene-edit API
+has been retired.
 
 ---
 

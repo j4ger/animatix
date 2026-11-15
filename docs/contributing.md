@@ -230,9 +230,8 @@ properties back to source. Read-only panels can navigate to a direct,
 unambiguous source location. Failed builds retain the last successful preview
 with a stale/error state; stale export is blocked.
 
-Keep source, derived build state and workspace view state separate. Existing
-`SourceEdit` machinery is not permission to reintroduce visual actor creation,
-canvas transforms or Inspector editing. Any future timing-writeback design must
+Keep source, derived build state and workspace view state separate. The unused
+semantic AST-edit API has been retired. Any future timing-writeback design must
 have revision checks and a visible, undoable source patch.
 
 ### Analyzer and LSP

@@ -211,8 +211,8 @@ impl DocumentStore {
         change
     }
 
-    /// Sync canonical source text from the live editor without resetting editor
-    /// focus or re-parsing its in-memory cells.
+    /// Sync canonical source text without resetting the live text widget's
+    /// cursor, selection, or IME composition state.
     pub fn sync_from_editor(&mut self) -> crate::app::document::source_change::SourceChange {
         let change = self.source.sync_from_editor();
         self.mark_source_stale(change.after_epoch);

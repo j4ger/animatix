@@ -14,7 +14,6 @@ pub(crate) struct EditorContext<'a> {
     pub diagnostics: &'a [Diagnostic],
     pub source_dirty: &'a mut String,
     pub commands: &'a mut ActionQueue,
-    pub is_playing: bool,
 }
 
 pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
@@ -99,31 +98,9 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
                 );
             }
 
-            // Right-aligned actions: Format, Expand all, Collapse all
+            // Right-aligned action: Format source.
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
-
-                if ui
-                    .add(
-                        eparts::Button::icon(egui_phosphor::regular::ARROWS_IN_SIMPLE)
-                            .with_size(eparts::Size::Sm)
-                            .with_tooltip("Collapse all cells"),
-                    )
-                    .clicked()
-                {
-                    ctx.editor.collapse_all();
-                }
-
-                if ui
-                    .add(
-                        eparts::Button::icon(egui_phosphor::regular::ROWS)
-                            .with_size(eparts::Size::Sm)
-                            .with_tooltip("Expand all cells"),
-                    )
-                    .clicked()
-                {
-                    ctx.editor.expand_all();
-                }
 
                 if ui
                     .add(
@@ -156,12 +133,6 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
         if response.changed() || ctx.editor.text() != ctx.source_dirty.as_str() {
             *ctx.source_dirty = ctx.editor.text().to_string();
             ctx.commands.push_back(Command::EditorChanged.into());
-        }
-        if let Some(time_s) = ctx.editor.pending_scrub_to_time.take() {
-            ctx.commands.push_back(Command::ScrubTo(time_s).into());
-            if !ctx.is_playing {
-                ctx.commands.push_back(Command::TogglePlayback.into());
-            }
         }
     });
 }

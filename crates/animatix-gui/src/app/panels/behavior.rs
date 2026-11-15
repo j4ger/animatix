@@ -70,7 +70,6 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     diagnostics: &diagnostics,
                     source_dirty: &mut self.document_store.source.document.source_text,
                     commands: self.commands,
-                    is_playing: self.preview_store.preview.playback.is_playing,
                 };
                 editor::editor_ui(&mut ctx, ui);
             },

@@ -3037,4 +3037,4 @@ play NextScene [fade, 300ms]
 
 ### A.8 Write-Back Pipeline
 
-The retained semantic edit API applies AST changes via `source_edit::apply_edit` and re-serializes the file. It is not exposed by the current read-only inspector. Formatting is applied at the **serialization layer** (`animatix::to_source`), not carried as editor layout state.
+The GUI edits source text directly and rebuilds the scene. Its unused semantic AST-edit API has been retired. Explicit formatting uses `animatix_syntax::formatter`; it is not carried as editor layout state. The syntax crate's AST serialization API remains available to other tooling.

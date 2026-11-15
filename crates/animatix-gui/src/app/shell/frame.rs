@@ -118,7 +118,6 @@ impl GuiShell {
             tracing::debug!(
                 events = ?events,
                 text_edit_focused = ctx.text_edit_focused(),
-                focused_cell = self.document_store.source.editor.focused_cell(),
                 "IME/text input"
             );
         }

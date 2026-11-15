@@ -10,7 +10,7 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 - `crates/animatix-text`: typst/fontdb text compiler behind the engine's `text` feature; native builds embed fonts via `bundled-fonts`, web packages load `web/fonts`.
 - `crates/animatix`: engine — timeline ECS world/stores, build/evaluate, `BehaviorDef` family systems, composition, frame vocabulary.
 - `crates/animatix-render`: GPU presentation above the engine — Vello/wgpu core, filter backend, offscreen frames, transitions, export encoders. One-way: public engine API only.
-- `crates/animatix-cli`, `crates/animatix-gui`: CLI and eframe/egui IDE (preview, inspector, `SourceEdit`).
+- `crates/animatix-cli`, `crates/animatix-gui`: CLI and eframe/egui workbench (source editor, preview, read-only inspector).
 - `crates/animatix-analyzer`, `crates/animatix-lsp`: language intelligence and its LSP wrapper; update the analyzer when syntax changes.
 - `crates/animatix-web`: wasm32 playback (no in-browser editor); `SourcesOnly` module reuse, offscreen vello blitted to WebGPU; web packages ship the external `web/fonts` pack; site/embed docs in `web/README.md`.
 - `crates/animatix-plugin-api`, `-demo`, `-tooling`: native plugin C ABI, example, tooling. `crates/eparts`: themed egui widgets.

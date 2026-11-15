@@ -152,9 +152,7 @@ fn scroll_to_line_focuses_diagnostic() {
     let mut document_store = document_store_empty();
     let effects = ui::handle_scroll_to_line(&mut document_store, 5, 0);
     assert!(effects.is_empty());
-    // focus_diagnostic requires cell_index coverage; with from_error()
-    // the test document has no parsed cells so pending_scroll_to_line
-    // stays None.  The important thing is that the handler doesn't panic.
+    assert_eq!(document_store.source.editor.pending_scroll_to_line, Some(5));
 }
 
 const TEST_SOURCE: &str = r#"config { resolution: (1280, 720) }

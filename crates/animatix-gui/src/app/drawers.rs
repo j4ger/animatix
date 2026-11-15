@@ -198,7 +198,6 @@ impl GuiShell {
                                         .document
                                         .source_text,
                                     commands,
-                                    is_playing: self.preview_store.preview.playback.is_playing,
                                 };
                                 panels::editor::editor_ui(&mut ctx, ui);
                             },

@@ -201,7 +201,6 @@ dependencies = [
  "animatix-plugin-tooling",
  "animatix-render",
  "animatix-syntax",
- "chumsky",
  "crossbeam-channel",
  "dark-light",
  "directories",

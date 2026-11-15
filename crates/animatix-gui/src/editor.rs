@@ -1,172 +1,151 @@
-//! Code editor with cell-based notebook UI, tokenizer syntax highlighting,
-//! line numbers, and auto-complete.
+//! Single-buffer `.amx` source editor with diagnostics, navigation and completion.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use animatix_analyzer::Analyzer;
-use egui::Key;
 use egui::text::LayoutJob;
+use egui::text::{CCursor, CCursorRange};
+use egui::text_edit::TextEditState;
+use egui::{Align, Id, Key, Pos2, Rect, Response, ScrollArea, Vec2};
 
-use crate::cell_editor::{
-    Cell, CellAction, CellEditorState, CellType, parse_cells, render_cell_editor,
-};
-use crate::completion_popup::CompletionPopup;
+use crate::app::design_tokens::typography::TextRole;
+use crate::completion_popup::{CompletionInput, CompletionPopup};
+use crate::editor::completion::CompletionAnchor;
+use crate::highlighting::{FindHighlight, HighlightCache, HighlightDiagnostic, highlight_source};
 
 mod completion;
 mod diagnostics;
 mod find_match;
+#[cfg(test)]
+mod tests;
+
+static NEXT_EDITOR_INSTANCE: AtomicU64 = AtomicU64::new(1);
 
 pub struct EditorBuffer {
     text: String,
     document_path: PathBuf,
-    /// Cached highlight result to avoid re-parsing every frame.
-    cached_highlight: Option<(String, LayoutJob)>,
-    /// Language analyzer for completions and diagnostics.
     analyzer: Analyzer,
-    /// Completion popup state.
     completion: CompletionPopup,
-    /// Where the current completion session should be applied.
-    completion_anchor: Option<completion::CompletionAnchor>,
-    /// (cell, caret) signature of the last auto-trigger, so a dismissed popup
-    /// is not immediately reopened for the same caret position.
-    completion_auto_armed: Option<(usize, usize)>,
-    /// Cell-based editor state.
-    cells: Vec<Cell>,
-    cell_state: CellEditorState,
-    /// Line to scroll to on next frame (0-indexed, consumed by caller in workspace_ui).
+    completion_anchor: Option<CompletionAnchor>,
+    /// Caret position where an automatically opened popup was dismissed.
+    completion_auto_armed: Option<usize>,
     pub pending_scroll_to_line: Option<usize>,
-    /// Line to highlight as "current" (0-indexed, for timeline sync).
     pub highlighted_line: Option<usize>,
-    /// Absolute time in seconds for each keyframe line (line → time).
-    pub keyframe_times_s: std::collections::HashMap<usize, f64>,
-    /// Current cursor line (0-indexed), updated each frame.
     pub cursor_line: Option<usize>,
-    /// When the user clicks the ▶ play button on a keyframe cell, this is set
-    /// to the target time. The workspace layer reads it and scrubs the timeline.
-    pub pending_scrub_to_time: Option<f64>,
+    pub(super) cursor_char: Option<usize>,
+    pub(super) pending_cursor_char: Option<usize>,
+    pending_cursor_focus: bool,
+    pub(super) diagnostics: Vec<HighlightDiagnostic>,
+    pub(super) find_highlights: Vec<FindHighlight>,
+    highlight_cache: Option<HighlightCache>,
+    instance_id: u64,
+    state_generation: u64,
+    text_edit_id: Id,
+    retired_state_ids: Vec<(Id, Option<Id>)>,
+    current_scroll_area_id: Option<Id>,
 }
 
 impl EditorBuffer {
     pub fn new(path: &Path, text: String) -> Self {
-        let mut analyzer = Analyzer::new_with_path(&text, Some(path.to_path_buf()));
-        analyzer.set_extension_manifest(crate::app::document::extension_manifest_for_path(path));
-        // Cache imported symbols once per opened buffer so diagnostics know
-        // about imported `pub component` types; edits reuse the cache.
-        analyzer.merge_import_symbols();
-        let cells = parse_cells(&text);
+        let instance_id = NEXT_EDITOR_INSTANCE.fetch_add(1, Ordering::Relaxed);
+        let text_edit_id = Id::unique(("animatix-source-editor", path, instance_id, 0_u64));
         Self {
-            text: text.clone(),
+            analyzer: analyzer_for_path(path, &text),
+            text,
             document_path: path.to_path_buf(),
-            cached_highlight: None,
-            analyzer,
             completion: CompletionPopup::new(),
             completion_anchor: None,
             completion_auto_armed: None,
-            cells,
-            cell_state: CellEditorState::default(),
             pending_scroll_to_line: None,
             highlighted_line: None,
-            keyframe_times_s: std::collections::HashMap::new(),
             cursor_line: None,
-            pending_scrub_to_time: None,
+            cursor_char: None,
+            pending_cursor_char: None,
+            pending_cursor_focus: false,
+            diagnostics: Vec::new(),
+            find_highlights: Vec::new(),
+            highlight_cache: None,
+            instance_id,
+            state_generation: 0,
+            text_edit_id,
+            retired_state_ids: Vec::new(),
+            current_scroll_area_id: None,
         }
     }
 
+    /// Replace the active document and isolate its caret/undo state from the
+    /// previously open file.
     pub fn set_document(&mut self, path: &Path, text: String) {
-        self.text = text.clone();
+        self.retire_widget_state();
         self.document_path = path.to_path_buf();
-        self.cached_highlight = None;
-        self.analyzer.update(&self.text);
-        self.analyzer
-            .set_extension_manifest(crate::app::document::extension_manifest_for_path(path));
-        self.completion.hide();
-        self.completion_anchor = None;
-        self.completion_auto_armed = None;
-        self.cells = parse_cells(&text);
-        self.cell_state = CellEditorState::default();
-        self.pending_scroll_to_line = None;
-        self.highlighted_line = None;
-        self.keyframe_times_s.clear();
-        self.cursor_line = None;
-        self.pending_scrub_to_time = None;
+        self.text = text;
+        self.analyzer = analyzer_for_path(path, &self.text);
+        self.reset_ephemeral_state();
+        self.advance_widget_generation();
     }
 
-    /// Replace analyzer metadata for extension manifests beside the document.
+    /// Replace source from an external operation such as undo, reload or
+    /// Find/Replace All. Normal keystrokes never call this and retain egui's
+    /// native undo and IME composition state.
+    pub fn replace_text(&mut self, text: String) {
+        self.retire_widget_state();
+        self.text = text;
+        self.analyzer.update(&self.text);
+        self.reset_ephemeral_state();
+        self.advance_widget_generation();
+    }
+
     pub fn set_extension_manifest(&mut self, manifest: animatix_analyzer::ExtensionManifest) {
         self.analyzer.set_extension_manifest(manifest);
     }
 
     pub fn text(&self) -> &str {
-        // text is kept in sync with cells inside show() / replace_text() / set_document(),
-        // so we can always return the cached string.
         &self.text
     }
 
-    /// Path the editor and its analyzer are currently bound to.
     pub fn document_path(&self) -> &Path {
         &self.document_path
-    }
-
-    /// Read-only access to the editor cells.
-    pub fn cells(&self) -> &[Cell] {
-        &self.cells
-    }
-
-    pub fn replace_text(&mut self, text: String) {
-        self.text = text.clone();
-        self.cells = parse_cells(&text);
-        self.cell_state = CellEditorState::default();
-        self.cached_highlight = None;
-        self.analyzer.update(&self.text);
-        self.cursor_line = None;
-        self.keyframe_times_s.clear();
-        self.pending_scrub_to_time = None;
-        self.completion_anchor = None;
-        self.completion_auto_armed = None;
     }
 
     pub fn scroll_to_line(&mut self, line: usize) {
         self.pending_scroll_to_line = Some(line);
     }
 
-    /// Current focused cell index, if any.
-    pub fn focused_cell(&self) -> Option<usize> {
-        self.cell_state.focused_cell
-    }
-
-    /// Override the focused cell index.
-    pub fn set_focused_cell(&mut self, cell: Option<usize>) {
-        self.cell_state.focused_cell = cell;
-    }
-
-    /// Expand all cells (both code blocks and keyframe blocks).
-    pub fn expand_all(&mut self) {
-        for cell in &mut self.cells {
-            cell.set_expanded(true);
+    /// Focus the source location and move the caret to the end of its token.
+    /// Line and column are zero-based Unicode-scalar positions.
+    pub fn focus_diagnostic(&mut self, line: usize, column: usize) {
+        let index = animatix_syntax::token::LineIndex::new(&self.text);
+        let start_byte = index.line_col_to_byte(line, column);
+        let mut caret = self.text[..start_byte].chars().count();
+        let chars: Vec<char> = self.text.chars().collect();
+        while caret < chars.len() && chars[caret].is_whitespace() {
+            caret += 1;
         }
-        self.cell_state.collapsed_cells.clear();
-    }
-
-    /// Collapse all cells.
-    pub fn collapse_all(&mut self) {
-        for (i, cell) in self.cells.iter_mut().enumerate() {
-            cell.set_expanded(false);
-            if cell.is_keyframe() {
-                self.cell_state.collapsed_cells.insert(i);
-            }
+        while caret < chars.len() && !chars[caret].is_whitespace() {
+            caret += 1;
         }
+        self.pending_cursor_char = Some(caret);
+        self.pending_cursor_focus = true;
+        self.scroll_to_line(line);
     }
 
-    /// Format the entire source using the canonical AST formatter.
-    ///
-    /// Returns `true` if the source was modified.
+    pub fn set_highlighted_line(&mut self, line: Option<usize>) {
+        self.highlighted_line = line;
+    }
+
+    pub fn analyzer(&self) -> &Analyzer {
+        &self.analyzer
+    }
+
+    /// Format valid source with the canonical DSL formatter.
     pub fn format_source(&mut self) -> bool {
-        let (stmts, errs) = animatix_syntax::parser::parse_source(&self.text);
-        if let Some(stmts) = stmts
-            && errs.is_empty()
+        let (statements, errors) = animatix_syntax::parser::parse_source(&self.text);
+        if let Some(statements) = statements
+            && errors.is_empty()
         {
-            let formatter = animatix_syntax::formatter::Formatter::default();
-            let formatted = formatter.format_source(&self.text, &stmts);
+            let formatted = animatix_syntax::formatter::Formatter::default()
+                .format_source(&self.text, &statements);
             if formatted != self.text {
                 self.replace_text(formatted);
                 return true;
@@ -175,597 +154,308 @@ impl EditorBuffer {
         false
     }
 
-    /// Focus the cell that contains `line` and place the cursor at the end
-    /// of the word/token that starts at `column`.
-    pub fn focus_diagnostic(&mut self, line: usize, column: usize) {
-        let cell_idx = self.cell_index_for_source_line(line);
-        let Some(idx) = cell_idx else { return };
-        let Some(cell_start_line) = self.source_line_for_cell(idx) else {
-            return;
-        };
+    /// Render one ordinary multiline text field. The outer ScrollArea owns
+    /// both axes so long source lines and long documents remain navigable.
+    pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
+        self.clear_retired_widget_state(ui.ctx());
+        let mut completion_changed = self.process_completion_input(ui.ctx());
+        self.ensure_highlight_cache(ui.style());
+        let cache = self.highlight_cache.as_ref().expect("highlight cache prepared");
+        let cache_source = cache.source.as_str();
+        let cache_job = &cache.job;
+        let line_count = cache.line_count;
+        let max_line_chars = cache.max_line_chars;
+        let edit_id = self.text_edit_id;
+        let scroll_salt = ("source-editor-scroll", self.instance_id, self.state_generation);
+        let diagnostics = self.diagnostics.clone();
+        let finds = self.find_highlights.clone();
+        let highlighted_line = self.highlighted_line;
+        let style = ui.style().clone();
+        let font_id = TextRole::Mono.font_id();
+        let line_height = ui.fonts_mut(|fonts| fonts.row_height(&font_id));
+        let mut laid_out_edit: Option<(String, LayoutJob)> = None;
+        let mut edit_caret_rect = None;
+        let pending_line = self.pending_scroll_to_line.take();
+        let pending_cursor = self.pending_cursor_char.take();
+        let should_focus = std::mem::take(&mut self.pending_cursor_focus);
+        let mut edit_state = TextEditState::load(ui.ctx(), edit_id).unwrap_or_default();
+        if let Some(char_idx) = pending_cursor {
+            edit_state
+                .cursor
+                .set_char_range(Some(CCursorRange::one(CCursor::new(char_idx))));
+        }
+        edit_state.store(ui.ctx(), edit_id);
 
-        // Determine how many header lines precede the editable body.
-        let cell = &self.cells[idx];
-        let header_lines = match cell {
-            crate::cell_editor::Cell::Code { .. } => 0,
-            crate::cell_editor::Cell::Keyframe {
-                attached_comment, ..
-            } => {
-                let comment_lines =
-                    attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0);
-                comment_lines + 1 // +1 for the #timestamp line
+        let available = ui.available_size_before_wrap();
+        let char_width = ui.fonts_mut(|fonts| fonts.glyph_width(&TextRole::Mono.font_id(), '0'));
+        let content_width = (max_line_chars as f32 * char_width + 24.0).max(available.x);
+        let content_height = (line_count as f32 * line_height + 8.0).max(available.y);
+        let scroll = ScrollArea::both().id_salt(scroll_salt).auto_shrink([false, false]).show(
+            ui,
+            |scroll_ui| {
+                scroll_ui
+                    .allocate_ui_with_layout(
+                        Vec2::new(content_width, content_height),
+                        egui::Layout::top_down(Align::Min),
+                        |edit_ui| {
+                            let mut layouter =
+                                |layouter_ui: &egui::Ui,
+                                 buffer: &dyn egui::TextBuffer,
+                                 wrap_width: f32| {
+                                    let source = buffer.as_str();
+                                    let mut job = if source == cache_source {
+                                        cache_job.clone()
+                                    } else {
+                                        let job = highlight_source(
+                                            source,
+                                            &style,
+                                            &diagnostics,
+                                            highlighted_line,
+                                            &finds,
+                                        );
+                                        laid_out_edit = Some((source.to_owned(), job.clone()));
+                                        job
+                                    };
+                                    for section in &mut job.sections {
+                                        section.format.line_height = Some(line_height);
+                                    }
+                                    job.wrap.max_width = wrap_width;
+                                    layouter_ui.fonts_mut(|fonts| fonts.layout_job(job))
+                                };
+                            let output = egui::TextEdit::multiline(&mut self.text)
+                                .id(edit_id)
+                                .code_editor()
+                                .desired_width(content_width)
+                                .desired_rows(cache.line_count.max(1))
+                                .frame(egui::Frame::NONE)
+                                .margin(0.0)
+                                .layouter(&mut layouter)
+                                .show(edit_ui);
+                            let cursor = output.cursor_range.map(|range| range.primary);
+                            edit_caret_rect = cursor.map(|cursor| {
+                                output
+                                    .galley
+                                    .pos_from_cursor(cursor)
+                                    .translate(output.galley_pos.to_vec2())
+                            });
+                            if let Some(line) = pending_line {
+                                let char_index = char_index_at_line_start(&self.text, line);
+                                let target = output
+                                    .galley
+                                    .pos_from_cursor(CCursor::new(char_index))
+                                    .translate(output.galley_pos.to_vec2());
+                                let viewport = edit_ui.clip_rect();
+                                edit_ui.scroll_to_rect(
+                                    Rect::from_min_max(
+                                        Pos2::new(viewport.left(), target.top()),
+                                        Pos2::new(viewport.right(), target.bottom()),
+                                    ),
+                                    Some(Align::Center),
+                                );
+                            }
+                            output
+                        },
+                    )
+                    .inner
             },
-        };
+        );
+        self.current_scroll_area_id = Some(scroll.id);
+        let output = scroll.inner;
+        let mut response = output.response.response.clone();
 
-        let body_start_line = cell_start_line + header_lines;
-
-        // If the diagnostic points to a header line, focus the cell and scroll
-        // to it, but do not place a cursor in the body (headers are not editable).
-        if line < body_start_line {
-            self.cell_state.focused_cell = Some(idx);
-            self.cell_state.scroll_to_cell = Some(idx);
-            return;
+        if should_focus {
+            response.request_focus();
         }
-
-        let line_in_body = line - body_start_line;
-        let col_0based = column;
-
-        let body = cell.body();
-        let mut char_idx = 0usize;
-        for (i, body_line) in body.lines().enumerate() {
-            if i == line_in_body {
-                char_idx += col_0based.min(body_line.chars().count());
-                break;
-            }
-            char_idx += body_line.chars().count() + 1; // +1 for '\n'
-        }
-
-        // Advance to the end of the current word/token so the user is
-        // positioned right after the problematic identifier/value.
-        let body_chars: Vec<char> = body.chars().collect();
-        // Skip any whitespace immediately after the start position.
-        while char_idx < body_chars.len() && body_chars[char_idx].is_whitespace() {
-            char_idx += 1;
-        }
-        // Consume the word/token.
-        while char_idx < body_chars.len() && !body_chars[char_idx].is_whitespace() {
-            char_idx += 1;
-        }
-
-        self.cell_state.focused_cell = Some(idx);
-        self.cell_state.scroll_to_cell = Some(idx);
-        self.cell_state.pending_cursor_cell = Some(idx);
-        self.cell_state.pending_cursor_char = Some(char_idx);
-    }
-
-    pub fn set_highlighted_line(&mut self, line: Option<usize>) {
-        self.highlighted_line = line;
-        // Map source line to cell index for cell-level highlighting
-        self.cell_state.highlighted_cell = line.and_then(|l| self.cell_index_for_source_line(l));
-        // Timeline sync takes precedence over manual cell focus
-        self.cell_state.focused_cell = None;
-    }
-
-    /// Get the analyzer for diagnostics, hover, etc.
-    pub fn analyzer(&self) -> &Analyzer {
-        &self.analyzer
-    }
-
-    /// Build a mapping from source line to cell index.
-    fn cell_index_for_source_line(&self, target_line: usize) -> Option<usize> {
-        let mut current_line = 0usize;
-        for (idx, cell) in self.cells.iter().enumerate() {
-            let cell_lines = cell.to_source().lines().count();
-            if target_line < current_line + cell_lines {
-                return Some(idx);
-            }
-            current_line += cell_lines;
-        }
-        None
-    }
-
-    /// Find which source line a given cell starts at.
-    fn source_line_for_cell(&self, cell_idx: usize) -> Option<usize> {
-        let mut current_line = 0usize;
-        for (idx, cell) in self.cells.iter().enumerate() {
-            if idx == cell_idx {
-                return Some(current_line);
-            }
-            current_line += cell.to_source().lines().count();
-        }
-        None
-    }
-
-    /// Compute a new keyframe cell to insert after `after_idx`.
-    ///
-    /// Timestamp logic:
-    /// - Between two keyframes at T₁ and T₂: default to `#+(T₂−T₁)/2`.
-    /// - After the last keyframe: `#+1s`.
-    fn compute_insert_keyframe(&self, after_idx: usize) -> Cell {
-        use crate::cell_editor::format_duration_s;
-
-        let prev_time_s =
-            self.cells[..=after_idx].iter().rev().find_map(|c| c.time_s()).unwrap_or(0.0);
-
-        let next_time_s = self.cells[after_idx + 1..].iter().find_map(|c| c.time_s());
-
-        let (timestamp, is_relative, new_time_s) = if let Some(next) = next_time_s {
-            let delta = (next - prev_time_s) / 2.0;
-            let ts = format!("+{}", format_duration_s(delta));
-            let t = prev_time_s + delta;
-            (ts, true, t)
-        } else {
-            ("+1s".to_string(), true, prev_time_s + 1.0)
-        };
-
-        Cell::Keyframe {
-            timestamp,
-            is_relative,
-            time_s: new_time_s,
-            body: String::new(),
-            attached_comment: None,
-        }
-    }
-
-    /// Update `self.cursor_line` based on the focused cell, its header line offset,
-    /// and the live caret position within its body.
-    fn update_cursor_line(&mut self) {
-        if let Some(focused_idx) = self.cell_state.focused_cell
-            && let Some(start_line) = self.source_line_for_cell(focused_idx)
+        if let Some(cursor) = output.cursor_range
+            && response.has_focus()
         {
-            let cell = self.cells.get(focused_idx);
-            let header_lines = match cell {
-                Some(Cell::Keyframe {
-                    attached_comment, ..
-                }) => attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0) + 1,
-                _ => 0,
-            };
-            let body_offset_lines =
-                if let (Some(c), Some(char_idx)) = (cell, self.cell_state.focused_cursor_char) {
-                    c.body().chars().take(char_idx).filter(|&ch| ch == '\n').count()
-                } else {
-                    0
-                };
-            self.cursor_line = Some(start_line + header_lines + body_offset_lines);
+            let cursor_char = cursor.primary.index.0;
+            self.cursor_char = Some(cursor_char);
+            self.cursor_line = Some(
+                animatix_syntax::token::LineIndex::new(&self.text)
+                    .byte_to_line_col(char_to_byte_offset(&self.text, cursor_char))
+                    .0,
+            );
         }
-    }
-
-    pub fn show(&mut self, ui: &mut egui::Ui) -> egui::Response {
-        // Handle pending scroll by mapping line to cell
-        if let Some(target_line) = self.pending_scroll_to_line.take()
-            && let Some(cell_idx) = self.cell_index_for_source_line(target_line)
-        {
-            self.cell_state.scroll_to_cell = Some(cell_idx);
-        }
-
-        // Compare cell state before/after rendering, not normalized cells against
-        // original bytes. Merely opening Code must never reserialize the file.
-        let source_before_render = crate::cell_editor::cells_to_source(&self.cells);
-        // Track source changes from the cell editor
-        let mut source_changed = false;
-        let mut new_source = String::new();
-
-        // Render the cell editor
-        let mut scrub_to_time: Option<f64> = None;
-        {
-            let cells = &mut self.cells;
-            let state = &mut self.cell_state;
-            let on_source_changed = &mut |s: String| {
-                source_changed = true;
-                new_source = s;
-            };
-            let on_scrub_to_time = &mut |t: f64| {
-                scrub_to_time = Some(t);
-            };
-            render_cell_editor(ui, cells, state, on_source_changed, on_scrub_to_time);
-        }
-
-        // Defensive: egui TextEdit handles Ctrl-Z internally and may not fire
-        // response.changed(). Detect actual in-frame cell edits (undo, etc.),
-        // without treating parser/serializer normalization as a user edit.
-        let reconstructed = crate::cell_editor::cells_to_source(&self.cells);
-        if !source_changed && reconstructed != source_before_render {
-            source_changed = true;
-            new_source = reconstructed;
-        }
-
-        // Build response manually since render_cell_editor doesn't return one
-        let response = ui.response();
-
-        // Handle play-button scrub
-        if let Some(time_s) = scrub_to_time {
-            self.pending_scrub_to_time = Some(time_s);
-        }
-
-        // Handle the structural edit (delete / duplicate / insert / move /
-        // append) requested from the cell UI. At most one action is queued.
-        let mut structurally_changed = false;
-        if let Some(action) = self.cell_state.pending_action.take() {
-            structurally_changed = self.apply_cell_action(action);
-        }
-
-        // Empty keyframes may be deliberate duration/anchor markers. Removal
-        // is an explicit cell action, never a side effect of moving focus.
-        if source_changed || structurally_changed {
-            if structurally_changed {
-                new_source = crate::cell_editor::cells_to_source(&self.cells);
-            }
-            self.text = new_source;
-            self.cached_highlight = None;
-            self.analyzer.update(&self.text);
-
-            self.update_cursor_line();
-
-            // Mark response as changed so the workspace knows the source text was modified.
-            let mut r =
-                ui.interact(response.rect, ui.scope_id().with("cell_editor"), egui::Sense::click());
-            r.mark_changed();
-            return r;
-        }
-
-        self.update_cursor_line();
-
-        // Handle completion keyboard input
-        let mut completion_changed = false;
-        let completion_consumed = self.completion.handle_input(ui.ctx());
-        if completion_consumed {
-            let insert_text = self
-                .completion
-                .selected_item()
-                .map(|item| item.insert_text.as_deref().unwrap_or(&item.label).to_string());
-            if let Some(text) = insert_text {
-                self.insert_completion(&text);
-                self.completion.hide();
-                self.completion_auto_armed = None;
-                completion_changed = true;
+        let source_changed = response.changed() || self.text != cache_source;
+        if source_changed {
+            self.after_source_replaced();
+            response.mark_changed();
+            if let Some((source, job)) = laid_out_edit
+                && source == self.text
+            {
+                self.cache_layout_for_current_source(job, ui.style());
             }
         }
 
-        // Trigger completion on Ctrl+Space (handles active cell TextEdit focus or container focus)
-        let editor_focused = self.cell_state.focused_cell.is_some()
-            || response.has_focus()
-            || ui.ctx().text_edit_focused();
-        if editor_focused {
-            ui.input(|i| {
-                if i.key_pressed(Key::Space) && i.modifiers.ctrl {
-                    self.trigger_completion();
-                }
-            });
-        }
-
-        // Keep the session anchored to the live caret and auto-open after `.`.
-        self.sync_completion_session();
-
-        // Show completion popup if visible
-        if self.completion.is_visible() {
-            let cursor_rect = self.cell_state.focused_rect.unwrap_or(response.rect);
-            if let Some(insert_text) = self.completion.ui(ui, cursor_rect) {
-                self.insert_completion(&insert_text);
-                self.completion.hide();
-                self.completion_auto_armed = None;
-                completion_changed = true;
+        if self.editor_has_focus(ui.ctx()) {
+            let triggered =
+                ui.input_mut(|input| input.consume_key(egui::Modifiers::CTRL, Key::Space));
+            if triggered {
+                self.trigger_completion();
             }
         }
-
+        if !completion_changed {
+            self.sync_completion_session();
+        }
+        completion_changed |= self.show_completion_popup(ui, edit_caret_rect, response.rect);
         if completion_changed {
-            // Completion edited the source in place; signal the caller so the
-            // document picks up the new text this frame.
-            let mut r =
-                ui.interact(response.rect, ui.scope_id().with("cell_editor"), egui::Sense::click());
-            r.mark_changed();
-            return r;
+            response.mark_changed();
         }
-
         response
     }
 
-    /// Apply one structural cell-editor action to the backing cell list.
-    ///
-    /// Returns true when the cell list was modified.
-    fn apply_cell_action(&mut self, action: CellAction) -> bool {
-        match action {
-            CellAction::Delete { index } => {
-                if index >= self.cells.len() {
-                    return false;
-                }
-                self.cells.remove(index);
-                // Adjust focus if needed
-                if self.cell_state.focused_cell == Some(index) {
-                    self.cell_state.focused_cell = None;
-                } else if self.cell_state.focused_cell.map(|f| f > index).unwrap_or(false) {
-                    self.cell_state.focused_cell = self.cell_state.focused_cell.map(|f| f - 1);
-                }
-                true
-            },
-            CellAction::Duplicate { index } => {
-                if index >= self.cells.len() {
-                    return false;
-                }
-                let cloned = self.cells[index].duplicate();
-                self.cells.insert(index + 1, cloned);
-                true
-            },
-            CellAction::InsertAfter { index } => {
-                let insert_at = index + 1;
-                if insert_at > self.cells.len() {
-                    return false;
-                }
-                let new_cell = self.compute_insert_keyframe(index);
-                self.cells.insert(insert_at, new_cell);
-                self.cell_state.focused_cell = Some(insert_at);
-                true
-            },
-            CellAction::InsertCodeAfter { index } => {
-                let insert_at = index + 1;
-                if insert_at > self.cells.len() {
-                    return false;
-                }
-                self.cells.insert(
-                    insert_at,
-                    Cell::Code {
-                        body: String::new(),
-                        expanded: true,
-                    },
-                );
-                self.cell_state.focused_cell = Some(insert_at);
-                true
-            },
-            CellAction::MoveUp { index } => {
-                if index == 0 || index >= self.cells.len() {
-                    return false;
-                }
-                self.cells.swap(index, index - 1);
-                self.cell_state.swap_cell_indices(index, index - 1);
-                true
-            },
-            CellAction::MoveDown { index } => {
-                if index + 1 >= self.cells.len() {
-                    return false;
-                }
-                self.cells.swap(index, index + 1);
-                self.cell_state.swap_cell_indices(index, index + 1);
-                true
-            },
-            CellAction::AppendAtEnd(cell_type) => {
-                let new_cell = match cell_type {
-                    CellType::Keyframe => {
-                        self.compute_insert_keyframe(self.cells.len().saturating_sub(1))
-                    },
-                    CellType::Code => Cell::Code {
-                        body: String::new(),
-                        expanded: true,
-                    },
-                };
-                self.cells.push(new_cell);
-                self.cell_state.focused_cell = Some(self.cells.len() - 1);
-                true
-            },
-        }
+    pub(super) fn byte_to_line_col(&self, byte_offset: usize) -> (usize, usize) {
+        animatix_syntax::token::LineIndex::new(&self.text).byte_to_line_col(byte_offset)
     }
 
-    /// Convert byte offset to (line, col).
-    pub(super) fn byte_to_line_col(&self, byte_offset: usize) -> (usize, usize) {
-        let mut line = 0;
-        let mut col = 0;
+    pub(super) fn after_source_replaced(&mut self) {
+        self.analyzer.update(&self.text);
+        self.highlight_cache = None;
+        self.completion_anchor = None;
+        self.completion_auto_armed = None;
+    }
 
-        for (i, ch) in self.text.char_indices() {
-            if i >= byte_offset {
-                break;
-            }
-            if ch == '\n' {
-                line += 1;
-                col = 0;
-            } else {
-                col += 1;
-            }
+    fn ensure_highlight_cache(&mut self, style: &egui::Style) {
+        let dark_mode = style.visuals.dark_mode;
+        let fresh = self.highlight_cache.as_ref().is_some_and(|cache| {
+            cache.source == self.text
+                && cache.dark_mode == dark_mode
+                && cache.font_id == TextRole::Mono.font_id()
+                && cache.highlighted_line == self.highlighted_line
+                && cache.diagnostics == self.diagnostics
+                && cache.find_highlights == self.find_highlights
+        });
+        if fresh {
+            return;
         }
+        let job = highlight_source(
+            &self.text,
+            style,
+            &self.diagnostics,
+            self.highlighted_line,
+            &self.find_highlights,
+        );
+        self.cache_layout_for_current_source(job, style);
+    }
 
-        (line, col)
+    fn cache_layout_for_current_source(&mut self, job: LayoutJob, style: &egui::Style) {
+        self.highlight_cache = Some(HighlightCache::new(
+            self.text.clone(),
+            style.visuals.dark_mode,
+            TextRole::Mono.font_id(),
+            self.highlighted_line,
+            self.diagnostics.clone(),
+            self.find_highlights.clone(),
+            job,
+        ));
+    }
+
+    fn editor_has_focus(&self, ctx: &egui::Context) -> bool {
+        ctx.memory(|memory| memory.has_focus(self.text_edit_id))
+    }
+
+    fn process_completion_input(&mut self, ctx: &egui::Context) -> bool {
+        let mut changed = false;
+        match self.completion.handle_input(ctx) {
+            CompletionInput::Confirmed => {
+                if let Some(insert_text) = self
+                    .completion
+                    .selected_item()
+                    .map(|item| item.insert_text.as_deref().unwrap_or(&item.label).to_string())
+                {
+                    self.insert_completion(&insert_text);
+                    changed = true;
+                }
+                self.completion.hide();
+                self.completion_auto_armed = None;
+            },
+            CompletionInput::Dismissed => {
+                self.completion_auto_armed = self.cursor_char;
+            },
+            CompletionInput::Consumed | CompletionInput::None => {},
+        }
+        changed
+    }
+
+    fn show_completion_popup(
+        &mut self,
+        ui: &mut egui::Ui,
+        caret_rect: Option<Rect>,
+        editor_rect: Rect,
+    ) -> bool {
+        if !self.completion.is_visible() {
+            return false;
+        }
+        let anchor = caret_rect.unwrap_or(editor_rect);
+        if let Some(insert_text) = self.completion.ui(ui, anchor) {
+            self.insert_completion(&insert_text);
+            self.completion.hide();
+            self.completion_auto_armed = None;
+            return true;
+        }
+        false
+    }
+
+    fn retire_widget_state(&mut self) {
+        self.retired_state_ids
+            .push((self.text_edit_id, self.current_scroll_area_id.take()));
+    }
+
+    fn clear_retired_widget_state(&mut self, ctx: &egui::Context) {
+        if self.retired_state_ids.is_empty() {
+            return;
+        }
+        let retired = std::mem::take(&mut self.retired_state_ids);
+        ctx.data_mut(|data| {
+            for (edit_id, scroll_id) in retired {
+                data.remove::<TextEditState>(edit_id);
+                if let Some(scroll_id) = scroll_id {
+                    data.remove::<egui::scroll_area::State>(scroll_id);
+                }
+            }
+        });
+    }
+
+    fn reset_ephemeral_state(&mut self) {
+        self.completion.hide();
+        self.completion_anchor = None;
+        self.completion_auto_armed = None;
+        self.pending_scroll_to_line = None;
+        self.highlighted_line = None;
+        self.cursor_line = None;
+        self.cursor_char = None;
+        self.pending_cursor_char = None;
+        self.pending_cursor_focus = false;
+        self.diagnostics.clear();
+        self.find_highlights.clear();
+        self.highlight_cache = None;
+    }
+
+    fn advance_widget_generation(&mut self) {
+        self.state_generation = self.state_generation.wrapping_add(1);
+        self.text_edit_id = Id::unique((
+            "animatix-source-editor",
+            &self.document_path,
+            self.instance_id,
+            self.state_generation,
+        ));
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use std::path::PathBuf;
+fn analyzer_for_path(path: &Path, text: &str) -> Analyzer {
+    let mut analyzer = Analyzer::new_with_path(text, Some(path.to_path_buf()));
+    analyzer.set_extension_manifest(crate::app::document::extension_manifest_for_path(path));
+    analyzer.merge_import_symbols();
+    analyzer
+}
 
-    use egui::{Context, Event, Modifiers, Pos2, Rect, Vec2};
+fn char_to_byte_offset(text: &str, char_offset: usize) -> usize {
+    text.char_indices().nth(char_offset).map(|(byte, _)| byte).unwrap_or(text.len())
+}
 
-    use super::*;
-    use crate::app::document::DocumentSession;
-    use crate::app::stores::DocumentStore;
-
-    fn input() -> egui::RawInput {
-        egui::RawInput {
-            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(480.0, 320.0))),
-            ..Default::default()
-        }
-    }
-
-    fn render(ctx: &Context, store: &mut DocumentStore, raw: egui::RawInput) {
-        ctx.run_ui(raw, |ui| {
-            let _ = store.source.editor.show(ui);
-        })
-        .drop_without_applying_deltas();
-    }
-
-    fn click(ctx: &Context, store: &mut DocumentStore, pos: Pos2) {
-        let mut raw = input();
-        raw.events.extend([
-            Event::PointerMoved(pos),
-            Event::PointerButton {
-                pos,
-                button: egui::PointerButton::Primary,
-                pressed: true,
-                modifiers: Modifiers::NONE,
-            },
-            Event::PointerButton {
-                pos,
-                button: egui::PointerButton::Primary,
-                pressed: false,
-                modifiers: Modifiers::NONE,
-            },
-        ]);
-        render(ctx, store, raw);
-    }
-
-    #[test]
-    fn completion_splices_at_caret_instead_of_appending_to_document() {
-        let path = PathBuf::from("test.amx");
-        let source = "box: Rect, size: (100, 100)\n#0s\nbox.pos = (0, 0)\n";
-        let mut editor = EditorBuffer::new(&path, source.to_string());
-        let cell_idx = editor.cells.len() - 1;
-        let body_chars = editor.cells[cell_idx].body().chars().count();
-
-        // Anchor the caret at the end of the cell body, replacing the last
-        // three characters (`0)` etc.) with a completion.
-        editor.cell_state.focused_cell = Some(cell_idx);
-        editor.completion_anchor = Some(completion::CompletionAnchor {
-            cell: cell_idx,
-            caret: body_chars,
-            word_start: body_chars.saturating_sub(3),
-        });
-        editor.insert_completion("position");
-
-        let body = editor.cells[cell_idx].body();
-        assert!(body.ends_with("position"), "completion should splice at the caret: {body:?}");
-        assert!(
-            editor.text().ends_with('\n'),
-            "editing must not append past the final newline: {:?}",
-            editor.text()
-        );
-        assert_eq!(editor.cell_state.focused_cell, Some(cell_idx));
-        assert!(editor.cell_state.pending_cursor_char.is_some());
-    }
-
-    #[test]
-    fn completion_without_anchor_is_ignored() {
-        let path = PathBuf::from("test.amx");
-        let source = "box: Rect, size: (100, 100)\n#0s\n";
-        let mut editor = EditorBuffer::new(&path, source.to_string());
-        let before = editor.text().to_string();
-        editor.insert_completion("garbage");
-        assert_eq!(editor.text(), before, "an unanchored completion must not touch the document");
-    }
-
-    #[test]
-    fn commit_only_ime_survives_full_editor_sync() {
-        let ctx = Context::default();
-        let path = PathBuf::from("test.amx");
-        let source = "box: Rect, size: (100, 100)\n#0s\n";
-        let document = DocumentSession::from_source(path, source.to_string()).unwrap();
-        let mut store = DocumentStore::new(
-            document,
-            EditorBuffer::new(&PathBuf::from("test.amx"), source.to_string()),
-        );
-        render(&ctx, &mut store, input());
-        click(&ctx, &mut store, Pos2::new(120.0, 34.0));
-        assert_eq!(store.source.editor.focused_cell(), Some(0));
-        assert!(ctx.text_edit_focused(), "click should focus the cell body TextEdit");
-
-        // Reproduce IME integrations that deliver only the final Commit event.
-        let mut raw = input();
-        raw.events.push(Event::Ime(egui::ImeEvent::Commit("你".to_string())));
-        render(&ctx, &mut store, raw);
-        store.sync_from_editor();
-
-        assert!(
-            store.source.text().contains('你'),
-            "IME commit should be inserted into the focused code cell body"
-        );
-        assert!(store.source.text().starts_with("box: Rect"));
-        assert_eq!(store.source.editor.focused_cell(), Some(0));
-    }
-
-    #[test]
-    fn format_source_reformats_unformatted_code() {
-        let path = PathBuf::from("test.amx");
-        let source = "box: Rect,size:(100,100)\n#0s\nbox.pos=(0,0)\n";
-        let mut editor = EditorBuffer::new(&path, source.to_string());
-        let changed = editor.format_source();
-        assert!(changed, "format_source should report change on unformatted source");
-        assert_eq!(editor.cells().len(), 2);
-        // Formatted code has spaces around colons/commas
-        assert!(editor.text().contains("size: (100, 100)"));
-    }
-
-    #[test]
-    fn expand_and_collapse_all_toggles_state() {
-        let path = PathBuf::from("test.amx");
-        let source =
-            "box: Rect, size: (100, 100)\n#0s\nbox.pos = (0, 0)\n#1s\nbox.pos = (50, 50)\n";
-        let mut editor = EditorBuffer::new(&path, source.to_string());
-        assert_eq!(editor.cells().len(), 3);
-
-        editor.collapse_all();
-        assert!(!editor.cells()[0].is_expanded(0, &editor.cell_state.collapsed_cells));
-        assert!(!editor.cells()[1].is_expanded(1, &editor.cell_state.collapsed_cells));
-        assert!(!editor.cells()[2].is_expanded(2, &editor.cell_state.collapsed_cells));
-
-        editor.expand_all();
-        assert!(editor.cells()[0].is_expanded(0, &editor.cell_state.collapsed_cells));
-        assert!(editor.cells()[1].is_expanded(1, &editor.cell_state.collapsed_cells));
-        assert!(editor.cells()[2].is_expanded(2, &editor.cell_state.collapsed_cells));
-    }
-
-    #[test]
-    fn cursor_line_tracks_inner_multiline_offset() {
-        let path = PathBuf::from("test.amx");
-        // Cell 0: 2 lines
-        // Cell 1: #0s (header) + 3 lines in body
-        let source = "box: Rect, size: (100, 100)\nother: Circle\n#0s\nbox.pos = (0, 0)\nbox.color = #fff\nbox.scale = 1.0\n";
-        let mut editor = EditorBuffer::new(&path, source.to_string());
-        editor.cell_state.focused_cell = Some(1);
-        // Place caret at line 2 in body (after "box.pos = (0, 0)\nbox.color = ")
-        let target_str = "box.pos = (0, 0)\nbox.color = ";
-        editor.cell_state.focused_cursor_char = Some(target_str.len());
-        editor.update_cursor_line();
-        // Line 0: box: Rect...
-        // Line 1: other: Circle
-        // Line 2: #0s
-        // Line 3: box.pos = (0, 0)
-        // Line 4: box.color = #fff (this is where the caret sits)
-        assert_eq!(editor.cursor_line, Some(4));
-    }
-    #[test]
-    fn source_navigation_render_preserves_original_bytes() {
-        let speech = include_str!("../../../examples/animation/41_speech_sync_captions.amx");
-        for source in [
-            speech,
-            "// cue\r\n#voice[\"DSL\"]:\r\n    box.opacity = 1",
-            "#0s { box: Rect }\n",
-        ] {
-            let path = PathBuf::from("test.amx");
-            let mut editor = EditorBuffer::new(&path, source.to_string());
-            let line =
-                source.lines().position(|line| line.contains("#voice[\"DSL\"]")).unwrap_or(0);
-            editor.focus_diagnostic(line, 0);
-            let ctx = Context::default();
-            for _ in 0..3 {
-                ctx.run_ui(egui::RawInput::default(), |ui| {
-                    let response = editor.show(ui);
-                    assert!(!response.changed(), "navigation/render must not signal an edit");
-                })
-                .drop_without_applying_deltas();
-                assert_eq!(editor.text(), source, "opening/focusing Code must preserve every byte");
-            }
-        }
-    }
-    #[test]
-    fn navigating_away_from_empty_end_marker_does_not_remove_it() {
-        let source = "#0s\nbox: Rect\n#5s\n";
-        let mut editor = EditorBuffer::new(&PathBuf::from("test.amx"), source.into());
-        let ctx = Context::default();
-        editor.focus_diagnostic(2, 0);
-        ctx.run_ui(egui::RawInput::default(), |ui| {
-            editor.show(ui);
-        })
-        .drop_without_applying_deltas();
-        editor.focus_diagnostic(0, 0);
-        ctx.run_ui(egui::RawInput::default(), |ui| {
-            assert!(!editor.show(ui).changed());
-        })
-        .drop_without_applying_deltas();
-        assert_eq!(editor.text(), source);
-        assert_eq!(editor.cells.len(), 2);
-    }
+fn char_index_at_line_start(source: &str, line: usize) -> usize {
+    let index = animatix_syntax::token::LineIndex::new(source);
+    let byte = index.line_col_to_byte(line, 0);
+    source[..byte].chars().count()
 }
