@@ -97,6 +97,8 @@ web-artifact-verify|nix|ubuntu-latest|nix|site
 web-artifact-stage|nix|ubuntu-latest|nix|site
 web-artifact-restore|nix|ubuntu-latest|nix|site
 web-artifact-absence|none|ubuntu-latest|none|control
+cloudflare-pages-publish|none|ubuntu-latest|none|control
+cloudflare-pages-build|none|ubuntu-latest|none|control
 cloudflare-candidate-publish|none|ubuntu-latest|none|control
 cloudflare-candidate-dispatch|none|ubuntu-latest|none|control
 cloudflare-candidate-build|none|ubuntu-latest|none|control
@@ -465,6 +467,14 @@ gate_property_reference_experiment() {
 }
 
 # Web content and SDK boundary checks.
+gate_cloudflare_pages_publish() {
+  python3 scripts/cloudflare-pages.py publish
+}
+
+gate_cloudflare_pages_build() {
+  python3 scripts/cloudflare-pages.py build
+}
+
 gate_cloudflare_candidate_publish() {
   python3 scripts/cloudflare-candidate.py publish
 }
@@ -506,6 +516,7 @@ gate_cloudflare_deploy() {
 
 gate_site_build() {
   want_nix_shell 'site-build'
+  python3 scripts/cloudflare-pages-test.py
   python3 scripts/cloudflare-candidate-test.py
   python3 scripts/cloudflare-control-test.py
   python3 scripts/cloudflare-review-test.py

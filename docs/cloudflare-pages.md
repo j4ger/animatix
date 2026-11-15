@@ -1,91 +1,94 @@
-> Historical Pages-specific path. The current migration targets
-> [Workers Builds and Static Assets](cloudflare-workers.md); do not use this
-> guide to bind the production domain during preview acceptance.
+# Cloudflare Pages migration
 
-# Cloudflare Pages deployment
+The target is **Pages Git integration**, not Workers Builds. The Astro site is
+static; Pages does not need Wrangler, a Worker upload token or Worker versions.
+Rust/Wasm stays in the existing Nix CI. Pages only downloads the original signed
+SDK, builds Astro and publishes `_site`.
 
-Cloudflare is an additional deployment target, not a new build system. GitHub
-Pages remains available during migration. No workflow changes DNS.
+## Current state
 
-## Build and trust boundary
+`animatix-pages` was created on 2026-11-15 with GitHub `j4ger/animatix`, production
+branch `deploy/pages`, all automatic production/preview deployments disabled and
+build command `exit 1`. No custom domain or DNS changed. The project has no
+accepted deployment yet. Its default hostname is `animatix-pages.pages.dev`.
 
-`CI` must succeed on `main`. The Cloudflare workflow checks out that exact SHA,
-restores and verifies its `web-runtime` artifact, and assembles `_site` inside the
-locked Nix environment. Only an absent/expired artifact permits the existing
-controlled SDK rebuild. A corrupt or wrong-commit artifact fails closed.
+The code's initial issuer is `feat/cloudflare-pages`. After acceptance, changing
+the issuer to `main` requires updating the policy and CI condition together and
+running fresh main CI. A Workers schema-2 permit is deliberately not accepted.
 
-The root-path static output is uploaded with Wrangler 4.162.0, locked separately
-in `web/deploy/package-lock.json`. It does not bundle the SDK or replace Astro's
-static output with a Worker. Deliberately update this pin with the lockfile and
-rerun deployment checks; do not substitute `npx wrangler@latest` in CI.
+## Signed build
 
-The uploader is installed before the token-bearing step. The workflow only has
-repository read permissions, and deployment refuses a dirty checkout, different
-SDK/source SHA or a commit that is no longer remote `main`. A stale CI completion
-must not roll production back. GitHub's existing workflow is unchanged.
+1. Push `feat/cloudflare-pages` while repository variable `ANIMATIX_CF_PAGES` is
+   `enabled`. Existing CI runs once and produces its original `web-runtime` ZIP.
+2. Only after `CI Required` succeeds, `cloudflare_pages` signs a schema-3 permit
+   for the exact source SHA, artifact hash/size, CI run/attempt and Pages project.
+   It publishes `cf-pages-SHA-rRUN-aATTEMPT`, a non-latest prerelease. Restore the
+   temporary variable after the job ends. Storage is not assumed immutable.
+3. The issuing branch and publishing branch differ intentionally: the former
+   supplies the signed CI identity; `deploy/pages` selects an already-accepted
+   commit without another full CI run.
+4. Pages configuration: command `bash scripts/ci.sh gate cloudflare-pages-build`,
+   output `_site`, repository root, `NODE_VERSION=24.14.0`,
+   `SKIP_DEPENDENCY_INSTALL=1`. Keep preview branches disabled. There are no
+   deployment credentials in the build environment.
+5. The consumer rejects a wrong Pages branch or `CF_PAGES_COMMIT_SHA`, dirty
+   source, expired permit, wrong signer or SDK bytes, and non-static output.
+   It checks the actual publishing branch HEAD before and after building. Those
+   checks are defense in depth, **not** an atomic deployment lock.
 
-## One-time setup (owner)
+## First deployment and serial release procedure
 
-1. Create a Cloudflare **Pages / Direct Upload** project with production branch
-   `main`. Direct Upload cannot later be converted to Git integration in place.
-2. Set repository Actions variables `CLOUDFLARE_PAGES_PROJECT` and
-   `CLOUDFLARE_ACCOUNT_ID`. Until the project variable exists, this workflow skips.
-3. Create a token scoped to the intended account with **Cloudflare Pages: Edit**.
-   Store it directly in GitHub Actions secret `CLOUDFLARE_API_TOKEN`. Do not paste
-   it into a chat, issue, command history or tracked file. Deployment does not
-   need DNS Edit, GitHub write access, or an account-wide global API key.
-4. Run `Deploy site to Cloudflare Pages` on `main`, or let the next successful CI
-   trigger it. Inspect deployment receipt and test the assigned `pages.dev` host.
+Do not treat the Pages deployment API's `commit_hash` field as checkout control:
+its Git `branch` input builds that branch's HEAD. Never advance `deploy/pages`
+while a previous deployment is queued or running.
 
-No paid services, Functions, Workers script or external asset store is required
-for the present output. Recheck provider quotas before substantially enlarging
-media or Wasm. Preflight rejects any file above 25 MiB, over 20,000 files,
-symlinks, missing 404/manifest, non-root base or accidental server-side code.
+For the first deployment, a single operator owns the complete transaction:
 
-## Local verification
+1. Verify the signed release and exact CI SHA, record current release-branch SHA
+   (or absence), current Pages canonical deployment ID, and all active builds.
+2. Require no pending/running Pages build. Keep automatic production disabled.
+3. Create/fast-forward `deploy/pages` to the accepted SHA using a conditional Git
+   ref update. Reject non-ancestor changes. No force rewrites, mutable SDK aliases
+   or cross-commit SDK relabeling.
+4. Submit one Pages Git deployment for `deploy/pages`, record its returned ID,
+   and wait for a terminal result. If the request outcome is unknown, inspect
+   deployment history for that SHA before any retry; do not advance the branch.
+5. Verify the returned build's commit SHA, production environment, successful
+   stages and canonical deployment ID. Test its immutable deployment URL, then
+   the project hostname: homepage, showcase, deep links, unknown path 404, SDK
+   bytes/MIME, gzip fetch behavior, fonts and a browser animation/WebGPU check.
+6. Only then may the next commit advance. Failure or uncertain state keeps the
+   release sequence stopped. Retrying uses the same SHA and a current signed
+   permit, not an older candidate.
 
-```sh
-nix develop --command scripts/ci.sh gate fmt workflows site-build
-# Requires an SDK verified against the current checkout; see web/README.md.
-SITE_BASE=/ nix develop --command scripts/ci.sh gate site-artifact cloudflare-prepare
-```
+This is currently an **operator-serialized** first-release procedure. There is
+no claim that multiple independent automation writers are coordinated. Before
+unattended release, implement and test a durable sole publisher that owns both
+ref advancement and the entire Pages terminal wait/reconciliation; restrict
+other writers. GitHub concurrency alone is not a commit-ordering or durable
+lease mechanism. Automatic deployment remains disabled until that exists.
 
-`cloudflare-prepare` is a no-secret check/install. `cloudflare-deploy` is an
-intentional production mutation and is not part of ordinary PR checks.
+## Domain and rollback
 
-The static 404 page is required: without a top-level `404.html`, Pages assumes
-SPA routing and can return the home page for missing resources. This is a
-multi-page static site. Test a missing page and a missing Wasm URL return 404.
+After project-hostname acceptance, add `amx.j4ger.dev` through Pages Custom
+Domains, inspect the existing DNS record first, and verify the resulting CNAME
+and certificate. Do not alter `j4ger.dev` or the `blog` Worker. Record the old
+GitHub Pages binding/DNS so rollback is concrete. Keep GitHub Pages available
+until the new domain works, then disable its redundant automatic publishing.
 
-## Domain cutover and rollback
+Pages rollback selects a previously successful **production** deployment;
+preview deployments are not promoted through rollback. On the first release,
+there is no previous Pages production deployment, so the rollback is the old
+GitHub Pages route. Test later Pages rollback before calling it verified.
 
-First validate `pages.dev`: homepage, deep routes, old-route explanations, AMX
-imports, fonts, Wasm, live WebGPU playback on capable hardware, videos and Range
-requests. Native renders or recorded video do not prove live WebGPU works.
+## Acceptance still required
 
-Then add `amx.j4ger.dev` in the Pages project's **Custom domains** UI before
-changing its CNAME. Cloudflare-managed DNS can create the record through this
-flow. Record the old DNS target/proxy settings, confirm the exact change, and
-wait for the custom domain certificate to become active. Do not manually point
-an unassociated hostname at `pages.dev` (it can return 522).
+The new policy and gates need real CI signing and a Pages-hosted build. The
+Workers experiment proves SDK portability, not Pages checkout/deployment order,
+response behavior or domain readiness. Existing Worker experiments can remain
+stopped until the Pages migration is accepted; their tokens are not Pages tokens.
 
-Keep the GitHub deployment and its domain binding during the verification
-window. If cutover fails, restore the recorded DNS settings. Once Cloudflare
-is confirmed healthy, remove the obsolete GitHub binding/deployment separately.
-Pages can also roll production back to an earlier successful production deploy;
-preview deployments are not rollback targets.
-
-Cloudflare zone cache/WAF/redirect rules can still affect Pages. Avoid a broad
-cache-everything rule for HTML or the runtime manifest. Fingerprinted assets can
-be cached longer. Do not blindly set `Content-Encoding: gzip` on stored `.gz`
-files: the SDK has its own Wasm/font decoding paths. Test response bytes and
-integrity rather than assuming CDN compression is transparent to every loader.
-
-## Official references
-
-- [Direct upload from CI](https://developers.cloudflare.com/pages/how-to/use-direct-upload-with-continuous-integration/)
-- [Direct Upload tradeoffs](https://developers.cloudflare.com/pages/get-started/direct-upload/)
-- [Custom domains](https://developers.cloudflare.com/pages/configuration/custom-domains/)
-- [Limits](https://developers.cloudflare.com/pages/platform/limits/)
-- [Route and 404 behavior](https://developers.cloudflare.com/pages/configuration/serving-pages/)
-- [Production rollbacks](https://developers.cloudflare.com/pages/configuration/rollbacks/)
+References: [Git integration](https://developers.cloudflare.com/pages/configuration/git-integration/),
+[build configuration](https://developers.cloudflare.com/pages/configuration/build-configuration/),
+[Pages deployments API](https://developers.cloudflare.com/api/resources/pages/subresources/projects/subresources/deployments/methods/create/),
+[rollbacks](https://developers.cloudflare.com/pages/configuration/rollbacks/).

@@ -23,7 +23,7 @@ def interrupted(signum, frame):
     raise RuntimeError("consumer interrupted")
 
 
-def main(policy=None, candidate=False):
+def main(policy=None, candidate=False, issuance=None, head_ref=None, pages=False):
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGINT, interrupted)
     policy = policy or load('cloudflare-permit')
@@ -47,7 +47,7 @@ def main(policy=None, candidate=False):
                  TMPDIR=str(work), XDG_CACHE_HOME=str(work/'cache'), GH_CONFIG_DIR=str(work/'gh-config'),
                  LANG='C.UTF-8', SITE_BASE='/', ASTRO_TELEMETRY_DISABLED='1', npm_config_cache=str(work/'npm'))
     def latest():
-        ref = subprocess.check_output(['git', 'ls-remote', 'https://github.com/j4ger/animatix.git', policy.REF], text=True, timeout=25).split()
+        ref = subprocess.check_output(['git', 'ls-remote', 'https://github.com/j4ger/animatix.git', head_ref or policy.REF], text=True, timeout=25).split()
         if len(ref) != 2:
             raise RuntimeError('cannot determine current experiment head')
         policy.accept_result(ref[0], commit)
@@ -69,8 +69,8 @@ def main(policy=None, candidate=False):
         latest()
         bounded.run(['bash', 'scripts/cloudflare-attestation-tools.sh', str(work/'tools')], work, started)
         gh = work/'tools/gh_2.104.0_linux_amd64/bin/gh'
-        candidate_policy = load('cloudflare-candidate') if candidate else None
-        tags = candidate_policy.release_tags(commit) if candidate else ['cf-candidate-'+commit]
+        candidate_policy = issuance or (load('cloudflare-candidate') if candidate else None)
+        tags = candidate_policy.release_tags(commit) if candidate_policy else ['cf-candidate-'+commit]
         permit = None
         for release_tag in tags:
             permit_path = fetch('permit.json', 1024*1024)
@@ -78,12 +78,12 @@ def main(policy=None, candidate=False):
             try:
                 verified = policy.verify(permit_path, bundle, '.github/cloudflare/trusted-root.jsonl',
                                          gh, commit, latest())
-                if candidate and candidate_policy.release_tag(verified) != release_tag:
+                if candidate_policy and candidate_policy.release_tag(verified) != release_tag:
                     raise policy.PermitError('signed issuance does not match release tag')
                 permit = verified
                 break
             except (policy.PermitError, subprocess.SubprocessError):
-                if not candidate:
+                if not candidate_policy:
                     raise
         if permit is None:
             raise RuntimeError('no current valid signed permit issuance; renew signing job without rebuilding SDK')
@@ -103,6 +103,10 @@ def main(policy=None, candidate=False):
         bounded.run(['python3', 'scripts/cloudflare-site-check.py', '_site'], work, started)
         latest()
         print('SIGNED_SDK_ASTRO_BUILD_ONLY_PASS' if not candidate else 'SIGNED_CANDIDATE_BUILD_PASS', flush=True)
+        if pages:
+            policy.validate_permit(permit, commit)
+            print('SIGNED_PAGES_STATIC_BUILD_PASS', flush=True)
+            return 0
         if candidate:
             receipt = repo/'target/cloudflare-candidate'
             receipt.mkdir(parents=True, exist_ok=False)
@@ -116,7 +120,7 @@ def main(policy=None, candidate=False):
         os.environ.clear()
         os.environ.update(old)
         print('elapsed_seconds=', round(time.monotonic()-started), flush=True)
-        print('Candidate build only; activation is separate' if candidate else 'Intentional experiment stop; no deployment', flush=True)
+        print('Pages static output complete; Pages owns deployment' if pages else 'Candidate build only; activation is separate' if candidate else 'Intentional experiment stop; no deployment', flush=True)
     return 1
 
 
