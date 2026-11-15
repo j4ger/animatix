@@ -83,19 +83,24 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let luma = dot(glow.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
     let gate = select(1.0, smoothstep(threshold, threshold + 0.1, luma), threshold > 0.0);
     let added_alpha = glow.a * add * gate;
-    let added_rgb = glow.rgb * add * gate;
+    let added_pm = glow.rgb * added_alpha;
+    let base_pm = base.rgb * base.a * keep;
 
-    // Additive, in premultiplied space: the render target is premultiplied, so
-    // the result has to keep `rgb <= a` or the composite fringes at the scope's
-    // semi-transparent edges. A glow also *creates* coverage where the blurred
-    // copy has alpha, which is the point of it. Where both texels are opaque
-    // this is identical to clamping the colour alone.
+    // The pass ABI stores straight-alpha RGBA. Composite in premultiplied space
+    // so translucent texels contribute in proportion to their coverage, then
+    // unpremultiply for storage. The added glow also creates coverage where the
+    // running result has alpha, which is the point of Bloom. Where both texels
+    // are opaque this remains identical to adding and clamping their colours.
     let out_alpha = clamp(base.a + added_alpha, 0.0, 1.0);
-    let rgb = clamp(
-        base.rgb * keep + added_rgb,
+    let out_pm = clamp(
+        base_pm + added_pm,
         vec3<f32>(0.0),
         vec3<f32>(out_alpha),
     );
+    var rgb = vec3<f32>(0.0);
+    if (out_alpha > 0.0) {
+        rgb = out_pm / out_alpha;
+    }
     textureStore(dst, coord, vec4<f32>(rgb, out_alpha));
 }
 "#

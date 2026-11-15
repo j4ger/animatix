@@ -1,6 +1,6 @@
 //! Native GPU interaction benchmark for the steady-state filter path.
 //!
-//! Runs one and eight independent Blur scopes over 64 px regions on a 720p
+//! Runs one and eight independent Blur or translucent Bloom scopes over 64 px regions on a 720p
 //! target. `encode_cpu_ms` covers scene/filter encoding and queue submission;
 //! `sync_wait_ms` is the explicit wait for all queued GPU work; `total_ms` is
 //! their sum. Pipeline creation and scratch/pending-texture allocation are
@@ -59,8 +59,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut args = std::env::args().skip(1);
     let output_path = args.next().unwrap_or_else(|| "gpu_interaction.json".to_string());
     let frames = args.next().map(|value| value.parse::<usize>()).transpose()?.unwrap_or(60);
-    if !(1..=120).contains(&frames) || args.next().is_some() {
-        return Err(boxed_message("usage: gpu_interaction [output.json] [frames: 1..=120]"));
+    let effect = args.next().unwrap_or_else(|| "blur".to_string());
+    if !(1..=120).contains(&frames)
+        || !matches!(effect.as_str(), "blur" | "bloom")
+        || args.next().is_some()
+    {
+        return Err(boxed_message(
+            "usage: gpu_interaction [output.json] [frames: 1..=120] [blur|bloom]",
+        ));
     }
 
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
@@ -105,10 +111,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut core = RendererCore::new(&device, &queue).map_err(boxed_message)?;
 
     let main_scene = make_main_scene();
-    let blur_chain = make_blur_chain();
+    let chain = make_effect_chain(&effect);
     let mut measurements = Vec::with_capacity(2);
     for scopes in [1, 8] {
-        let scopes = make_scopes(scopes);
+        let scopes = make_scopes(scopes, &effect);
         let mut backend = GpuFilterBackend::new(device.clone(), queue.clone(), dimensions)
             .map_err(boxed_message)?;
 
@@ -121,7 +127,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 dimensions,
                 &main_scene,
                 &scopes,
-                &blur_chain,
+                &chain,
                 &output_texture,
                 &output_view,
             )
@@ -145,7 +151,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 dimensions,
                 &main_scene,
                 &scopes,
-                &blur_chain,
+                &chain,
                 &output_texture,
                 &output_view,
             )
@@ -167,25 +173,35 @@ fn main() -> Result<(), Box<dyn Error>> {
         measurements.push(measurement);
     }
 
-    let json = format_json(&adapter_info, frames, &measurements);
+    let json = format_json(&adapter_info, frames, &measurements, &effect);
     fs::write(output_path, json)?;
     Ok(())
 }
 
-fn make_blur_chain() -> EffectChain {
+fn make_effect_chain(effect: &str) -> EffectChain {
+    let (name, values) = if effect == "bloom" {
+        (
+            "Bloom",
+            vec![
+                EffectParamValue::F32(0.75),
+                EffectParamValue::F32(1.0),
+                EffectParamValue::F32(0.0),
+            ],
+        )
+    } else {
+        ("Blur", vec![EffectParamValue::F32(BLUR_RADIUS)])
+    };
     EffectChain {
         instances: vec![EffectInstance {
-            id: EffectId::new("Blur"),
+            id: EffectId::new(name),
             enabled: true,
-            params: EffectParams {
-                values: vec![EffectParamValue::F32(BLUR_RADIUS)],
-            },
+            params: EffectParams { values },
         }],
         time_ms: 0.0,
     }
 }
 
-fn make_scopes(count: usize) -> Vec<(vello::Scene, EffectRegion)> {
+fn make_scopes(count: usize, effect: &str) -> Vec<(vello::Scene, EffectRegion)> {
     (0..count)
         .map(|index| {
             let column = index % 10;
@@ -202,7 +218,12 @@ fn make_scopes(count: usize) -> Vec<(vello::Scene, EffectRegion)> {
             scene.fill(
                 vello::peniko::Fill::NonZero,
                 kurbo::Affine::IDENTITY,
-                vello::peniko::Color::from_rgba8(80, 180, 255, 255),
+                vello::peniko::Color::from_rgba8(
+                    80,
+                    180,
+                    255,
+                    if effect == "bloom" { 128 } else { 255 },
+                ),
                 None,
                 &path,
             );
@@ -299,22 +320,35 @@ fn wait_for_submitted_work(
     Ok(())
 }
 
-fn format_json(info: &wgpu::AdapterInfo, frames: usize, measurements: &[Measurement]) -> String {
+fn format_json(
+    info: &wgpu::AdapterInfo,
+    frames: usize,
+    measurements: &[Measurement],
+    effect: &str,
+) -> String {
     let runs = measurements
         .iter()
         .map(|measurement| {
             let encode = summarize(&measurement.encode_cpu_ms);
             let wait = summarize(&measurement.sync_wait_ms);
             let total = summarize(&measurement.total_ms);
+            let legacy_blur_fields = if effect == "blur" {
+                format!(
+                    "\"blur_scopes\":{},\"blur_radius_px\":{},",
+                    measurement.scopes, BLUR_RADIUS
+                )
+            } else {
+                String::new()
+            };
             format!(
-                "    {{\"blur_scopes\":{},\"roi_px\":{},\"blur_radius_px\":{},\
+                "    {{{}\"effect_scopes\":{},\"roi_px\":{},\
                  \"frames\":{},\"warmup_frames\":{},\
                  \"encode_cpu_ms\":{{\"mean\":{:.6},\"median\":{:.6},\"p95\":{:.6}}},\
                  \"sync_wait_ms\":{{\"mean\":{:.6},\"median\":{:.6},\"p95\":{:.6}}},\
                  \"total_ms\":{{\"mean\":{:.6},\"median\":{:.6},\"p95\":{:.6}}}}}",
+                legacy_blur_fields,
                 measurement.scopes,
                 ROI_SIZE,
-                BLUR_RADIUS,
                 frames,
                 WARMUP_FRAMES,
                 encode.mean,
@@ -332,10 +366,13 @@ fn format_json(info: &wgpu::AdapterInfo, frames: usize, measurements: &[Measurem
         .join(",\n");
 
     format!(
-        "{{\n  \"benchmark\":\"animatix-gpu-interaction-v1\",\n  \
+        "{{\n  \"benchmark\":\"animatix-gpu-interaction-v2\",\n  \
+         \"effect\":{},\n  \"source_alpha_u8\":{},\n  \
          \"adapter\":{{\"name\":{},\"backend\":{},\"device_type\":{},\
          \"vendor\":{},\"device\":{},\"driver\":{},\"driver_info\":{}}},\n  \
          \"target_px\":[{},{}],\n  \"warmup_frames\":{},\n  \"runs\":[\n{}\n  ]\n}}\n",
+        json_string(effect),
+        if effect == "bloom" { 128 } else { 255 },
         json_string(&info.name),
         json_string(&format!("{:?}", info.backend)),
         json_string(&format!("{:?}", info.device_type)),

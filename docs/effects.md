@@ -191,8 +191,11 @@ binding layout.
   separated-alpha output and the image/composite input paths. A shader that
   composites layers must multiply RGB by alpha for the composition, then divide
   by the resulting alpha before storing; store transparent black when that
-  alpha is zero. `DropShadow` follows this rule for translucent content and
-  shadow colours as well as soft penumbras.
+  alpha is zero. `DropShadow` and `Bloom` follow this rule for translucent
+  content and coloured penumbras. Bloom keeps its existing coverage rule:
+  `alpha = clamp(original.a + running.a * intensity * gate, 0, 1)`; `keep`
+  scales the original's colour contribution, while threshold tests the running
+  result's straight RGB luma.
 - Input usage: `TEXTURE_BINDING`; output usage: `STORAGE_BINDING`.
 - The host owns the ping-pong textures. A shader must never assume whether it
   read or wrote a given physical texture; `binding 0` is always the input view

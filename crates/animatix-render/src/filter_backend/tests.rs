@@ -967,6 +967,193 @@ fn bloom_threshold_brightens_only_bright_regions() {
     );
 }
 
+/// Bloom's texture contract is straight alpha. A half-alpha saturated source
+/// contributes its premultiplied light and must be unpremultiplied on store.
+#[test]
+fn bloom_keeps_translucent_saturated_rgb_straight() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let scene = filled_scene(
+        vello::peniko::Color::from_rgba8(255, 0, 0, 128),
+        kurbo::Rect::new(0.0, 0.0, 64.0, 64.0),
+    );
+    let chain =
+        effect_chain("Bloom", vec![EffectParamValue::F32(0.25), EffectParamValue::F32(1.0)]);
+    let image = render(&mut backend, &scene, DIMS, &chain);
+    let pixel = scene_pixel(&image, 32, 32);
+    assert!(
+        pixel[0] >= 248 && pixel[1] <= 4 && pixel[2] <= 4,
+        "Bloom must preserve saturated straight red on translucent content, got {pixel:?}"
+    );
+    assert!(
+        pixel[3].abs_diff(160) <= 2,
+        "intensity 0.25 should raise half alpha to about 0.625, got {pixel:?}"
+    );
+
+    let reduced_keep_chain =
+        effect_chain("Bloom", vec![EffectParamValue::F32(0.25), EffectParamValue::F32(0.5)]);
+    let reduced_keep_image = render(&mut backend, &scene, DIMS, &reduced_keep_chain);
+    let reduced_keep_pixel = scene_pixel(&reduced_keep_image, 32, 32);
+    assert!(
+        reduced_keep_pixel[0].abs_diff(153) <= 3,
+        "keep 0.5 must scale only the original's straight red contribution, got {reduced_keep_pixel:?}"
+    );
+    assert!(
+        reduced_keep_pixel[3].abs_diff(160) <= 3,
+        "keep must not change the existing alpha accumulation, got {reduced_keep_pixel:?}"
+    );
+}
+
+/// A DropShadow penumbra is a partial-alpha blue glow on transparent original
+/// pixels. Bloom must retain the glow's straight blue colour while adding its
+/// coverage to the frame.
+#[test]
+fn bloom_keeps_partial_glow_rgb_straight() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let scene = filled_scene(
+        vello::peniko::Color::from_rgba8(255, 0, 0, 128),
+        kurbo::Rect::new(24.0, 16.0, 56.0, 48.0),
+    );
+    let mut chain = blue_drop_shadow_chain([-8.0, 0.0], 6.0);
+    chain.instances.push(EffectInstance {
+        id: EffectId::new("Bloom"),
+        enabled: true,
+        params: EffectParams {
+            values: vec![EffectParamValue::F32(1.0), EffectParamValue::F32(1.0)],
+        },
+    });
+    let image = render(&mut backend, &scene, DIMS, &chain);
+    // The original shape starts at x=24, and the hard shadow starts at x=16;
+    // x=12 is reached only by the soft penumbra.
+    let penumbra = scene_pixel(&image, 12, 32);
+    assert!(
+        (8..150).contains(&penumbra[3]),
+        "the penumbra must remain partially covered after Bloom, got {penumbra:?}"
+    );
+    assert!(
+        penumbra[2] >= 248 && penumbra[0] <= 8 && penumbra[1] <= 8,
+        "Bloom must preserve straight blue in the partial glow, got {penumbra:?}"
+    );
+}
+
+/// Zero-alpha texels remain transparent black after Bloom, without producing
+/// NaNs or leaking a glow.
+#[test]
+fn bloom_zero_alpha_stores_transparent_black() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let scene = filled_scene(
+        vello::peniko::Color::from_rgba8(20, 80, 255, 0),
+        kurbo::Rect::new(20.0, 16.0, 36.0, 48.0),
+    );
+    let chain = effect_chain("Bloom", vec![EffectParamValue::F32(1.0), EffectParamValue::F32(1.0)]);
+    let image = render(&mut backend, &scene, DIMS, &chain);
+    assert_eq!(
+        scene_pixel(&image, 28, 32),
+        [0, 0, 0, 0],
+        "zero-alpha input must not leak color through Bloom"
+    );
+}
+
+/// Additive alpha saturates at one, and the corresponding premultiplied color
+/// is clamped to that coverage before it is stored straight.
+#[test]
+fn bloom_clamps_added_alpha_to_opaque() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let scene = filled_scene(
+        vello::peniko::Color::from_rgba8(0, 255, 0, 128),
+        kurbo::Rect::new(0.0, 0.0, 64.0, 64.0),
+    );
+    let chain = effect_chain("Bloom", vec![EffectParamValue::F32(4.0), EffectParamValue::F32(1.0)]);
+    let image = render(&mut backend, &scene, DIMS, &chain);
+    let pixel = scene_pixel(&image, 32, 32);
+    assert_eq!(pixel, [0, 255, 0, 255], "intensity 4 should saturate to opaque green");
+}
+
+/// Threshold measures straight RGB luma even for partial-alpha pixels. White
+/// is above the gate and red is below it; each output keeps its saturated color.
+#[test]
+fn bloom_threshold_uses_straight_rgb_for_translucent_pixels() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let mut scene = vello::Scene::new();
+    let white = filled_scene(
+        vello::peniko::Color::from_rgba8(255, 255, 255, 64),
+        kurbo::Rect::new(6.0, 20.0, 26.0, 44.0),
+    );
+    let red = filled_scene(
+        vello::peniko::Color::from_rgba8(255, 0, 0, 64),
+        kurbo::Rect::new(38.0, 20.0, 58.0, 44.0),
+    );
+    scene.encoding_mut().append(white.encoding(), &None);
+    scene.encoding_mut().append(red.encoding(), &None);
+    let chain = effect_chain(
+        "Bloom",
+        vec![
+            EffectParamValue::F32(1.0),
+            EffectParamValue::F32(1.0),
+            EffectParamValue::F32(0.6),
+        ],
+    );
+    let image = render(&mut backend, &scene, DIMS, &chain);
+    let bright = scene_pixel(&image, 16, 32);
+    let dim = scene_pixel(&image, 48, 32);
+    assert!(
+        bright[3].abs_diff(128) <= 2,
+        "straight white luma is above threshold and should raise quarter alpha to about half alpha, \
+         got {bright:?}"
+    );
+    assert!(
+        dim[3].abs_diff(64) <= 1,
+        "straight red luma is below threshold and should keep source alpha, got {dim:?}"
+    );
+    assert!(
+        bright[..3].iter().all(|channel| *channel >= 248),
+        "bright translucent white must remain straight white, got {bright:?}"
+    );
+    assert!(
+        dim[0] >= 248 && dim[1] <= 4 && dim[2] <= 4,
+        "gated translucent red must remain straight red, got {dim:?}"
+    );
+}
+
+/// The pre-chain original supplies the kept base while the running result
+/// supplies the glow: doubling red in ColorGrade therefore adds the brighter
+/// copy over the unmodified original.
+#[test]
+fn bloom_uses_running_result_for_glow_and_original_for_keep() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let scene = filled_scene(
+        vello::peniko::Color::from_rgba8(64, 0, 0, 128),
+        kurbo::Rect::new(0.0, 0.0, 64.0, 64.0),
+    );
+    let mut chain = color_grade_chain(2.0, 1.0, 1.0, 0.0, 0.0);
+    chain.instances.push(EffectInstance {
+        id: EffectId::new("Bloom"),
+        enabled: true,
+        params: EffectParams {
+            values: vec![EffectParamValue::F32(1.0), EffectParamValue::F32(1.0)],
+        },
+    });
+    let image = render(&mut backend, &scene, DIMS, &chain);
+    let pixel = scene_pixel(&image, 32, 32);
+    assert!(
+        pixel[0].abs_diff(96) <= 3,
+        "Bloom must add the doubled running red to the original base in premultiplied space, \
+         got {pixel:?}"
+    );
+    assert_eq!(pixel[3], 255, "two half-alpha contributions should saturate to opaque");
+}
+
 /// Check that the colour-grade pass mutates pixels: a red rectangle with
 /// `saturate: 0` must desaturate to gray.
 #[test]
