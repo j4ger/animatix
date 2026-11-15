@@ -476,6 +476,7 @@ gate_cloudflare_deploy() {
 gate_site_build() {
   want_nix_shell 'site-build'
   python3 scripts/cloudflare-build-experiment-test.py
+  python3 scripts/cloudflare-nix-bootstrap-test.py
   python3 scripts/cloudflare-deploy-test.py
   python3 scripts/cloudflare-site-check-test.py
   bash scripts/site-build.sh

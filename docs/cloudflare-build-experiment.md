@@ -87,3 +87,31 @@ is only a decision point for implementing one later.
 - [Workers limits](https://developers.cloudflare.com/workers/ci-cd/builds/limits-and-pricing/)
 - [Pages build image](https://developers.cloudflare.com/pages/configuration/build-image/)
 - [Pages caching](https://developers.cloudflare.com/pages/configuration/build-caching/)
+
+## Verified rootless bootstrap experiment
+
+The observed Workers host has no writable `/nix` and no sudo, but permits
+unprivileged user/mount namespaces. `scripts/cloudflare-nix-bootstrap.py` tests
+that route without modifying the host store or security settings. Build command:
+
+```sh
+python3 scripts/cloudflare-nix-bootstrap.py; exit 1
+```
+
+It downloads only official Nix **2.34.9**, verifies the hard-coded SHA256 before
+extracting/executing, and assembles a temporary root. Source checksum:
+<https://releases.nixos.org/nix/nix-2.34.9/nix-2.34.9-x86_64-linux.tar.xz.sha256>.
+No daemon, installer, profile changes, system users, or credentials are created.
+The current unprivileged host UID maps to UID 0 **inside the child namespace
+only**; this is not host root. The stage refuses execution in its parent
+namespaces or with a host-root mapping. System program/config directories and
+proc are read-only mounts; only null/zero/random device handles are exposed.
+
+The experiment enters the pinned `.#web-build` shell and checks Rust, wasm std,
+Node, wasm-bindgen, wasm-opt and zopfli. It does not compile the full SDK or run
+browser acceptance. The supervisor starts only with 6 GiB free, stops after
+15 minutes or below 3 GiB free, and terminates the entire child process group.
+There is no disabled sandbox or relaxed signature policy. Host resources remain
+restricted by Cloudflare even inside the child namespace. It always exits 1,
+including on success, to prevent the deployment stage. Read the explicit
+`BOOTSTRAP_AND_DEVSHELL_PASS` or `BOOTSTRAP_BLOCKED` evidence in logs.
