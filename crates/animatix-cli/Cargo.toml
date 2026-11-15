@@ -30,6 +30,7 @@ tempfile = "3"
 [lib]
 name = "animatix_cli"
 path = "src/lib.rs"
+test = false # The binary harness includes the same modules and all library tests.
 
 [[bin]]
 name = "animatix"

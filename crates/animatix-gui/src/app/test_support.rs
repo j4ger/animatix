@@ -1,8 +1,4 @@
 //! Store fixtures shared by every in-crate GUI test module.
-//!
-//! Test modules used to rebuild these stores by hand; each copy drifted (some
-//! parsed the source, some did not). Everything here is `#[cfg(test)]`-only and
-//! nothing in this module is part of the shipped GUI.
 
 use std::collections::HashSet;
 use std::path::PathBuf;

@@ -80,12 +80,10 @@ pub(crate) fn probe_occlusion(
     let mut facts = Vec::new();
 
     for (idx, actor) in draw_order.iter().enumerate() {
-        // 1. 只对每个 is_text == true 且 opacity > 0.05 的 actor 出一条 OcclusionFact。
         if !actor.is_text || actor.opacity <= 0.05 {
             continue;
         }
 
-        // 2. 在它 bounds 内按 probe_points 取 rows*cols 个探针点（点取格子中心，不要落在边界像素上；用 Box2::clamped 夹到画布内）。
         let Some((cx0, cy0, cx1, cy1)) = actor.bounds.clamped(frame.width(), frame.height()) else {
             facts.push(OcclusionFact {
                 scene: actor.scene.clone(),
@@ -107,7 +105,7 @@ pub(crate) fn probe_occlusion(
 
         let points = probe_points(clamped_bounds, PROBE_ROWS, PROBE_COLS);
 
-        // 3. 有效探针点：该点相对 reference 有 ink（任一 RGB 通道差异 > tolerance）。无 ink 的点不计入分母。
+        // Background-coloured probes do not count toward the coverage denominator.
         let valid_points: Vec<(f64, f64)> = points
             .into_iter()
             .filter(|&(px, py)| {
@@ -120,7 +118,6 @@ pub(crate) fn probe_occlusion(
 
         let probed_points = valid_points.len();
         if probed_points == 0 {
-            // 5. probed_points == 0 时返回 0.0 且 occluder: None（不要除零）。
             facts.push(OcclusionFact {
                 scene: actor.scene.clone(),
                 label: actor.label.clone(),
@@ -132,9 +129,7 @@ pub(crate) fn probe_occlusion(
             continue;
         }
 
-        // 4. 被覆盖判定：对每个有效探针点，在 draw_order 中找排在该 text actor 之后、
-        // 且 opacity > 0.5、且 bounds 包含该点的 actor；若存在则记为 covered。
-        // 取覆盖点数最多的那个作为 occluder（并列时取绘制顺序最靠后的）。
+        // Attribute coverage to the largest occluder; ties favor later draw order.
         let subsequent_actors = &draw_order[(idx + 1)..];
 
         let covered_points = valid_points

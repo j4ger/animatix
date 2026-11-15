@@ -84,13 +84,12 @@ fn visible_positions_case_insensitive_substring() {
 }
 
 #[test]
-fn step_highlight_starts_at_first() {
+fn step_highlight_starts_and_moves_with_clamping() {
+    // No current highlight starts from the first visible row in either direction.
     assert_eq!(step_highlight(&[0, 1, 2], None, 1), Some(0));
     assert_eq!(step_highlight(&[0, 1, 2], None, -1), Some(0));
-}
 
-#[test]
-fn step_highlight_moves_and_clamps() {
+    // Movement clamps at both ends and steps backward from a middle row.
     assert_eq!(step_highlight(&[0, 1, 2], Some(0), 1), Some(1));
     assert_eq!(step_highlight(&[0, 1, 2], Some(2), 1), Some(2));
     assert_eq!(step_highlight(&[0, 1, 2], Some(0), -1), Some(0));
@@ -98,20 +97,16 @@ fn step_highlight_moves_and_clamps() {
 }
 
 #[test]
-fn step_highlight_skips_filtered_rows() {
+fn step_highlight_skips_filtered_rows_and_resets_stale_current() {
     // Only positions 1 and 3 are visible.
     assert_eq!(step_highlight(&[1, 3], Some(1), 1), Some(3));
     assert_eq!(step_highlight(&[1, 3], Some(3), -1), Some(1));
+    assert_eq!(step_highlight(&[2, 5], Some(0), 1), Some(2));
 }
 
 #[test]
 fn step_highlight_empty_is_none() {
     assert_eq!(step_highlight(&[], None, 1), None);
-}
-
-#[test]
-fn step_highlight_stale_current_resets_to_first() {
-    assert_eq!(step_highlight(&[2, 5], Some(0), 1), Some(2));
 }
 
 /// The trigger must fill the rect supplied by `ui.add_sized`.

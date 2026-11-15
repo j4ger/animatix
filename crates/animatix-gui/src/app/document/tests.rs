@@ -59,15 +59,13 @@ fn duration_scans_latest_track_keyframe() {
                 label: "box".to_string(),
                 array_index: None,
                 ty: "Rect".to_string(),
-                props: vec![Property {
-                    name: "size".to_string(),
-                    value: animatix_syntax::ast::Expr::Tuple(vec![
+                props: vec![Property::new(
+                    "size",
+                    animatix_syntax::ast::Expr::Tuple(vec![
                         animatix_syntax::ast::Expr::Num(100.0),
                         animatix_syntax::ast::Expr::Num(100.0),
                     ]),
-                    value_span: None,
-                    trailing_comment: None,
-                }],
+                )],
                 modifiers: vec![],
                 children: vec![],
                 span: None,
@@ -98,12 +96,10 @@ fn duration_scans_latest_track_keyframe() {
 #[test]
 fn scene_dimensions_use_config_resolution_when_present() {
     let ast = vec![Stmt::Config {
-        settings: vec![Property {
-            name: "resolution".to_string(),
-            value: Expr::Tuple(vec![Expr::Num(1280.0), Expr::Num(720.0)]),
-            value_span: None,
-            trailing_comment: None,
-        }],
+        settings: vec![Property::new(
+            "resolution",
+            Expr::Tuple(vec![Expr::Num(1280.0), Expr::Num(720.0)]),
+        )],
         span: None,
     }];
 
@@ -124,13 +120,10 @@ fn scene_dimensions_fall_back_to_default_when_missing() {
 }
 
 #[test]
-fn timeline_keyframe_times_none_timeline_none_composition() {
-    let times = timeline_keyframe_times_s(None, None, None);
-    assert!(times.is_empty(), "expected empty vec, got {times:?}");
-}
+fn timeline_keyframe_times_handles_missing_and_empty_timeline() {
+    let missing = timeline_keyframe_times_s(None, None, None);
+    assert!(missing.is_empty(), "expected empty vec, got {missing:?}");
 
-#[test]
-fn timeline_keyframe_times_empty_timeline() {
     let ast: Vec<Stmt> = vec![];
     let timeline = Timeline::build(&ast);
     let times = timeline_keyframe_times_s(Some(&timeline), None, None);
@@ -149,12 +142,10 @@ fn timeline_keyframe_times_are_sorted_and_deduped() {
                 label: "box".to_string(),
                 array_index: None,
                 ty: "Rect".to_string(),
-                props: vec![Property {
-                    name: "size".to_string(),
-                    value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
-                    value_span: None,
-                    trailing_comment: None,
-                }],
+                props: vec![Property::new(
+                    "size",
+                    Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
+                )],
                 modifiers: vec![],
                 children: vec![],
                 span: None,
@@ -210,12 +201,10 @@ fn timeline_keyframe_times_are_sorted_and_deduped() {
 
     let timeline = Timeline::build(&ast);
     let times = timeline_keyframe_times_s(Some(&timeline), None, None);
-    // Verify the user-visible keyframe times exist (in ms resolution)
     assert!(times.contains(&0.0), "missing 0.0, got {times:?}");
     assert!(times.contains(&1.0), "missing 1.0, got {times:?}");
     assert!(times.contains(&2.0), "missing 2.0, got {times:?}");
     assert!(times.contains(&3.5), "missing 3.5, got {times:?}");
-    // Verify they're sorted and deduped
     let mut sorted = times.clone();
     sorted.sort_by(f64::total_cmp);
     sorted.dedup();

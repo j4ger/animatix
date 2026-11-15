@@ -144,24 +144,19 @@ fn unknown_type_detected() {
 }
 
 #[test]
-fn lint_config_from_source_parses_disable() {
-    let source = "// lint-disable: unused-label, unknown-action\n#0s\ntitle: Text";
-    let config = LintConfig::from_source(source);
-    assert!(config.is_disabled("unused-label"));
-    assert!(config.is_disabled("unknown-action"));
-    assert!(!config.is_disabled("unknown-type"));
+fn lint_config_from_source_parses_disable_directives() {
+    let specific =
+        LintConfig::from_source("// lint-disable: unused-label, unknown-action\n#0s\ntitle: Text");
+    assert!(specific.is_disabled("unused-label"));
+    assert!(specific.is_disabled("unknown-action"));
+    assert!(!specific.is_disabled("unknown-type"));
+
+    let all_warnings = LintConfig::from_source("// lint-disable-all-warnings\n#0s\ntitle: Text");
+    assert!(all_warnings.disable_all_warnings);
 }
 
 #[test]
-fn lint_config_from_source_parses_disable_all_warnings() {
-    let source = "// lint-disable-all-warnings\n#0s\ntitle: Text";
-    let config = LintConfig::from_source(source);
-    assert!(config.disable_all_warnings);
-}
-
-#[test]
-fn lint_config_suppresses_specific_code() {
-    let source = "// lint-disable: unused-label\n#0s\ntitle: Text";
+fn lint_config_suppresses_specific_and_global_warnings() {
     let stmts = vec![Stmt::ActorDecl {
         is_pub: false,
         is_anonymous: false,
@@ -174,44 +169,30 @@ fn lint_config_suppresses_specific_code() {
         span: None,
     }];
     let mut symbols = SymbolTable::build_from_ast(&stmts);
-    // Don't add any references - should trigger unused-label
+    // No references intentionally leaves `title` unused for both cases.
     symbols.collect_references(&[]);
-    let config = LintConfig::from_source(source);
-    let diagnostics =
-        collect_diagnostics_with_config(source, &[], &symbols, Some(&stmts), &[], &config);
 
-    let unused: Vec<_> = diagnostics
-        .iter()
-        .filter(|d| d.code.as_deref() == Some("unused-label"))
-        .collect();
-    assert_eq!(unused.len(), 0, "unused-label should be suppressed");
-}
-
-#[test]
-fn lint_config_suppresses_warnings_globally() {
-    let source = "// lint-disable-all-warnings\n#0s\ntitle: Text";
-    let stmts = vec![Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: "title".to_string(),
-        array_index: None,
-        ty: "Text".to_string(),
-        props: vec![],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    }];
-    let mut symbols = SymbolTable::build_from_ast(&stmts);
-    symbols.collect_references(&[]);
-    let config = LintConfig::from_source(source);
-    let diagnostics =
-        collect_diagnostics_with_config(source, &[], &symbols, Some(&stmts), &[], &config);
-
-    let warnings: Vec<_> = diagnostics
-        .iter()
-        .filter(|d| d.severity == DiagnosticSeverity::Warning)
-        .collect();
-    assert_eq!(warnings.len(), 0, "all warnings should be suppressed");
+    for (source, suppress_all_warnings) in [
+        ("// lint-disable: unused-label\n#0s\ntitle: Text", false),
+        ("// lint-disable-all-warnings\n#0s\ntitle: Text", true),
+    ] {
+        let config = LintConfig::from_source(source);
+        let diagnostics =
+            collect_diagnostics_with_config(source, &[], &symbols, Some(&stmts), &[], &config);
+        if suppress_all_warnings {
+            let warnings: Vec<_> = diagnostics
+                .iter()
+                .filter(|d| d.severity == DiagnosticSeverity::Warning)
+                .collect();
+            assert_eq!(warnings.len(), 0, "all warnings should be suppressed");
+        } else {
+            let unused: Vec<_> = diagnostics
+                .iter()
+                .filter(|d| d.code.as_deref() == Some("unused-label"))
+                .collect();
+            assert_eq!(unused.len(), 0, "unused-label should be suppressed");
+        }
+    }
 }
 
 #[test]
@@ -224,12 +205,7 @@ fn type_mismatch_detected() {
         label: "title".to_string(),
         array_index: None,
         ty: "Text".to_string(),
-        props: vec![Property {
-            name: "font_size".to_string(),
-            value: Expr::Str("hello".to_string()),
-            value_span: None,
-            trailing_comment: None,
-        }],
+        props: vec![Property::new("font_size", Expr::Str("hello".to_string()))],
         modifiers: vec![],
         children: vec![],
         span: None,
@@ -257,12 +233,10 @@ fn type_mismatch_not_triggered_for_any() {
         label: "title".to_string(),
         array_index: None,
         ty: "Text".to_string(),
-        props: vec![Property {
-            name: "font_size".to_string(),
-            value: Expr::Ident("my_var".to_string()),
-            value_span: None,
-            trailing_comment: None,
-        }],
+        props: vec![Property::new(
+            "font_size",
+            Expr::Ident("my_var".to_string()),
+        )],
         modifiers: vec![],
         children: vec![],
         span: None,

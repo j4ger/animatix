@@ -7,7 +7,7 @@
 //! status, borders, overlays, lines), [`Components`] (per-widget color slots),
 //! and [`Elevation`] (shadow tokens).
 //!
-//! Access pattern (per §3a Step 2 of the roadmap):
+//! Access pattern:
 //! ```ignore
 //! let t = eparts::theme(ui);
 //! let bg = t.palette.surface.base;

@@ -230,18 +230,8 @@ fn test_evaluate_construct_creates_object() {
     let expr = Expr::Construct(
         "Point".to_string(),
         vec![
-            crate::ast::Property {
-                name: "x".to_string(),
-                value: Expr::Num(10.0),
-                value_span: None,
-                trailing_comment: None,
-            },
-            crate::ast::Property {
-                name: "y".to_string(),
-                value: Expr::Num(20.0),
-                value_span: None,
-                trailing_comment: None,
-            },
+            crate::ast::Property::new("x", Expr::Num(10.0)),
+            crate::ast::Property::new("y", Expr::Num(20.0)),
         ],
     );
 
@@ -859,30 +849,24 @@ fn test_object_field_read_non_object_intermediate() {
 fn test_construct_different_properties_different_hash() {
     let construct_a = Expr::Construct(
         "Button".to_string(),
-        vec![crate::ast::Property {
-            name: "text".to_string(),
-            value: Expr::Str("A".to_string()),
-            value_span: None,
-            trailing_comment: None,
-        }],
+        vec![crate::ast::Property::new(
+            "text",
+            Expr::Str("A".to_string()),
+        )],
     );
     let construct_b = Expr::Construct(
         "Button".to_string(),
-        vec![crate::ast::Property {
-            name: "text".to_string(),
-            value: Expr::Str("B".to_string()),
-            value_span: None,
-            trailing_comment: None,
-        }],
+        vec![crate::ast::Property::new(
+            "text",
+            Expr::Str("B".to_string()),
+        )],
     );
     let construct_c = Expr::Construct(
         "Button".to_string(),
-        vec![crate::ast::Property {
-            name: "label".to_string(),
-            value: Expr::Str("A".to_string()),
-            value_span: None,
-            trailing_comment: None,
-        }],
+        vec![crate::ast::Property::new(
+            "label",
+            Expr::Str("A".to_string()),
+        )],
     );
     let hash_a = super::expr::expr_hash(&construct_a);
     let hash_b = super::expr::expr_hash(&construct_b);
@@ -949,21 +933,17 @@ fn test_evaluate_expr_no_false_collision_construct_and_match() {
     // 1. Construct evaluation test
     let construct_a = Expr::Construct(
         "Button".to_string(),
-        vec![crate::ast::Property {
-            name: "text".to_string(),
-            value: Expr::Str("A".to_string()),
-            value_span: None,
-            trailing_comment: None,
-        }],
+        vec![crate::ast::Property::new(
+            "text",
+            Expr::Str("A".to_string()),
+        )],
     );
     let construct_b = Expr::Construct(
         "Button".to_string(),
-        vec![crate::ast::Property {
-            name: "text".to_string(),
-            value: Expr::Str("B".to_string()),
-            value_span: None,
-            trailing_comment: None,
-        }],
+        vec![crate::ast::Property::new(
+            "text",
+            Expr::Str("B".to_string()),
+        )],
     );
 
     let res_a = evaluate_expr(&construct_a, &env).expect("eval construct_a should succeed");

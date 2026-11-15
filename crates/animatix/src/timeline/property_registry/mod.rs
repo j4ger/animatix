@@ -1,45 +1,10 @@
-//! # Property Registry
+//! Engine property schemas join core descriptors with `BINDINGS` by name.
 //!
-//! The canonical schema system for all actor properties.
-//!
-//! `PROPERTY_REGISTRY` joins the core descriptor table with the engine-only
-//! `BINDINGS` table by property name. Each composed schema specifies:
-//!
-//! - `name` — Canonical source-text name (`"color"`, `"radius"`, `"gap"`, `"padding"`)
-//! - `value_type` — Which rust type the property value carries
-//! - `flags` — Feature flags (ANIMATED, ASSIGNABLE, INJECTABLE, LAYOUT_AFFECTING)
-//! - `field` — Which `ActorField` storage location this maps to
-//! - `applicable` — Which actor kinds the property is valid for (from the core
-//!   descriptor table)
-//! - `default_value` / `read_source` — Defaulting and frame-time reads
-//!
-//! ## Dispatch flow
-//!
-//! Property dispatch is two steps:
-//!
-//! 1. `lookup_property(name)` → `&PropertySchema`  (one process-wide name map)
-//! 2. Match over `schema.field` / `schema.flags`  (exhaustive enum)
-//!
-//! ## Adding a new property
-//!
-//! 1. Add a row to `animatix_core::property::PROPERTY_DESCRIPTORS` for the
-//!    name, applicability, storage kind, and any non-default `AuthoredTypeHint`.
-//! 2. Add a binding row to `BINDINGS` below for the runtime value type, flags,
-//!    storage field, default, and read source.
-//! 3. The syntax type view derives from the descriptor; it has no parallel row.
-//!
-//! For most animated properties that is all — the generic engine handles
-//! parsing, keyframing, assignments, and environment injection automatically.
-//! The descriptor row index is the serialized `PropertyId`: append rows, never
-//! reorder or remove them.
+//! Core owns names, applicability, storage kinds and authored type hints;
+//! bindings own runtime flags, fields, defaults and read sources. Syntax types
+//! derive from the core descriptors. Descriptor row order is the serialized
+//! `PropertyId`: append rows, never reorder or remove them.
 
-// Value types
-
-/// The set of all value types a property can carry.
-///
-/// This enum drives parsing, interpolation, default selection, and injection.
-/// Adding a new variant is rare — only when a fundamentally new kind of
-/// property value is introduced.
 use PropertyFlags as F;
 use ValueType as V;
 
@@ -517,14 +482,6 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("y_scale", V::String, F::empty(), NoStorage, val!(str "linear")),
 ];
 
-// Lookup
-
-/// Return the index of a property in [`PROPERTY_REGISTRY`].
-///
-/// Uses the name map rather than a binary search: the map is built once and
-/// already carries the index, and the composed registry is behind a
-/// `LazyLock`, so a hash lookup beats re-dereferencing the table for every
-/// probe.
 mod lookup;
 mod types;
 

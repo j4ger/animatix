@@ -779,22 +779,14 @@ g: Graph, x_domain: (-3, 3), y_domain: (-3, 3), size: (300, 300), at: (160, 160)
 }
 fade-in g [100ms]
 "#;
+    let draft_timeline = build_with_quality(source, BuildQuality::Draft);
+    let production_timeline = build_with_quality(source, BuildQuality::Production);
     let debug = DebugRenderOptions::default();
     let draft = renderer
-        .render_timeline_with_debug(
-            &build_with_quality(source, BuildQuality::Draft),
-            0.5,
-            dims,
-            debug,
-        )
+        .render_timeline_with_debug(&draft_timeline, 0.5, dims, debug)
         .expect("draft frame");
     let production = renderer
-        .render_timeline_with_debug(
-            &build_with_quality(source, BuildQuality::Production),
-            0.5,
-            dims,
-            debug,
-        )
+        .render_timeline_with_debug(&production_timeline, 0.5, dims, debug)
         .expect("production frame");
 
     // The honest invariant of the quality knob is at the geometry level: the
@@ -809,8 +801,6 @@ fade-in g [100ms]
             .evaluate_vector_paths(timeline.world().style(id), 0);
         paths.iter().map(|p| p.path.elements().len()).sum()
     };
-    let draft_timeline = build_with_quality(source, BuildQuality::Draft);
-    let production_timeline = build_with_quality(source, BuildQuality::Production);
     let (draft_elements, production_elements) =
         (elements(&draft_timeline), elements(&production_timeline));
     assert!(
@@ -907,9 +897,6 @@ fn blits_into_bgra8_targets() {
 
 #[test]
 fn storyboard_renders_multiframe_grid_to_disk() {
-    let Some(_renderer) = new_renderer() else {
-        return;
-    };
     let timeline = build(
         r#"
 #0s
@@ -937,13 +924,20 @@ fade-out box [500ms]
         ..Default::default()
     };
 
-    let count = animatix_render::encode::render_storyboard_timeline(
+    let result = animatix_render::encode::render_storyboard_timeline(
         timeline,
         &settings,
         &out_path,
         DebugRenderOptions::default(),
-    )
-    .expect("storyboard rendering must succeed");
+    );
+    let count = match result {
+        Ok(count) => count,
+        Err(animatix_render::encode::ExportError::RendererCreation(_)) => {
+            animatix_render::testing::skip_if_no_gpu();
+            return;
+        },
+        Err(error) => panic!("storyboard rendering must succeed: {error}"),
+    };
 
     assert_eq!(count, 3);
     assert!(out_path.exists(), "storyboard file must exist");

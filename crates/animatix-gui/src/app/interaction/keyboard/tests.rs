@@ -153,14 +153,13 @@ fn shortcut_for_save_returns_ctrl_s() {
 #[test]
 fn shortcut_for_payload_variant_matches_discriminant() {
     let registry = ShortcutRegistry::new();
-    // NudgeSelected has an f32 payload — discriminant match should still work.
-    let shortcut = registry.shortcut_for(&KeyboardAction::NudgeSelected { dx: 0.0, dy: 0.0 });
-    assert!(
-        shortcut.is_some(),
-        "Expected a registered shortcut for KeyboardAction::NudgeSelected"
-    );
-    // The first nudge entry is ArrowLeft.
-    assert_eq!(shortcut.unwrap().logical_key, Key::ArrowLeft);
+    for (action, expected) in [
+        (KeyboardAction::NudgeSelected { dx: 0.0, dy: 0.0 }, Key::ArrowLeft),
+        (KeyboardAction::SelectScene(0), Key::Num1),
+        (KeyboardAction::SelectScene(99), Key::Num1),
+    ] {
+        assert_eq!(registry.shortcut_for(&action).unwrap().logical_key, expected, "{action:?}");
+    }
 }
 
 #[test]
@@ -196,19 +195,6 @@ fn only_review_tool_shortcuts_are_available() {
 fn shortcuts_for_name_returns_empty_for_unknown() {
     let registry = ShortcutRegistry::new();
     assert!(registry.shortcuts_for_name("Not a real shortcut").is_empty());
-}
-
-#[test]
-fn shortcut_for_unknown_returns_none() {
-    // KeyboardAction::SelectScene(99) won't match because the registry only
-    // registers SelectScene(0), (1), and (2) — discriminant is the same
-    // variant but we test a hypothetical unregistered variant isn't returned.
-    // Actually SelectScene(99) shares the same discriminant, so it WILL match
-    // the first SelectScene entry. This is expected discriminant-level behaviour.
-    let registry = ShortcutRegistry::new();
-    let shortcut = registry.shortcut_for(&KeyboardAction::SelectScene(0));
-    assert!(shortcut.is_some());
-    assert_eq!(shortcut.unwrap().logical_key, Key::Num1);
 }
 
 #[test]
