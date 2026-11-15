@@ -52,6 +52,11 @@ class ConsumerTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 p.unpack(path,Path(root)/'out')
 
+    def test_offline_fixture_is_fixed(self):
+        self.assertEqual(p.offline_proof_digest('f42c2cf33d923875041f23c86498a7b2f2a45ae3',43685448863,14150447856), '0b187f151c29265f1f4a886bcc3046b7f2d742e6cbc1a0948620d94daac7254c')
+        with self.assertRaises(RuntimeError):
+            p.offline_proof_digest('b'*40,43685448863,14150447856)
+
     def test_https_redirect(self):
         with self.assertRaises(RuntimeError):
             p.HTTPSOnly().redirect_request(None,None,302,'',{},'http://example.com')

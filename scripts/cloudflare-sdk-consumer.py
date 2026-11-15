@@ -43,6 +43,15 @@ def validate_run(run, artifact, commit, run_id):
     return artifact["digest"].removeprefix("sha256:")
 
 
+def offline_proof_digest(commit, run_id, artifact_id):
+    # Controller independently checked this exact successful CI run, downloaded
+    # its archive and verified GitHub's digest. Not a production trust mechanism.
+    if (commit, run_id, artifact_id) != (
+            "f42c2cf33d923875041f23c86498a7b2f2a45ae3", 43685448863, 14150447856):
+        raise RuntimeError("offline proof is restricted to its reviewed fixture")
+    return "0b187f151c29265f1f4a886bcc3046b7f2d742e6cbc1a0948620d94daac7254c"
+
+
 def unpack(archive, target):
     with zipfile.ZipFile(archive) as z:
         entries = z.infolist()
@@ -65,6 +74,7 @@ def main():
     parser.add_argument("--commit", required=True)
     parser.add_argument("--run", type=int, required=True)
     parser.add_argument("--artifact", type=int, required=True)
+    parser.add_argument("--offline-proof", action="store_true", help="Only the controller-verified fixed experiment tuple")
     parser.add_argument("--site-manifest-sha", help="Proof-only trusted manifest SHA from the verified CI ZIP")
     args = parser.parse_args()
     if args.site_manifest_sha and not re.fullmatch(r"[0-9a-f]{64}", args.site_manifest_sha):
@@ -126,11 +136,17 @@ def main():
     try:
         os.environ.clear()
         os.environ.update(clean)
-        api = "https://api.github.com/repos/" + REPOSITORY
-        ci = json.loads(fetch(f"{api}/actions/runs/{args.run}", 2*1024**2))
-        artifact = json.loads(fetch(f"{api}/actions/artifacts/{args.artifact}", 1024**2))
-        expected = validate_run(ci, artifact, args.commit, args.run)
-        print("SAME_SHA_SUCCESSFUL_CI_PROVENANCE_PASS", flush=True)
+        if args.offline_proof:
+            if args.site_manifest_sha:
+                raise RuntimeError("offline proof requires Release ZIP transport")
+            expected = offline_proof_digest(args.commit, args.run, args.artifact)
+            print("CONTROLLED_OFFLINE_FIXTURE_SELECTED_NOT_PRODUCTION_AUTH", flush=True)
+        else:
+            api = "https://api.github.com/repos/" + REPOSITORY
+            ci = json.loads(fetch(f"{api}/actions/runs/{args.run}", 2*1024**2))
+            artifact = json.loads(fetch(f"{api}/actions/artifacts/{args.artifact}", 1024**2))
+            expected = validate_run(ci, artifact, args.commit, args.run)
+            print("SAME_SHA_SUCCESSFUL_CI_PROVENANCE_PASS", flush=True)
         stage = work / "runtime"
         if args.site_manifest_sha:
             # Experimental transport only. Caller obtained this hash from the

@@ -168,3 +168,16 @@ Node shim configuration. Select `NODE_VERSION=24.14.0` for this experiment and
 resolve the actual Node executable before clearing the environment; only its bin
 directory is carried into the clean child PATH. No host credentials or version
 manager settings are copied. Restore the temporary build variable afterward.
+
+The next run reached the pinned Node runtime but the shared Cloudflare egress hit
+GitHub's anonymous API rate limit. Do not repeatedly retry the API. The explicitly
+named `--offline-proof` mode is restricted to one controller-verified fixture:
+main `f42c2cf33d923875041f23c86498a7b2f2a45ae3`, successful CI run `43685448863`,
+artifact `14150447856`, ZIP SHA256
+`0b187f151c29265f1f4a886bcc3046b7f2d742e6cbc1a0948620d94daac7254c`.
+It makes no GitHub API calls, accepts no arbitrary digest, and still verifies the
+Release bytes and source fingerprint/commit before assembling the site. This is
+an offline controlled experiment, not production authorization or signed
+provenance. The experimental Release reports `immutable=false`; its mutable
+storage is not trusted in place of the pinned digest. Production needs a genuine
+CI-issued, authenticated release permit and stale-deployment protection.
