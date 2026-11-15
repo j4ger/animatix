@@ -344,7 +344,7 @@ jobs:
   cloudflare_pages:
     name: Sign Cloudflare Pages SDK
     needs: required
-    if: ${{ !cancelled() && needs.required.result == 'success' && github.event_name == 'push' && github.repository == 'j4ger/animatix' && github.ref == 'refs/heads/feat/cloudflare-pages' && vars.ANIMATIX_CF_PAGES == 'enabled' }}
+    if: ${{ !cancelled() && needs.required.result == 'success' && github.event_name == 'push' && github.repository == 'j4ger/animatix' && github.ref == 'refs/heads/main' && vars.ANIMATIX_CF_PAGES == 'enabled' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -381,3 +381,26 @@ jobs:
             target/cloudflare-permit/sdk.zip target/cloudflare-permit/permit.json \
             target/cloudflare-permit/permit.sigstore.json
 
+
+
+  cloudflare_pages_release:
+    name: Publish verified Pages release
+    needs: cloudflare_pages
+    if: ${{ !cancelled() && needs.cloudflare_pages.result == 'success' && vars.ANIMATIX_CF_PAGES_RELEASE == 'enabled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    concurrency:
+      group: cloudflare-pages-sole-publisher
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+      - name: Reconcile then publish one signed main commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLOUDFLARE_PAGES_TOKEN: ${{ secrets.CLOUDFLARE_PAGES_TOKEN }}
+          NEEDS_PAGES_SIGN_RESULT: ${{ needs.cloudflare_pages.result }}
+        run: scripts/ci.sh gate cloudflare-pages-release

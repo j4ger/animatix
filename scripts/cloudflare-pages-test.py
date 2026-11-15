@@ -30,7 +30,7 @@ class PagesTests(unittest.TestCase):
         self.assertEqual(p.validate_permit(permit, fixture.SHA, fixture.NOW), permit)
         for key, value in [('schema_version', 2), ('mode', 'candidate-upload'),
                            ('cloudflare', {'account_id': p.ACCOUNT, 'worker': 'animatix-candidate-preview'}),
-                           ('ref', 'refs/heads/main'), ('sdk_source_sha', 'b'*40),
+                           ('ref', 'refs/heads/feat/cloudflare-pages'), ('sdk_source_sha', 'b'*40),
                            ('expires_at', fixture.NOW)]:
             with self.subTest(key=key), self.assertRaises(p.PermitError):
                 p.validate_permit(dict(permit, **{key: value}), fixture.SHA, fixture.NOW)
@@ -153,7 +153,7 @@ class IssuanceFallbackTests(unittest.TestCase):
         self.assets.pop((self.tags[0], 'permit.json'))
         older = self.assets[self.tags[1], 'permit.json']
         valid = json.loads(older.read_text())
-        for change in [dict(expires_at=self.fixture.NOW), dict(ref='refs/heads/main'),
+        for change in [dict(expires_at=self.fixture.NOW), dict(ref='refs/heads/feat/cloudflare-pages'),
                        dict(sdk_source_sha='b'*40)]:
             with self.subTest(change=change):
                 older.write_text(json.dumps(dict(valid, **change)))

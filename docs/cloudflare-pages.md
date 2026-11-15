@@ -12,13 +12,12 @@ branch `deploy/pages`, all automatic production/preview deployments disabled and
 build command `exit 1`. No custom domain or DNS changed. The project has no
 accepted deployment yet. Its default hostname is `animatix-pages.pages.dev`.
 
-The code's initial issuer is `feat/cloudflare-pages`. After acceptance, changing
-the issuer to `main` requires updating the policy and CI condition together and
-running fresh main CI. A Workers schema-2 permit is deliberately not accepted.
+The issuer is now `main`; policy and CI condition must change together.
+A fresh main CI run must sign its own SDK before release. A Workers schema-2 permit is deliberately not accepted.
 
 ## Signed build
 
-1. Push `feat/cloudflare-pages` while repository variable `ANIMATIX_CF_PAGES` is
+1. Push `main` while repository variable `ANIMATIX_CF_PAGES` is
    `enabled`. Existing CI runs once and produces its original `web-runtime` ZIP.
 2. Only after `CI Required` succeeds, `cloudflare_pages` signs a schema-3 permit
    for the exact source SHA, artifact hash/size, CI run/attempt and Pages project.
@@ -95,3 +94,62 @@ References: [Git integration](https://developers.cloudflare.com/pages/configurat
 [build configuration](https://developers.cloudflare.com/pages/configuration/build-configuration/),
 [Pages deployments API](https://developers.cloudflare.com/api/resources/pages/subresources/projects/subresources/deployments/methods/create/),
 [rollbacks](https://developers.cloudflare.com/pages/configuration/rollbacks/).
+
+## Main publisher (disabled until configured and remotely accepted)
+
+The issuer and CI signing condition now agree on `refs/heads/main`. The original
+feature-branch permits cannot authorize a fresh main build. Keep
+`ANIMATIX_CF_PAGES=enabled` to sign successful main CI artifacts. The separate
+`ANIMATIX_CF_PAGES_RELEASE=enabled` enables the release job only after signing.
+GitHub Pages automatic publishing is removed; its manual fallback requires
+`ANIMATIX_GH_PAGES_FALLBACK=enabled` and still runs its checks.
+
+The release job needs a dedicated `CLOUDFLARE_PAGES_TOKEN` repository secret with
+Pages Edit for the account. Do not reuse a Workers upload token or assume it has
+Pages permission. No DNS editing is needed by this job. GitHub's job token uses
+Contents Write to fast-forward `deploy/pages` and maintain the journal; Pages
+Git integration must retain repository read access. Keep the Cloudflare project
+production auto-build switch off and preview setting `none`: the job performs
+one explicit deployment request after moving the branch.
+
+Before enabling release, a single operator verifies the current successful
+production deployment and executes `python3 scripts/cloudflare-pages-release.py
+--initialize` with the two API credentials supplied securely. This creates
+`deploy/pages-state` and its `.pages-release-state.json` once; it refuses to
+replace an existing state branch. This branch is infrastructure state, not a
+source branch. Protect it and `deploy/pages` from force pushes/deletion and all
+other publishers, including manual Dashboard deployments and the old operator
+procedure. Do not put credentials into the journal.
+
+The Actions concurrency group serializes live job invocations only. Durability
+comes from the journal, whose Contents API updates use the preceding file SHA:
+
+- `preparing`: no deployment request was sent; safely recover a partial ref move.
+- `intent`: persisted before POST; if its response is lost, freeze rather than
+  resend or advance another commit. An operator must identify the actual build
+  and use `--adopt DEPLOYMENT_ID`; this validates project/branch/SHA and the
+  unique request ticket persisted before sending (plus creation time), writes the
+  receipt, and sends no deployment. A false-negative empty listing is not proof
+  that POST did not execute. If no receipt can be established, stay stopped.
+- `waiting`: record the ID and reconcile the same build after cancellation or
+  timeout. No subsequent candidate advances until this build is terminal.
+- `complete`: require the successful build to be canonical. Skip a candidate
+  whose SHA is no longer main, and never rewind the release branch.
+- `blocked`: a failed/cancelled deployment stops automatic progression. Inspect
+  logs and all deployments before an operator uses `--recover-failed`. It
+  verifies the recorded failure is terminal and no builds remain active. Do not delete
+  or blindly reinitialize the journal to clear a failure.
+
+This design does not prevent an account administrator or another credential from
+bypassing the sole publisher. Keeping those external writers stopped is a
+necessary operational condition, not an IAM guarantee made by this code. It also
+fails closed rather than guaranteeing unattended recovery after ambiguous API
+writes. Pages rollback is an explicit operator operation to an earlier successful
+production deployment; afterward reconcile the journal/canonical state before
+reenabling the publisher. Do not attempt preview promotion with rollback.
+
+Local fault-injection tests cover duplicate/stale requests, POST response loss,
+receipt-write loss, runner restart, failure, active foreign builds, partial ref
+moves, SHA mismatch and canonical drift. These are not a substitute for remote
+acceptance of the publisher's API calls, token permissions and recovery. Leave
+the release switch disabled until that exercise has succeeded.

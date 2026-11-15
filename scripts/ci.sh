@@ -99,6 +99,7 @@ web-artifact-restore|nix|ubuntu-latest|nix|site
 web-artifact-absence|none|ubuntu-latest|none|control
 cloudflare-pages-publish|none|ubuntu-latest|none|control
 cloudflare-pages-build|none|ubuntu-latest|none|control
+cloudflare-pages-release|none|ubuntu-latest|none|control
 cloudflare-candidate-publish|none|ubuntu-latest|none|control
 cloudflare-candidate-dispatch|none|ubuntu-latest|none|control
 cloudflare-candidate-build|none|ubuntu-latest|none|control
@@ -471,6 +472,10 @@ gate_cloudflare_pages_publish() {
   python3 scripts/cloudflare-pages.py publish
 }
 
+gate_cloudflare_pages_release() {
+  python3 scripts/cloudflare-pages-release.py
+}
+
 gate_cloudflare_pages_build() {
   python3 scripts/cloudflare-pages.py build
 }
@@ -517,6 +522,7 @@ gate_cloudflare_deploy() {
 gate_site_build() {
   want_nix_shell 'site-build'
   python3 scripts/cloudflare-pages-test.py
+  python3 scripts/cloudflare-pages-release-test.py
   python3 scripts/cloudflare-candidate-test.py
   python3 scripts/cloudflare-control-test.py
   python3 scripts/cloudflare-review-test.py

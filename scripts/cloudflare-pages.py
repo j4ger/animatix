@@ -9,7 +9,7 @@ import sys
 
 PROJECT = 'animatix-pages'
 RELEASE_BRANCH = 'deploy/pages'
-ISSUER_REF = 'refs/heads/feat/cloudflare-pages'
+ISSUER_REF = 'refs/heads/main'
 PREFIX = 'cf-pages'
 
 
