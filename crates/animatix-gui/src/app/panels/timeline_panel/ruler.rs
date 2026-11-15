@@ -12,33 +12,6 @@ use crate::app::components::text_tooltip;
 use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH, Spatial};
 use crate::app::design_tokens::typography::TextRole;
 
-/// Helper to snap a time `nt` to nearby speech words or markers if within tolerance (~0.06s),
-/// otherwise falling back to snapping to the standard FPS grid.
-pub fn snap_to_speech_or_fps(
-    nt: f64,
-    snap_fps: f32,
-    speech_targets: &[(f64, String)],
-) -> (f64, Option<String>) {
-    let tolerance = 0.06; // ~3.5 frames at 60fps
-    let mut closest_match: Option<(f64, &str, f64)> = None;
-
-    for (target_t, label) in speech_targets {
-        let diff = (nt - target_t).abs();
-        if diff <= tolerance
-            && closest_match.map(|(_, _, best_diff)| diff < best_diff).unwrap_or(true)
-        {
-            closest_match = Some((*target_t, label.as_str(), diff));
-        }
-    }
-
-    if let Some((target_t, label, _)) = closest_match {
-        (target_t, Some(label.to_string()))
-    } else {
-        let fps_snapped = (nt * snap_fps as f64).round() / snap_fps as f64;
-        (fps_snapped, None)
-    }
-}
-
 /// Handle click-and-drag scrubbing on a timeline bar.
 pub(crate) fn bar_interaction(
     ui: &egui::Ui,
@@ -321,34 +294,5 @@ pub(crate) fn render_playhead(
             theme.palette.status.warning,
             Stroke::NONE,
         ));
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_snap_to_speech_or_fps() {
-        let targets = vec![
-            (1.50, "@intro".to_string()),
-            (2.25, "\"hello\"".to_string()),
-        ];
-
-        // Close to @intro (within 0.06s tolerance) -> snaps to @intro
-        let (snapped, label) = snap_to_speech_or_fps(1.52, 60.0, &targets);
-        assert!((snapped - 1.50).abs() < 1e-4);
-        assert_eq!(label.as_deref(), Some("@intro"));
-
-        // Close to "hello" -> snaps to "hello"
-        let (snapped, label) = snap_to_speech_or_fps(2.22, 60.0, &targets);
-        assert!((snapped - 2.25).abs() < 1e-4);
-        assert_eq!(label.as_deref(), Some("\"hello\""));
-
-        // Far from speech targets -> falls back to FPS grid snap
-        let (snapped, label) = snap_to_speech_or_fps(3.821, 60.0, &targets);
-        let expected_fps_snap = (3.821 * 60.0_f64).round() / 60.0_f64;
-        assert!((snapped - expected_fps_snap).abs() < 1e-4);
-        assert_eq!(label, None);
     }
 }

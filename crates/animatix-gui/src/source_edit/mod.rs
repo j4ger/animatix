@@ -13,7 +13,5 @@ mod scene_edits;
 #[cfg(test)]
 mod test_support;
 
-pub(crate) use apply::find_actor_decl;
 pub use apply::{SourceEdit, apply_edit};
-pub(crate) use ast_utils::{clear_adjust_flash_queue, drain_adjust_flash_queue};
 pub use error::SourceEditError;

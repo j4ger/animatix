@@ -3,45 +3,9 @@
 //! These operate purely on the AST and belong with the other source-edit
 //! helpers rather than with any UI state.
 
-use std::cell::RefCell;
-
 use animatix_syntax::ast::{Stmt, Time};
 
 use super::apply::time_to_seconds;
-
-thread_local! {
-    /// Queue of keyframe absolute times (in seconds) that should be flashed
-    /// in the timeline panel because their relative offset was rewritten.
-    static ADJUST_FLASH_QUEUE: RefCell<Vec<f64>> = const { RefCell::new(Vec::new()) };
-}
-
-/// Compute the absolute time (in seconds) of the keyframe at `idx`.
-pub(super) fn compute_keyframe_abs_time(stmts: &[Stmt], idx: usize) -> f64 {
-    let mut t = 0.0;
-    for stmt in stmts.iter().take(idx + 1) {
-        match stmt {
-            Stmt::Keyframe { time, .. } => t = time_to_seconds(time),
-            Stmt::RelativeKeyframe { offset, .. } => t += time_to_seconds(offset),
-            _ => {},
-        }
-    }
-    t
-}
-
-/// Push a flash event for an absolute keyframe time.
-pub(super) fn push_adjust_flash_time(time_s: f64) {
-    ADJUST_FLASH_QUEUE.with(|q| q.borrow_mut().push(time_s));
-}
-
-/// Clear the adjust flash queue.
-pub(crate) fn clear_adjust_flash_queue() {
-    ADJUST_FLASH_QUEUE.with(|q| q.borrow_mut().clear());
-}
-
-/// Drain the adjust flash queue, returning all accumulated flash times.
-pub(crate) fn drain_adjust_flash_queue() -> Vec<f64> {
-    ADJUST_FLASH_QUEUE.with(|q| q.borrow_mut().drain(..).collect())
-}
 
 // Keyframe discovery
 
@@ -211,7 +175,6 @@ pub(super) fn adjust_following_relative_keyframe(
     if !matches!(stmts[insert_idx], Stmt::RelativeKeyframe { .. }) {
         return;
     }
-    let flash_time = compute_keyframe_abs_time(stmts, insert_idx);
     if let Stmt::RelativeKeyframe {
         offset: ref mut next_offset,
         ..
@@ -220,7 +183,6 @@ pub(super) fn adjust_following_relative_keyframe(
         let next_delta_s = time_to_seconds(next_offset);
         let new_next_delta_s = next_delta_s - delta_s;
         if new_next_delta_s >= 0.001 {
-            push_adjust_flash_time(flash_time);
             *next_offset = if new_next_delta_s < 1.0 {
                 Time::Milliseconds((new_next_delta_s * 1000.0).round() as u64)
             } else {

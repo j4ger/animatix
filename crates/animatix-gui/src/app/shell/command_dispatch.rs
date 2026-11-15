@@ -1,17 +1,10 @@
 use std::path::PathBuf;
 
-use animatix_syntax::ast::{Expr, Property, Transition};
-use animatix_syntax::easing::Easing;
-
-use crate::app::commands::{Align, Axis, MoveKeyframeSpec, PropertyEdit, PropertyValue};
-use crate::app::document::timeline_diff::KeyframeId;
-
 use super::*;
 
 impl GuiShell {
     pub(crate) fn handle_command(&mut self, command: Command) -> Vec<Effect> {
         match command {
-            // ── Document / File ───────────────────────────────────────
             Command::OpenFile(path) => self.command_open_file(path),
             Command::Save => self.command_save(),
             Command::Reload => self.command_reload(),
@@ -19,10 +12,8 @@ impl GuiShell {
             Command::Rebuild => self.command_rebuild(),
             Command::ToggleExpandDir(path) => self.command_toggle_expand_dir(path),
             Command::SwitchWorkspace(path) => self.command_switch_workspace(path),
-
-            // ── Playback ──────────────────────────────────────────────
             Command::TogglePlayback => self.command_toggle_playback(),
-            Command::ScrubTo(next_time) => self.command_scrub_to(next_time),
+            Command::ScrubTo(time) => self.command_scrub_to(time),
             Command::PrevKeyframe => self.command_prev_keyframe(),
             Command::NextKeyframe => self.command_next_keyframe(),
             Command::FrameStepForward => self.command_frame_step_forward(),
@@ -32,138 +23,18 @@ impl GuiShell {
             Command::TogglePresentationMode => self.command_toggle_presentation_mode(),
             Command::ToggleEditorSync => self.command_toggle_editor_sync(),
             Command::EditorChanged => self.command_editor_changed(),
-
-            // ── Scene ─────────────────────────────────────────────────
             Command::SelectScene(scene) => self.command_select_scene(scene),
-            Command::ReorderScenes(new_order) => self.command_reorder_scenes(new_order),
-            Command::SetTransition {
-                from_scene,
-                transition,
-            } => self.command_set_transition(from_scene, transition),
-            Command::SetPlayTarget { from_scene, target } => {
-                self.command_set_play_target(from_scene, target)
-            },
-            Command::SetSceneDuration { scene, duration_s } => {
-                self.command_set_scene_duration(scene, duration_s)
-            },
-            Command::DuplicateScene(scene) => self.command_duplicate_scene(scene),
-            Command::DeleteScene(scene) => self.command_delete_scene(scene),
-            Command::AddScene(scene) => self.command_add_scene(scene),
-
-            // ── Actor ─────────────────────────────────────────────────
-            Command::CreateActor {
-                ty,
-                label,
-                position,
-                props,
-            } => self.command_create_actor(ty, label, position, props),
-            Command::RenameActor {
-                old_label,
-                new_label,
-            } => self.command_rename_actor(old_label, new_label),
-            Command::DuplicateActor(original_label) => self.command_duplicate_actor(original_label),
-            Command::DuplicateSelectedActors => self.command_duplicate_selected_actors(),
-            Command::DeleteSelectedActors => self.command_delete_selected_actors(),
-            Command::ReparentActor { actor, new_parent } => {
-                self.command_reparent_actor(actor, new_parent)
-            },
-            Command::ExtractScene {
-                actor_labels,
-                new_scene_name,
-            } => self.command_extract_scene(actor_labels, new_scene_name),
-            Command::MoveToScene {
-                actor_labels,
-                target_scene,
-            } => self.command_move_to_scene(actor_labels, target_scene),
-            Command::ToggleActorVisibility(actor) => self.command_toggle_actor_visibility(actor),
-            Command::ToggleActorLock(actor) => self.command_toggle_actor_lock(actor),
-
-            // ── Property / Inspector ──────────────────────────────────
-            Command::PropertyEdit(edit) => self.command_property_edit(edit),
-            Command::SetConfigProperty { key, value } => {
-                self.command_set_config_property(key, value)
-            },
-            Command::DetachCallout {
-                actor,
-                from,
-                to,
-                label_at,
-            } => self.command_detach_callout(actor, from, to, label_at),
-
-            // ── Keyframe ──────────────────────────────────────────────
-            Command::SetKeyframeEasing {
-                scene,
-                actor,
-                property,
-                time_s,
-                easing,
-            } => self.command_set_keyframe_easing(scene, actor, property, time_s, easing),
-            Command::DeleteKeyframe {
-                scene,
-                actor,
-                property,
-                time_s,
-            } => self.command_delete_keyframe(scene, actor, property, time_s),
-            Command::MoveKeyframe {
-                scene,
-                actor,
-                property,
-                old_time_s,
-                new_time_s,
-            } => self.command_move_keyframe(scene, actor, property, old_time_s, new_time_s),
-            Command::SetKeyframeValue {
-                scene,
-                actor,
-                property,
-                time_s,
-                value,
-            } => self.command_set_keyframe_value(scene, actor, property, time_s, value),
-            Command::MoveKeyframes(specs) => self.command_move_keyframes(specs),
-            Command::DeleteKeyframes(ids) => self.command_delete_keyframes(ids),
-            Command::ResizeAction {
-                verb,
-                targets,
-                old_start_s,
-                new_start_s,
-                new_duration_s,
-            } => {
-                self.command_resize_action(verb, targets, old_start_s, new_start_s, new_duration_s)
-            },
-
-            // ── Clipboard ─────────────────────────────────────────────
-            Command::PasteActors => self.command_paste_actors(),
-
-            // ── Undo / Redo ───────────────────────────────────────────
             Command::Undo => self.command_undo(),
             Command::Redo => self.command_redo(),
-
-            // ── Navigation ────────────────────────────────────────────
             Command::ScrollToLine(line, column) => self.command_scroll_to_line(line, column),
-
-            // ── Viewport ──────────────────────────────────────────────
             Command::ZoomToSelection => self.command_zoom_to_selection(),
             Command::ZoomToAll => self.command_zoom_to_all(),
-
-            // ── Alignment ─────────────────────────────────────────────
-            Command::AlignActors(alignment) => self.command_align_actors(alignment),
-            Command::DistributeActors(axis) => self.command_distribute_actors(axis),
-
-            // ── Group / Ungroup ───────────────────────────────────────
-            Command::GroupSelectedActors => self.command_group_selected_actors(),
-            Command::UngroupSelectedActors => self.command_ungroup_selected_actors(),
-
-            // ── Insertion Palette ─────────────────────────────────────
-            // Snapshot marker only: the palette applies its insertion before
-            // recording this command, so dispatch has nothing left to do.
-            Command::InsertionFromPalette => vec![],
-
-            // ── Find / Replace ────────────────────────────────────────
-            // Handled in place by `perform_find_replace_all`; dispatch is a no-op.
+            // Find/replace applies its edit directly in the modal handler.
             Command::FindReplaceAll => vec![],
         }
     }
 
-    /// Document open flow, including the dirty-document confirmation.
+    /// Open a document after resolving any unsaved source changes.
     fn command_open_file(&mut self, path: PathBuf) -> Vec<Effect> {
         if self.document_store.source.is_dirty() {
             self.ui_store.unsaved_changes.open(
@@ -221,6 +92,13 @@ impl GuiShell {
     }
 
     fn command_reload(&mut self) -> Vec<Effect> {
+        if self.recovery_prompt_pending() {
+            return vec![Effect::Toast(
+                crate::app::components::toast::Toast::warning(
+                    "Choose Recover or Discard before reloading",
+                ),
+            )];
+        }
         if self.document_store.source.is_dirty() {
             self.ui_store
                 .unsaved_changes
@@ -350,349 +228,6 @@ impl GuiShell {
         )
     }
 
-    fn command_reorder_scenes(&mut self, new_order: Vec<String>) -> Vec<Effect> {
-        scene::handle_reorder_scenes(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            new_order,
-        )
-    }
-
-    fn command_set_transition(
-        &mut self,
-        from_scene: String,
-        transition: Transition,
-    ) -> Vec<Effect> {
-        property::handle_set_transition(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            from_scene,
-            transition,
-        )
-    }
-
-    fn command_set_play_target(
-        &mut self,
-        from_scene: String,
-        target: Option<String>,
-    ) -> Vec<Effect> {
-        property::handle_set_play_target(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            from_scene,
-            target,
-        )
-    }
-
-    fn command_set_scene_duration(
-        &mut self,
-        scene: String,
-        duration_s: Option<f64>,
-    ) -> Vec<Effect> {
-        property::handle_set_scene_duration(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            scene,
-            duration_s,
-        )
-    }
-
-    fn command_duplicate_scene(&mut self, scene: String) -> Vec<Effect> {
-        scene::handle_duplicate_scene(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            scene,
-        )
-    }
-
-    fn command_delete_scene(&mut self, scene: String) -> Vec<Effect> {
-        scene::handle_delete_scene(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            scene,
-        )
-    }
-
-    fn command_add_scene(&mut self, scene: String) -> Vec<Effect> {
-        scene::handle_add_scene(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            scene,
-        )
-    }
-
-    fn command_create_actor(
-        &mut self,
-        ty: String,
-        label: String,
-        position: [f32; 2],
-        props: Vec<Property>,
-    ) -> Vec<Effect> {
-        actor::handle_create_actor(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            ty,
-            label,
-            position,
-            props,
-        )
-    }
-
-    fn command_rename_actor(&mut self, old_label: String, new_label: String) -> Vec<Effect> {
-        actor::handle_rename_actor(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            old_label,
-            new_label,
-        )
-    }
-
-    fn command_duplicate_actor(&mut self, original_label: String) -> Vec<Effect> {
-        actor::handle_duplicate_actor(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            original_label,
-        )
-    }
-
-    fn command_duplicate_selected_actors(&mut self) -> Vec<Effect> {
-        let labels: Vec<String> = self.ui_store.selection.selected_actors.iter().cloned().collect();
-        let mut effects = Vec::new();
-        for label in labels {
-            effects.extend(actor::handle_duplicate_actor(
-                &mut self.document_store,
-                &mut self.preview_store,
-                &mut self.ui_store,
-                label,
-            ));
-        }
-        effects
-    }
-
-    fn command_delete_selected_actors(&mut self) -> Vec<Effect> {
-        actor::handle_delete_selected_actors(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-        )
-    }
-
-    fn command_reparent_actor(&mut self, actor: String, new_parent: Option<String>) -> Vec<Effect> {
-        actor::handle_reparent_actor(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            actor,
-            new_parent,
-        )
-    }
-
-    fn command_extract_scene(
-        &mut self,
-        actor_labels: Vec<String>,
-        new_scene_name: String,
-    ) -> Vec<Effect> {
-        actor::handle_extract_scene(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            actor_labels,
-            new_scene_name,
-        )
-    }
-
-    fn command_move_to_scene(
-        &mut self,
-        actor_labels: Vec<String>,
-        target_scene: String,
-    ) -> Vec<Effect> {
-        actor::handle_move_to_scene(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            actor_labels,
-            target_scene,
-        )
-    }
-
-    fn command_toggle_actor_visibility(&mut self, actor: String) -> Vec<Effect> {
-        actor::handle_toggle_actor_visibility(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            actor,
-        )
-    }
-
-    fn command_toggle_actor_lock(&mut self, actor: String) -> Vec<Effect> {
-        actor::handle_toggle_actor_lock(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            actor,
-        )
-    }
-
-    fn command_property_edit(&mut self, edit: PropertyEdit) -> Vec<Effect> {
-        self.handle_property_edit(edit);
-        vec![]
-    }
-
-    fn command_set_config_property(&mut self, key: String, value: Expr) -> Vec<Effect> {
-        property::handle_set_config_property(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            key,
-            value,
-        )
-    }
-
-    fn command_detach_callout(
-        &mut self,
-        actor: String,
-        from: [f32; 2],
-        to: [f32; 2],
-        label_at: [f32; 2],
-    ) -> Vec<Effect> {
-        self.handle_detach_callout(actor, from, to, label_at);
-        vec![]
-    }
-
-    fn command_set_keyframe_easing(
-        &mut self,
-        scene: Option<String>,
-        actor: String,
-        property: String,
-        time_s: f64,
-        easing: Easing,
-    ) -> Vec<Effect> {
-        keyframe::handle_set_keyframe_easing(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            scene,
-            actor,
-            property,
-            time_s,
-            easing,
-        )
-    }
-
-    fn command_delete_keyframe(
-        &mut self,
-        scene: Option<String>,
-        actor: String,
-        property: String,
-        time_s: f64,
-    ) -> Vec<Effect> {
-        keyframe::handle_delete_keyframe(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            scene,
-            actor,
-            property,
-            time_s,
-        )
-    }
-
-    fn command_move_keyframe(
-        &mut self,
-        scene: Option<String>,
-        actor: String,
-        property: String,
-        old_time_s: f64,
-        new_time_s: f64,
-    ) -> Vec<Effect> {
-        keyframe::handle_move_keyframe(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            scene,
-            actor,
-            property,
-            old_time_s,
-            new_time_s,
-        )
-    }
-
-    fn command_set_keyframe_value(
-        &mut self,
-        scene: Option<String>,
-        actor: String,
-        property: String,
-        time_s: f64,
-        value: PropertyValue,
-    ) -> Vec<Effect> {
-        keyframe::handle_set_keyframe_value(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            scene,
-            actor,
-            property,
-            time_s,
-            value,
-        )
-    }
-
-    fn command_move_keyframes(&mut self, specs: Vec<MoveKeyframeSpec>) -> Vec<Effect> {
-        keyframe::handle_move_keyframes(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            specs,
-        )
-    }
-
-    fn command_delete_keyframes(&mut self, ids: Vec<KeyframeId>) -> Vec<Effect> {
-        keyframe::handle_delete_keyframes(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            ids,
-        )
-    }
-
-    fn command_resize_action(
-        &mut self,
-        verb: String,
-        targets: Vec<String>,
-        old_start_s: f64,
-        new_start_s: f64,
-        new_duration_s: f64,
-    ) -> Vec<Effect> {
-        keyframe::handle_resize_action(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            verb,
-            targets,
-            old_start_s,
-            new_start_s,
-            new_duration_s,
-        )
-    }
-
-    fn command_paste_actors(&mut self) -> Vec<Effect> {
-        actor::handle_paste_actors(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-        )
-    }
-
     fn command_undo(&mut self) -> Vec<Effect> {
         ui::handle_undo(&mut self.document_store, &mut self.preview_store, &mut self.ui_store)
     }
@@ -724,38 +259,53 @@ impl GuiShell {
     fn command_zoom_to_all(&mut self) -> Vec<Effect> {
         ui::handle_zoom_to_all(&mut self.preview_store, &self.document_store)
     }
+}
 
-    fn command_align_actors(&mut self, alignment: Align) -> Vec<Effect> {
-        actor::handle_align_actors(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            alignment,
-        )
-    }
+#[cfg(test)]
+mod tests {
+    use std::time::{Duration, SystemTime};
 
-    fn command_distribute_actors(&mut self, axis: Axis) -> Vec<Effect> {
-        actor::handle_distribute_actors(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-            axis,
-        )
-    }
+    use crate::app::commands::{Command, Effect, ShellAction};
+    use crate::app::document::{recovery_path, write_recovery};
+    use crate::app::test_support::TestTempDir;
 
-    fn command_group_selected_actors(&mut self) -> Vec<Effect> {
-        actor::handle_group_selected_actors(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-        )
-    }
+    use super::*;
 
-    fn command_ungroup_selected_actors(&mut self) -> Vec<Effect> {
-        actor::handle_ungroup_selected_actors(
-            &mut self.document_store,
-            &mut self.preview_store,
-            &mut self.ui_store,
-        )
+    #[test]
+    fn reload_keeps_pending_recovery_until_user_decides() {
+        let dir = TestTempDir::new("reload-pending-recovery");
+        let source_path = dir.path().join("scene.amx");
+        let disk_text = "#0s\nbox: Rect, size: (100, 100)\n";
+        let recovery_text = "#0s\nbox: Rect, size: (200, 200)\n";
+        std::fs::write(&source_path, disk_text).expect("write source");
+
+        // Make recovery strictly newer even on filesystems with coarse mtime precision.
+        std::fs::File::options()
+            .write(true)
+            .open(&source_path)
+            .expect("open source")
+            .set_modified(SystemTime::now() - Duration::from_secs(600))
+            .expect("backdate source");
+        write_recovery(&source_path, recovery_text).expect("write recovery sidecar");
+
+        let mut shell = GuiShell::load(source_path.clone(), false);
+        let sidecar = recovery_path(&source_path);
+        assert!(shell.recovery_prompt_pending());
+        assert!(!shell.document_store.source.is_dirty());
+        assert_eq!(std::fs::read_to_string(&sidecar).unwrap(), recovery_text);
+
+        let effects = shell.handle_action(ShellAction::Command(Command::Reload));
+
+        assert!(matches!(
+            effects.first(),
+            Some(Effect::Toast(toast)) if toast.message.contains("before reloading")
+        ));
+        assert!(shell.recovery_prompt_pending());
+        assert_eq!(shell.document_store.source.text(), disk_text);
+        assert_eq!(
+            std::fs::read_to_string(&sidecar).unwrap(),
+            recovery_text,
+            "reload must preserve the only recovery copy until Recover or Discard"
+        );
     }
 }

@@ -28,21 +28,6 @@ pub struct PreviewTransform {
     pub pan: Vec2,
 }
 
-// ─── Drag State ─────────────────────────────────────────────────────────────
-
-/// Active tool mode; handles work in every mode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ToolMode {
-    /// Auto-detect interaction based on cursor position (default).
-    #[default]
-    Select,
-    Move,
-    Scale,
-    Rotate,
-    Vertex,
-    Pivot,
-}
-
 mod handles;
 mod impls;
 #[cfg(test)]

@@ -169,10 +169,6 @@ impl AnimatixApp {
 
     pub(super) fn handle_keyboard_shortcuts(&mut self, ctx: &egui::Context) {
         use crate::app::interaction::keyboard::{FocusContext, KeyboardAction};
-        use crate::app::preview::ToolMode;
-        use crate::app::shell::insertion_palette::PaletteMode;
-
-        let has_selection = !self.shell.ui_store.selection.selected_actors.is_empty();
         let focus = FocusContext {
             text_edit_focused: ctx.text_edit_focused(),
             inline_edit_active: false,
@@ -235,29 +231,6 @@ impl AnimatixApp {
                         .pending_actions
                         .push_back(Command::FrameStepBackward.into());
                 },
-                KeyboardAction::DuplicateSelection => {
-                    for label in self.shell.ui_store.selection.selected_actors.clone().into_iter() {
-                        self.shell
-                            .ui_store
-                            .pending_actions
-                            .push_back(Command::DuplicateActor(label).into());
-                    }
-                },
-                KeyboardAction::DeleteSelection => {
-                    self.handle_delete_selection_shortcut();
-                },
-                KeyboardAction::GroupSelection => {
-                    self.shell
-                        .ui_store
-                        .pending_actions
-                        .push_back(Command::GroupSelectedActors.into());
-                },
-                KeyboardAction::UngroupSelection => {
-                    self.shell
-                        .ui_store
-                        .pending_actions
-                        .push_back(Command::UngroupSelectedActors.into());
-                },
                 KeyboardAction::ZoomToSelection => {
                     self.shell.ui_store.pending_actions.push_back(Command::ZoomToSelection.into());
                 },
@@ -276,48 +249,11 @@ impl AnimatixApp {
                         .pending_actions
                         .push_back(ShellAction::View(ViewAction::OpenFindReplace));
                 },
-                KeyboardAction::SetSelectTool => {
-                    self.shell.ui_store.view.tool_mode = ToolMode::Select;
-                    self.shell.preview_store.preview.status = "Tool: Select".to_string();
-                },
-                KeyboardAction::SetMoveTool => {
-                    self.shell.ui_store.view.tool_mode = ToolMode::Move;
-                    self.shell.preview_store.preview.status = "Tool: Move".to_string();
-                },
-                KeyboardAction::SetScaleTool => {
-                    self.shell.ui_store.view.tool_mode = ToolMode::Scale;
-                    self.shell.preview_store.preview.status = "Tool: Scale".to_string();
-                },
-                KeyboardAction::SetRotateTool => {
-                    self.shell.ui_store.view.tool_mode = ToolMode::Rotate;
-                    self.shell.preview_store.preview.status = "Tool: Rotate".to_string();
-                },
-                KeyboardAction::SetVertexTool => {
-                    self.shell.ui_store.view.tool_mode = ToolMode::Vertex;
-                    self.shell.preview_store.preview.status = "Tool: Vertex".to_string();
-                },
-                KeyboardAction::SetPivotTool => {
-                    self.shell.ui_store.view.tool_mode = ToolMode::Pivot;
-                    self.shell.preview_store.preview.status = "Tool: Pivot".to_string();
-                },
                 KeyboardAction::Escape => {
                     self.handle_escape_shortcut();
                 },
                 KeyboardAction::EditSync => {
                     self.shell.ui_store.pending_actions.push_back(Command::ToggleEditorSync.into());
-                },
-                KeyboardAction::OpenInsertionPalette => {
-                    self.shell.insertion_palette.open(PaletteMode::Universal);
-                },
-                KeyboardAction::CopySelection => {
-                    if has_selection {
-                        self.shell.copy_selected_actors();
-                    }
-                },
-                KeyboardAction::PasteClipboard => {
-                    if !self.shell.ui_store.clipboard.clipboard_actors.is_empty() {
-                        self.shell.ui_store.pending_actions.push_back(Command::PasteActors.into());
-                    }
                 },
                 KeyboardAction::SelectScene(index) => {
                     let scene_names = self.shell.document_store.source.document.scene_names();
@@ -327,9 +263,8 @@ impl AnimatixApp {
                         );
                     }
                 },
-                KeyboardAction::NudgeSelected { dx, dy } => {
-                    self.handle_nudge_shortcut(ctx, has_selection, *dx, *dy);
-                },
+                KeyboardAction::ScrubBackward => self.handle_review_scrub(-1.0),
+                KeyboardAction::ScrubForward => self.handle_review_scrub(1.0),
                 KeyboardAction::ToggleInspector => {
                     self.shell
                         .ui_store
@@ -346,70 +281,24 @@ impl AnimatixApp {
         }
     }
 
-    /// Arrow keys navigate time, even when an evaluated actor is selected.
-    fn handle_nudge_shortcut(
-        &mut self,
-        _ctx: &egui::Context,
-        _has_selection: bool,
-        dx: f32,
-        _dy: f32,
-    ) {
+    /// Arrow keys move the review playhead or step through presentation stops.
+    fn handle_review_scrub(&mut self, direction: f64) {
         let command = if self.shell.preview_store.preview.playback.presentation_mode {
-            if dx > 0.0 {
-                Some(Command::StepNext)
-            } else if dx < 0.0 {
-                Some(Command::StepPrevious)
+            if direction > 0.0 {
+                Command::StepNext
             } else {
-                None
+                Command::StepPrevious
             }
-        } else if dx != 0.0 {
-            Some(Command::ScrubTo(
+        } else {
+            Command::ScrubTo(
                 self.shell.preview_store.preview.playback.current_time_s()
-                    + dx as f64 * self.shell.ui_store.scrub_step_s,
-            ))
-        } else {
-            None
+                    + direction * self.shell.ui_store.scrub_step_s,
+            )
         };
-        if let Some(command) = command {
-            self.shell.ui_store.pending_actions.push_back(command.into());
-        }
+        self.shell.ui_store.pending_actions.push_back(command.into());
     }
 
-    /// Delete selected keyframes when the timeline is focused, else selected actors.
-    fn handle_delete_selection_shortcut(&mut self) {
-        // When the timeline panel is focused, delete selected keyframes
-        // instead of selected actors. The Canvas scope already guards
-        // against firing while text fields/inspector inputs are active.
-        if self.shell.ui_store.view.timeline_focused
-            && !self.shell.ui_store.selection.selected_keyframes.is_empty()
-        {
-            for keyframe in self.shell.ui_store.selection.selected_keyframes.clone() {
-                let crate::app::document::timeline_diff::KeyframeId {
-                    scene,
-                    actor,
-                    property,
-                    time_ms,
-                } = keyframe;
-                self.shell.ui_store.pending_actions.push_back(
-                    Command::DeleteKeyframe {
-                        scene,
-                        actor,
-                        property,
-                        time_s: time_ms as f64 / 1000.0,
-                    }
-                    .into(),
-                );
-            }
-            self.shell.ui_store.selection.selected_keyframes.clear();
-        } else {
-            self.shell
-                .ui_store
-                .pending_actions
-                .push_back(Command::DeleteSelectedActors.into());
-        }
-    }
-
-    /// Escape: leave presentation mode, cancel a marquee, or return to selection.
+    /// Escape: leave presentation mode or cancel a marquee selection.
     fn handle_escape_shortcut(&mut self) {
         apply_escape_shortcut(&mut self.shell.ui_store, &mut self.shell.preview_store.preview);
     }
@@ -584,15 +473,11 @@ fn apply_escape_shortcut(
     ui_store: &mut crate::app::stores::UiStore,
     preview: &mut crate::app::PreviewPaneState,
 ) {
-    use crate::app::preview::ToolMode;
     if preview.playback.presentation_mode {
         ui_store.pending_actions.push_back(Command::TogglePresentationMode.into());
     } else if ui_store.selection.selection.marquee_start.take().is_some() {
         ui_store.selection.selection.marquee_current = None;
         preview.status = "Selection cancelled".to_string();
-    } else if ui_store.view.tool_mode != ToolMode::Select {
-        ui_store.view.tool_mode = ToolMode::Select;
-        preview.status = "Tool: Select".to_string();
     }
 }
 

@@ -454,11 +454,7 @@ pub(crate) fn load_workspace_persistence(path: &Path) -> Option<WorkspacePersist
 pub(crate) struct SettingsPersistence {
     pub rebuild_debounce_ms: u64,
     pub scrub_step_s: f64,
-    pub nudge_step_px: f32,
-    pub nudge_step_shift_px: f32,
-    pub rotation_snap_degrees: f32,
     pub snap_fps: f32,
-    pub keyframe_merge_window_s: f64,
     pub undo_limit: usize,
     pub grid_size: f32,
     /// IDE appearance: "auto" | "light" | "dark". Defaults to "auto".

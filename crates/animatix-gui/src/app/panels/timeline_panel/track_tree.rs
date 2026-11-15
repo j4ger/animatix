@@ -1,13 +1,10 @@
-//! Timeline tree hierarchy rendering: left sidebar label column, actor tree, collapse/expand,
-//! visibility/lock/solo controls.
+//! Timeline tree hierarchy rendering: actor selection and row expansion.
 
 use std::collections::HashSet;
 
-use animatix::timeline::{ActorField, PropertyValue, Timeline};
+use animatix::timeline::Timeline;
 use egui::{Align2, Color32, Pos2, Rect, Sense, Vec2};
 
-use crate::app::commands::{ActionQueue, Command, PropertyEdit};
-use crate::app::components::text_tooltip;
 use crate::app::design_tokens::spatial::Spatial;
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::utils::text::elide_to_width;
@@ -57,10 +54,6 @@ pub(crate) struct ActorRowHeaderLayout<'a> {
     pub prop_expanded: bool,
 }
 
-/// Width and gap of one eye/solo/lock icon in the right-aligned strip.
-const ICON_W: f32 = 16.0;
-const ICON_GAP: f32 = 2.0;
-
 impl ActorRowHeaderLayout<'_> {
     /// Full row rect across every column.
     fn track_rect(&self) -> Rect {
@@ -76,11 +69,6 @@ impl ActorRowHeaderLayout<'_> {
             Pos2::new(self.scroll_rect.left(), self.at_top),
             Pos2::new(self.bar_origin_x, self.at_bot),
         )
-    }
-
-    /// Left edge of the eye/solo/lock strip.
-    fn icon_strip_left(&self, sp: &Spatial) -> f32 {
-        self.bar_origin_x - sp.base.space_2 - (ICON_W * 3.0 + ICON_GAP * 2.0)
     }
 }
 
@@ -199,12 +187,7 @@ fn render_actor_label(
     let painter = ui.painter();
     let actor_label = layout.actor_label;
     let track_rect = layout.track_rect();
-    let icon_strip_left = layout.icon_strip_left(sp);
-
-    // Elide to the icon strip, not to a fixed character count: solo/eye/lock
-    // claim a fixed slice of the label column, so a character-count cut still
-    // runs long names under the icons.
-    let label_max_w = (icon_strip_left - sp.base.space_2 - label_x).max(24.0);
+    let label_max_w = (layout.bar_origin_x - sp.base.space_2 - label_x).max(24.0);
     let label_font = TextRole::BodyS.font_id();
     let label_text = elide_to_width(actor_label, label_max_w, |candidate| {
         painter
@@ -252,155 +235,13 @@ fn render_actor_label(
     }
 }
 
-/// Eye / solo / lock controls, right-aligned in the label column.
-fn render_actor_state_controls(
-    ui: &egui::Ui,
-    layout: &ActorRowHeaderLayout<'_>,
-    timeline: Option<&Timeline>,
-    commands: &mut ActionQueue,
-    theme: eparts::Theme,
-    sp: &Spatial,
-) {
-    let painter = ui.painter();
-    let actor_label = layout.actor_label;
-    let icon_strip_left = layout.icon_strip_left(sp);
-    let icon_size = Vec2::new(ICON_W, sp.timeline.track_row_height - 4.0);
-    let lock_rect = Rect::from_min_size(
-        Pos2::new(layout.bar_origin_x - sp.base.space_2 - ICON_W, layout.at_top + 2.0),
-        icon_size,
-    );
-    let eye_rect = Rect::from_min_size(
-        Pos2::new(lock_rect.left() - ICON_GAP - ICON_W, layout.at_top + 2.0),
-        icon_size,
-    );
-    let solo_rect = Rect::from_min_size(
-        Pos2::new(eye_rect.left() - ICON_GAP - ICON_W, layout.at_top + 2.0),
-        icon_size,
-    );
-    debug_assert!(
-        (solo_rect.left() - icon_strip_left).abs() < 0.5,
-        "label clip must match the icon strip"
-    );
-
-    let Some(id) = timeline.and_then(|tl| tl.get_entity_id(actor_label)) else {
-        return;
-    };
-
-    let visible = timeline.is_some_and(|t| t.is_actor_visible(actor_label));
-    let eye_icon = if visible {
-        egui_phosphor::regular::EYE
-    } else {
-        egui_phosphor::regular::EYE_CLOSED
-    };
-    let eye_resp =
-        ui.interact(eye_rect, ui.scope_id().with(("actor_eye", actor_label)), Sense::click());
-    painter.text(
-        eye_rect.center(),
-        Align2::CENTER_CENTER,
-        eye_icon,
-        TextRole::BodyS.font_id(),
-        if !visible {
-            theme.palette.text.disabled
-        } else if eye_resp.hovered() {
-            theme.palette.text.primary
-        } else {
-            theme.palette.text.secondary
-        },
-    );
-    text_tooltip(
-        ui,
-        eye_resp.id.with("tooltip"),
-        &eye_resp,
-        if visible { "Hide layer" } else { "Show layer" },
-    );
-    if eye_resp.clicked() {
-        commands.push_back(Command::ToggleActorVisibility(actor_label.to_string()).into());
-    }
-
-    // Solo is authored state (`solo: true` in the declaration).
-    let solo = matches!(
-        timeline.and_then(|tl| tl.world().read_property_value(id, ActorField::Tagged("solo"), 0)),
-        Some(PropertyValue::Bool(true))
-    );
-    let solo_resp =
-        ui.interact(solo_rect, ui.scope_id().with(("actor_solo", actor_label)), Sense::click());
-    painter.text(
-        solo_rect.center(),
-        Align2::CENTER_CENTER,
-        egui_phosphor::regular::HEADPHONES,
-        TextRole::BodyS.font_id(),
-        if solo {
-            theme.palette.status.warning
-        } else if solo_resp.hovered() {
-            theme.palette.text.primary
-        } else {
-            theme.palette.text.disabled
-        },
-    );
-    text_tooltip(
-        ui,
-        solo_resp.id.with("tooltip"),
-        &solo_resp,
-        if solo {
-            "Unsolo layer"
-        } else {
-            "Solo layer (hides every other layer)"
-        },
-    );
-    if solo_resp.clicked() {
-        commands.push_back(
-            Command::PropertyEdit(PropertyEdit::new(
-                actor_label.to_string(),
-                "solo".to_string(),
-                PropertyValue::Bool(!solo),
-                false,
-                None,
-            ))
-            .into(),
-        );
-    }
-
-    let locked = timeline.is_some_and(|t| t.is_actor_locked(actor_label));
-    let lock_icon = if locked {
-        egui_phosphor::regular::LOCK_KEY
-    } else {
-        egui_phosphor::regular::LOCK_KEY_OPEN
-    };
-    let lock_resp =
-        ui.interact(lock_rect, ui.scope_id().with(("actor_lock", actor_label)), Sense::click());
-    painter.text(
-        lock_rect.center(),
-        Align2::CENTER_CENTER,
-        lock_icon,
-        TextRole::BodyS.font_id(),
-        if locked {
-            theme.palette.status.warning
-        } else if lock_resp.hovered() {
-            theme.palette.text.primary
-        } else {
-            theme.palette.text.disabled
-        },
-    );
-    text_tooltip(
-        ui,
-        lock_resp.id.with("tooltip"),
-        &lock_resp,
-        if locked { "Unlock layer" } else { "Lock layer" },
-    );
-    if lock_resp.clicked() {
-        commands.push_back(Command::ToggleActorLock(actor_label.to_string()).into());
-    }
-}
-
-/// Render the left header column of an actor track row (label, tree chevron, expand toggle, eye/solo/lock).
+/// Render the left header column of an actor track row and its selection affordance.
 pub(crate) fn render_actor_row_header(
     ui: &mut egui::Ui,
     layout: &ActorRowHeaderLayout<'_>,
-    timeline: Option<&Timeline>,
     collapsed_actors: &mut HashSet<String>,
     expanded_properties: &mut HashSet<String>,
     selected_actors: &mut HashSet<String>,
-    commands: &mut ActionQueue,
     theme: eparts::Theme,
     sp: &Spatial,
 ) {
@@ -417,8 +258,6 @@ pub(crate) fn render_actor_row_header(
 
     let label_x = prop_toggle_x + 16.0 + sp.base.space_2;
     render_actor_label(ui, layout, label_x, selected_actors, theme, sp);
-
-    render_actor_state_controls(ui, layout, timeline, commands, theme, sp);
 }
 
 /// Render the left header column of an expanded property lane row (colored dot, indented property name).

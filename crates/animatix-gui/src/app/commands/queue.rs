@@ -67,77 +67,9 @@ impl Command {
 
             // ── Scene ────────────────────────────────────────────────
             Self::SelectScene(scene) => format!("Select scene '{scene}'"),
-            Self::ReorderScenes(_) => "Reorder scenes".to_string(),
-            Self::SetTransition { from_scene, .. } => {
-                format!("Set transition on '{from_scene}'")
-            },
-            Self::SetPlayTarget { from_scene, .. } => {
-                format!("Set play target on '{from_scene}'")
-            },
-            Self::SetSceneDuration { scene, .. } => {
-                format!("Set duration for scene '{scene}'")
-            },
-            Self::DuplicateScene(scene) => format!("Duplicate scene '{scene}'"),
-            Self::DeleteScene(scene) => format!("Delete scene '{scene}'"),
-            Self::AddScene(scene) => format!("Add scene '{scene}'"),
-
-            // ── Actor ────────────────────────────────────────────────
-            Self::CreateActor { ty, label, .. } => format!("Create {ty} '{label}'"),
-            Self::RenameActor {
-                old_label,
-                new_label,
-            } => {
-                format!("Rename '{old_label}' to '{new_label}'")
-            },
-            Self::DuplicateActor(actor) => format!("Duplicate actor '{actor}'"),
-            Self::DuplicateSelectedActors => "Duplicate selected actors".to_string(),
-            Self::DeleteSelectedActors => "Delete selected actors".to_string(),
-            Self::ReparentActor { actor, .. } => format!("Reparent '{actor}'"),
-            Self::ExtractScene { new_scene_name, .. } => {
-                format!("Extract scene '{new_scene_name}'")
-            },
-            Self::MoveToScene { target_scene, .. } => {
-                format!("Move actors to scene '{target_scene}'")
-            },
-            Self::ToggleActorVisibility(actor) => format!("Toggle visibility of '{actor}'"),
-            Self::ToggleActorLock(actor) => format!("Toggle lock of '{actor}'"),
-
-            // ── Property / Inspector ─────────────────────────────────
-            Self::PropertyEdit(edit) => format!("Edit {}.{}", edit.actor, edit.property),
-            Self::DetachCallout { actor, .. } => format!("Detach callout '{actor}'"),
-            Self::SetConfigProperty { key, .. } => format!("Set config '{key}'"),
-
-            // ── Keyframe ─────────────────────────────────────────────
-            Self::SetKeyframeEasing {
-                actor, property, ..
-            } => {
-                format!("Set easing for {actor}.{property}")
-            },
-            Self::DeleteKeyframe {
-                actor, property, ..
-            } => {
-                format!("Delete keyframe {actor}.{property}")
-            },
-            Self::MoveKeyframe {
-                actor, property, ..
-            } => {
-                format!("Move keyframe {actor}.{property}")
-            },
-            Self::SetKeyframeValue {
-                actor, property, ..
-            } => {
-                format!("Set keyframe {actor}.{property}")
-            },
-            Self::MoveKeyframes(specs) => format!("Move {} keyframes", specs.len()),
-            Self::DeleteKeyframes(ids) => format!("Delete {} keyframes", ids.len()),
-            Self::ResizeAction { verb, .. } => format!("Resize {verb}"),
-
             // ── Editor sync modes ────────────────────────────────────
             Self::ToggleEditorSync => "Toggle editor sync".to_string(),
             Self::EditorChanged => "Editor changed".to_string(),
-
-            // ── Clipboard ────────────────────────────────────────────
-            Self::PasteActors => "Paste actors".to_string(),
 
             // ── Undo / Redo ──────────────────────────────────────────
             Self::Undo => "Undo".to_string(),
@@ -149,17 +81,6 @@ impl Command {
             // ── Viewport ─────────────────────────────────────────────
             Self::ZoomToSelection => "Zoom to selection".to_string(),
             Self::ZoomToAll => "Zoom to fit".to_string(),
-
-            // ── Alignment ────────────────────────────────────────────
-            Self::AlignActors(alignment) => format!("Align actors ({alignment:?})"),
-            Self::DistributeActors(axis) => format!("Distribute actors ({axis:?})"),
-
-            // ── Group / Ungroup ──────────────────────────────────────
-            Self::GroupSelectedActors => "Group selected actors".to_string(),
-            Self::UngroupSelectedActors => "Ungroup selected actors".to_string(),
-
-            // ── Insertion Palette ────────────────────────────────────
-            Self::InsertionFromPalette => "Insert from palette".to_string(),
 
             // ── Find / Replace ───────────────────────────────────────
             Self::FindReplaceAll => "Replace all".to_string(),

@@ -1,17 +1,13 @@
-//! Timeline track lanes rendering: scene tracks, speech/transcript tracks, action blocks,
-//! and empty property lane affordances.
+//! Timeline track lanes rendering: static action blocks and speech/transcript review.
 
 use animatix::timeline::Timeline;
-use egui::{Align2, Color32, FontId, Pos2, Rect, Sense, Stroke};
+use egui::{Align2, FontId, Pos2, Rect, Sense, Stroke};
 
 use super::TimelineCoords;
 use crate::app::PreviewPaneState;
-use crate::app::commands::{ActionQueue, Command, PropertyEdit, ShellAction};
-use crate::app::components::text_tooltip;
-use crate::app::design_tokens::spatial::timeline::KF_HALF as KF_DIAMOND_HALF;
+use crate::app::commands::{ActionQueue, Command};
 use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH, Spatial};
 use crate::app::design_tokens::typography::TextRole;
-use crate::app::document::timeline_diff::lane_schema;
 
 mod impls;
 
@@ -76,24 +72,10 @@ pub(crate) const PROPERTY_GROUPS: &[(PropertyGroup, &str, &[&str])] = &[
     ),
 ];
 
-/// Action block edge for resizing.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) enum Edge {
-    Left,
-    Right,
-}
-
-/// Action block drag state tuple:
-/// `(track_idx, event_start_ms, edge, initial_pointer_x, original_start_s, original_duration_s)`
-pub(crate) type ActionDragState = (usize, u64, Edge, f32, f64, f64);
-
-/// Render colored block segments for each scene in a composition track,
-/// with a keyframe density strip and duration label inside each block.
+/// Render static, colored action blocks with their duration labels.
 mod action;
-mod empty;
 mod speech;
 
 pub(crate) use action::render_action_blocks;
-pub(crate) use empty::render_empty_property_lane;
 pub(crate) use impls::{action_category_color, property_group_color, property_group_for_prop};
 pub(crate) use speech::{render_speech_track, speech_row_count};

@@ -46,23 +46,6 @@ impl SourceStore {
         self.cache_valid = false;
     }
 
-    /// Apply pre-computed source text and source index to the document.
-    ///
-    /// Callers compute `(stmts_to_source(stmts), SourceIndex::build(stmts))` while
-    /// holding the `stmts` borrow, then call this after the borrow ends.
-    pub fn commit_source(
-        &mut self,
-        new_source: String,
-        source_index: animatix_syntax::source_index::SourceIndex,
-    ) {
-        self.source_epoch = self.source_epoch.next();
-        self.document.source_text = new_source.clone();
-        self.document.is_dirty = true;
-        self.editor.replace_text(new_source);
-        self.document.source_index = Some(source_index);
-        self.invalidate_cache();
-    }
-
     pub fn text(&self) -> &str {
         &self.document.source_text
     }

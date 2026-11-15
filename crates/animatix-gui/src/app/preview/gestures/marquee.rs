@@ -88,8 +88,7 @@ mod tests {
     use super::*;
     use crate::app::commands::ActionQueue;
     use crate::app::preview::{
-        ToolMode, context::PreviewContext, performance::PerformanceMetrics,
-        selection::SelectionState,
+        context::PreviewContext, performance::PerformanceMetrics, selection::SelectionState,
     };
     use std::collections::HashSet;
 
@@ -108,7 +107,6 @@ mod tests {
             ("inside".to_owned(), kurbo::Rect::new(20.0, 20.0, 30.0, 30.0)),
             ("outside".to_owned(), kurbo::Rect::new(80.0, 80.0, 90.0, 90.0)),
         ];
-        let mut tool = ToolMode::Select;
         let mut performance = PerformanceMetrics::new();
         let mut ctx = PreviewContext {
             scene_dimensions: dimensions,
@@ -119,7 +117,6 @@ mod tests {
             selected_actors: &mut selected,
             hit_regions: &regions,
             timeline: None,
-            tool_mode: &mut tool,
             composition: None,
             active_scene: None,
             performance_metrics: &mut performance,

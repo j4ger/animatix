@@ -61,39 +61,6 @@ const SHORTCUT_GROUPS: &[(&str, &[CheatSheetEntry])] = &[
         "Selection",
         &[
             CheatSheetEntry::Gesture {
-                key: "Esc",
-                desc: "Select (default)",
-            },
-            CheatSheetEntry::Bindings {
-                names: &["Select Tool"],
-                desc: "Select",
-            },
-            CheatSheetEntry::Bindings {
-                names: &["Move Tool"],
-                desc: "Move",
-            },
-            CheatSheetEntry::Bindings {
-                names: &["Scale Tool"],
-                desc: "Scale",
-            },
-            CheatSheetEntry::Bindings {
-                names: &["Rotate Tool"],
-                desc: "Rotate",
-            },
-            CheatSheetEntry::Bindings {
-                names: &["Vertex Tool"],
-                desc: "Vertex edit",
-            },
-            CheatSheetEntry::Bindings {
-                names: &["Pivot Tool"],
-                desc: "Pivot",
-            },
-        ],
-    ),
-    (
-        "Canvas",
-        &[
-            CheatSheetEntry::Gesture {
                 key: "Drag",
                 desc: "Marquee selection",
             },
@@ -109,6 +76,11 @@ const SHORTCUT_GROUPS: &[(&str, &[CheatSheetEntry])] = &[
                 key: "Alt + click",
                 desc: "Locate source",
             },
+        ],
+    ),
+    (
+        "Canvas",
+        &[
             CheatSheetEntry::Gesture {
                 key: "Middle-drag",
                 desc: "Pan canvas",
@@ -142,9 +114,9 @@ const SHORTCUT_GROUPS: &[(&str, &[CheatSheetEntry])] = &[
                 names: &["Scene 1", "Scene 2", "Scene 3"],
                 desc: "Jump to scene",
             },
-            CheatSheetEntry::Gesture {
-                key: "\u{2190} / \u{2192}",
-                desc: "Scrub timeline",
+            CheatSheetEntry::Bindings {
+                names: &["Scrub Backward", "Scrub Forward"],
+                desc: "Scrub in small steps",
             },
         ],
     ),
@@ -160,14 +132,6 @@ const SHORTCUT_GROUPS: &[(&str, &[CheatSheetEntry])] = &[
                 desc: "Undo / Redo",
             },
             CheatSheetEntry::Bindings {
-                names: &["Copy", "Paste"],
-                desc: "Copy / Paste actors",
-            },
-            CheatSheetEntry::Bindings {
-                names: &["Duplicate"],
-                desc: "Duplicate selected",
-            },
-            CheatSheetEntry::Bindings {
                 names: &["Reload", "Rebuild"],
                 desc: "Reload / Rebuild",
             },
@@ -176,31 +140,16 @@ const SHORTCUT_GROUPS: &[(&str, &[CheatSheetEntry])] = &[
                 desc: "Find / Replace",
             },
             CheatSheetEntry::Bindings {
-                names: &["Group", "Ungroup"],
-                desc: "Group / Ungroup",
-            },
-            CheatSheetEntry::Bindings {
                 names: &["Command Palette"],
                 desc: "Command palette",
-            },
-            CheatSheetEntry::Bindings {
-                names: &[
-                    "Insertion Palette (Actions)",
-                    "Insertion Palette (Universal)",
-                ],
-                desc: "Insertion palette",
             },
             CheatSheetEntry::Bindings {
                 names: &["Editor Sync"],
                 desc: "Toggle editor sync",
             },
             CheatSheetEntry::Bindings {
-                names: &["Delete"],
-                desc: "Delete selected",
-            },
-            CheatSheetEntry::Bindings {
                 names: &["Escape"],
-                desc: "Deselect / Select tool",
+                desc: "Cancel selection / presentation",
             },
         ],
     ),

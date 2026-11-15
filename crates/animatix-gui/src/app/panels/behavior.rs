@@ -3,13 +3,13 @@ use std::collections::HashSet;
 use egui::{Color32, Rect, Stroke, Visuals};
 use egui_tiles::{Behavior, SimplificationOptions, TileId, UiResponse};
 
+use crate::app::WorkspaceTab;
 use crate::app::commands::ActionQueue;
 use crate::app::design_tokens::spatial::STROKE_WIDTH;
 use crate::app::design_tokens::spatial::timeline::RULER_HEIGHT as TIMELINE_RULER_HEIGHT;
 use crate::app::panels::{curves_panel, editor, inspector, preview_panel, sidebar, timeline_panel};
 use crate::app::preview::selection;
 use crate::app::stores::{DocumentStore, PreviewStore, WorkspaceStore};
-use crate::app::{WorkspaceTab, preview};
 
 pub(crate) struct WorkspaceBehavior<'a> {
     pub(crate) document_store: &'a mut DocumentStore,
@@ -22,17 +22,14 @@ pub(crate) struct WorkspaceBehavior<'a> {
     pub(crate) selected_actors: &'a mut HashSet<String>,
     pub(crate) hit_regions: &'a [(String, kurbo::Rect)],
     pub(crate) selection: &'a mut selection::SelectionState,
-    pub(crate) tool_mode: &'a mut preview::ToolMode,
+    pub(crate) selected_keyframes: &'a mut Vec<crate::app::document::timeline_diff::KeyframeId>,
     pub(crate) sidebar_tab: &'a mut crate::app::panels::SidebarTab,
     /// True when the window is narrow enough for the compact sidebar icon rail.
     pub(crate) compact: bool,
     /// Compact-mode overlay drawer slot (opened by the sidebar rail).
     pub(crate) compact_drawer: &'a mut Option<crate::app::panels::CompactDrawer>,
-    pub(crate) snap_fps: f32,
     pub(crate) debug_layout: bool,
     pub(crate) debug_spacing: bool,
-    /// Set by the timeline panel each frame; true when the panel has pointer interaction.
-    pub(crate) timeline_focused: &'a mut bool,
 }
 
 impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
@@ -93,7 +90,6 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     selected_actors: self.selected_actors,
                     hit_regions: self.hit_regions,
                     timeline: active_tl,
-                    tool_mode: self.tool_mode,
                     composition: self.document_store.source.document.composition.as_ref(),
                     active_scene: self.document_store.source.document.active_scene.as_deref(),
                     performance_metrics: &mut self.preview_store.performance_metrics,
@@ -176,8 +172,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     collapsed_actors: self.collapsed_actors,
                     expanded_properties: self.expanded_properties,
                     selected_actors: self.selected_actors,
-                    snap_fps: self.snap_fps,
-                    timeline_focused: self.timeline_focused,
+                    selected_keyframes: self.selected_keyframes,
                 };
                 timeline_panel::render_timeline_content(&mut ctx, ui);
             },

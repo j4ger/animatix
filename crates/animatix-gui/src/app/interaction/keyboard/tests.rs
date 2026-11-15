@@ -154,12 +154,24 @@ fn shortcut_for_save_returns_ctrl_s() {
 fn shortcut_for_payload_variant_matches_discriminant() {
     let registry = ShortcutRegistry::new();
     for (action, expected) in [
-        (KeyboardAction::NudgeSelected { dx: 0.0, dy: 0.0 }, Key::ArrowLeft),
         (KeyboardAction::SelectScene(0), Key::Num1),
         (KeyboardAction::SelectScene(99), Key::Num1),
     ] {
         assert_eq!(registry.shortcut_for(&action).unwrap().logical_key, expected, "{action:?}");
     }
+}
+
+#[test]
+fn arrow_shortcuts_scrub_the_review_timeline() {
+    let registry = ShortcutRegistry::new();
+    assert_eq!(
+        registry.shortcut_for(&KeyboardAction::ScrubBackward).unwrap().logical_key,
+        Key::ArrowLeft
+    );
+    assert_eq!(
+        registry.shortcut_for(&KeyboardAction::ScrubForward).unwrap().logical_key,
+        Key::ArrowRight
+    );
 }
 
 #[test]
@@ -170,10 +182,10 @@ fn shortcuts_for_name_returns_all_redo_bindings() {
 }
 
 #[test]
-fn only_review_tool_shortcuts_are_available() {
+fn writer_shortcuts_are_not_registered() {
     let registry = ShortcutRegistry::new();
-    assert_eq!(registry.shortcuts_for_name("Select Tool").len(), 1);
     for name in [
+        "Select Tool",
         "Move Tool",
         "Scale Tool",
         "Rotate Tool",
@@ -181,14 +193,14 @@ fn only_review_tool_shortcuts_are_available() {
         "Pivot Tool",
         "Delete",
         "Duplicate",
+        "Group",
+        "Ungroup",
+        "Copy",
+        "Paste",
+        "Insert Primitive",
     ] {
         assert!(registry.shortcuts_for_name(name).is_empty(), "{name} must not be available");
     }
-    assert!(registry.shortcut_for(&KeyboardAction::SetVertexTool).is_none());
-    assert_eq!(
-        registry.shortcut_for(&KeyboardAction::SetSelectTool).unwrap().logical_key,
-        Key::V
-    );
 }
 
 #[test]

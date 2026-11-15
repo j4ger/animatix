@@ -120,11 +120,7 @@ impl GuiShell {
         if let Some(s) = persistence.as_ref().and_then(|p| p.settings.as_ref()) {
             ui_store.rebuild_debounce_ms = s.rebuild_debounce_ms;
             ui_store.scrub_step_s = s.scrub_step_s;
-            ui_store.nudge_step_px = s.nudge_step_px;
-            ui_store.nudge_step_shift_px = s.nudge_step_shift_px;
-            ui_store.rotation_snap_degrees = s.rotation_snap_degrees;
             ui_store.snap_fps = s.snap_fps;
-            ui_store.keyframe_merge_window_s = s.keyframe_merge_window_s;
             preview.overlay.grid_size = s.grid_size;
             ui_store.view.app_theme = match s.app_theme.as_str() {
                 "light" => eparts::AppThemeChoice::Light,
@@ -179,7 +175,6 @@ impl GuiShell {
             pending_open: None,
             plugin_manager,
             external_commands: CommandQueue::new(),
-            insertion_palette: InsertionPalette::default(),
             shortcut_registry,
             window_size,
             window_maximized,

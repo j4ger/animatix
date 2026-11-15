@@ -597,9 +597,10 @@ Colorschemes provide declarative color contracts with two pieces:
 
 The workbench is code-first: scene changes come from the source editor or an
 external editor. Inspection, canvas selection, timeline navigation and source
-jumps do not mutate the scene. `Command::allowed_in_workbench` rejects legacy
-property, keyframe, insertion-palette and structural-edit commands before they
-reach the executor. See [GUI workbench](gui-workbench.md) for the current UI.
+jumps do not mutate the scene. The command vocabulary contains source-editor,
+file, playback and review operations; legacy property, keyframe, insertion-palette
+and structural-edit commands and their GUI writers have been retired.
+See [GUI workbench](gui-workbench.md) for the current UI.
 
 The crate retains a semantic `source_edit/` API and AST serialization machinery.
 These are implementation capabilities, not currently exposed inspector or

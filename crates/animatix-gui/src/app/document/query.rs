@@ -1,9 +1,8 @@
 //! Session queries: active timeline/scene resolution and keyframe lookup.
 
-use animatix::timeline::{Timeline, TimelineIndex};
+use animatix::timeline::Timeline;
 
 use super::DocumentSession;
-use super::timing::timeline_keyframe_times_s;
 
 impl DocumentSession {
     /// Find the 0-indexed source line of the keyframe whose absolute time
@@ -11,38 +10,6 @@ impl DocumentSession {
     pub fn find_keyframe_line_at(&self, time_s: f64) -> Option<usize> {
         self.active_timeline()?;
         self.timeline_index.line_for_time((time_s * 1000.0) as u64)
-    }
-
-    /// Find the absolute time of the keyframe immediately before `time_s`.
-    pub fn prev_keyframe_time(&self, time_s: f64) -> f64 {
-        let scene = self.active_scene.as_deref();
-        let keyframes = if let Some(composition) = self.composition.as_ref() {
-            let Some(scene_name) = scene else {
-                return 0.0;
-            };
-            let Some(scene) = composition.scenes.get(scene_name) else {
-                return 0.0;
-            };
-            scene.timeline.keyframe_times_s()
-        } else {
-            timeline_keyframe_times_s(self.active_timeline(), None, scene)
-        };
-        if !keyframes.is_empty() {
-            return keyframes.into_iter().rev().find(|t| *t <= time_s).unwrap_or(0.0);
-        }
-
-        self.timeline_index
-            .prev_keyframe_time((time_s * 1000.0) as u64)
-            .map(|ms| ms as f64 / 1000.0)
-            .unwrap_or(0.0)
-    }
-
-    /// Rescan source text for keyframes and update cached maps.
-    /// Call this after direct source text modifications (e.g. keyframe insertion)
-    /// so the editor decorations stay in sync before the next rebuild.
-    pub fn rescan_keyframe_lines(&mut self) {
-        self.timeline_index = TimelineIndex::build(&self.source_text);
-        self.keyframe_lines = self.timeline_index.keyframes.iter().map(|(_, line)| *line).collect();
     }
 
     pub fn is_composition(&self) -> bool {
@@ -104,40 +71,6 @@ impl DocumentSession {
             scene_name: Some(scene_name),
             duration_s: scene.duration_s.max(0.1),
             dimensions: self.scene_dimensions,
-        })
-    }
-
-    /// Returns a mutable `ActiveTimelineMut` for editing the active scene.
-    /// For single-scene documents, returns the sole timeline mutably.
-    /// For compositions, resolves the active scene similarly.
-    pub fn active_timeline_mut(
-        &mut self,
-    ) -> Option<crate::app::document::active_timeline::ActiveTimelineMut<'_>> {
-        use crate::app::document::active_timeline::{ActiveSceneId, ActiveTimelineMut};
-
-        if let Some(timeline) = self.timeline.as_mut() {
-            return Some(ActiveTimelineMut {
-                id: ActiveSceneId::SingleScene,
-                timeline,
-                scene_name: None,
-            });
-        }
-
-        let composition = self.composition.as_mut()?;
-        let scene_name = self
-            .active_scene
-            .clone()
-            .or_else(|| composition.declaration_order.first().cloned())
-            .or_else(|| composition.scenes.keys().next().cloned())?;
-
-        if !composition.scenes.contains_key(&scene_name) {
-            return None;
-        }
-        let scene = composition.scenes.get_mut(&scene_name)?;
-        Some(ActiveTimelineMut {
-            id: ActiveSceneId::Scene(scene_name.clone()),
-            timeline: &mut scene.timeline,
-            scene_name: Some(scene_name),
         })
     }
 

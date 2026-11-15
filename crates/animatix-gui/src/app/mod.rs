@@ -1,16 +1,13 @@
-mod actions;
 pub(crate) mod audio;
 pub(crate) mod commands;
 pub(crate) mod components;
 pub mod design_tokens;
 mod dialogs;
 pub(crate) mod document;
-mod document_controller;
 mod drawers;
 mod file_tree;
 pub(crate) mod handlers;
 pub(crate) mod icons;
-pub(crate) mod insertion;
 pub(crate) mod interaction;
 mod layout_preset;
 pub(crate) mod panels;
@@ -19,7 +16,6 @@ mod persistence;
 mod playback;
 pub(crate) mod preview;
 mod preview_pane;
-pub(crate) mod primitives;
 mod runtime;
 pub(crate) mod shell;
 pub(crate) mod stores;
@@ -58,7 +54,6 @@ use crate::app::document::plugins::DocumentPluginManager;
 use crate::app::document::rebuild::RebuildWorker;
 use crate::app::document::{DocumentSession, default_file_path};
 use crate::app::interaction::keyboard::ShortcutRegistry;
-use crate::app::shell::insertion_palette::InsertionPalette;
 use crate::app::stores::*;
 use crate::app::utils::*;
 use crate::editor::EditorBuffer;
@@ -179,9 +174,6 @@ pub(crate) struct PreviewPaneState {
     pub timeline_scroll_offset: f64,
     /// When true, the preview panel will recompute zoom to fit on next frame.
     pub fit_zoom_requested: bool,
-    /// Keyframe times that were recently rewritten by `adjust_following_relative_keyframe`.
-    /// Rendered with an amber flash in the timeline panel for ~300 ms.
-    pub flashed_keyframe_times: Vec<(f64, std::time::Instant)>,
 }
 
 struct GuiShell {
@@ -195,7 +187,6 @@ struct GuiShell {
     pending_open: Option<LoadToken>,
     plugin_manager: DocumentPluginManager,
     external_commands: CommandQueue,
-    insertion_palette: InsertionPalette,
     shortcut_registry: ShortcutRegistry,
     pub(crate) window_size: [f32; 2],
     pub(crate) window_maximized: bool,

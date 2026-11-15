@@ -31,7 +31,6 @@ impl GuiShell {
             self.settings_preview_section(ui, &sp);
             self.settings_appearance_section(ui, &sp);
             self.settings_colorscheme_section(ui, &sp);
-            self.settings_input_section(ui, &sp);
             self.settings_playback_section(ui, &sp);
             self.settings_autosave_section(ui, &sp);
             self.settings_shortcuts_section(ui, &sp);
@@ -235,117 +234,26 @@ impl GuiShell {
         layout::section_header(ui, egui_phosphor::regular::PALETTE, "Colorscheme", None);
         ui.add_space(sp.base.space_2);
 
-        let current_scheme = self
-            .document_store
-            .source
-            .document
-            .timeline
+        let document = &self.document_store.source.document;
+        let active = document.active_timeline_ref();
+        let current_scheme = active
             .as_ref()
-            .map(|t| t.colorscheme_name())
-            .unwrap_or("default-dark")
-            .to_string();
-        let schemes = [
-            ("default-dark", "Default Dark"),
-            ("default-light", "Default Light"),
-            ("editorial-dark", "Editorial Dark"),
-            ("vivid", "Vivid"),
-            ("paper", "Paper"),
-            ("neon-night", "Neon Night"),
-        ];
-        let scheme_names = [
-            "Default Dark",
-            "Default Light",
-            "Editorial Dark",
-            "Vivid",
-            "Paper",
-            "Neon Night",
-        ];
-        let scheme_ids = [
-            "default-dark",
-            "default-light",
-            "editorial-dark",
-            "vivid",
-            "paper",
-            "neon-night",
-        ];
-        let mut selected_idx = schemes.iter().position(|(id, _)| *id == current_scheme);
-
-        eparts::widget::Form::new("colorscheme_form")
-            .label_width(SETTINGS_INPUT_WIDTH)
-            .show(ui, |f| {
-                f.field("Theme", |ui| {
-                    ui.add(
-                        eparts::widget::Select::new(
-                            "colorscheme_select",
-                            &mut selected_idx,
-                            &scheme_names,
-                        )
-                        .placeholder("Select colorscheme"),
-                    );
-                });
-            });
-
-        if let Some(idx) = selected_idx {
-            let id = scheme_ids[idx];
-            if id != current_scheme && self.document_store.source.document.raw_statements.is_some()
-            {
-                crate::app::handlers::property::handle_set_config_property(
-                    &mut self.document_store,
-                    &mut self.preview_store,
-                    &mut self.ui_store,
-                    "colorscheme".to_string(),
-                    animatix_syntax::ast::Expr::Str(id.into()),
-                );
-            }
-        }
-        ui.add_space(sp.base.space_3);
-    }
-
-    fn settings_input_section(
-        &mut self,
-        ui: &mut egui::Ui,
-        sp: &crate::app::design_tokens::spatial::Spatial,
-    ) {
-        // ── Input ──
-        layout::section_header(ui, egui_phosphor::regular::CURSOR_CLICK, "Input", None);
-        ui.add_space(sp.base.space_2);
-
-        {
-            let mut nudge_step_px = self.ui_store.nudge_step_px as f64;
-            let mut nudge_step_shift_px = self.ui_store.nudge_step_shift_px as f64;
-            let mut rotation_snap_degrees = self.ui_store.rotation_snap_degrees as f64;
-
-            eparts::widget::Form::new("input_form").label_width(SETTINGS_INPUT_WIDTH).show(
-                ui,
-                |f| {
-                    f.field("Nudge step", |ui| {
-                        eparts::NumberField::new(&mut nudge_step_px)
-                            .range(0.1..=50.0)
-                            .speed(0.5)
-                            .suffix(" px")
-                            .show(ui);
-                    });
-                    f.field("Nudge step (Shift)", |ui| {
-                        eparts::NumberField::new(&mut nudge_step_shift_px)
-                            .range(1.0..=200.0)
-                            .speed(0.5)
-                            .suffix(" px")
-                            .show(ui);
-                    });
-                    f.field("Rotation snap", |ui| {
-                        eparts::NumberField::new(&mut rotation_snap_degrees)
-                            .range(1.0..=90.0)
-                            .speed(1.0)
-                            .suffix("°")
-                            .show(ui);
-                    });
-                },
-            );
-
-            self.ui_store.nudge_step_px = nudge_step_px as f32;
-            self.ui_store.nudge_step_shift_px = nudge_step_shift_px as f32;
-            self.ui_store.rotation_snap_degrees = rotation_snap_degrees as f32;
-        }
+            .map(|active| active.timeline.colorscheme_name())
+            .unwrap_or("Unavailable");
+        let scene_label = active.as_ref().and_then(|active| active.scene_name).unwrap_or("Scene");
+        ui.horizontal(|ui| {
+            ui.label("Scene");
+            ui.label(egui::RichText::new(scene_label).weak());
+        });
+        ui.horizontal(|ui| {
+            ui.label("Colorscheme");
+            ui.label(egui::RichText::new(current_scheme).strong());
+        });
+        ui.label(
+            egui::RichText::new("Edit `colorscheme` in this scene’s `config` block in Write.")
+                .small()
+                .weak(),
+        );
         ui.add_space(sp.base.space_3);
     }
 
@@ -438,7 +346,6 @@ impl GuiShell {
             let mut rebuild_debounce_ms = self.ui_store.rebuild_debounce_ms as f64;
             let mut undo_limit = self.document_store.history.undo_limit as f64;
             let mut snap_fps = self.ui_store.snap_fps as f64;
-            let mut keyframe_merge_window_ms = self.ui_store.keyframe_merge_window_s * 1000.0;
 
             eparts::widget::Form::new("editor_form").label_width(SETTINGS_INPUT_WIDTH).show(
                 ui,
@@ -464,20 +371,12 @@ impl GuiShell {
                             .suffix(" fps")
                             .show(ui);
                     });
-                    f.field("Keyframe merge window", |ui| {
-                        eparts::NumberField::new(&mut keyframe_merge_window_ms)
-                            .range(0.0..=500.0)
-                            .speed(1.0)
-                            .suffix(" ms")
-                            .show(ui);
-                    });
                 },
             );
 
             self.ui_store.rebuild_debounce_ms = rebuild_debounce_ms as u64;
             self.document_store.history.undo_limit = undo_limit as usize;
             self.ui_store.snap_fps = snap_fps as f32;
-            self.ui_store.keyframe_merge_window_s = (keyframe_merge_window_ms / 1000.0).max(0.0);
         }
     }
 }

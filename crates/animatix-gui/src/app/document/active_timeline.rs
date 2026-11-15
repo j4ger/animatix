@@ -6,7 +6,7 @@
 use animatix::composition::Composition;
 use animatix::timeline::{SceneDimensions, Timeline};
 
-/// Identifies which scene's timeline is the current editing target.
+/// Identifies which scene's timeline is being reviewed.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ActiveSceneId {
     /// A single-scene document (no composition).
@@ -24,10 +24,10 @@ impl std::fmt::Display for ActiveSceneId {
     }
 }
 
-/// Immutable reference to the active editable timeline, with scene context.
+/// Immutable reference to the active timeline, with scene context.
 ///
 /// This is the single source of truth for "which timeline should I read from?"
-/// Used by preview overlays, inspector, timeline panel, drag handlers, etc.
+/// Used by preview overlays, the Inspector, timeline review, and export.
 #[derive(Clone)]
 // `id`, `composition` and `scene_name` are the scene-resolution context this
 // type exists to carry; the call sites today read `timeline` and `duration_s`.
@@ -39,15 +39,4 @@ pub struct ActiveTimelineRef<'a> {
     pub scene_name: Option<&'a str>,
     pub duration_s: f64,
     pub dimensions: SceneDimensions,
-}
-
-/// Mutable reference to the active editable timeline, with scene context.
-///
-/// Used by mutation paths that need to modify the active scene's timeline
-/// (e.g., in-memory preview during drag, layout reorder).
-#[allow(dead_code)] // `id`/`scene_name` are filled in by the resolver; readers use `timeline`.
-pub struct ActiveTimelineMut<'a> {
-    pub id: ActiveSceneId,
-    pub timeline: &'a mut Timeline,
-    pub scene_name: Option<String>,
 }

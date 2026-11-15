@@ -539,7 +539,6 @@ fn apply_action_edit(
 }
 
 // Re-export shared traversal from animatix_syntax::walk
-pub(crate) use animatix_syntax::walk::find_actor_decl;
 pub(super) use animatix_syntax::walk::{
     find_actor_decl_mut, find_assignment_mut, find_prop_mut, find_scene_mut, time_to_seconds,
     walk_stmts_mut,

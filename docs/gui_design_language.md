@@ -114,10 +114,10 @@ persistence and migration live in
 
 ## Interaction boundaries
 
-[`Command::allowed_in_workbench`](../crates/animatix-gui/src/app/commands/api.rs)
-is the central write boundary. Controls and shortcuts must respect it, including
-stale selections. Removing a button alone is not sufficient. Source edits remain
-undoable; workspace changes must not masquerade as source edits.
+The [command vocabulary](../crates/animatix-gui/src/app/commands/mod.rs) contains
+source-editor, file, playback and review actions. Visual mutation commands and
+their handlers have been retired together with their controls and shortcuts.
+Source edits remain undoable; workspace changes must not masquerade as source edits.
 
 Use the application's shortcut registry for hints and the shortcut sheet rather
 than maintaining another key table here. Text-input focus and open overlays must

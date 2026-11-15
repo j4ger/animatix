@@ -50,23 +50,30 @@ mod workbench_boundary_tests {
     }
 
     #[test]
-    fn visual_mutations_do_not_change_source_or_history() {
+    fn review_actions_change_view_state_without_editing_source_or_history() {
         let mut shell = shell();
+        let source = r#"# Intro
+#0s
+intro: Text, text: "Intro"
+
+# Outro
+#0s
+outro: Text, text: "Outro"
+"#;
+        shell.document_store = crate::app::test_support::make_document_store(source);
         let before = shell.document_store.source.document.source_text.clone();
-        for command in [
-            Command::AddScene("unwanted".into()),
-            Command::DeleteSelectedActors,
-            Command::DuplicateSelectedActors,
-            Command::GroupSelectedActors,
-            Command::PasteActors,
-        ] {
-            let effects = shell.handle_action(command.into());
-            assert!(
-                matches!(effects.first(), Some(Effect::Status(message)) if message.contains("Read-only"))
-            );
-            assert_eq!(shell.document_store.source.document.source_text, before);
-            assert!(shell.document_store.history.undo_stack.is_empty());
+        let actions = [
+            Command::SelectScene("Outro".into()),
+            Command::ScrubTo(0.5),
+            Command::TogglePlayback,
+        ];
+        for command in actions {
+            shell.handle_action(command.into());
         }
+        assert_eq!(shell.document_store.source.document.source_text, before);
+        assert!(shell.document_store.history.undo_stack.is_empty());
+        assert!(shell.document_store.history.redo_stack.is_empty());
+        assert_eq!(shell.document_store.source.document.active_scene.as_deref(), Some("Outro"));
     }
 
     #[test]
@@ -112,6 +119,31 @@ mod workbench_boundary_tests {
             persistence::active_detail_tab(&shell.ui_store.view.tree),
             Some(WorkspaceTab::Code)
         );
+    }
+
+    #[test]
+    fn in_flight_manual_rebuild_blocks_export_of_last_good_snapshot() {
+        let dir = crate::app::test_support::TestTempDir::new("export-in-flight-rebuild");
+        let path = dir.path().join("scene.amx");
+        std::fs::write(&path, "#0s\nbox: Rect, size: (100, 100)\n").unwrap();
+
+        let mut shell = GuiShell::load(path, false);
+        assert!(shell.document_store.current.is_some());
+        assert!(!shell.document_store.snapshot_is_stale());
+        assert!(!shell.document_store.showing_last_good());
+        assert!(shell.document_store.source.document.last_rebuild_error.is_none());
+        assert!(!shell.preview_store.has_pending_rebuild());
+
+        shell.handle_action(Command::Rebuild.into());
+        assert!(shell.preview_store.in_flight_rebuild.is_some());
+
+        let effects = shell.handle_action(ShellAction::View(ViewAction::OpenExportDialog));
+
+        assert!(matches!(
+            effects.first(),
+            Some(Effect::Status(message)) if message.contains("Export unavailable")
+        ));
+        assert!(!shell.export_store.export_dialog_open);
     }
 
     #[test]

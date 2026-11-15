@@ -1,4 +1,3 @@
-pub mod labels;
 pub mod text;
 
 #[cfg(test)]

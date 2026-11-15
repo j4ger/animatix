@@ -447,7 +447,7 @@ box1.color = red"#,
         "duplicate should add box2 declaration"
     );
     assert!(
-        super::super::apply::find_actor_decl(&stmts, "box1").is_some(),
+        animatix_syntax::walk::find_actor_decl(&stmts, "box1").is_some(),
         "original declaration should remain"
     );
 }

@@ -246,32 +246,6 @@ pub(crate) fn collect_property_lanes(
     lanes
 }
 
-/// Resolve the writable registry schema that owns a property lane.
-///
-/// Lane names are typed-identity names (`motion_offset`) that do not always
-/// equal the source-text name (`shift`). This maps a lane back to the applicable
-/// schema so callers can key it with the canonical source name while reading the
-/// current value from the same storage field.
-pub(crate) fn lane_schema(
-    caps: &animatix::timeline::ActorCaps,
-    actor_type: &str,
-    lane: &str,
-) -> Option<&'static animatix::timeline::PropertySchema> {
-    use animatix::timeline::{PROPERTY_REGISTRY, allowed_property_indices};
-
-    let field = PROPERTY_LANES.iter().find(|(name, _)| *name == lane).map(|(_, field)| *field)?;
-    let allowed = || {
-        allowed_property_indices(caps, actor_type)
-            .into_iter()
-            .map(|idx| &PROPERTY_REGISTRY[idx])
-    };
-    // Prefer the exact lane name, avoiding derived schemas that share the field
-    // (e.g. `height`/`width` share `ActorField::Size` with `size`).
-    allowed()
-        .find(|schema| schema.name == lane)
-        .or_else(|| allowed().find(|schema| schema.field == field))
-}
-
 /// Stable view of the compiled target used as a diff baseline.
 ///
 /// Captured before a rebuild because applying a rebuild replaces the previous
@@ -679,20 +653,6 @@ mod tests {
             .any(|(name, _)| *name == "background_color"),
             "registry aliases must collapse onto the storage field's lane"
         );
-    }
-
-    #[test]
-    fn lane_schema_maps_typed_lanes_to_writable_source_names() {
-        let rect_caps = animatix::timeline::caps_for_type("Rect").expect("Rect is a built-in");
-
-        // Internal lane names must resolve to the writable schema, not a sibling.
-        assert_eq!(
-            lane_schema(&rect_caps, "Rect", "motion_offset").map(|schema| schema.name),
-            Some("shift")
-        );
-        // `size` shares its field with `height`/`width`; exact-name precedence wins.
-        assert_eq!(lane_schema(&rect_caps, "Rect", "size").map(|schema| schema.name), Some("size"));
-        assert!(lane_schema(&rect_caps, "Rect", "nope").is_none());
     }
 
     #[test]

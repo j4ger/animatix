@@ -3,15 +3,6 @@ use super::*;
 impl GuiShell {
     /// Handle a single action, returning any collected side effects.
     pub(crate) fn handle_action(&mut self, action: ShellAction) -> Vec<Effect> {
-        if !action.allowed_in_workbench() {
-            // Stale persisted UI and externally queued commands obey the same
-            // rule as visible controls. Do not snapshot or mutate the document.
-            self.ui_store.interaction.pending_drag_source_edits.clear();
-            self.ui_store.interaction.reset_drag_state();
-            return vec![Effect::Status(
-                "Read-only review — edit source code to change the scene".into(),
-            )];
-        }
         match action {
             ShellAction::Command(cmd) => self.handle_command(cmd),
             ShellAction::View(view) => self.handle_view_action(view),
@@ -76,11 +67,6 @@ impl GuiShell {
             },
             ViewAction::OpenShortcuts => {
                 self.ui_store.view.shortcuts_open = true;
-                vec![]
-            },
-            ViewAction::OpenInsertionPalette => {
-                use crate::app::shell::insertion_palette::PaletteMode;
-                self.insertion_palette.open(PaletteMode::Universal);
                 vec![]
             },
             ViewAction::OpenExportDialog => {
