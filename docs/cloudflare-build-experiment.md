@@ -104,8 +104,9 @@ extracting/executing, and assembles a temporary root. Source checksum:
 No daemon, installer, profile changes, system users, or credentials are created.
 The current unprivileged host UID maps to UID 0 **inside the child namespace
 only**; this is not host root. The stage refuses execution in its parent
-namespaces or with a host-root mapping. System program directories and proc are
-read-only mounts; only null/zero/random device handles are exposed. The host's
+namespaces or with a host-root mapping. System program directories are read-only
+mounts; procfs is a fresh read-only mount inside a separate PID namespace, not
+a remount of host proc. Only null/zero/random device handles are exposed. The host's
 `/etc` is not mounted: the temporary root receives only its resolver and public
 CA certificate bundle, plus generated minimal account/name-service files.
 

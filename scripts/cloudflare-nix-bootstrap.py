@@ -66,10 +66,10 @@ def main():
         shutil.copyfile(unpacked / ".reginfo", root / "nix/bootstrap-reginfo")
         script = work / "stage.sh"
         shutil.copyfile(repo / "scripts/cloudflare-nix-rootless-stage.sh", script)
-        run(["unshare", "--user", "--map-root-user", "--mount", "--fork", "bash",
+        run(["unshare", "--user", "--map-root-user", "--mount", "--pid", "--fork", "bash",
              str(script), str(root), str(repo), "devshell",
              os.readlink("/proc/self/ns/user"), os.readlink("/proc/self/ns/mnt"),
-             str(os.getuid())], work, started)
+             str(os.getuid()), os.readlink("/proc/self/ns/pid")], work, started)
         if (repo / "flake.lock").read_bytes() != lock_before:
             raise RuntimeError("flake.lock changed unexpectedly")
         print("BOOTSTRAP_AND_DEVSHELL_PASS", flush=True)

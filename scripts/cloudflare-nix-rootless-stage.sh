@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
-[ "$#" = 6 ] || { echo 'BLOCKED: expected isolated-root arguments' >&2; exit 2; }
+[ "$#" = 7 ] || { echo 'BLOCKED: expected isolated-root arguments' >&2; exit 2; }
 root=$1
 repo=$2
 stage=$3
 parent_userns=$4
 parent_mntns=$5
 host_uid=$6
+parent_pidns=$7
 # Refuse direct invocation in the original namespaces, before any mount call.
 [[ "$host_uid" =~ ^[1-9][0-9]*$ ]] || { echo 'BLOCKED: non-root host UID required' >&2; exit 2; }
 [ "$(id -u)" = 0 ] &&
   [ "$(readlink /proc/self/ns/user)" != "$parent_userns" ] &&
   [ "$(readlink /proc/self/ns/mnt)" != "$parent_mntns" ] &&
+  [ "$(readlink /proc/self/ns/pid)" != "$parent_pidns" ] &&
   awk -v uid="$host_uid" 'NR==1 {ok=($1==0 && $2==uid && $3==1)} END {exit !(ok && NR==1)}' /proc/self/uid_map ||
   { echo 'BLOCKED: isolated rootless namespaces required' >&2; exit 2; }
 [[ "$root" = /* && "$repo" = /* && "$root" != / && "$root" != "$repo" ]] &&
@@ -43,8 +45,9 @@ for item in null zero random urandom; do
   touch "$root/dev/$item"
   mount --bind "/dev/$item" "$root/dev/$item"
 done
-mount --bind /proc "$root/proc"
-mount -o remount,bind,ro,nosuid,nodev,noexec "$root/proc"
+# A new procfs for our own PID namespace avoids host proc mount restrictions
+# and never exposes unrelated host processes to the chroot.
+mount -t proc -o ro,nosuid,nodev,noexec proc "$root/proc"
 mkdir -p "$root/work" "$root/tmp" "$root/home/nix"
 mount --bind "$repo" "$root/work"
 # No installer, daemon, users, profile files, sudo or host store changes.

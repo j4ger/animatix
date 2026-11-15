@@ -17,7 +17,8 @@ class BootstrapTest(unittest.TestCase):
         stage = Path(__file__).with_name("cloudflare-nix-rootless-stage.sh")
         result = subprocess.run(["bash", str(stage), "/", str(stage.parent.parent.resolve()),
                                  "version", os.readlink("/proc/self/ns/user"),
-                                 os.readlink("/proc/self/ns/mnt"), str(os.getuid())],
+                                 os.readlink("/proc/self/ns/mnt"), str(os.getuid()),
+                                 os.readlink("/proc/self/ns/pid")],
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 2)
         self.assertIn("BLOCKED", result.stderr)
