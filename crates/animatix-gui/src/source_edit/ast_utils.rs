@@ -12,11 +12,11 @@ use super::apply::time_to_seconds;
 thread_local! {
     /// Queue of keyframe absolute times (in seconds) that should be flashed
     /// in the timeline panel because their relative offset was rewritten.
-    pub static ADJUST_FLASH_QUEUE: RefCell<Vec<f64>> = const { RefCell::new(Vec::new()) };
+    static ADJUST_FLASH_QUEUE: RefCell<Vec<f64>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Compute the absolute time (in seconds) of the keyframe at `idx`.
-pub fn compute_keyframe_abs_time(stmts: &[Stmt], idx: usize) -> f64 {
+pub(super) fn compute_keyframe_abs_time(stmts: &[Stmt], idx: usize) -> f64 {
     let mut t = 0.0;
     for stmt in stmts.iter().take(idx + 1) {
         match stmt {
@@ -29,17 +29,17 @@ pub fn compute_keyframe_abs_time(stmts: &[Stmt], idx: usize) -> f64 {
 }
 
 /// Push a flash event for an absolute keyframe time.
-pub fn push_adjust_flash_time(time_s: f64) {
+pub(super) fn push_adjust_flash_time(time_s: f64) {
     ADJUST_FLASH_QUEUE.with(|q| q.borrow_mut().push(time_s));
 }
 
 /// Clear the adjust flash queue.
-pub fn clear_adjust_flash_queue() {
+pub(crate) fn clear_adjust_flash_queue() {
     ADJUST_FLASH_QUEUE.with(|q| q.borrow_mut().clear());
 }
 
 /// Drain the adjust flash queue, returning all accumulated flash times.
-pub fn drain_adjust_flash_queue() -> Vec<f64> {
+pub(crate) fn drain_adjust_flash_queue() -> Vec<f64> {
     ADJUST_FLASH_QUEUE.with(|q| q.borrow_mut().drain(..).collect())
 }
 
@@ -47,7 +47,7 @@ pub fn drain_adjust_flash_queue() -> Vec<f64> {
 
 /// Find all top-level keyframe or relative-keyframe statements whose body
 /// contains an assignment targeting the given actor label.
-pub fn find_keyframes_for_actor(stmts: &[Stmt], actor: &str) -> Vec<Stmt> {
+pub(super) fn find_keyframes_for_actor(stmts: &[Stmt], actor: &str) -> Vec<Stmt> {
     let mut result = Vec::new();
     for stmt in stmts {
         match stmt {
@@ -63,7 +63,7 @@ pub fn find_keyframes_for_actor(stmts: &[Stmt], actor: &str) -> Vec<Stmt> {
 }
 
 /// Check if a keyframe statement (or any nested child) references the given actor.
-pub fn keyframe_references_actor(stmt: &Stmt, actor: &str) -> bool {
+fn keyframe_references_actor(stmt: &Stmt, actor: &str) -> bool {
     let mut found = false;
     animatix_syntax::walk::walk_stmts(std::slice::from_ref(stmt), &mut |s| {
         if let Stmt::Assignment { target, .. } = s
@@ -79,7 +79,7 @@ pub fn keyframe_references_actor(stmt: &Stmt, actor: &str) -> bool {
 
 /// Style of the keyframe immediately preceding a given time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum KeyframeStyle {
+pub(super) enum KeyframeStyle {
     Absolute,
     Relative,
 }
@@ -87,7 +87,7 @@ pub enum KeyframeStyle {
 /// Determine the style (absolute vs relative) of the keyframe immediately
 /// preceding `time_s`. New keyframes inherit this style so that relative
 /// chains stay relative, absolute breakpoints stay absolute.
-pub fn keyframe_style_before(stmts: &[Stmt], time_s: f64) -> KeyframeStyle {
+pub(super) fn keyframe_style_before(stmts: &[Stmt], time_s: f64) -> KeyframeStyle {
     let mut current_time = 0.0f64;
     let mut style = KeyframeStyle::Absolute;
 
@@ -115,7 +115,7 @@ pub fn keyframe_style_before(stmts: &[Stmt], time_s: f64) -> KeyframeStyle {
 }
 
 /// Find the index after which a new keyframe at `time_s` should be inserted.
-pub fn find_keyframe_insertion_point(stmts: &[Stmt], time_s: f64) -> usize {
+pub(super) fn find_keyframe_insertion_point(stmts: &[Stmt], time_s: f64) -> usize {
     let mut last_kf_idx = 0usize;
     let mut current_time = 0.0f64;
 
@@ -141,7 +141,7 @@ pub fn find_keyframe_insertion_point(stmts: &[Stmt], time_s: f64) -> usize {
 }
 
 /// Find the absolute time of the keyframe immediately before `time_s`.
-pub fn find_prev_keyframe_time(stmts: &[Stmt], time_s: f64) -> f64 {
+pub(super) fn find_prev_keyframe_time(stmts: &[Stmt], time_s: f64) -> f64 {
     let mut current_time = 0.0f64;
     let mut prev_time = 0.0f64;
 
@@ -168,7 +168,7 @@ pub fn find_prev_keyframe_time(stmts: &[Stmt], time_s: f64) -> f64 {
 /// shifted to a later time by a new relative keyframe.
 ///
 /// Returns the (possibly adjusted) insertion index.
-pub fn wrap_leading_decls_in_zero_keyframe(
+pub(super) fn wrap_leading_decls_in_zero_keyframe(
     stmts: &mut Vec<Stmt>,
     insert_idx: usize,
     prev_time_s: f64,
@@ -200,7 +200,11 @@ pub fn wrap_leading_decls_in_zero_keyframe(
 
 /// Subtract `delta_s` from the next relative keyframe's offset so that
 /// subsequent keyframes keep their original absolute times.
-pub fn adjust_following_relative_keyframe(stmts: &mut [Stmt], insert_idx: usize, delta_s: f64) {
+pub(super) fn adjust_following_relative_keyframe(
+    stmts: &mut [Stmt],
+    insert_idx: usize,
+    delta_s: f64,
+) {
     if insert_idx >= stmts.len() || delta_s < 0.001 {
         return;
     }
@@ -228,7 +232,7 @@ pub fn adjust_following_relative_keyframe(stmts: &mut [Stmt], insert_idx: usize,
 
 /// Append a statement to the keyframe at `time_s` (within ε tolerance).
 /// Returns `true` if a matching keyframe was found.
-pub fn append_to_keyframe_at_time(stmts: &mut [Stmt], time_s: f64, stmt: Stmt) -> bool {
+pub(super) fn append_to_keyframe_at_time(stmts: &mut [Stmt], time_s: f64, stmt: Stmt) -> bool {
     const EPSILON_S: f64 = 0.05;
     let mut current_time = 0.0f64;
 
@@ -256,7 +260,7 @@ pub fn append_to_keyframe_at_time(stmts: &mut [Stmt], time_s: f64, stmt: Stmt) -
 
 /// Shift absolute keyframe times by `offset_s` seconds. Relative keyframes
 /// and non-keyframe statements are left untouched.
-pub fn shift_keyframe_times(stmts: &mut [Stmt], offset_s: f64) {
+pub(super) fn shift_keyframe_times(stmts: &mut [Stmt], offset_s: f64) {
     if offset_s.abs() < 0.001 {
         return;
     }

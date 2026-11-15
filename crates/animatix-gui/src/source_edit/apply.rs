@@ -8,17 +8,9 @@ use animatix_syntax::ast::{Expr, Modifier, Property, Stmt, Transition};
 // Property name mapping
 
 /// Convert a canonical inspector property name to its source equivalent.
-pub fn canonical_to_source(name: &str) -> &str {
+pub(super) fn canonical_to_source(name: &str) -> &str {
     match name {
         "position" => "at",
-        other => other,
-    }
-}
-
-/// Convert a source property name to its canonical inspector equivalent.
-pub fn source_to_canonical(name: &str) -> &str {
-    match name {
-        "at" => "position",
         other => other,
     }
 }
@@ -547,7 +539,7 @@ fn apply_action_edit(
 }
 
 // Re-export shared traversal from animatix_syntax::walk
-pub use animatix_syntax::walk::find_actor_decl;
+pub(crate) use animatix_syntax::walk::find_actor_decl;
 pub(super) use animatix_syntax::walk::{
     find_actor_decl_mut, find_assignment_mut, find_prop_mut, find_scene_mut, time_to_seconds,
     walk_stmts_mut,

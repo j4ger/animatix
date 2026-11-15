@@ -37,7 +37,7 @@ cd "$root"
 # ── the registry ──────────────────────────────────────────────────────────────
 # name | shell | os | setup tokens | stage
 #
-# Automatic stages and explicit-only orchestration/experiments:
+# Automatic stages and explicit-only orchestration:
 #   pr        eligible PR checks; main and release callers run the full set.
 #   release   build-only: the distribution jobs that produce the binaries.
 #   site      composite gates: site-artifact/dist-site/dist-web-sdk need the
@@ -45,7 +45,6 @@ cd "$root"
 #             they are run by name from pages.yml and release.yml and are not
 #             matrix rows.
 #   control   orchestration gates, never matrix jobs.
-#   experiment explicit manual matrices; excluded from default/all execution.
 #
 # Adding a gate here is the whole job: `--list` feeds the matrix, so CI picks it
 # up. Nothing in .github/ has to learn its name.
@@ -104,14 +103,6 @@ dist-macos|native|macos-latest|rust-stable|release
 dist-windows|native|windows-latest|rust-stable|release
 ci-plan|none|ubuntu-latest|none|control
 ci-result|none|ubuntu-latest|none|control
-native-cli-artifact|nix|ubuntu-latest|nix|control
-verify-native-cli|nix|ubuntu-latest|nix|control
-contract-layout-experiment|nix|ubuntu-latest|nix|experiment
-font-profile-experiment|nix|ubuntu-latest|nix|experiment
-linker-experiment|nix|ubuntu-latest|nix|experiment
-linker-experiment|native|macos-latest|rust-stable|experiment
-runner-experiment|nix|ubuntu-latest|nix|experiment
-property-reference-experiment|nix|ubuntu-latest|nix|experiment
 '
 
 # ── CI matrix jobs ────────────────────────────────────────────────────────────
@@ -141,12 +132,6 @@ Web Build|web-split-proof web-build web-sdk-integrity text-parity web-raster-pro
 dist-linux|dist-linux|dist-driver|ubuntu-latest|nix|release|dist-linux
 dist-macos|dist-macos|native|macos-latest|rust-stable|release|dist-macos
 dist-windows|dist-windows|native|windows-latest|rust-stable|release|dist-windows
-Linker Experiment|linker-experiment|nix|ubuntu-latest|nix|experiment|linker-linux
-Linker Experiment|linker-experiment|native|macos-latest|rust-stable|experiment|linker-macos
-Runner Experiment|runner-experiment|nix|ubuntu-latest|nix|experiment|runner-linux
-Property Reference Experiment|property-reference-experiment|nix|ubuntu-latest|nix|experiment|property-reference-linux
-Contract Layout Experiment|contract-layout-experiment|nix|ubuntu-latest|nix|experiment|contract-layout-linux
-Font Profile Experiment|font-profile-experiment|nix|ubuntu-latest|nix|experiment|font-profile-linux
 '
 
 # The commands each gate expects to be run by. Kept as prose so `ci.sh shell`
@@ -358,12 +343,7 @@ gate_budget_audit() {
 
 gate_render_smoke() {
   want_cargo
-  if [ -n "${ANIMATIX_SHARED_CLI:-}" ]; then
-    python3 scripts/ci-control.py verify-cli "$ANIMATIX_SHARED_CLI"
-    export ANIMATIX_BIN="$ANIMATIX_SHARED_CLI/animatix"
-  else
-    cargo build --bin animatix
-  fi
+  cargo build --bin animatix
   ANIMATIX_REQUIRE_GPU=1 bash scripts/render_smoke.sh
 }
 
@@ -390,7 +370,6 @@ gate_ci_policy_tests() {
   python3 scripts/test-ci-control.py
   python3 scripts/test-ci-plan.py
   python3 -m unittest discover -s scripts/ci -p 'test_*.py'
-  python3 -m unittest discover -s scripts/experiments -p 'test_*.py'
 }
 
 gate_ci_plan() {
@@ -403,60 +382,6 @@ gate_ci_plan() {
 }
 
 gate_ci_result() { python3 scripts/ci-control.py required; }
-
-gate_native_cli_artifact() {
-  cargo build --bin animatix --locked
-  python3 scripts/ci-control.py stage-cli target/debug/animatix target/ci/native-cli
-}
-
-gate_verify_native_cli() {
-  python3 scripts/ci-control.py verify-cli "${ANIMATIX_SHARED_CLI:?missing artifact directory}"
-}
-
-gate_contract_layout_experiment() {
-  python3 scripts/experiments/contracts.py \
-    --before-json "${ANIMATIX_CONTRACT_BEFORE_JSON:?missing original Cargo artifact log}" \
-    --after-json "${ANIMATIX_CONTRACT_AFTER_JSON:?missing consolidated Cargo artifact log}" \
-    --output "${ANIMATIX_EXPERIMENT_OUTPUT:-target/experiments/contracts}" \
-    --rounds "${ANIMATIX_EXPERIMENT_WARM_ROUNDS:-5}"
-}
-
-gate_font_profile_experiment() {
-  local -a cli_args=()
-  if [ -n "${ANIMATIX_FONT_CLI_BEFORE:-}${ANIMATIX_FONT_CLI_AFTER:-}" ]; then
-    cli_args=(--cli-before "${ANIMATIX_FONT_CLI_BEFORE:?missing original CLI executable}" \
-              --cli-after "${ANIMATIX_FONT_CLI_AFTER:?missing optimized CLI executable}")
-  fi
-  python3 scripts/experiments/font_profile.py \
-    --before "${ANIMATIX_FONT_BEFORE:?missing original text test executable}" \
-    --after "${ANIMATIX_FONT_AFTER:?missing optimized text test executable}" \
-    --output "${ANIMATIX_EXPERIMENT_OUTPUT:-target/experiments/font-profile}" \
-    --rounds "${ANIMATIX_EXPERIMENT_WARM_ROUNDS:-5}" "${cli_args[@]}"
-}
-
-gate_linker_experiment() {
-  local platform=linux
-  [ "${RUNNER_OS:-$(uname -s)}" != macOS ] && [ "$(uname -s)" != Darwin ] || platform=macos
-  python3 scripts/experiments/run.py linker --platform "$platform" \
-    --output "${ANIMATIX_EXPERIMENT_OUTPUT:-target/experiments/linker}" \
-    --warm-rounds "${ANIMATIX_EXPERIMENT_WARM_ROUNDS:-${ANIMATIX_EXPERIMENT_ROUNDS:-5}}" \
-    --cold-rounds "${ANIMATIX_EXPERIMENT_COLD_ROUNDS:-3}"
-}
-
-gate_runner_experiment() {
-  ANIMATIX_REQUIRE_GPU=1 python3 scripts/experiments/run.py runner \
-    --output "${ANIMATIX_EXPERIMENT_OUTPUT:-target/experiments/runner}" \
-    --warm-rounds "${ANIMATIX_EXPERIMENT_WARM_ROUNDS:-${ANIMATIX_EXPERIMENT_ROUNDS:-5}}" \
-    --cold-rounds "${ANIMATIX_EXPERIMENT_COLD_ROUNDS:-3}"
-}
-
-gate_property_reference_experiment() {
-  python3 scripts/experiments/reference.py \
-    --baseline-ref "${ANIMATIX_REFERENCE_BASE_SHA:?missing pre-generator baseline commit}" \
-    --output "${ANIMATIX_EXPERIMENT_OUTPUT:-target/experiments/property-reference}" \
-    --warm-rounds "${ANIMATIX_EXPERIMENT_WARM_ROUNDS:-5}" \
-    --cold-rounds "${ANIMATIX_EXPERIMENT_COLD_ROUNDS:-3}"
-}
 
 # Web content and SDK boundary checks.
 gate_cloudflare_prepare() {
@@ -1022,9 +947,9 @@ case "${1:-}" in
     ;;
   --matrix)
     case "$stage" in
-      ""|all|pr|release|experiment) ;;
+      ""|all|pr|release) ;;
       *)
-        echo "error: --matrix supports pr|release|experiment only; '$stage' gates are composite (run by name)" >&2
+        echo "error: --matrix supports pr|release only; '$stage' gates are composite (run by name)" >&2
         exit 2
         ;;
     esac
@@ -1068,11 +993,14 @@ print(json.dumps({"include": [
     if [ -z "$stage" ] || [ "$stage" = all ]; then
       { gate_names pr; gate_names release; } | awk '!seen[$0]++' |
         while read -r g; do run_gate "$g"; done
-    elif [ "$stage" = experiment ] || [ "$stage" = control ]; then
-      echo "error: experiment/control gates require an explicit gate name" >&2
+    elif [ "$stage" = control ]; then
+      echo "error: control gates require an explicit gate name" >&2
       exit 2
-    else
+    elif [ "$stage" = pr ] || [ "$stage" = release ] || [ "$stage" = site ]; then
       gate_names "$stage" | while read -r g; do run_gate "$g"; done
+    else
+      echo "error: unknown stage: $stage" >&2
+      exit 2
     fi
     ;;
   ""|-h|--help)

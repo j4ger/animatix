@@ -51,14 +51,16 @@ class Environments(unittest.TestCase):
             result = subprocess.run(["python3", str(validator), gates, jobs], capture_output=True)
             self.assertNotEqual(result.returncode, 0)
 
-    def test_experiments_are_explicit_and_never_in_default_matrix(self):
-        normal = json.loads(ci("--matrix").stdout)["include"]
-        self.assertNotIn("experiment", {row["stage"] for row in normal})
-        experiments = json.loads(ci("--matrix", "experiment").stdout)["include"]
-        self.assertEqual({row["id"] for row in experiments},
-                         {"linker-linux", "linker-macos", "runner-linux", "property-reference-linux",
-                          "contract-layout-linux", "font-profile-linux"})
-        self.assertNotEqual(ci("all", "experiment").returncode, 0)
+    def test_matrix_rejects_composite_control_and_unknown_stages(self):
+        for stage in ("site", "control", "unknown"):
+            with self.subTest(stage=stage):
+                matrix = ci("--matrix", stage)
+                self.assertEqual(matrix.returncode, 2)
+                self.assertIn("supports pr|release only", matrix.stderr)
+        self.assertNotEqual(ci("all", "unknown").returncode, 0)
+        all_experiments = ci("all", "experiment")
+        self.assertNotEqual(all_experiments.returncode, 0)
+        self.assertIn("unknown stage", all_experiments.stderr)
 
     def test_repeated_gate_resolves_current_platform(self):
         for platform, expected in (("Linux", "nix develop --command"), ("macOS", ""), ("Windows", "")):
@@ -72,7 +74,7 @@ class Environments(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("shell=nix", result.stderr)
 
-    def test_ci_checkouts_pin_event_sha_by_default(self):
+    def test_ci_checkouts_preserve_release_and_event_ref_pinning(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
         lines = workflow.splitlines()
         checkout_refs = []
@@ -88,7 +90,11 @@ class Environments(unittest.TestCase):
             refs = [entry for entry in body if entry.startswith("ref:")]
             self.assertEqual(refs, ["ref: ${{ inputs.checkout-ref || github.sha }}"])
             checkout_refs.extend(refs)
-        self.assertEqual(len(checkout_refs), 5)
+        self.assertEqual(len(checkout_refs), 3)
+        self.assertIn("  workflow_call:\n    inputs:\n      checkout-ref:", workflow)
+        release = (ROOT / ".github/workflows/release.yml").read_text()
+        self.assertIn("uses: ./.github/workflows/ci.yml", release)
+        self.assertIn("checkout-ref: ${{ needs.version.outputs.version }}", release)
 
     def test_direct_workflow_gates_use_nix(self):
         rows = [line.split("\t") for line in ci("--list").stdout.splitlines()]

@@ -135,15 +135,6 @@
           '';
         };
 
-        # Build experiments are opt-in; tool versions follow flake.lock and do
-        # not change the linker or test runner used by ordinary builds.
-        devShells.experiments = pkgs.mkShell {
-          inputsFrom = [ self.devShells.${system}.default ];
-          packages = [ pkgs.mold pkgs.cargo-nextest pkgs.llvmPackages.lld pkgs.xvfb-run pkgs.xdotool pkgs.imagemagick ];
-          ANIMATIX_CI_SHELL = "nix";
-          inherit (self.devShells.${system}.default) VK_LAYER_PATH VK_ICD_FILENAMES;
-        };
-
         # Chromium + the agent-browser CLI for driving the web/ demo pages
         # against a real browser. Deliberately not part of .#default —
         # enter with `nix develop .#web`; WebGPU needs AGENT_BROWSER_WEBGPU=1.

@@ -1,8 +1,8 @@
 name: CI
 
 # Gate definitions and job matrices live in scripts/ci.sh. The PR planner
-# selects registered jobs by dependency; main and release callers run them all.
-# CI Required collects every selected result, including planner failures.
+# selects registered jobs by dependency; main and release callers run the full matrix.
+# CI Required collects the planner and every selected result.
 
 on:
   pull_request:
@@ -19,11 +19,6 @@ on:
         required: false
         type: string
         default: ''
-      topology:
-        description: Explicit experimental layout; releases retain baseline
-        required: false
-        type: string
-        default: baseline
 
 env:
   CARGO_TERM_COLOR: always
@@ -46,9 +41,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
-      topology: ${{ steps.plan.outputs.topology }}
-      shared_render_gates: ${{ steps.plan.outputs.shared_render_gates }}
-      native_cli_gates: ${{ steps.plan.outputs.native_cli_gates }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -60,7 +52,6 @@ jobs:
           ANIMATIX_CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           ANIMATIX_CI_CHECKOUT_REF: ${{ inputs.checkout-ref }}
           ANIMATIX_CI_SELECTION: ${{ vars.ANIMATIX_CI_SELECTION || 'enabled' }}
-          ANIMATIX_CI_TOPOLOGY: ${{ inputs.topology || 'baseline' }}
         run: scripts/ci.sh gate ci-plan
       - name: Upload selection evidence
         if: always()
@@ -118,9 +109,6 @@ jobs:
         with:
           components: rustfmt
       - name: Rust cache
-        # Explicit topology trials measure fresh Cargo targets on every host;
-        # ordinary PR/main/release checks retain their normal Rust cache.
-        if: github.event_name != 'workflow_dispatch' || inputs.checkout-ref == ''
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.shell }}
@@ -184,83 +172,10 @@ jobs:
             target/ci/environment-*.json
           if-no-files-found: warn
 
-  native_cli:
-    name: Experimental CLI Producer
-    if: ${{ needs.plan.outputs.topology == 'shared-cli' }}
-    needs: plan
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ inputs.checkout-ref || github.sha }}
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
-            /usr/local/share/boost /usr/local/share/chromium
-          sudo apt-get clean
-          df -h /
-      - uses: DeterminateSystems/determinate-nix-action@v3
-      - uses: Swatinem/rust-cache@v2
-        if: github.event_name != 'workflow_dispatch' || inputs.checkout-ref == ''
-        with:
-          key: nix
-      # Reuse the CLI already built by the registered Test & Examples work;
-      # a separate producer would add another complete application build.
-      - name: Run registered tests and stage the identified CLI
-        env:
-          GATES: ${{ needs.plan.outputs.native_cli_gates }}
-        run: nix develop --command scripts/ci.sh gate "$GATES" native-cli-artifact
-      - uses: actions/upload-artifact@v4
-        with:
-          name: native-cli
-          path: target/ci/native-cli/
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: timings-native-cli
-          path: |
-            target/ci/timings.jsonl
-            target/ci/environment-*.json
-          if-no-files-found: warn
-
-  shared_render:
-    name: Experimental Shared CLI Consumer
-    if: ${{ needs.plan.outputs.topology == 'shared-cli' }}
-    needs: [plan, native_cli]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ inputs.checkout-ref || github.sha }}
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
-            /usr/local/share/boost /usr/local/share/chromium
-          sudo apt-get clean
-          df -h /
-      - uses: DeterminateSystems/determinate-nix-action@v3
-      - uses: actions/download-artifact@v4
-        with:
-          name: native-cli
-          path: target/ci/native-cli
-      - name: Verify and consume the registered render gates
-        env:
-          ANIMATIX_SHARED_CLI: ${{ github.workspace }}/target/ci/native-cli
-          GATES: ${{ needs.plan.outputs.shared_render_gates }}
-        run: nix develop --command scripts/ci.sh gate verify-native-cli "$GATES"
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: timings-shared-render
-          path: |
-            target/ci/timings.jsonl
-            target/ci/environment-*.json
-
   required:
     name: CI Required
     if: ${{ always() }}
-    needs: [plan, gate, native_cli, shared_render]
+    needs: [plan, gate]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -269,5 +184,4 @@ jobs:
       - name: Require every selected job
         env:
           ANIMATIX_CI_NEEDS: ${{ toJSON(needs) }}
-          ANIMATIX_CI_TOPOLOGY: ${{ needs.plan.outputs.topology }}
         run: scripts/ci.sh gate ci-result

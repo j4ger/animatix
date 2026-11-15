@@ -14,11 +14,9 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
-from ci_topology import artifact, transform
-
 
 def environment_snapshot(directory, declared_shell="unknown"):
-    """Keep runner/tool facts next to timings, including cold topology trials."""
+    """Keep runner and tool facts next to each gate timing."""
     actual_shell = os.environ.get("ANIMATIX_CI_SHELL") or (
         "nix" if os.environ.get("IN_NIX_SHELL") else "unmarked"
     )
@@ -113,19 +111,11 @@ def timed_gate(gate, command, declared_shell="unknown"):
     return status
 
 
-def require_success(needs, topology="baseline"):
+def require_success(needs):
     """A cancelled, failed, missing or skipped selected matrix cannot pass."""
-    optional = {"native_cli", "shared_render"}
-    if set(needs) - optional != {"plan", "gate"}:
+    if set(needs) != {"plan", "gate"}:
         raise ValueError("CI Required expects results from both plan and gate")
-    selected = {name: job for name, job in needs.items() if name not in optional}
-    if topology == "shared-cli":
-        if not optional.issubset(needs):
-            raise ValueError("shared-cli topology is missing its producer or consumer")
-        selected.update({name: needs[name] for name in optional})
-    elif any(needs[name].get("result") != "skipped" for name in optional & needs.keys()):
-        raise ValueError("unexpected artifact job outside the shared-cli experiment")
-    failures = {name: job.get("result") for name, job in selected.items()
+    failures = {name: job.get("result") for name, job in needs.items()
                 if job.get("result") != "success"}
     if failures:
         raise ValueError(f"selected CI jobs did not succeed: {failures}")
@@ -221,7 +211,6 @@ def confirm_artifact_unavailable(repository, run_id, artifact_name, token=None,
     return "expired" if matches else "missing"
 
 
-
 def github_plan(policy_path):
     policy = json.loads(Path(policy_path).read_text())
     full = json.loads(subprocess.run(
@@ -236,11 +225,8 @@ def github_plan(policy_path):
     if selection not in {"shadow", "enabled"}:
         raise ValueError("ANIMATIX_CI_SELECTION must be shadow or enabled")
     chosen = jobs if selection == "shadow" else [job for job in jobs if job["id"] in selected]
-    topology = os.environ.get("ANIMATIX_CI_TOPOLOGY", "baseline")
-    producer_gates = next((job["gate"] for job in chosen if job["id"] == "test-examples"), "") if topology == "shared-cli" else ""
-    chosen, render_gates = transform(chosen, topology)
     matrix = {"include": chosen}
-    policy.update(effective_selection=selection, effective_topology=topology,
+    policy.update(effective_selection=selection,
                   effective_job_ids=[job["id"] for job in chosen],
                   effective_matrix=matrix)
     Path(policy_path).write_text(json.dumps(policy, indent=2) + "\n")
@@ -251,7 +237,6 @@ def github_plan(policy_path):
     if output:
         with open(output, "a", encoding="utf-8") as stream:
             stream.write("matrix=" + json.dumps(matrix, separators=(",", ":")) + "\n")
-            stream.write(f"topology={topology}\nshared_render_gates={render_gates}\nnative_cli_gates={producer_gates}\n")
     return 0
 
 
@@ -266,10 +251,6 @@ def main():
     commands.add_parser("required")
     plan = commands.add_parser("plan")
     plan.add_argument("policy")
-    for name in ("stage-cli", "verify-cli"):
-        action = commands.add_parser(name)
-        action.add_argument("source")
-        action.add_argument("destination", nargs="?", default=".")
     absence = commands.add_parser("artifact-absence")
     absence.add_argument("--run-id", required=True)
     absence.add_argument("--name", required=True)
@@ -279,9 +260,6 @@ def main():
             return timed_gate(arguments.gate, arguments.command, arguments.shell)
         if arguments.mode == "plan":
             return github_plan(arguments.policy)
-        if arguments.mode in {"stage-cli", "verify-cli"}:
-            artifact(arguments.mode, arguments.source, arguments.destination)
-            return 0
         if arguments.mode == "artifact-absence":
             status = confirm_artifact_unavailable(
                 os.environ.get("GITHUB_REPOSITORY"), arguments.run_id, arguments.name,
@@ -290,8 +268,7 @@ def main():
             )
             print(f"confirmed SDK artifact {status} for workflow run {arguments.run_id}")
             return 0
-        require_success(json.loads(os.environ.get("ANIMATIX_CI_NEEDS", "{}")),
-                        os.environ.get("ANIMATIX_CI_TOPOLOGY", "baseline"))
+        require_success(json.loads(os.environ.get("ANIMATIX_CI_NEEDS", "{}")))
         return 0
     except (ValueError, TypeError, AttributeError) as error:
         print(f"ci-control: {error}", file=sys.stderr)

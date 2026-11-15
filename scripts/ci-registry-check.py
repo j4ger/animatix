@@ -3,7 +3,7 @@
 import sys
 
 ALLOWED_SHELLS = {"native", "nix", "web", "web-ci", "dist-driver", "none"}
-ALLOWED_STAGES = {"pr", "release", "site", "experiment", "control"}
+ALLOWED_STAGES = {"pr", "release", "site", "control"}
 
 def parse_rows(text, ncols, label):
     rows = []
@@ -46,8 +46,8 @@ for name, gate_list, shell, os_name, setup, stage, identifier in parse_rows(sys.
     if shell not in ALLOWED_SHELLS:
         print(f"error: job '{name}' has unknown shell '{shell}'", file=sys.stderr)
         sys.exit(1)
-    if stage not in {"pr", "release", "experiment"}:
-        print(f"error: job '{name}' has stage '{stage}'; JOB_TABLE jobs are pr/release/experiment only",
+    if stage not in {"pr", "release"}:
+        print(f"error: job '{name}' has stage '{stage}'; JOB_TABLE jobs are pr/release only",
               file=sys.stderr)
         sys.exit(1)
     if not identifier or any(job["id"] == identifier for job in jobs):

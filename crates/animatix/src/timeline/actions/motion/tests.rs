@@ -125,10 +125,10 @@ fn shift_animates_motion_offset_over_duration() {
 fn motion_actions_reject_invalid_modifier_values() {
     type ModifierCase = (&'static str, &'static str, fn(&str, Expr) -> Stmt, Expr);
     let cases: [ModifierCase; 4] = [
-        ("move", "to", move_action, Expr::Num(10.0)),
-        ("rotate", "by", rotate_action, Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0)])),
-        ("scale", "by", scale_action, Expr::Num(0.0)),
-        ("shift", "by", shift_action, Expr::Num(10.0)),
+        ("Move", "to", move_action, Expr::Num(10.0)),
+        ("Rotate", "by", rotate_action, Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0)])),
+        ("Scale", "by", scale_action, Expr::Num(0.0)),
+        ("Shift", "by", shift_action, Expr::Num(10.0)),
     ];
 
     for (verb, modifier, action, invalid_value) in cases {
@@ -138,12 +138,13 @@ fn motion_actions_reject_invalid_modifier_values() {
             span: None,
         }];
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-
+        let message_prefix = format!("{verb} action requires");
         assert!(
-            report
-                .diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.code == DiagnosticCode::InvalidModifierValue),
+            report.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == DiagnosticCode::InvalidModifierValue
+                    && diagnostic.message.starts_with(&message_prefix)
+                    && diagnostic.location.subject.as_deref() == Some(modifier)
+            }),
             "{verb} with invalid `{modifier}` modifier should report InvalidModifierValue: {:?}",
             report.diagnostics
         );

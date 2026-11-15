@@ -10,7 +10,6 @@ pub mod highlighting;
 pub mod hot_reload;
 pub mod preview_surface;
 pub mod source_edit;
-pub mod text_diff;
 pub mod validation;
 
 pub use app::run_gui;
