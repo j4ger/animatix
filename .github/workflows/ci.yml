@@ -11,7 +11,7 @@ on:
   # never. The commit gate takes the previous tip from the event to bound its
   # range; see gate_commit in scripts/ci.sh.
   push:
-    branches: [main]
+    branches: [main, feat/cloudflare-candidate-preview]
   workflow_call:
     inputs:
       checkout-ref:
@@ -271,3 +271,42 @@ jobs:
           ANIMATIX_CI_NEEDS: ${{ toJSON(needs) }}
           ANIMATIX_CI_TOPOLOGY: ${{ needs.plan.outputs.topology }}
         run: scripts/ci.sh gate ci-result
+
+  cloudflare_candidate:
+    name: Sign isolated Cloudflare candidate
+    needs: required
+    if: ${{ needs.required.result == 'success' && github.event_name == 'push' && github.repository == 'j4ger/animatix' && github.ref == 'refs/heads/feat/cloudflare-candidate-preview' && vars.ANIMATIX_CF_CANDIDATE == 'enabled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+      - name: Verify this run's original Nix SDK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEEDS_CI_RESULT: ${{ needs.required.result }}
+        run: scripts/ci.sh gate cloudflare-candidate-publish
+      - name: Sign candidate-only permit
+        id: attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+        with:
+          subject-path: target/cloudflare-permit/permit.json
+      - name: Retain signed candidate for Cloudflare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          cp "$BUNDLE" target/cloudflare-permit/permit.sigstore.json
+          test -z "$(git ls-remote origin "refs/tags/cf-preview-$GITHUB_SHA")"
+          gh release create "cf-preview-$GITHUB_SHA" --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "Isolated preview ${GITHUB_SHA:0:12}" \
+            --notes 'Candidate upload only. No production activation authorization.' \
+            target/cloudflare-permit/sdk.zip target/cloudflare-permit/permit.json \
+            target/cloudflare-permit/permit.sigstore.json

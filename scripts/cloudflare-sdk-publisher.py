@@ -17,8 +17,8 @@ def load(name):
     return module
 
 
-def main():
-    permit = load('cloudflare-permit')
+def main(permit=None):
+    permit = permit or load('cloudflare-permit')
     consumer = load('cloudflare-sdk-consumer')
     commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
     if os.environ.get('NEEDS_CI_RESULT') != 'success' or commit != os.environ['GITHUB_SHA']:

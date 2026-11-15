@@ -1,3 +1,7 @@
+> Historical Pages-specific path. The current migration targets
+> [Workers Builds and Static Assets](cloudflare-workers.md); do not use this
+> guide to bind the production domain during preview acceptance.
+
 # Cloudflare Pages deployment
 
 Cloudflare is an additional deployment target, not a new build system. GitHub

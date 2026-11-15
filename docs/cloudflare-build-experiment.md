@@ -238,10 +238,12 @@ not enabling automatic deploy after the last comparison.
 
 The earlier unsigned fixed-fixture proof fully built Astro from the exact CI SDK
 in Cloudflare in 25 seconds. That proves transport/build feasibility only.
-The signed automatic workflow and real positive attestation verification have
-not yet run. Local permit/dispatch tests include negative signatures/policy,
+The signed automatic workflow and real positive attestation verification passed
+on 2026-11-15: GitHub run 43704875414 and Cloudflare build
+41f64d9b-d64b-41d5-a644-a382c3c0ce22 (28 seconds, intentional exit 1).
+See [Workers candidate migration](cloudflare-workers.md) for the separate next stage. Local permit/dispatch tests include negative signatures/policy,
 wrong SHA/repository/run, expiry, missing credentials, stale completion and
-configuration restoration. They must not be reported as a real signed CI run.
+configuration restoration. Mocked tests alone must not be reported as real signature evidence.
 
 Do not enable the repository switch before the disabled experiment branch is
 reviewed and saved. Since this workflow is not on the default branch, do not

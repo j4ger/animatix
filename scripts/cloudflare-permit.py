@@ -26,6 +26,9 @@ WORKFLOW = ".github/workflows/cloudflare-sdk-experiment.yml"
 SIGNER = f"https://github.com/{REPOSITORY}/{WORKFLOW}@{REF}"
 ACCOUNT = "65bc5958d8a01d7a1d9b7c326b244406"
 TRIGGER = "59dc8a02-0b69-42e9-9c04-f76ac35f8b82"
+MODE = "build-only"
+SCHEMA = 1
+DESTINATION = {"account_id": ACCOUNT, "trigger_uuid": TRIGGER}
 GH_VERSION = "2.104.0"
 TTL = 2 * 60 * 60
 MAX_ARCHIVE = 64 * 1024**2
@@ -101,8 +104,8 @@ def emit(metadata, now=None):
             and metadata["workflow"] == WORKFLOW, "wrong publisher identity")
     now = int(time.time()) if now is None else now
     permit = {
-        "schema_version": 1,
-        "mode": "build-only",
+        "schema_version": SCHEMA,
+        "mode": MODE,
         "repository": {"id": REPOSITORY_ID, "name": REPOSITORY},
         "ref": REF,
         "site_sha": metadata["site_sha"],
@@ -112,7 +115,7 @@ def emit(metadata, now=None):
                "run_attempt": metadata["run_attempt"], "needs_ci_result": metadata["needs_ci_result"]},
         "sdk": {"artifact_id": metadata["artifact_id"], "archive_sha256": metadata["archive_sha256"],
                 "archive_size_bytes": metadata["archive_size_bytes"]},
-        "cloudflare": {"account_id": ACCOUNT, "trigger_uuid": TRIGGER},
+        "cloudflare": dict(DESTINATION),
         "issued_at": now,
         "expires_at": now + TTL,
     }
@@ -124,8 +127,8 @@ def validate_permit(permit, checkout_sha, now=None):
     """Validate claims after signature verification (also used before issuance)."""
     exact_keys(permit, {"schema_version", "mode", "repository", "ref", "site_sha", "sdk_source_sha",
                         "producer_sha", "ci", "sdk", "cloudflare", "issued_at", "expires_at"}, "permit")
-    require(type(permit["schema_version"]) is int and permit["schema_version"] == 1, "unsupported schema")
-    require(permit["mode"] == "build-only", "permit cannot authorize deployment")
+    require(type(permit["schema_version"]) is int and permit["schema_version"] == SCHEMA, "unsupported schema")
+    require(permit["mode"] == MODE, "permit cannot authorize deployment")
     exact_keys(permit["repository"], {"id", "name"}, "repository")
     require(type(permit["repository"]["id"]) is int and permit["repository"]["id"] == REPOSITORY_ID
             and permit["repository"]["name"] == REPOSITORY, "wrong repository")
@@ -143,8 +146,8 @@ def validate_permit(permit, checkout_sha, now=None):
     integer(permit["sdk"]["artifact_id"], 1, 2**63 - 1, "artifact ID")
     sha(permit["sdk"]["archive_sha256"], 64)
     integer(permit["sdk"]["archive_size_bytes"], 1, MAX_ARCHIVE, "archive size")
-    exact_keys(permit["cloudflare"], {"account_id", "trigger_uuid"}, "Cloudflare")
-    require(permit["cloudflare"] == {"account_id": ACCOUNT, "trigger_uuid": TRIGGER}, "wrong experiment destination")
+    exact_keys(permit["cloudflare"], DESTINATION, "Cloudflare")
+    require(permit["cloudflare"] == DESTINATION, "wrong experiment destination")
     now = int(time.time()) if now is None else now
     integer(now, 0, 2**53 - 1, "current time")
     integer(permit["issued_at"], 0, 2**53 - 1, "issued time")

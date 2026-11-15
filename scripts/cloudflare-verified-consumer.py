@@ -2,7 +2,6 @@
 """Offline-signed, experiment-only SDK consumer. Never deploys; always exits 1."""
 import hashlib
 import importlib.util
-import json
 import os
 from pathlib import Path
 import shutil
@@ -24,10 +23,10 @@ def interrupted(signum, frame):
     raise RuntimeError("consumer interrupted")
 
 
-def main():
+def main(policy=None, candidate=False):
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGINT, interrupted)
-    policy = load('cloudflare-permit')
+    policy = policy or load('cloudflare-permit')
     transport = load('cloudflare-sdk-consumer')
     bounded = load('cloudflare-nix-bootstrap')
     bounded.TIME_LIMIT = 600
@@ -56,7 +55,8 @@ def main():
     def fetch(name, limit):
         if time.monotonic()-started > 600 or shutil.disk_usage(work).free < 3*1024**3:
             raise RuntimeError('time/disk budget reached')
-        url = f'https://github.com/j4ger/animatix/releases/download/cf-candidate-{commit}/{name}'
+        prefix = getattr(policy, 'RELEASE_PREFIX', 'cf-candidate')
+        url = f'https://github.com/j4ger/animatix/releases/download/{prefix}-{commit}/{name}'
         with urllib.request.build_opener(transport.HTTPSOnly()).open(url, timeout=30) as response:
             data = response.read(limit+1)
         if len(data)>limit:
@@ -72,14 +72,9 @@ def main():
         bundle = fetch('permit.sigstore.json', 4*1024**2)
         bounded.run(['bash', 'scripts/cloudflare-attestation-tools.sh', str(work/'tools')], work, started)
         gh = work/'tools/gh_2.104.0_linux_amd64/bin/gh'
-        verified_path = work/'verified.json'
-        # No unsigned metadata is consumed before cryptographic verification.
-        with verified_path.open('w') as output:
-            subprocess.run(['python3', 'scripts/cloudflare-permit.py', 'verify', '--permit', str(permit_path),
-                            '--bundle', str(bundle), '--trusted-root', '.github/cloudflare/trusted-root.jsonl',
-                            '--gh', str(gh), '--checkout-sha', commit, '--latest-sha', latest()],
-                           stdout=output, check=True, timeout=60)
-        permit = json.loads(verified_path.read_text())
+        # Authenticate using the caller's compiled policy, never artifact-selected policy.
+        permit = policy.verify(permit_path, bundle, '.github/cloudflare/trusted-root.jsonl',
+                               gh, commit, latest())
         print('SIGNED_BUILD_ONLY_PERMIT_PASS', flush=True)
         archive = fetch('sdk.zip', 64*1024**2)
         sdk = permit['sdk']
@@ -95,14 +90,21 @@ def main():
         bounded.run(['bash', 'scripts/site-artifact.sh', '_site'], work, started)
         bounded.run(['python3', 'scripts/cloudflare-site-check.py', '_site'], work, started)
         latest()
-        print('SIGNED_SDK_ASTRO_BUILD_ONLY_PASS', flush=True)
+        print('SIGNED_SDK_ASTRO_BUILD_ONLY_PASS' if not candidate else 'SIGNED_CANDIDATE_BUILD_PASS', flush=True)
+        if candidate:
+            receipt = repo/'target/cloudflare-candidate'
+            receipt.mkdir(parents=True, exist_ok=False)
+            shutil.copyfile(permit_path, receipt/'permit.json')
+            shutil.copyfile(bundle, receipt/'permit.sigstore.json')
+            shutil.copyfile(archive, receipt/'sdk.zip')
+            return 0
     except Exception as error:
         print('SIGNED_CONSUMER_BLOCKED:', str(error), flush=True)
     finally:
         os.environ.clear()
         os.environ.update(old)
         print('elapsed_seconds=', round(time.monotonic()-started), flush=True)
-        print('Intentional experiment stop; no deployment', flush=True)
+        print('Candidate build only; activation is separate' if candidate else 'Intentional experiment stop; no deployment', flush=True)
     return 1
 
 
