@@ -31,6 +31,7 @@
 use crate::ast::*;
 use crate::format_core;
 use crate::token::{Token, TokenKind};
+use crate::visit::AstFolder;
 
 /// Configuration for the source formatter.
 #[derive(Debug, Clone)]
@@ -121,8 +122,7 @@ impl Formatter {
         // can swallow code when a commented property shares a line with later
         // properties. Strip every AST-carried comment and reinsert all comments
         // from the token stream instead, so there is exactly one source of truth.
-        let mut without_comments = stmts.to_vec();
-        clear_trailing_comments(&mut without_comments);
+        let without_comments = CommentScrubber.fold_stmts(stmts.to_vec());
         let formatted = self.format(&without_comments);
 
         let source_tokens = crate::token::tokenize(source);
@@ -483,212 +483,17 @@ fn leading_indent(text: &str, line_start: usize) -> &str {
 
 // AST comment scrubbing
 
-/// Clear every AST-carried comment so `format_source` can reinsert comments
-/// from the token stream without duplication.
-fn clear_trailing_comments(stmts: &mut [Stmt]) {
-    for stmt in stmts {
-        clear_stmt_comments(stmt);
-    }
-}
+/// Clear AST-carried property comments before reinserting them from tokens.
+struct CommentScrubber;
 
-fn clear_props_comments(props: &mut [Property]) {
-    for prop in props {
-        prop.trailing_comment = None;
-        clear_expr_comments(&mut prop.value);
-    }
-}
-
-fn clear_inline_comments(items: &mut [InlineItem]) {
-    for item in items {
-        match item {
-            InlineItem::Anonymous {
-                props, children, ..
-            }
-            | InlineItem::Labeled {
-                props, children, ..
-            } => {
-                clear_props_comments(props);
-                clear_inline_comments(children);
-            },
-            InlineItem::ForLoop { iterable, body, .. } => {
-                clear_expr_comments(iterable);
-                clear_inline_comments(body);
-            },
-            InlineItem::SlotFill { items, .. } => clear_inline_comments(items),
-            InlineItem::SlotMarker => {},
+impl AstFolder for CommentScrubber {
+    fn fold_property(&mut self, prop: Property) -> Property {
+        Property {
+            name: prop.name,
+            value: self.fold_expr(prop.value),
+            value_span: prop.value_span,
+            trailing_comment: None,
         }
-    }
-}
-
-fn clear_modifiers_comments(modifiers: &mut [Modifier]) {
-    for modifier in modifiers {
-        clear_expr_comments(&mut modifier.value);
-    }
-}
-
-fn clear_target_comments(target: &mut [TargetSegment]) {
-    for segment in target {
-        if let TargetSegment::Indexed { index, .. } = segment {
-            clear_expr_comments(index);
-        }
-    }
-}
-
-fn clear_params_comments(params: &mut [ParamDef]) {
-    for param in params {
-        if let Some(default) = &mut param.default {
-            clear_expr_comments(default);
-        }
-    }
-}
-
-fn clear_expr_comments(expr: &mut Expr) {
-    match expr {
-        Expr::Index(target, index) => {
-            clear_expr_comments(target);
-            clear_expr_comments(index);
-        },
-        Expr::Tuple(items) | Expr::List(items) => {
-            for item in items {
-                clear_expr_comments(item);
-            }
-        },
-        Expr::Binary(left, _, right) => {
-            clear_expr_comments(left);
-            clear_expr_comments(right);
-        },
-        Expr::Unary(_, inner) => clear_expr_comments(inner),
-        Expr::Call(_, args) => {
-            for arg in args {
-                clear_expr_comments(arg);
-            }
-        },
-        Expr::Method(receiver, _, args) => {
-            clear_expr_comments(receiver);
-            for arg in args {
-                clear_expr_comments(arg);
-            }
-        },
-        Expr::Closure(_, body) => clear_expr_comments(body),
-        Expr::LetChain(bindings, tail) => {
-            for (_, value) in bindings {
-                clear_expr_comments(value);
-            }
-            clear_expr_comments(tail);
-        },
-        Expr::Conditional(condition, then_expr, else_expr) => {
-            clear_expr_comments(condition);
-            clear_expr_comments(then_expr);
-            clear_expr_comments(else_expr);
-        },
-        Expr::Match(scrutinee, arms) => {
-            clear_expr_comments(scrutinee);
-            for (_, arm) in arms {
-                clear_expr_comments(arm);
-            }
-        },
-        Expr::Construct(_, props) => clear_props_comments(props),
-        _ => {},
-    }
-}
-
-fn clear_stmt_comments(stmt: &mut Stmt) {
-    match stmt {
-        Stmt::Action(action, _) => {
-            for arg in &mut action.args {
-                clear_expr_comments(arg);
-            }
-            for index in action.target_index.iter_mut().flatten() {
-                clear_expr_comments(index);
-            }
-            clear_modifiers_comments(&mut action.modifiers);
-        },
-        Stmt::LetDecl { value, .. }
-        | Stmt::Return {
-            value: Some(value), ..
-        }
-        | Stmt::Expr(value, _) => clear_expr_comments(value),
-        Stmt::ActorDecl {
-            array_index,
-            props,
-            children,
-            ..
-        } => {
-            if let Some(index) = array_index {
-                clear_expr_comments(index);
-            }
-            clear_props_comments(props);
-            clear_inline_comments(children);
-        },
-        Stmt::Keyframe { body, .. }
-        | Stmt::RelativeKeyframe { body, .. }
-        | Stmt::Sequence { body, .. }
-        | Stmt::Stagger { body, .. }
-        | Stmt::Always { body, .. }
-        | Stmt::Block { body, .. } => clear_trailing_comments(body),
-        Stmt::Assignment {
-            target,
-            value,
-            modifiers,
-            ..
-        } => {
-            clear_target_comments(target);
-            clear_expr_comments(value);
-            clear_modifiers_comments(modifiers);
-        },
-        Stmt::ReactiveBinding { target, value, .. } => {
-            clear_target_comments(target);
-            clear_expr_comments(value);
-        },
-        Stmt::Conditional {
-            condition,
-            then_branch,
-            else_branch,
-            ..
-        } => {
-            clear_expr_comments(condition);
-            clear_trailing_comments(then_branch);
-            if let Some(else_body) = else_branch {
-                clear_trailing_comments(else_body);
-            }
-        },
-        Stmt::Match {
-            scrutinee, arms, ..
-        } => {
-            clear_expr_comments(scrutinee);
-            for (_, body) in arms {
-                clear_trailing_comments(body);
-            }
-        },
-        Stmt::ForLoop {
-            iterable,
-            body,
-            modifiers,
-            ..
-        } => {
-            clear_expr_comments(iterable);
-            clear_modifiers_comments(modifiers);
-            clear_trailing_comments(body);
-        },
-        Stmt::ComponentDef(def, _) => {
-            clear_params_comments(&mut def.params);
-            clear_trailing_comments(&mut def.body);
-        },
-        Stmt::FnDecl { params, body, .. } => {
-            clear_params_comments(params);
-            clear_trailing_comments(body);
-        },
-        Stmt::Config { settings, .. } => clear_props_comments(settings),
-        Stmt::Scene { config, body, .. } => {
-            clear_props_comments(config);
-            clear_trailing_comments(body);
-        },
-        Stmt::TypeAlias { .. }
-        | Stmt::Import { .. }
-        | Stmt::Play { .. }
-        | Stmt::Step { .. }
-        | Stmt::Return { value: None, .. }
-        | Stmt::Comment(..) => {},
     }
 }
 

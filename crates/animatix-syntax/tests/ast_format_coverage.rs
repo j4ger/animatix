@@ -936,7 +936,13 @@ fn a_transition_prints_all_three_of_its_fields() {
 #[test]
 fn format_source_preserves_comments_and_ast() {
     let formatter = animatix_syntax::formatter::Formatter::default();
-    for source in COMMENT_FIXTURES {
+    let nested_construct = r#"let shape = Outer {
+  inner: Inner {
+    radius: 12, // inner comment
+  }, // outer comment
+}
+"#;
+    for source in COMMENT_FIXTURES.iter().copied().chain(std::iter::once(nested_construct)) {
         let original = parse(source);
         let formatted = formatter.format_source(source, &original);
         assert_eq!(
