@@ -26,12 +26,15 @@ bash scripts/site-build.sh
 stage="${out}.staging-$$"
 trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage"
-entries=(logo.svg index.html gallery.html site.css site-chrome.js site assets demos tour recipes arena scenes content)
+entries=(logo.svg assets demos tour recipes scenes content)
 for entry in "${entries[@]}"; do
   [ -e "web/$entry" ] || { echo "error: missing runtime content web/$entry" >&2; exit 1; }
   cp -R "web/$entry" "$stage/$entry"
 done
-# New site overlays the legacy URLs; canonical content is copied above.
+# Historical AMX/assets remain importable, but obsolete HTML/JS is not a second
+# public website. Astro owns compatibility routes and explicit archive notices.
+find "$stage/demos" "$stage/tour" "$stage/recipes" -type f \( -name "*.html" -o -name "*.js" -o -name "*.css" \) -delete
+# New site supplies every public page, including compatibility routes.
 cp -R web/app/dist/. "$stage/"
 # The build's public runtime is a symlink into target/. Distributions contain
 # real files; they must never retain a link to the builder's private directory.

@@ -42,11 +42,12 @@ def main():
         if previews.get('schema_version') != 1 or len(works) < 3:
             errors.append('preview manifest must describe at least three works with schema_version 1')
         ids = set()
-        for work in works:
+        for work in works + previews.get('stills', []):
             if work['id'] in ids:
                 errors.append(f"duplicate preview id: {work['id']}")
             ids.add(work['id'])
-            for role in ('source', 'poster', 'recording'):
+            roles = ('source', 'poster', 'recording') if work in works else ('source', 'poster')
+            for role in roles:
                 path = (content / work[role]).resolve()
                 if not path.is_relative_to(content.resolve()):
                     errors.append(f"preview path escapes content: {work[role]}")

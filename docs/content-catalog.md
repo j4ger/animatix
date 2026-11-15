@@ -1,8 +1,8 @@
 # Content catalog: organize by purpose, publish by target
 
 `web` is a delivery target, not a second category of content. Keep existing
-paths and URLs for now; this first pass inventories sources and records decisions
-without deleting, relocating, or republishing them.
+source paths for compatibility. Public URLs now resolve to current content or
+explicit archive notices; see `web-content-disposition.md`.
 
 ## Two public doors
 
@@ -13,7 +13,8 @@ without deleting, relocating, or republishing them.
 
 Recipes are a problem-oriented view of examples; templates are starting points.
 Gallery, home highlights, and embedded figures are views of the same works, not
-independent copies. The showcase metadata remains in `web/works.json`.
+independent copies. Current showcase and lesson metadata lives in `web/app/src/lib/content.ts`;
+techniques live in `techniques.ts`. `web/works.json` is historical metadata only.
 
 Internally, keep **fixtures** (regression cases), **benchmarks** (fixed workloads),
 **experiments** (unreviewed exploration), **library modules**, and **brand assets**

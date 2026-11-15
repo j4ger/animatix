@@ -67,3 +67,18 @@ All three complete recordings were exported and their encoded frames sampled at 
 ## Voiceover remains separate
 
 The repository has a narration example, word-level JSON, an Edge-TTS helper, and `Audio`/speech-anchor/`Captions` support. This investigation did not establish asset-specific provenance for that existing voice, and its script does not match Words. A voiced edition needs an approved script/voice and provenance, actual audio plus word timings, speech-anchor choreography, listening/sync review, and browser audio scheduling/autoplay/seek acceptance. A synthesized metronome is not a substitute for narration.
+
+## Completion-pass stories
+
+- `move-the-basis.amx` (24 s): a horizontal shear with one shared amount and a
+  fixed grey reference. The unit area is preserved; lengths and angles change.
+  No public parameter is advertised: the authored tour deliberately compares
+  zero, positive and negative shear on one fixed scale.
+- `make-room.amx` (24 s): stable insertion sort on `[4, 2a, 5, 2b, 3]`. Counters
+  count eight key comparisons and five rightward moves, excluding key placement.
+  Explicit keyframe events expose each decision. This is not runtime performance.
+- `technique-reveal/focus/stagger/labels.amx`: four short, single-intent sources
+  linked from Learn. Unlike works, techniques do not need a separate story arc.
+
+See `docs/web-reset-completion.md` for editorial scope and the final review
+report for the actual rendering/build coverage of this pass.

@@ -51,6 +51,152 @@
       "audio": false,
       "parameters": "authored defaults",
       "renderer": "native CLI with video at authored 1280x720; FFmpeg 24fps timestamp normalization, no crop or resize"
+    },
+    {
+      "id": "move-the-basis",
+      "source": "scenes/move-the-basis.amx",
+      "poster": "posters/move-the-basis.png",
+      "recording": "previews/move-the-basis.mp4",
+      "poster_time_seconds": 22,
+      "duration_seconds": 24,
+      "width": 1280,
+      "height": 720,
+      "fps": "24/1",
+      "audio": false,
+      "parameters": "authored defaults",
+      "renderer": "native OffscreenRenderer (SwiftShader), same CLI source builder; RGBA frames encoded with external FFmpeg, 24fps, no crop or resize",
+      "source_sha256": "bbf83269239b7751d7bc5d262c822c3c99412b5e42d57adcdc76bef2bea9611f",
+      "poster_sha256": "d7e3341441a051bdc9bdf4c774a8c596616721ad4328851eeaaf0f1f72b610ac",
+      "recording_sha256": "c17bd46ed0c04be2b5fde5b835e6e0c1fe7f3b860589ed1ba91305ae16c0d0e3"
+    },
+    {
+      "id": "make-room",
+      "source": "scenes/make-room.amx",
+      "poster": "posters/make-room.png",
+      "recording": "previews/make-room.mp4",
+      "poster_time_seconds": 22,
+      "duration_seconds": 24,
+      "width": 1280,
+      "height": 720,
+      "fps": "24/1",
+      "audio": false,
+      "parameters": "authored defaults",
+      "renderer": "native OffscreenRenderer (SwiftShader), same CLI source builder; RGBA frames encoded with external FFmpeg, 24fps, no crop or resize",
+      "source_sha256": "a8505612fcd6ddf145677bd00cc24226d21c6550231df39d6134e70e48e0e712",
+      "poster_sha256": "cfe0f4c3cca53d802659dd83160bb4ff552a66f4dbed7fb8be83cc3812f1f7a9",
+      "recording_sha256": "2e873803c3884f714f0f7b26e77aa527ce8be11461d8ba30a959aa69a7227fcc"
+    }
+  ],
+  "stills": [
+    {
+      "id": "first-move",
+      "source": "scenes/first-move.amx",
+      "poster": "posters/first-move.png",
+      "poster_time_seconds": 2.5,
+      "width": 1280,
+      "height": 720,
+      "renderer": "native CLI image with SwiftShader",
+      "source_sha256": "6cdf53add5c0e3afc2bb37eabfdfae579d1c851085929bcbfd1d2242d751ff3d",
+      "poster_sha256": "d6e0d630fd2e06eba549490f6d1714c81f83d0af052239aa40867f45cf1227a1"
+    },
+    {
+      "id": "compose",
+      "source": "scenes/compose.amx",
+      "poster": "posters/compose.png",
+      "poster_time_seconds": 1.8,
+      "width": 1280,
+      "height": 720,
+      "renderer": "native CLI image with SwiftShader",
+      "source_sha256": "76757429d692a8b3237751bed5172721f2b2df70d155f4cea8b5045e88063f21",
+      "poster_sha256": "7b596733bd17b02f5fdcd55f643173820b622fbe01f6593ed3d03876f39fbc2e"
+    },
+    {
+      "id": "repeat",
+      "source": "scenes/repeat.amx",
+      "poster": "posters/repeat.png",
+      "poster_time_seconds": 2.8,
+      "width": 1280,
+      "height": 720,
+      "renderer": "native CLI image with SwiftShader",
+      "source_sha256": "381b179f047f6b036a92151db7af37b6c037dcdf0793810ac029b8b96ba02a7c",
+      "poster_sha256": "292be852b464a449149e395e769e737def733a1cd525b6978f5e843048c0f61a"
+    },
+    {
+      "id": "values",
+      "source": "scenes/values.amx",
+      "poster": "posters/values.png",
+      "poster_time_seconds": 1,
+      "width": 1280,
+      "height": 720,
+      "renderer": "native CLI image with SwiftShader",
+      "source_sha256": "bf5603a6309602ef7fb6a226d25b11f6d2a927251d9e1d8f2957cee5fd45550c",
+      "poster_sha256": "87a53c1a02bdcca08a40aaa0bf478ed8405f56aaa9ccd0a4e77d618161ead70d"
+    },
+    {
+      "id": "timing",
+      "source": "scenes/timing.amx",
+      "poster": "posters/timing.png",
+      "poster_time_seconds": 4.8,
+      "width": 1280,
+      "height": 720,
+      "renderer": "native CLI image with SwiftShader",
+      "source_sha256": "5d749c82e7459327a4b1f391b365aa923f369d8d5aeab684fef3c7499f8f4828",
+      "poster_sha256": "0ff8fdab9b2f659f05b046a8d4565aeb879fc65e0140a9ed314e833a65dc9994"
+    },
+    {
+      "id": "finish",
+      "source": "scenes/finish.amx",
+      "poster": "posters/finish.png",
+      "poster_time_seconds": 3,
+      "width": 1280,
+      "height": 720,
+      "renderer": "native CLI image with SwiftShader",
+      "source_sha256": "35eccccccee164fa8ba442c8d4a260dc4ae2a6ece21d7e3b097d4930875d1dbf",
+      "poster_sha256": "8660f5b0dccc89ab916ce4df7b37b59a315f0e598af1ab268acf551ac9c71910"
+    },
+    {
+      "id": "technique-focus",
+      "source": "scenes/technique-focus.amx",
+      "poster": "posters/technique-focus.png",
+      "poster_time_seconds": 7,
+      "width": 1280,
+      "height": 720,
+      "renderer": "native CLI image with SwiftShader",
+      "source_sha256": "76444d25e88d25548ef36c9ca29f88a7c0481c8e3d1f7ef3ba9fb64f1c3cfb48",
+      "poster_sha256": "0b02e413b4a224f051113e63e1f5ae4dec5d02bfb6b6f61f80d753023a88ba9e"
+    },
+    {
+      "id": "technique-labels",
+      "source": "scenes/technique-labels.amx",
+      "poster": "posters/technique-labels.png",
+      "poster_time_seconds": 7,
+      "width": 1280,
+      "height": 720,
+      "renderer": "native CLI image with SwiftShader",
+      "source_sha256": "7fdee6712e33511dd5a0b05565aa59ac77d6b93e03fca4aee55856c714af1501",
+      "poster_sha256": "b7f842e5aeb85b55564336f6f1a655d888b2b55ef2aaf625653ff4c66836c1d3"
+    },
+    {
+      "id": "technique-reveal",
+      "source": "scenes/technique-reveal.amx",
+      "poster": "posters/technique-reveal.png",
+      "poster_time_seconds": 7,
+      "width": 1280,
+      "height": 720,
+      "renderer": "native CLI image with SwiftShader",
+      "source_sha256": "ace56da37869a954b2c5a8b857c35ea10dde4fb5da0b120b2ac642ef795e2045",
+      "poster_sha256": "acc0d2ab9acdad4456a6ec902022392531ba559ec4d791d2e3fc881a69e8e0fd"
+    },
+    {
+      "id": "technique-stagger",
+      "source": "scenes/technique-stagger.amx",
+      "poster": "posters/technique-stagger.png",
+      "poster_time_seconds": 7,
+      "width": 1280,
+      "height": 720,
+      "renderer": "native CLI image with SwiftShader",
+      "source_sha256": "d3b33c4be4b90f1537e27794d9f9473abc67c590c408bbabf7fb8c0665223078",
+      "poster_sha256": "07577e2ffd4266cb94342505fcd159cc924f5304afe349e1545a499b6d78f8ef"
     }
   ]
 }

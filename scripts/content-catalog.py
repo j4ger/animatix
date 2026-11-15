@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Inventory AMX content without moving it or changing publication.
 
-The optional review registry carries stable IDs and decisions; works.json remains
-showcase authority. Defaults are inferred purpose, never visual-quality approval.
+The optional review registry carries stable IDs and decisions. works.json describes
+the historical collection; Astro content.ts owns current pages. Defaults are inferred
+purpose, never visual-quality approval.
 """
 from __future__ import annotations
 
@@ -37,6 +38,8 @@ def inferred_kind(path: str) -> str:
         return "fixture"
     if path.startswith(("dogfood/", "web/dev/")):
         return "experiment"
+    if path == "web/content/scenes/hero.amx":
+        return "brand"
     if path.startswith("web/scenes/"):
         return "brand"
     if path.startswith(("examples/gallery/", "examples/projects/", "web/demos/")):
@@ -70,6 +73,8 @@ def build() -> dict:
         if item.get("generator") and not (ROOT / item["generator"]).is_file():
             raise ValueError(f"missing generator: {item['generator']}")
     works = json.loads((ROOT / "web/works.json").read_text())["works"]
+    current_previews = json.loads((ROOT / "web/content/preview-manifest.json").read_text())["works"]
+    current_sources = {"web/content/" + w["source"]: w["id"] for w in current_previews}
     work_ids = [w["id"] for w in works]
     if len(work_ids) != len(set(work_ids)):
         raise ValueError("duplicate works.json ID")
@@ -97,7 +102,7 @@ def build() -> dict:
         source_hash = hashlib.sha256((ROOT / source).read_bytes()).hexdigest()
         reviewed_hash = override.get("reviewed_sha256")
         review_stale = bool(reviewed_hash and reviewed_hash != source_hash)
-        kind = override.get("kind", inferred_kind(source))
+        kind = override.get("kind", "showcase" if source in current_sources else inferred_kind(source))
         module = "/lib/" in source or "/scenes/" in source and source.startswith("examples/")
         sibling_main = (ROOT / source).with_name("main.amx")
         fragment = sibling_main.exists() and Path(source).name != "main.amx"
@@ -112,7 +117,8 @@ def build() -> dict:
             "decision": override.get("decision", "review"),
             "status": override.get("status", "unreviewed"),
             "visual_review": override.get("visual_review", "not-reviewed"),
-            "works": memberships,
+            "legacy_works": memberships,
+            "current_work": current_sources.get(source),
             "imports": imports,
             "literal_references": [p for p, body in reference_texts.items() if source in body and p != source],
         }
@@ -126,7 +132,9 @@ def build() -> dict:
         "scope": "tracked and non-ignored untracked AMX; working tree content",
         "counts": dict(sorted(Counter(x["kind"] for x in inventory).items())),
         "total": len(inventory),
-        "works_manifest": "web/works.json",
+        "legacy_works_manifest": "web/works.json",
+        "current_content_registry": "web/app/src/lib/content.ts",
+        "current_technique_registry": "web/app/src/lib/techniques.ts",
         "items": inventory,
     }
 

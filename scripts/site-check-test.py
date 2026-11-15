@@ -103,6 +103,22 @@ class SiteCheckTests(unittest.TestCase):
         self.assertNotEqual(result.returncode,0)
         self.assertIn(b'URL escapes output',result.stderr)
 
+    def test_stale_teaching_still_fails(self):
+        self.pages()
+        content = self.source / 'web/content'
+        manifest = content / 'preview-manifest.json'
+        data = json.loads(manifest.read_text())
+        still = dict(data['works'][0], id='lesson')
+        del still['recording']
+        del still['recording_sha256']
+        data['stills'] = [still]
+        manifest.write_text(json.dumps(data))
+        self.assertEqual(self.run_check().returncode, 0)
+        (content / still['source']).write_text('changed source')
+        result = self.run_check()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b'stale or missing preview source: lesson', result.stderr)
+
     def test_stale_preview_fails(self):
         self.assembly()
         (self.root/'content/poster0.png').write_bytes(b'changed')

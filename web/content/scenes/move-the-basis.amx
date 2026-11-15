@@ -1,0 +1,144 @@
+// A horizontal shear: (x, y) -> (x + k*y, y).
+// Fixed grey axes are a reference. Teal/gold arrows and the lattice transform.
+// Determinant is 1: area is preserved, but lengths and angles need not be.
+// Every animated endpoint uses the same k; x and y use 70 px per unit.
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 24 }
+
+let k = 0
+
+#0s
+  background: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
+  kicker: Text, text: "LINEAR TRANSFORMS / ONE RULE FOR EVERY POINT", at: (640, 58), font_size: 16, color: "#90A4B8"
+  title: Text, text: "Move the basis. Move the world.", at: (640, 112), font_size: 40, font_weight: "bold", color: "#F3F5F7"
+  reference_x: Line, from: (100, 410), to: (720, 410), stroke: "#526273", stroke_width: 2
+  reference_y: Line, from: (400, 200), to: (400, 600), stroke: "#526273", stroke_width: 2
+  x_name: Text, text: "x", at: (737, 410), font_size: 20, color: "#90A4B8"
+  y_name: Text, text: "y", at: (400, 184), font_size: 20, color: "#90A4B8"
+  origin: Ellipse, at: (400, 410), size: (9, 9), color: "#F3F5F7"
+  vertical_0: Line, from: (260, 550), to: (260, 270), stroke: "#304658", stroke_width: 1, opacity: 0
+  horizontal_0: Line, from: (260, 550), to: (540, 550), stroke: "#304658", stroke_width: 1, opacity: 0
+  vertical_1: Line, from: (330, 550), to: (330, 270), stroke: "#304658", stroke_width: 1, opacity: 0
+  horizontal_1: Line, from: (260, 480), to: (540, 480), stroke: "#304658", stroke_width: 1, opacity: 0
+  vertical_2: Line, from: (400, 550), to: (400, 270), stroke: "#304658", stroke_width: 1, opacity: 0
+  horizontal_2: Line, from: (260, 410), to: (540, 410), stroke: "#304658", stroke_width: 1, opacity: 0
+  vertical_3: Line, from: (470, 550), to: (470, 270), stroke: "#304658", stroke_width: 1, opacity: 0
+  horizontal_3: Line, from: (260, 340), to: (540, 340), stroke: "#304658", stroke_width: 1, opacity: 0
+  vertical_4: Line, from: (540, 550), to: (540, 270), stroke: "#304658", stroke_width: 1, opacity: 0
+  horizontal_4: Line, from: (260, 270), to: (540, 270), stroke: "#304658", stroke_width: 1, opacity: 0
+
+#0s
+  unit_top: Line, from: (400, 340), to: (470, 340), stroke: "#65D9E8", stroke_width: 3, opacity: 0
+  unit_right: Line, from: (470, 410), to: (470, 340), stroke: "#65D9E8", stroke_width: 3, opacity: 0
+  basis_x: Arrow, from: (400, 410), to: (470, 410), stroke: "#65D9E8", stroke_width: 4
+  basis_y: Arrow, from: (400, 410), to: (400, 340), stroke: "#F4D47B", stroke_width: 4
+  sample: Ellipse, at: (470, 340), size: (14, 14), color: "#FF947D", opacity: 0
+  split: Line, from: (800, 220), to: (800, 590), stroke: "#304658", stroke_width: 1
+  rule: Text, text: "x becomes x + k·y", at: (1020, 270), font_size: 27, font_weight: "bold", color: "#F3F5F7"
+  rule_y: Text, text: "y stays y", at: (1020, 310), font_size: 24, color: "#ADBCCA"
+  amount: Text, text: "k = 0.00", at: (1020, 380), font_size: 40, color: "#F4D47B"
+  base_x: Text, text: "e1 = (1, 0)", at: (1020, 455), font_size: 24, color: "#65D9E8"
+  base_y: Text, text: "e2 = (0.00, 1)", at: (1020, 495), font_size: 24, color: "#F4D47B"
+  area: Text, text: "AREA = 1", at: (1020, 565), font_size: 20, color: "#65D9E8", opacity: 0
+  caption: Text, text: "Two basis vectors describe the original space.", at: (640, 650), font_size: 24, color: "#ADBCCA"
+
+#3s
+
+
+#8s
+  fade-in vertical_0 [600ms]
+  fade-in horizontal_0 [600ms]
+  fade-in vertical_1 [600ms]
+  fade-in horizontal_1 [600ms]
+  fade-in vertical_2 [600ms]
+  fade-in horizontal_2 [600ms]
+  fade-in vertical_3 [600ms]
+  fade-in horizontal_3 [600ms]
+  fade-in vertical_4 [600ms]
+  fade-in horizontal_4 [600ms]
+  fade-in sample [600ms]
+
+#14s
+  fade-in unit_top [600ms]
+  fade-in unit_right [600ms]
+  fade-in area [600ms]
+
+#19s
+  always {
+      if t < 3 {
+            k = 0
+          }
+      if t >= 3 && t < 7 {
+            k = ease_in_out((t - 3) / 4)
+          }
+      if t >= 7 && t < 10 {
+            k = 1
+          }
+      if t >= 10 && t < 14 {
+            k = 1 - 1.6 * ease_in_out((t - 10) / 4)
+          }
+      if t >= 14 && t < 17 {
+            k = -0.6
+          }
+      if t >= 17 && t < 21 {
+            k = -0.6 + 1.6 * ease_in_out((t - 17) / 4)
+          }
+      if t >= 21 {
+            k = 1
+          }
+      vertical_0.from = (400 + 70 * (-2 - 2 * k), 550)
+      vertical_0.to = (400 + 70 * (-2 + 2 * k), 270)
+      horizontal_0.from = (400 + 70 * (-2 + k * -2), 550)
+      horizontal_0.to = (400 + 70 * (2 + k * -2), 550)
+      vertical_1.from = (400 + 70 * (-1 - 2 * k), 550)
+      vertical_1.to = (400 + 70 * (-1 + 2 * k), 270)
+      horizontal_1.from = (400 + 70 * (-2 + k * -1), 480)
+      horizontal_1.to = (400 + 70 * (2 + k * -1), 480)
+      vertical_2.from = (400 + 70 * (0 - 2 * k), 550)
+      vertical_2.to = (400 + 70 * (0 + 2 * k), 270)
+      horizontal_2.from = (400 + 70 * (-2 + k * 0), 410)
+      horizontal_2.to = (400 + 70 * (2 + k * 0), 410)
+      vertical_3.from = (400 + 70 * (1 - 2 * k), 550)
+      vertical_3.to = (400 + 70 * (1 + 2 * k), 270)
+      horizontal_3.from = (400 + 70 * (-2 + k * 1), 340)
+      horizontal_3.to = (400 + 70 * (2 + k * 1), 340)
+      vertical_4.from = (400 + 70 * (2 - 2 * k), 550)
+      vertical_4.to = (400 + 70 * (2 + 2 * k), 270)
+      horizontal_4.from = (400 + 70 * (-2 + k * 2), 270)
+      horizontal_4.to = (400 + 70 * (2 + k * 2), 270)
+      basis_y.to = (400 + 70 * k, 340)
+      sample.at = (400 + 70 * (1 + k), 340)
+      unit_top.from = (400 + 70 * k, 340)
+      unit_top.to = (470 + 70 * k, 340)
+      unit_right.to = (470 + 70 * k, 340)
+      amount.text = format("k = {:.2}", k)
+      base_y.text = format("e2 = ({:.2}, 1)", k)
+    }
+
+// Fade through clear space: do not stack old/new caption glyphs.
+#2.88s
+  fade-out caption [120ms]
+
+#3s
+  caption.text = "Slide the second basis vector sideways."
+  fade-in caption [120ms]
+
+#7.88s
+  fade-out caption [120ms]
+
+#8s
+  caption.text = "Apply that same rule to every point."
+  fade-in caption [120ms]
+
+#13.88s
+  fade-out caption [120ms]
+
+#14s
+  caption.text = "The unit square becomes a parallelogram. Its area stays 1."
+  fade-in caption [120ms]
+
+#18.88s
+  fade-out caption [120ms]
+
+#19s
+  caption.text = "Area is preserved. Lengths and angles are not."
+  fade-in caption [120ms]
