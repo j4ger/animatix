@@ -45,6 +45,11 @@ for item in null zero random urandom; do
   touch "$root/dev/$item"
   mount --bind "/dev/$item" "$root/dev/$item"
 done
+# Nix opens a PTY even for noninteractive builds. Give it a private, bounded
+# devpts instance, never the host's terminals; only our mapped user can open it.
+mkdir -p "$root/dev/pts"
+mount -t devpts -o newinstance,ptmxmode=0600,mode=0600,nosuid,noexec,max=32 devpts "$root/dev/pts"
+ln -s pts/ptmx "$root/dev/ptmx"
 # A new procfs for our own PID namespace avoids host proc mount restrictions
 # and never exposes unrelated host processes to the chroot.
 mount -t proc -o ro,nosuid,nodev,noexec proc "$root/proc"

@@ -106,7 +106,9 @@ The current unprivileged host UID maps to UID 0 **inside the child namespace
 only**; this is not host root. The stage refuses execution in its parent
 namespaces or with a host-root mapping. System program directories are read-only
 mounts; procfs is a fresh read-only mount inside a separate PID namespace, not
-a remount of host proc. Only null/zero/random device handles are exposed. The host's
+a remount of host proc. Only null/zero/random host device handles are exposed;
+Nix receives a separate devpts instance limited to 32 PTYs with mode 0600,
+not the host's terminals. The host's
 `/etc` is not mounted: the temporary root receives only its resolver and public
 CA certificate bundle, plus generated minimal account/name-service files.
 
