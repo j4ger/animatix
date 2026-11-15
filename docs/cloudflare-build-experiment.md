@@ -138,3 +138,26 @@ The existing 15-minute process-group timeout and 3 GiB free-space floor apply;
 startup requires 6 GiB free. Version then the locked `web-build` shell are tested.
 Every result exits 1 to prevent deployment. Runtime incompatibility or denied
 sandbox operations are stop conditions, not grounds to disable sandboxing.
+
+### Same-SHA CI SDK consumer (no engine rebuild)
+
+`cloudflare-sdk-consumer.py` is an external experiment harness: download it to a
+private temporary directory, verify its pinned SHA256, and run from a clean
+checkout of the exact successful main CI SHA. Do not copy it into that checkout's
+tracked/input directories, since doing so changes the SDK input fingerprint.
+It independently validates the requested successful main push CI run and artifact
+provenance. The default transport expects an experimental Release ZIP that must
+match the GitHub Actions artifact digest exactly; no such release is created by
+the script. `--site-manifest-sha` instead permits a one-off public-site transport,
+anchored to a manifest hash obtained from an independently downloaded and
+platform-digest-verified CI ZIP. It verifies every public file against that pinned
+manifest. This mode is a controlled proof, NOT the future immutable distribution
+or trust architecture. A stale/unavailable live site fails closed.
+
+The consumer preserves the original SDK, checks its input fingerprint and exact
+source commit, then runs the existing Astro assembly/validation and Cloudflare
+static limits checker. It installs no Rust/Nix, never changes DNS/deploy settings,
+uses a fresh credential-free child environment, stops after 10 minutes or below
+3 GiB free, and always exits 1. The only API-triggered build in this proof checks
+out the exact already-successful CI commit; Git auto-trigger filtering stays on
+the experiment branch. Afterward restore the lightweight capability probe.
