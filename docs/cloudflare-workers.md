@@ -341,3 +341,24 @@ plus the existing policy, packaging and Astro checks). Wrangler 4.162.0 local
 `2e35546260a53329466e6640dad5bc694c94391a7ea2e165f175c5b85a788517`.
 This is local packaging evidence, not a signed candidate upload or HTTP/browser
 acceptance. No remote deploy, DNS change, main merge or full CI rerun occurred.
+
+
+### Isolated account preparation observed on 2026-11-15
+
+The dedicated empty Worker `animatix-candidate-preview` now exists in the Workers
+API with ID `2084ce245de94d90aa46f7e33f8303c4`. Its `deployed_on` is null,
+workers.dev and preview URLs are disabled, and its domain/resource references
+are empty. The account workers.dev subdomain is `j4ger`. The legacy Scripts list
+does not yet contain this empty Worker. Consequently `worker_tag` remains unset
+until its Builds/legacy identity is verified; existence alone is not proof that
+Wrangler versions upload can initialize it. No other Worker's token is reusable.
+
+Before token configuration, the dedicated source branch, local tests, immutable
+module packaging and exact build-command template can be prepared. Creating a
+Builds trigger requires a dedicated `build_token_uuid` in the API request; it
+cannot be completed with only the existing Builds Configuration Edit token.
+After the user configures the dedicated token through Cloudflare, verify its
+upload permission and token type compatibility without exposing its value, then
+record the returned UUID, Worker tag and trigger UUID. Only then enable the
+reviewed target and the two separate GitHub candidate/signing dispatch switches.
+Keep activation disabled throughout upload and immutable-URL acceptance.

@@ -5,6 +5,6 @@
   "worker_tag": null,
   "trigger_uuid": null,
   "build_token_uuid": null,
-  "workers_subdomain": null,
+  "workers_subdomain": "j4ger",
   "repo_connection_uuid": "06316b53-a8a0-4a6f-ace9-14ca28076d74"
 }
