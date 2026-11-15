@@ -34,7 +34,10 @@ running fresh main CI. A Workers schema-2 permit is deliberately not accepted.
 5. The consumer rejects a wrong Pages branch or `CF_PAGES_COMMIT_SHA`, dirty
    source, expired permit, wrong signer or SDK bytes, and non-static output.
    It checks the actual publishing branch HEAD before and after building. Those
-   checks are defense in depth, **not** an atomic deployment lock.
+   checks are defense in depth, **not** an atomic deployment lock. A newly
+   visible release with missing assets cannot hide an older still-valid issuance
+   for the same commit: every fallback repeats signature, identity, TTL and SDK
+   digest validation. Builds with no complete valid issuance fail closed.
 
 ## First deployment and serial release procedure
 
