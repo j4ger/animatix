@@ -444,7 +444,8 @@ The uploaded version is NOT admitted. Two live findings prevented acceptance:
   and rejects a missing returned URL after upload without retrying it. Enabling
   preview URLs requires explicit authorization because it makes versions
   externally accessible. Automatic approval review rejected the temporary
-  enable operation; it was not executed. No HTTP/WASM/deep-link/browser or
+  enable operation; it was not executed at that stage. The subsequent authorized
+  diagnostic is recorded below. No HTTP/WASM/deep-link/browser or
   rollback acceptance pass is claimed.
 
 After testing, the trigger's original experiment branch, build/deploy `exit 1`,
@@ -454,3 +455,37 @@ there are no domain bindings and no deployments. Keep the uploaded version as
 non-admitted diagnostic evidence; do not promote it or silently repair its
 receipt. These code fixes require a new authenticated source/build before remote
 acceptance. No user-computer execution or new CI run was started for the fixes.
+
+
+### Authorized public preview diagnostic (2026-11-15)
+
+The user subsequently explicitly authorized temporarily public version URLs on
+this isolated Worker. Enabling previews with workers.dev still disabled returned
+an immutable URL for version `090415ea-b4ee-4650-877f-827683ed576c`.
+The cloud browser showed Cloudflare's “There is nothing here yet” page, including
+on reload. This is an observed availability failure, not evidence that activating
+a deployment is required. The version remains rejected for its extra modules.
+
+A distinct diagnostic enabled previews before uploading the same signed source,
+without rebuilding the GitHub SDK. Build
+`01557297-acb9-4ab3-96d1-d10f14e5078d` stopped at
+`SIGNED_CONSUMER_BLOCKED: HTTP Error 403: rate limit exceeded`, before version
+upload. No new version or activation resulted from that attempt. No blind retry
+or weakened signature verification was used. Browser, WASM, deep-link and rollback
+acceptance remain incomplete.
+
+After both diagnostics, provider readback verified build/deploy commands `exit 1`,
+original experiment branch and all-path exclusion, only the original
+SKIP_DEPENDENCY_INSTALL environment variable, workers.dev=false,
+previews_enabled=false, no deployments and deployed_on=null. Production domains
+and routing were never changed.
+
+The packaging/preflight repair is local commit
+`3b195a21866b47927189d20f52b5b55a6e207a29`. A cloud GitHub create-tree request
+containing only its four ordinary files returned HTTP 403 “Resource not accessible
+by integration”; no remote tree, commit or ref was created. The remote branch
+therefore remains at `b35670b2b81e67eee72207e1bb1c940e6ccf09b0`. The user computer
+must not be used. A cloud connection authorized to write this repository is
+needed to publish the fix, followed by a newly signed source build under the
+existing exact-SHA policy. GitHub release download rate limits and the unverified
+first-version URL behavior are separate remaining acceptance blockers.
