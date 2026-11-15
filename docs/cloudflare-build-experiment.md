@@ -104,8 +104,10 @@ extracting/executing, and assembles a temporary root. Source checksum:
 No daemon, installer, profile changes, system users, or credentials are created.
 The current unprivileged host UID maps to UID 0 **inside the child namespace
 only**; this is not host root. The stage refuses execution in its parent
-namespaces or with a host-root mapping. System program/config directories and
-proc are read-only mounts; only null/zero/random device handles are exposed.
+namespaces or with a host-root mapping. System program directories and proc are
+read-only mounts; only null/zero/random device handles are exposed. The host's
+`/etc` is not mounted: the temporary root receives only its resolver and public
+CA certificate bundle, plus generated minimal account/name-service files.
 
 The experiment enters the pinned `.#web-build` shell and checks Rust, wasm std,
 Node, wasm-bindgen, wasm-opt and zopfli. It does not compile the full SDK or run

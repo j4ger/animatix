@@ -23,12 +23,21 @@ host_uid=$6
   [ -f "$repo/flake.lock" ] || { echo 'BLOCKED: invalid temporary root or checkout' >&2; exit 2; }
 # These mounts affect only this freshly isolated mount namespace.
 mount --make-rprivate /
-for item in usr bin sbin lib lib64 etc; do
+for item in usr bin sbin lib lib64; do
   [ ! -e "/$item" ] && continue
   mkdir -p "$root/$item"
   mount --bind "/$item" "$root/$item"
   mount -o remount,bind,ro "$root/$item"
 done
+# Do not bind the host's /etc: some builders lock its mount flags. Supply only
+# the resolver and public CA bundle; never copy host accounts or credentials.
+mkdir -p "$root/etc/ssl/certs"
+cp /etc/resolv.conf "$root/etc/resolv.conf"
+cp /etc/ssl/certs/ca-certificates.crt "$root/etc/ssl/certs/ca-certificates.crt"
+printf 'root:x:0:0:Namespace root:/home/nix:/bin/bash\n' > "$root/etc/passwd"
+printf 'root:x:0:\n' > "$root/etc/group"
+printf 'passwd: files\ngroup: files\nhosts: files dns\n' > "$root/etc/nsswitch.conf"
+printf '127.0.0.1 localhost\n::1 localhost\n' > "$root/etc/hosts"
 mkdir -p "$root/dev" "$root/proc"
 for item in null zero random urandom; do
   touch "$root/dev/$item"
