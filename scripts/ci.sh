@@ -97,6 +97,8 @@ web-artifact-verify|nix|ubuntu-latest|nix|site
 web-artifact-stage|nix|ubuntu-latest|nix|site
 web-artifact-restore|nix|ubuntu-latest|nix|site
 web-artifact-absence|none|ubuntu-latest|none|control
+cloudflare-sdk-publish|none|ubuntu-latest|none|control
+cloudflare-sdk-dispatch|none|ubuntu-latest|none|control
 text-visual-parity|web-ci|ubuntu-latest|nix|site
 web-performance|web-ci|ubuntu-latest|nix|site
 dist-linux|dist-driver|ubuntu-latest|nix|release
@@ -459,6 +461,15 @@ gate_property_reference_experiment() {
 }
 
 # Web content and SDK boundary checks.
+gate_cloudflare_sdk_publish() {
+  want_node
+  python3 scripts/cloudflare-sdk-publisher.py
+}
+
+gate_cloudflare_sdk_dispatch() {
+  python3 scripts/cloudflare-sdk-dispatch.py
+}
+
 gate_cloudflare_prepare() {
   want_nix_shell 'cloudflare-prepare'
   python3 scripts/cloudflare-deploy-test.py
@@ -475,6 +486,10 @@ gate_cloudflare_deploy() {
 
 gate_site_build() {
   want_nix_shell 'site-build'
+  python3 scripts/cloudflare-permit-test.py
+  python3 scripts/cloudflare-sdk-dispatch-test.py
+  python3 scripts/cloudflare-sdk-consumer-test.py
+  python3 scripts/cloudflare-nix-portable-test.py
   python3 scripts/cloudflare-build-experiment-test.py
   python3 scripts/cloudflare-nix-bootstrap-test.py
   python3 scripts/cloudflare-deploy-test.py

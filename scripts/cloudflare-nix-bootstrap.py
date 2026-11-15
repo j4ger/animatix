@@ -23,17 +23,21 @@ def verify_archive(path):
 def run(args, work, started):
     print("stage:", Path(args[0]).name, flush=True)
     process = subprocess.Popen(args, start_new_session=True)
-    while process.poll() is None:
-        time.sleep(2)
-        if time.monotonic() - started > TIME_LIMIT or shutil.disk_usage(work).free < RESERVE:
-            print("STOP time/space budget reached", flush=True)
+    try:
+        while process.poll() is None:
+            time.sleep(2)
+            if time.monotonic() - started > TIME_LIMIT or shutil.disk_usage(work).free < RESERVE:
+                print("STOP time/space budget reached", flush=True)
+                raise RuntimeError("resource budget")
+    except BaseException:
+        if process.poll() is None:
             os.killpg(process.pid, signal.SIGTERM)
             try:
                 process.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
-            raise RuntimeError("resource budget")
+        raise
     if process.returncode:
         raise RuntimeError("stage failed, exit=" + str(process.returncode))
 

@@ -181,3 +181,70 @@ an offline controlled experiment, not production authorization or signed
 provenance. The experimental Release reports `immutable=false`; its mutable
 storage is not trusted in place of the pinned digest. Production needs a genuine
 CI-issued, authenticated release permit and stale-deployment protection.
+
+## Signed automatic build-only candidate (disabled until provisioned)
+
+The `Cloudflare signed SDK experiment` wrapper is restricted to this repository
+and the experiment branch. It only runs when repository variable
+`ANIMATIX_CF_EXPERIMENT=enabled`; the default is off. It invokes the full existing
+CI as a reusable workflow at `github.sha`, then a separate publisher runs only
+when `needs.ci.result == success`. There is no `workflow_run` SHA ambiguity.
+
+The publisher downloads this run's original `web-runtime` ZIP through the
+GitHub API, checks its API digest and same-repository/SHA provenance, safely
+extracts it, and checks the SDK fingerprint, exact commit and clean-source flag.
+It signs a two-hour, build-only permit using GitHub OIDC attestations. The permit
+binds the repository numeric ID, workflow/ref/SHA, run/attempt, artifact ID,
+archive digest/size, and the specific isolated Cloudflare account/trigger.
+The `cf-candidate-<SHA>` prerelease is non-latest and never overwritten. It contains
+the exact CI ZIP, permit and detached attestation bundle. Release storage is NOT
+assumed immutable; the signed digest is the integrity boundary.
+
+Cloudflare gets no GitHub token. Its consumer pins the official GitHub CLI and an
+independently reviewed TUF trusted-root snapshot, verifies the permit offline,
+then checks certificate repository ID, signer/source identity, hosted runner and
+run invocation. Only then does it consume permit fields, download the SDK, verify
+all bytes and current inputs, and build/check Astro. It still always exits 1.
+A success marker means a candidate passed, never that production was deployed.
+
+### Credentials and operational boundaries
+
+Automatic dispatch requires a user-provisioned `CLOUDFLARE_EXPERIMENT_TOKEN`
+GitHub Actions secret with the user-scoped Workers Builds API permissions
+(`Workers Builds Configuration: Edit` in the token UI; API permission
+`Workers CI Write`, which also permits the necessary reads) for the intended
+account only. This is an account-scoped resource grant on a user-owned token,
+NOT a guarantee that the token cannot manage other Workers Builds in that
+account. No Workers Scripts, DNS, Routes, KV or R2 permissions are needed.
+Prefer a short expiration for the experiment. Never put this
+value in source, logs, messages, or a release. No existing token is assumed and
+no credential is created by these scripts. The account and experimental trigger
+are fixed in policy. The dispatcher only accesses Builds endpoints, snapshots
+and restores the build command and temporary Node version, polls within a bound,
+and cancels unfinished known builds on failure. An ambiguous POST is not retried.
+An ambiguous operation or interrupted runner can require operator reconciliation;
+restoration is not a claim of guaranteed recovery after machine loss.
+
+The dispatcher and consumer reject a candidate whose SHA is no longer the
+experiment branch head, including an older successful build finishing later.
+Pure tests cover this stale-result case. These are freshness checks, NOT an
+atomic deployment transaction: a new commit can arrive after a check. Concurrency
+serialization is only a work-reduction tool and does not guarantee commit order.
+There is deliberately no production activation endpoint. Production requires a
+single fenced/monotonic promotion coordinator (or an equivalent atomic control),
+not enabling automatic deploy after the last comparison.
+
+### Validation status
+
+The earlier unsigned fixed-fixture proof fully built Astro from the exact CI SDK
+in Cloudflare in 25 seconds. That proves transport/build feasibility only.
+The signed automatic workflow and real positive attestation verification have
+not yet run. Local permit/dispatch tests include negative signatures/policy,
+wrong SHA/repository/run, expiry, missing credentials, stale completion and
+configuration restoration. They must not be reported as a real signed CI run.
+
+Do not enable the repository switch before the disabled experiment branch is
+reviewed and saved. Since this workflow is not on the default branch, do not
+assume the Actions Run workflow button is available. Once the user provisions
+the secret and switch, a deliberately reviewed experiment-branch push triggers
+the test. Turn off the switch and revoke the short-lived token afterward.
