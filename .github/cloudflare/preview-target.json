@@ -1,0 +1,10 @@
+{
+  "enabled": false,
+  "account_id": "65bc5958d8a01d7a1d9b7c326b244406",
+  "worker": "animatix-candidate-preview",
+  "worker_tag": null,
+  "trigger_uuid": null,
+  "build_token_uuid": null,
+  "workers_subdomain": null,
+  "repo_connection_uuid": "06316b53-a8a0-4a6f-ace9-14ca28076d74"
+}

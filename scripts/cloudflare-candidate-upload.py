@@ -60,11 +60,17 @@ def main():
         subprocess.run(['node', 'web/tools/sdk.mjs', 'verify', '_site/runtime', '--release',
                         '--current', '--commit', commit], check=True)
         subprocess.run(['python3', 'scripts/cloudflare-site-check.py', '_site'], check=True)
+        manifest_path = Path('_site/_candidate.json')
+        if manifest_path.exists():
+            raise ValueError('refuse pre-existing candidate manifest')
         files = tree('_site')
         evidence = {'source_sha': commit, 'permit_sha256': hashlib.sha256((receipt/'permit.json').read_bytes()).hexdigest(),
                     'archive_sha256': permit['sdk']['archive_sha256'], 'files': files,
                     'worker': policy.DESTINATION['worker']}
-        (receipt/'site.json').write_text(json.dumps(evidence, sort_keys=True) + '\n')
+        manifest = (json.dumps(evidence, sort_keys=True, separators=(',', ':'))+'\n').encode()
+        manifest_path.write_bytes(manifest)
+        (receipt/'site.json').write_bytes(manifest)
+        manifest_digest = hashlib.sha256(manifest).hexdigest()
     # Only this process receives the Builds-provisioned upload credential.
     # versions upload cannot activate the candidate. No mutable preview alias.
     if not os.environ.get('CLOUDFLARE_API_TOKEN'):
@@ -91,6 +97,9 @@ def main():
     uuid.UUID(version['version_id'])
     evidence.update(version_id=version['version_id'], preview_url=version.get('preview_url'))
     (receipt/'uploaded.json').write_text(json.dumps(evidence, sort_keys=True) + '\n')
+    summary = {k: v for k, v in evidence.items() if k != 'files'}
+    summary['site_manifest_sha256'] = manifest_digest
+    print('CANDIDATE_UPLOAD_RECEIPT ' + json.dumps(summary, sort_keys=True, separators=(',', ':')))
     print('CANDIDATE_UPLOADED_NOT_ACTIVATED', commit)
 
 

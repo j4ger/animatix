@@ -39,8 +39,8 @@ def verify(base, receipt):
             if len(body) > 25*1024**2:
                 raise ValueError('response exceeds static asset limit')
             return response.status, response.headers, body
-    # Every page and runtime byte is checked, including all capability WASM partitions.
-    selected = sorted(f for f in files if f.endswith('.html') or f.startswith('runtime/'))
+    # Check every recorded asset, including all capability WASM partitions and HTML routes.
+    selected = sorted(files)
     for name in selected:
         path = name[:-10] if name.endswith('index.html') else name
         status, headers, body = get(urllib.parse.quote(path))

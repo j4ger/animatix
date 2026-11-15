@@ -98,6 +98,7 @@ web-artifact-stage|nix|ubuntu-latest|nix|site
 web-artifact-restore|nix|ubuntu-latest|nix|site
 web-artifact-absence|none|ubuntu-latest|none|control
 cloudflare-candidate-publish|none|ubuntu-latest|none|control
+cloudflare-candidate-dispatch|none|ubuntu-latest|none|control
 cloudflare-candidate-build|none|ubuntu-latest|none|control
 cloudflare-candidate-upload|none|ubuntu-latest|none|control
 cloudflare-sdk-publish|none|ubuntu-latest|none|control
@@ -468,6 +469,10 @@ gate_cloudflare_candidate_publish() {
   python3 scripts/cloudflare-candidate.py publish
 }
 
+gate_cloudflare_candidate_dispatch() {
+  python3 scripts/cloudflare-candidate-dispatch.py
+}
+
 gate_cloudflare_candidate_build() {
   python3 scripts/cloudflare-candidate.py build
 }
@@ -502,7 +507,7 @@ gate_cloudflare_deploy() {
 gate_site_build() {
   want_nix_shell 'site-build'
   python3 scripts/cloudflare-candidate-test.py
-  python3 scripts/cloudflare-promotion-test.py
+  python3 scripts/cloudflare-control-test.py
   python3 scripts/cloudflare-permit-test.py
   python3 scripts/cloudflare-sdk-dispatch-test.py
   python3 scripts/cloudflare-sdk-consumer-test.py

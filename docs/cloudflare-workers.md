@@ -56,11 +56,41 @@ URLs use a version's existing resources; they are not resource isolation on thei
 own. Here isolation comes from the dedicated static-only Worker. Preview URLs
 are public. No sensitive data belongs in the artifact.
 
-This branch stages the code/configuration, not a provisioned remote integration.
-A push build may happen before CI publishes the release and must fail closed;
-after publication, explicitly trigger the exact SHA. Automatic dispatch is not
-yet wired for the new trigger. Do not copy the experiment dispatcher: it mutates
-and restores its shared probe command and expects an intentional failure.
+Automatic dispatch is implemented in `cloudflare-candidate-dispatch.py`, as a
+separate job **after** signing/publication, never as a second full-CI workflow.
+It is off unless `ANIMATIX_CF_PREVIEW_DISPATCH=enabled` and the reviewed target
+file `.github/cloudflare/preview-target.json` is enabled with real identities.
+The dispatcher verifies target tag, trigger, dedicated build-token ID, repository,
+branch, commands and Node variables before one exact-SHA POST. It never mutates
+trigger settings. It inspects the actual build metadata again when polling.
+Wrong/default deploy commands fail closed. Existing experiment/blog/other-app
+identifiers are explicitly rejected.
+
+Set up the dedicated integration without an automatic pre-CI deployment path.
+A push build that runs before its signed release exists must fail closed. Both
+Builds command variants must use the verified uploader; do not retain a platform
+default. `versions upload` never activates the Worker, even when builds finish
+out of order. No mutable preview alias is requested.
+
+The uploader records `_candidate.json` with the exact site inventory, then emits
+one bounded `CANDIDATE_UPLOAD_RECEIPT` containing the version ID, immutable URL,
+source SHA, permit/SDK/manifest digests and target Worker. The dispatcher retains
+this alongside the build UUID in the Actions recovery artifact.
+
+A dispatcher rerun cannot assume the previous POST failed: fresh POSTs on later
+GitHub run attempts are rejected. Recover the build UUID from the retained
+artifact and inspect it without rerunning CI or posting another build:
+
+```sh
+python3 scripts/cloudflare-candidate-dispatch.py --resume-build BUILD_UUID
+```
+
+Run from the exact candidate checkout with the Builds-only token injected via
+`CLOUDFLARE_EXPERIMENT_TOKEN`. If the initial POST result was lost before its UUID
+was recorded, inspect Builds through the dashboard/API and establish the exact
+build before resuming; there is no automatic blind retry. Release publication
+is not overwritten on job reruns. This may require operator reconciliation, but
+does not authorize an activation or another expensive SDK build.
 
 The existing full CI still validates Astro locally. After remote acceptance is a
 required, reliably reported candidate gate, split its fast policy/content checks
@@ -75,30 +105,107 @@ an expected-current-version CAS in the reviewed API. A fresh branch-head check,
 GitHub concurrency, an expiring lock or an arbitrary run-number order cannot
 fence a delayed older deployment POST.
 
-`scripts/cloudflare-promotion.py` is an executable **journal prototype**, not a
-live coordinator or deploy adapter. It demonstrates the required protocol:
+`scripts/cloudflare-release-coordinator.py` is now an operational local CLI with
+a real API adapter. The earlier pure journal prototype has been removed. It is
+**not deployed or enabled**. It is restricted in code to the separately named
+preview Worker; there is no production target flag or automatic activation job.
 
-- One durable, strongly consistent journal; explicit reviewed selection uses CAS
-  on a monotonic epoch. Build completion cannot select itself. A future automatic
-  selector must serialize authenticated desired-revision events independently
-  of build completion, including force-push handling; never sort commit hashes.
-- Persist pending intent before the external call. Exactly one ticket is issued.
-  Keep pending across process death, HTTP timeout and unknown response. No later
-  selection or activation may pass while pending, and never automatically retry
-  an ambiguous POST. Seeing an old version on a GET is not proof the POST failed.
-- Positive terminal reconciliation must bind deployment ID, version, candidate
-  receipt and ticket. Confirming consumes the selection. An unresolved request
-  stays blocked until its final outcome is conclusively established.
-- Rollback selects an already accepted version/receipt with a **new** epoch;
-  it cannot lower the fence. Retain that version's complete asset set.
+- The private, owned `0700` state directory is the administration boundary. No
+  HTTP management listener is exposed. A non-expiring OS file lock serializes
+  processes on one host for the entire operation, including remote requests.
+  SQLite FULL synchronization persists selection, pending intent, accepted
+  candidate evidence and an append-only event log.
+- `admit` authenticates the completed Builds metadata and single receipt, fetches
+  the exact Worker version and rejects non-asset bindings. It verifies the
+  Sigstore permit against pinned roots and CLI, compares the original archive
+  digest/size and every SDK file to the deployed inventory, then checks every
+  site file, HTML route, WASM and custom 404 over the exact Version URL. The
+  manifest is trusted only after its digest matches authenticated build logs;
+  it is not trusted merely because the site served it. Full signed bundle,
+  permit and manifest are retained in the admitted journal record.
+- Admission never changes the desired version. A reviewed `select` performs CAS
+  on the expected monotonic epoch. No GitHub run-number or SHA sorting is used.
+  Old A arriving after B can be registered but cannot select or activate itself.
+- `activate` requires an admitted, selected receipt and the exact epoch. It
+  checks for external deployment drift and re-reads the version's resource
+  bindings, persists `prepared`, then persists `sent` **before** the sole POST.
+  The request carries a unique ticket in `workers/message`. There are no POST
+  retries and no expiration-based lock stealing.
+- `reconcile` accepts only the exact ticket, version at 100%, strategy and
+  deployment ID, confirmed by both detail and current-deployment reads. A lost
+  success response can therefore recover without another POST. Confirming
+  consumes the selection. A changed/wrong ticket or old deployment cannot unlock.
+- A crash while durable state is only `prepared` can safely abandon that unsent
+  intent under the exclusive lock. A crash after `sent`, even just before the
+  POST, stays frozen unless positive terminal evidence arrives. All HTTP errors
+  after send-intent conservatively remain uncertain. There is no unsafe reset or
+  force-unlock command. Permanent rejection may therefore need provider/operator
+  investigation; availability is intentionally sacrificed to prevent rollback
+  by an old in-flight request.
+- Rollback uses the same select/activate protocol with a **new** epoch and a
+  previously admitted immutable version. Previously admitted permits need not
+  be reissued merely because the short build/upload TTL expired. The platform
+  must still retain that version/assets; missing versions fail the preflight.
 
-The tests cover stale selection, old A finishing after B, competing connections,
-crash-persistent uncertainty, wrong tickets, duplicate completion and rollback.
-Production additionally requires an authenticated service around this journal,
-verified receipt ingestion and version/asset binding, a sole credential holder,
-remote reconciliation, backups and audited rollback authorization. Do not use a
-fresh SQLite file in each Actions job. Do not treat this model as proof of a
-production service. There is deliberately no production deploy endpoint here.
+The pinned Wrangler 4.162.0 source uses the first deployment returned by the
+list endpoint as current (`fetchLatestDeployment`) and the first eight version
+ID characters for Version URLs. The adapter follows those same contracts and
+fails closed if required response fields are absent. Real API acceptance is
+still required; mocked response contracts are not a remote integration result.
+
+### Local coordinator runbook (preview only)
+
+First provision and independently review a new static-only Worker with a known
+baseline deployment (or explicitly empty deployment inventory), no domain/routes/production bindings, and its dedicated
+Builds trigger. Fill and review `preview-target.json`; it currently contains no
+live target IDs and `enabled` is false. Install the pinned gh using the existing
+attestation-tools helper. Inject the coordinator credential through the process
+environment as `CLOUDFLARE_PREVIEW_COORDINATOR_TOKEN`, never CLI arguments.
+
+Use an existing absolute `0700` directory on durable local storage. Do not use
+an ephemeral CI checkout, a copied database on a second host or NFS locking.
+`init` is only for a genuinely new single-writer installation, never recovery
+from lost state or a possibly active old coordinator:
+
+```sh
+python3 scripts/cloudflare-release-coordinator.py --state-directory /srv/animatix-preview init --new-single-writer-installation
+python3 scripts/cloudflare-release-coordinator.py --state-directory /srv/animatix-preview admit --build BUILD_UUID --gh /opt/animatix-tools/gh_2.104.0_linux_amd64/bin/gh
+python3 scripts/cloudflare-release-coordinator.py --state-directory /srv/animatix-preview status
+python3 scripts/cloudflare-release-coordinator.py --state-directory /srv/animatix-preview select --expected-epoch 0 --candidate RECEIPT_DIGEST --reviewed-browser-and-receipt
+```
+
+After reviewing the receipt and browser/WebGPU results, explicitly enable
+`ANIMATIX_CF_PREVIEW_ACTIVATION=enabled` only for the isolated preview acceptance:
+
+```sh
+python3 scripts/cloudflare-release-coordinator.py --state-directory /srv/animatix-preview activate --epoch 1 --candidate RECEIPT_DIGEST
+python3 scripts/cloudflare-release-coordinator.py --state-directory /srv/animatix-preview reconcile
+```
+
+`reconcile` is for a pending request, not an extra required step after a confirmed
+activation. Status reports the current epoch, desired/active candidate and any
+pending ticket. To roll back, select the old admitted digest using the current
+epoch, then activate the returned new epoch. Never recreate/delete the journal
+to clear a timeout. Back up the journal/evidence under the same exclusive lock;
+restoring an older snapshot is not safe while any old writer/request may exist.
+
+### Remaining safety boundary
+
+The CLI is usable with provisioned access, but it is not yet a proven production
+service. The target identity, remote API response shape, real signed schema-2
+admission, HTTP/browser acceptance, activation and rollback remain untested on
+Cloudflare. Existing custom-domain/zone-route absence must be independently
+verified before enabling this preview writer; the coordinator does not enumerate
+all zones. Network redirects and unknown responses never widen the target.
+
+The sole-writer requirement must be enforced operationally and with credentials:
+there must be one durable host/state directory and no alternate deployment writer.
+A local file lock cannot fence a second machine or a dashboard/API token holder.
+A stale snapshot restore loses pending intent. Until these conditions and the
+real fault/recovery drills are verified, activation remains disabled by default.
+Automating **selection** as well as upload is intentionally withheld: it needs an
+authenticated desired-release sequence independent of build completion. Explicit
+reviewed selection is available now. Production activation remains out of scope.
 
 Workers Scripts upload permissions can also permit deployment; script convention
 alone is not an IAM fence. Before production, isolate upload credentials from
@@ -109,17 +216,30 @@ A coordinator cannot fence dashboard or external writers that bypass it.
 ## Minimum missing access
 
 Provision through Cloudflare's token UI/Builds integration; never paste keys into
-chat. A dedicated user-owned build token for this preview Worker needs Workers
-Scripts Edit (API: Workers Scripts Write, or supported Individual Workers Editor)
-for version/asset upload and necessary reads. Scope to this Worker where supported;
-otherwise the target account scope is broader and must be reviewed explicitly.
-No DNS, Zone Workers Routes, KV, R2 or Pages write permission is needed for the
-static-only `workers.dev` preview. Do not reuse the blog token.
+chat. Permission names alone do not establish a narrowly scoped usable credential:
 
-Build trigger setup/dispatch needs account Workers Builds Configuration Edit
-(API Workers CI Write). `CLOUDFLARE_EXPERIMENT_TOKEN` has only that grant and is
-not an upload token. The Cloudflare connector's own API access is distinct from
-a credential injected into a Workers Builds runner. No new token was created.
+- The [Workers authorization reference](https://developers.cloudflare.com/workers/authorization/workers/)
+  says an **existing** Worker needs Editor for version upload/deploy/rollback;
+  creating a new Worker needs product-level Admin. Legacy Workers Scripts Edit
+  corresponds to product-level Editor across all Workers, not single-Worker scope.
+- Individual Worker Editor and fine-grained API-token scope are documented, but
+  the fine-grained Wrangler token guidance and Builds token types must be tested
+  together: the Builds configuration page currently says **user tokens only**.
+  Do not promise that a single-Worker/account-owned token can be selected in
+  Builds or can upload successfully. Determine the actual minimum only through
+  the UI and a real isolated upload. A broader account token requires explicit
+  review, particularly while `blog` exists in that account.
+- Builds setup/dispatch needs the Builds Configuration Edit/API Workers CI Write
+  capability for the target account; the existing experiment secret supplies
+  that known grant, not demonstrated version-upload authority. The coordinator
+  needs Builds read access for authenticated admission plus Worker version and
+  deployment access for the dedicated target. Keep its credential separate from
+  the GitHub dispatcher. Do not reuse blog/gemini-proxy credentials.
+- Static-only `workers.dev` version uploads do not require DNS/Zone Routes, KV,
+  R2 or Pages writes. New Worker bootstrap permissions are a separate operation.
+  The connector's permissions do not automatically become a Builds-runner token.
+
+No token, Worker, trigger, domain or route was created by this implementation.
 
 ## Acceptance before merge
 
@@ -162,7 +282,9 @@ References: [Build configuration](https://developers.cloudflare.com/workers/ci-c
 Local pinned Nix gates passed: `fmt`, `workflows`, `structure`, `doc-links`,
 `site-build` (including existing permit/dispatch/transport regressions and Astro
 check/tests/root and `/animatix/` builds). New tests exercise candidate-policy
-separation and upload configuration rejection, and promotion journal disorder.
+separation and upload configuration rejection, and the actual control path under the operational fault-injection tests. Those tests mock
+Cloudflare and positive cryptographic verification; existing negative signature
+tests remain, but no new real schema-2 signature pass is claimed.
 
 Pinned Wrangler 4.162.0 `deploy --dry-run` passed with 238 static files and no
 bindings, using the previously assembled site as a **packaging fixture**, not a

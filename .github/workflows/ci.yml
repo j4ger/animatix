@@ -310,3 +310,28 @@ jobs:
             --notes 'Candidate upload only. No production activation authorization.' \
             target/cloudflare-permit/sdk.zip target/cloudflare-permit/permit.json \
             target/cloudflare-permit/permit.sigstore.json
+
+  cloudflare_candidate_dispatch:
+    name: Dispatch isolated Cloudflare candidate
+    needs: cloudflare_candidate
+    if: ${{ needs.cloudflare_candidate.result == 'success' && vars.ANIMATIX_CF_PREVIEW_DISPATCH == 'enabled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+      - name: Trigger exact-SHA candidate build after publication
+        env:
+          CLOUDFLARE_EXPERIMENT_TOKEN: ${{ secrets.CLOUDFLARE_EXPERIMENT_TOKEN }}
+        run: scripts/ci.sh gate cloudflare-candidate-dispatch
+      - name: Preserve dispatch result for reconciliation
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cloudflare-candidate-dispatch
+          path: target/cloudflare-candidate-dispatch.json
+          if-no-files-found: ignore
+          retention-days: 30
