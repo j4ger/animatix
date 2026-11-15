@@ -8,36 +8,14 @@ fn rewrite_media_statement_position_expressions() {
         "logo",
         "Svg",
         vec![
-            Property {
-                name: "url".to_string(),
-                value: Expr::Str("examples/vector.svg".to_string()),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "at".to_string(),
-                value: Expr::Ident("badge".to_string()),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "anchor".to_string(),
-                value: Expr::Path(vec!["scene".to_string(), "top".to_string()]),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "offset".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Ident("delta".to_string())]),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "scale".to_string(),
-                value: Expr::Num(1.0),
-                value_span: None,
-                trailing_comment: None,
-            },
+            Property::new("url", Expr::Str("examples/vector.svg".to_string())),
+            Property::new("at", Expr::Ident("badge".to_string())),
+            Property::new("anchor", Expr::Path(vec!["scene".to_string(), "top".to_string()])),
+            Property::new(
+                "offset",
+                Expr::Tuple(vec![Expr::Num(0.0), Expr::Ident("delta".to_string())]),
+            ),
+            Property::new("scale", Expr::Num(1.0)),
         ],
     );
     let known_labels = HashSet::from(["logo".to_string(), "badge".to_string()]);

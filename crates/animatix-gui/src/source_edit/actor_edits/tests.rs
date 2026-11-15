@@ -102,12 +102,10 @@ fn insert_actor_top_level() {
     let edit = SourceEdit::InsertActor {
         ty: "Ellipse".into(),
         label: "circle1".into(),
-        props: vec![Property {
-            name: "at".into(),
-            value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
-            value_span: None,
-            trailing_comment: None,
-        }],
+        props: vec![Property::new(
+            "at",
+            Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+        )],
         container: None,
         time_s: 0.0,
     };
@@ -133,12 +131,10 @@ fn insert_actor_into_container() {
     let edit = SourceEdit::InsertActor {
         ty: "Ellipse".into(),
         label: "circle1".into(),
-        props: vec![Property {
-            name: "at".into(),
-            value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
-            value_span: None,
-            trailing_comment: None,
-        }],
+        props: vec![Property::new(
+            "at",
+            Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+        )],
         container: Some("row1".into()),
         time_s: 0.0,
     };
@@ -522,7 +518,6 @@ callout: Callout, target: box1, place: right"#,
 
     let actor = find_actor_decl_mut(&mut stmts, "callout").expect("actor should exist");
     assert!(find_prop_mut(actor, "target").is_none(), "'target' should have been removed");
-    // Other properties remain
     assert!(find_prop_mut(actor, "place").is_some(), "'place' should still exist");
 }
 
@@ -564,11 +559,9 @@ callout.target = box2"#,
     };
     assert!(apply_edit(&mut stmts, edit).is_ok());
 
-    // Declaration prop removed
     let actor = find_actor_decl_mut(&mut stmts, "callout").expect("actor should exist");
     assert!(find_prop_mut(actor, "target").is_none());
 
-    // Assignment still present
     let assignment = find_assignment_mut(&mut stmts, "callout", "target");
     assert!(assignment.is_some(), "keyframed assignment should remain");
 }

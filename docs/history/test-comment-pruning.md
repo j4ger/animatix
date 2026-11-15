@@ -48,3 +48,38 @@ The final 32 harnesses executed exactly the expected 2,465 IDs, with no unexplai
 missing/added IDs or newly ignored cases. Doctest identity/status sets match the
 baseline (2 passed, 27 existing ignored; source-line offsets excluded). These
 changes do not claim a measured wall-time speedup.
+
+## Second pass (baseline `ac623451`)
+
+Three Luna xhigh agents split engine, language intelligence and GUI/widgets,
+then reviewed each other's changes. The follow-up focuses on repeated fixtures:
+41 `Property` literals with both metadata fields `None` now use the existing
+`Property::new(name, value)`. Names/expressions are unchanged; explicit span or
+comment fixtures, public constructors and independent expected values remain.
+
+| Previous tests/setup | Retained test/case | Preserved checks |
+| --- | --- | --- |
+| world `meta_default_tests::directly_inserted_tracks_get_default_meta_on_demand` | Existing `entity_meta_defaults_and_resets_on_replacement` | Fresh `(box,100,changed flags)` and `(direct,250,default flags)` rows retain default visibility, mutation readback, initially-unseen state, first-write wins over 900, and replacement resets. The duplicate module/file is removed. |
+| `action_signatures_include_{reveal_out,draw_out,reveal_in}` | `action_signatures_include_reveal_actions` | Same three literal names and membership assertions; per-name failure messages. |
+| Four empty-source keyword/type/snippet/action completion tests | `top_level_completions_include_all_builtin_kinds` | One identical query; every original category/label assertion retained. Partial/known-verb and extension boundaries remain separate. |
+| Two lint parsing and two suppression tests | `lint_config_from_source_parses_disable_directives`, `lint_config_suppresses_specific_and_global_warnings` | Both exact directive strings, specific-code/global flag checks and warning/code assertions retained over the same unused-title fixture. Error-suppression coverage remains independent. |
+| Three LSP `uri_to_path_*` tests | `uri_to_path_handles_file_and_rejected_inputs` | Exact file URI/path, HTTP URI/None and empty string/None cases. |
+| GUI missing/empty timeline tests | `timeline_keyframe_times_handles_missing_and_empty_timeline` | `(None,None,None) => []` and an empty built timeline's default-background `[0.0]`; sorted/deduped timeline test stays separate. |
+| Select highlight start/move and filtered/stale pairs | `step_highlight_starts_and_moves_with_clamping`, `step_highlight_skips_filtered_rows_and_resets_stale_current` | All start, direction, boundary clamp, filtered `[1,3]` and stale `[2,5]` assertions retained. Empty-list and builder-field cases stay independent. |
+| Repeated CI grouped-job dictionaries | Local `grouped_jobs` fixture | All 13 Python test methods remain. Capturing all 30 old/new `analyze_jobs` calls confirmed identical arguments, including successful Plan and failed candidate/summary outcomes. |
+
+The 41 constructor conversions are engine 18, syntax 16, analyzer 2 and GUI 5;
+these conversions do not change test IDs. Application logic is unchanged;
+production-file edits only remove a `cfg(test)` module declaration or change
+an inline test module. No new helper crate, test DSL or benchmark was added.
+
+Workspace Rust shrinks **252,137→251,912 (−225)**, standalone `//` lines
+**25,884→25,881 (−3)** and test-path source **55,435→55,216 (−219)**.
+The Python fixture extraction saves another 14 lines. Categories overlap;
+these Rust counts use the same `crates/` + `tools/` scope as the first pass.
+The verified default runtime inventory is **2,465→2,452** across 32 harnesses:
+21 old IDs map to 8 new aggregate IDs plus the existing world lifecycle test.
+The actual ID set matches exactly, with no newly ignored cases. Doctest identities
+and statuses also match (2 passed, 27 existing ignored; line offsets excluded).
+All ten registered gates listed above passed again. Local Cargo builds used two
+workers without changing product/CI settings; timings are not speedup evidence.

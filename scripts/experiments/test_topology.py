@@ -40,6 +40,15 @@ def baseline_jobs(fail=False, run_id=7):
     ]
 
 
+def grouped_jobs(run_id, *, fail=False):
+    conclusion = "failure" if fail else "success"
+    return [
+        job(1, "Plan", 0, 10, run_id=run_id),
+        job(2, "Native Grouped (ubuntu-latest)", 10, 80, run_id=run_id, conclusion=conclusion),
+        job(3, "CI Required", 80, 85, run_id=run_id, conclusion=conclusion),
+    ]
+
+
 class TopologyTests(unittest.TestCase):
     def test_unset_actions_timestamps_are_not_measured_durations(self):
         jobs = baseline_jobs()
@@ -156,12 +165,7 @@ class TopologyTests(unittest.TestCase):
 
     def test_failed_candidate_run_cannot_pass_thresholds(self):
         baseline = [TOPOLOGY.analyze_jobs(baseline_jobs(), "baseline")]
-        candidate_jobs = [
-            job(1, "Plan", 0, 10, run_id=8),
-            job(2, "Native Grouped (ubuntu-latest)", 10, 80, run_id=8, conclusion="failure"),
-            job(3, "CI Required", 80, 85, run_id=8, conclusion="failure"),
-        ]
-        candidate = [TOPOLOGY.analyze_jobs(candidate_jobs, "grouped")]
+        candidate = [TOPOLOGY.analyze_jobs(grouped_jobs(8, fail=True), "grouped")]
         verdict = TOPOLOGY.compare(
             {"baseline": baseline, "grouped": candidate}, min_runs=1,
             min_wall_improvement=0, max_runner_regression=1,
@@ -186,11 +190,7 @@ class TopologyTests(unittest.TestCase):
 
     def test_comparison_rejects_duplicate_run_ids_within_and_across_arms(self):
         repeated = TOPOLOGY.analyze_jobs(baseline_jobs(run_id=70), "baseline")
-        grouped = TOPOLOGY.analyze_jobs([
-            job(1, "Plan", 0, 10, run_id=80),
-            job(2, "Native Grouped (ubuntu-latest)", 10, 80, run_id=80),
-            job(3, "CI Required", 80, 85, run_id=80),
-        ], "grouped")
+        grouped = TOPOLOGY.analyze_jobs(grouped_jobs(80), "grouped")
         duplicate_batch = TOPOLOGY.compare(
             {"baseline": [repeated, repeated, repeated], "grouped": [grouped]}, min_runs=1,
         )
@@ -200,16 +200,9 @@ class TopologyTests(unittest.TestCase):
 
         baseline = [TOPOLOGY.analyze_jobs(baseline_jobs(run_id=90 + index), "baseline")
                     for index in range(3)]
-        reused = TOPOLOGY.analyze_jobs([
-            job(1, "Plan", 0, 10, run_id=91),
-            job(2, "Native Grouped (ubuntu-latest)", 10, 80, run_id=91),
-            job(3, "CI Required", 80, 85, run_id=91),
-        ], "grouped")
-        other_grouped = [TOPOLOGY.analyze_jobs([
-            job(1, "Plan", 0, 10, run_id=run_id),
-            job(2, "Native Grouped (ubuntu-latest)", 10, 80, run_id=run_id),
-            job(3, "CI Required", 80, 85, run_id=run_id),
-        ], "grouped") for run_id in (81, 82)]
+        reused = TOPOLOGY.analyze_jobs(grouped_jobs(91), "grouped")
+        other_grouped = [TOPOLOGY.analyze_jobs(grouped_jobs(run_id), "grouped")
+                         for run_id in (81, 82)]
         cross_arm = TOPOLOGY.compare(
             {"baseline": baseline, "grouped": [reused, *other_grouped]}, min_runs=1,
         )
@@ -219,13 +212,9 @@ class TopologyTests(unittest.TestCase):
 
     def test_comparison_rejects_missing_run_ids(self):
         baseline = TOPOLOGY.analyze_jobs(baseline_jobs(run_id=30), "baseline")
-        grouped_jobs = [
-            job(1, "Plan", 0, 10, run_id=31),
-            job(2, "Native Grouped (ubuntu-latest)", 10, 80, run_id=31),
-            job(3, "CI Required", 80, 85, run_id=31),
-        ]
-        grouped_jobs[0]["run_id"] = None
-        grouped = TOPOLOGY.analyze_jobs(grouped_jobs, "grouped")
+        jobs = grouped_jobs(31)
+        jobs[0]["run_id"] = None
+        grouped = TOPOLOGY.analyze_jobs(jobs, "grouped")
         verdict = TOPOLOGY.compare(
             {"baseline": [baseline], "grouped": [grouped]}, min_runs=1,
         )
@@ -236,11 +225,8 @@ class TopologyTests(unittest.TestCase):
     def test_thresholds_are_median_based_and_failure_feedback_is_reported(self):
         baseline = [TOPOLOGY.analyze_jobs(baseline_jobs(run_id=100 + index), "baseline")
                     for index in range(3)]
-        grouped = [TOPOLOGY.analyze_jobs([
-            job(1, "Plan", 0, 10, run_id=200 + index),
-            job(2, "Native Grouped (ubuntu-latest)", 10, 80, run_id=200 + index),
-            job(3, "CI Required", 80, 85, run_id=200 + index),
-        ], "grouped") for index in range(3)]
+        grouped = [TOPOLOGY.analyze_jobs(grouped_jobs(200 + index), "grouped")
+                   for index in range(3)]
         verdict = TOPOLOGY.compare({"baseline": baseline, "grouped": grouped}, min_runs=3)
         self.assertEqual(verdict["grouped"]["status"], "PASS_THRESHOLDS")
         self.assertEqual(verdict["grouped"]["critical_path_improvement"], 20 / 105)

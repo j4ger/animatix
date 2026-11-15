@@ -44,24 +44,20 @@ fn circle_decl(label: &str) -> Stmt {
         array_index: None,
         ty: "Ellipse".to_string(),
         props: vec![
-            Property {
-                name: "size".to_string(),
-                value: crate::ast::Expr::Tuple(vec![
+            Property::new(
+                "size",
+                crate::ast::Expr::Tuple(vec![
                     crate::ast::Expr::Num(80.0),
                     crate::ast::Expr::Num(80.0),
                 ]),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "at".to_string(),
-                value: crate::ast::Expr::Tuple(vec![
+            ),
+            Property::new(
+                "at",
+                crate::ast::Expr::Tuple(vec![
                     crate::ast::Expr::Num(320.0),
                     crate::ast::Expr::Num(240.0),
                 ]),
-                value_span: None,
-                trailing_comment: None,
-            },
+            ),
         ],
         modifiers: vec![],
         children: vec![],
@@ -77,24 +73,9 @@ fn image_decl(label: &str) -> Stmt {
         array_index: None,
         ty: "Image".to_string(),
         props: vec![
-            Property {
-                name: "url".to_string(),
-                value: Expr::Str("../../examples/checker.png".to_string()),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "at".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(320.0), Expr::Num(240.0)]),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "size".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(120.0)]),
-                value_span: None,
-                trailing_comment: None,
-            },
+            Property::new("url", Expr::Str("../../examples/checker.png".to_string())),
+            Property::new("at", Expr::Tuple(vec![Expr::Num(320.0), Expr::Num(240.0)])),
+            Property::new("size", Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(120.0)])),
         ],
         modifiers: vec![],
         children: vec![],

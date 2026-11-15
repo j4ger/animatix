@@ -80,12 +80,10 @@ fn typecheck_accepts_valid_props() {
     let stmts = vec![actor_with_props(
         "btn",
         "Button",
-        vec![Property {
-            name: "size".to_string(),
-            value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(60.0)]),
-            value_span: None,
-            trailing_comment: None,
-        }],
+        vec![Property::new(
+            "size",
+            Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(60.0)]),
+        )],
     )];
     let mut env = env;
     let diagnostics = env.check_statements(&stmts);
@@ -98,12 +96,7 @@ fn typecheck_rejects_mismatched_prop() {
     let stmts = vec![actor_with_props(
         "btn",
         "Button",
-        vec![Property {
-            name: "size".to_string(),
-            value: Expr::Str("too big".to_string()),
-            value_span: None,
-            trailing_comment: None,
-        }],
+        vec![Property::new("size", Expr::Str("too big".to_string()))],
     )];
     let mut env = env;
     let diagnostics = env.check_statements(&stmts);
@@ -264,12 +257,7 @@ fn type_alias_resolves_in_component_param() {
         let actor_stmt = actor_with_props(
             "card",
             "Card",
-            vec![Property {
-                name: "value".to_string(),
-                value: Expr::Str("Revenue".to_string()),
-                value_span: None,
-                trailing_comment: None,
-            }],
+            vec![Property::new("value", Expr::Str("Revenue".to_string()))],
         );
         let stmts = if alias_first {
             vec![alias_stmt, comp_stmt, actor_stmt]
@@ -354,15 +342,13 @@ fn named_color_list_accepted_for_list_color_param() {
     let stmts = vec![actor_with_props(
         "s",
         "Swatches",
-        vec![Property {
-            name: "colors".to_string(),
-            value: Expr::List(vec![
+        vec![Property::new(
+            "colors",
+            Expr::List(vec![
                 Expr::Ident("red".to_string()),
                 Expr::Ident("blue".to_string()),
             ]),
-            value_span: None,
-            trailing_comment: None,
-        }],
+        )],
     )];
     let diagnostics = env.check_statements(&stmts);
     assert!(
@@ -379,24 +365,9 @@ fn rich_type_annotations_accept_matching_values() {
         "probe",
         "Probe",
         vec![
-            Property {
-                name: "p".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0)]),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "pair".to_string(),
-                value: Expr::Tuple(vec![Expr::Str("x".to_string()), Expr::Num(1.0)]),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "mapper".to_string(),
-                value: Expr::Closure(vec!["x".to_string()], Box::new(Expr::Num(1.0))),
-                value_span: None,
-                trailing_comment: None,
-            },
+            Property::new("p", Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0)])),
+            Property::new("pair", Expr::Tuple(vec![Expr::Str("x".to_string()), Expr::Num(1.0)])),
+            Property::new("mapper", Expr::Closure(vec!["x".to_string()], Box::new(Expr::Num(1.0)))),
         ],
     )];
     let diagnostics = env.check_statements(&stmts);
@@ -414,24 +385,12 @@ fn rich_type_annotations_reject_mismatched_values() {
         "probe",
         "Probe",
         vec![
-            Property {
-                name: "p".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0)]),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "pair".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(1.0), Expr::Str("x".to_string())]),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "mapper".to_string(),
-                value: Expr::Closure(vec!["x".to_string()], Box::new(Expr::Str("bad".to_string()))),
-                value_span: None,
-                trailing_comment: None,
-            },
+            Property::new("p", Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0)])),
+            Property::new("pair", Expr::Tuple(vec![Expr::Num(1.0), Expr::Str("x".to_string())])),
+            Property::new(
+                "mapper",
+                Expr::Closure(vec!["x".to_string()], Box::new(Expr::Str("bad".to_string()))),
+            ),
         ],
     )];
     let diagnostics = env.check_statements(&stmts);
@@ -446,12 +405,10 @@ fn colorscheme_path_accepted_for_color_param() {
     let stmts = vec![actor_with_props(
         "btn",
         "Button",
-        vec![Property {
-            name: "color".to_string(),
-            value: Expr::Path(vec!["accent".to_string(), "primary".to_string()]),
-            value_span: None,
-            trailing_comment: None,
-        }],
+        vec![Property::new(
+            "color",
+            Expr::Path(vec!["accent".to_string(), "primary".to_string()]),
+        )],
     )];
     let mut env = env;
     let diagnostics = env.check_statements(&stmts);

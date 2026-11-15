@@ -51,7 +51,7 @@ fn known_verb_still_completes_targets() {
 }
 
 #[test]
-fn top_level_completions_include_keywords() {
+fn top_level_completions_include_all_builtin_kinds() {
     let source = "";
     let symbols = SymbolTable::build_from_ast(&[]);
     let items = completions_at(&symbols, &[], source, 0, 0, &ExtensionManifest::default());
@@ -61,17 +61,9 @@ fn top_level_completions_include_keywords() {
         .filter(|i| i.kind == CompletionKind::Keyword)
         .map(|i| i.label.as_str())
         .collect();
-
     assert!(keywords.contains(&"let"));
     assert!(keywords.contains(&"import"));
     assert!(keywords.contains(&"if"));
-}
-
-#[test]
-fn type_completions_include_builtins() {
-    let source = "";
-    let symbols = SymbolTable::build_from_ast(&[]);
-    let items = completions_at(&symbols, &[], source, 0, 0, &ExtensionManifest::default());
 
     let types: Vec<_> = items
         .iter()
@@ -82,13 +74,6 @@ fn type_completions_include_builtins() {
     assert!(types.contains(&"Text"));
     assert!(types.contains(&"Ellipse"));
     assert!(types.contains(&"Button"));
-}
-
-#[test]
-fn snippet_completions_at_top_level() {
-    let source = "";
-    let symbols = SymbolTable::build_from_ast(&[]);
-    let items = completions_at(&symbols, &[], source, 0, 0, &ExtensionManifest::default());
 
     let snippets: Vec<_> = items
         .iter()
@@ -99,13 +84,6 @@ fn snippet_completions_at_top_level() {
     assert!(snippets.contains(&"actor"));
     assert!(snippets.contains(&"keyframe"));
     assert!(snippets.contains(&"component"));
-}
-
-#[test]
-fn action_completions_include_builtins() {
-    let source = "";
-    let symbols = SymbolTable::build_from_ast(&[]);
-    let items = completions_at(&symbols, &[], source, 0, 0, &ExtensionManifest::default());
 
     let actions: Vec<_> = items
         .iter()
