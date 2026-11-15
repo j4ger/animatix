@@ -37,7 +37,7 @@
 
 ## 3. 系统分层与组件抽象化设计 (System Layering & Component Abstraction)
 
-借鉴 `cathrynlavery/diagram-design` 等前沿设计系统的优点，并结合 Animatix 现有的组件模型（[`spec.md §12 Components`](spec.md#L1611)），我们将这套方案严格划分为三个层次，避免核心引擎膨胀：
+借鉴 `cathrynlavery/diagram-design` 等前沿设计系统的优点，并结合 Animatix 现有的组件模型（[`spec.md §12 Components`](spec.md#12-components)），我们将这套方案严格划分为三个层次，避免核心引擎膨胀：
 
 ```mermaid
 flowchart TD

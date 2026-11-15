@@ -215,8 +215,7 @@ animatix check demo.amx --plugin target/debug/libanimatix_plugin_demo.so
 
 The in-repo demo plugin (`crates/animatix-plugin-demo`) showcases the whole
 surface on one `Pulse` primitive: a keyframed `Num` property (`glow`), a
-manifest-driven `Enum(ring, dot, cross)` property (`mode`, a dropdown in the
-GUI inspector), `Str`/`Vec2` properties (`caption`, `origin`, `image_url`), a
+manifest-driven `Enum(ring, dot, cross)` property (`mode`), `Str`/`Vec2` properties (`caption`, `origin`, `image_url`), a
 `Text` + `Code` text pair, a highlight layer, a best-effort `append_image`
 stamp resolved from the asset cache, a two-argument native function (`scale`),
 a native action (`throb`) that writes a `glow` keyframe through
@@ -234,8 +233,7 @@ plugin or in-process extension registers into `ExtensionRegistry`. If the
 manifest has a `library` field, the CLI loads that native library relative to
 the manifest. Property `type` strings can use the primitive kinds (`Num`,
 `Bool`, `Color`, `Vec2`, etc.) or an enum form such as
-`Enum(left, right, top)`; enum properties render as manifest-driven dropdowns
-in the GUI inspector and accept bare variant identifiers (`mode: ring`) as well
+`Enum(left, right, top)`; enum properties accept bare variant identifiers (`mode: ring`) as well
 as quoted strings (`mode: "ring"`) in declarations and assignments.
 
 Manifests can be regenerated from a native library instead of hand-maintained.
@@ -329,10 +327,10 @@ unregisters the plugin's effects.
   The background rebuild worker reuses the same context Arc instead of loading
   native libraries again. The plugin status dialog shows manifests, loaded
   libraries, capability counts, errors, reload controls, explicit paths, and a
-  `plugin describe`-style manifest generator. The insertion palette includes
-  extension actions, the inspector/keyframe table show extension properties
-  from the actor plan, and the editor feeds the merged manifest to the
-  analyzer, so completions and hover match the runtime plugin. LSP stays
+  `plugin describe`-style manifest generator. Author extension actors and actions
+  in source: the current workbench disables the insertion palette and property
+  write-back. The editor feeds the merged manifest to the analyzer, so
+  completions and hover match the runtime plugin. LSP stays
   runtime-free and uses the same shared discovery module from the document
   directory.
 - CLI accepts `--plugin` manifests and native libraries. Native plugins

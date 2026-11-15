@@ -1,13 +1,13 @@
 # Handoff — the silent-drop round (WP0–WP8)
 
-> **STATUS: IN PROGRESS (2026-10-03).** WP0–WP5 are complete and committed. WP6
-> has a decided design and no implementation. WP7 is half done: the plugin ABI
-> easing table (B3) landed, the real `MorphStrategy::Fade` cross-fade (B2) has
-> not been scoped or written. WP8 is untouched.
-> **15 commits are local and unpushed on `main`, at the owner's explicit
-> instruction ("hold the push") — pushing triggers the GitHub Pages deploy.
-> Count them with `git rev-list --count origin/main..HEAD`; that number drifts
-> as the remaining packages land, the instruction does not.**
+> Historical handoff, recorded 2026-10-03. The status and local commit counts
+> below describe that investigation, not the current checkout or publishing
+> instructions. Use [the roadmap](roadmap.md) for remaining work and
+> [history](history/README.md) for subsequent resolutions.
+
+At the time of this handoff, WP0–WP5 were complete; WP6 had a design but no
+implementation, WP7 was partly complete, and WP8 was untouched. Fifteen commits
+were local and unpushed. These are historical observations, not current status.
 
 This round had three sources that turned out to be one problem: values that are
 parsed, authored and accepted, then discarded somewhere between the AST and the

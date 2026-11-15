@@ -5,20 +5,20 @@ progressive learning track, but are grouped by the language area they exercise.
 Standalone real-content showcases live under `projects/`.
 
 In-progress dogfooding scenes and grammar probes are intentionally kept out of
-this directory; see `../dogfood/README.md`.
+this directory; see [Dogfooding](../dogfood/README.md).
 
 ## Running Examples
 
-From the workspace root:
+From the workspace root, after entering the [development environment](../docs/contributing.md#build-and-run):
 
 ```bash
-# Check / parse an example
+# Check a scene and report diagnostics
 cargo run --bin animatix -- check examples/basics/00_hello.amx
 
-# Validate scene with audit
+# Gather audit evidence (review the findings, not just the exit status)
 cargo run --bin animatix -- audit examples/basics/00_hello.amx
 
-# Generate a storyboard
+# Review composition and timing in a storyboard
 cargo run --bin animatix -- storyboard examples/basics/00_hello.amx -o storyboard.png
 
 # Establish a baseline
@@ -38,8 +38,8 @@ Real-content capstones demonstrating the full language. Start here.
 | `projects/fft_explain.amx` | Explainer: Typst equation fragments, colored plots, per-fragment reveals |
 | `gallery/brand_reel/` | Multi-file capstone: all six `play` transitions, `persist`/`remove` mascot chain, Audio bed, cross-file scenes (`import as` + `play alias.Scene`) |
 
-Shared library the gallery builds on lives in [`lib/`](lib/) (`theme.amx`
-tokens + colorscheme, `motion.amx` motion vocabulary, `TitleCard`).
+The gallery shares [theme and motion helpers](../web/demos/lib/) with the
+website demos. Individual files declare the imports they need.
 
 ## Basics
 

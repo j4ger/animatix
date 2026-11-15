@@ -1,9 +1,13 @@
 # Scene Statistics (STAT-1) — Design Note
 
-Status: **proposal, not started**. Not yet tracked in `roadmap.md`; a row is the
-first landing step. Related: `series_construction.md` (LG-1, the registration-route
-precedent), `effects.md` (why this is not an effect), `history/2026-10.md` ("M1 — light/color
-vocabulary", the recipe-not-mechanism decision).
+Status: **implemented**. The build-time bake lives in
+`crates/animatix/src/timeline/scene_stats.rs`; `curve_at` and `curve_smooth` expose
+the derived curves. See [the implementation record](history/2026-10.md#stat-1--scene-statistics--analytical-curves-2026-10-08)
+and [the language reference](spec.md) for shipped behavior.
+
+The sections below preserve the original design rationale and proposed contract;
+future-tense wording describes that proposal, not missing implementation. Related:
+[series construction](series_construction.md) and [effects](effects.md).
 
 ## Motivation
 

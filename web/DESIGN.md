@@ -1,117 +1,87 @@
-# Animatix Web — House Style & Portfolio Architecture
+# Web design guide
 
-The normative design contract for everything under `web/`: the demo scenes
-(`*.amx`), the pages that present them, and the machinery that keeps the two in
-agreement. It exists because the 2026-11 redesign found the portfolio safe and
-monotone: every scene a small diagram floating in a black void, every page the
-same amber-on-obsidian card grid, and every work's metadata hand-copied into
-four files. This document is the correction.
+Use this guide for showcase scenes and the pages that present them. Review the
+actual animation, not just the page or a passing gate. The storyboard should
+include the first frame, main cues and resting composition.
 
-Scenes are reviewed by eye against the storyboard contact sheet
-(`animatix storyboard <file>`), which includes the resting frame. A scene that
-violates §1 does not ship, whatever the gates say.
+## Scene composition
 
-## 1. Scene house style
+1. **Open on a composed stage.** Show a backdrop, title or subject at time zero;
+   animate entrances within it rather than fading up from an empty black frame.
+2. **Keep a useful resting frame.** An `autoplay loop` cycle holds the final
+   frame. Do not erase the cast in an outro; let the player handle the loop dissolve.
+3. **Start motion promptly.** Avoid an unexplained frozen plate before the first
+   reactive movement. This is a visual-review rule, not an automated timing test.
+4. **Use the stage.** Aim for the subject to occupy at least 60% of a 1280×720
+   frame, with margins around 8% or less where appropriate. Do not shrink a diagram
+   into an empty field merely to avoid layout decisions.
+5. **Make type readable at embed size.** At 1280×720, use act titles of at least
+   56 px, captions 22 px, readouts 20 px and kickers 16 px. Reserve 12 px micro-labels
+   for deliberate backdrop detail, not explanatory content.
+6. **Use editorial asymmetry.** Left-anchored headings and bottom-left captions
+   leave room for the diagram. Avoid repeating the same centered title-card stack.
+7. **Give the animation a progression.** A useful starting structure is hook
+   (0–20%), mechanism (20–75%) and assembled payoff (75–100%). Adapt it to the idea;
+   do not add a decorative effect merely to fill the final act.
+8. **Choose a palette per work.** Use the work's colorscheme from
+   `demos/lib/theme.amx`. Glass should reveal useful content beneath it, not become
+   the default container for every element.
 
-Eight rules. The first three are mechanical and gated; the rest are reviewed.
+Shared scene building blocks live in `demos/lib/stage.amx` (`StageFloor`,
+`ActHead`, `Caption`, `Readout`) and `demos/lib/ambience.amx` (`Ambience`). Reuse
+these rather than independently rebuilding title and backdrop conventions.
+Frame-time readouts can update text inside `always`; review them in both playback
+and an offline storyboard.
 
-1. **Ink at t=0.** The first rendered frame is already a composed stage: the
-   backdrop floor is lit and the title block or the subject's silhouette is on
-   it. No fade-from-black openings. Entrances animate *within* a lit stage.
-   `scripts/site-rest-check.py` gains a first-frame floor alongside the resting
-   one, so this is enforced, not requested.
-2. **Rest = fullest.** The held frame of an `autoplay loop` cycle is the
-   densest composition of the scene. Outros may move parameters but never erase
-   the cast. `REST_FLOOR` rises from 0.35 to 0.80 for bordered figures; the
-   full-bleed home hero keeps its audited exemption.
-3. **No dead holds.** A scene's first reactive motion starts at t=0. An
-   `always` block that wakes at t=2.5 leaves 2.5 s of frozen plate (the defect
-   the old `matrix/rotation.amx` shipped).
-4. **Full-stage composition.** Every scene carries a backdrop layer
-   (`stage.StageFloor` plus, where wanted, `amb.Ambience`) so the frame is never
-   a void, and the subject occupies ≥60 % of the 1280×720 frame area with
-   margins ≤8 % per side. The old hash figure — eight buckets and two chips in
-   80 % empty black — is the anti-pattern.
-5. **Type floors.** At 1280×720: act titles ≥56 px, captions ≥22 px, data
-   readouts ≥20 px, kickers ≥16 px. Nothing renders below 16 px except
-   deliberate micro-labels on the backdrop grid (≥12 px, `text.muted`). The old
-   plates set node labels at ~9 px, illegible at card size.
-6. **Editorial asymmetry.** Title blocks anchor left with a rule
-   (`stage.ActHead`); captions sit bottom-left with a mono tag
-   (`stage.Caption`). The centered EYEBROW / Title / subtitle stack is retired.
-7. **Three acts.** Hook (0–20 %): one bold move that states the question.
-   Mechanism (20–75 %): the working diagram, revealed progressively. Payoff
-   (75–100 %): the assembled whole plus one surprise — camera push, bloom
-   flare, iris wipe — held into the resting frame.
-8. **One palette per work.** Scenes draw in their work's colorscheme
-   (`ink`/`ember`, `tide`, `moss`, `orchid`, `coral` in `demos/lib/theme.amx`),
-   never in universal amber. Glass appears at most once per scene and only over
-   something worth frosting.
+## Pages
 
-Shared primitives live in `web/demos/lib/stage.amx` (`StageFloor`, `ActHead`,
-`Caption`, `Readout`); atmospheric depth in `web/demos/lib/ambience.amx`
-(`Ambience`). A scene imports both rather than re-deriving a backdrop.
+- Keep a dark ground with restrained radial washes and per-work accent color.
+  Let live scenes carry the strongest contrast.
+- Use display typography for headings, sans for body and mono for timecodes,
+  paths and data. Keep hierarchy stronger than decorative chrome.
+- Give major players room. Pair a full-width or asymmetric stage with concise
+  explanatory text; avoid wrapping every paragraph in another card.
+- A poster must be understandable before hover. Hover starts motion, not visibility.
+- Provide scrubbing where timing matters. Parameter sliders should expose a small
+  number of meaningful build-time variables with authored defaults.
 
-Readouts and counters may be declared at their final value and rewritten
-frame-time in `always { }`: since the 2026-11 text-cache fix the offline
-render path (`image`/`storyboard`) draws the frame-time string exactly like
-playback, so `Readout.value_text.text = format(...)` is safe in both paths
-(see `docs/history/2026-11.md`).
+`data-vars` and `setVars()` rebuild through the existing variable mechanism,
+with debouncing and playback-position preservation. They do not introduce a
+second expression language. See [the player API](README.md#live-figure-editors)
+for promise, cancellation and error behavior.
 
-## 2. Page visual language
+## Content ownership
 
-Dark ground, real depth, editorial type — the scenes glow, so the page stays
-dark, but the flat obsidian + single amber + uniform card grid goes:
+`web/works.json` is the source for work identity and showcase metadata. Generated
+page blocks are marked with `<!-- site-gen:<block>:start|end -->` comments.
+Change the manifest and run `scripts/site-gen.py`, rather than hand-edit those
+blocks. `scripts/site-gen.py --check` and `scripts/content-sync.sh` detect drift.
 
-- **Depth, not flatness.** Layered radial washes, a faint grain, and per-work
-  accent glows behind full-bleed stages. Cards survive only where they carry a
-  live player; prose and figures sit directly on the ground.
-- **Editorial type.** A display face for h1/h2 at true display scale
-  (clamp up to ~96 px on the home hero), the existing sans for body, and the
-  mono for every timecode, file path and data readout. The long-declared
-  `--serif` earns its keep as the pull-quote / lede voice.
-- **Full-bleed asymmetric stages.** The home hero and each work's deck open on
-  an edge-to-edge player with the copy in a side column, not a centered card.
-- **Per-work accent.** Each work tints its own section, poster frame and deck
-  aura from its palette, so scrolling the catalog reads as nine rooms, not one
-  repeated card.
+Keep developer probes under `web/dev/`, outside showcase navigation. Shared
+library code belongs in `web/demos/lib/`; new works should not copy it wholesale.
 
-## 3. Interaction contract
+## Verification
 
-- Every embedded player is scrubbable: the deck stepper, the gallery theater
-  mode, and a global scrub on the home duality section stay.
-- **Parameter sliders.** Flagship scenes expose 1–3 build-time `let` params
-  with authored defaults. The player gains `data-vars` (JSON) and
-  `setVars(obj)`: a debounced (~150 ms) rebuild through the same `--set`
-  mechanism the CLI uses, preserving normalized playhead and autoplay state.
-  No new expression semantics — the language's existing vars do the work.
-- Hover-to-play posters must show a lit composed frame *before* hover (rule 1
-  makes this true by construction); hover starts motion, it does not reveal ink.
+`scripts/site-rest-check.py` measures composition coverage, not artistic quality:
 
-## 4. Content architecture
+- Scenes marked `// house-style: <note>` require a resting coverage ratio of
+  at least 0.80 and at least 5% whole-frame ink at time zero.
+- Legacy scenes retain the 0.35 resting threshold until they are revised and
+  opt in. The stricter threshold is not yet universal.
+- Exemptions must be explained in the scene source. Whole-frame coverage cannot
+  detect every disappearing label, overlap or clipped actor.
 
-`web/works.json` is the single source for every work's identity: id, title,
-kicker, blurb, tags, category, scene count, poster scene, deck href, palette,
-figure list, and slider params. Pages carry generated blocks delimited by
-`<!-- site-gen:<block>:start|end -->` comments; `scripts/site-gen.py` rewrites
-them from the manifest and `--check` verifies they agree, wired into
-`scripts/content-sync.sh` as a gate. Hand-editing a generated block is a gate
-failure, not a drift nobody notices.
+Before accepting a new or rewritten scene:
 
-Dev probes (`svg-probe/*`, `multi-probe`, `perf-probe`, `var_probe`) live under
-`web/dev/`, out of the showcase tree and out of the nav.
+```sh
+animatix check path/to/scene.amx
+animatix audit path/to/scene.amx
+animatix storyboard path/to/scene.amx
+animatix baseline path/to/scene.amx
+```
 
-## 5. Gates
-
-- `site-rest-check.py`: a scene carrying `// house-style: <note>` is held to a
-  0.80 resting floor **and** an absolute first-frame floor of 5 % whole-frame
-  ink (a ratio test would punish dense diagrams for resting on a lit title
-  stage); legacy plates keep the 0.35 resting floor until they are rewritten
-  and opt in via the marker, so the rollout is staged and every exemption stays
-  audited in the scene source. When the last legacy plate is rewritten,
-  `REST_FLOOR` itself rises to 0.80 and the marker becomes decorative.
-- `content-sync.sh`: + manifest/blocks agreement.
-- `web-smoke`, `site-scenes`, `render-smoke`: unchanged, still green.
-- Every new or rewritten scene passes the 4-step loop before commit:
-  `animatix check`, `animatix audit`, `animatix storyboard`, `animatix baseline` + an eyeball of the
-  contact sheet (fullest frame, overlaps, resting frame).
+Inspect the storyboard and relevant frames yourself. Then run the applicable
+content, site-scene and web gates from `scripts/ci.sh gates` in their listed
+shells. See [web verification](README.md#verification-and-inspection-tools) and
+[contributing](../docs/contributing.md). A build or smoke-test pass does not
+establish visual quality or cross-platform rendering parity.

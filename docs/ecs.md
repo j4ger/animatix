@@ -290,7 +290,7 @@ if let Some(mut e) = timeline.entity_mut("card") {
 | Frame evaluation | `timeline/scene_eval/*`, `primitives/*` | `&World` + `EvalCaches` |
 | Layout | `timeline/layout.rs`, `taffy_layout.rs` | `&World` (hierarchy + container + geometry) |
 | Persistence | `timeline/persistence.rs`, `snapshot/*` | `&World` → `EntitySnapshot` |
-| GUI | `crates/animatix-gui` | `EntityRef` for reads; edits via `SourceEdit` (AST) |
+| GUI | `crates/animatix-gui` | `EntityRef` for inspection; source editor changes trigger rebuilds. Retained `SourceEdit` APIs are not exposed by the workbench. |
 
 Evaluation must never allocate a label `String` or hash a label per node. The
 only label touch points are build, expression env construction, diagnostics and

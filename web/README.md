@@ -4,59 +4,35 @@ The Animatix engine, running in the browser: a WebGPU player for `.amx`
 scenes and a dependency-free `<amx-player>` embed component — served as a
 fully static site, no backend, no runtime dependencies beyond the browser.
 
-Scene **authoring** lives in the desktop app (`cargo run -p animatix-gui`);
-the web side only plays back and embeds.
+Use the desktop workbench or a text editor to author projects. The website
+adds local, in-page source editing for selected figures; it is not a general
+project editor and does not save those edits to disk.
 
-## What's here
+## Start here
 
-```
-crates/animatix-web          wasm32 cdylib: build pipeline + AmxPlayer (the engine)
-web/embed/src/amx-player.js  <amx-player> web component entry (built to embed/amx-player.js)
-web/embed/src/player/        player source split by concern: core helpers, then the
-                             element method chain (base → view → load → input → playback)
-web/site.css                 shared dark "instrument" stylesheet (aggregator of site/*.css)
-web/site-chrome.js           shared nav + footer + timeline chrome (scroll playhead,
-                             keyframe stamps, hover-play, theater), injected per page
-web/index.html               project homepage — hero scene, features, demo entry points
-web/tour/                    "The language" — an eleven-section tour with 10 live
-                             scenes and 1 still,
-                             every live figure editable in place (tour/editor.js);
-                             tour/lib/components.amx is the shared component library,
-                             tour/stills/textmath.png the one non-live plate
-web/gallery.html             scene gallery — the seven transformer scenes as embeds
-web/arena/                   "Animatix Arena" — side-by-side synchronized evaluation
-                             studio for dogfood candidates, new primitives, and agents;
-                             paired with scripts/arena.py
-web/recipes/                 the recipes gallery — eight single-move scenes (light, dash,
-                             ticker, camera, word reveal, sparks, bloom, bar race) as live
-                             embeds, each with its .amx one click away; recipes/scenes/
-                             holds them
-web/demos/                   demo hub (course-style cards + posters) and the demos themselves:
-                             demos/transformer/  the transformer walkthrough (7 scenes)
-                             demos/epicycles/    Fourier epicycles walkthrough (5 scenes)
-                             demos/sorting/      insertion-sort theatre (3 scenes)
-                             demos/gradient/     gradient descent walkthrough (6 scenes)
-                             demos/matrix/       linear-transformations walkthrough (3 scenes)
-                             demos/hash/         hash-table walkthrough (3 scenes)
-                             demos/lib/          shared .amx library the demo scenes import
-                             demos/multi-probe.html, demos/perf-probe.html, demos/svg-probe/
-                                                 QA harnesses (multi-instance, frame cost, SVG/profile)
-web/demos/transformer/       "The Transformer Architecture, Animated" — seven scenes + article page
-web/scenes/hero.amx          the homepage hero scene
-web/runtime/                 assembled single SDK (gitignored build output)
-web/fonts/                   source font pack policy and manifest
-scripts/build-web.sh         wasm build + wasm-bindgen + wasm-opt + brotli + zopfli
-scripts/web-fonts.sh         sync/check the external gzip font pack
-scripts/serve-web.py         local static server with brotli negotiation
-.github/workflows/pages.yml  deploys web/ + the runtime engine builds to GitHub Pages
-crates/animatix-web/tests/site_scenes.rs
-                             builds each embedded scene using its declared runtime requirements
-scripts/transformer-verify.sh    keyframe checks for the transformer scenes
-                             (calls `animatix baseline` per scene; needs a GPU, so
-                             it is a scripted gate, not a cargo test)
-```
+- [Run locally](#run-it) to build and preview the site.
+- [Embed a scene](#embedding-scenes-in-any-page-amx-player) for attributes and APIs.
+- [Capabilities](#capabilities-and-limitations) for browser/native differences.
+- [House style](DESIGN.md) for new scenes and pages.
+- [Diagnostics](#diagnostics--probes) for runtime investigation.
+
+## Source map
+
+| Location | Purpose |
+|---|---|
+| `crates/animatix-web/` | Wasm engine and player API |
+| `web/embed/src/` | `<amx-player>` source; builds to `web/embed/amx-player.js` |
+| `web/runtime/` | Generated SDK and manifest; not committed |
+| `web/fonts/` | External font-pack policy and manifest |
+| `web/site.css`, `web/site/`, `web/site-chrome.js` | Shared page style and navigation |
+| `web/works.json` | Showcase metadata used by generated page blocks |
+| `web/tour/` | Language tour and live figure editor |
+| `web/demos/`, `web/recipes/`, `web/gallery.html` | Walkthroughs and example scenes |
+| `web/arena/` | Side-by-side candidate evaluation |
+| `web/dev/` | Developer probes, outside the showcase |
 
 ### Live figure editors
+
 
 The tour's and the demo walkthroughs' figures carry `data-editable`;
 `tour/editor.js` swaps each into a two-column view — animation beside a
@@ -100,16 +76,18 @@ rebuilt asynchronously in place, debounced, with the playback position preserved
 
 ## Run it
 
-Build the single web SDK package:
+From the repository root, enter the web build shell from a plain terminal:
 
-```bash
-# Fastest way: checks staleness against crates/ and builds if needed
-scripts/ensure-web-pkg.sh             # release build (or --dev for ~20s debug rebuild)
-
-scripts/build-web.sh                 # assembles web/runtime/ and its manifest
-python3 scripts/serve-web.py 8124    # serves web/ with live-reload no-cache headers
-# open http://127.0.0.1:8124/
+```sh
+nix develop .#web-build
+scripts/ensure-web-pkg.sh          # build only when stale
+python3 scripts/serve-web.py 8124
+# Open http://127.0.0.1:8124/
 ```
+
+Use `scripts/build-web.sh` for an explicit SDK rebuild. Do not nest the web shell
+inside the default development shell: the outer Rust toolchain can remain first
+on `PATH`. The web toolchain needs the `wasm32-unknown-unknown` target.
 
 ### Verification and inspection tools
 
@@ -122,43 +100,18 @@ scripts/render-keyframes.sh web/scenes/hero.amx /tmp/hero_frames
 scripts/contact-sheet.sh /tmp/hero_frames /tmp/hero_sheet.png
 ```
 
-**The build needs a toolchain that carries the `wasm32-unknown-unknown` std,
-which the repo's default dev shell does not.** Run it in its own shell:
+For a `can't find crate for 'std'` error, check that the active toolchain includes
+the Wasm target:
 
-```bash
-nix develop .#web-build          # rust with the wasm32 target + binaryen + brotli
-scripts/build-web.sh
+```sh
+ls "$(rustc --print sysroot)/lib/rustlib/"
 ```
 
-`#default` is a GUI/dev shell: its `rust-bin` toolchain has no wasm32 std, so
-the build fails inside it with `can't find crate for 'std'` in every
-dependency and a misleading "the target may not be installed" — the target may
-well be installed under `~/.rustup`, but that toolchain cannot see it.
-`build-web.sh` now checks this up front and names the right shell.
-
-**Enter `.#web-build` from a plain shell, not from inside `.#default`.**
-Dev shells prepend to `PATH` rather than replacing it, so nesting them keeps
-the outer `rustc` first — the shell *looks* like it loaded (wasm-opt and
-brotli resolve fine) while the build still fails. Confirm before building:
-
-```bash
-ls "$(rustc --print sysroot)/lib/rustlib/"   # must list wasm32-unknown-unknown
-```
-
-The script also needs `wasm-bindgen-cli` at **exactly** the version
-`crates/animatix-web/Cargo.toml` pins (`wasm-bindgen-futures` releases in
-lockstep, so a mismatch is a hard failure at glue generation, several build
-minutes later). `.#web-build` carries that CLI as a fixed-output derivation
-(hash-verified, no GitHub fetch or `sudo` during the build), so entering the
-shell is all a Nix user on x86_64 Linux needs; other platforms use the fallback.
-The pin is read from the manifest, never copied, by `scripts/wasm-tools.sh` — do
-not write the number into a command or a doc.
-Outside Nix, the fallback verifies the release tarball and installs into a
-user-writable directory:
-
-```bash
-scripts/ci.sh setup wasm-bindgen     # ~/.local/bin, checksum-verified
-```
+`wasm-bindgen-cli` must match the pin in `crates/animatix-web/Cargo.toml`.
+The web shell supplies the matching CLI on x86_64 Linux. On other platforms or
+outside Nix, use `scripts/ci.sh setup wasm-bindgen`, which installs a verified
+release in a user-writable directory. `scripts/wasm-tools.sh` reads the pin; do
+not duplicate its version in setup commands.
 
 `scripts/ci.sh gate web-smoke` (run it in `nix develop .#web-ci`, after
 `web-build`) loads the home, transformer and matrix pages in headless Chromium
@@ -256,39 +209,27 @@ decompressed with the native `DecompressionStream` API.
 
 ### GitHub Pages
 
-`.github/workflows/pages.yml` deploys the site on every push to `main` that
-touches `web/`, the engine, the examples' shared library, or the build scripts.
-It runs four gates from `scripts/ci.sh` and then one assembler:
+[The Pages workflow](../.github/workflows/pages.yml) deploys after successful CI
+on `main`, or by manual dispatch. It checks out the triggering commit and prefers
+the verified `web-runtime` artifact from that CI run. A missing artifact triggers
+a rebuild and web checks; a downloaded artifact with a wrong identity or corrupt
+contents fails verification rather than silently rebuilding.
 
-```
-embed-drift     the web/embed/amx-player.js bundle builds from its src
-site-scenes     every scene the pages embed builds against the SDK requirements
-web-build       the single SDK package, in the .#web-build shell
-web-smoke       every player on three pages reaches ready in headless Chromium
-                (runs in the same job as web-build: generated SDK files are gitignored)
-site-artifact   scripts/site-artifact.sh assembles _site
-```
+The workflow checks site scenes and assembles `_site` through the gates in
+`scripts/ci.sh`. `scripts/site-artifact.sh` validates the SDK manifest and files,
+excludes development sources such as `web/tools` and `web/embed/src`, and writes
+`.nojekyll`. Release packaging uses the same assembler. Consult the workflow and
+[contributor guide](../docs/contributing.md) for the current gate list rather than
+copying it into deployment instructions.
 
-`site-artifact` is the same script the release pipeline zips with. It checks the
-SDK manifest, build identity, integrity metadata, and listed files; `web/tools`
-and `web/embed/src` are never copied, and `.nojekyll`
-is written because otherwise Pages runs the tree through Jekyll, which silently
-drops any directory beginning with `_`.
-
-The wasm-bindgen-cli version is read from the pin in
-`crates/animatix-web/Cargo.toml` by `scripts/wasm-tools.sh`; `.#web-build` carries
-that exact CLI and CI's non-Nix fallback verifies the same tarball, so bumping the
-pin (and the hash in `flake.nix`) is the only version bump needed. Pages itself must be enabled once in the repo settings
-(Source: "GitHub Actions"); the site lives at
-`https://<owner>.github.io/animatix/` and every page uses relative paths, so the
-subpath just works.
-
-`release.yml`, triggered by a `vX.Y.Z` tag, runs the whole PR gate matrix as its
-blocker and then ships `_site` and the SDK package as release assets too —
-same gates, same assembler, so a downloaded site and a deployed one cannot be two
-different layouts of one build.
+Enable Pages with **GitHub Actions** as its source. The public project site is
+[amx.j4ger.dev](https://amx.j4ger.dev/); pages also use relative paths for subpath
+hosting. See the hosting requirements below for MIME types, compression and CORS.
 
 ## Embedding scenes in any page (`<amx-player>`)
+
+Replace the host and illustrative `figures/` paths below with your deployed SDK
+entry and scene files.
 
 ```html
 <script type="module" src="https://your-host/amx-player.js"></script>
@@ -308,9 +249,9 @@ Behavior:
   (IntersectionObserver, 200px margin); the page shares one SDK runtime and one WebGPU device across its embeds.
 - **No build-time poster** — the skeleton (aspect-ratio placeholder with a
   shimmer) is replaced by the scene's *finished* frame, not its first one.
-  These scenes build up from an empty stage, so frame 0 is a blank box: a
-  reader who never presses play, or who asked for reduced motion, would have
-  nothing to look at.
+  This provides a complete composition for readers who do not play the scene
+  or prefer reduced motion. New showcase scenes should also have a composed
+  opening frame, as described in [the house style](DESIGN.md).
 - **Autoplay** — plays on visibility unless `prefers-reduced-motion` or
   `navigator.connection.saveData` says otherwise; offscreen instances pause
   automatically; without `autoplay` (or in those quiet modes) the embed stops
@@ -380,7 +321,7 @@ Behavior:
 - **`data-vars` / `setVars(obj)`** — build-time variable overrides, the web form
   of the CLI's repeatable `--set NAME=VALUE`: each name shadows the scene's own
   `let NAME = …` default, so one template serves many values
-  (`web/demos/var_probe.amx` is the probe scene a slider demo can drive). The
+  (`web/dev/var_probe.amx` is the probe scene a slider demo can drive). The
   attribute holds a JSON object of number/string/boolean values — write numbers
   as numbers, because a JSON string becomes a string *literal*; `setVars`
   *merges* into the set in effect (so a slider sends just its own name) and
@@ -537,56 +478,23 @@ drama voice, sage `#8fc7a3` and steel `#8ab4f8` only carry a diagram's
 genuine semantic channels. New scenes should follow `web/tour/scenes/` and
 `web/demos/transformer/scenes/` as the polished references.
 
-### Authoring notes that bit these scenes
+### Scene authoring
 
-- **An entrance action settles on the target's authored `opacity`**, except for
-  an authored `opacity: 0`, which every entrance action treats as a "start
-  hidden" seed and lifts to 1.0. This used to be inconsistent: `fade-in` forced
-  every target to 1.0 (so the old `halo` at 0.22, `expand`/`project` at
-  0.75/0.4 and `layerN` at 0.6 were silently flattened) while `wipe-in`,
-  `draw-in` and `reveal-in` never touched `opacity` at all, leaving an authored
-  `opacity: 0` invisible for the whole timeline. Both halves are fixed; the rule
-  is in `docs/spec.md`.
-- **Paint order is declaration order** — a later actor paints over an earlier
-  one, matching `root_nodes`, which is built in declaration order. Verified
-  numerically rather than by eye: the same panel and crossing arrow, with the
-  arrow declared first versus last, differ by 6/255 in the frame average, and the
-  animation used (`draw-in`/`fade-in`/none) makes no difference.
-  *How this was first got wrong:* the first probe declared its actors without an
-  explicit `opacity`, which makes them hidden-by-default, so the crossing actor
-  never rendered and every ordering measured identically — see the next note.
-- **An actor declared before the first keyframe is hidden until an entrance
-  action reveals it** (there is a `never-revealed` warning for this, and an
-  explicit `opacity` opts out of the seed). This is worth stating twice: it
-  invalidates any probe that forgets it, because a hidden actor silently
-  contributes nothing to the frame.
-- **A `Path` fills with `color` by default** and only strokes when given a
-  `stroke` plus `fill_opacity: 0.0`. Without that an open arc renders as a
-  filled lens with a white outline — SVG's fill rule, and the white outline is
-  because an unset `stroke` on a shape falls back to the colorscheme's
-  `stroke.default`.
-- `Text` uses one face, so `font_weight: "bold"` is inert on the plain path.
-  Characters no registered face covers — `⋮` (U+22EE), `ᵀ` (U+1D40), `ₖ`
-  (U+2096), `→` (U+2192 in the slim wasm bundle) among them — render as tofu,
-  but no longer silently: the build now warns `missing-glyph` naming each
-  uncovered character with its codepoint. Draw dots instead, and write
-  formulas in ASCII (`d -> 4d -> d`).
-- **Authored opacity defeats entrance gating.** An actor with an explicit
-  non-zero `opacity` is visible from frame 0 no matter which entrance follows —
-  wipe/draw gate only the fill/stroke channels, and before a track's first
-  keyframe it reads its default (1.0). A dimmed actor that appears late is
-  authored `opacity: 0.0` and settles via a keyframe assignment
-  (`rail.opacity = 0.40 [560ms]`); a full-opacity actor takes a plain entrance
-  (assignments never lift the hidden-by-default seed). Never author `opacity:
-  0` on a component instance either — fade-in's authored-zero branch sets only
-  the instance track and never lifts the child seeds, so the component fades
-  in as nothing.
-- **Don't fade in a container and its child curve.** A `fade-in` on a
-  container lifts the whole hidden-by-default subtree; a child's own entrance
-  that starts mid-lift then settles on the *interpolated* opacity it observes
-  at its start (measured: a `PlotCurve` inside a `Graph` faded this way
-  rendered at ~17% — near-invisible). Fade the container, or fade the child
-  after the lift completes, never both at once.
+Review scenes visually with `animatix storyboard`, including the first and resting
+frames. Follow [the house style](DESIGN.md) and the
+[language specification](../docs/spec.md) for visibility and timing semantics.
+In particular:
+
+- Actors declared before the first keyframe without explicit opacity start
+  hidden. Reveal them before judging render or overlap probes.
+- Later declarations paint over earlier ones. Include visible actors when testing
+  paint order.
+- A `Path` fills by default. For an open stroked path, set `stroke` and
+  `fill_opacity: 0.0`.
+- Runtime fonts are explicit. Check `missing-glyph` diagnostics instead of
+  assuming a browser-installed font or an arbitrary Unicode character is available.
+- Avoid overlapping entrance actions on a container and its children; inspect the
+  resulting opacity rather than assuming independent fades.
 
 Hosting requirements for the runtime host: serve JavaScript as
 `text/javascript` and Wasm as `application/wasm`. Keep the manifest's raw and
@@ -656,7 +564,9 @@ cd web/tools && npm install && npm run build:embed
   scanned; include a supported TTF/OTF face when the SDK faces do not cover the
   scene's text.
 - **Audio tracks are not played** (no Web Audio wiring yet).
-- **Export** stays desktop-only (video via FFmpeg; PNG/WebP via raster-encode).
+- **Video export** is native-only and requires FFmpeg. The web SDK exposes
+  on-demand PNG encoding through `encode_rgba_png` for RGBA readbacks; this is
+  not a browser video-export workflow.
 - Native plugins don't exist on this platform; `libloading`-based extensions
   are desktop-only.
 - No general in-browser editor: `applySource` backs the tour's and the demos'
@@ -677,15 +587,16 @@ multi-scene blends. What differs is the platform around it:
 | Fonts | system scan plus bundled fonts | manifest faces plus optional `data-fonts` |
 | Extensions (`plugin-loading`) | ✓ | ✗ |
 | Audio | muxed at export | not played |
-| Export (video / PNG / WebP) | ✓ | raster encoding on demand |
+| Video export | FFmpeg with the `video` feature | not available |
+| Raster export | PNG / WebP | on-demand PNG encoding API |
 | Build quality | `Production` (export), `Draft` (GUI editing) | `quality` attribute: `draft` default, `preview`/`production` opt-in |
 | Build-time vars | `--set NAME=VALUE` | `data-vars` attribute / `setVars()` |
 
-The pixel-level consequence of that last row: plot-family actors (`Graph`,
+The pixel-level consequence of build quality: plot-family actors (`Graph`,
 `PlotCurve`, `VectorField`, …) sample with 4× the tolerance under the default
 `draft`, so dense curves can be slightly coarser than a desktop export renders
 them — `quality="production"` closes that gap at rebuild cost. The GUI preview
-is the same `Draft`, so the default shows what an author saw while editing.
+also uses `Draft`; choose matching quality when comparing render paths.
 Two smaller gaps: a
 single-scene document using `persist` with no successor scene skips the
 `PersistTargetNotCarried` warning the desktop build emits (behaviour
@@ -722,7 +633,7 @@ distribution scripts and are not asserted here as acceptance evidence.
 
 ## Diagnostics & probes
 
-- `web/demos/perf-probe.html` — the frame-cost harness
+- `web/dev/perf-probe.html` — the frame-cost harness
   (`?scene=&players=&frames=&scales=&reps=&base=`): loads a scene, sweeps render
   scales, prints a table and publishes `window.__perf`. It drives frames by hand
   and drains the GPU queue (`debug_gpu_drain`) rather than timing the page's rAF
@@ -731,11 +642,11 @@ distribution scripts and are not asserted here as acceptance evidence.
   `reps` repeats each sample and keeps the fastest (a browser frame timed from a
   script is hostage to whatever else the machine is doing); `base` can point the page at an alternate SDK directory for an A/B comparison. The findings and the method are in
   `docs/performance_evaluation.md` §3.7.
-- `web/demos/multi-probe.html` — four embeds on one page; publishes
+- `web/dev/multi-probe.html` — four embeds on one page; publishes
   `{players, ready, playing, wasmFetches}` on `window.__probe_state` and, with
   `?readback=1`, a GPU-buffer readback (average color / distinct colors) of
   the first player — a compositor-independent pixel check.
-- `web/demos/svg-probe/` — `Svg`/`Image` media probes: one page per scenario
+- `web/dev/svg-probe/` — `Svg`/`Image` media probes: one page per scenario
   (`index.html` full scene, `variants.html` rect-vs-circle content bisection)
   with the same `__probe_state` readback hook.
 - `debug_fill(r,g,b)` / `debug_readback(t, cb)` / `debug_svg_stats(t_ms)` on
