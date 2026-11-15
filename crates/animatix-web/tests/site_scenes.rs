@@ -277,3 +277,65 @@ fn every_scene_the_site_plays_builds_with_the_sdk() {
     );
     assert!(checked > 0, "no scene was exercised");
 }
+
+/// The runtime build is deliberately permissive about authored property types.
+/// Pair it with the shared language checker when certifying teaching sources.
+fn authored_source_errors(path: &Path, source: &str) -> Vec<String> {
+    use animatix_analyzer::DiagnosticSeverity;
+    let mut analyzer = animatix_analyzer::Analyzer::new_with_path(source, Some(path.to_path_buf()));
+    analyzer.merge_import_symbols();
+    analyzer
+        .diagnostics()
+        .into_iter()
+        .filter(|diagnostic| {
+            matches!(diagnostic.severity, DiagnosticSeverity::Warning | DiagnosticSeverity::Error)
+        })
+        .map(|diagnostic| diagnostic.message)
+        .collect()
+}
+
+/// Astro loads canonical sources dynamically rather than through literal HTML
+/// players. Keep these in the workspace test gate as well as manual site builds.
+#[test]
+fn every_canonical_astro_scene_builds_with_the_sdk() {
+    let directory = web_root().join("content/scenes");
+    let mut scenes: Vec<_> = std::fs::read_dir(&directory)
+        .expect("canonical site sources exist")
+        .map(|entry| entry.expect("readable scene entry").path())
+        .filter(|path| path.extension().and_then(|extension| extension.to_str()) == Some("amx"))
+        .collect();
+    scenes.sort();
+    assert!(
+        scenes.len() >= 16,
+        "the curated works, lessons, techniques and brand scene must be covered"
+    );
+    let failures: Vec<_> = scenes
+        .iter()
+        .filter_map(|scene| {
+            let source = std::fs::read_to_string(scene).expect("canonical source is readable");
+            let mut errors = authored_source_errors(scene, &source);
+            if let Err(build_errors) = build_scene(scene) {
+                errors.extend(build_errors);
+            }
+            (!errors.is_empty()).then(|| format!("{}: {}", scene.display(), errors.join("; ")))
+        })
+        .collect();
+    assert!(
+        failures.is_empty(),
+        "canonical sources must parse, type-check and build through the SDK: {}",
+        failures.join("\n")
+    );
+}
+
+#[test]
+fn canonical_source_preflight_rejects_syntax_and_property_type_errors() {
+    for source in [
+        "#0s\nbroken: Rect, size: (",
+        "#0s\nbroken: Rect, size: \"wide\"",
+    ] {
+        assert!(
+            !authored_source_errors(Path::new("negative.amx"), source).is_empty(),
+            "invalid source must not be certified by the site preflight: {source}"
+        );
+    }
+}

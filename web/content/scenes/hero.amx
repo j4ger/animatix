@@ -1,0 +1,15 @@
+// A seven-second seamless visual motif, not a third content taxonomy.
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7, seamless_loop: true }
+#0s
+background: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
+frame: Rect, at: (640, 360), size: (430, 340), corner_radius: 28, fill_opacity: 0, stroke: "#516177", stroke_width: 3, dash_pattern: {12, 10}
+circle: Ellipse, at: (555, 375), size: (158, 158), color: "#65D9E8"
+square: Rect, at: (680, 390), size: (140, 140), corner_radius: 24, color: "#ABA4FA", rotation: -0.16
+spark: Rect, at: (706, 278), size: (96, 96), corner_radius: 18, color: "#F4D47B", rotation: 0.18
+always {
+  let p = sin(2*pi*t/7)
+  circle.at = (555 - 12*p, 375 + 16*p)
+  square.rotation = -0.16 - 0.12*p
+  spark.at = (706 + 16*p, 278 - 18*p)
+  spark.rotation = 0.18 + 0.12*p
+}

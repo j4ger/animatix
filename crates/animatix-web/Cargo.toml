@@ -31,6 +31,8 @@ sha2 = "0.10.9"
 tracing = { workspace = true }
 
 [dev-dependencies]
+# Canonical site teaching sources need the same authored-property diagnostics as CLI check.
+animatix-analyzer = { path = "../animatix-analyzer" }
 # Native host tests exercise the full text pipeline; wasm packages built for
 # the web load the external font pack instead of embedding these bytes.
 animatix = { path = "../animatix", features = ["bundled-fonts"] }

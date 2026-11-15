@@ -62,6 +62,7 @@ doc|nix|ubuntu-latest|nix|pr
 doc-links|nix|ubuntu-latest|nix|pr
 ci-policy-tests|nix|ubuntu-latest|nix|pr
 site-scenes|nix|ubuntu-latest|nix|site
+site-build|nix|ubuntu-latest|nix|pr
 embed-build|nix|ubuntu-latest|nix|pr
 web-runtime-tests|nix|ubuntu-latest|nix|pr
 web-sdk-tests|nix|ubuntu-latest|nix|pr
@@ -124,7 +125,7 @@ property-reference-experiment|nix|ubuntu-latest|nix|experiment
 # each job's shell/os/stage/setup against every gate it lists, so a job cannot
 # silently run a gate in the wrong environment.
 JOB_TABLE='
-Fast Checks|fmt structure workflows content-sync meta-version embed-build web-runtime-tests web-sdk-tests native-package-tests perf-policy-tests|nix|ubuntu-latest|nix|pr|fast-checks
+Fast Checks|fmt structure workflows site-build content-sync meta-version embed-build web-runtime-tests web-sdk-tests native-package-tests perf-policy-tests|nix|ubuntu-latest|nix|pr|fast-checks
 Documentation Links|commit doc-links ci-policy-tests|nix|ubuntu-latest|nix|pr|doc-links
 eparts|eparts|nix|ubuntu-latest|nix|pr|eparts-linux
 eparts|eparts|native|macos-latest|rust-stable|pr|eparts-macos
@@ -456,11 +457,25 @@ gate_property_reference_experiment() {
 }
 
 # Web content and SDK boundary checks.
+gate_site_build() {
+  want_nix_shell 'site-build'
+  bash scripts/site-build.sh
+}
+
 gate_site_scenes() {
   want_cargo
   # The SDK contains all capabilities; browser dependency tests prove that only
   # the required partitions are downloaded. No separate feature-profile run.
   cargo test -p animatix-web --test site_scenes
+  # Astro source pages are not HTML: explicitly check the canonical new scenes.
+  cargo build --bin animatix
+  local scene count=0
+  for scene in web/content/scenes/*.amx; do
+    [ -f "$scene" ] || continue
+    target/debug/animatix check "$scene" || return 1
+    count=$((count + 1))
+  done
+  [ "$count" -ge 10 ] || { echo "error: expected at least 10 canonical site scenes, found $count" >&2; return 1; }
 }
 
 

@@ -36,7 +36,7 @@ head: ActHead, kicker: "FIG 02 · GO AGAINST THE GRADIENT", title: "The sign is 
 
 cap1: Caption, text: "Act I · A ball on the rim of the bowl; every direction is still available.", tag: "gradientdirection.amx"
 cap2: Caption, text: "Act II · +∇L is uphill in red; −∇L is downhill in green.", tag: "gradientdirection.amx", opacity: 0
-cap3: Caption, text: "Act III · Do that again and again: the steps curve into the basin.", tag: "gradientdirection.amx", opacity: 0
+cap3: Caption, text: "Act III · Do that again and again: the selected rate determines the outcome.", tag: "gradientdirection.amx", opacity: 0
 
 // ── the surface plate ──────────────────────────────────────────────
 plot_panel: Rect, size: (880, 400), corner_radius: 20, color: surface.secondary,

@@ -5,7 +5,6 @@ import { existsSync, readFileSync, readdirSync, statSync, lstatSync, mkdirSync, 
 import { join, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync, gunzipSync } from 'node:zlib';
-import { bundleEngine } from './bundle-engine.mjs';
 import { writeThirdPartyLicenses } from './third-party-licenses.mjs';
 
 export const ROOT = fileURLToPath(new URL('../../', import.meta.url));
@@ -83,6 +82,8 @@ function versionModules(directory, id) {
 }
 
 export async function assemble(directory, metadataPath, buildIdentity) {
+  // Verification/restoration of an existing artifact must not require build-only npm packages.
+  const { bundleEngine } = await import('./bundle-engine.mjs');
   const source = join(ROOT, 'crates/animatix-text/assets/fonts');
   const policy = JSON.parse(readFileSync(join(ROOT, 'web/fonts/manifest.json')));
   const metadata = JSON.parse(readFileSync(metadataPath));

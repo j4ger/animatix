@@ -1,0 +1,27 @@
+// Reveal meaning in an order: object, name, then relationship.
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7 }
+
+#0s
+  background: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
+  heading: Text, text: "Give the eye a first step.", at: (640, 130), font_size: 42, color: "#F3F5F7"
+  dot: Ellipse, at: (430, 350), size: (112, 112), color: "#65D9E8", opacity: 0
+  name: Text, text: "A point", at: (430, 465), font_size: 28, color: "#ADBCCA", opacity: 0
+  link: Line, from: (510, 350), to: (810, 350), stroke: "#65D9E8", stroke_width: 3, opacity: 0
+  end: Ellipse, at: (850, 350), size: (30, 30), color: "#F4D47B", opacity: 0
+  meaning: Text, text: "Then a connection.", at: (850, 465), font_size: 28, color: "#ADBCCA", opacity: 0
+
+#0.5s
+  fade-in dot [600ms]
+
+#1.5s
+  fade-in name [400ms]
+
+#3s
+  draw-in link [800ms]
+  fade-in end [400ms, delay: 600ms]
+
+#4.5s
+  fade-in meaning [400ms]
+
+// Leave the completed relationship visible for two seconds.
+#7s

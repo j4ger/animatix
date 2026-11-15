@@ -61,3 +61,6 @@ dist/
 
 # Test-only copy of the pre-adaptive-strategy embed bundle (A/B probe).
 web/embed/amx-player.legacy.js
+
+# Alternate static-site assembly/verification outputs.
+_site-*/

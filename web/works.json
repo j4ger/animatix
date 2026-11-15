@@ -194,16 +194,16 @@
     },
     {
       "id": "gradient",
-      "title": "Rolling Downhill: Gradient Descent",
+      "title": "One step changes the story",
       "short": "Gradient Descent",
       "kicker": "Optimization & Calculus",
       "category": "ml",
       "palette": "ember",
       "scenes": 4,
       "flagship": false,
-      "poster": "gradient/scene.amx",
+      "poster": "gradient/learningrate.amx",
       "deck": "gradient/",
-      "blurb": "Optimization topography: steepest-descent vector fields, contour tracing, and why the learning-rate step size decides convergence.",
+      "blurb": "Same starting point. Different learning rates. Compare loss curves, then explore the landscape beneath them.",
       "tags": [
         "Loss Surface",
         "Vector Field",
@@ -229,9 +229,9 @@
       ],
       "figures": [
         {
-          "scene": "gradient/losssurface.amx",
-          "title": "The Loss Surface",
-          "caption": "Concentric contour rings and the radial gradient vector field pointing uphill."
+          "scene": "gradient/learningrate.amx",
+          "title": "How fast does loss fall?",
+          "caption": "Compare three learning rates on one shared loss scale. Each dot is one update."
         }
       ]
     },

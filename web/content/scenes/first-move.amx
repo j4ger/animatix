@@ -1,0 +1,9 @@
+// First lesson: declare a shape, then animate one property at a # time marker.
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 3 }
+#0s
+background: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
+track: Line, from: (360, 360), to: (920, 360), stroke: "#344455", stroke_width: 2
+dot: Ellipse, at: (360, 360), size: (88, 88), color: "#65D9E8"
+#0.5s
+dot.at = (920, 360) [1.5s, ease: ease-in-out]
+#3s

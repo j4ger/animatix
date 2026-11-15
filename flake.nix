@@ -66,7 +66,7 @@
           pkgs.binaryen
           pkgs.zopfli
           pkgs.brotli
-          pkgs.nodejs_22
+          pkgs.nodejs_24
           pkgs.pkg-config
           pkgs.python3  # Gate timing and matrix orchestration use the same runner everywhere.
         ] ++ wasm-bindgen-cli;
@@ -88,7 +88,7 @@
             rustPlatform.bindgenHook
             alsa-lib
             pipewire  # Provides libasound_module_pcm_pipewire.so for ALSA
-            nodejs_22
+            nodejs_24
             bash git coreutils findutils gnugrep gnused gawk zip unzip perl
             # scripts/perf-bench.sh computes its regression verdict in Python;
             # without it the harness printed nothing and exited 0 — a green perf
@@ -193,7 +193,7 @@
           ANIMATIX_CI_SHELL = "web-ci";
           packages = webBuildPackages ++ [
             pkgs.chromium
-            pkgs.nodejs_22
+            pkgs.nodejs_24
             pkgs.python3
             pkgs.curl
             pkgs.zip

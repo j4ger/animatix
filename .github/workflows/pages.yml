@@ -34,6 +34,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Resolve Pages base path
+        id: pages
+        uses: actions/configure-pages@v5
       - name: Download CI SDK
         id: sdk
         if: github.event_name == 'workflow_run'
@@ -70,6 +73,8 @@ jobs:
         if: github.event_name != 'workflow_run' || (steps.sdk.outcome != 'success' && steps.sdk_absence.outcome == 'success')
         run: nix develop --command scripts/ci.sh gate site-scenes
       - name: Assemble verified site
+        env:
+          SITE_BASE: ${{ steps.pages.outputs.base_path || '/' }}
         run: nix develop --command scripts/ci.sh gate web-artifact-verify site-artifact
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5

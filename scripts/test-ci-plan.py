@@ -152,10 +152,12 @@ class PlannerTests(unittest.TestCase):
         self.assertTrue({"test-examples", "render-scenes", "web-check", "web-build"} <= selected)
 
     def test_web_content_selects_sync_tests_and_site_build_without_wasm_check(self):
-        _, plan = self.plan(["web/index.html"])
-        selected = set(plan["candidate_job_ids"])
-        self.assertEqual(selected, {"doc-links", "fast-checks", "test-examples", "web-build"})
-        self.assertNotIn("web-check", selected)
+        for path in ("web/index.html", "web/app/src/pages/index.astro"):
+            with self.subTest(path=path):
+                _, plan = self.plan([path])
+                selected = set(plan["candidate_job_ids"])
+                self.assertEqual(selected, {"doc-links", "fast-checks", "test-examples", "web-build"})
+                self.assertNotIn("web-check", selected)
 
     def test_examples_select_content_tests_and_render_jobs(self):
         _, plan = self.plan(["examples/basics/scene.amx"])
@@ -171,7 +173,7 @@ class PlannerTests(unittest.TestCase):
         })
 
     def test_web_scene_demo_and_font_assets_also_render_scenes(self):
-        for path in ("web/scenes/intro.amx", "web/demos/example.amx", "web/fonts/index.json"):
+        for path in ("web/scenes/intro.amx", "web/demos/example.amx", "web/fonts/index.json", "web/content/scenes/first-move.amx"):
             with self.subTest(path=path):
                 _, plan = self.plan([path])
                 selected = set(plan["candidate_job_ids"])

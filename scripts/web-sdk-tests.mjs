@@ -1,7 +1,7 @@
 // Tiny fixture bytes test packaging; split-proof and browser gates run code.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, symlinkSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, writeFileSync, readFileSync, rmSync, symlinkSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -163,4 +163,23 @@ test('SDK identity includes ignored Cargo config, the shipped license, and Unico
   const unicode = inputs(root); assert.notEqual(unicode, reconfigured);
   writeFileSync(join(root, 'crates/Δ.rs'), 'pub const VALUE: u32 = 2;\n');
   assert.notEqual(inputs(root), unicode);
+});
+
+
+test('artifact verification has no npm build dependency on a clean checkout', t => {
+  const { dir } = fixture(t);
+  const checkout = mkdtempSync(join(tmpdir(), 'animatix-sdk-clean-'));
+  t.after(() => rmSync(checkout, { recursive: true, force: true }));
+  const tools = join(checkout, 'web', 'tools');
+  mkdirSync(tools, { recursive: true });
+  for (const name of ['sdk.mjs', 'third-party-licenses.mjs']) {
+    copyFileSync(new URL(`../web/tools/${name}`, import.meta.url), join(tools, name));
+  }
+  // Deliberately no node_modules or bundle-engine.mjs: restore only verifies.
+  const output = execFileSync(process.execPath, [join(tools, 'sdk.mjs'), 'verify', dir,
+    '--release', '--commit', 'b'.repeat(40), '--version', '0.1.0'], { encoding: 'utf8' });
+  assert.match(output, /SDK verified:/);
+  writeFileSync(join(dir, 'engine.wasm'), 'tampered');
+  assert.throws(() => execFileSync(process.execPath, [join(tools, 'sdk.mjs'), 'verify', dir,
+    '--release'], { stdio: 'pipe' }), /Command failed/);
 });

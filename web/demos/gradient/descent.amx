@@ -38,7 +38,7 @@ head: ActHead, kicker: "FIG 03 · ROLL TO THE MINIMUM", title: "Rolling to the b
 
 cap1: Caption, text: "Act I · The bowl and the ball: the landscape is known; now we need a rule.", tag: "descent.amx"
 cap2: Caption, text: "Act II · One step is lr · |∇L| long — the step size is the whole argument.", tag: "descent.amx", opacity: 0
-cap3: Caption, text: "Act III · Repeat the same subtraction: the path curls into the basin.", tag: "descent.amx", opacity: 0
+cap3: Caption, text: "Act III · Repeat the same subtraction: the selected rate determines the path.", tag: "descent.amx", opacity: 0
 
 // ── the surface plate ──────────────────────────────────────────────
 plot_panel: Rect, size: (880, 400), corner_radius: 20, color: surface.secondary,

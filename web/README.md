@@ -1,35 +1,34 @@
-# Animatix Web Player
+# Animatix Web
 
-The Animatix engine, running in the browser: a WebGPU player for `.amx`
-scenes and a dependency-free `<amx-player>` embed component — served as a
-fully static site, no backend, no runtime dependencies beyond the browser.
+A static Astro site around the existing WebGPU `.amx` player. The website has
+three paths: **Showcase**, **Learn**, and a small **Playground**. No backend,
+accounts or client-side UI framework are required.
 
-Use the desktop workbench or a text editor to author projects. The website
-adds local, in-page source editing for selected figures; it is not a general
-project editor and does not save those edits to disk.
-
-## Start here
-
-- [Run locally](#run-it) to build and preview the site.
-- [Embed a scene](#embedding-scenes-in-any-page-amx-player) for attributes and APIs.
-- [Capabilities](#capabilities-and-limitations) for browser/native differences.
-- [House style](DESIGN.md) for new scenes and pages.
-- [Diagnostics](#diagnostics--probes) for runtime investigation.
+The new scenes live in `content/scenes/`. Lessons embed their exact source;
+Playground edits and downloads that source. Nothing is saved automatically.
+Showcase recordings let visitors without WebGPU watch the default versions;
+interactive playback and edited-code previews still require WebGPU. Words Keep
+Time is currently a silent edition, not an audio-sync demonstration.
 
 ## Source map
 
 | Location | Purpose |
 |---|---|
-| `crates/animatix-web/` | Wasm engine and player API |
-| `web/embed/src/` | `<amx-player>` source; builds to `web/embed/amx-player.js` |
-| `web/runtime/` | Generated SDK and manifest; not committed |
-| `web/fonts/` | External font-pack policy and manifest |
-| `web/site.css`, `web/site/`, `web/site-chrome.js` | Shared page style and navigation |
-| `web/works.json` | Showcase metadata used by generated page blocks |
-| `web/tour/` | Language tour and live figure editor |
-| `web/demos/`, `web/recipes/`, `web/gallery.html` | Walkthroughs and example scenes |
-| `web/arena/` | Side-by-side candidate evaluation |
+| `web/app/` | Astro pages, shared layout, small TypeScript interactions, npm lock |
+| `web/content/scenes/` | Canonical new works and six lesson sources |
+| `web/content/posters/`, `previews/`, `preview-manifest.json` | Native-rendered media and source/media integrity records |
+| `web/embed/src/` | Existing `<amx-player>` web component |
+| `web/runtime/` | Generated SDK and manifest; copied unchanged into distributions |
+| `web/demos/`, `tour/`, `recipes/`, `gallery.html`, `arena/` | Retained legacy URLs and test inputs, not the new primary navigation |
 | `web/dev/` | Developer probes, outside the showcase |
+
+The SDK is loaded from its external module URL, not bundled by Astro/Vite.
+Its manifest, Wasm partitions and font URLs stay relative to that SDK.
+Generated site links use `SITE_BASE` (`/` locally, `/animatix/` on project Pages).
+
+See [the implementation record](../docs/web-reboot.md) for verification limits
+and [scene contracts](content/scene-notes.md) for exact parameter and media evidence.
+The embed API below also applies to retained legacy figures.
 
 ### Live figure editors
 
@@ -76,18 +75,33 @@ rebuilt asynchronously in place, debounced, with the playback position preserved
 
 ## Run it
 
-From the repository root, enter the web build shell from a plain terminal:
+From a plain terminal at the repository root:
 
 ```sh
-nix develop .#web-build
-scripts/ensure-web-pkg.sh          # build only when stale
-python3 scripts/serve-web.py 8124
-# Open http://127.0.0.1:8124/
+nix develop .#web-ci
+scripts/ensure-web-pkg.sh
+bash scripts/site-artifact.sh _site
+python3 scripts/serve-web.py 8124 _site
+# http://127.0.0.1:8124/
 ```
 
-Use `scripts/build-web.sh` for an explicit SDK rebuild. Do not nest the web shell
-inside the default development shell: the outer Rust toolchain can remain first
-on `PATH`. The web toolchain needs the `wasm32-unknown-unknown` target.
+`site-artifact.sh` builds Astro and verifies the SDK against the current inputs,
+commit and package version before assembly. It preserves old URLs, overlays the
+new pages, and copies real SDK files rather than builder symlinks. Use
+`SITE_BASE=/animatix/ bash scripts/site-artifact.sh _site-pages` for a project-path
+build, served beneath `/animatix/` rather than the host root.
+
+For static UI iteration only, run `npm --prefix web/app ci` once, then
+`npm --prefix web/app run dev` inside the Nix shell. The final assembled-site workflow above is required to test SDK/media
+paths; the UI development server is not a substitute for distribution QA.
+
+The `site-build` gate runs locked `npm ci`, Astro type checks, source-preset
+contract tests, root/subpath static generation and nonempty scene/link/media-integrity checks.
+The generated `site-manifest.json` records the exact new page and bundle hashes;
+assembly verifies that inventory independently of the source build directory.
+`site-scenes` retains the legacy tests and checks all new canonical AMX sources.
+Nix pins Node24 via `flake.lock`; npm pins Astro and transitive dependencies via
+`web/app/package-lock.json`. This is not an offline Nix npm dependency closure.
 
 ### Verification and inspection tools
 
@@ -518,7 +532,7 @@ cd web/tools && npm install && npm run build:embed
 ## Engine layering
 
 - **Parse/typecheck/expand** — `animatix-syntax`'s module system in
-  `SourcesOnly` mode. The played document, the shared `examples/lib/*.amx`
+  `SourcesOnly` mode. The played document, the shared `web/demos/lib/*.amx`
   library (embedded at compile time, so repo examples resolve their imports),
   and any fetched import modules live in the in-memory source map; no disk
   access exists on the platform.
@@ -704,9 +718,9 @@ distribution scripts and are not asserted here as acceptance evidence.
 - `cargo test -p animatix-web` — the parse→build pipeline (repo examples and
   all seven transformer scenes, embedded via `include_str!`) runs natively in
   the normal test suite. The scenes import the shared
-  `examples/lib/components.amx` (a `LabeledBox` chip component); like every
-  `examples/lib/*.amx`, it is **embedded into the wasm at build time** —
+  `web/demos/lib/components.amx` (a `LabeledBox` chip component); like every
+  `web/demos/lib/*.amx`, it is **embedded into the wasm at build time** —
   editing it requires a `scripts/build-web.sh` rerun, and until then the
   browser shows `Unknown actor type …` while every native test stays green.
-  The CLI resolves the same import through the
-  `web/demos/transformer/lib` symlink.
+  The CLI resolves imports directly to `web/demos/lib/` through each
+  source file’s relative path; no transformer-local library copy is needed.
