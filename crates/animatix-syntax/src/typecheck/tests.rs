@@ -35,18 +35,55 @@ fn make_env() -> TypeEnv<'static> {
     TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())))
 }
 
+fn make_rich_probe_env() -> TypeEnv<'static> {
+    let components = HashMap::from([(
+        "Probe".to_string(),
+        ComponentEntry {
+            definition: ComponentDef {
+                name: "Probe".to_string(),
+                params: vec![
+                    ParamDef {
+                        name: "p".to_string(),
+                        param_type: Some(TypeAnnotation::Vec3),
+                        default: None,
+                    },
+                    ParamDef {
+                        name: "pair".to_string(),
+                        param_type: Some(TypeAnnotation::Tuple(vec![
+                            TypeAnnotation::Str,
+                            TypeAnnotation::Num,
+                        ])),
+                        default: None,
+                    },
+                    ParamDef {
+                        name: "mapper".to_string(),
+                        param_type: Some(TypeAnnotation::Function {
+                            params: vec![TypeAnnotation::Num],
+                            ret: Box::new(TypeAnnotation::Num),
+                        }),
+                        default: None,
+                    },
+                ],
+                body: vec![],
+                is_pub: false,
+            },
+            source_path: std::path::PathBuf::new(),
+            actions: HashMap::new(),
+        },
+    )]);
+    TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())))
+}
+
 #[test]
 fn typecheck_accepts_valid_props() {
     let env = make_env();
     let stmts = vec![actor_with_props(
         "btn",
         "Button",
-        vec![Property {
-            name: "size".to_string(),
-            value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(60.0)]),
-            value_span: None,
-            trailing_comment: None,
-        }],
+        vec![Property::new(
+            "size",
+            Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(60.0)]),
+        )],
     )];
     let mut env = env;
     let diagnostics = env.check_statements(&stmts);
@@ -59,12 +96,7 @@ fn typecheck_rejects_mismatched_prop() {
     let stmts = vec![actor_with_props(
         "btn",
         "Button",
-        vec![Property {
-            name: "size".to_string(),
-            value: Expr::Str("too big".to_string()),
-            value_span: None,
-            trailing_comment: None,
-        }],
+        vec![Property::new("size", Expr::Str("too big".to_string()))],
     )];
     let mut env = env;
     let diagnostics = env.check_statements(&stmts);
@@ -225,12 +257,7 @@ fn type_alias_resolves_in_component_param() {
         let actor_stmt = actor_with_props(
             "card",
             "Card",
-            vec![Property {
-                name: "value".to_string(),
-                value: Expr::Str("Revenue".to_string()),
-                value_span: None,
-                trailing_comment: None,
-            }],
+            vec![Property::new("value", Expr::Str("Revenue".to_string()))],
         );
         let stmts = if alias_first {
             vec![alias_stmt, comp_stmt, actor_stmt]
@@ -315,15 +342,13 @@ fn named_color_list_accepted_for_list_color_param() {
     let stmts = vec![actor_with_props(
         "s",
         "Swatches",
-        vec![Property {
-            name: "colors".to_string(),
-            value: Expr::List(vec![
+        vec![Property::new(
+            "colors",
+            Expr::List(vec![
                 Expr::Ident("red".to_string()),
                 Expr::Ident("blue".to_string()),
             ]),
-            value_span: None,
-            trailing_comment: None,
-        }],
+        )],
     )];
     let diagnostics = env.check_statements(&stmts);
     assert!(
@@ -335,66 +360,14 @@ fn named_color_list_accepted_for_list_color_param() {
 
 #[test]
 fn rich_type_annotations_accept_matching_values() {
-    let mut components = HashMap::new();
-    components.insert(
-        "Probe".to_string(),
-        ComponentEntry {
-            definition: ComponentDef {
-                name: "Probe".to_string(),
-                params: vec![
-                    ParamDef {
-                        name: "p".to_string(),
-                        param_type: Some(TypeAnnotation::Vec3),
-                        default: None,
-                    },
-                    ParamDef {
-                        name: "pair".to_string(),
-                        param_type: Some(TypeAnnotation::Tuple(vec![
-                            TypeAnnotation::Str,
-                            TypeAnnotation::Num,
-                        ])),
-                        default: None,
-                    },
-                    ParamDef {
-                        name: "mapper".to_string(),
-                        param_type: Some(TypeAnnotation::Function {
-                            params: vec![TypeAnnotation::Num],
-                            ret: Box::new(TypeAnnotation::Num),
-                        }),
-                        default: None,
-                    },
-                ],
-                body: vec![],
-                is_pub: false,
-            },
-            source_path: std::path::PathBuf::new(),
-            actions: HashMap::new(),
-        },
-    );
-    let mut env =
-        TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())));
+    let mut env = make_rich_probe_env();
     let stmts = vec![actor_with_props(
         "probe",
         "Probe",
         vec![
-            Property {
-                name: "p".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0)]),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "pair".to_string(),
-                value: Expr::Tuple(vec![Expr::Str("x".to_string()), Expr::Num(1.0)]),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "mapper".to_string(),
-                value: Expr::Closure(vec!["x".to_string()], Box::new(Expr::Num(1.0))),
-                value_span: None,
-                trailing_comment: None,
-            },
+            Property::new("p", Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0)])),
+            Property::new("pair", Expr::Tuple(vec![Expr::Str("x".to_string()), Expr::Num(1.0)])),
+            Property::new("mapper", Expr::Closure(vec!["x".to_string()], Box::new(Expr::Num(1.0)))),
         ],
     )];
     let diagnostics = env.check_statements(&stmts);
@@ -407,66 +380,17 @@ fn rich_type_annotations_accept_matching_values() {
 
 #[test]
 fn rich_type_annotations_reject_mismatched_values() {
-    let mut components = HashMap::new();
-    components.insert(
-        "Probe".to_string(),
-        ComponentEntry {
-            definition: ComponentDef {
-                name: "Probe".to_string(),
-                params: vec![
-                    ParamDef {
-                        name: "p".to_string(),
-                        param_type: Some(TypeAnnotation::Vec3),
-                        default: None,
-                    },
-                    ParamDef {
-                        name: "pair".to_string(),
-                        param_type: Some(TypeAnnotation::Tuple(vec![
-                            TypeAnnotation::Str,
-                            TypeAnnotation::Num,
-                        ])),
-                        default: None,
-                    },
-                    ParamDef {
-                        name: "mapper".to_string(),
-                        param_type: Some(TypeAnnotation::Function {
-                            params: vec![TypeAnnotation::Num],
-                            ret: Box::new(TypeAnnotation::Num),
-                        }),
-                        default: None,
-                    },
-                ],
-                body: vec![],
-                is_pub: false,
-            },
-            source_path: std::path::PathBuf::new(),
-            actions: HashMap::new(),
-        },
-    );
-    let mut env =
-        TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())));
+    let mut env = make_rich_probe_env();
     let stmts = vec![actor_with_props(
         "probe",
         "Probe",
         vec![
-            Property {
-                name: "p".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0)]),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "pair".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(1.0), Expr::Str("x".to_string())]),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "mapper".to_string(),
-                value: Expr::Closure(vec!["x".to_string()], Box::new(Expr::Str("bad".to_string()))),
-                value_span: None,
-                trailing_comment: None,
-            },
+            Property::new("p", Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0)])),
+            Property::new("pair", Expr::Tuple(vec![Expr::Num(1.0), Expr::Str("x".to_string())])),
+            Property::new(
+                "mapper",
+                Expr::Closure(vec!["x".to_string()], Box::new(Expr::Str("bad".to_string()))),
+            ),
         ],
     )];
     let diagnostics = env.check_statements(&stmts);
@@ -481,12 +405,10 @@ fn colorscheme_path_accepted_for_color_param() {
     let stmts = vec![actor_with_props(
         "btn",
         "Button",
-        vec![Property {
-            name: "color".to_string(),
-            value: Expr::Path(vec!["accent".to_string(), "primary".to_string()]),
-            value_span: None,
-            trailing_comment: None,
-        }],
+        vec![Property::new(
+            "color",
+            Expr::Path(vec!["accent".to_string(), "primary".to_string()]),
+        )],
     )];
     let mut env = env;
     let diagnostics = env.check_statements(&stmts);

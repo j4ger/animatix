@@ -93,7 +93,6 @@ btn: Rect, size: (100, 200)"#,
         property: "size".into(),
         value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
     };
-    // Should fail because "size" already exists
     assert!(apply_edit(&mut stmts, edit).is_err());
 }
 
@@ -103,21 +102,17 @@ fn insert_actor_top_level() {
     let edit = SourceEdit::InsertActor {
         ty: "Ellipse".into(),
         label: "circle1".into(),
-        props: vec![Property {
-            name: "at".into(),
-            value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
-            value_span: None,
-            trailing_comment: None,
-        }],
+        props: vec![Property::new(
+            "at",
+            Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+        )],
         container: None,
         time_s: 0.0,
     };
     assert!(apply_edit(&mut stmts, edit).is_ok());
 
-    // Should have 2 statements now
     assert_eq!(stmts.len(), 2);
 
-    // Second statement should be the new actor
     if let Stmt::ActorDecl { label, ty, .. } = &stmts[1] {
         assert_eq!(label, "circle1");
         assert_eq!(ty, "Ellipse");
@@ -136,18 +131,15 @@ fn insert_actor_into_container() {
     let edit = SourceEdit::InsertActor {
         ty: "Ellipse".into(),
         label: "circle1".into(),
-        props: vec![Property {
-            name: "at".into(),
-            value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
-            value_span: None,
-            trailing_comment: None,
-        }],
+        props: vec![Property::new(
+            "at",
+            Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+        )],
         container: Some("row1".into()),
         time_s: 0.0,
     };
     assert!(apply_edit(&mut stmts, edit).is_ok());
 
-    // Find the container and verify it has the new child
     let container = find_actor_decl_mut(&mut stmts, "row1").expect("container 'row1' should exist");
     if let Stmt::ActorDecl { children, .. } = container {
         assert_eq!(children.len(), 2);
@@ -253,7 +245,6 @@ btn.position = (200, 100)"#,
     };
     let _ = apply_edit(&mut stmts, edit);
 
-    // Actor decl should be renamed
     let actor =
         find_actor_decl_mut(&mut stmts, "my_box").expect("renamed actor 'my_box' should exist");
     if let Stmt::ActorDecl { label, .. } = actor {
@@ -262,7 +253,6 @@ btn.position = (200, 100)"#,
         panic!("Expected ActorDecl");
     }
 
-    // Old name should not exist
     assert!(find_actor_decl_mut(&mut stmts, "btn").is_none());
 
     // Assignments should be renamed (search recursively through keyframes)
@@ -528,7 +518,6 @@ callout: Callout, target: box1, place: right"#,
 
     let actor = find_actor_decl_mut(&mut stmts, "callout").expect("actor should exist");
     assert!(find_prop_mut(actor, "target").is_none(), "'target' should have been removed");
-    // Other properties remain
     assert!(find_prop_mut(actor, "place").is_some(), "'place' should still exist");
 }
 
@@ -570,11 +559,9 @@ callout.target = box2"#,
     };
     assert!(apply_edit(&mut stmts, edit).is_ok());
 
-    // Declaration prop removed
     let actor = find_actor_decl_mut(&mut stmts, "callout").expect("actor should exist");
     assert!(find_prop_mut(actor, "target").is_none());
 
-    // Assignment still present
     let assignment = find_assignment_mut(&mut stmts, "callout", "target");
     assert!(assignment.is_some(), "keyframed assignment should remain");
 }

@@ -272,7 +272,6 @@ fn extract_scene_inserts_play_into_source_scene_body() {
     let src = stmts_to_source(&stmts);
     // The play statement should be inside the Intro scene, not at top level
     assert!(src.contains("play Diagram"), "Expected 'play Diagram' in output: {}", src);
-    // Verify the new scene exists
     assert!(src.contains("# Diagram"), "Expected '# Diagram' in output: {}", src);
     // Verify the play is inside Intro's body (serialized before the next scene)
     let intro_pos = src.find("# Intro").unwrap();

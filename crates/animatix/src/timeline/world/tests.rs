@@ -122,23 +122,29 @@ fn declaration_span_is_a_component_and_resets_on_replacement() {
 
 #[test]
 fn entity_meta_defaults_and_resets_on_replacement() {
-    let mut world = World::new();
-    let id = world.spawn("box", "Rect");
-    assert!(world.meta(id).visible);
-    assert!(!world.meta(id).locked);
-    assert!(world.meta(id).camera_follow);
-    assert_eq!(world.meta(id).parallax, 1.0);
-
-    world.meta_mut(id).visible = false;
-    world.meta_mut(id).locked = true;
-    world.meta_mut(id).hidden_by_default = true;
-    world.set_first_seen(id, 100);
-    world.spawn_replacing("box", "Rect");
-    let meta = world.meta(id);
-    assert!(meta.visible, "replacement starts visible");
-    assert!(!meta.locked, "replacement starts unlocked");
-    assert!(!meta.hidden_by_default, "replacement starts revealed");
-    assert_eq!(world.first_seen(id), u64::MAX, "replacement starts unseen");
+    for (label, first_seen, changed_flags) in [("box", 100, true), ("direct", 250, false)] {
+        let mut world = World::new();
+        let id = world.spawn(label, "Rect");
+        assert!(world.meta(id).visible);
+        assert!(!world.meta(id).locked);
+        assert!(world.meta(id).camera_follow);
+        assert_eq!(world.meta(id).parallax, 1.0);
+        world.meta_mut(id).visible = false;
+        assert!(!world.meta(id).visible);
+        assert_eq!(world.first_seen(id), u64::MAX);
+        world.meta_mut(id).locked = changed_flags;
+        world.meta_mut(id).hidden_by_default = changed_flags;
+        world.set_first_seen(id, first_seen);
+        assert_eq!(world.first_seen(id), first_seen);
+        world.set_first_seen(id, 900);
+        assert_eq!(world.first_seen(id), first_seen, "first sighting wins");
+        world.spawn_replacing(label, "Rect");
+        let meta = world.meta(id);
+        assert!(meta.visible, "replacement starts visible");
+        assert!(!meta.locked, "replacement starts unlocked");
+        assert!(!meta.hidden_by_default, "replacement starts revealed");
+        assert_eq!(world.first_seen(id), u64::MAX, "replacement starts unseen");
+    }
 }
 
 #[test]

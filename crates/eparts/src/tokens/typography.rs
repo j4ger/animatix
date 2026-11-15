@@ -1,8 +1,7 @@
 //! Typography roles and compatibility font-size constants.
 //!
-//! `TextRole` centralises the 8-level type scale and is the recommended
-//! API for new code. Legacy `FONT_SIZE_*` constants are re-exported by the
-//! compatibility facade for use during migration.
+//! `TextRole` selects a font family and size; `FONT_SIZE_*` constants remain
+//! available for callers that only need a size.
 
 use egui::{FontFamily, FontId};
 

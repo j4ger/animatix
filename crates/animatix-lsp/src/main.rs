@@ -29,21 +29,17 @@ mod tests {
     use crate::paths::{has_amx_extension, is_manifest_file_name, uri_to_path};
 
     #[test]
-    fn uri_to_path_strips_file_prefix() {
-        assert_eq!(
-            uri_to_path("file:///home/user/project/main.amx"),
-            Some(PathBuf::from("/home/user/project/main.amx"))
-        );
-    }
-
-    #[test]
-    fn uri_to_path_returns_none_for_non_file_uri() {
-        assert_eq!(uri_to_path("http://example.com/file.amx"), None);
-    }
-
-    #[test]
-    fn uri_to_path_handles_empty_string() {
-        assert_eq!(uri_to_path(""), None);
+    fn uri_to_path_handles_file_and_rejected_inputs() {
+        for (uri, expected) in [
+            (
+                "file:///home/user/project/main.amx",
+                Some(PathBuf::from("/home/user/project/main.amx")),
+            ),
+            ("http://example.com/file.amx", None),
+            ("", None),
+        ] {
+            assert_eq!(uri_to_path(uri), expected, "URI input: {uri:?}");
+        }
     }
 
     #[test]

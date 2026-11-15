@@ -7,8 +7,6 @@ mod hierarchy;
 mod highlight;
 mod keyframes;
 mod meta;
-#[cfg(test)]
-mod meta_default_tests;
 mod payload;
 mod plan;
 mod shape;

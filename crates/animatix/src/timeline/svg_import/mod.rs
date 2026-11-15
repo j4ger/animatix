@@ -12,15 +12,14 @@
 //! // stmts can be inserted into a scene or compiled through the normal pipeline
 //! ```
 //!
-//! ## Limitations / TODOs
+//! ## Limitations
 //!
 //! - SVG `<clipPath>` and `clip-path` references are unsupported: clip
 //!   definitions and references are ignored, so imported shapes are not clipped
 //! - SVG patterns are unsupported
 //! - SVG `<path>` `d` attribute: supports M/m, L/l, H/h, V/v, Q/q, C/c, S/s, T/t, A/a, Z/z; `A`/`a`
 //!   arcs are approximated as a straight chord
-//! - SVG `currentColor`, `inherit` fill types: not yet supported
-//! - SVG `stroke-linecap`, `stroke-linejoin`: not yet mapped
+//! - Fill/stroke inheritance (including explicit `inherit`) is unsupported
 
 pub(crate) mod defs;
 mod import;
@@ -37,15 +36,11 @@ pub(crate) use self::import::{attr_float, children_stmts_to_inline, convert_chil
 #[allow(unused_imports)]
 pub(crate) use self::transform::Transform;
 
-// The test module reaches these through `use super::*`; production code in this
-// file no longer needs them, so they are gated to avoid unused-import warnings.
 #[cfg(test)]
 use std::path::Path;
 
 #[cfg(test)]
 use crate::ast::{Expr, Stmt};
-
-// Error type
 
 /// Errors that can occur during SVG import.
 #[derive(Debug)]

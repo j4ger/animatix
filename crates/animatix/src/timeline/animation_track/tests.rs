@@ -227,7 +227,6 @@ fn test_field_ref_text_paths_returns_text_paths() {
     let id = timeline.world_mut().spawn("test", "Text");
     let fields = timeline.world().fields(id).expect("entity fields");
     let rf = fields.field_ref(ActorField::TextPaths);
-    assert!(rf.is_some());
     assert!(matches!(rf.unwrap(), TrackFieldRef::TextPaths(_)));
 }
 
@@ -393,10 +392,15 @@ fn test_is_currently_animating_false_with_single_keyframe() {
 
 #[test]
 fn test_is_currently_animating_true_between_two_keyframes() {
-    let mut track = PropertyTrack::new(0.0);
-    track.add_keyframe(0, 0.0, Easing::Linear);
-    track.add_keyframe(1000, 1.0, Easing::Linear);
-    assert!(track.is_currently_animating(500));
+    for (case, end_time, sample_time) in [
+        ("between_two_keyframes", 1000, 500),
+        ("linear_easing", 2000, 1000),
+    ] {
+        let mut track = PropertyTrack::new(0.0);
+        track.add_keyframe(0, 0.0, Easing::Linear);
+        track.add_keyframe(end_time, 1.0, Easing::Linear);
+        assert!(track.is_currently_animating(sample_time), "{case}");
+    }
 }
 
 #[test]
@@ -424,14 +428,6 @@ fn test_is_currently_animating_at_exact_keyframe_not_animating() {
     track.add_keyframe(1000, 1.0, Easing::Linear);
     // At exact keyframe time, the next keyframe is at > time_ms
     assert!(!track.is_currently_animating(1000));
-}
-
-#[test]
-fn test_is_currently_animating_works_with_linear_easing() {
-    let mut track = PropertyTrack::new(0.0);
-    track.add_keyframe(0, 0.0, Easing::Linear);
-    track.add_keyframe(2000, 1.0, Easing::Linear);
-    assert!(track.is_currently_animating(1000));
 }
 
 // interpolation_segment
@@ -464,7 +460,6 @@ fn test_interpolation_segment_returns_correct_segment() {
     track.add_keyframe(0, 0.0, Easing::Linear);
     track.add_keyframe(1000, 100.0, Easing::Linear);
     let result = track.interpolation_segment(500);
-    assert!(result.is_some());
     let (found_time, prev_val, found_val, progress, easing) = result.unwrap();
     assert_eq!(found_time, 1000);
     assert_eq!(*prev_val, 0.0);
@@ -479,7 +474,6 @@ fn test_interpolation_segment_progress_at_start() {
     track.add_keyframe(0, 0.0, Easing::Linear);
     track.add_keyframe(2000, 200.0, Easing::EaseIn);
     let result = track.interpolation_segment(500);
-    assert!(result.is_some());
     let (_, _, _, progress, easing) = result.unwrap();
     assert!((progress - 0.25).abs() < 0.001);
     assert_eq!(*easing, Easing::EaseIn);
@@ -524,7 +518,7 @@ fn test_has_any_keyframes_iterates_through_all_registry_fields() {
 }
 
 #[test]
-fn test_registry_driven_max_keyframe_time_finds_min_width() {
+fn test_registry_driven_max_keyframe_time_finds_min_height() {
     let mut timeline = Timeline::new();
     let id = timeline.world_mut().spawn("test", "Rect");
     timeline.world_mut().geometry_mut(id).min_height.ensure(0.0).add_keyframe(

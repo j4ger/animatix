@@ -39,18 +39,12 @@ fn parsed_stores(source: &str) -> (crate::app::test_support::TestTempDir, Stores
 // ── TogglePlayback ───────────────────────────────────────────────
 
 #[test]
-fn toggle_playback_returns_repaint_effect() {
-    let mut preview_store = preview_store(5.0, SceneDimensions::default());
-    let effects = playback::handle_toggle_playback(&mut preview_store);
-    assert_eq!(effects.len(), 1, "expected exactly 1 effect");
-    assert!(matches!(&effects[0], Effect::Repaint), "expected Repaint effect");
-}
-
-#[test]
 fn toggle_playback_toggles_playing_flag() {
     let mut preview_store = preview_store(5.0, SceneDimensions::default());
     assert!(!preview_store.preview.playback.is_playing);
-    playback::handle_toggle_playback(&mut preview_store);
+    let effects = playback::handle_toggle_playback(&mut preview_store);
+    assert_eq!(effects.len(), 1, "expected exactly 1 effect");
+    assert!(matches!(&effects[0], Effect::Repaint), "expected Repaint effect");
     assert!(preview_store.preview.playback.is_playing);
     playback::handle_toggle_playback(&mut preview_store);
     assert!(!preview_store.preview.playback.is_playing);
@@ -83,48 +77,29 @@ fn scrub_to_updates_current_time_and_stops_playback() {
 }
 
 #[test]
-fn scrub_to_clamps_negative_time() {
-    let (mut document_store, mut preview_store, ui_store) = stores();
-    playback::handle_scrub_to(&mut document_store, &mut preview_store, &ui_store, -5.0);
-    assert_eq!(preview_store.preview.playback.current_time_s, 0.0);
-}
-
-#[test]
-fn scrub_to_clamps_overshoot_time() {
-    let (mut document_store, mut preview_store, ui_store) = stores();
-    playback::handle_scrub_to(&mut document_store, &mut preview_store, &ui_store, 999.0);
-    let max = preview_store.preview.playback.duration_s.max(0.1);
-    assert_eq!(preview_store.preview.playback.current_time_s, max);
+fn scrub_to_clamps_out_of_range_times() {
+    for (case, requested, expected) in [("negative", -5.0, 0.0), ("overshoot", 999.0, 5.0)] {
+        let (mut document_store, mut preview_store, ui_store) = stores();
+        playback::handle_scrub_to(&mut document_store, &mut preview_store, &ui_store, requested);
+        assert_eq!(preview_store.preview.playback.current_time_s, expected, "{case}");
+    }
 }
 
 // ── ToggleEditorSync ─────────────────────────────────────────────
 
 #[test]
-fn toggle_editor_sync_turns_off_when_on() {
-    let mut ui_store = ui_store();
-    ui_store.editor_sync_enabled = true;
-    let effects = playback::handle_toggle_editor_sync(&mut ui_store);
-    assert!(!ui_store.editor_sync_enabled);
-    assert_eq!(effects.len(), 1);
-    assert!(
-        matches!(&effects[0], Effect::Status(msg) if msg == "Editor sync OFF"),
-        "expected Status('Editor sync OFF'), got {:?}",
-        effects[0]
-    );
-}
-
-#[test]
-fn toggle_editor_sync_turns_on_when_off() {
-    let mut ui_store = ui_store();
-    ui_store.editor_sync_enabled = false;
-    let effects = playback::handle_toggle_editor_sync(&mut ui_store);
-    assert!(ui_store.editor_sync_enabled);
-    assert_eq!(effects.len(), 1);
-    assert!(
-        matches!(&effects[0], Effect::Status(msg) if msg == "Editor sync ON"),
-        "expected Status('Editor sync ON'), got {:?}",
-        effects[0]
-    );
+fn toggle_editor_sync_updates_flag_and_status() {
+    for (initial, expected, message) in [
+        (true, false, "Editor sync OFF"),
+        (false, true, "Editor sync ON"),
+    ] {
+        let mut ui_store = ui_store();
+        ui_store.editor_sync_enabled = initial;
+        let effects = playback::handle_toggle_editor_sync(&mut ui_store);
+        assert_eq!(ui_store.editor_sync_enabled, expected, "initial sync={initial}");
+        assert_eq!(effects.len(), 1);
+        assert!(matches!(&effects[0], Effect::Status(msg) if msg == message), "{effects:?}");
+    }
 }
 
 // ── ShowInspector ────────────────────────────────────────────────
@@ -270,7 +245,6 @@ fn create_actor_adds_to_ast_and_updates_source() {
         vec![],
     );
 
-    // Actor should be in raw_statements
     let stmts = document_store
         .source
         .document
@@ -284,22 +258,18 @@ fn create_actor_adds_to_ast_and_updates_source() {
         "expected 'new_box' in raw_statements"
     );
 
-    // Source text should contain the new actor
     assert!(
         document_store.source.document.source_text.contains("new_box"),
         "source_text should contain 'new_box'"
     );
 
-    // Document should be dirty
     assert!(document_store.source.document.is_dirty);
 
-    // New actor should be selected
     assert!(
         ui_store.selection.selected_actors.contains("new_box"),
         "'new_box' should be selected"
     );
 
-    // Status should mention creation
     assert!(
         preview_store.preview.status.contains("Created"),
         "status should contain 'Created', got: {}",
@@ -324,7 +294,6 @@ fn rename_actor_successfully_changes_label() {
         "big_box".into(),
     );
 
-    // Old label should be gone, new label should exist
     let stmts = document_store
         .source
         .document
@@ -344,14 +313,12 @@ fn rename_actor_successfully_changes_label() {
         "new label 'big_box' should exist"
     );
 
-    // Status should mention rename
     assert!(
         preview_store.preview.status.contains("Renamed"),
         "status should contain 'Renamed', got: {}",
         preview_store.preview.status
     );
 
-    // Selection should be updated
     assert!(
         ui_store.selection.selected_actors.contains("big_box"),
         "selection should contain 'big_box'"
@@ -377,7 +344,6 @@ fn rename_actor_noop_when_old_equals_new() {
         "box".into(),
     );
 
-    // Source should be unchanged
     assert_eq!(
         document_store.source.document.source_text, source_before,
         "source should not change for no-op rename"
@@ -402,14 +368,12 @@ fn rename_actor_fails_with_invalid_label() {
             new_name.into(),
         );
 
-        // Status should mention failure reason
         assert!(
             preview_store.preview.status.contains(expected_status),
             "status should mention '{expected_status}', got: {}",
             preview_store.preview.status
         );
 
-        // Source should be unchanged
         assert_eq!(
             document_store.source.document.source_text, source_before,
             "source should not change on failure"
@@ -441,7 +405,6 @@ fn delete_selected_actors_removes_from_ast() {
             &mut ui_store,
         );
 
-        // Actors should be removed from raw_statements
         let stmts = document_store
             .source
             .document
@@ -457,7 +420,6 @@ fn delete_selected_actors_removes_from_ast() {
             );
         }
 
-        // Other actors should remain
         for remaining in &should_remain {
             assert!(
                 stmts
@@ -467,16 +429,13 @@ fn delete_selected_actors_removes_from_ast() {
             );
         }
 
-        // Selection should be cleared
         assert!(
             ui_store.selection.selected_actors.is_empty(),
             "selection should be empty after deletion"
         );
 
-        // Source should be dirty
         assert!(document_store.source.document.is_dirty);
 
-        // Status should mention deletion
         assert!(
             preview_store.preview.status.contains("Deleted"),
             "status should contain 'Deleted', got: {}",
@@ -494,7 +453,6 @@ fn delete_selected_actors_with_empty_selection_is_noop() {
 
     actor::handle_delete_selected_actors(&mut document_store, &mut preview_store, &mut ui_store);
 
-    // Source should be unchanged since nothing was selected
     assert_eq!(
         document_store.source.document.source_text, source_before,
         "source should not change with empty selection"
@@ -518,15 +476,12 @@ fn save_writes_editor_text_to_disk() {
 
     file::handle_save(&mut document_store, &mut preview_store);
 
-    // Verify the file on disk matches editor text
     let path = document_store.source.document.file_path.clone();
     let disk_content = std::fs::read_to_string(&path).unwrap();
     assert_eq!(disk_content, modified_text, "disk content should match editor text");
 
-    // Document should not be dirty after save
     assert!(!document_store.source.document.is_dirty);
 
-    // Source text should be updated
     assert_eq!(document_store.source.document.source_text, modified_text);
 }
 
@@ -538,7 +493,6 @@ fn save_unchanged_text_does_not_lose_data() {
 
     file::handle_save(&mut document_store, &mut preview_store);
 
-    // File content should still match original
     let path = document_store.source.document.file_path.clone();
     let disk_content = std::fs::read_to_string(&path).unwrap();
     assert_eq!(disk_content, original_text, "disk content should match original");
@@ -555,7 +509,6 @@ fn open_file_populates_document_state() {
     let (mut document_store, mut preview_store, mut ui_store) = stores();
     let mut workspace_store = workspace_store();
 
-    // Create a temp file with known content
     let unique = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("system time should be after unix epoch")
@@ -576,20 +529,16 @@ fn open_file_populates_document_state() {
         path.clone(),
     );
 
-    // Document should have the correct file path
     assert_eq!(document_store.source.document.file_path, path);
 
-    // Source text should be populated
     assert!(!document_store.source.document.source_text.is_empty());
     assert!(document_store.source.document.source_text.contains("box:"));
 
-    // Raw statements should be parsed
     assert!(
         document_store.source.document.raw_statements.is_some(),
         "raw_statements should be parsed after open"
     );
 
-    // History should be cleared
     assert!(document_store.history.undo_stack.is_empty());
     assert!(document_store.history.redo_stack.is_empty());
 
@@ -632,20 +581,16 @@ fn select_scene_switches_active_scene_and_seeks() {
         "Diagram".into(),
     );
 
-    // Active scene should switch
     assert_eq!(
         document_store.source.document.active_scene.as_deref(),
         Some("Diagram"),
         "active scene should be Diagram"
     );
 
-    // Preview should be dirty
     assert!(preview_store.preview_dirty);
 
-    // Playback should not be playing
     assert!(!preview_store.preview.playback.is_playing);
 
-    // Should return a status effect
     assert!(
         effects.iter().any(|e| matches!(e, Effect::Status(_))),
         "expected Status effect, got {:?}",
@@ -665,14 +610,12 @@ fn select_scene_noop_for_invalid_scene() {
         "NonExistent".into(),
     );
 
-    // Active scene should remain unchanged
     assert_eq!(
         document_store.source.document.active_scene.as_deref(),
         Some("Intro"),
         "active scene should remain Intro"
     );
 
-    // Should return empty effects for invalid scene
     assert!(effects.is_empty(), "expected no effects for invalid scene");
 }
 
@@ -694,6 +637,5 @@ fn select_scene_noop_without_composition() {
         "Intro".into(),
     );
 
-    // Should return empty effects
     assert!(effects.is_empty(), "expected no effects without composition");
 }

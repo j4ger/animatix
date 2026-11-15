@@ -176,18 +176,14 @@ fn unknown_actions_emit_diagnostics() {
 }
 
 #[test]
-fn action_signatures_include_reveal_out() {
-    assert!(get_action_signatures().iter().any(|signature| signature.name == "reveal-out"));
-}
-
-#[test]
-fn action_signatures_include_draw_out() {
-    assert!(get_action_signatures().iter().any(|signature| signature.name == "draw-out"));
-}
-
-#[test]
-fn action_signatures_include_reveal_in() {
-    assert!(get_action_signatures().iter().any(|signature| signature.name == "reveal-in"));
+fn action_signatures_include_reveal_actions() {
+    let signatures = get_action_signatures();
+    for action in ["reveal-out", "draw-out", "reveal-in"] {
+        assert!(
+            signatures.iter().any(|signature| signature.name == action),
+            "missing `{action}` action signature"
+        );
+    }
 }
 
 fn modifier_names(action: &str) -> Vec<String> {
