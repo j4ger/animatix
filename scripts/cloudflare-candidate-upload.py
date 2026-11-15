@@ -30,14 +30,20 @@ def tree(root):
 
 def config_check(config, policy):
     expected = {'$schema', 'name', 'account_id', 'compatibility_date', 'workers_dev',
-                'preview_urls', 'assets', 'observability', 'main', 'no_bundle'}
+                'preview_urls', 'assets', 'observability', 'main', 'no_bundle', 'find_additional_modules'}
     if set(config) != expected or config['name'] != policy.DESTINATION['worker'] \
             or config['account_id'] != policy.ACCOUNT or config['workers_dev'] is not False \
             or config['preview_urls'] is not True or config['main'] != 'web/deploy/static-worker.js' \
-            or config['no_bundle'] is not True or config['assets'] != {
+            or config['no_bundle'] is not True or config['find_additional_modules'] is not False or config['assets'] != {
                 'directory': './_site', 'html_handling': 'auto-trailing-slash',
                 'not_found_handling': '404-page', 'binding': 'ASSETS', 'run_worker_first': False}:
         raise ValueError('unexpected upload target, routes or asset settings')
+
+
+def preview_preflight(api, policy):
+    settings = api('GET', '/workers/scripts/'+policy.DESTINATION['worker']+'/subdomain')
+    if settings.get('enabled') is not False or settings.get('previews_enabled') is not True:
+        raise ValueError('isolated workers.dev must stay disabled and version previews must be explicitly enabled before upload')
 
 
 def main():
@@ -81,6 +87,9 @@ def main():
         'PATH', 'HOME', 'LANG', 'SSL_CERT_FILE', 'NODE_EXTRA_CA_CERTS',
         'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY'}}
     subprocess.run(['npm', '--prefix', 'web/deploy', 'ci', '--no-audit', '--no-fund'], check=True, env=upload_env)
+    control = load('cloudflare-control')
+    api = control.API({'account_id': policy.ACCOUNT}, os.environ['CLOUDFLARE_API_TOKEN'])
+    preview_preflight(api, policy)
     output = receipt/'wrangler-output.jsonl'
     if output.exists():
         raise RuntimeError('previous upload outcome exists; reconcile before retry')
@@ -97,6 +106,8 @@ def main():
         raise RuntimeError('upload result target mismatch; do not accept candidate')
     version = versions[0]
     uuid.UUID(version['version_id'])
+    if not version.get('preview_url'):
+        raise RuntimeError('version uploaded without a preview URL; do not admit or retry blindly')
     evidence.update(version_id=version['version_id'], preview_url=version.get('preview_url'))
     (receipt/'uploaded.json').write_text(json.dumps(evidence, sort_keys=True) + '\n')
     summary = {k: v for k, v in evidence.items() if k != 'files'}

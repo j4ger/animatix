@@ -19,5 +19,6 @@
     }
   },
   "main": "web/deploy/static-worker.js",
-  "no_bundle": true
+  "no_bundle": true,
+  "find_additional_modules": false
 }

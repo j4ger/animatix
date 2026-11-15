@@ -131,6 +131,20 @@ class ReviewTests(unittest.TestCase):
             self.assertIn("needs."+dependency+".result == 'success'", condition)
             self.assertIn("vars."+switch+" == 'enabled'", condition)
 
+    def test_packaging_rejects_implicit_node_modules_and_missing_preview_access(self):
+        upload = f.c.load('cloudflare-candidate-upload')
+        policy = f.c.load('cloudflare-candidate').policy()
+        config = f.json.loads(Path('wrangler.jsonc').read_text())
+        upload.config_check(config, policy)
+        for value in [True, None]:
+            bad = dict(config, find_additional_modules=value)
+            with self.assertRaises(ValueError):
+                upload.config_check(bad, policy)
+        for settings in [{'enabled': False, 'previews_enabled': False}, {'enabled': True, 'previews_enabled': True}, {}]:
+            with self.assertRaises(ValueError):
+                upload.preview_preflight(lambda *args: settings, policy)
+        upload.preview_preflight(lambda *args: {'enabled': False, 'previews_enabled': True}, policy)
+
 
 if __name__ == '__main__':
     unittest.main()

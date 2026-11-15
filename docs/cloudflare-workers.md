@@ -409,3 +409,48 @@ local target still disabled. Read-only diagnostic build
 `58158f06-8e83-4350-a6e5-7df8c9f5ac2e` confirmed HTTP 200 on the isolated
 Worker's legacy versions endpoint, then intentionally failed at `exit 1`.
 All trigger settings were restored. Read access does not establish upload rights.
+
+
+### First real signed candidate upload (2026-11-15)
+
+Source `b35670b2b81e67eee72207e1bb1c940e6ccf09b0` passed CI run `43729866272`.
+Original SDK artifact `14167674797` has SHA256
+`0466f21ebd2e09c3289e8436206b9a53e3d81c770dcbd6faa67195efe83100d8`.
+Cloudflare build `caba0c68-b907-4bd2-b24a-36e98bc89889` passed signed permit
+verification, built Astro using that SDK, and uploaded version
+`090415ea-b4ee-4650-877f-827683ed576c`. The dedicated user token can therefore
+perform this upload into the pre-created empty Worker. This does not prove
+creation rights or that a narrower token would work.
+
+Independent local verification with the pinned gh/root snapshot authenticated
+the permit at the provider's build completion time and verified both the permit
+digest `e763955ae65e3acbe18d5ea5c6059427dbe227d1caa23087aed8826906f9891f`
+and original SDK ZIP digest. Build/upload stages enforced current TTL themselves.
+No activation occurred: the deployments list remained empty and deployed_on null.
+
+The uploaded version is NOT admitted. Two live findings prevented acceptance:
+
+- `no_bundle` implicitly discovers additional modules unless explicitly disabled.
+  With npm installed under web/deploy, Wrangler attached ten tool dependency
+  WASM/text files (about 9 MB) in addition to the reviewed forwarding module.
+  The earlier dry-run borrowed Wrangler from outside this directory, so it did
+  not exercise the real dependency layout. Exact module-count validation rejects
+  this version. The fix sets `find_additional_modules=false`; a new local dry-run
+  with dependencies installed in the actual directory emits only the identical
+  172-byte static-worker.js. Strict admission was not loosened.
+- Preview URL access was disabled on the Worker. `versions upload` did not enable
+  it despite preview_urls=true in config; the receipt's preview_url was null.
+  Upload now checks workers.dev=false and previews_enabled=true before writing,
+  and rejects a missing returned URL after upload without retrying it. Enabling
+  preview URLs requires explicit authorization because it makes versions
+  externally accessible. Automatic approval review rejected the temporary
+  enable operation; it was not executed. No HTTP/WASM/deep-link/browser or
+  rollback acceptance pass is claimed.
+
+After testing, the trigger's original experiment branch, build/deploy `exit 1`,
+and all-path exclusion were restored. Temporary NODE_VERSION was deleted;
+SKIP_DEPENDENCY_INSTALL remains. workers.dev and previews remain disabled,
+there are no domain bindings and no deployments. Keep the uploaded version as
+non-admitted diagnostic evidence; do not promote it or silently repair its
+receipt. These code fixes require a new authenticated source/build before remote
+acceptance. No user-computer execution or new CI run was started for the fixes.
