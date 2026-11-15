@@ -122,11 +122,14 @@ strip = "symbols"
 # variant of the persistent image-atlas bug first reported as #1558): a frame
 # with no late-bound resources (no images, gradients or glyphs) resizes the
 # persistent atlas to 1x1, and the next image frame samples a blank texture —
-# exactly our multi-scope filter pipeline. Upstream fix PR #1664 is approved but
-# still unmerged/conflicting. `vendor/vello` is unmodified 0.11.0 except for
-# `src/render.rs`: an image-free render keeps the existing atlas alive instead of
-# freeing/replacing it. Drop this patch (and the vendored directory) when a
-# release contains #1664.
+# exactly our multi-scope filter pipeline. The local `src/render.rs` repair
+# keeps the existing atlas alive; remove that repair when a release includes
+# the upstream fix tracked by #1664.
+# The vendor also provides a synchronous encoder-suffix callback in `lib.rs`
+# and `wgpu_engine.rs`, joining Vello rendering and presentation before the
+# existing submit/resource-recycle boundary. Keep it until upstream provides
+# an equivalent submit-scoped API. `vendor/vello/README.animatix.md` records
+# both removal conditions and the image/presentation boundary tests.
 [patch.crates-io]
 vello = { path = "vendor/vello" }
 # The alpha splitter drops function-alias relocations and overlapping data

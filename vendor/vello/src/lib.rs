@@ -481,6 +481,25 @@ impl Renderer {
         texture: &TextureView,
         params: &RenderParams,
     ) -> Result<()> {
+        self.render_to_texture_with_callback(device, queue, scene, texture, params, |_| {})
+    }
+
+    /// Renders a scene and appends `after_render` to Vello's command encoder
+    /// before submitting it.
+    ///
+    /// The callback runs only after Vello has encoded the whole recording
+    /// successfully. Its commands share the submission with the render. The
+    /// callback must encode synchronously and must not retain the encoder.
+    /// Vello reclaims transient resources only after this combined submission.
+    pub fn render_to_texture_with_callback(
+        &mut self,
+        device: &Device,
+        queue: &Queue,
+        scene: &Scene,
+        texture: &TextureView,
+        params: &RenderParams,
+        after_render: impl FnOnce(&mut wgpu::CommandEncoder),
+    ) -> Result<()> {
         let (recording, target) = render::render_full(
             scene,
             &mut self.resolver,
@@ -492,7 +511,7 @@ impl Renderer {
             *target.as_image().unwrap(),
             texture,
         )];
-        self.engine.run_recording(
+        self.engine.run_recording_with_callback(
             device,
             queue,
             &recording,
@@ -500,6 +519,7 @@ impl Renderer {
             "render_to_texture",
             #[cfg(feature = "wgpu-profiler")]
             &mut self.profiler,
+            after_render,
         )?;
         // N.B. This is horrible; this integration of wgpu-profiler really needs some work...
         #[cfg(feature = "wgpu-profiler")]

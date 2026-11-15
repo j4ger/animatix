@@ -135,6 +135,7 @@ dependencies = [
  "image",
  "kurbo",
  "libloading",
+ "pollster 0.4.0",
  "roxmltree 0.20.0",
  "serde",
  "serde_json",

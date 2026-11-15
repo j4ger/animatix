@@ -329,6 +329,12 @@ Composite at region origin (readback path) or batched blit with dynamic uniform 
   when its current effect values are disabled or identity, so a later activation
   retains the existing initialization policy. Each transition input makes this
   decision independently.
+- **Presentation submit.** On the Web player's plain/Mask single-timeline path,
+  Vello rendering and the canvas-format blit share one submit. A synchronous
+  Vello encoder suffix runs before submission and transient-resource recycling;
+  the presentation blit uses an immutable alpha=1 uniform. Filter/Glass scopes,
+  active transitions, and readback retain their separate tails. See the
+  [submission evidence](history/2026-11-16-presentation-submit.md).
 - **On-demand.** A stage whose `enabled` is false, or whose parameters all equal
   their identity values, is dropped when the chain is sampled. If every stage is
   dropped, the offscreen round-trip is skipped and the content children are

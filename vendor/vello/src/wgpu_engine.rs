@@ -386,6 +386,30 @@ impl WgpuEngine {
         label: &'static str,
         #[cfg(feature = "wgpu-profiler")] profiler: &mut wgpu_profiler::GpuProfiler,
     ) -> Result<()> {
+        self.run_recording_with_callback(
+            device,
+            queue,
+            recording,
+            external_resources,
+            label,
+            #[cfg(feature = "wgpu-profiler")]
+            profiler,
+            |_| {},
+        )
+    }
+
+    /// Encode caller-owned suffix commands before Vello submits its recording.
+    /// The callback runs only if the complete recording encoded successfully.
+    pub fn run_recording_with_callback(
+        &mut self,
+        device: &Device,
+        queue: &Queue,
+        recording: &Recording,
+        external_resources: &[ExternalResource<'_>],
+        label: &'static str,
+        #[cfg(feature = "wgpu-profiler")] profiler: &mut wgpu_profiler::GpuProfiler,
+        after_render: impl FnOnce(&mut CommandEncoder),
+    ) -> Result<()> {
         let mut free_bufs: HashSet<ResourceId> = HashSet::default();
         let mut free_images: HashSet<ResourceId> = HashSet::default();
         let mut transient_map = TransientBindMap::new(external_resources);
@@ -754,6 +778,7 @@ impl WgpuEngine {
         // TODO: This only actually needs to happen once per frame, but run_recording happens two or three times
         #[cfg(feature = "wgpu-profiler")]
         profiler.resolve_queries(&mut encoder);
+        after_render(&mut encoder);
         queue.submit(Some(encoder.finish()));
         for id in free_bufs {
             if let Some(buf) = self.bind_map.buf_map.remove(&id)
@@ -1243,5 +1268,92 @@ impl<'a> TransientBindMap<'a> {
                 ResourceProxy::Image(_) => todo!(),
             })
             .collect()
+    }
+}
+#[cfg(test)]
+mod callback_tests {
+    use super::*;
+    use crate::low_level::BufferProxy;
+    use std::cell::Cell;
+    use std::future::Future;
+    use std::sync::Arc;
+    use std::task::{Context, Poll, Wake, Waker};
+    use std::thread;
+
+    struct ThreadWake(thread::Thread);
+
+    impl Wake for ThreadWake {
+        fn wake(self: Arc<Self>) {
+            self.0.unpark();
+        }
+
+        fn wake_by_ref(self: &Arc<Self>) {
+            self.0.unpark();
+        }
+    }
+
+    fn block_on<F: Future>(future: F) -> F::Output {
+        let waker = Waker::from(Arc::new(ThreadWake(thread::current())));
+        let mut context = Context::from_waker(&waker);
+        let mut future = std::pin::pin!(future);
+        loop {
+            match future.as_mut().poll(&mut context) {
+                Poll::Ready(value) => return value,
+                Poll::Pending => thread::park(),
+            }
+        }
+    }
+
+    #[test]
+    fn recording_error_does_not_run_suffix_callback() {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
+        let adapter = block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::LowPower,
+            compatible_surface: None,
+            force_fallback_adapter: true,
+            apply_limit_buckets: false,
+        }));
+        let Ok(adapter) = adapter else {
+            if std::env::var_os("ANIMATIX_REQUIRE_GPU").is_some() {
+                panic!("ANIMATIX_REQUIRE_GPU is set but no adapter is available");
+            }
+            return;
+        };
+        let limits = wgpu::Limits::default().using_resolution(adapter.limits());
+        let device_request = block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+            label: Some("Vello recording error callback test"),
+            required_features: wgpu::Features::empty(),
+            required_limits: limits,
+            memory_hints: Default::default(),
+            ..Default::default()
+        }));
+        let Ok((device, queue)) = device_request else {
+            if std::env::var_os("ANIMATIX_REQUIRE_GPU").is_some() {
+                panic!("ANIMATIX_REQUIRE_GPU is set but a device could not be created");
+            }
+            return;
+        };
+
+        let mut recording = Recording::default();
+        recording.download(BufferProxy::new(16, "missing-upload"));
+        let mut engine = WgpuEngine::new(false, None);
+        let suffix_called = Cell::new(false);
+        let result = engine.run_recording_with_callback(
+            &device,
+            &queue,
+            &recording,
+            &[],
+            "missing-download-test",
+            #[cfg(feature = "wgpu-profiler")]
+            &mut wgpu_profiler::GpuProfiler::new(&device, Default::default())
+                .expect("test profiler"),
+            |_| suffix_called.set(true),
+        );
+
+        assert!(
+            matches!(result, Err(Error::UnavailableBufferUsed("missing-upload", "download"))),
+            "expected a missing-buffer recording error"
+        );
+        assert!(!suffix_called.get(), "suffix ran after a recording error");
     }
 }

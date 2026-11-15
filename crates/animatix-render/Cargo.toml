@@ -25,8 +25,9 @@ image = { workspace = true, features = ["png", "gif", "jpeg", "webp"], optional 
 pollster = { workspace = true }
 tracing = { workspace = true }
 wgpu = { workspace = true, default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
-# The workspace patches Vello 0.11.0 to `vendor/vello` for the #1948
-# patchless-resolve atlas regression; `tests/vello_img_probe.rs` guards the A–H matrix.
+# The local Vello repairs the #1948 atlas regression and exposes a synchronous
+# render-tail submission hook. vello_img_probe.rs and presentation_submit.rs
+# guard these boundaries; removal conditions are in vendor/vello/README.animatix.md.
 vello = { workspace = true }
 rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg8", "link_system_ffmpeg"], optional = true }
 
