@@ -41,13 +41,20 @@ fn render_scene_into_target(
     time_s: f64,
     dimensions: SceneDimensions,
     debug_options: DebugRenderOptions,
-    backend: &mut GpuFilterBackend,
+    backend: &mut Option<GpuFilterBackend>,
     target: &wgpu::Texture,
     target_view: &wgpu::TextureView,
 ) -> Result<Vec<(String, Rect)>, String> {
+    if timeline.needs_filter_backend() {
+        if backend.is_none() {
+            *backend = Some(GpuFilterBackend::new(device.clone(), queue.clone(), dimensions)?);
+        }
+    } else {
+        *backend = None;
+    }
     let scene = {
         let mut filter_backend: Option<&mut dyn FilterBackend> =
-            Some(backend as &mut dyn FilterBackend);
+            backend.as_mut().map(|backend| backend as &mut dyn FilterBackend);
         timeline.evaluate_with_debug(time_s, dimensions, debug_options, &mut filter_backend)
     };
     let hit_regions = timeline.hit_regions();
@@ -59,7 +66,7 @@ fn render_scene_into_target(
         &scene,
         dimensions,
         animatix_render::offscreen::RasterFit::OneToOne,
-        Some(backend),
+        backend.as_mut(),
         Some(target),
     )?;
     Ok(hit_regions)
@@ -227,13 +234,22 @@ impl PreviewSurface {
         time_s: f64,
         debug_options: DebugRenderOptions,
     ) -> Result<(), String> {
-        // Evaluate with filter backend so Filter actors render correctly
-        // in the GUI preview (unified with export path).
-        if self.filter_backend_dimensions != Some(self.dimensions) || self.filter_backend.is_none()
-        {
-            self.filter_backend =
-                Some(GpuFilterBackend::new(device.clone(), queue.clone(), self.dimensions)?);
+        // Keep backend scratch targets aligned with the preview texture size.
+        if self.filter_backend_dimensions != Some(self.dimensions) {
+            self.filter_backend = None;
+            self.filter_backend_from = None;
+            self.filter_backend_to = None;
             self.filter_backend_dimensions = Some(self.dimensions);
+        }
+        let needs_filter_backend = timeline.needs_filter_backend();
+        if needs_filter_backend && self.filter_backend.is_none() {
+            self.filter_backend =
+                self.filter_backend_to.take().or_else(|| self.filter_backend_from.take());
+        }
+        self.filter_backend_from = None;
+        self.filter_backend_to = None;
+        if !needs_filter_backend {
+            self.filter_backend = None;
         }
         let target = self
             .render_texture
@@ -243,10 +259,6 @@ impl PreviewSurface {
             .render_view
             .as_ref()
             .ok_or_else(|| "Preview texture is not initialized".to_string())?;
-        let backend = self
-            .filter_backend
-            .as_mut()
-            .ok_or_else(|| "Preview filter backend is not initialized".to_string())?;
         self.hit_regions = render_scene_into_target(
             &mut self.renderer,
             device,
@@ -255,7 +267,7 @@ impl PreviewSurface {
             time_s,
             self.dimensions,
             debug_options,
-            backend,
+            &mut self.filter_backend,
             target,
             render_view,
         )?;
@@ -282,6 +294,36 @@ impl PreviewSurface {
                 let to_start =
                     composition.scene_start_times.get(&blend.to_scene).copied().unwrap_or(0.0);
                 let to_local = global_time_s - to_start;
+
+                // All scratch slots share the same dimensions. Reset on resize,
+                // then move a live direct backend into an FX side when possible.
+                if self.filter_backend_dimensions != Some(self.dimensions) {
+                    self.filter_backend = None;
+                    self.filter_backend_from = None;
+                    self.filter_backend_to = None;
+                    self.filter_backend_dimensions = Some(self.dimensions);
+                }
+                let from_needs_filter_backend = from.timeline.needs_filter_backend();
+                let to_needs_filter_backend = to.timeline.needs_filter_backend();
+                if from_needs_filter_backend
+                    && !to_needs_filter_backend
+                    && self.filter_backend_from.is_none()
+                {
+                    self.filter_backend_from = self.filter_backend_to.take();
+                }
+                if to_needs_filter_backend
+                    && !from_needs_filter_backend
+                    && self.filter_backend_to.is_none()
+                {
+                    self.filter_backend_to = self.filter_backend_from.take();
+                }
+                if let Some(backend) = self.filter_backend.take() {
+                    if from_needs_filter_backend && self.filter_backend_from.is_none() {
+                        self.filter_backend_from = Some(backend);
+                    } else if to_needs_filter_backend && self.filter_backend_to.is_none() {
+                        self.filter_backend_to = Some(backend);
+                    }
+                }
 
                 // Lazy-init compositor
                 if self.compositor.is_none() {
@@ -314,22 +356,9 @@ impl PreviewSurface {
                     .as_ref()
                     .ok_or_else(|| "Preview composite view is not initialized".to_string())?;
 
-                // Give each side its own backend so their pending effect layers
-                // drain into the corresponding transition input texture.
+                // Give each side its own optional backend so pending effect
+                // layers drain into their matching transition input texture.
                 {
-                    if self.filter_backend_dimensions != Some(self.dimensions)
-                        || self.filter_backend_from.is_none()
-                    {
-                        self.filter_backend_from = Some(GpuFilterBackend::new(
-                            device.clone(),
-                            queue.clone(),
-                            self.dimensions,
-                        )?);
-                        self.filter_backend_dimensions = Some(self.dimensions);
-                    }
-                    let backend_from = self.filter_backend_from.as_mut().ok_or_else(|| {
-                        "From-scene filter backend is not initialized".to_string()
-                    })?;
                     let mut from_hit_regions = render_scene_into_target(
                         &mut self.renderer,
                         device,
@@ -338,26 +367,12 @@ impl PreviewSurface {
                         local_time_s,
                         self.dimensions,
                         debug_options,
-                        backend_from,
+                        &mut self.filter_backend_from,
                         render_texture,
                         render_view,
                     )?;
 
                     // Render to scene to render_texture_b
-                    if self.filter_backend_dimensions != Some(self.dimensions)
-                        || self.filter_backend_to.is_none()
-                    {
-                        self.filter_backend_to = Some(GpuFilterBackend::new(
-                            device.clone(),
-                            queue.clone(),
-                            self.dimensions,
-                        )?);
-                        self.filter_backend_dimensions = Some(self.dimensions);
-                    }
-                    let backend_to = self
-                        .filter_backend_to
-                        .as_mut()
-                        .ok_or_else(|| "To-scene filter backend is not initialized".to_string())?;
                     let to_hit_regions = render_scene_into_target(
                         &mut self.renderer,
                         device,
@@ -366,7 +381,7 @@ impl PreviewSurface {
                         to_local,
                         self.dimensions,
                         debug_options,
-                        backend_to,
+                        &mut self.filter_backend_to,
                         render_texture_b,
                         render_view_b,
                     )?;

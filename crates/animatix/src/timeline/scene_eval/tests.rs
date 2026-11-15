@@ -107,7 +107,7 @@ fn program_cache_is_separate_from_scene_only_cache() {
 /// direction is the dangerous one: an effect scene would replay a cached
 /// frame with its composited regions silently missing.
 #[test]
-fn has_effect_scopes_tracks_what_the_scene_actually_contains() {
+fn needs_filter_backend_tracks_what_the_scene_actually_contains() {
     let build = |src: &str| {
         let (ast, errors) = animatix_syntax::parser::parse_source(src);
         assert!(errors.is_empty(), "parse errors: {errors:?}");
@@ -121,7 +121,7 @@ fn has_effect_scopes_tracks_what_the_scene_actually_contains() {
          #0s\nb.opacity = 1.0\n",
     );
     assert!(
-        !plain.has_effect_scopes,
+        !plain.needs_filter_backend(),
         "an effect-free scene reported effect scopes, which would keep the web player out of the frame cache"
     );
 
@@ -133,9 +133,67 @@ fn has_effect_scopes_tracks_what_the_scene_actually_contains() {
          #0s\nf.opacity = 1.0\n",
     );
     assert!(
-        filtered.has_effect_scopes,
+        filtered.needs_filter_backend(),
         "a `Filter` scope was not detected; the frame cache would swallow its composites"
     );
+
+    let masked = build(
+        "config { resolution: (100, 100) }\n\
+         #0s\nm: Mask, size: (60, 60) {\n\
+           b: Rect, size: (20, 20), color: (1.0, 0.0, 0.0, 1.0), at: (10, 10)\n\
+         }\n",
+    );
+    assert!(
+        !masked.needs_filter_backend(),
+        "Mask uses Vello clipping, not the GPU filter backend"
+    );
+}
+
+#[test]
+fn needs_filter_backend_memo_tracks_post_build_scope_changes() {
+    let (ast, errors) =
+        animatix_syntax::parser::parse_source("#0s\nbox: Rect, size: (20, 20), at: (10, 10)\n");
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let mut timeline =
+        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new())
+            .output;
+
+    assert!(!timeline.needs_filter_backend());
+    assert_eq!(timeline.eval_caches.needs_filter_backend.get(), Some(false));
+
+    timeline.spawn_entity("scope", "Glass");
+    assert_eq!(timeline.eval_caches.needs_filter_backend.get(), None);
+    assert!(timeline.needs_filter_backend());
+
+    timeline.world_mut().spawn_replacing("scope", "Mask");
+    assert_eq!(timeline.eval_caches.needs_filter_backend.get(), None);
+    assert!(!timeline.needs_filter_backend());
+
+    // Capability overrides are part of the cached query too. Toggle a plain
+    // Rect to an effect scope and back through the Timeline mutation funnel.
+    let box_id = timeline.get_entity_id("box").expect("box entity");
+    let plain_caps = timeline.world().caps(box_id);
+    let filter_caps = animatix_core::caps::ActorCaps {
+        child_processing: animatix_core::caps::ChildProcessingKind::Filter,
+        ..plain_caps
+    };
+    timeline.world_mut().set_caps(box_id, filter_caps);
+    assert_eq!(timeline.eval_caches.needs_filter_backend.get(), None);
+    assert!(
+        timeline.needs_filter_backend(),
+        "a custom Filter capability must admit the backend"
+    );
+
+    timeline.world_mut().set_caps(box_id, plain_caps);
+    assert_eq!(timeline.eval_caches.needs_filter_backend.get(), None);
+    assert!(
+        !timeline.needs_filter_backend(),
+        "restoring plain caps must drop backend admission"
+    );
+
+    let cloned = timeline.clone();
+    assert_eq!(cloned.eval_caches.needs_filter_backend.get(), None);
+    assert!(!cloned.needs_filter_backend());
 }
 
 #[test]
@@ -647,7 +705,7 @@ fn animated_filter_scope_is_never_cached_or_replayed() {
         width: 200,
         height: 200,
     };
-    assert!(timeline.has_effect_scopes, "the scene must contain an effect scope");
+    assert!(timeline.needs_filter_backend(), "the scene must contain an effect scope");
 
     let mut stub = StubBackend;
     {
@@ -721,5 +779,42 @@ fn presentation_scene_matches_debug_and_skips_frame_cache() {
     assert!(
         fresh.eval_caches.frame_cache.borrow().is_none(),
         "evaluate_for_presentation must not write eval_caches.frame_cache"
+    );
+}
+
+#[test]
+fn nested_filter_and_glass_scopes_with_future_effects_admit_backend() {
+    let timeline = build_timeline(
+        "#0s\nouter: Group {\n\
+           panel: Filter, size: (40, 40) {\n\
+             soft: Blur, radius: 0\n\
+             panel_child: Rect, size: (20, 20)\n\
+           }\n\
+           card: Glass, size: (40, 40) {\n\
+             frost: Blur, radius: 0\n\
+             glass_child: Rect, size: (20, 20)\n\
+           }\n\
+         }\n\
+         #1s\n\
+         panel.soft.radius = 8 [1s]\n\
+         card.frost.radius = 8 [1s]\n",
+    );
+
+    for (scope, stage) in [("panel", "soft"), ("card", "frost")] {
+        let id = timeline.get_entity_id(scope).expect("nested effect scope");
+        let effects = timeline.world().effects(id).expect("effect chain");
+        assert!(
+            effects.build_chain(0).is_empty(),
+            "{scope}.{stage} starts at its identity parameter"
+        );
+        assert!(
+            !effects.build_chain(2_000).is_empty(),
+            "{scope}.{stage} becomes active on a later frame"
+        );
+    }
+    assert!(
+        timeline.needs_filter_backend(),
+        "nested Filter/Glass scopes must admit a backend even while their \
+         current stages are identity"
     );
 }

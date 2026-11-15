@@ -459,6 +459,22 @@ config { colorscheme: "editorial-dark", resolution: (64, 64), duration: 2.0 }
 blue: Rect, size: (2000, 2000), at: (32, 32), color: "#0000ff"
 "##;
 
+const MIXED_FILTER_COMPOSITION: &str = r##"
+# From
+config { colorscheme: "editorial-dark", resolution: (64, 64), duration: 2.0 }
+#0s
+red: Rect, size: (2000, 2000), at: (32, 32), color: "#ff0000"
+play To [fade, 500ms]
+
+# To
+config { colorscheme: "editorial-dark", resolution: (64, 64), duration: 2.0 }
+#0s
+fx: Filter {
+    soft: Blur, radius: 3
+    blue: Rect, size: (2000, 2000), color: "#0000ff"
+}
+"##;
+
 fn build_composition(source: &str) -> Composition {
     let (statements, parse_errors) = animatix_syntax::parser::parse_source(source);
     assert!(parse_errors.is_empty(), "fade fixture parse errors: {parse_errors:?}");
@@ -521,6 +537,9 @@ fn composition_preview_switches_sample_view_across_fade_frames() {
         preview.sample_view().expect("from scene sample view"),
     );
     assert_eq!(from, [255, 0, 0, 255]);
+    assert!(preview.filter_backend.is_none(), "a plain scene must not create a backend");
+    assert!(preview.filter_backend_from.is_none());
+    assert!(preview.filter_backend_to.is_none());
 
     preview
         .render_composition(
@@ -541,6 +560,15 @@ fn composition_preview_switches_sample_view_across_fade_frames() {
         transition[0] > 0 && transition[2] > 0,
         "fade pixel should blend red and blue: {transition:?}"
     );
+    assert!(preview.filter_backend.is_none());
+    assert!(
+        preview.filter_backend_from.is_none(),
+        "plain outgoing side must stay backend-free"
+    );
+    assert!(
+        preview.filter_backend_to.is_none(),
+        "plain incoming side must stay backend-free"
+    );
 
     preview
         .render_composition(
@@ -558,6 +586,106 @@ fn composition_preview_switches_sample_view_across_fade_frames() {
         preview.sample_view().expect("to scene sample view"),
     );
     assert_eq!(to, [0, 0, 255, 255]);
+    assert!(preview.filter_backend.is_none());
+    assert!(preview.filter_backend_from.is_none());
+    assert!(preview.filter_backend_to.is_none());
+    assert_no_validation_error(&device, validation_scope);
+}
+
+#[test]
+fn mixed_filter_transition_initializes_only_the_scoped_side() {
+    let Some((device, queue)) = device_or_skip() else {
+        return;
+    };
+    let composition = build_composition(MIXED_FILTER_COMPOSITION);
+    let transition_time = composition.scene_start_times["To"] + 0.25;
+    assert!(composition.evaluate(transition_time).2.is_some());
+
+    let mut preview = PreviewSurface::new(&device, &queue).expect("preview surface");
+    let validation_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
+    let first = SceneDimensions {
+        width: 64,
+        height: 64,
+    };
+    preview.set_dimensions(&device, first);
+    let sampling = SamplingPipeline::new(&device);
+    preview
+        .render_composition(
+            &device,
+            &queue,
+            &composition,
+            transition_time,
+            DebugRenderOptions::default(),
+        )
+        .expect("plain to Filter transition");
+    assert!(preview.filter_backend.is_none());
+    assert!(preview.filter_backend_from.is_none(), "plain outgoing side must not allocate");
+    assert!(preview.filter_backend_to.is_some(), "Filter incoming side needs a backend");
+    let transition = sample_pixel(
+        &device,
+        &queue,
+        &sampling,
+        preview.sample_view().expect("mixed transition sample view"),
+    );
+    assert!(
+        transition[0] > 0 && transition[2] > 0,
+        "transition must retain both scene colors after the Filter pass: {transition:?}"
+    );
+
+    let after_transition = composition.scene_start_times["To"] + 0.75;
+    preview
+        .render_composition(
+            &device,
+            &queue,
+            &composition,
+            after_transition,
+            DebugRenderOptions::default(),
+        )
+        .expect("single Filter scene after transition");
+    assert!(preview.filter_backend.is_some(), "direct Filter frame needs the backend");
+    assert!(preview.filter_backend_from.is_none());
+    assert!(
+        preview.filter_backend_to.is_none(),
+        "transition slot should move back to direct"
+    );
+
+    preview
+        .render(
+            &device,
+            &queue,
+            &composition.scenes["From"].timeline,
+            0.0,
+            DebugRenderOptions::default(),
+        )
+        .expect("plain scene after Filter frame");
+    assert!(preview.filter_backend.is_none(), "plain direct frame must drop the backend");
+    assert!(preview.filter_backend_from.is_none());
+    assert!(preview.filter_backend_to.is_none());
+    let plain_pixel = sample_pixel(
+        &device,
+        &queue,
+        &sampling,
+        preview.sample_view().expect("plain scene sample view"),
+    );
+    assert_eq!(plain_pixel, [255, 0, 0, 255]);
+
+    let resized = SceneDimensions {
+        width: 96,
+        height: 80,
+    };
+    preview.set_dimensions(&device, resized);
+    preview
+        .render_composition(
+            &device,
+            &queue,
+            &composition,
+            transition_time,
+            DebugRenderOptions::default(),
+        )
+        .expect("resized plain to Filter transition");
+    assert!(preview.filter_backend.is_none());
+    assert!(preview.filter_backend_from.is_none());
+    assert!(preview.filter_backend_to.is_some());
     assert_no_validation_error(&device, validation_scope);
 }
 

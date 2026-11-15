@@ -112,15 +112,9 @@ pub(super) fn finalize_assets_legend(timeline: &mut Timeline, diagnostics: &mut 
     timeline.pause_points.sort_unstable();
     timeline.pause_points.dedup();
 
-    // Whether anything here could consult the filter backend at all. The
-    // frame cache is gated on this rather than on the backend's presence, so
-    // a runtime that always supplies one (the web player) is not locked out
-    // of caching for scenes that contain no effects.
-    timeline.has_effect_scopes = timeline
-        .world
-        .tracks
-        .iter()
-        .any(|(_, id)| timeline.world.caps(id).is_effect_scope());
+    // Prime the capability scan so the first presented frame does not have to
+    // walk every entity. The memo is invalidated by later writes.
+    timeline.needs_filter_backend();
     timeline.refresh_blend_used();
     timeline.refresh_camera_used();
     // Resolve any hierarchy link whose child track was created by a path

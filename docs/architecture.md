@@ -321,6 +321,14 @@ Composite at region origin (readback path) or batched blit with dynamic uniform 
 
 **Key properties:**
 
+- **Backend admission.** `Timeline::needs_filter_backend()` checks the live
+  capability stores for Filter/Glass scopes and memoizes the answer in
+  `EvalCaches`. Timeline mutation clears the memo; cloning starts with empty
+  caches. Native offscreen rendering, GUI preview, and Web playback skip backend
+  creation for plain and Mask-only scenes. A scope still admits the backend
+  when its current effect values are disabled or identity, so a later activation
+  retains the existing initialization policy. Each transition input makes this
+  decision independently.
 - **On-demand.** A stage whose `enabled` is false, or whose parameters all equal
   their identity values, is dropped when the chain is sampled. If every stage is
   dropped, the offscreen round-trip is skipped and the content children are

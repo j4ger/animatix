@@ -249,6 +249,12 @@ pub(super) fn render_document(
                     .get(&scene_name)
                     .map(|scene| &scene.timeline)
                     .ok_or_else(|| format!("composition has no scene named '{scene_name}'"))?;
+                // Reuse a transition backend for the active scene before
+                // dropping the now-idle incoming slot.
+                if timeline.needs_filter_backend() && targets.primary_backend.is_none() {
+                    *targets.primary_backend = targets.secondary_backend.take();
+                }
+                *targets.secondary_backend = None;
                 render_timeline(
                     ctx,
                     ScenePass {
@@ -282,6 +288,12 @@ pub(super) fn render_document(
                 .get(&blend.to_scene)
                 .ok_or_else(|| format!("composition has no scene named '{}'", blend.to_scene))?
                 .timeline;
+            rebalance_filter_backends(
+                from_timeline.needs_filter_backend(),
+                to_timeline.needs_filter_backend(),
+                &mut *targets.primary_backend,
+                &mut *targets.secondary_backend,
+            );
             let shared = plan_shared_actors(from_timeline, blend.from_local, to_timeline, to_local);
             let flip_items = collect_flip_pairs(
                 &shared,
@@ -370,6 +382,12 @@ pub(super) fn render_document(
             Ok(composite_target.frame_target())
         },
         Some(BuildTarget::SingleScene(timeline)) => {
+            // Reuse a transition backend for this scene before dropping the
+            // now-idle incoming slot.
+            if timeline.needs_filter_backend() && targets.primary_backend.is_none() {
+                *targets.primary_backend = targets.secondary_backend.take();
+            }
+            *targets.secondary_backend = None;
             render_timeline(
                 ctx,
                 ScenePass {
@@ -382,16 +400,36 @@ pub(super) fn render_document(
             )?;
             Ok(from.frame_target())
         },
-        None => Err("no document loaded".to_string()),
+        None => {
+            *targets.primary_backend = None;
+            *targets.secondary_backend = None;
+            Err("no document loaded".to_string())
+        },
     }
 }
 
-/// Evaluate one frame of `pass.timeline` with the GPU filter backend (so `Filter`
-/// scopes render like the export path) and draw it into `pass.target`, including
-/// pending zero-readback composites, via [`rasterize_scene`]. The target is sized
-/// by [`raster_dims`], not `ctx.dims`: the scene is re-encoded scaled down while
-/// the timeline evaluates at scene dimensions; filter composites are blitted into
-/// the smaller target at `origin * scale`.
+/// Move a reusable backend out of a side that does not need one when the
+/// other transition side does and has no backend yet.
+fn rebalance_filter_backends(
+    from_needs: bool,
+    to_needs: bool,
+    from_backend: &mut Option<GpuFilterBackend>,
+    to_backend: &mut Option<GpuFilterBackend>,
+) {
+    if from_needs && !to_needs && from_backend.is_none() {
+        *from_backend = to_backend.take();
+    } else if !from_needs && to_needs && to_backend.is_none() {
+        *to_backend = from_backend.take();
+    }
+}
+
+/// Evaluate one frame of `pass.timeline`, lazily creating the GPU filter backend
+/// when the timeline contains `Filter`/`Glass` scopes. Draw it into
+/// `pass.target`, including pending zero-readback composites, via
+/// [`rasterize_scene`]. The target is sized by [`raster_dims`], not `ctx.dims`:
+/// the scene is re-encoded scaled down while the timeline evaluates at scene
+/// dimensions; filter composites are blitted into the smaller target at
+/// `origin * scale`.
 fn render_timeline(ctx: &mut FrameCtx<'_>, pass: ScenePass<'_>) -> Result<(), String> {
     let ScenePass {
         backend,
@@ -400,8 +438,16 @@ fn render_timeline(ctx: &mut FrameCtx<'_>, pass: ScenePass<'_>) -> Result<(), St
         time_s,
         suppressed,
     } = pass;
-    if backend.is_none() {
-        *backend = Some(GpuFilterBackend::new(ctx.device.clone(), ctx.queue.clone(), ctx.dims)?);
+    if timeline.needs_filter_backend() {
+        if backend.is_none() {
+            *backend =
+                Some(GpuFilterBackend::new(ctx.device.clone(), ctx.queue.clone(), ctx.dims)?);
+        }
+    } else {
+        // A document replacement can remove the last Filter/Glass scope while
+        // this scene slot survives. Release its targets instead of retaining a
+        // backend no longer needed by the displayed document.
+        *backend = None;
     }
     let (raster_w, raster_h) = raster_dims(ctx.dims, ctx.scale);
     // Tell the chain its real raster size (derived from the integer raster, not

@@ -93,7 +93,15 @@ impl OffscreenRenderer {
             self.filter_backend_b = None;
             self.filter_backend_dimensions = Some(dimensions);
         }
-
+        let from_needs_filter_backend = from_timeline.needs_filter_backend();
+        let to_needs_filter_backend = to_timeline.needs_filter_backend();
+        if from_needs_filter_backend && !to_needs_filter_backend && self.filter_backend.is_none() {
+            self.filter_backend = self.filter_backend_b.take();
+        }
+        if to_needs_filter_backend && !from_needs_filter_backend && self.filter_backend_b.is_none()
+        {
+            self.filter_backend_b = self.filter_backend.take();
+        }
         // Lazy-init compositor
         if self.compositor.is_none() {
             self.compositor =

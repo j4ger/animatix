@@ -51,6 +51,8 @@ dot: Rect, size: (40, 40), at: (320, 180), color: accent.warning
 #[test]
 fn cloning_preserves_entity_data_and_resets_disposable_frame_caches() {
     let mut original = build_timeline(SCENE);
+    assert!(!original.needs_filter_backend());
+    assert_eq!(original.eval_caches.needs_filter_backend.get(), Some(false));
     let dimensions = SceneDimensions {
         width: 640,
         height: 360,
@@ -70,6 +72,7 @@ fn cloning_preserves_entity_data_and_resets_disposable_frame_caches() {
         original.world().style(id).color.get(0, [0.0; 4])
     );
     assert_eq!(cloned.content_epoch(), 0);
+    assert_eq!(cloned.eval_caches.needs_filter_backend.get(), None);
     assert!(cloned.eval_caches.frame_cache.borrow().is_none());
     assert!(cloned.eval_caches.static_subtree_cache.borrow().is_empty());
     assert!(cloned.eval_caches.env_injection_plan.borrow().is_none());

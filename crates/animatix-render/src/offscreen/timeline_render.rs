@@ -27,8 +27,12 @@ pub(crate) fn render_timeline_into_view(
     backdrop_target: Option<&wgpu::Texture>,
     suppressed_actors: &[String],
 ) -> Result<(), String> {
-    if backend.is_none() {
-        *backend = Some(GpuFilterBackend::new(device.clone(), queue.clone(), dimensions)?);
+    if timeline.needs_filter_backend() {
+        if backend.is_none() {
+            *backend = Some(GpuFilterBackend::new(device.clone(), queue.clone(), dimensions)?);
+        }
+    } else {
+        *backend = None;
     }
     let mut fb: Option<&mut dyn animatix::timeline::effects::FilterBackend> =
         backend.as_mut().map(|b| b as _);
