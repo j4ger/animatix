@@ -120,3 +120,21 @@ There is no disabled sandbox or relaxed signature policy. Host resources remain
 restricted by Cloudflare even inside the child namespace. It always exits 1,
 including on success, to prevent the deployment stage. Read the explicit
 `BOOTSTRAP_AND_DEVSHELL_PASS` or `BOOTSTRAP_BLOCKED` evidence in logs.
+
+### Upstream portable runtime probe
+
+The next isolated probe uses `python3 scripts/cloudflare-nix-portable.py; exit 1`.
+It uses upstream [nix-portable v012](https://github.com/DavHau/nix-portable/releases/tag/v012),
+not the project's moving main branch. The downloaded x86_64 executable contains
+its native Nix runtime (release source commit `7eba433355a83acff4d0081bb4a59088e8293ea7`).
+Its SHA256 is pinned in the script after downloading from the upstream HTTPS release.
+The release provides neither an independent checksum/signature nor a GitHub asset
+digest: this pin prevents later drift, but is not publisher signature verification.
+
+Unlike upstream defaults, this probe explicitly enables Nix sandboxing and forces
+`NP_RUNTIME=nix`. It never falls back to bwrap/proot, changes host security settings,
+or inherits credentials/debug overrides. A fresh temporary HOME/store is used.
+The existing 15-minute process-group timeout and 3 GiB free-space floor apply;
+startup requires 6 GiB free. Version then the locked `web-build` shell are tested.
+Every result exits 1 to prevent deployment. Runtime incompatibility or denied
+sandbox operations are stop conditions, not grounds to disable sandboxing.
