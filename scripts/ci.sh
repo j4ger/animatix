@@ -508,6 +508,7 @@ gate_site_build() {
   want_nix_shell 'site-build'
   python3 scripts/cloudflare-candidate-test.py
   python3 scripts/cloudflare-control-test.py
+  python3 scripts/cloudflare-review-test.py
   python3 scripts/cloudflare-permit-test.py
   python3 scripts/cloudflare-sdk-dispatch-test.py
   python3 scripts/cloudflare-sdk-consumer-test.py

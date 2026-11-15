@@ -304,8 +304,9 @@ jobs:
         run: |
           set -euo pipefail
           cp "$BUNDLE" target/cloudflare-permit/permit.sigstore.json
-          test -z "$(git ls-remote origin "refs/tags/cf-preview-$GITHUB_SHA")"
-          gh release create "cf-preview-$GITHUB_SHA" --target "$GITHUB_SHA" --prerelease --latest=false \
+          candidate_tag="cf-preview-${GITHUB_SHA}-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}"
+          test -z "$(git ls-remote origin "refs/tags/$candidate_tag")"
+          gh release create "$candidate_tag" --target "$GITHUB_SHA" --prerelease --latest=false \
             --title "Isolated preview ${GITHUB_SHA:0:12}" \
             --notes 'Candidate upload only. No production activation authorization.' \
             target/cloudflare-permit/sdk.zip target/cloudflare-permit/permit.json \
@@ -319,12 +320,14 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      actions: read
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: ${{ github.sha }}
       - name: Trigger exact-SHA candidate build after publication
         env:
+          GH_TOKEN: ${{ github.token }}
           CLOUDFLARE_EXPERIMENT_TOKEN: ${{ secrets.CLOUDFLARE_EXPERIMENT_TOKEN }}
         run: scripts/ci.sh gate cloudflare-candidate-dispatch
       - name: Preserve dispatch result for reconciliation

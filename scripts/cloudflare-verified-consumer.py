@@ -55,8 +55,7 @@ def main(policy=None, candidate=False):
     def fetch(name, limit):
         if time.monotonic()-started > 600 or shutil.disk_usage(work).free < 3*1024**3:
             raise RuntimeError('time/disk budget reached')
-        prefix = getattr(policy, 'RELEASE_PREFIX', 'cf-candidate')
-        url = f'https://github.com/j4ger/animatix/releases/download/{prefix}-{commit}/{name}'
+        url = f'https://github.com/j4ger/animatix/releases/download/{release_tag}/{name}'
         with urllib.request.build_opener(transport.HTTPSOnly()).open(url, timeout=30) as response:
             data = response.read(limit+1)
         if len(data)>limit:
@@ -68,13 +67,26 @@ def main(policy=None, candidate=False):
         os.environ.clear()
         os.environ.update(clean)
         latest()
-        permit_path = fetch('permit.json', 1024*1024)
-        bundle = fetch('permit.sigstore.json', 4*1024**2)
         bounded.run(['bash', 'scripts/cloudflare-attestation-tools.sh', str(work/'tools')], work, started)
         gh = work/'tools/gh_2.104.0_linux_amd64/bin/gh'
-        # Authenticate using the caller's compiled policy, never artifact-selected policy.
-        permit = policy.verify(permit_path, bundle, '.github/cloudflare/trusted-root.jsonl',
-                               gh, commit, latest())
+        candidate_policy = load('cloudflare-candidate') if candidate else None
+        tags = candidate_policy.release_tags(commit) if candidate else ['cf-candidate-'+commit]
+        permit = None
+        for release_tag in tags:
+            permit_path = fetch('permit.json', 1024*1024)
+            bundle = fetch('permit.sigstore.json', 4*1024**2)
+            try:
+                verified = policy.verify(permit_path, bundle, '.github/cloudflare/trusted-root.jsonl',
+                                         gh, commit, latest())
+                if candidate and candidate_policy.release_tag(verified) != release_tag:
+                    raise policy.PermitError('signed issuance does not match release tag')
+                permit = verified
+                break
+            except (policy.PermitError, subprocess.SubprocessError):
+                if not candidate:
+                    raise
+        if permit is None:
+            raise RuntimeError('no current valid signed permit issuance; renew signing job without rebuilding SDK')
         print('SIGNED_BUILD_ONLY_PERMIT_PASS', flush=True)
         archive = fetch('sdk.zip', 64*1024**2)
         sdk = permit['sdk']

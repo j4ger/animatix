@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import urllib.error
 import urllib.request
+import urllib.parse
 import uuid
 
 BUILD = 'bash scripts/ci.sh gate cloudflare-candidate-build'
@@ -71,11 +72,14 @@ class API:
         self.configuration = configuration
         self.token = token
 
-    def __call__(self, method, path, body=None):
+    def __call__(self, method, path, body=None, query=None):
         if not path.startswith('/') or '..' in path or '?' in path or '#' in path:
             raise ValueError('invalid API path')
         base = 'https://api.cloudflare.com/client/v4/accounts/'+self.configuration['account_id']
-        request = urllib.request.Request(base+path, method=method,
+        if query not in (None, {'include': 'modules'}):
+            raise ValueError('unreviewed control query')
+        url = base+path+('?' + urllib.parse.urlencode(query) if query else '')
+        request = urllib.request.Request(url, method=method,
                   data=None if body is None else canonical(body),
                   headers={'Authorization': 'Bearer '+self.token, 'Content-Type': 'application/json'})
         try:

@@ -30,7 +30,7 @@ and `gemini-proxy`; no dedicated preview upload token was available.
    digest/size, artifact ID, repository ID, exact source SHA and run/attempt.
    Enable repository variable `ANIMATIX_CF_CANDIDATE=enabled` only when ready for
    this validation. No reusable full-CI wrapper or `workflow_run` ambiguity.
-2. `cf-preview-<SHA>` is a non-latest prerelease. It contains the original ZIP,
+2. `cf-preview-<SHA>-r<RUN_ID>-a<ATTEMPT>` is a non-latest prerelease. It contains the original ZIP,
    schema-2 permit and Sigstore bundle. Existing tags are rejected. Storage can
    change; SHA256 and the signed permit are the trust boundary, not the tag.
 3. A **new** Workers Builds integration for `animatix-candidate-preview` checks
@@ -77,9 +77,13 @@ one bounded `CANDIDATE_UPLOAD_RECEIPT` containing the version ID, immutable URL,
 source SHA, permit/SDK/manifest digests and target Worker. The dispatcher retains
 this alongside the build UUID in the Actions recovery artifact.
 
-A dispatcher rerun cannot assume the previous POST failed: fresh POSTs on later
-GitHub run attempts are rejected. Recover the build UUID from the retained
-artifact and inspect it without rerunning CI or posting another build:
+A dispatcher rerun cannot assume the previous POST failed. Later attempts read
+complete authenticated per-attempt Actions job histories (`actions: read`),
+including every page. A fresh POST is allowed only when every earlier attempt
+proves the dispatch job or its exact trigger step was skipped, or the job was
+absent from a complete nonempty inventory. Missing history, an executed step,
+or an uncertain outcome blocks a new POST. Recover the build UUID from the
+retained artifact and inspect it without posting another build:
 
 ```sh
 python3 scripts/cloudflare-candidate-dispatch.py --resume-build BUILD_UUID
@@ -89,8 +93,15 @@ Run from the exact candidate checkout with the Builds-only token injected via
 `CLOUDFLARE_EXPERIMENT_TOKEN`. If the initial POST result was lost before its UUID
 was recorded, inspect Builds through the dashboard/API and establish the exact
 build before resuming; there is no automatic blind retry. Release publication
-is not overwritten on job reruns. This may require operator reconciliation, but
-does not authorize an activation or another expensive SDK build.
+is never overwritten. Rerun only the signing job to publish a new run/attempt
+issuance using the same retained SDK artifact, without rerunning the SDK CI.
+Discovery checks up to the newest eight issuances for the same exact SHA; each
+release tag must match its verified permit identity. Build and upload still
+enforce the current two-hour TTL. Late admission verifies the original signature
+and TTL at the authenticated Builds completion time, and requires the exact
+version creation time inside that authenticated build interval (at most 30
+minutes). Missing provider timestamps fail closed. Renewal does not authorize
+a blind retry of a potentially executed dispatch or any activation.
 
 The existing full CI still validates Astro locally. After remote acceptance is a
 required, reliably reported candidate gate, split its fast policy/content checks
@@ -293,3 +304,40 @@ workspace returned `uv_interface_addresses: Unknown system error 1`; the attempt
 HTTP smoke consequently had no server. No HTTP, browser, remote schema-2 signature,
 remote upload, activation or rollback pass is claimed. No full GitHub CI rerun
 was triggered merely to compensate for missing preview credentials.
+
+
+### Review fixes and first Worker initialization
+
+Wrangler 4.162.0 `versions upload` requires an existing Worker. Provisioning
+`animatix-candidate-preview` is a separate explicit operation, using a reviewed
+static forwarding module and no production domain/routes. Record its Worker tag
+and any initial deployment as the coordinator baseline before enabling Builds.
+Do not interpret a not-found response as an empty deployment inventory; do not
+silently substitute `wrangler deploy` in the candidate uploader. Creation needs
+product-level authority; an existing-Worker editor role and Builds user-token
+compatibility must be verified in the UI and by an actual isolated upload.
+
+The candidate config now uses an explicit, unbundled ASSETS forwarding module.
+Admission obtains deployed module bytes through the authenticated Workers API
+with `include=modules`, compares their independently pinned SHA256, and requires
+exactly the ASSETS binding and reviewed asset routing. Zero bindings or a fetch
+handler declaration alone is not evidence of static behavior. Unsupported API
+shape, missing content or timestamps blocks admission; the live endpoint and
+upload remain acceptance blockers until tested with the isolated Worker.
+
+The local lock serializes only processes using the same durable coordinator
+state directory. It cannot fence another deployment token, Dashboard operation,
+or a restored/cloned state directory. Exclusive writer ownership is an external
+installation prerequisite. Drift detection is diagnostic, not a Cloudflare-side
+CAS. Activation remains disabled if that ownership cannot be established; no
+production-safe global ordering claim is made.
+
+
+Review validation: `fmt`, `workflows`, `structure`, `doc-links`, and `site-build`
+passed after these fixes (8 review regressions and 17 coordinator/transport tests,
+plus the existing policy, packaging and Astro checks). Wrangler 4.162.0 local
+`deploy --dry-run` packaged the 238-file site fixture with only ASSETS. Its emitted
+`static-worker.js` exactly matched the reviewed source SHA256
+`2e35546260a53329466e6640dad5bc694c94391a7ea2e165f175c5b85a788517`.
+This is local packaging evidence, not a signed candidate upload or HTTP/browser
+acceptance. No remote deploy, DNS change, main merge or full CI rerun occurred.

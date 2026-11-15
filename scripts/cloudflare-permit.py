@@ -205,8 +205,12 @@ def verify_command(gh, permit, bundle, trusted_root, checkout_sha):
             "--predicate-type", PREDICATE, "--format", "json"]
 
 
-def verify(permit_path, bundle_path, trusted_root_path, gh_path, checkout_sha, latest_sha=None):
-    """Offline cryptographic verification with pre-provisioned trusted tooling."""
+def verify(permit_path, bundle_path, trusted_root_path, gh_path, checkout_sha, latest_sha=None, validation_time=None):
+    """Offline verification; historical time is allowed only from authenticated build evidence.
+
+    Build/upload callers omit validation_time and always enforce current TTL.
+    There is deliberately no CLI flag for overriding validation time.
+    """
     gh_path = Path(gh_path)
     require(gh_path.is_absolute() and gh_path.is_file() and os.access(gh_path, os.X_OK), "gh must be an absolute executable path")
     permit_bytes = read_limited(permit_path, 1024**2)
@@ -224,7 +228,7 @@ def verify(permit_path, bundle_path, trusted_root_path, gh_path, checkout_sha, l
                                 check=True, capture_output=True, timeout=60, env=env)
     require(len(result.stdout) <= 32*1024**2, "verification output exceeds limit")
     # Parse claims only AFTER gh authenticated the exact permit bytes.
-    permit = validate_permit(decode(permit_bytes), checkout_sha)
+    permit = validate_permit(decode(permit_bytes), checkout_sha, now=validation_time)
     validate_verified_output(decode(result.stdout), permit, permit_bytes)
     if latest_sha is not None:
         accept_result(latest_sha, permit["site_sha"])

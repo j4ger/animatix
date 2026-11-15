@@ -30,12 +30,13 @@ def tree(root):
 
 def config_check(config, policy):
     expected = {'$schema', 'name', 'account_id', 'compatibility_date', 'workers_dev',
-                'preview_urls', 'assets', 'observability'}
+                'preview_urls', 'assets', 'observability', 'main', 'no_bundle'}
     if set(config) != expected or config['name'] != policy.DESTINATION['worker'] \
             or config['account_id'] != policy.ACCOUNT or config['workers_dev'] is not False \
-            or config['preview_urls'] is not True or config['assets'] != {
+            or config['preview_urls'] is not True or config['main'] != 'web/deploy/static-worker.js' \
+            or config['no_bundle'] is not True or config['assets'] != {
                 'directory': './_site', 'html_handling': 'auto-trailing-slash',
-                'not_found_handling': '404-page'}:
+                'not_found_handling': '404-page', 'binding': 'ASSETS', 'run_worker_first': False}:
         raise ValueError('unexpected upload target, routes or asset settings')
 
 
@@ -66,6 +67,7 @@ def main():
         files = tree('_site')
         evidence = {'source_sha': commit, 'permit_sha256': hashlib.sha256((receipt/'permit.json').read_bytes()).hexdigest(),
                     'archive_sha256': permit['sdk']['archive_sha256'], 'files': files,
+                    'release_tag': load('cloudflare-candidate').release_tag(permit),
                     'worker': policy.DESTINATION['worker']}
         manifest = (json.dumps(evidence, sort_keys=True, separators=(',', ':'))+'\n').encode()
         manifest_path.write_bytes(manifest)

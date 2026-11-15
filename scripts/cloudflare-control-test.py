@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """Fault-injection tests for the real dispatcher, admission path and coordinator."""
+import base64
+import datetime
+import time
 import copy
 import hashlib
 import importlib.util
@@ -34,6 +37,9 @@ BUILD_ID = '10000000-0000-4000-8000-000000000003'
 VERSION = '20000000-0000-4000-8000-000000000001'
 SHA = 'a'*40
 BASELINE = '30000000-0000-4000-8000-000000000001'
+NOW = int(time.time())
+def iso(seconds):
+    return datetime.datetime.fromtimestamp(seconds, datetime.timezone.utc).isoformat()
 
 
 def trigger():
@@ -46,6 +52,7 @@ def trigger():
 
 def build():
     return dict(status='stopped', build_outcome='success', trigger=trigger(),
+                running_on=iso(NOW-100), stopped_on=iso(NOW-80),
                 build_trigger_metadata=dict(commit_hash=SHA, branch=c.BRANCH, build_command=c.BUILD,
                      deploy_command=c.UPLOAD, build_token_uuid=CONFIG['build_token_uuid'], root_directory='/',
                      provider_account_name='j4ger', repo_name='animatix', provider_type='github'))
@@ -60,14 +67,14 @@ class FakeAPI:
         self.build = build()
         self.trigger = trigger()
         self.receipt = dict(source_sha=SHA, worker=CONFIG['worker'], version_id=VERSION)
-        self.version_bindings = []
+        self.version_bindings = [{'type': 'assets', 'name': 'ASSETS'}]
 
     def apply(self, body):
         deployment = dict(body, id=f'30000000-0000-4000-8000-{len(self.deployments)+1:012d}')
         self.deployments.insert(0, deployment)
         return deployment
 
-    def __call__(self, method, path, body=None):
+    def __call__(self, method, path, body=None, query=None):
         self.calls.append((method, path, copy.deepcopy(body)))
         if method == 'GET' and path.endswith('/triggers'):
             return [self.trigger]
@@ -82,7 +89,11 @@ class FakeAPI:
         if method == 'GET' and '/builds/builds/' in path:
             return self.build
         if method == 'GET' and '/versions/' in path:
-            return {'id': path.rsplit('/', 1)[1], 'resources': {'bindings': self.version_bindings, 'script_runtime': {}}}
+            return {'id': path.rsplit('/', 1)[1], 'bindings': self.version_bindings, 'created_on': iso(NOW-90),
+                    'assets': {'config': {'html_handling': 'auto-trailing-slash', 'not_found_handling': '404-page', 'run_worker_first': False}},
+                    'main_module': 'static-worker.js', 'modules': [{'name': 'static-worker.js',
+                    'content_type': 'application/javascript+module',
+                    'content_base64': base64.b64encode(Path('web/deploy/static-worker.js').read_bytes()).decode()}]}
         if path.endswith('/deployments'):
             if method == 'GET':
                 return {'deployments': copy.deepcopy(self.deployments)}
@@ -331,9 +342,12 @@ class AdmissionTests(unittest.TestCase):
         with zipfile.ZipFile(stream, 'w') as archive:
             archive.writestr('runtime-manifest.json', sdk)
         archive = stream.getvalue()
-        permit = {'sdk': {'archive_sha256': hashlib.sha256(archive).hexdigest(), 'archive_size_bytes': len(archive)}}
+        permit = policy.emit(dict(repository_id=policy.REPOSITORY_ID, repository=policy.REPOSITORY, ref=policy.REF,
+                                  workflow=policy.WORKFLOW, site_sha=SHA, sdk_source_sha=SHA, producer_sha=SHA,
+                                  run_id=123, run_attempt=1, needs_ci_result='success', artifact_id=456,
+                                  archive_sha256=hashlib.sha256(archive).hexdigest(), archive_size_bytes=len(archive)), now=NOW-200)
         raw_permit = c.canonical(permit)
-        manifest = dict(source_sha=SHA, worker=CONFIG['worker'], permit_sha256=hashlib.sha256(raw_permit).hexdigest(),
+        manifest = dict(source_sha=SHA, worker=CONFIG['worker'], release_tag=c.load('cloudflare-candidate').release_tag(permit), permit_sha256=hashlib.sha256(raw_permit).hexdigest(),
                         archive_sha256=hashlib.sha256(archive).hexdigest(),
                         files={'runtime/runtime-manifest.json': hashlib.sha256(sdk).hexdigest()})
         receipt = {k: v for k, v in manifest.items() if k != 'files'}
@@ -352,18 +366,18 @@ class AdmissionTests(unittest.TestCase):
             calls.append((origin, manifest))
         fetch = lambda url, limit: data[url.rsplit('/', 1)[1]]
         digest, evidence = a.admit(api, CONFIG, BUILD_ID, '/pinned/gh', fetch=fetch,
-                                  check_http=check, verify_signature=lambda *args: permit)
+                                  check_http=check, verify_signature=lambda *args, **kwargs: permit)
         self.assertEqual(hashlib.sha256(c.canonical(evidence)).hexdigest(), digest)
         self.assertEqual(len(calls), 1)
         data['sdk.zip'] += b'tampered'
         with self.assertRaises(ValueError):
             a.admit(api, CONFIG, BUILD_ID, '/pinned/gh', fetch=fetch,
-                    check_http=check, verify_signature=lambda *args: permit)
+                    check_http=check, verify_signature=lambda *args, **kwargs: permit)
         self.assertEqual(len(calls), 1)
 
     def test_bad_signature_wrong_preview_and_truncated_logs_reject(self):
         api, data, permit = self.fixture()
-        def reject(*args):
+        def reject(*args, **kwargs):
             raise ValueError('invalid signature')
         with self.assertRaises(ValueError):
             a.admit(api, CONFIG, BUILD_ID, '/pinned/gh', fetch=lambda u, n: data[u.rsplit('/', 1)[1]],

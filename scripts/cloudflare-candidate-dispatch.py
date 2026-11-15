@@ -62,6 +62,47 @@ def inspect_build(api, config, sha, build_id, state_path, wait=time.sleep, clock
     raise RuntimeError('candidate wait timed out; resume inspection using recorded build UUID')
 
 
+def check_prior_dispatch(run_id, attempt, sha, read_api=None):
+    """Only prove non-execution from complete authenticated per-attempt job history."""
+    if not str(run_id).isdigit() or int(run_id) < 1 or not str(attempt).isdigit() or not 1 <= int(attempt) <= 50:
+        raise ValueError('invalid workflow invocation')
+    def read(path):
+        return json.loads(subprocess.check_output(['gh', 'api', '--hostname', 'github.com', path], text=True))
+    read = read_api or read
+    for previous in range(1, int(attempt)):
+        base = f'/repos/j4ger/animatix/actions/runs/{run_id}/attempts/{previous}'
+        run = read(base)
+        if run.get('id') != int(run_id) or run.get('run_attempt') != previous or run.get('head_sha') != sha \
+                or run.get('head_branch') != c.BRANCH or run.get('event') != 'push' \
+                or run.get('path') != '.github/workflows/ci.yml' or run.get('status') != 'completed' \
+                or run.get('repository', {}).get('id') != 1185977116:
+            raise ValueError('previous workflow identity/completion unavailable')
+        jobs, total = [], None
+        for page in range(1, 101):
+            result = read(base+f'/jobs?per_page=100&page={page}')
+            count, batch = result.get('total_count'), result.get('jobs')
+            if type(count) is not int or not 1 <= count <= 10000 or not isinstance(batch, list) \
+                    or not 1 <= len(batch) <= 100 or (total is not None and total != count):
+                raise ValueError('incomplete previous jobs inventory')
+            total = count
+            jobs.extend(batch)
+            if len(jobs) >= total:
+                break
+        if len(jobs) != total or len({job.get('id') for job in jobs}) != total:
+            raise ValueError('incomplete or duplicate previous jobs')
+        for job in jobs:
+            if job.get('run_id') != int(run_id) or job.get('head_sha') != sha or job.get('status') != 'completed':
+                raise ValueError('previous job identity/completion unavailable')
+            if job.get('name') != 'Dispatch isolated Cloudflare candidate':
+                continue
+            if job.get('conclusion') == 'skipped':
+                continue
+            steps = [step for step in job.get('steps', [])
+                     if step.get('name') == 'Trigger exact-SHA candidate build after publication']
+            if len(steps) != 1 or steps[0].get('status') != 'completed' or steps[0].get('conclusion') != 'skipped':
+                raise ValueError('previous dispatch may have executed; use read-only resume')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--resume-build', help='Read-only continuation; never sends a new POST')
@@ -72,8 +113,8 @@ def main():
         if os.environ.get('GITHUB_SHA') != sha or os.environ.get('GITHUB_REF') != 'refs/heads/'+c.BRANCH \
                 or os.environ.get('GITHUB_REPOSITORY') != 'j4ger/animatix':
             raise ValueError('dispatch workflow source mismatch')
-        if os.environ.get('GITHUB_RUN_ATTEMPT') != '1' and not args.resume_build:
-            raise ValueError('rerun cannot establish whether previous POST executed; use read-only resume')
+        if not args.resume_build:
+            check_prior_dispatch(os.environ.get('GITHUB_RUN_ID'), os.environ.get('GITHUB_RUN_ATTEMPT'), sha)
     elif not args.resume_build:
         raise ValueError('fresh dispatch is CI-only; local recovery requires --resume-build')
     api = c.API(config, os.environ.get('CLOUDFLARE_EXPERIMENT_TOKEN'))
