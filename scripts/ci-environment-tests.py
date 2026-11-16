@@ -121,6 +121,49 @@ class Environments(unittest.TestCase):
         self.assertIn("docker run", driver)
         self.assertNotIn("LD_LIBRARY_PATH", driver)
 
+    def test_reusable_ci_callers_only_pass_declared_inputs(self):
+        def body_after(lines, index):
+            indent = len(lines[index]) - len(lines[index].lstrip())
+            result = []
+            for line in lines[index + 1:]:
+                if line.strip() and not line.lstrip().startswith("#"):
+                    if len(line) - len(line.lstrip()) <= indent:
+                        break
+                result.append(line)
+            return result
+
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text().splitlines()
+        call = workflow.index("  workflow_call:")
+        declaration = body_after(workflow, call)
+        inputs = body_after(declaration, declaration.index("    inputs:"))
+        declared_inputs = {
+            line.strip().split(":", 1)[0]
+            for line in inputs
+            if line.startswith("      ") and not line.startswith("       ")
+            and not line.lstrip().startswith("#") and ":" in line
+        }
+        self.assertTrue(declared_inputs, "reusable CI must declare its input interface")
+        callers = 0
+        for path in (ROOT / ".github/workflows").glob("*.yml"):
+            lines = path.read_text().splitlines()
+            for index, line in enumerate(lines):
+                if not line.startswith("  ") or line.startswith("   ") or line.lstrip().startswith("#"):
+                    continue
+                job = body_after(lines, index)
+                if "    uses: ./.github/workflows/ci.yml" not in job:
+                    continue
+                callers += 1
+                for offset, candidate in enumerate(job):
+                    if candidate == "    with:":
+                        supplied = {
+                            entry.strip().split(":", 1)[0]
+                            for entry in body_after(job, offset)
+                            if entry.strip() and not entry.lstrip().startswith("#")
+                            and len(entry) - len(entry.lstrip()) == 6 and ":" in entry
+                        }
+                        self.assertLessEqual(supplied, declared_inputs, f"undeclared CI inputs in {path.name}")
+        self.assertGreater(callers, 0, "CI caller scan must not be vacuous")
+
     def test_generated_doc_root_only(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

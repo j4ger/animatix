@@ -1,0 +1,75 @@
+name: Cloudflare signed SDK experiment
+on:
+  push:
+    branches: [experiment/cloudflare-native-build]
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+# Serialization reduces duplicate work, but does NOT imply commit ordering.
+concurrency:
+  group: cloudflare-signed-sdk-experiment
+  cancel-in-progress: false
+jobs:
+  ci:
+    if: ${{ github.repository == 'j4ger/animatix' && github.ref == 'refs/heads/experiment/cloudflare-native-build' && vars.ANIMATIX_CF_EXPERIMENT == 'enabled' }}
+    uses: ./.github/workflows/ci.yml
+    with:
+      checkout-ref: ${{ github.sha }}
+  authorize:
+    needs: ci
+    if: ${{ needs.ci.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+      - name: Reject superseded request
+        run: test "$(git ls-remote origin refs/heads/experiment/cloudflare-native-build | cut -f1)" = "$GITHUB_SHA"
+      - name: Prepare original CI SDK and permit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEEDS_CI_RESULT: ${{ needs.ci.result }}
+        run: scripts/ci.sh gate cloudflare-sdk-publish
+      - name: Attest the acceptance permit
+        id: attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+        with:
+          subject-path: target/cloudflare-permit/permit.json
+      - name: Publish isolated, non-latest candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/experiment/cloudflare-native-build | cut -f1)" = "$GITHUB_SHA"
+          cp "$BUNDLE" target/cloudflare-permit/permit.sigstore.json
+          # Refuse a pre-existing tag as well as a pre-existing release.
+          existing_tag="$(git ls-remote origin "refs/tags/cf-candidate-$GITHUB_SHA")"
+          test -z "$existing_tag"
+          gh release create "cf-candidate-$GITHUB_SHA" \
+            --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "Cloudflare build-only candidate ${GITHUB_SHA:0:12}" \
+            --notes 'Signed experiment permit and original CI SDK. No production deployment authorization.' \
+            target/cloudflare-permit/sdk.zip target/cloudflare-permit/permit.json \
+            target/cloudflare-permit/permit.sigstore.json
+          published_tag="$(git ls-remote origin "refs/tags/cf-candidate-$GITHUB_SHA")"
+          test "$(printf '%s\n' "$published_tag" | cut -f1)" = "$GITHUB_SHA"
+      - name: Trigger exact-SHA isolated Cloudflare build
+        env:
+          CLOUDFLARE_EXPERIMENT_TOKEN: ${{ secrets.CLOUDFLARE_EXPERIMENT_TOKEN }}
+        run: scripts/ci.sh gate cloudflare-sdk-dispatch
+      - name: Retain non-sensitive recovery baseline
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cloudflare-dispatch-recovery
+          path: target/cloudflare-dispatch-baseline.json
+          if-no-files-found: ignore
+          retention-days: 7

@@ -1,0 +1,10 @@
+{
+  "enabled": false,
+  "account_id": "65bc5958d8a01d7a1d9b7c326b244406",
+  "worker": "animatix-candidate-preview",
+  "worker_tag": "2084ce245de94d90aa46f7e33f8303c4",
+  "trigger_uuid": "afb53392-b40b-4a76-b9f9-71fd2bb3ffc1",
+  "build_token_uuid": "c863eb06-126a-42e1-8649-88d7b85dd7ea",
+  "workers_subdomain": "j4ger",
+  "repo_connection_uuid": "06316b53-a8a0-4a6f-ace9-14ca28076d74"
+}

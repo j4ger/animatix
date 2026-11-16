@@ -11,7 +11,7 @@ on:
   # never. The commit gate takes the previous tip from the event to bound its
   # range; see gate_commit in scripts/ci.sh.
   push:
-    branches: [main]
+    branches: [main, feat/cloudflare-candidate-preview, feat/cloudflare-pages]
   workflow_call:
     inputs:
       checkout-ref:
@@ -185,3 +185,136 @@ jobs:
         env:
           ANIMATIX_CI_NEEDS: ${{ toJSON(needs) }}
         run: scripts/ci.sh gate ci-result
+
+  # Optional experimental ancestors may be skipped. Override implicit success(),
+  # while requiring the aggregate CI result and respecting cancellation.
+  cloudflare_candidate:
+    name: Sign isolated Cloudflare candidate
+    needs: required
+    if: ${{ !cancelled() && needs.required.result == 'success' && github.event_name == 'push' && github.repository == 'j4ger/animatix' && github.ref == 'refs/heads/feat/cloudflare-candidate-preview' && vars.ANIMATIX_CF_CANDIDATE == 'enabled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+      - name: Verify this run's original Nix SDK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEEDS_CI_RESULT: ${{ needs.required.result }}
+        run: scripts/ci.sh gate cloudflare-candidate-publish
+      - name: Sign candidate-only permit
+        id: attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+        with:
+          subject-path: target/cloudflare-permit/permit.json
+      - name: Retain signed candidate for Cloudflare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          cp "$BUNDLE" target/cloudflare-permit/permit.sigstore.json
+          candidate_tag="cf-preview-${GITHUB_SHA}-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}"
+          test -z "$(git ls-remote origin "refs/tags/$candidate_tag")"
+          gh release create "$candidate_tag" --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "Isolated preview ${GITHUB_SHA:0:12}" \
+            --notes 'Candidate upload only. No production activation authorization.' \
+            target/cloudflare-permit/sdk.zip target/cloudflare-permit/permit.json \
+            target/cloudflare-permit/permit.sigstore.json
+
+  cloudflare_candidate_dispatch:
+    name: Dispatch isolated Cloudflare candidate
+    needs: cloudflare_candidate
+    if: ${{ !cancelled() && needs.cloudflare_candidate.result == 'success' && vars.ANIMATIX_CF_PREVIEW_DISPATCH == 'enabled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+      - name: Trigger exact-SHA candidate build after publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLOUDFLARE_EXPERIMENT_TOKEN: ${{ secrets.CLOUDFLARE_EXPERIMENT_TOKEN }}
+        run: scripts/ci.sh gate cloudflare-candidate-dispatch
+      - name: Preserve dispatch result for reconciliation
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cloudflare-candidate-dispatch
+          path: target/cloudflare-candidate-dispatch.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+  cloudflare_pages:
+    name: Sign Cloudflare Pages SDK
+    needs: required
+    if: ${{ !cancelled() && needs.required.result == 'success' && github.event_name == 'push' && github.repository == 'j4ger/animatix' && github.ref == 'refs/heads/main' && vars.ANIMATIX_CF_PAGES == 'enabled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+      - name: Verify this run's original Nix SDK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEEDS_CI_RESULT: ${{ needs.required.result }}
+        run: scripts/ci.sh gate cloudflare-pages-publish
+      - name: Sign Pages permit
+        id: attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+        with:
+          subject-path: target/cloudflare-permit/permit.json
+      - name: Retain signed candidate for Cloudflare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          cp "$BUNDLE" target/cloudflare-permit/permit.sigstore.json
+          candidate_tag="cf-pages-${GITHUB_SHA}-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}"
+          test -z "$(git ls-remote origin "refs/tags/$candidate_tag")"
+          gh release create "$candidate_tag" --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "Pages candidate ${GITHUB_SHA:0:12}" \
+            --notes 'Signed static build for animatix-pages; publish only through the controlled deploy/pages branch.' \
+            target/cloudflare-permit/sdk.zip target/cloudflare-permit/permit.json \
+            target/cloudflare-permit/permit.sigstore.json
+
+
+
+  cloudflare_pages_release:
+    name: Publish verified Pages release
+    needs: cloudflare_pages
+    if: ${{ !cancelled() && needs.cloudflare_pages.result == 'success' && vars.ANIMATIX_CF_PAGES_RELEASE == 'enabled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    concurrency:
+      group: cloudflare-pages-sole-publisher
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+      - name: Reconcile then publish one signed main commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLOUDFLARE_PAGES_TOKEN: ${{ secrets.CLOUDFLARE_PAGES_TOKEN }}
+          NEEDS_PAGES_SIGN_RESULT: ${{ needs.cloudflare_pages.result }}
+        run: scripts/ci.sh gate cloudflare-pages-release

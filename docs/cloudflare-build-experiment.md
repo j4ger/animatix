@@ -1,0 +1,252 @@
+# Cloudflare native-build experiment
+
+This is a separate, non-deploying experiment. It does not change GitHub Pages,
+the prepared Pages Direct Upload workflow, DNS, or the production domain.
+
+## First run: inspect the host
+
+The Cloudflare form with **Build command**, **Deploy command** and **Preview
+command** is Workers Builds, not Pages. Use a new disposable Worker project,
+not the production application. Connecting GitHub grants Cloudflare access;
+select only `j4ger/animatix`. Project creation may also create a Cloudflare
+deployment token even though this probe itself needs no secret. Review that
+authorization in Cloudflare rather than assuming the whole setup is read-only.
+
+The experimental branch must first exist on GitHub. It is deliberately **not
+pushed automatically**. After explicitly publishing it, use:
+
+| Field | Value |
+| --- | --- |
+| Project | `animatix-build-probe` (or an unused experiment name) |
+| Branch | `experiment/cloudflare-native-build` |
+| Root directory | repository root |
+| Build command | `bash scripts/cloudflare-build-experiment.sh probe` |
+| Deploy command | `printf 'Probe only: deployment intentionally disabled\n'` |
+| Preview command | `printf 'Probe only: deployment intentionally disabled\n'` |
+| Build variable | `SKIP_DEPENDENCY_INSTALL=1` |
+
+Do not bind the production domain or add user secrets. Do not leave the default
+`npx wrangler deploy` command: that could invoke automatic configuration or a
+real deployment. A no-op deploy may cause the platform to report no deployed
+version; the probe log, not a deployment badge, is the result of this stage.
+If the onboarding UI refuses a no-op deploy, stop rather than deploying dummy
+content under a production project.
+
+`probe` performs no installation or file changes. It reports numeric UID/GID,
+architecture, CPU count, memory/disk capacity, writable-directory flags and tool
+availability. It never prints the environment, credentials, account data,
+home-directory names or configuration files. Finding `sudo` does not prove
+that privilege escalation is allowed; the script does not invoke it.
+
+## Later stages: do not enable blindly
+
+Keep the no-op Deploy/Preview commands. Replace only the Build command's final
+argument after reviewing each preceding result:
+
+| Stage | Evidence | Bound |
+| --- | --- | --- |
+| `probe` | Basic host and tool availability | No network or install |
+| `nix` | Existing Nix can enter pinned `.#web-build`, including wasm std | 5 min |
+| `sdk` | Build SDK and verify its current commit/version | 17.5 min |
+| `site` | Build SDK and assemble/preflight `_site` in this same job | 17.5 min |
+
+The `site` stage is self-contained: a new Cloudflare build need not retain the
+previous stage's SDK. All build stages require a clean checkout, preserve
+`flake.lock`, and use the existing Nix shell. No unpinned installer, system
+configuration change, `sudo`, secret, Wrangler invocation or automatic deploy
+is performed. Non-probe stages fetch dependencies normally through Nix/npm/Cargo.
+
+Nix is **not documented as preinstalled**. If absent, later stages fail with a
+clear blocker. A bootstrap must be chosen after seeing the actual host:
+confirm a permitted writable store, then pin the official installer/archive
+version and checksum before executing it. Do not use a mutable `curl | sh`,
+change host isolation, or pretend setting `IN_NIX_SHELL` installs dependencies.
+The probe intentionally does not test namespace mounts or request privileges.
+
+## Acceptance and limits
+
+Record a genuinely empty-cache run and a repeated run. The local 130-second SDK
+build was warm and is not a Cloudflare cold-build prediction. Logs include stage
+wall time; monitor Cloudflare for memory/disk failures. Set a target comfortably
+below the platform's 20-minute limit (preferably 12–15 minutes cold).
+
+Workers Builds Free currently provides 2 vCPU, 8 GB RAM, 20 GB disk, one concurrent
+build and 3,000 build minutes/month. Pages is a different product with 500 free
+builds/month. Do not transfer resource assumptions between them. Neither Nix
+store nor Cargo target persistence is guaranteed by the Pages cache contract.
+
+These stages do **not** replace full CI, browser/WebGPU verification, scene
+acceptance, same-SHA CI gating, custom-domain verification, or production rollout.
+There is no Workers hosting config in this experiment. A successful static build
+is only a decision point for implementing one later.
+
+## References
+
+- [Workers build configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)
+- [Workers build image](https://developers.cloudflare.com/workers/ci-cd/builds/build-image/)
+- [Workers limits](https://developers.cloudflare.com/workers/ci-cd/builds/limits-and-pricing/)
+- [Pages build image](https://developers.cloudflare.com/pages/configuration/build-image/)
+- [Pages caching](https://developers.cloudflare.com/pages/configuration/build-caching/)
+
+## Verified rootless bootstrap experiment
+
+The observed Workers host has no writable `/nix` and no sudo, but permits
+unprivileged user/mount namespaces. `scripts/cloudflare-nix-bootstrap.py` tests
+that route without modifying the host store or security settings. Build command:
+
+```sh
+python3 scripts/cloudflare-nix-bootstrap.py; exit 1
+```
+
+It downloads only official Nix **2.34.9**, verifies the hard-coded SHA256 before
+extracting/executing, and assembles a temporary root. Source checksum:
+<https://releases.nixos.org/nix/nix-2.34.9/nix-2.34.9-x86_64-linux.tar.xz.sha256>.
+No daemon, installer, profile changes, system users, or credentials are created.
+The current unprivileged host UID maps to UID 0 **inside the child namespace
+only**; this is not host root. The stage refuses execution in its parent
+namespaces or with a host-root mapping. System program directories are read-only
+mounts; procfs is a fresh read-only mount inside a separate PID namespace, not
+a remount of host proc. Only null/zero/random host device handles are exposed;
+Nix receives a separate devpts instance limited to 32 PTYs with mode 0600,
+not the host's terminals. The host's
+`/etc` is not mounted: the temporary root receives only its resolver and public
+CA certificate bundle, plus generated minimal account/name-service files.
+
+The experiment enters the pinned `.#web-build` shell and checks Rust, wasm std,
+Node, wasm-bindgen, wasm-opt and zopfli. It does not compile the full SDK or run
+browser acceptance. The supervisor starts only with 6 GiB free, stops after
+15 minutes or below 3 GiB free, and terminates the entire child process group.
+There is no disabled sandbox or relaxed signature policy. Host resources remain
+restricted by Cloudflare even inside the child namespace. It always exits 1,
+including on success, to prevent the deployment stage. Read the explicit
+`BOOTSTRAP_AND_DEVSHELL_PASS` or `BOOTSTRAP_BLOCKED` evidence in logs.
+
+### Upstream portable runtime probe
+
+The next isolated probe uses `python3 scripts/cloudflare-nix-portable.py; exit 1`.
+It uses upstream [nix-portable v012](https://github.com/DavHau/nix-portable/releases/tag/v012),
+not the project's moving main branch. The downloaded x86_64 executable contains
+its native Nix runtime (release source commit `7eba433355a83acff4d0081bb4a59088e8293ea7`).
+Its SHA256 is pinned in the script after downloading from the upstream HTTPS release.
+The release provides neither an independent checksum/signature nor a GitHub asset
+digest: this pin prevents later drift, but is not publisher signature verification.
+
+Unlike upstream defaults, this probe explicitly enables Nix sandboxing and forces
+`NP_RUNTIME=nix`. It never falls back to bwrap/proot, changes host security settings,
+or inherits credentials/debug overrides. A fresh temporary HOME/store is used.
+The existing 15-minute process-group timeout and 3 GiB free-space floor apply;
+startup requires 6 GiB free. Version then the locked `web-build` shell are tested.
+Every result exits 1 to prevent deployment. Runtime incompatibility or denied
+sandbox operations are stop conditions, not grounds to disable sandboxing.
+
+### Same-SHA CI SDK consumer (no engine rebuild)
+
+`cloudflare-sdk-consumer.py` is an external experiment harness: download it to a
+private temporary directory, verify its pinned SHA256, and run from a clean
+checkout of the exact successful main CI SHA. Do not copy it into that checkout's
+tracked/input directories, since doing so changes the SDK input fingerprint.
+It independently validates the requested successful main push CI run and artifact
+provenance. The default transport expects an experimental Release ZIP that must
+match the GitHub Actions artifact digest exactly; no such release is created by
+the script. `--site-manifest-sha` instead permits a one-off public-site transport,
+anchored to a manifest hash obtained from an independently downloaded and
+platform-digest-verified CI ZIP. It verifies every public file against that pinned
+manifest. This mode is a controlled proof, NOT the future immutable distribution
+or trust architecture. A stale/unavailable live site fails closed.
+
+The consumer preserves the original SDK, checks its input fingerprint and exact
+source commit, then runs the existing Astro assembly/validation and Cloudflare
+static limits checker. It installs no Rust/Nix, never changes DNS/deploy settings,
+uses a fresh credential-free child environment, stops after 10 minutes or below
+3 GiB free, and always exits 1. The only API-triggered build in this proof checks
+out the exact already-successful CI commit; Git auto-trigger filtering stays on
+the experiment branch. Afterward restore the lightweight capability probe.
+
+First Release-transport proof verified successful same-SHA CI and the exact ZIP
+digest in Cloudflare. It then stopped because its clean HOME hid the platform's
+Node shim configuration. Select `NODE_VERSION=24.14.0` for this experiment and
+resolve the actual Node executable before clearing the environment; only its bin
+directory is carried into the clean child PATH. No host credentials or version
+manager settings are copied. Restore the temporary build variable afterward.
+
+The next run reached the pinned Node runtime but the shared Cloudflare egress hit
+GitHub's anonymous API rate limit. Do not repeatedly retry the API. The explicitly
+named `--offline-proof` mode is restricted to one controller-verified fixture:
+main `f42c2cf33d923875041f23c86498a7b2f2a45ae3`, successful CI run `43685448863`,
+artifact `14150447856`, ZIP SHA256
+`0b187f151c29265f1f4a886bcc3046b7f2d742e6cbc1a0948620d94daac7254c`.
+It makes no GitHub API calls, accepts no arbitrary digest, and still verifies the
+Release bytes and source fingerprint/commit before assembling the site. This is
+an offline controlled experiment, not production authorization or signed
+provenance. The experimental Release reports `immutable=false`; its mutable
+storage is not trusted in place of the pinned digest. Production needs a genuine
+CI-issued, authenticated release permit and stale-deployment protection.
+
+## Signed automatic build-only candidate (disabled until provisioned)
+
+The `Cloudflare signed SDK experiment` wrapper is restricted to this repository
+and the experiment branch. It only runs when repository variable
+`ANIMATIX_CF_EXPERIMENT=enabled`; the default is off. It invokes the full existing
+CI as a reusable workflow at `github.sha`, then a separate publisher runs only
+when `needs.ci.result == success`. There is no `workflow_run` SHA ambiguity.
+
+The publisher downloads this run's original `web-runtime` ZIP through the
+GitHub API, checks its API digest and same-repository/SHA provenance, safely
+extracts it, and checks the SDK fingerprint, exact commit and clean-source flag.
+It signs a two-hour, build-only permit using GitHub OIDC attestations. The permit
+binds the repository numeric ID, workflow/ref/SHA, run/attempt, artifact ID,
+archive digest/size, and the specific isolated Cloudflare account/trigger.
+The `cf-candidate-<SHA>` prerelease is non-latest and never overwritten. It contains
+the exact CI ZIP, permit and detached attestation bundle. Release storage is NOT
+assumed immutable; the signed digest is the integrity boundary.
+
+Cloudflare gets no GitHub token. Its consumer pins the official GitHub CLI and an
+independently reviewed TUF trusted-root snapshot, verifies the permit offline,
+then checks certificate repository ID, signer/source identity, hosted runner and
+run invocation. Only then does it consume permit fields, download the SDK, verify
+all bytes and current inputs, and build/check Astro. It still always exits 1.
+A success marker means a candidate passed, never that production was deployed.
+
+### Credentials and operational boundaries
+
+Automatic dispatch requires a user-provisioned `CLOUDFLARE_EXPERIMENT_TOKEN`
+GitHub Actions secret with the user-scoped Workers Builds API permissions
+(`Workers Builds Configuration: Edit` in the token UI; API permission
+`Workers CI Write`, which also permits the necessary reads) for the intended
+account only. This is an account-scoped resource grant on a user-owned token,
+NOT a guarantee that the token cannot manage other Workers Builds in that
+account. No Workers Scripts, DNS, Routes, KV or R2 permissions are needed.
+Prefer a short expiration for the experiment. Never put this
+value in source, logs, messages, or a release. No existing token is assumed and
+no credential is created by these scripts. The account and experimental trigger
+are fixed in policy. The dispatcher only accesses Builds endpoints, snapshots
+and restores the build command and temporary Node version, polls within a bound,
+and cancels unfinished known builds on failure. An ambiguous POST is not retried.
+An ambiguous operation or interrupted runner can require operator reconciliation;
+restoration is not a claim of guaranteed recovery after machine loss.
+
+The dispatcher and consumer reject a candidate whose SHA is no longer the
+experiment branch head, including an older successful build finishing later.
+Pure tests cover this stale-result case. These are freshness checks, NOT an
+atomic deployment transaction: a new commit can arrive after a check. Concurrency
+serialization is only a work-reduction tool and does not guarantee commit order.
+There is deliberately no production activation endpoint. Production requires a
+single fenced/monotonic promotion coordinator (or an equivalent atomic control),
+not enabling automatic deploy after the last comparison.
+
+### Validation status
+
+The earlier unsigned fixed-fixture proof fully built Astro from the exact CI SDK
+in Cloudflare in 25 seconds. That proves transport/build feasibility only.
+The signed automatic workflow and real positive attestation verification passed
+on 2026-11-15: GitHub run 43704875414 and Cloudflare build
+41f64d9b-d64b-41d5-a644-a382c3c0ce22 (28 seconds, intentional exit 1).
+See [Workers candidate migration](cloudflare-workers.md) for the separate next stage. Local permit/dispatch tests include negative signatures/policy,
+wrong SHA/repository/run, expiry, missing credentials, stale completion and
+configuration restoration. Mocked tests alone must not be reported as real signature evidence.
+
+Do not enable the repository switch before the disabled experiment branch is
+reviewed and saved. Since this workflow is not on the default branch, do not
+assume the Actions Run workflow button is available. Once the user provisions
+the secret and switch, a deliberately reviewed experiment-branch push triggers
+the test. Turn off the switch and revoke the short-lived token afterward.

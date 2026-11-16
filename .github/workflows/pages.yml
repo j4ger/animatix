@@ -2,10 +2,6 @@
 name: Deploy site to GitHub Pages
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    branches: [main]
-    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -25,7 +21,7 @@ env:
 
 jobs:
   build:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ vars.ANIMATIX_GH_PAGES_FALLBACK == 'enabled' }}
     runs-on: ubuntu-latest
     env:
       ANIMATIX_ARTIFACT_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
