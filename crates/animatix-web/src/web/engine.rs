@@ -189,6 +189,7 @@ pub async fn create_player(canvas: HtmlCanvasElement) -> Result<AmxPlayer, JsErr
             font_context: None,
             modules: Vec::new(),
             vars: Vec::new(),
+            runtime_inputs: animatix::timeline::RuntimeInputs::default(),
             quality: BuildQuality::Draft,
             offscreen: None,
             offscreen_to: None,
@@ -203,7 +204,7 @@ pub async fn create_player(canvas: HtmlCanvasElement) -> Result<AmxPlayer, JsErr
             render_scale: 0.85,
             scaled: vello::Scene::new(),
             dedup: animatix::timeline::frame_signature::FrameDedup::new(),
-            document_generation: 0,
+            render_generation: 0,
             frames_drawn: 0,
             frames_deduped: 0,
         })

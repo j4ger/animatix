@@ -69,6 +69,9 @@ evidence backlog; reproduce them against current code before assigning fixes.
   Extend existing `--set` / `data-vars` / `setVars()` semantics to multi-scene
   compositions with defined precedence and import/component scoping. Keep one
   validation contract across CLI, GUI and web; do not introduce parallel schemas.
+  The engine now has a narrower single-scene `runtime_inputs` allowlist for finite
+  numeric read-only frame snapshots; typed work-level defaults, bounds, enums,
+  structured values and multi-scene scoping remain part of this phase.
 - **Phase B: author and preview.** Author inputs in code and expose read-only
   inspection in the workbench; add JSON/CSV ingestion, data preview and
   field/row-specific diagnostics. Support

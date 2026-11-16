@@ -102,6 +102,7 @@ pub fn build_prepared(
                 missing_imports: analysis.missing_imports.clone(),
                 markers: Vec::new(),
                 pause_points: Vec::new(),
+                runtime_inputs: Vec::new(),
             },
         };
     }
@@ -133,6 +134,14 @@ pub fn build_prepared(
     let markers = timeline_markers(&prepared.syntax.expanded, &target);
     let pause_points = target.pause_points().iter().map(|&ms| ms as f64 / 1000.0).collect();
     let ok = !diagnostics.iter().any(|d| d.severity == "error");
+    let runtime_inputs = if ok {
+        match &target {
+            BuildTarget::SingleScene(timeline) => timeline.runtime_input_names().to_vec(),
+            BuildTarget::MultiScene(_) => Vec::new(),
+        }
+    } else {
+        Vec::new()
+    };
     BuiltDocument {
         target: ok.then_some(target),
         result: LoadResultDto {
@@ -145,6 +154,7 @@ pub fn build_prepared(
             missing_imports: Vec::new(),
             markers,
             pause_points,
+            runtime_inputs,
         },
     }
 }

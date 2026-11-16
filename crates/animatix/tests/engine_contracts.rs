@@ -12,5 +12,7 @@ mod ir_opt_tests;
 mod ir_tests;
 mod layout_invalidation_contract;
 mod module_tests;
+mod painter_order_annotations;
 mod plot_params_tests;
+mod semantic_regression;
 mod svg_import_tests;

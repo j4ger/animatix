@@ -4,7 +4,7 @@
 use animatix::composition::BuildTarget;
 use animatix::timeline::effects::FilterBackend;
 use animatix::timeline::frame_signature::FrameSignature;
-use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
+use animatix::timeline::{DebugRenderOptions, RuntimeInputs, SceneDimensions, Timeline};
 use animatix_render::core::RendererCore;
 use animatix_render::filter_backend::GpuFilterBackend;
 use animatix_render::offscreen::{RasterFit, rasterize_scene, rasterize_scene_and_present};
@@ -62,7 +62,9 @@ impl AmxPlayer {
             raster_height,
             surface_width,
             surface_height,
-            document_generation: self.document_generation,
+            // This Web revision covers both installs and input snapshots; the
+            // shared signature has one generation slot for either change.
+            document_generation: self.render_generation,
             content_epoch: self.target.as_ref().map_or(0, BuildTarget::content_epoch),
             // The web player has no debug overlays; a driver that can toggle
             // them names them here instead.
@@ -136,6 +138,7 @@ impl AmxPlayer {
             scratch: &mut self.scaled,
             compositor: self.compositor.as_ref(),
             target: self.target.as_ref(),
+            runtime_inputs: &self.runtime_inputs,
             time_s,
         };
         let frame_result = render_document_for_surface(
@@ -190,6 +193,9 @@ pub(super) struct FrameCtx<'a> {
     pub(super) compositor: Option<&'a TransitionCompositor>,
     /// The document being drawn, or `None` when nothing is loaded.
     pub(super) target: Option<&'a BuildTarget>,
+    /// Current validated scalar overlay; multi-scene documents always carry an
+    /// empty snapshot because the Web v1 API rejects their runtime input calls.
+    pub(super) runtime_inputs: &'a RuntimeInputs,
     pub(super) time_s: f64,
 }
 
@@ -503,7 +509,9 @@ fn render_timeline(
     // program and keep their existing call.
     let presentation = suppressed.is_empty();
     let scene = if presentation {
-        timeline.evaluate_for_presentation(time_s, ctx.dims, &mut fb)
+        timeline
+            .evaluate_for_presentation_with_inputs(time_s, ctx.dims, &mut fb, ctx.runtime_inputs)
+            .map_err(|error| error.to_string())?
     } else {
         timeline
             .evaluate_program_with_suppressed(

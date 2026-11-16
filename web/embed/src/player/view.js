@@ -718,6 +718,42 @@ export class AmxPlayerView extends AmxPlayerBase {
     return promise;
   }
 
+  /// Replace the complete live scalar input snapshot and redraw at the current
+  /// playhead. Unlike `setVars`, this does not rebuild the document: the engine
+  /// resolves these values as a read-only overlay on every evaluated frame.
+  setInputs(obj) {
+    if (this._destroyed) throw cancellationError("Player destroyed");
+    if (this._state !== "ready" || !this._player) {
+      throw playerError(new Error("setInputs requires a loaded scene"), "build");
+    }
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
+      throw playerError(new TypeError("setInputs expects an object of name -> finite number"), "build");
+    }
+
+    // The wasm boundary validates the whole snapshot (finite numbers, the
+    // document's input whitelist, and the single-scene v1 limit) before it
+    // changes player state. Only a committed input edit invalidates held-frame
+    // dedup or asks the shell to draw again.
+    this._player.set_inputs(obj);
+    this._invalidateRestFrame();
+    this._renderScene();
+  }
+
+  /// Remove every live input override so the frame-time drivers resume.
+  clearInputs() {
+    if (this._destroyed) throw cancellationError("Player destroyed");
+    if (arguments.length !== 0) {
+      throw playerError(new TypeError("clearInputs does not accept names; it clears the full input snapshot"), "build");
+    }
+    if (this._state !== "ready" || !this._player) {
+      throw playerError(new Error("clearInputs requires a loaded scene"), "build");
+    }
+
+    this._player.clear_inputs();
+    this._invalidateRestFrame();
+    this._renderScene();
+  }
+
   /// A copy of the vars in effect — the `data-vars` base plus every `setVars`
   /// merge — for a page reading back what it last set.
   get vars() {

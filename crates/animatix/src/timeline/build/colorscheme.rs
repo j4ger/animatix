@@ -42,6 +42,15 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         for setting in settings {
+            if setting.name == "runtime_inputs" {
+                self.runtime_input_names = super::runtime_input_config::parse_runtime_input_names(
+                    &setting.value,
+                    &self.env,
+                    diagnostics,
+                );
+                continue;
+            }
+
             if setting.name == "dynamic_layout" {
                 self.dynamic_layout = match &setting.value {
                     Expr::Bool(b) => *b,

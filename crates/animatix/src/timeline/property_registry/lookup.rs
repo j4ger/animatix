@@ -344,6 +344,7 @@ mod tests {
             "color",
             "stroke",
             "stroke_width",
+            "stroke_progress",
             "width",
             "fill_opacity",
             "language",

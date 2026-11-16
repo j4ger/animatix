@@ -554,6 +554,7 @@ fn ast_only_variants_still_print_their_content() {
 
     let block = Stmt::Block {
         instance_scope: None,
+        time_scope: None,
         body: vec![Stmt::Comment(" inside".into(), None)],
         span: None,
     };

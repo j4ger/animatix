@@ -1,6 +1,7 @@
 use super::*;
 
 use crate::ast::{ParamDef, TypeAnnotation};
+use std::path::PathBuf;
 
 fn make_action(verb: &str, target: &str, modifiers: Vec<Modifier>) -> Stmt {
     Stmt::Action(
@@ -160,6 +161,164 @@ fn arg_call_expands_positional_params() {
 }
 
 #[test]
+fn actor_parameter_targets_substitute_recursively_inside_local_keyframes() {
+    let template = template_with(
+        vec![ParamDef {
+            name: "dot".to_string(),
+            param_type: None,
+            default: None,
+        }],
+        vec![Stmt::Keyframe {
+            time: crate::ast::Time::Milliseconds(0),
+            body: vec![
+                make_assignment("dot", "at", Expr::Num(1.0)),
+                Stmt::Always {
+                    body: vec![make_assignment("dot", "at", Expr::Num(2.0))],
+                    span: None,
+                },
+            ],
+            span: None,
+        }],
+    );
+    let module_fns: HashMap<String, FnTemplate> =
+        [("ticker".to_string(), template)].into_iter().collect();
+    let result = expand_fn_calls(
+        vec![make_arg_call("ticker", vec![Expr::Ident("needle".into())])],
+        &HashMap::new(),
+        &module_fns,
+        &mut Vec::new(),
+    );
+
+    let [Stmt::Block { body, .. }] = result.as_slice() else {
+        panic!("expected one expanded function block, got {result:?}")
+    };
+    let [
+        Stmt::Keyframe {
+            body: frame_body, ..
+        },
+    ] = body.as_slice()
+    else {
+        panic!("expected one local keyframe, got {body:?}")
+    };
+    assert!(matches!(
+        &frame_body[0],
+        Stmt::Assignment { target, .. }
+            if target == &[TargetSegment::Static("needle".to_string())]
+    ));
+    let Stmt::Always {
+        body: always_body, ..
+    } = &frame_body[1]
+    else {
+        panic!("expected Always inside the local keyframe")
+    };
+    assert!(matches!(
+        &always_body[0],
+        Stmt::Assignment { target, .. }
+            if target == &[TargetSegment::Static("needle".to_string())]
+    ));
+
+    let nested_result = expand_fn_calls(
+        vec![make_arg_call(
+            "ticker",
+            vec![Expr::Path(vec!["graph".into(), "needle".into()])],
+        )],
+        &HashMap::new(),
+        &module_fns,
+        &mut Vec::new(),
+    );
+    let [Stmt::Block { body, .. }] = nested_result.as_slice() else {
+        panic!("expected one expanded nested-label call, got {nested_result:?}")
+    };
+    let [Stmt::Keyframe { body, .. }] = body.as_slice() else {
+        panic!("expected one local keyframe, got {body:?}")
+    };
+    assert!(matches!(
+        &body[0],
+        Stmt::Assignment { target, .. }
+            if target == &[
+                TargetSegment::Static("graph".to_string()),
+                TargetSegment::Static("needle".to_string()),
+            ]
+    ));
+}
+
+#[test]
+fn actor_parameter_substitution_only_rewrites_the_root_target_segment() {
+    let stmt = Stmt::Assignment {
+        target: vec![
+            TargetSegment::Static("other".into()),
+            TargetSegment::Static("dot".into()),
+        ],
+        property: "at".into(),
+        value: Expr::Num(1.0),
+        modifiers: vec![],
+        easing: None,
+        value_span: None,
+        span: None,
+    };
+    let bindings = HashMap::from([("dot".to_string(), Expr::Ident("needle".into()))]);
+
+    let rewritten = substitute_params_in_stmt(&stmt, &bindings);
+    assert!(matches!(
+        rewritten,
+        Stmt::Assignment { target, .. }
+            if target.as_slice() == [
+                TargetSegment::Static("other".into()),
+                TargetSegment::Static("dot".into()),
+            ]
+    ));
+}
+
+#[test]
+fn real_local_ticker_expansion_has_no_unsubstituted_actor_parameter() {
+    let path = PathBuf::from("/virtual/local_tickers.amx");
+    let mut graph = crate::module::ModuleGraph::new()
+        .with_source_access(crate::module::SourceAccess::SourcesOnly);
+    graph.upsert_source(
+        path.clone(),
+        include_str!("../../../../../examples/animation/local_tickers.amx"),
+    );
+    let program = graph.load_program(&path).expect("local ticker example loads");
+    let mut diagnostics = Vec::new();
+    let expanded = program.expand_components(&mut diagnostics);
+    assert!(diagnostics.is_empty(), "unexpected expansion diagnostics: {diagnostics:?}");
+
+    fn collect_unresolved_targets(stmt: &Stmt, unresolved: &mut Vec<String>) {
+        // The declaration intentionally retains its formal `dot` parameter;
+        // inspect only the expanded call sites.
+        if matches!(stmt, Stmt::FnDecl { .. }) {
+            return;
+        }
+        match stmt {
+            Stmt::Assignment { target, .. } | Stmt::ReactiveBinding { target, .. }
+                if target.iter().any(|segment| segment.label_str() == "dot") =>
+            {
+                unresolved.push(format!("{stmt:?}"));
+            },
+            Stmt::Action(action, _)
+                if action
+                    .targets
+                    .iter()
+                    .any(|target| target == "dot" || target.starts_with("dot.")) =>
+            {
+                unresolved.push(format!("{stmt:?}"));
+            },
+            _ => {},
+        }
+        crate::walk::recurse_stmt_bodies(stmt, &mut |body| {
+            for child in body {
+                collect_unresolved_targets(child, unresolved);
+            }
+        });
+    }
+    let mut unresolved = Vec::new();
+    for stmt in &expanded {
+        collect_unresolved_targets(stmt, &mut unresolved);
+    }
+    assert!(unresolved.is_empty(), "actor parameter survived expansion: {unresolved:?}");
+}
+
+#[test]
 fn recursion_cycle_is_diagnosed_and_dropped() {
     let template = template_with(vec![], vec![make_arg_call("b", Vec::new())]);
     let module_fns: HashMap<String, FnTemplate> = [
@@ -235,6 +394,11 @@ fn lexical_index_rebinding_respects_params_local_lets_and_nested_blocks() {
                 make_assignment("cards", "opacity", Expr::Ident("i".into())),
             ],
             instance_scope: None,
+            time_scope: Some(crate::ast::TimeScopeSpec {
+                time_scale: Some(Expr::Ident("i".into())),
+                clip_duration: None,
+                end_limit_duration_ms: None,
+            }),
             span: None,
         },
         make_assignment("cards", "rotation", Expr::Ident("i".into())),
@@ -247,6 +411,18 @@ fn lexical_index_rebinding_respects_params_local_lets_and_nested_blocks() {
         Some(0),
         None,
         &[],
+    );
+    let Stmt::Block {
+        time_scope: Some(scope),
+        ..
+    } = &rebound[1]
+    else {
+        panic!("expected the nested time-scope Block to be preserved")
+    };
+    assert_eq!(
+        scope.time_scale,
+        Some(Expr::Ident("i".into())),
+        "caller-scoped retiming expressions must not be rebound to the component index"
     );
     let Stmt::Block { body: inner, .. } = &rebound[1] else {
         panic!("expected nested lexical block");
@@ -323,6 +499,7 @@ fn indexed_instance_read_specialization_respects_scope_and_nested_instance_block
                 index_position: 0,
                 prologue_len: 1,
             }),
+            time_scope: None,
             span: None,
         },
     ];

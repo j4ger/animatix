@@ -3,9 +3,10 @@
 
 use std::sync::Arc;
 
+use animatix::composition::BuildTarget;
 use animatix::renderer::text::FontContext;
 use animatix::timeline::assets::AssetCache;
-use animatix::timeline::{BuildQuality, SceneDimensions};
+use animatix::timeline::{BuildQuality, RuntimeInputs, SceneDimensions};
 use wasm_bindgen::prelude::*;
 
 use crate::host;
@@ -52,6 +53,48 @@ impl AmxPlayer {
     pub fn set_vars(&mut self, vars: &JsValue) -> Result<u32, JsError> {
         self.vars = js_var_defines(vars)?;
         Ok(u32::try_from(self.vars.len()).unwrap_or(u32::MAX))
+    }
+
+    /// Replace the full live scalar-input snapshot for the current single scene.
+    /// The engine validates every entry against `config.runtime_inputs` before
+    /// this player commits the snapshot, so a rejected call preserves the last
+    /// good values. The next render resolves the inputs through the normal
+    /// frame environment rather than editing rendered actor properties.
+    pub fn set_inputs(&mut self, inputs: &JsValue) -> Result<(), JsError> {
+        let target = self
+            .target
+            .as_ref()
+            .ok_or_else(|| JsError::new("set_inputs requires a loaded scene"))?;
+        let timeline = match target {
+            BuildTarget::SingleScene(timeline) => timeline,
+            BuildTarget::MultiScene(_) => {
+                return Err(JsError::new(
+                    "runtime inputs are unsupported for multi-scene documents",
+                ));
+            },
+        };
+        let values = js_runtime_input_values(inputs)?;
+        let validated = timeline
+            .validate_runtime_inputs(&values)
+            .map_err(|error| JsError::new(&error.to_string()))?;
+        self.runtime_inputs = validated;
+        self.render_generation = self.render_generation.wrapping_add(1);
+        Ok(())
+    }
+
+    /// Remove all live scalar-input overrides for the current single scene.
+    /// The next frame then sees `always` assignments and variable tracks again.
+    pub fn clear_inputs(&mut self) -> Result<(), JsError> {
+        let target = self
+            .target
+            .as_ref()
+            .ok_or_else(|| JsError::new("clear_inputs requires a loaded scene"))?;
+        if matches!(target, BuildTarget::MultiScene(_)) {
+            return Err(JsError::new("runtime inputs are unsupported for multi-scene documents"));
+        }
+        self.runtime_inputs = RuntimeInputs::default();
+        self.render_generation = self.render_generation.wrapping_add(1);
+        Ok(())
     }
 
     /// The overrides [`AmxPlayer::set_vars`] rendered, as an array of
@@ -216,7 +259,8 @@ impl AmxPlayer {
             // which the timeline epoch alone cannot see (both start at 0), so the
             // frame the canvas is holding is no longer describable by the old
             // signature.
-            self.document_generation += 1;
+            self.runtime_inputs = RuntimeInputs::default();
+            self.render_generation = self.render_generation.wrapping_add(1);
             self.dedup.invalidate();
             self.target = Some(target);
         }
@@ -256,6 +300,23 @@ pub(super) fn js_var_defines(vars: &JsValue) -> Result<Vec<(String, String)>, Js
         }
     }
     Ok(defines)
+}
+
+/// Parse the page's full runtime input snapshot without dropping entries.
+/// Numeric finiteness and the document whitelist are checked by the engine's
+/// `Timeline::validate_runtime_inputs` method after this conversion.
+fn js_runtime_input_values(
+    inputs: &JsValue,
+) -> Result<std::collections::BTreeMap<String, f64>, JsError> {
+    if inputs.is_null()
+        || inputs.is_undefined()
+        || js_sys::Array::is_array(inputs)
+        || inputs.dyn_ref::<js_sys::Object>().is_none()
+    {
+        return Err(JsError::new("set_inputs expects an object of name -> finite number"));
+    }
+    serde_wasm_bindgen::from_value(inputs.clone())
+        .map_err(|error| JsError::new(&format!("set_inputs expects numeric values: {error}")))
 }
 
 /// One `(name, expression text)` pair, or `None` — logged — when the JS value

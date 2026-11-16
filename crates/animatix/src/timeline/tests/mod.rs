@@ -60,6 +60,8 @@ mod solo;
 #[cfg(test)]
 mod stagger;
 #[cfg(test)]
+mod stroke_progress_override;
+#[cfg(test)]
 mod taffy_layout;
 #[cfg(test)]
 mod text;

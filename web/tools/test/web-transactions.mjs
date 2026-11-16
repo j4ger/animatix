@@ -455,6 +455,69 @@ async function browserTests(sources, exerciseInventory, compareFrames) {
     check(p._loadedBundle.modules.size === 2, 'new transitive imports did not close');
     check(p._loadedSource === sources.imported && p.time === p.duration, 'paused source install position is incorrect');
   });
+  await test('runtime-inputs-redraw-atomically-and-clear-to-the-timeline-driver', async () => {
+    await p.applySource(sources.sharedProgress);
+    p.seek(3);
+    const heldTime = p.time;
+    check(p._playing === false && heldTime === 3, 'runtime-input fixture did not reach the paused inspection frame');
+    const installedPlayer = p._player;
+    const automatic = await pixels(p);
+    const drawnBeforeSet = p._player.debug_dedup_stats().drawn;
+
+    p.setInputs({ progress: 0.25 });
+    check(p._player === installedPlayer && p.time === heldTime && p._playing === false,
+      'setInputs rebuilt the document, moved the playhead or changed playback state');
+    check(p._player.debug_dedup_stats().drawn > drawnBeforeSet,
+      'setInputs did not immediately draw the paused frame at the same time');
+    const controlled = await pixels(p);
+    check(controlled.hash !== automatic.hash,
+      'runtime input did not change the plot, marker and readout frame');
+    snapshot('runtime-input-controlled', controlled);
+
+    const failedBuild = await p.applySource('config { definitely broken syntax !!!').then(() => null, error => error);
+    check(failedBuild?.kind === 'build' && p._player === installedPlayer && p._loadedSource === sources.sharedProgress,
+      'failed source build replaced the installed runtime-input document');
+    check(p.time === heldTime && p._playing === false && (await pixels(p)).hash === controlled.hash,
+      'failed source build changed the clock or the accepted runtime-input frame');
+
+    const acceptedRevision = p._renderRevision;
+    const drawnBeforeFailures = p._player.debug_dedup_stats().drawn;
+    for (const [name, values] of [
+      ['non-finite', { progress: Number.NaN }],
+      ['undeclared', { typo: 0.75 }],
+    ]) {
+      let failure;
+      try { p.setInputs(values); } catch (error) { failure = error; }
+      check(failure instanceof Error, `${name} input was accepted`);
+      check(p._renderRevision === acceptedRevision && p._player.debug_dedup_stats().drawn === drawnBeforeFailures,
+        `${name} input invalidated or redrew the accepted frame`);
+      check(p._player === installedPlayer && p.time === heldTime && p._playing === false,
+        `${name} input changed the player or clock state`);
+      check((await pixels(p)).hash === controlled.hash,
+        `${name} input changed the last accepted runtime-input frame`);
+    }
+
+    p.clearInputs();
+    check(p.time === heldTime && p._playing === false,
+      'clearInputs moved the playhead or changed playback state');
+    check(p._player.debug_dedup_stats().drawn > drawnBeforeFailures,
+      'clearInputs did not immediately redraw the paused frame');
+    const restored = await pixels(p);
+    check(restored.hash === automatic.hash,
+      'clearInputs did not restore the timeline-driven value at the same time');
+    snapshot('runtime-input-cleared', restored);
+
+    p.setInputs({ progress: 0.25 });
+    await p.applySource(sources.graphics);
+    const replacement = await pixels(p);
+    const replacementRevision = p._renderRevision;
+    let staleInputFailure;
+    try { p.setInputs({ progress: 0.25 }); } catch (error) { staleInputFailure = error; }
+    check(staleInputFailure instanceof Error && p._loadedSource === sources.graphics,
+      'successful document replacement retained the previous runtime-input whitelist');
+    check(p._renderRevision === replacementRevision && (await pixels(p)).hash === replacement.hash,
+      'a rejected stale input changed the newly installed document');
+  });
   await test('batched-vars-merge-and-preserve-normalized-position', async () => {
     await p.applySource(sources.graphics); p.seek(p.duration * 0.35);
     const before = await pixels(p); let builds = 0; let settled = 0;
@@ -865,6 +928,7 @@ async function main() {
       semiboldRegular: `${config}label: Text, text: "Variable weight sample", font_family: "Open Sans", font_size: 32, font_weight: 400, color: (1, 1, 1, 1), at: (64, 36), opacity: 1\n`,
       semibold: `${config}label: Text, text: "Variable weight sample", font_family: "Open Sans", font_size: 32, font_weight: "semibold", color: (1, 1, 1, 1), at: (64, 36), opacity: 1\n`,
       imported: `${config}import "./palette.amx" as palette\nbox: Rect, size: (60, 40), at: (64, 36), color: palette.tint, opacity: 1\n`,
+      sharedProgress: readFileSync(join(ROOT, 'examples/data/shared_progress_math.amx'), 'utf8'),
       slow: `${config}import "./slow.amx" as slow\nbox: Rect, size: (60, 40), at: (64, 36), color: slow.tint, opacity: 1\n`,
       latest: solid('(0.1, 0.8, 0.2, 1)'),
       missingAsset: `${config}pic: Svg, url: "missing.data", size: (40, 40), at: (64, 36), opacity: 1\n`,

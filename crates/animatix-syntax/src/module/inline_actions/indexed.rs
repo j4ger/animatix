@@ -308,6 +308,7 @@ impl AstFolder for TemplateIndexRebinder<'_> {
             Stmt::Block {
                 body,
                 instance_scope,
+                time_scope,
                 span,
             } => {
                 let instance_scope = instance_scope.map(|mut scope| {
@@ -328,6 +329,9 @@ impl AstFolder for TemplateIndexRebinder<'_> {
                 Stmt::Block {
                     body,
                     instance_scope,
+                    // Time-scope expressions belong to the call site, so an
+                    // indexed-template rewrite must preserve them verbatim.
+                    time_scope,
                     span,
                 }
             },

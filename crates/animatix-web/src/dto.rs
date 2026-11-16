@@ -80,6 +80,9 @@ pub struct LoadResultDto {
     pub markers: Vec<MarkerDto>,
     /// Interactive pause points in seconds, sorted by time.
     pub pause_points: Vec<f64>,
+    /// Numeric names declared in `config.runtime_inputs` for a single scene.
+    /// Multi-scene documents do not expose runtime inputs in v1.
+    pub runtime_inputs: Vec<String>,
 }
 
 /// One build-time variable override crossing the wasm boundary — the web shape

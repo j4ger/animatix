@@ -25,6 +25,36 @@ fn override_color(overrides: &HashMap<String, Value>, key: &str) -> Option<[f32;
     }
 }
 
+/// Sample the stroke reveal progress shared by shapes and plots, giving a
+/// per-frame `always` override precedence over the keyframed track.
+pub(crate) fn sample_stroke_progress(
+    style: &StyleTracks,
+    time_ms: u64,
+    overrides: Option<&HashMap<String, Value>>,
+) -> f64 {
+    let tracked = f64::from(style.stroke_progress.get(time_ms, 1.0));
+    let sampled = match overrides.and_then(|values| values.get("stroke_progress")) {
+        Some(Value::Num(value)) if value.is_finite() => *value,
+        Some(Value::Num(_)) => {
+            tracing::debug!("`stroke_progress` override is not finite; keeping keyframed value");
+            tracked
+        },
+        Some(other) => {
+            tracing::debug!(
+                "`stroke_progress` override is not numeric: {other:?}; keeping keyframed value"
+            );
+            tracked
+        },
+        None => tracked,
+    };
+
+    if sampled.is_finite() {
+        sampled.clamp(0.0, 1.0)
+    } else {
+        1.0
+    }
+}
+
 /// Sample shape style (color, stroke_width, stroke_color, fill_opacity) from a style
 /// tier at the given time, applying property overrides when present.
 pub fn sample_shape_style(
@@ -231,7 +261,7 @@ pub(crate) fn evaluate_shape_render(
     let shape = ctx.shape.expect("shape styling requires shape component");
     let epoch = shape.vector_paths_epoch.get();
 
-    let progress = f64::from(style_tracks.stroke_progress.get(ctx.time_ms, 1.0)).clamp(0.0, 1.0);
+    let progress = sample_stroke_progress(style_tracks, ctx.time_ms, ctx.overrides);
     let has_dash = !style_tracks.dash_pattern.get(ctx.time_ms, Vec::new()).is_empty();
     let has_gradient =
         style_tracks.fill_gradient.is_some() || style_tracks.stroke_gradient.is_some();

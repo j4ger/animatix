@@ -1,19 +1,38 @@
 //! Build-time lexical and instance scopes for expanded timeline functions.
 
+use super::time_scope::{
+    TimeScope, contains_nested_keyframe, local_keyframe_time_ms, resolve_scope, retime_statement,
+    statement_extent_ms,
+};
 use super::*;
-use crate::ast::InstanceScope;
+use crate::ast::{InstanceScope, TimeScopeSpec};
 
 impl Timeline {
     pub(in crate::timeline) fn process_block_stmt(
         &mut self,
         body: &[Stmt],
         instance_scope: Option<&InstanceScope>,
+        time_scope: Option<&TimeScopeSpec>,
         span: Option<Span>,
         time_ms: f64,
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
         sequenced: bool,
     ) {
+        // Scope options are evaluated before generated function parameters
+        // enter the callee's lexical environment.
+        let resolved_scope = resolve_scope(self, time_scope, body, time_ms, sequenced, diagnostics);
+        if (time_scope.is_some() || contains_nested_keyframe(body)) && resolved_scope.is_none() {
+            // Invalid local-time arguments invalidate this invocation instead
+            // of silently falling back to scene-time execution.
+            return;
+        }
+        if let Some(end_ms) = resolved_scope.and_then(|scope| scope.end_ms)
+            && end_ms.is_finite()
+            && end_ms > 0.0
+        {
+            self.local_time_scope_end_ms = self.local_time_scope_end_ms.max(end_ms.ceil() as u64);
+        }
         self.block_scope.push(std::collections::HashMap::new());
         self.process_instance_scope(
             body,
@@ -23,6 +42,7 @@ impl Timeline {
             parent_label,
             diagnostics,
             sequenced,
+            resolved_scope,
         );
         if let Some(locals) = self.block_scope.pop() {
             for (name, previous) in locals {
@@ -45,9 +65,17 @@ impl Timeline {
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
         sequenced: bool,
+        resolved_scope: Option<TimeScope>,
     ) {
         let Some(scope) = instance_scope else {
-            self.process_function_body(time_ms, body, parent_label, diagnostics, sequenced);
+            self.process_function_body(
+                time_ms,
+                body,
+                parent_label,
+                diagnostics,
+                sequenced,
+                resolved_scope,
+            );
             return;
         };
         let mut parts: Vec<String> = scope.label.split('.').map(str::to_owned).collect();
@@ -102,7 +130,14 @@ impl Timeline {
             &concrete_root,
             &bound_names,
         );
-        self.process_function_body(time_ms, &specialized, parent_label, diagnostics, sequenced);
+        self.process_function_body(
+            time_ms,
+            &specialized,
+            parent_label,
+            diagnostics,
+            sequenced,
+            resolved_scope,
+        );
     }
 
     fn process_function_body(
@@ -112,7 +147,12 @@ impl Timeline {
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
         sequenced: bool,
+        time_scope: Option<TimeScope>,
     ) {
+        if let Some(scope) = time_scope {
+            self.process_time_scoped_body(body, scope, parent_label, diagnostics, sequenced);
+            return;
+        }
         if !sequenced {
             self.process_body(time_ms, body, parent_label, diagnostics);
             return;
@@ -126,4 +166,177 @@ impl Timeline {
             cursor += duration;
         }
     }
+
+    fn process_time_scoped_body(
+        &mut self,
+        body: &[Stmt],
+        scope: TimeScope,
+        parent_label: Option<&str>,
+        diagnostics: &mut Vec<Diagnostic>,
+        sequenced: bool,
+    ) {
+        let mut local_cursor_ms = 0.0;
+        let mut lexical_t_shadowed = false;
+        for stmt in body {
+            match stmt {
+                Stmt::Keyframe { time, body, span } => {
+                    let Some(time_ms) = local_keyframe_time_ms(time, self.beat_duration_ms())
+                    else {
+                        diagnostics.push(Diagnostic::error(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            "Speech-anchored keyframes are not supported inside locally retimed functions; use fixed time keyframes.",
+                        ).with_ast_span(*span));
+                        continue;
+                    };
+                    local_cursor_ms = time_ms;
+                    let Some(global_ms) =
+                        checked_scope_time(scope, local_cursor_ms, *span, diagnostics)
+                    else {
+                        continue;
+                    };
+                    let saved_opacity = self.default_opacity;
+                    self.default_opacity = 1.0;
+                    let mut rewritten = Vec::with_capacity(body.len());
+                    for statement in body {
+                        let (statement, next_shadowed) = retime_statement(
+                            statement,
+                            scope,
+                            local_cursor_ms,
+                            lexical_t_shadowed,
+                            diagnostics,
+                        );
+                        rewritten.push(statement);
+                        lexical_t_shadowed = next_shadowed;
+                    }
+                    self.process_body(global_ms, &rewritten, parent_label, diagnostics);
+                    self.default_opacity = saved_opacity;
+                    if sequenced {
+                        local_cursor_ms += body
+                            .iter()
+                            .filter_map(|statement| statement_extent_ms(self, statement, false))
+                            .fold(0.0, f64::max);
+                    }
+                    if !local_cursor_ms.is_finite() {
+                        diagnostics.push(Diagnostic::error(
+                            DiagnosticCode::InvalidModifierValue,
+                            DiagnosticPhase::Build,
+                            "A local keyframe cursor overflowed while advancing through the function body.",
+                        ).with_ast_span(*span));
+                        break;
+                    }
+                },
+                Stmt::RelativeKeyframe { offset, body, span } => {
+                    let Some(offset_ms) = local_keyframe_time_ms(offset, self.beat_duration_ms())
+                    else {
+                        diagnostics.push(Diagnostic::error(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            "Speech-anchored relative keyframes are not supported inside locally retimed functions; use fixed time keyframes.",
+                        ).with_ast_span(*span));
+                        continue;
+                    };
+                    local_cursor_ms += offset_ms;
+                    let Some(global_ms) =
+                        checked_scope_time(scope, local_cursor_ms, *span, diagnostics)
+                    else {
+                        continue;
+                    };
+                    let saved_opacity = self.default_opacity;
+                    self.default_opacity = 1.0;
+                    let mut rewritten = Vec::with_capacity(body.len());
+                    for statement in body {
+                        let (statement, next_shadowed) = retime_statement(
+                            statement,
+                            scope,
+                            local_cursor_ms,
+                            lexical_t_shadowed,
+                            diagnostics,
+                        );
+                        rewritten.push(statement);
+                        lexical_t_shadowed = next_shadowed;
+                    }
+                    self.process_body(global_ms, &rewritten, parent_label, diagnostics);
+                    self.default_opacity = saved_opacity;
+                    if sequenced {
+                        local_cursor_ms += body
+                            .iter()
+                            .filter_map(|statement| statement_extent_ms(self, statement, false))
+                            .fold(0.0, f64::max);
+                    }
+                    if !local_cursor_ms.is_finite() {
+                        diagnostics.push(Diagnostic::error(
+                            DiagnosticCode::InvalidModifierValue,
+                            DiagnosticPhase::Build,
+                            "A local relative keyframe cursor overflowed while advancing through the function body.",
+                        ).with_ast_span(*span));
+                        break;
+                    }
+                },
+                _ => {
+                    let Some(span_ms) = statement_extent_ms(self, stmt, sequenced)
+                        .or(if sequenced { None } else { Some(0.0) })
+                    else {
+                        diagnostics.push(Diagnostic::error(
+                            DiagnosticCode::UnsupportedSequenceStatement,
+                            DiagnosticPhase::Build,
+                            "Cannot infer this nested function's local time span; use fixed iterable/time literals.",
+                        ));
+                        continue;
+                    };
+                    let Some(global_ms) =
+                        checked_scope_time(scope, local_cursor_ms, None, diagnostics)
+                    else {
+                        continue;
+                    };
+                    let (rewritten, next_shadowed) = retime_statement(
+                        stmt,
+                        scope,
+                        local_cursor_ms,
+                        lexical_t_shadowed,
+                        diagnostics,
+                    );
+                    self.process_body(
+                        global_ms,
+                        std::slice::from_ref(&rewritten),
+                        parent_label,
+                        diagnostics,
+                    );
+                    lexical_t_shadowed = next_shadowed;
+                    if sequenced {
+                        local_cursor_ms += span_ms;
+                    }
+                    if !local_cursor_ms.is_finite() {
+                        diagnostics.push(Diagnostic::error(
+                            DiagnosticCode::InvalidModifierValue,
+                            DiagnosticPhase::Build,
+                            "A local function cursor overflowed while advancing through the body.",
+                        ));
+                        break;
+                    }
+                },
+            }
+        }
+    }
+}
+
+fn checked_scope_time(
+    scope: TimeScope,
+    local_ms: f64,
+    span: Option<Span>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<f64> {
+    let global_ms = scope.at(local_ms);
+    if local_ms.is_finite() && global_ms.is_finite() {
+        return Some(global_ms);
+    }
+    diagnostics.push(
+        Diagnostic::error(
+            DiagnosticCode::InvalidModifierValue,
+            DiagnosticPhase::Build,
+            "Mapping a local function time to scene time overflowed; skipping this event.",
+        )
+        .with_ast_span(span),
+    );
+    None
 }

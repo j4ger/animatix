@@ -16,6 +16,7 @@ pub(super) struct FrameEvaluation<'a> {
     pub(super) needs_frame_env: bool,
     pub(super) has_child_orders: bool,
     pub(super) bg_color: [f32; 4],
+    pub(super) runtime_input_key: u64,
     pub(super) scene: vello::Scene,
     pub(super) hit_regions: Vec<(EntityId, kurbo::Rect)>,
     pub(super) program_items: Option<Vec<crate::timeline::scene_program::SceneItem>>,
@@ -39,9 +40,14 @@ impl Timeline {
         debug_options: DebugRenderOptions,
         filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
     ) -> vello::Scene {
-        if let Some(program) =
-            self.restore_frame_cache(time_s, scene_dimensions, debug_options, filter_backend, false)
-        {
+        if let Some(program) = self.restore_frame_cache(
+            time_s,
+            scene_dimensions,
+            debug_options,
+            filter_backend,
+            false,
+            0,
+        ) {
             return program.scene;
         }
         self.evaluate_program_inner(
@@ -52,6 +58,7 @@ impl Timeline {
             false,
             &[],
             &std::collections::HashMap::new(),
+            None,
         )
         .scene
     }
@@ -75,6 +82,7 @@ impl Timeline {
                 debug_options,
                 filter_backend,
                 false,
+                0,
             )
         {
             return program.scene;
@@ -87,6 +95,7 @@ impl Timeline {
             false,
             &[],
             transient_overrides,
+            None,
         )
         .scene
     }
@@ -110,6 +119,58 @@ impl Timeline {
         scene_dimensions: SceneDimensions,
         filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
     ) -> vello::Scene {
+        self.evaluate_for_presentation_internal(time_s, scene_dimensions, filter_backend, None)
+    }
+
+    /// Evaluate a presentation frame with a previously validated numeric input
+    /// snapshot. Runtime inputs use a read-only environment layer and therefore
+    /// remain visible to plots and readouts after `always` writes.
+    pub fn evaluate_for_presentation_with_inputs(
+        &self,
+        time_s: f64,
+        scene_dimensions: SceneDimensions,
+        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
+        runtime_inputs: &crate::timeline::RuntimeInputs,
+    ) -> Result<vello::Scene, crate::timeline::RuntimeInputError> {
+        self.validate_runtime_input_snapshot(runtime_inputs)?;
+        Ok(self.evaluate_for_presentation_internal(
+            time_s,
+            scene_dimensions,
+            filter_backend,
+            Some(runtime_inputs),
+        ))
+    }
+
+    /// Evaluate a scene with a previously validated runtime input snapshot.
+    pub fn evaluate_with_inputs(
+        &self,
+        time_s: f64,
+        scene_dimensions: SceneDimensions,
+        runtime_inputs: &crate::timeline::RuntimeInputs,
+    ) -> Result<vello::Scene, crate::timeline::RuntimeInputError> {
+        self.validate_runtime_input_snapshot(runtime_inputs)?;
+        let mut filter_backend = None;
+        Ok(self
+            .evaluate_program_inner(
+                time_s,
+                scene_dimensions,
+                DebugRenderOptions::default(),
+                &mut filter_backend,
+                false,
+                &[],
+                &std::collections::HashMap::new(),
+                Some(runtime_inputs),
+            )
+            .scene)
+    }
+
+    fn evaluate_for_presentation_internal(
+        &self,
+        time_s: f64,
+        scene_dimensions: SceneDimensions,
+        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
+        runtime_inputs: Option<&crate::timeline::RuntimeInputs>,
+    ) -> vello::Scene {
         let empty_overrides = std::collections::HashMap::new();
         let mut state = self.prepare_frame(
             time_s,
@@ -120,6 +181,7 @@ impl Timeline {
             &[],
             &empty_overrides,
             true,
+            runtime_inputs,
         );
         self.run_frame_modifiers(&mut state);
         self.render_frame_roots(&mut state, filter_backend);
@@ -169,6 +231,7 @@ impl Timeline {
         debug_options: DebugRenderOptions,
         filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         collect_items: bool,
+        runtime_input_key: u64,
     ) -> Option<crate::timeline::scene_program::SceneProgram> {
         if self.backend_can_run(filter_backend) || debug_options != DebugRenderOptions::default() {
             return None;
@@ -179,6 +242,7 @@ impl Timeline {
         let cached = self.eval_caches.frame_cache.borrow();
         let cached = cached.as_ref()?;
         if cached.time_ms != time_ms
+            || cached.runtime_input_key != runtime_input_key
             || cached.dimensions != scene_dimensions
             || cached.has_modifiers != needs_frame_env
             || cached.has_dynamic_layout != self.dynamic_layout
@@ -268,7 +332,33 @@ impl Timeline {
             true,
             &[],
             &std::collections::HashMap::new(),
+            None,
         )
+    }
+
+    /// Evaluate an observable scene program with a validated runtime input
+    /// snapshot. This is useful to tooling that needs both rendered output and
+    /// frame items while testing a particular input state.
+    pub fn evaluate_program_with_inputs(
+        &self,
+        time_s: f64,
+        scene_dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
+        runtime_inputs: &crate::timeline::RuntimeInputs,
+    ) -> Result<crate::timeline::scene_program::SceneProgram, crate::timeline::RuntimeInputError>
+    {
+        self.validate_runtime_input_snapshot(runtime_inputs)?;
+        Ok(self.evaluate_program_inner(
+            time_s,
+            scene_dimensions,
+            debug_options,
+            filter_backend,
+            true,
+            &[],
+            &std::collections::HashMap::new(),
+            Some(runtime_inputs),
+        ))
     }
 
     /// Evaluates scene program while suppressing specified actor labels (e.g. for FLIP
@@ -289,6 +379,7 @@ impl Timeline {
             true,
             suppressed_actors,
             &std::collections::HashMap::new(),
+            None,
         )
     }
 
@@ -312,6 +403,7 @@ impl Timeline {
             true,
             &[],
             transient_overrides,
+            None,
         )
     }
 
@@ -327,7 +419,9 @@ impl Timeline {
             String,
             std::collections::HashMap<String, Value>,
         >,
+        runtime_inputs: Option<&crate::timeline::RuntimeInputs>,
     ) -> crate::timeline::scene_program::SceneProgram {
+        let runtime_input_key = runtime_inputs.map_or(0, crate::timeline::RuntimeInputs::cache_key);
         if suppressed_actors.is_empty()
             && transient_overrides.is_empty()
             && let Some(program) = self.restore_frame_cache(
@@ -336,6 +430,7 @@ impl Timeline {
                 debug_options,
                 filter_backend,
                 collect_items,
+                runtime_input_key,
             )
         {
             return program;
@@ -352,6 +447,7 @@ impl Timeline {
             suppressed_actors,
             transient_overrides,
             false,
+            runtime_inputs,
         );
         self.run_frame_modifiers(&mut state);
         self.render_frame_roots(&mut state, filter_backend);
@@ -374,8 +470,10 @@ impl Timeline {
             std::collections::HashMap<String, Value>,
         >,
         presentation: bool,
+        runtime_inputs: Option<&crate::timeline::RuntimeInputs>,
     ) -> FrameEvaluation<'a> {
         let time_ms = (time_s * 1000.0) as u64;
+        let runtime_input_key = runtime_inputs.map_or(0, crate::timeline::RuntimeInputs::cache_key);
         let needs_frame_env = self.needs_frame_env();
         let has_child_orders = self.world.has_child_orders();
 
@@ -453,7 +551,12 @@ impl Timeline {
         // plots exist. For static scenes, this eliminates ~95% of evaluation
         // overhead.
         let frame_env = if needs_frame_env {
-            Some(self.build_frame_env_internal(time_ms, scene_dimensions, &overrides))
+            Some(self.build_frame_env_with_inputs_internal(
+                time_ms,
+                scene_dimensions,
+                &overrides,
+                runtime_inputs,
+            ))
         } else {
             None
         };
@@ -468,6 +571,7 @@ impl Timeline {
             needs_frame_env,
             has_child_orders,
             bg_color,
+            runtime_input_key,
             scene,
             hit_regions,
             program_items: None,
@@ -581,6 +685,7 @@ impl Timeline {
         {
             *self.eval_caches.frame_cache.borrow_mut() = Some(crate::timeline::FrameCacheEntry {
                 time_ms: state.time_ms,
+                runtime_input_key: state.runtime_input_key,
                 dimensions: state.scene_dimensions,
                 has_modifiers: state.needs_frame_env,
                 has_dynamic_layout: self.dynamic_layout,

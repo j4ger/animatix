@@ -1396,6 +1396,96 @@ fn test_relative_keyframes() {
 }
 
 #[test]
+fn timeline_function_body_groups_local_absolute_and_relative_keyframes() {
+    let ast = parse_ok(
+        r#"
+fn ticker(dot, lane_y: Num) {
+  #0ms
+  dot.at = (140, lane_y)
+  always { dot.at = (140 + 960 * t, lane_y) }
+  #+250ms
+  #step 1
+  dot.at = (380, lane_y)
+  #500ms
+  dot.at = (620, lane_y)
+}
+"#,
+    );
+    let Stmt::FnDecl {
+        return_type: None,
+        body,
+        ..
+    } = &ast[0]
+    else {
+        panic!("expected an untyped timeline function, got {:?}", ast[0]);
+    };
+
+    assert_eq!(body.len(), 3, "each local marker should begin one keyframe");
+    let Stmt::Keyframe {
+        time: Time::Milliseconds(0),
+        body: first,
+        ..
+    } = &body[0]
+    else {
+        panic!("expected the local #0ms keyframe, got {:?}", body[0]);
+    };
+    assert!(matches!(&first[0], Stmt::Assignment { .. }));
+    assert!(matches!(&first[1], Stmt::Always { .. }));
+
+    let Stmt::RelativeKeyframe {
+        offset: Time::Milliseconds(250),
+        body: relative,
+        ..
+    } = &body[1]
+    else {
+        panic!("expected the local #+250ms keyframe, got {:?}", body[1]);
+    };
+    assert!(matches!(&relative[0], Stmt::Step { index: Some(1), .. }));
+    assert!(matches!(&relative[1], Stmt::Assignment { .. }));
+
+    assert!(matches!(
+        &body[2],
+        Stmt::Keyframe {
+            time: Time::Milliseconds(500),
+            body,
+            ..
+        } if matches!(body.as_slice(), [Stmt::Assignment { .. }])
+    ));
+}
+
+#[test]
+fn local_keyframes_parse_in_the_real_ticker_example() {
+    let source = include_str!("../../../../examples/animation/local_tickers.amx");
+    let ast = parse_ok(source);
+    let Stmt::FnDecl { body, .. } = ast
+        .iter()
+        .find(|stmt| matches!(stmt, Stmt::FnDecl { name, .. } if name == "ticker"))
+        .expect("example declares ticker")
+    else {
+        panic!("expected ticker function")
+    };
+    assert_eq!(body.len(), 2);
+    assert!(matches!(&body[0], Stmt::Keyframe { .. }));
+    assert!(matches!(&body[1], Stmt::Keyframe { .. }));
+}
+
+#[test]
+fn pure_function_tail_expression_and_component_keyframe_restriction_remain() {
+    let ast = parse_ok("fn twice(x: Num) -> Num { x * 2 }");
+    assert!(matches!(
+        &ast[0],
+        Stmt::FnDecl {
+            return_type: Some(_),
+            body,
+            ..
+        } if matches!(body.as_slice(), [Stmt::Expr(Expr::Binary(_, BinaryOp::Mul, _), _)])
+    ));
+
+    assert!(parse_err("fn invalid() -> Num { #0ms\n return 1 }"));
+    assert!(parse_err("component Lane { #0ms\n dot: Ellipse, at: (0, 0) }"));
+}
+
+#[test]
 fn test_negative_relative_keyframes_rejected() {
     assert!(parse_err("#-1s\nlet x = 1"));
     assert!(parse_err("#+-1s\nlet x = 1"));

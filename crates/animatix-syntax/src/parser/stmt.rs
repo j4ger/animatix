@@ -20,6 +20,13 @@ type TypeAnnotationParser<'src> = StmtBoxed<'src, TypeAnnotation>;
 
 type TargetParser<'src> = StmtBoxed<'src, Vec<TargetSegment>>;
 
+/// Flat items parsed inside a timeline-function body before local keyframes
+/// are grouped into the statement tree.
+enum FnBodyItem {
+    Keyframe { relative: bool, time: Time },
+    Statement(Box<Stmt>),
+}
+
 /// Parsers shared by several statement builders, built once per recursion.
 struct StmtCtx<'src> {
     stmt: StmtParser<'src>,
@@ -685,6 +692,60 @@ fn stagger_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
         .boxed()
 }
 
+fn group_fn_body_items(items: Vec<FnBodyItem>) -> Vec<Stmt> {
+    let mut body = Vec::new();
+    let mut current_keyframe: Option<(bool, Time, Vec<Stmt>)> = None;
+
+    for item in items {
+        match item {
+            FnBodyItem::Keyframe { relative, time } => {
+                if let Some((was_relative, time, statements)) = current_keyframe.take() {
+                    body.push(if was_relative {
+                        Stmt::RelativeKeyframe {
+                            offset: time,
+                            body: statements,
+                            span: None,
+                        }
+                    } else {
+                        Stmt::Keyframe {
+                            time,
+                            body: statements,
+                            span: None,
+                        }
+                    });
+                }
+                current_keyframe = Some((relative, time, Vec::new()));
+            },
+            FnBodyItem::Statement(stmt) => {
+                let stmt = *stmt;
+                if let Some((_, _, statements)) = current_keyframe.as_mut() {
+                    statements.push(stmt);
+                } else {
+                    body.push(stmt);
+                }
+            },
+        }
+    }
+
+    if let Some((relative, time, statements)) = current_keyframe {
+        body.push(if relative {
+            Stmt::RelativeKeyframe {
+                offset: time,
+                body: statements,
+                span: None,
+            }
+        } else {
+            Stmt::Keyframe {
+                time,
+                body: statements,
+                span: None,
+            }
+        });
+    }
+
+    body
+}
+
 fn always_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
     let always_body =
         ctx.stmt.clone().repeated().collect::<Vec<_>>().delimited_by(lbrace(), rbrace());
@@ -719,9 +780,31 @@ fn fn_body_parser<'src>(ctx: &StmtCtx<'src>) -> StmtBoxed<'src, Vec<Stmt>> {
             }
             body
         });
-    pure_fn_body
-        .or(ctx.stmt.clone().repeated().collect::<Vec<_>>().delimited_by(lbrace(), rbrace()))
-        .boxed()
+
+    // Timeline functions can carry their own local clock. Parse the marker
+    // tokens alongside ordinary statements, then group each marker with the
+    // statements up to the next marker into the existing keyframe AST nodes.
+    // `ctx.stmt` already includes `#step`/`#pause`, which remain statements in
+    // the current local keyframe (or at function scope before the first one).
+    let local_keyframe = hash()
+        .ignore_then(plus().or_not())
+        .then(common::time())
+        .then_ignore(colon().or_not())
+        .map(|(relative, time)| FnBodyItem::Keyframe {
+            relative: relative.is_some(),
+            time,
+        });
+    let timeline_body_item = choice((
+        local_keyframe,
+        ctx.stmt.clone().map(|stmt| FnBodyItem::Statement(Box::new(stmt))),
+    ));
+    let timeline_fn_body = timeline_body_item
+        .repeated()
+        .collect::<Vec<_>>()
+        .delimited_by(lbrace(), rbrace())
+        .map(group_fn_body_items);
+
+    pure_fn_body.or(timeline_fn_body).boxed()
 }
 
 fn fn_decl_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
@@ -742,7 +825,18 @@ fn fn_decl_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
                 .then(thin_arrow().ignore_then(ctx.type_annotation.clone()).or_not())
                 .then(fn_body),
         ))
-        .map(|((is_pub, name), ((params, return_type), mut body))| {
+        .try_map(|((is_pub, name), ((params, return_type), mut body)), span| {
+            if return_type.is_some()
+                && body.iter().any(|stmt| {
+                    matches!(stmt, Stmt::Keyframe { .. } | Stmt::RelativeKeyframe { .. })
+                })
+            {
+                return Err(Rich::custom(
+                    span,
+                    "local keyframe markers are only allowed in timeline functions",
+                ));
+            }
+
             // A timeline function's trailing call expression is a nested
             // function call statement, not a tail value: `fn a() { b() }`
             // means "call b", so convert `Expr(Call(b))` back to an action.
@@ -769,14 +863,14 @@ fn fn_decl_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
                     ));
                 }
             }
-            Stmt::FnDecl {
+            Ok(Stmt::FnDecl {
                 is_pub,
                 name,
                 params,
                 return_type,
                 body,
                 span: None,
-            }
+            })
         })
         .boxed()
 }

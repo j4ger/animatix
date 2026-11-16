@@ -16,6 +16,11 @@ fn fresh_env_instance() -> u32 {
 /// large stdlib maps on every frame.
 pub struct Environment {
     pub(crate) overrides: EnvMap,
+    /// Read-only numeric input layer. It sits above global mutable overrides
+    /// and tracks, while lexical let scopes and function/sample bindings still
+    /// shadow it normally. Frame writers therefore cannot mask an external
+    /// input, and closure parameters keep their lexical meaning.
+    pub(crate) runtime_inputs: Option<Arc<std::collections::BTreeMap<String, Value>>>,
     /// Shared base layer. `get()` checks overrides first, then falls back to
     /// base. Keeps the ~90-entry stdlib map out of every
     /// [`Timeline::build_frame_env`] copy.
@@ -39,6 +44,7 @@ impl Clone for Environment {
     fn clone(&self) -> Self {
         Self {
             overrides: self.overrides.clone(),
+            runtime_inputs: self.runtime_inputs.clone(),
             base: self.base.clone(),
             bindings: self.bindings.clone(),
             // A fresh instance id keeps the clone's cache entries from ever
@@ -64,6 +70,7 @@ impl Environment {
     pub fn new() -> Self {
         Environment {
             overrides: EnvMap::default(),
+            runtime_inputs: None,
             base: None,
             bindings: [None, None],
             stamp: EnvStamp {
@@ -79,6 +86,7 @@ impl Environment {
     pub fn with_capacity(capacity: usize) -> Self {
         Environment {
             overrides: HashMap::with_capacity_and_hasher(capacity, Default::default()),
+            runtime_inputs: None,
             base: None,
             bindings: [None, None],
             stamp: EnvStamp {
@@ -94,6 +102,7 @@ impl Environment {
     pub fn with_base(base: Arc<EnvMap>) -> Self {
         Environment {
             overrides: EnvMap::default(),
+            runtime_inputs: None,
             base: Some(base),
             bindings: [None, None],
             stamp: EnvStamp {
@@ -175,6 +184,17 @@ impl Environment {
         }
     }
 
+    /// Install a read-only caller-supplied numeric input layer for this frame.
+    /// Frame builders pass `None` on the legacy path so scenes without runtime
+    /// inputs keep their prior lookup cost.
+    pub(crate) fn set_runtime_inputs(
+        &mut self,
+        values: Option<Arc<std::collections::BTreeMap<String, Value>>>,
+    ) {
+        self.mark_mutated();
+        self.runtime_inputs = values;
+    }
+
     /// Reset a pooled environment so it is indistinguishable from a freshly
     /// built one: a new memoization identity (see [`EnvStamp`]) and cleared
     /// plot-sampling bindings. The overrides map is deliberately *not*
@@ -187,6 +207,7 @@ impl Environment {
             version: 0,
         };
         self.bindings = [None, None];
+        self.runtime_inputs = None;
         self.let_scopes.borrow_mut().clear();
         self.let_epoch.set(0);
     }
@@ -249,7 +270,8 @@ impl Environment {
     }
 
     /// Look up a variable by name, returning a clone.
-    /// Checks bindings → overrides → base, in that order.
+    /// Checks lexical scopes → bindings → runtime inputs → overrides → base,
+    /// in that order.
     pub fn get(&self, name: &str) -> Option<Value> {
         {
             let scopes = self.let_scopes.borrow();
@@ -266,6 +288,9 @@ impl Environment {
                 return Some(binding.1.clone());
             }
         }
+        if let Some(value) = self.runtime_inputs.as_ref().and_then(|inputs| inputs.get(name)) {
+            return Some(value.clone());
+        }
         self.overrides
             .get(name)
             .cloned()
@@ -273,7 +298,7 @@ impl Environment {
     }
 
     /// Look up a variable by name, returning a reference (zero-copy).
-    /// Checks bindings → overrides → base, in that order.
+    /// Checks bindings → runtime inputs → overrides → base, in that order.
     ///
     /// NOTE: LetChain scopes (`push_let_scope`) are deliberately invisible
     /// here — this method cannot return a reference into the `RefCell`. All
@@ -288,6 +313,9 @@ impl Environment {
             if binding.0 == name {
                 return Some(&binding.1);
             }
+        }
+        if let Some(value) = self.runtime_inputs.as_ref().and_then(|inputs| inputs.get(name)) {
+            return Some(value);
         }
         self.overrides
             .get(name)
@@ -340,9 +368,14 @@ impl Environment {
     /// Return all variable names defined in this environment, sorted.
     pub fn all_keys(&self) -> Vec<String> {
         let mut keys: Vec<String> = self.overrides.keys().cloned().collect();
+        if let Some(inputs) = &self.runtime_inputs {
+            keys.extend(inputs.keys().filter(|key| !self.overrides.contains_key(*key)).cloned());
+        }
         if let Some(ref base) = self.base {
             for k in base.keys() {
-                if !self.overrides.contains_key(k) {
+                if !self.overrides.contains_key(k)
+                    && !self.runtime_inputs.as_ref().is_some_and(|inputs| inputs.contains_key(k))
+                {
                     keys.push(k.clone());
                 }
             }
@@ -354,16 +387,42 @@ impl Environment {
     /// Total number of distinct variables (overrides + base, minus overlap).
     pub fn len(&self) -> usize {
         let base_count = self.base.as_ref().map(|b| b.len()).unwrap_or(0);
-        let overlap = self
+        let runtime_count = self.runtime_inputs.as_ref().map(|m| m.len()).unwrap_or(0);
+        let runtime_overlap = self
+            .runtime_inputs
+            .as_ref()
+            .map_or(0, |inputs| inputs.keys().filter(|k| self.overrides.contains_key(*k)).count());
+        let base_overlap = self
             .base
             .as_ref()
-            .map(|b| self.overrides.keys().filter(|k| b.contains_key(*k)).count())
+            .map(|b| {
+                self.overrides.keys().filter(|k| b.contains_key(*k)).count()
+                    + inputs_overlap_with_base(self.runtime_inputs.as_deref(), b)
+            })
             .unwrap_or(0);
-        self.overrides.len() + base_count - overlap
+        let triple_overlap = self.base.as_ref().map_or(0, |base| {
+            self.runtime_inputs.as_ref().map_or(0, |inputs| {
+                inputs
+                    .keys()
+                    .filter(|key| self.overrides.contains_key(*key) && base.contains_key(*key))
+                    .count()
+            })
+        });
+        self.overrides.len() + runtime_count + base_count - runtime_overlap - base_overlap
+            + triple_overlap
     }
 
     /// Returns true if no variables are defined in either layer.
     pub fn is_empty(&self) -> bool {
-        self.overrides.is_empty() && self.base.as_ref().map(|b| b.is_empty()).unwrap_or(true)
+        self.overrides.is_empty()
+            && self.runtime_inputs.as_ref().is_none_or(|inputs| inputs.is_empty())
+            && self.base.as_ref().map(|b| b.is_empty()).unwrap_or(true)
     }
+}
+
+fn inputs_overlap_with_base(
+    inputs: Option<&std::collections::BTreeMap<String, Value>>,
+    base: &EnvMap,
+) -> usize {
+    inputs.map_or(0, |inputs| inputs.keys().filter(|key| base.contains_key(*key)).count())
 }

@@ -661,6 +661,22 @@ without a definite basis emits `layout-size-fallback` and keeps its earlier
 measurement. See [nested layout sizing](spec.md#text-wrapping--overflow) for the
 bounded declaration-time policy.
 
+Ordinary roots and sibling subtrees follow source/insertion order, depth-first.
+`Group` is a structural wrapper, not an isolated paint layer. Its children
+inherit its transform and opacity, but a child cannot paint above a later
+sibling subtree. To keep a note or connector above a component, declare it at
+the scene root after the component and target the component's nested actor;
+actor anchors follow the target's parent transforms. The reverse order puts
+connectors behind content. Mask and Filter keep their children inside the
+scope; Glass applies a post-render backdrop composite and can cover later
+siblings, so source order alone does not define overlays crossing a Glass
+scope. See
+[`painter_order_annotations.amx`](../examples/layout/painter_order_annotations.amx).
+
+Opacity on a Group or component instance multiplies into each descendant's
+opacity. It does not first flatten overlapping descendants into one offscreen
+image, so overlapping children can accumulate alpha.
+
 ## Grid
 
 Structured two-dimensional layout with `cols` and `gap` for deterministic declaration-order placement.
@@ -743,6 +759,10 @@ primitives that implement `clip_path`. A shape that produces no geometry (for ex
 a clip provider — `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`,
 `NumberPlane`, and `BarChart` are time-varying/`stroke_progress`-trimmed, so using one
 as a `clip_shape` warns and falls back to a rectangular clip.
+
+The Mask clips the complete descendant subtree. Children draw in their normal
+hierarchy order inside that clip; an annotation declared as a scene-root actor
+is outside the Mask and will not be clipped by it.
 
 ## Glass
 

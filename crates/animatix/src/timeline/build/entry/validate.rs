@@ -8,6 +8,474 @@
 
 use super::*;
 
+/// Reject configured runtime inputs used in expressions that are consumed
+/// while lowering scene structure. Hot inputs can change frame-time values,
+/// but they cannot add/remove actors, choose a build-time branch, or resize the
+/// authored canvas after compilation.
+pub(super) fn validate_runtime_input_uses(
+    ast: &[Stmt],
+    timeline: &mut Timeline,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if timeline.runtime_input_names.is_empty() {
+        return;
+    }
+    let configured: std::collections::HashSet<String> =
+        timeline.runtime_input_names.iter().cloned().collect();
+    let mut invalid: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    scan_runtime_input_stmts(ast, &configured, &mut invalid);
+    for (name, context) in &invalid {
+        diagnostics.push(
+            Diagnostic::error(
+                DiagnosticCode::InvalidConfigValue,
+                DiagnosticPhase::Build,
+                format!(
+                    "Runtime input '{name}' is used by {context}, which is fixed at build time; hot inputs can only drive frame-time values such as `always` expressions and plot functions."
+                ),
+            )
+            .with_subject(name),
+        );
+    }
+    timeline.runtime_input_names.retain(|name| !invalid.contains_key(name));
+}
+
+/// Reject names that resolve to a non-numeric build value or actor label.
+/// Standard-library functions are already present during config lowering;
+/// this post-walk check catches values and labels declared later in the file.
+pub(super) fn validate_runtime_input_values(
+    timeline: &mut Timeline,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if timeline.runtime_input_names.is_empty() {
+        return;
+    }
+    let mut invalid = std::collections::BTreeMap::new();
+    for name in &timeline.runtime_input_names {
+        if timeline.world.get_id(name).is_some() {
+            invalid.insert(name.clone(), "actor label".to_string());
+            continue;
+        }
+        if let Some(value) = timeline.env.get_ref(name)
+            && !matches!(value, Value::Num(_))
+        {
+            invalid.insert(name.clone(), format!("build-time value {value:?}"));
+            continue;
+        }
+        if let Some(track) = timeline.variable_tracks.get(name)
+            && let Some(value) =
+                track.keyframes.values().find(|value| !matches!(value, Value::Num(_)))
+        {
+            invalid.insert(name.clone(), format!("non-numeric variable track value {value:?}"));
+        }
+    }
+    for (name, source) in &invalid {
+        diagnostics.push(
+            Diagnostic::error(
+                DiagnosticCode::InvalidConfigValue,
+                DiagnosticPhase::Build,
+                format!(
+                    "Runtime input '{name}' conflicts with {source}; runtime inputs can only override numeric variables."
+                ),
+            )
+            .with_subject(name),
+        );
+    }
+    timeline.runtime_input_names.retain(|name| !invalid.contains_key(name));
+    super::walk::refresh_frame_written_vars(timeline);
+    timeline.invalidate_frame_cache();
+}
+
+fn scan_runtime_input_expr(
+    expr: &Expr,
+    configured: &std::collections::HashSet<String>,
+    context: &str,
+    invalid: &mut std::collections::BTreeMap<String, String>,
+) {
+    fn visit(
+        expr: &Expr,
+        configured: &std::collections::HashSet<String>,
+        shadowed: &std::collections::HashSet<String>,
+        out: &mut std::collections::BTreeSet<String>,
+    ) {
+        match expr {
+            Expr::Ident(name) => {
+                if configured.contains(name) && !shadowed.contains(name) {
+                    out.insert(name.clone());
+                }
+            },
+            Expr::Path(parts) => {
+                if parts
+                    .first()
+                    .is_some_and(|name| configured.contains(name) && !shadowed.contains(name))
+                {
+                    out.insert(parts[0].clone());
+                }
+            },
+            Expr::Index(container, index) => {
+                visit(container, configured, shadowed, out);
+                visit(index, configured, shadowed, out);
+            },
+            Expr::Tuple(items) | Expr::List(items) => {
+                for item in items {
+                    visit(item, configured, shadowed, out);
+                }
+            },
+            Expr::Binary(left, _, right) => {
+                visit(left, configured, shadowed, out);
+                visit(right, configured, shadowed, out);
+            },
+            Expr::Unary(_, value) => visit(value, configured, shadowed, out),
+            Expr::Call(name, args) => {
+                if configured.contains(name) && !shadowed.contains(name) {
+                    out.insert(name.clone());
+                }
+                for arg in args {
+                    visit(arg, configured, shadowed, out);
+                }
+            },
+            Expr::Method(receiver, _, args) => {
+                visit(receiver, configured, shadowed, out);
+                for arg in args {
+                    visit(arg, configured, shadowed, out);
+                }
+            },
+            // Closures are stored now and their bodies run only when invoked.
+            // That is the intended dynamic use of a runtime input.
+            Expr::Closure(_, _) => {},
+            Expr::LetChain(bindings, tail) => {
+                let mut local_names = shadowed.clone();
+                for (name, value) in bindings {
+                    visit(value, configured, &local_names, out);
+                    // The declaration shadows the same name only in following
+                    // bindings and the tail of this lexical chain.
+                    local_names.insert(name.clone());
+                }
+                visit(tail, configured, &local_names, out);
+            },
+            Expr::Conditional(condition, then_value, else_value) => {
+                visit(condition, configured, shadowed, out);
+                visit(then_value, configured, shadowed, out);
+                visit(else_value, configured, shadowed, out);
+            },
+            Expr::Match(scrutinee, arms) => {
+                visit(scrutinee, configured, shadowed, out);
+                for (_, arm) in arms {
+                    visit(arm, configured, shadowed, out);
+                }
+            },
+            Expr::Construct(_, props) => {
+                for prop in props {
+                    visit(&prop.value, configured, shadowed, out);
+                }
+            },
+            Expr::Num(_) | Expr::Percent(_) | Expr::Str(_) | Expr::Bool(_) | Expr::Null => {},
+        }
+    }
+
+    let mut used = std::collections::BTreeSet::new();
+    visit(expr, configured, &std::collections::HashSet::new(), &mut used);
+    for name in used {
+        invalid.entry(name).or_insert_with(|| context.to_string());
+    }
+}
+
+fn scan_runtime_input_props(
+    props: &[crate::ast::Property],
+    context: &str,
+    configured: &std::collections::HashSet<String>,
+    invalid: &mut std::collections::BTreeMap<String, String>,
+) {
+    for prop in props {
+        scan_runtime_input_expr(
+            &prop.value,
+            configured,
+            &format!("property `{context}.{}`", prop.name),
+            invalid,
+        );
+    }
+}
+
+fn scan_runtime_input_modifiers(
+    modifiers: &[crate::ast::Modifier],
+    owner: &str,
+    configured: &std::collections::HashSet<String>,
+    invalid: &mut std::collections::BTreeMap<String, String>,
+) {
+    for modifier in modifiers {
+        let name = modifier.name.as_deref().unwrap_or("duration");
+        scan_runtime_input_expr(
+            &modifier.value,
+            configured,
+            &format!("{owner} modifier `{name}`"),
+            invalid,
+        );
+    }
+}
+
+fn scan_runtime_input_inline_items(
+    items: &[crate::ast::InlineItem],
+    context: &str,
+    configured: &std::collections::HashSet<String>,
+    invalid: &mut std::collections::BTreeMap<String, String>,
+) {
+    for item in items {
+        match item {
+            crate::ast::InlineItem::Anonymous {
+                ty,
+                props,
+                modifiers,
+                children,
+            } => {
+                let label = format!("{context}.{ty}");
+                scan_runtime_input_props(props, &label, configured, invalid);
+                scan_runtime_input_modifiers(modifiers, &label, configured, invalid);
+                scan_runtime_input_inline_items(children, &label, configured, invalid);
+            },
+            crate::ast::InlineItem::Labeled {
+                label,
+                array_index,
+                props,
+                modifiers,
+                children,
+                ..
+            } => {
+                if let Some(index) = array_index {
+                    scan_runtime_input_expr(index, configured, "an actor array index", invalid);
+                }
+                let label = format!("{context}.{label}");
+                scan_runtime_input_props(props, &label, configured, invalid);
+                scan_runtime_input_modifiers(modifiers, &label, configured, invalid);
+                scan_runtime_input_inline_items(children, &label, configured, invalid);
+            },
+            crate::ast::InlineItem::ForLoop {
+                var,
+                index_var,
+                iterable,
+                body,
+            } => {
+                scan_runtime_input_expr(
+                    iterable,
+                    configured,
+                    "a container `for` iterable",
+                    invalid,
+                );
+                let mut body_inputs = configured.clone();
+                match var {
+                    crate::ast::LoopPattern::Single(name) => {
+                        body_inputs.remove(name);
+                    },
+                    crate::ast::LoopPattern::Tuple(names) => {
+                        for name in names {
+                            body_inputs.remove(name);
+                        }
+                    },
+                }
+                if let Some(index_var) = index_var {
+                    body_inputs.remove(index_var);
+                }
+                scan_runtime_input_inline_items(body, context, &body_inputs, invalid);
+            },
+            crate::ast::InlineItem::SlotFill { items, .. } => {
+                scan_runtime_input_inline_items(items, context, configured, invalid);
+            },
+            crate::ast::InlineItem::SlotMarker => {},
+        }
+    }
+}
+
+fn scan_runtime_input_stmts(
+    statements: &[Stmt],
+    configured: &std::collections::HashSet<String>,
+    invalid: &mut std::collections::BTreeMap<String, String>,
+) {
+    for stmt in statements {
+        match stmt {
+            Stmt::LetDecl { name, value, .. } => scan_runtime_input_expr(
+                value,
+                configured,
+                &format!("build-time `let {name}`"),
+                invalid,
+            ),
+            Stmt::ActorDecl {
+                label,
+                array_index,
+                props,
+                modifiers,
+                children,
+                ..
+            } => {
+                if let Some(index) = array_index {
+                    scan_runtime_input_expr(index, configured, "an actor array index", invalid);
+                }
+                scan_runtime_input_props(props, label, configured, invalid);
+                scan_runtime_input_modifiers(
+                    modifiers,
+                    &format!("actor `{label}`"),
+                    configured,
+                    invalid,
+                );
+                scan_runtime_input_inline_items(children, label, configured, invalid);
+            },
+            Stmt::Keyframe { body, .. }
+            | Stmt::RelativeKeyframe { body, .. }
+            | Stmt::Sequence { body, .. } => scan_runtime_input_stmts(body, configured, invalid),
+            Stmt::Stagger {
+                modifiers, body, ..
+            } => {
+                scan_runtime_input_modifiers(modifiers, "a `stagger` block", configured, invalid);
+                scan_runtime_input_stmts(body, configured, invalid);
+            },
+            Stmt::Block {
+                body, time_scope, ..
+            } => {
+                if let Some(time_scope) = time_scope {
+                    if let Some(expr) = &time_scope.time_scale {
+                        scan_runtime_input_expr(
+                            expr,
+                            configured,
+                            "a call-site `time_scale` mapping",
+                            invalid,
+                        );
+                    }
+                    if let Some(expr) = &time_scope.clip_duration {
+                        scan_runtime_input_expr(
+                            expr,
+                            configured,
+                            "a call-site `clip_duration` mapping",
+                            invalid,
+                        );
+                    }
+                }
+                scan_runtime_input_stmts(body, configured, invalid);
+            },
+            Stmt::Assignment {
+                value,
+                property,
+                modifiers,
+                ..
+            } => {
+                scan_runtime_input_expr(
+                    value,
+                    configured,
+                    &format!("keyframe assignment `{property}`"),
+                    invalid,
+                );
+                scan_runtime_input_modifiers(
+                    modifiers,
+                    &format!("keyframe assignment `{property}`"),
+                    configured,
+                    invalid,
+                );
+            },
+            Stmt::Conditional {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                scan_runtime_input_expr(
+                    condition,
+                    configured,
+                    "a build-time `if` condition",
+                    invalid,
+                );
+                scan_runtime_input_stmts(then_branch, configured, invalid);
+                if let Some(branch) = else_branch {
+                    scan_runtime_input_stmts(branch, configured, invalid);
+                }
+            },
+            Stmt::Match {
+                scrutinee, arms, ..
+            } => {
+                scan_runtime_input_expr(
+                    scrutinee,
+                    configured,
+                    "a build-time `match` value",
+                    invalid,
+                );
+                for (_, body) in arms {
+                    scan_runtime_input_stmts(body, configured, invalid);
+                }
+            },
+            Stmt::ForLoop {
+                var,
+                index_var,
+                iterable,
+                body,
+                modifiers,
+                ..
+            } => {
+                scan_runtime_input_expr(
+                    iterable,
+                    configured,
+                    "a build-time `for` iterable",
+                    invalid,
+                );
+                scan_runtime_input_modifiers(
+                    modifiers,
+                    "a build-time `for` loop",
+                    configured,
+                    invalid,
+                );
+                let mut body_inputs = configured.clone();
+                match var {
+                    crate::ast::LoopPattern::Single(name) => {
+                        body_inputs.remove(name);
+                    },
+                    crate::ast::LoopPattern::Tuple(names) => {
+                        for name in names {
+                            body_inputs.remove(name);
+                        }
+                    },
+                }
+                if let Some(index_var) = index_var {
+                    body_inputs.remove(index_var);
+                }
+                scan_runtime_input_stmts(body, &body_inputs, invalid);
+            },
+            Stmt::Config { settings, .. } => {
+                for setting in settings.iter().filter(|setting| setting.name != "runtime_inputs") {
+                    scan_runtime_input_expr(
+                        &setting.value,
+                        configured,
+                        &format!("config `{}`", setting.name),
+                        invalid,
+                    );
+                }
+            },
+            Stmt::Scene { config, body, .. } => {
+                scan_runtime_input_props(config, "scene config", configured, invalid);
+                scan_runtime_input_stmts(body, configured, invalid);
+            },
+            // These bodies are lowered to frame-time programs or invoked when
+            // a runtime expression calls them; they may safely read inputs.
+            Stmt::Always { .. } | Stmt::ReactiveBinding { .. } | Stmt::FnDecl { .. } => {},
+            Stmt::Action(action, _) => {
+                for index in action.target_index.iter().flatten() {
+                    scan_runtime_input_expr(index, configured, "an action target index", invalid);
+                }
+                for arg in &action.args {
+                    scan_runtime_input_expr(arg, configured, "an action argument", invalid);
+                }
+                scan_runtime_input_modifiers(
+                    &action.modifiers,
+                    &format!("action `{}`", action.verb),
+                    configured,
+                    invalid,
+                );
+            },
+            Stmt::TypeAlias { .. }
+            | Stmt::Import { .. }
+            | Stmt::ComponentDef(..)
+            | Stmt::Return { .. }
+            | Stmt::Expr(..)
+            | Stmt::Play { .. }
+            | Stmt::Step { .. }
+            | Stmt::Comment(..) => {},
+        }
+    }
+}
+
 /// Warn about actors that were seeded hidden and never revealed.
 ///
 /// Tracks still flagged `hidden_by_default` at the end of the build were seeded
@@ -302,6 +770,85 @@ pub(super) fn validate_actors(timeline: &mut Timeline, diagnostics: &mut Vec<Dia
                     );
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod runtime_input_structure_tests {
+    use super::*;
+    use crate::ast::{Action, Expr, LoopPattern, Modifier, Stmt, TimeScopeSpec};
+
+    fn input_modifier(name: &str) -> Modifier {
+        Modifier {
+            name: Some("duration".to_string()),
+            value: Expr::Ident(name.to_string()),
+        }
+    }
+
+    #[test]
+    fn runtime_inputs_in_time_scopes_and_timing_modifiers_are_rejected() {
+        let input_names = [
+            "speed",
+            "clip",
+            "action_duration",
+            "loop_step",
+            "stagger_gap",
+        ];
+        let statements = vec![
+            Stmt::Block {
+                body: Vec::new(),
+                instance_scope: None,
+                time_scope: Some(TimeScopeSpec {
+                    time_scale: Some(Expr::Ident("speed".to_string())),
+                    clip_duration: Some(Expr::Ident("clip".to_string())),
+                    end_limit_duration_ms: None,
+                }),
+                span: None,
+            },
+            Stmt::Action(
+                Action {
+                    verb: "move".to_string(),
+                    targets: vec!["box".to_string()],
+                    target_index: vec![None],
+                    target_index_position: vec![None],
+                    args: Vec::new(),
+                    modifiers: vec![input_modifier("action_duration")],
+                    byte_span: None,
+                },
+                None,
+            ),
+            Stmt::ForLoop {
+                var: LoopPattern::Single("item".to_string()),
+                index_var: None,
+                iterable: Expr::List(Vec::new()),
+                body: Vec::new(),
+                modifiers: vec![input_modifier("loop_step")],
+                span: None,
+            },
+            Stmt::Stagger {
+                modifiers: vec![input_modifier("stagger_gap")],
+                body: Vec::new(),
+                span: None,
+            },
+        ];
+
+        let mut timeline = crate::timeline::Timeline::new();
+        timeline.runtime_input_names = input_names.iter().map(|name| (*name).to_string()).collect();
+        let mut diagnostics = Vec::new();
+
+        validate_runtime_input_uses(&statements, &mut timeline, &mut diagnostics);
+
+        assert!(timeline.runtime_input_names.is_empty());
+        assert_eq!(diagnostics.len(), input_names.len());
+        for name in input_names {
+            assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic.location.subject.as_deref() == Some(name)
+                        && diagnostic.message.contains("fixed at build time")
+                }),
+                "expected a build-time diagnostic for runtime input `{name}`"
+            );
         }
     }
 }

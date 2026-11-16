@@ -11,6 +11,7 @@ use crate::ast::{Action, InlineItem, LoopPattern, MatchPattern, Property, Span};
 mod indexed_component;
 mod loop_modifiers;
 mod scoped_instance;
+pub(super) mod time_scope;
 
 pub(crate) fn bind_loop_var(
     env: &mut Environment,
@@ -210,9 +211,11 @@ impl Timeline {
                     body,
                     span,
                     instance_scope,
+                    time_scope,
                 } => self.process_block_stmt(
                     body,
                     instance_scope.as_ref(),
+                    time_scope.as_ref(),
                     *span,
                     time_ms,
                     parent_label,

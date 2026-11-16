@@ -292,6 +292,7 @@ impl Timeline {
                 // set is irrelevant here; the plot-specific declaration path
                 // reports probe failures.
                 param_names: &[],
+                runtime_input_names: &self.runtime_input_names,
             };
             return build_plot_curve_paths(&curve_params, &mut ignored_diagnostics);
         }

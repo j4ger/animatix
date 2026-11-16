@@ -108,10 +108,19 @@ pub fn walk_stmt<'ast, V: AstVisitor<'ast> + ?Sized>(visitor: &mut V, stmt: &'as
         Stmt::Block {
             body,
             instance_scope,
+            time_scope,
             ..
         } => {
             if let Some(scope) = instance_scope {
                 visitor.visit_expr(&scope.index);
+            }
+            if let Some(scope) = time_scope {
+                if let Some(time_scale) = &scope.time_scale {
+                    visitor.visit_expr(time_scale);
+                }
+                if let Some(clip_duration) = &scope.clip_duration {
+                    visitor.visit_expr(clip_duration);
+                }
             }
             for stmt in body {
                 visitor.visit_stmt(stmt);
@@ -507,11 +516,17 @@ pub fn walk_fold_stmt<F: AstFolder + ?Sized>(folder: &mut F, stmt: Stmt) -> Stmt
         Stmt::Block {
             body,
             instance_scope,
+            time_scope,
             span,
         } => Stmt::Block {
             body: folder.fold_stmts(body),
             instance_scope: instance_scope.map(|mut scope| {
                 scope.index = folder.fold_expr(scope.index);
+                scope
+            }),
+            time_scope: time_scope.map(|mut scope| {
+                scope.time_scale = scope.time_scale.map(|expr| folder.fold_expr(expr));
+                scope.clip_duration = scope.clip_duration.map(|expr| folder.fold_expr(expr));
                 scope
             }),
             span,
@@ -780,5 +795,43 @@ mod tests {
             },
             other => panic!("expected assignment, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn block_time_scope_expressions_are_visited_and_folded() {
+        let block = Stmt::Block {
+            body: vec![],
+            instance_scope: None,
+            time_scope: Some(TimeScopeSpec {
+                time_scale: Some(Expr::Ident("old_scale".into())),
+                clip_duration: Some(Expr::Ident("old_duration".into())),
+                end_limit_duration_ms: None,
+            }),
+            span: None,
+        };
+
+        let mut collector = IdentifierCollector { idents: Vec::new() };
+        collector.visit_stmt(&block);
+        assert_eq!(collector.idents, vec!["old_scale".to_string(), "old_duration".to_string()]);
+
+        let folded = IdentifierRenamer.fold_stmt(Stmt::Block {
+            body: vec![],
+            instance_scope: None,
+            time_scope: Some(TimeScopeSpec {
+                time_scale: Some(Expr::Ident("old".into())),
+                clip_duration: Some(Expr::Ident("old".into())),
+                end_limit_duration_ms: None,
+            }),
+            span: None,
+        });
+        let Stmt::Block {
+            time_scope: Some(scope),
+            ..
+        } = folded
+        else {
+            panic!("expected a Block retaining its time scope")
+        };
+        assert_eq!(scope.time_scale, Some(Expr::Ident("new".into())));
+        assert_eq!(scope.clip_duration, Some(Expr::Ident("new".into())));
     }
 }

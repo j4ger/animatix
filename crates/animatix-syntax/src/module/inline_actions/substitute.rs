@@ -71,20 +71,99 @@ impl AstFolder for ParamSubstituter<'_> {
 
     fn fold_stmt(&mut self, stmt: Stmt) -> Stmt {
         match stmt {
+            Stmt::Assignment {
+                target,
+                property,
+                value,
+                modifiers,
+                easing,
+                value_span,
+                span,
+            } => Stmt::Assignment {
+                target: self.fold_target_path(target),
+                property,
+                value: self.fold_expr(value),
+                modifiers: modifiers.into_iter().map(|m| self.fold_modifier(m)).collect(),
+                easing,
+                value_span,
+                span,
+            },
+            Stmt::ReactiveBinding {
+                target,
+                property,
+                value,
+                value_span,
+                span,
+            } => Stmt::ReactiveBinding {
+                target: self.fold_target_path(target),
+                property,
+                value: self.fold_expr(value),
+                value_span,
+                span,
+            },
             Stmt::LetDecl { .. }
-            | Stmt::Assignment { .. }
             | Stmt::Action(..)
             | Stmt::Keyframe { .. }
             | Stmt::RelativeKeyframe { .. }
             | Stmt::Sequence { .. }
             | Stmt::Stagger { .. }
             | Stmt::Always { .. }
-            | Stmt::ReactiveBinding { .. }
             | Stmt::Conditional { .. }
             | Stmt::Match { .. }
             | Stmt::ForLoop { .. } => walk_fold_stmt(self, stmt),
             other => other,
         }
+    }
+}
+
+impl ParamSubstituter<'_> {
+    /// Substitute actor-label parameters in the actor portion of an assignment
+    /// target. A dotted path argument expands one target segment into the same
+    /// segment sequence the parser would produce for that path.
+    fn fold_target_path(&mut self, target: Vec<TargetSegment>) -> Vec<TargetSegment> {
+        let mut folded = Vec::with_capacity(target.len());
+        for (position, segment) in target.into_iter().enumerate() {
+            match segment {
+                TargetSegment::Static(label) => {
+                    let substituted = if position == 0 {
+                        substitute_label_in_target(&label, self.bindings)
+                    } else {
+                        label.clone()
+                    };
+                    if substituted == label {
+                        folded.push(TargetSegment::Static(label));
+                    } else {
+                        folded.extend(
+                            substituted
+                                .split('.')
+                                .map(|part| TargetSegment::Static(part.to_string())),
+                        );
+                    }
+                },
+                TargetSegment::Indexed { base, index } => {
+                    let substituted = if position == 0 {
+                        substitute_label_in_target(&base, self.bindings)
+                    } else {
+                        base.clone()
+                    };
+                    if substituted == base {
+                        folded
+                            .push(self.fold_target_segment(TargetSegment::Indexed { base, index }));
+                    } else {
+                        let mut parts = substituted.split('.').collect::<Vec<_>>();
+                        let last = parts.pop().expect("a label path always has one segment");
+                        folded.extend(
+                            parts.iter().map(|part| TargetSegment::Static((*part).to_string())),
+                        );
+                        folded.push(self.fold_target_segment(TargetSegment::Indexed {
+                            base: last.to_string(),
+                            index,
+                        }));
+                    }
+                },
+            }
+        }
+        folded
     }
 }
 

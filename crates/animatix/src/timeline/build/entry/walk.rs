@@ -27,9 +27,32 @@ pub(super) fn walk_statements(
     };
     walk_statements_inner(timeline, ast, &mut state, diagnostics);
 
-    // Names written by always blocks — a plot closure capturing one of these
-    // must resample per frame (see ProceduralPlot::is_dynamic).
+    // Names whose frame value can differ from the value captured at plot
+    // declaration time — a plot closure reading one of these must resample
+    // per frame (see ProceduralPlot::is_dynamic). VariableTrack is
+    // piecewise-constant; a nonzero first keyframe or multiple keyframes can
+    // change its value as the playhead moves. A single t=0 declaration is a
+    // static capture and does not make every plot dynamic.
+    refresh_frame_written_vars(timeline);
+}
+
+/// Recompute the names whose value can change at evaluation time. Also called
+/// after runtime-input validation removes names that collide with static or
+/// non-numeric values.
+pub(super) fn refresh_frame_written_vars(timeline: &mut Timeline) {
     timeline.frame_written_vars = Timeline::collect_frame_written_vars(&timeline.modifiers);
+    timeline.frame_written_vars.extend(
+        timeline
+            .variable_tracks
+            .iter()
+            .filter(|(_, track)| {
+                track.keyframes.len() > 1 || track.keyframes.keys().any(|time_ms| *time_ms > 0)
+            })
+            .map(|(name, _)| name.clone()),
+    );
+    // A configured input can change between evaluations even when it has no
+    // authored keyframes. A procedural plot that reads one must be resampled.
+    timeline.frame_written_vars.extend(timeline.runtime_input_names.iter().cloned());
 }
 
 /// The statement walk proper. `if`/`match` blocks are build-time structural

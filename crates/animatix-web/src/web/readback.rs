@@ -170,7 +170,11 @@ fn readback_with(
         player.compositor = Some(TransitionCompositor::new(&ctx.device)?);
     }
 
-    let AmxPlayer { target, .. } = player;
+    let AmxPlayer {
+        target,
+        runtime_inputs,
+        ..
+    } = player;
     // The probe gets its own filter backends for the same reason it gets its own
     // targets. `render_document` drains `take_pending_composites()` off whichever
     // backend it is handed and blits the result into its target, so probing
@@ -194,6 +198,7 @@ fn readback_with(
             scratch: &mut scratch,
             compositor: player.compositor.as_ref(),
             target: target.as_ref(),
+            runtime_inputs: &*runtime_inputs,
             time_s,
         },
         Targets {

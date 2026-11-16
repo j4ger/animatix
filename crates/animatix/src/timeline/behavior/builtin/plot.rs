@@ -2,6 +2,7 @@
 
 use crate::ast::{InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
+use crate::primitives::styling::sample_stroke_progress;
 use crate::primitives::{EvaluateCtx, RenderCommand, TextCompileCtx};
 use crate::renderer::error::RenderError;
 use crate::timeline::path_progress::trim_path_by_progress;
@@ -21,7 +22,7 @@ pub fn evaluate_plot(
     }
 
     let style = ctx.style;
-    let progress = f64::from(style.stroke_progress.get(ctx.time_ms, 1.0)).clamp(0.0, 1.0);
+    let progress = sample_stroke_progress(style, ctx.time_ms, ctx.overrides);
 
     let paths: Vec<_> = if progress < 1.0 {
         ctx.vector_paths

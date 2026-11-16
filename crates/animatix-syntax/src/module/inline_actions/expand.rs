@@ -54,7 +54,13 @@ pub(super) fn expand_stmt(
                 // bind positional arguments to parameters.
                 if let Some(template) = module_fns.get(&action.verb) {
                     if template.return_type.is_none() && !cycle_members.contains(&action.verb) {
-                        inlined.extend(expand_arg_call(template, &action, module_fns, stack));
+                        inlined.extend(expand_arg_call(
+                            template,
+                            &action,
+                            module_fns,
+                            stack,
+                            diagnostics,
+                        ));
                     } else if cycle_members.contains(&action.verb) {
                         // Cycle already reported by detect_fn_cycles; drop the
                         // call so it does not surface as "unknown action".
@@ -96,12 +102,21 @@ pub(super) fn expand_stmt(
                             span,
                             module_fns,
                             stack,
+                            diagnostics,
                         ));
                     } else if let Some(template) = module_fns.get(&action.verb) {
                         if template.return_type.is_none() {
                             inlined.extend(expand_target_call(
-                                template, target, target, None, None, &action, span, module_fns,
+                                template,
+                                target,
+                                target,
+                                None,
+                                None,
+                                &action,
+                                span,
+                                module_fns,
                                 stack,
+                                diagnostics,
                             ));
                         } else {
                             remaining.push(target.clone());
@@ -174,6 +189,7 @@ pub(super) fn expand_target_call(
     span: Option<crate::ast::Span>,
     module_fns: &HashMap<String, FnTemplate>,
     stack: &mut Vec<String>,
+    diagnostics: &mut Vec<String>,
 ) -> Vec<Stmt> {
     if stack.iter().any(|name| name == &action.verb) {
         // Cycle already reported by detect_fn_cycles; drop the call so it
@@ -181,6 +197,7 @@ pub(super) fn expand_target_call(
         return Vec::new();
     }
     stack.push(action.verb.clone());
+    let time_scope = parse_time_scope(template, &action.modifiers, diagnostics);
     // Param values come from named invocation modifiers, then defaults.
     let mut values: HashMap<String, Expr> = HashMap::new();
     let mut bound: std::collections::HashSet<&str> = std::collections::HashSet::new();
@@ -215,7 +232,7 @@ pub(super) fn expand_target_call(
                 || (m.name.is_none()
                     && is_time_expr(&m.value)
                     && template.params.iter().any(|p| p.name == "duration"));
-            !is_param
+            !is_param && !is_time_scope_modifier(template, m)
         })
         .cloned()
         .collect();
@@ -265,8 +282,60 @@ pub(super) fn expand_target_call(
     vec![Stmt::Block {
         body,
         instance_scope,
+        time_scope,
         span,
     }]
+}
+
+fn is_time_scope_modifier(template: &FnTemplate, modifier: &Modifier) -> bool {
+    let Some(name) = modifier.name.as_deref() else {
+        return false;
+    };
+    matches!(name, "time_scale" | "clip_duration")
+        && !template.params.iter().any(|param| param.name == name)
+}
+
+fn parse_time_scope(
+    template: &FnTemplate,
+    modifiers: &[Modifier],
+    diagnostics: &mut Vec<String>,
+) -> Option<crate::ast::TimeScopeSpec> {
+    let mut time_scale = None;
+    let mut clip_duration = None;
+    for modifier in modifiers {
+        if !is_time_scope_modifier(template, modifier) {
+            continue;
+        }
+        match modifier.name.as_deref() {
+            Some("time_scale") if time_scale.is_some() => {
+                time_scale = Some(modifier.value.clone());
+                diagnostics.push(
+                    "duplicate `time_scale` modifier on timeline function call; using the last value".into(),
+                );
+            },
+            Some("time_scale") => time_scale = Some(modifier.value.clone()),
+            Some("clip_duration") if clip_duration.is_some() => {
+                clip_duration = Some(modifier.value.clone());
+                diagnostics.push(
+                    "duplicate `clip_duration` modifier on timeline function call; using the last value".into(),
+                );
+            },
+            Some("clip_duration") => clip_duration = Some(modifier.value.clone()),
+            _ => {},
+        }
+    }
+    if time_scale.is_some() && clip_duration.is_some() {
+        diagnostics.push(
+            "`time_scale` and `clip_duration` are mutually exclusive on a timeline function call"
+                .into(),
+        );
+        return None;
+    }
+    (time_scale.is_some() || clip_duration.is_some()).then_some(crate::ast::TimeScopeSpec {
+        time_scale,
+        clip_duration,
+        end_limit_duration_ms: None,
+    })
 }
 
 fn fresh_index_snapshot_name(template: &FnTemplate, index: &Expr, action: &Action) -> String {
@@ -286,6 +355,7 @@ pub(super) fn expand_arg_call(
     action: &Action,
     module_fns: &HashMap<String, FnTemplate>,
     stack: &mut Vec<String>,
+    diagnostics: &mut Vec<String>,
 ) -> Vec<Stmt> {
     if stack.iter().any(|name| name == &action.verb) {
         // Cycle already reported by detect_fn_cycles; drop the call so it
@@ -293,6 +363,7 @@ pub(super) fn expand_arg_call(
         return Vec::new();
     }
     stack.push(action.verb.clone());
+    let time_scope = parse_time_scope(template, &action.modifiers, diagnostics);
     let mut values: HashMap<String, Expr> = HashMap::new();
     for (index, param) in template.params.iter().enumerate() {
         match action.args.get(index) {
@@ -307,11 +378,18 @@ pub(super) fn expand_arg_call(
         }
     }
     let body = expand_with_params(template, &values, module_fns);
-    let body = apply_modifiers_to_body(body, &action.modifiers);
+    let body_modifiers = action
+        .modifiers
+        .iter()
+        .filter(|modifier| !is_time_scope_modifier(template, modifier))
+        .cloned()
+        .collect::<Vec<_>>();
+    let body = apply_modifiers_to_body(body, &body_modifiers);
     stack.pop();
     vec![Stmt::Block {
         body,
         instance_scope: None,
+        time_scope,
         span: None,
     }]
 }

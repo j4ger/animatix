@@ -20,6 +20,10 @@ pub(crate) struct PlotCurveParams<'a> {
     /// probe environment is the designed handoff to per-frame resampling, not
     /// an evaluation error.
     pub(crate) param_names: &'a [String],
+    /// Configured numeric inputs may be absent from the build probe and arrive
+    /// only at frame time, so an initial sample should create gaps without
+    /// producing a misleading build error.
+    pub(crate) runtime_input_names: &'a [String],
     pub(crate) func: &'a Option<(
         Vec<String>,
         Box<crate::timeline::modifier_runtime::ir::CompiledExpr>,
@@ -210,7 +214,8 @@ fn eval_curve_arg(
         Err(EvalError::UndefinedVariable(name))
             if name == "t"
                 || name == arg_name
-                || params.param_names.iter().any(|param| param == &name) =>
+                || params.param_names.iter().any(|param| param == &name)
+                || params.runtime_input_names.iter().any(|input| input == &name) =>
         {
             Value::Num(f64::NAN)
         },
@@ -519,6 +524,7 @@ impl Timeline {
                     build_quality: self.build_quality,
                     label,
                     param_names: &param_names,
+                    runtime_input_names: &self.runtime_input_names,
                 };
                 vello_paths = build_plot_curve_paths(&curve_params, diagnostics);
                 self.plot_path_cache.insert(key, vello_paths.clone());
@@ -541,6 +547,7 @@ impl Timeline {
                 build_quality: self.build_quality,
                 label,
                 param_names: &param_names,
+                runtime_input_names: &self.runtime_input_names,
             };
             vello_paths = build_plot_curve_paths(&curve_params, diagnostics);
         }

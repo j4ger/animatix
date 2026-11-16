@@ -60,6 +60,7 @@ declare the imports they need; the runtime does not inject them.
 | `layout/12_reorder.amx` | Reorder: `swap`, `reorder`, dynamic layout |
 | `layout/13_paths.amx` | Paths: bezier curves, morphing, affine transforms |
 | `layout/27_layout_text.amx` | Percentage sizing, constraints, typography, wrapping |
+| `layout/painter_order_annotations.amx` | Background Connector, moving component, and root-level Callout following a nested marker |
 
 ## Animation
 
@@ -73,6 +74,7 @@ declare the imports they need; the runtime does not inject them.
 | `animation/31_effect_recipes.amx` | Four look recipes: Glow, Film, Neon, Paper |
 | `animation/42_grow_shrink.amx` | Pivot-anchored `grow-in` / `shrink-out` scale presets |
 | `animation/21_actions.amx` | Entrance, motion, exit, and effect actions |
+| `animation/local_tickers.amx` | Reusable locally timed function at independent starts and rates, with explicit end-state handoff |
 
 ## Components
 
@@ -92,6 +94,7 @@ declare the imports they need; the runtime does not inject them.
 | `data/24_plot_transitions.amx` | Animated transitions between plot kinds |
 | `data/26_data_math.amx` | BarChart and Equation with Fragment animations |
 | `data/27_bars_race.amx` | `data` keyframes — bars racing between datasets, matched by label |
+| `data/shared_progress_math.amx` | Two analytic decay curves, endpoint markers and readouts sharing a live numeric input |
 
 ## Composition
 
@@ -124,6 +127,8 @@ language design gaps.
 | `projects/leetcode_climbing_stairs.amx` | Algorithm animation with probes |
 | `projects/leetcode_reverse_linked_list.amx` | Linked-list reversal with probes |
 | `projects/leetcode_sort_colors.amx` | Dutch national flag as a timeline function (`fn dnf_pass` + `list_swap` + `[step: ...]` loops) |
+| `projects/compare_swap.amx` | Locally timed comparison and exchange of two cards, preserving each card's contents |
+| `projects/nested_compare_swap.amx` | Nested comparison cue and conditional swap, reused for slow explanation and quick review |
 | `projects/plugin_pulse.amx` | Native plugin showcase: custom primitive, enum property, action, function, cached image |
 
 `projects/plugin_pulse.amx` requires the native demo plugin and its manifest:

@@ -6,7 +6,7 @@
 //! environment to produce property overrides.
 
 use super::{
-    Environment, SceneAnchor, SceneDimensions, Timeline, Value, scene_anchor_point,
+    Environment, RuntimeInputs, SceneAnchor, SceneDimensions, Timeline, Value, scene_anchor_point,
     set_lookup_color_into, set_lookup_vec2_into,
 };
 
@@ -108,6 +108,18 @@ impl Timeline {
         scene_dimensions: SceneDimensions,
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> Environment {
+        self.build_frame_env_with_inputs_internal(time_ms, scene_dimensions, overrides, None)
+    }
+
+    /// Build a frame environment with an optional read-only external input
+    /// snapshot. The legacy path leaves the overlay absent.
+    pub(super) fn build_frame_env_with_inputs_internal(
+        &self,
+        time_ms: u64,
+        scene_dimensions: SceneDimensions,
+        overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
+        runtime_inputs: Option<&RuntimeInputs>,
+    ) -> Environment {
         let _stage = crate::perf::ScopedStage::new(crate::perf::stage::BUILD_FRAME_ENV);
         // The capacity estimate and every per-actor injection decision are
         // build-fixed (referenced-roots analysis, wildcard targets, registry
@@ -145,6 +157,9 @@ impl Timeline {
             },
         };
         let env_is_pooled = self.env_pool.borrow().is_none();
+        if let Some(values) = runtime_inputs.and_then(|inputs| inputs.values.clone()) {
+            env.set_runtime_inputs(Some(values));
+        }
         env.set("t", Value::Num(time_ms as f64 / 1000.0));
         env.set("scene_width", Value::Num(scene_dimensions.width as f64));
         env.set("scene_height", Value::Num(scene_dimensions.height as f64));

@@ -1,0 +1,38 @@
+// A single compare-and-swap decision: move the complete card so its value
+// and color stay attached while the row changes from [8, 3] to [3, 8].
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 3, dynamic_layout: true }
+
+fn compare_swap(a, b, left: Num, right: Num) {
+  if left > right {
+    swap a, b [700ms, ease: ease-in-out]
+  }
+}
+
+title: Text, text: "Compare, then swap", font_size: 42, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 55)
+rule: Text, text: "Ascending order · compare the two values before moving either card",
+  font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 112)
+pair: Row, at: (640, 390), gap: 140, align: "center" {
+  card8: Stack, size: (190, 150) {
+    tile8: Rect, size: (190, 150), color: accent.danger, corner_radius: 16
+    number8: Counter, value: 8, font_size: 62, color: text.primary
+  }
+  card3: Stack, size: (190, 150) {
+    tile3: Rect, size: (190, 150), color: accent.info, corner_radius: 16
+    number3: Counter, value: 3, font_size: 62, color: text.primary
+  }
+}
+status: Text, text: "8 > 3  ·  swap the cards as complete units", font_size: 24,
+  color: accent.warning, anchor: scene.bottom, offset: (0, -72)
+
+#0s
+fade-in title [450ms]
+fade-in rule [450ms, delay: 100ms]
+fade-in pair [500ms, delay: 150ms]
+fade-in status [400ms, delay: 250ms]
+
+#1s
+compare_swap(pair.card8, pair.card3, 8, 3)
+
+#2s
+status.text = "3 < 8  ·  the pair is in ascending order" [450ms]

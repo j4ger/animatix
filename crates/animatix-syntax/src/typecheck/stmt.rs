@@ -273,8 +273,8 @@ impl<'a> TypeEnv<'a> {
     /// Check one statement inside a function body against the purity rules.
     ///
     /// Pure functions (`-> Type`) allow computation only: `let`, `if`/`match`,
-    /// `for`, and `return`. Timeline functions may emit events but must not
-    /// declare scenes, keyframes, or actors.
+    /// `for`, and `return`. Timeline functions may emit events inside local
+    /// keyframes, but must not declare scenes or actors.
     fn check_fn_body_stmt(
         &mut self,
         name: &str,
@@ -290,7 +290,17 @@ impl<'a> TypeEnv<'a> {
             | Stmt::Block { .. }
             | Stmt::Expr(..)
             | Stmt::Return { .. } => true,
+            Stmt::Keyframe { .. } | Stmt::RelativeKeyframe { .. } | Stmt::Always { .. }
+                if !pure =>
+            {
+                true
+            },
             Stmt::Action { .. } | Stmt::Assignment { .. } if !pure => true,
+            Stmt::ReactiveBinding { .. } | Stmt::Sequence { .. } | Stmt::Stagger { .. }
+                if !pure =>
+            {
+                true
+            },
             _ => false,
         };
         if !allowed {
@@ -304,7 +314,7 @@ impl<'a> TypeEnv<'a> {
                     if pure {
                         "; pure functions may only compute (let/if/match/for/return)"
                     } else {
-                        "; timeline functions cannot declare scenes, keyframes, or actors"
+                        "; timeline functions cannot declare scenes or actors"
                     }
                 ),
             ));
@@ -332,7 +342,13 @@ impl<'a> TypeEnv<'a> {
                     }
                 }
             },
-            Stmt::ForLoop { body, .. } | Stmt::Block { body, .. } => {
+            Stmt::ForLoop { body, .. }
+            | Stmt::Block { body, .. }
+            | Stmt::Keyframe { body, .. }
+            | Stmt::RelativeKeyframe { body, .. }
+            | Stmt::Sequence { body, .. }
+            | Stmt::Stagger { body, .. }
+            | Stmt::Always { body, .. } => {
                 for s in body {
                     self.check_fn_body_stmt(name, s, pure, diagnostics);
                 }

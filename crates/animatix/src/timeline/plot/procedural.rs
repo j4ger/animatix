@@ -131,6 +131,9 @@ impl ProceduralPlot {
         self.func_body.references_ident("t")
             || !self.param_names.is_empty()
             || self.extra_captures.0.keys().any(|name| frame_written_vars.contains(name))
+            || frame_written_vars
+                .iter()
+                .any(|name| !self.func_args.contains(name) && self.func_body.references_ident(name))
     }
 }
 

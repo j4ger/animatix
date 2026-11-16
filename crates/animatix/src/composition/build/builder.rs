@@ -69,6 +69,13 @@ impl Composition {
         edges::resolve_edges(namespaces, &mut state);
         timing::resolve_timing(namespaces, &scene_options, &mut state);
 
+        // Per-scene Timelines are implementation details of the composition
+        // clock; the single-scene runtime-input API must not escape through
+        // `Composition::scenes`, including after carry-aware rebuilds.
+        for scene in state.scenes.values_mut() {
+            scene.timeline.runtime_input_names.clear();
+        }
+
         let SceneCollection {
             scenes,
             walk_order,
@@ -189,6 +196,18 @@ impl Composition {
         let scene_scoped_keys = animatix_syntax::config_keys::scene_scoped_config_key_names();
 
         for prop in config {
+            if prop.name == "runtime_inputs" {
+                diagnostics.push(
+                    Diagnostic::error(
+                        DiagnosticCode::InvalidConfigValue,
+                        DiagnosticPhase::Build,
+                        "`runtime_inputs` is currently supported only by single-scene builds."
+                            .to_string(),
+                    )
+                    .with_subject(scene_name),
+                );
+                continue;
+            }
             if scene_scoped_keys.contains(&prop.name.as_str()) {
                 continue;
             }
@@ -269,7 +288,11 @@ fn collect_scenes(
                         .into_iter()
                         .map(|d| d.with_subject(format!("scene '{}'", name))),
                 );
-                let timeline = build_report.output;
+                let mut timeline = build_report.output;
+                // Runtime input overlays are scoped to a complete single-scene
+                // Timeline. Composition scenes are evaluated through the
+                // composition clock, so do not expose per-scene hot inputs.
+                timeline.runtime_input_names.clear();
                 let inferred_duration = timeline.duration_seconds();
 
                 // Check for explicit duration in scene config
@@ -306,9 +329,22 @@ fn collect_scenes(
                         Stmt::Import { .. }
                         | Stmt::TypeAlias { .. }
                         | Stmt::LetDecl { is_pub: true, .. }
-                        | Stmt::Config { .. }
                         | Stmt::ComponentDef(..)
                         | Stmt::Comment(..) => {
+                            state.shared_prelude.push(other.clone());
+                        },
+                        Stmt::Config { settings, .. } => {
+                            if settings.iter().any(|setting| setting.name == "runtime_inputs") {
+                                state.diagnostics.push(
+                                    Diagnostic::error(
+                                        DiagnosticCode::InvalidConfigValue,
+                                        DiagnosticPhase::Build,
+                                        "`runtime_inputs` is currently supported only by single-scene builds."
+                                            .to_string(),
+                                    )
+                                    .with_subject("runtime_inputs"),
+                                );
+                            }
                             state.shared_prelude.push(other.clone());
                         },
                         _ => {
@@ -396,6 +432,22 @@ fn collect_cross_file_scenes(
                 span: scene_data.span,
             });
             merged.extend(scene_data.body.clone());
+            if merged.iter().any(|stmt| match stmt {
+                Stmt::Config { settings, .. } => {
+                    settings.iter().any(|setting| setting.name == "runtime_inputs")
+                },
+                _ => false,
+            }) {
+                state.diagnostics.push(
+                    Diagnostic::error(
+                        DiagnosticCode::InvalidConfigValue,
+                        DiagnosticPhase::Build,
+                        "`runtime_inputs` is currently supported only by single-scene builds."
+                            .to_string(),
+                    )
+                    .with_subject(&target),
+                );
+            }
             state.merged_bodies.insert(target.clone(), merged.clone());
             let build_report = Timeline::build_with_options(&merged, namespaces, options.clone());
             state.diagnostics.extend(

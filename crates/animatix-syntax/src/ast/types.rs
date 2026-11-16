@@ -54,6 +54,22 @@ pub struct Modifier {
     pub value: Expr,
 }
 
+/// Invocation-local retiming options for an expanded timeline function call.
+///
+/// These expressions are evaluated once at the call site during timeline
+/// construction. `time_scale` multiplies authored time; `clip_duration`
+/// derives a multiplier from the function body's authored extent.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TimeScopeSpec {
+    /// Positive multiplier applied to local times and durations.
+    pub time_scale: Option<Expr>,
+    /// Target duration for the expanded function body.
+    pub clip_duration: Option<Expr>,
+    /// Build-generated maximum active duration inherited from an enclosing
+    /// local time scope. This is not an authored modifier.
+    pub end_limit_duration_ms: Option<f64>,
+}
+
 /// Action invocation (e.g. `move btn to (100, 100) [2s]`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Action {

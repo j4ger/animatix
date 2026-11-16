@@ -1,0 +1,62 @@
+// Two analytic decay curves compare the same loss model at the same progress.
+// Dragging one progress input should update both curves, their endpoint markers,
+// and readouts together; without an input, the timeline drives progress.
+config {
+  colorscheme: "editorial-dark",
+  resolution: (1280, 720),
+  duration: 6,
+  runtime_inputs: {"progress"}
+}
+
+let progress = 0
+// Run the shared timeline driver before the component-level `always` blocks,
+// so automatic playback and runtime input overrides reach the same values.
+always {
+  progress = clamp(t / 6, 0, 1)
+}
+
+title: Text, text: "One progress, two learning rates", font_size: 38,
+  font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)
+method: Text, text: "Loss model  L(x) = exp(−η · progress · x)", font_size: 18,
+  color: text.secondary, anchor: scene.top, offset: (0, 112)
+
+pub component LossLane(label: Str, rate: Num, y: Num, tint: Color, p: Num) {
+  heading: Text, text: label, font_size: 23, font_weight: "bold", color: tint,
+    at: (640, y - 118)
+  graph: Graph, at: (640, y), size: (560, 180),
+    x_domain: (0, 6), y_domain: (0, 1.05),
+    grid: false, ticks: false, tick_labels: "none" {
+    loss_curve: PlotCurve, kind: "cartesian",
+      func: (x) => exp(-rate * p * x), stroke: tint, stroke_width: 4
+    marker: Ellipse, at: (6, 1), size: (14, 14), color: tint
+  }
+  loss_readout: Counter, value: 1, decimals: 2, font_size: 26, color: tint,
+    at: (1080, y)
+  state: Text, text: "EARLY", font_size: 15, font_weight: "bold", color: tint,
+    at: (1080, y + 34)
+
+  always {
+    marker.at = graph.map(6, exp(-rate * p * 6))
+    loss_readout.value = exp(-rate * p * 6)
+    if p < 0.5 { state.text = "EARLY" }
+    if p >= 0.5 { state.text = "LATE" }
+  }
+}
+
+progress_readout: Counter, value: 0, decimals: 2, font_size: 22,
+  color: text.primary, anchor: scene.top, offset: (0, 176), suffix: " progress"
+
+slow: LossLane, label: "η = 0.20 · gradual decay", rate: 0.20,
+  y: 350, tint: accent.info, p: progress
+fast: LossLane, label: "η = 0.80 · faster decay", rate: 0.80,
+  y: 570, tint: accent.warning, p: progress
+
+#0s
+fade-in title [450ms]
+fade-in method [450ms, delay: 100ms]
+fade-in slow [500ms, delay: 120ms]
+fade-in fast [500ms, delay: 220ms]
+fade-in progress_readout [400ms, delay: 100ms]
+always {
+  progress_readout.value = progress
+}

@@ -9,6 +9,75 @@ import { decodedWasmResponse, fetchOverlayFont, fetchPreparedAssets, fetchMissin
 import { cancellationError, dispatchPlayerError, playerError } from "../embed/src/player/errors.js";
 import { selectFontFaces } from "../embed/src/player/font-selection.js";
 
+async function loadPlaybackClass() {
+  const saved = new Map();
+  const values = {
+    HTMLElement: class extends EventTarget {},
+    location: { search: "" },
+    window: { matchMedia: () => ({ matches: false }), innerHeight: 0 },
+    navigator: {},
+    document: { visibilityState: "visible", addEventListener() {} },
+    addEventListener() {},
+  };
+  for (const [key, value] of Object.entries(values)) {
+    saved.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+    Object.defineProperty(globalThis, key, { value, writable: true, configurable: true });
+  }
+  try {
+    return (await import("../embed/src/player/playback.js")).AmxPlayerPlayback;
+  } finally {
+    for (const key of Object.keys(values)) {
+      const descriptor = saved.get(key);
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else delete globalThis[key];
+    }
+  }
+}
+
+function runtimeInputPlayer(Playback, { playing = false } = {}) {
+  const inputs = {};
+  const calls = [];
+  const draws = [];
+  const wasm = {
+    set_inputs(value) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) {
+        throw new TypeError("set_inputs expects an object");
+      }
+      for (const [name, number] of Object.entries(value)) {
+        if (!Number.isFinite(number)) throw new Error(`runtime input '${name}' must be finite`);
+        if (!["phase", "gain"].includes(name)) throw new Error(`runtime input '${name}' is not whitelisted`);
+      }
+      for (const key of Object.keys(inputs)) delete inputs[key];
+      Object.assign(inputs, value);
+      calls.push({ method: "set", value: { ...value } });
+    },
+    clear_inputs() {
+      for (const key of Object.keys(inputs)) delete inputs[key];
+      calls.push({ method: "clear" });
+    },
+    render_frame(time) { draws.push(time); },
+  };
+  const player = Object.create(Playback.prototype);
+  Object.assign(player, {
+    _destroyed: false,
+    _state: "ready",
+    _player: wasm,
+    _canvas: { style: {} },
+    _time: 0.75,
+    _duration: 3,
+    _restTime: 0.75,
+    _playing: playing,
+    _loop: false,
+    _renderScale: 1,
+    _renderRevision: 0,
+    _lastRenderKey: null,
+    _lastRenderWall: undefined,
+    _lastAlpha: 1,
+    hasAttribute: () => false,
+  });
+  return { player, inputs, calls, draws };
+}
+
 const acceptsTestFontBytes = (bytes) => {
   if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0) throw new Error("font data contains no supported faces");
 };
@@ -38,6 +107,121 @@ test("font selection keeps primary faces, adds only needed glyph fallbacks, and 
   assert.deepEqual(ids({ families: ["Open Sans"], weights: [400], styles: ["normal"], text: "**bold**", rich_text: true }), [
     "fira-math", "open-bold", "open-italic", "open-regular", "open-variable",
   ]);
+});
+
+test("setInputs replaces the full snapshot and redraws at the same time without changing playback", async () => {
+  const Playback = await loadPlaybackClass();
+  const paused = runtimeInputPlayer(Playback);
+  paused.player.setInputs({ phase: 0.5, gain: 2 });
+  assert.deepEqual(paused.inputs, { phase: 0.5, gain: 2 });
+  assert.deepEqual(paused.draws, [0.75]);
+  assert.equal(paused.player.time, 0.75);
+  assert.equal(paused.player._playing, false);
+
+  // A partial object is a new complete snapshot, not a merge with the previous
+  // input set. Clearing it re-enables the engine's per-frame driver.
+  paused.player.setInputs({ phase: 0.6 });
+  assert.deepEqual(paused.inputs, { phase: 0.6 });
+  assert.throws(() => paused.player.clearInputs("phase"), /clears the full input snapshot/);
+  assert.deepEqual(paused.inputs, { phase: 0.6 });
+  paused.player.clearInputs();
+  assert.deepEqual(paused.inputs, {});
+  assert.deepEqual(paused.calls.map(({ method }) => method), ["set", "set", "clear"]);
+  assert.deepEqual(paused.draws, [0.75, 0.75, 0.75]);
+  assert.equal(paused.player.time, 0.75);
+
+  const playing = runtimeInputPlayer(Playback, { playing: true });
+  playing.player.setInputs({ gain: 3 });
+  assert.deepEqual(playing.draws, [0.75]);
+  assert.equal(playing.player._playing, true);
+  assert.equal(playing.player._time, 0.75);
+});
+
+test("rejected runtime inputs do not invalidate or redraw the last good frame", async () => {
+  const Playback = await loadPlaybackClass();
+  const { player, inputs, draws } = runtimeInputPlayer(Playback);
+  player.setInputs({ phase: 0.25 });
+  const revision = player._renderRevision;
+  const lastGoodDraws = draws.slice();
+
+  assert.throws(() => player.setInputs({ phase: Number.NaN }), /finite/);
+  assert.throws(() => player.setInputs({ typo: 1 }), /whitelisted/);
+  player._player.set_inputs = () => { throw new Error("runtime inputs are unsupported for multi-scene documents"); };
+  assert.throws(() => player.setInputs({ phase: 0.75 }), /unsupported for multi-scene/);
+
+  assert.deepEqual(inputs, { phase: 0.25 });
+  assert.deepEqual(draws, lastGoodDraws);
+  assert.equal(player._renderRevision, revision);
+});
+
+test("runtime input methods require a ready, live player", async () => {
+  const Playback = await loadPlaybackClass();
+  const { player, calls, draws } = runtimeInputPlayer(Playback);
+  player._state = "loading";
+  assert.throws(() => player.setInputs({ phase: 0.4 }), /requires a loaded scene/);
+  assert.throws(() => player.clearInputs(), /requires a loaded scene/);
+  assert.deepEqual(calls, []);
+  assert.deepEqual(draws, []);
+
+  player._state = "ready";
+  player._destroyed = true;
+  assert.throws(() => player.setInputs({ phase: 0.4 }), /Player destroyed/);
+  assert.throws(() => player.clearInputs(), /Player destroyed/);
+  assert.deepEqual(calls, []);
+});
+
+test("runtime input snapshots survive a failed rebuild and are dropped by successful replacement and destroy", async () => {
+  const Playback = await loadPlaybackClass();
+  const { player, inputs } = runtimeInputPlayer(Playback);
+  player._vars = {};
+  player._committedVars = {};
+  player._varsWaiters = [];
+  player._runtime = {};
+  player._operationGeneration = 0;
+  player._operationController = null;
+  player._loadedBundle = { sourceUrl: "https://scene.example/scene.amx", prepared: { free() {} } };
+  player._prepareDocument = async (_runtime, text, sourceUrl, vars) => ({
+    ok: text === "good",
+    sourceUrl,
+    vars,
+    prepared: { free() {} },
+  });
+  player._buildPrepared = (wasm, candidate) => {
+    if (!candidate.ok) return { ok: false, diagnostics: [{ severity: "error", message: "build failed" }] };
+    // A successful WasmPreparedProgram.build calls install_built, which swaps
+    // the target and resets the Rust-owned RuntimeInputs snapshot.
+    wasm.install_built = () => {
+      for (const key of Object.keys(inputs)) delete inputs[key];
+    };
+    wasm.install_built();
+    return { ok: true, duration_s: 1, width: 640, height: 360, markers: [], pause_points: [] };
+  };
+  player._installDocument = (result) => {
+    player._duration = result.duration_s;
+    player._invalidateRestFrame();
+  };
+
+  player.setInputs({ phase: 0.5 });
+  await assert.rejects(player.applySource("bad"), /build failed/);
+  assert.deepEqual(inputs, { phase: 0.5 }, "failed candidate replaced the last-good runtime inputs");
+
+  await player.applySource("good");
+  assert.deepEqual(inputs, {}, "successful target replacement retained inputs from the previous document");
+
+  player.setInputs({ phase: 0.75 });
+  let freed = false;
+  player._player.free = () => {
+    freed = true;
+    for (const key of Object.keys(inputs)) delete inputs[key];
+  };
+  player._canvas = { width: 640, height: 360 };
+  player.shadowRoot = { replaceChildren() {} };
+  player.pause = () => { player._playing = false; };
+  player.destroy();
+  assert.equal(freed, true);
+  assert.equal(player._player, null);
+  assert.equal(player._state, "destroyed");
+  assert.deepEqual(inputs, {});
 });
 
 test("player errors have a stable kind and amxerror detail shape", () => {

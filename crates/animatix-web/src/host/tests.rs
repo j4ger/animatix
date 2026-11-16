@@ -377,6 +377,28 @@ t: Text, text: "Step 0", at: (10, 10)
 }
 
 #[test]
+fn load_result_exposes_single_scene_runtime_input_names_only() {
+    let source = r#"
+config { runtime_inputs: { "phase", gain } }
+#0s
+dot: Ellipse, size: (24, 24), at: (20, 20)
+"#;
+    let doc = build_document(source, Arc::new(FontContext::new()), BuildQuality::Draft);
+    assert!(doc.result.ok, "build diagnostics: {:?}", doc.result.diagnostics);
+    assert_eq!(doc.result.runtime_inputs, vec!["gain", "phase"]);
+
+    let multi = build_document_with_modules(
+        MULTISCENE,
+        &example_modules(),
+        Arc::new(FontContext::new()),
+        BuildQuality::Draft,
+        None,
+    );
+    assert!(multi.result.ok, "build diagnostics: {:?}", multi.result.diagnostics);
+    assert!(multi.result.runtime_inputs.is_empty());
+}
+
+#[test]
 fn missing_import_is_reported_as_a_fetch_key_not_read_from_disk() {
     let doc = build_document(
         "import \"../lib/nonexistent.amx\" as ghost\n",

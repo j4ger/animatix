@@ -599,6 +599,117 @@ fn always_bare_variable_assignment_updates_plot_closure() {
 }
 
 #[test]
+fn keyframed_variable_capture_resamples_plot_at_each_frame() {
+    let source = r#"
+        config { colorscheme: "editorial-dark" }
+
+        #0s
+        let freq = 1
+        curve: PlotCurve, kind: "cartesian", t_domain: (-1, 1),
+          func: (x) => freq * x, stroke_width: 3
+
+        #1s
+        let freq = 3
+    "#;
+    let report = build(source);
+    assert_clean(&report);
+    let timeline = report.output;
+
+    assert!(
+        timeline.frame_written_vars.contains("freq"),
+        "a multi-keyframe variable track must register as frame-varying"
+    );
+    let track = timeline.get_entity_id("curve").expect("curve track");
+    let plot = timeline
+        .world
+        .procedural_plot(track)
+        .expect("curve should have a procedural plot");
+    assert!(
+        plot.is_dynamic(&timeline.frame_written_vars),
+        "a plot closure capturing a changing variable track must resample"
+    );
+
+    let first_point = |time_ms| {
+        let env = timeline.build_frame_env(
+            time_ms,
+            SceneDimensions::default(),
+            &std::collections::HashMap::new(),
+        );
+        let paths = sample_procedural_plot_at(plot, &env, time_ms, &[]);
+        paths
+            .iter()
+            .flat_map(|path| path.path.elements())
+            .find_map(|element| match element {
+                kurbo::PathEl::MoveTo(point) | kurbo::PathEl::LineTo(point) => {
+                    Some((point.x, point.y))
+                },
+                _ => None,
+            })
+            .expect("plot should contain a sampled point")
+    };
+    let at_start = first_point(0);
+    let after_keyframe = first_point(1000);
+    assert_ne!(at_start, after_keyframe, "plot geometry should reflect the new keyframed value");
+}
+
+#[test]
+fn runtime_input_matching_slow_plot_argument_keeps_lexical_argument_value() {
+    let source = r#"
+        config { runtime_inputs: {"x", "gain"} }
+        fn double(n: Num) -> Num { n * 2 }
+
+        #0s
+        let gain = 1
+        curve: PlotCurve, kind: "cartesian", t_domain: (-1, 1),
+          func: (x) => double(x) + gain, stroke_width: 3
+    "#;
+    let report = build(source);
+    assert_clean(&report);
+    let timeline = report.output;
+    let track = timeline.get_entity_id("curve").expect("curve track");
+    let plot = timeline
+        .world
+        .procedural_plot(track)
+        .expect("curve should have a procedural plot");
+    assert!(
+        crate::timeline::plot::compile_fast_plot_program(&plot.func_body, "x", plot.kind).is_none(),
+        "the user function call should force the slow closure evaluator"
+    );
+
+    let sample_points = |input_x| {
+        let inputs = timeline
+            .validate_runtime_inputs(&std::collections::BTreeMap::from([
+                ("gain".to_string(), 2.0),
+                ("x".to_string(), input_x),
+            ]))
+            .expect("declared finite numeric inputs should validate");
+        let env = timeline.build_frame_env_with_inputs_internal(
+            0,
+            SceneDimensions::default(),
+            &std::collections::HashMap::new(),
+            Some(&inputs),
+        );
+        let paths = sample_procedural_plot_at(plot, &env, 0, &[]);
+        paths
+            .iter()
+            .flat_map(|path| path.path.elements())
+            .filter_map(|element| match element {
+                kurbo::PathEl::MoveTo(point) | kurbo::PathEl::LineTo(point) => {
+                    Some((point.x, point.y))
+                },
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+
+    assert_eq!(
+        sample_points(-50.0),
+        sample_points(50.0),
+        "the external input named x must not replace the plot's lexical sample argument"
+    );
+}
+
+#[test]
 fn for_loop_closure_captures_loop_variable() {
     let source = r#"
         config { colorscheme: "editorial-dark" }

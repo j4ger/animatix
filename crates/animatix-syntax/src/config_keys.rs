@@ -34,6 +34,8 @@ pub enum ConfigValueKind {
     Boolean,
     /// A `(width, height)` tuple of positive numbers.
     Size,
+    /// A brace-list of quoted strings or bare identifiers.
+    Names,
 }
 
 /// One `config` key: its name, where it applies, what it accepts.
@@ -86,6 +88,12 @@ pub static CONFIG_KEYS: &[ConfigKeyInfo] = &[
         scope: ConfigScope::Composition,
         value: ConfigValueKind::Size,
         summary: "Canvas size and export dimensions; set once in the prelude.",
+    },
+    ConfigKeyInfo {
+        name: "runtime_inputs",
+        scope: ConfigScope::Scene,
+        value: ConfigValueKind::Names,
+        summary: "Names of finite numeric values that may be overridden while evaluating a single-scene timeline.",
     },
     ConfigKeyInfo {
         name: "strict_types",

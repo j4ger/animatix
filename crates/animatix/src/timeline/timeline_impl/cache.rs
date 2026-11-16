@@ -347,6 +347,7 @@ impl Timeline {
             || self.world.effects(id).is_some_and(|chain| chain.has_any_keyframes())
             || self.world.has_any_keyframes(id)
             || self.world.procedural_plot(id).is_some()
+            || self.has_external_paint_target(id)
             || self.world.shape.get(id).is_some_and(|shape| shape.from_anchor.is_some())
             || self.world.shape.get(id).is_some_and(|shape| shape.to_anchor.is_some())
         {
@@ -357,6 +358,35 @@ impl Timeline {
             .children
             .iter()
             .all(|child_id| self.is_static_subtree_id(*child_id))
+    }
+
+    /// Whether this actor's authored geometry resolves a named actor on each
+    /// frame. Those references are not represented as keyframes on the target
+    /// actor, so caching the annotation subtree would freeze the first frame's
+    /// endpoint even while the referenced actor moves. Point-only connectors
+    /// and manual callouts remain eligible for static caching.
+    fn has_external_paint_target(&self, id: EntityId) -> bool {
+        let geometry = self.world.geometry(id);
+        let label = self.world.label(id).unwrap_or("");
+
+        geometry
+            .callout_target
+            .get_or_default(0)
+            .is_some_and(|target| !target.is_empty() && target != label)
+            || geometry.connector_from.get_or_default(0).is_some_and(|endpoint| {
+                matches!(
+                    endpoint,
+                    crate::timeline::ConnectorEndpoint::Target { actor, .. }
+                        if actor != label
+                )
+            })
+            || geometry.connector_to.get_or_default(0).is_some_and(|endpoint| {
+                matches!(
+                    endpoint,
+                    crate::timeline::ConnectorEndpoint::Target { actor, .. }
+                        if actor != label
+                )
+            })
     }
 
     #[cfg(test)]

@@ -688,6 +688,18 @@ Implemented: `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`.
 - **Stack:** Overlapping children around a shared origin; supports `padding`, `align` ("start" | "center" | "end"). A Stack sizes to the union of its children's measured extents (largest layer per axis, padding included); `align` positions each layer against that box — `start` puts its top-left on the box's top-left, `end` its bottom-right on the box's bottom-right.
 - **Group:** Non-layout grouping/transform inheritance. A Group publishes the union of its children's placed extents to a parent layout, so `*_wrap: Group` wrappers only reserve the space their content actually uses.
 
+**Paint order and annotations:** Ordinary roots and siblings paint in
+source/insertion order, depth-first: an actor's descendants draw before the
+next sibling. Put background connectors before content and root-level
+annotations after content; actor targets and anchors continue to follow nested
+actors' current world bounds. `swap` and `reorder` change layout positions, not
+paint order. Group opacity multiplies each child's opacity rather than
+isolating and fading a composited image. Mask and Filter keep their content in
+their clipping/effect scopes. Glass uses a post-render backdrop composite and
+can cover later siblings, so source order alone does not define overlays that
+cross a Glass scope. See
+[`painter_order_annotations.amx`](../examples/layout/painter_order_annotations.amx).
+
 **Declaration-time measure/place contract:** Layout containers consume each child's `size` track at timeline build; children with explicit `at` opt into manual placement instead.
 
 With `config { dynamic_layout: true }`, layout slots use the current sampled
@@ -1343,6 +1355,41 @@ declares `lane__0` / `lane__1` exactly as the unconditional form would.
 
 Model: `for` for structure, keyframes for declarative timed animation, `always` for stateless runtime behavior.
 
+### Runtime numeric inputs
+
+A single scene can expose explicitly named numeric frame-time inputs:
+
+```animatix
+config { runtime_inputs: {"gain"} }
+let gain = 1
+
+wave: PlotCurve, func: (x) => gain * sin(x), opacity: 1
+always { gain = 1 + 0.25 * sin(t) }
+```
+
+In a ready `<amx-player>`, `player.setInputs({ gain: 0.4 })` replaces the
+complete live input snapshot and redraws at the existing playhead without a
+document rebuild. `player.clearInputs()` removes all overrides and resumes
+the automatic driver at that same time. Both methods are synchronous; errors
+leave the last accepted snapshot intact. They preserve playing/paused state.
+`setVars()` remains a separate asynchronous build-time override and rebuild.
+
+For global variable reads, an external input wins over an `always` driver,
+which wins over keyframe variable tracks and build defaults. Function/sample
+parameters and lexical local bindings still shadow a global input of the same
+name. Curves, markers, and readouts use the same resolved frame values.
+Bare `let` variable tracks remain piecewise constant; they do not acquire
+continuous interpolation from being exposed as an input.
+
+Input names must be declared, numeric, and suitable for frame-time use; values
+must be finite. Inputs cannot change build-time structure such as loop counts,
+structural conditions, or initial actor properties. Seed those properties
+with fixed values and update them in `always`, or read the input in a plot
+function. Runtime input editing currently supports single scenes only;
+multi-scene calls report an error. A successfully installed replacement
+document clears inputs; a failed replacement retains the prior document and
+inputs. See [`shared_progress_math.amx`](../examples/data/shared_progress_math.amx).
+
 **BarChart** — produces a set of rectangular bars from `data: {(key, value), ...}` lists. Supports standalone mode (pixel coords) and Graph-child mode (math coords). See `examples/projects/fft_explain.amx`.
 
 `data` keyframes. A later `chart.data = {…} [800ms]` assignment races the bars
@@ -1778,7 +1825,9 @@ btn: Button, text: "Submit"
 
 ### Timeline Functions (Custom Actions)
 
-Define reusable timeline functions inside a component (formerly `action`):
+Define reusable timeline functions at module scope or inside a component
+(formerly `action`). Module functions receive actor targets explicitly;
+component functions can use `self`:
 
 ```animatix
 pub component Button(text: Str = "OK") {
@@ -1812,8 +1861,64 @@ pulse btn [amount: 1.3, 200ms]
   compilation. Nested calls restore shadowed caller variables on return.
 - Actions work inside `sequence`, `stagger`, and keyframes with correct timing.
 
-**Limitations:**
-- Actions cannot be defined at module scope (only inside components)
+Module functions also support build-time algorithm expansion, including
+`for [step: ...]`; see `examples/projects/leetcode_sort_colors.amx`.
+Functions expand into the scene timeline rather than running as per-frame
+callbacks.
+
+#### Invocation-local time
+
+An untyped timeline function can contain direct absolute and relative time
+markers. Its `#0ms` is the call's start, so the same function can be reused at
+different scene times and on different actors:
+
+```animatix
+fn ticker(dot, lane_y: Num) {
+    #0ms
+    dot.at = (140, lane_y)
+    always { dot.at = (140 + 960 * t, lane_y) }
+    #500ms
+    dot.at = (620, lane_y)
+}
+
+#1s
+ticker(needle, 300) [time_scale: 2]
+ticker(satellite, 480) [clip_duration: 900ms]
+```
+
+`time_scale` is a finite positive **duration multiplier**: `2` stretches a
+500ms function to 1s. `clip_duration` is a positive fixed time literal that
+fits the function's measurable extent into that duration; it retimes the
+whole function. These two modifiers are mutually exclusive. A function
+parameter with either name keeps its ordinary parameter-binding meaning.
+The existing positional modifier `[200ms]` continues to override body action
+durations; it does not fit the entire function into 200ms.
+
+Local absolute markers are measured from the call's start; `#+` markers
+advance from the preceding local marker. Timed actions, assignment durations,
+delays, `stagger` intervals and `for [step: ...]` are scaled together. Nested
+function calls compose their time mappings. The compiler lowers them to
+ordinary scene tracks, so seeking does not depend on playback history.
+
+Within a scoped `always`, free `t` reads the invocation's local time in
+seconds. The block runs only from its start, inclusive, to its finite end,
+exclusive. Author an explicit final keyframe to hand the property back to its
+ordinary scene track, as in `ticker` above. Normal interpolation between scene
+keyframes still applies before and after a call; local time scopes do not add
+implicit hold segments. Plot `func` expressions
+use local time clamped to the scope endpoints, allowing the plotted endpoint
+to remain visible after the invocation ends.
+Finite invocation ends also contribute to inferred scene duration, including
+a function containing only `always` with an explicit `clip_duration`.
+
+This first version requires statically measurable timing. It diagnoses
+unbounded scoped `always`, function-local loop extents, nested keyframe
+markers inside control-flow bodies, and unsupported scene-clock actions.
+Direct markers belong in timeline functions, not typed pure functions or
+component template bodies. A function-local binding named `t` cannot share a
+retimed `always` scope; closure parameters retain their lexical meaning.
+See `examples/animation/local_tickers.amx` for two independent instances and
+an explicit endpoint handoff.
 
 ### 12.1 Slots
 
@@ -2512,7 +2617,7 @@ Returns a `Value::Object` with typed fields. Field reads (`p.x`, `p.a.b`) are im
 also declare `config { export_preset: "1080p30" }`; CLI video/GIF export uses it
 when no explicit `--export-preset` flag is provided.
 
-**Auto-duration:** If `--duration` is omitted, the CLI builds the timeline, reads `Timeline::duration_seconds()` (the time of the last keyframe across all tracks, background, and child-order animations), and adds a trailing hold (configurable via `--hold`, default **1.0s**). This prevents the export from cutting off bluntly at the last animation's end frame.
+**Auto-duration:** If `--duration` is omitted, the CLI builds the timeline, reads `Timeline::duration_seconds()` (the latest track, background, child-order, camera, or finite local invocation endpoint), and adds a trailing hold (configurable via `--hold`, default **1.0s**). This prevents the export from cutting off bluntly at the last animation's end frame.
 
 ```bash
 # Export full timeline + 1s hold
@@ -2759,13 +2864,14 @@ config { colorscheme: "editorial-dark" }  // overrides prelude colorscheme
 | `colorscheme` | Scene | ✅ Yes | Scene-level overrides prelude. Each scene can have a different colorscheme. |
 | `dynamic_layout` | Scene | ✅ Yes | Scene-level overrides prelude. Enables per-frame layout recomputation. |
 | `duration` | Scene | ✅ Yes | Scene-only; sets explicit scene duration (overrides keyframe-inferred duration). A timeline never plays past it: keyframes beyond it are unreachable, and the build warns with `duration-shorter-than-content`. |
+| `runtime_inputs` | Scene | ✅ Yes | Single-scene only; a brace-list of names that callers may override with finite numbers during frame evaluation. Runtime overrides are read-only and take precedence over global tracks and `always` assignments, while closure parameters and local `let` bindings still shadow them; clearing restores the frame's authored value. Direct use in a build-time `let`, branch/loop selector, actor property, or static config value is an error because those values are fixed during compilation. |
 | `export_preset` | Composition | ❌ No | Preset name the CLI video/GIF paths pick up (e.g. `"1080p30"`); set once in the prelude. |
 | `bpm` | Scene | ✅ Yes | Tempo in beats per minute. Resolves beat stamps (`#2b`, `[4b]`) to milliseconds; absent, beats run at 120 bpm. |
 | `seamless_loop` | Scene | ✅ Yes | Declares that the scene is replayed end-to-start. The build then samples every keyframed property at the first and last frame and warns with `loop-not-seamless` when a value does not wrap — the scene camera's three axes included, since they live outside the actor tracks. Values driven by `always` blocks or plot `func` transitions are frame-time computations, not keyframes, so v1 cannot see them and does not lint them. |
 
 **Merge rules:**
 - The shared prelude statements are prepended to every scene's body before timeline compilation.
-- Scene-scoped keys (`colorscheme`, `dynamic_layout`, `duration`) override the prelude.
+- Scene-scoped keys (`colorscheme`, `dynamic_layout`, `duration`, `runtime_inputs`) override the prelude.
 - Composition-scoped keys (`resolution`, `strict_types`) are inherited from the prelude only; scene-level overrides produce a warning and are ignored.
 - Properties present only in the prelude are inherited by all scenes.
 - Properties present only in a scene's config apply only to that scene.

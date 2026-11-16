@@ -33,15 +33,9 @@ impl Timeline {
                 );
                 Some(parsed.delay_ms + parsed.duration_ms)
             },
-            Stmt::Block { body, .. } => {
-                // Total duration of a function-call block is the sum of its
-                // internal statements' spans (recursive).
-                let mut total = 0.0;
-                for stmt in body {
-                    total += self.sequence_statement_span_ms(stmt).unwrap_or(0.0);
-                }
-                Some(total)
-            },
+            Stmt::Block {
+                body, time_scope, ..
+            } => crate::timeline::sequence_block_span_ms(self, time_scope.as_ref(), body),
             Stmt::Sequence { body, .. } => {
                 // Total duration of a nested sequence is the sum of its children's durations
                 let mut total = 0.0;
@@ -83,21 +77,34 @@ impl Timeline {
             if let Stmt::Block {
                 body: block_body,
                 instance_scope,
+                time_scope,
                 span,
             } = stmt
             {
+                let Some(block_span) = self.sequence_statement_span_ms(stmt) else {
+                    diagnostics.push(
+                        Diagnostic::error(
+                            DiagnosticCode::UnsupportedSequenceStatement,
+                            DiagnosticPhase::Build,
+                            "Cannot determine the extent of a function call in this sequence; use fixed iterable/time literals or move the call outside the sequence.",
+                        )
+                        .with_subject("sequence"),
+                    );
+                    continue;
+                };
                 // Function-call blocks sequence their internal statements
                 // back-to-back, preserving the pre-expansion timing.
                 self.process_block_stmt(
                     block_body,
                     instance_scope.as_ref(),
+                    time_scope.as_ref(),
                     *span,
                     cursor_time_ms,
                     parent_label,
                     diagnostics,
                     true,
                 );
-                cursor_time_ms += self.sequence_statement_span_ms(stmt).unwrap_or(0.0);
+                cursor_time_ms += block_span;
                 continue;
             }
             let Some(span_ms) = self.sequence_statement_span_ms(stmt) else {

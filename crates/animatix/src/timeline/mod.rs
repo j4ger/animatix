@@ -15,6 +15,7 @@ mod assignments;
 pub mod behavior;
 pub use behavior::{BehaviorDef, BehaviorId, BehaviorRegistry};
 mod build;
+pub(crate) use build::sequence_block_span_ms;
 pub use build::{BuildOptions, CarryInput};
 mod builtins;
 pub mod callout_geometry;
@@ -47,6 +48,8 @@ pub mod eval_shared;
 pub(crate) mod fn_eval;
 /// Identifies a presented frame and skips a raster while the previous one is on screen.
 pub mod frame_signature;
+mod runtime_inputs;
+pub use runtime_inputs::{RuntimeInputError, RuntimeInputs};
 /// Image loading utilities.
 pub mod image;
 pub mod inline_keyframes;
@@ -252,6 +255,10 @@ pub struct Timeline {
     /// length rather than extending it, so the timeline ends there even if
     /// keyframes continue past it — see [`Timeline::playback_duration_seconds`].
     pub(crate) declared_duration_s: Option<f64>,
+    /// Latest finite end of a lowered local time scope. Reactive `always`
+    /// bodies do not create ordinary keyframes, but their scope still extends
+    /// the inferred content duration so playback reaches its end boundary.
+    pub(crate) local_time_scope_end_ms: u64,
     /// Next auto-color slot for `color: auto`: a scene-level allocation counter,
     /// not per-entity state (the slot itself lives in [`AutoColorComponent`]).
     pub(crate) next_auto_color_index: usize,
@@ -300,6 +307,9 @@ pub struct Timeline {
     /// Keyframe-scoped variable tracks: `let` inside keyframes becomes a
     /// piecewise-constant function of time injected into the frame environment.
     pub(crate) variable_tracks: BTreeMap<String, VariableTrack>,
+    /// Numeric names a caller may override through the runtime-input overlay.
+    /// Sorted for allocation-free whitelist validation.
+    pub(crate) runtime_input_names: Vec<String>,
     /// Actor labels referenced by any expression in the built program
     /// (`build::referenced_roots`). Injecting only these turns env construction
     /// from O(declarations²) into O(declarations × referenced); `None` injects
@@ -330,6 +340,8 @@ pub struct Timeline {
 #[derive(Clone)]
 pub(crate) struct FrameCacheEntry {
     time_ms: u64,
+    /// Content signature of the read-only runtime-input overlay.
+    runtime_input_key: u64,
     dimensions: SceneDimensions,
     has_modifiers: bool,
     has_dynamic_layout: bool,

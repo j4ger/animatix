@@ -34,6 +34,7 @@ impl Timeline {
             export_preset: None,
             resolution: None,
             declared_duration_s: None,
+            local_time_scope_end_ms: 0,
             next_auto_color_index: 0,
             layout_children_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
             layout_engine: LayoutEngine::new(),
@@ -54,6 +55,7 @@ impl Timeline {
             camera_used: std::cell::Cell::new(false),
             camera_exempt_present: std::cell::Cell::new(false),
             variable_tracks: BTreeMap::new(),
+            runtime_input_names: Vec::new(),
             referenced_roots: None,
             stats_used: false,
             is_animating_used: false,
@@ -155,6 +157,7 @@ impl Timeline {
             .map(|(_, id)| self.world.max_keyframe_time(id).unwrap_or(0))
             .max()
             .unwrap_or(0)
+            .max(self.local_time_scope_end_ms)
             .max(self.background_color.max_keyframe_time_ms())
             .max(
                 self.world

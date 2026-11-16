@@ -36,9 +36,18 @@ impl Timeline {
         //    an unsupported placeholder.
         super::format_specs::validate_format_specs(&seeded.ast, &mut diagnostics);
 
+        // Runtime inputs may affect frame-time expressions, but compilation
+        // fixes the actor tree, build-time branches, loops and static config.
+        super::validate::validate_runtime_input_uses(&seeded.ast, &mut timeline, &mut diagnostics);
+
         // 3. Lower declarations, keyframes and actions into tracks. Transcript
         //    data is attached by the actual transcript-capable actor build.
         super::walk::walk_statements(&mut timeline, &seeded.ast, &mut diagnostics);
+
+        // Actor labels and values declared after the prelude can collide with
+        // configured numeric inputs only now that declaration lowering has
+        // produced the complete environment and variable tracks.
+        super::validate::validate_runtime_input_values(&mut timeline, &mut diagnostics);
 
         // 4. Lower `always` bodies to IR and validate their property references.
         super::walk::lower_modifiers(&mut timeline, &mut diagnostics);

@@ -1,9 +1,10 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use super::TypeEnv;
 use crate::ast::{ComponentDef, Expr, Modifier, ParamDef, Property, Stmt, TypeAnnotation};
 use crate::diagnostics::DiagnosticCode;
-use crate::module::{ComponentEntry, FnTemplate};
+use crate::module::{ComponentEntry, FnTemplate, ModuleGraph, SourceAccess};
 use crate::test_support::{actor, actor_with_props};
 
 fn make_env() -> TypeEnv<'static> {
@@ -74,6 +75,14 @@ fn make_rich_probe_env() -> TypeEnv<'static> {
     TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())))
 }
 
+fn typecheck_source(source: &str) -> Vec<crate::diagnostics::Diagnostic> {
+    let path = PathBuf::from("/virtual/typecheck.amx");
+    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+    graph.upsert_source(path.clone(), source.to_string());
+    let mut program = graph.load_program(&path).expect("source should parse and load");
+    program.typecheck()
+}
+
 #[test]
 fn typecheck_accepts_valid_props() {
     let env = make_env();
@@ -125,6 +134,90 @@ fn strict_types_warns_on_missing_annotations() {
     assert_eq!(diagnostics.len(), 1);
     assert!(diagnostics[0].message.contains("missing a type annotation"));
     assert!(diagnostics[0].message.contains("strict mode"));
+}
+
+#[test]
+fn local_ticker_example_typechecks_with_keyframes_and_always_body() {
+    let source = include_str!("../../../../examples/animation/local_tickers.amx");
+    let diagnostics = typecheck_source(source);
+    assert!(
+        diagnostics.is_empty(),
+        "local keyframes and `always` are valid in a timeline function: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn timeline_keyframes_still_reject_actor_declarations_recursively() {
+    let diagnostics = typecheck_source("fn invalid() { #0ms\n child: Rect, size: (10, 10) }");
+    assert_eq!(diagnostics.len(), 1, "expected one purity diagnostic: {diagnostics:?}");
+    let message = &diagnostics[0].message;
+    assert!(
+        message.contains("timeline functions cannot declare scenes or actors"),
+        "{message}"
+    );
+    assert!(!message.contains("keyframes"), "local keyframes are allowed: {message}");
+}
+
+#[test]
+fn timeline_functions_accept_sequence_stagger_and_reactive_bindings_recursively() {
+    let diagnostics = typecheck_source(
+        r#"
+fn local_composition(dot, dots) {
+  sequence {
+    fade-in dot [100ms]
+    stagger [25ms] {
+      dot.opacity = 0.5 [100ms]
+      dot.at := (t, 0)
+    }
+  }
+  for item in dots {
+    stagger [40ms] {
+      fade-in item [100ms]
+    }
+  }
+}
+"#,
+    );
+    assert!(
+        diagnostics.is_empty(),
+        "timeline composition and reactive bindings should be allowed: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn sequence_and_stagger_cannot_hide_actor_declarations_in_timeline_functions() {
+    let diagnostics = typecheck_source(
+        "fn invalid() { sequence { stagger [25ms] { child: Rect, size: (10, 10) } } }",
+    );
+    assert_eq!(diagnostics.len(), 1, "expected the nested actor purity error: {diagnostics:?}");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("timeline functions cannot declare scenes or actors"),
+        "{}",
+        diagnostics[0].message
+    );
+}
+
+#[test]
+fn pure_functions_still_reject_timeline_sequence_and_reactive_binding() {
+    let sequence_diagnostics =
+        typecheck_source("fn invalid_sequence(dot) -> Num { sequence { fade-in dot [100ms] } }");
+    assert!(
+        sequence_diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("pure function 'invalid_sequence'")),
+        "pure functions must reject timeline actions even inside sequence: {sequence_diagnostics:?}"
+    );
+
+    let reactive_diagnostics =
+        typecheck_source("fn invalid_reactive(dot) -> Num { dot.opacity := t }");
+    assert!(
+        reactive_diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("pure function 'invalid_reactive'")),
+        "pure functions must reject reactive timeline bindings: {reactive_diagnostics:?}"
+    );
 }
 
 #[test]

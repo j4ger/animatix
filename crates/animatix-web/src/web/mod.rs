@@ -30,7 +30,7 @@ use std::cell::RefCell;
 
 use animatix::composition::BuildTarget;
 use animatix::renderer::text::FontContext;
-use animatix::timeline::{BuildQuality, SceneDimensions};
+use animatix::timeline::{BuildQuality, RuntimeInputs, SceneDimensions};
 use animatix_render::core::RendererCore;
 use animatix_render::filter_backend::GpuFilterBackend;
 use animatix_render::transition::TransitionCompositor;
@@ -81,6 +81,9 @@ pub struct AmxPlayer {
     /// Build-time variable overrides for every later load — the embed's
     /// `data-vars` / `setVars`. See [`AmxPlayer::set_vars`] for the rules.
     vars: Vec<(String, String)>,
+    /// The current validated runtime input snapshot. A successful document
+    /// install resets it, while rejected updates leave the previous snapshot.
+    runtime_inputs: RuntimeInputs,
     /// Build quality for the next [`AmxPlayer::load_source`] (the embed's
     /// `quality` attribute). Draft matches the GUI's editing preview;
     /// Production matches what a desktop export renders. Quality is baked in
@@ -106,9 +109,10 @@ pub struct AmxPlayer {
     /// Guards against re-rasterizing a frame the canvas already shows; the
     /// raster, unlike evaluation, is the expensive part of a tick.
     dedup: animatix::timeline::frame_signature::FrameDedup,
-    /// Bumped on every document build: the timeline's own epoch cannot tell a
-    /// rebuilt scene from an untouched one (both start at 0).
-    document_generation: u64,
+    /// Render revision for document installs and runtime input snapshots. The
+    /// existing FrameSignature document-generation slot carries this composite
+    /// epoch; a new document or a new input snapshot must redraw at the same t.
+    render_generation: u64,
     /// Diagnostics only: how many ticks the dedup absorbed and how many it drew,
     /// so `debug_dedup_stats` can prove the skip is happening rather than
     /// assuming it.

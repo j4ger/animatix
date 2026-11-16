@@ -336,6 +336,9 @@ pub enum Stmt {
         body: Vec<Stmt>,
         /// Build-time specialization metadata for an indexed component method.
         instance_scope: Option<InstanceScope>,
+        /// Invocation-local time mapping requested by `time_scale` or
+        /// `clip_duration` modifiers.
+        time_scope: Option<TimeScopeSpec>,
         /// Source span for this block.
         span: Option<Span>,
     },

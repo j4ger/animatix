@@ -43,7 +43,8 @@ set the LSP surfaces — for the editor panel. A failed build throws with
 blanks the figure. Reset restores the original source; edits live only on
 the page.
 
-Both `applySource(text)` and `setVars(obj)` return promises. `destroy()` explicitly
+`applySource(text)` and `setVars(obj)` return promises. `setInputs(obj)` and
+`clearInputs()` are synchronous frame-time updates. `destroy()` explicitly
 releases an element's player resources; removing or reparenting the element does
 not destroy it.
 
@@ -70,6 +71,35 @@ The parameter-slider counterpart is `setVars(obj)`: build-time overrides —
 the CLI's `--set NAME=VALUE` — merged into the scene's `let` defaults and
 rebuilt asynchronously in place, debounced, with the playback position preserved. See
 `data-vars` under "Embedding scenes in any page".
+
+For a live frame-time signal, declare its numeric variable name in a single
+scene's `config.runtime_inputs` and call `setInputs(obj)`:
+
+```amx
+config { runtime_inputs: {"phase", "gain"} }
+let phase = 0
+let gain = 1
+```
+
+```js
+player.setInputs({ phase: 0.6, gain: 1.5 });
+player.clearInputs(); // remove the complete live-input snapshot
+```
+
+`setInputs` replaces the full snapshot; each key must be listed in
+`runtime_inputs`, and each value must be a finite JavaScript number. Runtime
+inputs override the named value through the frame expression environment, so
+plots, markers, readouts, and `always` expressions observe the same signal.
+This is an overlay: `always` and timeline tracks keep running underneath it,
+and `clearInputs()` reveals their value for the current frame. Calls require a
+loaded single-scene document; multi-scene compositions report that runtime
+inputs are unsupported. Updating inputs does not rebuild the document or reset
+playback. A paused player redraws immediately at the same time, while a playing
+player keeps its clock and continues with the new value. A rejected input call
+throws synchronously and leaves the accepted snapshot and image intact. A
+successful document install clears the snapshot; a failed rebuild leaves the
+current document and its inputs in place. `examples/data/shared_progress_math.amx`
+shows two plots, markers, and readouts driven by one shared progress input.
 
 ## Run it
 
