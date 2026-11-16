@@ -87,11 +87,38 @@ jobs:
       # this project and otherwise leave the Nix build with too little disk.
       - name: Free disk space
         if: runner.os == 'Linux' && matrix.id != 'doc-links'
+        shell: bash
+        env:
+          JOB_ID: ${{ matrix.id }}
         run: |
+          # Only Check & Lint has measured disk headroom. Keep other jobs unchanged.
+          threshold=$((45 * 1024 * 1024 * 1024))
+          available_bytes() {
+            local available
+            available=$(df -PB1 "${GITHUB_WORKSPACE:?}" | awk 'NR == 2 {print $4}')
+            [[ "$available" =~ ^[0-9]+$ ]] || { echo "Invalid disk availability" >&2; return 1; }
+            printf '%s\n' "$available"
+          }
+          if [[ "$JOB_ID" == 'check-lint' ]]; then
+            available=$(available_bytes)
+            echo "Check & Lint available: $available bytes; required: $threshold bytes"
+            if (( available >= threshold )); then
+              echo "Skipping unused toolchain cleanup: at least 45 GiB available"
+              df -h "$GITHUB_WORKSPACE"
+              exit 0
+            fi
+          fi
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
             /usr/local/share/boost /usr/local/share/chromium
           sudo apt-get clean
           df -h /
+          if [[ "$JOB_ID" == 'check-lint' ]]; then
+            available=$(available_bytes)
+            if (( available < threshold )); then
+              echo "Insufficient space after cleanup: $available bytes; need $threshold" >&2
+              exit 1
+            fi
+          fi
 
       # Gates that need nix (cargo-audit, the wasm32 std) get their toolchain
       # from the dev shell, so they must not install a rustup toolchain: PATH

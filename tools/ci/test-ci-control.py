@@ -19,6 +19,77 @@ CONTROL = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CONTROL)
 
 
+class DiskCleanupTests(unittest.TestCase):
+    """Execute the real workflow block, replacing only disk/privilege commands."""
+
+    def run_cleanup(self, job, before, after=None, cleanup_status=0):
+        workflow = SCRIPT.parents[2] / ".github/workflows/ci.yml"
+        block = workflow.read_text().split("      - name: Free disk space\n", 1)[1]
+        block = block.split("\n      # Gates that need nix", 1)[0]
+        script = block.split("        run: |\n", 1)[1]
+        script = "\n".join(line[10:] for line in script.splitlines())
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "df").write_text(
+                "#!/bin/bash\n"
+                'if [[ "$1" == -PB1 ]]; then\n'
+                '  value="$BEFORE"; [[ ! -e "$STATE" ]] || value="$AFTER"\n'
+                '  printf "Filesystem 1-blocks Used Available Capacity Mounted\nfs 999 1 %s 1%% /\n" "$value"\n'
+                'else echo "human-readable disk report"; fi\n'
+            )
+            (root / "sudo").write_text(
+                '#!/bin/bash\nprintf "%s\\n" "$*" >> "$CALLS"\ntouch "$STATE"\nexit "$CLEANUP_STATUS"\n'
+            )
+            for command in ("df", "sudo"):
+                (root / command).chmod(0o700)
+            env = dict(os.environ, PATH=f"{root}:{os.environ['PATH']}",
+                       JOB_ID=job, GITHUB_WORKSPACE=str(root), BEFORE=str(before),
+                       AFTER=str(before if after is None else after),
+                       STATE=str(root / "state"), CALLS=str(root / "calls"),
+                       CLEANUP_STATUS=str(cleanup_status))
+            result = subprocess.run(["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", script],
+                                    env=env, capture_output=True, text=True)
+            calls = (root / "calls").read_text() if (root / "calls").exists() else ""
+            return result, calls
+
+    def test_space_at_or_above_threshold_skips_cleanup(self):
+        for available in (45 * 2**30, 90 * 2**30):
+            result, calls = self.run_cleanup("check-lint", available)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(calls, "")
+            self.assertIn("Skipping", result.stdout)
+
+    def test_low_space_falls_back_to_original_allowlist(self):
+        result, calls = self.run_cleanup("check-lint", 45 * 2**30 - 1, 50 * 2**30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(calls.splitlines(), [
+            "rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /usr/local/share/boost /usr/local/share/chromium",
+            "apt-get clean"])
+
+    def test_space_still_low_fails(self):
+        result, calls = self.run_cleanup("check-lint", 10 * 2**30, 44 * 2**30)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Insufficient space", result.stderr)
+        self.assertIn("apt-get clean", calls)
+
+    def test_invalid_measurement_fails_without_deletion(self):
+        result, calls = self.run_cleanup("check-lint", "invalid")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(calls, "")
+
+    def test_cleanup_failure_propagates(self):
+        result, calls = self.run_cleanup("check-lint", 10 * 2**30, 60 * 2**30, 7)
+        self.assertEqual(result.returncode, 7)
+        self.assertNotIn("apt-get clean", calls)
+
+    def test_other_jobs_keep_unconditional_cleanup(self):
+        for job in ("web-build", "test-examples", "fast-checks"):
+            result, calls = self.run_cleanup(job, 90 * 2**30)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("apt-get clean", calls)
+            self.assertNotIn("Skipping", result.stdout)
+
+
 class ControlTests(unittest.TestCase):
     def test_selection_records_effective_jobs_and_force_full_wins(self):
         jobs = [{"id": name} for name in ("doc-links", "check-lint", "test-examples")]

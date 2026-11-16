@@ -1,0 +1,29 @@
+name: Validate conditional cleanup
+on:
+  push:
+    branches: [ci-prep-experiment/cleanup-main-validation]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Fetch official checksum-pinned installer without cache
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 https://cf.install.determinate.systems/nix-installer/tag/v3.24.2/x86_64-linux -o "$RUNNER_TEMP/nix-installer"
+          echo "22ed14ee1b24d100d388f1fc245e3062bd5982433d159cffa6dec34c0eb15dab  $RUNNER_TEMP/nix-installer" | sha256sum --check
+          chmod 700 "$RUNNER_TEMP/nix-installer"
+      - uses: DeterminateSystems/determinate-nix-action@16f94ba7aae399b9f9077c254b6719ec6de7e3e3
+        with:
+          source-binary: ${{ runner.temp }}/nix-installer
+      - uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866
+        with:
+          name: animatix
+          extraPullNames: nix-community
+          skipPush: true
+      - name: Validate production candidate
+        run: nix develop --command tools/ci/ci.sh gate fmt workflows ci-policy-tests
