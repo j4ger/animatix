@@ -225,6 +225,9 @@ def github_plan(policy_path):
     if selection not in {"shadow", "enabled"}:
         raise ValueError("ANIMATIX_CI_SELECTION must be shadow or enabled")
     chosen = jobs if selection == "shadow" else [job for job in jobs if job["id"] in selected]
+    depth = policy.get("web_smoke", {}).get("depth", "critical")
+    if depth not in {"critical", "deep"}:
+        raise ValueError("invalid web smoke depth")
     matrix = {"include": chosen}
     policy.update(effective_selection=selection,
                   effective_job_ids=[job["id"] for job in chosen],
@@ -236,6 +239,7 @@ def github_plan(policy_path):
     output = os.environ.get("GITHUB_OUTPUT")
     if output:
         with open(output, "a", encoding="utf-8") as stream:
+            stream.write("web_smoke_depth=" + depth + "\n")
             stream.write("matrix=" + json.dumps(matrix, separators=(",", ":")) + "\n")
     return 0
 

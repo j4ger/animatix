@@ -31,7 +31,7 @@ async function main(){
   mkdirSync(OUTPUT,{recursive:true});
   if(!existsSync(join(WEB_ROOT,'runtime/runtime-manifest.json')))throw Error(`SDK missing in ${WEB_ROOT}; build/restore the SDK and assemble site first`);
   if(SUITE==='site' && WEB_ROOT===join(ROOT,'web'))throw Error('site suite refuses the legacy web/ source tree');
-  const metadata={suite:SUITE,attempt:Number(process.env.SMOKE_ATTEMPT||1),sha:execFileSync('git',['rev-parse','HEAD'],{cwd:ROOT,encoding:'utf8'}).trim(),viewport:{width:1440,height:1000},backend:'SwiftShader (requested; adapter reported below)'};
+  const metadata={suite:SUITE,depth:process.env.SMOKE_DEPTH || 'critical',attempt:Number(process.env.SMOKE_ATTEMPT||1),sha:execFileSync('git',['rev-parse','HEAD'],{cwd:ROOT,encoding:'utf8'}).trim(),viewport:{width:1440,height:1000},backend:'SwiftShader (requested; adapter reported below)'};
   writeFileSync(join(OUTPUT,'runtime-manifest.json'),readFileSync(join(WEB_ROOT,'runtime/runtime-manifest.json')));
   const record=event=>appendFileSync(join(OUTPUT,'timings.jsonl'),JSON.stringify({...metadata,recordedAt:new Date().toISOString(),...event})+'\n');
   const port=await freePort(), debugPort=await freePort(),base=`http://127.0.0.1:${port}`;

@@ -33,11 +33,12 @@ class ControlTests(unittest.TestCase):
                     ("enabled", True, [job["id"] for job in jobs]),
                 ):
                     policy = Path("policy.json")
-                    policy.write_text(json.dumps({"candidate_job_ids": ["doc-links"], "force_full": force}))
+                    policy.write_text(json.dumps({"candidate_job_ids": ["doc-links"], "force_full": force, "web_smoke": {"depth": "deep"}}))
                     with patch.object(CONTROL.subprocess, "run", return_value=registry), patch.dict(
-                        os.environ, {"ANIMATIX_CI_SELECTION": selection}
+                        os.environ, {"ANIMATIX_CI_SELECTION": selection, "GITHUB_OUTPUT": str(Path("outputs").resolve())}
                     ):
                         CONTROL.github_plan(policy)
+                    self.assertIn("web_smoke_depth=deep\n", Path("outputs").read_text())
                     self.assertEqual(json.loads(policy.read_text())["effective_job_ids"], expected)
                     matrix = json.loads(Path("target/ci/matrix.json").read_text())
                     self.assertEqual([row["id"] for row in matrix["include"]], expected)

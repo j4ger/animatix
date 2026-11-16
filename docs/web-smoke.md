@@ -57,11 +57,32 @@ The normal contract is a small representative set, not every historical demo.
 Do not lower assertions to make software rendering green. Product-side timeout
 errors remain failures even when the harness has a larger watchdog budget.
 
-This change does not yet claim a scheduled deep-regression lane or an empirically
-validated performance budget. `SMOKE_DEPTH=deep` adds the remaining current showcase/lesson pages, but has not
-been GPU-accepted here and is not scheduled automatically. Add long playback,
-mount/unmount, lazy-load cancellation, font matrices and recovery tests as
-explicit contracts, then use renderer/shader/loader/ABI impact to select them.
+`SMOKE_DEPTH=deep` covers all five current Astro showcases and six lessons,
+plus the existing static, preset and editor recovery journeys. A catalog test
+fails when a current scene is missing from this explicit contract list. Additional
+pages check loading, public seek and nonuniform painted output; they do not yet have
+scene-specific semantic pixel oracles.
+
+PRs and pushes (including direct main commits) touching renderer, WebGPU bridge, frame/ABI types, embed loader/player, SDK
+packaging, shaders or scene fixtures automatically use deep in the existing Web
+Build job. Missing diff information and conservative full-matrix classifications (including
+unknown paths, Nix/Cargo settings and vendored changes) also upgrade to deep.
+This can add nine journeys for an unfamiliar low-risk path; classify it explicitly
+in the planner once its impact is understood rather than silently skipping coverage. Other PRs/pushes and reusable release runs stay critical. The plan records matched paths and
+reason; browser timing evidence records the chosen depth. There is no extra
+build/job for escalation: the same SDK feeds SDK checks and the assembled site.
+
+Maintainers can run **Web Regression** manually on a selected branch/ref. It has
+read-only contents permission, no secrets, no publication steps and a 90-minute
+job cap; a newer manual run of the same ref cancels the older one. It builds one
+SDK and runs deep site acceptance, retaining evidence for seven days. No new
+schedule is enabled: this avoids a nightly rebuild while Actions time is scarce.
+Deep adds nine page journeys; its actual hosted duration still needs measurement.
+A risky PR followed by its merge may run deep twice: without proof that the tested
+merge result is identical, skipping main acceptance would create a coverage gap.
+
+Long playback, repeated mount/unmount, lazy-load cancellation and broad font
+matrices remain future contracts, not coverage implied by the word "deep".
 Record cold and warm measurements before setting thresholds or adding parallel
 Chromium workers. A direct source checkout without the built SDK and Chromium
 can validate harness contracts, but cannot establish rendered correctness.

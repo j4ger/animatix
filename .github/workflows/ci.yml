@@ -41,6 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
+      web_smoke_depth: ${{ steps.plan.outputs.web_smoke_depth }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -125,6 +126,7 @@ jobs:
       - name: Gate
         shell: bash
         env:
+          SMOKE_DEPTH: ${{ needs.plan.outputs.web_smoke_depth }}
           GATE: ${{ matrix.gate }}
           GATE_SHELL: ${{ matrix.shell }}
           ANIMATIX_GATE_TIMINGS: target/ci/timings.jsonl

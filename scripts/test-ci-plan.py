@@ -74,6 +74,56 @@ class PlannerTests(unittest.TestCase):
             classification, event, base, "head", all_jobs, enable
         )
 
+    def test_deep_risk_selection_and_normal_budget(self):
+        for path in ("crates/animatix-render/src/frame.rs", "web/embed/src/runtime/loader.js",
+                     "crates/animatix-core/src/property.rs", "shaders/new.wgsl", "Cargo.lock"):
+            with self.subTest(path=path):
+                _, plan = self.plan([path])
+                self.assertEqual(plan["web_smoke"]["depth"], "deep")
+                self.assertIn("web-build", plan["candidate_job_ids"])
+        for path in ("README.md", "web/app/src/styles/site.css", "crates/animatix-gui/src/menu.rs"):
+            with self.subTest(path=path):
+                _, plan = self.plan([path])
+                self.assertEqual(plan["web_smoke"]["depth"], "critical")
+        _, plan = self.plan(["crates/animatix-render/src/frame.rs"], event="push")
+        self.assertEqual(plan["web_smoke"]["depth"], "deep")
+        _, plan = self.plan(["README.md"], event="push")
+        self.assertEqual(plan["web_smoke"]["depth"], "critical")
+        _, plan = self.plan([], base="")
+        self.assertEqual(plan["web_smoke"]["depth"], "deep")
+
+    def test_full_matrix_uncertainty_also_escalates_browser_coverage(self):
+        for path in ("nix/web.nix", ".cargo/config.toml", "scripts/build-web.sh",
+                     "scripts/web-browser.mjs", "vendor/renderer/lib.rs", "new-subsystem/file"):
+            for event in ("pull_request", "push"):
+                with self.subTest(path=path, event=event):
+                    classification, plan = self.plan([path], event=event)
+                    self.assertTrue(classification["full_reason"])
+                    self.assertEqual(plan["web_smoke"]["depth"], "deep")
+                    self.assertIn("fallback", plan["web_smoke"]["reason"])
+                    self.assertIn("web-build", plan["candidate_job_ids"])
+        _, mixed = self.plan([".github/workflows/other.yml", "crates/animatix-render/src/frame.rs"])
+        self.assertEqual(mixed["web_smoke"]["depth"], "deep")
+        # Known low-risk paths remain cheap; full matrix from a push alone does
+        # not imply classification uncertainty.
+        for path in ("docs/spec.md", "web/app/src/styles/site.css"):
+            _, plan = self.plan([path], event="push")
+            self.assertEqual(plan["web_smoke"]["depth"], "critical")
+
+    def test_manual_regression_has_no_schedule_or_publish_permissions(self):
+        root = SCRIPT.parent.parent
+        workflow = (root / ".github/workflows/web-regression.yml").read_text()
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertNotIn("schedule:", workflow)
+        self.assertIn("contents: read", workflow)
+        self.assertNotIn("contents: write", workflow)
+        self.assertNotIn("secrets.", workflow)
+        self.assertIn("SMOKE_DEPTH: deep", workflow)
+        self.assertEqual(workflow.count("gate web-build web-smoke web-site-smoke"), 1)
+        self.assertNotIn("publish", "\n".join(line for line in workflow.splitlines() if not line.startswith("#")))
+        ci = (root / ".github/workflows/ci.yml").read_text()
+        self.assertIn("SMOKE_DEPTH: ${{ needs.plan.outputs.web_smoke_depth }}", ci)
+
     def test_workspace_paths_and_renamed_inherited_dependency_resolve_from_root(self):
         affected = PLAN.reverse_closure({"animatix-core"}, self.reverse)
         self.assertEqual(affected, {
