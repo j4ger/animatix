@@ -72,6 +72,18 @@ jobs:
         env:
           SITE_BASE: ${{ steps.pages.outputs.base_path || '/' }}
         run: nix develop --command scripts/ci.sh gate web-artifact-verify site-artifact
+      - name: Exercise assembled site
+        env:
+          SITE_BASE: ${{ steps.pages.outputs.base_path || '/' }}
+        run: nix develop .#web-ci --command scripts/ci.sh gate site-smoke
+      - name: Retain browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-smoke-evidence
+          path: target/web-smoke/
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:

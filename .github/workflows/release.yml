@@ -157,8 +157,20 @@ jobs:
         with:
           name: web-runtime
           path: web/runtime
-      - name: Verify and package site and SDK
-        run: nix develop --command scripts/ci.sh gate web-artifact-verify site-artifact dist-site dist-web-sdk
+      - name: Verify and assemble site
+        run: nix develop --command scripts/ci.sh gate web-artifact-verify site-artifact
+      - name: Exercise assembled release site
+        run: nix develop .#web-ci --command scripts/ci.sh gate site-smoke
+      - name: Retain browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-site-smoke-evidence
+          path: target/web-smoke/
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Package verified site and SDK
+        run: nix develop --command scripts/ci.sh gate dist-site dist-web-sdk
       - name: Upload
         uses: actions/upload-artifact@v7
         with:

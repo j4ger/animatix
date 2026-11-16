@@ -89,6 +89,9 @@ Runnable examples belong in `examples/`. Keep unfinished projects and probes in
 `dogfood/`, not in the supported example set. For embedded looping scenes, the
 held final frame must remain a useful composition rather than an empty outro.
 
+See [browser smoke contracts](web-smoke.md) for SDK fixtures, assembled-site
+journeys, evidence and retry policy.
+
 ### CI selection and build experiments
 
 `scripts/ci.sh` owns gates, stable job IDs and matrices. Pull-request selection

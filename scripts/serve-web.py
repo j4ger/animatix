@@ -60,6 +60,27 @@ def find_default_web_dir():
 
 
 WEB_DIR = find_default_web_dir()
+def normalize_base(value):
+    """Only URL pathname prefixes, never filesystem paths or encoded segments."""
+    if value in ("", "/"):
+        return ""
+    parts = value.strip("/").split("/")
+    if not value.startswith("/") or any(not re.fullmatch(r"[A-Za-z0-9_-]+", p) for p in parts):
+        raise ValueError("SERVE_BASE must be a simple absolute URL path prefix")
+    return "/" + "/".join(parts)
+
+
+SERVE_BASE = normalize_base(os.environ.get("SERVE_BASE", "/"))
+
+
+def strip_base(path):
+    if not SERVE_BASE:
+        return path
+    if path == SERVE_BASE or path.startswith(SERVE_BASE + "/"):
+        return path[len(SERVE_BASE):] or "/"
+    return None
+
+
 REPO_ROOT = os.path.dirname(WEB_DIR) if os.path.basename(WEB_DIR) == "web" else os.path.abspath(".")
 
 # Battle ids are directory names under dogfood/arena/battles. Refuse anything
@@ -146,6 +167,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return MIME.get(ext, "application/octet-stream")
 
     def translate_path(self, path):
+        path = strip_base(path)
+        if path is None:
+            return os.path.join(WEB_DIR, "__rejected_path__")
         clean_path = unquote(path.split("?")[0].split("#")[0])
         if clean_path.startswith("/dogfood/"):
             target = repo_path("dogfood", clean_path[len("/dogfood/"):])
@@ -168,7 +192,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return translated
 
     def do_GET(self):
-        clean_path = unquote(self.path.split("?")[0])
+        request_path = strip_base(self.path)
+        if request_path is None:
+            self.send_error(404, "Outside configured site base")
+            return
+        clean_path = unquote(request_path.split("?")[0])
         if clean_path.startswith("/dogfood/"):
             if repo_path("dogfood", clean_path[len("/dogfood/"):]) is None:
                 self.send_error(403, "Forbidden")

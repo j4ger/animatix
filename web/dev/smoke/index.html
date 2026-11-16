@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="icon" href="/logo.svg">
+<title>SDK capability fixtures (not a public site)</title>
+<style>body{margin:0;background:#0d1520}amx-player{display:block;width:640px;height:360px}</style>
+<script type="module">
+import '/runtime/amx-player.js';
+const sources = {
+  shapes: '/content/scenes/first-move.amx',
+  text: '/content/scenes/finish.amx',
+  svg: '/dev/svg-probe/scene.amx',
+  shared: '/content/scenes/first-move.amx',
+};
+const name = new URLSearchParams(location.search).get('case');
+if (!(name in sources)) throw new Error(`Unknown SDK fixture: ${name}`);
+for (let i = 0; i < (name === 'shared' ? 2 : 1); i++) {
+  const player = document.createElement('amx-player');
+  player.setAttribute('src', sources[name]);
+  player.setAttribute('aspect', '16:9');
+  document.body.append(player);
+}
+</script>

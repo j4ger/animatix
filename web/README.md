@@ -127,11 +127,12 @@ outside Nix, use `scripts/ci.sh setup wasm-bindgen`, which installs a verified
 release in a user-writable directory. `scripts/wasm-tools.sh` reads the pin; do
 not duplicate its version in setup commands.
 
-`scripts/ci.sh gate web-smoke` (run it in `nix develop .#web-ci`, after
-`web-build`) loads the home, transformer and matrix pages in headless Chromium
-and fails unless every `<amx-player>` reaches `ready` with a painted canvas. It
-is the gate that notices a runtime wiring break which `web-build`/`site-scenes`
-cannot see.
+`scripts/ci.sh gate web-smoke` (in `nix develop .#web-ci`, after
+`web-build`) exercises small SDK capability fixtures. `web-site-smoke` assembles
+the real Astro distribution and follows its critical user journeys; `site-smoke`
+tests an already assembled `_site/`. The historical HTML under `web/` is not
+release-site coverage. See [browser smoke contracts](../docs/web-smoke.md) for
+assertions, failure evidence and the restricted startup-retry policy.
 
 The web build uses the pinned `zopfli` 1.0.3 tool only to create the base
 Wasm's gzip representation. Brotli and gzip capability/font assets have their

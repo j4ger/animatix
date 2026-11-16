@@ -71,6 +71,16 @@ jobs:
         env:
           SITE_BASE: /
         run: nix develop --command scripts/ci.sh gate web-artifact-verify site-artifact
+      - name: Exercise assembled site
+        run: nix develop .#web-ci --command scripts/ci.sh gate site-smoke
+      - name: Retain browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-smoke-evidence
+          path: target/web-smoke/
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Prepare pinned uploader and check Pages limits
         run: nix develop --command scripts/ci.sh gate cloudflare-prepare
       - name: Deploy verified site to Cloudflare Pages

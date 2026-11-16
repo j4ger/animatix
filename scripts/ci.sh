@@ -81,6 +81,8 @@ commit|nix|ubuntu-latest|nix|pr
 wasm-check|web|ubuntu-latest|nix|pr
 web-build|web-ci|ubuntu-latest|nix|pr
 web-smoke|web-ci|ubuntu-latest|nix|pr
+web-site-smoke|web-ci|ubuntu-latest|nix|pr
+site-smoke|web-ci|ubuntu-latest|nix|site
 web-split-proof|web-ci|ubuntu-latest|nix|pr
 web-sdk-integrity|web-ci|ubuntu-latest|nix|pr
 text-parity|web-ci|ubuntu-latest|nix|pr
@@ -138,7 +140,7 @@ Test & Examples|test examples|nix|ubuntu-latest|nix|pr|test-examples
 Render Smoke & Scenes|render-smoke|nix|ubuntu-latest|nix|pr|render-scenes
 Benchmarks|ext-bench|nix|ubuntu-latest|nix|pr|benchmarks
 Web Check|wasm-check|web|ubuntu-latest|nix|pr|web-check
-Web Build|web-split-proof web-build web-sdk-integrity text-parity web-raster-proof web-smoke web-transactions|web-ci|ubuntu-latest|nix|pr|web-build
+Web Build|web-split-proof web-build web-sdk-integrity text-parity web-raster-proof web-smoke web-transactions web-site-smoke|web-ci|ubuntu-latest|nix|pr|web-build
 dist-linux|dist-linux|dist-driver|ubuntu-latest|nix|release|dist-linux
 dist-macos|dist-macos|native|macos-latest|rust-stable|release|dist-macos
 dist-windows|dist-windows|native|windows-latest|rust-stable|release|dist-windows
@@ -384,6 +386,8 @@ gate_doc_links() { bash scripts/check-docs.sh; }
 gate_ci_policy_tests() {
   python3 scripts/test-ci-control.py
   python3 scripts/test-ci-plan.py
+  python3 scripts/test-web-smoke-gates.py
+  python3 scripts/test-serve-web-base.py
   python3 -m unittest discover -s scripts/ci -p 'test_*.py'
 }
 
@@ -652,29 +656,45 @@ gate_web_transactions() {
   bash scripts/web-distribution-check.sh
 }
 
-gate_web_smoke() {
-  want_nix_shell 'web-smoke'
-  want_node
-  want_chromium
-  # Loading the real pages is the only thing that exercises the embed's module
-  # wiring and the wasm glue together. The static gates all passed while every
-  # player on the site was throwing `ReferenceError: qualityStep is not defined`.
-  #
-  # The browser smoke is the one gate that depends on a real Chromium process
-  # and a local HTTP server; a cold or overloaded runner occasionally reaches
-  # the player before its scene fetch has completed. One restart catches that
-  # startup race without weakening the checks. The per-player timeout is already
-  # generous (full-engine wasm can take minutes on SwiftShader), so repeating
-  # the whole suite a third time only multiplies the runtime of a real failure.
-  local attempt
+# Retry only failures classified by the runner as pre-navigation environment
+# startup errors (75). Scene, shader, JS, resource and paint failures never retry.
+run_browser_smoke() {
+  local suite="$1" attempt status
   for attempt in 1 2; do
-    if node scripts/web-smoke.mjs; then
+    if SMOKE_SUITE="$suite" SMOKE_ATTEMPT="$attempt" \
+      SMOKE_OUTPUT_DIR="target/web-smoke/$suite/attempt-$attempt" node scripts/web-smoke.mjs; then
       return 0
+    else
+      status=$?
     fi
-    echo "web-smoke: attempt $attempt failed; retrying after browser startup" >&2
+    if [ "$status" -ne 75 ] || [ "$attempt" -eq 2 ]; then
+      return "$status"
+    fi
+    echo "web-smoke: browser environment unavailable; one clean startup retry" >&2
     sleep 2
   done
-  return 1
+}
+
+gate_web_smoke() {
+  want_nix_shell 'web-smoke'; want_node; want_chromium
+  command -v xvfb-run >/dev/null || { echo 'web-smoke requires xvfb-run from the web-ci shell' >&2; return 1; }
+  node --test scripts/web-smoke-*.test.mjs
+  run_browser_smoke sdk
+}
+
+gate_site_smoke() {
+  want_nix_shell 'site-smoke'; want_node; want_chromium
+  command -v xvfb-run >/dev/null || { echo 'site-smoke requires xvfb-run from the web-ci shell' >&2; return 1; }
+  # Never fall back to web/: it contains the obsolete pre-Astro website.
+  [ -f _site/index.html ] || { echo 'site-smoke requires gate site-artifact first' >&2; return 1; }
+  ANIMATIX_WEB_ROOT="$root/_site" run_browser_smoke site
+}
+
+gate_web_site_smoke() {
+  want_nix_shell 'web-site-smoke'; want_node; want_chromium
+  # Same job, same verified SDK. Assembly deliberately does not rebuild wasm.
+  gate_site_artifact
+  gate_site_smoke
 }
 
 gate_wasm_check() {
