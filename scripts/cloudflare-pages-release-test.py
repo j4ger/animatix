@@ -4,6 +4,7 @@ import copy
 import importlib.util
 from pathlib import Path
 import unittest
+from unittest.mock import Mock, patch
 
 spec = importlib.util.spec_from_file_location('release', Path(__file__).with_name('cloudflare-pages-release.py'))
 r = importlib.util.module_from_spec(spec)
@@ -63,6 +64,95 @@ class Fake:
 
     def deployments(self):
         return self.records
+
+
+class InventoryTests(unittest.TestCase):
+    def test_real_api_page_size_and_pagination(self):
+        api = r.API()
+        api.cf = Mock(side_effect=[[{'id': str(i)} for i in range(25)], [{'id': 'last'}]])
+        self.assertEqual(len(api.deployments()), 26)
+        self.assertEqual([c.args[0] for c in api.cf.call_args_list], [
+            '/deployments?per_page=25&page=1', '/deployments?per_page=25&page=2'])
+
+    def test_full_page_requires_next_empty_page(self):
+        api = r.API()
+        api.cf = Mock(side_effect=[[{}] * 25, []])
+        self.assertEqual(len(api.deployments()), 25)
+        self.assertEqual(api.cf.call_count, 2)
+
+    def test_failure_or_truncation_never_means_idle(self):
+        api = r.API()
+        api.cf = Mock(side_effect=[[{}] * 25, RuntimeError('request failed')])
+        with self.assertRaises(RuntimeError):
+            api.deployments()
+        api.cf = Mock(return_value=[{}] * 25)
+        with self.assertRaisesRegex(RuntimeError, 'exceeds bound'):
+            api.deployments()
+        self.assertEqual(api.cf.call_count, 100)
+        for malformed in ({'result': []}, [{}] * 26):
+            api.cf = Mock(return_value=malformed)
+            with self.assertRaisesRegex(RuntimeError, 'invalid deployment inventory'):
+                api.deployments()
+
+
+class InitializeTests(unittest.TestCase):
+    def api(self, exists=False):
+        api = Fake()
+        api.project['canonical_deployment'] = deployment(sha=OLD)
+        api.state = {'schema': 1, 'phase': 'complete', 'sha': OLD, 'deployment_id': 'deployment-1'}
+        api.gh = Mock(return_value=[{'ref': 'refs/heads/' + r.STATE_BRANCH}] if exists else [])
+        api.save = Mock()
+        return api
+
+    def test_new_journal_never_deploys(self):
+        api = self.api()
+        r.initialize(api)
+        api.save.assert_called_once_with(api.state, None)
+        self.assertEqual(api.sent, 0)
+        self.assertEqual(api.head('deploy/pages'), OLD)
+        self.assertEqual(api.gh.call_args_list[1].args, ('git/refs', 'POST', {
+            'ref': 'refs/heads/' + r.STATE_BRANCH, 'sha': NEW}))
+
+    def test_repeat_is_read_only(self):
+        api = self.api(True)
+        r.initialize(api)
+        api.save.assert_not_called()
+        self.assertEqual(api.gh.call_count, 1)
+        self.assertEqual(api.sent, 0)
+
+    def test_drift_unknown_and_incomplete_freeze(self):
+        for phase in ('intent', 'waiting', 'blocked', 'preparing'):
+            api = self.api(True)
+            api.state['phase'] = phase
+            with self.assertRaises(RuntimeError):
+                r.initialize(api)
+            api.save.assert_not_called()
+        api = self.api(True)
+        api.journal = Mock(side_effect=RuntimeError('missing journal'))
+        with self.assertRaises(RuntimeError):
+            r.initialize(api)
+        api.save.assert_not_called()
+
+    def test_active_or_read_failure_prevents_writes(self):
+        api = self.api()
+        api.records = [deployment('active', OLD)]
+        with self.assertRaises(RuntimeError):
+            r.initialize(api)
+        api.gh.assert_not_called()
+        api = self.api()
+        api.gh.side_effect = RuntimeError('permission denied')
+        with self.assertRaises(RuntimeError):
+            r.initialize(api)
+        api.save.assert_not_called()
+
+    def test_wrong_event_or_ref_rejected_before_api(self):
+        for env in ({}, {'GITHUB_REPOSITORY': r.REPO, 'GITHUB_REF': 'refs/heads/other',
+                        'GITHUB_EVENT_NAME': 'workflow_dispatch'}):
+            with patch.dict(r.os.environ, env, clear=True), patch.object(r.sys, 'argv', ['release', '--initialize']):
+                with patch.object(r, 'initialize') as initialize:
+                    with self.assertRaises(RuntimeError):
+                        r.main()
+                    initialize.assert_not_called()
 
 
 class ReleaseTests(unittest.TestCase):

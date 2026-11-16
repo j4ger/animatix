@@ -100,6 +100,7 @@ web-artifact-absence|none|ubuntu-latest|none|control
 cloudflare-pages-publish|none|ubuntu-latest|none|control
 cloudflare-pages-build|none|ubuntu-latest|none|control
 cloudflare-pages-release|none|ubuntu-latest|none|control
+cloudflare-pages-initialize|none|ubuntu-latest|none|control
 cloudflare-candidate-publish|none|ubuntu-latest|none|control
 cloudflare-candidate-dispatch|none|ubuntu-latest|none|control
 cloudflare-candidate-build|none|ubuntu-latest|none|control
@@ -470,6 +471,10 @@ gate_property_reference_experiment() {
 # Web content and SDK boundary checks.
 gate_cloudflare_pages_publish() {
   python3 scripts/cloudflare-pages.py publish
+}
+
+gate_cloudflare_pages_initialize() {
+  python3 scripts/cloudflare-pages-release.py --initialize
 }
 
 gate_cloudflare_pages_release() {

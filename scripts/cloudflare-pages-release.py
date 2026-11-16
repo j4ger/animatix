@@ -79,12 +79,15 @@ class API:
         return self.gh('contents/' + STATE_PATH, 'PUT', data)['content']['sha']
 
     def deployments(self):
+        # Pages rejects per_page=100; 25 is accepted by the live API.
         # Read every page. Never treat a truncated inventory as idle.
         results = []
         for page in range(1, 101):
-            batch = self.cf(f'/deployments?per_page=100&page={page}')
+            batch = self.cf(f'/deployments?per_page=25&page={page}')
+            if not isinstance(batch, list) or len(batch) > 25:
+                raise RuntimeError('invalid deployment inventory page')
             results.extend(batch)
-            if len(batch) < 100:
+            if len(batch) < 25:
                 return results
         raise RuntimeError('deployment inventory exceeds bound')
 
@@ -193,9 +196,22 @@ def initialize(api):
     sha = api.head(PAGES.RELEASE_BRANCH)
     if not current or deployment_status(current, sha) != 'success':
         raise RuntimeError('initialize from an accepted canonical production deployment')
-    # Existing branch -> API rejects; never overwrite/reinitialize its journal.
+    expected = {'schema': 1, 'phase': 'complete', 'sha': sha, 'deployment_id': current['id']}
+    # Distinguish absence with a successful ref inventory, never a failed read.
+    refs = api.gh('git/matching-refs/heads/' + STATE_BRANCH)
+    if not isinstance(refs, list):
+        raise RuntimeError('invalid state ref inventory')
+    if any(ref['ref'] == 'refs/heads/' + STATE_BRANCH for ref in refs):
+        state, _ = api.journal()
+        if state != expected:
+            raise RuntimeError('existing journal differs; initialization cannot reset it')
+        print('Pages journal already initialized and matches canonical deployment; no writes')
+        return
+    # A race or an interrupted first initialization fails closed. Never replace
+    # an existing branch or repair a missing journal automatically.
     api.gh('git/refs', 'POST', {'ref': 'refs/heads/' + STATE_BRANCH, 'sha': api.head('main')})
-    api.save({'schema': 1, 'phase': 'complete', 'sha': sha, 'deployment_id': current['id']}, None)
+    api.save(expected, None)
+    print('Pages journal initialized; no deployment requested')
 
 
 def recover_failed(api):
@@ -216,6 +232,10 @@ def main():
     if sys.argv[1:] == ['--recover-failed']:
         return recover_failed(api)
     if sys.argv[1:] == ['--initialize']:
+        if (os.environ.get('GITHUB_REPOSITORY') != REPO
+                or os.environ.get('GITHUB_REF') != 'refs/heads/main'
+                or os.environ.get('GITHUB_EVENT_NAME') != 'workflow_dispatch'):
+            raise RuntimeError('initialization requires an explicit main workflow dispatch')
         return initialize(api)
     if sys.argv[1:]:
         raise RuntimeError('usage: [--initialize | --recover-failed]')

@@ -112,11 +112,18 @@ Git integration must retain repository read access. Keep the Cloudflare project
 production auto-build switch off and preview setting `none`: the job performs
 one explicit deployment request after moving the branch.
 
-Before enabling release, a single operator verifies the current successful
-production deployment and executes `python3 scripts/cloudflare-pages-release.py
---initialize` with the two API credentials supplied securely. This creates
-`deploy/pages-state` and its `.pages-release-state.json` once; it refuses to
-replace an existing state branch. This branch is infrastructure state, not a
+Before enabling release, dispatch **Initialize Pages release journal** on `main`
+(`cloudflare-pages-initialize.yml`). It uses the repository secret inside Actions,
+validates project access, disabled automatic builds, and an idle successful
+canonical deployment, then creates `deploy/pages-state` and its journal. It never
+requests a deployment or changes `deploy/pages`. A repeat is a read-only success
+only when the existing journal exactly matches that completed deployment; drift,
+unknown outcomes, and partial initialization fail closed without repair. Successful
+initialization proves authenticated Pages reads and GitHub journal writes, not
+Pages deployment-write permission; the first controlled release verifies that.
+Keep both release variables off until initialization succeeds.
+
+This branch is infrastructure state, not a
 source branch. Protect it and `deploy/pages` from force pushes/deletion and all
 other publishers, including manual Dashboard deployments and the old operator
 procedure. Do not put credentials into the journal.
