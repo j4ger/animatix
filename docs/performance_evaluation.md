@@ -689,6 +689,13 @@ export        showcase_1080p_fps            412 fps     (gpu, latest only)
 
 *(added 2026-09-30)*
 
+**Historical snapshot (2026-11-15, `ed3764e4`):** see
+[Web performance baseline](history/2026-11-15-web-performance-baseline.md) for the
+release SDK's startup, fixed-raster frame completion, payload and multi-player
+measurements, prioritized optimization experiments, and remaining page-cadence
+verification gap. This is not a baseline for current main; older GPU/page
+numbers below retain their original scope.
+
 The layers above all measure native code. Browser playback is its own surface
 with its own failure mode — the one users actually report as "the playback is
 choppy" — and none of the existing layers can see it: `perf-tracing` is compiled

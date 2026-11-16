@@ -46,3 +46,15 @@ a malformed recording does not invoke its suffix.
 Remove this second change when the selected upstream release supports an
 equivalent synchronous render-and-tail submission contract. The whole vendored
 directory and Cargo patch can go only when both boundaries are covered.
+
+## Debug-layer source completeness
+
+`src/debug/renderer.rs` and `src/debug/validate.rs` are unmodified upstream
+files from `f3000c8d9e7a9c7e6abb09b9587238bf8b4860ff`, under
+`research/vello_research`, matching `.cargo_vcs_info.json`. They are required
+when both `wgpu` and `debug_layers` are enabled. A former broad `debug` ignore
+rule omitted these nested source files; restoring them does not enable the
+feature by default or change normal rendering.
+
+Compile the renderer with `cargo check -p animatix-render --features
+vello/debug_layers` inside the Nix development shell when upgrading this vendor.
