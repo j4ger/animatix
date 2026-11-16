@@ -1,1 +1,1 @@
-{"deployment_id": "60f7dfdc-dd83-4a91-8e50-326da30ddbc4", "phase": "complete", "previous_sha": "fef9d79681343be3696ab7115520011ea47f59fd", "requested_at": 1794806914, "schema": 1, "sha": "d69a3fc8d8e1409402a3c8ad6575d9c07bdc1dcb"}
+{"phase": "preparing", "previous_sha": "d69a3fc8d8e1409402a3c8ad6575d9c07bdc1dcb", "schema": 1, "sha": "530b5f8843d31a77b19540ff8f42daf662fddfff"}
