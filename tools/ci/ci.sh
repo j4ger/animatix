@@ -117,6 +117,7 @@ release-notes|none|ubuntu-latest|none|control
 release-publish|none|ubuntu-latest|none|control
 ci-prep-experiment|none|ubuntu-latest|none|control
 ci-prep-experiment-tests|none|ubuntu-latest|none|control
+ci-prep-installer|none|ubuntu-latest|none|control
 '
 
 # ── CI matrix jobs ────────────────────────────────────────────────────────────
@@ -223,6 +224,10 @@ want_wasm_std() {
 
 # ── gates ─────────────────────────────────────────────────────────────────────
 # Experiment-only preparation; never part of the production PR matrix.
+gate_ci_prep_installer() {
+  python3 tools/ci/ci-prep-installer.py
+}
+
 gate_ci_prep_experiment() {
   python3 tools/ci/ci-prep-experiment.py
 }

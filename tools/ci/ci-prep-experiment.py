@@ -18,7 +18,7 @@ import uuid
 ROOT = Path(__file__).resolve().parents[2]
 JOBS = {"web-build", "check-lint", "test-examples"}
 ARMS = {"a", "b", "c"}
-ROUNDS = {"cold", "warm"}
+ROUNDS = {"cold", "warm", "sample1", "sample2"}
 LABELS = {"before", "after-cleanup", "after-cache", "before-gate", "after-gate"}
 MIN_FREE = 30 * 1024**3
 CLEAN_PATHS = (
@@ -34,6 +34,8 @@ def context():
     for name, allowed in (("job", JOBS), ("arm", ARMS), ("round", ROUNDS)):
         if values[name] not in allowed:
             raise ValueError(f"invalid experiment {name}")
+    if experiment_mode() == "cleanup-only" and values["arm"] == "c":
+        raise ValueError("cleanup-only mode cannot select the cache arm")
     return values
 
 
@@ -249,6 +251,13 @@ def run_gate(ctx):
             print("warning: run evidence unavailable; gate result is unchanged", file=sys.stderr)
 
 
+def experiment_mode():
+    mode = os.environ.get("ANIMATIX_PREP_MODE", "cleanup-only")
+    if mode not in {"cleanup-only", "cache-pilot"}:
+        raise ValueError("invalid experiment mode")
+    return mode
+
+
 def experiment_scope():
     scope = os.environ.get("ANIMATIX_PREP_SCOPE", "pilot")
     if scope not in {"pilot", "critical"}:
@@ -263,17 +272,18 @@ def preflight():
         ["gh", "api", "repos/j4ger/animatix/actions/cache/usage"], cwd=ROOT,
     )
     usage = json.loads(raw)
-    size = usage.get("total_active_caches_size_in_bytes")
-    count = usage.get("total_active_caches_count")
+    size = usage.get("active_caches_size_in_bytes")
+    count = usage.get("active_caches_count")
     if type(size) is not int or type(count) is not int or size < 0 or count < 0:
         raise ValueError("invalid cache usage response")
     # Conservative local experiment budget, not a claim about account quota.
     maximum_existing = 5 * 1024**3
-    allowed = size <= maximum_existing
-    record("preflight", {"scope": scope}, {"active_cache_bytes": size,
+    mode = experiment_mode()
+    allowed = mode == "cleanup-only" or size <= maximum_existing
+    record("preflight", {"scope": scope, "mode": mode}, {"active_cache_bytes": size,
            "active_cache_count": count, "maximum_existing_bytes": maximum_existing,
            "allowed": allowed})
-    print(json.dumps({"active_cache_bytes": size, "active_cache_count": count,
+    print(json.dumps({"mode": mode, "active_cache_bytes": size, "active_cache_count": count,
                       "maximum_existing_bytes": maximum_existing, "allowed": allowed}))
     return 0 if allowed else 1
 
@@ -284,9 +294,10 @@ def main():
         return preflight()
     if action == "matrix":
         scope = experiment_scope()
+        arms = {"a", "b"} if experiment_mode() == "cleanup-only" else ARMS
         rows = [{**row, "arm": arm} for row in matrix_rows()
                 if scope == "critical" or row["id"] == "check-lint"
-                for arm in sorted(ARMS)]
+                for arm in sorted(arms)]
         value = json.dumps({"include": rows}, separators=(",", ":"))
         output_value("matrix", value)
         print(value)

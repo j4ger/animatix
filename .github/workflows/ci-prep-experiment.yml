@@ -14,6 +14,7 @@ env:
   CARGO_INCREMENTAL: '0'
   SMOKE_DEPTH: deep
   ANIMATIX_PREP_SCOPE: pilot
+  ANIMATIX_PREP_MODE: cleanup-only
   NIX_CONFIG: |
     fallback = true
     extra-substituters = https://cache.nixos.org/
@@ -35,10 +36,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ANIMATIX_PREP_ACTION: preflight
         run: tools/ci/ci.sh gate ci-prep-experiment
+      - name: Fetch checksum-pinned installer without caching
+        run: tools/ci/ci.sh gate ci-prep-installer
       - name: Install Nix for policy validation
-        uses: DeterminateSystems/determinate-nix-action@v3
+        uses: DeterminateSystems/determinate-nix-action@16f94ba7aae399b9f9077c254b6719ec6de7e3e3
+        with:
+          source-binary: ${{ runner.temp }}/ci-prep-nix-installer
       - name: Read-only policy Cachix
-        uses: cachix/cachix-action@v17
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866
         with:
           name: animatix
           extraPullNames: nix-community
@@ -56,19 +61,19 @@ jobs:
           path: target/ci/prep-experiment/
           retention-days: 7
 
-  cold:
+  sample1:
     needs: plan
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 2
       matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
-    name: cold / ${{ matrix.arm }} / ${{ matrix.id }}
+    name: sample1 / ${{ matrix.arm }} / ${{ matrix.id }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 50
     env:
       ANIMATIX_PREP_ARM: ${{ matrix.arm }}
       ANIMATIX_PREP_JOB: ${{ matrix.id }}
-      ANIMATIX_PREP_ROUND: cold
+      ANIMATIX_PREP_ROUND: sample1
       ANIMATIX_GATE_TIMINGS: target/ci/timings.jsonl
     steps:
       - uses: actions/checkout@v5
@@ -85,111 +90,26 @@ jobs:
         env:
           ANIMATIX_PREP_ACTION: cleanup
         run: tools/ci/ci.sh gate ci-prep-experiment
+      - name: Fetch checksum-pinned installer without caching
+        run: tools/ci/ci.sh gate ci-prep-installer
       - name: Install Nix
-        uses: DeterminateSystems/determinate-nix-action@v3
+        uses: DeterminateSystems/determinate-nix-action@16f94ba7aae399b9f9077c254b6719ec6de7e3e3
+        with:
+          source-binary: ${{ runner.temp }}/ci-prep-nix-installer
       - name: Read-only Cachix
-        uses: cachix/cachix-action@v17
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866
         with:
           name: animatix
           extraPullNames: nix-community
           skipPush: true
-      - name: Identify actual Nix toolchain
-        id: identity
-        if: matrix.arm == 'c'
-        env:
-          ANIMATIX_PREP_ACTION: identity
-        run: tools/ci/ci.sh gate ci-prep-experiment
-      # A/B have identical compiled content and restore the same frozen seed.
-      # C owns a distinct job/toolchain key. All keys are isolated from production.
+      # Read the existing main-branch seed, with all saves disabled.
+      # The actual restored key/cache size must match across both arms.
       - name: Rust cache
         id: cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
         with:
-          prefix-key: prep-v1-${{ github.run_id }}-${{ github.run_attempt }}
-          shared-key: ${{ matrix.arm == 'c' && format('grouped-{0}', matrix.id) || 'baseline' }}
-          key: ${{ matrix.arm == 'c' && steps.identity.outputs.identity || matrix.shell }}
-          cache-workspace-crates: false
-          cache-on-failure: false
-          save-if: true
-      - name: Record restored disk and cache verdict
-        env:
-          ANIMATIX_PREP_ACTION: snapshot
-          ANIMATIX_PREP_LABEL: after-cache
-          ANIMATIX_PREP_CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
-        run: tools/ci/ci.sh gate ci-prep-experiment
-      - name: Run unchanged registered gate sequence
-        env:
-          ANIMATIX_PREP_ACTION: run
-        run: tools/ci/ci.sh gate ci-prep-experiment
-      - name: Final disk evidence
-        if: always()
-        env:
-          ANIMATIX_PREP_ACTION: snapshot
-          ANIMATIX_PREP_LABEL: after-gate
-        run: tools/ci/ci.sh gate ci-prep-experiment
-      - name: Upload public experiment evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: prep-cold-${{ matrix.arm }}-${{ matrix.id }}-${{ github.run_attempt }}
-          path: |
-            target/ci/prep-experiment/*.json
-            target/ci/timings.jsonl
-            target/ci/phases/*.json
-          retention-days: 7
-
-  warm:
-    needs: [plan, cold]
-    strategy:
-      fail-fast: false
-      max-parallel: 3
-      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
-    name: warm / ${{ matrix.arm }} / ${{ matrix.id }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 50
-    env:
-      ANIMATIX_PREP_ARM: ${{ matrix.arm }}
-      ANIMATIX_PREP_JOB: ${{ matrix.id }}
-      ANIMATIX_PREP_ROUND: warm
-      ANIMATIX_GATE_TIMINGS: target/ci/timings.jsonl
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - name: Record runner and initial disk
-        env:
-          ANIMATIX_PREP_ACTION: snapshot
-          ANIMATIX_PREP_LABEL: before
-        run: tools/ci/ci.sh gate ci-prep-experiment
-      - name: Original or conditional disk cleanup
-        env:
-          ANIMATIX_PREP_ACTION: cleanup
-        run: tools/ci/ci.sh gate ci-prep-experiment
-      - name: Install Nix
-        uses: DeterminateSystems/determinate-nix-action@v3
-      - name: Read-only Cachix
-        uses: cachix/cachix-action@v17
-        with:
-          name: animatix
-          extraPullNames: nix-community
-          skipPush: true
-      - name: Identify actual Nix toolchain
-        id: identity
-        if: matrix.arm == 'c'
-        env:
-          ANIMATIX_PREP_ACTION: identity
-        run: tools/ci/ci.sh gate ci-prep-experiment
-      # A/B have identical compiled content and restore the same frozen seed.
-      # C owns a distinct job/toolchain key. All keys are isolated from production.
-      - name: Rust cache
-        id: cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          prefix-key: prep-v1-${{ github.run_id }}-${{ github.run_attempt }}
-          shared-key: ${{ matrix.arm == 'c' && format('grouped-{0}', matrix.id) || 'baseline' }}
-          key: ${{ matrix.arm == 'c' && steps.identity.outputs.identity || matrix.shell }}
+          prefix-key: v0-rust
+          shared-key: ${{ format('{0}-gate', matrix.shell) }}
           cache-workspace-crates: false
           cache-on-failure: false
           save-if: false
@@ -213,7 +133,86 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: prep-warm-${{ matrix.arm }}-${{ matrix.id }}-${{ github.run_attempt }}
+          name: prep-sample1-${{ matrix.arm }}-${{ matrix.id }}-${{ github.run_attempt }}
+          path: |
+            target/ci/prep-experiment/*.json
+            target/ci/timings.jsonl
+            target/ci/phases/*.json
+          retention-days: 7
+
+  sample2:
+    needs: [plan, sample1]
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    name: sample2 / ${{ matrix.arm }} / ${{ matrix.id }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 50
+    env:
+      ANIMATIX_PREP_ARM: ${{ matrix.arm }}
+      ANIMATIX_PREP_JOB: ${{ matrix.id }}
+      ANIMATIX_PREP_ROUND: sample2
+      ANIMATIX_GATE_TIMINGS: target/ci/timings.jsonl
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Record runner and initial disk
+        env:
+          ANIMATIX_PREP_ACTION: snapshot
+          ANIMATIX_PREP_LABEL: before
+        run: tools/ci/ci.sh gate ci-prep-experiment
+      - name: Original or conditional disk cleanup
+        env:
+          ANIMATIX_PREP_ACTION: cleanup
+        run: tools/ci/ci.sh gate ci-prep-experiment
+      - name: Fetch checksum-pinned installer without caching
+        run: tools/ci/ci.sh gate ci-prep-installer
+      - name: Install Nix
+        uses: DeterminateSystems/determinate-nix-action@16f94ba7aae399b9f9077c254b6719ec6de7e3e3
+        with:
+          source-binary: ${{ runner.temp }}/ci-prep-nix-installer
+      - name: Read-only Cachix
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866
+        with:
+          name: animatix
+          extraPullNames: nix-community
+          skipPush: true
+      # Read the existing main-branch seed, with all saves disabled.
+      # The actual restored key/cache size must match across both arms.
+      - name: Rust cache
+        id: cache
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
+        with:
+          prefix-key: v0-rust
+          shared-key: ${{ format('{0}-gate', matrix.shell) }}
+          cache-workspace-crates: false
+          cache-on-failure: false
+          save-if: false
+      - name: Record restored disk and cache verdict
+        env:
+          ANIMATIX_PREP_ACTION: snapshot
+          ANIMATIX_PREP_LABEL: after-cache
+          ANIMATIX_PREP_CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
+        run: tools/ci/ci.sh gate ci-prep-experiment
+      - name: Run unchanged registered gate sequence
+        env:
+          ANIMATIX_PREP_ACTION: run
+        run: tools/ci/ci.sh gate ci-prep-experiment
+      - name: Final disk evidence
+        if: always()
+        env:
+          ANIMATIX_PREP_ACTION: snapshot
+          ANIMATIX_PREP_LABEL: after-gate
+        run: tools/ci/ci.sh gate ci-prep-experiment
+      - name: Upload public experiment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prep-sample2-${{ matrix.arm }}-${{ matrix.id }}-${{ github.run_attempt }}
           path: |
             target/ci/prep-experiment/*.json
             target/ci/timings.jsonl
@@ -222,12 +221,12 @@ jobs:
 
   result:
     if: always()
-    needs: [plan, cold, warm]
+    needs: [plan, sample1, sample2]
     runs-on: ubuntu-latest
     steps:
       - name: Require complete successful pilot
         env:
           PLAN: ${{ needs.plan.result }}
-          COLD: ${{ needs.cold.result }}
-          WARM: ${{ needs.warm.result }}
+          COLD: ${{ needs.sample1.result }}
+          WARM: ${{ needs.sample2.result }}
         run: test "$PLAN" = success && test "$COLD" = success && test "$WARM" = success

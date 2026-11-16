@@ -51,7 +51,8 @@ class PreparationContracts(unittest.TestCase):
     def test_pilot_and_critical_matrix(self):
         for scope, expected in (("pilot", 3), ("critical", 9)):
             with self.subTest(scope=scope), patch.dict(os.environ, {
-                    "ANIMATIX_PREP_ACTION": "matrix", "ANIMATIX_PREP_SCOPE": scope}), \
+                    "ANIMATIX_PREP_ACTION": "matrix", "ANIMATIX_PREP_SCOPE": scope,
+                    "ANIMATIX_PREP_MODE": "cache-pilot"}), \
                     patch.object(PREP, "matrix_rows", return_value=ROWS), contextlib.redirect_stdout(io.StringIO()) as out:
                 self.assertEqual(PREP.main(), 0)
                 result = json.loads(out.getvalue())["include"]
@@ -238,16 +239,17 @@ class PreparationContracts(unittest.TestCase):
 
     def test_preflight_budget_and_allowlisted_output(self):
         for size, expected in ((0, 0), (5 * 1024**3, 0), (5 * 1024**3 + 1, 1)):
-            with self.subTest(size=size), patch.object(PREP, "cleanup_guard"), \
+            with self.subTest(size=size), patch.dict(os.environ, {"ANIMATIX_PREP_MODE": "cache-pilot"}), \
+                    patch.object(PREP, "cleanup_guard"), \
                     patch.object(PREP.subprocess, "check_output", return_value=json.dumps({
-                        "total_active_caches_size_in_bytes": size, "total_active_caches_count": 2,
+                        "active_caches_size_in_bytes": size, "active_caches_count": 2,
                         "secret": "do-not-print"})), contextlib.redirect_stdout(io.StringIO()) as out:
                 self.assertEqual(PREP.preflight(), expected)
                 self.assertNotIn("do-not-print", out.getvalue())
 
     def test_preflight_unknown_or_bad_usage_fails_closed(self):
-        for value in ({}, {"total_active_caches_size_in_bytes": True, "total_active_caches_count": 2},
-                      {"total_active_caches_size_in_bytes": -1, "total_active_caches_count": 2}):
+        for value in ({}, {"active_caches_size_in_bytes": True, "active_caches_count": 2},
+                      {"active_caches_size_in_bytes": -1, "active_caches_count": 2}):
             with self.subTest(value=value), patch.object(PREP, "cleanup_guard"), \
                     patch.object(PREP.subprocess, "check_output", return_value=json.dumps(value)):
                 with self.assertRaises(ValueError):
@@ -271,6 +273,34 @@ class PreparationContracts(unittest.TestCase):
             with self.subTest(key=key), patch.dict(os.environ, {key: "do not upload secret"}):
                 with self.assertRaises(ValueError):
                     PREP.snapshot(CTX)
+
+    def test_cleanup_only_default_matrix_has_no_cache_arm(self):
+        with patch.dict(os.environ, {"ANIMATIX_PREP_ACTION": "matrix"}), \
+                patch.object(PREP, "matrix_rows", return_value=ROWS), contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(PREP.main(), 0)
+        rows = json.loads(out.getvalue())["include"]
+        self.assertEqual(len(rows), 2)
+        self.assertEqual({row["arm"] for row in rows}, {"a", "b"})
+        with patch.dict(os.environ, {"ANIMATIX_PREP_ARM": "c"}):
+            with self.assertRaises(ValueError):
+                PREP.context()
+
+    def test_cleanup_only_allows_existing_cache_without_writes(self):
+        with patch.object(PREP, "cleanup_guard"), \
+                patch.object(PREP.subprocess, "check_output", return_value=json.dumps({
+                    "active_caches_size_in_bytes": 10204110737, "active_caches_count": 8})), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(PREP.preflight(), 0)
+        self.assertEqual(self.records()[0]["mode"], "cleanup-only")
+
+    def test_mode_strict_and_sample_rounds(self):
+        with patch.dict(os.environ, {"ANIMATIX_PREP_MODE": "other"}):
+            with self.assertRaises(ValueError):
+                PREP.experiment_mode()
+        for sample in ("sample1", "sample2"):
+            with patch.dict(os.environ, {"ANIMATIX_PREP_ROUND": sample}):
+                self.assertEqual(PREP.context()["round"], sample)
+
 
 
 class WorkflowIsolation(unittest.TestCase):
@@ -305,31 +335,80 @@ class WorkflowIsolation(unittest.TestCase):
         self.assertNotIn("gate cloudflare", self.workflow)
         self.assertNotIn("git push", self.workflow)
 
-    def test_cold_and_warm_share_cache_namespace_not_writes(self):
-        cold = self.block("cold", "warm")
-        warm = self.block("warm", "result")
-        for text in (cold, warm):
+    def test_samples_share_read_only_production_seed(self):
+        first = self.block("sample1", "sample2")
+        second = self.block("sample2", "result")
+        self.assertIn("ANIMATIX_PREP_MODE: cleanup-only", self.workflow)
+        for text in (first, second):
             self.assertIn("matrix: ${{ fromJson(needs.plan.outputs.matrix) }}", text)
-            self.assertIn("prefix-key: prep-v1-${{ github.run_id }}-${{ github.run_attempt }}", text)
-            self.assertIn("shared-key: ${{ matrix.arm == 'c' && format('grouped-{0}', matrix.id) || 'baseline' }}", text)
-            self.assertIn("key: ${{ matrix.arm == 'c' && steps.identity.outputs.identity || matrix.shell }}", text)
+            self.assertIn("prefix-key: v0-rust", text)
+            self.assertIn("shared-key: ${{ format('{0}-gate', matrix.shell) }}", text)
+            self.assertNotIn("\n          key:", text)
             self.assertIn("cache-workspace-crates: false", text)
             self.assertIn("cache-on-failure: false", text)
+            self.assertIn("save-if: false", text)
             self.assertIn("skipPush: true", text)
             self.assertNotIn("authToken:", text)
             self.assertIn("ANIMATIX_PREP_ACTION: run", text)
             self.assertIn("ANIMATIX_PREP_JOB: ${{ matrix.id }}", text)
-        self.assertIn("save-if: true", cold)
-        self.assertIn("save-if: false", warm)
-        self.assertIn("needs: [plan, cold]", warm)
+        self.assertNotIn("save-if: true", self.workflow)
+        self.assertIn("needs: [plan, sample1]", second)
+
+    def test_installer_cache_bypass_on_every_runner(self):
+        for name, next_name in (("plan", "sample1"), ("sample1", "sample2"), ("sample2", "result")):
+            text = self.block(name, next_name)
+            self.assertIn("run: tools/ci/ci.sh gate ci-prep-installer", text)
+            self.assertIn("uses: DeterminateSystems/determinate-nix-action@16f94ba7aae399b9f9077c254b6719ec6de7e3e3", text)
+            self.assertIn("source-binary: ${{ runner.temp }}/ci-prep-nix-installer", text)
 
     def test_guarded_plan_and_fail_closed_result(self):
-        plan = self.block("plan", "cold")
+        plan = self.block("plan", "sample1")
         self.assertIn("github.ref == 'refs/heads/ci-prep-experiment/20261116'", plan)
         self.assertIn("ANIMATIX_PREP_ACTION: preflight", plan)
         self.assertIn("ANIMATIX_PREP_ACTION: matrix", plan)
-        self.assertIn("needs: [plan, cold, warm]", self.workflow)
+        self.assertIn("needs: [plan, sample1, sample2]", self.workflow)
         self.assertIn('test "$PLAN" = success && test "$COLD" = success && test "$WARM" = success', self.workflow)
+
+
+class InstallerVerification(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("installer", Path(__file__).with_name("ci-prep-installer.py"))
+        cls.installer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.installer)
+
+    def download(self, root, data, expected_size, expected_hash):
+        with patch.dict(os.environ, {"RUNNER_TEMP": root}), \
+                patch.object(self.installer.urllib.request, "urlopen", return_value=io.BytesIO(data)), \
+                patch.object(self.installer, "SIZE", expected_size), \
+                patch.object(self.installer, "SHA256", expected_hash), contextlib.redirect_stdout(io.StringIO()):
+            self.installer.main()
+
+    def test_valid_installer_only_becomes_executable_after_verification(self):
+        data = b"reviewed official fixture"
+        with tempfile.TemporaryDirectory() as root:
+            self.download(root, data, len(data), hashlib.sha256(data).hexdigest())
+            path = Path(root) / "ci-prep-nix-installer"
+            self.assertEqual(path.read_bytes(), data)
+            self.assertEqual(path.stat().st_mode & 0o777, 0o700)
+
+    def test_checksum_or_size_failure_never_marks_executable(self):
+        data = b"untrusted bytes"
+        for size, digest in ((len(data), "0" * 64), (len(data) - 1, hashlib.sha256(data).hexdigest()),
+                             (len(data) + 1, hashlib.sha256(data).hexdigest())):
+            with self.subTest(size=size), tempfile.TemporaryDirectory() as root:
+                with self.assertRaises(ValueError):
+                    self.download(root, data, size, digest)
+                path = Path(root) / "ci-prep-nix-installer"
+                self.assertEqual(path.stat().st_mode & 0o111, 0)
+
+    def test_existing_installer_is_not_overwritten(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / "ci-prep-nix-installer"
+            path.write_bytes(b"keep")
+            with self.assertRaises(FileExistsError):
+                self.download(root, b"new", 3, hashlib.sha256(b"new").hexdigest())
+            self.assertEqual(path.read_bytes(), b"keep")
 
 
 if __name__ == "__main__":

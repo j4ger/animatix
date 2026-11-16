@@ -1,76 +1,76 @@
 # CI preparation pilot (not a production change)
 
 Source base: `0dd37ec787db1be22692e87ab3dfb7a8370b0c7c`.
-The disposable branch `ci-prep-experiment/20261116` alone triggers the pilot.
-All arms check out the same experiment commit. No production workflow, gate
-sequence, release permission, branch protection, signer or publisher is changed.
+Only `ci-prep-experiment/20261116` triggers the pilot. All arms use the same
+experiment SHA. Production `ci.yml`, its matrix, required checks and publishing
+remain unchanged. The pilot does not substitute for production acceptance.
 
-## Scope and arms
+## First phase: cleanup only, no cache writes
 
-The first pilot runs only the complete registered **Check & Lint** job, not a
-substitute for the production matrix. The three arms are:
+Repository cache usage was 10,204,110,737 bytes (about 9.50 GiB) at the initial
+read-only inspection. Namespaces share storage quota, so creating more large
+cache entries could evict production caches. The new-cache experiment is paused.
+No cache is deleted. The active workflow has mode `cleanup-only`:
 
-- A: original unconditional runner-image cleanup and shell-grouped Rust cache.
-- B: cleanup only below 30 GiB free, same Rust cache identity as A.
-- C: the B cleanup policy plus actual Nix rustc/cargo + flake.lock + shell + job
-  cache identity. Workspace-crate caching remains disabled in all arms.
+- A: original unconditional runner-image cleanup.
+- B: cleanup only when the workspace filesystem has less than 30 GiB available.
+- Both run the complete registered Check & Lint gate sequence, unchanged.
+- Two rounds (`sample1`, `sample2`) use separate fresh runners, two concurrent
+  jobs per round. These are repetitions against an existing cache, not cold/warm.
 
-Thirty GiB is a conservative experimental threshold, not an optimized or proven
-space requirement. B/C fail if cleanup cannot provide that headroom. Production
-A's behavior is unchanged. Nothing removes Nix stores, Cargo caches or developer
-files. Cleanup is restricted to GitHub-hosted Linux on the experimental branch.
+Thirty GiB is a conservative candidate, not an optimized or proven requirement.
+B fails if cleanup cannot supply it. Both retain exactly the production cleanup
+path allowlist. No Nix store, Cargo cache or developer files are removed.
+Cleanup requires a GitHub-hosted Linux runner on an isolated experiment branch.
 
-A/B's compiled content is identical, so they share one immutable experiment
-seed; C has a separate seed. A unique run/attempt prefix prevents restoring from
-or writing production Rust cache entries. Both cold arms run with no seed in
-that namespace; the warm round depends on all cold jobs finishing including
-cache-save hooks, then restores those frozen seeds. Warm rounds do not save.
-Inspect actual cache-match logs; a missing/evicted seed is not a warm sample.
-This is Cargo dependency-cache cold, not network or Nix-cache cold.
+Rust cache restores the existing production identity (`v0-rust`, shared key
+`<shell>-gate`), with `save-if: false`, `cache-workspace-crates: false` and
+`cache-on-failure: false`. This is read-only reuse, not a new namespace. Inspect
+the full restored key and compressed size in each job: GitHub cache eviction or
+other concurrent workflows can alter availability. A miss is not a warm sample;
+do not compare unlike seeds as though they were equal. The workflow does not
+freeze or modify other workflows' caches.
 
-The action still includes its standard lockfile/environment hash and host Rust
-hash. C adds the true Nix compiler identity without altering PATH. It does not
-yet eliminate unnecessary host-toolchain invalidation. Identity collection
-realizes the Nix shell early, and its elapsed time belongs in total job time.
-Do not claim a speedup merely because this moves time out of the gate step.
+The Nix installer action can itself save its downloaded installer. To avoid
+that write too, both arms download the same official v3.24.2 binary directly,
+verify its pinned SHA-256 and exact size, then pass it through `source-binary`
+to the reviewed pinned action. That action path bypasses its cache downloader.
+This common setup differs slightly from production and is included in timings.
+Cachix uses `skipPush: true` without a write token. There are no other cache-save
+actions. Local ephemeral build output and public measurement artifacts are not
+persistent build caches.
 
-## Resource and safety boundary
+Permissions are contents:read/actions:read. There is no signing/Cloudflare
+permission, credential output, production workflow call, release or deploy ref
+write. Failed or skipped pilot jobs fail the experiment result, not production.
 
-The plan makes a read-only repository cache-usage query before launching any
-build. Existing cache usage above 5 GiB blocks this pilot; the conservative
-remaining allowance is intended for two approximately 1.4 GiB seeds plus margin,
-not an assertion of the account's actual configured quota. Cache namespaces do
-not isolate storage quota. Concurrent unrelated runs can change usage after
-this check, and cache sizes are measured, not guaranteed. Stop expansion if
-storage growth or eviction is observed; never delete unrelated cache entries.
+## Deferred cache grouping candidate
 
-Only three runners execute simultaneously. Cachix is read-only and receives no
-write token. Token permissions are contents:read/actions:read; there is no
-Cloudflare secret, signing permission or production workflow invocation. The
-experiment does not create a release or change deploy/pages. A failure in any
-arm/round fails the aggregate pilot. Results are observational until reviewed.
+The helper retains `cache-pilot` mode for later reviewed work, but the workflow
+does not select it. It is blocked unless observed existing cache usage is at
+most 5 GiB; this is a conservative experiment budget, not proof of actual account
+quota. Its proposed C arm adds actual Nix rustc/cargo, flake.lock, shell and job
+to the cache identity while leaving workspace-crate caching disabled. Standard
+lockfile/environment hashes remain. Collecting identity realizes the Nix shell
+early, so count that time in the full job rather than claiming a faster gate.
+Do not enable this mode until there is a safe, bounded storage plan.
 
-## Evidence and decision
+## Measurement and decisions
 
-Public JSON records contain monotonic cleanup/identity/run durations, snapshots
-of workspace filesystem free bytes, five-second minimum-free sampling during
-the gate, and allowlisted runner/cache facts. Standard gate and phase records
-remain available. Do not upload raw environment, compiler diagnostic archives,
-credential-helper output or complete target directories.
+JSON evidence uses monotonic cleanup/run durations, before/after filesystem
+free bytes, five-second minimum-free samples, explicit cache-hit status and
+allowlisted SHA/runner-image facts. Existing gate/phase timings remain. Actions
+step logs provide compressed restored cache bytes; no new-cache upload size is
+expected. Do not upload raw environments, credentials or the complete target.
 
-Use Actions job/step timestamps for total runner time and queue delay. For each
-arm compare full job elapsed time (including identity, cache restore/save and
-Nix initialization), not just gate duration. Report cache compressed bytes from
-action logs and free disk before/after restore and minimum during gates. Report
-all gate verdicts; failed runs are not speed samples. The cold matrix and warm
-matrix each add scheduling barrier time, so experiment workflow wall time is not
-an estimate of production wall time. A single-job pilot measures that branch;
-recompute production critical path rather than subtracting savings from 18m29s.
+Compare full job elapsed, queue time, cleanup, Nix setup, restore, compilation
+and execution. Verify identical source, image/toolchain, cache key and gate
+verdicts before comparing A/B. Missing data is unknown, not zero. A sampled
+low-water mark is not an exact disk peak. The experiment's sequential-round
+barrier is not production wall time, and a faster single branch only shortens
+production if it remains on the critical path.
 
-One successful cold/warm pair is a feasibility check, not a stable speed claim.
-If promising, repeat with fresh namespaces while respecting cache headroom, then
-expand to Web Build and Test & Examples. The helper's `critical` scope exists
-for reviewed expansion but is not selected by this workflow. Main adoption
-requires separate approval, production full-matrix validation, and a rollback
-that restores only the preparation change. Delete/disable the temporary workflow
-when the experiment is finished; do not leave an always-on benchmarking service.
+Two successful samples per arm are an exploratory signal, not a stable speed
+claim. Repeat only if useful, then review expansion to Web Build and Test &
+Examples. Main adoption needs separate approval and complete production-matrix
+validation. Reverting the experimental branch cannot alter the published site.
