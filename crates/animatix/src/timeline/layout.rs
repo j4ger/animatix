@@ -515,7 +515,7 @@ impl Timeline {
     fn collect_text_child_recompile_jobs(
         &self,
         container_label: &str,
-        container_size: [f32; 2],
+        mut container_size: [f32; 2],
         time_ms: u64,
     ) -> Vec<TextChildRecompile> {
         let Some(metadata) = self.container_layout(container_label).cloned() else {
@@ -525,6 +525,27 @@ impl Timeline {
         let Some(container_id) = self.world.get_id(container_label) else {
             return Vec::new();
         };
+
+        // Intrinsic columns consume text measurements; they do not impose
+        // those ink bounds back on the text as a line-breaking constraint.
+        // Glyph bounds can be narrower than Typst's typographic advance, so
+        // recompiling at that same measured width can unexpectedly add lines.
+        // Only authored/resolved widths or an explicit maximum constrain it.
+        let geometry = self.world.geometry(container_id);
+        if metadata.layout_type == super::LayoutType::Col
+            && geometry.size_spec.is_none_or(|spec| {
+                matches!(
+                    spec.width,
+                    super::taffy_layout::SizeSpec::Auto | super::taffy_layout::SizeSpec::Fit
+                )
+            })
+        {
+            let maximum = geometry.max_item_width.get(time_ms, f32::INFINITY);
+            if !maximum.is_finite() {
+                return Vec::new();
+            }
+            container_size[0] = maximum;
+        }
 
         let mut jobs = Vec::new();
 

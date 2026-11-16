@@ -236,26 +236,6 @@ pass"); what is left is below.
 | Native `FontContext::new()` does not register `BUNDLED_FONTS` into its fontdb | The premise needs correcting: the **plain fast path never needed it** — `compile_text_fast` consults `BUNDLED_FONTS` by family before the database, which is how bundled faces reach text on a machine that has no Open Sans installed at all (`fc-match "Open Sans"` → Noto Sans CJK, measured 2026-10-05). What the native context *does* miss is the database entry, so (a) `resolve_font_family`/system-fallback questions and (b) the typst world's face list still depend on `with_fonts_and_fallback` being the embed-only path. The remaining question is narrower than written and worth re-asking before anyone bundle-registers into every native context. | Opened narrower |
 | Pixel A/B has no noise floor yet | The render-either-side-and-`cmp` method this round used for content checks cannot resolve a small change: **the same binary is not byte-stable across processes.** Measured 2026-10-03 on a now-retired text-rendering probe at 1 s (source remains in Git) — three renders of one binary differ from each other by 20, 36 and 46 raw RGBA bytes (of 3 686 400), while that binary's two builds (which really do differ) are 12 and 24 bytes apart. PNG file sizes drift as well, so comparing files is noisier still, and `web/demos/transformer/scenes/pipeline.amx @ 4` came out *identical* between builds but 8 bytes apart between two runs of one build. Text/glyph scenes show it and `web/demos/matrix/scene.amx` does not, so the suspect is glyph rasterization or shaping order. Until that is pinned down: any engine A/B claim needs (a) a same-binary control and (b) a positive control proving the change is live — the track-level probe above is the shape to copy. | Not started |
 
-## Typst intrinsic width in an automatic column (2026-11-16)
-
-A `Col` without an authored width wraps a formula that fits on one line when
-positioned independently. Reproduced with `measure --render never --times 1`:
-
-```animatix
-config { resolution: (1280, 720) }
-#0s
-column: Col, size: (auto, auto), at: (320, 360), gap: 12 {
-  short: Typst, text: "$x - frac(x^3, 6)$", font_size: 28
-  long: Typst, text: "$x - frac(x^3, 6) + frac(x^5, 120)$", font_size: 28
-}
-control: Typst, text: "$x - frac(x^3, 6) + frac(x^5, 120)$", font_size: 28, at: (900, 360)
-```
-
-The column remains 100 px wide; `long` measures about 87.40 × 84.16 px versus
-130.90 × 45.73 px for `control`. Explicit `(auto, auto)` behaves like omitting
-the size. Resolve intrinsic rich-text sizing before propagating the wrapping
-constraint; an explicit column width is the current workaround.
-
 ## Easing pass — what else it turned up (2026-10-02)
 
 What follows is everything the pass surfaced but did not fix, sorted by whether

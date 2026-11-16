@@ -64,6 +64,8 @@ mod taffy_layout;
 #[cfg(test)]
 mod text;
 #[cfg(test)]
+mod text_intrinsic_width;
+#[cfg(test)]
 mod text_path_bounds;
 #[cfg(test)]
 mod text_time_regressions;

@@ -761,6 +761,11 @@ row: Row, size: auto, gap: 10 {
 
 - **Row:**  width = sum of child widths + gaps; height = max child height.
 - **Col:**  width = max child width; height = sum of child heights + gaps.
+- An intrinsic Col (omitted width, `auto`, or `fit`) keeps text at its natural
+  width. Its measured glyph bounds are not fed back as a wrapping constraint.
+  A fixed or parent-resolved `fill`/percentage width, or an authored
+  `max_item_width` cap, constrains child text after horizontal padding.
+  An explicit child `text_max_width` remains authoritative.
 - **Grid:** derives intrinsic column widths and row heights from the largest
   measured child in each track. With a resolved width and `fill`/percentage
   children, columns share the width after padding and gaps; relative child
