@@ -20,6 +20,7 @@ class PhaseGates(unittest.TestCase):
         for folder in ('tools/ci', 'tools/quality', 'bin', 'target/debug', 'examples', 'web/scenes', 'web/demos'):
             (self.root / folder).mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / 'tools/ci/phase-timing.py', self.root / 'tools/ci/phase-timing.py')
+        shutil.copyfile(ROOT / 'tools/quality/audit_corpus.py', self.root / 'tools/quality/audit_corpus.py')
         cargo = self.root / 'bin/cargo'
         cargo.write_text('''#!/usr/bin/env python3
 import json,os,sys

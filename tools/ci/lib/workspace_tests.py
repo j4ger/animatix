@@ -344,7 +344,14 @@ def execute_harness_plan(plan_path: Path, result_path: Path) -> int:
     try:
         for item in serial:
             for filter_text in item.get("filters") or [None]:
-                results.append(execute_harness_item(item, env, log_dir, plan["run_tag"], filter_text))
+                if plan.get("progress"):
+                    print(f"[workspace-tests] starting {item['package_name']}::{item['target_name']}", flush=True)
+                result = execute_harness_item(item, env, log_dir, plan["run_tag"], filter_text)
+                results.append(result)
+                if plan.get("progress"):
+                    status = "PASS" if result["exit_code"] == 0 else "FAIL"
+                    print(f"[workspace-tests] {status} {result['package']}::{result['binary']} "
+                          f"({result['elapsed_seconds']:.2f}s; {len(result['executed_ids'])} executed)", flush=True)
         max_workers = max(1, int(plan.get("max_workers", 1)))
         jobs = [(item, filter_text) for item in parallel
                 for filter_text in (item.get("filters") or [None])]

@@ -292,8 +292,20 @@ for name in tracked:
         provenance_paths.add(p)
 provenance_paths = sorted(provenance_paths)
 provenance = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in provenance_paths}
+geometry_root = Path("crates/animatix/benches")
+geometry_paths = [
+    geometry_root / "geometry_count.rs",
+    geometry_root / "geometry_count_workload.rs",
+    geometry_root / "frame.rs",
+    geometry_root / "fixtures/geometry-count-v1/manifest.json",
+]
+geometry_provenance = {
+    "contract": json.loads(geometry_paths[-1].read_text()),
+    "inputs_sha256": {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in geometry_paths},
+}
 with open(path, "w", encoding="utf-8") as f:
     json.dump({
+        "geometry_count_v1": geometry_provenance,
         "full_pipeline_contract_revision": 2,
         "full_pipeline_inputs_sha256": provenance,
         "tier": tier,

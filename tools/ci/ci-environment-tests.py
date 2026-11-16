@@ -106,6 +106,16 @@ class Environments(unittest.TestCase):
         self.assertIn("uses: ./.github/workflows/ci.yml", release)
         self.assertIn("checkout-ref: ${{ needs.version.outputs.commit }}", release)
 
+    def test_extension_health_evidence_upload_is_bounded_and_failure_safe(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        step = workflow.split("      - name: Upload extension health evidence\n", 1)[1].split("      - name:", 1)[0]
+        self.assertIn("if: always() && contains(matrix.gate, 'ext-bench') && env.ANIMATIX_EXT_BENCH_EVIDENCE != ''", step)
+        self.assertIn("path: ${{ env.ANIMATIX_EXT_BENCH_EVIDENCE }}", step)
+        self.assertIn("retention-days: 7", step)
+        self.assertNotIn("target/**", step)
+        self.assertNotIn("secrets.", step)
+        self.assertNotIn("include-hidden-files", step)
+
     def test_docs_job_skips_only_heavy_preparation(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
         gate = workflow.split("  gate:\n", 1)[1].split("  required:\n", 1)[0]

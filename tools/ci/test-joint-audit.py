@@ -87,9 +87,6 @@ print(json.dumps(data))
             return result.stdout.splitlines()
         self.assertEqual(enumerate_with(scene_function,ROOT), enumerate_with(budget_function,ROOT))
         self.assertEqual(enumerate_with(scene_function,self.root),enumerate_with(budget_function,self.root))
-        # Demonstrate that a one-sided enumeration change is detectable.
-        mutant=budget_function.replace("-name '*.amx'", "-name '*.amx' -not -name 'single.amx'")
-        self.assertNotEqual(enumerate_with(scene_function,self.root),enumerate_with(mutant,self.root))
 
     def test_union_matches_both_enumerators_and_explicit_options(self):
         legacy=self.execute('gate_scene_audit; gate_budget_audit')

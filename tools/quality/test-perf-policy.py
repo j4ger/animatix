@@ -39,6 +39,15 @@ class PerfPolicyTests(unittest.TestCase):
     def compare(self, bench_id, base, current):
         return policy_module.classify(self.policy, bench_id, base, current, 5.0)
 
+    def test_geometry_v1_rows_are_signal_only_without_changing_thresholds(self):
+        for mode in ["static_repeated_time", "animated_varying_time"]:
+            for count in [16, 64, 256]:
+                row = f"geometry_rect_count_v1__{mode}__{count}"
+                rule = policy_module.role_for(self.policy, row)
+                self.assertEqual(rule["role"], "signal_only")
+        with self.assertRaises(ValueError):
+            policy_module.role_for(self.policy, "geometry_rect_count_v1__static_repeated_time__17")
+
     def test_small_diagnostics_change_is_informational(self):
         base = self.estimate("b.json", 560, 559, 561)
         current = self.estimate("c.json", 617, 616, 618)

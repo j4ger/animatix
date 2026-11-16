@@ -16,6 +16,8 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from tools.ci.lib.workspace_evidence import export_evidence
+
 from tools.ci.lib.workspace_tests import (
     WorkspaceTestError,
     build_test_inventory,
@@ -41,6 +43,11 @@ def _available_cpus() -> int:
 
 def _write_json(path: Path, value: dict) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if path.name in {"metadata.json", "inventory.json", "summary.json"}:
+        try:
+            export_evidence(path.parent)
+        except Exception:
+            print("[workspace-tests] warning: public evidence export unavailable", file=sys.stderr, flush=True)
 
 
 def _make_run_dir(target_dir: Path) -> tuple[Path, str]:

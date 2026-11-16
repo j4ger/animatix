@@ -36,31 +36,18 @@ mkdir -p "$(dirname "$BUDGET_FILE")"
 # copies, the plugin showcase and the pure-`pub let` module are not standalone
 # scenes; multi-file projects are driven through their `main.amx`.
 scenes() {
-  find examples web/scenes web/demos -name '*.amx' \
-    -not -path '*/lib/*' \
-    -not -path '*/_site/*' \
-    -not -path '*/plugin_pulse.amx' \
-    -not -path '*/epicycles/fourier.amx' |
-    sort |
-    while IFS= read -r scene; do
-      [ -z "$scene" ] && continue
-      dir=$(dirname "$scene")
-      base=$(basename "$scene")
-      if [ -f "$dir/main.amx" ] && [ "$base" != "main.amx" ]; then
-        continue
-      fi
-      printf '%s\n' "$scene"
-    done
+  python3 tools/quality/audit_corpus.py
 }
 
 if [ "$MODE" = "update" ]; then
+  scene_list=$(scenes) || exit 2
   # Updating mutates a shared file, so this walk must remain serial.
   while IFS= read -r scene; do
     [ -z "$scene" ] && continue
     "$BIN" audit "$scene" --render never --policy default \
       --budget "$BUDGET_FILE" --update-budget --format json >/dev/null
     printf 'OK budget-update: %s\n' "$scene"
-  done < <(scenes)
+  done <<< "$scene_list"
   echo "budget updated: $BUDGET_FILE"
   exit 0
 fi

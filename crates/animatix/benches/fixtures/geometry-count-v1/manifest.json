@@ -1,0 +1,18 @@
+{
+  "revision": 1,
+  "group": "geometry_rect_count_v1",
+  "counts": [16, 64, 256],
+  "primitive": "Rect",
+  "dimensions": [1024, 1024],
+  "size": [24, 24],
+  "grid": { "columns": 16, "pitch": 56, "origin": [32, 32] },
+  "modes": ["static_repeated_time", "animated_varying_time"],
+  "static_time_seconds": 0.5,
+  "varying_time_samples": 64,
+  "varying_time_formula": "(sample_index % 64) / 64 seconds",
+  "animation": "each Rect moves +8 px on x at #0s with [1s, ease: linear]",
+  "api": "Timeline::evaluate(time_s, dimensions)",
+  "timed": ["mode/time selection", "evaluate", "returned Scene destruction"],
+  "excluded": ["fixture generation", "parse", "build", "initial warm evaluation", "GPU rasterization", "readback", "file I/O"],
+  "policy": "signal_only"
+}

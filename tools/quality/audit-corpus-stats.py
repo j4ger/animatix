@@ -27,9 +27,11 @@ import pathlib
 import subprocess
 import sys
 
+from audit_corpus import scene_files, LEGACY_ROOTS
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BIN = ROOT / "target" / "debug" / "animatix"
-CORPORA = ("examples", "web/demos", "web/scenes")
+CORPORA = LEGACY_ROOTS
 
 # Observation codes: geometry/aesthetics candidates, not hard defects. Counted
 # separately so the report can show "warnings (actionable)" vs "candidates".
@@ -42,29 +44,6 @@ CANDIDATE_CODES = {
     "beat.static",
     "transition.endpoint",
 }
-
-def scene_files() -> list[pathlib.Path]:
-    out: list[pathlib.Path] = []
-    for corpus in CORPORA:
-        for path in sorted((ROOT / corpus).rglob("*.amx")):
-            rel = path.relative_to(ROOT).as_posix()
-            # Component libraries and generated site copies are not standalone
-            # scenes; match the exclusion in tools/quality/lib-scenes.sh.
-            if "/lib/" in rel or "_site/" in rel:
-                continue
-            # Multi-file projects are driven through main.amx; their fragments
-            # reference cross-file context a standalone audit cannot see.
-            if path.name != "main.amx" and (path.parent / "main.amx").is_file():
-                continue
-            # Needs the demo plugin manifest; `gate examples` covers it.
-            if path.name == "plugin_pulse.amx":
-                continue
-            # A pure `pub let` constant module imported by the epicycles
-            # scenes, not a playable scene (no actors, zero duration).
-            if path.as_posix().endswith("epicycles/fourier.amx"):
-                continue
-            out.append(path)
-    return out
 
 
 def audit(path: pathlib.Path, policy: str) -> dict | None:

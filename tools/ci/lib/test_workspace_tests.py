@@ -188,5 +188,36 @@ class WorkspaceTestHelpers(unittest.TestCase):
                             self.assertNotIn(b"PRIVATE_TEST_SECRET", persisted, str(path))
 
 
+class PublicEvidenceTests(unittest.TestCase):
+    def test_allowlist_excludes_raw_secrets_and_paths(self):
+        from tools.ci.lib.workspace_evidence import public_report
+        secret = "PRIVATE_TOKEN=/home/person/secret"
+        report = public_report(
+            {"cases": [{"id": "pkg::unit::case", "ignored": False, "secret": secret}], "env": secret},
+            {"harnesses": [{"package": "pkg", "binary": "unit", "command": secret,
+                             "error": secret, "log_path": secret, "exit_code": 0,
+                             "observed_test_results": [{"name": "case", "status": "ok"}]}]},
+            {"finished_at_utc": "now", "exit_code": 0, "error": secret,
+             "stages": [{"name": "test-harnesses", "coverage": {"equal": True,
+             "expected_count": 1, "actual_count": 1, "missing": [], "unexpected": []}}]})
+        self.assertNotIn(secret, json.dumps(report))
+        self.assertTrue(report["complete"])
+        self.assertEqual(report["cases"][0]["id"], "pkg::unit::case")
+
+    def test_incomplete_and_failure_are_not_success(self):
+        from tools.ci.lib.workspace_evidence import public_report
+        self.assertFalse(public_report({}, {}, {})["complete"])
+        report = public_report({}, {}, {"exit_code": 1, "finished_at_utc": "now"})
+        self.assertFalse(report["complete"])
+        self.assertEqual(report["exit_code"], 1)
+
+    def test_export_failure_does_not_change_runner_write(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "summary.json"
+            with mock.patch.object(SCHEDULER, "export_evidence", side_effect=OSError("secret")):
+                SCHEDULER._write_json(path, {"exit_code": 1})
+            self.assertEqual(json.loads(path.read_text())["exit_code"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

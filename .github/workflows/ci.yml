@@ -193,6 +193,26 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      # Only schema-whitelisted public test evidence, never raw harness logs.
+      - name: Upload workspace test evidence
+        if: always() && contains(format(' {0} ', matrix.gate), ' test ')
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-tests-${{ matrix.id }}-${{ github.run_attempt }}
+          path: target/ci/workspace-test-evidence/*.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload extension health evidence
+        if: always() && contains(matrix.gate, 'ext-bench') && env.ANIMATIX_EXT_BENCH_EVIDENCE != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-health-${{ matrix.id }}
+          path: ${{ env.ANIMATIX_EXT_BENCH_EVIDENCE }}
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Upload gate timings
         if: always()
         uses: actions/upload-artifact@v4

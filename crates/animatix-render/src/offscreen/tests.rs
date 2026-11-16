@@ -596,6 +596,7 @@ fn region_composite_does_not_leak_stale_pixels() {
 config { resolution: (640, 360) }
 
 sheet: Rect, size: (640, 360), color: (1, 1, 1, 1), anchor: scene.center
+control: Rect, at: (40, 40), size: (32, 32), color: (0, 0, 1, 1)
 
 card: Filter, anchor: scene.center, offset: (-150, 0) {
   swipe: MotionBlur, length: 20, angle: 0
@@ -604,13 +605,24 @@ card: Filter, anchor: scene.center, offset: (-150, 0) {
 
 #0s
 fade-in sheet [100ms]
+fade-in control [100ms]
 fade-in card [100ms]
 
 #0.5s
 card.offset = (0, 0) [1s, ease: linear]
 card.swipe.length = 20 [0.5s, ease: linear]
+
+#2s
+card.swipe.enabled = false
 "#,
     );
+
+    let dims = SceneDimensions {
+        width: 640,
+        height: 360,
+    };
+    // Deliberately keep the first readback alive while reusing the renderer.
+    let first = render_frame(&mut renderer, &timeline, 0.25, dims);
 
     // Mid-flight: the card centre is at (245, 180) (offset halfway from
     // -150 to 0) and its derived region spans (155, 115)-(335, 245).
@@ -639,4 +651,72 @@ card.swipe.length = 20 [0.5s, ease: linear]
         plate[0] > 200 && plate[1] < 120,
         "moving plate must render red at its mid-flight position: {plate:?}"
     );
+
+    // Each ROI is a separate contract, not a whole-frame average: a large
+    // white backdrop must not hide a small stale patch or damaged control.
+    // Stay several pixels from AA edges; the 3/255 tolerance is for UNORM
+    // rounding, not permission to blur or recolor unfiltered content.
+    let uniform_roi = |frame: &RenderedFrame,
+                       bounds: (usize, usize, usize, usize),
+                       expected: [u8; 4],
+                       label: &str|
+     -> Result<(), String> {
+        for y in bounds.1..bounds.3 {
+            for x in bounds.0..bounds.2 {
+                let got = px(frame, x, y);
+                if got.iter().zip(expected).any(|(&a, b)| a.abs_diff(b) > 3) {
+                    return Err(format!("{label} at ({x}, {y}): {got:?}, expected {expected:?}"));
+                }
+            }
+        }
+        Ok(())
+    };
+    let control = |f: &RenderedFrame| {
+        uniform_roi(f, (28, 28, 52, 52), [0, 0, 255, 255], "unfiltered control")
+    };
+    let cleared =
+        |f: &RenderedFrame| uniform_roi(f, (150, 160, 190, 200), [255; 4], "old position clears");
+    let late = render_frame(&mut renderer, &timeline, 1.75, dims);
+    for f in [&first, &frame, &late] {
+        control(f).unwrap();
+        uniform_roi(f, (22, 22, 24, 56), [255; 4], "control outer edge").unwrap();
+        uniform_roi(f, (155, 120, 175, 130), [255; 4], "scope guard").unwrap();
+    }
+    assert!(is_red(&first, 170, 180), "first position must contain the card");
+    assert!(is_red(&late, 320, 180), "new position must contain the card");
+    cleared(&late).unwrap();
+
+    // Disabled chain returns to direct rendering on the same instance. A
+    // fresh renderer supplies an independent state reference, not the only
+    // correctness oracle (both could otherwise make the same rendering bug).
+    let plain = render_frame(&mut renderer, &timeline, 2.25, dims);
+    let Some(mut fresh) = new_renderer() else {
+        return;
+    };
+    let reference = render_frame(&mut fresh, &timeline, 2.25, dims);
+    control(&plain).unwrap();
+    cleared(&plain).unwrap();
+    assert!(is_red(&plain, 320, 180), "disabled effect must retain the card");
+    uniform_roi(&plain, (394, 160, 402, 200), [255; 4], "disabled smear clears").unwrap();
+    assert!(
+        plain.rgba.iter().zip(reference.rgba.iter()).all(|(&a, &b)| a.abs_diff(b) <= 1),
+        "filtered -> disabled must match fresh disabled rendering"
+    );
+    assert!(timeline.runtime_diagnostics().is_empty());
+
+    // Targeted faults use genuine GPU pixels and cost no further GPU frames.
+    // Reinsert an old-frame patch: the *old-position* contract must reject it.
+    let mut stale = late.clone();
+    let bytes = std::sync::Arc::make_mut(&mut stale.rgba);
+    for y in 160..200 {
+        let row = (y * 640 + 150) * 4;
+        bytes[row..row + 40 * 4].copy_from_slice(&first.rgba[row..row + 40 * 4]);
+    }
+    assert!(cleared(&stale).unwrap_err().starts_with("old position clears"));
+    // Pollute only the unfiltered control, leaving every other ROI intact.
+    let mut leaked = late.clone();
+    let bytes = std::sync::Arc::make_mut(&mut leaked.rgba);
+    let index = (32 * 640 + 32) * 4;
+    bytes[index..index + 4].copy_from_slice(&px(&first, 170, 180));
+    assert!(control(&leaked).unwrap_err().starts_with("unfiltered control"));
 }

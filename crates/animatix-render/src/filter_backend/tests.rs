@@ -738,7 +738,7 @@ fn a_reduced_raster_keeps_the_blur_the_same_size_in_scene_pixels() {
 
 #[test]
 fn gpu_filter_blur_softens_a_hard_boundary() {
-    let Some(mut backend) = gpu_backend(DIMS) else {
+    let Some(mut backend) = required_gpu_backend(DIMS) else {
         return;
     };
 
@@ -746,21 +746,65 @@ fn gpu_filter_blur_softens_a_hard_boundary() {
     let image = render(&mut backend, &white_half_scene(64.0), DIMS, &blur_chain(8.0));
     let w = image.natural_size[0] as usize;
     let raw = image.data.data.data();
-    // Middle row: within ±8px of the boundary (x=32), expect an
-    // intermediate alpha (soft edge), not a hard 0/255 step.
-    let y = 32usize;
-    let mut soft = false;
-    for x in 20..44usize {
-        let a = raw[(y * w + x) * 4 + 3];
-        if a > 40 && a < 215 {
-            soft = true;
-            break;
+    // Independent interior, exterior and guard bands pin propagation, not
+    // merely the existence of one partially covered (possibly AA) pixel.
+    // These broad alpha ranges intentionally do not freeze a kernel golden.
+    let contract = |pixels: &[u8]| -> Result<(), &'static str> {
+        let alpha = |x: usize, y: usize| pixels[(y * w + x) * 4 + 3];
+        for y in 28..36 {
+            for x in 8..16 {
+                if alpha(x, y) < 250 {
+                    return Err("opaque interior");
+                }
+            }
+            for x in 48..56 {
+                if alpha(x, y) > 3 {
+                    return Err("far guard");
+                }
+            }
+            let inside: u32 = (28..32).map(|x| u32::from(alpha(x, y))).sum();
+            let outside: u32 = (32..36).map(|x| u32::from(alpha(x, y))).sum();
+            if !(4 * 128..4 * 250).contains(&inside) {
+                return Err("inside softening");
+            }
+            if !(4 * 5..4 * 128).contains(&outside) {
+                return Err("outside spread");
+            }
+            // Complementary samples around x=32 detect translation and
+            // asymmetric propagation; allow filtering/UNORM rounding.
+            for distance in 0..8 {
+                let sum = u16::from(alpha(31 - distance, y)) + u16::from(alpha(32 + distance, y));
+                if sum.abs_diff(255) > 12 {
+                    return Err("boundary symmetry");
+                }
+            }
+        }
+        Ok(())
+    };
+    contract(raw).expect("blur spatial contract");
+
+    // Faults derive from the real readback and require the specific oracle
+    // to fail. No extra render/adapter is needed for these negative controls.
+    let mut clipped = raw.to_vec();
+    for y in 0..DIMS.height as usize {
+        for x in 32..w {
+            clipped[(y * w + x) * 4 + 3] = 0;
         }
     }
-    assert!(
-        soft,
-        "blur should soften the boundary at x=32, but all sampled pixels look hard"
-    );
+    assert_eq!(contract(&clipped), Err("outside spread"));
+    let mut hard = raw.to_vec();
+    for y in 0..DIMS.height as usize {
+        for x in 0..w {
+            hard[(y * w + x) * 4 + 3] = if x < 32 { 255 } else { 0 };
+        }
+    }
+    assert_eq!(contract(&hard), Err("inside softening"));
+    let mut polluted = raw.to_vec();
+    polluted[(30 * w + 50) * 4 + 3] = 255;
+    assert_eq!(contract(&polluted), Err("far guard"));
+    let mut asymmetric = raw.to_vec();
+    asymmetric[(28 * w + 24) * 4 + 3] = 0;
+    assert_eq!(contract(&asymmetric), Err("boundary symmetry"));
 }
 
 /// Repeated instances of one effect type must keep separate author uniforms.

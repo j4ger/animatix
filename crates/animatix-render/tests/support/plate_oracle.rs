@@ -122,11 +122,9 @@ fn check_cell(rgba: &[u8], index: usize, cell: &Cell) -> Vec<String> {
     for y in 0..CELL {
         for x in 0..CELL {
             let px = pixel(rgba, index, x, y);
-            if x < 8 || y < 8 || x >= CELL - 8 || y >= CELL - 8 {
-                if !near(px, BLACK) {
-                    fail(format!("gutter contaminated at ({x},{y})"));
-                    return errors;
-                }
+            if (x < 8 || y < 8 || x >= CELL - 8 || y >= CELL - 8) && !near(px, BLACK) {
+                fail(format!("gutter contaminated at ({x},{y})"));
+                return errors;
             }
             if px[..3].iter().any(|&channel| channel > 32) {
                 area += 1;

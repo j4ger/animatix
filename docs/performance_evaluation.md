@@ -105,6 +105,15 @@ old measurements for historical interpretation. Existing missing-row checks
 must remain strict rather than accepting an old baseline with renamed rows.
 No timings or speedup claims accompany this contract correction.
 
+### Frozen geometry-count workload v1
+
+The `frame` target now adds six **signal-only** rows, leaving all older rows and
+thresholds intact. See [`geometry-count-v1`](../crates/animatix/benches/fixtures/geometry-count-v1/README.md)
+for the fixed inputs, timed boundary and required comparability checks. These
+measure CPU scene evaluation, not GPU throughput or a demonstrated speedup.
+The repeated-time and animated-varying-time modes must never be compared as
+before/after versions of one workload.
+
 ### 2.2 CPU guardrails today
 
 `tools/quality/extension-bench.sh` runs the property-plan lookup and timeline evaluation

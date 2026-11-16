@@ -6,6 +6,7 @@
 //! the suite modules from being built as targets of their own.
 
 mod common;
+mod geometry_count;
 mod scaling;
 mod scaling_breakdown;
 mod scaling_no_cache;
@@ -19,6 +20,7 @@ mod visibility_culling;
 use criterion::{Criterion, criterion_group, criterion_main};
 
 fn bench_frame_target(c: &mut Criterion) {
+    geometry_count::bench_geometry_count(c);
     timeline_eval::bench_timeline_evaluate(c);
     scrubbing::bench_scrubbing(c);
     static_scene::bench_static(c);

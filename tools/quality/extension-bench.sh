@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Baseline benchmarks for the extension abstraction.
+# Fresh absolute health samples for the extension abstraction (no historical comparison).
 #
 # Usage:
 #   tools/quality/extension-bench.sh [--quick] [--max-plan-ns 10000]
@@ -40,25 +40,43 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-cargo bench -p animatix --bench vm --bench frame --no-run
-OUT="$(cargo bench -p animatix --bench vm -- property_plan_lookup_and_sample "${ARGS[@]}" 2>&1)"
-echo "$OUT"
-cargo bench -p animatix --bench frame -- timeline_evaluate "${ARGS[@]}"
-
-if [[ -n "$MAX_PLAN_NS" ]]; then
-    PLAN_NS="$(printf '%s\n' "$OUT" \
-        | grep -A1 'property_plan_lookup_and_sample' \
-        | grep -o '[0-9.]* ns' \
-        | head -1 \
-        | awk '{print $1}')"
-    if [[ -z "$PLAN_NS" ]]; then
-        echo "no fresh property_plan_lookup_and_sample result in this command output" >&2
-        echo "refusing to apply the sentinel to a stale Criterion estimate" >&2
-        exit 2
+command -v python3 >/dev/null || { echo "extension-bench requires python3" >&2; exit 2; }
+# Preserve Cargo's compilation cache; isolate only Criterion's result history.
+# A new directory prevents a partially cached base/sample.json from entering
+# Criterion's automatic comparison. Never read the shared target/criterion tree.
+mkdir -p "$ROOT/target/ci"
+RUN_DIR="$(mktemp -d "$ROOT/target/ci/ext-bench.XXXXXXXX")"
+export CRITERION_HOME="$RUN_DIR/criterion"
+finish_evidence() {
+    local status=$?
+    trap - EXIT
+    if ! python3 tools/quality/extension-bench-results.py "$RUN_DIR" --stage-evidence "$status"; then
+        echo "extension-bench: could not stage bounded evidence" >&2
+        [[ "$status" -ne 0 ]] || status=2
     fi
-    if awk "BEGIN { exit !($PLAN_NS > $MAX_PLAN_NS) }"; then
-        echo "property_plan_lookup_and_sample ${PLAN_NS}ns exceeds ${MAX_PLAN_NS}ns" >&2
-        exit 1
-    fi
-    echo "property_plan_lookup_and_sample ${PLAN_NS}ns <= ${MAX_PLAN_NS}ns"
+    exit "$status"
+}
+trap finish_evidence EXIT
+if [[ -n "${GITHUB_ENV:-}" ]]; then
+    printf 'ANIMATIX_EXT_BENCH_EVIDENCE=%s\n' "$RUN_DIR/evidence" >> "$GITHUB_ENV"
 fi
+# cargo-criterion redirects reporting over a socket and suppresses these JSON
+# files. This gate explicitly owns its on-disk results instead.
+unset CARGO_CRITERION_PORT
+ARGS+=(--noplot --save-baseline health)
+echo "extension-bench: fresh health run; no historical comparison; evidence: $RUN_DIR"
+
+cargo bench -p animatix --bench vm --bench frame --no-run 2>&1 | tee "$RUN_DIR/build.log"
+cargo bench -p animatix --bench vm -- '^property_plan_lookup_and_sample$' "${ARGS[@]}" \
+    2>&1 | tee "$RUN_DIR/property-plan.log"
+cargo bench -p animatix --bench frame -- '^timeline_evaluate_(0s|1s|2s)$' "${ARGS[@]}" \
+    2>&1 | tee "$RUN_DIR/timeline.log"
+
+CHECK_ARGS=()
+if [[ -n "$MAX_PLAN_NS" ]]; then
+    CHECK_ARGS+=(--max-plan-ns "$MAX_PLAN_NS")
+fi
+# Validate all four samples even when no threshold was requested. Criterion
+# can log JSON write errors without returning a failing process exit code.
+python3 tools/quality/extension-bench-results.py "$CRITERION_HOME" "${CHECK_ARGS[@]}" \
+    | tee "$RUN_DIR/summary.json"

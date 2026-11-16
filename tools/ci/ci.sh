@@ -294,21 +294,7 @@ gate_scene_audit() {
   # site copies, the plugin showcase and the pure-`pub let` module are not
   # standalone scenes; a multi-file project is driven through its main.amx.
   scenes() {
-    find examples web/scenes web/demos -name '*.amx' \
-      -not -path '*/lib/*' \
-      -not -path '*/_site/*' \
-      -not -path '*/plugin_pulse.amx' \
-      -not -path '*/epicycles/fourier.amx' |
-      sort |
-      while IFS= read -r amx; do
-        local dir base
-        dir=$(dirname "$amx")
-        base=$(basename "$amx")
-        if [ -f "$dir/main.amx" ] && [ "$base" != "main.amx" ]; then
-          continue
-        fi
-        printf '%s\n' "$amx"
-      done
+    python3 tools/quality/audit_corpus.py
   }
 
   audit_one() {
@@ -411,6 +397,7 @@ gate_doc() {
 gate_doc_links() { bash tools/docs/check-docs.sh; }
 
 gate_ci_policy_tests() {
+  python3 tools/quality/test-audit-corpus.py
   python3 tools/ci/test-ci-control.py
   python3 tools/ci/test-phase-timing.py
   python3 tools/ci/test-phase-gates.py
@@ -589,6 +576,7 @@ gate_native_package_tests() {
 
 gate_perf_policy_tests() {
   python3 tools/quality/test-perf-policy.py
+  python3 tools/quality/test-extension-bench.py
 }
 
 gate_web_split_proof() {
