@@ -15,4 +15,5 @@ mod module_tests;
 mod painter_order_annotations;
 mod plot_params_tests;
 mod semantic_regression;
+mod sorting_contract;
 mod svg_import_tests;

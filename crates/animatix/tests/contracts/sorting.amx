@@ -1,0 +1,41 @@
+// Regression contract extracted from sorting/sort.amx, not replacement artwork.
+// Four absolute-position bars; no layout-managed swap or external resources.
+config { resolution: (480, 270), duration: 5.0 }
+let values = {4, 1, 3, 2}
+let order = {0, 1, 2, 3}
+let flags = {0, 0, 0, 0, 0, 0}
+for key in {1, 2, 3} {
+  for j in {0, 1, 2} {
+    if j < key {
+      if values[order[key - j]] < values[order[key - j - 1]] {
+        let flags = list_set(flags, (key - 1)*key/2+j, 1)
+        let order = list_swap(order, key - j, key - j - 1)
+      }
+    }
+  }
+}
+for v, i in values {
+  bar[i]: Rect, size: (40, v*25), at: (100+i*80, 180 - v*12.5), color: blue, opacity: 1
+}
+readout: Text, text: "0/0", at: (240, 230), font_size: 20, opacity: 1
+fn insertion_sort(values: List<Num>) {
+  let order = {0, 1, 2, 3}
+  for key in {1, 2, 3} [step: 1200ms] {
+    for j in {0, 1, 2} [step: 300ms] {
+      if j < key {
+        if values[order[key - j]] < values[order[key - j - 1]] {
+          bar[order[key - j]].at = (100+(key - j - 1)*80, 180 - values[order[key - j]]*12.5) [100ms]
+          bar[order[key - j - 1]].at = (100+(key - j)*80, 180 - values[order[key - j - 1]]*12.5) [100ms]
+          let order = list_swap(order, key - j, key - j - 1)
+        }
+      }
+    }
+  }
+}
+#1s
+insertion_sort(values)
+always {
+  let comps = sum_range((k) => clamp(floor((t - 1 - (k - 1)*1.2)/0.3)+1, 0, k), 1, 3)
+  let swaps = sum_range((k) => sum_range((j) => flags[(k - 1)*k/2+j]*step(1+(k - 1)*1.2+j*0.3, t), 0, k - 1), 1, 3)
+  readout.text = format("{:.0}/{:.0}", comps, swaps)
+}

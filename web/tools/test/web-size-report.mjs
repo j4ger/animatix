@@ -26,9 +26,11 @@ const fonts = manifest.fonts.faces.reduce((sum, face) => sum + size(face.url), 0
 const sdkBytes = Object.values(manifest.files).reduce((sum, file) => sum + file.size_bytes, 0)
   + statSync(join(sdk, 'runtime-manifest.json')).size;
 // Preserve the raw module/font ceilings for the single linked program. The
-// transfer allowance is calibrated against the verified 1.702 MB base module,
-// with modest headroom; startup and frame performance have separate A/B checks.
-const budgets = { primary: 5_400_000, primary_gzip: 1_750_000, wasm_total: 28_000_000, font_gzip: 2_400_000, sdk: 42_000_000, site: 58_000_000 };
+// transfer allowance is calibrated after local scopes and live numeric inputs
+// (e7ac9a6a): CI measured 1,760,685 bytes; local Nix measured 1,761,991.
+// 1.85 MB leaves about 5% headroom for useful features without dropping the
+// transfer guard. Startup and frame performance have separate A/B checks.
+const budgets = { primary: 5_400_000, primary_gzip: 1_850_000, wasm_total: 28_000_000, font_gzip: 2_400_000, sdk: 42_000_000, site: 58_000_000 };
 const measured = { primary, primary_gzip: transfer, wasm_total: wasm, font_gzip: fonts, sdk: sdkBytes };
 function directoryBytes(directory) {
   return readdirSync(directory).reduce((sum, name) => {
