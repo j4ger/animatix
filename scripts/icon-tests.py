@@ -9,6 +9,7 @@ import struct
 import subprocess
 import tempfile
 import unittest
+from urllib.parse import urljoin
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,6 +37,19 @@ class Icons(unittest.TestCase):
                 links += 1
         self.assertGreaterEqual(links, 16)
         self.assertIn("entries=(logo.svg", (ROOT / "scripts/site-artifact.sh").read_text())
+
+    def test_smoke_fixture_favicon_at_root_and_project_base(self):
+        # Read the fixture explicitly as well as through the tracked-page sweep,
+        # so a newly authored/untracked fixture cannot silently escape coverage.
+        page = ROOT / "web/dev/smoke/index.html"
+        hrefs = re.findall(r'<link rel="icon"[^>]+href="([^"]+)"', page.read_text())
+        self.assertEqual(len(hrefs), 1)
+        for base in ("/", "/animatix/"):
+            with self.subTest(base=base):
+                self.assertEqual(
+                    urljoin("https://example.test" + base + "dev/smoke/", hrefs[0]),
+                    "https://example.test" + base + "logo.svg",
+                )
 
     def test_native_png_dimensions(self):
         for name, size in (("icon.png", 256), ("icon-512.png", 512)):
