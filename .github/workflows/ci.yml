@@ -95,7 +95,7 @@ jobs:
           threshold=$((45 * 1024 * 1024 * 1024))
           available_bytes() {
             local available
-            available=$(df -PB1 "${GITHUB_WORKSPACE:?}" | awk 'NR == 2 {print $4}')
+            available=$(df -PB1 "${GITHUB_WORKSPACE:?}" | awk 'NR == 2 {print $4}') || return 1
             [[ "$available" =~ ^[0-9]+$ ]] || { echo "Invalid disk availability" >&2; return 1; }
             printf '%s\n' "$available"
           }

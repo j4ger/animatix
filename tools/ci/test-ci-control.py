@@ -22,7 +22,7 @@ SPEC.loader.exec_module(CONTROL)
 class DiskCleanupTests(unittest.TestCase):
     """Execute the real workflow block, replacing only disk/privilege commands."""
 
-    def run_cleanup(self, job, before, after=None, cleanup_status=0):
+    def run_cleanup(self, job, before, after=None, cleanup_status=0, disk_status=0):
         workflow = SCRIPT.parents[2] / ".github/workflows/ci.yml"
         block = workflow.read_text().split("      - name: Free disk space\n", 1)[1]
         block = block.split("\n      # Gates that need nix", 1)[0]
@@ -35,7 +35,7 @@ class DiskCleanupTests(unittest.TestCase):
                 'if [[ "$1" == -PB1 ]]; then\n'
                 '  value="$BEFORE"; [[ ! -e "$STATE" ]] || value="$AFTER"\n'
                 '  printf "Filesystem 1-blocks Used Available Capacity Mounted\nfs 999 1 %s 1%% /\n" "$value"\n'
-                'else echo "human-readable disk report"; fi\n'
+                'else echo "human-readable disk report"; fi\nexit "$DISK_STATUS"\n'
             )
             (root / "sudo").write_text(
                 '#!/bin/bash\nprintf "%s\\n" "$*" >> "$CALLS"\ntouch "$STATE"\nexit "$CLEANUP_STATUS"\n'
@@ -46,7 +46,7 @@ class DiskCleanupTests(unittest.TestCase):
                        JOB_ID=job, GITHUB_WORKSPACE=str(root), BEFORE=str(before),
                        AFTER=str(before if after is None else after),
                        STATE=str(root / "state"), CALLS=str(root / "calls"),
-                       CLEANUP_STATUS=str(cleanup_status))
+                       CLEANUP_STATUS=str(cleanup_status), DISK_STATUS=str(disk_status))
             result = subprocess.run(["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", script],
                                     env=env, capture_output=True, text=True)
             calls = (root / "calls").read_text() if (root / "calls").exists() else ""
@@ -74,6 +74,11 @@ class DiskCleanupTests(unittest.TestCase):
 
     def test_invalid_measurement_fails_without_deletion(self):
         result, calls = self.run_cleanup("check-lint", "invalid")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(calls, "")
+
+    def test_failed_measurement_with_numeric_output_fails_closed(self):
+        result, calls = self.run_cleanup("check-lint", 90 * 2**30, disk_status=1)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(calls, "")
 
