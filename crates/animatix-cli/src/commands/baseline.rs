@@ -558,7 +558,7 @@ fn execute_baseline(
         .map_err(|e| format!("no rendering adapter available: {e}"))?;
 
     // Key on the input path (relative to cwd, extension removed), not just the
-    // file stem: several dogfood projects are all named `entry.amx` and would
+    // file stem: unrelated projects can share an `entry.amx` and would
     // otherwise overwrite one shared snapshot directory.
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let input_rel = input.strip_prefix(&cwd).unwrap_or(&input);

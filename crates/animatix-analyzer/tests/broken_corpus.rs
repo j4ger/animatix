@@ -88,7 +88,7 @@ fn broken_corpus_matches_goldens() {
     }
 }
 
-/// Every `.amx` file shipped in the repository (examples, dogfood, probes)
+/// Every `.amx` scene shipped in the repository's examples and web content
 /// must parse without errors and analyze without panicking. This pins the
 /// invariant that shipped content is clean; a commit that breaks parsing of
 /// real content fails here instead of at someone's next render.
@@ -98,7 +98,7 @@ fn repo_content_parses_clean() {
     let mut checked = 0usize;
     let mut failures = Vec::new();
 
-    for dir in ["examples", "dogfood"] {
+    for dir in ["examples", "web"] {
         let root = repo_root.join(dir);
         if !root.is_dir() {
             continue;

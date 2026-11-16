@@ -37,7 +37,7 @@ fn repo_amx_files() -> Vec<std::path::PathBuf> {
         .canonicalize()
         .expect("workspace root");
     let mut files = Vec::new();
-    for dir in ["examples", "dogfood", "web"] {
+    for dir in ["examples", "web"] {
         files.extend(collect_amx_files(&root.join(dir)));
     }
     files.sort();

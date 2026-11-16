@@ -22,7 +22,6 @@
     ["", "Home", "home"],
     ["demos/", "Showcase", "demos"],
     ["tour/", "Tour", "tour"],
-    ["arena/", "Arena", "arena"],
     [external, "GitHub ↗", "github"],
   ];
 

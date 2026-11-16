@@ -472,7 +472,7 @@ fn offscreen_renderer_ensure_targets_is_idempotent() {
     }
 }
 
-/// Regression (effects-wave1 dogfood): a scope whose chain runs under a
+/// Regression: a scope whose chain runs under a
 /// *derived* region used to composite stale ping-pong texels from the
 /// previous scope into the frame (an opaque garbage rectangle around the
 /// moving content, found with a `MotionBlur` card flying over a backdrop).

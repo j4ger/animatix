@@ -37,7 +37,7 @@ In scope:
 - A scene facts exporter built on the existing timeline and renderer.
 - A minimal rule checker that catches obvious layout, overlap, timing, and
   visibility defects.
-- A demo and data-collection workflow using existing dogfood review tooling.
+- A demo and data-collection workflow using temporary harness artifacts.
 - An agent iteration loop that works with no model, then with a cloud critic,
   then with an edge critic.
 - A preference dataset that can later train a reward model or critic model.
@@ -95,7 +95,7 @@ Out of scope for the first bring-up:
 | `animatix audit` | deterministic structural facts, optional pixel measurements, rule issues, stable JSON report, exit policy | first-pass agent review and default automatic gate |
 | `animatix audit --storyboard` | review report plus a contact-sheet image | one-call automatic + visual pass |
 | `audit` JSON (`schema_version: 3`) | frame facts, issues, evidence anchors, severity/persistence | structured review corpus |
-| `dogfood/projects/` and `dogfood/arena/` | focused real-content projects and A/B candidate battles | data collection and calibration |
+| Harness-managed temporary run artifacts | source variants, storyboards, audit reports, and human comments | data collection and calibration |
 
 ## Data Protocol
 
@@ -372,12 +372,11 @@ collecting preference data.
 
 Tasks:
 
-- Create an arena battle under `dogfood/arena/battles/` with `good.amx` and
-  `bad.amx`.
+- Create a temporary harness run with `good.amx` and `bad.amx`.
 - Render storyboards for both variants.
 - Generate review reports for both variants.
-- Use the Web Arena (`web/arena/`) for side-by-side synchronized comparison.
-- Capture review feedback with timeline notes, category tags, and rubric ratings.
+- Let the harness present storyboards or playback for human comparison.
+- Capture review feedback with variant, time, source identity, and a conclusion.
 - Render and save frames at the exact time of each human comment.
 - Write a short run summary that records which rule issues were real, which
   were false positives, and which required human taste.
@@ -527,16 +526,14 @@ work.
 
 ## Relation to Existing Work
 
-This plan aligns with the Animatix Arena workflow (`dogfood/arena/`, `web/arena/`).
-The Web Arena provides the browser-native WebGPU human feedback channel, logging
-structured verdicts to `feedback.jsonl`. The evaluator adds the automated evidence
-layer that makes human and automated comments reusable by an AI agent.
+The repository supplies scene validation and evidence through `check`,
+`storyboard`, `audit`, `measure`, and `baseline`. The harness owns human
+interaction and temporary run storage. Keep confirmed regressions beside their
+tests and unresolved engine work in the roadmap; past review applications and
+experiments remain available in Git rather than a parallel repository workflow.
 
 See also:
 
-- `dogfood/README.md`
-- `dogfood/arena/README.md`
-- `web/arena/index.html`
-- `scripts/arena.py`
+- [Audit and measurement](audit.md)
 - `crates/animatix-render/src/offscreen/`
 - `crates/animatix/src/timeline/scene_eval/`

@@ -467,7 +467,7 @@ Positions are absolute scene coordinates — the route is drawn where the actor
 should go, so its authored `at` only matters before the travel starts. The
 expansion happens at build time (48-odd keyframes, one per ~40 ms), which keeps
 the motion exact under scrubbing and costs nothing per frame. See
-`dogfood/probe_move_along.amx`.
+`examples/animation/40_delightful_kinetic.amx`.
 
 **Reveal granularity.** `draw-in` on a `Text`/`Code`/`Typst`/`Math` target is a
 typewriter — it animates `char_progress` from 0 to 1, so characters appear in
@@ -1096,8 +1096,8 @@ Limits worth knowing:
   from its own content the sub-scene, the region and the composite blit already
   share the camera's space; an authored `bounds: (x, y, w, h)` is a scene
   rectangle and is carried through the same affine the root subtrees were
-  wrapped in. `dogfood/probe_camera_scopes.amx` checks the two agree to the
-  pixel, before and after a push and pan.
+  wrapped in. The `filter_bounds_follow_the_camera` regression checks the two
+  agree before and after a push and pan.
 - The transform can be handed to the next scene: `persist camera` carries `pan`,
   `zoom` and `spin` across a `play` edge, so a push-in continues instead of
   snapping back to identity at the boundary (§19, "Camera Carry"). Seeding those

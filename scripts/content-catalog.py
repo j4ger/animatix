@@ -36,7 +36,7 @@ def inferred_kind(path: str) -> str:
         return "benchmark"
     if "/fixtures/" in path or "/broken_corpus/" in path:
         return "fixture"
-    if path.startswith(("dogfood/", "web/dev/")):
+    if path.startswith("web/dev/"):
         return "experiment"
     if path == "web/content/scenes/hero.amx":
         return "brand"

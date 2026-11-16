@@ -38,7 +38,7 @@ fn load(relative: &str) -> Option<String> {
 fn samples() -> Vec<Sample> {
     [
         ("small", "examples/basics/00_hello.amx"),
-        ("dogfood", "dogfood/projects/taylor-sin/entry.amx"),
+        ("medium", "examples/projects/fft_explain.amx"),
         ("large", "examples/gallery/dashboard_story.amx"),
     ]
     .into_iter()

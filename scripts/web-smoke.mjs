@@ -30,7 +30,7 @@ const PYTHON = process.env.PYTHON || "python3";
 
 // Pages that exercise the load shapes: the home hero, the showcase theater and
 // catalog, a full-bleed gallery, a walkthrough deck, the interactive tour, the
-// recipes/arena pages, and the SVG asset probe (now under web/dev/).
+// recipes page, and the SVG asset probe (now under web/dev/).
 const PAGES = process.env.SMOKE_PAGES
   ? process.env.SMOKE_PAGES.split(",")
   : [
@@ -40,7 +40,6 @@ const PAGES = process.env.SMOKE_PAGES
       "/demos/transformer/index.html",
       "/tour/",
       "/recipes/",
-      "/arena/",
       "/dev/svg-probe/index.html",
     ];
 

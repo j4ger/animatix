@@ -124,7 +124,7 @@ pub(crate) fn reveal_authored_zero_opacity(
 /// reveal its subtree: pre-keyframe children carry their own seeded opacity 0
 /// and opacity multiplies down the scene graph, so a container-level entrance
 /// without the cascade fades the container in while its children stay
-/// invisible — silently (dogfood probe 010; 07_plots.amx shipped with an
+/// invisible — silently (07_plots.amx shipped with an
 /// invisible headline curve). Children that are not hidden-by-default are
 /// untouched, so a container-level entrance never un-hides a child the author
 /// hid by hand with `opacity: 0`.

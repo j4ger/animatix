@@ -28,7 +28,6 @@ Start with the [contribution guide](../CONTRIBUTING.md). For implementation deta
 - [Extension authoring](extension_authoring.md) and [primitive abstraction](primitive_abstraction.md)
 - [Performance evaluation](performance_evaluation.md)
 - [GUI design language](gui_design_language.md) and [application identity](branding.md)
-- [Dogfooding](../dogfood/README.md): projects, probes, and comparisons
 
 ## Plans and history
 

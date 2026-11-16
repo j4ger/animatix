@@ -65,7 +65,7 @@ targets, so benchmark IDs and Criterion groups are unchanged:
 | Equation frames | `stage` | `equation_frame.rs` | per-frame Typst recompilation of an `Equation`/`Fragment` subtree (dynamic scene, so the static-subtree cache does not apply) |
 | Property interpolation | `vm` | `property_interpolation.rs` | track/existing keyframe sampling + easing lerp |
 | Modifier runtime | `vm` | `modifier_runtime.rs`, `vm_vs_ir.rs`, `vm_regression.rs` | IR executor vs. VM, regression vs. reference |
-| **Editor intelligence** | — | `animatix-analyzer/benches/editor_intelligence.rs` | **the per-keystroke analyzer path**: `Analyzer::update` (parse + symbols + typecheck), `Analyzer::diagnostics`, and `diagnostics_with_config`, over real example and dogfood files |
+| **Editor intelligence** | — | `animatix-analyzer/benches/editor_intelligence.rs` | **the per-keystroke analyzer path**: `Analyzer::update` (parse + symbols + typecheck), `Analyzer::diagnostics`, and `diagnostics_with_config`, over curated example files |
 
 The editor-intelligence suite lives in its own crate because the layering is
 one-way: the engine does not depend on `animatix-analyzer`, so the engine's
@@ -108,7 +108,7 @@ optimization loop:
    per-stage timer (rebuild / build-frame-env / sample / encode / rasterize) that
    both the benchmark suite and the GUI HUD could share.
 7. **Narrow scenario corpus.** Most benches use small synthetic scenes; real
-   dogfood/sorting-visualizer/generated scenes are only lightly exercised
+   insertion-sort and generated scenes are only lightly exercised
    (`full_pipeline` loads a handful of examples). Large / reactive / generated
    scenes — the worst case for the planner, modifier runtime, and layout — are
    underrepresented.
@@ -166,14 +166,19 @@ Policy changes over the current state:
   pipeline health, not sub-µs CPU deltas, which is why it is not in the
   default guard.
 
+The editor-intelligence middle workload is now `medium`
+(`examples/projects/fft_explain.amx`). Its input differs from the retired
+`analyzer_update/dogfood` workload; establish fresh baselines rather than
+comparing their timings. Historical measurements below keep their original IDs.
+
 ### 3.3 Layer 2 — Scenario suite (new)
 
-A set of realistic `.amx` workloads drawn from `examples/` and `dogfood/`,
+A set of realistic `.amx` workloads drawn from `examples/`,
 parameterized to stress the expensive paths:
 
 | Scenario | Stresses |
 |---|---|
-| `sorting-visualizer/entry.amx` | generated actors, many tracks, sequence/stagger actions |
+| `examples/gallery/sorting_theatre.amx` | generated actors, many tracks, sequence/stagger actions |
 | `examples/projects/fft_explain.amx` | feature density, mixed primitives |
 | `examples/data/23_plot_kinds.amx` | plot path generation (vector paths) |
 | `examples/generation/*` | reactive `always` blocks → frame env + modifier runtime |

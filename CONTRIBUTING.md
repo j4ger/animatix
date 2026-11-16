@@ -18,5 +18,6 @@ Use conventional commits through `cog` in the Nix development shell. Keep
 `CHANGELOG.md` generated, move completed work out of the roadmap, and put design
 rationale or measurements in [history](docs/history/README.md).
 
-For unfinished experiments, use [dogfood](dogfood/README.md). Supported scenes
-belong in [examples](examples/README.md).
+Run unfinished experiments and human review through the harness using temporary
+artifacts. Keep actionable gaps in the roadmap and regression fixtures beside
+their tests. Supported scenes belong in [examples](examples/README.md).

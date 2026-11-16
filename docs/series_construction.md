@@ -2,8 +2,9 @@
 
 Status: design approved 2026-09-06; the listed builtins and block-bodied
 closures are now implemented. This note preserves their rationale and contract,
-not an open implementation task. See [the language reference](spec.md) and
-`dogfood/projects/taylor-sin/notes.md`.
+not an open implementation task. See [the language reference](spec.md) and the
+`sum_range_inside_plot_closure` regression in
+`crates/animatix/src/timeline/tests/build/graph.rs`.
 
 ## Motivation
 

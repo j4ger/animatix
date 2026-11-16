@@ -756,23 +756,61 @@ fn test_media_actor_identity_carries() {
 }
 
 #[test]
-fn sorting_visualizer_steps_scene_sorts() {
-    // Guard the demo: insertion sort must leave the bars ascending at the end
-    // of the Steps scene (the original version mis-targeted later swaps).
-    let workspace = std::env::var("CARGO_MANIFEST_DIR").expect("manifest dir");
-    let demo = std::path::Path::new(&workspace)
-        .join("../../dogfood/projects/sorting-visualizer/entry.amx");
-    if !demo.exists() {
-        eprintln!("skip: {demo:?} missing");
-        return;
+fn insertion_sort_tracks_original_indices_and_preserves_play_duration() {
+    // Repeated swaps must follow original actor identities after reordering.
+    // Keep this regression self-contained so removing content cannot skip it.
+    let source = r#"
+config { dynamic_layout: true }
+
+component Bars(values: List<Num>) {
+  row: Row, gap: 20 {
+    for value, i in values {
+      bar[i]: Rect, size: (40, value * 20)
     }
+  }
+}
+
+fn insertion_sort(values: List<Num>) {
+  let order = {0, 1, 2, 3}
+  for key in {1, 2, 3} [step: 1200ms] {
+    for j in {0, 1, 2} [step: 300ms] {
+      if j < key && values[order[key - j]] < values[order[key - j - 1]] {
+        swap bars.bar[order[key - j]], bars.bar[order[key - j - 1]] [300ms]
+        let order = list_swap(order, key - j, key - j - 1)
+      }
+    }
+  }
+}
+
+# Title
+#0s
+title: Rect, size: (40, 40)
+#2.2s
+play Steps [fade, 400ms]
+
+# Steps
+#0s
+bars: Bars, values: {4, 1, 3, 2}
+insertion_sort({4, 1, 3, 2})
+#4s
+play Result [fade, 400ms]
+
+# Result
+#0s
+result: Rect, size: (40, 40)
+"#;
+    let dir = TestTempDir::new("insertion-sort");
+    let entry = dir.path().join("main.amx");
+    std::fs::write(&entry, source).expect("write fixture");
     let mut graph = ModuleGraph::new();
-    let program = graph.load_program(&demo).expect("loads");
-    let expanded = program.expand_components(&mut Vec::new());
+    let program = graph.load_program(&entry).expect("load fixture");
+    let mut diagnostics = Vec::new();
+    let expanded = program.expand_components(&mut diagnostics);
+    assert!(diagnostics.is_empty(), "expansion diagnostics: {diagnostics:?}");
     let report = Composition::build_test(&expanded, &program.namespaces);
     assert!(
         report.diagnostics.is_empty(),
-        "demo must build cleanly: {:?}",
+        "insertion sort must build cleanly: {:?}",
         report.diagnostics
     );
     let comp = report.output;

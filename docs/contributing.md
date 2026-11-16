@@ -81,9 +81,11 @@ passes. Public API doc comments are required by the affected crates' lint rules.
 | Hot path | Record `scripts/perf-bench.sh compare` evidence. This is a manual measurement, not a PR gate; see [performance evaluation](performance_evaluation.md). |
 | Documentation | The `doc-links` gate runs `scripts/check-docs.sh` for links, source paths and stale roadmap wording. The separate `doc` gate validates Rustdoc and generated property tables. |
 
-Runnable examples belong in `examples/`. Keep unfinished projects and probes in
-`dogfood/`, not in the supported example set. For embedded looping scenes, the
-held final frame must remain a useful composition rather than an empty outro.
+Runnable examples belong in `examples/`. Use temporary harness artifacts for
+unfinished projects and human review; keep focused regression fixtures beside
+their tests and actionable gaps in `docs/roadmap.md`. Historical experiments
+remain available in Git. For embedded looping scenes, the held final frame
+must remain a useful composition rather than an empty outro.
 
 ### CI selection and build experiments
 

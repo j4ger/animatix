@@ -19,7 +19,7 @@ Time is currently a silent edition, not an audio-sync demonstration.
 | `web/content/posters/`, `previews/`, `preview-manifest.json` | Native-rendered media and source/media integrity records |
 | `web/embed/src/` | Existing `<amx-player>` web component |
 | `web/runtime/` | Generated SDK and manifest; copied unchanged into distributions |
-| `web/demos/`, `tour/`, `recipes/`, `gallery.html`, `arena/` | Retained legacy URLs and test inputs, not the new primary navigation |
+| `web/demos/`, `tour/`, `recipes/`, `gallery.html` | Retained legacy URLs and test inputs, not the new primary navigation |
 | `web/dev/` | Developer probes, outside the showcase |
 
 The SDK is loaded from its external module URL, not bundled by Astro/Vite.

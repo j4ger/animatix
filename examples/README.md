@@ -4,8 +4,8 @@ A curated suite of runnable `.amx` demos. The numbered files remain a
 progressive learning track, but are grouped by the language area they exercise.
 Standalone real-content showcases live under `projects/`.
 
-In-progress dogfooding scenes and grammar probes are intentionally kept out of
-this directory; see [Dogfooding](../dogfood/README.md).
+Use temporary harness artifacts for unfinished experiments and human review.
+Keep focused regression fixtures beside their tests.
 
 ## Running Examples
 
