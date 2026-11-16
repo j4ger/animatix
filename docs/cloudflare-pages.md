@@ -14,7 +14,7 @@ for its Pages deployment. `deploy/pages-state` holds the durable release journal
 Both branches are infrastructure state, not disposable development branches.
 
 Automatic production/preview builds in Pages stay disabled. The configured
-build command is `bash scripts/ci.sh gate cloudflare-pages-build`, output `_site`,
+build command is `bash tools/ci/ci.sh gate cloudflare-pages-build`, output `_site`,
 with `NODE_VERSION=24.14.0` and `SKIP_DEPENDENCY_INSTALL=1`. The release job makes
 one explicit deployment request. GitHub Pages is not the active host.
 
@@ -34,7 +34,7 @@ not accepted by Pages.
 3. The issuing branch and publishing branch differ intentionally: the former
    supplies the signed CI identity; `deploy/pages` selects an already-accepted
    commit without another full CI run.
-4. Pages configuration: command `bash scripts/ci.sh gate cloudflare-pages-build`,
+4. Pages configuration: command `bash tools/ci/ci.sh gate cloudflare-pages-build`,
    output `_site`, repository root, `NODE_VERSION=24.14.0`,
    `SKIP_DEPENDENCY_INSTALL=1`. Keep preview branches disabled. There are no
    deployment credentials in the build environment.
@@ -147,3 +147,7 @@ moves, SHA mismatch and canonical drift. These are not a substitute for remote
 acceptance of API permissions and recovery. Normal publication has been accepted;
 new installations must separately verify access before enabling release, and
 unexercised failure paths must not be advertised as remotely validated.
+
+## Tool-directory migration
+
+The repository entry is `tools/ci/ci.sh`. During rollout the externally configured Pages build command may select this entry when present and otherwise select the old revision's CI entry. The old forwarding file is not retained in this tree. The repository command and remote project setting must be coordinated before deployment.

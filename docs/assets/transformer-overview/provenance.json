@@ -1,0 +1,36 @@
+{
+  "archive_kind": "historical README illustration, not a current regression baseline",
+  "source_commit": "52dabbfe318fab987d66b2adb7bf58f5d74aac91",
+  "original_source": "web/demos/transformer/scenes/overview.amx",
+  "original_source_sha256": "b5c71e85b04ed33227eea883f6c61a09e438f70a215f08454e6b3e9befb9ff0b",
+  "archived_source_sha256": "28f80606ffebbb9283a34077fd46c49a1583b6de7d8d23ef3e77ea658c085d98",
+  "source_edit": "Only the three import prefixes ../../lib/ were changed to lib/.",
+  "modules": [
+    {
+      "archive": "lib/theme.amx",
+      "original": "web/demos/lib/theme.amx",
+      "sha256": "882779a21a928ce54946b103b68398a76d79575e3b3d4971bc717ce46ff0a78b"
+    },
+    {
+      "archive": "lib/stage.amx",
+      "original": "web/demos/lib/stage.amx",
+      "sha256": "e978cbdf269ea1da5e9a0e4fbd1a349d01827044ce60ef08a0e7dba2d872f305"
+    },
+    {
+      "archive": "lib/components.amx",
+      "original": "web/demos/lib/components.amx",
+      "sha256": "323489199f53364c4d62b3455da169fec342d07c757d93071d2e7b3dc853b9ee"
+    }
+  ],
+  "image": {
+    "file": "overview.png",
+    "sha256": "6262c75f50cf5d34d02276e9d8666160814e474ce6a4d971ea2fd410543f3598",
+    "original_path": "snapshots/web/demos/transformer/scenes/overview/frame_0007_11.000s.png",
+    "recorded_time_s": 11.0,
+    "recorded_resolution": [
+      1280,
+      720
+    ]
+  },
+  "limits": "The source and PNG are present together at source_commit, and the saved manifest matches the original source hash. The exact render environment is not recorded. This archive has not been re-rendered with the current engine; pixel-identical reproduction is not claimed."
+}

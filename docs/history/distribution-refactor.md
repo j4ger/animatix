@@ -21,7 +21,7 @@ Linux video-enabled distribution now includes a matching corresponding-source
 archive with the allowlisted source snapshot, Cargo lockfile and vendored
 dependencies, offline build setup, pinned media sources, and rebuild recipe.
 The binary package records and checks the source archive identity. See the
-[Linux packaging guide](../../packaging/linux/README.md).
+[Linux packaging guide](https://github.com/j4ger/animatix/blob/a8e268f9c0cc4491c36024140722b95fb41d1547/packaging/linux/README.md).
 
 ## Evidence and remaining checks
 

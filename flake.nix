@@ -37,7 +37,7 @@
         # integrity check. This fixed-output derivation removes both: the
         # tarball is verified against the hash below, and the CLI is a normal
         # Nix store path. Only the x86_64 Linux musl build is published; other
-        # platforms fall back to `scripts/ci.sh setup wasm-bindgen`.
+        # platforms fall back to `tools/ci/ci.sh setup wasm-bindgen`.
         wasm-bindgen-cli = pkgs.lib.optional
           (pkgs.stdenv.hostPlatform.system == "x86_64-linux")
           (pkgs.stdenvNoCC.mkDerivation {
@@ -90,7 +90,7 @@
             pipewire  # Provides libasound_module_pcm_pipewire.so for ALSA
             nodejs_24
             bash git coreutils findutils gnugrep gnused gawk zip unzip perl
-            # scripts/perf-bench.sh computes its regression verdict in Python;
+            # tools/quality/perf-bench.sh computes its regression verdict in Python;
             # without it the harness printed nothing and exited 0 — a green perf
             # gate that had compared nothing. It now refuses to run, so the shell
             # has to be able to run it.
@@ -147,7 +147,7 @@
 
         # `nix develop .#web-build` — the shell that can build the wasm engine.
         # It has to be its own shell: .#default carries a rust toolchain built
-        # without the wasm32 std, so `scripts/build-web.sh` dies in the first
+        # without the wasm32 std, so `web/tools/build/build-web.sh` dies in the first
         # dependency it touches ("can't find crate for `std`", plus the
         # misleading "target may not be installed" — the target *is* installed
         # under ~/.rustup, but this toolchain cannot see it) while also paying
@@ -209,7 +209,7 @@
         # `nix run .#serve` — preview web/ at http://127.0.0.1:8124 with the
         # things the player needs: application/wasm MIME, package-relative raw
         # and gzip resources, and cache headers that keep edit/reload honest.
-        # That last point is why this runs scripts/serve-web.py rather than a
+        # That last point is why this runs web/tools/dev/serve-web.py rather than a
         # static-web-server binary: SAS's built-in Cache-Control list (no
         # override flag exists in 2.39.0) gives .css a ONE-YEAR max-age, so a
         # returning browser renders fresh HTML against a stale cached
@@ -229,10 +229,10 @@
               else
                 DEFAULT_ROOT="$PWD/web"
               fi
-              if [ -n "$REPO_ROOT" ] && [ -f "$REPO_ROOT/scripts/ensure-web-pkg.sh" ]; then
-                bash "$REPO_ROOT/scripts/ensure-web-pkg.sh" --dev
+              if [ -n "$REPO_ROOT" ] && [ -f "$REPO_ROOT/web/tools/build/ensure-web-pkg.sh" ]; then
+                bash "$REPO_ROOT/web/tools/build/ensure-web-pkg.sh" --dev
               fi
-              exec ${pkgs.python3}/bin/python3 "${./scripts/serve-web.py}" \
+              exec ${pkgs.python3}/bin/python3 "${./web/tools/dev/serve-web.py}" \
                 "''${SERVE_PORT:-8124}" \
                 "''${SERVE_ROOT:-$DEFAULT_ROOT}"
             '';

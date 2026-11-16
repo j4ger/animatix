@@ -14,10 +14,10 @@
 
 <p align="center">
   <a href="https://amx.j4ger.dev/demos/transformer/">
-    <img src="snapshots/web/demos/transformer/scenes/overview/frame_0007_11.000s.png" width="800" alt="A Transformer architecture animated in Animatix: attention, feed-forward layers, and the next-token loop.">
+    <img src="docs/assets/transformer-overview/overview.png" width="800" alt="A Transformer architecture animated in Animatix: attention, feed-forward layers, and the next-token loop.">
   </a>
   <br>
-  <sub>Made with Animatix. <a href="https://amx.j4ger.dev/demos/transformer/">Watch the Transformer walkthrough →</a></sub>
+  <sub>Made with Animatix. <a href="https://amx.j4ger.dev/demos/transformer/">View archived example →</a></sub>
 </p>
 
 ## A scene in a few lines

@@ -39,7 +39,7 @@ config { colorscheme: "ink", resolution: (1600, 900), duration: 13.0 }
 //
 // House-style §1: the washes and the grid carry an authored opacity instead of
 // fading in, so frame 0 is already a lit room — the first-frame ink floor in
-// scripts/site-rest-check.py measures exactly this.
+// web/tools/site/site-rest-check.py measures exactly this.
 
 wash_key: Ellipse, size: (1160, 1160), at: (800, 300), opacity: 1.0,
   fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94226"), (45%, "#f5b94210"), (100%, "#f5b94200")}),

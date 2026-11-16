@@ -20,7 +20,7 @@ pushed automatically**. After explicitly publishing it, use:
 | Project | `animatix-build-probe` (or an unused experiment name) |
 | Branch | `experiment/cloudflare-native-build` |
 | Root directory | repository root |
-| Build command | `bash scripts/cloudflare-build-experiment.sh probe` |
+| Build command | `bash web/tools/deploy/cloudflare-build-experiment.sh probe` |
 | Deploy command | `printf 'Probe only: deployment intentionally disabled\n'` |
 | Preview command | `printf 'Probe only: deployment intentionally disabled\n'` |
 | Build variable | `SKIP_DEPENDENCY_INSTALL=1` |
@@ -91,11 +91,11 @@ is only a decision point for implementing one later.
 ## Verified rootless bootstrap experiment
 
 The observed Workers host has no writable `/nix` and no sudo, but permits
-unprivileged user/mount namespaces. `scripts/cloudflare-nix-bootstrap.py` tests
+unprivileged user/mount namespaces. `web/tools/deploy/cloudflare-nix-bootstrap.py` tests
 that route without modifying the host store or security settings. Build command:
 
 ```sh
-python3 scripts/cloudflare-nix-bootstrap.py; exit 1
+python3 web/tools/deploy/cloudflare-nix-bootstrap.py; exit 1
 ```
 
 It downloads only official Nix **2.34.9**, verifies the hard-coded SHA256 before
@@ -123,7 +123,7 @@ including on success, to prevent the deployment stage. Read the explicit
 
 ### Upstream portable runtime probe
 
-The next isolated probe uses `python3 scripts/cloudflare-nix-portable.py; exit 1`.
+The next isolated probe uses `python3 web/tools/deploy/cloudflare-nix-portable.py; exit 1`.
 It uses upstream [nix-portable v012](https://github.com/DavHau/nix-portable/releases/tag/v012),
 not the project's moving main branch. The downloaded x86_64 executable contains
 its native Nix runtime (release source commit `7eba433355a83acff4d0081bb4a59088e8293ea7`).

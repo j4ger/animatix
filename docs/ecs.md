@@ -399,7 +399,7 @@ remain the label→id boundary views for call sites outside `world/`.
 
 ## 8. Structure gate
 
-`scripts/ci.sh gate structure` runs `scripts/structure.sh`. It replaces the old
+`tools/ci/ci.sh gate structure` runs `tools/quality/structure.sh`. It replaces the old
 file-size ratchet: instead of splitting files mechanically to satisfy an
 800-line ceiling, it caps file size and function length directly.
 
@@ -415,14 +415,14 @@ file-size ratchet: instead of splitting files mechanically to satisfy an
   path, inside a lexically detected `#[cfg(test)] mod`, or carries a
   `#[test]`-family attribute.
 - **Function allowlist.** An over-limit function is frozen in
-  `scripts/function-size-allowlist.tsv` as
+  `tools/quality/function-size-allowlist.tsv` as
   `path<TAB>fn_name<TAB>max_lines`, at its current length. The actual length may
   not exceed that row. This is a ratchet: a row is deleted when the function is
   split, shortened below its threshold, renamed or moved, and a row is never
-  added for new code or raised. `scripts/structure.sh --seed` re-freezes the
+  added for new code or raised. `tools/quality/structure.sh --seed` re-freezes the
   tree but refuses to raise an existing row. Stale rows fail the gate.
 - **`mod.rs`.** A `mod.rs` over 100 lines that still declares `impl` or a
-  body-bearing `fn` is frozen in `scripts/mod-rs-allowlist.tsv`
+  body-bearing `fn` is frozen in `tools/quality/mod-rs-allowlist.tsv`
   (`path<TAB>max_lines`). A declaration-only `mod.rs` (modules, `use`/`pub use`
   and other declarations only) is not limited. Rows are deleted when the
   implementations move into a domain module or the file drops to 100 lines.

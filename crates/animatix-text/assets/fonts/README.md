@@ -34,7 +34,7 @@ static faces, each carrying its own weight/style into `BUNDLED_FONTS`. Web selec
   the in-between values from the axis was tried and rejected on the same
   measurement: it makes the ramp non-monotone (`450` drew heavier than `500`,
   and `599 / 600 / 601` came out 533.2 / 553.8 / 533.5).
-- **SHA-256** (verify with `scripts/refresh-fonts.sh`):
+- **SHA-256** (verify with `web/tools/build/refresh-fonts.sh`):
 
   | File | SHA-256 |
   |---|---|
@@ -52,7 +52,7 @@ static faces, each carrying its own weight/style into `BUNDLED_FONTS`. Web selec
 
 ## Refreshing
 
-`scripts/refresh-fonts.sh` verifies the vendored files against the pinned
+`web/tools/build/refresh-fonts.sh` verifies the vendored files against the pinned
 SHA-256 table (fails loudly on mismatch). To re-vendor on purpose, replace the
 files from a trusted source, update the hash table (in this README and in the
 script), and re-run the script.
@@ -61,5 +61,5 @@ script), and re-run the script.
 Native builds embed these files through `bundled-fonts`. The Web SDK packages
 external gzip files and a manifest describing each face, its axes and coverage.
 The player prepares only required faces before installing the scene. The SDK
-includes the license files in this directory; `scripts/web-fonts.sh --check`
+includes the license files in this directory; `web/tools/build/web-fonts.sh --check`
 checks the font source metadata.

@@ -62,7 +62,7 @@ regression tests, not built-in engine content or a requirement for new work.
 
 ## Verification
 
-`scripts/site-rest-check.py` selects canonical `web/content/scenes/` directly,
+`web/tools/site/site-rest-check.py` selects canonical `web/content/scenes/` directly,
 not the retired HTML. It is a manual GPU check, not proof from a static build.
 The historical thresholds below are heuristics, not a measure of artistic quality:
 
@@ -83,7 +83,7 @@ animatix baseline path/to/scene.amx
 ```
 
 Inspect the storyboard and relevant frames yourself. Then run the applicable
-content, site-scene and web gates from `scripts/ci.sh gates` in their listed
+content, site-scene and web gates from `tools/ci/ci.sh gates` in their listed
 shells. See [web verification](README.md#verification-and-inspection-tools) and
 [contributing](../docs/contributing.md). A build or smoke-test pass does not
 establish visual quality or cross-platform rendering parity.

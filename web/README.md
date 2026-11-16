@@ -77,16 +77,16 @@ From a plain terminal at the repository root:
 
 ```sh
 nix develop .#web-ci
-scripts/ensure-web-pkg.sh
-bash scripts/site-artifact.sh _site
-python3 scripts/serve-web.py 8124 _site
+web/tools/build/ensure-web-pkg.sh
+bash web/tools/site/site-artifact.sh _site
+python3 web/tools/dev/serve-web.py 8124 _site
 # http://127.0.0.1:8124/
 ```
 
 `site-artifact.sh` builds Astro and verifies the SDK against the current inputs,
 commit and package version before assembly. Astro preserves old navigation URLs as archive/redirect pages. Assembly copies
 only current content and real SDK files, never legacy sources or builder symlinks. Use
-`SITE_BASE=/animatix/ bash scripts/site-artifact.sh _site-pages` for a project-path
+`SITE_BASE=/animatix/ bash web/tools/site/site-artifact.sh _site-pages` for a project-path
 build, served beneath `/animatix/` rather than the host root.
 
 For static UI iteration only, run `npm --prefix web/app ci` once, then
@@ -106,11 +106,11 @@ Nix pins Node24 via `flake.lock`; npm pins Astro and transitive dependencies via
 
 ```bash
 # Inspect all <amx-player> instances on a page and save canvas frames:
-python3 scripts/web-inspect.py --url http://127.0.0.1:8124/demos/transformer/ --output-dir /tmp/shots
+python3 web/tools/dev/web-inspect.py --url http://127.0.0.1:8124/demos/transformer/ --output-dir /tmp/shots
 
 # Extract and render keyframes from an .amx scene and generate a contact sheet:
-scripts/render-keyframes.sh web/scenes/hero.amx /tmp/hero_frames
-scripts/contact-sheet.sh /tmp/hero_frames /tmp/hero_sheet.png
+tools/quality/render-keyframes.sh web/scenes/hero.amx /tmp/hero_frames
+tools/quality/contact-sheet.sh /tmp/hero_frames /tmp/hero_sheet.png
 ```
 
 For a `can't find crate for 'std'` error, check that the active toolchain includes
@@ -122,11 +122,11 @@ ls "$(rustc --print sysroot)/lib/rustlib/"
 
 `wasm-bindgen-cli` must match the pin in `crates/animatix-web/Cargo.toml`.
 The web shell supplies the matching CLI on x86_64 Linux. On other platforms or
-outside Nix, use `scripts/ci.sh setup wasm-bindgen`, which installs a verified
-release in a user-writable directory. `scripts/wasm-tools.sh` reads the pin; do
+outside Nix, use `tools/ci/ci.sh setup wasm-bindgen`, which installs a verified
+release in a user-writable directory. `web/tools/build/wasm-tools.sh` reads the pin; do
 not duplicate its version in setup commands.
 
-`scripts/ci.sh gate web-smoke` (in `nix develop .#web-ci`, after
+`tools/ci/ci.sh gate web-smoke` (in `nix develop .#web-ci`, after
 `web-build`) exercises small SDK capability fixtures. `web-site-smoke` assembles
 the real Astro distribution and follows its critical user journeys; `site-smoke`
 tests an already assembled `_site/`. The historical HTML under `web/` is not
@@ -139,8 +139,8 @@ own packaging paths; this pin does not imply that every package asset is
 compressed with zopfli.
 
 Two hardware checks are intentionally manual and are not PR matrix gates:
-`scripts/ci.sh gate text-visual-parity` compares browser text rendering against
-the native reference, and `scripts/ci.sh gate web-performance` measures browser
+`tools/ci/ci.sh gate text-visual-parity` compares browser text rendering against
+the native reference, and `tools/ci/ci.sh gate web-performance` measures browser
 runtime performance. Both require `WPR_GPU=1` and reject software adapters;
 the performance run also requires an idle host. Run them in `nix develop
 .#web-ci` with the final SDK build available. Their results are evidence for
@@ -218,7 +218,7 @@ The SDK package serves all scenes through one runtime; optional capability
 chunks and font faces are fetched only when required.
 
 Deploy the assembled `_site/`, not the repository's raw `web/` directory.
-`scripts/site-artifact.sh` validates the SDK manifest and overlays the Astro
+`web/tools/site/site-artifact.sh` validates the SDK manifest and overlays the Astro
 output while excluding development sources. Release packaging uses the same
 assembler. Browser playback requires WebGPU; font faces are fetched from the
 SDK manifest and gzip uses the native `DecompressionStream` API.
@@ -397,7 +397,7 @@ Behavior:
   scrolling, and an embed whose held frame has not changed is not re-rendered.
   `player.set_render_scale(s)` / `render_scale()` still work; `player.pressure`
   and `debugReport()` report the live signal. `web/dev/adaptive-probe.html` with
-  `scripts/adaptive-probe.mjs` measures the policy: `AP_MANUAL=0` is real rAF
+  `web/tools/test/adaptive-probe.mjs` measures the policy: `AP_MANUAL=0` is real rAF
   (needs a headed window), `AP_MANUAL=1` is the synthetic-tick mode used by CI
   (`AP_INJECT=<steps>` injects pressure deterministically). §3.7 of
   `docs/performance_evaluation.md` has the frame-cost numbers.
@@ -632,7 +632,7 @@ rich text, media decoding (images and SVG), or raster encoding only when the
 scene or caller needs them. Text is always literal Unicode; markup belongs in
 `Typst`, `Math`, `Code`, or `Equation`.
 
-Build with `scripts/build-web.sh`; the assembled package is `web/runtime/`.
+Build with `web/tools/build/build-web.sh`; the assembled package is `web/runtime/`.
 Deploy that directory with the loader. The loader defaults to its sibling
 manifest, or a page can choose a manifest explicitly:
 
@@ -698,14 +698,14 @@ distribution scripts and are not asserted here as acceptance evidence.
   vector scene rendered by the classic vello compute renderer (WebGPU,
   offscreen+blit) and by `vello_hybrid` (WebGL2, direct to canvas), from one
   wasm module (`crates/animatix-hybrid-bench`). Build it with
-  `scripts/build-hybrid-bench.sh --dev` into `web/dev/pkg-hybrid-bench/`
-  (gitignored), open the page with `scripts/serve-web.py`, and press Run; it
+  `crates/animatix-hybrid-bench/tools/build-hybrid-bench.sh --dev` into `web/dev/pkg-hybrid-bench/`
+  (gitignored), open the page with `web/tools/dev/serve-web.py`, and press Run; it
   reports per-frame `submit`/`gpu`/`clear` milliseconds and publishes
   `window.__bench`. The headless end-to-end check is
-  `nix develop .#web-ci -c node scripts/hybrid-bench-smoke.mjs` (software
+  `nix develop .#web-ci -c node crates/animatix-hybrid-bench/tools/hybrid-bench-smoke.mjs` (software
   SwiftShader; proves the wiring, not performance). For real numbers run a
   headed browser on the GPU: `HB_HEADED=1 HB_UNSAFE_WEBGPU=1 CHROME=/path/to/chromium
-  node scripts/hybrid-bench-smoke.mjs`. On hybrid-GPU laptops Chrome gives
+  node crates/animatix-hybrid-bench/tools/hybrid-bench-smoke.mjs`. On hybrid-GPU laptops Chrome gives
   WebGPU the discrete GPU but WebGL2 the integrated one, so the two backends are
   not always on the same GPU — the page reports which adapter each got. Dev-only:
   it measures raw renderer throughput, not effects, transitions or text shaping.
@@ -723,5 +723,5 @@ distribution scripts and are not asserted here as acceptance evidence.
 - Example imports resolve to `examples/lib/` on disk, or to source modules
   fetched by a browser host. Editing a module does not require rebuilding Wasm.
 - The assembled-site smoke tests cover actual Astro pages and their canonical
-  sources. `scripts/site-check.py` rejects retired AMX and developer utilities
+  sources. `web/tools/site/site-check.py` rejects retired AMX and developer utilities
   in the release artifact.

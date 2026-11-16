@@ -23,7 +23,7 @@ picture from a browser.
 
 | WP | What it was | Landed as | State |
 |---|---|---|---|
-| WP0 | Make wasm buildable locally | `eec10d5e` — `devShells.web-build` in `flake.nix`, `scripts/build-web.sh` appends instead of overwriting `RUSTFLAGS`, `web/README.md` says which shell | done |
+| WP0 | Make wasm buildable locally | `eec10d5e` — `devShells.web-build` in `flake.nix`, `web/tools/build/build-web.sh` appends instead of overwriting `RUSTFLAGS`, `web/README.md` says which shell | done |
 | WP1 | Silent-drop cluster: `play` transition ease (A1), `Graph.map()` half-scale (A5), `Arrow` `color:` (A2), plot-family `opacity:` (A3) | `884feda2`, `1a88bf0d` | done |
 | WP2 | Replace the tautological guardrails with a behavioural one | `6cb58e17` — `ast_format_coverage.rs` (934 lines) replaces `variant_coverage_guardrails`; repo-wide serializer-stability test added | done, **but** comment fidelity (B1) was re-scoped — see "Refuted premises" |
 | WP3 | One false positive killed, one new lint born | `458412bb` (unreferenced *actor* labels demoted to hint, hints folded in the CLI report), `2dd9f689` (`inapplicable-property` at build time) | done |
@@ -121,7 +121,7 @@ the goal was paused, so nobody has mapped the redeclaration path this round. The
 plan's own escape hatch stands: this is the one item where "warn that fade does
 not cross-fade state shapes" is an acceptable outcome if the measured cost of
 building the outgoing state per frame is not. It doubles shape compilation
-inside morph windows, so it **must** go through `scripts/perf-bench.sh compare`
+inside morph windows, so it **must** go through `tools/quality/perf-bench.sh compare`
 (the script now hard-fails if `python3` is missing instead of silently
 reporting green — see `6d63ff93`). Start by reading `timeline/animation_track/shape.rs`
 (`render_type_name`, `shape_type_switches`), the `Fade` branch in the morph

@@ -38,7 +38,7 @@ ci = { changelog_title = "CI", omit_from_changelog = true }
 
 # The release act is `cog bump --auto --skip-ci`: it writes the changelog entry
 # for everything since the last tag, commits that, and tags the commit. It does
-# not touch a manifest — the version itself is scripts/bump-version.sh's job, run
+# not touch a manifest — the version itself is tools/release/bump-version.sh's job, run
 # by the pre_bump_hook below before the bump commit so the tag and Cargo.toml
 # cannot disagree. The script rewrites the one [workspace.package] line with sed
 # and lets `cargo metadata` refresh Cargo.lock, so there is no second tool
@@ -49,7 +49,7 @@ ci = { changelog_title = "CI", omit_from_changelog = true }
 # Pushing a tag publishes a release, so it stays an explicit act —
 # `git push && git push origin v<version>` — which is also the moment release.yml
 # starts.
-pre_bump_hooks = ["scripts/bump-version.sh {{version}}"]
+pre_bump_hooks = ["tools/release/bump-version.sh {{version}}"]
 
 [changelog]
 path = "CHANGELOG.md"

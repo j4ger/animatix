@@ -2,7 +2,7 @@
 
 `logo.svg` is the canonical approved vector mark: three flat shapes inside a
 keyframe boundary on a black rounded tile. The area outside the tile remains
-transparent. Regenerate all consumers with `python3 scripts/update-icons.py`
+transparent. Regenerate all consumers with `python3 tools/branding/update-icons.py`
 (requires Inkscape). Commit generated assets with the source SVG; normal Rust
 builds do not require graphics tools.
 
@@ -22,7 +22,7 @@ Existing toolbar/action glyphs and shapes inside demo scenes are not brand asset
 
 The release package carries `install-desktop.py`. Run `python3 install-desktop.py`
 from the unpacked package to register the current user's launcher and icons.
-See [Linux packaging](../packaging/linux/README.md) for lifecycle details. Do not
+See [Linux packaging](../tools/release/native/linux/README.md) for lifecycle details. Do not
 confuse a Nix development build with the portable Ubuntu-baseline release bundle.
 Launching a bare executable need not produce the installed desktop's Dock icon;
 the desktop entry, app ID, and icon theme registration are a separate integration.
@@ -46,7 +46,7 @@ signing or notarization; no Gatekeeper settings should be weakened to test it.
 
 ## Checks
 
-`scripts/ci.sh gate native-package-tests` covers the existing package validation,
+`tools/ci/ci.sh gate native-package-tests` covers the existing package validation,
 icon directory/payload structure, macOS bundle fixtures, Windows resource wiring,
 Linux desktop identity, and user-local installer behavior. `desktop-file-validate`
 is used when available. Run the normal GUI compile/build gates as well.

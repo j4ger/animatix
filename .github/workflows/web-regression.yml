@@ -35,7 +35,7 @@ jobs:
         with:
           key: web-ci
       - name: Build once and check SDK plus all current site scenes
-        run: nix develop .#web-ci --command scripts/ci.sh gate web-build web-smoke web-site-smoke
+        run: nix develop .#web-ci --command tools/ci/ci.sh gate web-build web-smoke web-site-smoke
       - name: Retain browser and timing evidence
         if: always()
         uses: actions/upload-artifact@v4

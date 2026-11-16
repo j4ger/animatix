@@ -6,7 +6,7 @@
 > stored, and *what* the first optimization targets should be.
 
 > **Current status:** CPU policy unit tests and the fixed property-plan health
-> sentinel run in CI. The comparative `scripts/perf-bench.sh compare` still
+> sentinel run in CI. The comparative `tools/quality/perf-bench.sh compare` still
 > requires an explicit saved baseline and remains **manual evidence, not a PR
 > gate**; CI does not measure or compare the 72-row Criterion suite. The local
 > workflow (idle-machine preflight, baseline metadata, reading a result) is §4.1.
@@ -69,14 +69,14 @@ targets, so benchmark IDs and Criterion groups are unchanged:
 
 The editor-intelligence suite lives in its own crate because the layering is
 one-way: the engine does not depend on `animatix-analyzer`, so the engine's
-benches cannot reach it. `scripts/perf-bench.sh` covers both crates.
+benches cannot reach it. `tools/quality/perf-bench.sh` covers both crates.
 
 ### 2.2 CPU guardrails today
 
-`scripts/extension-bench.sh` runs the property-plan lookup and timeline evaluation
+`tools/quality/extension-bench.sh` runs the property-plan lookup and timeline evaluation
 filters in quick mode. Its 10,000 ns limit applies only to
 `property_plan_lookup_and_sample` as an emergency primitive health sentinel; it
-does not define normal regression materiality. `scripts/perf-bench.sh compare`
+does not define normal regression materiality. `tools/quality/perf-bench.sh compare`
 compares all saved CPU rows; `evaluate` applies the same policy to existing
 Criterion JSON without running or rewriting benchmarks.
 
@@ -119,7 +119,7 @@ optimization loop:
    bench lived in `animatix`, which does not depend on `animatix-analyzer`.
    `crates/animatix-analyzer/benches/editor_intelligence.rs` now covers
    `update` / `diagnostics` / `diagnostics_with_config` over real files, and
-   `scripts/perf-bench.sh` runs both crates.
+   `tools/quality/perf-bench.sh` runs both crates.
 
 ---
 
@@ -129,7 +129,7 @@ optimization loop:
 
 Layering gives fast, cheap signals at the bottom and slow, high-fidelity signals
 at the top. Every layer writes into the **same result ledger** so a single
-`scripts/perf-report.sh` can summarize everything.
+`tools/quality/perf-report.sh` can summarize everything.
 
 ```
 Layer 1  Micro/Criterion benches (CPU, deterministic, CI-friendly)
@@ -1090,7 +1090,7 @@ floor, and a scale trial is judged by the pressure ratio (CPU encode time is
 resolution-insensitive, so the old check always declared trials ineffective and
 then locked raster reduction out for good).
 
-Deterministic evidence (headless software WebGPU, `scripts/adaptive-probe.mjs`,
+Deterministic evidence (headless software WebGPU, `web/tools/test/adaptive-probe.mjs`,
 4 embeds, `AP_MANUAL=1` with `AP_INJECT=60 AP_INJECT_GAP=40`, i.e. 60 synthetic
 ~40 ms steps — above the 23.3 ms missed-vsync threshold, below the 200 ms
 long-gap reset):
@@ -1130,7 +1130,7 @@ rungs for large embeds (≥1.5 MP: +2, ≥0.6 MP: +1) so a 2 MP figure does not 
 a whole 500 ms window on a 0.85 step.
 
 Measured on the transformer page with all seven 1109×624 CSS figures visible at
-DPR 1.5 (`scripts/web-page-perf.mjs`, real RTX 4060, headed Vulkan): the
+DPR 1.5 (`web/tools/test/web-page-perf.mjs`, real RTX 4060, headed Vulkan): the
 display-matched raster would be 7 × 1.56 MP = 10.9 MP; the page budget set every
 `render_scale` to 0.7874 (7 × 571,428 = **4.00 MP**). Frame pacing at a 165 Hz
 display: p50 6.1 ms, p95 12.2 ms, max 18.2 ms, zero frames >33 ms; fps 131.5
@@ -1139,13 +1139,13 @@ number). The tour page's 11 visible figures total 3.97 MP and stay at their
 display-matched 0.626 scale, confirming the budget does not touch a page that
 already fits.
 
-Deterministic probe coverage: `scripts/adaptive-probe.mjs` takes
+Deterministic probe coverage: `web/tools/test/adaptive-probe.mjs` takes
 `AP_PAGE_PIXELS`; at 640×360 / six players the 1 MP budget yields
 `avgScale 0.425`, `pageRasterPixels 1.0 MP`; at 700×394 a 1.5 MP budget yields
 `avgScale 0.521`, `pageRasterPixels 1.5 MP`; a 50 k budget correctly fails at
 the 0.25 engine floor (`86,400 > 55,000`, exit 1).
 
-`scripts/web-page-perf.mjs` is the new headed real-GPU page-pacing baseline
+`web/tools/test/web-page-perf.mjs` is the new headed real-GPU page-pacing baseline
 (`WPP_PAGE`, `WPP_SECONDS`, `WPP_ALL_VISIBLE`, `WPP_SOFTWARE`). It records the
 adapter, per-player render scale/pressure/raster pixels, and the rAF interval
 distribution into `target/perf/web-baseline.json` / `target/perf/pages/`; use it
@@ -1176,7 +1176,7 @@ frame time. Raw samples and fits: `target/perf/gpu-scaling.json`.
 
 ## 4. How CPU regressions are screened
 
-`scripts/perf-bench.sh compare` first screens each paired Criterion estimate
+`tools/quality/perf-bench.sh compare` first screens each paired Criterion estimate
 using the `mean.confidence_interval` bounds already recorded in both JSON files.
 For baseline interval `[bₗ,bᵤ]` and current interval `[cₗ,cᵤ]`, it reports the
 conservative ratio interval `[cₗ/bᵤ − 1, cᵤ/bₗ − 1]` and delta interval
@@ -1198,7 +1198,7 @@ statistical changes as informational and cannot block on their own. A new or
 unclassified row fails rather than disappearing from coverage, and every saved
 baseline ID must have a current result. Partial coverage cannot pass.
 
-The explicit policy in `scripts/perf-policy.json` uses these provisional
+The explicit policy in `tools/quality/perf-policy.json` uses these provisional
 budgets:
 
 | Workload role | Impact budget | Derivation |
@@ -1215,9 +1215,9 @@ The separately named `property_plan_lookup_and_sample` 10 µs check remains an
 emergency health sentinel only; it does not turn ordinary leaf drift into a
 blocking regression.
 
-`scripts/perf-bench.sh evaluate [quick|full]` applies the policy to an existing
+`tools/quality/perf-bench.sh evaluate [quick|full]` applies the policy to an existing
 `PERF_LOG_DIR` without measuring or changing its raw estimates. It writes a
-separate `*.policy-report.txt`. `scripts/test-perf-policy.py` covers the
+separate `*.policy-report.txt`. `tools/quality/test-perf-policy.py` covers the
 deterministic classifier boundaries. Exact row-set matching and the load
 preflight remain independent integrity checks; the former 90% coverage option
 is retired. The `demo_frame__*` Criterion rows in the opt-in
@@ -1301,8 +1301,8 @@ dismiss genuine regressions.
 
 ### 4.1 Manual baseline workflow (local; not a PR gate)
 
-`scripts/perf-bench.sh compare` is **manual evidence**, not a required check. It
-is absent from `scripts/ci.sh`'s gate table, PR CI does not run it, and a red
+`tools/quality/perf-bench.sh compare` is **manual evidence**, not a required check. It
+is absent from `tools/ci/ci.sh`'s gate table, PR CI does not run it, and a red
 `compare` does not block a merge — adding it as a gate is deliberately deferred
 (roadmap PF-2) because the false-positive rate on a loaded host is an environment
 problem, not a threshold problem. The rule in `AGENTS.md` is narrower: a change
@@ -1333,11 +1333,11 @@ the same power state, at comparable load:
 ```bash
 # Record this machine's known-good baseline (one per tier; ~4-6 min warm).
 PERF_BASELINE_DIR=/path/to/animatix-perf \
-  nix develop --command bash scripts/perf-bench.sh save quick
+  nix develop --command bash tools/quality/perf-bench.sh save quick
 
 # Later, after the change, in an idle window:
 PERF_BASELINE_DIR=/path/to/animatix-perf \
-  nix develop --command bash scripts/perf-bench.sh compare quick
+  nix develop --command bash tools/quality/perf-bench.sh compare quick
 ```
 
 `quick` is the default; `full` adds the GPU demo target for release-scale
@@ -1414,7 +1414,7 @@ Implemented in this pass:
   vector fields and heatmaps use unboxed scalar evaluators instead of cloning
   the environment per grid point.
 
-Measured with `scripts/perf-bench.sh compare quick --thresh 5` against the
+Measured with `tools/quality/perf-bench.sh compare quick --thresh 5` against the
 `ab3a526e` baseline (72/72 benches, 0 real regressions; medians):
 
 | Bench | Before | After | Change |
@@ -1577,7 +1577,7 @@ it moves and the **gate** that protects it.
   structural change to the chumsky grammar's entry points, not a local
   optimization. Secondary: `semantic_diagnostics` (296 µs) re-runs on every
   `update` even when the change is inside a comment.
-- **Gate:** covered by `scripts/perf-bench.sh` (both crates) once a baseline is
+- **Gate:** covered by `tools/quality/perf-bench.sh` (both crates) once a baseline is
   saved.
 
 ---
@@ -1587,9 +1587,9 @@ it moves and the **gate** that protects it.
 | Item | Location | Status |
 |---|---|---|
 | This design doc | `docs/performance_evaluation.md` | **added** |
-| Bench harness + baseline/regression script | `scripts/perf-bench.sh` | **added** |
+| Bench harness + baseline/regression script | `tools/quality/perf-bench.sh` | **added** |
 | CI perf-report job (runs suite, uploads Criterion report + baseline artifacts) | `.github/workflows/ci.yml` | **paused** — CI integration deliberately deferred; prove the harness in local optimization rounds first, then re-enable (PF-2) |
-| Result merge/report | `scripts/perf-report.sh` | **added (PF-3 foundation)**; emits `target/perf/latest.json` |
+| Result merge/report | `tools/quality/perf-report.sh` | **added (PF-3 foundation)**; emits `target/perf/latest.json` |
 | Persistent cross-run baselines + hard relative gate | `PERF_BASELINE_DIR` + `perf-bench compare` | **added (PF-3 foundation)**; CI artifact upload/download remains PF-2 |
 | Shared stage tracing | `crates/animatix/src/perf.rs` + `ScopedStage` | **added** (PF-8, 2026-08-31; `perf-tracing` default-on feature) |
 | Scenario suite benches | `crates/animatix/benches/` | add |
@@ -1638,8 +1638,8 @@ not let it perturb the very numbers it reports:
 ## 8. Workflow for a performance task
 
 1. Read this doc and `docs/architecture.md` (§3 runtime, §renderer).
-2. Ensure a baseline exists: `bash scripts/perf-bench.sh save`.
-3. Make the change. Re-run `bash scripts/perf-bench.sh compare` — it fails on
+2. Ensure a baseline exists: `bash tools/quality/perf-bench.sh save`.
+3. Make the change. Re-run `bash tools/quality/perf-bench.sh compare` — it fails on
    regressions and prints the delta table.
 4. If GPU/export affected, run the Layer-3 perf binary in `nix develop`.
 5. Update `docs/roadmap.md`; commit via `cog commit perf "<summary>" <scope>`

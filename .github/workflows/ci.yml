@@ -1,6 +1,6 @@
 name: CI
 
-# Gate definitions and job matrices live in scripts/ci.sh. The PR planner
+# Gate definitions and job matrices live in tools/ci/ci.sh. The PR planner
 # selects registered jobs by dependency; main and release callers run the full matrix.
 # CI Required collects the planner and every selected result.
 
@@ -9,7 +9,7 @@ on:
   # This repo lands commits on main directly, so a PR-only trigger meant the
   # gates below ran only when someone opened a pull request — which is often
   # never. The commit gate takes the previous tip from the event to bound its
-  # range; see gate_commit in scripts/ci.sh.
+  # range; see gate_commit in tools/ci/ci.sh.
   push:
     branches: [main, feat/cloudflare-pages]
   workflow_call:
@@ -53,7 +53,7 @@ jobs:
           ANIMATIX_CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           ANIMATIX_CI_CHECKOUT_REF: ${{ inputs.checkout-ref }}
           ANIMATIX_CI_SELECTION: ${{ vars.ANIMATIX_CI_SELECTION || 'enabled' }}
-        run: scripts/ci.sh gate ci-plan
+        run: tools/ci/ci.sh gate ci-plan
       - name: Upload selection evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -121,7 +121,7 @@ jobs:
         shell: bash
         env:
           SETUP: ${{ matrix.setup }}
-        run: scripts/ci.sh setup "$SETUP"
+        run: tools/ci/ci.sh setup "$SETUP"
 
       - name: Gate
         shell: bash
@@ -135,16 +135,16 @@ jobs:
         # The matrix's shell column is what says which shell this job owes it.
         run: |
           case "$GATE_SHELL" in
-            web) nix develop .#web-build --command scripts/ci.sh gate "$GATE" ;;
-            web-ci) nix develop .#web-ci --command scripts/ci.sh gate "$GATE" ;;
-            nix) nix develop --command scripts/ci.sh gate "$GATE" ;;
-            *)   scripts/ci.sh gate "$GATE" ;;
+            web) nix develop .#web-build --command tools/ci/ci.sh gate "$GATE" ;;
+            web-ci) nix develop .#web-ci --command tools/ci/ci.sh gate "$GATE" ;;
+            nix) nix develop --command tools/ci/ci.sh gate "$GATE" ;;
+            *)   tools/ci/ci.sh gate "$GATE" ;;
           esac
 
       # Upload real files rather than the local build's target/ symlink.
       - name: Stage verified web SDK
         if: contains(matrix.gate, 'web-build')
-        run: nix develop --command scripts/ci.sh gate web-artifact-stage
+        run: nix develop --command tools/ci/ci.sh gate web-artifact-stage
 
       - name: Upload web runtime
         if: contains(matrix.gate, 'web-build')
@@ -195,7 +195,7 @@ jobs:
       - name: Require every selected job
         env:
           ANIMATIX_CI_NEEDS: ${{ toJSON(needs) }}
-        run: scripts/ci.sh gate ci-result
+        run: tools/ci/ci.sh gate ci-result
 
   # Optional experimental ancestors may be skipped. Override implicit success(),
   # while requiring the aggregate CI result and respecting cancellation.
@@ -218,7 +218,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           NEEDS_CI_RESULT: ${{ needs.required.result }}
-        run: scripts/ci.sh gate cloudflare-pages-publish
+        run: tools/ci/ci.sh gate cloudflare-pages-publish
       - name: Sign Pages permit
         id: attest
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
@@ -261,4 +261,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CLOUDFLARE_PAGES_TOKEN: ${{ secrets.CLOUDFLARE_PAGES_TOKEN }}
           NEEDS_PAGES_SIGN_RESULT: ${{ needs.cloudflare_pages.result }}
-        run: scripts/ci.sh gate cloudflare-pages-release
+        run: tools/ci/ci.sh gate cloudflare-pages-release

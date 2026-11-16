@@ -83,7 +83,7 @@ jobs:
       - name: Build and package (video, Linux)
         env:
           ANIMATIX_RELEASE_LABEL: nightly
-        run: nix develop .#dist-driver --command scripts/ci.sh gate dist-linux
+        run: nix develop .#dist-driver --command tools/ci/ci.sh gate dist-linux
 
       # Delete previous rolling 'nightly' release and any legacy 'nightly-*' releases
       # to reclaim storage quota before publishing the new pre-release.

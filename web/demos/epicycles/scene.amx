@@ -3,7 +3,7 @@
 // scene.amx — the plate: the whole walkthrough in one playthrough.
 //
 // GENERATED — do not edit. This file is derived from the five act files by
-// `scripts/epicycles-plate.py`; edit an act and re-run it. `--check` fails when
+// `tools/content/epicycles-plate.py`; edit an act and re-run it. `--check` fails when
 // this file no longer matches its sources, so the two cannot drift apart
 // quietly.
 //

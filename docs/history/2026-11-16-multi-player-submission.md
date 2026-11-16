@@ -145,7 +145,7 @@ the measured phases.
 | Queue-one page tick p95 | 5.200 / 4.100 | 7.200 / 7.400 | 4.100 / 4.100 | 5.200 [4.100–7.200] | 4.100 [4.100–7.400] | 0.000 [-1.100–0.200]; [-2.039, 1.439] |
 
 The established queue-depth-one screen in
-[`web-runtime-perf.mjs`](../../scripts/web-runtime-perf.mjs) compares per-player
+[`web-runtime-perf.mjs`](https://github.com/j4ger/animatix/blob/a8e268f9c0cc4491c36024140722b95fb41d1547/scripts/web-runtime-perf.mjs) compares per-player
 render-and-drain p95 values, not multi-player page-tick sums. Its 5% relative /
 0.167 ms screen is inconclusive in every group:
 

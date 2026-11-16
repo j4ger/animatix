@@ -40,7 +40,7 @@ cargo run --bin animatix -- image examples/basics/00_hello.amx --time 1.5 --outp
 Do not infer portability from an archive name: the inspected November 12, 2026
 `nightly` archive contains bare CLI/GUI binaries that reference a Nix store loader
 and external FFmpeg libraries. It is not the self-contained Linux package described
-in the [packaging guide](../packaging/linux/README.md). On a host without those
+in the [packaging guide](../tools/release/native/linux/README.md). On a host without those
 paths/libraries, use the source-build instructions above instead.
 
 The current packaging scripts build a different, relocatable distribution. A
@@ -64,22 +64,25 @@ MP4/WebM/MOV/GIF does. See the CLI's `--help` for individual export options.
 ## Repository files
 
 Keep source, lockfiles, test inputs and reviewed visual baselines in Git.
-`tools/fixtures/` contains shared benchmark and text-parity inputs; `snapshots/`
-contains reviewed visual regression baselines. Neither is disposable build output.
+`web/tools/fixtures/` contains shared benchmark and text-parity inputs. The retired
+Transformer screenshots are no longer a regression suite; the README illustration
+and its historical demo are preserved in [the illustration archive](assets/transformer-overview/README.md).
+The general `animatix baseline` command still stores user-created baselines under
+`snapshots/`; review them before committing or updating them.
 Put temporary reports and render experiments under `target/` or in harness-managed temporary directories.
 Local agent plans, environment files and generated SDK/site output are ignored.
 Adding an ignore rule does not remove an already tracked file from Git.
 
 ## Validate a change
 
-`scripts/ci.sh` defines the project gates and generates CI's job matrix. Add new
+`tools/ci/ci.sh` defines the project gates and generates CI's job matrix. Add new
 checks there, rather than adding independent commands to workflow YAML.
 
 ```sh
-scripts/ci.sh gates                       # gates and their required shells
-scripts/ci.sh shell web-build             # shell for a particular gate
-scripts/ci.sh gate fmt lint check test    # inside the default dev shell
-bash scripts/check-docs.sh                # standalone documentation checks
+tools/ci/ci.sh gates                       # gates and their required shells
+tools/ci/ci.sh shell web-build             # shell for a particular gate
+tools/ci/ci.sh gate fmt lint check test    # inside the default dev shell
+bash tools/docs/check-docs.sh                # standalone documentation checks
 ```
 
 Run formatting and the gates affected by your change before committing. A
@@ -95,8 +98,8 @@ dependencies. Rich text enters through `animatix-text/rich-text` only.
 | Syntax or highlighting | Update the lossless tokenizer in `crates/animatix-syntax/src/token/`; test syntax, analyzer, GUI and LSP together. |
 | Runtime, layout or rendering | Render representative frames and review a storyboard; run the relevant render and example gates. |
 | Demo or site scene | Review composition, clipping, cue timing and the final held frame. Use `check`, `storyboard`, `audit` and regression baselines; see [scene audit](audit.md). |
-| Hot path | Record `scripts/perf-bench.sh compare` evidence. This is a manual measurement, not a PR gate; see [performance evaluation](performance_evaluation.md). |
-| Documentation | The `doc-links` gate runs `scripts/check-docs.sh` for links, source paths and stale roadmap wording. The separate `doc` gate validates Rustdoc and generated property tables. |
+| Hot path | Record `tools/quality/perf-bench.sh compare` evidence. This is a manual measurement, not a PR gate; see [performance evaluation](performance_evaluation.md). |
+| Documentation | The `doc-links` gate runs `tools/docs/check-docs.sh` for links, source paths and stale roadmap wording. The separate `doc` gate validates Rustdoc and generated property tables. |
 
 Runnable examples belong in `examples/`. Use temporary harness artifacts for
 unfinished projects and human review; keep focused regression fixtures beside
@@ -109,7 +112,7 @@ journeys, evidence and retry policy.
 
 ### CI selection and build experiments
 
-`scripts/ci.sh` owns gates, stable job IDs and matrices. Pull-request selection
+`tools/ci/ci.sh` owns gates, stable job IDs and matrices. Pull-request selection
 uses workspace path dependencies conservatively, including optional, build and
 dev dependencies. Unknown inputs or unavailable base commits select every job;
 main pushes and release callers always use the full matrix. Selection starts in
@@ -121,7 +124,7 @@ selection evidence. Keep `CI Required` as
 the stable required check when migrating branch protection; it rejects failed,
 cancelled or missing selected jobs.
 
-Run `scripts/ci.sh plan --event pull_request --base <sha> --head <sha>` to inspect
+Run `tools/ci/ci.sh plan --event pull_request --base <sha> --head <sha>` to inspect
 a plan. Gates write exit-preserving measurements to `target/ci/timings.jsonl`;
 `ANIMATIX_GATE_TIMINGS` can select another evidence path. `doc-links` checks
 handwritten documentation without compiling Rust; `doc` checks Rustdoc and the
@@ -149,7 +152,7 @@ implementation cut and the commands from that revision:
 ```sh
 git worktree add --detach /tmp/animatix-maintenance-ci bd34463df14fc94b68a411d84285c0d7e0774f5d
 cd /tmp/animatix-maintenance-ci
-nix develop .#experiments --command scripts/ci.sh gate runner-experiment
+nix develop .#experiments --command tools/ci/ci.sh gate runner-experiment
 ```
 
 The hosted CI-topology trials used source
@@ -169,7 +172,7 @@ case from the former `ir_tests` target. Add new contract modules to
 `tests/engine_contracts.rs`; a separate executable requires an explicit
 `[[test]]` entry because this package sets `autotests = false`. Keep these tests
 serial until their shared process-state assumptions have been checked. Source-size reports can be
-reproduced with `python3 scripts/maintenance-inventory.py`; source attributes are
+reproduced with `python3 tools/quality/maintenance-inventory.py`; source attributes are
 not substitutes for executable test-ID inventories.
 
 ### Property metadata and generated reference
@@ -277,7 +280,7 @@ The web player and on-demand capabilities ship together as a generated SDK in
 
 ```sh
 # From a clean terminal, not another dev shell:
-nix develop .#web-ci --command scripts/ci.sh gate web-build web-sdk-integrity web-transactions
+nix develop .#web-ci --command tools/ci/ci.sh gate web-build web-sdk-integrity web-transactions
 ```
 
 Staging, restore, site assembly and packaging verify the manifest against the
@@ -309,7 +312,7 @@ git push origin main
 git push origin v<version>
 ```
 
-The pre-bump hook runs `scripts/bump-version.sh`, updates the workspace version
+The pre-bump hook runs `tools/release/bump-version.sh`, updates the workspace version
 and lockfile, and checks `meta-version`. Pushing the tag triggers the release
 workflow: PR gates first, then site, SDK and native distribution artifacts.
 Publishing remains a separate decision from preparing the local tag.
@@ -322,7 +325,7 @@ new versioned release each day.
 `CHANGELOG.md` is generated by Cocogitto; do not edit it by hand. Explanations,
 measurements and post-mortems belong in [history](history/README.md), while
 [roadmap](roadmap.md) contains unfinished work only. For the Linux binary/source
-archive identity and rebuild recipe, use the [packaging guide](../packaging/linux/README.md).
+archive identity and rebuild recipe, use the [packaging guide](../tools/release/native/linux/README.md).
 
 ## Engine change checklists
 

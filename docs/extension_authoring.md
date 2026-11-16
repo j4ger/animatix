@@ -221,7 +221,7 @@ stamp resolved from the asset cache, a two-argument native function (`scale`),
 a native action (`throb`) that writes a `glow` keyframe through
 `write_keyframe`, and a typed service with a destructor. A runnable scene,
 `examples/projects/plugin_pulse.amx`, uses the plugin and is gated by
-`scripts/check_examples.sh` (which builds the plugin first and passes the
+`tools/quality/check_examples.sh` (which builds the plugin first and passes the
 manifest to `check`).
 
 A manifest passed to `--plugin` also feeds the analyzer, so unknown extension

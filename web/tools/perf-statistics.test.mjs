@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { combinePrimaryVerdict, comparePaired } from './perf-statistics.mjs';
-import { contentType, parseScenes } from '../../scripts/web-runtime-perf.mjs';
+import { contentType, parseScenes } from '../../web/tools/test/web-runtime-perf.mjs';
 
 const compare = (oldValues, newValues, absoluteThreshold, options = {}) => comparePaired(oldValues, newValues, {
   threshold: 1.05,
@@ -117,9 +117,9 @@ test('Web performance server serves generated HTML pages as documents', () => {
 test('shared Web performance fixtures and relative media remain resolvable', () => {
   const root = new URL('../../', import.meta.url);
   const scenes = [...parseScenes(),
-    'tools/fixtures/web-runtime-perf/basic.amx',
-    'tools/fixtures/web-runtime-perf/captions.amx',
-    'tools/fixtures/web-runtime-perf/plain-cjk-bidi-weights.amx',
+    'web/tools/fixtures/web-runtime-perf/basic.amx',
+    'web/tools/fixtures/web-runtime-perf/captions.amx',
+    'web/tools/fixtures/web-runtime-perf/plain-cjk-bidi-weights.amx',
   ];
   for (const scene of scenes) {
     const source = new URL(scene, root);

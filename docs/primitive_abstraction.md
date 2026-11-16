@@ -226,6 +226,6 @@ Any work above must keep these green (and extend them where behaviour changes):
 
 - `cargo test -p animatix --lib -- --test-threads=1`
 - `cargo test --workspace --no-fail-fast -- --test-threads=1`
-- `scripts/check_examples.sh`, `scripts/render_smoke.sh`, `scripts/check-docs.sh`
+- `tools/quality/check_examples.sh`, `tools/quality/render_smoke.sh`, `tools/docs/check-docs.sh`
 - ABI drift: `abi_version_stays_in_sync_with_authoring_docs` in
   `crates/animatix-plugin-api` (pins the docs snapshot string).

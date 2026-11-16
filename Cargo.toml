@@ -14,9 +14,9 @@ members = [
     "crates/animatix-syntax",
     "crates/animatix-text",
     "crates/animatix-web",
-    "tools/animatix-web-build",
-    "tools/animatix-text-parity",
-    "tools/animatix-web-build/fixtures/split-probe",
+    "web/tools/animatix-web-build",
+    "web/tools/animatix-text-parity",
+    "web/tools/animatix-web-build/fixtures/split-probe",
     "crates/animatix-hybrid-bench",
     "crates/eparts"
 ]
@@ -26,7 +26,7 @@ resolver = "2"
 # One version for the whole workspace. `cargo set-version --workspace` — the
 # pre_bump_hooks command that `cog bump` runs — writes here and nowhere else, so a
 # release cannot half-bump. Before this, 15 manifests each hand-declared
-# `version = "0.1.0"` and nothing checked that they agreed; `scripts/ci.sh gate
+# `version = "0.1.0"` and nothing checked that they agreed; `tools/ci/ci.sh gate
 # meta-version` now does, off `cargo metadata` rather than off the text of the
 # files, so it catches a member that resolves to something else for any reason.
 [workspace.package]
@@ -80,7 +80,7 @@ opt-level = 3
 inherits = "release"
 debug = true
 
-# The browser player's build (scripts/build-web.sh). Kept separate from
+# The browser player's build (web/tools/build/build-web.sh). Kept separate from
 # `release` so tuning it cannot move a native benchmark baseline: `perf-bench.sh`
 # and the Layer-3 drivers all build through `release`, and the web player is the
 # one target whose frame cost is dominated by GPU work and whose CPU share is

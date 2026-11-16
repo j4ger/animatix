@@ -13,7 +13,7 @@ fn bundled_context() -> FontContext {
     }
     context.load_font_bytes(
         include_bytes!(
-            "../../../../tools/animatix-web-build/fixtures/text-parity/fonts/NotoNaskhArabicUI.ttf"
+            "../../../../web/tools/animatix-web-build/fixtures/text-parity/fonts/NotoNaskhArabicUI.ttf"
         )
         .to_vec(),
     );

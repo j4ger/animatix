@@ -337,7 +337,7 @@ nothing and looks correct in source.
 `ir_tests.rs` AST↔IR parity for both builtins · `cargo clippy -p animatix
 --no-default-features --all-targets -- -D warnings` (slim is what the web build uses) ·
 `cargo test -p animatix-web --test site_scenes` **both profiles** if a site scene
-adopts the recipe · `scripts/perf-bench.sh compare` in the commit message
+adopts the recipe · `tools/quality/perf-bench.sh compare` in the commit message
 (`AGENTS.md`: hot-path rule — this touches `always` evaluation) · a build-time
 measurement for the web first-frame path, which `perf-bench.sh` does not cover.
 

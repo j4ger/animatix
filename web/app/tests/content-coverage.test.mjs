@@ -8,7 +8,7 @@ test('all techniques have unique canonical source and a teaching intent',()=>{
  for(const t of techniques){assert.ok(t.goal&&t.explanation&&t.exercise&&t.rule);assert.ok(existsSync(src(`../../content/scenes/${t.file}.amx`)));}
 });
 test('the artifact publishes current content, not legacy sources or developer tools',()=>{
- const script=readFileSync(src('../../../scripts/site-artifact.sh'),'utf8');
+ const script=readFileSync(src('../../../web/tools/site/site-artifact.sh'),'utf8');
  assert.match(script,/entries=\(logo\.svg assets content\)/);
  assert.match(script,/cp -R web\/app\/dist\/\./);
  assert.doesNotMatch(script,/entries=\([^)]*\b(?:demos|tour|recipes|scenes|dev)\b/);

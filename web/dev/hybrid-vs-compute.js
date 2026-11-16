@@ -124,7 +124,7 @@ $("run-compute").addEventListener("click", () => runOne("compute"));
 $("run-hybrid").addEventListener("click", () => runOne("hybrid"));
 $("run-all").addEventListener("click", runAll);
 
-// Automation hooks (used by scripts/hybrid-bench-smoke.mjs).
+// Automation hooks (used by crates/animatix-hybrid-bench/tools/hybrid-bench-smoke.mjs).
 window.__runOne = (backend, scene, width, height, frames, warmup, reps) =>
   runOne(backend, { scene, width, height, frames, warmup, reps });
 window.__runAll = runAll;

@@ -70,6 +70,6 @@ exists to retire.
 ## Gates
 
 `animatix check` + `animatix audit` on any scene using the kit must report no
-`text.overflow`; `scripts/check_examples.sh` covers the kit's own example
+`text.overflow`; `tools/quality/check_examples.sh` covers the kit's own example
 (`examples/figures/figure_kit.amx`), which is the executable documentation of
 every cap above.

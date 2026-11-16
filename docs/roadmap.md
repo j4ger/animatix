@@ -29,7 +29,7 @@ evidence backlog; reproduce them against current code before assigning fixes.
   and codec strategy for macOS and Windows, then validate a minimal video-enabled
   artifact on each supported OS. The current release pipeline only ships video
   on Linux. Record the chosen dependency/update strategy before expanding release
-  artifacts; keep packaging commands in named `scripts/ci.sh` gates.
+  artifacts; keep packaging commands in named `tools/ci/ci.sh` gates.
 - **Phase B: independent projects.** Add a project creation entry point (proposed
   CLI `init`, with a GUI equivalent) that copies a self-contained starter and its
   required modules/assets. Remove the need for starters to reference the source
@@ -143,7 +143,7 @@ remain legal (`x-clock` is one identifier); subtraction should be written
 ### Structure gate (active)
 
 The large-file/large-function programme is governed by [`ecs.md`](ecs.md) §8:
-`scripts/structure.sh` fails on a production file >1000 lines (tests >2000), a
+`tools/quality/structure.sh` fails on a production file >1000 lines (tests >2000), a
 production function >200 lines (tests >300), or a stale allowlist row. A split
 deletes its row and never raises one. [`ecs.md`](ecs.md) is the normative
 description of the timeline storage, not a work list.
@@ -615,7 +615,7 @@ work are **not** yet evidence, and each needs a real run:
   `nix develop .#web-build`, and the nested-shell PATH trap makes a run from inside
   `.#default` meaningless. CI is the first honest execution of both.
 - **cog's staging behaviour around `pre_bump_hooks` is assumed.**
-  `scripts/bump-version.sh` was tested on its own (it moved all 15 members to
+  `tools/release/bump-version.sh` was tested on its own (it moved all 15 members to
   `0.1.1` and refreshed `Cargo.lock`, then reverted), but not inside a bump commit.
   If cog does not stage the hook's edits, the tag lands on a commit whose manifests
   still say the old version — and `dist-package.sh` then refuses the build, which is
@@ -625,7 +625,7 @@ work are **not** yet evidence, and each needs a real run:
   They are nix-built and carry `/nix/store` RPATHs, so they may only run on NixOS.
   `patchelf --print-rpath` / `ldd` against a downloaded asset before trusting any
   past release; the new `dist-linux` gate inherits that question.
-- **`_site` was never diffed against a real Pages build.** `scripts/site-artifact.sh`
+- **`_site` was never diffed against a real Pages build.** `web/tools/site/site-artifact.sh`
   runs the same four commands the old inline YAML did, and was tested against stub
   bundles (including the negative: a 100% size drift fails the gate), but a
   byte-for-byte comparison against a deployed artifact has not happened.
@@ -647,7 +647,7 @@ tracked.
   4. **Incremental Split-Text Optimization & AOT Baseline Masking**: Precompute static line clip rectangles at build time so kinetic typography baseline reveals avoid per-frame line boundary traversal.
   5. **Vello Hardware Glyph Run Pipeline**: Move from extracting CPU `kurbo::BezPath` outlines to submitting structured `GlyphRun` streams directly to Vello GPU instancing/atlas for non-morphing text.
   6. **Typst Math & Code Pre-warming**: Cache persistent Typst standard library/document contexts for inline math formulas, and bypass Typst for standalone syntect code block highlighting directly on the fast-path grid.
-- **Verification**: Benchmark with `scripts/perf-bench.sh compare text_rebuild` and `scrub_text_scene_100frames`.
+- **Verification**: Benchmark with `tools/quality/perf-bench.sh compare text_rebuild` and `scrub_text_scene_100frames`.
 
 ### 2. GPU-Accelerated Procedural Curves & Chart Strips
 

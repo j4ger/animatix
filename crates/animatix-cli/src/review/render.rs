@@ -203,7 +203,7 @@ fn site_rest_from_samples(
 }
 
 /// Probe times used by the site resting-composition policy. Mirrors
-/// `scripts/site-rest-check.py`: single scenes sample the whole arc; a
+/// `web/tools/site/site-rest-check.py`: single scenes sample the whole arc; a
 /// multi-scene plate samples only its last scene, after the transition into it.
 pub(crate) fn site_rest_probe_times(target: &BuildTarget) -> Option<(f64, Vec<f64>)> {
     let duration_s = super::samples::target_duration_s(target);

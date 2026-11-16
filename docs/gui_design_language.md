@@ -169,7 +169,7 @@ These are acceptance goals, not a claim of full accessibility certification:
 - Test disabled actions, repeated clicks, Escape, focus changes, and window-size
   round-trips, not just the default screenshot.
 
-For component screenshots, use `scripts/gui-screenshots.sh` in the development
+For component screenshots, use `crates/animatix-gui/tools/qa/gui-screenshots.sh` in the development
 shell (with a display or `xvfb-run`). It writes to `target/gui-screenshots/` and
 bounds each capture. Component screenshots do not replace workbench interaction
 tests. See [contributing](contributing.md) for the test gates and

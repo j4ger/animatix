@@ -11,7 +11,7 @@ use clap::ValueEnum;
 pub(crate) enum Policy {
     /// Built-in tolerant defaults.
     Default,
-    /// Website embedding policy (`scripts/site-rest-check.py` semantics).
+    /// Website embedding policy (`web/tools/site/site-rest-check.py` semantics).
     Site,
 }
 
@@ -204,7 +204,7 @@ pub(crate) struct RenderSampleFacts {
 }
 
 /// Site-policy resting-frame measurement, mirroring
-/// `scripts/site-rest-check.py`.
+/// `web/tools/site/site-rest-check.py`.
 #[derive(Clone, Debug)]
 pub(crate) struct SiteRestFacts {
     /// Time of the held/rest frame.

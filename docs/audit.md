@@ -112,8 +112,8 @@ badge: Rect, size: (40, 40)
 
 ## 预算与增量
 
-- **Budget**: `.animatix/audit-budget.json` (记录文件 × code 限制)。
-- **Commands**: `scripts/audit-budget.sh --check|--update`。
+- **Budget**: `tools/quality/audit-budget.json` (记录文件 × code 限制)。
+- **Commands**: `tools/quality/audit-budget.sh --check|--update`。
 - **Gate**: `scene-audit` gate 强制棘轮（只降不升）。
 
 ## Known Limitations

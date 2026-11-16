@@ -21,9 +21,9 @@ creating every player or invoking private loader state.
 Use the pinned environments; do not set shell markers manually:
 
 ```sh
-nix develop .#web-ci --command scripts/ci.sh gate web-build web-smoke web-site-smoke
+nix develop .#web-ci --command tools/ci/ci.sh gate web-build web-smoke web-site-smoke
 # An already verified/assembled site:
-nix develop .#web-ci --command scripts/ci.sh gate site-smoke
+nix develop .#web-ci --command tools/ci/ci.sh gate site-smoke
 ```
 
 PR selection retains the existing dependency-aware Web Build job. Main/reusable

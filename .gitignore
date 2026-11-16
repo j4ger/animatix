@@ -38,7 +38,7 @@ node_modules/
 /result-*
 .wrangler/
 
-# Generated web SDK / embed bundles (scripts/build-web.sh and web/tools).
+# Generated web SDK / embed bundles (web/tools/build/build-web.sh and web/tools).
 /web/pkg/
 /web/pkg-slim/
 /web/pkg-assets/

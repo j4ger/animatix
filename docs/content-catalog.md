@@ -25,8 +25,8 @@ is not proof that a benchmark may change.
 From the repository root:
 
 ```sh
-python3 scripts/content-catalog.py --check
-python3 scripts/content-catalog.py --output /tmp/animatix-content.json
+python3 tools/content/content-catalog.py --check
+python3 tools/content/content-catalog.py --output /tmp/animatix-content.json
 ```
 
 The report includes every tracked and non-ignored untracked `.amx`, current
@@ -35,7 +35,7 @@ full-path references from code, scripts, pages, and docs. No generated inventory
 is committed: it would become another stale list. The JSON records the base
 revision; hashes describe the actual working tree, including uncommitted edits.
 
-`content/catalog.json` is a small review overlay, not another site manifest.
+`docs/content/legacy-review.json` is a small review overlay, not another site manifest.
 It gives reviewed candidates a stable ID, canonical source path, proposed
 `decision`, rationale, and source relationships. Unregistered sources have a
 null ID until curated; do not use their path-derived classifications as durable
@@ -50,8 +50,6 @@ The report is intentionally conservative:
 - Import discovery is textual; unresolved paths may be runtime aliases. Literal
   references miss generated URLs, basename lookups, shell discovery and dynamic
   imports. Absence of a reference is **not permission to delete**.
-- `works` is inferred from manifest posters, figures, and deck directories; it
-  describes association, not an additional publication list.
 - This prototype is not wired into CI or the publisher. `--check` validates the
   review registry, not animation quality or the completeness of dependencies.
 
@@ -92,7 +90,7 @@ establish it.
 
 ## Before any later move or retirement
 
-Check `scripts/lib-scenes.sh`, `scripts/site-artifact.sh`, native `include_str!`
+Check `tools/quality/lib-scenes.sh`, `web/tools/site/site-artifact.sh`, native `include_str!`
 callers, authored imports, and public URLs. Shared example modules live at
 `examples/lib/` and are fetched as source, never embedded in the engine.
 Make a relocation map; Astro archive pages preserve old public navigation

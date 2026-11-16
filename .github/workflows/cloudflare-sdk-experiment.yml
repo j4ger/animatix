@@ -36,7 +36,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           NEEDS_CI_RESULT: ${{ needs.ci.result }}
-        run: scripts/ci.sh gate cloudflare-sdk-publish
+        run: tools/ci/ci.sh gate cloudflare-sdk-publish
       - name: Attest the acceptance permit
         id: attest
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
@@ -64,7 +64,7 @@ jobs:
       - name: Trigger exact-SHA isolated Cloudflare build
         env:
           CLOUDFLARE_EXPERIMENT_TOKEN: ${{ secrets.CLOUDFLARE_EXPERIMENT_TOKEN }}
-        run: scripts/ci.sh gate cloudflare-sdk-dispatch
+        run: tools/ci/ci.sh gate cloudflare-sdk-dispatch
       - name: Retain non-sensitive recovery baseline
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

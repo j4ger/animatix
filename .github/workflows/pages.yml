@@ -56,26 +56,26 @@ jobs:
         if: github.event_name == 'workflow_run' && steps.sdk.outcome != 'success'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: nix develop --command scripts/ci.sh gate web-artifact-absence
+        run: nix develop --command tools/ci/ci.sh gate web-artifact-absence
       # A successful download that is corrupt, incomplete or from another SHA
       # fails here. Only an absent artifact/manual dispatch may rebuild.
       - name: Verify downloaded SDK
         if: steps.sdk.outcome == 'success'
-        run: nix develop --command scripts/ci.sh gate web-artifact-restore
+        run: nix develop --command tools/ci/ci.sh gate web-artifact-restore
       - name: Build and test SDK when CI artifact is absent
         if: github.event_name != 'workflow_run' || (steps.sdk.outcome != 'success' && steps.sdk_absence.outcome == 'success')
-        run: nix develop .#web-ci --command scripts/ci.sh gate web-split-proof web-build web-sdk-integrity text-parity web-raster-proof web-smoke web-transactions
+        run: nix develop .#web-ci --command tools/ci/ci.sh gate web-split-proof web-build web-sdk-integrity text-parity web-raster-proof web-smoke web-transactions
       - name: Site scenes
         if: github.event_name != 'workflow_run' || (steps.sdk.outcome != 'success' && steps.sdk_absence.outcome == 'success')
-        run: nix develop --command scripts/ci.sh gate site-scenes
+        run: nix develop --command tools/ci/ci.sh gate site-scenes
       - name: Assemble verified site
         env:
           SITE_BASE: ${{ steps.pages.outputs.base_path || '/' }}
-        run: nix develop --command scripts/ci.sh gate web-artifact-verify site-artifact
+        run: nix develop --command tools/ci/ci.sh gate web-artifact-verify site-artifact
       - name: Exercise assembled site
         env:
           SITE_BASE: ${{ steps.pages.outputs.base_path || '/' }}
-        run: nix develop .#web-ci --command scripts/ci.sh gate site-smoke
+        run: nix develop .#web-ci --command tools/ci/ci.sh gate site-smoke
       - name: Retain browser evidence
         if: always()
         uses: actions/upload-artifact@v4

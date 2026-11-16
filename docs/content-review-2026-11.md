@@ -49,8 +49,8 @@ recommended authoring style by accident.
 ## Review recipe
 
 ```sh
-python3 scripts/content-catalog.py --check
-python3 scripts/content-catalog.py --output /tmp/content-inventory.json
+python3 tools/content/content-catalog.py --check
+python3 tools/content/content-catalog.py --output /tmp/content-inventory.json
 animatix check examples/generation/array_layout.amx
 animatix storyboard examples/generation/array_layout.amx \
   --times 1.5,3.8,6.3,8.8 --output /tmp/array-layout.png

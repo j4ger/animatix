@@ -53,6 +53,6 @@ Publication uses an independent generated site manifest with exact new-page and 
 
 ### Final native gates
 
-`cargo check --workspace --all-targets`, the complete `scripts/ci.sh gate test`, and `scripts/ci.sh gate fmt` passed. The test log reports 2,526 passed, zero failed and 27 ignored across 53 result groups. A first parallel compilation was interrupted because it overloaded the shared machine; the successful run used two build jobs with the same test gate. Native export used a separately retained video-capable binary after the test build replaced the default CLI executable.
+`cargo check --workspace --all-targets`, the complete `tools/ci/ci.sh gate test`, and `tools/ci/ci.sh gate fmt` passed. The test log reports 2,526 passed, zero failed and 27 ignored across 53 result groups. A first parallel compilation was interrupted because it overloaded the shared machine; the successful run used two build jobs with the same test gate. Native export used a separately retained video-capable binary after the test build replaced the default CLI executable.
 
-During the original reboot, resting compositions were accepted through native storyboards and video contact sheets; the old HTML-discovery checker was not evidence for Astro. `scripts/site-rest-check.py` now selects canonical `web/content/scenes/` directly, but its current GPU measurements must still be run before claiming this manual check passed.
+During the original reboot, resting compositions were accepted through native storyboards and video contact sheets; the old HTML-discovery checker was not evidence for Astro. `web/tools/site/site-rest-check.py` now selects canonical `web/content/scenes/` directly, but its current GPU measurements must still be run before claiming this manual check passed.

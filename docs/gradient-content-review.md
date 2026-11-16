@@ -36,8 +36,8 @@ For the learning-rate act's start (3.4, 1.6), 24 steps give loss approximately
 - The surface act's straight line to the origin is labelled an illustrative
   probe, not the negative-gradient trajectory. Its initial-loss chip stays fixed.
 - `scene.amx` is generated from the four standalone acts by
-  `scripts/gradient-plate.py`. Both generator drift and mathematical contracts
-  run in `scripts/content-sync.sh`.
+  `tools/content/gradient-plate.py`. Both generator drift and mathematical contracts
+  run in `tools/content/content-sync.sh`.
 - The full walkthrough is explicitly static (`data-param-static`). The engine
   does not propagate build-time overrides into composed scenes. Parameter rails
   exclude opted-out players; the page says sliders rebuild individual figures
@@ -46,7 +46,7 @@ For the learning-rate act's start (3.4, 1.6), 24 steps give loss approximately
 
 ## Verification scope
 
-`python3 scripts/check-gradient-content.py` checks recurrence against closed
+`python3 tools/content/check-gradient-content.py` checks recurrence against closed
 form for all three rates, two actual initial points and 8/24/48 steps, plus source
 coefficients, manifest/page bounds, retained source links and static opt-out
 wiring. It is a numerical/source contract, not browser interaction evidence.

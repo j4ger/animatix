@@ -8,7 +8,7 @@
 # Now: push a `vX.Y.Z` tag (made by `cog bump`, which writes the changelog commit
 # and the tag together) and this workflow runs the full PR gate set as a release
 # blocker, then builds the artifacts in parallel and publishes them as one GitHub
-# Release. Every command it runs is a gate in scripts/ci.sh — the `workflows` gate
+# Release. Every command it runs is a gate in tools/ci/ci.sh — the `workflows` gate
 # in PR CI fails if that stops being true.
 #
 # `workflow_dispatch` remains for testing the pipeline against an existing tag,
@@ -87,7 +87,7 @@ jobs:
         with:
           ref: ${{ needs.version.outputs.version }}
       - id: plan
-        run: echo "matrix=$(scripts/ci.sh --matrix release)" >> "$GITHUB_OUTPUT"
+        run: echo "matrix=$(tools/ci/ci.sh --matrix release)" >> "$GITHUB_OUTPUT"
 
   dist:
     name: ${{ matrix.name }}
@@ -126,11 +126,11 @@ jobs:
           GATE_SHELL: ${{ matrix.shell }}
           SETUP: ${{ matrix.setup }}
         run: |
-          scripts/ci.sh setup "$SETUP"
+          tools/ci/ci.sh setup "$SETUP"
           case "$GATE_SHELL" in
-            dist-driver) nix develop .#dist-driver --command scripts/ci.sh gate "$GATE" ;;
-            nix) nix develop --command scripts/ci.sh gate "$GATE" ;;
-            *)   scripts/ci.sh gate "$GATE" ;;
+            dist-driver) nix develop .#dist-driver --command tools/ci/ci.sh gate "$GATE" ;;
+            nix) nix develop --command tools/ci/ci.sh gate "$GATE" ;;
+            *)   tools/ci/ci.sh gate "$GATE" ;;
           esac
       - name: Upload
         uses: actions/upload-artifact@v7
@@ -158,9 +158,9 @@ jobs:
           name: web-runtime
           path: web/runtime
       - name: Verify and assemble site
-        run: nix develop --command scripts/ci.sh gate web-artifact-verify site-artifact
+        run: nix develop --command tools/ci/ci.sh gate web-artifact-verify site-artifact
       - name: Exercise assembled release site
-        run: nix develop .#web-ci --command scripts/ci.sh gate site-smoke
+        run: nix develop .#web-ci --command tools/ci/ci.sh gate site-smoke
       - name: Retain browser evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -170,7 +170,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
       - name: Package verified site and SDK
-        run: nix develop --command scripts/ci.sh gate dist-site dist-web-sdk
+        run: nix develop --command tools/ci/ci.sh gate dist-site dist-web-sdk
       - name: Upload
         uses: actions/upload-artifact@v7
         with:
