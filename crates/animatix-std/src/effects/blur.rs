@@ -9,11 +9,11 @@
 //! passes per pixel). It is replaced by a downsample approximation with a
 //! *fixed* tap count: a compile-time constant number of bilinear taps is
 //! spread across the same `±radius` support by a stride that grows with the
-//! radius. Each `textureSampleLevel` tap is a hardware 2×2 box (an on-the-fly
-//! 2× downsample), so a small kernel still reaches the requested scene-pixel
-//! width while the per-pixel cost stays constant. The stride is floored at one
-//! texel, so small and medium radii remain the dense Gaussian the direct blur
-//! produced — which is what keeps the reduced-raster ramp test honest.
+//! radius. Each tap linearly interpolates along the active pass axis after
+//! premultiplying source texels, so transparent RGB cannot bleed into visible
+//! edges. The stride is floored at one texel, so small and medium radii remain
+//! the dense Gaussian the direct blur produced — which keeps the reduced-raster
+//! ramp test honest.
 
 use animatix_core::effect::{
     Effect, EffectParamKind, EffectParamSpec, EffectParamValue, EffectParams, EffectPassSpec,
@@ -46,23 +46,38 @@ struct BlurParams {
 // radius. The direct blur walked every texel out to the full radius (O(radius)
 // loads). Here TAPS is a compile-time constant: the loop below is bounded by
 // TAPS, never by params.radius, and the stride spreads those taps across the
-// same support. Each textureSampleLevel tap is a hardware 2x2 box (an on-the-
-// fly downsample) through the linear sampler, so a fixed small kernel still
-// reaches the requested scene-pixel width.
+// same support. Fractional positions are reconstructed with linear weights
+// along the pass axis, while the fixed small kernel still reaches the
+// requested scene-pixel width.
 const TAPS: i32 = 17;
 
 fn gaussian_weight(x: f32, sigma: f32) -> f32 {
     return exp(-(x * x) / (2.0 * sigma * sigma));
 }
 
-// One bilinear tap at `center + offset` (both in texel units). At integer
-// offsets this degenerates to the exact texel load the direct blur used, so
-// small radii stay bit-identical; at fractional offsets the 2x2 box softens
-// the sparse gather that large radii need. `textureSample` is fragment-only,
-// so sample with an explicit level (as the other built-in effects do).
-fn tap(center: vec2<f32>, offset: vec2<f32>) -> vec4<f32> {
-    let uv = (center + offset + vec2<f32>(0.5)) * ctx.inv_size;
-    return textureSampleLevel(src, samp, uv, 0.0);
+fn premultiplied_texel(coord: vec2<i32>) -> vec4<f32> {
+    let color = textureLoad(src, coord, 0);
+    return vec4<f32>(color.rgb * color.a, color.a);
+}
+
+// One bilinear tap along the active pass axis. The other axis is always an
+// integer texel coordinate, so only two clamped loads are needed. Premultiply
+// before interpolation: filtering straight RGB first lets transparent texels
+// leak their arbitrary RGB into visible edges.
+fn tap(center: vec2<f32>, offset: vec2<f32>, dir: vec2<f32>) -> vec4<f32> {
+    let position = center + offset;
+    let base = vec2<i32>(floor(position));
+    let fraction = dot(fract(position), dir);
+    let size = vec2<i32>(ctx.tex_size);
+    let max_coord = size - vec2<i32>(1);
+    let p0 = clamp(base, vec2<i32>(0), max_coord);
+
+    if (fraction == 0.0) {
+        return premultiplied_texel(p0);
+    }
+
+    let p1 = clamp(base + vec2<i32>(dir), vec2<i32>(0), max_coord);
+    return mix(premultiplied_texel(p0), premultiplied_texel(p1), fraction);
 }
 
 @compute @workgroup_size(16, 16)
@@ -93,15 +108,20 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         dir = vec2<f32>(0.0, 1.0);          // pass 1: vertical
     }
 
-    var color = vec4<f32>(0.0);
+    var premultiplied = vec4<f32>(0.0);
     var weight_sum = 0.0;
     for (var i: i32 = 0; i < TAPS; i = i + 1) {
         let t = (f32(i) - half_taps) * stride;
         let w = gaussian_weight(t, sigma);
-        color = color + tap(center, dir * t) * w;
+        premultiplied = premultiplied + tap(center, dir * t, dir) * w;
         weight_sum = weight_sum + w;
     }
-    textureStore(dst, coord, color / weight_sum);
+    let filtered = premultiplied / weight_sum;
+    if (filtered.a > 0.0) {
+        textureStore(dst, coord, vec4<f32>(filtered.rgb / filtered.a, filtered.a));
+    } else {
+        textureStore(dst, coord, vec4<f32>(0.0));
+    }
 }
 "#
 );
@@ -171,10 +191,10 @@ mod tests {
         assert_eq!(&out[0..4], &0.0f32.to_le_bytes());
     }
 
-    /// Two separable passes, each one `queue.submit`. Keep the pass count low
-    /// and comfortably under the render-side `MAX_CHAIN_PASSES` (64) cap; a
-    /// downsample/upsample pyramid would multiply the submit count and is
-    /// deliberately deferred.
+    /// Two separable compute dispatches stay within the pass count; the render
+    /// backend batches chain passes into its existing submission. Keep the
+    /// count comfortably under the render-side `MAX_CHAIN_PASSES` (64) cap; a
+    /// downsample/upsample pyramid would multiply that count and is deferred.
     #[test]
     fn pass_count_stays_bounded() {
         assert_eq!(BLUR_PASSES.len(), 2);

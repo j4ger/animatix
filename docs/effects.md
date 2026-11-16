@@ -196,6 +196,14 @@ binding layout.
   `alpha = clamp(original.a + running.a * intensity * gate, 0, 1)`; `keep`
   scales the original's colour contribution, while threshold tests the running
   result's straight RGB luma.
+- Neighbourhood filtering also premultiplies **each source texel before
+  interpolation**, then averages premultiplied RGB and alpha with the same
+  weights. `Blur` stores the normalized Gaussian coverage and recovers straight
+  RGB by dividing the weighted colour by coverage. `MotionBlur` recovers colour
+  from the sampled mean coverage, then retains its existing output coverage
+  `max(center.a, mean.a)`. A zero-alpha neighbourhood stores transparent black;
+  identity/sub-pixel passthrough paths remain exact copies. See the
+  [spatial alpha follow-up](history/2026-11-16-spatial-alpha.md).
 - Input usage: `TEXTURE_BINDING`; output usage: `STORAGE_BINDING`.
 - The host owns the ping-pong textures. A shader must never assume whether it
   read or wrote a given physical texture; `binding 0` is always the input view

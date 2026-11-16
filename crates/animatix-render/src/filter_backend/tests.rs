@@ -1719,3 +1719,6 @@ fn drop_shadow_soft_penumbra_keeps_colored_rgb_straight() {
         "soft penumbra RGB must stay straight blue despite partial coverage: {penumbra:?}"
     );
 }
+
+#[path = "straight_alpha_tests.rs"]
+mod straight_alpha_tests;
