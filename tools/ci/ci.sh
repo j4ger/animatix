@@ -2,8 +2,8 @@
 # The one definition of "is this green".
 #
 # Gates and job IDs are registered below. Workflows consume generated matrices;
-# PR selection falls back to the full matrix on uncertainty. Every gate runs in an
-# independent measured shell so failures retain their original exit status.
+# PR selection falls back to the full matrix on uncertainty. Each standalone gate
+# or shared audit pair runs in an independent measured shell, retaining failures.
 #
 # The `shell=` column is the load-bearing part. Animatix needs five different
 # environments and the wrong one fails in a way that looks like a code bug:
@@ -242,6 +242,12 @@ gate_test() {
   python3 tools/ci/workspace-tests.py
 }
 
+measure_phase() {
+  local gate="$1" phase="$2" kind="$3"
+  shift 3
+  python3 "$root/tools/ci/phase-timing.py" --gate "$gate" --phase "$phase" --kind "$kind" -- "$@"
+}
+
 gate_no_video() {
   want_cargo
   # The `video` feature must stay truly opt-in. This gate runs in the nix dev
@@ -251,16 +257,16 @@ gate_no_video() {
   # feature off, and inspect the resolved feature graph: rsmpeg is pulled in
   # only by animatix-render/video, so its presence means a default build turned
   # video on. The minimal engine must also exclude rich-text dependencies.
-  cargo build -p animatix-cli -p animatix-gui
-  cargo check -p animatix --no-default-features
+  measure_phase no-video default-binaries cargo cargo build -p animatix-cli -p animatix-gui
+  measure_phase no-video minimal-engine cargo cargo check -p animatix --no-default-features
   local pkg tree
-  tree=$(cargo tree -p animatix --no-default-features -e normal --prefix none --format '{p}')
+  tree=$(measure_phase no-video minimal-dependency-graph cargo cargo tree -p animatix --no-default-features -e normal --prefix none --format '{p}')
   if grep -Eq '^(typst([_-][[:alnum:]_-]+)?|syntect) v' <<<"$tree"; then
     echo "error: minimal engine dependencies include the rich-text stack" >&2
     return 1
   fi
   for pkg in animatix-cli animatix-gui; do
-    if ! tree="$(cargo tree -e features -p "$pkg" 2>/dev/null)"; then
+    if ! tree="$(measure_phase no-video "$pkg-feature-graph" cargo cargo tree -e features -p "$pkg" 2>/dev/null)"; then
       echo "error: cargo tree failed for $pkg; cannot verify the video feature is off" >&2
       return 1
     fi
@@ -273,8 +279,10 @@ gate_no_video() {
 }
 
 gate_scene_audit() {
+  local audit_mode="${1:-standalone}" timing_gate=scene-audit
+  if [ "$audit_mode" = joint ]; then timing_gate=scene-budget-audit; fi
   want_nix_shell 'scene-audit'
-  cargo build --bin animatix
+  measure_phase "$timing_gate" build-cli cargo cargo build --bin animatix
 
   local jobs="${ANIMATIX_SCENE_AUDIT_JOBS:-2}"
   if ! [[ "$jobs" =~ ^[1-4]$ ]]; then
@@ -304,13 +312,31 @@ gate_scene_audit() {
   }
 
   audit_one() {
-    local f="$1" output
+    local f="$1" mode="${2:-standalone}" output
+    local -a policy=()
+    # The standalone scene gate suppresses CLI stderr. The union exposes it,
+    # retaining budget diagnostics that the second standalone pass would show.
+    if [ "$mode" = joint ]; then
+      policy=(--policy default)
+    fi
     output=$(mktemp) || {
       echo "FAIL scene-audit (temp file): $f" >&2
       return 1
     }
-    if ! ./target/debug/animatix audit "$f" --budget tools/quality/audit-budget.json \
-      --render never --format json > "$output" 2>/dev/null; then
+    if [ "$mode" = joint ]; then
+      local cleanup
+      printf -v cleanup 'rm -f -- %q' "$output"
+      trap "$cleanup" EXIT
+    fi
+    if ! {
+      if [ "$mode" = joint ]; then
+        ./target/debug/animatix audit "$f" --budget tools/quality/audit-budget.json \
+          --render never "${policy[@]}" --format json
+      else
+        ./target/debug/animatix audit "$f" --budget tools/quality/audit-budget.json \
+          --render never --format json 2>/dev/null
+      fi
+    } > "$output"; then
       echo "FAIL scene-audit (exit code): $f" >&2
       rm -f "$output"
       return 1
@@ -342,10 +368,11 @@ except Exception as e:
     rm -f "$output"
     printf 'OK scene-audit: %s\n' "$f"
   }
-  export -f audit_one
+  export -f audit_one scenes
 
   # GNU xargs keeps each pathname intact and reports nonzero if any worker fails.
-  if ! scenes | xargs -d '\n' -r -n 1 -P "$jobs" bash -c 'audit_one "$1"' _; then
+  if ! measure_phase "$timing_gate" audit-corpus execution bash -u -o pipefail -c \
+    'scenes | xargs -d "\n" -r -n 1 -P "$1" bash -c '\''audit_one "$2" "$1"'\'' _ "$2"' _ "$jobs" "$audit_mode"; then
     echo "scene-audit: one or more scene audits failed" >&2
     return 1
   fi
@@ -353,8 +380,8 @@ except Exception as e:
 
 gate_budget_audit() {
   want_nix_shell 'budget-audit'
-  cargo build --bin animatix
-  bash tools/quality/audit-budget.sh --check
+  measure_phase budget-audit build-cli cargo cargo build --bin animatix
+  measure_phase budget-audit check-budget execution bash tools/quality/audit-budget.sh --check
 }
 
 gate_render_smoke() {
@@ -376,14 +403,18 @@ gate_ext_bench() {
 
 gate_doc() {
   want_cargo
-  RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
-  cargo run -p animatix --example property_reference -- --check
+  RUSTDOCFLAGS="-D warnings" measure_phase doc rustdoc cargo cargo doc --workspace --no-deps
+  # Preserve cargo run exactly; its build + program cost is honestly mixed.
+  measure_phase doc property-reference mixed cargo run -p animatix --example property_reference -- --check
 }
 
 gate_doc_links() { bash tools/docs/check-docs.sh; }
 
 gate_ci_policy_tests() {
   python3 tools/ci/test-ci-control.py
+  python3 tools/ci/test-phase-timing.py
+  python3 tools/ci/test-phase-gates.py
+  python3 tools/ci/test-joint-audit.py
   python3 tools/ci/test-ci-plan.py
   python3 tools/ci/test-main-baseline.py
   python3 tools/release/release-tests.py
@@ -1019,6 +1050,45 @@ run_gate() {
   "$fn"
 }
 
+# This is a same-invocation union, not a registered gate or reusable cache.
+# Scene audit already checks the default budget; its JSON validation adds the
+# remaining contract. Keep both independent gates available for all other calls.
+run_scene_budget_pair() {
+  if [ "${ANIMATIX_GATE_CHILD:-}" != 1 ]; then
+    python3 tools/ci/ci-control.py time --gate scene-budget-audit --shell nix -- \
+      env ANIMATIX_GATE_CHILD=1 bash "$root/tools/ci/ci.sh" gate scene-audit budget-audit
+    return
+  fi
+  want_nix_shell scene-audit
+  want_nix_shell budget-audit
+  if [ "${ANIMATIX_CI_SHELL:-}" != nix ]; then
+    echo "error: scene-audit and budget-audit require shell=nix" >&2
+    return 1
+  fi
+  printf '\n── gates: scene-audit + budget-audit (shared execution)\n'
+  gate_scene_audit joint
+  printf 'OK gate: scene-audit\nOK gate: budget-audit\n'
+}
+
+run_explicit_gates() {
+  local arg g i=0
+  local -a requested=()
+  for arg in "$@"; do
+    for g in $arg; do requested+=("$g"); done
+  done
+  while [ "$i" -lt "${#requested[@]}" ]; do
+    if [ "${requested[$i]}" = scene-audit ] && \
+       [ "${requested[$((i + 1))]:-}" = budget-audit ] && \
+       [ -z "${ANIMATIX_BIN:-}" ] && [ -z "${ANIMATIX_AUDIT_BUDGET:-}" ]; then
+      run_scene_budget_pair
+      i=$((i + 2))
+    else
+      run_gate "${requested[$i]}"
+      i=$((i + 1))
+    fi
+  done
+}
+
 gate_names() {
   awk -F'|' -v s="${1:-}" 'NF>1 && $1!="" && (s=="" || s=="all" || $5==s) { if (!seen[$1]++) print $1 }' <<<"$GATE_TABLE"
 }
@@ -1073,9 +1143,7 @@ print(json.dumps({"include": [
   gate)
     shift
     [ $# -ge 1 ] || { echo "usage: ci.sh gate <name> [<name>…]" >&2; exit 2; }
-    for arg in "$@"; do
-      for g in $arg; do run_gate "$g"; done
-    done
+    run_explicit_gates "$@"
     ;;
   setup)
     shift

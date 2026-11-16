@@ -138,7 +138,8 @@ cancelled or missing selected jobs.
 
 Run `tools/ci/ci.sh plan --event pull_request --base <sha> --head <sha>` to inspect
 a plan. Gates write exit-preserving measurements to `target/ci/timings.jsonl`;
-`ANIMATIX_GATE_TIMINGS` can select another evidence path. `doc-links` checks
+`ANIMATIX_GATE_TIMINGS` can select another evidence path. For phase boundaries and
+controlled local comparisons, see [CI measurement](ci-measurement.md). `doc-links` checks
 handwritten documentation without compiling Rust. Its job keeps Nix, but skips
 the large runner disk cleanup and Rust cache restore/save. Other preparation
 remains unchanged. `doc` checks Rustdoc and the
@@ -332,7 +333,9 @@ git add Cargo.toml Cargo.lock docs/releases/v0.1.0.md
 git commit -m "Prepare release v0.1.0"
 ```
 
-The optional draft command uses `git-cliff`. It does not commit, tag, push or
+The optional draft command uses `git-cliff`. Its current template is a flat,
+oldest-first list, not automatic grouping by change type; ordinary non-Conventional
+commit messages are retained. It does not commit, tag, push or
 publish. Without `--base-tag`, it starts after the nearest reachable SemVer tag,
 including prereleases; select the previous stable tag explicitly when preparing
 a stable release from release candidates. With no such tag it includes all history.

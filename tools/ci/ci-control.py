@@ -7,12 +7,16 @@ import json
 import os
 from pathlib import Path
 import platform
+import runpy
 import subprocess
 import sys
 import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
+
+
+safe_environment = runpy.run_path(str(Path(__file__).with_name("phase-timing.py")))["safe_environment"]
 
 
 def environment_snapshot(directory, declared_shell="unknown"):
@@ -71,8 +75,7 @@ def environment_snapshot(directory, declared_shell="unknown"):
              "uname": list(platform.uname()), "cpu_model": cpu, "cpu_count": os.cpu_count(),
              "ram_bytes": ram, "shell": os.environ.get("ANIMATIX_CI_SHELL"),
              "declared_shell": declared_shell, "actual_shell": actual_shell,
-             "cargo_environment": {key: value for key, value in os.environ.items()
-                                   if key.startswith(("CARGO_PROFILE_", "CARGO_BUILD_"))},
+             "cargo_environment": safe_environment(),
              "tools": tools}
     directory.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(facts, indent=2) + "\n")

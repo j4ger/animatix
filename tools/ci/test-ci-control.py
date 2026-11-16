@@ -101,13 +101,18 @@ class ControlTests(unittest.TestCase):
                 return subprocess.CompletedProcess(command, 0, "fixture-output", "")
 
             base_env = {"GITHUB_RUN_ID": "fixture-run", "GITHUB_JOB": "control",
-                        "RUNNER_OS": "Linux"}
+                        "RUNNER_OS": "Linux", "CARGO_BUILD_JOBS": "2",
+                        "CARGO_BUILD_TOKEN": "must-not-record",
+                        "CARGO_PROFILE_DEV_SECRET": "must-not-record",
+                        "CARGO_PROFILE_TEST_DEBUG": "credential-looking-invalid-value"}
             with patch.object(CONTROL.subprocess, "run", side_effect=fake_probe), \
                  patch.dict(os.environ, base_env, clear=True):
                 none_unmarked_name = CONTROL.environment_snapshot(root, "none")
                 none_unmarked = json.loads((root / none_unmarked_name).read_text())
                 self.assertEqual(none_unmarked["declared_shell"], "none")
                 self.assertEqual(none_unmarked["actual_shell"], "unmarked")
+                self.assertEqual(none_unmarked["cargo_environment"], {"CARGO_BUILD_JOBS": "2"})
+                self.assertNotIn("must-not-record", (root / none_unmarked_name).read_text())
                 self.assertEqual(none_unmarked["tools"]["rustc"],
                                  {"skipped": "gate declares shell=none"})
                 self.assertEqual(none_unmarked["tools"]["cargo"],

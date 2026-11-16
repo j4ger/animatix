@@ -201,6 +201,7 @@ jobs:
           path: |
             target/ci/timings.jsonl
             target/ci/environment-*.json
+            target/ci/phases/*.json
           if-no-files-found: warn
 
   required:

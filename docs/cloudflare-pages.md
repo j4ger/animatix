@@ -150,4 +150,7 @@ unexercised failure paths must not be advertised as remotely validated.
 
 ## Tool-directory migration
 
-The repository entry is `tools/ci/ci.sh`. During rollout the externally configured Pages build command may select this entry when present and otherwise select the old revision's CI entry. The old forwarding file is not retained in this tree. The repository command and remote project setting must be coordinated before deployment.
+The repository and the Pages project now both use `tools/ci/ci.sh`. The migration
+has completed; the remote build command no longer selects between old and new
+entries, and no forwarding file is retained in this tree. Future entry-point
+changes must still coordinate the repository and the remote project setting.
