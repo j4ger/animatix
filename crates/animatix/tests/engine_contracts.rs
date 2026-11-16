@@ -6,6 +6,7 @@
 
 mod applicability_table_agrees_with_reads;
 mod captions_and_speech_sync;
+mod full_pipeline_contract;
 mod ir_opt_tests;
 mod ir_tests;
 mod module_tests;

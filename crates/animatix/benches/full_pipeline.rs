@@ -1,13 +1,16 @@
 //! Benchmark the full pipeline: parse → module load → typecheck → expand → build.
 //!
-//! This measures the end-to-end cost that the GUI experiences on every rebuild,
-//! including all the steps before Timeline::build is called.
+//! Contract revision 2 distinguishes source-override rebuilds from file reads.
+//! None of these includes GUI scheduling, rendering, or a persistent module cache.
 
+use std::hint::black_box;
 use std::path::Path;
 
-use animatix::timeline::Timeline;
-use animatix_syntax::module::ModuleGraph;
 use criterion::Criterion;
+
+#[path = "full_pipeline_support.rs"]
+mod support;
+use support::{WORKLOADS, build_only, file_pipeline, parsed, required_source, source_pipeline};
 
 /// Simple scene with no imports — isolates parse + build cost.
 fn simple_scene_source() -> String {
@@ -50,113 +53,45 @@ always {
     .to_string()
 }
 
-/// Full pipeline: parse + typecheck + expand + build.
-///
-/// Synthetic sources have no imports, so a temp file directly in `examples/`
-/// is fine here. For sources with relative imports use [`full_pipeline_like`].
-fn full_pipeline(source: &str) {
-    let mut graph = ModuleGraph::new();
-    let examples_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
-    let path = examples_dir.join("_bench_temp.amx");
-    std::fs::write(&path, source).unwrap();
-
-    let mut program =
-        graph.load_program_with_source(&path, Some(source)).expect("module load failed");
-    let _type_diags = program.typecheck();
-    let expanded = program.expand_components(&mut Vec::new());
-    let _timeline = Timeline::build(&expanded);
-
-    // Clean up
-    let _ = std::fs::remove_file(&path);
-}
-
-/// Full pipeline variant anchored to a real example file: writes the source to
-/// a temp file *next to `anchor`* so that relative imports
-/// (`../lib/theme.amx`) resolve exactly as they do for the real file, then
-/// removes it.
-fn full_pipeline_like(anchor: &Path, source: &str) {
-    let mut graph = ModuleGraph::new();
-    let path = anchor.with_file_name("_bench_temp.amx");
-    std::fs::write(&path, source).unwrap();
-
-    let mut program =
-        graph.load_program_with_source(&path, Some(source)).expect("module load failed");
-    let _type_diags = program.typecheck();
-    let expanded = program.expand_components(&mut Vec::new());
-    let _timeline = Timeline::build(&expanded);
-
-    // Clean up
-    let _ = std::fs::remove_file(&path);
-}
-
-/// Full pipeline using an existing file path (for examples with imports).
-fn full_pipeline_file(path: &Path) {
-    let source = std::fs::read_to_string(path).unwrap();
-    let mut graph = ModuleGraph::new();
-    let mut program =
-        graph.load_program_with_source(path, Some(&source)).expect("module load failed");
-    let _type_diags = program.typecheck();
-    let expanded = program.expand_components(&mut Vec::new());
-    let _timeline = Timeline::build(&expanded);
-}
-
-/// Parse-only cost (no module load, no typecheck).
-fn parse_only(source: &str) {
-    let (_stmts, _errors) = animatix_syntax::parser::parse_source(source);
-}
-
-/// Build-only cost (already parsed statements).
-fn build_only(source: &str) {
-    let (stmts, _) = animatix_syntax::parser::parse_source(source);
-    let stmts = stmts.expect("parse error");
-    let _timeline = Timeline::build(&stmts);
-}
-
 pub(crate) fn bench_full_pipeline(c: &mut Criterion) {
     let simple = simple_scene_source();
     let reactive = reactive_scene_source();
+    // Prepare ASTs once, outside Criterion's timed iterations.
+    let simple_ast = parsed(&simple);
+    let reactive_ast = parsed(&reactive);
 
-    // Load real example files
     let examples_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
-    let showcase =
-        std::fs::read_to_string(examples_dir.join("gallery/fft_explain.amx")).unwrap_or_default();
-    let components = std::fs::read_to_string(examples_dir.join("components/09_components.amx"))
-        .unwrap_or_default();
-    let _modules =
-        std::fs::read_to_string(examples_dir.join("components/10_modules.amx")).unwrap_or_default();
-
+    let paths = WORKLOADS.map(|relative| examples_dir.join(relative));
+    // Preflight every mandatory input, even the file-I/O case. No conditional rows.
+    let sources = paths.each_ref().map(|path| required_source(path));
+    let virtual_path = examples_dir.join("_bench_virtual.amx");
     let mut group = c.benchmark_group("full_pipeline");
 
-    group.bench_function("simple_parse_only", |b| b.iter(|| parse_only(&simple)));
-
-    group.bench_function("simple_build_only", |b| b.iter(|| build_only(&simple)));
-
-    group.bench_function("simple_full", |b| b.iter(|| full_pipeline(&simple)));
-
-    group.bench_function("reactive_parse_only", |b| b.iter(|| parse_only(&reactive)));
-
-    group.bench_function("reactive_build_only", |b| b.iter(|| build_only(&reactive)));
-
-    group.bench_function("reactive_full", |b| b.iter(|| full_pipeline(&reactive)));
-
-    if !showcase.is_empty() {
-        let showcase_path = examples_dir.join("gallery/fft_explain.amx");
-        group.bench_function("showcase_full", |b| {
-            b.iter(|| full_pipeline_like(&showcase_path, &showcase))
-        });
-    }
-
-    if !components.is_empty() {
-        let components_path = examples_dir.join("components/09_components.amx");
-        group.bench_function("components_full", |b| {
-            b.iter(|| full_pipeline_like(&components_path, &components))
-        });
-    }
-
-    let modules_path = examples_dir.join("components/10_modules.amx");
-    if modules_path.exists() {
-        group.bench_function("modules_full", |b| b.iter(|| full_pipeline_file(&modules_path)));
-    }
-
+    group.bench_function("simple_parse_only", |b| {
+        b.iter(|| black_box(animatix_syntax::parser::parse_source(black_box(&simple))))
+    });
+    group.bench_function("simple_build_only_v2", |b| {
+        b.iter(|| black_box(build_only(black_box(&simple_ast))))
+    });
+    group.bench_function("simple_source_full_v2", |b| {
+        b.iter(|| black_box(source_pipeline(&virtual_path, black_box(&simple))))
+    });
+    group.bench_function("reactive_parse_only", |b| {
+        b.iter(|| black_box(animatix_syntax::parser::parse_source(black_box(&reactive))))
+    });
+    group.bench_function("reactive_build_only_v2", |b| {
+        b.iter(|| black_box(build_only(black_box(&reactive_ast))))
+    });
+    group.bench_function("reactive_source_full_v2", |b| {
+        b.iter(|| black_box(source_pipeline(&virtual_path, black_box(&reactive))))
+    });
+    group.bench_function("showcase_source_full_v2", |b| {
+        b.iter(|| black_box(source_pipeline(&paths[0], black_box(&sources[0]))))
+    });
+    group.bench_function("components_source_full_v2", |b| {
+        b.iter(|| black_box(source_pipeline(&paths[1], black_box(&sources[1]))))
+    });
+    // Existing ID and boundary retained: read the real modules entry on every iteration.
+    group.bench_function("modules_full", |b| b.iter(|| black_box(file_pipeline(&paths[2]))));
     group.finish();
 }

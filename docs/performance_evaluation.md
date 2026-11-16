@@ -49,8 +49,8 @@ targets, so benchmark IDs and Criterion groups are unchanged:
 | Area | Target | Suite file(s) | What it measures |
 |---|---|---|---|
 | Build/compile | `build` | `build_time.rs` | `Timeline::build` over synthetic workloads |
-| Full editor path | `build` | `full_pipeline.rs` | parse → module load → typecheck → expand → build (incl. real examples) |
-| Parse-only / build-only | `build` | `full_pipeline.rs` | isolation of parse vs. build stage cost |
+| Source-override / file rebuild | `build` | `full_pipeline.rs` | fresh graph → parse → module load → typecheck → expand → build; not the full GUI path |
+| Parse-only / build-only | `build` | `full_pipeline.rs` | parse-only; `*_build_only_v2` builds a pre-parsed AST |
 | Text-heavy rebuild | `text` | `text_rebuild.rs` | `Timeline::build` for a 48-actor mixed Text/Code/Typst scene, warm (cache hits) vs cold (`clear_text_compile_cache` per iter) |
 | Code highlight compile | `text` | `code_highlight.rs` | `compile_text_cached` for a `Code` body: plain fence vs highlighted spans vs highlighted with a colorscheme palette (cache cleared per iter — the GUI rebuild-per-keystroke cost) |
 | Per-demo frame cost | `gpu` | `demos_frame_cost.rs` | one steady-state GPU frame per iteration for every example demo (evaluate → vello rasterize → effect chains → readback), loaded through the CLI's module path |
@@ -70,6 +70,40 @@ targets, so benchmark IDs and Criterion groups are unchanged:
 The editor-intelligence suite lives in its own crate because the layering is
 one-way: the engine does not depend on `animatix-analyzer`, so the engine's
 benches cannot reach it. `tools/quality/perf-bench.sh` covers both crates.
+
+### Full-pipeline measurement contract, revision 2
+
+The historical `simple_build_only` and `reactive_build_only` included parsing
+inside every timed iteration. Their replacements, `*_build_only_v2`, prepare
+an AST once and time only `Timeline::build` (including result destruction).
+Do **not** compare the old and new rows as an optimization result.
+
+`simple_source_full_v2`, `reactive_source_full_v2`,
+`showcase_source_full_v2`, and `components_source_full_v2` use an in-memory
+entry override in a fresh module graph each iteration. They no longer write
+and delete `_bench_temp.amx`. Imports may still read disk; this is neither a
+pure CPU measurement nor a persistent/cached GUI session. The old `*_full`
+rows included artificial entry writes/deletes and are not comparable.
+`modules_full` retains its real-file boundary, reading the entry each iteration.
+Parse-only row names and their parse boundaries are retained.
+
+All three file workloads are mandatory, loaded before timing; a missing,
+unreadable or blank input fails the run instead of silently removing a row:
+
+- `examples/projects/fft_explain.amx` (previous `gallery/` path was stale)
+- `examples/components/09_components.amx`
+- `examples/components/10_modules.amx`
+
+These are still repository examples, not frozen benchmark fixtures. A changed
+source or imported resource invalidates workload comparability even when its
+ID is unchanged. Baseline `META.json` records contract revision 2 and hashes of
+the benchmark sources, example AMX corpus, tracked Cargo manifests/locks, Nix
+locks/configuration and performance runner as provenance, not an automatic
+comparability verdict or a complete dirty-tree reproduction recipe. Non-AMX
+assets, fonts, dirty engine code and environment flags still require review. Use a **new baseline directory** for revision 2; keep
+old measurements for historical interpretation. Existing missing-row checks
+must remain strict rather than accepting an old baseline with renamed rows.
+No timings or speedup claims accompany this contract correction.
 
 ### 2.2 CPU guardrails today
 

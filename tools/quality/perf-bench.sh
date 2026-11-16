@@ -270,11 +270,32 @@ write_baseline_meta() {
     taskset="${PERF_TASKSET_CPUS:-}"
     python3 - "$path" "$TIER" "$commit" "$dirty" "$rustc" "$cpus" "$created" \
         "$PREFLIGHT_LOAD1" "$PREFLIGHT_RATIO" "$allow" "$taskset" "$bench_count" <<'PY'
-import json, sys
+import hashlib, json, subprocess, sys
+from pathlib import Path
 (path, tier, commit, dirty, rustc, cpus, created, load1, ratio,
  allow, taskset, bench_count) = sys.argv[1:13]
+# Corpus-wide AMX hashes cover relative module inputs. Tracked dependency and
+# runner configuration hashes describe dirty-tree inputs without absolute paths.
+# This is provenance only, not a complete reproducible build or compatibility gate:
+# fonts/non-AMX assets, dirty engine code, host state and env flags need review.
+provenance_paths = set(Path("examples").rglob("*.amx")) | {
+    Path("crates/animatix/benches/full_pipeline.rs"),
+    Path("crates/animatix/benches/full_pipeline_support.rs"),
+}
+tracked = subprocess.check_output(["git", "ls-files", "-z"]).decode().split("\0")
+for name in tracked:
+    p = Path(name)
+    if (p.name in {"Cargo.toml", "Cargo.lock", "flake.nix", "flake.lock", "rust-toolchain.toml"}
+            or name.startswith(".cargo/")
+            or name in {"tools/quality/perf-bench.sh", "tools/quality/perf-policy.py",
+                        "tools/quality/perf-policy.json"}):
+        provenance_paths.add(p)
+provenance_paths = sorted(provenance_paths)
+provenance = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in provenance_paths}
 with open(path, "w", encoding="utf-8") as f:
     json.dump({
+        "full_pipeline_contract_revision": 2,
+        "full_pipeline_inputs_sha256": provenance,
         "tier": tier,
         "git_commit": commit,
         "git_dirty": dirty == "true",

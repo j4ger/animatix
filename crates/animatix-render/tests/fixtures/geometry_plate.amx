@@ -1,0 +1,12 @@
+// Eight independent 96px cells. No labels/fonts, effects, camera or animation.
+config { resolution: (384, 192) }
+#0s
+scene.background_color = (0, 0, 0, 1)
+rect: Rect, at: (48, 48), size: (56, 40), color: (1, 0, 0, 1), stroke_width: 0
+rounded: Rect, at: (144, 48), size: (56, 40), corner_radius: 12, color: (0, 1, 0, 1), stroke_width: 0
+ellipse: Ellipse, at: (240, 48), size: (56, 40), color: (0, 0, 1, 1), stroke_width: 0
+polygon: Polygon, at: (336, 48), points: {(-28, 0), (0, -20), (28, 0), (0, 20)}, color: (1, 1, 0, 1), stroke_width: 0
+closed_line_path: Path, at: (48, 144), commands: {move_to(-28, 20), line_to(0, -20), line_to(28, 20), close()}, color: (1, 0, 1, 1), stroke_width: 0
+line: Line, at: (144, 144), from: (-28, 0), to: (28, 0), stroke: (0, 1, 1, 1), stroke_width: 8
+arrow: Arrow, at: (240, 144), from: (-28, 0), to: (28, 0), stroke: (1, 1, 1, 1), stroke_width: 4, head_size: 20
+outline: Rect, at: (336, 144), size: (56, 40), fill_opacity: 0, stroke: (1, 0, 0, 1), stroke_width: 4
