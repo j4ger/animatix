@@ -84,3 +84,10 @@ screenshot correctly contains the displayed frame.
 Isolated desktop checks verified native task/rAF draws and all four SDK fixtures
 with this configuration. Final acceptance must rebuild the SDK for the final
 source fingerprint and pass both SDK and assembled-site contracts. Related reproduction: [luma.gl compositor investigation](https://github.com/visgl/luma.gl/issues/2874).
+
+`web-transactions` uses the same isolated Xvfb/SwiftShader launch and native
+compositor preflight before its SDK scenarios. It reloads a fresh document before
+counting SDK devices/resources. Startup or preflight failures are recorded as
+`environment`, not transaction failures; neither category is automatically retried.
+The transaction assertions and explicit hardware-only mode are unchanged. Cleanup
+signals the detached process group, allowing Xvfb to clean up before forced exit.

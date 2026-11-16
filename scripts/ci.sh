@@ -653,6 +653,8 @@ gate_web_artifact_restore() {
 gate_web_transactions() {
   want_nix_shell 'web-transactions'
   want_node; want_chromium
+  command -v xvfb-run >/dev/null || { echo 'web-transactions requires xvfb-run from the web-ci shell' >&2; return 1; }
+  node --test scripts/web-transactions-browser.test.mjs
   bash scripts/web-distribution-check.sh
 }
 
