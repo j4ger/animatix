@@ -1,0 +1,6 @@
+{
+  "origin_commit": "72938ed6f99111b683b5dae007d319426134071d",
+  "origin_source": "web/demos/sorting/sort.amx",
+  "sha256": "c5f46257cd82dd39d3503ea2c848e5fcdcba5d935be6c3e471847d4c1412abca",
+  "scope": "Byte-identical parser/formatter input; imports are syntax, not fetched by this test."
+}

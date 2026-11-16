@@ -158,6 +158,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let report = serde_json::json!({
         "kind": "animatix-web-present-native-ab",
         "scope": "headless native render and presentation-blit analogue; not browser FPS",
+        "attention_input_identity": serde_json::from_str::<serde_json::Value>(include_str!(
+            "web_present_driver/fixtures/attention-identity.json"
+        ))?,
         "adapter": {
             "name": adapter_info.name,
             "backend": format!("{:?}", adapter_info.backend),
@@ -209,7 +212,8 @@ fn load_fixtures() -> Result<Vec<Fixture>, Box<dyn Error>> {
     let inputs = [
         (
             "attention-vectors-text",
-            PathBuf::from("web/demos/transformer/scenes/attention.amx"),
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("examples/web_present_driver/fixtures/attention.amx"),
         ),
         ("basic-shapes-image-svg", PathBuf::from("examples/basics/01_shapes.amx")),
     ];

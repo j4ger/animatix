@@ -1,0 +1,42 @@
+{
+  "workload": "offscreen_blur_area_v1",
+  "dimensions": [
+    512,
+    512
+  ],
+  "radius": 6,
+  "queue_depth": 1,
+  "warmup_frames": 4,
+  "scenes": [
+    {
+      "size": 64,
+      "mode": "plain",
+      "source_sha256": "148da7b33a7b6b5b9165f016feea28c940a4f0688ff1ee31ee0be7a52594ef89"
+    },
+    {
+      "size": 64,
+      "mode": "blur",
+      "source_sha256": "48370648d13f596b14f9b3b42a84474229c217c1d0da9a2e629e992fb76be2c9"
+    },
+    {
+      "size": 128,
+      "mode": "plain",
+      "source_sha256": "222a1fb35d31ad603b345fec0eff27835c1fd006b8240b421c438302d5cb3c8c"
+    },
+    {
+      "size": 128,
+      "mode": "blur",
+      "source_sha256": "7eb7753bdd585d9cff23730bee68155658ed84947cd0c9ed0b971abb4ea45b7a"
+    },
+    {
+      "size": 256,
+      "mode": "plain",
+      "source_sha256": "4da820f6b8b2b82b275a7ceb6870f9aab1d53726a4b6f5017f1a0d47c5c9330f"
+    },
+    {
+      "size": 256,
+      "mode": "blur",
+      "source_sha256": "66955b00d474eb8c0c14187a52ef0465cb9c3cde94155094c1dae74d0b4ce163"
+    }
+  ]
+}

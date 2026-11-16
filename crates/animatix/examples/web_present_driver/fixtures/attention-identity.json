@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "origin_commit": "72938ed6f99111b683b5dae007d319426134071d",
+  "origin_source": "web/demos/transformer/scenes/attention.amx",
+  "origin_source_sha256": "5596a52aa4ec0016ef9c9b0b18671588f6b645e4e767e8c9f8a4bc49c550ac4e",
+  "fixture_source_sha256": "dd5878f9b9e0bffd9804fb5617a8d7048cdb022740402d02b9d12942dc81b38e",
+  "change": "Only import prefixes ../../../../examples/lib/ became lib/. No actor, time, geometry or text change.",
+  "modules": [
+    {
+      "source": "examples/lib/theme.amx",
+      "file": "lib/theme.amx",
+      "sha256": "e96493f5535645761d9d22e69f0ffa26b7eac5985c355652cac33130996e3366"
+    },
+    {
+      "source": "examples/lib/stage.amx",
+      "file": "lib/stage.amx",
+      "sha256": "e978cbdf269ea1da5e9a0e4fbd1a349d01827044ce60ef08a0e7dba2d872f305"
+    },
+    {
+      "source": "examples/lib/components.amx",
+      "file": "lib/components.amx",
+      "sha256": "323489199f53364c4d62b3455da169fec342d07c757d93071d2e7b3dc853b9ee"
+    }
+  ],
+  "sample_times": [
+    0.8,
+    2.4,
+    5.6
+  ],
+  "presentation_sizes": [
+    [
+      1052,
+      592
+    ],
+    [
+      640,
+      360
+    ],
+    [
+      1280,
+      720
+    ]
+  ],
+  "scope": "Frozen attention input only; basic-shapes workload and renderer/font dependencies remain external."
+}

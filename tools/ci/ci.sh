@@ -408,6 +408,7 @@ gate_doc() {
 gate_doc_links() { bash tools/docs/check-docs.sh; }
 
 gate_ci_policy_tests() {
+  python3 tools/quality/test-legacy-contract-fixtures.py
   python3 tools/quality/test-audit-corpus.py
   python3 tools/ci/test-ci-control.py
   python3 tools/ci/test-phase-timing.py
@@ -586,6 +587,7 @@ gate_native_package_tests() {
 }
 
 gate_perf_policy_tests() {
+  python3 crates/animatix-render/tools/test-offscreen-blur-area.py
   python3 tools/quality/test-perf-policy.py
   python3 tools/quality/test-extension-bench.py
 }

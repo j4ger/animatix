@@ -1696,3 +1696,10 @@ not let it perturb the very numbers it reports:
 5. Update `docs/roadmap.md`; stage the intended changes and use `git commit`.
    A message such as `perf(renderer): reduce frame allocations` is recommended,
    not required. Record measurements rather than relying on a commit prefix.
+
+### Controlled offscreen blur area
+
+The manual [offscreen blur area v1 driver](../crates/animatix-render/examples/offscreen_blur_area/README.md)
+separates host evaluate/encode/submit, completion/map/CPU-copy and completed-frame
+wall times at queue depth one. It records actual adapter identity, rejects software
+adapters by default, checks output correctness and has no CI performance threshold.

@@ -1,0 +1,21 @@
+// Minimal single-scene marker contract extracted from Transformer tokens.
+config { resolution: (64, 64), duration: 7.8 }
+probe: Rect, size: (8, 8), at: (32, 32)
+#0.10s
+probe.opacity = 1
+#1.10s
+probe.opacity = 0.5
+#2.10s
+probe.opacity = 1
+#3.00s
+probe.opacity = 0.5
+#4.40s
+probe.opacity = 1
+#4.55s
+probe.opacity = 0.5
+#5.20s
+probe.opacity = 1
+#6.60s
+probe.opacity = 0.5
+#7.40s
+probe.opacity = 1
