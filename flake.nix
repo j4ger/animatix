@@ -113,13 +113,9 @@
             # MSRV is documented in `Cargo.toml` (1.95, set by egui 0.37).
             rust-bin.stable.latest.default
 
-            # The release act. Pinned in practice by flake.lock's nixpkgs revision,
-            # which is why CI runs `nix develop --command cog check` instead of the
-            # `install.sh | sh` from `main` it used to — that downloaded whatever
-            # cog tip was that day, so the tool that writes the tag and the
-            # changelog was not the same tool the developer ran. `nix flake update`
-            # is the act that moves cog's version.
-            cocogitto
+            # Optional release-note drafts; humans finalize docs/releases/vX.Y.Z.md.
+            # Pinned with the rest of the development tools by flake.lock.
+            git-cliff
             cargo-audit
           ];
 

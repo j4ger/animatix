@@ -104,7 +104,7 @@ class Environments(unittest.TestCase):
         self.assertIn("  workflow_call:\n    inputs:\n      checkout-ref:", workflow)
         release = (ROOT / ".github/workflows/release.yml").read_text()
         self.assertIn("uses: ./.github/workflows/ci.yml", release)
-        self.assertIn("checkout-ref: ${{ needs.version.outputs.version }}", release)
+        self.assertIn("checkout-ref: ${{ needs.version.outputs.commit }}", release)
 
     def test_docs_job_skips_only_heavy_preparation(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
@@ -123,7 +123,7 @@ class Environments(unittest.TestCase):
         docs = next(job for job in jobs if job["id"] == "doc-links")
         self.assertEqual(docs["shell"], "nix")
         self.assertEqual(docs["setup"], "nix")
-        self.assertEqual(docs["gate"], "commit doc-links ci-policy-tests")
+        self.assertEqual(docs["gate"], "doc-links ci-policy-tests")
         self.assertIn('nix) nix develop --command tools/ci/ci.sh gate "$GATE"', step("Gate"))
         summary = step("Record preparation eligibility")
         self.assertIn('"$GITHUB_STEP_SUMMARY"', summary)
@@ -175,15 +175,14 @@ class Environments(unittest.TestCase):
                 if line.strip().startswith("runs-on:"):
                     runner = line.split("runs-on:", 1)[1].strip()
                 if "run: tools/ci/ci.sh gate" in line:
-                    gate = line.split("run: tools/ci/ci.sh gate", 1)[1].strip()
-                    matching = [row for row in rows if row[0] == gate]
-                    self.assertTrue(matching, f"unregistered gate in {path.name}: {gate}")
-                    # Bare native commands are valid on their registered host;
-                    # pure control gates also need no Nix shell on Linux.
-                    self.assertTrue(any(
-                        shell == "none" or (shell == "native" and platform == runner)
-                        for _, shell, platform, _, _ in matching),
-                        f"bare project gate outside registered environment in {path.name}: {line}")
+                    gates = line.split("run: tools/ci/ci.sh gate", 1)[1].strip().split()
+                    for gate in gates:
+                        matching = [row for row in rows if row[0] == gate]
+                        self.assertTrue(matching, f"unregistered gate in {path.name}: {gate}")
+                        self.assertTrue(any(
+                            shell == "none" or (shell == "native" and platform == runner)
+                            for _, shell, platform, _, _ in matching),
+                            f"bare project gate outside registered environment in {path.name}: {line}")
         nightly = (ROOT / ".github/workflows/nightly.yml").read_text()
         self.assertIn("nix develop .#dist-driver --command tools/ci/ci.sh gate dist-linux", nightly)
         driver = (ROOT / "tools/release/dist-linux.sh").read_text()

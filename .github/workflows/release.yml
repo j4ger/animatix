@@ -5,14 +5,9 @@
 # they were. There was no path from "a version" to "the things that carry it", so
 # the site, the wasm runtimes and the changelog could only be published by hand.
 #
-# Now: push a `vX.Y.Z` tag (made by `cog bump`, which writes the changelog commit
-# and the tag together) and this workflow runs the full PR gate set as a release
-# blocker, then builds the artifacts in parallel and publishes them as one GitHub
-# Release. Every command it runs is a gate in tools/ci/ci.sh — the `workflows` gate
-# in PR CI fails if that stops being true.
-#
-# `workflow_dispatch` remains for testing the pipeline against an existing tag,
-# including a prerelease like `v0.2.0-rc.1`. It builds; it does not invent a tag.
+# Push an explicit vSemVer tag to publish. Manual dispatch builds an existing
+# tag; publishing additionally requires its explicit publish input. Finalized
+# notes are read from that exact commit, never regenerated during publication.
 name: Release
 
 on:
@@ -22,16 +17,21 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Existing tag to build and publish, e.g. v0.1.0 or v0.2.0-rc.1"
+        description: "Existing tag to build, e.g. v0.1.0 or v0.2.0-rc.1"
         required: true
         type: string
+      publish:
+        description: Publish the validated artifacts as a GitHub Release
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
   id-token: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.version || github.ref_name }}
   cancel-in-progress: false
 
 env:
@@ -49,23 +49,20 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.resolve.outputs.version }}
+      commit: ${{ steps.resolve.outputs.commit }}
+      tag_object: ${{ steps.resolve.outputs.tag_object }}
+      publish: ${{ steps.resolve.outputs.publish }}
     steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
       - id: resolve
         env:
-          DISPATCHED: ${{ github.event.inputs.version }}
+          DISPATCHED: ${{ inputs.version }}
           TAGGED: ${{ github.ref_name }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
-            v="$DISPATCHED"
-          else
-            v="$TAGGED"
-          fi
-          case "$v" in
-            v[0-9]*.[0-9]*.[0-9]*|v[0-9]*.[0-9]*.[0-9]*-*) : ;;
-            *) echo "refusing to release: '$v' is not a vX.Y.Z[-pre] tag" >&2; exit 1 ;;
-          esac
-          echo "version=$v" >> "$GITHUB_OUTPUT"
-          echo "releasing $v"
+          PUBLISH_RELEASE: ${{ inputs.publish }}
+        run: tools/ci/ci.sh gate release-resolve
 
   # The whole PR gate set, as a release blocker. `uses:` rather than a copy, so
   # there is one list of what green means.
@@ -79,7 +76,7 @@ jobs:
       attestations: write
     uses: ./.github/workflows/ci.yml
     with:
-      checkout-ref: ${{ needs.version.outputs.version }}
+      checkout-ref: ${{ needs.version.outputs.commit }}
 
   plan:
     name: Plan artifacts
@@ -90,7 +87,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ needs.version.outputs.version }}
+          ref: ${{ needs.version.outputs.commit }}
       - id: plan
         run: echo "matrix=$(tools/ci/ci.sh --matrix release)" >> "$GITHUB_OUTPUT"
 
@@ -107,7 +104,7 @@ jobs:
       - uses: actions/checkout@v5
         name: Checkout
         with:
-          ref: ${{ needs.version.outputs.version }}
+          ref: ${{ needs.version.outputs.commit }}
       - name: Install Nix
         if: matrix.shell == 'nix' || matrix.shell == 'dist-driver'
         uses: DeterminateSystems/determinate-nix-action@v3
@@ -154,7 +151,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ needs.version.outputs.version }}
+          ref: ${{ needs.version.outputs.commit }}
       - name: Install Nix
         uses: DeterminateSystems/determinate-nix-action@v3
       - name: Download tested SDK
@@ -185,57 +182,29 @@ jobs:
 
   publish:
     name: Publish
+    if: needs.version.outputs.publish == 'true'
     needs: [version, dist, site]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          ref: ${{ needs.version.outputs.version }}
-      - name: Install Nix
-        uses: DeterminateSystems/determinate-nix-action@v3
-      - name: Set up Cachix
-        uses: cachix/cachix-action@v17
-        with:
-          name: animatix
-          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          extraPullNames: 'nix-community'
+          ref: ${{ needs.version.outputs.commit }}
       - uses: actions/download-artifact@v7
         with:
           pattern: artifact-*
           path: out
           merge-multiple: true
-      # The release body is cog's changelog for this tag — the same generator that
-      # wrote CHANGELOG.md in the bump commit, run through the same pinned cog the
-      # developer used. `--at` takes the tag name.
-      - name: Changelog
+      - name: Verify tag identity and use finalized notes
         env:
-          VERSION: ${{ needs.version.outputs.version }}
-        run: |
-          {
-            echo "## Install"
-            echo
-            echo "| asset | what it is |"
-            echo "| --- | --- |"
-            echo "| \`*-site.zip\` | the whole \`web/\` tree, ready to serve |"
-            echo "| \`*-web-sdk.zip\` | one SDK: player, optional code, fonts and verified manifest |"
-            echo "| \`*-linux-gnu-video.tar.gz\` | CLI + GUI, **with** FFmpeg video export |"
-            echo "| \`*-macos.zip\`, \`*-windows.zip\` | CLI + GUI, **without** video export |"
-            echo
-            echo "Only the Linux build carries \`video\`: a macOS FFmpeg would be"
-            echo "whatever major version brew ships, and Windows would need a"
-            echo "from-source vcpkg port — neither is ours to pin, and the"
-            echo "no-video shape is the one the PR gates actually test. The GUI"
-            echo "reports the missing feature where it is used."
-            echo
-            echo "## Changes"
-            echo
-            nix develop --command cog changelog --at "$VERSION"
-          } > RELEASE_BODY.md
-      - name: Release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ needs.version.outputs.version }}
-          body_path: RELEASE_BODY.md
-          files: out/*
-          prerelease: ${{ contains(needs.version.outputs.version, '-') }}
+          ANIMATIX_RELEASE_VERSION: ${{ needs.version.outputs.version }}
+          ANIMATIX_RELEASE_COMMIT: ${{ needs.version.outputs.commit }}
+          ANIMATIX_RELEASE_TAG_OBJECT: ${{ needs.version.outputs.tag_object }}
+        run: tools/ci/ci.sh gate release-verify release-notes
+      - name: Create release once without updating an existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANIMATIX_RELEASE_VERSION: ${{ needs.version.outputs.version }}
+          ANIMATIX_RELEASE_COMMIT: ${{ needs.version.outputs.commit }}
+          ANIMATIX_RELEASE_TAG_OBJECT: ${{ needs.version.outputs.tag_object }}
+        run: tools/ci/ci.sh gate release-publish

@@ -10,7 +10,7 @@
 #
 #   native  macOS/Windows OS verification with their native SDK/toolchain.
 #   dist-driver Nix tools orchestrating the isolated Ubuntu Docker distribution.
-#   nix     `nix develop` — provides ALSA + FFmpeg headers + Vulkan/Mesa + cog + cargo-audit.
+#   nix     `nix develop` — provides ALSA + FFmpeg headers + Vulkan/Mesa + cargo-audit.
 #   web     `nix develop .#web-build` — wasm32 std + the pinned wasm-bindgen CLI.
 #   web-ci  `nix develop .#web-ci` — web-build plus Chromium/node/python for web-smoke.
 #   none    pure planner/result orchestration, with no Rust toolchain.
@@ -77,7 +77,6 @@ eparts|native|windows-latest|rust-stable|pr
 audit|nix|ubuntu-latest|nix|pr
 scene-audit|nix|ubuntu-latest|nix|pr
 budget-audit|nix|ubuntu-latest|nix|pr
-commit|nix|ubuntu-latest|nix|pr
 wasm-check|web|ubuntu-latest|nix|pr
 web-build|web-ci|ubuntu-latest|nix|pr
 web-smoke|web-ci|ubuntu-latest|nix|pr
@@ -111,6 +110,10 @@ dist-macos|native|macos-latest|rust-stable|release
 dist-windows|native|windows-latest|rust-stable|release
 ci-plan|none|ubuntu-latest|none|control
 ci-result|none|ubuntu-latest|none|control
+release-resolve|none|ubuntu-latest|none|control
+release-verify|none|ubuntu-latest|none|control
+release-notes|none|ubuntu-latest|none|control
+release-publish|none|ubuntu-latest|none|control
 '
 
 # ── CI matrix jobs ────────────────────────────────────────────────────────────
@@ -127,7 +130,7 @@ ci-result|none|ubuntu-latest|none|control
 # silently run a gate in the wrong environment.
 JOB_TABLE='
 Fast Checks|fmt structure workflows site-build content-sync meta-version embed-build web-runtime-tests web-sdk-tests native-package-tests perf-policy-tests|nix|ubuntu-latest|nix|pr|fast-checks
-Documentation Links|commit doc-links ci-policy-tests|nix|ubuntu-latest|nix|pr|doc-links
+Documentation Links|doc-links ci-policy-tests|nix|ubuntu-latest|nix|pr|doc-links
 eparts|eparts|nix|ubuntu-latest|nix|pr|eparts-linux
 eparts|eparts|native|macos-latest|rust-stable|pr|eparts-macos
 eparts|eparts|native|windows-latest|rust-stable|pr|eparts-windows
@@ -383,6 +386,8 @@ gate_ci_policy_tests() {
   python3 tools/ci/test-ci-control.py
   python3 tools/ci/test-ci-plan.py
   python3 tools/ci/test-main-baseline.py
+  python3 tools/release/release-tests.py
+  python3 tools/ci/test-release-workflow.py
   python3 web/tools/test/test-web-smoke-gates.py
   python3 web/tools/dev/test-serve-web-base.py
   python3 -m unittest discover -s tools/ci/lib -p 'test_*.py'
@@ -711,21 +716,27 @@ gate_structure() {
 gate_meta_version() {
   want_cargo
   # Version single-source: every workspace member must inherit [workspace.package],
-  # so `tools/release/bump-version.sh` (cog's pre_bump_hook) has exactly one place to
+  # so `tools/release/bump-version.sh` (explicit version update) has exactly one place to
   # write and a hand-edited member cannot hide.
   python3 - "$root" <<'PY'
-import json, re, subprocess, sys
+import json, re, subprocess, sys, tomllib
 root = sys.argv[1]
 meta = json.loads(subprocess.run(
-    ["cargo", "metadata", "--format-version", "1", "--no-deps"],
+    ["cargo", "metadata", "--format-version", "1", "--no-deps", "--locked"],
     cwd=root, check=True, capture_output=True).stdout)
-text = open(meta["workspace_root"] + "/Cargo.toml").read()
+with open(meta["workspace_root"] + "/Cargo.toml") as source:
+    text = source.read()
 m = re.search(r'^\[workspace\.package\][^\[]*?^version = "([^"]+)"', text, re.M | re.S)
 if not m:
     print("error: no [workspace.package] version in the root Cargo.toml", file=sys.stderr)
     sys.exit(1)
 want = m.group(1)
 bad = [(p["name"], p["version"]) for p in meta["packages"] if p["version"] != want]
+for package in meta["packages"]:
+    with open(package["manifest_path"], "rb") as source:
+        declared = tomllib.load(source).get("package", {}).get("version")
+    if declared != {"workspace": True}:
+        bad.append((package["name"], "must declare version.workspace = true"))
 if bad:
     print("error: packages not at workspace version %s:" % want, file=sys.stderr)
     for name, ver in bad:
@@ -831,36 +842,45 @@ gate_audit() {
   cargo audit "${ignores[@]}"
 }
 
-gate_commit() {
-  want_nix_shell 'commit'
-  # `cog check` with no range verifies history from the latest tag, and this repo
-  # has no semver tag — so it walks from the beginning and fails on `Initial
-  # commit`, which predates the convention and always will. The range has to be
-  # anchored, in this order: what the event says changed, then the latest version
-  # tag once one exists, then how far HEAD is ahead of the default branch.
-  local base=""
-  if [ -n "${ANIMATIX_COMMIT_BASE:-}" ] &&
-     git rev-parse --verify -q "${ANIMATIX_COMMIT_BASE}^{commit}" >/dev/null &&
-     git merge-base --is-ancestor "$ANIMATIX_COMMIT_BASE" HEAD 2>/dev/null; then
-    # An arbitrary SHA from the event payload is only usable after both checks:
-    # it must name a commit, and it must be an ancestor of what we are testing.
-    base="$ANIMATIX_COMMIT_BASE"
-  elif git tag --list 'v*' | grep -q .; then
-    cog check --from-latest-tag
-    return
+gate_release_resolve() {
+  local tag
+  if [ "${GITHUB_EVENT_NAME:-}" = workflow_dispatch ]; then
+    tag="${DISPATCHED:-}"
+  elif [ "${GITHUB_EVENT_NAME:-}" = push ] && [ "${GITHUB_REF:-}" = "refs/tags/${TAGGED:-}" ]; then
+    tag="${TAGGED:-}"
   else
-    base="$(git merge-base HEAD origin/main 2>/dev/null || true)"
-    [ "$base" = "$(git rev-parse HEAD)" ] && base=""
+    echo 'release resolution requires an explicit tag push or manual dispatch' >&2
+    return 1
   fi
+  local args=(resolve "$tag" --github-output "$GITHUB_OUTPUT")
+  if [ "${GITHUB_EVENT_NAME:-}" = push ]; then
+    args+=(--expected-commit "$GITHUB_SHA")
+  fi
+  python3 tools/release/release.py "${args[@]}"
+  local publish=false
+  if [ "${GITHUB_EVENT_NAME:-}" = push ] || [ "${PUBLISH_RELEASE:-false}" = true ]; then
+    publish=true
+  fi
+  echo "publish=$publish" >> "$GITHUB_OUTPUT"
+}
 
-  if [ -z "$base" ]; then
-    echo "note: nothing to check — no version tag yet, and HEAD is not ahead of a"
-    echo "      known base. The first \`cog bump\` creates v0.1.0 and this gate then"
-    echo "      checks every commit since it."
-    return 0
-  fi
-  echo "checking commits: $base..HEAD"
-  cog check "$base..HEAD"
+gate_release_verify() {
+  python3 tools/release/release.py verify "$ANIMATIX_RELEASE_VERSION" \
+    --expected-commit "$ANIMATIX_RELEASE_COMMIT" \
+    --expected-tag-object "$ANIMATIX_RELEASE_TAG_OBJECT" --remote origin
+}
+
+gate_release_notes() {
+  python3 tools/release/release.py notes "$ANIMATIX_RELEASE_VERSION" \
+    --expected-commit "$ANIMATIX_RELEASE_COMMIT" \
+    --expected-tag-object "$ANIMATIX_RELEASE_TAG_OBJECT" --output RELEASE_BODY.md
+}
+
+gate_release_publish() {
+  python3 tools/release/release.py publish "$ANIMATIX_RELEASE_VERSION" \
+    --expected-commit "$ANIMATIX_RELEASE_COMMIT" \
+    --expected-tag-object "$ANIMATIX_RELEASE_TAG_OBJECT" --assets-dir out \
+    --repository "$GITHUB_REPOSITORY"
 }
 
 # ── release-stage gates ───────────────────────────────────────────────────────

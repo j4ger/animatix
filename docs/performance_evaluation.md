@@ -1642,5 +1642,6 @@ not let it perturb the very numbers it reports:
 3. Make the change. Re-run `bash tools/quality/perf-bench.sh compare` — it fails on
    regressions and prints the delta table.
 4. If GPU/export affected, run the Layer-3 perf binary in `nix develop`.
-5. Update `docs/roadmap.md`; commit via `cog commit perf "<summary>" <scope>`
-   (scope `renderer` / `timeline` / `gui` as appropriate).
+5. Update `docs/roadmap.md`; stage the intended changes and use `git commit`.
+   A message such as `perf(renderer): reduce frame allocations` is recommended,
+   not required. Record measurements rather than relying on a commit prefix.

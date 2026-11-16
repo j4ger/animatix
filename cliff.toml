@@ -1,0 +1,22 @@
+# Optional release-note draft generator. Reviewed notes are committed separately;
+# publication consumes those exact bytes and never regenerates a draft.
+[changelog]
+header = ""
+body = """
+# {{ version }}
+{% for commit in commits %}
+- {{ commit.message | split(pat="\n") | first }} ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/j4ger/animatix/commit/{{ commit.id }}))
+{% endfor %}
+"""
+trim = true
+
+[git]
+conventional_commits = false
+filter_unconventional = false
+require_conventional = false
+split_commits = false
+filter_commits = false
+sort_commits = "oldest"
+# The helper supplies the stricter SemVer pattern and explicit previous release
+# range; never use nightly-* or cf-pages-* as release boundaries.
+tag_pattern = '^v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$'

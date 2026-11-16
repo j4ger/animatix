@@ -9,8 +9,7 @@ on:
   pull_request:
   # This repo lands commits on main directly, so a PR-only trigger meant the
   # gates below ran only when someone opened a pull request — which is often
-  # never. The commit gate takes the previous tip from the event to bound its
-  # range; see gate_commit in tools/ci/ci.sh.
+  # never. The planner checks the complete previous-tip to new-tip range.
   push:
     branches: [main, feat/cloudflare-pages]
   workflow_call:
@@ -23,7 +22,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  ANIMATIX_COMMIT_BASE: ${{ github.event.before }}
   # The hosted runners occasionally fail to fetch one store path (FlakeHub 401
   # or a partial cache.nixos response). Prefer building that path from source
   # over failing the whole gate; the binary caches still satisfy everything
@@ -80,9 +78,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          # `commit` walks the history since the last tag; the others do not care,
-          # and fetching it for all of them is cheaper than a conditional that a
-          # later gate has to remember to keep in sync.
+          # Preserve history for reproducible tooling and release metadata.
           fetch-depth: 0
           ref: ${{ inputs.checkout-ref || github.sha }}
 
@@ -97,7 +93,7 @@ jobs:
           sudo apt-get clean
           df -h /
 
-      # Gates that need nix (cog, cargo-audit, the wasm32 std) get their toolchain
+      # Gates that need nix (cargo-audit, the wasm32 std) get their toolchain
       # from the dev shell, so they must not install a rustup toolchain: PATH
       # order would then decide which rustc runs, and the answer differs per job.
       - name: Install Nix

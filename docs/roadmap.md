@@ -600,35 +600,20 @@ registry's default rather than restating a literal, the way
 `PROPERTY_DESCRIPTORS` already pins the name list. Not done here because every
 row above is a live behaviour change and several would move shipped scenes.
 
-## The unified pipeline — claims that still need a real run (2026-10-08)
+## Release validation still requiring live evidence
 
-The enforcement design is archived in `history/2026-10.md`. Five claims in the same
-work are **not** yet evidence, and each needs a real run:
+The original October pipeline assumptions are recorded in
+[history](history/2026-10.md). The current release process requires an explicitly
+chosen version/tag and finalized, human-edited `docs/releases/` files named `vX.Y.Z.md` notes; automatic bump
+and commit-message enforcement are retired.
 
-- **`release.yml` has never executed.** It triggers on a `vX.Y.Z` tag, and the repo
-  has no semver tag yet — the first `cog bump --auto --skip-ci` is its first run.
-  Unknowns it will answer: whether a `macos-latest`/`windows-latest` runner can
-  build `eframe`/`wgpu` at all (nothing here has ever compiled those crates for a
-  release), and whether `cog changelog --at <tag>` resolves the tag correctly from
-  the publish job's `fetch-depth: 0` checkout.
-- **The `web`-shell gates have not run locally.** `wasm-check` and `web-build` need
-  `nix develop .#web-build`, and the nested-shell PATH trap makes a run from inside
-  `.#default` meaningless. CI is the first honest execution of both.
-- **cog's staging behaviour around `pre_bump_hooks` is assumed.**
-  `tools/release/bump-version.sh` was tested on its own (it moved all 15 members to
-  `0.1.1` and refreshed `Cargo.lock`, then reverted), but not inside a bump commit.
-  If cog does not stage the hook's edits, the tag lands on a commit whose manifests
-  still say the old version — and `dist-package.sh` then refuses the build, which is
-  the correct outcome but a failed release. Check with `cog bump --patch --dry-run`
-  on a scratch branch first.
-- **The seven existing `nightly-*` assets have never been checked for portability.**
-  They are nix-built and carry `/nix/store` RPATHs, so they may only run on NixOS.
-  `patchelf --print-rpath` / `ldd` against a downloaded asset before trusting any
-  past release; the new `dist-linux` gate inherits that question.
-- **`_site` was never diffed against a real Pages build.** `web/tools/site/site-artifact.sh`
-  runs the same four commands the old inline YAML did, and was tested against stub
-  bundles (including the negative: a 100% size drift fails the gate), but a
-  byte-for-byte comparison against a deployed artifact has not happened.
+- Validate the next authorized versioned release end to end: version/tag identity,
+  committed release-note selection, artifact generation and publication. Local helper
+  tests do not establish that a hosted release has succeeded.
+- Verify downloaded native release artifacts on their target platforms, including
+  Linux portability outside Nix. A successful build alone is not runtime evidence.
+- Compare the published site and SDK manifests with the release's source identity;
+  do not infer artifact equivalence from a stub bundle or an old Pages workflow.
 
 Also open by choice: `docs/scene_stats.md` is a design note with no roadmap row yet,
 and `.zcodeignore` is an editor-generated mirror of `.gitignore` that should not be

@@ -23,12 +23,10 @@ members = [
 exclude = ["crates/vendor/vello", "crates/vendor/wasm-split-cli"]
 resolver = "2"
 
-# One version for the whole workspace. `cargo set-version --workspace` — the
-# pre_bump_hooks command that `cog bump` runs — writes here and nowhere else, so a
-# release cannot half-bump. Before this, 15 manifests each hand-declared
-# `version = "0.1.0"` and nothing checked that they agreed; `tools/ci/ci.sh gate
-# meta-version` now does, off `cargo metadata` rather than off the text of the
-# files, so it catches a member that resolves to something else for any reason.
+# One explicitly chosen version for the whole workspace. Release preparation
+# updates this value and Cargo.lock together; member manifests inherit it.
+# `tools/ci/ci.sh gate meta-version` checks the resolved Cargo metadata so a
+# member cannot silently ship a different version.
 [workspace.package]
 version = "0.1.0"
 edition = "2024"

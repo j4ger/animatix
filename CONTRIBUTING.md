@@ -14,9 +14,12 @@ validation and release workflows. The [architecture](docs/architecture.md) and
 - Run the relevant [validation gates](docs/contributing.md#validate-a-change),
   including formatting, before committing. Note anything you could not verify.
 
-Use conventional commits through `cog` in the Nix development shell. Keep
-`CHANGELOG.md` generated, move completed work out of the roadmap, and put design
-rationale or measurements in [history](docs/history/README.md).
+Use ordinary `git commit` after staging the intended changes. Conventional
+Commits are recommended, not required. Keep canonical notes in `docs/releases/` files named `vX.Y.Z.md` human-reviewed and editable;
+optional `git-cliff` output is a draft, not the final release notes.
+`CHANGELOG.md` is an optional overview.
+Move completed work out of the roadmap and put design rationale or measurements
+in [history](docs/history/README.md).
 
 Run unfinished experiments and human review through the harness using temporary
 artifacts. Keep actionable gaps in the roadmap and regression fixtures beside

@@ -193,7 +193,7 @@ parallel test runners (process-global cache; green with `--test-threads=1`).
 ## Gates to run before finishing anything
 
 ```bash
-nix develop                                   # ALSA + FFmpeg + cog
+nix develop                                   # ALSA + FFmpeg
 cargo fmt --all
 cargo check --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
@@ -203,9 +203,9 @@ cargo test --no-fail-fast --workspace -- --test-threads=1
 cargo test -p animatix --features plugin-loading --lib -- --test-threads=1
 cargo build --target wasm32-unknown-unknown -p animatix-web   # in .#web-build
 ```
-Commit with `cog commit <type> "<summary>" [scope]` **inside** the shell. Scopes
-in `cog.toml`: `animatix, gui, analyzer, lsp, syntax, parser, renderer, ci,
-docs`. Then stop — do not push without the owner's go-ahead.
+Stage only the intended changes and use ordinary `git commit`. Conventional
+Commits are recommended, not required. Then stop: do not push without the
+owner's go-ahead.
 
 ## The one line
 
