@@ -9,7 +9,7 @@
 //   DISPLAY=:0 VK_ICD_FILENAMES=/run/opengl-driver/share/vulkan/icd.d/nvidia_icd.json \
 //     WPR_GPU=1 node scripts/web-runtime-perf.mjs
 //
-// WPR_SCENE=testfixtures/web-runtime-perf/cjk.amx WPR_REPS=6 WPR_WARMUPS=1 \
+// WPR_SCENE=tools/fixtures/web-runtime-perf/cjk.amx WPR_REPS=6 WPR_WARMUPS=1 \
 //   WPR_NEW_RUNTIME=web/runtime WPR_OUT=target/perf/web-runtime.json
 // The harness reports raw paired samples, 95% intervals, and provisional
 // relative-plus-absolute materiality floors for primary user-impact metrics.
@@ -71,7 +71,7 @@ const PERFORMANCE_POLICY = {
   rule: 'Block only when the paired 95% lower bounds exceed both the relative margin and the metric absolute floor; no material regression when either upper bound stays within its floor; otherwise inconclusive.',
   floor_status: 'provisional engineering materiality floors, not validated product SLOs',
 };
-const DEFAULT_SCENES = ['testfixtures/web-runtime-perf/english.amx','testfixtures/web-runtime-perf/cjk.amx','testfixtures/web-runtime-perf/rich-media.amx'];
+const DEFAULT_SCENES = ['tools/fixtures/web-runtime-perf/english.amx','tools/fixtures/web-runtime-perf/cjk.amx','tools/fixtures/web-runtime-perf/rich-media.amx'];
 export function parseScenes(value = undefined) {
   const input = value === undefined ? DEFAULT_SCENES.join(',') : value;
   const scenes = input.split(',').map(scene => scene.trim()).filter(Boolean);

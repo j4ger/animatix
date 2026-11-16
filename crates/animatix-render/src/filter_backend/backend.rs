@@ -166,6 +166,9 @@ impl GpuFilterBackend {
             bind_group_layout,
             pipeline_layout,
             pipelines: HashMap::new(),
+            effect_bind_group_cache: HashMap::new(),
+            #[cfg(test)]
+            test_submit_strategy: PassSubmitStrategy::Combined,
             sampler,
             context_buffer,
             last_filtered_source: FilteredSource::Render,
@@ -187,14 +190,15 @@ impl GpuFilterBackend {
         self.pipelines.insert(effect.type_name().into(), pipeline);
     }
 
-    /// Bind group for one pass: views plus the context uniform at `slot`s
-    /// dynamic offset in the shared context buffer.
+    /// Bind group for one pass: author parameters and context use dynamic
+    /// offsets, while texture views and binding size remain fixed.
     pub(super) fn effect_bind_group_for_slot(
         &self,
         src_view: &wgpu::TextureView,
         dst_view: &wgpu::TextureView,
         original_view: &wgpu::TextureView,
         uniform_buffer: &wgpu::Buffer,
+        author_uniform_size: u64,
     ) -> wgpu::BindGroup {
         create_effect_bind_group(
             &self.device,
@@ -205,18 +209,20 @@ impl GpuFilterBackend {
             dst_view,
             original_view,
             uniform_buffer,
+            author_uniform_size,
         )
     }
 
     /// Encode one effect pass into `encoder` (dispatch at `width`×`height`,
-    /// context uniform at the bind group's dynamic offset).
+    /// author/context uniforms at their bind group's dynamic offsets).
     pub(super) fn encode_effect_pass(
         encoder: &mut wgpu::CommandEncoder,
         bind_group: &wgpu::BindGroup,
         pass_pipeline: &wgpu::ComputePipeline,
         width: u32,
         height: u32,
-        slot_offset: u32,
+        author_uniform_offset: u32,
+        context_offset: u32,
     ) {
         pipeline::encode_effect_pass(
             encoder,
@@ -224,7 +230,8 @@ impl GpuFilterBackend {
             pass_pipeline,
             width,
             height,
-            slot_offset,
+            author_uniform_offset,
+            context_offset,
         );
     }
 }

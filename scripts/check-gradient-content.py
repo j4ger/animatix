@@ -6,8 +6,6 @@ Run the CLI with --set and inspect actual frames before publishing changed art.
 """
 from __future__ import annotations
 
-from html.parser import HTMLParser
-import json
 import math
 from pathlib import Path
 import re
@@ -21,20 +19,6 @@ HERE = ROOT / "web/demos/gradient"
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise AssertionError(message)
-
-
-class Page(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__()
-        self.inputs: dict[str, dict[str, str | None]] = {}
-        self.players: list[dict[str, str | None]] = []
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        values = dict(attrs)
-        if tag == "input" and values.get("data-var"):
-            self.inputs[str(values["data-var"])] = values
-        if tag == "amx-player":
-            self.players.append(values)
 
 
 def iterates(rate: float, x: float, y: float, steps: int) -> list[tuple[float, float]]:
@@ -97,27 +81,11 @@ def check() -> None:
     require('"After 1 update,"' in rates, "single-step readout must preserve natural grammar")
     require('"Its distance never shrinks."' in rates, "boundary explanation must distinguish sign flips from convergence")
 
-    work = next(w for w in json.loads((ROOT / "web/works.json").read_text())["works"] if w["id"] == "gradient")
-    page = Page()
-    page.feed((HERE / "index.html").read_text())
-    for param in work["params"]:
-        slider = page.inputs[param["name"]]
-        for attr, field in (("min", "min"), ("max", "max"), ("step", "step"), ("value", "default")):
-            require(float(str(slider[attr])) == float(param[field]), f"slider {param['name']} {attr} disagrees with works.json")
-    lr = next(p for p in work["params"] if p["name"] == "lr")
-    require(lr["min"] > 0 and lr["max"] == 0.5, "domain includes convergence and its boundary, not divergence")
-    require({p.get("src") for p in page.players} == {"scene.amx", "losssurface.amx", "gradientdirection.amx", "descent.amx", "learningrate.amx"}, "preserve all existing player/source URLs")
-    composed = next(p for p in page.players if p.get("src") == "scene.amx")
-    require("data-param-static" in composed, "composed plate must disclose/exclude unsupported variable overrides")
-    require(all("data-param-static" not in p for p in page.players if p.get("src") != "scene.amx"), "individual figures must remain interactive")
-    deck = (ROOT / "web/demos/deck.js").read_text()
-    rail = deck.split("function initParamRails(root)", 1)[1]
-    require(rail.count("amx-player:not([data-param-static])") == 2, "both scoped and fallback parameter targets must exclude static plates")
     generator = ROOT / "scripts/gradient-plate.py"
     if generator.exists():
         subprocess.run([sys.executable, str(generator), "--check"], cwd=ROOT, check=True)
-    print("Gradient contracts passed: recurrence, 0.10/0.35/0.50 regimes, fixed rates, sliders, source URLs.")
-    print("Scope: static/numerical checks only; browser interactions and rendered captions require visual QA.")
+    print("Gradient contracts passed: recurrence, 0.10/0.35/0.50 regimes, fixed rates and generated source.")
+    print("Scope: static/numerical checks only; retained sources are regression inputs, not current website UI.")
 
 
 if __name__ == "__main__":

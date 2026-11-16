@@ -43,7 +43,6 @@ impl PreviewPaneState {
             timeline_zoom: 1.0,
             timeline_scroll_offset: 0.0,
             fit_zoom_requested: false,
-            flashed_keyframe_times: Vec::new(),
         }
     }
 

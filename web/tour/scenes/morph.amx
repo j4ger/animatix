@@ -26,7 +26,7 @@
 // `text`: an assignment swaps by cross-fading the two strings on top of each
 // other (and a duration-free one lands a beat early).
 
-import "../../demos/lib/theme.amx"
+import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 11.4 }
 

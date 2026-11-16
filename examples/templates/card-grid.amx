@@ -1,8 +1,8 @@
 // card-grid.amx — 卡片网格模板：2×N MetricCard / Card 版式。
 // 适合指标对比、清单、流程步骤。网格交给 Row/Col 排布，不要手摆坐标。
-import "../../web/demos/lib/theme.amx"
-import "../../web/demos/lib/stage.amx"
-import "../../web/demos/lib/ui.amx"
+import "../lib/theme.amx"
+import "../lib/stage.amx"
+import "../lib/ui.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 6 }
 

@@ -11,9 +11,9 @@
 // House-style §1: StageFloor + compact head + caption are opaque at t=0.
 // House-style §5: title 48, block titles 18, sublabels 16, captions 24.
 
-import "../../lib/theme.amx"
-import "../../lib/stage.amx"
-import "../../lib/components.amx"
+import "../../../../examples/lib/theme.amx"
+import "../../../../examples/lib/stage.amx"
+import "../../../../examples/lib/components.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 8.2 }
 

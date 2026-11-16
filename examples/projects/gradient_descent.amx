@@ -2,8 +2,8 @@
 // A visual walkthrough of gradient descent on a 2D loss surface:
 // loss surface → against the gradient → roll to the minimum → step size matters.
 
-import "../../web/demos/lib/stage.amx"
-import "../../web/demos/lib/theme.amx"
+import "../lib/stage.amx"
+import "../lib/theme.amx"
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 

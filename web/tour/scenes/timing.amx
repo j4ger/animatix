@@ -19,7 +19,7 @@
 // from 5 slots of 120 + gap 64 centred on 640) so each name sits exactly
 // under its square.
 
-import "../../demos/lib/theme.amx"
+import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 7.7 }
 

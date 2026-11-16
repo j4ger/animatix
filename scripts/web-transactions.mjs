@@ -3,6 +3,8 @@
 // SwiftShader proves function here; it is deliberately not a performance gate.
 import assert from 'node:assert/strict';
 import { Cdp } from './cdp-client.mjs';
+import {transactionLaunch, transactionPreflight, stopBrowser} from './web-transactions-browser.mjs';
+import {navigationCommitted} from './web-smoke-browser.mjs';
 import { compareRgbaFrames } from './rgba-comparison.mjs';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
@@ -826,23 +828,29 @@ async function main() {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${server.address().port}`;
   const profile = mkdtempSync(join(tmpdir(), 'amx-transactions-'));
-  const chrome = spawn(process.env.CHROME || 'chromium', [
-    ...(hardwareGpu ? [] : ['--headless=new']), '--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu-sandbox', '--enable-unsafe-webgpu',
-    ...(hardwareGpu ? ['--use-vulkan=native', '--enable-features=Vulkan,WebGPUService', '--ignore-gpu-blocklist'] : ['--enable-unsafe-swiftshader', '--disable-vulkan-surface', '--use-angle=vulkan', '--use-vulkan=swiftshader', '--enable-features=Vulkan']),
-    '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-extensions',
-    '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank',
-  ], { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
-  let chromeLog = ''; const consoleEvents = []; let cdp; let report;
+  const launch = transactionLaunch(process.env.CHROME || 'chromium', profile, hardwareGpu);
+  const chrome = spawn(launch.command, launch.args, { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  let chromeLog = ''; const consoleEvents = []; let cdp; let report; let preflight; let stage = 'environment-startup';
   chrome.on('error', error => { chromeLog += `${error.stack}\n`; });
   chrome.stdout.on('data', chunk => { chromeLog += chunk; }); chrome.stderr.on('data', chunk => { chromeLog += chunk; });
   try {
     const port = await waitFor('Chromium DevTools', () => existsSync(join(profile, 'DevToolsActivePort')) && Number(readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0]));
-    const response = await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent('about:blank')}`, { method: 'PUT' });
+    const response = await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent('about:blank')}`, { method: 'PUT', signal: AbortSignal.timeout(5000) });
     const target = await response.json(); cdp = new Cdp(target.webSocketDebuggerUrl); await cdp.open();
     cdp.onEvent = event => { if (event.method.startsWith('Runtime.')) consoleEvents.push(event); };
     await cdp.send('Page.enable'); await cdp.send('Runtime.enable');
     await cdp.send('Page.navigate', { url: `${origin}/preview/__acceptance__/index.html` });
+    await navigationCommitted(cdp, `${origin}/preview/__acceptance__/index.html`);
+    await waitFor('preflight document', async () => await cdp.evaluate('document.readyState') === 'complete');
+    stage = 'environment-preflight';
+    preflight = await transactionPreflight(cdp, bytes => writeFileSync(join(EVIDENCE, 'preflight.png'), bytes));
+    writeFileSync(join(EVIDENCE, 'preflight.json'), JSON.stringify({ ...preflight, browser: await cdp.send('Browser.getVersion'), launch }, null, 2));
+    // Distinct URL prevents the old document satisfying navigation readiness.
+    // No preflight canvas/device or counters enter the suite.
+    await cdp.send('Page.navigate', { url: `${origin}/preview/__acceptance__/index.html?suite=1` });
+    await navigationCommitted(cdp, `${origin}/preview/__acceptance__/index.html?suite=1`);
     await waitFor('fixture page', async () => await cdp.evaluate('document.readyState') === 'complete');
+    stage = 'transactions';
     const sources = {
       timeout, graphics, overlayAvailable: Boolean(overlay && overlayWide), english: text('*literal* #markup'), chinese: text('中文换行与文本'),
       cjkFontSha256: manifest.fonts.faces.find(face => /NotoSansSC|Noto Sans SC/i.test(`${face.file} ${face.family}`))?.sha256,
@@ -885,7 +893,7 @@ async function main() {
     } catch (error) {
       pageScreenshot.status = 'unavailable'; pageScreenshot.reason = error.message;
     }
-    writeFileSync(join(EVIDENCE, 'report.json'), JSON.stringify({ ...report, page_screenshot: pageScreenshot, build_id: manifest.build_id, site: SITE, limitations: hardwareGpu ? ['Performance comparison is recorded separately.'] : ['Software GPU functional evidence only; hardware visual/performance acceptance remains separate.'] }, null, 2));
+    writeFileSync(join(EVIDENCE, 'report.json'), JSON.stringify({ ...report, preflight, page_screenshot: pageScreenshot, build_id: manifest.build_id, site: SITE, limitations: hardwareGpu ? ['Performance comparison is recorded separately.'] : ['Software GPU functional evidence only; hardware visual/performance acceptance remains separate.'] }, null, 2));
     process.stdout.write(`web-transactions: ${report.passed.length} checks passed; ${EVIDENCE}\n`);
   } catch (error) {
     const browserState = cdp
@@ -895,6 +903,7 @@ async function main() {
       writeFileSync(join(EVIDENCE, `${name}.png`), encodeFramePng(frame));
     }
     writeFileSync(join(EVIDENCE, 'report.json'), JSON.stringify({
+      stage, category: stage.startsWith('environment-') ? 'environment' : 'transaction', retryable: false, preflight,
       frame_state: browserState?.frameState,
       passed: report?.passed ?? browserState?.passed ?? [],
       active: browserState?.active ?? null,
@@ -907,7 +916,7 @@ async function main() {
     writeFileSync(join(EVIDENCE, 'console.json'), JSON.stringify(consoleEvents, null, 2));
     writeFileSync(join(EVIDENCE, 'chromium.log'), chromeLog);
     cdp?.socket.close();
-    try { process.kill(-chrome.pid, 'SIGKILL'); } catch { chrome.kill('SIGKILL'); }
+    await stopBrowser(chrome);
     server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
     rmSync(profile, { recursive: true, force: true });
   }

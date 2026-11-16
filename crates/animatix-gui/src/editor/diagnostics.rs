@@ -1,245 +1,112 @@
-//! Diagnostics mapping — converts AST/analyzer diagnostics into cell-level
-//! decorations for the cell-based notebook UI.
+//! Convert compiler and analyzer diagnostics to source-byte highlight ranges.
 
-use crate::cell_editor::{CellDiagnostic, SemanticHighlight, SemanticTokenKind};
 use crate::editor::EditorBuffer;
+use crate::highlighting::{HighlightDiagnostic, HighlightSeverity};
 
 impl EditorBuffer {
-    /// Set diagnostics (e.g. parse errors) on the buffer, mapping them to cell
-    /// positions and updating cell-level decoration state.
+    /// Keep parser/build diagnostics and analyzer diagnostics on the same
+    /// document coordinate system so one TextEdit can decorate every line.
     pub fn set_diagnostics(&mut self, diagnostics: &[animatix_syntax::diagnostics::Diagnostic]) {
-        self.cell_state.diagnostics.clear();
-        self.cell_state.error_cells.clear();
-        self.cell_state.warning_cells.clear();
-
-        for d in diagnostics {
-            let Some(doc_line) = d.location.line else {
+        let line_index = animatix_syntax::token::LineIndex::new(&self.text);
+        let mut ranges = Vec::with_capacity(diagnostics.len() + self.analyzer.diagnostics().len());
+        for diagnostic in diagnostics {
+            let Some(line) = diagnostic.location.line else {
                 continue;
             };
-            let doc_line = doc_line.saturating_sub(1); // 0-indexed
-
-            let Some((cell_idx, body_start_line)) = self.cell_body_start(doc_line) else {
-                continue;
-            };
-
-            // Track cell border color by severity.
-            match d.severity {
-                animatix_syntax::diagnostics::DiagnosticSeverity::Error => {
-                    self.cell_state.error_cells.insert(cell_idx);
-                },
-                animatix_syntax::diagnostics::DiagnosticSeverity::Warning
-                | animatix_syntax::diagnostics::DiagnosticSeverity::Info
-                | animatix_syntax::diagnostics::DiagnosticSeverity::Hint => {
-                    self.cell_state.warning_cells.insert(cell_idx);
-                },
-            }
-
-            // Skip diagnostics that sit on the cell header (not in the body text).
-            if doc_line < body_start_line {
-                continue;
-            }
-
-            let rel_line = doc_line - body_start_line;
-            let rel_col = d.location.column.map(|c| c.saturating_sub(1)).unwrap_or(0);
-            let rel_end_col = rel_col + 5; // approximate token width for underline
-
-            self.cell_state.diagnostics.push(CellDiagnostic {
-                line: doc_line,
-                message: d.message.clone(),
-                severity: d.severity,
-                cell_index: cell_idx,
-                rel_line,
-                rel_col,
-                rel_end_line: rel_line,
-                rel_end_col,
-            });
-        }
-
-        // Merge analyzer semantic diagnostics
-        self.refresh_analyzer_diagnostics();
-
-        // Compute semantic highlights from analyzer symbol table
-        self.refresh_semantic_highlights();
-    }
-
-    /// Map a 0-indexed document line to its cell and the first line of that
-    /// cell's editable body. Keyframe cells carry their attached comment plus
-    /// the `#timestamp` line as a non-body header; code cells have none.
-    fn cell_body_start(&self, doc_line: usize) -> Option<(usize, usize)> {
-        let cell_idx = self.cell_index_for_source_line(doc_line)?;
-        let cell_start_line = self.source_line_for_cell(cell_idx)?;
-        let header_lines = match &self.cells[cell_idx] {
-            crate::cell_editor::Cell::Code { .. } => 0,
-            crate::cell_editor::Cell::Keyframe {
-                attached_comment, ..
-            } => attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0) + 1,
-        };
-        Some((cell_idx, cell_start_line + header_lines))
-    }
-
-    /// Compute semantic highlights from the analyzer's symbol table and map
-    /// them to cell-relative positions.
-    fn refresh_semantic_highlights(&mut self) {
-        self.cell_state.semantic_highlights.clear();
-
-        let symbols = self.analyzer.symbols();
-
-        // Actor labels
-        for info in symbols.labels.values() {
-            if info.kind != animatix_analyzer::LabelKind::Actor {
-                continue;
-            }
-            let Some(span) = &info.span else { continue };
-            let doc_line = span.start_line.saturating_sub(1); // 0-indexed
-            let doc_end_line = span.end_line.saturating_sub(1);
-
-            let Some((cell_idx, body_start_line)) = self.cell_body_start(doc_line) else {
-                continue;
-            };
-
-            if doc_line < body_start_line {
-                continue;
-            }
-
-            self.cell_state.semantic_highlights.push(SemanticHighlight {
-                cell_index: cell_idx,
-                rel_line: doc_line - body_start_line,
-                rel_col: span.start_col.saturating_sub(1),
-                rel_end_line: doc_end_line - body_start_line,
-                rel_end_col: span.end_col.saturating_sub(1),
-                kind: SemanticTokenKind::ActorName,
-            });
-        }
-
-        // Component names
-        for info in symbols.components.values() {
-            let Some(span) = &info.span else { continue };
-            let doc_line = span.start_line.saturating_sub(1);
-            let doc_end_line = span.end_line.saturating_sub(1);
-
-            let Some((cell_idx, body_start_line)) = self.cell_body_start(doc_line) else {
-                continue;
-            };
-
-            if doc_line < body_start_line {
-                continue;
-            }
-
-            self.cell_state.semantic_highlights.push(SemanticHighlight {
-                cell_index: cell_idx,
-                rel_line: doc_line - body_start_line,
-                rel_col: span.start_col.saturating_sub(1),
-                rel_end_line: doc_end_line - body_start_line,
-                rel_end_col: span.end_col.saturating_sub(1),
-                kind: SemanticTokenKind::ComponentName,
-            });
-        }
-
-        // Scene names (from AST)
-        // We do a simple text search for `# Name` and `play Name` patterns.
-        if !symbols.scenes.is_empty() {
-            for (cell_idx, cell) in self.cells.iter().enumerate() {
-                let cell_source = cell.to_source();
-
-                for line in cell_source.lines().enumerate() {
-                    let (rel_line_idx, line_text) = line;
-                    let trimmed = line_text.trim_start();
-
-                    // Scene declaration: `# SceneName`
-                    if let Some(rest) = trimmed.strip_prefix('#') {
-                        let name = rest.trim();
-                        if symbols.scenes.contains_key(name) {
-                            let start_col = line_text.find('#').unwrap_or(0) + 1;
-                            let end_col = line_text.len();
-                            self.cell_state.semantic_highlights.push(SemanticHighlight {
-                                cell_index: cell_idx,
-                                rel_line: rel_line_idx,
-                                rel_col: start_col,
-                                rel_end_line: rel_line_idx,
-                                rel_end_col: end_col,
-                                kind: SemanticTokenKind::SceneName,
-                            });
+            let start =
+                diagnostic.location.span.as_ref().map(|span| span.start).unwrap_or_else(|| {
+                    line_index.line_col_to_byte(
+                        line.saturating_sub(1),
+                        diagnostic.location.column.unwrap_or(1).saturating_sub(1),
+                    )
+                });
+            let end = diagnostic.location.span.as_ref().map(|span| span.end).unwrap_or_else(|| {
+                let end_line = diagnostic.location.end_line.unwrap_or(line);
+                let start_col = diagnostic.location.column.unwrap_or(1);
+                let end_col = diagnostic
+                    .location
+                    .end_col
+                    .unwrap_or_else(|| {
+                        if end_line == line {
+                            start_col.saturating_add(4)
+                        } else {
+                            1
                         }
-                    }
-
-                    // Play statement: `play SceneName [...]`
-                    if let Some(rest) = trimmed.strip_prefix("play ") {
-                        let name = rest.split_whitespace().next().unwrap_or("");
-                        if symbols.scenes.contains_key(name) {
-                            let start_col = line_text.find("play ").unwrap_or(0) + 5;
-                            let end_col = start_col + name.len();
-                            self.cell_state.semantic_highlights.push(SemanticHighlight {
-                                cell_index: cell_idx,
-                                rel_line: rel_line_idx,
-                                rel_col: start_col,
-                                rel_end_line: rel_line_idx,
-                                rel_end_col: end_col,
-                                kind: SemanticTokenKind::SceneName,
-                            });
-                        }
-                    }
-                }
+                    })
+                    .saturating_sub(1);
+                line_index.line_col_to_byte(end_line.saturating_sub(1), end_col)
+            });
+            if let Some((start, end)) = valid_range(&self.text, start, end) {
+                ranges.push(HighlightDiagnostic {
+                    start,
+                    end,
+                    severity: syntax_severity(diagnostic.severity),
+                });
             }
+        }
+        for diagnostic in self.analyzer.diagnostics() {
+            let start = line_index.line_col_to_byte(diagnostic.line, diagnostic.col);
+            let end_col =
+                if diagnostic.end_line == diagnostic.line && diagnostic.end_col <= diagnostic.col {
+                    diagnostic.col.saturating_add(1)
+                } else {
+                    diagnostic.end_col
+                };
+            let end = line_index.line_col_to_byte(diagnostic.end_line, end_col);
+            if let Some((start, end)) = valid_range(&self.text, start, end) {
+                ranges.push(HighlightDiagnostic {
+                    start,
+                    end,
+                    severity: analyzer_severity(diagnostic.severity),
+                });
+            }
+        }
+        ranges.sort_by_key(|range| (range.start, range.end, severity_order(range.severity)));
+        ranges.dedup();
+        if self.diagnostics != ranges {
+            self.diagnostics = ranges;
+            self.highlight_cache = None;
         }
     }
+}
 
-    /// Refresh analyzer diagnostics and merge them into cell_state.
-    fn refresh_analyzer_diagnostics(&mut self) {
-        let analyzer_diagnostics = self.analyzer.diagnostics();
-        for d in analyzer_diagnostics {
-            // Analyzer diagnostics use 0-based positions
-            let doc_line = d.line;
+fn valid_range(source: &str, start: usize, end: usize) -> Option<(usize, usize)> {
+    let mut start = start.min(source.len());
+    let mut end = end.min(source.len());
+    while start > 0 && !source.is_char_boundary(start) {
+        start -= 1;
+    }
+    while end > start && !source.is_char_boundary(end) {
+        end -= 1;
+    }
+    (start < end).then_some((start, end))
+}
 
-            let Some((cell_idx, body_start_line)) = self.cell_body_start(doc_line) else {
-                continue;
-            };
+fn syntax_severity(
+    severity: animatix_syntax::diagnostics::DiagnosticSeverity,
+) -> HighlightSeverity {
+    match severity {
+        animatix_syntax::diagnostics::DiagnosticSeverity::Error => HighlightSeverity::Error,
+        animatix_syntax::diagnostics::DiagnosticSeverity::Warning => HighlightSeverity::Warning,
+        animatix_syntax::diagnostics::DiagnosticSeverity::Info => HighlightSeverity::Info,
+        animatix_syntax::diagnostics::DiagnosticSeverity::Hint => HighlightSeverity::Hint,
+    }
+}
 
-            let severity = match d.severity {
-                animatix_analyzer::DiagnosticSeverity::Error => {
-                    animatix_syntax::diagnostics::DiagnosticSeverity::Error
-                },
-                animatix_analyzer::DiagnosticSeverity::Warning => {
-                    animatix_syntax::diagnostics::DiagnosticSeverity::Warning
-                },
-                animatix_analyzer::DiagnosticSeverity::Info => {
-                    animatix_syntax::diagnostics::DiagnosticSeverity::Warning
-                },
-                animatix_analyzer::DiagnosticSeverity::Hint => {
-                    animatix_syntax::diagnostics::DiagnosticSeverity::Warning
-                },
-            };
+fn analyzer_severity(severity: animatix_analyzer::DiagnosticSeverity) -> HighlightSeverity {
+    match severity {
+        animatix_analyzer::DiagnosticSeverity::Error => HighlightSeverity::Error,
+        animatix_analyzer::DiagnosticSeverity::Warning => HighlightSeverity::Warning,
+        animatix_analyzer::DiagnosticSeverity::Info => HighlightSeverity::Info,
+        animatix_analyzer::DiagnosticSeverity::Hint => HighlightSeverity::Hint,
+    }
+}
 
-            match severity {
-                animatix_syntax::diagnostics::DiagnosticSeverity::Error => {
-                    self.cell_state.error_cells.insert(cell_idx);
-                },
-                animatix_syntax::diagnostics::DiagnosticSeverity::Warning
-                | animatix_syntax::diagnostics::DiagnosticSeverity::Info
-                | animatix_syntax::diagnostics::DiagnosticSeverity::Hint => {
-                    if !self.cell_state.error_cells.contains(&cell_idx) {
-                        self.cell_state.warning_cells.insert(cell_idx);
-                    }
-                },
-            }
-
-            if doc_line < body_start_line {
-                continue;
-            }
-
-            let rel_line = doc_line - body_start_line;
-            let rel_col = d.col;
-            let rel_end_col = d.end_col.max(rel_col + 1);
-
-            self.cell_state.diagnostics.push(CellDiagnostic {
-                line: doc_line,
-                message: d.message,
-                severity,
-                cell_index: cell_idx,
-                rel_line,
-                rel_col,
-                rel_end_line: d.end_line.max(body_start_line) - body_start_line,
-                rel_end_col,
-            });
-        }
+fn severity_order(severity: HighlightSeverity) -> u8 {
+    match severity {
+        HighlightSeverity::Error => 0,
+        HighlightSeverity::Warning => 1,
+        HighlightSeverity::Info => 2,
+        HighlightSeverity::Hint => 3,
     }
 }

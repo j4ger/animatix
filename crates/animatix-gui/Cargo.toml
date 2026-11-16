@@ -48,7 +48,6 @@ path = "src/bin/widget-screenshot.rs"
 required-features = ["dev-screenshots"]
 
 [dev-dependencies]
-chumsky = "0.12"
 tempfile = "3"
 
 [build-dependencies]

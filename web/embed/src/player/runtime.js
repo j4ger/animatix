@@ -329,6 +329,24 @@ export async function fetchModule(url, signal) {
 }
 
 
+/** Fetch only missing explicit scene modules. There is no implicit SDK library.
+ * The caller retains source-map keys; URLs resolve against the authored scene.
+ * Commit the batch only after it succeeds and still owns its cancellation token.
+ */
+export async function fetchMissingModules(paths, sourceUrl, modules, signal) {
+  const cancelled = () => {
+    if (signal?.aborted) throw new DOMException("Operation cancelled", "AbortError");
+  };
+  cancelled();
+  const pending = [...new Set(paths)].filter(path => !modules.has(path));
+  const entries = await Promise.all(pending.map(async path => [
+    path, await fetchModule(new URL(path, sourceUrl).href, signal),
+  ]));
+  cancelled();
+  for (const [path, source] of entries) modules.set(path, source);
+}
+
+
 function cacheFont(key, promise) {
   if (FONT_BYTES.size >= 64) FONT_BYTES.delete(FONT_BYTES.keys().next().value);
   FONT_BYTES.set(key, promise);

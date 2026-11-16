@@ -1,7 +1,7 @@
 //! Completion popup widget for the code editor.
 
 use animatix_analyzer::{CompletionItem, CompletionKind};
-use egui::{self, CornerRadius, Key, Pos2, Rect, Stroke, Vec2};
+use egui::{self, CornerRadius, Key, Modifiers, Pos2, Rect, Sense, Stroke, Vec2};
 
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, ROW_M};
 use crate::app::design_tokens::typography::TextRole;
@@ -20,6 +20,14 @@ pub struct CompletionPopup {
     max_visible: usize,
     /// The text that triggered completion (for filtering).
     trigger_text: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CompletionInput {
+    None,
+    Consumed,
+    Confirmed,
+    Dismissed,
 }
 
 impl Default for CompletionPopup {
@@ -97,39 +105,41 @@ impl CompletionPopup {
     }
 
     /// Handle keyboard input. Returns true if the popup consumed the input.
-    pub fn handle_input(&mut self, ctx: &egui::Context) -> bool {
+    pub(crate) fn handle_input(&mut self, ctx: &egui::Context) -> CompletionInput {
         if !self.visible {
-            return false;
+            return CompletionInput::None;
         }
-
-        let mut consumed = false;
-
-        ctx.input(|i| {
-            if i.key_pressed(Key::ArrowDown) {
-                self.selected = (self.selected + 1) % self.items.len();
-                self.ensure_visible();
-                consumed = true;
+        let filtered_count = self.filtered_indices().len();
+        if filtered_count == 0 {
+            self.hide();
+            return CompletionInput::None;
+        }
+        ctx.input_mut(|input| {
+            if input.consume_key(Modifiers::NONE, Key::Escape) {
+                self.hide();
+                return CompletionInput::Dismissed;
             }
-            if i.key_pressed(Key::ArrowUp) {
+            if input.consume_key(Modifiers::NONE, Key::Enter)
+                || input.consume_key(Modifiers::NONE, Key::Tab)
+            {
+                return CompletionInput::Confirmed;
+            }
+            if input.consume_key(Modifiers::NONE, Key::ArrowDown) {
+                self.selected = (self.selected + 1) % filtered_count;
+                self.ensure_visible();
+                return CompletionInput::Consumed;
+            }
+            if input.consume_key(Modifiers::NONE, Key::ArrowUp) {
                 self.selected = if self.selected == 0 {
-                    self.items.len() - 1
+                    filtered_count - 1
                 } else {
                     self.selected - 1
                 };
                 self.ensure_visible();
-                consumed = true;
+                return CompletionInput::Consumed;
             }
-            if i.key_pressed(Key::Tab) || i.key_pressed(Key::Enter) {
-                // Selection confirmed - caller should read selected_item()
-                consumed = true;
-            }
-            if i.key_pressed(Key::Escape) {
-                self.hide();
-                consumed = true;
-            }
-        });
-
-        consumed
+            CompletionInput::None
+        })
     }
 
     /// Ensure the selected item is visible in the scroll window.
@@ -267,15 +277,15 @@ impl CompletionPopup {
                     );
                 }
 
-                // Handle click
-                if is_selected {
-                    // Check for Tab/Enter confirmation
-                    ui.input(|i| {
-                        if i.key_pressed(Key::Tab) || i.key_pressed(Key::Enter) {
-                            let insert = item.insert_text.as_deref().unwrap_or(&item.label);
-                            result = Some(insert.to_string());
-                        }
-                    });
+                let response = ui.interact(
+                    item_rect,
+                    ui.scope_id().with(("completion-item", visible_idx)),
+                    Sense::click(),
+                );
+                if response.clicked() {
+                    self.selected = visible_idx;
+                    let item = &self.items[filtered[visible_idx]];
+                    result = Some(item.insert_text.as_deref().unwrap_or(&item.label).to_string());
                 }
             }
 

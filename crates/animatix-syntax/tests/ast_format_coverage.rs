@@ -936,7 +936,13 @@ fn a_transition_prints_all_three_of_its_fields() {
 #[test]
 fn format_source_preserves_comments_and_ast() {
     let formatter = animatix_syntax::formatter::Formatter::default();
-    for source in COMMENT_FIXTURES {
+    let nested_construct = r#"let shape = Outer {
+  inner: Inner {
+    radius: 12, // inner comment
+  }, // outer comment
+}
+"#;
+    for source in COMMENT_FIXTURES.iter().copied().chain(std::iter::once(nested_construct)) {
         let original = parse(source);
         let formatted = formatter.format_source(source, &original);
         assert_eq!(
@@ -1030,7 +1036,7 @@ fn compound_expressions_stay_parenthesized_as_operands() {
 fn format_source_preserves_ast_on_real_scenes() {
     let formatter = animatix_syntax::formatter::Formatter::default();
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    for relative in ["web/demos/lib/stage.amx", "web/demos/sorting/sort.amx"] {
+    for relative in ["examples/lib/stage.amx", "web/demos/sorting/sort.amx"] {
         let path = root.join(relative);
         let source = std::fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));

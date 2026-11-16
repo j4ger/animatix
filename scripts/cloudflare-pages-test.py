@@ -178,10 +178,10 @@ class IssuanceFallbackTests(unittest.TestCase):
             self.assertEqual(result[0], self.permits[self.tags[1]])
 
     def test_no_completion_claim_on_failure(self):
-        message = self.consumer.outcome_message(True, False, False)
+        message = self.consumer.outcome_message(True, False)
         self.assertNotIn('output complete', message)
         self.assertIn('incomplete', message)
-        self.assertIn('output complete', self.consumer.outcome_message(True, False, True))
+        self.assertIn('output complete', self.consumer.outcome_message(True, True))
 
 
 if __name__ == '__main__':

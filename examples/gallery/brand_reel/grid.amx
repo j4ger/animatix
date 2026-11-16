@@ -2,8 +2,8 @@
 // Each card breathes via its own analytic always line; `reorder` promotes
 // the featured capability. The mascot re-persisted at scene end.
 
-import "../../../web/demos/lib/theme.amx" as theme
-import "../../../web/demos/lib/theme.amx"
+import "../../lib/theme.amx" as theme
+import "../../lib/theme.amx"
 
 config { colorscheme: "ink", dynamic_layout: true, duration: 14 }
 

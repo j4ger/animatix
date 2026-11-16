@@ -229,11 +229,6 @@ pub struct Timeline {
     pub(crate) behavior_registry: std::sync::Arc<crate::timeline::behavior::BehaviorRegistry>,
     /// Optional extension context used during build.
     extensions: Option<std::sync::Arc<crate::extension_context::ExtensionRegistry>>,
-    /// Whether any actor here is an effect scope (`Filter`, `Mask`, or a primitive
-    /// whose caps say so). A frame-cache entry replays a built scene, which cannot
-    /// carry the backend's pending-composite side channel, so caching is only safe
-    /// while nothing would have consulted the backend — exactly this flag.
-    pub(crate) has_effect_scopes: bool,
     /// Frozen base environment entries (stdlib + colorscheme); avoids copying ~90 entries per frame.
     env_base: std::sync::Arc<crate::timeline::env::EnvMap>,
     /// Pooled frame environment handed back after each frame, keeping the
@@ -411,6 +406,8 @@ pub(crate) struct EvalCaches {
     pub(crate) solo_scan_needed: std::cell::Cell<Option<bool>>,
     /// Memoized [`Self::needs_frame_env`] answer; cleared by `invalidate_frame_cache`.
     needs_frame_env: std::cell::Cell<Option<bool>>,
+    /// Memoized whether this scene may use a filter backend; cleared by mutation.
+    pub(crate) needs_filter_backend: std::cell::Cell<Option<bool>>,
     /// Precomputed frame-env injection plan; see `timeline_impl::cache`.
     env_injection_plan: std::cell::RefCell<Option<std::sync::Arc<timeline_impl::EnvInjectionPlan>>>,
     /// The scene's background color for this frame, sampled once and read by the

@@ -76,7 +76,7 @@ impl DocumentStore {
     }
 
     /// Begin an undo snapshot — captures source text before mutation.
-    /// The snapshot is finalized when `commit_source()` or `replace_text()` is called.
+    /// The snapshot is finalized when source text changes or syncs from the editor.
     pub fn snapshot(&mut self, command: Command, ui_before: UiSnapshot) {
         self.pending_snapshot = Some(PendingSnapshot {
             command,
@@ -97,53 +97,6 @@ impl DocumentStore {
                 ui_after,
             );
         }
-    }
-
-    /// Drop a pending undo snapshot after a mutation attempt did not change source.
-    pub fn abort_snapshot(&mut self) {
-        self.pending_snapshot = None;
-    }
-
-    /// Run a source mutation with a scoped undo snapshot.
-    ///
-    /// The snapshot is finalized when the mutation commits source text and
-    /// drops the pending snapshot, or when the source text changed without an
-    /// explicit commit. It is aborted when the mutation returns an error or
-    /// leaves the source unchanged. This removes the need for every handler to
-    /// remember to call `abort_snapshot` on each failure branch.
-    pub fn with_mutation<T, E>(
-        &mut self,
-        command: Command,
-        ui_before: UiSnapshot,
-        ui_after: UiSnapshot,
-        mutate: impl FnOnce(&mut Self) -> Result<T, E>,
-    ) -> Result<T, E> {
-        self.snapshot(command, ui_before);
-        let result = mutate(self);
-        match result {
-            Ok(value) => {
-                let changed = self
-                    .pending_snapshot
-                    .as_ref()
-                    .is_some_and(|pending| pending.source_before != self.source.text());
-                if changed {
-                    self.finalize_snapshot(ui_after);
-                } else {
-                    self.abort_snapshot();
-                }
-                Ok(value)
-            },
-            Err(err) => {
-                self.abort_snapshot();
-                Err(err)
-            },
-        }
-    }
-
-    /// Returns true when a mutation snapshot is waiting to be finalized.
-    #[cfg(test)]
-    pub fn pending_snapshot_is_none(&self) -> bool {
-        self.pending_snapshot.is_none()
     }
 
     // ── Snapshot API ──
@@ -238,27 +191,12 @@ impl DocumentStore {
         current_failed && self.last_good.is_some()
     }
 
-    /// Commit source text through DocumentStore, marking the current snapshot as stale.
-    pub fn commit_source(
-        &mut self,
-        new_source: String,
-        source_index: animatix_syntax::source_index::SourceIndex,
-        ui_after: UiSnapshot,
-    ) {
-        self.source.commit_source(new_source, source_index);
-        self.mark_source_stale(self.source.epoch());
-        self.finalize_snapshot(ui_after);
-    }
-
     /// Replace text through DocumentStore, marking the current snapshot as stale.
     pub fn replace_text(
         &mut self,
         text: String,
     ) -> crate::app::document::source_change::SourceChange {
-        self.replace_text_with_ui(
-            text,
-            UiSnapshot::default_with_tool(crate::app::preview::ToolMode::Move),
-        )
+        self.replace_text_with_ui(text, UiSnapshot::default())
     }
 
     /// Replace text and record the UI state that accompanies the resulting source change.
@@ -273,12 +211,12 @@ impl DocumentStore {
         change
     }
 
-    /// Sync canonical source text from the live editor without resetting editor
-    /// focus or re-parsing its in-memory cells.
+    /// Sync canonical source text without resetting the live text widget's
+    /// cursor, selection, or IME composition state.
     pub fn sync_from_editor(&mut self) -> crate::app::document::source_change::SourceChange {
         let change = self.source.sync_from_editor();
         self.mark_source_stale(change.after_epoch);
-        self.finalize_snapshot(UiSnapshot::default_with_tool(crate::app::preview::ToolMode::Move));
+        self.finalize_snapshot(UiSnapshot::default());
         change
     }
 
@@ -330,7 +268,6 @@ mod tests {
     use crate::app::document::history::UiSnapshot;
     use crate::app::document::snapshot::{BuildTargetSnapshot, SnapshotStatus};
     use crate::app::document::version::{DocumentGeneration, SourceEpoch, SourceHash};
-    use crate::app::preview::ToolMode;
     use crate::app::test_support::document_store_empty;
 
     fn snapshot_with_timeline(
@@ -370,111 +307,10 @@ mod tests {
     }
 
     #[test]
-    fn test_snapshot_finalizes_after_commit_source() {
-        let mut store = document_store_empty();
-        let before = store.source.text().to_string();
-        let ui = UiSnapshot {
-            active_scene: None,
-            selected_actors: Default::default(),
-            selected_keyframes: Vec::new(),
-            playhead_time_s: 1.25,
-            loop_start_s: Some(0.5),
-            loop_end_s: Some(2.0),
-            timeline_scroll_offset: 4.0,
-            tool_mode: ToolMode::Move,
-        };
-        store.snapshot(Command::FindReplaceAll, ui.clone());
-
-        let after = "rect(100, 100) at 0,0\n".to_string();
-        let source_index = animatix_syntax::source_index::SourceIndex::build(&[]);
-        store.commit_source(after.clone(), source_index, ui.clone());
-
-        assert_eq!(store.history.undo_stack.len(), 1);
-        let entry = store.history.undo_stack.back().unwrap();
-        assert_eq!(entry.source_before, before);
-        assert_eq!(entry.source_after, after);
-        assert_eq!(entry.ui_before.playhead_time_s, 1.25);
-        assert_eq!(entry.ui_after.timeline_scroll_offset, 4.0);
-    }
-
-    #[test]
-    fn test_commit_source_invalidates_hit_region_cache() {
-        let mut store = document_store_empty();
-        store.source.cache_valid = true;
-        store.source.cached_hit_regions.push(("box".to_string(), kurbo::Rect::ZERO));
-
-        store.commit_source(
-            "box: Rect, size: (100, 100)\n".to_string(),
-            animatix_syntax::source_index::SourceIndex::build(&[]),
-            UiSnapshot::default_with_tool(ToolMode::Move),
-        );
-
-        assert!(!store.source.cache_valid, "commit_source should invalidate cached hit regions");
-        assert!(store.source.cached_hit_regions.is_empty());
-    }
-
-    #[test]
-    fn test_abort_snapshot_does_not_push_history() {
-        let mut store = document_store_empty();
-        store.snapshot(Command::FindReplaceAll, UiSnapshot::default_with_tool(ToolMode::Move));
-        store.abort_snapshot();
-        store.replace_text("changed\n".to_string());
-        assert!(store.history.undo_stack.is_empty());
-    }
-
-    #[test]
-    fn test_with_mutation_finalizes_on_changed_source() {
-        let mut store = document_store_empty();
-        let result = store.with_mutation(
-            Command::FindReplaceAll,
-            UiSnapshot::default_with_tool(ToolMode::Move),
-            UiSnapshot::default_with_tool(ToolMode::Select),
-            |store| {
-                store.replace_text("changed\n".to_string());
-                Ok::<_, String>(())
-            },
-        );
-
-        assert!(result.is_ok());
-        assert_eq!(store.history.undo_stack.len(), 1);
-        assert!(store.pending_snapshot_is_none());
-    }
-
-    #[test]
-    fn test_with_mutation_aborts_on_error() {
-        let mut store = document_store_empty();
-        let result = store.with_mutation(
-            Command::FindReplaceAll,
-            UiSnapshot::default_with_tool(ToolMode::Move),
-            UiSnapshot::default_with_tool(ToolMode::Select),
-            |_| Err::<(), _>("rejected"),
-        );
-
-        assert!(result.is_err());
-        assert!(store.history.undo_stack.is_empty());
-        assert!(store.pending_snapshot_is_none());
-    }
-
-    #[test]
-    fn test_with_mutation_aborts_without_source_change() {
-        let mut store = document_store_empty();
-        let result = store.with_mutation(
-            Command::FindReplaceAll,
-            UiSnapshot::default_with_tool(ToolMode::Move),
-            UiSnapshot::default_with_tool(ToolMode::Select),
-            |_| Ok::<_, String>(()),
-        );
-
-        assert!(result.is_ok());
-        assert!(store.history.undo_stack.is_empty());
-        assert!(store.pending_snapshot_is_none());
-    }
-
-    #[test]
     fn test_replace_text_finalizes_pending_snapshot() {
         let mut store = document_store_empty();
         let before = store.source.text().to_string();
-        store.snapshot(Command::FindReplaceAll, UiSnapshot::default_with_tool(ToolMode::Move));
+        store.snapshot(Command::FindReplaceAll, UiSnapshot::default());
         let after = "changed\n".to_string();
         store.replace_text(after.clone());
 

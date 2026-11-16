@@ -1,3 +1,4 @@
+export const legacyRevision = "aa4d8d1a01633ba84d7810329735f3286096d5e1";
 // Editorial decisions, not a second current-work catalog. Keep IDs for old URLs.
 export const legacyWorks = [
   { id: 'gradient', title: 'Gradient descent', decision: 'Retained as a source study', reason: 'The revised loss comparison remains useful as an experiment. It is not part of the current curated collection.', caveat: 'Use the revised learning-rate source rather than treating every old chapter as a fully reviewed lesson.', source: 'learningrate.amx', next: 'learn/values-drive-motion/', nextLabel: 'Learn how values drive motion' },

@@ -17,8 +17,8 @@
 // live playback. Every other property in the block is a geometry write and
 // renders in both paths.
 
-import "../lib/theme.amx"
-import "../lib/stage.amx"
+import "../../../examples/lib/theme.amx"
+import "../../../examples/lib/stage.amx"
 import "fourier.amx" as geo
 
 config { resolution: (1280, 720) }

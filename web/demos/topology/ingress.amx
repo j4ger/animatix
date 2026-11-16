@@ -13,8 +13,8 @@
 // so frame 0 is a lit, titled stage. House-style §5: no text below 16 px —
 // node labels are 18, readout values 28, captions 24.
 
-import "../lib/theme.amx"
-import "../lib/stage.amx"
+import "../../../examples/lib/theme.amx"
+import "../../../examples/lib/stage.amx"
 
 config { colorscheme: "tide", resolution: (1280, 720), duration: 9.0 }
 

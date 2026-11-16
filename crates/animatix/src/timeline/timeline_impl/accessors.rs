@@ -23,7 +23,6 @@ impl Timeline {
                 crate::timeline::behavior::BehaviorRegistry::new(),
             ),
             extensions: None,
-            has_effect_scopes: false,
             env_base: std::sync::Arc::new(Default::default()),
             env_pool: std::cell::RefCell::new(None),
             modifiers: Vec::new(),

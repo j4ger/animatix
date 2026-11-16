@@ -158,7 +158,7 @@ impl Timeline {
         &self,
         filter_backend: &Option<&mut dyn crate::timeline::effects::FilterBackend>,
     ) -> bool {
-        filter_backend.is_some() && self.has_effect_scopes
+        filter_backend.is_some() && self.needs_filter_backend()
     }
 
     /// Restore cache-derived frame state when a frame cache entry matches.

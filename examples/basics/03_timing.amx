@@ -1,5 +1,5 @@
-import "../../web/demos/lib/theme.amx"
-import "../../web/demos/lib/stage.amx"
+import "../lib/theme.amx"
+import "../lib/stage.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 6 }
 

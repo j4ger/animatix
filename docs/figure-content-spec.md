@@ -1,6 +1,6 @@
 # Figure Content Spec — the per-template character budget
 
-The figure kit (`web/demos/lib/figure.amx`, also bundled into the web runtime)
+The figure kit (`examples/lib/figure.amx`)
 gives an explanatory figure its layout
 baseline: the FIG header block, left-pinned section bands, and small info
 cards. Layout is only half of the baseline; the other half is **how much text

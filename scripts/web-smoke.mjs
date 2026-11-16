@@ -1,388 +1,118 @@
 #!/usr/bin/env node
-// web-smoke — load the real site in headless Chromium and assert that every
-// <amx-player> reaches `ready`.
-//
-// Why this exists: every static gate can pass while the player is broken. The
-// embed's module split once left a bare `qualityStep` reference that esbuild
-// happily bundled; `site-scenes` built the scenes natively, `embed-drift` built
-// the bundle, and `web-build` only checked that two wasm files existed — all
-// green while every page showed "Failed to load scene". This gate closes that
-// gap: it serves web/, drives Chromium through CDP, injects amxready/amxerror
-// listeners before the document scripts run, and fails on the first error,
-// timeout, or missing canvas.
-//
-// Chromium's SwiftShader adapter supplies WebGPU without a host GPU, so the
-// `.#web-smoke` dev shell (chromium + node + python3) is enough.
-//
-// No third-party dependencies: Node 22+ has fetch and WebSocket.
-
-import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import net from "node:net";
-
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
-const WEB_ROOT = process.env.ANIMATIX_WEB_ROOT || join(ROOT, "web");
-const CHROME = process.env.CHROME || "chromium";
-const PYTHON = process.env.PYTHON || "python3";
-
-// Pages that exercise the load shapes: the home hero, the showcase theater and
-// catalog, a full-bleed gallery, a walkthrough deck, the interactive tour, the
-// recipes page, and the SVG asset probe (now under web/dev/).
-const PAGES = process.env.SMOKE_PAGES
-  ? process.env.SMOKE_PAGES.split(",")
-  : [
-      "/",
-      "/demos/",
-      "/gallery.html",
-      "/demos/transformer/index.html",
-      "/tour/",
-      "/recipes/",
-      "/dev/svg-probe/index.html",
-    ];
-
-// Full-engine scenes load a second, ~22 MB wasm module. On a SwiftShader CI
-// runner the first compile can take several minutes, so the per-player bound is
-// deliberately generous; the page-level budget covers a page with many players.
-const PLAYER_READY_TIMEOUT_MS = 480_000;
-const PAGE_BUDGET_MS = 30 * 60_000;
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
+// Distinct SDK fixtures and real assembled-site journeys. No legacy page crawl.
+import {spawn, execFileSync} from 'node:child_process';
+import {existsSync,mkdtempSync,rmSync,mkdirSync,writeFileSync,appendFileSync,readFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {dirname,join,resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import net from 'node:net';
+import {Cdp,until,sleep,instrumentation,navigationCommitted} from './web-smoke-browser.mjs';
+import {contracts,siteBase,withBase} from './web-smoke-contracts.mjs';
+import {journey} from './web-smoke-journeys.mjs';
+import {chromiumLaunch} from './web-smoke-launch.mjs';
+import {visualPreflight} from './web-smoke-preflight.mjs';
+const ROOT=dirname(dirname(fileURLToPath(import.meta.url)));
+const SUITE=process.env.SMOKE_SUITE || 'sdk';
+const WEB_ROOT=resolve(ROOT,process.env.ANIMATIX_WEB_ROOT || (SUITE==='site'?'_site':'web'));
+const OUTPUT=resolve(ROOT,process.env.SMOKE_OUTPUT_DIR || `target/web-smoke/${SUITE}-${process.env.SMOKE_ATTEMPT || 1}`);
+const PREFIX=siteBase(process.env.SITE_BASE);
+const PAGES=contracts(SUITE,process.env.SMOKE_DEPTH || 'critical').map(contract=>withBase(contract,PREFIX));
+const PAGE_BUDGET=180000;
 function freePort() {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.unref();
-    server.on("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const { port } = server.address();
-      server.close(() => resolve(port));
-    });
+  return new Promise((resolve,reject)=>{
+    const s=net.createServer();s.on('error',reject);s.listen(0,'127.0.0.1',()=>{const port=s.address().port;s.close(()=>resolve(port));});
   });
 }
-
-async function waitFor(what, timeoutMs, probe) {
-  const deadline = Date.now() + timeoutMs;
-  let last;
-  while (Date.now() < deadline) {
-    try {
-      if (await probe()) return;
-    } catch (error) {
-      last = error;
-    }
-    await sleep(200);
-  }
-  throw new Error(`timed out after ${timeoutMs}ms waiting for ${what}${last ? `: ${last.message}` : ""}`);
+function kill(child) {
+  if(!child || child.exitCode!==null)return;
+  try{process.kill(-child.pid,'SIGKILL');}catch{child.kill('SIGKILL');}
 }
-
-class Cdp {
-  constructor(url) {
-    this.ws = new WebSocket(url);
-    this.nextId = 0;
-    this.pending = new Map();
-  }
-
-  async open() {
-    await new Promise((resolve, reject) => {
-      this.ws.addEventListener("open", resolve, { once: true });
-      this.ws.addEventListener("error", reject, { once: true });
-    });
-    this.ws.addEventListener("message", (event) => {
-      const message = JSON.parse(event.data);
-      if (message.method && this.onEvent) this.onEvent(message);
-      const pending = this.pending.get(message.id);
-      if (!pending) return;
-      this.pending.delete(message.id);
-      if (message.error) pending.reject(new Error(JSON.stringify(message.error)));
-      else pending.resolve(message.result);
-    });
-  }
-
-  send(method, params = {}) {
-    const id = ++this.nextId;
-    return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-      this.ws.send(JSON.stringify({ id, method, params }));
-    });
-  }
-
-  close() {
-    try {
-      this.ws.close();
-    } catch {
-      // already closed
-    }
-  }
-}
-
-// Runs inside the page. The page-side deadline is generous: the first load
-// compiles a multi-megabyte wasm module and builds every scene on the page.
-function pageProbe(playerTimeoutMs, pageBudgetMs) {
-  return (async () => {
-    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    if (!navigator.gpu) return { error: "navigator.gpu is undefined (no WebGPU)" };
-    const adapter = await navigator.gpu.requestAdapter();
-    if (!adapter) return { error: "no WebGPU adapter" };
-
-    const players = [...document.querySelectorAll("amx-player")];
-    if (!players.length) return { error: "no <amx-player> element on the page" };
-
-    // Deck pages present one slide at a time and keep the hidden players idle
-    // by design. Switch to Article mode so every player is reachable, the way
-    // a reader who wants to see them all would.
-    const articleBtn = document.querySelector('.btn-deck-mode[data-mode="article"]');
-    if (articleBtn) {
-      articleBtn.click();
-      await sleep(400);
-    }
-
-    // Players below the fold load on intersection, and the loader deliberately
-    // drops a queued player that has already been scrolled past. Walk them one
-    // at a time and wait for each: that is what a reader does, and it makes the
-    // gate deterministic instead of a race with the scroll position.
-    // Full-engine scenes compile a second wasm module; on SwiftShader CI that
-    // can take minutes per player. The 8 min per-player bound and 30 min page
-    // budget absorb the first full-engine compile instead of failing it.
-    const results = [];
-    const globalDeadline = Date.now() + pageBudgetMs;
-    for (const player of players) {
-      const src = player.getAttribute("src");
-      const deadline = Math.min(globalDeadline, Date.now() + playerTimeoutMs);
-      player.scrollIntoView({ block: "center", behavior: "instant" });
-      // IntersectionObserver can lag behind a programmatic scroll on a loaded
-      // CI runner, leaving a lazy player idle forever. `loadNow()` is the
-      // player's public eager-load path, so use it after making the element
-      // visible; the readiness/render assertions below are unchanged.
-      if (player._state === "idle" && typeof player.loadNow === "function") {
-        player.loadNow();
+async function main(){
+  mkdirSync(OUTPUT,{recursive:true});
+  if(!existsSync(join(WEB_ROOT,'runtime/runtime-manifest.json')))throw Error(`SDK missing in ${WEB_ROOT}; build/restore the SDK and assemble site first`);
+  if(SUITE==='site' && WEB_ROOT===join(ROOT,'web'))throw Error('site suite refuses the legacy web/ source tree');
+  const metadata={suite:SUITE,depth:process.env.SMOKE_DEPTH || 'critical',attempt:Number(process.env.SMOKE_ATTEMPT||1),sha:execFileSync('git',['rev-parse','HEAD'],{cwd:ROOT,encoding:'utf8'}).trim(),viewport:{width:1440,height:1000},backend:'SwiftShader (requested; adapter reported below)'};
+  writeFileSync(join(OUTPUT,'runtime-manifest.json'),readFileSync(join(WEB_ROOT,'runtime/runtime-manifest.json')));
+  const record=event=>appendFileSync(join(OUTPUT,'timings.jsonl'),JSON.stringify({...metadata,recordedAt:new Date().toISOString(),...event})+'\n');
+  const port=await freePort(), debugPort=await freePort(),base=`http://127.0.0.1:${port}`;
+  const profile=mkdtempSync(join(tmpdir(),'amx-smoke-'));
+  let cdp,server,chrome,current='startup',pageErrors=[],browserLog='',consoleLog='',networkLog='';
+  const watchdog=setTimeout(()=>{record({kind:'failure',category:'watchdog',page:current});kill(chrome);kill(server);process.exit(1);},PAGES.length*PAGE_BUDGET+60000);
+  try{
+    server=spawn(process.env.PYTHON||'python3',[join(ROOT,'scripts/serve-web.py'),String(port)],{cwd:ROOT,env:{...process.env,SERVE_ROOT:WEB_ROOT,SERVE_BASE:PREFIX},detached:true,stdio:['ignore','pipe','pipe']});
+    for(const stream of [server.stdout,server.stderr])stream.on('data',data=>appendFileSync(join(OUTPUT,'server.log'),data));
+    const launch=chromiumLaunch(process.env.CHROME||'chromium',profile,debugPort);
+    chrome=spawn(launch.command,launch.args,{detached:true,stdio:['ignore','pipe','pipe']});
+    let spawnError;
+    for(const child of [server,chrome])child.on('error',error=>{spawnError=error;});
+    for(const stream of [chrome.stdout,chrome.stderr])stream.on('data',data=>{browserLog+=data;appendFileSync(join(OUTPUT,'chromium.log'),data);});
+    await until('server',async()=>{if(spawnError)throw spawnError;try{return (await fetch(base+PREFIX+'/',{signal:AbortSignal.timeout(2000)})).ok;}catch{return false;}},20000);
+    await until('CDP',async()=>{if(spawnError)throw spawnError;try{return (await fetch(`http://127.0.0.1:${debugPort}/json/version`,{signal:AbortSignal.timeout(2000)})).ok;}catch{return false;}},30000);
+    const response=await fetch(`http://127.0.0.1:${debugPort}/json/new?about:blank`,{method:'PUT',signal:AbortSignal.timeout(5000)});
+    if(!response.ok)throw Error(`CDP target failed: ${response.status}`);
+    cdp=new Cdp((await response.json()).webSocketDebuggerUrl);
+    cdp.onEvent=event=>{
+      if(event.method==='Runtime.consoleAPICalled'){
+        const text=event.params.args.map(arg=>arg.value??arg.description??'').join(' ');
+        consoleLog+=`[${event.params.type}] ${text}\n`;
+        if(event.params.type==='error'||/amx-player: render failed/.test(text))pageErrors.push(text);
       }
-      while (player._state !== "ready") {
-        const smoke = window.__amxSmoke || { errors: [] };
-        if (smoke.errors.length) return { error: `amxerror on ${src}: ${smoke.errors[0]}` };
-        if (player._state === "error") return { error: `player error on ${src}` };
-        if (Date.now() > deadline) {
-          return {
-            error: `timed out after ${Math.round(playerTimeoutMs / 1000)}s waiting for ${src} to be ready (state: ${player._state})`,
-            states: players.map((p) => p._state),
-          };
-        }
-        await sleep(100);
+      if(event.method==='Runtime.exceptionThrown')pageErrors.push(event.params.exceptionDetails.exception?.description||event.params.exceptionDetails.text);
+      if(event.method==='Network.responseReceived'){
+        const r=event.params.response;networkLog+=JSON.stringify({url:r.url,status:r.status,mime:r.mimeType})+'\n';
+        // Chromium probes this optional conventional URL even without an authored link.
+        if(r.status>=400 && new URL(r.url).pathname!=='/favicon.ico')pageErrors.push(`HTTP ${r.status}: ${r.url}`);
       }
-      // The first frame follows ready; give it a beat while still on screen,
-      // then record whether the canvas actually painted (a blank canvas after
-      // ready is its own regression).
-      await sleep(300);
-      const canvas = player.shadowRoot && player.shadowRoot.querySelector("canvas");
-      if (!canvas) return { error: `${src}: no canvas in the player's shadow root` };
-      let bytes;
-      try {
-        bytes = canvas.toDataURL("image/png").length;
-      } catch {
-        bytes = -1; // WebGPU canvases may refuse readback; not a paint failure
-      }
-      results.push({ src, bytes });
-    }
-    const fontRequests = performance
-      .getEntriesByType("resource")
-      .map((entry) => entry.name)
-      .filter((name) => /\/fonts\/[^/]+\.gz(?:[?#]|$)/.test(name));
-    const textNeedsFonts = players.some((player) => {
-      const fonts = player._loadedBundle?.analysis?.fonts;
-      return fonts && (
-        fonts.dynamic === true
-        || fonts.rich_text === true
-        || Boolean(fonts.text)
-        || Boolean(fonts.families?.length)
-      );
-    });
-    if (textNeedsFonts && !fontRequests.length) {
-      return { error: "text scenes required fonts but no external font face was requested" };
-    }
-    if (!textNeedsFonts && fontRequests.length) {
-      return { error: "graphics-only scenes unexpectedly requested an external font face" };
-    }
-    return {
-      players: players.length,
-      canvases: results.map((result) => result.bytes),
-      sources: results.map((result) => result.src),
-      fontRequests: fontRequests.length,
-      textNeedsFonts,
-    };
-  })();
-}
-
-function killGroup(child) {
-  if (!child || child.exitCode !== null) return;
-  try {
-    process.kill(-child.pid, "SIGKILL");
-  } catch {
-    try {
-      child.kill("SIGKILL");
-    } catch {
-      // already gone
-    }
-  }
-}
-
-async function main() {
-  if (!existsSync(join(WEB_ROOT, "runtime/runtime-manifest.json"))) {
-    throw new Error("runtime manifest is missing — run scripts/ci.sh gate web-sdk first");
-  }
-
-  const sitePort = await freePort();
-  const cdpPort = await freePort();
-  const base = `http://127.0.0.1:${sitePort}`;
-  const profile = mkdtempSync(join(tmpdir(), "amx-smoke-"));
-
-  let serverLog = "";
-  let chromeLog = "";
-  const server = spawn(PYTHON, [join(ROOT, "scripts/serve-web.py"), String(sitePort)], {
-    cwd: ROOT,
-    env: { ...process.env, SERVE_ROOT: WEB_ROOT },
-    detached: true,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  server.stdout.on("data", (chunk) => (serverLog += chunk));
-  server.stderr.on("data", (chunk) => (serverLog += chunk));
-
-  const chrome = spawn(
-    CHROME,
-    [
-      "--headless=new",
-      "--no-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu-sandbox",
-      "--enable-unsafe-webgpu",
-      // Dawn initializes Vulkan even without a host GPU. Prefer the bundled
-      // SwiftShader ICD so a runner with no /dev/dri still gets an adapter;
-      // --disable-vulkan-surface keeps the headless path surface-free.
-      "--disable-vulkan-surface",
-      "--use-angle=vulkan",
-      "--use-vulkan=swiftshader",
-      "--enable-features=Vulkan",
-      "--no-first-run",
-      "--no-default-browser-check",
-      "--mute-audio",
-      "--disable-background-networking",
-      "--disable-extensions",
-      `--remote-debugging-port=${cdpPort}`,
-      `--user-data-dir=${profile}`,
-      "about:blank",
-    ],
-    { detached: true, stdio: ["ignore", "pipe", "pipe"] },
-  );
-  chrome.stdout.on("data", (chunk) => (chromeLog += chunk));
-  chrome.stderr.on("data", (chunk) => (chromeLog += chunk));
-
-  let cdp;
-  let consoleLog = "";
-  try {
-    await waitFor("the local site server", 20000, async () => {
-      const response = await fetch(`${base}/`);
-      return response.ok;
-    });
-    await waitFor("Chromium's CDP endpoint", 30000, async () => {
-      const response = await fetch(`http://127.0.0.1:${cdpPort}/json/version`);
-      return response.ok;
-    });
-
-    let response = await fetch(`http://127.0.0.1:${cdpPort}/json/new?${encodeURIComponent(`${base}${PAGES[0]}`)}`, {
-      method: "PUT",
-    });
-    if (!response.ok) {
-      response = await fetch(`http://127.0.0.1:${cdpPort}/json/new?${encodeURIComponent(`${base}${PAGES[0]}`)}`);
-    }
-    if (!response.ok) throw new Error(`could not create a CDP target (HTTP ${response.status})`);
-    const target = await response.json();
-
-    cdp = new Cdp(target.webSocketDebuggerUrl);
-    cdp.onEvent = (message) => {
-      if (message.method === "Runtime.consoleAPICalled") {
-        const args = (message.params.args || [])
-          .map((arg) => arg.value ?? arg.description ?? arg.type ?? "")
-          .join(" ");
-        consoleLog += `[${message.params.type}] ${args}\n`;
-      } else if (message.method === "Runtime.exceptionThrown") {
-        const details = message.params.exceptionDetails || {};
-        consoleLog += `[exception] ${details.text || ""} ${details.exception?.description || ""}\n`;
-      }
+      if(event.method==='Network.loadingFailed'&&!event.params.canceled)pageErrors.push(`Network failed: ${event.params.errorText}`);
     };
     await cdp.open();
-    await cdp.send("Page.enable");
-    await cdp.send("Runtime.enable");
-    await cdp.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: `
-        window.__amxSmoke = { errors: [], ready: 0 };
-        addEventListener("amxerror", (event) => {
-          const detail = event.detail || {};
-          let text = "amxerror";
-          if (detail.message) text = String(detail.message);
-          else if (detail.error) text = detail.error.message || String(detail.error);
-          else if (detail.diagnostics) {
-            try { text = JSON.stringify(detail.diagnostics).slice(0, 800); } catch { /* keep default */ }
-          } else {
-            try { text = JSON.stringify(detail).slice(0, 800); } catch { /* keep default */ }
-          }
-          window.__amxSmoke.errors.push(text);
-        }, true);
-        addEventListener("amxready", () => { window.__amxSmoke.ready += 1; }, true);
-      `,
-    });
-
-    for (const path of PAGES) {
-      const url = `${base}${path}`;
-      const pageStarted = Date.now();
-      process.stdout.write(`web-smoke: ${path} `);
-      await cdp.send("Page.navigate", { url });
-      await waitFor(`load of ${path}`, 120000, async () => {
-        const { result } = await cdp.send("Runtime.evaluate", {
-          expression: "document.readyState",
-          returnByValue: true,
-        });
-        return result.value === "complete";
-      });
-
-      const { result } = await cdp.send("Runtime.evaluate", {
-        expression: `(${pageProbe.toString()})(${PLAYER_READY_TIMEOUT_MS}, ${PAGE_BUDGET_MS})`,
-        awaitPromise: true,
-        returnByValue: true,
-      });
-      const outcome = result.value || {};
-      const shaderFailure = chromeLog.match(/Error while parsing WGSL:[\s\S]{0,600}/);
-      if (shaderFailure) {
-        throw new Error(`${path}: GPU shader validation failed: ${shaderFailure[0]}`);
-      }
-      if (outcome.error) {
-        throw new Error(`${path}: ${outcome.error}${outcome.states ? ` (states: ${outcome.states.join(",")})` : ""}${outcome.info ? `\n${JSON.stringify(outcome.info, null, 2)}` : ""}`);
-      }
-      const canvases = outcome.canvases || [];
-      if (canvases.length !== outcome.players || canvases.some((size) => size === 0)) {
-        throw new Error(`${path}: a player has no canvas (${canvases.join(",")})`);
-      }
-      const painted = canvases.filter((size) => size > 4000).length;
-      if (painted === 0 && canvases.some((size) => size > 0)) {
-        throw new Error(`${path}: every canvas is blank after ready (${canvases.join(",")})`);
-      }
-      console.log(`ok (${outcome.players} players, ${painted} painted, canvas bytes ${canvases.join(",")}, ${((Date.now() - pageStarted) / 1000).toFixed(1)}s)`);
+    for(const domain of ['Page','Runtime','Network'])await cdp.send(`${domain}.enable`);
+    await cdp.send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+    await cdp.send('Page.addScriptToEvaluateOnNewDocument',{source:instrumentation});
+    metadata.browser=await cdp.send('Browser.getVersion');
+    // No page/SDK has run yet. Only an adapter failure here is retryable (75).
+    await cdp.send('Page.navigate',{url:base+PREFIX+'/runtime/runtime-manifest.json'});
+    await navigationCommitted(cdp,base+PREFIX+'/runtime/runtime-manifest.json');
+    await until('preflight document',()=>cdp.evaluate(`location.origin===${JSON.stringify(base)}&&document.readyState==='complete'`));
+    const adapter=await cdp.evaluate(`(async()=>{if(!navigator.gpu)return null;const a=await navigator.gpu.requestAdapter();return a?{vendor:a.info?.vendor,architecture:a.info?.architecture,device:a.info?.device,description:a.info?.description}:null;})()`);
+    if(!adapter){const error=Error('WebGPU adapter unavailable before suite');error.exitCode=75;throw error;}
+    metadata.adapter=adapter;
+    const systemResponse=await(await fetch(`http://127.0.0.1:${debugPort}/json/version`)).json();
+    const system=new Cdp(systemResponse.webSocketDebuggerUrl);await system.open();
+    try {metadata.gpu=(await system.send('SystemInfo.getInfo')).gpu;} finally {system.close();}
+    metadata.compositorPixels=await visualPreflight(cdp,bytes=>writeFileSync(join(OUTPUT,'preflight.png'),bytes));
+    record({kind:'preflight'});
+    for(let n=0;n<PAGES.length;n++){
+      const contract=PAGES[n], started=Date.now();current=contract.path;pageErrors=[];browserLog='';
+      const checkErrors=async()=>{
+        const errors=await cdp.evaluate(`window.__smoke?.errors||[]`);
+        const status=await cdp.evaluate(`document.querySelector('.scene-status')?.textContent||''`);
+        if(errors.length||pageErrors.length||/Could not load|Playback unavailable/.test(status))throw Error([...errors,...pageErrors,status].filter(Boolean).join('\n'));
+        if(/Error while parsing WGSL|GPU validation error/.test(browserLog))throw Error('GPU validation failed (see chromium.log)');
+      };
+      const capture=async(index,name)=>{
+        const clip=await cdp.evaluate(`(()=>{const c=document.querySelectorAll('amx-player')[${index}]?.shadowRoot?.querySelector('canvas');if(!c)throw Error('Missing player canvas');const r=c.getBoundingClientRect();if(r.width<32||r.height<32||r.x<0||r.y<0||r.bottom>innerHeight||r.right>innerWidth)throw Error('Canvas not fully visible');return {x:r.x+scrollX,y:r.y+scrollY,width:r.width,height:r.height,scale:1};})()`);
+        const {data}=await cdp.send('Page.captureScreenshot',{format:'png',clip,captureBeyondViewport:false});
+        const buffer=Buffer.from(data,'base64');writeFileSync(join(OUTPUT,`${n}-${name}.png`),buffer);return buffer;
+      };
+      let timer;
+      try{
+        await Promise.race([(async()=>{
+          await cdp.send('Page.navigate',{url:base+contract.path});
+          await navigationCommitted(cdp,base+contract.path);
+          await journey(cdp,contract,capture,event=>record({page:current,...event}),checkErrors);
+        })(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error(`Host page deadline (${PAGE_BUDGET}ms)`)),PAGE_BUDGET);})]);
+      }finally{clearTimeout(timer);}
+      record({kind:'page-complete',page:current,durationMs:Date.now()-started,cache:n===0?'browser-first-journey':'browser-reused'});
+      console.log(`web-smoke ${SUITE}: ${current} ok (${Date.now()-started}ms)`);
     }
-    console.log("web-smoke: ok");
-  } catch (error) {
-    if (serverLog) console.error(`--- serve-web.py ---\n${serverLog.slice(-2000)}`);
-    if (consoleLog) console.error(`--- page console ---\n${consoleLog.slice(-4000)}`);
-    if (chromeLog) console.error(`--- chromium ---\n${chromeLog.slice(-2000)}`);
+  }catch(error){
+    record({kind:'failure',page:current,message:error.message,retryable:error.exitCode===75});
+    if(cdp)try{const shot=await cdp.send('Page.captureScreenshot',{format:'png'},3000);writeFileSync(join(OUTPUT,'failure.png'),Buffer.from(shot.data,'base64'));}catch{/* transport may have failed */}
     throw error;
-  } finally {
-    if (cdp) cdp.close();
-    killGroup(chrome);
-    killGroup(server);
-    await sleep(200);
-    rmSync(profile, { recursive: true, force: true });
+  }finally{
+    clearTimeout(watchdog);writeFileSync(join(OUTPUT,'console.log'),consoleLog);writeFileSync(join(OUTPUT,'network.jsonl'),networkLog);
+    cdp?.close();kill(chrome);kill(server);await sleep(100);rmSync(profile,{recursive:true,force:true});
   }
 }
-
-main().catch((error) => {
-  console.error(`web-smoke: FAILED: ${error.message}`);
-  process.exitCode = 1;
-});
+main().catch(error=>{console.error(`web-smoke: FAILED: ${error.message}`);process.exitCode=error.exitCode||1;});

@@ -54,17 +54,15 @@ def select_issuance(tags, policy, issuance, fetch, gh, commit, latest):
     raise RuntimeError('no complete current valid signed issuance; renew signing job without rebuilding SDK')
 
 
-def outcome_message(pages, candidate, completed):
+def outcome_message(pages, completed):
     if not completed:
         return 'Static build incomplete; no publishable output accepted'
     if pages:
         return 'Pages static output complete; Pages owns deployment'
-    if candidate:
-        return 'Candidate build only; activation is separate'
     return 'Intentional experiment stop; no deployment'
 
 
-def main(policy=None, candidate=False, issuance=None, head_ref=None, pages=False):
+def main(policy=None, issuance=None, head_ref=None, pages=False):
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGINT, interrupted)
     policy = policy or load('cloudflare-permit')
@@ -111,7 +109,7 @@ def main(policy=None, candidate=False, issuance=None, head_ref=None, pages=False
         latest()
         bounded.run(['bash', 'scripts/cloudflare-attestation-tools.sh', str(work/'tools')], work, started)
         gh = work/'tools/gh_2.104.0_linux_amd64/bin/gh'
-        candidate_policy = issuance or (load('cloudflare-candidate') if candidate else None)
+        candidate_policy = issuance
         tags = candidate_policy.release_tags(commit) if candidate_policy else ['cf-candidate-'+commit]
         permit, permit_path, bundle, archive = select_issuance(
             tags, policy, candidate_policy, fetch, gh, commit, latest)
@@ -127,17 +125,9 @@ def main(policy=None, candidate=False, issuance=None, head_ref=None, pages=False
         bounded.run(['python3', 'scripts/cloudflare-site-check.py', '_site'], work, started)
         latest()
         policy.validate_permit(permit, commit)
-        print('SIGNED_SDK_ASTRO_BUILD_ONLY_PASS' if not candidate else 'SIGNED_CANDIDATE_BUILD_PASS', flush=True)
+        print('SIGNED_SDK_ASTRO_BUILD_ONLY_PASS', flush=True)
         if pages:
             print('SIGNED_PAGES_STATIC_BUILD_PASS', flush=True)
-            completed = True
-            return 0
-        if candidate:
-            receipt = repo/'target/cloudflare-candidate'
-            receipt.mkdir(parents=True, exist_ok=False)
-            shutil.copyfile(permit_path, receipt/'permit.json')
-            shutil.copyfile(bundle, receipt/'permit.sigstore.json')
-            shutil.copyfile(archive, receipt/'sdk.zip')
             completed = True
             return 0
         completed = True
@@ -147,7 +137,7 @@ def main(policy=None, candidate=False, issuance=None, head_ref=None, pages=False
         os.environ.clear()
         os.environ.update(old)
         print('elapsed_seconds=', round(time.monotonic()-started), flush=True)
-        print(outcome_message(pages, candidate, completed), flush=True)
+        print(outcome_message(pages, completed), flush=True)
     return 1
 
 

@@ -47,8 +47,77 @@ pub(super) fn validate_pass_count(pass_count: usize) -> Result<(), String> {
 pub(super) struct EffectPipeline {
     /// One compute pipeline per pass, index-aligned with the descriptor.
     pub(super) passes: Vec<wgpu::ComputePipeline>,
-    /// Author parameter uniform buffer (binding 2).
+    /// Author parameter uniform buffer (binding 2), with a dynamic-offset slot
+    /// for every active instance of this effect type in the current chain.
     pub(super) uniform_buffer: wgpu::Buffer,
+    /// Size of the binding visible to the effect shader.
+    pub(super) author_uniform_size: u64,
+    /// Per-instance stride, aligned to the device's dynamic uniform offset
+    /// requirement.
+    author_uniform_stride: u64,
+    /// Number of per-instance slots currently allocated in `uniform_buffer`.
+    author_uniform_capacity: usize,
+}
+
+/// Identity of a bind group that can be reused across frames. The wgpu handles
+/// compare by their underlying resource IDs, so this remains correct for both
+/// the full-frame targets and quantized region scratch sets.
+#[derive(Clone, Hash, PartialEq, Eq)]
+pub(super) struct EffectBindGroupCacheKey {
+    pub(super) src_view: wgpu::TextureView,
+    pub(super) dst_view: wgpu::TextureView,
+    pub(super) original_view: wgpu::TextureView,
+    pub(super) uniform_buffer: wgpu::Buffer,
+    pub(super) author_uniform_size: u64,
+}
+
+pub(super) const MAX_EFFECT_BIND_GROUP_CACHE_ENTRIES: usize = 256;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum PassSubmitStrategy {
+    /// Submit seed, passes, and harvest separately for reference tests and dumps.
+    Separate,
+    /// Encode seed, each independent compute pass, and harvest before one submit.
+    Combined,
+}
+
+impl EffectPipeline {
+    /// Grow the persistent author-uniform buffer when a chain uses more
+    /// instances of this effect type than its current capacity.
+    pub(super) fn ensure_author_uniform_capacity(
+        &mut self,
+        device: &wgpu::Device,
+        slots: usize,
+    ) -> Result<bool, String> {
+        if slots <= self.author_uniform_capacity {
+            return Ok(false);
+        }
+
+        let capacity = slots
+            .checked_next_power_of_two()
+            .ok_or_else(|| "effect uniform slot capacity overflowed".to_string())?;
+        let size = self
+            .author_uniform_stride
+            .checked_mul(capacity as u64)
+            .ok_or_else(|| "effect uniform buffer size overflowed".to_string())?;
+        self.uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Animatix Effect Instance Uniforms"),
+            size,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        self.author_uniform_capacity = capacity;
+        Ok(true)
+    }
+
+    /// Dynamic offset for one instance's author parameters.
+    pub(super) fn author_uniform_offset(&self, slot: usize) -> Result<u32, String> {
+        let offset = self
+            .author_uniform_stride
+            .checked_mul(slot as u64)
+            .ok_or_else(|| "effect uniform offset overflowed".to_string())?;
+        u32::try_from(offset).map_err(|_| "effect uniform offset exceeds wgpu's u32 limit".into())
+    }
 }
 
 /// Fixed layout shared by every effect (docs/effects.md §4.2).
@@ -84,7 +153,7 @@ pub(super) fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroup
                 visibility: wgpu::ShaderStages::COMPUTE,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
+                    has_dynamic_offset: true,
                     min_binding_size: None,
                 },
                 count: None,
@@ -158,20 +227,26 @@ pub(super) fn create_effect_pipeline(
         });
         passes.push(pipeline);
     }
+    let author_uniform_size = u64::from(effect.author_uniform_size().max(16));
+    let alignment = u64::from(device.limits().min_uniform_buffer_offset_alignment.max(1));
+    let author_uniform_stride = author_uniform_size.div_ceil(alignment) * alignment;
     let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("Animatix Effect Uniforms"),
-        size: u64::from(effect.author_uniform_size().max(16)),
+        label: Some("Animatix Effect Instance Uniforms"),
+        size: author_uniform_stride,
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
     EffectPipeline {
         passes,
         uniform_buffer,
+        author_uniform_size,
+        author_uniform_stride,
+        author_uniform_capacity: 1,
     }
 }
 
-/// Bind group for one pass: views plus the context uniform at `slot`'s
-/// dynamic offset in the shared context buffer.
+/// Bind group for one effect pass. Author parameters and host context both use
+/// dynamic offsets; the views and fixed binding sizes identify the cached group.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn create_effect_bind_group(
     device: &wgpu::Device,
@@ -182,6 +257,7 @@ pub(super) fn create_effect_bind_group(
     dst_view: &wgpu::TextureView,
     original_view: &wgpu::TextureView,
     uniform_buffer: &wgpu::Buffer,
+    author_uniform_size: u64,
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("Animatix Effect Bind Group"),
@@ -197,7 +273,14 @@ pub(super) fn create_effect_bind_group(
             },
             wgpu::BindGroupEntry {
                 binding: 2,
-                resource: uniform_buffer.as_entire_binding(),
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: uniform_buffer,
+                    offset: 0,
+                    size: Some(
+                        std::num::NonZeroU64::new(author_uniform_size)
+                            .expect("effect author uniform binding is nonzero"),
+                    ),
+                }),
             },
             wgpu::BindGroupEntry {
                 binding: 3,
@@ -228,7 +311,8 @@ pub(super) fn encode_effect_pass(
     pass_pipeline: &wgpu::ComputePipeline,
     width: u32,
     height: u32,
-    slot_offset: u32,
+    author_uniform_offset: u32,
+    context_offset: u32,
 ) {
     let width = width.max(1);
     let height = height.max(1);
@@ -238,7 +322,9 @@ pub(super) fn encode_effect_pass(
             timestamp_writes: None,
         });
         pass.set_pipeline(pass_pipeline);
-        pass.set_bind_group(0, bind_group, &[slot_offset]);
+        // Dynamic offsets are ordered by binding number: author parameters
+        // (binding 2), then host context (binding 3).
+        pass.set_bind_group(0, bind_group, &[author_uniform_offset, context_offset]);
         pass.dispatch_workgroups(width.div_ceil(16), height.div_ceil(16), 1);
     }
 }

@@ -7,13 +7,21 @@ SDK, builds Astro and publishes `_site`.
 
 ## Current state
 
-`animatix-pages` was created on 2026-11-15 with GitHub `j4ger/animatix`, production
-branch `deploy/pages`, all automatic production/preview deployments disabled and
-build command `exit 1`. No custom domain or DNS changed. The project has no
-accepted deployment yet. Its default hostname is `animatix-pages.pages.dev`.
+`amx.j4ger.dev` is served by the `animatix-pages` Cloudflare Pages project.
+GitHub `j4ger/animatix` is connected with production branch `deploy/pages`.
+Main CI signs the tested SDK; the sole publisher advances that branch and waits
+for its Pages deployment. `deploy/pages-state` holds the durable release journal.
+Both branches are infrastructure state, not disposable development branches.
 
-The issuer is now `main`; policy and CI condition must change together.
-A fresh main CI run must sign its own SDK before release. A Workers schema-2 permit is deliberately not accepted.
+Automatic production/preview builds in Pages stay disabled. The configured
+build command is `bash scripts/ci.sh gate cloudflare-pages-build`, output `_site`,
+with `NODE_VERSION=24.14.0` and `SKIP_DEPENDENCY_INSTALL=1`. The release job makes
+one explicit deployment request. GitHub Pages is not the active host.
+
+The normal path has passed real CI signing, Pages build, SDK verification and
+custom-domain acceptance. That does not claim every failure-recovery or rollback
+scenario has been exercised remotely. A Workers schema-2 permit is deliberately
+not accepted by Pages.
 
 ## Signed build
 
@@ -21,8 +29,8 @@ A fresh main CI run must sign its own SDK before release. A Workers schema-2 per
    `enabled`. Existing CI runs once and produces its original `web-runtime` ZIP.
 2. Only after `CI Required` succeeds, `cloudflare_pages` signs a schema-3 permit
    for the exact source SHA, artifact hash/size, CI run/attempt and Pages project.
-   It publishes `cf-pages-SHA-rRUN-aATTEMPT`, a non-latest prerelease. Restore the
-   temporary variable after the job ends. Storage is not assumed immutable.
+   It publishes `cf-pages-SHA-rRUN-aATTEMPT`, a non-latest prerelease. Storage is
+   not assumed immutable; every consumer checks the signed digest.
 3. The issuing branch and publishing branch differ intentionally: the former
    supplies the signed CI identity; `deploy/pages` selects an already-accepted
    commit without another full CI run.
@@ -38,64 +46,38 @@ A fresh main CI run must sign its own SDK before release. A Workers schema-2 per
    for the same commit: every fallback repeats signature, identity, TTL and SDK
    digest validation. Builds with no complete valid issuance fail closed.
 
-## First deployment and serial release procedure
+## Release ordering and recovery
 
 Do not treat the Pages deployment API's `commit_hash` field as checkout control:
 its Git `branch` input builds that branch's HEAD. Never advance `deploy/pages`
-while a previous deployment is queued or running.
+while a previous deployment is queued or running. The journal-backed publisher
+below owns ref advancement, one deployment request, and terminal reconciliation.
+Do not run a second manual publisher beside it.
 
-For the first deployment, a single operator owns the complete transaction:
-
-1. Verify the signed release and exact CI SHA, record current release-branch SHA
-   (or absence), current Pages canonical deployment ID, and all active builds.
-2. Require no pending/running Pages build. Keep automatic production disabled.
-3. Create/fast-forward `deploy/pages` to the accepted SHA using a conditional Git
-   ref update. Reject non-ancestor changes. No force rewrites, mutable SDK aliases
-   or cross-commit SDK relabeling.
-4. Submit one Pages Git deployment for `deploy/pages`, record its returned ID,
-   and wait for a terminal result. If the request outcome is unknown, inspect
-   deployment history for that SHA before any retry; do not advance the branch.
-5. Verify the returned build's commit SHA, production environment, successful
-   stages and canonical deployment ID. Test its immutable deployment URL, then
-   the project hostname: homepage, showcase, deep links, unknown path 404, SDK
-   bytes/MIME, gzip fetch behavior, fonts and a browser animation/WebGPU check.
-6. Only then may the next commit advance. Failure or uncertain state keeps the
-   release sequence stopped. Retrying uses the same SHA and a current signed
-   permit, not an older candidate.
-
-This is currently an **operator-serialized** first-release procedure. There is
-no claim that multiple independent automation writers are coordinated. Before
-unattended release, implement and test a durable sole publisher that owns both
-ref advancement and the entire Pages terminal wait/reconciliation; restrict
-other writers. GitHub concurrency alone is not a commit-ordering or durable
-lease mechanism. Automatic deployment remains disabled until that exists.
+After a release, verify the CI source SHA, journal, `deploy/pages` and successful
+canonical Pages deployment agree. Test the project/custom hostname and relevant
+SDK or browser journeys; a build status alone is not browser acceptance.
 
 ## Domain and rollback
 
-After project-hostname acceptance, add `amx.j4ger.dev` through Pages Custom
-Domains, inspect the existing DNS record first, and verify the resulting CNAME
-and certificate. Do not alter `j4ger.dev` or the `blog` Worker. Record the old
-GitHub Pages binding/DNS so rollback is concrete. Keep GitHub Pages available
-until the new domain works, then disable its redundant automatic publishing.
+The custom domain is `amx.j4ger.dev`; the project hostname is
+`animatix-pages.pages.dev`. Domain changes belong to Pages Custom Domains and DNS
+administration, not the release job. Do not alter `j4ger.dev` or the `blog` Worker
+as part of ordinary site publication.
 
 Pages rollback selects a previously successful **production** deployment;
-preview deployments are not promoted through rollback. On the first release,
-there is no previous Pages production deployment, so the rollback is the old
-GitHub Pages route. Test later Pages rollback before calling it verified.
-
-## Acceptance still required
-
-The new policy and gates need real CI signing and a Pages-hosted build. The
-Workers experiment proves SDK portability, not Pages checkout/deployment order,
-response behavior or domain readiness. Existing Worker experiments can remain
-stopped until the Pages migration is accepted; their tokens are not Pages tokens.
+preview deployments cannot be promoted through rollback. Pause the publisher
+before an operator rollback and reconcile its journal and canonical state before
+reenabling it. Do not describe a rollback as verified until actually tested.
+GitHub Pages is disabled and is not an immediately available rollback target.
+Its repository workflow remains a separately configured manual fallback.
 
 References: [Git integration](https://developers.cloudflare.com/pages/configuration/git-integration/),
 [build configuration](https://developers.cloudflare.com/pages/configuration/build-configuration/),
 [Pages deployments API](https://developers.cloudflare.com/api/resources/pages/subresources/projects/subresources/deployments/methods/create/),
 [rollbacks](https://developers.cloudflare.com/pages/configuration/rollbacks/).
 
-## Main publisher (disabled until configured and remotely accepted)
+## Main publisher
 
 The issuer and CI signing condition now agree on `refs/heads/main`. The original
 feature-branch permits cannot authorize a fresh main build. Keep
@@ -112,7 +94,7 @@ Git integration must retain repository read access. Keep the Cloudflare project
 production auto-build switch off and preview setting `none`: the job performs
 one explicit deployment request after moving the branch.
 
-Before enabling release, dispatch **Initialize Pages release journal** on `main`
+For a new installation, before enabling release, dispatch **Initialize Pages release journal** on `main`
 (`cloudflare-pages-initialize.yml`). It uses the repository secret inside Actions,
 validates project access, disabled automatic builds, and an idle successful
 canonical deployment, then creates `deploy/pages-state` and its journal. It never
@@ -121,7 +103,8 @@ only when the existing journal exactly matches that completed deployment; drift,
 unknown outcomes, and partial initialization fail closed without repair. Successful
 initialization proves authenticated Pages reads and GitHub journal writes, not
 Pages deployment-write permission; the first controlled release verifies that.
-Keep both release variables off until initialization succeeds.
+Keep both release variables off during initial provisioning until initialization
+succeeds. Do not reinitialize the existing production journal for each release.
 
 This branch is infrastructure state, not a
 source branch. Protect it and `deploy/pages` from force pushes/deletion and all
@@ -161,5 +144,6 @@ reenabling the publisher. Do not attempt preview promotion with rollback.
 Local fault-injection tests cover duplicate/stale requests, POST response loss,
 receipt-write loss, runner restart, failure, active foreign builds, partial ref
 moves, SHA mismatch and canonical drift. These are not a substitute for remote
-acceptance of the publisher's API calls, token permissions and recovery. Leave
-the release switch disabled until that exercise has succeeded.
+acceptance of API permissions and recovery. Normal publication has been accepted;
+new installations must separately verify access before enabling release, and
+unexercised failure paths must not be advertised as remotely validated.

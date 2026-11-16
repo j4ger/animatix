@@ -2,8 +2,8 @@
 //
 // 三幕 = 建立 / 展开 / 收束；每幕一个 ActHead + Caption，play 链接幕与幕。
 // 幕内结构参考 starter.amx。生成基线：animatix baseline <file>。
-import "../../web/demos/lib/theme.amx"
-import "../../web/demos/lib/stage.amx"
+import "../lib/theme.amx"
+import "../lib/stage.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720) }
 

@@ -21,6 +21,10 @@ you only intend to test the engine, because the GUI depends on audio playback.
 A missing ALSA or FFmpeg `pkg-config` result usually means the development shell
 is not active; changing Cargo dependencies is not the fix.
 
+Optional direnv users can create a local `.envrc` containing `use flake`, then
+run `direnv allow`. The file is ignored so personal shell customizations stay local;
+`nix develop` works without it.
+
 From this shell, use the CLI to inspect and review a scene:
 
 ```sh
@@ -57,6 +61,15 @@ Run these inside `nix develop`: its `bindgenHook` generates bindings from the
 matching FFmpeg headers. PNG/WebP export does not require `video`;
 MP4/WebM/MOV/GIF does. See the CLI's `--help` for individual export options.
 
+## Repository files
+
+Keep source, lockfiles, test inputs and reviewed visual baselines in Git.
+`tools/fixtures/` contains shared benchmark and text-parity inputs; `snapshots/`
+contains reviewed visual regression baselines. Neither is disposable build output.
+Put temporary reports and render experiments under `target/` or in harness-managed temporary directories.
+Local agent plans, environment files and generated SDK/site output are ignored.
+Adding an ignore rule does not remove an already tracked file from Git.
+
 ## Validate a change
 
 `scripts/ci.sh` defines the project gates and generates CI's job matrix. Add new
@@ -73,6 +86,10 @@ Run formatting and the gates affected by your change before committing. A
 single-crate check is not evidence that the GUI, analyzer, LSP or wasm build
 passes. Public API doc comments are required by the affected crates' lint rules.
 
+The `no-video` gate also checks the minimal engine's normal dependency graph:
+disabling all optional features must exclude Typst and syntax-highlighting
+dependencies. Rich text enters through `animatix-text/rich-text` only.
+
 | Change | Additional validation |
 | --- | --- |
 | Syntax or highlighting | Update the lossless tokenizer in `crates/animatix-syntax/src/token/`; test syntax, analyzer, GUI and LSP together. |
@@ -86,6 +103,9 @@ unfinished projects and human review; keep focused regression fixtures beside
 their tests and actionable gaps in `docs/roadmap.md`. Historical experiments
 remain available in Git. For embedded looping scenes, the held final frame
 must remain a useful composition rather than an empty outro.
+
+See [browser smoke contracts](web-smoke.md) for SDK fixtures, assembled-site
+journeys, evidence and retry policy.
 
 ### CI selection and build experiments
 
@@ -119,38 +139,26 @@ and doctest commands inherit the caller's incremental setting. Raw inventories,
 plans and per-harness logs are kept in unique directories under
 `target/ci/workspace-tests/`.
 
-Build experiments are manual and never part of default PR/release/all runs:
+The one-off linker, runner, font-profile, contract-layout, property-reference
+and CI-topology experiments are complete. Their dedicated scripts, workflow,
+`.#experiments` shell, and Nextest configuration have been retired; the measured
+decisions and evidence remain in [the maintenance report](history/maintenance-ci.md).
+To rerun a preserved local harness, use a detached worktree at the final
+implementation cut and the commands from that revision:
 
-```bash
-nix develop .#experiments --command scripts/ci.sh gate linker-experiment
+```sh
+git worktree add --detach /tmp/animatix-maintenance-ci bd34463df14fc94b68a411d84285c0d7e0774f5d
+cd /tmp/animatix-maintenance-ci
 nix develop .#experiments --command scripts/ci.sh gate runner-experiment
-scripts/ci.sh --matrix experiment
 ```
 
-The experiment shell supplies mold, LLD and nextest pinned by `flake.lock`.
-Installing those tools does not select an alternative linker or Nextest.
-Candidates use owned build directories
-and record their source, tools, commands, failures, wall time and process-tree
-memory. Run experiments serially on fixed source; do not edit source or run
-competing benchmarks during a measurement. Cold builds and warm execution are
-separate populations. Five paired warm rounds and three cold rounds are the
-default; failed candidates remain failed evidence, never a silent fallback.
-
-Hosted Linux linker trials use the normal dev/test debug level (`2`) and
-four Cargo build jobs, with one workload per runner and unused image SDKs
-removed to reserve disk for independent candidate targets. Linux runner trials
-and hosted macOS linker trials keep dev/test debug information at zero; macOS
-application packaging still exercises the `dist` profile. Evidence records
-these settings. Linux linker results represent the normal debug profile; the
-runner and macOS debug-zero results do not. Local trials can use other profiles,
-but comparisons across profiles are not interchangeable.
-For the reference check comparison, pass a pre-generator commit through
-`ANIMATIX_REFERENCE_BASE_SHA` and run the named
-`property-reference-experiment` gate in the experiment shell.
-
-GPU tests belong in `animatix-render` or must be explicitly included in the
-nextest GPU group before enabling parallel execution. Nextest does not replace
-Cargo doctests or example compilation. Unique temporary paths do not isolate
+The hosted CI-topology trials used source
+`1152395a68715739d87df667051557f5ad53e5da`; at that revision, dispatch
+`nightly.yml` with `ci-baseline`, `ci-grouped`, or `ci-shared-cli`. The archived
+report records the source, run IDs, measurements and remaining reproduction
+details. The production test gate uses Cargo/libtest and Cargo doctests; it does
+not depend on Nextest. Engine and renderer harnesses run serially; remaining
+harnesses use at most two CPU workers. Unique temporary paths do not isolate
 process-global caches: engine tests using the text dependency see its production
 cache even though the text crate's own unit tests use thread-local caches.
 
@@ -240,9 +248,8 @@ properties back to source. Read-only panels can navigate to a direct,
 unambiguous source location. Failed builds retain the last successful preview
 with a stale/error state; stale export is blocked.
 
-Keep source, derived build state and workspace view state separate. Existing
-`SourceEdit` machinery is not permission to reintroduce visual actor creation,
-canvas transforms or Inspector editing. Any future timing-writeback design must
+Keep source, derived build state and workspace view state separate. The unused
+semantic AST-edit API has been retired. Any future timing-writeback design must
 have revision checks and a visible, undoable source patch.
 
 ### Analyzer and LSP

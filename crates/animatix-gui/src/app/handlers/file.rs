@@ -203,7 +203,6 @@ fn apply_loaded_document(
     );
     document_store.history.undo_stack.clear();
     document_store.history.redo_stack.clear();
-    ui_store.interaction.reset_drag_state();
     if let Some(ref mut reloader) = workspace_store.hot_reloader
         && let Err(e) = reloader.update_watched_file(&document_store.source.document.file_path)
     {

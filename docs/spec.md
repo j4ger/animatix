@@ -1537,7 +1537,7 @@ wire.dash_offset = 140 [2s]
 ```
 
 **The light pack.** The same moves are packaged as components in
-`web/demos/lib/light.amx` — `KeyLight` / `CoolLight` (a two-point radial wash on
+`examples/lib/light.amx` — `KeyLight` / `CoolLight` (a two-point radial wash on
 `screen`), `MarchingRail` (a dashed rule that keeps travelling), `Ticker`
 (count-up text) and `Breather` (idle scale on a sine) — so a lit stage is four
 declarations:
@@ -2918,7 +2918,7 @@ author-facing semantics that are now part of the language.
 | Wave | Semantics | Authoring surface |
 |------|-----------|-------------------|
 | 1 — Channels & high-ROI | Text gradient fills; feathered wipes and push transitions; spatial/radial stagger; camera parallax | `fill_gradient`, `gradient_extend`, `gradient_space` on text-like actors; `play ... [wipe-* \| push-*, duration]`; `stagger [each: 40ms, from: center \| top-left \| (x, y), metric: euclidean \| manhattan]`; `parallax: F32` |
-| 2 — Topology & typography | Post-layout orthogonal connectors; split-text reveals; pre-baked rolling counters; standard card/boundary components | `Connector` (`routing: elbow \| l-bend \| straight`); `reveal-in ... [by: char \| word \| line, stagger: ...]`; `Counter`; `CardNode` / `BoundaryBox` in `web/demos/lib/ui.amx` |
+| 2 — Topology & typography | Post-layout orthogonal connectors; split-text reveals; pre-baked rolling counters; standard card/boundary components | `Connector` (`routing: elbow \| l-bend \| straight`); `reveal-in ... [by: char \| word \| line, stagger: ...]`; `Counter`; `CardNode` / `BoundaryBox` in `examples/lib/ui.amx` |
 | 3 — Materials & 2.5D | Native analytic Gaussian shadows; 2.5D perspective tilt; closed-loop idle micro-motion | `shadow` (`(offset_x, offset_y, blur, spread)`), `shadow_color`; `rotate_x`, `rotate_y`, `perspective`; `idle: "float" \| "breath"` |
 | 4 — Camera & continuity | Target-tracking camera; shared-element FLIP overlay; spring handoff with initial velocity; interactive step pauses | `camera.focus` / `camera.focus_on = "actor"` with `[padding: N]`; `shared_id: "key"` (a FLIP overlay, not a transition id); `spring-v0(damping, frequency, v0)`; `#step N` |
 
@@ -3042,4 +3042,4 @@ play NextScene [fade, 300ms]
 
 ### A.8 Write-Back Pipeline
 
-The retained semantic edit API applies AST changes via `source_edit::apply_edit` and re-serializes the file. It is not exposed by the current read-only inspector. Formatting is applied at the **serialization layer** (`animatix::to_source`), not carried as editor layout state.
+The GUI edits source text directly and rebuilds the scene. Its unused semantic AST-edit API has been retired. Explicit formatting uses `animatix_syntax::formatter`; it is not carried as editor layout state. The syntax crate's AST serialization API remains available to other tooling.

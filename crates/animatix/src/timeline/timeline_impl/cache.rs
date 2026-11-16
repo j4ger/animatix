@@ -142,6 +142,19 @@ impl Timeline {
         })
     }
 
+    /// Whether this timeline may need the GPU filter backend.
+    ///
+    /// This is based on capability scopes, not the effects' sampled values:
+    /// disabled or identity stages may become active on a later frame.
+    pub fn needs_filter_backend(&self) -> bool {
+        if let Some(needed) = self.eval_caches.needs_filter_backend.get() {
+            return needed;
+        }
+        let needed = self.world.tracks.iter().any(|(_, id)| self.world.caps(id).is_effect_scope());
+        self.eval_caches.needs_filter_backend.set(Some(needed));
+        needed
+    }
+
     /// Memoized [`Self::needs_frame_env`]: computing it walks every entity, so
     /// the answer is cached until `invalidate_frame_cache`.
     pub(crate) fn needs_frame_env(&self) -> bool {
@@ -391,6 +404,7 @@ impl EvalCaches {
         *self.bounds_registry.borrow_mut() = None;
         // The env-path answers are as build-fixed as the ones above.
         self.needs_frame_env.set(None);
+        self.needs_filter_backend.set(None);
         *self.env_injection_plan.borrow_mut() = None;
         // Mutations can add or remove `solo` (and modifiers), so the scan answer is stale.
         self.solo_scan_needed.set(None);

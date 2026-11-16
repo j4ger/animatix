@@ -14,8 +14,8 @@
 // is declared with `seamless_loop: true` (autoplay/loop/hold are player
 // attributes, not config keys).
 
-import "../demos/lib/theme.amx"
-import "../demos/lib/stage.amx"
+import "../../examples/lib/theme.amx"
+import "../../examples/lib/stage.amx"
 
 config { colorscheme: "tide", resolution: (1280, 720), duration: 8, seamless_loop: true }
 

@@ -23,13 +23,13 @@ include the first frame, main cues and resting composition.
 7. **Give the animation a progression.** A useful starting structure is hook
    (0–20%), mechanism (20–75%) and assembled payoff (75–100%). Adapt it to the idea;
    do not add a decorative effect merely to fill the final act.
-8. **Choose a palette per work.** Use the work's colorscheme from
-   `demos/lib/theme.amx`. Glass should reveal useful content beneath it, not become
+8. **Choose a palette per work.** Prefer a coherent colorscheme; older examples
+   use `examples/lib/theme.amx`, but new work need not import that library. Glass should reveal useful content beneath it, not become
    the default container for every element.
 
-Shared scene building blocks live in `demos/lib/stage.amx` (`StageFloor`,
-`ActHead`, `Caption`, `Readout`) and `demos/lib/ambience.amx` (`Ambience`). Reuse
-these rather than independently rebuilding title and backdrop conventions.
+Older shared scene building blocks live in `examples/lib/stage.amx` (`StageFloor`,
+`ActHead`, `Caption`, `Readout`) and `examples/lib/ambience.amx` (`Ambience`). They are optional example resources, not the Astro site's
+required design system. Reuse a suitable component when it serves the work.
 Frame-time readouts can update text inside `always`; review them in both playback
 and an offline storyboard.
 
@@ -52,17 +52,19 @@ for promise, cancellation and error behavior.
 
 ## Content ownership
 
-`web/works.json` is the source for work identity and showcase metadata. Generated
-page blocks are marked with `<!-- site-gen:<block>:start|end -->` comments.
-Change the manifest and run `scripts/site-gen.py`, rather than hand-edit those
-blocks. `scripts/site-gen.py --check` and `scripts/content-sync.sh` detect drift.
+Current work and lesson metadata lives in `web/app/src/lib/content.ts`; technique
+metadata lives in `techniques.ts`. Canonical published AMX and media live under
+`web/content/`. Astro builds the pages; change those sources rather than the
+the retired HTML generator or its historical work manifest.
 
-Keep developer probes under `web/dev/`, outside showcase navigation. Shared
-library code belongs in `web/demos/lib/`; new works should not copy it wholesale.
+Keep developer probes under `web/dev/`, outside showcase navigation. Shared modules at `examples/lib/` are source dependencies for examples and
+regression tests, not built-in engine content or a requirement for new work.
 
 ## Verification
 
-`scripts/site-rest-check.py` measures composition coverage, not artistic quality:
+`scripts/site-rest-check.py` selects canonical `web/content/scenes/` directly,
+not the retired HTML. It is a manual GPU check, not proof from a static build.
+The historical thresholds below are heuristics, not a measure of artistic quality:
 
 - Scenes marked `// house-style: <note>` require a resting coverage ratio of
   at least 0.80 and at least 5% whole-frame ink at time zero.

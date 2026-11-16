@@ -187,6 +187,23 @@ binding layout.
 ### 4.1 Textures
 
 - Format: `Rgba8Unorm` for both input and output.
+- Alpha representation: **straight (unassociated) RGBA**, matching Vello's
+  separated-alpha output and the image/composite input paths. A shader that
+  composites layers must multiply RGB by alpha for the composition, then divide
+  by the resulting alpha before storing; store transparent black when that
+  alpha is zero. `DropShadow` and `Bloom` follow this rule for translucent
+  content and coloured penumbras. Bloom keeps its existing coverage rule:
+  `alpha = clamp(original.a + running.a * intensity * gate, 0, 1)`; `keep`
+  scales the original's colour contribution, while threshold tests the running
+  result's straight RGB luma.
+- Neighbourhood filtering also premultiplies **each source texel before
+  interpolation**, then averages premultiplied RGB and alpha with the same
+  weights. `Blur` stores the normalized Gaussian coverage and recovers straight
+  RGB by dividing the weighted colour by coverage. `MotionBlur` recovers colour
+  from the sampled mean coverage, then retains its existing output coverage
+  `max(center.a, mean.a)`. A zero-alpha neighbourhood stores transparent black;
+  identity/sub-pixel passthrough paths remain exact copies. See the
+  [spatial alpha follow-up](history/2026-11-16-spatial-alpha.md).
 - Input usage: `TEXTURE_BINDING`; output usage: `STORAGE_BINDING`.
 - The host owns the ping-pong textures. A shader must never assume whether it
   read or wrote a given physical texture; `binding 0` is always the input view
@@ -249,6 +266,10 @@ horizontal, 1 = vertical).
   WGSL struct is hand-padded beyond its parameters overrides the derived size
   (e.g. `ColorGrade` packs its five scalars into four `vec4` rows = 64 bytes).
   Plugin effects use the generic layout declared in their parameter schema.
+- Repeated instances of an effect share its compute pipelines, but each instance
+  has its own aligned slot in the author-uniform buffer. Binding 2 uses a dynamic
+  offset, followed by binding 3's context offset. This is host-side storage;
+  shader declarations and the plugin parameter ABI are unchanged.
 
 ### 4.5 Dispatch
 
@@ -258,13 +279,25 @@ horizontal, 1 = vertical).
 
 ### 4.6 Synchronisation
 
-Each pass is submitted in its own command encoder. The seed copy (together with
-the pre-chain original copy) is submitted first, every effect pass then gets its
-own encoder and `queue.submit`, and an optional pending-composite harvest copy
-runs in a final encoder. Back-to-back compute passes sharing ping-pong textures
-in one encoder do not make a storage write visible to the next pass on every
-driver (probe 009); a submit boundary is a portable synchronisation point. Do not
-merge passes into one encoder without driver evidence.
+The seed and pre-chain-original copies, each effect's separate compute passes,
+and an optional pending-composite harvest copy share one command encoder and
+one `queue.submit`. Ping-pong order and effect declaration order are unchanged.
+Each effect instance has an independent author-uniform slot; each pass has an
+independent context slot. Queue writes therefore cannot overwrite parameters
+needed by an earlier dispatch in the same submission.
+
+The historical probe 009 changed both submission boundaries and parameter
+snapshots: its horizontal/vertical passes wrote the same direction uniform
+before submitting. It did not isolate texture visibility from parameter
+overwriting. The current separate-versus-combined pixel matrix covers Blur,
+Blur+ColorGrade+Bloom, repeated effects, changing parameters, multiple ROI sizes,
+and pending-composite harvests. Full images match on AMD RADV and llvmpipe;
+see [the GPU interaction report](history/2026-11-15-gpu-interactions.md).
+
+`ANIMATIX_DUMP_STAGES` retains separate seed/pass/harvest submissions because
+its synchronous intermediate readbacks must observe the seed before later
+passes overwrite it. The separate policy also remains available to unit tests
+as an independent reference path.
 
 A chain may dispatch at most 64 effect passes (the per-pass context-buffer slot
 count, `MAX_CHAIN_PASSES`). A larger plan is rejected with a render error before
@@ -298,7 +331,8 @@ Consequences worth naming: the frost therefore contains *everything* under the
 rect regardless of paint order (the only way to be above it is to be a child of
 the scope), a `Glass` scope paints no surface of its own for exactly that reason,
 and each scope costs one region copy plus one chain run plus two composites. The
-copy, the clear and each chain pass keep their own submit boundaries, per §4.6.
+backdrop copy and clear still have their own submit boundaries; the chain's
+seed, compute passes and harvest share one submission, per §4.6.
 
 ## 5. Failure policy
 
@@ -321,6 +355,10 @@ copy, the clear and each chain pass keep their own submit boundaries, per §4.6.
 - Compute pipelines are cached on `(shader source, entry point, layout)`. The
   cache is per-device and lives with the backend. Dimension changes recreate
   targets but must not recreate pipelines whose key is unchanged.
+- Bind groups are cached by the input/output/original texture views and author
+  uniform buffer/size. Dynamic offsets select each instance's parameters and
+  each pass's context without creating a new bind group. The cache is bounded
+  to 256 entries and cleared when author buffers grow or region scratch resets.
 
 **Adjacent caches outside the effect pipeline.** Two other per-frame caches share
 the same staleness hazard, and both are deliberately bypassed rather than keyed:

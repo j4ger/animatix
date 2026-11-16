@@ -37,7 +37,7 @@ cd "$root"
 # ── the registry ──────────────────────────────────────────────────────────────
 # name | shell | os | setup tokens | stage
 #
-# Automatic stages and explicit-only orchestration/experiments:
+# Automatic stages and explicit-only orchestration:
 #   pr        eligible PR checks; main and release callers run the full set.
 #   release   build-only: the distribution jobs that produce the binaries.
 #   site      composite gates: site-artifact/dist-site/dist-web-sdk need the
@@ -45,7 +45,6 @@ cd "$root"
 #             they are run by name from pages.yml and release.yml and are not
 #             matrix rows.
 #   control   orchestration gates, never matrix jobs.
-#   experiment explicit manual matrices; excluded from default/all execution.
 #
 # Adding a gate here is the whole job: `--list` feeds the matrix, so CI picks it
 # up. Nothing in .github/ has to learn its name.
@@ -82,6 +81,8 @@ commit|nix|ubuntu-latest|nix|pr
 wasm-check|web|ubuntu-latest|nix|pr
 web-build|web-ci|ubuntu-latest|nix|pr
 web-smoke|web-ci|ubuntu-latest|nix|pr
+web-site-smoke|web-ci|ubuntu-latest|nix|pr
+site-smoke|web-ci|ubuntu-latest|nix|site
 web-split-proof|web-ci|ubuntu-latest|nix|pr
 web-sdk-integrity|web-ci|ubuntu-latest|nix|pr
 text-parity|web-ci|ubuntu-latest|nix|pr
@@ -101,10 +102,6 @@ cloudflare-pages-publish|none|ubuntu-latest|none|control
 cloudflare-pages-build|none|ubuntu-latest|none|control
 cloudflare-pages-release|none|ubuntu-latest|none|control
 cloudflare-pages-initialize|none|ubuntu-latest|none|control
-cloudflare-candidate-publish|none|ubuntu-latest|none|control
-cloudflare-candidate-dispatch|none|ubuntu-latest|none|control
-cloudflare-candidate-build|none|ubuntu-latest|none|control
-cloudflare-candidate-upload|none|ubuntu-latest|none|control
 cloudflare-sdk-publish|none|ubuntu-latest|none|control
 cloudflare-sdk-dispatch|none|ubuntu-latest|none|control
 text-visual-parity|web-ci|ubuntu-latest|nix|site
@@ -114,14 +111,6 @@ dist-macos|native|macos-latest|rust-stable|release
 dist-windows|native|windows-latest|rust-stable|release
 ci-plan|none|ubuntu-latest|none|control
 ci-result|none|ubuntu-latest|none|control
-native-cli-artifact|nix|ubuntu-latest|nix|control
-verify-native-cli|nix|ubuntu-latest|nix|control
-contract-layout-experiment|nix|ubuntu-latest|nix|experiment
-font-profile-experiment|nix|ubuntu-latest|nix|experiment
-linker-experiment|nix|ubuntu-latest|nix|experiment
-linker-experiment|native|macos-latest|rust-stable|experiment
-runner-experiment|nix|ubuntu-latest|nix|experiment
-property-reference-experiment|nix|ubuntu-latest|nix|experiment
 '
 
 # ── CI matrix jobs ────────────────────────────────────────────────────────────
@@ -147,16 +136,10 @@ Test & Examples|test examples|nix|ubuntu-latest|nix|pr|test-examples
 Render Smoke & Scenes|render-smoke|nix|ubuntu-latest|nix|pr|render-scenes
 Benchmarks|ext-bench|nix|ubuntu-latest|nix|pr|benchmarks
 Web Check|wasm-check|web|ubuntu-latest|nix|pr|web-check
-Web Build|web-split-proof web-build web-sdk-integrity text-parity web-raster-proof web-smoke web-transactions|web-ci|ubuntu-latest|nix|pr|web-build
+Web Build|web-split-proof web-build web-sdk-integrity text-parity web-raster-proof web-smoke web-transactions web-site-smoke|web-ci|ubuntu-latest|nix|pr|web-build
 dist-linux|dist-linux|dist-driver|ubuntu-latest|nix|release|dist-linux
 dist-macos|dist-macos|native|macos-latest|rust-stable|release|dist-macos
 dist-windows|dist-windows|native|windows-latest|rust-stable|release|dist-windows
-Linker Experiment|linker-experiment|nix|ubuntu-latest|nix|experiment|linker-linux
-Linker Experiment|linker-experiment|native|macos-latest|rust-stable|experiment|linker-macos
-Runner Experiment|runner-experiment|nix|ubuntu-latest|nix|experiment|runner-linux
-Property Reference Experiment|property-reference-experiment|nix|ubuntu-latest|nix|experiment|property-reference-linux
-Contract Layout Experiment|contract-layout-experiment|nix|ubuntu-latest|nix|experiment|contract-layout-linux
-Font Profile Experiment|font-profile-experiment|nix|ubuntu-latest|nix|experiment|font-profile-linux
 '
 
 # The commands each gate expects to be run by. Kept as prose so `ci.sh shell`
@@ -264,10 +247,15 @@ gate_no_video() {
   # Build the default user-facing binaries, run the engine with every optional
   # feature off, and inspect the resolved feature graph: rsmpeg is pulled in
   # only by animatix-render/video, so its presence means a default build turned
-  # video on.
+  # video on. The minimal engine must also exclude rich-text dependencies.
   cargo build -p animatix-cli -p animatix-gui
   cargo check -p animatix --no-default-features
   local pkg tree
+  tree=$(cargo tree -p animatix --no-default-features -e normal --prefix none --format '{p}')
+  if grep -Eq '^(typst([_-][[:alnum:]_-]+)?|syntect) v' <<<"$tree"; then
+    echo "error: minimal engine dependencies include the rich-text stack" >&2
+    return 1
+  fi
   for pkg in animatix-cli animatix-gui; do
     if ! tree="$(cargo tree -e features -p "$pkg" 2>/dev/null)"; then
       echo "error: cargo tree failed for $pkg; cannot verify the video feature is off" >&2
@@ -278,7 +266,7 @@ gate_no_video() {
       return 1
     fi
   done
-  echo "no-video: default CLI/GUI feature resolution excludes rsmpeg (video)"
+  echo "no-video: minimal engine excludes rich text; default CLI/GUI exclude rsmpeg (video)"
 }
 
 gate_scene_audit() {
@@ -368,12 +356,7 @@ gate_budget_audit() {
 
 gate_render_smoke() {
   want_cargo
-  if [ -n "${ANIMATIX_SHARED_CLI:-}" ]; then
-    python3 scripts/ci-control.py verify-cli "$ANIMATIX_SHARED_CLI"
-    export ANIMATIX_BIN="$ANIMATIX_SHARED_CLI/animatix"
-  else
-    cargo build --bin animatix
-  fi
+  cargo build --bin animatix
   ANIMATIX_REQUIRE_GPU=1 bash scripts/render_smoke.sh
 }
 
@@ -399,8 +382,9 @@ gate_doc_links() { bash scripts/check-docs.sh; }
 gate_ci_policy_tests() {
   python3 scripts/test-ci-control.py
   python3 scripts/test-ci-plan.py
+  python3 scripts/test-web-smoke-gates.py
+  python3 scripts/test-serve-web-base.py
   python3 -m unittest discover -s scripts/ci -p 'test_*.py'
-  python3 -m unittest discover -s scripts/experiments -p 'test_*.py'
 }
 
 gate_ci_plan() {
@@ -413,60 +397,6 @@ gate_ci_plan() {
 }
 
 gate_ci_result() { python3 scripts/ci-control.py required; }
-
-gate_native_cli_artifact() {
-  cargo build --bin animatix --locked
-  python3 scripts/ci-control.py stage-cli target/debug/animatix target/ci/native-cli
-}
-
-gate_verify_native_cli() {
-  python3 scripts/ci-control.py verify-cli "${ANIMATIX_SHARED_CLI:?missing artifact directory}"
-}
-
-gate_contract_layout_experiment() {
-  python3 scripts/experiments/contracts.py \
-    --before-json "${ANIMATIX_CONTRACT_BEFORE_JSON:?missing original Cargo artifact log}" \
-    --after-json "${ANIMATIX_CONTRACT_AFTER_JSON:?missing consolidated Cargo artifact log}" \
-    --output "${ANIMATIX_EXPERIMENT_OUTPUT:-target/experiments/contracts}" \
-    --rounds "${ANIMATIX_EXPERIMENT_WARM_ROUNDS:-5}"
-}
-
-gate_font_profile_experiment() {
-  local -a cli_args=()
-  if [ -n "${ANIMATIX_FONT_CLI_BEFORE:-}${ANIMATIX_FONT_CLI_AFTER:-}" ]; then
-    cli_args=(--cli-before "${ANIMATIX_FONT_CLI_BEFORE:?missing original CLI executable}" \
-              --cli-after "${ANIMATIX_FONT_CLI_AFTER:?missing optimized CLI executable}")
-  fi
-  python3 scripts/experiments/font_profile.py \
-    --before "${ANIMATIX_FONT_BEFORE:?missing original text test executable}" \
-    --after "${ANIMATIX_FONT_AFTER:?missing optimized text test executable}" \
-    --output "${ANIMATIX_EXPERIMENT_OUTPUT:-target/experiments/font-profile}" \
-    --rounds "${ANIMATIX_EXPERIMENT_WARM_ROUNDS:-5}" "${cli_args[@]}"
-}
-
-gate_linker_experiment() {
-  local platform=linux
-  [ "${RUNNER_OS:-$(uname -s)}" != macOS ] && [ "$(uname -s)" != Darwin ] || platform=macos
-  python3 scripts/experiments/run.py linker --platform "$platform" \
-    --output "${ANIMATIX_EXPERIMENT_OUTPUT:-target/experiments/linker}" \
-    --warm-rounds "${ANIMATIX_EXPERIMENT_WARM_ROUNDS:-${ANIMATIX_EXPERIMENT_ROUNDS:-5}}" \
-    --cold-rounds "${ANIMATIX_EXPERIMENT_COLD_ROUNDS:-3}"
-}
-
-gate_runner_experiment() {
-  ANIMATIX_REQUIRE_GPU=1 python3 scripts/experiments/run.py runner \
-    --output "${ANIMATIX_EXPERIMENT_OUTPUT:-target/experiments/runner}" \
-    --warm-rounds "${ANIMATIX_EXPERIMENT_WARM_ROUNDS:-${ANIMATIX_EXPERIMENT_ROUNDS:-5}}" \
-    --cold-rounds "${ANIMATIX_EXPERIMENT_COLD_ROUNDS:-3}"
-}
-
-gate_property_reference_experiment() {
-  python3 scripts/experiments/reference.py \
-    --baseline-ref "${ANIMATIX_REFERENCE_BASE_SHA:?missing pre-generator baseline commit}" \
-    --output "${ANIMATIX_EXPERIMENT_OUTPUT:-target/experiments/property-reference}" \
-    --warm-rounds "${ANIMATIX_EXPERIMENT_WARM_ROUNDS:-5}" \
-    --cold-rounds "${ANIMATIX_EXPERIMENT_COLD_ROUNDS:-3}"
-}
 
 # Web content and SDK boundary checks.
 gate_cloudflare_pages_publish() {
@@ -483,22 +413,6 @@ gate_cloudflare_pages_release() {
 
 gate_cloudflare_pages_build() {
   python3 scripts/cloudflare-pages.py build
-}
-
-gate_cloudflare_candidate_publish() {
-  python3 scripts/cloudflare-candidate.py publish
-}
-
-gate_cloudflare_candidate_dispatch() {
-  python3 scripts/cloudflare-candidate-dispatch.py
-}
-
-gate_cloudflare_candidate_build() {
-  python3 scripts/cloudflare-candidate.py build
-}
-
-gate_cloudflare_candidate_upload() {
-  python3 scripts/cloudflare-candidate-upload.py
 }
 
 gate_cloudflare_sdk_publish() {
@@ -526,11 +440,9 @@ gate_cloudflare_deploy() {
 
 gate_site_build() {
   want_nix_shell 'site-build'
+  python3 scripts/cloudflare-retirement-test.py
   python3 scripts/cloudflare-pages-test.py
   python3 scripts/cloudflare-pages-release-test.py
-  python3 scripts/cloudflare-candidate-test.py
-  python3 scripts/cloudflare-control-test.py
-  python3 scripts/cloudflare-review-test.py
   python3 scripts/cloudflare-permit-test.py
   python3 scripts/cloudflare-sdk-dispatch-test.py
   python3 scripts/cloudflare-sdk-consumer-test.py
@@ -719,32 +631,50 @@ gate_web_artifact_restore() {
 gate_web_transactions() {
   want_nix_shell 'web-transactions'
   want_node; want_chromium
+  command -v xvfb-run >/dev/null || { echo 'web-transactions requires xvfb-run from the web-ci shell' >&2; return 1; }
+  node --test scripts/web-transactions-browser.test.mjs
   bash scripts/web-distribution-check.sh
 }
 
-gate_web_smoke() {
-  want_nix_shell 'web-smoke'
-  want_node
-  want_chromium
-  # Loading the real pages is the only thing that exercises the embed's module
-  # wiring and the wasm glue together. The static gates all passed while every
-  # player on the site was throwing `ReferenceError: qualityStep is not defined`.
-  #
-  # The browser smoke is the one gate that depends on a real Chromium process
-  # and a local HTTP server; a cold or overloaded runner occasionally reaches
-  # the player before its scene fetch has completed. One restart catches that
-  # startup race without weakening the checks. The per-player timeout is already
-  # generous (full-engine wasm can take minutes on SwiftShader), so repeating
-  # the whole suite a third time only multiplies the runtime of a real failure.
-  local attempt
+# Retry only failures classified by the runner as pre-navigation environment
+# startup errors (75). Scene, shader, JS, resource and paint failures never retry.
+run_browser_smoke() {
+  local suite="$1" attempt status
   for attempt in 1 2; do
-    if node scripts/web-smoke.mjs; then
+    if SMOKE_SUITE="$suite" SMOKE_ATTEMPT="$attempt" \
+      SMOKE_OUTPUT_DIR="target/web-smoke/$suite/attempt-$attempt" node scripts/web-smoke.mjs; then
       return 0
+    else
+      status=$?
     fi
-    echo "web-smoke: attempt $attempt failed; retrying after browser startup" >&2
+    if [ "$status" -ne 75 ] || [ "$attempt" -eq 2 ]; then
+      return "$status"
+    fi
+    echo "web-smoke: browser environment unavailable; one clean startup retry" >&2
     sleep 2
   done
-  return 1
+}
+
+gate_web_smoke() {
+  want_nix_shell 'web-smoke'; want_node; want_chromium
+  command -v xvfb-run >/dev/null || { echo 'web-smoke requires xvfb-run from the web-ci shell' >&2; return 1; }
+  node --test scripts/web-smoke-*.test.mjs
+  run_browser_smoke sdk
+}
+
+gate_site_smoke() {
+  want_nix_shell 'site-smoke'; want_node; want_chromium
+  command -v xvfb-run >/dev/null || { echo 'site-smoke requires xvfb-run from the web-ci shell' >&2; return 1; }
+  # Never fall back to web/: it contains the obsolete pre-Astro website.
+  [ -f _site/index.html ] || { echo 'site-smoke requires gate site-artifact first' >&2; return 1; }
+  ANIMATIX_WEB_ROOT="$root/_site" run_browser_smoke site
+}
+
+gate_web_site_smoke() {
+  want_nix_shell 'web-site-smoke'; want_node; want_chromium
+  # Same job, same verified SDK. Assembly deliberately does not rebuild wasm.
+  gate_site_artifact
+  gate_site_smoke
 }
 
 gate_wasm_check() {
@@ -1084,9 +1014,9 @@ case "${1:-}" in
     ;;
   --matrix)
     case "$stage" in
-      ""|all|pr|release|experiment) ;;
+      ""|all|pr|release) ;;
       *)
-        echo "error: --matrix supports pr|release|experiment only; '$stage' gates are composite (run by name)" >&2
+        echo "error: --matrix supports pr|release only; '$stage' gates are composite (run by name)" >&2
         exit 2
         ;;
     esac
@@ -1130,11 +1060,14 @@ print(json.dumps({"include": [
     if [ -z "$stage" ] || [ "$stage" = all ]; then
       { gate_names pr; gate_names release; } | awk '!seen[$0]++' |
         while read -r g; do run_gate "$g"; done
-    elif [ "$stage" = experiment ] || [ "$stage" = control ]; then
-      echo "error: experiment/control gates require an explicit gate name" >&2
+    elif [ "$stage" = control ]; then
+      echo "error: control gates require an explicit gate name" >&2
       exit 2
-    else
+    elif [ "$stage" = pr ] || [ "$stage" = release ] || [ "$stage" = site ]; then
       gate_names "$stage" | while read -r g; do run_gate "$g"; done
+    else
+      echo "error: unknown stage: $stage" >&2
+      exit 2
     fi
     ;;
   ""|-h|--help)

@@ -35,9 +35,7 @@ impl ShortcutRegistry {
     pub fn names(&self) -> Vec<String> {
         let mut names = Vec::new();
         for (_, info) in &self.shortcuts {
-            if info.action.allowed_in_workbench()
-                && !names.iter().any(|name: &String| name.as_str() == info.name)
-            {
+            if !names.iter().any(|name: &String| name.as_str() == info.name) {
                 names.push(info.name.to_string());
             }
         }
@@ -95,15 +93,11 @@ impl ShortcutRegistry {
         self.register_file_shortcuts();
         self.register_edit_shortcuts();
         self.register_playback_shortcuts();
-        self.register_selection_shortcuts();
         self.register_view_shortcuts();
         self.register_scene_shortcuts();
-        self.register_clipboard_shortcuts();
         self.register_editor_sync_shortcuts();
-        self.register_insertion_shortcuts();
         self.register_escape_shortcut();
-        self.register_nudge_shortcuts();
-        self.register_tool_shortcuts();
+        self.register_scrub_shortcuts();
         self.register_global_shortcuts();
     }
 
@@ -231,50 +225,6 @@ impl ShortcutRegistry {
         );
     }
 
-    /// Selection editing (Canvas).
-    fn register_selection_shortcuts(&mut self) {
-        self.register(
-            KeyboardShortcut::new(Modifiers::COMMAND, Key::D),
-            Shortcut {
-                name: "Duplicate",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::DuplicateSelection,
-            },
-        );
-        self.register(
-            KeyboardShortcut::new(Modifiers::NONE, Key::Delete),
-            Shortcut {
-                name: "Delete",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::DeleteSelection,
-            },
-        );
-        self.register(
-            KeyboardShortcut::new(Modifiers::NONE, Key::Backspace),
-            Shortcut {
-                name: "Delete",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::DeleteSelection,
-            },
-        );
-        self.register(
-            KeyboardShortcut::new(Modifiers::COMMAND, Key::G),
-            Shortcut {
-                name: "Group",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::GroupSelection,
-            },
-        );
-        self.register(
-            KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::G),
-            Shortcut {
-                name: "Ungroup",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::UngroupSelection,
-            },
-        );
-    }
-
     /// View (Canvas).
     fn register_view_shortcuts(&mut self) {
         self.register(
@@ -323,26 +273,6 @@ impl ShortcutRegistry {
         );
     }
 
-    /// Clipboard (Canvas).
-    fn register_clipboard_shortcuts(&mut self) {
-        self.register(
-            KeyboardShortcut::new(Modifiers::COMMAND, Key::C),
-            Shortcut {
-                name: "Copy",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::CopySelection,
-            },
-        );
-        self.register(
-            KeyboardShortcut::new(Modifiers::COMMAND, Key::V),
-            Shortcut {
-                name: "Paste",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::PasteClipboard,
-            },
-        );
-    }
-
     /// Editor sync (Canvas).
     fn register_editor_sync_shortcuts(&mut self) {
         self.register(
@@ -351,26 +281,6 @@ impl ShortcutRegistry {
                 name: "Editor Sync",
                 scope: ShortcutScope::Canvas,
                 action: KeyboardAction::EditSync,
-            },
-        );
-    }
-
-    /// Insertion palette (Canvas).
-    fn register_insertion_shortcuts(&mut self) {
-        self.register(
-            KeyboardShortcut::new(Modifiers::SHIFT, Key::A),
-            Shortcut {
-                name: "Insertion Palette (Actions)",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::OpenInsertionPalette,
-            },
-        );
-        self.register(
-            KeyboardShortcut::new(Modifiers::NONE, Key::Slash),
-            Shortcut {
-                name: "Insertion Palette (Universal)",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::OpenInsertionPalette,
             },
         );
     }
@@ -387,94 +297,22 @@ impl ShortcutRegistry {
         );
     }
 
-    /// Nudge arrow keys (Canvas).
-    fn register_nudge_shortcuts(&mut self) {
+    /// Review scrubbing (Canvas).
+    fn register_scrub_shortcuts(&mut self) {
         self.register(
             KeyboardShortcut::new(Modifiers::NONE, Key::ArrowLeft),
             Shortcut {
-                name: "Nudge Left",
+                name: "Scrub Backward",
                 scope: ShortcutScope::Canvas,
-                action: KeyboardAction::NudgeSelected { dx: -1.0, dy: 0.0 },
+                action: KeyboardAction::ScrubBackward,
             },
         );
         self.register(
             KeyboardShortcut::new(Modifiers::NONE, Key::ArrowRight),
             Shortcut {
-                name: "Nudge Right",
+                name: "Scrub Forward",
                 scope: ShortcutScope::Canvas,
-                action: KeyboardAction::NudgeSelected { dx: 1.0, dy: 0.0 },
-            },
-        );
-        self.register(
-            KeyboardShortcut::new(Modifiers::NONE, Key::ArrowUp),
-            Shortcut {
-                name: "Nudge Up",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::NudgeSelected { dx: 0.0, dy: -1.0 },
-            },
-        );
-        self.register(
-            KeyboardShortcut::new(Modifiers::NONE, Key::ArrowDown),
-            Shortcut {
-                name: "Nudge Down",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::NudgeSelected { dx: 0.0, dy: 1.0 },
-            },
-        );
-    }
-
-    /// Tool switching (Canvas).
-    ///
-    /// V/A follow the Adobe convention (select / direct-select) and the rest
-    /// are mnemonics: R rotate, S scale, G grab/move, P pivot. These are
-    /// secondary to the visible tool switcher in the preview header.
-    fn register_tool_shortcuts(&mut self) {
-        self.register(
-            KeyboardShortcut::new(Modifiers::NONE, Key::V),
-            Shortcut {
-                name: "Select Tool",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::SetSelectTool,
-            },
-        );
-        self.register(
-            KeyboardShortcut::new(Modifiers::NONE, Key::A),
-            Shortcut {
-                name: "Vertex Tool",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::SetVertexTool,
-            },
-        );
-        self.register(
-            KeyboardShortcut::new(Modifiers::NONE, Key::R),
-            Shortcut {
-                name: "Rotate Tool",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::SetRotateTool,
-            },
-        );
-        self.register(
-            KeyboardShortcut::new(Modifiers::NONE, Key::S),
-            Shortcut {
-                name: "Scale Tool",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::SetScaleTool,
-            },
-        );
-        self.register(
-            KeyboardShortcut::new(Modifiers::NONE, Key::G),
-            Shortcut {
-                name: "Move Tool",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::SetMoveTool,
-            },
-        );
-        self.register(
-            KeyboardShortcut::new(Modifiers::NONE, Key::P),
-            Shortcut {
-                name: "Pivot Tool",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::SetPivotTool,
+                action: KeyboardAction::ScrubForward,
             },
         );
     }
@@ -522,7 +360,7 @@ impl ShortcutRegistry {
     /// binding for the same key is registered.
     pub fn check(&self, ctx: &Context, focus: &FocusContext) -> Option<&KeyboardAction> {
         for (shortcut, info) in &self.shortcuts {
-            if !info.action.allowed_in_workbench() || !focus.can_handle(info.scope) {
+            if !focus.can_handle(info.scope) {
                 continue;
             }
             // TextEdit owns its text undo history. The shell runs before the
@@ -543,7 +381,7 @@ impl ShortcutRegistry {
     pub fn shortcuts_for_name(&self, name: &str) -> Vec<&KeyboardShortcut> {
         self.shortcuts
             .iter()
-            .filter(|(_, info)| info.name == name && info.action.allowed_in_workbench())
+            .filter(|(_, info)| info.name == name)
             .map(|(shortcut, _)| shortcut)
             .collect()
     }
@@ -553,15 +391,14 @@ impl ShortcutRegistry {
     /// Matching is performed by *discriminant* (variant-level equality) using
     /// [`std::mem::discriminant`]. This avoids requiring `KeyboardAction` to implement
     /// `Eq`/`Hash`, which it cannot because of payload variants such as
-    /// `NudgeSelected { dx: f32, dy: f32 }` (`f32` is not `Eq`/`Hash`).
+    /// `SelectScene(u8)`.
     ///
     /// Returns [`None`] when no binding exists for the given action variant.
     pub fn shortcut_for(&self, action: &KeyboardAction) -> Option<&KeyboardShortcut> {
         self.shortcuts
             .iter()
             .find(|(_, info)| {
-                info.action.allowed_in_workbench()
-                    && std::mem::discriminant(action) == std::mem::discriminant(&info.action)
+                std::mem::discriminant(action) == std::mem::discriminant(&info.action)
             })
             .map(|(shortcut, _)| shortcut)
     }

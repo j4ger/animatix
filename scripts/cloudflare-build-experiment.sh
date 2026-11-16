@@ -40,7 +40,11 @@ probe
 command -v nix >/dev/null || { echo 'BLOCKED: Nix is not installed. Keep the probe log; do not run an unreviewed installer.' >&2; exit 3; }
 command -v timeout >/dev/null || { echo 'BLOCKED: timeout is required for this bounded experiment' >&2; exit 3; }
 [ -f flake.lock ] || { echo 'BLOCKED: missing pinned flake.lock' >&2; exit 3; }
-[ -z "$(git status --porcelain)" ] || { echo 'BLOCKED: experiment requires a clean checkout' >&2; exit 3; }
+if ! git_status="$(git status --porcelain)"; then
+  echo 'BLOCKED: could not verify whether the checkout is clean' >&2
+  exit 3
+fi
+[ -z "$git_status" ] || { echo 'BLOCKED: experiment requires a clean checkout' >&2; exit 3; }
 lock_before="$(sha256sum flake.lock | cut -d' ' -f1)"
 started=$SECONDS
 trap 'printf "experiment_stage=%s elapsed_seconds=%s\n" "$mode" "$((SECONDS-started))"' EXIT

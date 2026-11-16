@@ -37,6 +37,8 @@ impl PreviewStore {
 
     pub fn has_pending_rebuild(&self) -> bool {
         self.pending_rebuild_at.is_some()
+            || self.in_flight_rebuild.is_some()
+            || self.rebuild_in_progress
     }
 }
 

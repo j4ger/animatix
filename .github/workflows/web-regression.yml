@@ -1,0 +1,47 @@
+name: Web Regression
+
+# Deliberately manual: no nightly rebuild or publish side effect.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SMOKE_DEPTH: deep
+  NIX_CONFIG: |
+    fallback = true
+    extra-substituters = https://cache.nixos.org/
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: DeterminateSystems/determinate-nix-action@v3
+      - uses: cachix/cachix-action@v17
+        with:
+          name: animatix
+          extraPullNames: nix-community
+          skipPush: true
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: web-ci
+      - name: Build once and check SDK plus all current site scenes
+        run: nix develop .#web-ci --command scripts/ci.sh gate web-build web-smoke web-site-smoke
+      - name: Retain browser and timing evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-regression-${{ github.sha }}
+          path: |
+            target/web-smoke/
+            target/ci/
+          retention-days: 7

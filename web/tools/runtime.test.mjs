@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { bundleEngine } from "./bundle-engine.mjs";
 
-import { decodedWasmResponse, fetchOverlayFont, fetchPreparedAssets, loadIntegrityModule } from "../embed/src/player/runtime.js";
+import { decodedWasmResponse, fetchOverlayFont, fetchPreparedAssets, fetchMissingModules, loadIntegrityModule } from "../embed/src/player/runtime.js";
 import { cancellationError, dispatchPlayerError, playerError } from "../embed/src/player/errors.js";
 import { selectFontFaces } from "../embed/src/player/font-selection.js";
 
@@ -323,4 +323,44 @@ test("SDK entry bundling removes external JS imports and preserves import.meta.u
   assert.match(bundle, /import\.meta\.url/);
   assert.ok(bundle.includes(`animatix.sdk.engine.${buildId}`));
   assert.equal(readFileSync(join(dir, "__wasm_split.js"), "utf8").includes("helper"), true);
+});
+
+
+test("explicit modules load once relative to scene URLs without shadowing supplied sources", async t => {
+  const original = globalThis.fetch;
+  t.after(() => { globalThis.fetch = original; });
+  const urls = [];
+  globalThis.fetch = async url => { urls.push(url); return new Response("pub let value = 1"); };
+  for (const prefix of ["/", "/animatix/"]) {
+    const sourceUrl = `https://site.test${prefix}examples/demo.amx`;
+    const modules = new Map([["../lib/custom.amx", "offline custom source"]]);
+    const before = urls.length;
+    await fetchMissingModules([], sourceUrl, modules);
+    assert.equal(urls.length, before, "self-contained scenes make no module request");
+    await fetchMissingModules(["../lib/custom.amx", "parts/first.amx", "parts/first.amx"], sourceUrl, modules);
+    assert.equal(modules.get("../lib/custom.amx"), "offline custom source");
+    assert.equal(urls.at(-1), `https://site.test${prefix}examples/parts/first.amx`);
+    assert.equal(urls.length, before + 1);
+    await fetchMissingModules(["parts/first.amx", "parts/nested.amx"], sourceUrl, modules);
+    assert.equal(urls.length, before + 2, "later rounds reuse registered source modules");
+  }
+});
+
+test("module failures and cancellation do not partially install sources", async t => {
+  const original = globalThis.fetch;
+  t.after(() => { globalThis.fetch = original; });
+  const modules = new Map([["custom.amx", "offline"]]);
+  globalThis.fetch = async url => new Response("source", { status: url.endsWith("bad.amx") ? 404 : 200 });
+  await assert.rejects(fetchMissingModules(["ok.amx", "bad.amx"], "https://site.test/main.amx", modules), /HTTP 404/);
+  assert.deepEqual([...modules], [["custom.amx", "offline"]]);
+  const controller = new AbortController();
+  globalThis.fetch = async (_url, {signal}) => {
+    assert.equal(signal, controller.signal);
+    controller.abort();
+    return new Response("late result");
+  };
+  await assert.rejects(fetchMissingModules(["late.amx"], "https://site.test/main.amx", modules, controller.signal), { name: "AbortError" });
+  assert.deepEqual([...modules], [["custom.amx", "offline"]]);
+  globalThis.fetch = () => { throw new Error("cancelled request must not start"); };
+  await assert.rejects(fetchMissingModules(["late.amx"], "https://site.test/main.amx", modules, controller.signal), { name: "AbortError" });
 });

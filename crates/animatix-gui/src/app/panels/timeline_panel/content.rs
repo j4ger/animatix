@@ -6,19 +6,18 @@
 //! zoom inputs are unchanged from the monolithic version.
 
 use std::collections::HashSet;
-use std::time::Duration;
 
 use animatix::composition::Composition;
 use animatix::timeline::{EntityId, Timeline};
-use egui::{Pos2, Rect, Sense, Stroke, Vec2};
+use egui::{Pos2, Rect, Stroke, Vec2};
 
-use super::keyframes::{self, KeyframeRenderCtx, KfDrag};
+use super::keyframes::{self, KeyframeRenderCtx};
 use super::ruler::{
     bar_interaction, render_playhead, render_range_slider, render_ruler, render_timeline_zoom_bar,
 };
 use super::track_lanes::{
-    ActionDragState, property_group_color, property_group_for_prop, render_action_blocks,
-    render_empty_property_lane, render_speech_track, speech_row_count,
+    property_group_color, property_group_for_prop, render_action_blocks, render_speech_track,
+    speech_row_count,
 };
 use super::track_tree::{
     ActorRowHeaderLayout, build_actor_tree, render_actor_row_header, render_property_row_header,
@@ -89,10 +88,8 @@ pub(crate) struct TimelineContext<'a> {
     pub collapsed_actors: &'a mut HashSet<String>,
     pub expanded_properties: &'a mut HashSet<String>,
     pub selected_actors: &'a mut HashSet<String>,
-    pub snap_fps: f32,
-    /// Set by the panel each frame; true when the panel or its children received pointer
-    /// interaction.
-    pub timeline_focused: &'a mut bool,
+    /// Scene-qualified keyframe selection for read-only track inspection.
+    pub selected_keyframes: &'a mut Vec<KeyframeId>,
 }
 
 /// Horizontal geometry shared by every lane in one frame.
@@ -195,34 +192,6 @@ fn layout_sections(
     }
 }
 
-/// Keyframe/action drag plus the cross-row keyframe selection for one frame.
-struct TimelineInteractionState {
-    kf_drag: Option<KfDrag>,
-    new_kf_drag: Option<KfDrag>,
-    action_drag: Option<ActionDragState>,
-    new_action_drag: Option<ActionDragState>,
-    multi_selected: Vec<KeyframeId>,
-}
-
-impl TimelineInteractionState {
-    fn load(ui: &egui::Ui, panel_id: egui::Id) -> Self {
-        let kf_drag: Option<KfDrag> =
-            ui.data(|d| d.get_temp(panel_id.with("kf_drag").with("data")));
-        let action_drag: Option<ActionDragState> =
-            ui.data(|d| d.get_temp(panel_id.with("action_drag").with("data")));
-        let multi_selected: Vec<KeyframeId> =
-            ui.data(|d| d.get_temp(panel_id.with("kf_multi"))).unwrap_or_default();
-
-        Self {
-            new_kf_drag: kf_drag.clone(),
-            new_action_drag: action_drag,
-            kf_drag,
-            action_drag,
-            multi_selected,
-        }
-    }
-}
-
 /// Per-frame state shared by every actor row and property lane.
 ///
 /// Grouping it once keeps the row helpers from taking a dozen independent
@@ -236,20 +205,13 @@ struct TimelineRowCtx<'a> {
     active_scene: Option<&'a str>,
     scene_for_selection: Option<String>,
     shift_held: bool,
-    snap_fps: f32,
-    speech_snap_targets: &'a [(f64, String)],
     theme: eparts::Theme,
     sp: &'a Spatial,
     preview: &'a PreviewPaneState,
     collapsed_actors: &'a mut HashSet<String>,
     expanded_properties: &'a mut HashSet<String>,
     selected_actors: &'a mut HashSet<String>,
-    commands: &'a mut ActionQueue,
-    multi_selected: &'a mut Vec<KeyframeId>,
-    kf_drag: Option<&'a KfDrag>,
-    new_kf_drag: &'a mut Option<KfDrag>,
-    action_drag: Option<&'a ActionDragState>,
-    new_action_drag: &'a mut Option<ActionDragState>,
+    selected_keyframes: &'a mut Vec<KeyframeId>,
 }
 
 impl TimelineRowCtx<'_> {
@@ -259,13 +221,8 @@ impl TimelineRowCtx<'_> {
             preview: self.preview,
             active_scene: self.active_scene,
             scene_for_selection: self.scene_for_selection.clone(),
-            multi_selected: &mut *self.multi_selected,
-            kf_drag: self.kf_drag,
-            new_kf_drag: &mut *self.new_kf_drag,
-            commands: &mut *self.commands,
+            selected_keyframes: &mut *self.selected_keyframes,
             shift_held: self.shift_held,
-            snap_fps: self.snap_fps,
-            speech_snap_targets: self.speech_snap_targets,
             theme: self.theme,
         }
     }
@@ -303,11 +260,9 @@ impl TimelineRowCtx<'_> {
         render_actor_row_header(
             ui,
             &header_layout,
-            timeline,
             &mut *self.collapsed_actors,
             &mut *self.expanded_properties,
             &mut *self.selected_actors,
-            &mut *self.commands,
             self.theme,
             self.sp,
         );
@@ -318,18 +273,7 @@ impl TimelineRowCtx<'_> {
         );
 
         if let Some(tl) = timeline {
-            render_action_blocks(
-                ui,
-                tl,
-                actor_label,
-                track_idx,
-                bar_area,
-                self.coords,
-                self.action_drag,
-                &mut *self.new_action_drag,
-                &mut *self.commands,
-                self.theme,
-            );
+            render_action_blocks(ui, tl, actor_label, track_idx, bar_area, self.coords, self.theme);
         }
 
         if let Some(tl) = timeline
@@ -355,17 +299,6 @@ impl TimelineRowCtx<'_> {
             bar_area.bottom(),
             self.preview,
             self.coords,
-        );
-
-        // Track bar right-click: bulk operations for selected keyframes
-        let track_bar_resp =
-            ui.interact(bar_area, ui.scope_id().with(("track_bar", track_idx)), Sense::click());
-        keyframes::handle_track_bar_context_menu(
-            &track_bar_resp,
-            actor_label,
-            self.active_scene,
-            &mut *self.multi_selected,
-            &mut *self.commands,
         );
 
         self.draw_track_guides(ui, bar_area, at_bot);
@@ -423,23 +356,7 @@ impl TimelineRowCtx<'_> {
                 Pos2::new(self.scroll_rect.right(), prop_bot),
             );
 
-            if kf_times.is_empty() {
-                render_empty_property_lane(
-                    ui,
-                    timeline,
-                    id,
-                    timeline.world().effects(id),
-                    actor_label,
-                    prop_name,
-                    track_idx,
-                    prop_bar_area,
-                    self.coords,
-                    group_col,
-                    self.preview,
-                    &mut *self.commands,
-                    self.theme,
-                );
-            } else {
+            if !kf_times.is_empty() {
                 let mut kf_ctx = self.keyframe_ctx();
                 keyframes::render_property_keyframes(
                     ui,
@@ -489,9 +406,6 @@ impl TimelineRowCtx<'_> {
 pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
     let theme = eparts::theme(ui);
     let sp = crate::app::design_tokens::spatial::spatial(ui);
-    let timeline_outer_rect = ui.available_rect_before_wrap();
-    update_timeline_focus(ui, ctx.timeline_focused, timeline_outer_rect, theme);
-
     let TimelineContext {
         preview,
         timeline,
@@ -500,6 +414,7 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
         collapsed_actors,
         expanded_properties,
         selected_actors,
+        selected_keyframes,
         ..
     } = ctx;
 
@@ -514,20 +429,11 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
         return;
     }
 
-    // Prune expired keyframe flashes (300 ms lifetime)
-    let now = std::time::Instant::now();
-    preview
-        .flashed_keyframe_times
-        .retain(|(_, instant)| now.duration_since(*instant) < Duration::from_millis(300));
     let duration_s = preview.playback.duration_s.max(0.1);
-    let snap_fps = ctx.snap_fps;
     let panel_id = ui.scope_id().with("timeline_panel");
     let active_scene = ctx.active_scene;
     let scene_for_selection = active_scene.map(ToOwned::to_owned);
     let shift_held = ui.input(|i| i.modifiers.shift);
-    let speech_snap_targets = collect_speech_snap_targets(*timeline);
-    let mut interaction = TimelineInteractionState::load(ui, panel_id);
-
     let mut source_markers = markers::collect_markers(ctx.statements, *timeline, *composition);
     if ctx.source_current {
         super::marker_source::locate_cached(ui, ctx.source_text, &mut source_markers);
@@ -616,39 +522,29 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
             );
         }
 
-        // Debug only: retained legacy property visualization cannot emit writes.
+        // Debug property tracks are read-only, selectable inspection rows.
         if show_debug {
-            ui.add_enabled_ui(false, |ui| {
-                let mut rows = TimelineRowCtx {
-                    timeline: *timeline,
-                    coords: &viewport.coords,
-                    scroll_rect: viewport.scroll_rect,
-                    bar_origin_x: viewport.coords.bar_origin_x,
-                    playhead_x,
-                    active_scene,
-                    scene_for_selection: scene_for_selection.clone(),
-                    shift_held,
-                    snap_fps,
-                    speech_snap_targets: &speech_snap_targets,
-                    theme,
-                    sp: &sp,
-                    preview,
-                    collapsed_actors,
-                    expanded_properties,
-                    selected_actors,
-                    commands,
-                    multi_selected: &mut interaction.multi_selected,
-                    kf_drag: interaction.kf_drag.as_ref(),
-                    new_kf_drag: &mut interaction.new_kf_drag,
-                    action_drag: interaction.action_drag.as_ref(),
-                    new_action_drag: &mut interaction.new_action_drag,
-                };
-                let mut current_y = sections.actor_first_top;
-                for (track_idx, (actor_label, depth)) in actor_tree.iter().enumerate() {
-                    current_y =
-                        rows.render_actor_row(ui, actor_label, *depth, track_idx, current_y);
-                }
-            });
+            let mut rows = TimelineRowCtx {
+                timeline: *timeline,
+                coords: &viewport.coords,
+                scroll_rect: viewport.scroll_rect,
+                bar_origin_x: viewport.coords.bar_origin_x,
+                playhead_x,
+                active_scene,
+                scene_for_selection: scene_for_selection.clone(),
+                shift_held,
+                theme,
+                sp: &sp,
+                preview,
+                collapsed_actors,
+                expanded_properties,
+                selected_actors,
+                selected_keyframes,
+            };
+            let mut current_y = sections.actor_first_top;
+            for (track_idx, (actor_label, depth)) in actor_tree.iter().enumerate() {
+                current_y = rows.render_actor_row(ui, actor_label, *depth, track_idx, current_y);
+            }
         }
 
         // ── Range slider for work/export region ──
@@ -701,32 +597,6 @@ fn render_audio_lane(
     );
     if let Some(time) = audio::render_audio_track(ui, rect, &viewport.coords, segments, revision) {
         commands.push_back(Command::ScrubTo(time).into());
-    }
-}
-
-/// Click-to-focus and the focus ring that scopes Delete to keyframes.
-fn update_timeline_focus(
-    ui: &egui::Ui,
-    focused: &mut bool,
-    outer_rect: Rect,
-    theme: eparts::Theme,
-) {
-    // Focus the panel on click, not on hover. Hover-based focus silently
-    // repurposed Delete whenever the pointer crossed the timeline; clicking
-    // the timeline focuses it and clicking anywhere else releases it.
-    if ui.input(|i| i.pointer.primary_pressed()) {
-        *focused = ui.rect_contains_pointer(outer_rect);
-    }
-    // Visible cue for the focus state that scopes Delete to keyframes.
-    if *focused {
-        let layer =
-            egui::LayerId::new(egui::Order::Foreground, ui.scope_id().with("timeline_focus_ring"));
-        ui.ctx().layer_painter(layer).rect_stroke(
-            outer_rect.shrink(1.0),
-            egui::CornerRadius::ZERO,
-            Stroke::new(STROKE_WIDTH, theme.palette.border.focus),
-            egui::StrokeKind::Inside,
-        );
     }
 }
 
@@ -819,27 +689,6 @@ fn handle_timeline_navigation(
         }
         ui.input_mut(|i| i.smooth_scroll_delta.x = 0.0);
     }
-}
-
-/// Snap targets for speech markers and word boundaries.
-fn collect_speech_snap_targets(timeline: Option<&Timeline>) -> Vec<(f64, String)> {
-    timeline
-        .map(|tl| {
-            let mut targets = Vec::new();
-            for (_, transcript) in tl.transcripts_iter() {
-                for (marker, &time_s) in &transcript.markers {
-                    targets.push((time_s, format!("@{}", marker)));
-                }
-                for seg in &transcript.segments {
-                    for w in &seg.words {
-                        targets.push((w.start_s, format!("\"{}\"", w.word)));
-                        targets.push((w.end_s, format!("\"{}\" end", w.word)));
-                    }
-                }
-            }
-            targets
-        })
-        .unwrap_or_default()
 }
 
 /// Actor tree plus the number of expanded property lanes beneath it.

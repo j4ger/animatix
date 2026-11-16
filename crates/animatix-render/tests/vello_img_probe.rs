@@ -3,8 +3,9 @@
 //! This is the gate the `vello` pin's comment names, and it **asserts**: every
 //! step of the matrix must land on one of three bright-pixel counts (a
 //! full-frame image, the 20×40 rect, or nothing). It is the check to run before
-//! moving the pin — note that upstream vello has since moved to wgpu 30 while
-//! this workspace pins 29, so a rev bump alone does not compile; see the pin.
+//! moving the dependency: Vello and the workspace must use compatible wgpu
+//! versions, and both local boundaries in `crates/vendor/vello/README.animatix.md`
+//! must be covered before removing the patch.
 //!
 //!History matrix (each row = a fresh Renderer + texture):
 //!  A: img(α0) → img(α1)              (bd_video shape — expected OK)

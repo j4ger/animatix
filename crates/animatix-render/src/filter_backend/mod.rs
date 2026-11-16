@@ -6,12 +6,11 @@
 //! an [`EffectChain`] as an ordered list of compute passes over host-owned
 //! ping-pong textures.
 //!
-//! The pass/uniform contract lives in `docs/effects.md`. The seed copy is
-//! submitted first, each effect pass is then submitted in its own encoder, and
-//! an optional pending-composite harvest is a final submit: back-to-back compute
-//! passes sharing ping-pong textures in one encoder do not make a storage write
-//! visible to the next pass on every driver (probe 009), and a submit boundary
-//! is a portable synchronisation point.
+//! The pass/uniform contract lives in `docs/effects.md`. Seed copies, ordered
+//! compute passes, and the optional pending-composite harvest share one encoder
+//! and submission. Independent author/context uniform slots preserve dispatch
+//! parameters. Reference tests and intermediate stage dumps retain the separate
+//! submission path for comparison and synchronous snapshots.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -69,6 +68,13 @@ pub struct GpuFilterBackend {
     /// The key is owned because plugin effect names come from the registry, not
     /// from string literals.
     pipelines: HashMap<Box<str>, EffectPipeline>,
+    /// Bind groups for stable texture views, effect buffers, and uniform sizes.
+    /// The cache is bounded; region scratch eviction and uniform-buffer growth
+    /// clear it so it cannot retain obsolete GPU resources.
+    effect_bind_group_cache: HashMap<EffectBindGroupCacheKey, wgpu::BindGroup>,
+    /// Unit-test-only override for comparing queue submission policies.
+    #[cfg(test)]
+    test_submit_strategy: PassSubmitStrategy,
     /// Linear clamp sampler (binding 4).
     sampler: wgpu::Sampler,
     /// Per-pass host context uniform (binding 3).

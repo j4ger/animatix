@@ -45,12 +45,6 @@ pub enum KeyboardAction {
     StepPrevious,
     TogglePresentationMode,
 
-    // Actor editing
-    DuplicateSelection,
-    DeleteSelection,
-    GroupSelection,
-    UngroupSelection,
-
     // View
     ZoomToSelection,
     ZoomToAll,
@@ -59,24 +53,10 @@ pub enum KeyboardAction {
     OpenCommandPalette,
     OpenFindReplace,
 
-    // Tool switching
-    SetSelectTool,
-    SetMoveTool,
-    SetScaleTool,
-    SetRotateTool,
-    SetVertexTool,
-    SetPivotTool,
-
-    // Nudge (arrow keys with context-dependent step size)
-    NudgeSelected { dx: f32, dy: f32 },
-
-    // Editor / insertion palette
+    // Editor / review navigation
     EditSync,
-    OpenInsertionPalette,
-
-    // Clipboard
-    CopySelection,
-    PasteClipboard,
+    ScrubBackward,
+    ScrubForward,
 
     // Misc
     Escape,

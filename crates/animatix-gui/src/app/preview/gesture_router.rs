@@ -11,7 +11,6 @@ impl GestureRouter {
         preview_rect: Rect,
         response: &Response,
     ) {
-        *ctx.tool_mode = super::ToolMode::Select;
         let modifiers = ui.input(|i| i.modifiers);
         let pos = ui.input(|i| i.pointer.latest_pos());
         let gesture = if response.drag_started_by(egui::PointerButton::Primary) {

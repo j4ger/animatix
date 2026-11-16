@@ -18,8 +18,6 @@ mod api;
 #[cfg(test)]
 mod tests;
 
-pub use crate::app::commands::{PropertyEdit, PropertyValue};
-
 pub(super) use api::nice_tick_interval;
 pub(crate) use api::{panel_frame, sidebar_tab_label};
 

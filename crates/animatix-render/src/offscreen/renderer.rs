@@ -191,20 +191,31 @@ impl OffscreenRenderer {
 
         self.ensure_targets(dimensions);
 
-        // Evaluate timeline with filter backend support.
-        // Reuse cached backend if dimensions match, otherwise recreate. The
-        // transition path's second backend shares this dimension key, so a
-        // resize drops both and each is lazily rebuilt where it is used.
+        // Reuse cached backends only at the current dimensions. A direct frame
+        // does not need the transition's second slot.
         if self.filter_backend_dimensions != Some(dimensions) {
             self.filter_backend = None;
             self.filter_backend_b = None;
-            self.filter_backend =
-                Some(GpuFilterBackend::new(self.device.clone(), self.queue.clone(), dimensions)?);
             self.filter_backend_dimensions = Some(dimensions);
         }
-        let filter_backend = self.filter_backend.as_mut().unwrap();
+        let needs_filter_backend = timeline.needs_filter_backend();
+        if needs_filter_backend {
+            if self.filter_backend.is_none() {
+                self.filter_backend = self.filter_backend_b.take();
+            }
+            if self.filter_backend.is_none() {
+                self.filter_backend = Some(GpuFilterBackend::new(
+                    self.device.clone(),
+                    self.queue.clone(),
+                    dimensions,
+                )?);
+            }
+        } else {
+            self.filter_backend = None;
+        }
+        self.filter_backend_b = None;
         let mut fb: Option<&mut dyn animatix::timeline::effects::FilterBackend> =
-            Some(filter_backend);
+            self.filter_backend.as_mut().map(|backend| backend as _);
         let t_eval = crate::filter_backend::timing_probe();
         // Always take the zero-readback (pending) evaluate path: scopes record
         // GPU composites that are blitted after the main render (below), so

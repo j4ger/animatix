@@ -16,10 +16,10 @@
 //   nix develop -c bash -lc 'DISPLAY=:0 \
 //     VK_ICD_FILENAMES=/run/opengl-driver/share/vulkan/icd.d/nvidia_icd.json \
 //     node scripts/web-page-perf.mjs'
-//   WPP_PAGE=/demos/transformer/index.html ... node scripts/web-page-perf.mjs
+//   WPP_PAGE=/dev/multi-probe.html ... node scripts/web-page-perf.mjs
 //
 // Env:
-//   WPP_PAGE         page to measure (default /tour/)
+//   WPP_PAGE         page to measure (default /dev/multi-probe.html)
 //   WPP_SECONDS      measurement window in seconds (default 5)
 //   WPP_HEADED       1 (default) real window on $DISPLAY; 0 = --headless=new
 //   WPP_SOFTWARE     1 = SwiftShader (CI/no-GPU); implies headless. Default 0.
@@ -31,8 +31,9 @@
 //   WPP_EXTRA_FLAGS  extra Chromium flags, whitespace separated
 //   CHROME, PYTHON   override the binaries
 //
-// Readiness follows scripts/web-smoke.mjs: switch deck pages to Article mode,
-// then walk each player into view and (for lazy players) call `loadNow()`
+// The default is a developer probe, not the retired public tour. Its results
+// must not be compared as the same workload as historical tour measurements.
+// Readiness walks each player into view and (for lazy players) call `loadNow()`
 // until `_state === "ready"` and a canvas exists in its shadow root.
 //
 // The measured window sits at the last player the readiness walk centred, so
@@ -68,7 +69,7 @@ import net from "node:net";
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const CHROME = process.env.CHROME || "chromium";
 const PYTHON = process.env.PYTHON || "python3";
-const PAGE = process.env.WPP_PAGE || "/tour/";
+const PAGE = process.env.WPP_PAGE || "/dev/multi-probe.html";
 const SECONDS = Math.max(1, Number(process.env.WPP_SECONDS || 5));
 const HEADED = process.env.WPP_HEADED !== "0";
 const SOFTWARE = process.env.WPP_SOFTWARE === "1";
@@ -249,21 +250,9 @@ function preDocumentProbe() {
   );
 }
 
-// Deck pages (web/demos/deck.js) build their mode buttons at runtime and hide
-// inactive slides with display:none, which leaves those players with a 1x1
-// canvas. Article mode restores layout for every figure; the button only
-// exists on deck pages, so this is a no-op elsewhere.
+// All players on the selected developer page remain visible to the driver.
 async function preparePlayers() {
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  const button = document.querySelector('.btn-deck-mode[data-mode="article"]');
-  if (button) {
-    button.click();
-    await sleep(400);
-  }
-  return {
-    count: document.querySelectorAll("amx-player").length,
-    articleMode: Boolean(button),
-  };
+  return { count: document.querySelectorAll("amx-player").length };
 }
 
 // Bring player `index` to `ready` exactly the way scripts/web-smoke.mjs does.

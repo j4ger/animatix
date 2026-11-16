@@ -9,7 +9,6 @@ use crate::app::commands::{ActionQueue, ShellAction};
 use crate::app::components::toast::ToastQueue;
 use crate::app::document::timeline_diff::KeyframeId;
 use crate::app::panels::SidebarTab;
-use crate::app::preview::ToolMode;
 use crate::app::preview::selection::SelectionState;
 
 /// Selection state for the UI.
@@ -28,51 +27,6 @@ impl SelectionStore {
             hit_regions: Vec::new(),
             selection: SelectionState::default(),
             selected_keyframes: Vec::new(),
-        }
-    }
-}
-
-/// Interaction state (drag, inspector input, snapshots).
-pub struct InteractionStore {
-    pub drag_snapshot_taken: bool,
-    pub inspector_input_drag_active: bool,
-    /// Pending source edits, flushed when the drag ends. A Vec preserves list-
-    /// property intermediates (e.g. `child_order`, `points`) instead of letting a
-    /// later edit to the same (actor, property) overwrite them.
-    pub pending_drag_source_edits: Vec<crate::app::commands::PropertyEdit>,
-}
-
-impl InteractionStore {
-    fn new() -> Self {
-        Self {
-            drag_snapshot_taken: false,
-            inspector_input_drag_active: false,
-            pending_drag_source_edits: Vec::new(),
-        }
-    }
-
-    /// True if any drag interaction is active; the canonical check, preferred over
-    /// inspecting individual flags.
-    pub fn is_dragging(&self) -> bool {
-        self.inspector_input_drag_active
-    }
-
-    /// Reset all drag-related state. Called when any drag interaction ends.
-    pub fn reset_drag_state(&mut self) {
-        self.inspector_input_drag_active = false;
-        self.drag_snapshot_taken = false;
-    }
-}
-
-/// Clipboard buffer for copy/paste.
-pub struct ClipboardStore {
-    pub clipboard_actors: Vec<String>,
-}
-
-impl ClipboardStore {
-    fn new() -> Self {
-        Self {
-            clipboard_actors: Vec::new(),
         }
     }
 }
@@ -205,7 +159,6 @@ pub struct ViewStore {
     pub diagnostics_panel_visible: bool,
     pub diagnostics_peek_open: bool,
     pub settings_open: bool,
-    pub tool_mode: ToolMode,
     pub debug_bounds: bool,
     pub debug_layout: bool,
     pub debug_spacing: bool,
@@ -231,8 +184,6 @@ pub struct ViewStore {
     /// Last JSON theme load/watch error, if any.
     #[cfg(feature = "theme-json")]
     pub theme_error: Option<String>,
-    /// True when the timeline panel or a child received pointer interaction this frame.
-    pub timeline_focused: bool,
     /// True when the user prefers reduced motion (animations snap to instant).
     pub reduce_motion: bool,
     pub density: eparts::Density,
@@ -257,7 +208,6 @@ impl ViewStore {
             diagnostics_panel_visible: false,
             diagnostics_peek_open: false,
             settings_open: false,
-            tool_mode: ToolMode::Select,
             debug_bounds: false,
             debug_layout: false,
             debug_spacing: false,
@@ -276,7 +226,6 @@ impl ViewStore {
             theme_names: Vec::new(),
             #[cfg(feature = "theme-json")]
             theme_error: None,
-            timeline_focused: false,
             reduce_motion: false,
             density: eparts::Density::Default,
             layout_size: (1440.0, 960.0),
@@ -292,19 +241,12 @@ impl ViewStore {
 /// Owns all UI-specific state that does not affect the document or runtime.
 pub struct UiStore {
     pub selection: SelectionStore,
-    pub interaction: InteractionStore,
-    pub clipboard: ClipboardStore,
     pub view: ViewStore,
     pub editor_sync_enabled: bool,
-    pub keyframe_mode: bool,
     pub cursor_time_s: Option<f64>,
-    pub keyframe_merge_window_s: f64,
     pub sidebar_tab: SidebarTab,
     pub rebuild_debounce_ms: u64,
     pub scrub_step_s: f64,
-    pub nudge_step_px: f32,
-    pub nudge_step_shift_px: f32,
-    pub rotation_snap_degrees: f32,
     pub snap_fps: f32,
     pub pending_actions: ActionQueue,
     pub toasts: ToastQueue,
@@ -335,21 +277,12 @@ impl UiStore {
     pub fn new(tree: Tree<crate::app::WorkspaceTab>) -> Self {
         Self {
             selection: SelectionStore::new(),
-            interaction: InteractionStore::new(),
-            clipboard: ClipboardStore::new(),
             view: ViewStore::new(tree),
-            // Auto-key is off by default: property edits change the base value
-            // unless the user records or clicks a keyframe diamond.
             editor_sync_enabled: true,
-            keyframe_mode: false,
             cursor_time_s: None,
-            keyframe_merge_window_s: 0.05,
             sidebar_tab: SidebarTab::Project,
             rebuild_debounce_ms: 150,
             scrub_step_s: 0.1,
-            nudge_step_px: 1.0,
-            nudge_step_shift_px: 10.0,
-            rotation_snap_degrees: 15.0,
             snap_fps: 60.0,
             pending_actions: ActionQueue::default(),
             toasts: ToastQueue::default(),
@@ -393,7 +326,6 @@ impl UiStore {
             loop_start_s: preview.preview.playback.loop_start_s,
             loop_end_s: preview.preview.playback.loop_end_s,
             timeline_scroll_offset: preview.preview.timeline_scroll_offset,
-            tool_mode: self.view.tool_mode,
         }
     }
 
@@ -403,7 +335,6 @@ impl UiStore {
         self.selection.selected_actors = snapshot.selected_actors;
         self.selection.selected_keyframes = snapshot.selected_keyframes;
         self.view.timeline_scroll_offset = snapshot.timeline_scroll_offset as f32;
-        self.view.tool_mode = snapshot.tool_mode;
     }
 }
 
@@ -449,12 +380,9 @@ mod tests {
         let store = ui_store();
 
         assert!(store.editor_sync_enabled);
-        assert!(!store.keyframe_mode);
         assert_eq!(store.cursor_time_s, None);
         assert_eq!(store.sidebar_tab, SidebarTab::Project);
         assert_eq!(store.scrub_step_s, 0.1);
-        assert_eq!(store.nudge_step_px, 1.0);
-        assert_eq!(store.rotation_snap_degrees, 15.0);
         assert_eq!(store.snap_fps, 60.0);
     }
 
@@ -494,7 +422,6 @@ mod tests {
         assert!(!store.view.debug_bounds);
         assert!(!store.view.debug_layout);
         assert!(!store.view.debug_spacing);
-        assert_eq!(store.view.tool_mode, ToolMode::Select);
         // Compact mode starts off at the 1440x960 default window.
         assert!(!store.view.compact);
         assert!(store.view.compact_drawer.is_none());

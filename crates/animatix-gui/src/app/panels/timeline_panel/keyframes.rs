@@ -1,103 +1,14 @@
-//! Keyframe diamond rendering, multi-select state, dragging, and context menus.
+//! Read-only keyframe track inspection and selection.
 
-use egui::{Color32, FontId, Pos2, Rect, Sense, Stroke, Vec2};
-use eparts::widget::UiExt;
+use egui::{Color32, Pos2, Rect, Sense, Stroke, Vec2};
 
 use super::TimelineCoords;
-use super::ruler::snap_to_speech_or_fps;
 use super::track_lanes::{PropertyGroup, property_group_color};
 use crate::app::PreviewPaneState;
-use crate::app::commands::{ActionQueue, Command, MoveKeyframeSpec, ShellAction};
-use crate::app::components::button::Button;
 use crate::app::components::text_tooltip;
-use crate::app::design_tokens::semantic::timeline;
+use crate::app::design_tokens::spatial::STROKE_WIDTH;
 use crate::app::design_tokens::spatial::timeline::KF_HALF as KF_DIAMOND_HALF;
-use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH};
 use crate::app::document::timeline_diff::{KeyframeId, collect_per_property_keyframes};
-
-/// In-flight keyframe drag.
-///
-/// `anchor` is the grabbed diamond's scene-local identity; `target_s` is the
-/// snapped time it currently points at. `ids` is the selection snapshot taken
-/// at drag start — the whole selection when the grabbed diamond was already
-/// selected, otherwise just the grabbed diamond's identities.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct KfDrag {
-    pub(crate) scene: Option<String>,
-    pub(crate) actor: String,
-    /// Property of the grabbed diamond (the first coincident property for an
-    /// aggregate diamond).
-    pub(crate) property: String,
-    /// Original scene-local keyframe time of the grabbed diamond, in ms.
-    pub(crate) anchor_keyframe_ms: u64,
-    /// Original scene-local time of the grabbed diamond, in seconds.
-    pub(crate) anchor_s: f64,
-    /// Snapped target time of the grabbed diamond, in seconds.
-    pub(crate) target_s: f64,
-    /// Selection snapshot moved as one undoable step.
-    pub(crate) ids: Vec<KeyframeId>,
-}
-
-impl KfDrag {
-    /// Current offset applied to every dragged keyframe, in seconds.
-    pub(crate) fn delta_s(&self) -> f64 {
-        self.target_s - self.anchor_s
-    }
-
-    pub(crate) fn involves(&self, actor: &str, property: Option<&str>, time_ms: u64) -> bool {
-        self.ids.iter().any(|id| {
-            id.actor == actor
-                && id.time_ms == time_ms
-                && property.is_none_or(|property| id.property == property)
-        })
-    }
-}
-
-/// Offset (seconds) a drag applies to a specific keyframe, if any.
-pub(crate) fn drag_delta_for(
-    drag: Option<&KfDrag>,
-    actor: &str,
-    property: Option<&str>,
-    time_ms: u64,
-) -> Option<f64> {
-    drag.filter(|drag| drag.involves(actor, property, time_ms)).map(KfDrag::delta_s)
-}
-
-/// Emit one batched [`Command::MoveKeyframes`] for every keyframe the drag
-/// covers, offset by the drag delta. No-op for an unmoved drag.
-pub(crate) fn emit_keyframe_moves(commands: &mut ActionQueue, drag: Option<&KfDrag>) {
-    let Some(drag) = drag else {
-        return;
-    };
-    let delta = drag.delta_s();
-    if delta.abs() <= 0.01 {
-        return;
-    }
-    tracing::debug!(
-        actor = %drag.actor,
-        property = %drag.property,
-        scene = ?drag.scene,
-        anchor_ms = drag.anchor_keyframe_ms,
-        delta_s = delta,
-        count = drag.ids.len(),
-        "moving keyframe selection"
-    );
-    let specs: Vec<MoveKeyframeSpec> = drag
-        .ids
-        .iter()
-        .map(|id| {
-            let old_time_s = id.time_ms as f64 / 1000.0;
-            MoveKeyframeSpec {
-                scene: id.scene.clone(),
-                actor: id.actor.clone(),
-                property: id.property.clone(),
-                old_time_s,
-                new_time_s: old_time_s + delta,
-            }
-        })
-        .collect();
-    commands.push_back(ShellAction::Command(Command::MoveKeyframes(specs)));
-}
 
 /// Group an actor's keyframes by time, preserving every property keyed at that
 /// time.
@@ -119,25 +30,25 @@ pub(crate) fn collect_actor_keyframe_groups(
 
 /// Is `time_ms`'s aggregate diamond (any property) selected?
 pub(crate) fn aggregate_selected(
-    multi: &[KeyframeId],
+    selected: &[KeyframeId],
     active_scene: Option<&str>,
     actor: &str,
     time_ms: u64,
 ) -> bool {
-    multi
+    selected
         .iter()
         .any(|id| id.scene.as_deref() == active_scene && id.actor == actor && id.time_ms == time_ms)
 }
 
 /// Is this exact property keyframe selected?
 pub(crate) fn keyframe_selected(
-    multi: &[KeyframeId],
+    selected: &[KeyframeId],
     active_scene: Option<&str>,
     actor: &str,
     property: &str,
     time_ms: u64,
 ) -> bool {
-    multi.iter().any(|id| {
+    selected.iter().any(|id| {
         id.scene.as_deref() == active_scene
             && id.actor == actor
             && id.property == property
@@ -145,23 +56,17 @@ pub(crate) fn keyframe_selected(
     })
 }
 
-/// Context bundle for rendering keyframe diamonds and handling drag/selection interactions.
+/// Shared state for static keyframe diamonds and workspace selection.
 pub(crate) struct KeyframeRenderCtx<'a> {
     pub coords: &'a TimelineCoords,
     pub preview: &'a PreviewPaneState,
     pub active_scene: Option<&'a str>,
     pub scene_for_selection: Option<String>,
-    pub multi_selected: &'a mut Vec<KeyframeId>,
-    pub kf_drag: Option<&'a KfDrag>,
-    pub new_kf_drag: &'a mut Option<KfDrag>,
-    pub commands: &'a mut ActionQueue,
+    pub selected_keyframes: &'a mut Vec<KeyframeId>,
     pub shift_held: bool,
-    pub snap_fps: f32,
-    pub speech_snap_targets: &'a [(f64, String)],
     pub theme: eparts::Theme,
 }
 
-/// One aggregate diamond slot: an actor, a time, and every property keyed there.
 struct AggregateDiamond<'a> {
     actor: &'a str,
     time_ms: u64,
@@ -174,7 +79,6 @@ impl AggregateDiamond<'_> {
         self.props.join(", ")
     }
 
-    /// Scene-qualified identity for every property at this time.
     fn selection_ids(&self, scene: &Option<String>) -> Vec<KeyframeId> {
         self.props
             .iter()
@@ -188,193 +92,30 @@ impl AggregateDiamond<'_> {
     }
 }
 
-/// Drag feedback geometry and snap inputs for the diamond under the pointer.
-struct DiamondDragVisual<'a> {
-    painter: &'a egui::Painter,
-    coords: &'a TimelineCoords,
-    bar_area: Rect,
-    shift_held: bool,
-    snap_fps: f32,
-    speech_snap_targets: &'a [(f64, String)],
-    theme: eparts::Theme,
-}
-
-/// Context menu for an aggregate diamond: easing and keyframe deletion.
-fn show_aggregate_context_menu(
+/// Click a diamond to select its keyframe identities. Shift-click toggles them
+/// in the existing selection.
+fn select_keyframes(
     response: &egui::Response,
-    diamond: &AggregateDiamond<'_>,
-    scene_for_selection: &Option<String>,
-    active_scene: Option<&str>,
-    multi_selected: &[KeyframeId],
-    commands: &mut ActionQueue,
-) {
-    let actor_label = diamond.actor;
-    let kf_ms = diamond.time_ms;
-    let kf_s = diamond.time_s;
-    let prop_label = diamond.label();
-    response.context_menu(|ui| {
-        ui.set_min_width(140.0);
-        ui.strong(format!("{prop_label} @ {:.2}s", kf_s));
-        ui.separator();
-        let selected_at_time: Vec<KeyframeId> = multi_selected
-            .iter()
-            .filter(|id| {
-                id.scene.as_deref() == active_scene
-                    && id.actor == actor_label
-                    && id.time_ms == kf_ms
-            })
-            .cloned()
-            .collect();
-        let targets: Vec<KeyframeId> = if selected_at_time.is_empty() {
-            diamond.selection_ids(scene_for_selection)
-        } else {
-            selected_at_time
-        };
-        ui.menu_button("Easing", |ui| {
-            for &(id_str, display_name) in animatix_syntax::easing::EASING_REGISTRY {
-                if ui.stable_selectable_label(false, display_name).clicked() {
-                    let variant = animatix_syntax::easing::parse_easing_name(id_str)
-                        .unwrap_or(animatix_syntax::easing::Easing::Linear);
-                    for target in &targets {
-                        commands.push_back(ShellAction::Command(Command::SetKeyframeEasing {
-                            scene: target.scene.clone(),
-                            actor: target.actor.clone(),
-                            property: target.property.clone(),
-                            time_s: target.time_ms as f64 / 1000.0,
-                            easing: variant,
-                        }));
-                    }
-                    ui.close();
-                }
-            }
-        });
-        ui.separator();
-        if ui
-            .button(format!("{} Delete keyframe", egui_phosphor::regular::TRASH))
-            .clicked()
-        {
-            commands.push_back(ShellAction::Command(Command::DeleteKeyframes(targets.clone())));
-            ui.close();
-        }
-    });
-}
-
-/// Click a diamond: replace the selection, or toggle each coincident property
-/// keyframe when Shift is held.
-fn handle_aggregate_click(
-    response: &egui::Response,
-    diamond: &AggregateDiamond<'_>,
-    scene_for_selection: &Option<String>,
-    multi_selected: &mut Vec<KeyframeId>,
+    ids: Vec<KeyframeId>,
+    selected: &mut Vec<KeyframeId>,
     shift_held: bool,
 ) {
     if !response.clicked() {
         return;
     }
-    let coincident = diamond.selection_ids(scene_for_selection);
     if shift_held {
-        for id in coincident {
-            if let Some(p) = multi_selected.iter().position(|s| *s == id) {
-                multi_selected.remove(p);
+        for id in ids {
+            if let Some(index) = selected.iter().position(|current| current == &id) {
+                selected.remove(index);
             } else {
-                multi_selected.push(id);
+                selected.push(id);
             }
         }
     } else {
-        *multi_selected = coincident;
+        *selected = ids;
     }
 }
 
-/// Start a drag on a diamond: snapshot the selection the drag will move.
-fn start_aggregate_drag(
-    response: &egui::Response,
-    diamond: &AggregateDiamond<'_>,
-    scene_for_selection: &Option<String>,
-    active_scene: Option<&str>,
-    multi_selected: &mut Vec<KeyframeId>,
-    shift_held: bool,
-    new_kf_drag: &mut Option<KfDrag>,
-) {
-    if !response.drag_started() {
-        return;
-    }
-    let coincident = diamond.selection_ids(scene_for_selection);
-    let grabbed_selected = coincident.iter().any(|id| {
-        keyframe_selected(
-            multi_selected,
-            active_scene,
-            diamond.actor,
-            &id.property,
-            diamond.time_ms,
-        )
-    });
-    if !shift_held && !grabbed_selected {
-        *multi_selected = coincident.clone();
-    }
-    let ids = if grabbed_selected {
-        multi_selected.clone()
-    } else {
-        coincident
-    };
-    *new_kf_drag = Some(KfDrag {
-        scene: scene_for_selection.clone(),
-        actor: diamond.actor.to_string(),
-        property: diamond.props.first().cloned().unwrap_or_default(),
-        anchor_keyframe_ms: diamond.time_ms,
-        anchor_s: diamond.time_s,
-        target_s: diamond.time_s,
-        ids,
-    });
-}
-
-/// Track the drag target and draw the snapped guide plus its time label.
-fn update_aggregate_drag(
-    response: &egui::Response,
-    diamond: &AggregateDiamond<'_>,
-    visual: &DiamondDragVisual<'_>,
-    new_kf_drag: &mut Option<KfDrag>,
-) {
-    let Some(pos) = response.interact_pointer_pos() else {
-        return;
-    };
-    let coords = visual.coords;
-    let nt = coords.x_to_time(pos.x);
-    let (snapped, snap_label) = if visual.shift_held {
-        (nt, None)
-    } else {
-        snap_to_speech_or_fps(nt, visual.snap_fps, visual.speech_snap_targets)
-    };
-    if let Some(drag) = new_kf_drag.as_mut() {
-        drag.target_s = snapped;
-    }
-    let gx = coords.time_to_x(snapped);
-    let painter = visual.painter;
-    painter.line_segment(
-        [
-            Pos2::new(gx, visual.bar_area.top()),
-            Pos2::new(gx, visual.bar_area.bottom()),
-        ],
-        Stroke::new(STROKE_WIDTH, visual.theme.palette.status.warning.linear_multiply(0.5)),
-    );
-    let label_text = if let Some(ref label) = snap_label {
-        format!("🧲 {} ({:.2}s)", label, snapped)
-    } else {
-        format!("{:.2}s → {:.2}s", diamond.time_s, snapped)
-    };
-    let g = painter.layout_no_wrap(
-        label_text,
-        FontId::monospace(10.0), // 10px mono: no TextRole
-        visual.theme.palette.text.primary,
-    );
-    let tr = Rect::from_min_size(
-        Pos2::new(gx - g.size().x / 2.0, visual.bar_area.top() - 16.0),
-        g.size() + Vec2::new(8.0, 4.0),
-    );
-    painter.rect_filled(tr, RADIUS_S, visual.theme.palette.surface.surface);
-    painter.galley(tr.min + Vec2::new(4.0, 2.0), g, visual.theme.palette.text.primary);
-}
-
-/// Render one aggregate diamond and its interactions at a single keyframe time.
 fn render_aggregate_diamond(
     ui: &mut egui::Ui,
     diamond: &AggregateDiamond<'_>,
@@ -382,123 +123,66 @@ fn render_aggregate_diamond(
     bar_area: Rect,
     ctx: &mut KeyframeRenderCtx<'_>,
 ) {
-    let coords = ctx.coords;
-    let preview = ctx.preview;
-    let active_scene = ctx.active_scene;
-    let scene_for_selection = &ctx.scene_for_selection;
-    let multi_selected = &mut *ctx.multi_selected;
-    let kf_drag = ctx.kf_drag;
-    let new_kf_drag = &mut *ctx.new_kf_drag;
-    let commands = &mut *ctx.commands;
-    let shift_held = ctx.shift_held;
-    let theme = ctx.theme;
-    let painter = ui.painter();
-
-    let actor_label = diamond.actor;
-    let kf_ms = diamond.time_ms;
-    let kf_s = diamond.time_s;
-    let kf_x = coords.time_to_x(kf_s);
-    if kf_x < bar_area.left() || kf_x > bar_area.right() {
+    let x = ctx.coords.time_to_x(diamond.time_s);
+    if x < bar_area.left() || x > bar_area.right() {
         return;
     }
-    let is_act = (kf_s - preview.playback.current_time_s()).abs() < 0.01;
-    let is_ms = aggregate_selected(multi_selected, active_scene, actor_label, kf_ms);
-    let is_drag = kf_drag.as_ref().is_some_and(|drag| drag.involves(actor_label, None, kf_ms));
-    let is_flashed = preview.flashed_keyframe_times.iter().any(|(t, _)| (*t - kf_s).abs() < 0.001);
-    let ds = if is_flashed {
-        KF_DIAMOND_HALF * 2.0
-    } else if is_drag {
-        KF_DIAMOND_HALF * 1.5
-    } else {
-        KF_DIAMOND_HALF
-    };
-    let kc = if is_flashed {
-        timeline::KF_FLASH
-    } else if is_ms {
-        theme.palette.accent.primary
-    } else if is_act {
-        theme.palette.text.primary
-    } else {
-        theme.palette.status.warning
-    };
-    let cy = bar_area.center().y;
-    let draw_x = drag_delta_for(new_kf_drag.as_ref(), actor_label, None, kf_ms)
-        .map_or(kf_x, |delta| coords.time_to_x(kf_s + delta));
-    let hit_size = (ds * 2.5).max(8.0);
-    let dr = Rect::from_center_size(Pos2::new(draw_x, cy), Vec2::new(hit_size, hit_size));
-    let dresp = ui.interact(
-        dr,
-        ui.scope_id().with(("kf_diamond", track_idx, kf_ms)),
-        Sense::click_and_drag(),
+    let selected = aggregate_selected(
+        ctx.selected_keyframes,
+        ctx.active_scene,
+        diamond.actor,
+        diamond.time_ms,
     );
-    if dresp.hovered() || is_ms || is_drag || is_act {
-        painter.circle_filled(
-            Pos2::new(draw_x, cy),
-            ds * 1.8,
-            Color32::from_rgba_unmultiplied(kc.r(), kc.g(), kc.b(), 45),
+    let active = (diamond.time_s - ctx.preview.playback.current_time_s()).abs() < 0.01;
+    let color = if selected {
+        ctx.theme.palette.accent.primary
+    } else if active {
+        ctx.theme.palette.text.primary
+    } else {
+        ctx.theme.palette.status.warning
+    };
+    let center = Pos2::new(x, bar_area.center().y);
+    let hit_rect = Rect::from_center_size(center, Vec2::splat(KF_DIAMOND_HALF * 2.5));
+    let response = ui.interact(
+        hit_rect,
+        ui.scope_id().with(("kf_diamond", track_idx, diamond.time_ms)),
+        Sense::click(),
+    );
+    if response.hovered() || selected || active {
+        ui.painter().circle_filled(
+            center,
+            KF_DIAMOND_HALF * 1.8,
+            Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 45),
         );
     }
-    painter.add(egui::Shape::convex_polygon(
+    ui.painter().add(egui::Shape::convex_polygon(
         vec![
-            Pos2::new(draw_x, cy - ds),
-            Pos2::new(draw_x + ds, cy),
-            Pos2::new(draw_x, cy + ds),
-            Pos2::new(draw_x - ds, cy),
+            Pos2::new(x, center.y - KF_DIAMOND_HALF),
+            Pos2::new(x + KF_DIAMOND_HALF, center.y),
+            Pos2::new(x, center.y + KF_DIAMOND_HALF),
+            Pos2::new(x - KF_DIAMOND_HALF, center.y),
         ],
-        if dresp.hovered() || is_drag {
-            kc
+        if response.hovered() {
+            color
         } else {
-            kc.linear_multiply(0.85)
+            color.linear_multiply(0.85)
         },
         Stroke::new(0.5, Color32::from_rgba_unmultiplied(255, 255, 255, 70)),
     ));
-
-    if dresp.hovered() && !is_drag {
-        text_tooltip(
-            ui,
-            dresp.id.with("tooltip"),
-            &dresp,
-            &format!("{} @ {:.2}s", diamond.label(), kf_s),
-        );
-    }
-
-    show_aggregate_context_menu(
-        &dresp,
-        diamond,
-        scene_for_selection,
-        active_scene,
-        multi_selected.as_slice(),
-        commands,
+    text_tooltip(
+        ui,
+        response.id.with("tooltip"),
+        &response,
+        &format!("{} @ {:.2}s", diamond.label(), diamond.time_s),
     );
-    handle_aggregate_click(&dresp, diamond, scene_for_selection, multi_selected, shift_held);
-    start_aggregate_drag(
-        &dresp,
-        diamond,
-        scene_for_selection,
-        active_scene,
-        multi_selected,
-        shift_held,
-        new_kf_drag,
+    select_keyframes(
+        &response,
+        diamond.selection_ids(&ctx.scene_for_selection),
+        ctx.selected_keyframes,
+        ctx.shift_held,
     );
-    if is_drag {
-        let visual = DiamondDragVisual {
-            painter,
-            coords,
-            bar_area,
-            shift_held,
-            snap_fps: ctx.snap_fps,
-            speech_snap_targets: ctx.speech_snap_targets,
-            theme,
-        };
-        update_aggregate_drag(&dresp, diamond, &visual, new_kf_drag);
-    }
-    if dresp.drag_stopped() && is_drag {
-        emit_keyframe_moves(commands, new_kf_drag.as_ref());
-        *new_kf_drag = None;
-    }
 }
 
-/// Render aggregate keyframe diamonds for an actor track row.
 pub(crate) fn render_actor_keyframes(
     ui: &mut egui::Ui,
     geometry: &animatix::timeline::animation_track::GeometryTracks,
@@ -510,215 +194,95 @@ pub(crate) fn render_actor_keyframes(
     bar_area: Rect,
     ctx: &mut KeyframeRenderCtx<'_>,
 ) {
-    let kf_groups = collect_actor_keyframe_groups(geometry, style, shape, text);
-    for (kf_ms, props) in kf_groups {
+    for (time_ms, props) in collect_actor_keyframe_groups(geometry, style, shape, text) {
         let diamond = AggregateDiamond {
             actor: actor_label,
-            time_ms: kf_ms,
-            time_s: kf_ms as f64 / 1000.0,
+            time_ms,
+            time_s: time_ms as f64 / 1000.0,
             props: &props,
         };
         render_aggregate_diamond(ui, &diamond, track_idx, bar_area, ctx);
     }
 }
 
-/// Render keyframe diamonds for a specific property lane row.
 pub(crate) fn render_property_keyframes(
     ui: &mut egui::Ui,
-    kf_times: &[u64],
+    keyframe_times: &[u64],
     actor_label: &str,
-    prop_name: &str,
+    property: &str,
     track_idx: usize,
-    prop_bar_area: Rect,
+    bar_area: Rect,
     group: Option<PropertyGroup>,
     ctx: &mut KeyframeRenderCtx<'_>,
 ) {
-    let coords = ctx.coords;
-    let preview = ctx.preview;
-    let active_scene = ctx.active_scene;
-    let scene_for_selection = &ctx.scene_for_selection;
-    let multi_selected = &mut *ctx.multi_selected;
-    let kf_drag = ctx.kf_drag;
-    let new_kf_drag = &mut *ctx.new_kf_drag;
-    let commands = &mut *ctx.commands;
-    let shift_held = ctx.shift_held;
-    let snap_fps = ctx.snap_fps;
-    let speech_snap_targets = ctx.speech_snap_targets;
-    let theme = ctx.theme;
-    let painter = ui.painter();
-    for kf_ms in kf_times {
-        let kf_s = *kf_ms as f64 / 1000.0;
-        let kf_x = coords.time_to_x(kf_s);
-        if kf_x < prop_bar_area.left() || kf_x > prop_bar_area.right() {
+    for &time_ms in keyframe_times {
+        let time_s = time_ms as f64 / 1000.0;
+        let x = ctx.coords.time_to_x(time_s);
+        if x < bar_area.left() || x > bar_area.right() {
             continue;
         }
-        let is_act = (kf_s - preview.playback.current_time_s()).abs() < 0.01;
-        let is_ms = keyframe_selected(multi_selected, active_scene, actor_label, prop_name, *kf_ms);
-        let is_drag = kf_drag
-            .as_ref()
-            .is_some_and(|drag| drag.involves(actor_label, Some(prop_name), *kf_ms));
-        let is_flashed =
-            preview.flashed_keyframe_times.iter().any(|(t, _)| (*t - kf_s).abs() < 0.001);
-        let ds = if is_flashed {
-            KF_DIAMOND_HALF * 2.0
-        } else if is_drag {
-            KF_DIAMOND_HALF * 1.5
-        } else {
-            KF_DIAMOND_HALF
-        };
+        let selected = keyframe_selected(
+            ctx.selected_keyframes,
+            ctx.active_scene,
+            actor_label,
+            property,
+            time_ms,
+        );
+        let active = (time_s - ctx.preview.playback.current_time_s()).abs() < 0.01;
         let base_color = group
-            .map(|g| property_group_color(g, theme))
-            .unwrap_or(theme.palette.status.warning);
-        let kc = if is_flashed {
-            timeline::KF_FLASH
-        } else if is_ms {
-            theme.palette.accent.primary
-        } else if is_act {
-            theme.palette.text.primary
+            .map(|group| property_group_color(group, ctx.theme))
+            .unwrap_or(ctx.theme.palette.status.warning);
+        let color = if selected {
+            ctx.theme.palette.accent.primary
+        } else if active {
+            ctx.theme.palette.text.primary
         } else {
             base_color
         };
-        let cy = prop_bar_area.center().y;
-        let draw_x = drag_delta_for(new_kf_drag.as_ref(), actor_label, Some(prop_name), *kf_ms)
-            .map_or(kf_x, |delta| coords.time_to_x(kf_s + delta));
-        let hit_size = (ds * 2.5).max(8.0);
-        let dr = Rect::from_center_size(Pos2::new(draw_x, cy), Vec2::new(hit_size, hit_size));
-        let dresp = ui.interact(
-            dr,
-            ui.scope_id().with(("prop_kf_diamond", track_idx, prop_name, kf_ms)),
-            Sense::click_and_drag(),
+        let center = Pos2::new(x, bar_area.center().y);
+        let hit_rect = Rect::from_center_size(center, Vec2::splat(KF_DIAMOND_HALF * 2.5));
+        let response = ui.interact(
+            hit_rect,
+            ui.scope_id().with(("prop_kf_diamond", track_idx, property, time_ms)),
+            Sense::click(),
         );
-        if dresp.hovered() || is_ms || is_drag || is_act {
-            painter.circle_filled(
-                Pos2::new(draw_x, cy),
-                ds * 1.8,
-                Color32::from_rgba_unmultiplied(kc.r(), kc.g(), kc.b(), 45),
+        if response.hovered() || selected || active {
+            ui.painter().circle_filled(
+                center,
+                KF_DIAMOND_HALF * 1.8,
+                Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 45),
             );
         }
-        painter.add(egui::Shape::convex_polygon(
+        ui.painter().add(egui::Shape::convex_polygon(
             vec![
-                Pos2::new(draw_x, cy - ds),
-                Pos2::new(draw_x + ds, cy),
-                Pos2::new(draw_x, cy + ds),
-                Pos2::new(draw_x - ds, cy),
+                Pos2::new(x, center.y - KF_DIAMOND_HALF),
+                Pos2::new(x + KF_DIAMOND_HALF, center.y),
+                Pos2::new(x, center.y + KF_DIAMOND_HALF),
+                Pos2::new(x - KF_DIAMOND_HALF, center.y),
             ],
-            if dresp.hovered() || is_drag {
-                kc
+            if response.hovered() {
+                color
             } else {
-                kc.linear_multiply(0.85)
+                color.linear_multiply(0.85)
             },
-            Stroke::new(0.5, Color32::from_rgba_unmultiplied(255, 255, 255, 70)),
+            Stroke::new(STROKE_WIDTH, color),
         ));
-
-        if !is_drag {
-            text_tooltip(
-                ui,
-                dresp.id.with("tooltip"),
-                &dresp,
-                &format!("{} @ {:.2}s", prop_name, kf_s),
-            );
-        }
-
-        // Click to select this exact property keyframe.
-        if dresp.clicked() {
-            let id = KeyframeId {
-                scene: scene_for_selection.clone(),
+        text_tooltip(
+            ui,
+            response.id.with("tooltip"),
+            &response,
+            &format!("{} @ {:.2}s", property, time_s),
+        );
+        select_keyframes(
+            &response,
+            vec![KeyframeId {
+                scene: ctx.scene_for_selection.clone(),
                 actor: actor_label.to_string(),
-                property: prop_name.to_string(),
-                time_ms: *kf_ms,
-            };
-            if shift_held {
-                if let Some(p) = multi_selected.iter().position(|s| *s == id) {
-                    multi_selected.remove(p);
-                } else {
-                    multi_selected.push(id);
-                }
-            } else {
-                *multi_selected = vec![id];
-            }
-        }
-
-        // Support dragging for per-property diamonds
-        if dresp.drag_started() {
-            let id = KeyframeId {
-                scene: scene_for_selection.clone(),
-                actor: actor_label.to_string(),
-                property: prop_name.to_string(),
-                time_ms: *kf_ms,
-            };
-            let grabbed_selected = multi_selected.contains(&id);
-            if !shift_held && !grabbed_selected {
-                *multi_selected = vec![id.clone()];
-            }
-            let ids = if grabbed_selected {
-                multi_selected.clone()
-            } else {
-                vec![id]
-            };
-            *new_kf_drag = Some(KfDrag {
-                scene: scene_for_selection.clone(),
-                actor: actor_label.to_string(),
-                property: prop_name.to_string(),
-                anchor_keyframe_ms: *kf_ms,
-                anchor_s: kf_s,
-                target_s: kf_s,
-                ids,
-            });
-        }
-        if is_drag && let Some(pos) = dresp.interact_pointer_pos() {
-            let nt = coords.x_to_time(pos.x);
-            let (snapped, _) = if shift_held {
-                (nt, None)
-            } else {
-                snap_to_speech_or_fps(nt, snap_fps, speech_snap_targets)
-            };
-            if let Some(drag) = new_kf_drag.as_mut() {
-                drag.target_s = snapped;
-            }
-        }
-        if dresp.drag_stopped() && is_drag {
-            emit_keyframe_moves(commands, new_kf_drag.as_ref());
-            *new_kf_drag = None;
-        }
+                property: property.to_string(),
+                time_ms,
+            }],
+            ctx.selected_keyframes,
+            ctx.shift_held,
+        );
     }
-}
-
-/// Track bar right-click context menu: bulk delete or clear selection.
-pub(crate) fn handle_track_bar_context_menu(
-    track_bar_resp: &egui::Response,
-    actor_label: &str,
-    active_scene: Option<&str>,
-    multi_selected: &mut Vec<KeyframeId>,
-    commands: &mut ActionQueue,
-) {
-    track_bar_resp.context_menu(|ui| {
-        let track_selected: Vec<KeyframeId> = multi_selected
-            .iter()
-            .filter(|id| id.scene.as_deref() == active_scene && id.actor == actor_label)
-            .cloned()
-            .collect();
-        if !track_selected.is_empty() {
-            ui.strong(format!("{} selected keyframes", track_selected.len()));
-            ui.separator();
-            if ui
-                .add(Button::danger("Delete selected").with_icon(egui_phosphor::regular::TRASH))
-                .clicked()
-            {
-                commands.push_back(ShellAction::Command(Command::DeleteKeyframes(
-                    track_selected.clone(),
-                )));
-                multi_selected
-                    .retain(|id| id.scene.as_deref() != active_scene || id.actor != actor_label);
-                ui.close();
-            }
-            ui.separator();
-            if ui.button("Clear selection").clicked() {
-                multi_selected
-                    .retain(|id| id.scene.as_deref() != active_scene || id.actor != actor_label);
-                ui.close();
-            }
-        } else {
-            ui.label("No keyframes selected");
-        }
-    });
 }

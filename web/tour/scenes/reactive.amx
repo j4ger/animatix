@@ -22,7 +22,7 @@
 // what the doubling bug in `primitives::override_size` used to make impossible;
 // the scene had to keep its breathing to scalars.
 
-import "../../demos/lib/theme.amx"
+import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 6.8 }
 

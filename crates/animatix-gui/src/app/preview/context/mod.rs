@@ -18,7 +18,7 @@ use animatix::timeline::{SceneDimensions, Timeline};
 use crate::app::PreviewPaneState;
 use crate::app::commands::ActionQueue;
 use crate::app::preview::performance::PerformanceMetrics;
-use crate::app::preview::{self, selection as preview_selection};
+use crate::app::preview::selection as preview_selection;
 
 pub(crate) struct PreviewContext<'a> {
     pub scene_dimensions: SceneDimensions,
@@ -29,7 +29,6 @@ pub(crate) struct PreviewContext<'a> {
     pub selected_actors: &'a mut HashSet<String>,
     pub hit_regions: &'a [(String, kurbo::Rect)],
     pub timeline: Option<&'a Timeline>,
-    pub tool_mode: &'a mut preview::ToolMode,
     pub composition: Option<&'a animatix::composition::Composition>,
     pub active_scene: Option<&'a str>,
     /// Performance metrics for the HUD overlay.

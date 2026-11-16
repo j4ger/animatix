@@ -1,5 +1,5 @@
-import "lib/theme.amx"
-import "lib/ambience.amx"
+import "../../examples/lib/theme.amx"
+import "../../examples/lib/ambience.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 6, seamless_loop: true }
 

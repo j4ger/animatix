@@ -9,7 +9,6 @@ pub mod autosave;
 pub mod command_palette;
 pub mod export_dialog;
 pub mod find_replace;
-pub mod insertion_palette;
 pub mod plugin_status;
 pub mod settings;
 pub mod shortcut_cheat_sheet;

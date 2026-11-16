@@ -21,8 +21,11 @@ Usage:
 import argparse
 import http.server
 import os
+import re
 import subprocess
 import sys
+from pathlib import Path
+from urllib.parse import unquote
 
 def find_default_web_dir():
     env_root = os.environ.get("SERVE_ROOT")
@@ -56,6 +59,42 @@ def find_default_web_dir():
 
 
 WEB_DIR = find_default_web_dir()
+def normalize_base(value):
+    """Only URL pathname prefixes, never filesystem paths or encoded segments."""
+    if value in ("", "/"):
+        return ""
+    parts = value.strip("/").split("/")
+    if not value.startswith("/") or any(not re.fullmatch(r"[A-Za-z0-9_-]+", p) for p in parts):
+        raise ValueError("SERVE_BASE must be a simple absolute URL path prefix")
+    return "/" + "/".join(parts)
+
+
+SERVE_BASE = normalize_base(os.environ.get("SERVE_BASE", "/"))
+
+
+def strip_base(path):
+    if not SERVE_BASE:
+        return path
+    if path == SERVE_BASE or path.startswith(SERVE_BASE + "/"):
+        return path[len(SERVE_BASE):] or "/"
+    return None
+
+
+REPO_ROOT = os.path.dirname(WEB_DIR) if os.path.basename(WEB_DIR) == "web" else os.path.abspath(".")
+
+def repo_path(*parts):
+    """Resolve *parts* under REPO_ROOT, or return None if the result escapes it."""
+    for part in parts:
+        path_part = Path(part)
+        if path_part.is_absolute() or ".." in path_part.parts:
+            return None
+    root = Path(REPO_ROOT).resolve()
+    candidate = Path(root, *parts).resolve()
+    if not candidate.is_relative_to(root):
+        return None
+    return candidate
+
+
 MIME = {
     ".html": "text/html; charset=utf-8",
     ".js": "text/javascript; charset=utf-8",
@@ -110,6 +149,22 @@ def cache_control(path):
     return "no-cache"
 
 
+def example_library_path(path):
+    if Path(WEB_DIR).resolve() != Path(REPO_ROOT, "web").resolve():
+        return None
+    prefix = "/examples/lib/"
+    if not path.startswith(prefix):
+        return None
+    name = path[len(prefix):]
+    if not re.fullmatch(r"[A-Za-z0-9_-]+\.amx", name):
+        return None
+    target = repo_path("examples", "lib", name)
+    library = Path(REPO_ROOT, "examples", "lib").resolve()
+    if target is None or not target.is_relative_to(library) or not target.is_file():
+        return None
+    return target
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=WEB_DIR, **kwargs)
@@ -119,6 +174,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return MIME.get(ext, "application/octet-stream")
 
     def translate_path(self, path):
+        path = strip_base(path)
+        if path is None:
+            return os.path.join(WEB_DIR, "__rejected_path__")
+        clean_path = unquote(path.split("?")[0].split("#")[0])
+        if clean_path.startswith("/examples/lib/"):
+            # Native example imports are available only on the development
+            # server, never from a released/assembled site rooted elsewhere.
+            target = example_library_path(clean_path)
+            return str(target) if target is not None else os.path.join(WEB_DIR, "__rejected_path__")
+
         translated = super().translate_path(path)
         # Transparently serve web/embed/src/amx-player.js when embed/amx-player.js is requested,
         # so local dev does not require a prebuilt bundle and live edits take effect immediately.
@@ -128,6 +193,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 if not os.path.exists(translated) or os.path.getmtime(src_candidate) > os.path.getmtime(translated):
                     return src_candidate
         return translated
+
+    def do_GET(self):
+        request_path = strip_base(self.path)
+        if request_path is None:
+            self.send_error(404, "Outside configured site base")
+            return
+        return super().do_GET()
 
     def send_head(self):
         # brotli negotiation: prefer the precompressed twin when present

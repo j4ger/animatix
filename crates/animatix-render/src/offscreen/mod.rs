@@ -14,7 +14,7 @@ mod tests;
 mod timeline_render;
 mod transitions;
 
-pub use raster::{drain_pending_layers, rasterize_scene};
+pub use raster::{drain_pending_layers, rasterize_scene, rasterize_scene_and_present};
 pub(crate) use timeline_render::render_timeline_into_view;
 
 /// A single frame rendered to CPU-accessible RGBA memory.

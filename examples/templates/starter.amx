@@ -5,8 +5,8 @@
 //   animatix storyboard <file>          先看图
 //   animatix audit <file> --brief       硬事实与候选
 //   animatix audit <file> --delta ...   只看新增
-import "../../web/demos/lib/theme.amx"
-import "../../web/demos/lib/stage.amx"
+import "../lib/theme.amx"
+import "../lib/stage.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 6 }
 

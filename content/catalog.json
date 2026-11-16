@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Legacy content review overrides only. Legacy identity stays in web/works.json; the new Astro collection and lessons use web/app/src/lib/content.ts and canonical web/content/scenes sources. scripts/content-catalog.py discovers the inventory.",
+  "description": "Legacy content review overrides only. Legacy URL decisions live in web/app/src/lib/legacy-works.ts; the new Astro collection and lessons use web/app/src/lib/content.ts and canonical web/content/scenes sources. scripts/content-catalog.py discovers the inventory.",
   "entries": [
     {
       "id": "gradient-walkthrough",

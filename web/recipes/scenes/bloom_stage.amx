@@ -4,7 +4,7 @@
 // blurred frame at binding 0 and the untouched frame at binding 5, so it adds
 // light back onto the plate instead of replacing it. Blur alone smears; bloom
 // alone brightens; the pair is what makes a bulb look like a bulb.
-import "../../demos/lib/theme.amx"
+import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (640, 360), duration: 6 }
 

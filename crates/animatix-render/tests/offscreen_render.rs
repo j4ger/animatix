@@ -1056,6 +1056,112 @@ fn batched_blit_pipeline_multiple_layers() {
 }
 
 #[test]
+fn encoded_blits_keep_distinct_parameters_in_one_submission() {
+    use animatix_render::fullscreen_blit::BlitMask;
+
+    let Some(renderer) = new_renderer() else {
+        return;
+    };
+    let (device, queue) = (renderer.device(), renderer.queue());
+    let blit = renderer.core().blit.as_ref().expect("blit pipeline");
+    let src = solid_texture(device, queue, 32, [255; 4], "encoded source");
+    let src_view = src.create_view(&Default::default());
+    let dst = gpu_texture(
+        device,
+        64,
+        wgpu::TextureFormat::Rgba8Unorm,
+        wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        "encoded destination",
+    );
+    let dst_view = dst.create_view(&Default::default());
+    clear_texture(device, queue, &dst_view, "encoded clear");
+    let mut encoder = device.create_command_encoder(&Default::default());
+    blit.blit_rect_masked_with_encoder(
+        device,
+        queue,
+        &mut encoder,
+        &src_view,
+        &dst_view,
+        [0.0, 0.0],
+        Some([32, 32]),
+        0.25,
+        Some(&BlitMask {
+            src_rect: [0.0, 0.0, 32.0, 32.0],
+            corner_radius: 12.0,
+        }),
+    );
+    blit.blit_rect_with_encoder(
+        device,
+        queue,
+        &mut encoder,
+        &src_view,
+        &dst_view,
+        [32.0, 0.0],
+        Some([32, 32]),
+        0.75,
+    );
+    queue.submit([encoder.finish()]);
+    let data = readback_texture(device, queue, &dst, 64, "encoded readback");
+    assert_eq!(pixel(&data, 64, 16, 16), [64; 4]);
+    assert_eq!(pixel(&data, 64, 48, 16), [191; 4]);
+    assert_eq!(pixel(&data, 64, 0, 0), [0; 4], "first blit retains its rounded mask");
+}
+
+#[test]
+fn encoded_batch_chunks_keep_parameters_and_all_layers() {
+    use animatix_render::fullscreen_blit::{BatchedBlitItem, MAX_BATCH_LAYERS};
+
+    let Some(renderer) = new_renderer() else {
+        return;
+    };
+    let (device, queue) = (renderer.device(), renderer.queue());
+    let blit = renderer.core().blit.as_ref().expect("blit pipeline");
+    let src = solid_texture(device, queue, 4, [255; 4], "chunk source");
+    let src_view = src.create_view(&Default::default());
+    let mut items: Vec<_> = (0..MAX_BATCH_LAYERS)
+        .map(|i| BatchedBlitItem {
+            src_view: &src_view,
+            dst_origin: [(i % 8 * 4) as f32, (i / 8 * 4) as f32],
+            dst_size: [4, 4],
+            alpha: 0.25,
+            corner_radius: None,
+            src_rect: None,
+        })
+        .collect();
+    items.push(BatchedBlitItem {
+        dst_origin: [48.0, 48.0],
+        alpha: 0.75,
+        ..items[0]
+    });
+
+    // Exercise both several calls on one encoder and a call exceeding one chunk.
+    for split_calls in [true, false] {
+        let dst = gpu_texture(
+            device,
+            64,
+            wgpu::TextureFormat::Rgba8Unorm,
+            wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            "chunk destination",
+        );
+        let dst_view = dst.create_view(&Default::default());
+        clear_texture(device, queue, &dst_view, "chunk clear");
+        let mut encoder = device.create_command_encoder(&Default::default());
+        if split_calls {
+            for chunk in items.chunks(MAX_BATCH_LAYERS) {
+                blit.blit_batch_chunk_with_encoder(device, queue, &mut encoder, &dst_view, chunk);
+            }
+        } else {
+            blit.blit_batch_chunk_with_encoder(device, queue, &mut encoder, &dst_view, &items);
+        }
+        queue.submit([encoder.finish()]);
+        let data = readback_texture(device, queue, &dst, 64, "chunk readback");
+        assert_eq!(pixel(&data, 64, 1, 1), [64; 4], "first chunk's alpha");
+        assert_eq!(pixel(&data, 64, 29, 29), [64; 4], "first chunk's last layer");
+        assert_eq!(pixel(&data, 64, 49, 49), [191; 4], "65th layer must be drawn");
+    }
+}
+
+#[test]
 fn filter_backend_texture_pool_recycles_allocations() {
     let Some(mut renderer) = new_renderer() else {
         return;

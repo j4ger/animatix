@@ -9,7 +9,7 @@ const {
 import { AmxPlayerBase } from "./base.js";
 import { cancellationError, dispatchPlayerError, playerError } from "./errors.js";
 import {
-  fetchFontFace, fetchOverlayFont, fetchPreparedAssets, fetchModule, fetchSource,
+  fetchFontFace, fetchOverlayFont, fetchPreparedAssets, fetchMissingModules, fetchSource,
 } from "./runtime.js";
 import { selectFontFaces } from "./font-selection.js";
 
@@ -491,11 +491,7 @@ export class AmxPlayerView extends AmxPlayerBase {
         throw playerError(new Error(`import analysis did not close: ${pending.join(", ") || missing.join(", ")}`), "build");
       }
       try {
-        await Promise.all(pending.map(async (path) => {
-          const url = new URL(path, sourceUrl).href;
-          const text = await fetchModule(url, signal);
-          modules.set(path, text);
-        }));
+        await fetchMissingModules(pending, sourceUrl, modules, signal);
       } catch (error) {
         prepared.free?.();
         throw playerError(error, "resource");

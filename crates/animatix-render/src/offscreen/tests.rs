@@ -188,6 +188,115 @@ fn offscreen_renderer_with_zero_dimensions_fails_gracefully() {
     assert!(result.unwrap_err().contains("greater than zero"), "should give clear error");
 }
 
+#[test]
+fn filter_backend_is_lazy_for_plain_frames_and_transition_sides() {
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let plain = common::solid_rect_timeline();
+    let filtered = build_checked(
+        r#"
+config { resolution: (400, 300) }
+#0s
+fx: Filter {
+  soft: Blur, radius: 6
+  box: Rect, size: (100, 100), color: (1, 0, 0, 1)
+}
+"#,
+    );
+
+    let plain_frame = render_frame(&mut renderer, &plain, 0.0, FRAME);
+    assert!(renderer.filter_backend.is_none(), "plain frames must not create a backend");
+    assert!(
+        renderer.filter_backend_b.is_none(),
+        "plain frames must not retain the transition slot"
+    );
+
+    let filtered_frame = render_frame(&mut renderer, &filtered, 0.0, FRAME);
+    assert!(renderer.filter_backend.is_some(), "Filter scenes need the primary backend");
+    assert!(renderer.filter_backend_b.is_none(), "direct frames do not need the second slot");
+
+    let plain_after_filter = render_frame(&mut renderer, &plain, 0.0, FRAME);
+    assert!(renderer.filter_backend.is_none(), "a plain frame must drop the prior backend");
+    assert_eq!(plain_after_filter.rgba.as_ref(), plain_frame.rgba.as_ref());
+
+    let to_filter = renderer
+        .render_transition(
+            &plain,
+            0.0,
+            &filtered,
+            0.0,
+            1.0,
+            "fade".to_string(),
+            animatix::easing::Easing::Linear,
+            FRAME,
+            DebugRenderOptions::default(),
+        )
+        .expect("plain to Filter transition");
+    assert!(
+        renderer.filter_backend.is_none(),
+        "plain outgoing side must not create a backend"
+    );
+    assert!(
+        renderer.filter_backend_b.is_some(),
+        "filtered incoming side needs its own backend"
+    );
+    assert_eq!(to_filter.rgba.as_ref(), filtered_frame.rgba.as_ref());
+
+    let from_filter = renderer
+        .render_transition(
+            &filtered,
+            0.0,
+            &plain,
+            0.0,
+            0.0,
+            "fade".to_string(),
+            animatix::easing::Easing::Linear,
+            FRAME,
+            DebugRenderOptions::default(),
+        )
+        .expect("Filter to plain transition");
+    assert!(renderer.filter_backend.is_some(), "filtered outgoing side needs its backend");
+    assert!(
+        renderer.filter_backend_b.is_none(),
+        "plain incoming side must not create a backend"
+    );
+    assert_eq!(from_filter.rgba.as_ref(), filtered_frame.rgba.as_ref());
+
+    let resized = SceneDimensions {
+        width: 320,
+        height: 240,
+    };
+    let _ = render_frame(&mut renderer, &plain, 0.0, resized);
+    assert!(
+        renderer.filter_backend.is_none(),
+        "resize plus plain frame must stay backend-free"
+    );
+    assert!(renderer.filter_backend_b.is_none());
+    let filtered_resized = render_frame(&mut renderer, &filtered, 0.0, resized);
+    assert!(
+        renderer.filter_backend.is_some(),
+        "resize must recreate the active Filter backend"
+    );
+    assert!(renderer.filter_backend_b.is_none());
+    let resized_transition = renderer
+        .render_transition(
+            &plain,
+            0.0,
+            &filtered,
+            0.0,
+            1.0,
+            "fade".to_string(),
+            animatix::easing::Easing::Linear,
+            resized,
+            DebugRenderOptions::default(),
+        )
+        .expect("resized plain to Filter transition");
+    assert!(renderer.filter_backend.is_none());
+    assert!(renderer.filter_backend_b.is_some());
+    assert_eq!(resized_transition.rgba.as_ref(), filtered_resized.rgba.as_ref());
+}
+
 /// Derived region of interest: a `Filter` with no authored `bounds` must
 /// still keep its content — the region is derived from the content bounds
 /// recorded during the sub-scene evaluation and padded by the chain's

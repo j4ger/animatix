@@ -118,7 +118,6 @@ impl GuiShell {
             tracing::debug!(
                 events = ?events,
                 text_edit_focused = ctx.text_edit_focused(),
-                focused_cell = self.document_store.source.editor.focused_cell(),
                 "IME/text input"
             );
         }
@@ -221,9 +220,6 @@ impl GuiShell {
         if self.export_store.export_dialog_open {
             self.export_dialog_ui(ui);
         }
-
-        // Insertion palette overlay
-        self.insertion_palette_ui(ui);
 
         // Shortcut cheat sheet overlay
         if self.ui_store.view.shortcuts_open {
@@ -512,16 +508,14 @@ impl GuiShell {
             collapsed_actors: &mut self.ui_store.view.collapsed_actors,
             expanded_properties: &mut self.ui_store.view.expanded_properties,
             selected_actors: &mut self.ui_store.selection.selected_actors,
+            selected_keyframes: &mut self.ui_store.selection.selected_keyframes,
             hit_regions: &self.ui_store.selection.hit_regions,
             selection: &mut self.ui_store.selection.selection,
-            tool_mode: &mut self.ui_store.view.tool_mode,
             sidebar_tab: &mut self.ui_store.sidebar_tab,
             compact,
             compact_drawer: &mut self.ui_store.view.compact_drawer,
-            snap_fps: self.ui_store.snap_fps,
             debug_layout: self.ui_store.view.debug_layout,
             debug_spacing: self.ui_store.view.debug_spacing,
-            timeline_focused: &mut self.ui_store.view.timeline_focused,
         };
         tree.ui(&mut behavior, ui);
     }

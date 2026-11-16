@@ -8,11 +8,10 @@ use super::fullscreen_blit::FullscreenBlitPipeline;
 ///
 /// # Dependency invariant: one renderer, many renders per frame
 ///
-/// A frame renders the same canvas several times through this single shared
-/// [`Renderer`]: once per `Filter` scope's sub-scene, plus the main scene, plus
-/// the compositing blits. That relies on an assumption Vello does not state
-/// anywhere — that `render_to_texture` leaves no cross-call state which changes
-/// what a *later* render draws.
+/// A core reuses its [`Renderer`] across scenes and targets. Filter backends
+/// own another core reused across their sub-scenes. Each relies on an
+/// assumption Vello does not state anywhere — that `render_to_texture` leaves
+/// no cross-call state which changes what a *later* render draws.
 ///
 /// Upstream issue #1948 (the patchless-resolve variant of #1558) broke that
 /// assumption: an image-free render could discard the persistent image atlas,
@@ -21,6 +20,9 @@ use super::fullscreen_blit::FullscreenBlitPipeline;
 /// image-free renders. `tests/vello_img_probe.rs` asserts the A–H boundary
 /// sequence; the remaining upstream fix and patch removal condition are tracked
 /// in `docs/roadmap.md`.
+///
+/// The presentation path appends one blit before Vello's submit and resource
+/// recycling. It never returns an encoder or defers work across renderer calls.
 pub struct RendererCore {
     /// The underlying Vello renderer instance.
     pub renderer: Renderer,
@@ -237,6 +239,63 @@ impl RendererCore {
             scene,
             Color::BLACK,
         )
+    }
+
+    /// Render a Vello scene to an offscreen view and blit it to a presentation
+    /// target in the same queue submission.
+    ///
+    /// `render_view` must be an `Rgba8Unorm` Vello target with storage and
+    /// texture-binding usage. `surface_view` must match `surface_format` and be
+    /// a render attachment. This is intended for a final, unfiltered single
+    /// scene; callers with later compositing work must use the ordinary render
+    /// path and present after that work.
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_vello_scene_and_present(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        render_view: &wgpu::TextureView,
+        raster_size: [u32; 2],
+        scene: &Scene,
+        surface_view: &wgpu::TextureView,
+        surface_size: [u32; 2],
+        surface_format: wgpu::TextureFormat,
+    ) -> Result<(), RenderError> {
+        if raster_size.contains(&0) || surface_size.contains(&0) {
+            return Err(RenderError::FrameRender(
+                "Render and presentation dimensions must be non-zero".to_string(),
+            ));
+        }
+
+        let _stage = animatix::perf::ScopedStage::new(animatix::perf::stage::RASTERIZE);
+        let render_params = RenderParams {
+            base_color: Color::BLACK,
+            width: raster_size[0],
+            height: raster_size[1],
+            antialiasing_method: AaConfig::Area,
+        };
+        let mut variants = self.blit_variants.borrow_mut();
+        let blit = if surface_format == wgpu::TextureFormat::Rgba8Unorm {
+            self.blit.as_ref().ok_or_else(|| {
+                RenderError::FrameRender("Rgba8Unorm presentation pipeline is unavailable".into())
+            })?
+        } else {
+            variants
+                .entry(surface_format)
+                .or_insert_with(|| FullscreenBlitPipeline::new(device, surface_format))
+        };
+        self.renderer
+            .render_to_texture_with_callback(
+                device,
+                queue,
+                scene,
+                render_view,
+                &render_params,
+                |encoder| {
+                    blit.blit_opaque_with_encoder(device, encoder, render_view, surface_view);
+                },
+            )
+            .map_err(|e| RenderError::FrameRender(format!("{e:?}")))
     }
 
     /// Render a Vello `scene` into the provided `texture_view` with a custom background color.

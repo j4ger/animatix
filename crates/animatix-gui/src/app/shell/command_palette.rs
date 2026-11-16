@@ -148,11 +148,6 @@ impl GuiShell {
             push_palette_selection_items(&mut items);
         }
 
-        // Align / Distribute commands (requires selection)
-        if has_selection {
-            push_palette_align_items(&mut items);
-        }
-
         items.push(PaletteItem {
             label: "Zoom to Fit All".into(),
             icon: egui_phosphor::regular::ARROWS_IN,
@@ -160,7 +155,6 @@ impl GuiShell {
             keywords: "zoom fit all",
         });
 
-        items.retain(|item| item.action.allowed_in_workbench());
         items
     }
 }
@@ -184,12 +178,6 @@ fn push_palette_view_items(items: &mut Vec<PaletteItem>) {
         icon: egui_phosphor::regular::FLOPPY_DISK,
         action: ShellAction::View(ViewAction::SaveAsDialog),
         keywords: "save as file copy document",
-    });
-    items.push(PaletteItem {
-        label: "Insert…".into(),
-        icon: egui_phosphor::regular::PLUS,
-        action: ShellAction::View(ViewAction::OpenInsertionPalette),
-        keywords: "insert add actor primitive component action snippet",
     });
     items.push(PaletteItem {
         label: "Settings…".into(),
@@ -328,80 +316,10 @@ fn push_palette_command_items(items: &mut Vec<PaletteItem>) {
 /// Selection-dependent actor commands.
 fn push_palette_selection_items(items: &mut Vec<PaletteItem>) {
     items.push(PaletteItem {
-        label: "Delete Selected Actors".into(),
-        icon: egui_phosphor::regular::TRASH,
-        action: Command::DeleteSelectedActors.into(),
-        keywords: "delete remove actors",
-    });
-    items.push(PaletteItem {
-        label: "Duplicate Selected Actors".into(),
-        icon: egui_phosphor::regular::COPY,
-        action: Command::DuplicateSelectedActors.into(),
-        keywords: "duplicate copy actors",
-    });
-    items.push(PaletteItem {
-        label: "Group Selected Actors".into(),
-        icon: egui_phosphor::regular::SQUARES_FOUR,
-        action: Command::GroupSelectedActors.into(),
-        keywords: "group container",
-    });
-    items.push(PaletteItem {
         label: "Zoom to Selection".into(),
         icon: egui_phosphor::regular::MAGNIFYING_GLASS_PLUS,
         action: Command::ZoomToSelection.into(),
         keywords: "zoom fit selection",
-    });
-}
-
-/// Align and distribute commands, which require a selection.
-fn push_palette_align_items(items: &mut Vec<PaletteItem>) {
-    items.push(PaletteItem {
-        label: "Align Left".into(),
-        icon: egui_phosphor::regular::ALIGN_LEFT,
-        action: Command::AlignActors(crate::app::commands::Align::Left).into(),
-        keywords: "align left actors selection",
-    });
-    items.push(PaletteItem {
-        label: "Align Center".into(),
-        icon: egui_phosphor::regular::ALIGN_CENTER_HORIZONTAL_SIMPLE,
-        action: Command::AlignActors(crate::app::commands::Align::Center).into(),
-        keywords: "align center horizontal actors",
-    });
-    items.push(PaletteItem {
-        label: "Align Right".into(),
-        icon: egui_phosphor::regular::ALIGN_RIGHT,
-        action: Command::AlignActors(crate::app::commands::Align::Right).into(),
-        keywords: "align right actors",
-    });
-    items.push(PaletteItem {
-        label: "Align Top".into(),
-        icon: egui_phosphor::regular::ALIGN_TOP,
-        action: Command::AlignActors(crate::app::commands::Align::Top).into(),
-        keywords: "align top actors",
-    });
-    items.push(PaletteItem {
-        label: "Align Middle".into(),
-        icon: egui_phosphor::regular::ALIGN_CENTER_VERTICAL_SIMPLE,
-        action: Command::AlignActors(crate::app::commands::Align::Middle).into(),
-        keywords: "align middle vertical actors",
-    });
-    items.push(PaletteItem {
-        label: "Align Bottom".into(),
-        icon: egui_phosphor::regular::ALIGN_BOTTOM,
-        action: Command::AlignActors(crate::app::commands::Align::Bottom).into(),
-        keywords: "align bottom actors",
-    });
-    items.push(PaletteItem {
-        label: "Distribute Horizontally".into(),
-        icon: egui_phosphor::regular::ARROWS_OUT_LINE_HORIZONTAL,
-        action: Command::DistributeActors(crate::app::commands::Axis::Horizontal).into(),
-        keywords: "distribute horizontal evenly space actors",
-    });
-    items.push(PaletteItem {
-        label: "Distribute Vertically".into(),
-        icon: egui_phosphor::regular::ARROWS_OUT_LINE_VERTICAL,
-        action: Command::DistributeActors(crate::app::commands::Axis::Vertical).into(),
-        keywords: "distribute vertical evenly space actors",
     });
 }
 

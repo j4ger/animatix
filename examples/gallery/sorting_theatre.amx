@@ -1,6 +1,6 @@
-import "../../web/demos/lib/theme.amx" as theme
-import "../../web/demos/lib/theme.amx"
-import "../../web/demos/lib/ui.amx"
+import "../lib/theme.amx" as theme
+import "../lib/theme.amx"
+import "../lib/ui.amx"
 
 config {
   colorscheme: "ink",

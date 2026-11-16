@@ -1,7 +1,7 @@
 // Learning rates compared in loss space, not repeated contour-card furniture.
 // Model: 2 * x^2 + y^2. Every plotted point is one discrete optimizer update.
-import "../lib/theme.amx"
-import "../lib/stage.amx"
+import "../../../examples/lib/theme.amx"
+import "../../../examples/lib/stage.amx"
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 10 }
 let lr = 0.1
 let steps = 24

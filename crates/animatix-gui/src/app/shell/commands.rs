@@ -7,7 +7,6 @@ impl GuiShell {
         self.ui_store.view.settings_open
             || self.ui_store.view.workspace_switcher_open
             || self.export_store.export_dialog_open
-            || self.insertion_palette.open
             || self.ui_store.view.shortcuts_open
             || self.ui_store.view.plugin_status_open
             || self.ui_store.view.command_palette_open
@@ -79,11 +78,7 @@ impl GuiShell {
             settings: Some(SettingsPersistence {
                 rebuild_debounce_ms: self.ui_store.rebuild_debounce_ms,
                 scrub_step_s: self.ui_store.scrub_step_s,
-                nudge_step_px: self.ui_store.nudge_step_px,
-                nudge_step_shift_px: self.ui_store.nudge_step_shift_px,
-                rotation_snap_degrees: self.ui_store.rotation_snap_degrees,
                 snap_fps: self.ui_store.snap_fps,
-                keyframe_merge_window_s: self.ui_store.keyframe_merge_window_s,
                 undo_limit: self.document_store.history.undo_limit,
                 grid_size: self.preview_store.preview.overlay.grid_size,
                 app_theme: match self.ui_store.view.app_theme {
@@ -110,13 +105,6 @@ impl GuiShell {
         {
             tracing::warn!("Failed to write persistence file: {}", e);
         }
-    }
-
-    /// Take a snapshot of the current source text for undo/redo.
-    /// Call this BEFORE making a change to the source.
-    pub(crate) fn snapshot(&mut self, command: Command) {
-        let ui_before = self.ui_store.snapshot_with_preview(&self.preview_store);
-        self.document_store.snapshot(command, ui_before);
     }
 
     pub(crate) fn sync_active_scene_from_time(&mut self) {
@@ -208,13 +196,5 @@ impl GuiShell {
             self.preview_store.preview.error = None;
             self.preview_store.preview.status = status;
         }
-    }
-
-    /// Copy currently selected actor labels into the clipboard buffer.
-    pub(crate) fn copy_selected_actors(&mut self) {
-        let count = self.ui_store.selection.selected_actors.len();
-        self.ui_store.clipboard.clipboard_actors =
-            self.ui_store.selection.selected_actors.iter().cloned().collect();
-        self.preview_store.preview.status = format!("Copied {} actor(s)", count);
     }
 }

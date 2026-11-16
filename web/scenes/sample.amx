@@ -12,8 +12,8 @@
 // itself still *fades in* at 0.5 s because that entrance is the lesson.
 // §5: title 44, caption 24, readout 28/16 — nothing below 16.
 
-import "../demos/lib/theme.amx"
-import "../demos/lib/stage.amx"
+import "../../examples/lib/theme.amx"
+import "../../examples/lib/stage.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 4.4 }
 

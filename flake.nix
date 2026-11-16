@@ -135,15 +135,6 @@
           '';
         };
 
-        # Build experiments are opt-in; tool versions follow flake.lock and do
-        # not change the linker or test runner used by ordinary builds.
-        devShells.experiments = pkgs.mkShell {
-          inputsFrom = [ self.devShells.${system}.default ];
-          packages = [ pkgs.mold pkgs.cargo-nextest pkgs.llvmPackages.lld pkgs.xvfb-run pkgs.xdotool pkgs.imagemagick ];
-          ANIMATIX_CI_SHELL = "nix";
-          inherit (self.devShells.${system}.default) VK_LAYER_PATH VK_ICD_FILENAMES;
-        };
-
         # Chromium + the agent-browser CLI for driving the web/ demo pages
         # against a real browser. Deliberately not part of .#default —
         # enter with `nix develop .#web`; WebGPU needs AGENT_BROWSER_WEBGPU=1.
@@ -187,12 +178,14 @@
         # CI job. The two gates must run in order in the same job: the smoke
         # loads the bundles the build just produced, and a fresh checkout has
         # no generated SDK for a separate job to read. Chromium's Dawn gets
-        # WebGPU from the lavapipe ICD (no host GPU); node runs the CDP client
-        # and python3 serves web/.
+        # WebGPU and canvas compositing from SwiftShader (no host GPU). Each
+        # browser owns an Xvfb display; adapter detection alone is insufficient
+        # for captured canvas pixels. Node drives CDP and python3 serves files.
         devShells.web-ci = pkgs.mkShell {
           ANIMATIX_CI_SHELL = "web-ci";
           packages = webBuildPackages ++ [
             pkgs.chromium
+            pkgs.xvfb-run # Own isolated X display for headless WebGPU compositing.
             pkgs.nodejs_24
             pkgs.python3
             pkgs.curl

@@ -10,9 +10,9 @@
 // House-style §1: StageFloor + compact head + caption are authored-opaque, so
 // frame 0 is a composed stage. House-style §5: nothing below 16 px.
 
-import "../../lib/theme.amx"
-import "../../lib/stage.amx"
-import "../../lib/components.amx"
+import "../../../../examples/lib/theme.amx"
+import "../../../../examples/lib/stage.amx"
+import "../../../../examples/lib/components.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 7.8 }
 

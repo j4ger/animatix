@@ -256,7 +256,7 @@ def classify_paths(changed_paths: list[str], roots: dict[str, Path],
         if path.startswith("packaging/"):
             packaging_changed = True
             continue
-        if path.startswith("vendor/"):
+        if path.startswith("crates/vendor/"):
             full_reason = "vendored dependency changed"
             break
         if path.startswith("scripts/"):
@@ -380,6 +380,29 @@ def git_changes(repo: Path, base: str, head: str):
     return [os.fsdecode(part) for part in result.stdout.split(b"\0") if part]
 
 
+def web_smoke_policy(classification, event, base):
+    """Escalate risk-bearing PR/push diffs in the existing Web Build job."""
+    if event not in {"pull_request", "push"}:
+        return {"depth": "critical", "reason": "release/reusable runs keep the normal acceptance budget"}
+    if classification.get("full_reason"):
+        return {"depth": "deep", "reason": "conservative full-matrix fallback: " + classification["full_reason"]}
+    paths = classification.get("changed_paths", [])
+    if not base or base == "0" * 40 or not paths:
+        return {"depth": "deep", "reason": "change range unavailable; fail-safe coverage"}
+    prefixes = (
+        "crates/animatix-render/", "crates/animatix-web/", "crates/animatix-core/",
+        "crates/animatix/src/timeline/", "crates/animatix/src/renderer/",
+        "web/embed/src/", "tools/animatix-web-build/", "web/tools/",
+        "web/content/scenes/", "web/dev/smoke/", "scripts/web-smoke",
+        "scripts/web-transactions", "scripts/ci", ".github/workflows/ci.yml",
+    )
+    matched = [p for p in paths if p.startswith(prefixes) or p.endswith(".wgsl")
+               or p in FULL_PATHS or p.endswith("/Cargo.toml")]
+    return {"depth": "deep" if matched else "critical",
+            "reason": "renderer/loader/ABI/fixture risk paths" if matched else "no deep-regression risk paths",
+            "paths": matched}
+
+
 def make_plan_from_classification(classification: dict, event: str, base: str,
                                   head: str, all_jobs: list[dict],
                                   enable_pruning: bool = False):
@@ -402,6 +425,9 @@ def make_plan_from_classification(classification: dict, event: str, base: str,
         reason = "paths classified by workspace dependency graph"
         candidate = selected_ids(classification)
 
+    smoke = web_smoke_policy(classification, event, base)
+    if smoke["depth"] == "deep":
+        candidate.add("web-build")
     candidate &= all_ids
     effective = candidate if enable_pruning else all_ids
     by_id = {job["id"]: job for job in all_jobs}
@@ -410,6 +436,7 @@ def make_plan_from_classification(classification: dict, event: str, base: str,
         "force_full": candidate == all_ids,
         "reason": reason,
         "pruning_enabled": enable_pruning,
+        "web_smoke": smoke,
         "candidate_job_ids": [job["id"] for job in all_jobs if job["id"] in candidate],
         "job_ids": [job["id"] for job in all_jobs if job["id"] in effective],
         "matrix": {"include": [by_id[job["id"]] for job in all_jobs if job["id"] in effective]},

@@ -133,6 +133,364 @@ fn gpu_backend(dims: SceneDimensions) -> Option<GpuFilterBackend> {
     Some(GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise"))
 }
 
+/// Backend helper for regression tests that must fail instead of silently
+/// passing when GPU execution is required by the environment.
+fn required_gpu_backend(dims: SceneDimensions) -> Option<GpuFilterBackend> {
+    let backend = gpu_backend(dims);
+    if backend.is_none() {
+        crate::testing::skip_if_no_gpu();
+    }
+    backend
+}
+
+fn adapter_device(
+    force_fallback_adapter: bool,
+) -> Option<(wgpu::Device, wgpu::Queue, wgpu::DeviceType)> {
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
+    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::default(),
+        compatible_surface: None,
+        force_fallback_adapter,
+        apply_limit_buckets: false,
+    }))
+    .ok()?;
+    let adapter_info = adapter.get_info();
+    eprintln!(
+        "[filter-submit-policy] force_fallback_adapter={force_fallback_adapter} adapter={adapter_info:?}"
+    );
+    let device_type = adapter_info.device_type;
+    let limits = wgpu::Limits::default().using_resolution(adapter.limits());
+    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+        label: Some("Animatix Filter Submit Policy Test Device"),
+        required_features: wgpu::Features::empty(),
+        required_limits: limits,
+        memory_hints: Default::default(),
+        ..Default::default()
+    }))
+    .ok()?;
+    Some((device, queue, device_type))
+}
+
+fn required_adapter_device(
+    force_fallback_adapter: bool,
+) -> Option<(wgpu::Device, wgpu::Queue, wgpu::DeviceType)> {
+    let result = adapter_device(force_fallback_adapter);
+    if result.is_none() {
+        crate::testing::skip_if_no_gpu();
+    }
+    result
+}
+
+fn policy_backend(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    dims: SceneDimensions,
+    strategy: PassSubmitStrategy,
+) -> GpuFilterBackend {
+    let mut backend = GpuFilterBackend::new(device.clone(), queue.clone(), dims)
+        .expect("GpuFilterBackend should initialise");
+    backend.test_submit_strategy = strategy;
+    backend
+}
+
+fn assert_policy_images_equal(label: &str, separate: &SceneImage, combined: &SceneImage) {
+    assert_eq!(separate.natural_size, combined.natural_size, "{label}: image dimensions differ");
+    let separate = separate.data.data.data();
+    let combined = combined.data.data.data();
+    assert_eq!(separate.len(), combined.len(), "{label}: pixel buffers differ in length");
+    let (mismatched_bytes, max_delta) = separate.iter().zip(combined).fold(
+        (0usize, 0u8),
+        |(mismatched, max_delta), (left, right)| {
+            let delta = left.abs_diff(*right);
+            (mismatched + usize::from(delta != 0), max_delta.max(delta))
+        },
+    );
+    assert_eq!(
+        mismatched_bytes, 0,
+        "{label}: separate/combined full images differ in {mismatched_bytes} bytes (max delta {max_delta})"
+    );
+}
+
+fn assert_images_differ(label: &str, left: &SceneImage, right: &SceneImage) {
+    let left = left.data.data.data();
+    let right = right.data.data.data();
+    assert_ne!(left, right, "{label}: expected the parameter change to affect pixels");
+}
+
+fn scene_pixel(image: &SceneImage, x: usize, y: usize) -> [u8; 4] {
+    let width = image.natural_size[0] as usize;
+    let start = (y * width + x) * 4;
+    image.data.data.data()[start..start + 4].try_into().expect("RGBA pixel")
+}
+
+fn checker_cross_scene(dims: SceneDimensions) -> vello::Scene {
+    let width = f64::from(dims.width);
+    let height = f64::from(dims.height);
+    let mut scene = filled_scene(
+        vello::peniko::Color::from_rgba8(0, 0, 0, 255),
+        kurbo::Rect::new(0.0, 0.0, width, height),
+    );
+    for row in 0..4 {
+        for column in 0..4 {
+            if (row + column) % 2 == 0 {
+                let x = 2.0 + f64::from(column * 6);
+                let y = 2.0 + f64::from(row * 6);
+                let tile = filled_scene(
+                    vello::peniko::Color::WHITE,
+                    kurbo::Rect::new(x, y, x + 6.0, y + 6.0),
+                );
+                scene.encoding_mut().append(tile.encoding(), &None);
+            }
+        }
+    }
+    let center_x = width * 0.5;
+    let center_y = height * 0.5;
+    let vertical = filled_scene(
+        vello::peniko::Color::WHITE,
+        kurbo::Rect::new(center_x - 4.0, 4.0, center_x + 4.0, height - 4.0),
+    );
+    let horizontal = filled_scene(
+        vello::peniko::Color::WHITE,
+        kurbo::Rect::new(4.0, center_y - 4.0, width - 4.0, center_y + 4.0),
+    );
+    scene.encoding_mut().append(vertical.encoding(), &None);
+    scene.encoding_mut().append(horizontal.encoding(), &None);
+    scene
+}
+
+fn render_at(
+    backend: &mut GpuFilterBackend,
+    scene: &vello::Scene,
+    dims: SceneDimensions,
+    region: Option<EffectRegion>,
+    chain: &EffectChain,
+) -> SceneImage {
+    backend
+        .render_scene_to_image_gpu_filtered(scene, dims, region, chain)
+        .expect("GPU filter chain should succeed")
+}
+
+fn render_pending_region(
+    backend: &mut GpuFilterBackend,
+    scene: &vello::Scene,
+    dims: SceneDimensions,
+    region: EffectRegion,
+    chain: &EffectChain,
+) -> SceneImage {
+    backend
+        .render_scene_to_pending_composite(scene, dims, Some(region), chain, 1.0)
+        .expect("pending filtered composite should succeed");
+    let layers = backend.take_pending_composites();
+    let Some(PendingLayer::Composite(composite)) = layers.into_iter().next() else {
+        panic!("expected the effect chain to queue a composite");
+    };
+    let target = backend.device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("Filter Submit Policy Harvest Readback Target"),
+        size: wgpu::Extent3d {
+            width: region.size.width,
+            height: region.size.height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
+    let target_view = target.create_view(&wgpu::TextureViewDescriptor::default());
+    let mut clear_encoder =
+        backend.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Filter Submit Policy Harvest Target Clear"),
+        });
+    {
+        let _clear_pass = clear_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Filter Submit Policy Harvest Target Clear Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &target_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    store: wgpu::StoreOp::Store,
+                },
+                depth_slice: None,
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+    }
+    backend.queue.submit(std::iter::once(clear_encoder.finish()));
+    backend.core.blit_texture(
+        &backend.device,
+        &backend.queue,
+        &composite.view,
+        &target_view,
+        region.size.width,
+        region.size.height,
+        composite.alpha,
+    );
+    backend.debug_readback_texture(&target, wgpu::Origin3d::ZERO, region.size)
+}
+
+fn compare_submit_strategies_on_device(device: &wgpu::Device, queue: &wgpu::Queue) {
+    assert!(
+        std::env::var_os("ANIMATIX_DUMP_STAGES").is_none(),
+        "unset ANIMATIX_DUMP_STAGES so the test exercises Combined submissions"
+    );
+    let dims = SceneDimensions {
+        width: 128,
+        height: 96,
+    };
+    let scene = checker_cross_scene(dims);
+    let mut separate = policy_backend(device, queue, dims, PassSubmitStrategy::Separate);
+    let mut combined = policy_backend(device, queue, dims, PassSubmitStrategy::Combined);
+
+    let blur = blur_chain(6.0);
+    let separate_blur = render_at(&mut separate, &scene, dims, None, &blur);
+    let combined_blur = render_at(&mut combined, &scene, dims, None, &blur);
+    assert_policy_images_equal("2D Blur", &separate_blur, &combined_blur);
+    let center = scene_pixel(&separate_blur, 64, 48);
+    let vertical_edge = scene_pixel(&separate_blur, 58, 60);
+    let horizontal_edge = scene_pixel(&separate_blur, 76, 42);
+    assert!(center[0] > 200, "2D cross center should remain bright: {center:?}");
+    assert!(
+        (8..247).contains(&vertical_edge[0]),
+        "blur should soften the vertical edge: {vertical_edge:?}"
+    );
+    assert!(
+        (8..247).contains(&horizontal_edge[0]),
+        "blur should soften the horizontal edge: {horizontal_edge:?}"
+    );
+
+    let mut blur_grade_bloom = blur_chain(4.0);
+    blur_grade_bloom.instances.push(EffectInstance {
+        id: EffectId::new("ColorGrade"),
+        enabled: true,
+        params: EffectParams {
+            values: vec![
+                EffectParamValue::F32(1.1),
+                EffectParamValue::F32(1.15),
+                EffectParamValue::F32(0.8),
+                EffectParamValue::F32(0.0),
+                EffectParamValue::F32(0.0),
+            ],
+        },
+    });
+    blur_grade_bloom.instances.push(EffectInstance {
+        id: EffectId::new("Bloom"),
+        enabled: true,
+        params: EffectParams {
+            values: vec![
+                EffectParamValue::F32(0.65),
+                EffectParamValue::F32(0.75),
+                EffectParamValue::F32(0.2),
+            ],
+        },
+    });
+    let separate_grade_bloom = render_at(&mut separate, &scene, dims, None, &blur_grade_bloom);
+    let combined_grade_bloom = render_at(&mut combined, &scene, dims, None, &blur_grade_bloom);
+    assert_policy_images_equal(
+        "Blur + ColorGrade + Bloom",
+        &separate_grade_bloom,
+        &combined_grade_bloom,
+    );
+
+    let mut repeated = blur_chain(2.0);
+    repeated.instances.push(EffectInstance {
+        id: EffectId::new("Blur"),
+        enabled: true,
+        params: EffectParams {
+            values: vec![EffectParamValue::F32(8.0)],
+        },
+    });
+    let separate_repeated = render_at(&mut separate, &scene, dims, None, &repeated);
+    let combined_repeated = render_at(&mut combined, &scene, dims, None, &repeated);
+    assert_policy_images_equal("repeated Blur instances", &separate_repeated, &combined_repeated);
+
+    let frame_two = blur_chain(2.0);
+    let frame_three = blur_chain(9.0);
+    let separate_frame_two = render_at(&mut separate, &scene, dims, None, &frame_two);
+    let combined_frame_two = render_at(&mut combined, &scene, dims, None, &frame_two);
+    assert_policy_images_equal(
+        "changed uniforms frame 2",
+        &separate_frame_two,
+        &combined_frame_two,
+    );
+    let separate_frame_three = render_at(&mut separate, &scene, dims, None, &frame_three);
+    let combined_frame_three = render_at(&mut combined, &scene, dims, None, &frame_three);
+    assert_policy_images_equal(
+        "changed uniforms frame 3",
+        &separate_frame_three,
+        &combined_frame_three,
+    );
+    assert_images_differ(
+        "Blur parameter change across frames",
+        &separate_frame_two,
+        &separate_frame_three,
+    );
+
+    let roi_small = EffectRegion {
+        origin: [16.0, 8.0],
+        size: SceneDimensions {
+            width: 32,
+            height: 24,
+        },
+    };
+    let roi_wide = EffectRegion {
+        origin: [24.0, 20.0],
+        size: SceneDimensions {
+            width: 80,
+            height: 32,
+        },
+    };
+    for (label, region) in [("small ROI", roi_small), ("wide ROI", roi_wide)] {
+        let separate_region =
+            render_at(&mut separate, &scene, dims, Some(region), &blur_grade_bloom);
+        let combined_region =
+            render_at(&mut combined, &scene, dims, Some(region), &blur_grade_bloom);
+        assert_policy_images_equal(label, &separate_region, &combined_region);
+    }
+
+    let separate_harvest =
+        render_pending_region(&mut separate, &scene, dims, roi_wide, &blur_grade_bloom);
+    let combined_harvest =
+        render_pending_region(&mut combined, &scene, dims, roi_wide, &blur_grade_bloom);
+    assert_policy_images_equal(
+        "multi-pass pending-composite harvest",
+        &separate_harvest,
+        &combined_harvest,
+    );
+}
+
+#[test]
+fn separate_and_combined_submits_match_on_fallback_adapter() {
+    let Some((device, queue, device_type)) = required_adapter_device(true) else {
+        return;
+    };
+    assert_eq!(
+        device_type,
+        wgpu::DeviceType::Cpu,
+        "force_fallback_adapter should select the software CPU adapter"
+    );
+    compare_submit_strategies_on_device(&device, &queue);
+}
+
+#[test]
+#[ignore = "manual physical-GPU validation for separate versus combined submissions"]
+fn separate_and_combined_submits_match_on_hardware_adapter() {
+    let Some((device, queue, device_type)) = required_adapter_device(false) else {
+        return;
+    };
+    assert_ne!(
+        device_type,
+        wgpu::DeviceType::Cpu,
+        "hardware probe requires a non-CPU adapter; use a physical GPU"
+    );
+    compare_submit_strategies_on_device(&device, &queue);
+}
+
 fn render(
     backend: &mut GpuFilterBackend,
     scene: &vello::Scene,
@@ -405,6 +763,93 @@ fn gpu_filter_blur_softens_a_hard_boundary() {
     );
 }
 
+/// Repeated instances of one effect type must keep separate author uniforms.
+/// The former per-type single buffer let the last `Blur.radius` write replace
+/// the first instance's parameters, making this chain identical to two radius
+/// 8 blurs.
+#[test]
+fn repeated_effect_instances_keep_distinct_author_uniforms() {
+    let Some(mut backend) = required_gpu_backend(DIMS) else {
+        return;
+    };
+    let scene = white_half_scene(64.0);
+
+    let mut different_radii = blur_chain(2.0);
+    different_radii.instances.push(EffectInstance {
+        id: EffectId::new("Blur"),
+        enabled: true,
+        params: EffectParams {
+            values: vec![EffectParamValue::F32(8.0)],
+        },
+    });
+
+    let mut equal_radii = blur_chain(8.0);
+    equal_radii.instances.push(EffectInstance {
+        id: EffectId::new("Blur"),
+        enabled: true,
+        params: EffectParams {
+            values: vec![EffectParamValue::F32(8.0)],
+        },
+    });
+
+    let alpha_delta = |left: &SceneImage, right: &SceneImage| -> u64 {
+        left.data
+            .data
+            .data()
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .zip(right.data.data.data().as_chunks::<4>().0)
+            .map(|(left, right)| u64::from(left[3].abs_diff(right[3])))
+            .sum()
+    };
+
+    // The second render reuses the same texture views, buffer, and bind groups
+    // while changing slot 0's radius; stale or type-wide author uniforms would
+    // make the outputs identical.
+    let different = render(&mut backend, &scene, DIMS, &different_radii);
+    let equal = render(&mut backend, &scene, DIMS, &equal_radii);
+    let cached_delta = alpha_delta(&different, &equal);
+    assert!(
+        cached_delta > 64,
+        "Blur(2) → Blur(8) must differ from Blur(8) → Blur(8), got total alpha delta {cached_delta}"
+    );
+
+    // The backend now has two slots allocated for Blur. Adding a third
+    // instance grows that buffer; the result must still preserve the first two
+    // instances' values after replacing the allocation.
+    let mut three_distinct = different_radii.clone();
+    three_distinct.instances.push(EffectInstance {
+        id: EffectId::new("Blur"),
+        enabled: true,
+        params: EffectParams {
+            values: vec![EffectParamValue::F32(4.0)],
+        },
+    });
+    let mut three_equal = blur_chain(4.0);
+    three_equal.instances.push(EffectInstance {
+        id: EffectId::new("Blur"),
+        enabled: true,
+        params: EffectParams {
+            values: vec![EffectParamValue::F32(4.0)],
+        },
+    });
+    three_equal.instances.push(EffectInstance {
+        id: EffectId::new("Blur"),
+        enabled: true,
+        params: EffectParams {
+            values: vec![EffectParamValue::F32(4.0)],
+        },
+    });
+    let grown = render(&mut backend, &scene, DIMS, &three_distinct);
+    let grown_equal = render(&mut backend, &scene, DIMS, &three_equal);
+    let growth_delta = alpha_delta(&grown, &grown_equal);
+    assert!(
+        growth_delta > 64,
+        "Blur(2) → Blur(8) → Blur(4) must differ after uniform-buffer growth from three Blur(4) stages, got total alpha delta {growth_delta}"
+    );
+}
+
 /// Bloom is a composite: it adds the pre-chain original back onto the running
 /// result. On a black canvas, a mid-gray rect run through `Blur` alone has a
 /// dimmed edge; appending `Bloom` restores the original's light on top of it.
@@ -520,6 +965,193 @@ fn bloom_threshold_brightens_only_bright_regions() {
         "threshold 0 must preserve the historical exposure lift on dark regions, \
          got plain={plain_dark} bloom={open_dark}"
     );
+}
+
+/// Bloom's texture contract is straight alpha. A half-alpha saturated source
+/// contributes its premultiplied light and must be unpremultiplied on store.
+#[test]
+fn bloom_keeps_translucent_saturated_rgb_straight() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let scene = filled_scene(
+        vello::peniko::Color::from_rgba8(255, 0, 0, 128),
+        kurbo::Rect::new(0.0, 0.0, 64.0, 64.0),
+    );
+    let chain =
+        effect_chain("Bloom", vec![EffectParamValue::F32(0.25), EffectParamValue::F32(1.0)]);
+    let image = render(&mut backend, &scene, DIMS, &chain);
+    let pixel = scene_pixel(&image, 32, 32);
+    assert!(
+        pixel[0] >= 248 && pixel[1] <= 4 && pixel[2] <= 4,
+        "Bloom must preserve saturated straight red on translucent content, got {pixel:?}"
+    );
+    assert!(
+        pixel[3].abs_diff(160) <= 2,
+        "intensity 0.25 should raise half alpha to about 0.625, got {pixel:?}"
+    );
+
+    let reduced_keep_chain =
+        effect_chain("Bloom", vec![EffectParamValue::F32(0.25), EffectParamValue::F32(0.5)]);
+    let reduced_keep_image = render(&mut backend, &scene, DIMS, &reduced_keep_chain);
+    let reduced_keep_pixel = scene_pixel(&reduced_keep_image, 32, 32);
+    assert!(
+        reduced_keep_pixel[0].abs_diff(153) <= 3,
+        "keep 0.5 must scale only the original's straight red contribution, got {reduced_keep_pixel:?}"
+    );
+    assert!(
+        reduced_keep_pixel[3].abs_diff(160) <= 3,
+        "keep must not change the existing alpha accumulation, got {reduced_keep_pixel:?}"
+    );
+}
+
+/// A DropShadow penumbra is a partial-alpha blue glow on transparent original
+/// pixels. Bloom must retain the glow's straight blue colour while adding its
+/// coverage to the frame.
+#[test]
+fn bloom_keeps_partial_glow_rgb_straight() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let scene = filled_scene(
+        vello::peniko::Color::from_rgba8(255, 0, 0, 128),
+        kurbo::Rect::new(24.0, 16.0, 56.0, 48.0),
+    );
+    let mut chain = blue_drop_shadow_chain([-8.0, 0.0], 6.0);
+    chain.instances.push(EffectInstance {
+        id: EffectId::new("Bloom"),
+        enabled: true,
+        params: EffectParams {
+            values: vec![EffectParamValue::F32(1.0), EffectParamValue::F32(1.0)],
+        },
+    });
+    let image = render(&mut backend, &scene, DIMS, &chain);
+    // The original shape starts at x=24, and the hard shadow starts at x=16;
+    // x=12 is reached only by the soft penumbra.
+    let penumbra = scene_pixel(&image, 12, 32);
+    assert!(
+        (8..150).contains(&penumbra[3]),
+        "the penumbra must remain partially covered after Bloom, got {penumbra:?}"
+    );
+    assert!(
+        penumbra[2] >= 248 && penumbra[0] <= 8 && penumbra[1] <= 8,
+        "Bloom must preserve straight blue in the partial glow, got {penumbra:?}"
+    );
+}
+
+/// Zero-alpha texels remain transparent black after Bloom, without producing
+/// NaNs or leaking a glow.
+#[test]
+fn bloom_zero_alpha_stores_transparent_black() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let scene = filled_scene(
+        vello::peniko::Color::from_rgba8(20, 80, 255, 0),
+        kurbo::Rect::new(20.0, 16.0, 36.0, 48.0),
+    );
+    let chain = effect_chain("Bloom", vec![EffectParamValue::F32(1.0), EffectParamValue::F32(1.0)]);
+    let image = render(&mut backend, &scene, DIMS, &chain);
+    assert_eq!(
+        scene_pixel(&image, 28, 32),
+        [0, 0, 0, 0],
+        "zero-alpha input must not leak color through Bloom"
+    );
+}
+
+/// Additive alpha saturates at one, and the corresponding premultiplied color
+/// is clamped to that coverage before it is stored straight.
+#[test]
+fn bloom_clamps_added_alpha_to_opaque() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let scene = filled_scene(
+        vello::peniko::Color::from_rgba8(0, 255, 0, 128),
+        kurbo::Rect::new(0.0, 0.0, 64.0, 64.0),
+    );
+    let chain = effect_chain("Bloom", vec![EffectParamValue::F32(4.0), EffectParamValue::F32(1.0)]);
+    let image = render(&mut backend, &scene, DIMS, &chain);
+    let pixel = scene_pixel(&image, 32, 32);
+    assert_eq!(pixel, [0, 255, 0, 255], "intensity 4 should saturate to opaque green");
+}
+
+/// Threshold measures straight RGB luma even for partial-alpha pixels. White
+/// is above the gate and red is below it; each output keeps its saturated color.
+#[test]
+fn bloom_threshold_uses_straight_rgb_for_translucent_pixels() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let mut scene = vello::Scene::new();
+    let white = filled_scene(
+        vello::peniko::Color::from_rgba8(255, 255, 255, 64),
+        kurbo::Rect::new(6.0, 20.0, 26.0, 44.0),
+    );
+    let red = filled_scene(
+        vello::peniko::Color::from_rgba8(255, 0, 0, 64),
+        kurbo::Rect::new(38.0, 20.0, 58.0, 44.0),
+    );
+    scene.encoding_mut().append(white.encoding(), &None);
+    scene.encoding_mut().append(red.encoding(), &None);
+    let chain = effect_chain(
+        "Bloom",
+        vec![
+            EffectParamValue::F32(1.0),
+            EffectParamValue::F32(1.0),
+            EffectParamValue::F32(0.6),
+        ],
+    );
+    let image = render(&mut backend, &scene, DIMS, &chain);
+    let bright = scene_pixel(&image, 16, 32);
+    let dim = scene_pixel(&image, 48, 32);
+    assert!(
+        bright[3].abs_diff(128) <= 2,
+        "straight white luma is above threshold and should raise quarter alpha to about half alpha, \
+         got {bright:?}"
+    );
+    assert!(
+        dim[3].abs_diff(64) <= 1,
+        "straight red luma is below threshold and should keep source alpha, got {dim:?}"
+    );
+    assert!(
+        bright[..3].iter().all(|channel| *channel >= 248),
+        "bright translucent white must remain straight white, got {bright:?}"
+    );
+    assert!(
+        dim[0] >= 248 && dim[1] <= 4 && dim[2] <= 4,
+        "gated translucent red must remain straight red, got {dim:?}"
+    );
+}
+
+/// The pre-chain original supplies the kept base while the running result
+/// supplies the glow: doubling red in ColorGrade therefore adds the brighter
+/// copy over the unmodified original.
+#[test]
+fn bloom_uses_running_result_for_glow_and_original_for_keep() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let scene = filled_scene(
+        vello::peniko::Color::from_rgba8(64, 0, 0, 128),
+        kurbo::Rect::new(0.0, 0.0, 64.0, 64.0),
+    );
+    let mut chain = color_grade_chain(2.0, 1.0, 1.0, 0.0, 0.0);
+    chain.instances.push(EffectInstance {
+        id: EffectId::new("Bloom"),
+        enabled: true,
+        params: EffectParams {
+            values: vec![EffectParamValue::F32(1.0), EffectParamValue::F32(1.0)],
+        },
+    });
+    let image = render(&mut backend, &scene, DIMS, &chain);
+    let pixel = scene_pixel(&image, 32, 32);
+    assert!(
+        pixel[0].abs_diff(96) <= 3,
+        "Bloom must add the doubled running red to the original base in premultiplied space, \
+         got {pixel:?}"
+    );
+    assert_eq!(pixel[3], 255, "two half-alpha contributions should saturate to opaque");
 }
 
 /// Check that the colour-grade pass mutates pixels: a red rectangle with
@@ -957,3 +1589,136 @@ fn drop_shadow_softness_spreads_the_silhouette() {
         "softness 6 must cast a partial-coverage penumbra at x=12, got alpha {alpha}"
     );
 }
+
+fn blue_drop_shadow_chain(offset: [f32; 2], softness: f32) -> EffectChain {
+    blue_drop_shadow_chain_with_alpha(offset, softness, 1.0)
+}
+
+fn blue_drop_shadow_chain_with_alpha(
+    offset: [f32; 2],
+    softness: f32,
+    color_alpha: f32,
+) -> EffectChain {
+    effect_chain(
+        "DropShadow",
+        vec![
+            EffectParamValue::Vec2(offset),
+            EffectParamValue::F32(softness),
+            EffectParamValue::Vec4([0.0, 0.0, 1.0, color_alpha]),
+        ],
+    )
+}
+
+/// DropShadow samples a half-alpha silhouette for its blue shadow. The
+/// shadow-only texel must carry straight blue RGB with half alpha, while an
+/// opaque silhouette keeps its historical opaque-blue result.
+#[test]
+fn drop_shadow_keeps_translucent_colored_shadow_rgb_straight() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let rect = kurbo::Rect::new(20.0, 16.0, 36.0, 48.0);
+    let translucent = filled_scene(vello::peniko::Color::from_rgba8(255, 0, 0, 128), rect);
+    let chain = blue_drop_shadow_chain([8.0, 0.0], 0.0);
+    let image = render(&mut backend, &translucent, DIMS, &chain);
+    let shadow_only = scene_pixel(&image, 40, 32);
+    assert_eq!(
+        shadow_only[3], 128,
+        "half-alpha silhouette should cast half-alpha shadow: {shadow_only:?}"
+    );
+    assert!(
+        shadow_only[2] >= 248 && shadow_only[0] <= 8 && shadow_only[1] <= 8,
+        "shadow-only RGB must remain straight blue instead of being scaled by alpha: {shadow_only:?}"
+    );
+
+    let opaque = filled_scene(vello::peniko::Color::WHITE, rect);
+    let opaque_image = render(&mut backend, &opaque, DIMS, &chain);
+    let opaque_shadow = scene_pixel(&opaque_image, 40, 32);
+    assert_eq!(opaque_shadow, [0, 0, 255, 255], "opaque shadow output must remain unchanged");
+
+    // Exercise the shadow-color alpha independently of source transparency.
+    let half_opacity_chain = blue_drop_shadow_chain_with_alpha([8.0, 0.0], 0.0, 0.5);
+    let half_opacity_image = render(&mut backend, &opaque, DIMS, &half_opacity_chain);
+    let half_opacity_shadow = scene_pixel(&half_opacity_image, 40, 32);
+    assert_eq!(
+        half_opacity_shadow[3], 128,
+        "opaque silhouette with 50% shadow alpha should produce alpha 128: {half_opacity_shadow:?}"
+    );
+    assert!(
+        half_opacity_shadow[2] >= 248 && half_opacity_shadow[0] <= 8 && half_opacity_shadow[1] <= 8,
+        "50% blue shadow color must keep straight blue RGB: {half_opacity_shadow:?}"
+    );
+}
+
+/// A half-alpha red source over a half-alpha blue shadow has alpha 0.75 and
+/// straight RGB (2/3 red, 1/3 blue) after premultiplied over composition.
+#[test]
+fn drop_shadow_composites_translucent_content_over_shadow() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let scene = filled_scene(
+        vello::peniko::Color::from_rgba8(255, 0, 0, 128),
+        kurbo::Rect::new(20.0, 16.0, 36.0, 48.0),
+    );
+    let image = render(&mut backend, &scene, DIMS, &blue_drop_shadow_chain([8.0, 0.0], 0.0));
+    let overlap = scene_pixel(&image, 32, 32);
+    assert!(
+        overlap[3].abs_diff(192) <= 2,
+        "overlap alpha should be approximately 0.75, got {overlap:?}"
+    );
+    assert!(
+        overlap[0].abs_diff(170) <= 4 && overlap[1] <= 4 && overlap[2].abs_diff(85) <= 4,
+        "overlap RGB should be straight-alpha red 170 / blue 85, got {overlap:?}"
+    );
+}
+
+/// Zero-alpha inputs must produce transparent black, without NaNs or shadow
+/// color leaking into pixels that have no silhouette coverage.
+#[test]
+fn drop_shadow_zero_alpha_input_does_not_leak_color() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let scene = filled_scene(
+        vello::peniko::Color::from_rgba8(20, 80, 255, 0),
+        kurbo::Rect::new(20.0, 16.0, 36.0, 48.0),
+    );
+    let image = render(&mut backend, &scene, DIMS, &blue_drop_shadow_chain([8.0, 0.0], 0.0));
+    for (x, y) in [(28, 32), (40, 32)] {
+        let pixel = scene_pixel(&image, x, y);
+        assert_eq!(
+            pixel,
+            [0, 0, 0, 0],
+            "zero-alpha input must stay transparent black at ({x},{y}), got {pixel:?}"
+        );
+    }
+}
+
+/// Softness creates a partially covered colored shadow. Its alpha is reduced
+/// by coverage, while its straight blue RGB remains fully saturated.
+#[test]
+fn drop_shadow_soft_penumbra_keeps_colored_rgb_straight() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let scene = filled_scene(
+        vello::peniko::Color::from_rgba8(255, 0, 0, 128),
+        kurbo::Rect::new(24.0, 16.0, 56.0, 48.0),
+    );
+    let image = render(&mut backend, &scene, DIMS, &blue_drop_shadow_chain([-8.0, 0.0], 6.0));
+    // As in the opaque softness check above, x=12 is four pixels beyond the
+    // hard edge at x=16, so only the penumbra reaches this shadow-only pixel.
+    let penumbra = scene_pixel(&image, 12, 32);
+    assert!(
+        (8..150).contains(&penumbra[3]),
+        "softness should leave partial alpha at the penumbra: {penumbra:?}"
+    );
+    assert!(
+        penumbra[2] >= 248 && penumbra[0] <= 8 && penumbra[1] <= 8,
+        "soft penumbra RGB must stay straight blue despite partial coverage: {penumbra:?}"
+    );
+}
+
+#[path = "straight_alpha_tests.rs"]
+mod straight_alpha_tests;

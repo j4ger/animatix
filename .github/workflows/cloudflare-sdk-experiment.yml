@@ -16,7 +16,6 @@ jobs:
     uses: ./.github/workflows/ci.yml
     with:
       checkout-ref: ${{ github.sha }}
-      topology: baseline
   authorize:
     needs: ci
     if: ${{ needs.ci.result == 'success' }}

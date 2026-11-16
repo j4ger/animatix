@@ -1,9 +1,9 @@
 // lint-disable: unknown-property
-import "../../web/demos/lib/theme.amx"
+import "../lib/theme.amx"
 
-import "../../web/demos/lib/ui.amx"
+import "../lib/ui.amx"
 
-import "../../web/demos/lib/charts.amx"
+import "../lib/charts.amx"
 
 config { colorscheme: "ink", duration: 8, resolution: (1280, 720), strict_types: true }
 

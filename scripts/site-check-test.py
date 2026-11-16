@@ -59,6 +59,18 @@ class SiteCheckTests(unittest.TestCase):
             (self.root/'runtime'/name).write_text('fixture')
         return pages
 
+    def test_retired_source_and_developer_tools_are_not_published(self):
+        self.assembly()
+        for name in ('demos/old.amx', 'tour/scenes/old.amx', 'recipes/old.amx', 'scenes/hero.amx'):
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('retired fixture')
+        (self.root / 'dev').mkdir()
+        result = self.run_check('--assembled')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stderr.count(b'retired source in site artifact:'), 4)
+        self.assertIn(b'developer tools in site artifact', result.stderr)
+
     def test_empty_output_fails(self):
         result = self.run_check()
         self.assertNotEqual(result.returncode,0)

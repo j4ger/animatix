@@ -132,6 +132,13 @@ def main():
             if not target.is_file():
                 errors.append(f'{page.relative_to(output)}: missing target: {raw}')
     if args.assembled:
+        # Archive HTML routes belong to Astro, but retired sources and developer
+        # utilities must not hitch a ride in the public artifact.
+        for retired in ('demos', 'tour', 'recipes', 'scenes'):
+            for scene in (output / retired).rglob('*.amx'):
+                errors.append(f'retired source in site artifact: {scene.relative_to(output)}')
+        if (output / 'dev').exists():
+            errors.append('developer tools in site artifact: dev')
         for name in ('amx-player.js', 'runtime-manifest.json'):
             if not (output / 'runtime' / name).is_file():
                 errors.append(f'missing runtime/{name}')

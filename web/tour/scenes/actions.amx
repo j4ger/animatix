@@ -12,7 +12,7 @@
 // the satellite is a dot teleporting through empty space and the scene's
 // headline feature is invisible; with it, the periodicity IS the picture.
 
-import "../../demos/lib/theme.amx"
+import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 9.6 }
 

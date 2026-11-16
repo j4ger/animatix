@@ -57,6 +57,43 @@ pub fn rasterize_scene(
     Ok(())
 }
 
+/// Rasterise and present a plain scene while keeping Vello and the final blit
+/// in one queue submission. This path has no filter backend because pending
+/// Filter/Glass composites must be applied after the Vello render.
+#[allow(clippy::too_many_arguments)]
+pub fn rasterize_scene_and_present(
+    core: &mut RendererCore,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    render_view: &wgpu::TextureView,
+    scene: &vello::Scene,
+    raster: SceneDimensions,
+    fit: RasterFit<'_>,
+    surface_view: &wgpu::TextureView,
+    surface_size: [u32; 2],
+    surface_format: wgpu::TextureFormat,
+) -> Result<(), String> {
+    let scale = fit.scale();
+    let encoded = match fit {
+        RasterFit::OneToOne => scene,
+        RasterFit::Scaled { scratch, .. } => {
+            scratch.reset();
+            scratch.append(scene, Some(vello::kurbo::Affine::scale(scale as f64)));
+            &*scratch
+        },
+    };
+    core.render_vello_scene_and_present(
+        device,
+        queue,
+        render_view,
+        [raster.width, raster.height],
+        encoded,
+        surface_view,
+        surface_size,
+        surface_format,
+    )
+    .map_err(|e| e.to_string())
+}
 /// Composite every queued layer onto `view`, in queue order.
 ///
 /// A `Backdrop` layer is served here rather than during evaluation: its input is

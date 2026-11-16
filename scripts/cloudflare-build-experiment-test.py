@@ -10,24 +10,33 @@ SCRIPT = Path(__file__).with_name("cloudflare-build-experiment.sh")
 
 
 class ExperimentTest(unittest.TestCase):
-    def run_stage(self, stage, *, fake_nix=False, dirty=False):
+    def run_stage(self, stage, *, fake_nix=False, dirty=False, git_status_failure=False):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
             (root / "scripts").mkdir()
             (root / "bin").mkdir()
             shutil.copyfile(SCRIPT, root / "scripts/probe.sh")
             (root / "flake.lock").write_text("{}")
+            bash = shutil.which("bash")
+            self.assertIsNotNone(bash)
+            shebang = f"#!{bash}\n"
             for tool in ["bash", "dirname", "id", "uname", "getconf", "awk", "cat", "df", "timeout"]:
                 (root / "bin" / tool).symlink_to(shutil.which(tool))
             if fake_nix:
                 script = root / "bin/nix"
-                script.write_text("#!/bin/bash\necho UNEXPECTED_NIX_EXECUTION; exit 99\n")
+                script.write_text(shebang + "echo UNEXPECTED_NIX_EXECUTION; exit 99\n")
                 script.chmod(0o755)
                 git = root / "bin/git"
-                git.write_text("#!/bin/bash\necho ' M dirty'\n" if dirty else "#!/bin/bash\nexit 0\n")
+                if git_status_failure:
+                    git_script = shebang + "exit 128\n"
+                elif dirty:
+                    git_script = shebang + "echo ' M dirty'\n"
+                else:
+                    git_script = shebang + "exit 0\n"
+                git.write_text(git_script)
                 git.chmod(0o755)
             env = {"PATH": str(root / "bin"), "UNRELATED_SECRET": "must-not-leak-123"}
-            result = subprocess.run([shutil.which("bash"), str(root / "scripts/probe.sh"), *stage],
+            result = subprocess.run([bash, str(root / "scripts/probe.sh"), *stage],
                                     env=env, text=True, capture_output=True)
             self.assertNotIn("must-not-leak-123", result.stdout + result.stderr)
             self.assertNotIn("UNEXPECTED_NIX_EXECUTION", result.stdout + result.stderr)
@@ -52,6 +61,12 @@ class ExperimentTest(unittest.TestCase):
 
     def test_dirty_checkout_blocks_nix(self):
         self.assertEqual(self.run_stage(["site"], fake_nix=True, dirty=True).returncode, 3)
+
+    def test_git_status_failure_blocks_nix(self):
+        result = self.run_stage(["site"], fake_nix=True, git_status_failure=True)
+        self.assertEqual(result.returncode, 3, result.stderr)
+        self.assertIn("BLOCKED: could not verify whether the checkout is clean", result.stderr)
+        self.assertNotIn("UNEXPECTED_NIX_EXECUTION", result.stdout + result.stderr)
 
     def test_invalid_stages(self):
         for args in [["deploy"], ["probe", "extra"]]:

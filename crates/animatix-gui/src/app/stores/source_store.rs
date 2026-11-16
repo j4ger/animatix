@@ -46,23 +46,6 @@ impl SourceStore {
         self.cache_valid = false;
     }
 
-    /// Apply pre-computed source text and source index to the document.
-    ///
-    /// Callers compute `(stmts_to_source(stmts), SourceIndex::build(stmts))` while
-    /// holding the `stmts` borrow, then call this after the borrow ends.
-    pub fn commit_source(
-        &mut self,
-        new_source: String,
-        source_index: animatix_syntax::source_index::SourceIndex,
-    ) {
-        self.source_epoch = self.source_epoch.next();
-        self.document.source_text = new_source.clone();
-        self.document.is_dirty = true;
-        self.editor.replace_text(new_source);
-        self.document.source_index = Some(source_index);
-        self.invalidate_cache();
-    }
-
     pub fn text(&self) -> &str {
         &self.document.source_text
     }
@@ -96,9 +79,8 @@ impl SourceStore {
         }
     }
 
-    /// Sync canonical source text from the live editor without replacing its
-    /// cell state. The editor is already the source of truth while typing, so
-    /// re-parsing here would drop in-memory cells and reset focus mid-edit.
+    /// Sync canonical source text without resetting the live text widget's
+    /// cursor, selection, or IME composition state.
     pub fn sync_from_editor(&mut self) -> SourceChange {
         let text = self.editor.text().to_string();
         self.source_epoch = self.source_epoch.next();
@@ -139,24 +121,24 @@ mod tests {
     use crate::editor::EditorBuffer;
 
     #[test]
-    fn sync_from_editor_preserves_live_cell_state() {
+    fn sync_from_editor_preserves_live_line_state() {
         let path = PathBuf::from("test.amx");
-        // A leading blank line parses as an empty code cell followed by a keyframe.
         let source = "\n#0s\n";
         let mut document =
             DocumentSession::from_source(path.clone(), source.to_string()).expect("valid source");
         document.rebuild().expect("valid source should rebuild");
         let mut editor = EditorBuffer::new(&path, source.to_string());
-        let parsed = crate::cell_editor::parse_cells(source);
-        assert!(matches!(parsed.first(), Some(crate::cell_editor::Cell::Code { .. })));
-        assert!(matches!(parsed.get(1), Some(crate::cell_editor::Cell::Keyframe { .. })));
-        editor.set_focused_cell(Some(1));
+        editor.pending_scroll_to_line = Some(1);
+        editor.highlighted_line = Some(1);
+        editor.cursor_line = Some(1);
 
         let mut store = SourceStore::new(document, editor);
         let change = store.sync_from_editor();
 
         assert_eq!(store.text(), source);
-        assert_eq!(store.editor.focused_cell(), Some(1));
+        assert_eq!(store.editor.pending_scroll_to_line, Some(1));
+        assert_eq!(store.editor.highlighted_line, Some(1));
+        assert_eq!(store.editor.cursor_line, Some(1));
         assert!(store.document.is_dirty);
         assert_eq!(store.epoch(), change.after_epoch);
     }

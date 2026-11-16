@@ -5,11 +5,7 @@ fn settings_persistence_roundtrips_plugin_paths() {
     let settings = SettingsPersistence {
         rebuild_debounce_ms: 150,
         scrub_step_s: 0.05,
-        nudge_step_px: 1.0,
-        nudge_step_shift_px: 8.0,
-        rotation_snap_degrees: 15.0,
         snap_fps: 60.0,
-        keyframe_merge_window_s: 0.05,
         undo_limit: 100,
         grid_size: 40.0,
         app_theme: "dark".to_string(),
@@ -24,6 +20,18 @@ fn settings_persistence_roundtrips_plugin_paths() {
         .expect("serialize settings");
     let parsed: SettingsPersistence = ron::from_str(&serialized).expect("parse settings roundtrip");
     assert_eq!(parsed.plugin_paths, settings.plugin_paths);
+
+    let legacy = serialized.replacen(
+        '(',
+        "(nudge_step_px: 1.0, nudge_step_shift_px: 8.0, rotation_snap_degrees: 15.0, keyframe_merge_window_s: 0.05,",
+        1,
+    );
+    let migrated: SettingsPersistence =
+        ron::from_str(&legacy).expect("load legacy writer settings");
+    assert_eq!(migrated.plugin_paths, settings.plugin_paths);
+    assert_eq!(migrated.snap_fps, settings.snap_fps);
+    assert_eq!(migrated.undo_limit, settings.undo_limit);
+    assert_eq!(migrated.app_theme, settings.app_theme);
 }
 
 #[test]

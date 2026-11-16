@@ -32,7 +32,7 @@ const DEFAULT_SCENES = [
   'tools/animatix-web-build/fixtures/text-parity/equation.amx',
   'tools/animatix-web-build/fixtures/text-parity/captions.amx',
   'tools/animatix-web-build/fixtures/text-parity/counter.amx',
-  'testfixtures/web-runtime-perf/plain-cjk-bidi-weights.amx',
+  'tools/fixtures/web-runtime-perf/plain-cjk-bidi-weights.amx',
 ];
 const SCENES = (process.env.TVP_SCENES || DEFAULT_SCENES.join(',')).split(',').map(value => value.trim()).filter(Boolean);
 const TIMES = [0.25, 1.25, 1.9];
