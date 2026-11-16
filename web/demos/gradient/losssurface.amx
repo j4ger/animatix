@@ -17,8 +17,8 @@
 // the two curvature directions later: the x axis is the fast one, y the slow
 // one. Its full loss range lives on the right-hand card.
 
-import "../lib/theme.amx"
-import "../lib/stage.amx"
+import "../../../examples/lib/theme.amx"
+import "../../../examples/lib/stage.amx"
 
 config { colorscheme: "ember", resolution: (1280, 720), duration: 7.8 }
 

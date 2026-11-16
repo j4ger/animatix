@@ -75,9 +75,44 @@ const HELLO: &str = include_str!("../../../../examples/basics/00_hello.amx");
 const MOTION: &str = include_str!("../../../../examples/basics/03_timing.amx");
 const MULTISCENE: &str = include_str!("../../../../examples/composition/14_multiscene.amx");
 
+fn example_modules() -> Vec<(PathBuf, String)> {
+    vec![
+        (
+            PathBuf::from("../lib/theme.amx"),
+            include_str!("../../../../examples/lib/theme.amx").into(),
+        ),
+        (
+            PathBuf::from("../lib/stage.amx"),
+            include_str!("../../../../examples/lib/stage.amx").into(),
+        ),
+    ]
+}
+
 #[test]
-fn builds_self_contained_example_without_errors() {
-    let doc = build_document(HELLO, Arc::new(FontContext::new()), BuildQuality::Draft);
+fn legacy_library_names_are_not_implicit_and_supplied_sources_win() {
+    for key in ["../lib/palette.amx", "../../web/demos/lib/palette.amx"] {
+        let source = format!("import \"{key}\" as palette\n");
+        let missing = prepare_document(&source, &[], &[], None);
+        assert!(!missing.analysis.ok);
+        assert_eq!(missing.analysis.missing_imports, [key]);
+        let modules = vec![(PathBuf::from(key), "pub let primary = rgb(1, 0, 0)".to_string())];
+        let supplied = prepare_document(&source, &modules, &[], None);
+        assert!(supplied.analysis.ok, "{:?}", supplied.analysis.diagnostics);
+        assert!(supplied.analysis.missing_imports.is_empty());
+        // Rechecking the same source without modules must not reuse that cache.
+        assert!(!prepare_document(&source, &[], &[], None).analysis.ok);
+    }
+}
+
+#[test]
+fn builds_example_with_explicit_modules_without_errors() {
+    let doc = build_document_with_modules(
+        HELLO,
+        &example_modules(),
+        Arc::new(FontContext::new()),
+        BuildQuality::Draft,
+        None,
+    );
     assert!(doc.result.ok, "diagnostics: {:?}", doc.result.diagnostics);
     assert!(doc.result.diagnostics.is_empty());
     assert!(matches!(doc.target, Some(BuildTarget::SingleScene(_))));
@@ -87,7 +122,13 @@ fn builds_self_contained_example_without_errors() {
 
 #[test]
 fn builds_animation_example_with_duration() {
-    let doc = build_document(MOTION, Arc::new(FontContext::new()), BuildQuality::Draft);
+    let doc = build_document_with_modules(
+        MOTION,
+        &example_modules(),
+        Arc::new(FontContext::new()),
+        BuildQuality::Draft,
+        None,
+    );
     assert!(doc.result.ok, "diagnostics: {:?}", doc.result.diagnostics);
     assert!(
         doc.result.duration_s > MIN_DURATION_S,
@@ -97,7 +138,13 @@ fn builds_animation_example_with_duration() {
 
 #[test]
 fn builds_multiscene_example_as_composition() {
-    let doc = build_document(MULTISCENE, Arc::new(FontContext::new()), BuildQuality::Draft);
+    let doc = build_document_with_modules(
+        MULTISCENE,
+        &example_modules(),
+        Arc::new(FontContext::new()),
+        BuildQuality::Draft,
+        None,
+    );
     assert!(doc.result.ok, "diagnostics: {:?}", doc.result.diagnostics);
     assert!(matches!(doc.target, Some(BuildTarget::MultiScene(_))));
 }
@@ -167,14 +214,9 @@ fn warnings_still_yield_a_document() {
     assert!(matches!(doc.target, Some(BuildTarget::SingleScene(_))));
 }
 
-// The transformer demo scenes (web/demos/transformer/scenes) must always
-// build cleanly — they are embedded in the shipped demo page.
-//
-// The scenes import the site theme two directories up (`../../lib/
-// theme.amx` -> web/demos/lib/theme.amx), which the browser fetches and
-// registers through the missing-imports retry protocol. The test helper
-// drives that same protocol: build, register every reported key from the
-// theme source, rebuild until the graph closes.
+// Representative legacy scenes remain regression inputs. Their shared modules
+// are explicit test resources, exercising the same missing-import retry protocol
+// as the browser; the production runtime embeds no scene library.
 fn build_demo_scene(source: &str) -> BuiltDocument {
     let mut modules: Vec<(PathBuf, String)> = Vec::new();
     for _ in 0..4 {
@@ -190,16 +232,16 @@ fn build_demo_scene(source: &str) -> BuiltDocument {
         }
         for key in std::mem::take(&mut doc.result.missing_imports) {
             let content = if key.ends_with("theme.amx") {
-                include_str!("../../../../web/demos/lib/theme.amx")
+                include_str!("../../../../examples/lib/theme.amx")
             } else if key.ends_with("ambience.amx") {
-                include_str!("../../../../web/demos/lib/ambience.amx")
+                include_str!("../../../../examples/lib/ambience.amx")
             } else if key.ends_with("components.amx") {
-                include_str!("../../../../web/demos/lib/components.amx")
+                include_str!("../../../../examples/lib/components.amx")
             } else if key.ends_with("stage.amx") {
                 // The house-style stage furniture (web/DESIGN.md §1); every
                 // rewritten walkthrough scene imports it, so the demo-scene
                 // build test has to be able to close that import graph.
-                include_str!("../../../../web/demos/lib/stage.amx")
+                include_str!("../../../../examples/lib/stage.amx")
             } else {
                 panic!("demo scenes should only import site demo lib files, got {key}");
             };
@@ -285,7 +327,13 @@ fn load_result_markers_expose_timeline_landmarks() {
     );
 
     const MULTISCENE: &str = include_str!("../../../../examples/composition/14_multiscene.amx");
-    let doc = build_document(MULTISCENE, Arc::new(FontContext::new()), BuildQuality::Draft);
+    let doc = build_document_with_modules(
+        MULTISCENE,
+        &example_modules(),
+        Arc::new(FontContext::new()),
+        BuildQuality::Draft,
+        None,
+    );
     assert!(doc.result.ok);
     let kinds: Vec<&str> = doc.result.markers.iter().map(|m| m.kind.as_str()).collect();
     assert!(
@@ -535,7 +583,7 @@ fn vars_on_a_composition_report_they_are_not_applied() {
     const MULTISCENE: &str = include_str!("../../../../examples/composition/14_multiscene.amx");
     let doc = build_document_with_vars(
         MULTISCENE,
-        &[],
+        &example_modules(),
         Arc::new(FontContext::new()),
         BuildQuality::Draft,
         None,
@@ -550,7 +598,13 @@ fn vars_on_a_composition_report_they_are_not_applied() {
         .expect("a composition must report that overrides did not reach it");
     assert_eq!(note.severity, "warning");
 
-    let doc = build_document(MULTISCENE, Arc::new(FontContext::new()), BuildQuality::Draft);
+    let doc = build_document_with_modules(
+        MULTISCENE,
+        &example_modules(),
+        Arc::new(FontContext::new()),
+        BuildQuality::Draft,
+        None,
+    );
     assert!(
         !doc.result.diagnostics.iter().any(|d| d.code == "vars-not-applied"),
         "with nothing overridden there is nothing to report: {:?}",

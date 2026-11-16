@@ -21,8 +21,8 @@
 //
 // duration: 17.8
 
-import "../lib/theme.amx"
-import "../lib/stage.amx"
+import "../../../examples/lib/theme.amx"
+import "../../../examples/lib/stage.amx"
 
 let n = 8
 let t0 = 1.0

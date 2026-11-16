@@ -31,7 +31,7 @@ visual review is not. In particular, registry membership is not a quality badge.
   states, readable labels and a complete resting frame. Audit reports no
   warning/error; graph-child and dial overlaps are intentional info findings.
 
-Neither addition is automatically published through `web/works.json`.
+Neither addition is automatically published through [retired work manifest](https://github.com/j4ger/animatix/blob/530b5f8843d31a77b19540ff8f42daf662fddfff/web/works.json).
 
 ## Authoring findings
 

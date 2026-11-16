@@ -16,8 +16,8 @@
 // Type floors (DESIGN §1.5): head 48, captions 24, readout values 28, labels
 // 16 — nothing renders below 16 px.
 
-import "../lib/theme.amx"
-import "../lib/stage.amx"
+import "../../../examples/lib/theme.amx"
+import "../../../examples/lib/stage.amx"
 
 config { colorscheme: "moss", resolution: (1280, 720), duration: 10.0 }
 

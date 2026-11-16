@@ -30,6 +30,31 @@ Animatix 采用「视觉优先」的设计，将 Remotion `still` / Manim MCP �
     - **标记的作用是「让下次报告更干净」，绝不是「为了让门禁满意而猜标记」。**
 5. **基线回归与增量审计**：使用 `animatix baseline <file>` 防护。在人工确认变更符合意图后执行 `animatix baseline <file> --update`。通过 `--delta` 模式，在审计时只关注新增的问题。
 
+### 修改已有场景
+
+先保留修改前的完整报告，再用增量审计定位新问题；报告和预览放在本地输出目录。
+
+```sh
+mkdir -p target/review
+animatix audit scene.amx --format json > target/review/before.json
+# Edit scene.amx, then inspect the rendered images.
+animatix storyboard scene.amx -o target/review/storyboard.png
+animatix audit scene.amx --delta target/review/before.json --evidence target/review/evidence --brief
+```
+
+退出码仍应检查；不要把无法运行的报告当作有效基线。需要放大时用
+`animatix image scene.amx --time <t> -o target/review/frame.png`。
+
+### 常见源码问题
+
+- 数组元素通过 `for item, i in list` 和 `name[i]: Type` 生成；动作使用具体索引
+  （例如 `fade-in bars[0] [300ms]`），不要使用 `bars[*]` 通配符。
+- 第一个关键帧前声明且未显式设置 `opacity` 的 actor 默认不可见，需要入场动作
+  或显式 opacity；在关键帧内声明则默认可见。
+- `camera.zoom` 以场景中心缩放，可能把边缘元素推离画布。结合证据图判断裁切是否刻意。
+
+完整语法见 [语言规范](spec.md)。保持场景结构完整，不要为了消除诊断批量添加豁免标记。
+
 ## 命令面
 
 | 命令 | 职责 | 关键 Flags |
@@ -39,7 +64,7 @@ Animatix 采用「视觉优先」的设计，将 Remotion `still` / Manim MCP �
 | `audit` | 事实 + 缺陷 + 有界 anchors | `--policy`, `--anchors`, `--candidates`, `--evidence`, `--delta`, `--budget`, `--fail-on` |
 | `storyboard` | 节拍感知 contact sheet | `--cols`, `--times`, `--max-frames`, `--debug-bounds` |
 | `image --time <t>` | 单帧预览 (Remotion still) | - |
-| `baseline` | PNG 回归防护 | `--update` |
+| `baseline` | PNG 回归防护 | `--update`, `--threshold` |
 
 ### 退出码
 - `0`: Clean (或 baseline 匹配)。

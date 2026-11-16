@@ -64,6 +64,10 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
       record({kind:'paint',index,time,pageTimeMs:await cdp.evaluate('performance.now()'),...info,stats});
     }
   }
+  for (const module of contract.modules || []) {
+    const count = await cdp.evaluate(`performance.getEntriesByType('resource').filter(entry=>new URL(entry.name).pathname.endsWith('/dev/smoke/imports/${module}')).length`);
+    if (count !== 1) throw new Error(`Expected exactly one on-demand fetch for ${module}, got ${count}`);
+  }
   if (contract.preset) await presetJourney(cdp, capture, checkErrors, record);
   if (contract.action === 'edit') {
     await cdp.evaluate(`(()=>{const code=document.querySelector('#source-code');code.value+='\\nthis is deliberately invalid ???';window.__submitted=code.value;document.querySelector('#run').click();})()`);

@@ -14,7 +14,7 @@ const run = (command, args) => execFileSync(command, args, { cwd: ROOT, encoding
 export function inputs(root = ROOT) {
   // Cargo reads these configuration files even when a developer ignores them.
   const explicit = ['LICENSE', '.cargo/config', '.cargo/config.toml'];
-  const paths = execFileSync('git', ['ls-files', '-co', '--exclude-standard', '-z', '--', ...explicit, 'crates', 'vendor', 'tools', 'web/embed/src', 'web/demos/lib', 'web/fonts/manifest.json', 'web/tools', 'Cargo.toml', 'Cargo.lock', 'flake.nix', 'flake.lock', 'scripts'], { cwd: root, encoding: 'utf8' }).split('\0');
+  const paths = execFileSync('git', ['ls-files', '-co', '--exclude-standard', '-z', '--', ...explicit, 'crates', 'tools', 'web/embed/src', 'web/fonts/manifest.json', 'web/tools', 'Cargo.toml', 'Cargo.lock', 'flake.nix', 'flake.lock', 'scripts'], { cwd: root, encoding: 'utf8' }).split('\0');
   const hash = createHash('sha256');
   for (const file of [...new Set([...paths, ...explicit])].filter(Boolean).sort()) {
     if (!existsSync(join(root, file)) || !statSync(join(root, file)).isFile()) continue;

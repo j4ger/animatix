@@ -2,8 +2,8 @@
 // Position/color continuity from the previous scenes; the feature closes
 // with `remove mascot` so the finale starts clean.
 
-import "../../../web/demos/lib/theme.amx" as theme
-import "../../../web/demos/lib/theme.amx"
+import "../../lib/theme.amx" as theme
+import "../../lib/theme.amx"
 
 config { colorscheme: "ink", dynamic_layout: true, duration: 11 }
 

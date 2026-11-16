@@ -1,7 +1,6 @@
 # Content catalog: organize by purpose, publish by target
 
-`web` is a delivery target, not a second category of content. Keep existing
-source paths for compatibility. Public URLs now resolve to current content or
+`web` is a delivery target, not a second category of content. Keep necessary test inputs distinct from published content. Public URLs now resolve to current content or
 explicit archive notices; see `web-content-disposition.md`.
 
 ## Two public doors
@@ -14,7 +13,7 @@ explicit archive notices; see `web-content-disposition.md`.
 Recipes are a problem-oriented view of examples; templates are starting points.
 Gallery, home highlights, and embedded figures are views of the same works, not
 independent copies. Current showcase and lesson metadata lives in `web/app/src/lib/content.ts`;
-techniques live in `techniques.ts`. `web/works.json` is historical metadata only.
+techniques live in `techniques.ts`. [retired work manifest](https://github.com/j4ger/animatix/blob/530b5f8843d31a77b19540ff8f42daf662fddfff/web/works.json) is historical metadata only.
 
 Internally, keep **fixtures** (regression cases), **benchmarks** (fixed workloads),
 **experiments** (unreviewed exploration), **library modules**, and **brand assets**
@@ -31,7 +30,7 @@ python3 scripts/content-catalog.py --output /tmp/animatix-content.json
 ```
 
 The report includes every tracked and non-ignored untracked `.amx`, current
-content hashes, inferred purpose, import edges, work membership, and literal
+content hashes, inferred purpose, import edges, current work membership, and literal
 full-path references from code, scripts, pages, and docs. No generated inventory
 is committed: it would become another stale list. The JSON records the base
 revision; hashes describe the actual working tree, including uncommitted edits.
@@ -94,7 +93,8 @@ establish it.
 ## Before any later move or retirement
 
 Check `scripts/lib-scenes.sh`, `scripts/site-artifact.sh`, native `include_str!`
-callers, the Web host's bundled-library aliases, and public URLs. Keep the
-single library at `web/demos/lib/` until all consumers are migrated together.
-Make a relocation map and preserve published URLs. `retire` in the review overlay
+callers, authored imports, and public URLs. Shared example modules live at
+`examples/lib/` and are fetched as source, never embedded in the engine.
+Make a relocation map; Astro archive pages preserve old public navigation
+without distributing the old interactive site. `retire` in the review overlay
 is a proposal, not an executable delete operation.

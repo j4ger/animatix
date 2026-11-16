@@ -4,7 +4,7 @@
 
 `web/app/` is an Astro static site. No UI framework is hydrated. TypeScript is reserved for explicit scene loading, presets and the source workspace. The existing Rust/Wasm SDK remains an external, versioned distribution at `runtime/`; Vite must not bundle it or relocate its manifest. All generated site URLs use the configured base, including GitHub Pages `/animatix/`.
 
-Primary navigation is Home → Showcase / Learn / Playground. Existing demos, gallery, tour and diagnostic resources remain on disk for URL compatibility and test consumers. They are not the new curated collection.
+Primary navigation is Home → Showcase / Learn / Playground. Astro provides archive and compatibility routes. The former interactive HTML and its generator are retired; selected old AMX remains as regression input and is not deployed. Developer diagnostics live under `web/dev/`.
 
 `web/content/scenes/` contains new canonical AMX sources. Learn imports those exact bytes at build time. Playground fetches those files, explicitly runs edited text and downloads the textarea contents. It keeps no permanent local storage. Switching source or resetting altered text requires confirmation; a failed fetch/build retains text. Runtime initialization is single-flight and failed initialization is retryable. Source loading and building are mutually exclusive.
 
@@ -37,7 +37,7 @@ No remote push or user-local checkout modification is part of this work.
 
 Gate1's successful live edit→Run loop remains blocked by the cloud browser's adapter availability. Recordings make the showcase viewable, but do not substitute for that test. Gate2 audio is also outstanding: existing repository narration assets have no separately recorded provenance matching Words Keep Time. The silent edition does not claim narration alignment. Full native exports and sampled frames are not a claim of watching every frame in real time.
 
-The static build uses a Nix-pinned Node toolchain plus npm's exact dependency lock and `npm ci`; it does not yet provide an offline Nix npm-cache closure. Legacy `content/catalog.json`/`web/works.json` remain review and compatibility data, not competing sources for the new site navigation.
+The static build uses a Nix-pinned Node toolchain plus npm's exact dependency lock and `npm ci`; it does not yet provide an offline Nix npm-cache closure. The review overlay is separate from the current navigation. The [retired work manifest](https://github.com/j4ger/animatix/blob/530b5f8843d31a77b19540ff8f42daf662fddfff/web/works.json) is available only at its historical revision.
 
 ## Final distribution checks
 
@@ -55,4 +55,4 @@ Publication uses an independent generated site manifest with exact new-page and 
 
 `cargo check --workspace --all-targets`, the complete `scripts/ci.sh gate test`, and `scripts/ci.sh gate fmt` passed. The test log reports 2,526 passed, zero failed and 27 ignored across 53 result groups. A first parallel compilation was interrupted because it overloaded the shared machine; the successful run used two build jobs with the same test gate. Native export used a separately retained video-capable binary after the test build replaced the default CLI executable.
 
-The legacy `site-rest-check.py` discovers static HTML player elements; it does not cover the new lazy-loaded Astro entries. New-work resting compositions were inspected in final native storyboards and encoded-video contact sheets instead. This distinction is intentional and is not a claim that the legacy audit covers the new site.
+During the original reboot, resting compositions were accepted through native storyboards and video contact sheets; the old HTML-discovery checker was not evidence for Astro. `scripts/site-rest-check.py` now selects canonical `web/content/scenes/` directly, but its current GPU measurements must still be run before claiming this manual check passed.

@@ -10,7 +10,7 @@
 // transparent stop, so they can only ever add light: whatever they overlap stays
 // readable. The bulb sits inside the `Filter` scope with the blur, so the bloom
 // can read the frame as it looked before the chain ran (see §05).
-import "../../demos/lib/theme.amx"
+import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 8.6 }
 

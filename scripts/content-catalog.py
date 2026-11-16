@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Inventory AMX content without moving it or changing publication.
 
-The optional review registry carries stable IDs and decisions. works.json describes
-the historical collection; Astro content.ts owns current pages. Defaults are inferred
-purpose, never visual-quality approval.
+The review registry carries stable IDs and decisions. Astro content.ts owns
+current pages; historical navigation is not an inventory input. Defaults are
+inferred purpose, never visual-quality approval.
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def paths() -> list[str]:
 def inferred_kind(path: str) -> str:
     if "/lib/" in path:
         return "library"
-    if path.startswith(("testfixtures/", "web/_perf_ab/")):
+    if path.startswith(("tools/fixtures/web-runtime-perf/", "web/_perf_ab/")):
         return "benchmark"
     if "/fixtures/" in path or "/broken_corpus/" in path:
         return "fixture"
@@ -72,12 +72,8 @@ def build() -> dict:
                 raise ValueError(f"missing related source: {dependency}")
         if item.get("generator") and not (ROOT / item["generator"]).is_file():
             raise ValueError(f"missing generator: {item['generator']}")
-    works = json.loads((ROOT / "web/works.json").read_text())["works"]
     current_previews = json.loads((ROOT / "web/content/preview-manifest.json").read_text())["works"]
     current_sources = {"web/content/" + w["source"]: w["id"] for w in current_previews}
-    work_ids = [w["id"] for w in works]
-    if len(work_ids) != len(set(work_ids)):
-        raise ValueError("duplicate works.json ID")
     # Literal full-path references are useful evidence, not a complete dependency
     # graph: shell discovery, aliases and constructed URLs need manual review.
     reference_texts = {}
@@ -91,13 +87,6 @@ def build() -> dict:
         for raw in IMPORT.findall(text):
             resolved = posixpath.normpath(posixpath.join(posixpath.dirname(source), raw))
             imports.append({"specifier": raw, "source": resolved, "exists": resolved in sources})
-        memberships = []
-        for work in works:
-            explicit = {"web/demos/" + work["poster"]}
-            explicit.update("web/demos/" + f["scene"] for f in work.get("figures", []))
-            deck = "web/demos/" + work["deck"]
-            if source in explicit or (deck.endswith("/") and source.startswith(deck)):
-                memberships.append(work["id"])
         override = overrides.get(source, {})
         source_hash = hashlib.sha256((ROOT / source).read_bytes()).hexdigest()
         reviewed_hash = override.get("reviewed_sha256")
@@ -117,7 +106,6 @@ def build() -> dict:
             "decision": override.get("decision", "review"),
             "status": override.get("status", "unreviewed"),
             "visual_review": override.get("visual_review", "not-reviewed"),
-            "legacy_works": memberships,
             "current_work": current_sources.get(source),
             "imports": imports,
             "literal_references": [p for p, body in reference_texts.items() if source in body and p != source],
@@ -132,7 +120,6 @@ def build() -> dict:
         "scope": "tracked and non-ignored untracked AMX; working tree content",
         "counts": dict(sorted(Counter(x["kind"] for x in inventory).items())),
         "total": len(inventory),
-        "legacy_works_manifest": "web/works.json",
         "current_content_registry": "web/app/src/lib/content.ts",
         "current_technique_registry": "web/app/src/lib/techniques.ts",
         "items": inventory,

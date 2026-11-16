@@ -19,7 +19,7 @@
 // The plate keeps moving underneath because that is the only way a backdrop
 // blur reads as blur rather than as a grey rectangle.
 
-import "../../demos/lib/theme.amx"
+import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 6.6 }
 

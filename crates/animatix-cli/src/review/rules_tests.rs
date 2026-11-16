@@ -572,3 +572,15 @@ fn test_brief_json_filters_info_explained_and_redundant_unless_waived() {
     assert!(!codes.contains(&"keyframe.redundant"));
     assert_eq!(brief["summary"]["infos"], 3);
 }
+
+#[test]
+fn invalid_marker_points_to_audit_guide() {
+    let markers = crate::review::markers::parse_markers("// layout: invalid");
+    let run = evaluate(&base_facts(), &markers, Policy::Default);
+    let issue = run
+        .issues
+        .iter()
+        .find(|issue| issue.rule_id == "layout.marker-invalid")
+        .expect("invalid marker must produce a diagnostic");
+    assert_eq!(issue.suggestion, "Fix or remove the marker; see docs/audit.md for the syntax.");
+}

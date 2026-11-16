@@ -92,7 +92,7 @@ def cmd_serve(args):
     port = args.port
     serve_script = os.path.join(SCRIPT_DIR, "serve-web.py")
     battle_param = f"?battle={args.battle}" if args.battle else ""
-    url = f"http://127.0.0.1:{port}/arena/{battle_param}"
+    url = f"http://127.0.0.1:{port}/dev/arena/{battle_param}"
 
     print(f"\n=======================================================")
     print(f"  Animatix Web Arena running at:")

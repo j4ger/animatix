@@ -68,8 +68,8 @@ HEADER = """// house-style: five-act plate; wipes join five house-style acts, re
 //     column, so a `fade` would superimpose two of them into an unreadable
 //     third.
 
-import "../../demos/lib/theme.amx"
-import "../../demos/lib/stage.amx"
+import "../../../examples/lib/theme.amx"
+import "../../../examples/lib/stage.amx"
 import "fourier.amx" as geo
 
 config {

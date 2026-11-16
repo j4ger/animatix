@@ -11,7 +11,7 @@ This script renders the held frame and the fullest frame of every scene the
 pages embed, and fails when the held frame drops far below the plateau:
 
     scripts/site-rest-check.py            # every scene the site plays
-    scripts/site-rest-check.py web/tour   # only paths under this prefix
+    scripts/site-rest-check.py web/content/scenes/first-move   # only paths under this prefix
 
 `animatix measure` is the instrument, so the numbers are the
 percentages of ink coverage per frame.
@@ -75,14 +75,12 @@ def house_style(path: pathlib.Path) -> str | None:
 
 
 def players() -> list[pathlib.Path]:
-    """Every .amx a page embeds, found through the players rather than the tree."""
-    scenes: list[pathlib.Path] = []
-    for page in sorted(ROOT.rglob("*.html")):
-        for src in re.findall(r"<amx-player[^>]*\ssrc=\"([^\"]+)\"", page.read_text()):
-            resolved = (page.parent / src).resolve()
-            if resolved.exists() and resolved not in scenes:
-                scenes.append(resolved)
-    return scenes
+    """Canonical authored scenes; Astro lazily creates players at runtime.
+
+    Do not rediscover an obsolete site by scanning raw HTML. The source
+    directory is also copied byte-for-byte and validated by site-check.
+    """
+    return sorted((ROOT / "content/scenes").glob("*.amx"))
 
 
 def timeline_info(path: pathlib.Path) -> tuple[float, list[tuple[float, float, int]]]:
@@ -221,7 +219,7 @@ def main() -> int:
         print(f"house-style (rest floor {HOUSE_FLOOR:.2f} + first frame >= {FIRST_FLOOR:.1f}% ink): {note}")
     status = "FAIL" if failures else "ok"
     print(
-        f"\n{status}: {len(scenes)} embedded scenes checked, "
+        f"\n{status}: {len(scenes)} canonical scenes checked, "
         f"{len(failures)} resting-composition violation(s)"
     )
     return 1 if failures else 0

@@ -22,8 +22,8 @@
 // Type floors (DESIGN §1.5): head title 64, captions 24, readout values 28,
 // station names 18 mono, descriptors 16 — nothing below 16 px.
 
-import "../lib/theme.amx"
-import "../lib/stage.amx"
+import "../../../examples/lib/theme.amx"
+import "../../../examples/lib/stage.amx"
 
 config { colorscheme: "orchid", resolution: (1280, 720), duration: 10.0 }
 

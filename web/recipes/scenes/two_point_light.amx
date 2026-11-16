@@ -1,7 +1,7 @@
 // two_point_light.amx — the cheapest move that separates a lit stage from a
 // black field with a shape on it: a warm key behind the subject, a cool fill
 // somewhere else, both on `screen` so they can only ever add light.
-import "../../demos/lib/theme.amx"
+import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (640, 360), duration: 5 }
 

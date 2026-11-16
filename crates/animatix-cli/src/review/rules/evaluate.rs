@@ -42,7 +42,7 @@ pub(crate) fn evaluate(facts: &ReviewFacts, markers: &MarkerSet, policy: Policy)
             evidence: serde_json::json!({ "line": invalid.line }),
             fix_hint: None,
             waived_by: None,
-            suggestion: "Fix or remove the marker; see llms.txt for the syntax.".to_string(),
+            suggestion: "Fix or remove the marker; see docs/audit.md for the syntax.".to_string(),
             baseline_state: None,
         });
     }

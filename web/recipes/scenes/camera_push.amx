@@ -1,7 +1,7 @@
 // camera_push.amx — the scene camera: push in on the middle plate, then pan to
 // the one on the right. `camera.zoom` magnifies about the scene center and
 // `camera.at` slides the picture; both are ordinary timed assignments.
-import "../../demos/lib/theme.amx"
+import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (640, 360), duration: 7 }
 

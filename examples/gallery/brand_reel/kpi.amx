@@ -1,8 +1,8 @@
 // brand_reel/kpi.amx — scene ④: KPI flash montage.
 // Four numbers flash in with count-up text overrides; the mascot re-persisted.
 
-import "../../../web/demos/lib/theme.amx" as theme
-import "../../../web/demos/lib/theme.amx"
+import "../../lib/theme.amx" as theme
+import "../../lib/theme.amx"
 
 config { colorscheme: "ink", dynamic_layout: true, duration: 11 }
 

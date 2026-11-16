@@ -10,7 +10,7 @@ pairwise review model directly into the browser using the WebGPU `<amx-player>`.
 |---|---|
 | **Battle** | A staged matchup in `battles/<slug>/` comparing 2+ `.amx` candidate variants targeting the same brief. |
 | **Candidate Variant** | An `.amx` scene expressing an alternative approach (e.g. declarative vs imperative, kinetic vs subtle, differing shader configurations). |
-| **Arena Web App** | Browser UI (`web/arena/`) that runs synchronized WebGPU playback, frame-by-frame scrutiny, live `applySource` scratchpads, and side-by-side rubric voting. |
+| **Arena Web App** | Browser UI (`web/dev/arena/`) that runs synchronized WebGPU playback, frame-by-frame scrutiny, live `applySource` scratchpads, and side-by-side rubric voting. |
 | **Feedback Log** | Structured, machine-readable JSON records (`feedback.json` per battle, aggregated in `feedback.jsonl`) that agents ingest to improve prompts, stdlib components, and compiler ergonomics. |
 
 ## Directory Layout

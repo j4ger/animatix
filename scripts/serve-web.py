@@ -158,6 +158,22 @@ def cache_control(path):
     return "no-cache"
 
 
+def example_library_path(path):
+    if Path(WEB_DIR).resolve() != Path(REPO_ROOT, "web").resolve():
+        return None
+    prefix = "/examples/lib/"
+    if not path.startswith(prefix):
+        return None
+    name = path[len(prefix):]
+    if not re.fullmatch(r"[A-Za-z0-9_-]+\.amx", name):
+        return None
+    target = repo_path("examples", "lib", name)
+    library = Path(REPO_ROOT, "examples", "lib").resolve()
+    if target is None or not target.is_relative_to(library) or not target.is_file():
+        return None
+    return target
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=WEB_DIR, **kwargs)
@@ -178,8 +194,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 # direct send_head() callers from escaping the repo.
                 return os.path.join(WEB_DIR, "__rejected_path__")
             return str(target)
-        if clean_path in ("/arena", "/arena/"):
-            return os.path.join(WEB_DIR, "arena", "index.html")
+        if clean_path.startswith("/examples/lib/"):
+            # Native example imports are available only on the development
+            # server, never from a released/assembled site rooted elsewhere.
+            target = example_library_path(clean_path)
+            return str(target) if target is not None else os.path.join(WEB_DIR, "__rejected_path__")
 
         translated = super().translate_path(path)
         # Transparently serve web/embed/src/amx-player.js when embed/amx-player.js is requested,

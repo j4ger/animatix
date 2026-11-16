@@ -45,8 +45,7 @@ pub fn build_document_with_assets(
 /// Parse, typecheck, expand, and build `source` with `modules` pre-registered
 /// in the source map, and no build-time variable overrides.
 ///
-/// `modules` are the `.amx` files the shell fetched for this scene beyond the
-/// bundled library, keyed by the *resolved* import path (what the module
+/// `modules` are the `.amx` files the shell fetched for this scene, keyed by the *resolved* import path (what the module
 /// system would join + normalize — the shell learns the keys from
 /// `LoadResultDto::missing_imports`). When the load stops on a file that was
 /// never supplied, the result reports that key in `missing_imports` instead of

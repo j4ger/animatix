@@ -26,8 +26,8 @@
 // onto the x-axis and leaves a pile of tiny collapsed circles — the defect in
 // the old hero plate. A 350° stop keeps every ring open while the completed wave holds.
 
-import "../lib/theme.amx"
-import "../lib/stage.amx"
+import "../../../examples/lib/theme.amx"
+import "../../../examples/lib/stage.amx"
 import "fourier.amx" as geo
 
 config { resolution: (1280, 720) }

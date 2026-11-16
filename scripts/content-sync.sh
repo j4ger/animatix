@@ -1,28 +1,7 @@
 #!/usr/bin/env bash
-# Content-sync: the checks that the *content* the site and engine ship still
-# agrees with the source that generates or references it.
-#
-# These are not Rust correctness checks. Each one is a pair of files that must
-# agree, where the engine compiles fine and every page renders while the two have
-# silently separated — the class of defect no `cargo test` can see, because both
-# sides are internally consistent:
-#
-#   - `web/demos/epicycles/scene.amx` is generated from five act files. A hand edit
-#     or an edited act leaves a deployed plate that no source produces.
-#   - `examples/lib/*.amx` are embedded into the wasm engine by name in
-#     `crates/animatix-web/src/host/library.rs`. A library added to the directory and not
-#     to that list builds in the desktop app and 404s in the browser.
-#   - The font SHA-256 table exists twice (`scripts/refresh-fonts.sh` and the
-#     vendored-assets README). Two tables means the integrity check verifies
-#     hashes nobody reads.
-#   - `web/**/lib/*.amx` are the servable copies the embed fetches over HTTP
-#     (imports resolve relative to the scene URL, so the files have to exist next
-#     to the page). A copy that drifts from `examples/lib/<name>.amx` without being
-#     declared forked means the desktop and the browser run different components.
-#   - `web/demos/posters/` ships PNGs no page references: bytes deployed to every
-#     visitor for a picture nothing draws.
-#   - `web/works.json` feeds generated blocks in the portfolio pages. A hand edit
-#     inside a `site-gen` block shows the old copy live while the manifest moves on.
+# Source contracts retained after the old public HTML/manifest was retired.
+# These check generated AMX, actual import closure, font provenance and SDK
+# integrity. Current website contracts live with Astro, not a second generator.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -54,29 +33,10 @@ else
   python3 scripts/epicycles-plate.py --check 2>&1 | sed 's/^/       /' >&2 || true
 fi
 
-# ── 2. the unified scene library ↔ the engine's bundled library ──────────────
-# The wasm player has no filesystem: `bundled_library()` is how a scene's
-# `import "../lib/theme.amx"` resolves in a browser. The one true library is
-# `web/demos/lib/`; files in the directory but not in the list are invisible
-# to the embed only.
-HOST_RS=crates/animatix-web/src/host/library.rs
-bundled_keys=$(grep -oE '"\.\./lib/[A-Za-z0-9_.-]+\.amx"' "$HOST_RS" | sed 's|"\.\./lib/||; s/"$//' | sort -u)
-dir_libs=$(ls web/demos/lib/*.amx 2>/dev/null | xargs -n1 basename | sort -u)
-missing=$(comm -23 <(printf '%s\n' "$dir_libs") <(printf '%s\n' "$bundled_keys") | grep . || true)
-if [ -n "$missing" ]; then
-  for f in $missing; do
-    fail "web/demos/lib/$f is not in bundled_library() — the desktop app builds scenes that import it, the web player cannot"
-  done
-fi
-absent=$(comm -13 <(printf '%s\n' "$dir_libs") <(printf '%s\n' "$bundled_keys") | grep . || true)
-if [ -n "$absent" ]; then
-  for f in $absent; do
-    fail "bundled_library() lists ../lib/$f but web/demos/lib/$f does not exist (the include_str! would not compile, so this list and the manifest are disagreeing)"
-  done
-fi
-if [ -z "$missing" ] && [ -z "$absent" ]; then
-  ok "bundled_library() covers all $(printf '%s\n' "$dir_libs" | wc -l) files in web/demos/lib"
-fi
+# Scene imports are real source dependencies, not an embedded engine catalog.
+python3 scripts/check-scene-imports.py || fail "scene import graph is incomplete"
+python3 scripts/test-check-scene-imports.py || fail "scene import checker regression"
+python3 scripts/test-site-source-contracts.py || fail "site source contract regression"
 
 # ── 3. one font hash table ────────────────────────────────────────────────────
 FONTS_README=crates/animatix-text/assets/fonts/README.md
@@ -93,55 +53,11 @@ else
   diff <(printf '%s\n' "$script_hashes") <(printf '%s\n' "$readme_hashes") | sed 's/^/       /' >&2 || true
 fi
 
-# ── 4. no lib forks ──────────────────────────────────────────────────────────
-# The library used to exist as parallel copies under examples/lib and per-demo
-# directories. It is unified at web/demos/lib/ now; this asserts no servable
-# copy drifted back into existence.
-lib_copies=$(find web -path '*/lib/*.amx' ! -path 'web/demos/lib/*' | sort)
-if [ -n "$lib_copies" ]; then
-  fail "lib copies outside web/demos/lib are forks: $(echo "$lib_copies" | tr '\n' ' ')"
-else
-  ok "one scene library: web/demos/lib (no forks)"
-fi
-
-# ── 5. shipped-but-unreferenced assets ────────────────────────────────────────
-if [ -d web/demos/posters ]; then
-  orphans=()
-  for png in web/demos/posters/*.png; do
-    [ -e "$png" ] || continue
-    base=$(basename "$png")
-    if ! grep -rqF "$base" web --include='*.html' --include='*.js' --include='*.css' --include='*.amx' --include='*.json'; then
-      orphans+=("$base")
-    fi
-  done
-  if [ "${#orphans[@]}" -gt 0 ]; then
-    fail "web/demos/posters/ ships ${#orphans[@]} PNG(s) no page references: ${orphans[*]}"
-    echo "       The demo hub plays live \`amx-player[data-hoverplay]\` embeds instead of" >&2
-    echo "       stills, so these are bytes every visitor downloads for a picture" >&2
-    echo "       nothing draws. Wire them into a page, or remove the directory." >&2
-  else
-    ok "every web/demos/posters/*.png is referenced by a page"
-  fi
-fi
-
 # ── 6. SDK size is reported directly from its verified manifest ───────────────
 if [ -f web/runtime/runtime-manifest.json ]; then
   node web/tools/sdk.mjs verify web/runtime --current >/dev/null || fail "web SDK is stale or invalid"
 else
   echo "SKIP: SDK size report — build web/runtime with scripts/ci.sh gate web-sdk"
-fi
-
-# ── 7. generated page blocks match the works manifest ─────────────────────────
-# `web/works.json` is the single source for every showcased work's identity
-# (title, blurb, tags, poster, deck, palette, figures, slider params); the pages
-# carry generated regions between `site-gen:<block>:start|end` markers. A
-# hand-edited block renders fine and drifts silently — exactly the class of
-# defect this script exists for — so the generator's own --check is the gate.
-if python3 scripts/site-gen.py --check >/dev/null 2>&1; then
-  ok "every site-gen block in web/*.html matches web/works.json"
-else
-  fail "a generated page block disagrees with web/works.json — run: python3 scripts/site-gen.py"
-  python3 scripts/site-gen.py --check 2>&1 | sed 's/^/       /' >&2 || true
 fi
 
 if [ "$FAILED" -ne 0 ]; then

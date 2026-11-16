@@ -50,7 +50,7 @@ fade-out label [200ms, ease: ease-in]
 play Outro [wipe-left, 450ms]
 
 # Outro
-import "../../demos/lib/theme.amx"
+import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink" }
 thanks: Text, text: "one file, many scenes", font_size: 52, color: text.primary,

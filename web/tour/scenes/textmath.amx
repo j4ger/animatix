@@ -2,7 +2,7 @@
 // highlighted code need the full engine profile, so this scene is rendered
 // to a PNG by the CLI (`animatix image`) instead of being embedded live.
 
-import "../../demos/lib/theme.amx"
+import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 5 }
 

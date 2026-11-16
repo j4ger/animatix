@@ -3,7 +3,7 @@
 
 Uses `scripts/agent-browser.sh` over Chrome DevTools Protocol (CDP) to:
 1. Preflight check WASM freshness (via scripts/ensure-web-pkg.sh).
-2. Load any site demo page (e.g. http://localhost:8124/demos/transformer/).
+2. Load any site demo page (e.g. http://localhost:8124/dev/multi-probe.html).
 3. Query all `<amx-player>` elements on the page, eagerly loading them.
 4. Verify WebGPU context, scene compilation, duration, and frame counts.
 5. Capture real WebGPU canvas frames via `canvas.toDataURL()`.
@@ -11,7 +11,7 @@ Uses `scripts/agent-browser.sh` over Chrome DevTools Protocol (CDP) to:
 
 Usage:
   scripts/web-inspect.py --url http://127.0.0.1:8124/
-  scripts/web-inspect.py --url http://127.0.0.1:8124/demos/transformer/ --output-dir /tmp/shots
+  scripts/web-inspect.py --url http://127.0.0.1:8124/dev/multi-probe.html --output-dir /tmp/shots
   scripts/web-inspect.py --check --url http://127.0.0.1:8124/gallery.html
 """
 import argparse

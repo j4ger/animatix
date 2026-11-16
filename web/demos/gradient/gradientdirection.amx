@@ -15,8 +15,8 @@
 // Type floors (DESIGN §1.5): nothing below 16 px; formula 26/22, readouts 28,
 // captions 24, the ActHead title 64.
 
-import "../lib/theme.amx"
-import "../lib/stage.amx"
+import "../../../examples/lib/theme.amx"
+import "../../../examples/lib/stage.amx"
 
 config { colorscheme: "ember", resolution: (1280, 720), duration: 7.9 }
 

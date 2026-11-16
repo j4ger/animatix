@@ -1,10 +1,11 @@
 // Contracts name the artifact and user action, not legacy directories.
 export function contracts(suite, depth = 'critical') {
   if (!['critical', 'deep'].includes(depth)) throw new Error(`Unknown smoke depth: ${depth}`);
-  if (suite === 'sdk') return ['shapes', 'text', 'svg', 'shared'].map(name => ({
+  if (suite === 'sdk') return ['shapes', 'text', 'svg', 'shared', 'imports'].map(name => ({
     path: `/dev/smoke/?case=${name}`, action: 'fixture', name,
     players: name === 'shared' ? 2 : 1, fonts: name === 'text',
-    motion: name === 'shapes' || name === 'shared',
+    motion: name === 'shapes' || name === 'shared' || name === 'imports',
+    modules: name === 'imports' ? ['palette.amx', 'tokens.amx'] : [],
     paint: name === 'text' ? {color:'#F3F5F7',x:0.5,y:395/720,tolerance:0.08} : name === 'svg' ? {color:'#e5484d',x:0.5,y:0.47,tolerance:0.12} : undefined,
   }));
   if (suite !== 'site') throw new Error(`Unknown smoke suite: ${suite}`);

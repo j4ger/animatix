@@ -13,7 +13,7 @@
 // primitive stamps it onto its own commands (`primitives/plot.rs`), so the
 // gradient survives the `stroke_progress` trim.
 
-import "../../demos/lib/theme.amx"
+import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 7.5 }
 

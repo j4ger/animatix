@@ -8,8 +8,8 @@
 //  - no first-class edge/connector tracking two actors by reference; links are free Vec2
 //  - no list-of-actor-refs: each node/link/pointer is a separate hand-named actor
 
-import "../../web/demos/lib/stage.amx"
-import "../../web/demos/lib/theme.amx"
+import "../lib/stage.amx"
+import "../lib/theme.amx"
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 

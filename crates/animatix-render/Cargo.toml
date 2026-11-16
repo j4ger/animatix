@@ -27,7 +27,7 @@ tracing = { workspace = true }
 wgpu = { workspace = true, default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
 # The local Vello repairs the #1948 atlas regression and exposes a synchronous
 # render-tail submission hook. vello_img_probe.rs and presentation_submit.rs
-# guard these boundaries; removal conditions are in vendor/vello/README.animatix.md.
+# guard these boundaries; removal conditions are in crates/vendor/vello/README.animatix.md.
 vello = { workspace = true }
 rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg8", "link_system_ffmpeg"], optional = true }
 

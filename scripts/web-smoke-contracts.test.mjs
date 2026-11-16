@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import {contracts} from './web-smoke-contracts.mjs';
 import {readFileSync} from 'node:fs';
 test('SDK fixtures have explicit fonts, count and motion contracts',()=>{
- const cases=contracts('sdk');assert.equal(cases.length,4);
+ const cases=contracts('sdk');assert.equal(cases.length,5);
  assert.ok(cases.every(c=>c.path.startsWith('/dev/smoke/')));
  assert.equal(cases.find(c=>c.name==='shared').players,2);
  assert.equal(cases.find(c=>c.name==='text').fonts,true);
+ assert.deepEqual(cases.find(c=>c.name==='imports').modules,['palette.amx','tokens.amx']);
 });
 test('real site has static, load and edit user journeys, not legacy gallery players',()=>{
  const cases=contracts('site');assert.equal(cases.find(c=>c.path==='/').players,0);

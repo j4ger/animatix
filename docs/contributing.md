@@ -21,6 +21,10 @@ you only intend to test the engine, because the GUI depends on audio playback.
 A missing ALSA or FFmpeg `pkg-config` result usually means the development shell
 is not active; changing Cargo dependencies is not the fix.
 
+Optional direnv users can create a local `.envrc` containing `use flake`, then
+run `direnv allow`. The file is ignored so personal shell customizations stay local;
+`nix develop` works without it.
+
 From this shell, use the CLI to inspect and review a scene:
 
 ```sh
@@ -56,6 +60,15 @@ cargo run -p animatix-cli --features video -- gif examples/basics/00_hello.amx -
 Run these inside `nix develop`: its `bindgenHook` generates bindings from the
 matching FFmpeg headers. PNG/WebP export does not require `video`;
 MP4/WebM/MOV/GIF does. See the CLI's `--help` for individual export options.
+
+## Repository files
+
+Keep source, lockfiles, test inputs and reviewed visual baselines in Git.
+`tools/fixtures/` contains shared benchmark and text-parity inputs; `snapshots/`
+contains reviewed visual regression baselines. Neither is disposable build output.
+Put temporary reports and render experiments under `target/` or `dogfood/runs/`.
+Local agent plans, environment files and generated SDK/site output are ignored.
+Adding an ignore rule does not remove an already tracked file from Git.
 
 ## Validate a change
 

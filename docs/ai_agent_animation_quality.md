@@ -376,7 +376,7 @@ Tasks:
   `bad.amx`.
 - Render storyboards for both variants.
 - Generate review reports for both variants.
-- Use the Web Arena (`web/arena/`) for side-by-side synchronized comparison.
+- Use the Web Arena (`web/dev/arena/`) for side-by-side synchronized comparison.
 - Capture review feedback with timeline notes, category tags, and rubric ratings.
 - Render and save frames at the exact time of each human comment.
 - Write a short run summary that records which rule issues were real, which
@@ -527,7 +527,7 @@ work.
 
 ## Relation to Existing Work
 
-This plan aligns with the Animatix Arena workflow (`dogfood/arena/`, `web/arena/`).
+This plan aligns with the Animatix Arena workflow (`dogfood/arena/`, `web/dev/arena/`).
 The Web Arena provides the browser-native WebGPU human feedback channel, logging
 structured verdicts to `feedback.jsonl`. The evaluator adds the automated evidence
 layer that makes human and automated comments reusable by an AI agent.
@@ -536,7 +536,7 @@ See also:
 
 - `dogfood/README.md`
 - `dogfood/arena/README.md`
-- `web/arena/index.html`
+- `web/dev/arena/index.html`
 - `scripts/arena.py`
 - `crates/animatix-render/src/offscreen/`
 - `crates/animatix/src/timeline/scene_eval/`

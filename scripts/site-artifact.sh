@@ -26,14 +26,12 @@ bash scripts/site-build.sh
 stage="${out}.staging-$$"
 trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage"
-entries=(logo.svg assets demos tour recipes scenes content)
+entries=(logo.svg assets content)
 for entry in "${entries[@]}"; do
   [ -e "web/$entry" ] || { echo "error: missing runtime content web/$entry" >&2; exit 1; }
   cp -R "web/$entry" "$stage/$entry"
 done
-# Historical AMX/assets remain importable, but obsolete HTML/JS is not a second
-# public website. Astro owns compatibility routes and explicit archive notices.
-find "$stage/demos" "$stage/tour" "$stage/recipes" -type f \( -name "*.html" -o -name "*.js" -o -name "*.css" \) -delete
+# Historical sources are available through pinned archive links, not deployed.
 # New site supplies every public page, including compatibility routes.
 cp -R web/app/dist/. "$stage/"
 # The build's public runtime is a symlink into target/. Distributions contain
@@ -45,7 +43,7 @@ if find "$stage/runtime" -type l -print -quit | grep -q .; then
 fi
 python3 scripts/site-check.py "$stage" --assembled
 touch "$stage/.nojekyll"
-for forbidden in tools pkg pkg-slim pkg-assets fonts embed node_modules; do
+for forbidden in tools pkg pkg-slim pkg-assets fonts embed node_modules dev; do
   [ ! -e "$stage/$forbidden" ] || { echo "error: unexpected legacy/development path $forbidden" >&2; exit 1; }
 done
 bash scripts/size-report.sh --check --site "$stage"

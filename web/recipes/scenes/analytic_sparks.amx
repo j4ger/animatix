@@ -1,7 +1,7 @@
 // analytic_sparks.amx — particles with no state model. Each spark's position is
 // a function of its seed and its age, so the burst is deterministic frame by
 // frame and survives a scrub in either direction.
-import "../../demos/lib/theme.amx"
+import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (640, 360), duration: 6 }
 

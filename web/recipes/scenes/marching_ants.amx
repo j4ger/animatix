@@ -1,6 +1,6 @@
 // marching_ants.amx — a dashed stroke whose offset animates. The rule is a
 // live edge: something that keeps moving after the entrances have landed.
-import "../../demos/lib/theme.amx"
+import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (640, 360), duration: 5 }
 

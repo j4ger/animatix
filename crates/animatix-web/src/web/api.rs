@@ -1,12 +1,11 @@
-//! Build identity exported to the JS shell: crate version, commit, and library digest.
+//! Build identity exported to the JS shell: crate version, commit, and SDK identity.
 
 use wasm_bindgen::prelude::*;
 
 /// Identifies the running build from the JS side (stale-artifact checks).
 ///
-/// A digest of the version and the embedded `.amx` library, computed at compile
-/// time — see [`crate::host::identity_digest`]. Kept as a `u32` so
-/// `web/demos/perf-probe.html` needs no change.
+/// Compact diagnostic hash of the build-supplied SDK identity. Integrity uses
+/// the full `runtime_build_id()` and manifest hashes, not this value.
 #[wasm_bindgen]
 pub fn build_id() -> u32 {
     crate::host::BUILD_ID
@@ -22,7 +21,7 @@ pub fn engine_version() -> String {
 ///
 /// `option_env!` so an unset `ANIMATIX_GIT_SHA` is an empty string rather than a
 /// compile error — a release workflow sets it, a local build does not, and neither
-/// should fail. Deliberately *not* folded into [`build_id`]: reading `.git` from a
+/// should fail. The SDK build supplies its identity explicitly; reading `.git` from a
 /// build script would make `cargo test --workspace` non-hermetic and two identical
 /// checkouts would produce different artifacts.
 #[wasm_bindgen]

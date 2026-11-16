@@ -26,16 +26,21 @@ class Icons(unittest.TestCase):
         svg = ET.parse(ROOT / "logo.svg")
         self.assertEqual(svg.getroot().attrib["viewBox"], "0 0 512 512")
         links = 0
-        # Authored compatibility pages only. Generated Astro output has URL-root
+        # Authored developer pages only. Generated Astro output has URL-root
         # paths, and is validated by site-check in both root/base builds.
         tracked = subprocess.check_output(
             ["git", "ls-files", "-z", "web/**/*.html", "web/*.html"], cwd=ROOT
         ).decode().split("\0")
-        for page in (ROOT / name for name in tracked if name):
+        for page in (ROOT / name for name in tracked if name and (ROOT / name).is_file()):
             for href in re.findall(r'<link rel="icon"[^>]+href="([^"]+)"', page.read_text()):
                 self.assertEqual((page.parent / href).resolve(), ROOT / "web/logo.svg")
                 links += 1
-        self.assertGreaterEqual(links, 16)
+        self.assertGreater(links, 0)
+        # Product pages use the shared Astro layout; generated root/base links
+        # are checked by site-check. Do not require retired HTML to reach a count.
+        layout = (ROOT / "web/app/src/layouts/Page.astro").read_text()
+        self.assertIn('rel="icon"', layout)
+        self.assertIn("url('logo.svg')", layout)
         self.assertIn("entries=(logo.svg", (ROOT / "scripts/site-artifact.sh").read_text())
 
     def test_smoke_fixture_favicon_at_root_and_project_base(self):

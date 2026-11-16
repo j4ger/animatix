@@ -1,6 +1,6 @@
 // Controlled pair for the filter-cost question: identical art, identical
 // timing, the only difference is whether the scope carries a chain.
-import "../demos/lib/theme.amx"
+import "../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 4.0 }
 

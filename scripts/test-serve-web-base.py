@@ -4,6 +4,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('serve_web', Path(__file__).with_name('serve-web.py'))
 server = importlib.util.module_from_spec(spec)
@@ -40,6 +41,24 @@ class BasePathTests(unittest.TestCase):
         for path in ['/runtime/amx-player.js', '/animatix-other/runtime/a.js']:
             self.assertIsNone(server.strip_base(path))
             self.assertEqual(self.handler.translate_path(path), str(Path(self.tmp.name, '__rejected_path__')))
+
+    def test_example_modules_are_development_only_and_cannot_escape(self):
+        repo = Path(self.tmp.name)
+        (repo / 'web').mkdir()
+        lib = repo / 'examples/lib'
+        lib.mkdir(parents=True)
+        (lib / 'theme.amx').write_text('pub let value = 1')
+        (repo / 'private.amx').write_text('private')
+        (lib / 'escape.amx').symlink_to(repo / 'private.amx')
+        with patch.object(server, 'REPO_ROOT', str(repo)):
+            server.SERVE_BASE = '/animatix'
+            server.WEB_DIR = str(repo / 'web')
+            self.handler.directory = server.WEB_DIR
+            self.assertEqual(self.handler.translate_path('/animatix/examples/lib/theme.amx'), str(lib / 'theme.amx'))
+            for name in ['../private.amx', '%2e%2e/private.amx', 'escape.amx', '', 'theme.amx/extra']:
+                self.assertEqual(self.handler.translate_path('/animatix/examples/lib/' + name), str(repo / 'web/__rejected_path__'))
+            server.WEB_DIR = str(repo / '_site')
+            self.assertIsNone(server.example_library_path('/examples/lib/theme.amx'))
 
     def test_invalid_configuration_fails_closed(self):
         for base in ['animatix', '/../private', '/a//b', '/%2e', '/a?b']:

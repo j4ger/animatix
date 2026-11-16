@@ -12,8 +12,8 @@
 // The mascot dot is introduced in Logo and `persist`ed across every scene
 // until the Mascot feature scene closes it with `remove`.
 
-import "../../../web/demos/lib/theme.amx" as theme
-import "../../../web/demos/lib/theme.amx"
+import "../../lib/theme.amx" as theme
+import "../../lib/theme.amx"
 import "logo.amx" as logo
 import "slogan.amx" as slogan
 import "grid.amx" as grid

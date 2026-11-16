@@ -15,7 +15,7 @@ const ROOT=dirname(dirname(fileURLToPath(import.meta.url)));
 const SUITE=process.env.SMOKE_SUITE || 'sdk';
 const WEB_ROOT=resolve(ROOT,process.env.ANIMATIX_WEB_ROOT || (SUITE==='site'?'_site':'web'));
 const OUTPUT=resolve(ROOT,process.env.SMOKE_OUTPUT_DIR || `target/web-smoke/${SUITE}-${process.env.SMOKE_ATTEMPT || 1}`);
-const PREFIX=SUITE==='site'?siteBase(process.env.SITE_BASE):'';
+const PREFIX=siteBase(process.env.SITE_BASE);
 const PAGES=contracts(SUITE,process.env.SMOKE_DEPTH || 'critical').map(contract=>withBase(contract,PREFIX));
 const PAGE_BUDGET=180000;
 function freePort() {

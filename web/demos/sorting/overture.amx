@@ -10,8 +10,8 @@
 // House-style §1: StageFloor, head and caption are authored opaque, so frame 0
 // is a lit, titled stage. §5: nothing below 16 px — labels 18, head 48.
 
-import "../lib/theme.amx"
-import "../lib/stage.amx"
+import "../../../examples/lib/theme.amx"
+import "../../../examples/lib/stage.amx"
 
 config { colorscheme: "coral", resolution: (1280, 720), duration: 6.0 }
 

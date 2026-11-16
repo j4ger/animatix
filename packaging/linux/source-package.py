@@ -22,7 +22,6 @@ ROOT_FILES = {
 }
 SOURCE_DIRS = {
     "crates", "vendor", "tools", "examples", "docs", "packaging/linux",
-    "web/demos/lib",
 }
 SOURCE_SCRIPTS = {
     "scripts/dist-linux.sh", "scripts/dist-linux-container.sh",

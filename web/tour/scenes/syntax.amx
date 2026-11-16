@@ -8,7 +8,7 @@
 // head is not. The rail's ants march so the clock reads as running even in
 // the gaps between beats.
 
-import "../../demos/lib/theme.amx"
+import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 7.2 }
 

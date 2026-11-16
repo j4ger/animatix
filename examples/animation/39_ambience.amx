@@ -1,6 +1,6 @@
-import "../../web/demos/lib/theme.amx"
-import "../../web/demos/lib/stage.amx"
-import "../../web/demos/lib/ambience.amx"
+import "../lib/theme.amx"
+import "../lib/stage.amx"
+import "../lib/ambience.amx"
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6, seamless_loop: true }
 

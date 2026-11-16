@@ -4,7 +4,7 @@
 //! step of the matrix must land on one of three bright-pixel counts (a
 //! full-frame image, the 20×40 rect, or nothing). It is the check to run before
 //! moving the dependency: Vello and the workspace must use compatible wgpu
-//! versions, and both local boundaries in `vendor/vello/README.animatix.md`
+//! versions, and both local boundaries in `crates/vendor/vello/README.animatix.md`
 //! must be covered before removing the patch.
 //!
 //!History matrix (each row = a fresh Renderer + texture):

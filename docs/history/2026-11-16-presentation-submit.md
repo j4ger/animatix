@@ -19,7 +19,7 @@ returns transient resources to the pool. It does not return a deferred encoder.
 Recording errors return before the suffix. The ordinary Vello API delegates
 with a no-op callback. The atlas-retention repair remains independent; both
 removal conditions and boundary tests are documented in
-[`vendor/vello/README.animatix.md`](../../vendor/vello/README.animatix.md).
+[`crates/vendor/vello/README.animatix.md`](../../crates/vendor/vello/README.animatix.md).
 
 `RendererCore::render_vello_scene_and_present` selects a format-matched blit
 pipeline. A private, lazily initialized 48-byte alpha=1/no-mask uniform removes

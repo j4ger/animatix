@@ -1,0 +1,2 @@
+import "./tokens.amx" as tokens
+pub let primary = tokens.cyan

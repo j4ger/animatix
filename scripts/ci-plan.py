@@ -256,7 +256,7 @@ def classify_paths(changed_paths: list[str], roots: dict[str, Path],
         if path.startswith("packaging/"):
             packaging_changed = True
             continue
-        if path.startswith("vendor/"):
+        if path.startswith("crates/vendor/"):
             full_reason = "vendored dependency changed"
             break
         if path.startswith("scripts/"):

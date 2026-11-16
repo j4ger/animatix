@@ -12,8 +12,8 @@
 // is about one definition producing several instances, and the rails are the
 // shared frame those instances live in.
 
-import "../../demos/lib/theme.amx"
-import "../../demos/lib/components.amx"
+import "../../../examples/lib/theme.amx"
+import "../../../examples/lib/components.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 6.0 }
 

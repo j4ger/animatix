@@ -166,6 +166,21 @@ test('SDK identity includes ignored Cargo config, the shipped license, and Unico
 });
 
 
+test('SDK identity includes relocated patched dependencies', t => {
+  const root = mkdtempSync(join(tmpdir(), 'animatix-sdk-vendor-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  execFileSync('git', ['init', '--quiet', root]);
+  const before = inputs(root);
+  const source = join(root, 'crates/vendor/vello/src/lib.rs');
+  mkdirSync(join(root, 'crates/vendor/vello/src'), { recursive: true });
+  writeFileSync(source, '// patched source');
+  const added = inputs(root);
+  assert.notEqual(added, before);
+  writeFileSync(source, '// changed patch');
+  assert.notEqual(inputs(root), added);
+});
+
+
 test('artifact verification has no npm build dependency on a clean checkout', t => {
   const { dir } = fixture(t);
   const checkout = mkdtempSync(join(tmpdir(), 'animatix-sdk-clean-'));

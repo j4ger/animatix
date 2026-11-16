@@ -59,51 +59,27 @@ fn resolve(dir: &Path, src: &str) -> PathBuf {
     out
 }
 
-/// Pull `src` out of every `<amx-player …>` tag in `html`.
-///
-/// Escaped samples (`&lt;amx-player`) are prose, not elements, and never match
-/// here. An attribute value containing `>` would need a real parser; none
-/// exists in the site's player tags.
-fn players(html: &str) -> Vec<String> {
-    let mut found = Vec::new();
-    let mut rest = html;
-    while let Some(start) = rest.find("<amx-player") {
-        let tag_end = rest[start..].find('>').map(|i| start + i + 1).unwrap_or(rest.len());
-        let tag = &rest[start..tag_end];
-        let attr = |name: &str| {
-            let open = format!("{name}=\"");
-            tag.find(&open)
-                .map(|i| i + open.len())
-                .and_then(|begin| tag[begin..].find('"').map(|end| &tag[begin..begin + end]))
-        };
-        if let Some(src) = attr("src") {
-            found.push(src.to_string());
+/// Historical scene coverage is an explicit regression corpus, independent of
+/// whether its former HTML presentation still exists. Current site coverage is
+/// tested separately from canonical Astro sources below.
+fn collect_regressions(root: &Path, into: &mut BTreeMap<PathBuf, SceneRefs>) {
+    for line in include_str!("fixtures/legacy-scenes.txt").lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
         }
-        rest = &rest[tag_end..];
-    }
-    found
-}
-
-fn collect_players(root: &Path, into: &mut BTreeMap<PathBuf, SceneRefs>) {
-    let mut stack = vec![root.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        for entry in std::fs::read_dir(&dir).expect("web/ is readable") {
-            let path = entry.expect("readable dir entry").path();
-            if path.is_dir() {
-                stack.push(path);
-                continue;
-            }
-            if path.extension().and_then(|e| e.to_str()) != Some("html") {
-                continue;
-            }
-            let html = std::fs::read_to_string(&path).expect("html is readable");
-            let rel_page = path.strip_prefix(root).unwrap().to_string_lossy().replace('\\', "/");
-            for src in players(&html) {
-                let scene = resolve(path.parent().unwrap(), &src);
-                let refs = into.entry(scene).or_default();
-                refs.pages.push(rel_page.clone());
-            }
-        }
+        assert!(!line.starts_with('/') && !line.split('/').any(|part| part == ".."));
+        let scene = root.join(line);
+        assert!(
+            into.insert(
+                scene,
+                SceneRefs {
+                    pages: vec!["legacy regression corpus".into()]
+                }
+            )
+            .is_none(),
+            "duplicate regression: {line}"
+        );
     }
 }
 
@@ -151,14 +127,14 @@ fn seed_assets(cache: &mut AssetCache, sources: &[Fetched]) -> Vec<String> {
 
 /// Build `scene` the way the player does: imports through the embed's retry
 /// loop (the engine names the unresolved keys, each is read relative to the
-/// scene, the build runs again — 24 rounds as in JS) and assets pre-seeded
+/// scene, the build runs again — 32 rounds as in JS) and assets pre-seeded
 /// into the cache, because the sandboxed build never touches a filesystem.
 fn build_scene(scene: &Path) -> Result<(), Vec<String>> {
     let source = std::fs::read_to_string(scene).map_err(|e| vec![format!("{scene:?}: {e}")])?;
     let scene_dir = scene.parent().unwrap().to_path_buf();
     let mut modules: Vec<Fetched> = Vec::new();
 
-    for _round in 0..24 {
+    for _round in 0..32 {
         let mut sources = vec![Fetched {
             key: String::new(),
             dir: scene_dir.clone(),
@@ -234,15 +210,15 @@ fn build_scene(scene: &Path) -> Result<(), Vec<String>> {
             Err(vec!["build produced no target and no error diagnostic".to_string()])
         };
     }
-    Err(vec!["import retry did not converge in 24 rounds".to_string()])
+    Err(vec!["import retry did not converge in 32 rounds".to_string()])
 }
 
 #[test]
-fn every_scene_the_site_plays_builds_with_the_sdk() {
+fn legacy_regression_corpus_builds_with_explicit_modules() {
     let root = web_root();
     let mut refs: BTreeMap<PathBuf, SceneRefs> = BTreeMap::new();
-    collect_players(&root, &mut refs);
-    assert!(!refs.is_empty(), "no <amx-player> found under {root:?}");
+    collect_regressions(&root, &mut refs);
+    assert!(!refs.is_empty(), "legacy regression corpus is empty");
 
     let mut failures = Vec::new();
     let mut missing_files = Vec::new();
@@ -276,6 +252,15 @@ fn every_scene_the_site_plays_builds_with_the_sdk() {
         failures.join("\n")
     );
     assert!(checked > 0, "no scene was exercised");
+}
+
+#[test]
+fn nested_module_smoke_scene_builds_through_the_explicit_fetch_protocol() {
+    let scene = web_root().join("dev/smoke/imports/scene.amx");
+    assert!(
+        build_scene(&scene).is_ok(),
+        "nested module smoke scene must close its import graph"
+    );
 }
 
 /// The runtime build is deliberately permissive about authored property types.

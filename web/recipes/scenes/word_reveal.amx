@@ -1,6 +1,6 @@
 // word_reveal.amx — `draw-in [by: word]` reveals a line of text word by word
 // instead of as one block, which is how a caption should arrive under a beat.
-import "../../demos/lib/theme.amx"
+import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (640, 360), duration: 6 }
 

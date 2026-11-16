@@ -38,8 +38,8 @@ Real-content capstones demonstrating the full language. Start here.
 | `projects/fft_explain.amx` | Explainer: Typst equation fragments, colored plots, per-fragment reveals |
 | `gallery/brand_reel/` | Multi-file capstone: all six `play` transitions, `persist`/`remove` mascot chain, Audio bed, cross-file scenes (`import as` + `play alias.Scene`) |
 
-The gallery shares [theme and motion helpers](../web/demos/lib/) with the
-website demos. Individual files declare the imports they need.
+The gallery uses [theme and motion helpers](lib/). Individual files
+declare the imports they need; the runtime does not inject them.
 
 ## Basics
 
@@ -136,8 +136,8 @@ cargo run --bin animatix -- check examples/projects/plugin_pulse.amx \
 
 ## Shared modules
 
-Examples import the single library in [`web/demos/lib/`](../web/demos/lib/).
-There is no separate `examples/lib` copy. The library includes theme tokens,
+Examples import the single library in [`examples/lib/`](lib/).
+These are authored source modules, not runtime built-ins. They include theme tokens,
 figure layouts, cards, charts, stage helpers, and ambience components. Use the
 relative import already shown by the relevant example.
 

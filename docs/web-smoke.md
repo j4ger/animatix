@@ -5,7 +5,7 @@ SDK integrity, text/raster parity, or transaction tests.
 
 | Gate | Target | Purpose |
 | --- | --- | --- |
-| `web-smoke` | `web/dev/smoke/` with the just-built SDK | Small capability fixtures: shapes, external text/fonts, SVG and shared runtime. |
+| `web-smoke` | `web/dev/smoke/` with the just-built SDK | Small capability fixtures: shapes, external text/fonts, SVG, shared runtime and an explicit nested module chain. |
 | `site-smoke` | Assembled `_site/` only | Real Astro navigation, click-to-load scenes, playback/seek and playground Run. |
 | `web-site-smoke` | Assemble `_site/`, then run `site-smoke` | PR/main integration in the existing Web Build job, reusing its SDK. |
 
@@ -33,6 +33,8 @@ also check their assembled site before deploy/package. A static site build alone
 is not browser acceptance. `SITE_BASE` must match assembly (for example
 `/animatix/` for project Pages); the smoke server mounts the artifact at that
 prefix and contracts check prefixed navigation, module and scene URLs.
+The SDK suite also accepts `SITE_BASE` to exercise its relative module chain
+under a prefix; run it at both `/` and `/animatix/` after import-loader changes.
 Compatibility pages must retain their onward links. The showcase preset journey
 checks the enabled selector, committed public vars, Open code query, downloadable
 source and subsequent painted frame.

@@ -8,7 +8,7 @@ use animatix_syntax::visit::AstFolder;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-use super::{ENTRY_PATH, bundled_library};
+use super::ENTRY_PATH;
 use crate::dto::DiagnosticDto;
 
 /// An asset's canonical fetch URL is also its key in the prepared asset cache.
@@ -171,12 +171,6 @@ fn prepare_syntax(
 fn graph(source: &str, modules: &[(PathBuf, String)]) -> ModuleGraph {
     let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
     graph.add_source(PathBuf::from(ENTRY_PATH), source);
-    for (path, text) in bundled_library() {
-        graph.add_source(PathBuf::from(path), *text);
-        if let Some(name) = path.strip_prefix("../lib/") {
-            graph.add_source(PathBuf::from(format!("../../web/demos/lib/{name}")), *text);
-        }
-    }
     for (path, text) in modules {
         graph.add_source(path.clone(), text.clone());
     }

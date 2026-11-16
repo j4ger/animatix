@@ -5,7 +5,7 @@ legacy file remaining in Git is not an endorsement of its explanation or every
 parameter setting.
 
 `web/app/src/lib/legacy-works.ts` records the disposition of all nine entries in
-the former `web/works.json`. Astro generates their `/demos/<id>/` compatibility
+the former [retired work manifest](https://github.com/j4ger/animatix/blob/530b5f8843d31a77b19540ff8f42daf662fddfff/web/works.json). Astro generates their `/demos/<id>/` compatibility
 pages and `/archive/` from that list. Those pages explain where the work went;
 they do not automatically load the old player. `/demos/` points to the current
 collection, learning route and archive instead of reproducing the old catalog.
@@ -46,7 +46,7 @@ current lesson merely because its source compiles.
 - The archive is explicit retirement, not a claim that all nine works were
   individually remade. Current work and learning pages are the public product.
 
-`legacy-works.test.mjs` checks complete ID coverage, source preservation and the
+`legacy-works.test.mjs` checks the frozen nine-ID URL contract, immutable historical source links and the
 absence of old player embeds. The assembled-site checks must also verify the
 generated compatibility pages, rather than accepting copied legacy HTML as a
 substitute.

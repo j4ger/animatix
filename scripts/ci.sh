@@ -102,10 +102,6 @@ cloudflare-pages-publish|none|ubuntu-latest|none|control
 cloudflare-pages-build|none|ubuntu-latest|none|control
 cloudflare-pages-release|none|ubuntu-latest|none|control
 cloudflare-pages-initialize|none|ubuntu-latest|none|control
-cloudflare-candidate-publish|none|ubuntu-latest|none|control
-cloudflare-candidate-dispatch|none|ubuntu-latest|none|control
-cloudflare-candidate-build|none|ubuntu-latest|none|control
-cloudflare-candidate-upload|none|ubuntu-latest|none|control
 cloudflare-sdk-publish|none|ubuntu-latest|none|control
 cloudflare-sdk-dispatch|none|ubuntu-latest|none|control
 text-visual-parity|web-ci|ubuntu-latest|nix|site
@@ -419,22 +415,6 @@ gate_cloudflare_pages_build() {
   python3 scripts/cloudflare-pages.py build
 }
 
-gate_cloudflare_candidate_publish() {
-  python3 scripts/cloudflare-candidate.py publish
-}
-
-gate_cloudflare_candidate_dispatch() {
-  python3 scripts/cloudflare-candidate-dispatch.py
-}
-
-gate_cloudflare_candidate_build() {
-  python3 scripts/cloudflare-candidate.py build
-}
-
-gate_cloudflare_candidate_upload() {
-  python3 scripts/cloudflare-candidate-upload.py
-}
-
 gate_cloudflare_sdk_publish() {
   want_node
   python3 scripts/cloudflare-sdk-publisher.py
@@ -460,11 +440,9 @@ gate_cloudflare_deploy() {
 
 gate_site_build() {
   want_nix_shell 'site-build'
+  python3 scripts/cloudflare-retirement-test.py
   python3 scripts/cloudflare-pages-test.py
   python3 scripts/cloudflare-pages-release-test.py
-  python3 scripts/cloudflare-candidate-test.py
-  python3 scripts/cloudflare-control-test.py
-  python3 scripts/cloudflare-review-test.py
   python3 scripts/cloudflare-permit-test.py
   python3 scripts/cloudflare-sdk-dispatch-test.py
   python3 scripts/cloudflare-sdk-consumer-test.py

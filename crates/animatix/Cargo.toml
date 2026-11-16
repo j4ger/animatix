@@ -56,7 +56,7 @@ roxmltree = { version = "0.20.0" }
 smallvec = "1"
 
 usvg = { version = "0.47.0", optional = true }
-# The workspace patches Vello 0.11.0 to `vendor/vello` for the #1948
+# The workspace patches Vello 0.11.0 to `crates/vendor/vello` for the #1948
 # patchless-resolve atlas regression; `tests/vello_img_probe.rs` guards the A–H matrix.
 vello = { workspace = true }
 wgpu = { workspace = true, default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }

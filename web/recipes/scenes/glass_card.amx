@@ -6,7 +6,7 @@
 // children above the blur — so a label on the card stays sharp while the plate
 // under it frosts over. The stage that does the frosting is declared like any
 // other effect stage, which means the frost can ramp on a beat.
-import "../../demos/lib/theme.amx"
+import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (640, 360), duration: 6 }
 

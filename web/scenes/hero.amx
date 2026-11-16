@@ -27,7 +27,7 @@
 // Content keeps to the center ~88% of the 1600×900 stage because the embed
 // crops with fit=cover.
 
-import "../demos/lib/theme.amx"
+import "../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (1600, 900), duration: 13.0 }
 

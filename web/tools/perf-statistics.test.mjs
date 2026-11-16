@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
 import { combinePrimaryVerdict, comparePaired } from './perf-statistics.mjs';
 import { contentType, parseScenes } from '../../scripts/web-runtime-perf.mjs';
 
@@ -110,4 +111,21 @@ test('Web performance server serves generated HTML pages as documents', () => {
   assert.equal(contentType('/old-page.html'), 'text/html; charset=utf-8');
   assert.equal(contentType('/fresh/runtime/amx-player.js'), 'text/javascript');
   assert.equal(contentType('/fresh/runtime/runtime.wasm'), 'application/wasm');
+});
+
+
+test('shared Web performance fixtures and relative media remain resolvable', () => {
+  const root = new URL('../../', import.meta.url);
+  const scenes = [...parseScenes(),
+    'tools/fixtures/web-runtime-perf/basic.amx',
+    'tools/fixtures/web-runtime-perf/captions.amx',
+    'tools/fixtures/web-runtime-perf/plain-cjk-bidi-weights.amx',
+  ];
+  for (const scene of scenes) {
+    const source = new URL(scene, root);
+    assert.ok(existsSync(source), `missing fixture: ${scene}`);
+    for (const match of readFileSync(source, 'utf8').matchAll(/url:\s*"([^"]+)"/g)) {
+      assert.ok(existsSync(new URL(match[1], source)), `missing media: ${scene} -> ${match[1]}`);
+    }
+  }
 });

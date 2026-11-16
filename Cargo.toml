@@ -20,6 +20,7 @@ members = [
     "crates/animatix-hybrid-bench",
     "crates/eparts"
 ]
+exclude = ["crates/vendor/vello", "crates/vendor/wasm-split-cli"]
 resolver = "2"
 
 # One version for the whole workspace. `cargo set-version --workspace` — the
@@ -128,11 +129,11 @@ strip = "symbols"
 # The vendor also provides a synchronous encoder-suffix callback in `lib.rs`
 # and `wgpu_engine.rs`, joining Vello rendering and presentation before the
 # existing submit/resource-recycle boundary. Keep it until upstream provides
-# an equivalent submit-scoped API. `vendor/vello/README.animatix.md` records
+# an equivalent submit-scoped API. `crates/vendor/vello/README.animatix.md` records
 # both removal conditions and the image/presentation boundary tests.
 [patch.crates-io]
-vello = { path = "vendor/vello" }
+vello = { path = "crates/vendor/vello" }
 # The alpha splitter drops function-alias relocations and overlapping data
 # ownership. Keep the tested local repairs until upstream incorporates them;
-# vendor/wasm-split-cli/README.md records the revision and boundary tests.
-wasm-split-cli = { path = "vendor/wasm-split-cli" }
+# crates/vendor/wasm-split-cli/README.md records the revision and boundary tests.
+wasm-split-cli = { path = "crates/vendor/wasm-split-cli" }

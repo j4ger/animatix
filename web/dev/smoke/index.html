@@ -4,12 +4,13 @@
 <title>SDK capability fixtures (not a public site)</title>
 <style>body{margin:0;background:#0d1520}amx-player{display:block;width:640px;height:360px}</style>
 <script type="module">
-import '/runtime/amx-player.js';
+import '../../runtime/amx-player.js';
 const sources = {
-  shapes: '/content/scenes/first-move.amx',
-  text: '/content/scenes/finish.amx',
-  svg: '/dev/svg-probe/scene.amx',
-  shared: '/content/scenes/first-move.amx',
+  shapes: '../../content/scenes/first-move.amx',
+  text: '../../content/scenes/finish.amx',
+  svg: '../svg-probe/scene.amx',
+  imports: 'imports/scene.amx',
+  shared: '../../content/scenes/first-move.amx',
 };
 const name = new URLSearchParams(location.search).get('case');
 if (!(name in sources)) throw new Error(`Unknown SDK fixture: ${name}`);

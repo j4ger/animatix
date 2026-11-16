@@ -19,7 +19,7 @@ Time is currently a silent edition, not an audio-sync demonstration.
 | `web/content/posters/`, `previews/`, `preview-manifest.json` | Native-rendered media and source/media integrity records |
 | `web/embed/src/` | Existing `<amx-player>` web component |
 | `web/runtime/` | Generated SDK and manifest; copied unchanged into distributions |
-| `web/demos/`, `tour/`, `recipes/`, `gallery.html`, `arena/` | Retained legacy URLs and test inputs, not the new primary navigation |
+| `web/app/src/lib/legacy-works.ts` | Historical work IDs and Astro compatibility-page decisions |
 | `web/dev/` | Developer probes, outside the showcase |
 
 The SDK is loaded from its external module URL, not bundled by Astro/Vite.
@@ -28,15 +28,13 @@ Generated site links use `SITE_BASE` (`/` locally, `/animatix/` on project Pages
 
 See [the implementation record](../docs/web-reboot.md) for verification limits
 and [scene contracts](content/scene-notes.md) for exact parameter and media evidence.
-The embed API below also applies to retained legacy figures.
+The embed API is independent of the website; examples must publish their own scene imports.
 
 ### Live figure editors
 
 
-The tour's and the demo walkthroughs' figures carry `data-editable`;
-`tour/editor.js` swaps each into a two-column view — animation beside a
-textarea — where **Apply** (or Ctrl/Cmd+Enter) rebuilds the scene in place.
-The element-level
+The current Astro Playground provides source editing. The former tour editor
+has been retired. The shared element-level
 `applySource(text)` is asynchronous: it prepares imports, assets, fonts, and
 required runtime capabilities, then replaces the document on success. It
 resets the clock and landmarks, and returns the build's diagnostics — the same
@@ -86,8 +84,8 @@ python3 scripts/serve-web.py 8124 _site
 ```
 
 `site-artifact.sh` builds Astro and verifies the SDK against the current inputs,
-commit and package version before assembly. It preserves old URLs, overlays the
-new pages, and copies real SDK files rather than builder symlinks. Use
+commit and package version before assembly. Astro preserves old navigation URLs as archive/redirect pages. Assembly copies
+only current content and real SDK files, never legacy sources or builder symlinks. Use
 `SITE_BASE=/animatix/ bash scripts/site-artifact.sh _site-pages` for a project-path
 build, served beneath `/animatix/` rather than the host root.
 
@@ -99,7 +97,8 @@ The `site-build` gate runs locked `npm ci`, Astro type checks, source-preset
 contract tests, root/subpath static generation and nonempty scene/link/media-integrity checks.
 The generated `site-manifest.json` records the exact new page and bundle hashes;
 assembly verifies that inventory independently of the source build directory.
-`site-scenes` retains the legacy tests and checks all new canonical AMX sources.
+`site-scenes` retains an explicit regression-source inventory and checks all
+new canonical AMX sources; no test discovers product coverage from old HTML.
 Nix pins Node24 via `flake.lock`; npm pins Astro and transitive dependencies via
 `web/app/package-lock.json`. This is not an offline Nix npm dependency closure.
 
@@ -218,28 +217,28 @@ the current split SDK.
 The SDK package serves all scenes through one runtime; optional capability
 chunks and font faces are fetched only when required.
 
-Deploying is the same story: run the build script, copy `web/` including the assembled `runtime/` SDK directory to any static host. Requirements: a WebGPU-capable browser; embeds show guidance
-when it's missing. Font faces are fetched from the SDK manifest; gzip is
-decompressed with the native `DecompressionStream` API.
+Deploy the assembled `_site/`, not the repository's raw `web/` directory.
+`scripts/site-artifact.sh` validates the SDK manifest and overlays the Astro
+output while excluding development sources. Release packaging uses the same
+assembler. Browser playback requires WebGPU; font faces are fetched from the
+SDK manifest and gzip uses the native `DecompressionStream` API.
 
-### GitHub Pages
+### Hosting and publication
 
-[The Pages workflow](../.github/workflows/pages.yml) deploys after successful CI
-on `main`, or by manual dispatch. It checks out the triggering commit and prefers
-the verified `web-runtime` artifact from that CI run. A missing artifact triggers
-a rebuild and web checks; a downloaded artifact with a wrong identity or corrupt
-contents fails verification rather than silently rebuilding.
+The public site, [amx.j4ger.dev](https://amx.j4ger.dev/), uses Cloudflare Pages.
+Main CI signs the original tested SDK artifact; the journal-backed publisher
+selects that source revision, and Pages verifies the SDK and builds Astro.
+See [Pages operations](../docs/cloudflare-pages.md) for branch ownership,
+configuration, recovery and custom-domain responsibilities.
 
-The workflow checks site scenes and assembles `_site` through the gates in
-`scripts/ci.sh`. `scripts/site-artifact.sh` validates the SDK manifest and files,
-excludes development sources such as `web/tools` and `web/embed/src`, and writes
-`.nojekyll`. Release packaging uses the same assembler. Consult the workflow and
-[contributor guide](../docs/contributing.md) for the current gate list rather than
-copying it into deployment instructions.
+[The GitHub Pages workflow](../.github/workflows/pages.yml) is a manual fallback,
+not an automatic main deployment. It requires
+`ANIMATIX_GH_PAGES_FALLBACK=enabled` plus GitHub Pages configuration; the production
+GitHub Pages host is disabled. Do not enable two publishers for the same domain.
 
-Enable Pages with **GitHub Actions** as its source. The public project site is
-[amx.j4ger.dev](https://amx.j4ger.dev/); pages also use relative paths for subpath
-hosting. See the hosting requirements below for MIME types, compression and CORS.
+Site links also support a configured subpath such as `/animatix/`. Keep the
+assembly and test `SITE_BASE` values identical. See the hosting requirements below
+for MIME types, compression and CORS.
 
 ## Embedding scenes in any page (`<amx-player>`)
 
@@ -455,16 +454,15 @@ frame to draw".
 
 ### Page-driven playback (`sealed`, `fit`, `amxready`)
 
-The homepage and tour drive the players from the page's own JS instead of
-handing them to the reader. Two attributes and one event back that mode:
+A host page can drive players from its own JS instead of handing them to the
+reader. Two attributes and one event back that mode:
 
 - **`sealed`** — page-driven mode: no center play affordance, no canvas
   gestures; playback belongs to the page (`play()` / `pause()` / `seek()`).
   With `autoplay` the scene also resumes by itself on re-entering the
   viewport, since a sealed embed has no visible control to resume it with.
-  Used for the full-bleed hero, the scroll-scrubbed duality figure and the
-  demos-hub hover-play cards (`<amx-player data-hoverplay>` on a poster card
-  starts on mouse/focus and pauses on leave — the chrome wires that).
+  Hosts must wire their own controls or hover handlers; the retired site chrome
+  is not shipped as part of the SDK.
 - **`fit="cover"`** — the stage unlocks from its aspect-ratio box and the
   canvas crops to fill whatever box the page gives the element (default
   `contain` letterboxes the whole frame). Cover scenes need a safe center.
@@ -476,8 +474,8 @@ handing them to the reader. Two attributes and one event back that mode:
 
 ### The ink design system
 
-Every web scene draws in one palette so the plates melt into the page:
-`web/demos/lib/theme.amx` defines the `ink` `Colorscheme` (extends
+The older example collection uses a shared palette:
+`examples/lib/theme.amx` defines the `ink` `Colorscheme` (extends
 `editorial-dark`) plus shared spacing/type/radius tokens. A scene opts in by
 importing the library and naming the scheme:
 
@@ -490,8 +488,9 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 7 }
 exactly, `text.primary` equals `--ink` (bone `#ece7db`), and the accent
 hues are disciplined: amber `#f5b942` leads, coral `#ff8666` is a one-beat
 drama voice, sage `#8fc7a3` and steel `#8ab4f8` only carry a diagram's
-genuine semantic channels. New scenes should follow `web/tour/scenes/` and
-`web/demos/transformer/scenes/` as the polished references.
+genuine semantic channels. This describes the older examples, not a palette
+requirement for the Astro collection. Use `web/content/scenes/` for current work; the old Transformer scenes
+are historical studies and regression inputs, not endorsed reference lessons.
 
 ### Scene authoring
 
@@ -533,10 +532,10 @@ cd web/tools && npm install && npm run build:embed
 ## Engine layering
 
 - **Parse/typecheck/expand** — `animatix-syntax`'s module system in
-  `SourcesOnly` mode. The played document, the shared `web/demos/lib/*.amx`
-  library (embedded at compile time, so repo examples resolve their imports),
-  and any fetched import modules live in the in-memory source map; no disk
-  access exists on the platform.
+  `SourcesOnly` mode. The played document and explicitly supplied or fetched
+  import modules live in the in-memory source map; no disk access or example
+  library embedded in the engine exists. Hosts publish the modules that their
+  scenes import and resolve them relative to each source URL.
 - **Build** — the engine's font-context-aware entry points build a `Timeline`
   or multi-scene `Composition` exactly like the GUI does (`Draft` quality).
 - **Render** — per frame: `timeline.evaluate_with_debug` produces a
@@ -584,8 +583,9 @@ cd web/tools && npm install && npm run build:embed
   not a browser video-export workflow.
 - Native plugins don't exist on this platform; `libloading`-based extensions
   are desktop-only.
-- No general in-browser editor: `applySource` backs the tour's and the demos'
-  own figures (`tour/editor.js`), but authoring lives in the desktop app.
+- The Astro Playground edits, runs and downloads scene source through
+  `applySource`. It is not the desktop workbench: no automatic project saving,
+  native plugins or browser video-export workflow is provided.
 
 ### Differences from the desktop renderer
 
@@ -668,10 +668,11 @@ distribution scripts and are not asserted here as acceptance evidence.
   `AmxPlayer` — the wasm methods behind the hooks above.
 - `debug_readback_rgba(t, cb)` on `AmxPlayer` — the same offscreen render as
   `debug_readback`, but `cb` receives `{ width, height, bytes }` (a `Uint8Array`
-  of tight RGBA rows) instead of a statistics string. A headless browser
-  screenshot cannot see a WebGPU canvas — it captures the player skeleton and
-  nothing else — so this is the only way to get a real picture of what the page
-  rendered. In the browser:
+  of tight RGBA rows) instead of a statistics string. This reads the offscreen
+  render independently of browser presentation. Headless screenshots can capture
+  WebGPU with the supported compositor setup; the smoke runner verifies that
+  path with a paint preflight. Use screenshots for presentation evidence and
+  GPU readback for render diagnostics. In the browser:
 
   ```js
   const c = new OffscreenCanvas(v.width, v.height);
@@ -716,12 +717,11 @@ distribution scripts and are not asserted here as acceptance evidence.
 
 ## Testing
 
-- `cargo test -p animatix-web` — the parse→build pipeline (repo examples and
-  all seven transformer scenes, embedded via `include_str!`) runs natively in
-  the normal test suite. The scenes import the shared
-  `web/demos/lib/components.amx` (a `LabeledBox` chip component); like every
-  `web/demos/lib/*.amx`, it is **embedded into the wasm at build time** —
-  editing it requires a `scripts/build-web.sh` rerun, and until then the
-  browser shows `Unknown actor type …` while every native test stays green.
-  The CLI resolves imports directly to `web/demos/lib/` through each
-  source file’s relative path; no transformer-local library copy is needed.
+- `cargo test -p animatix-web` tests the native parse/build host. Its explicit
+  legacy-scene inventory preserves useful regression inputs without requiring
+  old HTML or embedding examples into the Web SDK.
+- Example imports resolve to `examples/lib/` on disk, or to source modules
+  fetched by a browser host. Editing a module does not require rebuilding Wasm.
+- The assembled-site smoke tests cover actual Astro pages and their canonical
+  sources. `scripts/site-check.py` rejects retired AMX and developer utilities
+  in the release artifact.

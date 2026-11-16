@@ -15,8 +15,8 @@
 // Type floors (DESIGN §1.5): display 104, lede 26, attribution 18 mono, captions
 // 24 (stage.Caption), readout values 28 — nothing below 16 px.
 
-import "../lib/theme.amx"
-import "../lib/stage.amx"
+import "../../../examples/lib/theme.amx"
+import "../../../examples/lib/stage.amx"
 
 config { colorscheme: "coral", resolution: (1280, 720), duration: 9.0 }
 

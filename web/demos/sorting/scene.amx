@@ -15,8 +15,8 @@
 // Slider: `n` (4..12, default 8) is the bar count the build-time sort emits.
 // duration: 15.2
 
-import "../lib/theme.amx"
-import "../lib/stage.amx"
+import "../../../examples/lib/theme.amx"
+import "../../../examples/lib/stage.amx"
 
 config { colorscheme: "coral", resolution: (1280, 720) }
 

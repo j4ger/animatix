@@ -2,8 +2,8 @@
 // Text re-declaration triggers morph transitions; letter_spacing breathes.
 // The persisted mascot rides along (re-persisted at scene end).
 
-import "../../../web/demos/lib/theme.amx" as theme
-import "../../../web/demos/lib/theme.amx"
+import "../../lib/theme.amx" as theme
+import "../../lib/theme.amx"
 
 config { colorscheme: "ink", dynamic_layout: true, duration: 10 }
 

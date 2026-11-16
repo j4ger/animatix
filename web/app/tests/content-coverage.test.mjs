@@ -7,10 +7,11 @@ test('all techniques have unique canonical source and a teaching intent',()=>{
  assert.equal(techniques.length,4);assert.equal(new Set(techniques.map(x=>x.id)).size,4);
  for(const t of techniques){assert.ok(t.goal&&t.explanation&&t.exercise&&t.rule);assert.ok(existsSync(src(`../../content/scenes/${t.file}.amx`)));}
 });
-test('retired HTML is excluded before the Astro compatibility overlay',()=>{
+test('the artifact publishes current content, not legacy sources or developer tools',()=>{
  const script=readFileSync(src('../../../scripts/site-artifact.sh'),'utf8');
- const remove=script.indexOf('find "$stage/demos"');const overlay=script.indexOf('cp -R web/app/dist/.');
- assert.ok(remove>0&&overlay>remove);assert.match(script,/\-name "\*\.html"/);
+ assert.match(script,/entries=\(logo\.svg assets content\)/);
+ assert.match(script,/cp -R web\/app\/dist\/\./);
+ assert.doesNotMatch(script,/entries=\([^)]*\b(?:demos|tour|recipes|scenes|dev)\b/);
 });
 test('each curated work has a provenance-bound recording',()=>{
  const source=readFileSync(src('../src/lib/content.ts'),'utf8').split('export const lessons')[0];

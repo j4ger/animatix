@@ -1,8 +1,8 @@
 // explain-figure.amx — 图表讲解模板：图 + Callout + 结论行。
 // 适合「画一个东西然后解释它」。Callout 由 DSL 结构豁免重叠（callout_target）。
-import "../../web/demos/lib/theme.amx"
-import "../../web/demos/lib/stage.amx"
-import "../../web/demos/lib/figure.amx"
+import "../lib/theme.amx"
+import "../lib/stage.amx"
+import "../lib/figure.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 7 }
 

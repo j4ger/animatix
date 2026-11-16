@@ -1,6 +1,6 @@
 // count_up.amx — `format` plus an `always` text write. The glyphs recompile on
 // the frames the string changes, so the number climbs instead of appearing.
-import "../../demos/lib/theme.amx"
+import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (640, 360), duration: 5 }
 

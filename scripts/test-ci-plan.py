@@ -94,7 +94,7 @@ class PlannerTests(unittest.TestCase):
 
     def test_full_matrix_uncertainty_also_escalates_browser_coverage(self):
         for path in ("nix/web.nix", ".cargo/config.toml", "scripts/build-web.sh",
-                     "scripts/web-browser.mjs", "vendor/renderer/lib.rs", "new-subsystem/file"):
+                     "scripts/web-browser.mjs", "crates/vendor/renderer/lib.rs", "new-subsystem/file"):
             for event in ("pull_request", "push"):
                 with self.subTest(path=path, event=event):
                     classification, plan = self.plan([path], event=event)
@@ -109,6 +109,12 @@ class PlannerTests(unittest.TestCase):
         for path in ("docs/spec.md", "web/app/src/styles/site.css"):
             _, plan = self.plan([path], event="push")
             self.assertEqual(plan["web_smoke"]["depth"], "critical")
+
+    def test_vendor_relocation_keeps_full_dependency_coverage(self):
+        for path in ("crates/vendor/vello/src/lib.rs", "crates/vendor/wasm-split-cli/src/lib.rs"):
+            classification, plan = self.plan([path])
+            self.assertEqual(classification["full_reason"], "vendored dependency changed")
+            self.assertEqual(plan["web_smoke"]["depth"], "deep")
 
     def test_manual_regression_has_no_schedule_or_publish_permissions(self):
         root = SCRIPT.parent.parent

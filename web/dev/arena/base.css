@@ -1,0 +1,11 @@
+/* Developer arena inherited stylesheet — Precision Studio design system.
+ *
+ * Split by page area; import order preserves the original cascade. Keep the
+ * @import list at the top of this file — every page links this aggregator.
+ */
+@import url("styles/base.css");
+@import url("styles/hero.css");
+@import url("styles/content.css");
+@import url("styles/deep-dive.css");
+@import url("styles/catalog.css");
+@import url("styles/deck.css");
