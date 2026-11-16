@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Select PR CI jobs from Cargo workspace path dependencies.
+"""Select CI jobs from Cargo workspace path dependencies.
 
 This is a shadow planner until the workflow explicitly passes --enable-pruning.
 Its job IDs are policy keys; the actual job definitions are read from
@@ -410,15 +410,16 @@ def web_smoke_policy(classification, event, base):
 
 def make_plan_from_classification(classification: dict, event: str, base: str,
                                   head: str, all_jobs: list[dict],
-                                  enable_pruning: bool = False):
+                                  enable_pruning: bool = False, main_baseline: dict | None = None):
     ids = [job["id"] for job in all_jobs]
     all_ids = set(ids)
     unknown_ids = all_ids - KNOWN_IDS
     if unknown_ids:
         reason = "unclassified CI job id: " + ", ".join(sorted(unknown_ids))
         candidate = set(ids)
-    elif event != "pull_request":
-        reason = f"event {event!r} always runs the full matrix"
+    elif event != "pull_request" and not (event == "push" and main_baseline and main_baseline.get("trusted") is True):
+        reason = ("main baseline not proven: " + (main_baseline or {}).get("reason", "missing evidence")
+                  if event == "push" else f"event {event!r} always runs the full matrix")
         candidate = set(ids)
     elif not base or base == "0000000000000000000000000000000000000000":
         reason = "base commit is missing"
@@ -431,7 +432,8 @@ def make_plan_from_classification(classification: dict, event: str, base: str,
         candidate = selected_ids(classification)
 
     smoke = web_smoke_policy(classification, event, base)
-    if smoke["depth"] == "deep":
+    # Main retains a fresh, same-run SDK until publish reuse has its own proof.
+    if smoke["depth"] == "deep" or event == "push":
         candidate.add("web-build")
     candidate &= all_ids
     effective = candidate if enable_pruning else all_ids
@@ -441,6 +443,8 @@ def make_plan_from_classification(classification: dict, event: str, base: str,
         "force_full": candidate == all_ids,
         "reason": reason,
         "pruning_enabled": enable_pruning,
+        "event": event, "base": base, "head": head,
+        "main_baseline": main_baseline,
         "web_smoke": smoke,
         "candidate_job_ids": [job["id"] for job in all_jobs if job["id"] in candidate],
         "job_ids": [job["id"] for job in all_jobs if job["id"] in effective],
@@ -453,7 +457,10 @@ def make_plan_from_classification(classification: dict, event: str, base: str,
 
 
 def make_plan(repo: Path, event: str, base: str, head: str,
-              all_jobs: list[dict], enable_pruning: bool = False):
+              all_jobs: list[dict], enable_pruning: bool = False, main_baseline: dict | None = None):
+    if event == "push" and main_baseline and main_baseline.get("trusted") is True:
+        if main_baseline.get("sha") != base or main_baseline.get("head") != head:
+            main_baseline = {"trusted": False, "reason": "baseline proof does not match diff range"}
     try:
         changed = git_changes(repo, base, head)
         roots, _, reverse = load_workspace(repo)
@@ -467,7 +474,7 @@ def make_plan(repo: Path, event: str, base: str, head: str,
             "affected_packages": [],
         }
     return make_plan_from_classification(
-        classification, event, base, head, all_jobs, enable_pruning
+        classification, event, base, head, all_jobs, enable_pruning, main_baseline
     )
 
 
@@ -477,6 +484,7 @@ def main(argv=None):
     parser.add_argument("--event", default=os.environ.get("GITHUB_EVENT_NAME", ""))
     parser.add_argument("--base", default="")
     parser.add_argument("--head", default="HEAD")
+    parser.add_argument("--main-baseline", type=Path)
     parser.add_argument(
         "--enable-pruning", action="store_true",
         help="use candidate job selection; default is shadow/full matrix",
@@ -485,7 +493,13 @@ def main(argv=None):
     repo = args.repo.resolve()
     try:
         all_jobs = get_pr_matrix(repo)
-        plan = make_plan(repo, args.event, args.base, args.head, all_jobs, args.enable_pruning)
+        baseline = None
+        if args.main_baseline:
+            try:
+                baseline = json.loads(args.main_baseline.read_text())
+            except (OSError, ValueError):
+                baseline = {"trusted": False, "reason": "unreadable baseline evidence"}
+        plan = make_plan(repo, args.event, args.base, args.head, all_jobs, args.enable_pruning, baseline)
     except PlanError as error:
         print(json.dumps({
             "mode": "full", "force_full": True,

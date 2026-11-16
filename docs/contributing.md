@@ -115,10 +115,22 @@ journeys, evidence and retry policy.
 `tools/ci/ci.sh` owns gates, stable job IDs and matrices. Pull-request selection
 uses workspace path dependencies conservatively, including optional, build and
 dev dependencies. Unknown inputs or unavailable base commits select every job;
-main pushes and release callers always use the full matrix. Selection starts in
+release/reusable callers always use the full matrix. Main pushes may use the
+same dependency selection only after a read-only Actions API proof establishes
+that the previous tip passed the complete matrix in this same CI workflow.
+The previous tip must be an ancestor, and CI policy files must be unchanged.
+Force pushes, missing/incomplete/failed/cancelled evidence, unknown paths and
+API failures fall back to full coverage. A selective previous run is not used
+as a full baseline: this first phase deliberately does not infer a transitive
+chain of coverage. Main always retains Web Build, producing a fresh same-run
+SDK; `publish_web` only permits the existing main-push signer, never PR or
+release/reusable runs. No cross-run SDK substitution is introduced.
+
+PR selection starts in
 selective mode after the twelve representative shadow cases recorded in
 `docs/history/maintenance-ci-shadow.json`. `target/ci/plan.json` records the
-candidate and effective plans. Set the repository variable
+candidate/effective plans and intentional omissions; `target/ci/main-baseline.json`
+records the proof or fallback reason. The job summary exposes both. Set the repository variable
 `ANIMATIX_CI_SELECTION=shadow` to execute the complete matrix while reviewing
 selection evidence. Keep `CI Required` as
 the stable required check when migrating branch protection; it rejects failed,
@@ -127,7 +139,9 @@ cancelled or missing selected jobs.
 Run `tools/ci/ci.sh plan --event pull_request --base <sha> --head <sha>` to inspect
 a plan. Gates write exit-preserving measurements to `target/ci/timings.jsonl`;
 `ANIMATIX_GATE_TIMINGS` can select another evidence path. `doc-links` checks
-handwritten documentation without compiling Rust; `doc` checks Rustdoc and the
+handwritten documentation without compiling Rust. Its job keeps Nix, but skips
+the large runner disk cleanup and Rust cache restore/save. Other preparation
+remains unchanged. `doc` checks Rustdoc and the
 generated property reference. The workspace test gate includes the native
 `site_scenes` target; its standalone gate remains available for manual site builds.
 

@@ -72,6 +72,11 @@ jobs:
   gates:
     name: Gates
     needs: version
+    permissions:
+      contents: write
+      id-token: write
+      actions: read
+      attestations: write
     uses: ./.github/workflows/ci.yml
     with:
       checkout-ref: ${{ needs.version.outputs.version }}

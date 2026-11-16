@@ -74,6 +74,28 @@ class PlannerTests(unittest.TestCase):
             classification, event, base, "head", all_jobs, enable
         )
 
+    def test_verified_main_uses_dependency_plan_but_keeps_fresh_web_sdk(self):
+        cases = [
+            ("README.md", {"doc-links", "web-build"}),
+            ("crates/eparts/src/lib.rs", {"doc-links", "fast-checks", "check-lint", "test-examples", "eparts-linux", "eparts-macos", "eparts-windows", "web-build"}),
+            ("crates/animatix-gui/src/menu.rs", {"doc-links", "fast-checks", "check-lint", "test-examples", "web-build"}),
+            ("web/app/src/styles/site.css", {"doc-links", "fast-checks", "test-examples", "web-build"}),
+        ]
+        for path, expected in cases:
+            classification = PLAN.classify_paths([path], self.roots, self.repo, self.reverse)
+            for proof in ({"trusted": True, "reason": "verified full baseline"}, {"trusted": False}, None):
+                with self.subTest(path=path, proof=proof):
+                    plan = PLAN.make_plan_from_classification(classification, "push", "base", "head", self.jobs, True, proof)
+                    self.assertEqual(set(plan["job_ids"]), expected if proof and proof["trusted"] else set(JOB_IDS))
+        for path in ("Cargo.lock", "unknown/file", ".github/workflows/ci.yml"):
+            classification = PLAN.classify_paths([path], self.roots, self.repo, self.reverse)
+            plan = PLAN.make_plan_from_classification(classification, "push", "base", "head", self.jobs, True, {"trusted": True})
+            self.assertEqual(set(plan["job_ids"]), set(JOB_IDS))
+        classification = PLAN.classify_paths(["README.md"], self.roots, self.repo, self.reverse)
+        for event in ("workflow_call", "workflow_dispatch", "release"):
+            plan = PLAN.make_plan_from_classification(classification, event, "base", "head", self.jobs, True, {"trusted": True})
+            self.assertEqual(set(plan["job_ids"]), set(JOB_IDS))
+
     def test_deep_risk_selection_and_normal_budget(self):
         for path in ("crates/animatix-render/src/frame.rs", "web/embed/src/runtime/loader.js",
                      "crates/animatix-core/src/property.rs", "shaders/new.wgsl", "Cargo.lock"):
@@ -205,6 +227,21 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(set(PLAN.git_changes(self.repo, base, "HEAD")), {
             "crates/animatix-gui/src/old.rs", "crates/animatix-web/src/moved.rs", "docs/deleted.md",
         })
+        # A direct push can contain several commits; do not inspect HEAD~1 only.
+        (self.repo / "README.md").write_text("second commit\n")
+        git("add", "README.md")
+        git("commit", "-qm", "later documentation")
+        self.assertEqual(set(PLAN.git_changes(self.repo, base, "HEAD")), {
+            "crates/animatix-gui/src/old.rs", "crates/animatix-web/src/moved.rs", "docs/deleted.md", "README.md",
+        })
+        head = git("rev-parse", "HEAD")
+        plan = PLAN.make_plan(self.repo, "push", base, head, self.jobs, True, {"trusted": True, "sha": base, "head": head})
+        self.assertIn("check-lint", plan["job_ids"])
+        self.assertIn("web-build", plan["job_ids"])
+        self.assertFalse(plan["force_full"])
+        mismatched = PLAN.make_plan(self.repo, "push", base, head, self.jobs, True,
+                                    {"trusted": True, "sha": "wrong", "head": head})
+        self.assertTrue(mismatched["force_full"])
 
     def test_diff_failure_falls_back_to_the_complete_registry(self):
         with patch.object(PLAN, "git_changes", side_effect=PLAN.PlanError("diff failed")):

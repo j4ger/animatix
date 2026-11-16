@@ -21,6 +21,16 @@ def ci(*args, **env):
 
 
 class Environments(unittest.TestCase):
+    def test_reusable_context_and_permission_ceiling(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        release = (ROOT / ".github/workflows/release.yml").read_text()
+        caller = release.split("  gates:", 1)[1].split("  plan:", 1)[0]
+        for permission in ("contents: write", "id-token: write", "actions: read", "attestations: write"):
+            self.assertIn(permission, caller)
+        self.assertIn("ANIMATIX_CI_REUSABLE: ${{ contains(toJSON(inputs), '\"checkout-ref\"') }}", workflow)
+        self.assertIn('${ANIMATIX_CI_REUSABLE:-false}', CI.read_text())
+
+
     def test_linux_registry_and_jobs_require_nix(self):
         listed = ci("--list")
         self.assertEqual(listed.returncode, 0, listed.stderr)
@@ -95,6 +105,49 @@ class Environments(unittest.TestCase):
         release = (ROOT / ".github/workflows/release.yml").read_text()
         self.assertIn("uses: ./.github/workflows/ci.yml", release)
         self.assertIn("checkout-ref: ${{ needs.version.outputs.version }}", release)
+
+    def test_docs_job_skips_only_heavy_preparation(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        gate = workflow.split("  gate:\n", 1)[1].split("  required:\n", 1)[0]
+
+        def step(name):
+            return gate.split(f"      - name: {name}\n", 1)[1].split("      - name:", 1)[0]
+
+        self.assertIn("if: runner.os == 'Linux' && matrix.id != 'doc-links'", step("Free disk space"))
+        self.assertIn("if: matrix.id != 'doc-links'", step("Rust cache"))
+        for name in ("Install Nix", "Set up Cachix"):
+            preparation = step(name)
+            self.assertIn("if: matrix.shell == 'nix' || matrix.shell == 'web' || matrix.shell == 'web-ci'", preparation)
+            self.assertNotIn("matrix.id != 'doc-links'", preparation)
+        jobs = json.loads(ci("--matrix").stdout)["include"]
+        docs = next(job for job in jobs if job["id"] == "doc-links")
+        self.assertEqual(docs["shell"], "nix")
+        self.assertEqual(docs["setup"], "nix")
+        self.assertEqual(docs["gate"], "commit doc-links ci-policy-tests")
+        self.assertIn('nix) nix develop --command tools/ci/ci.sh gate "$GATE"', step("Gate"))
+        summary = step("Record preparation eligibility")
+        self.assertIn('"$GITHUB_STEP_SUMMARY"', summary)
+        self.assertIn("FREE_DISK_ELIGIBLE: ${{ runner.os == 'Linux' && matrix.id != 'doc-links' }}", summary)
+        self.assertIn("RUST_CACHE_ELIGIBLE: ${{ matrix.id != 'doc-links' }}", summary)
+        self.assertNotIn("secrets.", summary)
+        self.assertNotIn("GH_TOKEN", summary)
+
+    def test_main_baseline_read_and_pages_publish_are_explicit(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        plan = workflow.split("  plan:\n", 1)[1].split("  gate:\n", 1)[0]
+        self.assertIn("    permissions:\n      contents: read\n      actions: read", plan)
+        self.assertNotIn("id-token: write", plan)
+        self.assertIn("GH_TOKEN: ${{ github.token }}", plan)
+        self.assertIn("publish_web: ${{ steps.plan.outputs.publish_web }}", plan)
+        publish = workflow.split("  cloudflare_pages:\n", 1)[1].split("  cloudflare_pages_release:\n", 1)[0]
+        self.assertIn("needs: [plan, required]", publish)
+        self.assertIn("needs.plan.outputs.publish_web == 'true'", publish)
+        for condition in ("!cancelled()", "needs.required.result == 'success'", "github.event_name == 'push'",
+                          "github.repository == 'j4ger/animatix'", "github.ref == 'refs/heads/main'",
+                          "vars.ANIMATIX_CF_PAGES == 'enabled'"):
+            self.assertIn(condition, publish)
+        self.assertIn("Verify this run's original Nix SDK", publish)
+        self.assertIn("run: tools/ci/ci.sh gate cloudflare-pages-publish", publish)
 
     def test_relocated_tool_entrypoints_exist_without_legacy_shims(self):
         self.assertFalse((ROOT / "scripts").exists())

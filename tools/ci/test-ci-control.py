@@ -45,6 +45,37 @@ class ControlTests(unittest.TestCase):
             finally:
                 os.chdir(previous)
 
+    def test_publication_requires_main_push_same_run_web_and_no_reusable_override(self):
+        jobs = [{"id": "doc-links"}, {"id": "web-build"}]
+        registry = subprocess.CompletedProcess([], 0, json.dumps({"include": jobs}), "")
+        base = {"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/main",
+                "GITHUB_REPOSITORY": "j4ger/animatix", "ANIMATIX_CI_SELECTION": "enabled"}
+        with tempfile.TemporaryDirectory() as directory:
+            previous = Path.cwd()
+            try:
+                os.chdir(directory)
+                for changes, ids, expected in (
+                    ({}, ["doc-links", "web-build"], True),
+                    ({}, ["doc-links"], False),
+                    ({"GITHUB_EVENT_NAME": "pull_request"}, ["web-build"], False),
+                    ({"GITHUB_EVENT_NAME": "workflow_call"}, ["web-build"], False),
+                    ({"GITHUB_EVENT_NAME": "release"}, ["web-build"], False),
+                    ({"GITHUB_REF": "refs/heads/other"}, ["web-build"], False),
+                    ({"GITHUB_REPOSITORY": "someone/fork"}, ["web-build"], False),
+                    ({"ANIMATIX_CI_CHECKOUT_REF": "v1.0"}, ["web-build"], False),
+                ):
+                    policy = Path("policy.json")
+                    policy.write_text(json.dumps({"event": "push", "candidate_job_ids": ids, "force_full": False}))
+                    with patch.object(CONTROL.subprocess, "run", return_value=registry), patch.dict(
+                        os.environ, {**base, **changes}, clear=True
+                    ):
+                        CONTROL.github_plan(policy)
+                    result = json.loads(policy.read_text())
+                    self.assertEqual(result["publish_web"], expected)
+                    self.assertEqual(set(result["effective_job_ids"]) | set(result["skipped_job_ids"]), {"doc-links", "web-build"})
+            finally:
+                os.chdir(previous)
+
     def test_required_rejects_missing_skipped_cancelled_or_failed_jobs(self):
         CONTROL.require_success({"plan": {"result": "success"}, "gate": {"result": "success"}})
         for state in ("failure", "cancelled", "skipped", None):

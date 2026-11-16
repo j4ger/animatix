@@ -1,7 +1,8 @@
 name: CI
 
 # Gate definitions and job matrices live in tools/ci/ci.sh. The PR planner
-# selects registered jobs by dependency; main and release callers run the full matrix.
+# selects registered jobs by dependency; uncertain baselines and release callers
+# run the full matrix.
 # CI Required collects the planner and every selected result.
 
 on:
@@ -39,7 +40,11 @@ jobs:
   plan:
     name: Plan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     outputs:
+      publish_web: ${{ steps.plan.outputs.publish_web }}
       matrix: ${{ steps.plan.outputs.matrix }}
       web_smoke_depth: ${{ steps.plan.outputs.web_smoke_depth }}
     steps:
@@ -50,8 +55,11 @@ jobs:
           ref: ${{ inputs.checkout-ref || github.sha }}
       - id: plan
         env:
+          GH_TOKEN: ${{ github.token }}
           ANIMATIX_CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           ANIMATIX_CI_CHECKOUT_REF: ${{ inputs.checkout-ref }}
+          # A reusable call inherits the caller event, even when checkout-ref is empty.
+          ANIMATIX_CI_REUSABLE: ${{ contains(toJSON(inputs), '"checkout-ref"') }}
           ANIMATIX_CI_SELECTION: ${{ vars.ANIMATIX_CI_SELECTION || 'enabled' }}
         run: tools/ci/ci.sh gate ci-plan
       - name: Upload selection evidence
@@ -82,7 +90,7 @@ jobs:
       # runner image's preinstalled Android/.NET/GHC toolchains are not used by
       # this project and otherwise leave the Nix build with too little disk.
       - name: Free disk space
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.id != 'doc-links'
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
             /usr/local/share/boost /usr/local/share/chromium
@@ -110,9 +118,25 @@ jobs:
         with:
           components: rustfmt
       - name: Rust cache
+        if: matrix.id != 'doc-links'
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.shell }}
+
+      - name: Record preparation eligibility
+        shell: bash
+        env:
+          JOB_ID: ${{ matrix.id }}
+          FREE_DISK_ELIGIBLE: ${{ runner.os == 'Linux' && matrix.id != 'doc-links' }}
+          RUST_CACHE_ELIGIBLE: ${{ matrix.id != 'doc-links' }}
+          NIX_ELIGIBLE: ${{ matrix.shell == 'nix' || matrix.shell == 'web' || matrix.shell == 'web-ci' }}
+        run: |
+          {
+            printf '### Preparation eligibility: %s\n\n' "$JOB_ID"
+            printf -- '- Free disk space: %s\n' "$FREE_DISK_ELIGIBLE"
+            printf -- '- Rust cache: %s\n' "$RUST_CACHE_ELIGIBLE"
+            printf -- '- Nix and Cachix: %s\n' "$NIX_ELIGIBLE"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # Environment hints from the setup column (rust-*, node, nix, none) are
       # handled by the steps above; the wasm-bindgen CLI now comes from the
@@ -201,8 +225,8 @@ jobs:
   # while requiring the aggregate CI result and respecting cancellation.
   cloudflare_pages:
     name: Sign Cloudflare Pages SDK
-    needs: required
-    if: ${{ !cancelled() && needs.required.result == 'success' && github.event_name == 'push' && github.repository == 'j4ger/animatix' && github.ref == 'refs/heads/main' && vars.ANIMATIX_CF_PAGES == 'enabled' }}
+    needs: [plan, required]
+    if: ${{ !cancelled() && needs.required.result == 'success' && needs.plan.outputs.publish_web == 'true' && github.event_name == 'push' && github.repository == 'j4ger/animatix' && github.ref == 'refs/heads/main' && vars.ANIMATIX_CF_PAGES == 'enabled' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

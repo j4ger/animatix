@@ -229,7 +229,15 @@ def github_plan(policy_path):
     if depth not in {"critical", "deep"}:
         raise ValueError("invalid web smoke depth")
     matrix = {"include": chosen}
-    policy.update(effective_selection=selection,
+    publish_web = (policy.get("event") == "push"
+                   and os.environ.get("GITHUB_EVENT_NAME") == "push"
+                   and os.environ.get("GITHUB_REF") == "refs/heads/main"
+                   and os.environ.get("GITHUB_REPOSITORY") == "j4ger/animatix"
+                   and not os.environ.get("ANIMATIX_CI_CHECKOUT_REF")
+                   and any(job["id"] == "web-build" for job in chosen))
+    policy.update(publish_web=publish_web,
+                  skipped_job_ids=[job["id"] for job in jobs if job not in chosen],
+                  effective_selection=selection,
                   effective_job_ids=[job["id"] for job in chosen],
                   effective_matrix=matrix)
     Path(policy_path).write_text(json.dumps(policy, indent=2) + "\n")
@@ -239,8 +247,18 @@ def github_plan(policy_path):
     output = os.environ.get("GITHUB_OUTPUT")
     if output:
         with open(output, "a", encoding="utf-8") as stream:
+            stream.write("publish_web=" + str(publish_web).lower() + "\n")
             stream.write("web_smoke_depth=" + depth + "\n")
             stream.write("matrix=" + json.dumps(matrix, separators=(",", ":")) + "\n")
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a", encoding="utf-8") as stream:
+            stream.write("## CI selection\n\n")
+            stream.write(f"Mode: `{selection}`; reason: {policy.get('reason', 'unknown')}\n\n")
+            stream.write(f"Baseline: `{json.dumps(policy.get('main_baseline'), sort_keys=True)}`\n\n")
+            stream.write("Selected: " + ", ".join(policy["effective_job_ids"]) + "\n\n")
+            stream.write("Not selected: " + ", ".join(policy["skipped_job_ids"]) + "\n\n")
+            stream.write(f"Same-run web publication eligible: `{str(publish_web).lower()}`\n")
     return 0
 
 

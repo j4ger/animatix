@@ -382,6 +382,7 @@ gate_doc_links() { bash tools/docs/check-docs.sh; }
 gate_ci_policy_tests() {
   python3 tools/ci/test-ci-control.py
   python3 tools/ci/test-ci-plan.py
+  python3 tools/ci/test-main-baseline.py
   python3 web/tools/test/test-web-smoke-gates.py
   python3 web/tools/dev/test-serve-web-base.py
   python3 -m unittest discover -s tools/ci/lib -p 'test_*.py'
@@ -390,8 +391,15 @@ gate_ci_policy_tests() {
 gate_ci_plan() {
   mkdir -p target/ci
   local event="${GITHUB_EVENT_NAME:-workflow_dispatch}"
-  [ -z "${ANIMATIX_CI_CHECKOUT_REF:-}" ] || event=workflow_call
+  if [ -n "${ANIMATIX_CI_CHECKOUT_REF:-}" ] || [ "${ANIMATIX_CI_REUSABLE:-false}" = true ]; then
+    event=workflow_call
+  fi
+  python3 tools/ci/main-baseline.py --repo "$root" \
+    --event-file "${GITHUB_EVENT_PATH:-}" --repository "${GITHUB_REPOSITORY:-}" \
+    --head "${GITHUB_SHA:-HEAD}" --event "$event" \
+    --checkout-ref "${ANIMATIX_CI_CHECKOUT_REF:-}" --output target/ci/main-baseline.json
   python3 tools/ci/ci-plan.py --repo "$root" --event "$event" \
+    --main-baseline target/ci/main-baseline.json \
     --base "${ANIMATIX_CI_BASE:-}" --head "${GITHUB_SHA:-HEAD}" > target/ci/plan.json
   python3 tools/ci/ci-control.py plan target/ci/plan.json
 }
