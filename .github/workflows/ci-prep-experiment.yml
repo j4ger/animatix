@@ -110,7 +110,7 @@ jobs:
           key: ${{ matrix.arm == 'c' && steps.identity.outputs.identity || matrix.shell }}
           cache-workspace-crates: false
           cache-on-failure: false
-          save-if: ${{ 'cold' == 'cold' && success() }}
+          save-if: true
       - name: Record restored disk and cache verdict
         env:
           ANIMATIX_PREP_ACTION: snapshot
@@ -192,7 +192,7 @@ jobs:
           key: ${{ matrix.arm == 'c' && steps.identity.outputs.identity || matrix.shell }}
           cache-workspace-crates: false
           cache-on-failure: false
-          save-if: ${{ 'warm' == 'cold' && success() }}
+          save-if: false
       - name: Record restored disk and cache verdict
         env:
           ANIMATIX_PREP_ACTION: snapshot

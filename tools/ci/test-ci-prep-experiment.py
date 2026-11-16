@@ -319,8 +319,8 @@ class WorkflowIsolation(unittest.TestCase):
             self.assertNotIn("authToken:", text)
             self.assertIn("ANIMATIX_PREP_ACTION: run", text)
             self.assertIn("ANIMATIX_PREP_JOB: ${{ matrix.id }}", text)
-        self.assertIn("save-if: ${{ 'cold' == 'cold' && success() }}", cold)
-        self.assertIn("save-if: ${{ 'warm' == 'cold' && success() }}", warm)
+        self.assertIn("save-if: true", cold)
+        self.assertIn("save-if: false", warm)
         self.assertIn("needs: [plan, cold]", warm)
 
     def test_guarded_plan_and_fail_closed_result(self):
