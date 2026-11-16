@@ -110,6 +110,47 @@ printf '%s\\n' "$f"; done
                 with patch.object(canonical, 'inventory', return_value=[entry]), patch.object(canonical, 'sha256', side_effect=hashes), patch.object(canonical.subprocess, 'run', return_value=result), patch.object(canonical.subprocess, 'check_output', return_value='sha'):
                     self.assertEqual(canonical.collect(Path(d) / 'binary', Path(d) / 'run'), 1)
 
+    def test_safe_progress_survives_interrupted_collection(self):
+        entry = inventory(corpus='canonical')[0]
+        with tempfile.TemporaryDirectory() as d:
+            binary = Path(d) / 'fake'
+            binary.write_text('fake')
+            output = Path(d) / 'raw'
+            summary = Path(d) / 'summary.json'
+            with patch.object(canonical, 'inventory', return_value=[entry]), patch.object(canonical.subprocess, 'run', side_effect=KeyboardInterrupt):
+                with self.assertRaises(KeyboardInterrupt):
+                    canonical.collect(binary, output, summary)
+            data = json.loads(summary.read_text())
+            self.assertFalse(data['complete'])
+            self.assertEqual(data['expected'], 1)
+            self.assertEqual(data['completed'], 0)
+            self.assertEqual(set(data), {'schema_version', 'complete', 'expected',
+                'completed', 'passed', 'binary_sha256', 'binary_unchanged'})
+            self.assertNotIn(str(binary), summary.read_text())
+
+    def test_missing_stdout_cannot_pass_and_summary_has_no_raw_diagnostics(self):
+        entry = inventory(corpus='canonical')[0]
+        with tempfile.TemporaryDirectory() as d:
+            binary = Path(d) / 'fake'
+            binary.write_text('fake')
+            summary = Path(d) / 'summary.json'
+            result = subprocess.CompletedProcess([], 0, '', 'secret diagnostic')
+            with patch.object(canonical, 'inventory', return_value=[entry]), patch.object(canonical.subprocess, 'run', return_value=result), patch.object(canonical.subprocess, 'check_output', return_value='sha'):
+                self.assertEqual(canonical.collect(binary, Path(d) / 'raw', summary), 1)
+            data = json.loads(summary.read_text())
+            self.assertTrue(data['complete'])
+            self.assertEqual(data['passed'], 0)
+            self.assertNotIn('secret', summary.read_text())
+
+    def test_ci_upload_is_only_public_summary(self):
+        workflow = (ROOT / '.github/workflows/ci.yml').read_text()
+        start = workflow.index('      - name: Upload canonical audit counters')
+        end = workflow.index('      - name:', start + 10)
+        block = workflow[start:end]
+        self.assertIn('path: target/ci/canonical-audit/*/summary.json', block)
+        self.assertNotIn('/raw', block)
+        self.assertIn("if: always()", block)
+
     def test_collection_keeps_failure_and_never_updates_budget(self):
         entry = inventory(corpus='canonical')[0]
         with tempfile.TemporaryDirectory() as d:

@@ -1,0 +1,19 @@
+{
+  "revision": 1,
+  "group": "layout_invalidation_v1",
+  "counts": [16, 64],
+  "count_unit": "Rect children; one additional Row entity",
+  "modes": ["static", "color", "size"],
+  "dimensions": [2048, 256],
+  "row": { "size": [1792, 128], "at": [1024, 128], "gap": 4, "align": "center" },
+  "dynamic_layout": true,
+  "initial_rect": { "size": [12, 24], "color": [1, 0, 0, 1], "opacity": 1, "stroke_width": 0 },
+  "color_animation": "all Rects: red to blue [1s, ease: linear] at #0s",
+  "size_animation": "all Rects: width 12 to 20; height 24 [1s, ease: linear] at #0s",
+  "samples": 64,
+  "time_formula": "(sample_index % 64) / 64 seconds in ALL modes",
+  "api": "Timeline::evaluate(time_s, dimensions)",
+  "timed": ["clock advance", "CPU scene evaluation", "returned Scene destruction"],
+  "excluded": ["generation", "parse", "build", "one warm evaluation", "structured item collection", "GPU rendering", "readback", "file I/O"],
+  "policy": "signal_only"
+}

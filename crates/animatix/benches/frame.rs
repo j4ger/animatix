@@ -7,6 +7,7 @@
 
 mod common;
 mod geometry_count;
+mod layout_invalidation;
 mod scaling;
 mod scaling_breakdown;
 mod scaling_no_cache;
@@ -21,6 +22,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 
 fn bench_frame_target(c: &mut Criterion) {
     geometry_count::bench_geometry_count(c);
+    layout_invalidation::bench_layout_invalidation(c);
     timeline_eval::bench_timeline_evaluate(c);
     scrubbing::bench_scrubbing(c);
     static_scene::bench_static(c);

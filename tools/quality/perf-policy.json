@@ -7,6 +7,11 @@
   "rules": [
     {
       "role": "signal_only",
+      "pattern": "^layout_invalidation_v1__(static|color|size)__(16|64)$",
+      "reason": "Frozen Row workload v1: separate CPU evaluation signals, not pure layout timings or a new CI performance threshold."
+    },
+    {
+      "role": "signal_only",
       "pattern": "^geometry_rect_count_v1__(static_repeated_time|animated_varying_time)__(16|64|256)$",
       "reason": "Frozen CPU geometry workload v1: establish reviewed baselines before introducing any new performance gate; cache modes are not interchangeable."
     },

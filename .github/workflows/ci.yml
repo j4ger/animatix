@@ -204,6 +204,17 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      # Raw audit reports can contain source text and local paths. Never upload them.
+      - name: Upload canonical audit counters
+        if: always() && contains(format(' {0} ', matrix.gate), ' canonical-audit ')
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: canonical-audit-${{ matrix.id }}-${{ github.run_attempt }}
+          path: target/ci/canonical-audit/*/summary.json
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Upload extension health evidence
         if: always() && contains(matrix.gate, 'ext-bench') && env.ANIMATIX_EXT_BENCH_EVIDENCE != ''
         uses: actions/upload-artifact@v4

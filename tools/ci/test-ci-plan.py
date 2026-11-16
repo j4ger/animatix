@@ -74,6 +74,25 @@ class PlannerTests(unittest.TestCase):
             classification, event, base, "head", all_jobs, enable
         )
 
+    def test_canonical_audit_selected_for_content_and_engine(self):
+        for path in ('web/content/scenes/new-scene.amx', 'web/fonts/new.ttf',
+                     'crates/animatix-core/src/lib.rs', 'tools/quality/audit_corpus.py',
+                     'Cargo.lock', 'unknown/new-input'):
+            with self.subTest(path=path):
+                _, plan = self.plan([path])
+                self.assertIn('check-lint', plan['job_ids'])
+        _, plan = self.plan(['README.md'], event='workflow_call')
+        self.assertIn('check-lint', plan['job_ids'])
+
+    def test_real_registry_runs_canonical_once_in_full_and_release_validation(self):
+        root = SCRIPT.resolve().parents[2]
+        jobs = PLAN.get_pr_matrix(root)
+        occurrences = [j for j in jobs if 'canonical-audit' in j['gate'].split()]
+        self.assertEqual(len(occurrences), 1)
+        self.assertEqual(occurrences[0]['id'], 'check-lint')
+        release = (root / '.github/workflows/release.yml').read_text()
+        self.assertIn('uses: ./.github/workflows/ci.yml', release)
+
     def test_verified_main_uses_dependency_plan_but_keeps_fresh_web_sdk(self):
         cases = [
             ("README.md", {"doc-links", "web-build"}),

@@ -327,7 +327,7 @@ def selected_ids(classification: dict) -> set[str]:
     if classification["packaging_changed"]:
         selected.add("fast-checks")
     if classification.get("web_scenes_changed", False):
-        selected.add("render-scenes")
+        selected.update({"render-scenes", "check-lint"})
     return selected
 
 

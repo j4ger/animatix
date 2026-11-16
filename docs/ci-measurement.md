@@ -6,7 +6,7 @@ gate-list dispatcher can combine the adjacent scene/budget pair as described
 below; this is an optimization beyond that no-op baseline:
 
 ```text
-audit → scene-audit → budget-audit → check → lint → doc → no-video
+audit → scene-audit → budget-audit → canonical-audit → check → lint → doc → no-video
 ```
 
 A timing change is instrumentation, not evidence of a speedup. Gate totals,
@@ -19,6 +19,7 @@ do not add both together. Failed or interrupted runs are not successful samples.
 
 | Gate | Useful boundaries | Interpretation |
 | --- | --- | --- |
+| canonical-audit | `build-cli` (cargo); `audit-scenes` (execution) | Canonical zero-debt audits; raw diagnostics stay local, only typed summary counters are uploaded. |
 | scene-audit | `build-cli` (cargo); `audit-corpus` (execution) | The corpus phase includes enumeration, worker startup and validation, not only engine execution. |
 | budget-audit | `build-cli` (cargo); `check-budget` (execution) | Standalone calls retain their own build, even on a cache hit. The adjacent union records shared work instead. |
 | scene-budget-audit | `build-cli` (cargo); `audit-corpus` (execution) | Shared scene/budget union, never two invented independent gate durations. |

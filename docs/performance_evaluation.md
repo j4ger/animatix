@@ -114,6 +114,14 @@ measure CPU scene evaluation, not GPU throughput or a demonstrated speedup.
 The repeated-time and animated-varying-time modes must never be compared as
 before/after versions of one workload.
 
+### Frozen layout invalidation workload v1
+
+The six `layout_invalidation_v1/{static,color,size}/{16,64}` rows compare separately
+identified Row fixtures with identical 64-time schedules. They are signal-only
+CPU scene-evaluation measurements, **not isolated layout durations or measured
+cache-hit rates**. See the [frozen input and output contracts](../crates/animatix/benches/fixtures/layout-invalidation-v1/README.md).
+Old rows, saved-baseline policy and CI performance limits are unchanged.
+
 ### 2.2 CPU guardrails today
 
 `tools/quality/extension-bench.sh` runs the property-plan lookup and timeline evaluation

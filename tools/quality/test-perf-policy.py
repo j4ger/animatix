@@ -39,6 +39,14 @@ class PerfPolicyTests(unittest.TestCase):
     def compare(self, bench_id, base, current):
         return policy_module.classify(self.policy, bench_id, base, current, 5.0)
 
+    def test_layout_v1_rows_are_signal_only(self):
+        for mode in ["static", "color", "size"]:
+            for count in [16, 64]:
+                self.assertEqual(policy_module.role_for(
+                    self.policy, f"layout_invalidation_v1__{mode}__{count}")["role"], "signal_only")
+        with self.assertRaises(ValueError):
+            policy_module.role_for(self.policy, "layout_invalidation_v1__size__256")
+
     def test_geometry_v1_rows_are_signal_only_without_changing_thresholds(self):
         for mode in ["static_repeated_time", "animated_varying_time"]:
             for count in [16, 64, 256]:

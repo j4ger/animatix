@@ -76,6 +76,7 @@ eparts|native|macos-latest|rust-stable|pr
 eparts|native|windows-latest|rust-stable|pr
 audit|nix|ubuntu-latest|nix|pr
 scene-audit|nix|ubuntu-latest|nix|pr
+canonical-audit|nix|ubuntu-latest|nix|pr
 budget-audit|nix|ubuntu-latest|nix|pr
 wasm-check|web|ubuntu-latest|nix|pr
 web-build|web-ci|ubuntu-latest|nix|pr
@@ -134,7 +135,7 @@ Documentation Links|doc-links ci-policy-tests|nix|ubuntu-latest|nix|pr|doc-links
 eparts|eparts|nix|ubuntu-latest|nix|pr|eparts-linux
 eparts|eparts|native|macos-latest|rust-stable|pr|eparts-macos
 eparts|eparts|native|windows-latest|rust-stable|pr|eparts-windows
-Check & Lint|audit scene-audit budget-audit check lint doc no-video|nix|ubuntu-latest|nix|pr|check-lint
+Check & Lint|audit scene-audit budget-audit canonical-audit check lint doc no-video|nix|ubuntu-latest|nix|pr|check-lint
 Test & Examples|test examples|nix|ubuntu-latest|nix|pr|test-examples
 Render Smoke & Scenes|render-smoke|nix|ubuntu-latest|nix|pr|render-scenes
 Benchmarks|ext-bench|nix|ubuntu-latest|nix|pr|benchmarks
@@ -276,6 +277,16 @@ gate_no_video() {
     fi
   done
   echo "no-video: minimal engine excludes rich text; default CLI/GUI exclude rsmpeg (video)"
+}
+
+gate_canonical_audit() {
+  want_nix_shell canonical-audit
+  measure_phase canonical-audit build-cli cargo cargo build --bin animatix
+  local evidence
+  mkdir -p target/ci/canonical-audit
+  evidence=$(mktemp -d target/ci/canonical-audit/run-XXXXXXXX)
+  measure_phase canonical-audit audit-scenes execution python3 tools/quality/audit-canonical.py \
+    --output "$evidence/raw" --ci-summary "$evidence/summary.json"
 }
 
 gate_scene_audit() {

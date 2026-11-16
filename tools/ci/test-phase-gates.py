@@ -57,6 +57,24 @@ print(json.dumps({'schema_version':3,'kind':'audit','summary':{'errors':0}}))
     def records(self):
         return [json.loads(p.read_text()) for p in (self.root/'target/ci/phases').glob('*.json')]
 
+    def test_canonical_gate_executes_collector_and_records_failure(self):
+        shutil.copyfile(ROOT / 'tools/quality/audit-canonical.py', self.root / 'tools/quality/audit-canonical.py')
+        scene = self.root / 'web/content/scenes/new.amx'
+        scene.parent.mkdir(parents=True)
+        scene.write_text('fixture')
+        # The collector records repository identity, not fake build provenance.
+        subprocess.run(['git', 'init', '-q', str(self.root)], check=True)
+        subprocess.run(['git', '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
+                        'commit', '--allow-empty', '-qm', 'fixture'], cwd=self.root, check=True)
+        result = self.run_gate('canonical-audit')
+        # Existing mock omits warning/budget output: zero CLI exit must not pass.
+        self.assertNotEqual(result.returncode, 0)
+        summaries = list((self.root / 'target/ci/canonical-audit').glob('*/summary.json'))
+        self.assertEqual(len(summaries), 1)
+        self.assertEqual(json.loads(summaries[0].read_text())['passed'], 0)
+        self.assertEqual([x['args'] for x in self.calls()], [['build', '--bin', 'animatix']])
+        self.assertEqual({r['phase'] for r in self.records()}, {'build-cli', 'audit-scenes'})
+
     def test_no_video_retains_every_original_cargo_argument_and_order(self):
         result = self.run_gate('no-video')
         self.assertEqual(result.returncode,0,result.stderr)
@@ -100,7 +118,7 @@ print(json.dumps({'schema_version':3,'kind':'audit','summary':{'errors':0}}))
         self.assertEqual({r['kind'] for r in self.records()},{'cargo','execution'})
 
     def test_existing_matrix_order_and_artifact_upload_remain_explicit(self):
-        self.assertIn('Check & Lint|audit scene-audit budget-audit check lint doc no-video|',SOURCE)
+        self.assertIn('Check & Lint|audit scene-audit budget-audit canonical-audit check lint doc no-video|',SOURCE)
         self.assertIn('target/ci/phases/*.json',(ROOT/'.github/workflows/ci.yml').read_text())
 
 

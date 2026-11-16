@@ -303,9 +303,20 @@ geometry_provenance = {
     "contract": json.loads(geometry_paths[-1].read_text()),
     "inputs_sha256": {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in geometry_paths},
 }
+layout_paths = [
+    geometry_root / "layout_invalidation.rs",
+    geometry_root / "layout_invalidation_workload.rs",
+    geometry_root / "frame.rs",
+    geometry_root / "fixtures/layout-invalidation-v1/manifest.json",
+]
+layout_provenance = {
+    "contract": json.loads(layout_paths[-1].read_text()),
+    "inputs_sha256": {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in layout_paths},
+}
 with open(path, "w", encoding="utf-8") as f:
     json.dump({
         "geometry_count_v1": geometry_provenance,
+        "layout_invalidation_v1": layout_provenance,
         "full_pipeline_contract_revision": 2,
         "full_pipeline_inputs_sha256": provenance,
         "tier": tier,

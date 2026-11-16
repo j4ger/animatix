@@ -10,6 +10,7 @@ mod full_pipeline_contract;
 mod geometry_count_contract;
 mod ir_opt_tests;
 mod ir_tests;
+mod layout_invalidation_contract;
 mod module_tests;
 mod plot_params_tests;
 mod svg_import_tests;
