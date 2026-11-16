@@ -115,6 +115,8 @@ release-resolve|none|ubuntu-latest|none|control
 release-verify|none|ubuntu-latest|none|control
 release-notes|none|ubuntu-latest|none|control
 release-publish|none|ubuntu-latest|none|control
+ci-prep-experiment|none|ubuntu-latest|none|control
+ci-prep-experiment-tests|none|ubuntu-latest|none|control
 '
 
 # ── CI matrix jobs ────────────────────────────────────────────────────────────
@@ -220,6 +222,15 @@ want_wasm_std() {
 }
 
 # ── gates ─────────────────────────────────────────────────────────────────────
+# Experiment-only preparation; never part of the production PR matrix.
+gate_ci_prep_experiment() {
+  python3 tools/ci/ci-prep-experiment.py
+}
+
+gate_ci_prep_experiment_tests() {
+  python3 tools/ci/test-ci-prep-experiment.py
+}
+
 gate_fmt() {
   want_cargo
   cargo fmt --all -- --check
