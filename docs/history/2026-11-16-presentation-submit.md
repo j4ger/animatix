@@ -142,3 +142,10 @@ is `cpu-compare.log`, with estimates under `target/perf/gpu-round3-after/`
 and the saved baseline under `target/perf/gpu-round3-baseline/`. This screen
 covers engine/analyzer CPU workloads; the native render/presentation timings
 above cover the changed GPU interaction separately.
+
+## Follow-up
+
+The [multi-player hardware measurements](2026-11-16-multi-player-submission.md)
+record successful Radeon WebGPU runs, exact per-player submission counts,
+page-depth-one completion probes, and the remaining browser timing limits.
+The failed attempts in this record remain unverified measurements.
