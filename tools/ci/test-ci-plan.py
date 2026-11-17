@@ -16,7 +16,7 @@ SPEC.loader.exec_module(PLAN)
 
 JOB_IDS = [
     "fast-checks", "doc-links", "eparts-linux", "eparts-macos",
-    "eparts-windows", "check-lint", "test-examples", "render-scenes",
+    "eparts-windows", "security-audit", "check-lint", "test-examples", "render-scenes",
     "benchmarks", "web-check", "web-build",
 ]
 
@@ -63,6 +63,22 @@ class PlannerTests(unittest.TestCase):
         )
         self.roots, self.dependencies, self.reverse = PLAN.load_workspace(self.repo)
         self.jobs = [{"id": identifier, "name": identifier} for identifier in JOB_IDS]
+
+    def test_dependency_security_policy_changes_require_audit(self):
+        for path in ("Cargo.lock", "crates/eparts/Cargo.toml", "nested/Cargo.lock",
+                     "tools/quality/audit-allow.txt", ".cargo/audit.toml", "flake.lock",
+                     "tools/ci/security-audit.py", ".github/workflows/nightly.yml"):
+            with self.subTest(path=path):
+                self.assertIn("security-audit", self.plan([path])[1]["job_ids"])
+
+    def test_ordinary_source_and_docs_do_not_select_audit(self):
+        for path in ("crates/animatix/src/lib.rs", "docs/spec.md", "web/README.md"):
+            with self.subTest(path=path):
+                self.assertNotIn("security-audit", self.plan([path])[1]["job_ids"])
+
+    def test_uncertain_and_release_plans_keep_security_audit(self):
+        for options in ({"base": ""}, {"event": "workflow_call"}, {"event": "push"}):
+            self.assertIn("security-audit", self.plan(["docs/spec.md"], **options)[1]["job_ids"])
 
     def tearDown(self):
         self.temporary.cleanup()

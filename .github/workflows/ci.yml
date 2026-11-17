@@ -86,7 +86,7 @@ jobs:
       # runner image's preinstalled Android/.NET/GHC toolchains are not used by
       # this project and otherwise leave the Nix build with too little disk.
       - name: Free disk space
-        if: runner.os == 'Linux' && matrix.id != 'doc-links'
+        if: runner.os == 'Linux' && matrix.id != 'doc-links' && matrix.id != 'security-audit'
         shell: bash
         env:
           JOB_ID: ${{ matrix.id }}
@@ -133,7 +133,7 @@ jobs:
           name: animatix
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           extraPullNames: 'nix-community'
-          skipPush: ${{ github.event_name == 'pull_request' }}
+          skipPush: ${{ github.event_name == 'pull_request' || matrix.id == 'security-audit' }}
 
       - name: Rust (stable)
         if: matrix.shell == 'native' && contains(matrix.setup, 'rust-stable')
@@ -141,7 +141,7 @@ jobs:
         with:
           components: rustfmt
       - name: Rust cache
-        if: matrix.id != 'doc-links'
+        if: matrix.id != 'doc-links' && matrix.id != 'security-audit'
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.shell }}
@@ -150,8 +150,8 @@ jobs:
         shell: bash
         env:
           JOB_ID: ${{ matrix.id }}
-          FREE_DISK_ELIGIBLE: ${{ runner.os == 'Linux' && matrix.id != 'doc-links' }}
-          RUST_CACHE_ELIGIBLE: ${{ matrix.id != 'doc-links' }}
+          FREE_DISK_ELIGIBLE: ${{ runner.os == 'Linux' && matrix.id != 'doc-links' && matrix.id != 'security-audit' }}
+          RUST_CACHE_ELIGIBLE: ${{ matrix.id != 'doc-links' && matrix.id != 'security-audit' }}
           NIX_ELIGIBLE: ${{ matrix.shell == 'nix' || matrix.shell == 'web' || matrix.shell == 'web-ci' }}
         run: |
           {
@@ -250,6 +250,15 @@ jobs:
           path: ${{ env.ANIMATIX_EXT_BENCH_EVIDENCE }}
           if-no-files-found: warn
           retention-days: 7
+
+      - name: Upload dependency security evidence
+        if: always() && matrix.id == 'security-audit'
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit-${{ github.run_attempt }}
+          path: target/ci/security-audit/summary.json
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Upload gate timings
         if: always()

@@ -164,3 +164,34 @@ with unchanged checks and acceptable time-to-first-failure. Otherwise keep the
 current order. The documentation gate and documentation-link job keep their
 existing Nix shells; a smaller shell is a separate dependency audit, not a timing
 optimization justified by these measurements.
+
+### Dependency security cadence
+
+RustSec auditing is a separate `security-audit` CI matrix job, not a serial
+prefix to Check & Lint. Dependency manifests/lockfiles, audit policy, CI and
+Nix inputs require an immediate audit; unknown paths, untrusted baselines and
+reusable release validation retain conservative full coverage. Ordinary source
+changes can omit it when the existing planner proves selective CI is safe.
+
+Nightly runs the audit for its exact checkout even when there are no new main
+commits and its rolling build is skipped. A failed audit prevents that nightly
+build/publication. Formal releases always audit the resolved release commit;
+they do not borrow a previous nightly's green result. Ordinary Pages publication
+accepts the daily new-advisory detection window. A failed nightly does NOT latch
+a global publication lock: subsequent ordinary-source Pages runs may still
+publish without audit when the planner permits selection. Blocking those runs
+requires a separately approved publication policy; no cross-run success reuse
+or failure latch is implemented here. A daily GitHub schedule is not a
+24-hour SLA: delayed/dropped runs and disabled schedules can extend that window.
+
+Every audit fetches fresh RustSec advisory data. Missing RustSec data, malformed
+output or incomplete vulnerability auditing fails closed. This is not a complete
+registry/yanked-package check: cargo-audit 0.22 can warn and skip that check after
+a crates.io index failure. Evidence explicitly marks yanked coverage unverified;
+a passing verdict covers RustSec vulnerabilities only. Only `target/ci/security-audit/summary.json`
+is uploaded as security evidence, with checkout/lockfile/database identity,
+timing and outcome; raw dependency reports are not published. Existing annotated
+allowlist policy remains explicit. Unreviewed project/user `audit.toml` overrides
+are rejected rather than allowing fetch suppression or hidden filtering. No
+advisory database cache or offline fallback
+is introduced by this cadence change.

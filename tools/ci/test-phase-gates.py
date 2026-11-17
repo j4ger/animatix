@@ -118,7 +118,8 @@ print(json.dumps({'schema_version':3,'kind':'audit','summary':{'errors':0}}))
         self.assertEqual({r['kind'] for r in self.records()},{'cargo','execution'})
 
     def test_existing_matrix_order_and_artifact_upload_remain_explicit(self):
-        self.assertIn('Check & Lint|audit scene-audit budget-audit canonical-audit check lint doc no-video|',SOURCE)
+        self.assertIn('Check & Lint|scene-audit budget-audit canonical-audit check lint doc no-video|',SOURCE)
+        self.assertIn('Security Audit|audit|nix|ubuntu-latest|nix|pr|security-audit',SOURCE)
         self.assertIn('target/ci/phases/*.json',(ROOT/'.github/workflows/ci.yml').read_text())
 
 

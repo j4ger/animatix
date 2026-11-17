@@ -21,7 +21,7 @@ import tomllib
 
 ALWAYS_IDS = {"doc-links"}
 KNOWN_IDS = {
-    "fast-checks", "doc-links", "check-lint", "eparts-linux", "eparts-macos",
+    "fast-checks", "doc-links", "security-audit", "check-lint", "eparts-linux", "eparts-macos",
     "eparts-windows", "test-examples", "render-scenes", "benchmarks",
     "web-check", "web-build",
 }
@@ -191,6 +191,8 @@ def normalize_repo_path(path: str) -> str:
 
 
 def is_full_path(path: str) -> str | None:
+    if path == "tools/quality/audit-allow.txt" or path.endswith("/Cargo.lock"):
+        return "dependency lockfile or audit policy changed"
     if path in FULL_PATHS:
         return "workspace, lock, toolchain, or Nix input changed"
     if path.startswith(("crates/", "tools/", "web/tools/")) and path.endswith("/Cargo.toml"):

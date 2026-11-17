@@ -137,8 +137,8 @@ class Environments(unittest.TestCase):
         self.assertIn('nix) nix develop --command tools/ci/ci.sh gate "$GATE"', step("Gate"))
         summary = step("Record preparation eligibility")
         self.assertIn('"$GITHUB_STEP_SUMMARY"', summary)
-        self.assertIn("FREE_DISK_ELIGIBLE: ${{ runner.os == 'Linux' && matrix.id != 'doc-links' }}", summary)
-        self.assertIn("RUST_CACHE_ELIGIBLE: ${{ matrix.id != 'doc-links' }}", summary)
+        self.assertIn("FREE_DISK_ELIGIBLE: ${{ runner.os == 'Linux' && matrix.id != 'doc-links' && matrix.id != 'security-audit' }}", summary)
+        self.assertIn("RUST_CACHE_ELIGIBLE: ${{ matrix.id != 'doc-links' && matrix.id != 'security-audit' }}", summary)
         self.assertNotIn("secrets.", summary)
         self.assertNotIn("GH_TOKEN", summary)
 
