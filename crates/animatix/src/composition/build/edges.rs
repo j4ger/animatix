@@ -134,9 +134,8 @@ pub(super) fn compute_walk_order(
 
 /// Validate that `target` names a scene the build can reach.
 ///
-/// A dotted target resolves through the namespace map (legacy/test namespaces
-/// with no scene data accept any name); an undotted target must be a scene the
-/// composition already registered.
+/// A qualified target resolves through the namespace map. An unqualified target
+/// must name a scene already registered by this composition.
 pub(super) fn validate_play_target(
     target: &str,
     scenes: &BTreeMap<String, CompositionScene>,
@@ -144,15 +143,13 @@ pub(super) fn validate_play_target(
     diagnostics: &mut Vec<Diagnostic>,
     source_scene: &str,
 ) -> bool {
-    if target.contains('.') {
-        let parts: Vec<&str> = target.split('.').collect();
+    if target.contains("::") {
+        let parts: Vec<&str> = target.split("::").collect();
         if parts.len() >= 2 {
             let (namespace_parts, scene_name) = parts.split_at(parts.len() - 1);
             let scene_name = scene_name[0];
             if let Some(ns) = resolve_namespace(namespaces, namespace_parts) {
-                // If the namespace has scene data, verify the specific scene exists.
-                // If scenes are empty (legacy/test namespace), accept any name.
-                if ns.scenes.is_empty() || ns.scenes.contains_key(scene_name) {
+                if ns.scenes.contains_key(scene_name) {
                     return true;
                 }
                 diagnostics.push(
@@ -163,7 +160,7 @@ pub(super) fn validate_play_target(
                             "Scene '{}' plays non-existent scene '{}' in namespace '{}'.",
                             source_scene,
                             scene_name,
-                            namespace_parts.join(".")
+                            namespace_parts.join("::")
                         ),
                     )
                     .with_subject(source_scene),

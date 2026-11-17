@@ -1,54 +1,21 @@
-use super::registry::{ActionParam, ActionSignature, BuiltinAction, base_timing_params};
-use crate::ast::Action;
+use super::registry::{BuiltinAction, CallableDescriptor};
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::timeline::Timeline;
+use crate::timeline::actions::BuiltinInvocation;
 use crate::timeline::property_track::TrackAccessor;
-
-/// Timing modifiers shared by the effect actions that only take an intensity.
-fn intensity_timing_params() -> Vec<ActionParam> {
-    let mut params = vec![ActionParam {
-        name: "intensity".to_string(),
-        description:
-            "Intensity/strength of the effect (e.g. [intensity: 10.0] for shake amplitude)"
-                .to_string(),
-        type_info: "number".to_string(),
-    }];
-    params.extend(base_timing_params());
-    params
-}
-
-/// Shake also takes an oscillation count; Pulse and Bounce do not.
-fn shake_timing_params() -> Vec<ActionParam> {
-    let mut params = intensity_timing_params();
-    params.insert(
-        1,
-        ActionParam {
-            name: "frequency".to_string(),
-            description: "Number of oscillations (e.g. [frequency: 5] for shake count)".to_string(),
-            type_info: "number".to_string(),
-        },
-    );
-    params
-}
 
 /// Shake action applies rapid oscillating position offsets to simulate shaking
 pub struct Shake;
 
 impl BuiltinAction for Shake {
-    fn signature(&self) -> ActionSignature {
-        ActionSignature {
-            name: "shake".to_string(),
-            category: "Effects".to_string(),
-            description: "Shakes the target with rapid oscillating horizontal motion.".to_string(),
-            params: vec![],
-            modifiers: shake_timing_params(),
-        }
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::Shake.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
@@ -126,20 +93,13 @@ impl BuiltinAction for Shake {
 pub struct Pulse;
 
 impl BuiltinAction for Pulse {
-    fn signature(&self) -> ActionSignature {
-        ActionSignature {
-            name: "pulse".to_string(),
-            category: "Effects".to_string(),
-            description: "Pulses the target by scaling up and then returning to normal."
-                .to_string(),
-            params: vec![],
-            modifiers: intensity_timing_params(),
-        }
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::Pulse.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
@@ -213,7 +173,7 @@ fn add_offset(
 
 /// Read a numeric modifier of an effect action, evaluated against the
 /// timeline's build-time environment.
-fn effect_modifier_num(action: &Action, timeline: &Timeline, name: &str) -> Option<f32> {
+fn effect_modifier_num(action: &BuiltinInvocation, timeline: &Timeline, name: &str) -> Option<f32> {
     action.modifiers.iter().find(|m| m.name.as_deref() == Some(name)).and_then(|m| {
         crate::timeline::evaluate_expr(&m.value, &timeline.env)
             .ok()
@@ -226,27 +186,13 @@ fn effect_modifier_num(action: &Action, timeline: &Timeline, name: &str) -> Opti
 pub struct Bounce;
 
 impl BuiltinAction for Bounce {
-    fn signature(&self) -> ActionSignature {
-        let mut modifiers = intensity_timing_params();
-        modifiers.push(ActionParam {
-            name: "restitution".to_string(),
-            description:
-                "Fraction of velocity each impact keeps (default 0.6); higher bounces longer"
-                    .to_string(),
-            type_info: "number".to_string(),
-        });
-        ActionSignature {
-            name: "bounce".to_string(),
-            category: "Effects".to_string(),
-            description: "Hops the target under gravity: `intensity` is the first hop's height, each rebound keeps `restitution` of the last one's velocity.".to_string(),
-            params: vec![],
-            modifiers,
-        }
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::Bounce.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
@@ -327,8 +273,8 @@ mod tests {
     use crate::ast::{Expr, Modifier, Stmt, Time};
 
     fn shake_action(target: &str, intensity: f64) -> Stmt {
-        Stmt::Action(
-            Action {
+        crate::timeline::actions::test_support::invocation_stmt(
+            BuiltinInvocation {
                 verb: "shake".to_string(),
                 targets: vec![target.to_string()],
                 args: vec![],
@@ -379,8 +325,8 @@ mod tests {
             time: Time::Seconds(0.0),
             body: vec![
                 circle_decl("badge"),
-                Stmt::Action(
-                    Action {
+                crate::timeline::actions::test_support::invocation_stmt(
+                    BuiltinInvocation {
                         verb: "pulse".to_string(),
                         targets: vec!["badge".to_string()],
                         args: vec![],

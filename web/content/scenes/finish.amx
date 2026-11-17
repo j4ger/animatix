@@ -1,13 +1,17 @@
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 5 }
+
 #0s
-background: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
-// A silent complete composition: explicit resolution, duration and held ending.
-plate: Rect, at: (640, 360), size: (440, 220), corner_radius: 28, color: "#172536"
-mark: Ellipse, at: (640, 325), size: (54, 54), color: "#65D9E8", opacity: 0
-label: Text, text: "Made to move.", at: (640, 395), font_size: 36, color: "#F3F5F7", opacity: 0
+  background: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
+  // A silent complete composition: explicit resolution, duration and held ending.
+  plate: Rect, at: (640, 360), size: (440, 220), corner_radius: 28, color: "#172536"
+  mark: Ellipse, at: (640, 325), size: (54, 54), color: "#65D9E8", opacity: 0
+  label: Text, text: "Made to move.", at: (640, 395), font_size: 36, color: "#F3F5F7", opacity: 0
+
 #0.5s
-fade-in mark [700ms]
+  fade_in(target: mark, duration: 0.7s)
+
 #1.2s
-fade-in label [700ms]
+  fade_in(target: label, duration: 0.7s)
+
 #2s
 // Hold intact through 5 s; image export at 5 s remains a complete poster.

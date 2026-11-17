@@ -1,8 +1,8 @@
 // Gradient Descent Animation
 // A visual walkthrough of gradient descent on a 2D loss surface:
 // loss surface → against the gradient → roll to the minimum → step size matters.
-
 import "../lib/stage.amx"
+
 import "../lib/theme.amx"
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
@@ -12,19 +12,12 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 // =============================================================================
 # TitleCard
 config { colorscheme: "editorial-dark" }
-
-title: Text, text: "Gradient Descent", font_size: 64,
-  color: text.primary, anchor: scene.center, offset: (0, -40)
-
-subtitle: Text, text: "Rolling down the loss surface", font_size: 28,
-  color: text.secondary, anchor: scene.center, offset: (0, 40)
-
+title: Text, text: "Gradient Descent", font_size: 64, color: text.primary, anchor: scene.center, offset: (0, -40)
+subtitle: Text, text: "Rolling down the loss surface", font_size: 28, color: text.secondary, anchor: scene.center, offset: (0, 40)
 #0.5s
-fade-in title [800ms, ease: ease-out]
-
+  fade_in(target: title, duration: 0.8s, ease: ease_out)
 #1.4s
-fade-in subtitle [600ms, ease: ease-out]
-
+  fade_in(target: subtitle, duration: 0.6s, ease: ease_out)
 play LossSurface [fade, 400ms]
 
 // =============================================================================
@@ -32,100 +25,59 @@ play LossSurface [fade, 400ms]
 // =============================================================================
 # LossSurface
 config { colorscheme: "editorial-dark" }
-
 head: ActHead, kicker: "FIG 01 · THE LOSS SURFACE", title: "The Loss Surface"
-
 // Contour map of the loss function f(x, y) = x² + y²
-contours: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
-  resolution: 96, color: accent.primary, stroke_width: 2.0
-
+contours: ContourSet, func: (x, y) => x ^ 2 + y ^ 2, levels: {1, 4, 9, 16, 25}, x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380), resolution: 96, color: accent.primary, stroke_width: 2
 // Gradient vector field: ∇f = (2x, 2y) pointing radially outward (uphill)
-field: VectorField, func: (x, y) => (x, y), density: 8,
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
-  color: text.muted
-
+field: VectorField, func: (x, y) => (x, y), density: 8, x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380), color: text.muted
 // Global minimum at (0, 0)
 min_dot: Ellipse, size: (12, 12), color: accent.success, at: (400, 380)
-
-caption: Caption,
-  text: "Contours = equal loss  ·  Arrows = gradient (uphill)",
-  tag: "gradient_descent"
-
+caption: Caption, text: "Contours = equal loss  ·  Arrows = gradient (uphill)", tag: "gradient_descent"
 #0.5s
-fade-in head [500ms, ease: ease-out]
-
-#1.0s
-stagger [150ms] {
-  fade-in contours [600ms]
-  fade-in field [600ms]
-  fade-in min_dot [400ms]
-}
-
+  fade_in(target: head, duration: 0.5s, ease: ease_out)
+#1s
+  stagger [0.15s] {
+      fade_in(target: contours, duration: 0.6s)
+      fade_in(target: field, duration: 0.6s)
+      fade_in(target: min_dot, duration: 0.4s)
+    }
 #3.5s
-fade-in caption [500ms]
-
-play GradientDirection [wipe-left, 400ms]
+  fade_in(target: caption, duration: 0.5s)
+play GradientDirection [wipe_left, 400ms]
 
 // =============================================================================
 // Scene 3: Show which direction to step — against the gradient
 // =============================================================================
 # GradientDirection
 config { colorscheme: "editorial-dark" }
-
-step2_title: Text, text: "2. Go Against the Gradient", font_size: 40,
-  color: text.primary, anchor: scene.top, offset: (0, 60)
-
+step2_title: Text, text: "2. Go Against the Gradient", font_size: 40, color: text.primary, anchor: scene.top, offset: (0, 60)
 // Dimmed backdrop of the same contour map and field
-contours_bg: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
-  resolution: 96, color: accent.primary, stroke_width: 2.0, opacity: 0.4
-
-field_bg: VectorField, func: (x, y) => (x, y), density: 8,
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
-  color: text.muted, opacity: 0.4
-
+contours_bg: ContourSet, func: (x, y) => x ^ 2 + y ^ 2, levels: {1, 4, 9, 16, 25}, x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380), resolution: 96, color: accent.primary, stroke_width: 2, opacity: 0.4
+field_bg: VectorField, func: (x, y) => (x, y), density: 8, x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380), color: text.muted, opacity: 0.4
 // Ball at starting point (math: (3, 2.4), screen: 400+3*70, 380-2.4*70)
 ball: Ellipse, size: (16, 16), color: accent.warning, at: (610, 212)
-
 // Arrow pointing uphill along +∇f
-up_arrow: Arrow, from: (610, 212), to: (715, 128),
-  color: accent.danger, stroke_width: 3
-
+up_arrow: Arrow, from: (610, 212), to: (715, 128), color: accent.danger, stroke_width: 3
 // Arrow pointing downhill along −∇f
-down_arrow: Arrow, from: (610, 212), to: (505, 296),
-  color: accent.success, stroke_width: 3
-
+down_arrow: Arrow, from: (610, 212), to: (505, 296), color: accent.success, stroke_width: 3
 // Labels near arrow tips
-up_label: Text, text: "∇f (uphill)", font_size: 16,
-  color: accent.danger, at: (730, 110)
-
-down_label: Text, text: "−∇f (descend)", font_size: 16,
-  color: accent.success, at: (480, 300)
-
+up_label: Text, text: "∇f (uphill)", font_size: 16, color: accent.danger, at: (730, 110)
+down_label: Text, text: "−∇f (descend)", font_size: 16, color: accent.success, at: (480, 300)
 // Gradient equation
-gradient_eq: Typst,
-  text: "$nabla f = (partial f)/(partial x), (partial f)/(partial y)$",
-  font_size: 22, color: text.secondary, anchor: scene.center, offset: (400, 0)
-
+gradient_eq: Typst, text: "$nabla f = (partial f)/(partial x), (partial f)/(partial y)$", font_size: 22, color: text.secondary, anchor: scene.center, offset: (400, 0)
 #0.5s
-fade-in step2_title [500ms, ease: ease-out]
-fade-in ball [400ms]
-
+  fade_in(target: step2_title, duration: 0.5s, ease: ease_out)
+  fade_in(target: ball, duration: 0.4s)
 #1.5s
-fade-in up_arrow [800ms]
-fade-in up_label [800ms]
-
-#2.0s
-fade-in gradient_eq [600ms]
-
+  fade_in(target: up_arrow, duration: 0.8s)
+  fade_in(target: up_label, duration: 0.8s)
+#2s
+  fade_in(target: gradient_eq, duration: 0.6s)
 #3.2s
-fade-in down_arrow [800ms]
-fade-in down_label [800ms]
-
+  fade_in(target: down_arrow, duration: 0.8s)
+  fade_in(target: down_label, duration: 0.8s)
 #3.5s
-pulse ball [500ms]
-
+  pulse(target: ball, duration: 0.5s)
 play Descent [fade, 400ms]
 
 // =============================================================================
@@ -133,39 +85,22 @@ play Descent [fade, 400ms]
 // =============================================================================
 # Descent
 config { colorscheme: "editorial-dark" }
-
-step3_title: Text, text: "3. Roll to the Minimum", font_size: 40,
-  color: text.primary, anchor: scene.top, offset: (0, 60)
-
+step3_title: Text, text: "3. Roll to the Minimum", font_size: 40, color: text.primary, anchor: scene.top, offset: (0, 60)
 // Dimmed contour backdrop
-contours_dim: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
-  resolution: 96, color: accent.primary, stroke_width: 2.0, opacity: 0.3
-
+contours_dim: ContourSet, func: (x, y) => x ^ 2 + y ^ 2, levels: {1, 4, 9, 16, 25}, x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380), resolution: 96, color: accent.primary, stroke_width: 2, opacity: 0.3
 // Graph with the parametric descent trail. For f(x, y) = x² + y² the
 // gradient is radial, so steepest descent stays on a constant-angle ray.
-descent_graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4),
-  size: (560, 560), at: (400, 380) {
-  trail: PlotCurve, kind: "parametric",
-    func: (s) => (3.84 * exp(-0.55 * s) * cos(0.676),
-                  3.84 * exp(-0.55 * s) * sin(0.676)),
-    t_domain: (0, 4.5), color: accent.warning, stroke_width: 3,
-    stroke_progress: 0
+descent_graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380) {
+trail: PlotCurve, kind: "parametric", func: (s) => ((3.84 * exp(-0.55 * s)) * cos(0.676), (3.84 * exp(-0.55 * s)) * sin(0.676)), t_domain: (0, 4.5), color: accent.warning, stroke_width: 3, stroke_progress: 0
 }
-
 // Ball driven by the always block (math coords → screen coords)
 ball: Ellipse, size: (16, 16), color: accent.warning, at: (610, 212)
-
 // Live loss readout
-live_loss: Text, text: "loss = 14.75", font_size: 18,
-  color: accent.warning, at: (650, 130)
-
+live_loss: Text, text: "loss = 14.75", font_size: 18, color: accent.warning, at: (650, 130)
 // Takeaway text
-takeaway: Text, text: "Follow −∇f → reach the minimum", font_size: 22,
-  color: text.secondary, anchor: scene.center, offset: (0, 260)
-
+takeaway: Text, text: "Follow −∇f → reach the minimum", font_size: 22, color: text.secondary, anchor: scene.center, offset: (0, 260)
 always {
-  let s = clamp(t - 1.0, 0.0, 4.5)
+  let s = clamp(t - 1, 0, 4.5)
   let r = 3.84 * exp(-0.55 * s)
   let th = 0.676 + 2.6 * s
   let mx = r * cos(th)
@@ -174,24 +109,19 @@ always {
   let loss = r * r
   live_loss.text = format("loss = {}", loss)
 }
-
 #0.5s
-fade-in step3_title [500ms, ease: ease-out]
-fade-in contours_dim [600ms]
-fade-in descent_graph [600ms]
-
-#1.0s
-fade-in ball [400ms]
-fade-in live_loss [400ms]
-fade-in trail [400ms]
-trail.stroke_progress = 1.0 [4.5s, ease: ease-out]
-
+  fade_in(target: step3_title, duration: 0.5s, ease: ease_out)
+  fade_in(target: contours_dim, duration: 0.6s)
+  fade_in(target: descent_graph, duration: 0.6s)
+#1s
+  fade_in(target: ball, duration: 0.4s)
+  fade_in(target: live_loss, duration: 0.4s)
+  fade_in(target: trail, duration: 0.4s)
+  trail.stroke_progress = 1 [4.5s, ease: ease_out]
 #5.7s
-pulse ball [500ms]
-
+  pulse(target: ball, duration: 0.5s)
 #6.5s
-fade-in takeaway [600ms]
-
+  fade_in(target: takeaway, duration: 0.6s)
 play LearningRate [fade, 400ms]
 
 // =============================================================================
@@ -199,67 +129,39 @@ play LearningRate [fade, 400ms]
 // =============================================================================
 # LearningRate
 config { colorscheme: "editorial-dark" }
-
-step4_title: Text, text: "4. Step Size Matters", font_size: 40,
-  color: text.primary, anchor: scene.top, offset: (0, 60)
-
+step4_title: Text, text: "4. Step Size Matters", font_size: 40, color: text.primary, anchor: scene.top, offset: (0, 60)
 // Dimmed contour backdrop
-contours_lr: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
-  resolution: 96, color: accent.primary, stroke_width: 2.0, opacity: 0.3
-
+contours_lr: ContourSet, func: (x, y) => x ^ 2 + y ^ 2, levels: {1, 4, 9, 16, 25}, x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380), resolution: 96, color: accent.primary, stroke_width: 2, opacity: 0.3
 // Graph with three parametric curves showing different decay rates.
 // All stay on the same radial ray; only the rate toward/away from the
 // minimum changes, matching the radial gradient of x² + y².
-lr_graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4),
-  size: (560, 560), at: (400, 380) {
-  too_small: PlotCurve, kind: "parametric",
-    func: (s) => (3.84 * exp(-0.12 * s) * cos(0.676),
-                  3.84 * exp(-0.12 * s) * sin(0.676)),
-    t_domain: (0, 4.5), color: text.muted, stroke_width: 2, opacity: 0.0
-  just_right: PlotCurve, kind: "parametric",
-    func: (s) => (3.84 * exp(-0.55 * s) * cos(0.676),
-                  3.84 * exp(-0.55 * s) * sin(0.676)),
-    t_domain: (0, 4.5), color: accent.success, stroke_width: 3, opacity: 0.0
-  too_big: PlotCurve, kind: "parametric",
-    func: (s) => (3.84 * exp(0.15 * s) * cos(0.676),
-                  3.84 * exp(0.15 * s) * sin(0.676)),
-    t_domain: (0, 2.5), color: accent.danger, stroke_width: 2, opacity: 0.0
+lr_graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380) {
+too_small: PlotCurve, kind: "parametric", func: (s) => ((3.84 * exp(-0.12 * s)) * cos(0.676), (3.84 * exp(-0.12 * s)) * sin(0.676)), t_domain: (0, 4.5), color: text.muted, stroke_width: 2, opacity: 0
+just_right: PlotCurve, kind: "parametric", func: (s) => ((3.84 * exp(-0.55 * s)) * cos(0.676), (3.84 * exp(-0.55 * s)) * sin(0.676)), t_domain: (0, 4.5), color: accent.success, stroke_width: 3, opacity: 0
+too_big: PlotCurve, kind: "parametric", func: (s) => ((3.84 * exp(0.15 * s)) * cos(0.676), (3.84 * exp(0.15 * s)) * sin(0.676)), t_domain: (0, 2.5), color: accent.danger, stroke_width: 2, opacity: 0
 }
-
 // Labels for each curve
-label_small: Text, text: "Too small → slow", font_size: 14,
-  color: text.muted, at: (650, 200)
-label_right: Text, text: "Just right → converges", font_size: 14,
-  color: accent.success, at: (650, 230)
-label_big: Text, text: "Too big → diverges", font_size: 14,
-  color: accent.danger, at: (650, 260)
-
+label_small: Text, text: "Too small → slow", font_size: 14, color: text.muted, at: (650, 200)
+label_right: Text, text: "Just right → converges", font_size: 14, color: accent.success, at: (650, 230)
+label_big: Text, text: "Too big → diverges", font_size: 14, color: accent.danger, at: (650, 260)
 // Lesson text
-lesson: Text,
-  text: "Pick a learning rate that converges — not too small, not too large",
-  font_size: 20, color: text.secondary, anchor: scene.center, offset: (0, 280)
-
+lesson: Text, text: "Pick a learning rate that converges — not too small, not too large", font_size: 20, color: text.secondary, anchor: scene.center, offset: (0, 280)
 #0.5s
-fade-in step4_title [500ms, ease: ease-out]
-fade-in contours_lr [600ms]
-fade-in lr_graph [600ms]
-
-#1.0s
-stagger [400ms] {
-  fade-in too_small [600ms]
-  fade-in just_right [600ms]
-  fade-in too_big [600ms]
-}
-
+  fade_in(target: step4_title, duration: 0.5s, ease: ease_out)
+  fade_in(target: contours_lr, duration: 0.6s)
+  fade_in(target: lr_graph, duration: 0.6s)
+#1s
+  stagger [0.4s] {
+      fade_in(target: too_small, duration: 0.6s)
+      fade_in(target: just_right, duration: 0.6s)
+      fade_in(target: too_big, duration: 0.6s)
+    }
 #3.5s
-fade-in label_small [400ms]
-fade-in label_right [400ms]
-fade-in label_big [400ms]
-
-#5.0s
-fade-in lesson [600ms]
-
+  fade_in(target: label_small, duration: 0.4s)
+  fade_in(target: label_right, duration: 0.4s)
+  fade_in(target: label_big, duration: 0.4s)
+#5s
+  fade_in(target: lesson, duration: 0.6s)
 play Outro [fade, 400ms]
 
 // =============================================================================
@@ -267,19 +169,12 @@ play Outro [fade, 400ms]
 // =============================================================================
 # Outro
 config { colorscheme: "editorial-dark" }
-
-thanks: Typst, text: "$theta^* = min_(theta) L(theta)$",
-  font_size: 40, color: text.primary, anchor: scene.center, offset: (0, -30)
-
-tag: Text, text: "gradient descent  ·  animatix", font_size: 18,
-  color: text.muted, anchor: scene.center, offset: (0, 50)
-
+thanks: Typst, text: "$theta^* = min_(theta) L(theta)$", font_size: 40, color: text.primary, anchor: scene.center, offset: (0, -30)
+tag: Text, text: "gradient descent  ·  animatix", font_size: 18, color: text.muted, anchor: scene.center, offset: (0, 50)
 #0.5s
-fade-in thanks [700ms, ease: ease-out]
-
-#1.0s
-fade-in tag [500ms, ease: ease-out]
-
+  fade_in(target: thanks, duration: 0.7s, ease: ease_out)
+#1s
+  fade_in(target: tag, duration: 0.5s, ease: ease_out)
 #2.2s
-fade-out thanks [300ms]
-fade-out tag [300ms]
+  fade_out(target: thanks, duration: 0.3s)
+  fade_out(target: tag, duration: 0.3s)

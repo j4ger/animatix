@@ -1,12 +1,13 @@
-//! Action tests.
+//! Built-in timeline callable backend tests.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::*;
-use crate::ast::{Action, Modifier};
+use crate::ast::Modifier;
 use crate::diagnostics::DiagnosticCode;
 use crate::primitives::{BuildCtx, Primitive};
+use crate::timeline::actions::BuiltinInvocation;
 use crate::timeline::{ActorCategory, ContainerMetadata, EntityId, LayoutType, PropertyTrack};
 
 struct FlexContainer;
@@ -61,8 +62,8 @@ fn extension_layout_container_expands_for_leaf_actions() {
     let children: Vec<&str> = timeline.world.child_labels(root_id).collect();
     assert_eq!(children, vec!["a", "b"]);
 
-    let action = Action {
-        verb: "fade-in".to_string(),
+    let action = BuiltinInvocation {
+        verb: "fade_in".to_string(),
         targets: vec!["root".to_string()],
         args: vec![],
         modifiers: vec![Modifier {
@@ -102,33 +103,40 @@ fn extension_layout_container_expands_for_leaf_actions() {
 fn runtime_action_names_match_builtins_registry() {
     let mut runtime: Vec<String> =
         BuiltinActionKind::ALL.iter().map(|a| a.signature().name.clone()).collect();
-    let mut registry: Vec<String> =
-        animatix_syntax::builtins::ACTIONS.iter().map(|s| s.to_string()).collect();
+    let mut registry: Vec<String> = animatix_std::callable::callables()
+        .iter()
+        .filter(|signature| {
+            signature.return_type == animatix_core::callable::CallableType::Timeline
+                && !matches!(signature.name.as_str(), "stretch" | "fit_duration")
+        })
+        .map(|signature| signature.name.clone())
+        .collect();
     runtime.sort();
     registry.sort();
     assert_eq!(
         runtime, registry,
-        "runtime action verbs drifted from animatix-syntax::builtins::ACTIONS"
+        "runtime timeline functions drifted from the standard callable catalog"
     );
 }
 
 #[test]
 fn every_registered_action_name_resolves_and_executes() {
-    for name in animatix_syntax::builtins::ACTIONS {
+    for kind in BuiltinActionKind::ALL {
+        let name = kind.descriptor().name.as_str();
         let kind = BuiltinActionKind::from_name(name)
             .unwrap_or_else(|| panic!("registered action '{name}' has no static handler"));
-        assert_eq!(kind.signature().name, *name);
+        assert_eq!(kind.signature().name, name);
 
         let mut timeline = Timeline::new();
         timeline.spawn_entity("a", "Rect");
         timeline.spawn_entity("b", "Rect");
-        let targets = if *name == "swap" {
+        let targets = if name == "swap" {
             vec!["a".to_string(), "b".to_string()]
         } else {
             vec!["a".to_string()]
         };
-        let action = Action {
-            verb: (*name).to_string(),
+        let action = BuiltinInvocation {
+            verb: name.to_string(),
             targets,
             args: vec![],
             modifiers: vec![],
@@ -151,7 +159,7 @@ fn every_registered_action_name_resolves_and_executes() {
 
 #[test]
 fn unknown_actions_emit_diagnostics() {
-    let action = Action {
+    let action = BuiltinInvocation {
         verb: "spin-in".to_string(),
         targets: vec!["shape".to_string()],
         args: vec![],
@@ -178,7 +186,7 @@ fn unknown_actions_emit_diagnostics() {
 #[test]
 fn action_signatures_include_reveal_actions() {
     let signatures = get_action_signatures();
-    for action in ["reveal-out", "draw-out", "reveal-in"] {
+    for action in ["reveal_out", "draw_out", "reveal_in"] {
         assert!(
             signatures.iter().any(|signature| signature.name == action),
             "missing `{action}` action signature"
@@ -191,7 +199,7 @@ fn modifier_names(action: &str) -> Vec<String> {
         .into_iter()
         .find(|signature| signature.name == action)
         .unwrap_or_else(|| panic!("action '{action}' is not registered"))
-        .modifiers
+        .params
         .into_iter()
         .map(|param| param.name)
         .collect()
@@ -227,7 +235,7 @@ fn shake_signature_still_declares_frequency() {
 fn pulse_frequency_modifier_produces_unsupported_modifier_key() {
     let mut timeline = Timeline::new();
     timeline.spawn_entity("badge", "Rect");
-    let action = Action {
+    let action = BuiltinInvocation {
         verb: "pulse".to_string(),
         targets: vec!["badge".to_string()],
         args: vec![],
@@ -266,7 +274,7 @@ fn vector_reveal_targets_reject_container_nodes_with_leaf_only_message() {
     timeline.world.link(row_id, child_id);
 
     let mut diagnostics = Vec::new();
-    let ok = ensure_vector_reveal_target(&timeline, "row", "draw-in", &mut diagnostics, None);
+    let ok = ensure_vector_reveal_target(&timeline, "row", "draw_in", &mut diagnostics, None);
 
     assert!(!ok);
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -276,8 +284,8 @@ fn vector_reveal_targets_reject_container_nodes_with_leaf_only_message() {
     }));
 }
 
-fn make_action(verb: &str, targets: &[&str]) -> Action {
-    Action {
+fn make_action(verb: &str, targets: &[&str]) -> BuiltinInvocation {
+    BuiltinInvocation {
         verb: verb.to_string(),
         targets: targets.iter().map(|s| s.to_string()).collect(),
         args: vec![],
@@ -360,7 +368,7 @@ fn swap_action_sets_child_order_keyframe() {
         },
     );
 
-    let action = Action {
+    let action = BuiltinInvocation {
         verb: "swap".to_string(),
         targets: vec!["a".to_string(), "b".to_string()],
         args: vec![],
@@ -422,7 +430,7 @@ fn swap_action_detects_overlapping_swaps() {
     setup_container_with_children(&mut timeline, "row", &["a", "b", "c"]);
 
     // First swap: a,b at 0s, completes at 500ms
-    let action1 = Action {
+    let action1 = BuiltinInvocation {
         verb: "swap".to_string(),
         targets: vec!["a".to_string(), "b".to_string()],
         args: vec![],
@@ -439,7 +447,7 @@ fn swap_action_detects_overlapping_swaps() {
     assert!(diagnostics.is_empty());
 
     // Second swap: b,c at 200ms, would complete at 700ms — overlaps with first
-    let action2 = Action {
+    let action2 = BuiltinInvocation {
         verb: "swap".to_string(),
         targets: vec!["b".to_string(), "c".to_string()],
         args: vec![],
@@ -462,7 +470,7 @@ fn swap_action_detects_overlapping_swaps() {
 
 #[test]
 fn reorder_action_requires_exactly_one_target() {
-    let action = Action {
+    let action = BuiltinInvocation {
         verb: "reorder".to_string(),
         targets: vec![],
         args: vec![],
@@ -499,7 +507,7 @@ fn reorder_action_sets_child_order_keyframe() {
     let mut timeline = Timeline::new();
     let row_id = setup_container_with_children(&mut timeline, "row", &["a", "b", "c"]);
 
-    let action = Action {
+    let action = BuiltinInvocation {
         verb: "reorder".to_string(),
         targets: vec!["row".to_string()],
         args: vec![],
@@ -543,7 +551,7 @@ fn reorder_action_detects_overlapping_reorders() {
     setup_container_with_children(&mut timeline, "row", &["a", "b"]);
 
     // First reorder at 0s, completes at 500ms
-    let action1 = Action {
+    let action1 = BuiltinInvocation {
         verb: "reorder".to_string(),
         targets: vec!["row".to_string()],
         args: vec![],
@@ -569,7 +577,7 @@ fn reorder_action_detects_overlapping_reorders() {
     assert!(diagnostics.is_empty());
 
     // Second reorder at 200ms, would complete at 700ms — overlaps with first
-    let action2 = Action {
+    let action2 = BuiltinInvocation {
         verb: "reorder".to_string(),
         targets: vec!["row".to_string()],
         args: vec![],
@@ -607,7 +615,7 @@ fn swap_action_bounds_transition_to_duration() {
     setup_container_with_children(&mut timeline, "row", &["a", "b", "c"]);
 
     // First swap at 0s, 500ms duration → keyframes at 0 and 500
-    let action1 = Action {
+    let action1 = BuiltinInvocation {
         verb: "swap".to_string(),
         targets: vec!["a".to_string(), "b".to_string()],
         args: vec![],
@@ -622,7 +630,7 @@ fn swap_action_bounds_transition_to_duration() {
     process_action(&action1, 0.0, &mut timeline, &mut Vec::new(), None);
 
     // Second swap at 1000ms, 500ms duration → keyframes at 1000 and 1500
-    let action2 = Action {
+    let action2 = BuiltinInvocation {
         verb: "swap".to_string(),
         targets: vec!["b".to_string(), "c".to_string()],
         args: vec![],
@@ -683,7 +691,7 @@ fn swap_action_animates_positions_smoothly() {
         },
     );
 
-    let action = Action {
+    let action = BuiltinInvocation {
         verb: "swap".to_string(),
         targets: vec!["bar1".to_string(), "bar2".to_string()],
         args: vec![],
@@ -731,7 +739,7 @@ fn swap_action_animates_positions_smoothly() {
     assert_ne!(bar2_mid, bar2_end, "bar2 should not yet be at end position");
 }
 
-// ── grow-in / shrink-out ──────────────────────────────────────────────
+// ── grow_in / shrink_out ──────────────────────────────────────────────
 
 fn build_source(source: &str) -> (Timeline, Vec<crate::diagnostics::Diagnostic>) {
     let (ast, errors) = animatix_syntax::parser::parse_source(source);
@@ -748,21 +756,21 @@ fn grow_in_center_reaches_authored_scale_and_lifts_hidden_default() {
 box: Rect, size: (160, 80), at: (320, 240), scale: 1.5
 
 #0s
-grow-in box [1s]
+grow_in(target: box, duration: 1s)
 "#,
     );
 
     let box_id = timeline.world.get_id("box").expect("box id");
     let style = timeline.world.style(box_id);
     let geometry = timeline.world.geometry(box_id);
-    assert_eq!(geometry.scale.get(0, 1.0), 0.0, "grow-in starts at zero scale");
+    assert_eq!(geometry.scale.get(0, 1.0), 0.0, "grow_in starts at zero scale");
     assert_eq!(
         geometry.scale.get(1000, 1.0),
         1.5,
-        "grow-in must land on the authored scale, not a hardcoded 1.0"
+        "grow_in must land on the authored scale, not a hardcoded 1.0"
     );
     assert_eq!(style.opacity.get(0, 1.0), 0.0, "hidden-by-default seed");
-    assert_eq!(style.opacity.get(1000, 1.0), 1.0, "grow-in lifts the seed");
+    assert_eq!(style.opacity.get(1000, 1.0), 1.0, "grow_in lifts the seed");
     assert!(
         !timeline.world.meta(box_id).hidden_by_default,
         "the hidden flag is consumed by the lift"
@@ -777,7 +785,7 @@ fn grow_in_does_not_fade_an_already_visible_actor() {
 #0s
 box: Rect, size: (160, 80), at: (320, 240), opacity: 0.4
 
-grow-in box [500ms]
+grow_in(target: box, duration: 500ms)
 "#,
     );
 
@@ -799,7 +807,7 @@ fn grow_in_from_bottom_keeps_the_bottom_edge_fixed() {
 #0s
 box: Rect, size: (160, 80), at: (320, 240)
 
-grow-in box [from: bottom, 1s]
+grow_in(target: box, from: bottom, duration: 1s)
 "#,
     );
 
@@ -830,7 +838,7 @@ fn shrink_out_reaches_zero_scale_without_touching_opacity() {
 #0s
 card: Rect, size: (300, 180), at: (640, 360), opacity: 0.8
 
-shrink-out card [to: top, 1s]
+shrink_out(target: card, to: top, duration: 1s)
 "#,
     );
 
@@ -842,12 +850,12 @@ shrink-out card [to: top, 1s]
         geometry.scale.get(500, 1.0) > 0.0 && geometry.scale.get(500, 1.0) < 1.0,
         "mid-ramp scale should be between authored and zero"
     );
-    assert_eq!(geometry.scale.get(1000, 1.0), 0.0, "shrink-out ends at zero scale");
+    assert_eq!(geometry.scale.get(1000, 1.0), 0.0, "shrink_out ends at zero scale");
     for time_ms in [0u64, 250, 500, 750, 1000] {
         assert_eq!(
             style.opacity.get(time_ms, 1.0),
             0.8,
-            "shrink-out must not touch opacity at {time_ms}ms"
+            "shrink_out must not touch opacity at {time_ms}ms"
         );
     }
     assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
@@ -860,22 +868,21 @@ fn grow_in_unknown_origin_warns() {
 #0s
 box: Rect, size: (160, 80), at: (320, 240)
 
-grow-in box [from: sideways, 1s]
+grow_in(target: box, from: sideways, duration: 1s)
 "#,
     );
 
     assert!(
         diagnostics.iter().any(|diagnostic| {
-            diagnostic.code == DiagnosticCode::InvalidModifierValue
+            diagnostic.code == DiagnosticCode::CallableEvaluationError
                 && diagnostic.message.contains("sideways")
         }),
         "unknown origin must be reported, got: {diagnostics:?}"
     );
     let box_id = timeline.world.get_id("box").expect("box id");
-    assert_eq!(
-        timeline.world.geometry(box_id).scale.get(1000, 1.0),
-        1.0,
-        "an unknown origin falls back to the centre pivot and still grows"
+    assert!(
+        timeline.world.geometry(box_id).scale.as_ref().is_none(),
+        "an invalid callable argument must not append animation keyframes"
     );
 }
 
@@ -886,7 +893,7 @@ fn grow_in_non_center_origin_on_zero_size_actor_warns() {
 #0s
 box: Rect, size: (0, 0), at: (320, 240)
 
-grow-in box [from: bottom, 1s]
+grow_in(target: box, from: bottom, duration: 1s)
 "#,
     );
 
@@ -906,10 +913,10 @@ fn shrink_out_then_grow_in_restores_the_authored_scale() {
 #0s
 box: Rect, size: (160, 80), at: (320, 240), scale: 1.25
 
-shrink-out box [1s]
+shrink_out(target: box, duration: 1s)
 
 #1s
-grow-in box [1s]
+grow_in(target: box, duration: 1s)
 "#,
     );
 
@@ -917,7 +924,7 @@ grow-in box [1s]
     let scale = timeline.world.geometry(box_id).scale.get(2_000, 1.0);
     assert_eq!(
         scale, 1.25,
-        "grow-in after shrink-out must restore the authored scale, not stay at zero"
+        "grow_in after shrink_out must restore the authored scale, not stay at zero"
     );
     assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
 }
@@ -929,7 +936,7 @@ fn grow_in_leaves_a_visible_actor_without_an_opacity_track_alone() {
 #0s
 box: Rect, size: (160, 80), at: (320, 240)
 
-grow-in box [500ms]
+grow_in(target: box, duration: 500ms)
 "#,
     );
 

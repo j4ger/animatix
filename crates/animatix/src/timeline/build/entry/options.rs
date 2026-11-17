@@ -5,6 +5,7 @@
 //! one of these and delegates to [`Timeline::build_with_options`], so the
 //! lowering pass has exactly one signature to thread.
 
+use std::path::Path;
 use std::sync::Arc;
 
 use super::*;
@@ -60,9 +61,63 @@ pub struct BuildOptions<'a> {
     /// it renders the diagnostic list to the user — it reports persistence
     /// resetting between loops instead.
     pub skip_persist_target_warning: bool,
+    /// Loaded-module lexical functions and source declarations.
+    pub function_context: Option<&'a crate::module::FunctionContext>,
+    /// Source module whose lexical scope should seed this build.
+    pub function_scope: Option<&'a Path>,
+    /// Bound component method templates retained by component expansion.
+    pub instance_methods: Option<&'a crate::module::InstanceFnRegistry>,
+    /// Per-scene component method registries from component expansion.
+    pub scene_methods:
+        Option<&'a std::collections::HashMap<String, crate::module::InstanceFnRegistry>>,
 }
 
 impl<'a> BuildOptions<'a> {
+    /// Use a loaded program's private and public function scopes.
+    #[must_use]
+    pub fn with_function_context(
+        mut self,
+        function_context: &'a crate::module::FunctionContext,
+    ) -> Self {
+        self.function_context = Some(function_context);
+        self
+    }
+
+    /// Seed names from `source_path`'s lexical module for an imported scene.
+    #[must_use]
+    pub fn with_function_scope(mut self, source_path: &'a Path) -> Self {
+        self.function_scope = Some(source_path);
+        self
+    }
+
+    /// Install the component method definitions produced with expanded AST.
+    #[must_use]
+    pub fn with_instance_methods(mut self, methods: &'a crate::module::InstanceFnRegistry) -> Self {
+        self.instance_methods = Some(methods);
+        self
+    }
+
+    /// Use a syntax layer's fully expanded statements and method scopes.
+    #[must_use]
+    pub fn with_expanded(mut self, expanded: &'a crate::module::ExpandedProgram) -> Self {
+        self.instance_methods = Some(&expanded.instance_methods);
+        self.scene_methods = Some(&expanded.scene_methods);
+        if let Some(function_context) = expanded.expanded_function_context.as_ref() {
+            self.function_context = Some(function_context);
+        }
+        self
+    }
+
+    /// Install scene-scoped component method registries during composition.
+    #[must_use]
+    pub fn with_scene_methods(
+        mut self,
+        methods: &'a std::collections::HashMap<String, crate::module::InstanceFnRegistry>,
+    ) -> Self {
+        self.scene_methods = Some(methods);
+        self
+    }
+
     /// Use `font_context` instead of creating a fresh one.
     #[must_use]
     pub fn with_font_context(

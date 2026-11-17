@@ -34,6 +34,8 @@ pub(crate) enum FlatItem {
     SlotFill(String, Vec<InlineItem>),
     /// `for item, i in list { ... }` or `for (a, b) in list { ... }` inside container children
     ForLoop(LoopPattern, Option<String>, Expr, Vec<InlineItem>),
+    /// A function call or timeline plan placed in the containing actor's body.
+    Expr(Expr, Option<Span>),
 }
 
 /// Build the inline items parser.
@@ -42,163 +44,198 @@ pub(crate) fn parser<'src>(
     property: impl Parser<'src, StrInput<'src>, Property, ParserExtra<'src>> + Clone + 'src,
     modifiers: impl Parser<'src, StrInput<'src>, Vec<Modifier>, ParserExtra<'src>> + Clone + 'src,
     warnings: Rc<RefCell<Vec<Diagnostic>>>,
+    source: common::SourceIndex<'src>,
 ) -> InlineItemsParser<'src> {
     let type_ident = common::type_ident();
     let label_expr = common::label_expr(expr.clone());
 
-    let inline_items =
-        recursive(|inline_items| {
-            let children_block = inline_items
+    let inline_items = recursive(|inline_items| {
+        let children_block = inline_items
+            .clone()
+            .delimited_by(lbrace(), rbrace())
+            .or_not()
+            .map(|c| c.unwrap_or_default());
+
+        let for_inline_index =
+            comma().ignore_then(common::ident_decl_occ(OccurrenceKind::Variable)).or_not();
+
+        let flat_item = choice((
+            at().ignore_then(common::ident())
+                .then(inline_items.clone().delimited_by(lbrace(), rbrace()))
+                .map(|(name, items)| FlatItem::SlotFill(name, items)),
+            at_slot().to(FlatItem::SlotMarker),
+            {
+                let loop_var_pat = common::ident_decl_occ(OccurrenceKind::Variable)
+                    .map(LoopPattern::Single)
+                    .or(common::ident_decl_occ(OccurrenceKind::Variable)
+                        .separated_by(comma())
+                        .collect::<Vec<_>>()
+                        .delimited_by(lparen(), rparen())
+                        .map(LoopPattern::Tuple));
+                keyword("for")
+                    .ignore_then(common::scoped(
+                        loop_var_pat
+                            .then(for_inline_index)
+                            .then_ignore(keyword("in"))
+                            .then(expr.clone())
+                            .then(common::scoped(
+                                inline_items.clone().delimited_by(lbrace(), rbrace()),
+                            )),
+                    ))
+                    .map(|(((var, index_var), iterable), body)| {
+                        FlatItem::ForLoop(var, index_var, iterable, body)
+                    })
+            },
+            label_expr
                 .clone()
-                .delimited_by(lbrace(), rbrace())
-                .or_not()
-                .map(|c| c.unwrap_or_default());
-
-            let for_inline_index =
-                comma().ignore_then(common::ident_decl_occ(OccurrenceKind::Variable)).or_not();
-
-            let flat_item = choice((
-                at().ignore_then(common::ident())
-                    .then(inline_items.clone().delimited_by(lbrace(), rbrace()))
-                    .map(|(name, items)| FlatItem::SlotFill(name, items)),
-                at_slot().to(FlatItem::SlotMarker),
-                {
-                    let loop_var_pat = common::ident_decl_occ(OccurrenceKind::Variable)
-                        .map(LoopPattern::Single)
-                        .or(common::ident_decl_occ(OccurrenceKind::Variable)
-                            .separated_by(comma())
-                            .collect::<Vec<_>>()
-                            .delimited_by(lparen(), rparen())
-                            .map(LoopPattern::Tuple));
-                    keyword("for")
-                        .ignore_then(common::scoped(
-                            loop_var_pat
-                                .then(for_inline_index)
-                                .then_ignore(keyword("in"))
-                                .then(expr.clone())
-                                .then(common::scoped(
-                                    inline_items.clone().delimited_by(lbrace(), rbrace()),
-                                )),
-                        ))
-                        .map(|(((var, index_var), iterable), body)| {
-                            FlatItem::ForLoop(var, index_var, iterable, body)
-                        })
+                .then_ignore(colon())
+                .then(type_ident.clone())
+                .then(modifiers.clone())
+                .then(children_block.clone())
+                .map_with(|((((label, array_index, label_span), ty), mods), children), _extra| {
+                    crate::occurrence::record_declaration(
+                        OccurrenceKind::Label,
+                        label.clone(),
+                        label_span,
+                    );
+                    FlatItem::Labeled(label, array_index, ty, mods, children)
+                }),
+            type_ident
+                .clone()
+                .then(modifiers.clone())
+                .then(children_block.clone())
+                .map(|((ty, mods), children)| FlatItem::Anonymous(ty, mods, children)),
+            property.clone().map_with(
+                |p, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+                    FlatItem::Prop(p, extra.span())
                 },
-                label_expr
-                    .clone()
-                    .then_ignore(colon())
-                    .then(type_ident.clone())
-                    .then(modifiers.clone())
-                    .then(children_block.clone())
-                    .map(|((((label, array_index), ty), mods), children)| {
-                        FlatItem::Labeled(label, array_index, ty, mods, children)
-                    }),
-                type_ident
-                    .clone()
-                    .then(modifiers.clone())
-                    .then(children_block.clone())
-                    .map(|((ty, mods), children)| FlatItem::Anonymous(ty, mods, children)),
-                property.clone().map_with(
-                    |p, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
-                        FlatItem::Prop(p, extra.span())
-                    },
-                ),
-                inline_items.clone().delimited_by(lbrace(), rbrace()).map(FlatItem::Children),
-            ));
+            ),
+            inline_items.clone().delimited_by(lbrace(), rbrace()).map(FlatItem::Children),
+            {
+                let expr = expr.clone().try_map(|expr, span| match expr {
+                    Expr::Call(..)
+                    | Expr::Timeline(..)
+                    | Expr::Sequence(..)
+                    | Expr::Stagger { .. } => Ok(expr),
+                    _ => Err(Rich::custom(
+                        span,
+                        "container body expressions must be calls or timeline values",
+                    )),
+                });
+                let source = source.clone();
+                expr.map_with(
+                        move |expr, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+                            let span = common::source_span(&source, extra.span());
+                            FlatItem::Expr(expr, span)
+                        },
+                    )
+            },
+        ));
 
-            let w = warnings.clone();
-            flat_item
-                .separated_by(comma().or_not())
-                .allow_trailing()
-                .collect::<Vec<_>>()
-                .map(move |items| {
-                    let mut result = Vec::new();
-                    for item in items {
-                        match item {
-                            FlatItem::Labeled(label, array_index, ty, mods, children) => {
-                                result.push(InlineItem::Labeled {
-                                    label,
-                                    array_index,
-                                    ty,
-                                    props: Vec::new(),
-                                    modifiers: mods,
-                                    children,
-                                });
-                            },
-                            FlatItem::Anonymous(ty, mods, children) => {
-                                result.push(InlineItem::Anonymous {
-                                    ty,
-                                    props: Vec::new(),
-                                    modifiers: mods,
-                                    children,
-                                });
-                            },
-                            FlatItem::Prop(p, span) => {
-                                if let Some(last) = result.last_mut() {
-                                    match last {
-                                        InlineItem::Labeled { props, .. } => props.push(p),
-                                        InlineItem::Anonymous { props, .. } => props.push(p),
-                                        _ => {
-                                            let prop_name = p.name.clone();
-                                            let location_span = p.value_span.unwrap_or(span);
-                                            w.borrow_mut().push(Diagnostic::warning(
-                                            DiagnosticCode::BracedPropertySilentDrop,
-                                            DiagnosticPhase::Parse,
-                                            format!(
-                                                "property '{prop_name}' inside braces has no \
+        let w = warnings.clone();
+        flat_item
+            .separated_by(comma().or_not())
+            .allow_trailing()
+            .collect::<Vec<_>>()
+            .map(move |items| {
+                let mut result = Vec::new();
+                for item in items {
+                    match item {
+                        FlatItem::Labeled(label, array_index, ty, mods, children) => {
+                            result.push(InlineItem::Labeled {
+                                label,
+                                array_index,
+                                ty,
+                                props: Vec::new(),
+                                modifiers: mods,
+                                children,
+                            });
+                        },
+                        FlatItem::Anonymous(ty, mods, children) => {
+                            result.push(InlineItem::Anonymous {
+                                ty,
+                                props: Vec::new(),
+                                modifiers: mods,
+                                children,
+                            });
+                        },
+                        FlatItem::Prop(p, span) => {
+                            if let Some(last) = result.last_mut() {
+                                match last {
+                                    InlineItem::Labeled { props, .. } => props.push(p),
+                                    InlineItem::Anonymous { props, .. } => props.push(p),
+                                    _ => {
+                                        let prop_name = p.name.clone();
+                                        let location_span = p.value_span.unwrap_or(span);
+                                        w.borrow_mut().push(
+                                            Diagnostic::warning(
+                                                DiagnosticCode::BracedPropertySilentDrop,
+                                                DiagnosticPhase::Parse,
+                                                format!(
+                                                    "property '{prop_name}' inside braces has no \
                                                  preceding actor to attach to; properties must \
                                                  be declared before the children block, e.g. \
                                                  'Type, {prop_name}: value'"
+                                                ),
+                                            )
+                                            .with_location(
+                                                0,
+                                                0,
+                                                location_span.start..location_span.end,
                                             ),
-                                        ).with_location(
-                                            0,
-                                            0,
-                                            location_span.start..location_span.end,
-                                        ));
-                                        },
-                                    }
-                                } else {
-                                    let prop_name = p.name.clone();
-                                    let location_span = p.value_span.unwrap_or(span);
-                                    w.borrow_mut().push(Diagnostic::warning(
-                                    DiagnosticCode::BracedPropertySilentDrop,
-                                    DiagnosticPhase::Parse,
-                                    format!(
-                                        "property '{prop_name}' inside braces has no preceding \
+                                        );
+                                    },
+                                }
+                            } else {
+                                let prop_name = p.name.clone();
+                                let location_span = p.value_span.unwrap_or(span);
+                                w.borrow_mut().push(
+                                    Diagnostic::warning(
+                                        DiagnosticCode::BracedPropertySilentDrop,
+                                        DiagnosticPhase::Parse,
+                                        format!(
+                                            "property '{prop_name}' inside braces has no preceding \
                                          actor to attach to; properties must be declared before \
                                          the children block, e.g. 'Type, {prop_name}: value'"
+                                        ),
+                                    )
+                                    .with_location(
+                                        0,
+                                        0,
+                                        location_span.start..location_span.end,
                                     ),
-                                ).with_location(0, 0, location_span.start..location_span.end));
+                                );
+                            }
+                        },
+                        FlatItem::Children(children) => {
+                            if let Some(last) = result.last_mut() {
+                                match last {
+                                    InlineItem::Labeled { children: c, .. } => *c = children,
+                                    InlineItem::Anonymous { children: c, .. } => *c = children,
+                                    _ => {},
                                 }
-                            },
-                            FlatItem::Children(children) => {
-                                if let Some(last) = result.last_mut() {
-                                    match last {
-                                        InlineItem::Labeled { children: c, .. } => *c = children,
-                                        InlineItem::Anonymous { children: c, .. } => *c = children,
-                                        _ => {},
-                                    }
-                                }
-                            },
-                            FlatItem::SlotMarker => {
-                                result.push(InlineItem::SlotMarker);
-                            },
-                            FlatItem::ForLoop(var, index_var, iterable, body) => {
-                                result.push(InlineItem::ForLoop {
-                                    var,
-                                    index_var,
-                                    iterable,
-                                    body,
-                                });
-                            },
-                            FlatItem::SlotFill(name, items) => {
-                                result.push(InlineItem::SlotFill { slot: name, items });
-                            },
-                        }
+                            }
+                        },
+                        FlatItem::SlotMarker => {
+                            result.push(InlineItem::SlotMarker);
+                        },
+                        FlatItem::ForLoop(var, index_var, iterable, body) => {
+                            result.push(InlineItem::ForLoop {
+                                var,
+                                index_var,
+                                iterable,
+                                body,
+                            });
+                        },
+                        FlatItem::SlotFill(name, items) => {
+                            result.push(InlineItem::SlotFill { slot: name, items });
+                        },
+                        FlatItem::Expr(expr, span) => result.push(InlineItem::Expr(expr, span)),
                     }
-                    result
-                })
-        });
+                }
+                result
+            })
+    });
 
     inline_items.boxed()
 }

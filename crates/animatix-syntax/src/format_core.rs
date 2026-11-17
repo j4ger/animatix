@@ -56,63 +56,6 @@ pub fn format_modifier(m: &Modifier) -> String {
     }
 }
 
-/// Serialize an action to source text.
-pub fn format_action(a: &Action) -> String {
-    // The grammar reads a target-style action's front as either a
-    // comma-separated list *or* a whitespace-separated run, and only the run
-    // may be followed by arguments. Commas here would therefore corrupt
-    // `move b to (300, 200)` into `move b, to …`, which does not parse.
-    let target_join = if a.args.is_empty() { ", " } else { " " };
-    let targets = a
-        .targets
-        .iter()
-        .zip(a.target_index.iter())
-        .enumerate()
-        .map(|(target_index, (target, index))| match index {
-            Some(expr) => {
-                let mut segments: Vec<String> = target.split('.').map(str::to_string).collect();
-                let position = a
-                    .target_index_position
-                    .get(target_index)
-                    .copied()
-                    .flatten()
-                    .unwrap_or_else(|| segments.len().saturating_sub(1));
-                if let Some(segment) = segments.get_mut(position) {
-                    *segment = format!("{}[{}]", segment, format_expr(expr));
-                    segments.join(".")
-                } else {
-                    format!("{}[{}]", target, format_expr(expr))
-                }
-            },
-            None => target.clone(),
-        })
-        .collect::<Vec<_>>()
-        .join(target_join);
-    let mut parts = vec![a.verb.clone()];
-    if !targets.is_empty() {
-        parts.push(targets.clone());
-    }
-    if !a.args.is_empty() {
-        let args = a.args.iter().map(format_expr).collect::<Vec<_>>().join(", ");
-        if targets.is_empty() {
-            // Function-style call `f(a, b)`: keep the parentheses.
-            return format!("{}({args})", a.verb);
-        }
-        // Parenthesized when there is more than one, because a bare `300, 200`
-        // is not a parseable argument run; one argument needs no group.
-        parts.push(if a.args.len() > 1 {
-            format!("({args})")
-        } else {
-            args
-        });
-    }
-    if !a.modifiers.is_empty() {
-        let mods = a.modifiers.iter().map(format_modifier).collect::<Vec<_>>().join(", ");
-        parts.push(format!("[{}]", mods));
-    }
-    parts.join(" ")
-}
-
 /// Serialize a time value to source text.
 pub fn format_time(t: &Time) -> String {
     match t {
@@ -125,6 +68,7 @@ pub fn format_time(t: &Time) -> String {
         },
         Time::Milliseconds(ms) => format!("{}ms", ms),
         Time::Beats(b) => format!("{b}b"),
+        Time::Expression(expr) => format!("({})", format_expr(expr)),
         Time::SpeechMarker {
             track,
             marker,
@@ -270,14 +214,18 @@ pub fn format_expr(expr: &Expr) -> String {
         },
         Expr::Percent(n) => format!("{}%", n),
         Expr::Str(s) => {
-            let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
+            let escaped = escape_string_quotes(s);
             format!("\"{}\"", escaped)
         },
         Expr::Bool(true) => "true".into(),
         Expr::Bool(false) => "false".into(),
         Expr::Null => "null".into(),
+        Expr::Duration(seconds) => format_duration(*seconds),
+        Expr::Unit => "()".into(),
         Expr::Ident(s) => s.clone(),
         Expr::Path(segs) => segs.join("."),
+        Expr::QualifiedPath(segs) => segs.join("::"),
+        Expr::Field(receiver, field) => format!("{}.{}", format_expr(receiver), field),
         Expr::Index(base, idx) => {
             format!("{}[{}]", format_expr(base), format_expr(idx))
         },
@@ -323,13 +271,9 @@ pub fn format_expr(expr: &Expr) -> String {
             };
             format!("{}{}", op.as_str(), inner_out)
         },
-        Expr::Call(name, args) => {
-            let inner = args.iter().map(format_expr).collect::<Vec<_>>().join(", ");
-            format!("{}({})", name, inner)
-        },
-        Expr::Method(obj, name, args) => {
-            let inner = args.iter().map(format_expr).collect::<Vec<_>>().join(", ");
-            format!("{}.{}({})", format_expr(obj), name, inner)
+        Expr::Call(callee, args) => {
+            let inner = args.iter().map(format_call_argument).collect::<Vec<_>>().join(", ");
+            format!("{}({})", format_expr(callee), inner)
         },
         Expr::Closure(params, body) => {
             let params_str = params.join(", ");
@@ -367,7 +311,61 @@ pub fn format_expr(expr: &Expr) -> String {
             let inner = props.iter().map(format_property).collect::<Vec<_>>().join(", ");
             format!("{} {{ {} }}", name, inner)
         },
+        Expr::Timeline(plan) => {
+            format!("#{{ {} }}", format_stmts_raw(&plan.statements, 0, 2))
+        },
+        Expr::Sequence(plan) => {
+            format!("sequence {{ {} }}", format_stmts_raw(&plan.statements, 0, 2))
+        },
+        Expr::Stagger { modifiers, plan } => {
+            let modifiers = if modifiers.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    " [{}]",
+                    modifiers.iter().map(format_modifier).collect::<Vec<_>>().join(", ")
+                )
+            };
+            format!("stagger{} {{ {} }}", modifiers, format_stmts_raw(&plan.statements, 0, 2))
+        },
     }
+}
+
+/// Escape only quotes that would otherwise terminate the double-quoted
+/// literal. The tokenizer preserves the source spelling of backslash escapes,
+/// so doubling every backslash would make each formatting pass grow them.
+fn escape_string_quotes(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    let mut backslashes = 0usize;
+    for character in value.chars() {
+        if character == '"' {
+            if backslashes.is_multiple_of(2) {
+                escaped.push('\\');
+            }
+            escaped.push(character);
+            backslashes = 0;
+        } else {
+            escaped.push(character);
+            if character == '\\' {
+                backslashes += 1;
+            } else {
+                backslashes = 0;
+            }
+        }
+    }
+    escaped
+}
+
+fn format_call_argument(argument: &CallArgument) -> String {
+    let value = format_expr(&argument.value);
+    match &argument.name {
+        Some(name) => format!("{name}: {value}"),
+        None => value,
+    }
+}
+
+fn format_duration(seconds: f64) -> String {
+    format!("{seconds}s")
 }
 
 /// Format a match pattern for display.
@@ -486,6 +484,7 @@ pub fn format_inline_item(item: &InlineItem, depth: usize, indent_size: usize) -
             )
         },
         InlineItem::SlotMarker => "@slot".into(),
+        InlineItem::Expr(expr, _) => format_expr(expr),
         InlineItem::SlotFill { slot, items } => {
             let items_str = items
                 .iter()
@@ -531,7 +530,6 @@ pub fn format_stmts_raw(stmts: &[Stmt], depth: usize, indent_size: usize) -> Str
 /// applies leading indentation. Children blocks are indented at `depth + 1`.
 pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String {
     match stmt {
-        Stmt::Action(a, ..) => format_action(a),
         Stmt::LetDecl {
             is_pub,
             name,

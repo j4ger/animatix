@@ -9,7 +9,7 @@
 
 use std::fs;
 
-use animatix::timeline::{SceneDimensions, Timeline, Value};
+use animatix::timeline::{BuildOptions, SceneDimensions, Timeline, Value};
 use animatix_syntax::module::ModuleGraph;
 
 const DIMS: SceneDimensions = SceneDimensions {
@@ -22,11 +22,16 @@ fn build_timeline_from_source(test_name: &str, source: &str) -> Timeline {
     let temp_dir = tempfile::tempdir().expect("create temp fixture directory");
     let temp_path = temp_dir.path().join(format!("{test_name}.amx"));
     fs::write(&temp_path, source).expect("write temp fixture should succeed");
-    let ast = ModuleGraph::new()
-        .load_program(&temp_path)
-        .expect("program should load")
-        .expand_components(&mut Vec::new());
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let mut graph = ModuleGraph::new();
+    let program = graph.load_program(&temp_path).expect("program should load");
+    let expanded = program.expand_components(&mut Vec::new());
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
     assert!(
         report.diagnostics.is_empty(),
         "Expected no build diagnostics, got: {:?}",
@@ -276,11 +281,16 @@ curve: PlotCurve, func: (x) => sin(freq * x), domain: (0, 6.28), samples: 100
     let temp_dir = tempfile::tempdir().expect("create temp fixture directory");
     let temp_path = temp_dir.path().join("typo.amx");
     fs::write(&temp_path, source).expect("write temp fixture should succeed");
-    let ast = ModuleGraph::new()
-        .load_program(&temp_path)
-        .expect("program should load")
-        .expand_components(&mut Vec::new());
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let mut graph = ModuleGraph::new();
+    let program = graph.load_program(&temp_path).expect("program should load");
+    let expanded = program.expand_components(&mut Vec::new());
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
 
     let messages: Vec<String> = report.diagnostics.iter().map(|d| format!("{d:?}")).collect();
     assert!(

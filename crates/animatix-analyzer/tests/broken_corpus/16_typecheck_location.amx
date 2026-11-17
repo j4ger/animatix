@@ -4,4 +4,4 @@ pub component Card(size: Vec2) {
 
 card1: Card, size: 42
 #0s
-fade-in card1 [1s]
+fade_in(target: card1, duration: 1s)

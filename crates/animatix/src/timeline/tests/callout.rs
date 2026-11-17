@@ -218,7 +218,7 @@ config { colorscheme: "editorial-dark" }
 anim_callout: Callout, from: (0, 0), to: (100, 100), label: "Animated", head_size: 10
 
 #2s
-anim_callout.to = (300, 200) [ease: ease-in-out]
+anim_callout.to = (300, 200) [ease: ease_in_out]
 "#,
     );
     assert!(

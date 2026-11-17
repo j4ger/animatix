@@ -19,6 +19,11 @@ pub(super) struct SceneCollection {
     pub play_targets: BTreeMap<String, (String, Option<Transition>, Option<f64>)>,
     /// Merged AST bodies, cached for the carry-aware rebuild.
     pub merged_bodies: BTreeMap<String, Vec<Stmt>>,
+    pub scene_sources: BTreeMap<String, std::path::PathBuf>,
+    /// Compiler method scopes retained for the carry-aware build pass.
+    pub scene_instance_methods: BTreeMap<String, crate::module::InstanceFnRegistry>,
+    /// Expanded lexical definitions used by independently imported scenes.
+    pub scene_function_contexts: BTreeMap<String, crate::module::FunctionContext>,
     /// Playback order computed from the edges (declaration order when there
     /// are none).
     pub walk_order: Vec<String>,
@@ -34,6 +39,9 @@ impl SceneCollection {
             shared_prelude: Vec::new(),
             play_targets: BTreeMap::new(),
             merged_bodies: BTreeMap::new(),
+            scene_sources: BTreeMap::new(),
+            scene_instance_methods: BTreeMap::new(),
+            scene_function_contexts: BTreeMap::new(),
             walk_order: Vec::new(),
         }
     }
@@ -95,6 +103,7 @@ impl Composition {
     fn extract_play_stmt(
         body: &[Stmt],
         scene_name: &str,
+        timeline: &Timeline,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Option<(String, Option<Transition>, Option<f64>)> {
         let mut result: Option<(String, Option<Transition>, Option<f64>)> = None;
@@ -127,17 +136,42 @@ impl Composition {
         }
         for stmt in body {
             match stmt {
-                Stmt::Keyframe { time, .. } | Stmt::RelativeKeyframe { offset: time, .. } => {
-                    current_time = match time {
+                Stmt::Keyframe { time, span, .. }
+                | Stmt::RelativeKeyframe {
+                    offset: time, span, ..
+                } => {
+                    if let Some(resolved) = span.and_then(|span| timeline.marker_time(span)) {
+                        current_time = resolved / 1000.0;
+                        continue;
+                    }
+                    let relative = matches!(stmt, Stmt::RelativeKeyframe { .. });
+                    let value = match time {
                         crate::ast::Time::Seconds(s) => *s,
                         crate::ast::Time::Milliseconds(ms) => *ms as f64 / 1000.0,
                         crate::ast::Time::Beats(b) => {
                             b * crate::ast::beat_seconds(crate::ast::DEFAULT_BPM)
                         },
+                        crate::ast::Time::Expression(_) => {
+                            diagnostics.push(
+                                Diagnostic::error(
+                                    DiagnosticCode::InvalidModifierValue,
+                                    DiagnosticPhase::Build,
+                                    "Cannot resolve the timeline marker preceding play.",
+                                )
+                                .with_subject(scene_name)
+                                .with_ast_span(*span),
+                            );
+                            continue;
+                        },
                         crate::ast::Time::SpeechMarker { offset_ms, .. }
                         | crate::ast::Time::SpeechWord { offset_ms, .. } => {
                             *offset_ms as f64 / 1000.0
                         },
+                    };
+                    current_time = if relative {
+                        current_time + value
+                    } else {
+                        value
                     };
                 },
                 Stmt::Play {
@@ -261,11 +295,6 @@ fn collect_scenes(
                     continue;
                 }
 
-                // Extract play target from the scene body BEFORE merging with prelude.
-                // Warn on multiple play statements (only the first is used).
-                let play_target =
-                    Composition::extract_play_stmt(body, name, &mut state.diagnostics);
-
                 // Warn on scene-level config keys that are composition-scoped
                 // and cannot meaningfully override the prelude.
                 Composition::validate_scene_config(config, name, &mut state.diagnostics);
@@ -280,8 +309,22 @@ fn collect_scenes(
                 merged_body.extend(body.clone());
                 state.merged_bodies.insert(name.clone(), merged_body.clone());
 
+                let source =
+                    options.function_context.and_then(|context| context.scene_paths.get(name));
+                let mut scene_options =
+                    source_options(options, source.map(std::path::PathBuf::as_path));
+                let methods = options
+                    .scene_methods
+                    .and_then(|scenes| scenes.get(name))
+                    .cloned()
+                    .unwrap_or_default();
+                state.scene_instance_methods.insert(name.clone(), methods);
+                scene_options.instance_methods = state.scene_instance_methods.get(name);
+                if let Some(source) = source {
+                    state.scene_sources.insert(name.clone(), source.clone());
+                }
                 let build_report =
-                    Timeline::build_with_options(&merged_body, namespaces, options.clone());
+                    Timeline::build_with_options(&merged_body, namespaces, scene_options);
                 state.diagnostics.extend(
                     build_report
                         .diagnostics
@@ -289,6 +332,8 @@ fn collect_scenes(
                         .map(|d| d.with_subject(format!("scene '{}'", name))),
                 );
                 let mut timeline = build_report.output;
+                let play_target =
+                    Composition::extract_play_stmt(body, name, &timeline, &mut state.diagnostics);
                 // Runtime input overlays are scoped to a complete single-scene
                 // Timeline. Composition scenes are evaluated through the
                 // composition clock, so do not expose per-scene hot inputs.
@@ -329,6 +374,7 @@ fn collect_scenes(
                         Stmt::Import { .. }
                         | Stmt::TypeAlias { .. }
                         | Stmt::LetDecl { is_pub: true, .. }
+                        | Stmt::FnDecl { .. }
                         | Stmt::ComponentDef(..)
                         | Stmt::Comment(..) => {
                             state.shared_prelude.push(other.clone());
@@ -362,10 +408,10 @@ fn collect_scenes(
 
 /// Collect scenes from imported namespaces, transitively.
 ///
-/// When a play target references an imported scene (e.g. `play alias.SceneName`),
+/// When a play target references an imported scene (e.g. `play alias::SceneName`),
 /// build a timeline from the imported scene's data and register it — then
 /// process the newly registered scene's own play target so multi-hop chains
-/// (`Hub -> logo.Logo -> slogan.Slogan -> ...`) resolve fully.
+/// (`Hub -> logo::Logo -> slogan::Slogan -> ...`) resolve fully.
 fn collect_cross_file_scenes(
     namespaces: &std::collections::HashMap<String, Namespace>,
     options: &BuildOptions<'_>,
@@ -375,11 +421,11 @@ fn collect_cross_file_scenes(
         .play_targets
         .values()
         .map(|(target, _, _)| target.clone())
-        .filter(|t| t.contains('.') && !state.scenes.contains_key(t))
+        .filter(|t| t.contains("::") && !state.scenes.contains_key(t))
         .collect();
     let mut queued: std::collections::HashSet<String> = cross_queue.iter().cloned().collect();
     while let Some(target) = cross_queue.pop() {
-        let parts: Vec<&str> = target.split('.').collect();
+        let parts: Vec<&str> = target.split("::").collect();
         if parts.len() < 2 {
             continue;
         }
@@ -393,16 +439,14 @@ fn collect_cross_file_scenes(
                     format!(
                         "Play target '{target}' references namespace '{}' which was not found; \
                          the scene is skipped.",
-                        namespace_parts.join(".")
+                        namespace_parts.join("::")
                     ),
                 )
                 .with_subject(&target),
             );
             continue;
         };
-        // Legacy/test namespaces may carry no scenes at all — accept any
-        // name there (same rule as validate_play_target).
-        if !ns.scenes.is_empty() && !ns.scenes.contains_key(scene_name) {
+        if !ns.scenes.contains_key(scene_name) {
             state.diagnostics.push(
                 Diagnostic::warning(
                     DiagnosticCode::PlayTargetNotFound,
@@ -424,14 +468,26 @@ fn collect_cross_file_scenes(
             // The entry's shared prelude is prepended too so imported
             // theme modules (colorscheme declarations) register for
             // cross-file scenes, matching entry-declared scenes.
+            let expanded = match expand_imported_scene(scene_data, ns, options.function_context) {
+                Ok(expanded) => expanded,
+                Err(error) => {
+                    state.diagnostics.push(
+                        Diagnostic::error(
+                            DiagnosticCode::SourceLoadFailure,
+                            DiagnosticPhase::Build,
+                            error.to_string(),
+                        )
+                        .with_subject(&target),
+                    );
+                    continue;
+                },
+            };
             let mut merged = state.shared_prelude.clone();
-            merged.extend(scene_data.file_prelude.clone());
-            // Insert scene config as a Stmt::Config before the scene body
-            merged.push(Stmt::Config {
-                settings: scene_data.config.clone(),
-                span: scene_data.span,
-            });
-            merged.extend(scene_data.body.clone());
+            merged.extend(expanded.statements);
+            state.scene_instance_methods.insert(target.clone(), expanded.instance_methods);
+            if let Some(context) = expanded.expanded_function_context {
+                state.scene_function_contexts.insert(target.clone(), context);
+            }
             if merged.iter().any(|stmt| match stmt {
                 Stmt::Config { settings, .. } => {
                     settings.iter().any(|setting| setting.name == "runtime_inputs")
@@ -449,7 +505,13 @@ fn collect_cross_file_scenes(
                 );
             }
             state.merged_bodies.insert(target.clone(), merged.clone());
-            let build_report = Timeline::build_with_options(&merged, namespaces, options.clone());
+            let mut scene_options = source_options(options, Some(&scene_data.definition_path));
+            scene_options.instance_methods = state.scene_instance_methods.get(&target);
+            if let Some(context) = state.scene_function_contexts.get(&target) {
+                scene_options.function_context = Some(context);
+            }
+            state.scene_sources.insert(target.clone(), scene_data.definition_path.clone());
+            let build_report = Timeline::build_with_options(&merged, namespaces, scene_options);
             state.diagnostics.extend(
                 build_report
                     .diagnostics
@@ -469,6 +531,12 @@ fn collect_cross_file_scenes(
                     })
                 });
             let duration_s = explicit_duration_s.unwrap_or_else(|| timeline.duration_seconds());
+            let next_play = Composition::extract_play_stmt(
+                &scene_data.body,
+                &target,
+                &timeline,
+                &mut state.diagnostics,
+            );
             state.scenes.insert(
                 target.clone(),
                 CompositionScene {
@@ -483,13 +551,11 @@ fn collect_cross_file_scenes(
             state.declaration_order.push(target.clone());
 
             // Chain: queue the newly registered scene's own play target.
-            if let Some((next_target, next_transition, next_play_time)) =
-                Composition::extract_play_stmt(&scene_data.body, &target, &mut state.diagnostics)
-            {
+            if let Some((next_target, next_transition, next_play_time)) = next_play {
                 state
                     .play_targets
                     .insert(target.clone(), (next_target.clone(), next_transition, next_play_time));
-                if next_target.contains('.')
+                if next_target.contains("::")
                     && !state.scenes.contains_key(&next_target)
                     && !queued.contains(&next_target)
                 {
@@ -499,4 +565,67 @@ fn collect_cross_file_scenes(
             }
         }
     }
+}
+
+/// Carry rebuilds and first-pass builds must use the same defining module and
+/// asset base, while keeping the host's scene options and shared caches.
+pub(super) fn source_options<'a>(
+    options: &BuildOptions<'a>,
+    source: Option<&'a std::path::Path>,
+) -> BuildOptions<'a> {
+    let mut options = options.clone();
+    if let Some(source) = source.filter(|path| !path.as_os_str().is_empty()) {
+        options = options.with_function_scope(source);
+        let mut cache = options.asset_cache.as_deref().cloned().unwrap_or_default();
+        cache.set_document_dir(source.parent());
+        options.asset_cache = Some(std::sync::Arc::new(cache));
+    }
+    options
+}
+
+/// Expand native AST namespaces through the same component compiler as loaded
+/// modules. Loaded source modules provide their exact private lexical scope.
+fn expand_imported_scene(
+    scene: &crate::module::SceneData,
+    namespace: &Namespace,
+    context: Option<&crate::module::FunctionContext>,
+) -> Result<crate::module::ExpandedProgram, crate::module::ModuleError> {
+    if let Some(context) = context {
+        return context.expand_scene(scene);
+    }
+    let mut definitions =
+        animatix_syntax::module::discovery::collect_component_defs(&scene.file_prelude)
+            .into_iter()
+            .map(|definition| (definition.name.clone(), definition))
+            .collect::<std::collections::HashMap<_, _>>();
+    definitions.extend(namespace.component_exports.clone());
+    let components = definitions
+        .into_iter()
+        .map(|(name, definition)| {
+            let methods = animatix_syntax::module::discovery::collect_component_functions(
+                &definition,
+                &scene.definition_path,
+            );
+            (
+                name,
+                crate::module::ComponentEntry {
+                    definition,
+                    source_path: scene.definition_path.clone(),
+                    methods,
+                },
+            )
+        })
+        .collect();
+    let mut statements = scene.file_prelude.clone();
+    statements.push(Stmt::Config {
+        settings: scene.config.clone(),
+        span: scene.span,
+    });
+    statements.extend(scene.body.clone());
+    Ok(crate::module::LoadedProgram {
+        statements,
+        components,
+        ..Default::default()
+    }
+    .expand_components(&mut Vec::new()))
 }

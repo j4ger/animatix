@@ -42,7 +42,7 @@ fn test_split_text_action_modifiers_and_evaluation() {
 title: Text, text: "Hello Beautiful World", at: (200, 200)
 
 #1s
-draw-in title [1s, by: word, offset_y: 30, mask: baseline, stagger: 0.1s]
+draw_in(target: title, duration: 1s, by: word, offset_y: 30, mask: baseline, stagger: 0.1s)
 "#;
     let timeline = build_output(source);
     let track = timeline.world.tracks.get_id("title").expect("title track");
@@ -90,7 +90,7 @@ fn test_reveal_in_on_text_target() {
 sub: Text, text: "Split line reveal", at: (100, 150)
 
 #0.5s
-reveal-in sub [500ms, by: line, offset_y: 15, mask: baseline]
+reveal_in(target: sub, duration: 500ms, by: line, offset_y: 15, mask: baseline)
 "#;
     let timeline = build_output(source);
     let track = timeline.world.tracks.get_id("sub").expect("sub track");
@@ -346,7 +346,7 @@ fn test_split_text_cjk_word_reveal() {
 title: Text, text: "你好 世界 动效", at: (200, 200)
 
 #1s
-draw-in title [1s, by: word, offset_y: 30, mask: baseline, stagger: 0.1s]
+draw_in(target: title, duration: 1s, by: word, offset_y: 30, mask: baseline, stagger: 0.1s)
 "#;
     let timeline = build_output(source);
     let track = timeline.world.tracks.get_id("title").expect("title track");
@@ -440,7 +440,7 @@ fn typst_highlight_emits_a_highlight_layer() {
 t: Typst, text: "$x^2$", at: (100, 100)
 
 #1s
-highlight t [1s]
+highlight(target: t, duration: 1s)
 "#;
     let timeline = build_output(source);
     let track = timeline.world.tracks.get_id("t").expect("typst track");

@@ -1,7 +1,6 @@
 use crate::ast::Stmt;
 
-use super::expand::expand_statements;
-use super::{LoadedProgram, inline_actions};
+use super::LoadedProgram;
 
 impl LoadedProgram {
     /// Run the gradual type checker on the program's statements.
@@ -10,9 +9,23 @@ impl LoadedProgram {
     /// annotations. Returns diagnostics for any type mismatches found.
     /// Unannotated parameters accept any value.
     pub fn typecheck(&mut self) -> Vec<crate::diagnostics::Diagnostic> {
+        self.typecheck_with_callables(&[])
+    }
+
+    /// Type-check the program with host-provided callable contracts.
+    ///
+    /// Native extensions are not part of the built-in standard catalog, so
+    /// hosts pass the descriptors available in their extension context here.
+    pub fn typecheck_with_callables(
+        &mut self,
+        callables: &[animatix_core::callable::CallableDescriptor],
+    ) -> Vec<crate::diagnostics::Diagnostic> {
         let strict_types = self.extract_strict_types();
         let mut env = crate::typecheck::TypeEnv::new(&self.components, &self.module_fns)
             .with_strict_types(strict_types);
+        for callable in callables {
+            env.register_callable(callable);
+        }
         env.register_module_aliases(&self.namespaces);
         env.check_statements(&self.statements)
     }
@@ -35,11 +48,22 @@ impl LoadedProgram {
         false
     }
 
-    /// Expand component instances into concrete statements and expand
-    /// timeline-function calls. Expansion diagnostics (recursion cycles,
-    /// statement-level pure-function calls) are appended to `diagnostics`.
-    pub fn expand_components(&self, diagnostics: &mut Vec<String>) -> Vec<Stmt> {
-        let (stmts, registry) = expand_statements(&self.statements, &self.components);
-        inline_actions::expand_fn_calls(stmts, &registry, &self.module_fns, diagnostics)
+    /// Expand component instances into concrete statements and preserve the
+    /// method templates required by the engine's callable VM.
+    pub fn expand_components(&self, _diagnostics: &mut Vec<String>) -> super::ExpandedProgram {
+        let component_scopes = self
+            .function_context
+            .modules
+            .iter()
+            .map(|(path, module)| (path.clone(), module.components.clone()))
+            .collect();
+        let mut expanded = super::expand::expand_statements_with_component_scopes(
+            &self.statements,
+            &self.components,
+            &component_scopes,
+        );
+        expanded.expanded_function_context =
+            Some(super::expand::expand_function_context(&self.function_context));
+        expanded
     }
 }

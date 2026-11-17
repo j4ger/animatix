@@ -5,12 +5,12 @@ use super::*;
 #[test]
 fn default_easing_follows_the_statements_role() {
     // Arrivals decelerate, departures accelerate, repositioning does both.
-    assert_eq!(default_easing_for(ModifierHost::Action, Some("fade-in")), Easing::ExpoOut);
-    assert_eq!(default_easing_for(ModifierHost::Action, Some("settle-in")), Easing::ExpoOut);
-    assert_eq!(default_easing_for(ModifierHost::Action, Some("pop-in")), Easing::ExpoOut);
-    assert_eq!(default_easing_for(ModifierHost::Action, Some("grow-in")), Easing::ExpoOut);
-    assert_eq!(default_easing_for(ModifierHost::Action, Some("fade-out")), Easing::EaseIn);
-    assert_eq!(default_easing_for(ModifierHost::Action, Some("shrink-out")), Easing::EaseIn);
+    assert_eq!(default_easing_for(ModifierHost::Action, Some("fade_in")), Easing::ExpoOut);
+    assert_eq!(default_easing_for(ModifierHost::Action, Some("settle_in")), Easing::ExpoOut);
+    assert_eq!(default_easing_for(ModifierHost::Action, Some("pop_in")), Easing::ExpoOut);
+    assert_eq!(default_easing_for(ModifierHost::Action, Some("grow_in")), Easing::ExpoOut);
+    assert_eq!(default_easing_for(ModifierHost::Action, Some("fade_out")), Easing::EaseIn);
+    assert_eq!(default_easing_for(ModifierHost::Action, Some("shrink_out")), Easing::EaseIn);
     assert_eq!(default_easing_for(ModifierHost::Action, Some("remove")), Easing::EaseIn);
     assert_eq!(default_easing_for(ModifierHost::Action, Some("move")), Easing::EaseInOut);
     assert_eq!(
@@ -42,12 +42,12 @@ fn an_explicit_ease_always_wins_over_the_role_default() {
     let parsed = ease(
         &[timed(None, Expr::Ident("500ms".to_string()))],
         ModifierHost::Action,
-        Some("fade-in"),
+        Some("fade_in"),
     );
     assert_eq!(parsed.easing, Easing::ExpoOut, "uneased entrance takes the default");
     assert!(!parsed.ease_authored);
     assert_eq!(
-        ease(&[], ModifierHost::Action, Some("fade-in")).easing,
+        ease(&[], ModifierHost::Action, Some("fade_in")).easing,
         Easing::Linear,
         "an undated write has no segment to ease"
     );
@@ -58,7 +58,7 @@ fn an_explicit_ease_always_wins_over_the_role_default() {
             timed(Some("ease"), Expr::Ident("linear".to_string())),
         ],
         ModifierHost::Action,
-        Some("fade-in"),
+        Some("fade_in"),
     );
     assert_eq!(linear.easing, Easing::Linear, "`ease: linear` must still mean linear");
     assert!(linear.ease_authored, "the author's intent must be visible to presets");
@@ -66,7 +66,7 @@ fn an_explicit_ease_always_wins_over_the_role_default() {
     let expo = ease(
         &[
             timed(None, Expr::Ident("500ms".to_string())),
-            timed(Some("ease"), Expr::Ident("expo-in-out".to_string())),
+            timed(Some("ease"), Expr::Ident("expo_in_out".to_string())),
         ],
         ModifierHost::Assignment,
         Some("box.at"),
@@ -82,7 +82,7 @@ config { colorscheme: "editorial-dark", resolution: (640, 360) }
 
 box: Rect, size: (100, 100), at: (200, 180), color: accent.primary
 #0s
-fade-in box [500ms]
+fade_in(target: box, duration: 500ms)
 "#;
     let (ast, errors) = animatix_syntax::parser::parse_source(source);
     assert!(errors.is_empty(), "Parse errors: {errors:?}");

@@ -1,15 +1,14 @@
 //! The public manifest model and its TOML entry points.
 
-use animatix_syntax::schema::{
-    ActionSignature, FunctionDescriptor, PrimitiveDescriptor, PropertyDescriptor, ServiceDescriptor,
-};
+use animatix_core::callable::CallableDescriptor;
+use animatix_syntax::schema::{PrimitiveDescriptor, PropertyDescriptor, ServiceDescriptor};
 use animatix_syntax::typing::Type;
 
 use super::schema::parse_manifest_type;
 use crate::symbol_table::SymbolTable;
 
 /// Collection of analyzer-only extension metadata.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct ExtensionManifest {
     /// Optional native library path, resolved relative to the manifest file by
     /// CLI consumers. Analyzer and LSP ignore this field.
@@ -18,10 +17,8 @@ pub struct ExtensionManifest {
     pub primitives: Vec<PrimitiveDescriptor>,
     /// Property declarations.
     pub properties: Vec<PropertyDescriptor>,
-    /// Action declarations.
-    pub actions: Vec<ActionSignature>,
-    /// Function declarations.
-    pub functions: Vec<FunctionDescriptor>,
+    /// Unified callable declarations from native extensions.
+    pub callables: Vec<CallableDescriptor>,
     /// Service declarations.
     pub services: Vec<ServiceDescriptor>,
     /// Plugin-authored post-processing effect declarations.
@@ -70,8 +67,7 @@ impl ExtensionManifest {
             }
             merged.primitives.extend(manifest.primitives.iter().cloned());
             merged.properties.extend(manifest.properties.iter().cloned());
-            merged.actions.extend(manifest.actions.iter().cloned());
-            merged.functions.extend(manifest.functions.iter().cloned());
+            merged.callables.extend(manifest.callables.iter().cloned());
             merged.services.extend(manifest.services.iter().cloned());
             merged.effects.extend(manifest.effects.iter().cloned());
         }
@@ -138,11 +134,11 @@ impl ExtensionManifest {
                 .property_types
                 .insert((effect.name.clone(), "enabled".to_string()), Type::Bool);
         }
-        for action in &self.actions {
-            table.actions.insert(action.name.clone());
-        }
-        for function in &self.functions {
-            table.functions.insert(function.name.clone());
+        for callable in &self.callables {
+            table.functions.insert(callable.qualified_name());
+            if callable.namespace.is_empty() {
+                table.functions.insert(callable.name.clone());
+            }
         }
         for service in &self.services {
             table.services.insert(service.name.clone());

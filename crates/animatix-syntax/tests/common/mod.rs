@@ -38,15 +38,15 @@ pub const COMMENT_FIXTURES: &[&str] = &[
     // Trailing comment after a property.
     "title: Text, text: \"Hello\" // trailing property\n",
     // Trailing comments after non-property statements.
-    "let a = 1 // trailing let\n#1s\nfade-in a [1s] // trailing action\n",
+    "let a = 1 // trailing let\n#1s\nfade_in(target: a, duration: 1s) // trailing call\n",
     // Comment-only file.
     "// only a comment\n// second line\n",
     // Comment inside a multi-line expression that formatting collapses.
     "let x = foo(\n  1, // first arg\n  2\n)\n",
     // Comment inside a container's inline children block.
     "row: Row, gap: 8 {\n  // child comment\n  a: Rect, size: (10, 10)\n}\n",
-    // Comments at both ends of a sequence block, plus a trailing action.
-    "sequence {\n  // before action\n  fade-in a [1s] // after action\n  // after action line\n}\n",
+    // Comments at both ends of a sequence block, plus a trailing call.
+    "sequence {\n  // before call\n  fade_in(target: a, duration: 1s) // after call\n  // after call line\n}\n",
     // Trailing comments inside a type constructor's property list.
     "circ = Circle {\n  at: (0, 0), // center\n  radius: 100, // size\n}\n",
 ];

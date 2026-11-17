@@ -2,23 +2,16 @@
 
 use std::any::Any;
 use std::collections::HashMap;
-use std::ffi::{c_char, c_void};
+use std::ffi::c_void;
 use std::sync::Arc;
 
 use animatix_plugin_api::{
-    NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_STATUS_UNSUPPORTED, NativeAction,
-    NativeActionParam, NativeEffectDescriptor, NativeFunctionContext, NativeFunctionDescriptor,
-    NativePrimitive, NativePropertyDescriptor, NativeValue,
+    NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NativeEffectDescriptor, NativePrimitive,
+    NativePropertyDescriptor,
 };
 
-use super::hosts::define_native_get_service;
-use super::{
-    NativeActionAdapter, NativePrimitiveAdapter, NativeValueArena, native_property_kind,
-    native_to_value, parse_native_type, read_c_string, value_to_native,
-};
+use super::{NativePrimitiveAdapter, native_property_kind, parse_native_type, read_c_string};
 use crate::extension_context::ExtensionContext;
-use crate::timeline::actions::registry::{ActionParam, ActionSignature};
-use crate::timeline::{Environment, EvalError};
 
 pub(crate) struct NativeHost<'a> {
     pub(super) ctx: &'a mut ExtensionContext,
@@ -29,7 +22,6 @@ pub(crate) struct NativeHost<'a> {
     pub(super) service_values: HashMap<String, usize>,
     pub(super) functions: Vec<String>,
     pub(super) primitives: Vec<String>,
-    pub(super) actions: Vec<String>,
     pub(super) services: Vec<String>,
     /// Registered effect names (the registry is keyed by authored type name).
     pub(super) effects: Vec<String>,
@@ -42,13 +34,10 @@ impl NativeHost<'_> {
             ctx.remove_property(&actor_type, &name);
         }
         for name in self.functions.drain(..) {
-            ctx.remove_function(&name);
+            ctx.remove_callable(&name);
         }
         for name in self.primitives.drain(..) {
             ctx.remove_primitive(&name);
-        }
-        for name in self.actions.drain(..) {
-            ctx.remove_action(&name);
         }
         for name in self.services.drain(..) {
             ctx.remove_service(&name);
@@ -59,38 +48,6 @@ impl NativeHost<'_> {
     }
 }
 
-pub(crate) struct NativeFunctionHost<'a> {
-    pub(super) env: &'a Environment,
-    pub(super) service_values: &'a HashMap<String, usize>,
-    pub(super) arena: NativeValueArena,
-}
-
-pub(crate) unsafe extern "C" fn native_function_get_env(
-    host: *mut c_void,
-    name: *const c_char,
-    out: *mut NativeValue,
-) -> i32 {
-    let Some(host) = (unsafe { (host as *mut NativeFunctionHost).as_mut() }) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(name) = (unsafe { read_c_string(name) }) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(value) = host.env.get(&name) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Ok(native) = value_to_native(&value, &mut host.arena) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    if out.is_null() {
-        return NATIVE_STATUS_TYPE_ERROR;
-    }
-    unsafe { *out = native };
-    NATIVE_STATUS_OK
-}
-
-define_native_get_service!(native_function_get_service, NativeFunctionHost);
-
 pub(crate) unsafe extern "C" fn native_register_property(
     host: *mut c_void,
     descriptor: NativePropertyDescriptor,
@@ -99,6 +56,9 @@ pub(crate) unsafe extern "C" fn native_register_property(
     let Some(host) = (unsafe { (host as *mut NativeHost).as_mut() }) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
+    if out_id.is_null() {
+        return NATIVE_STATUS_TYPE_ERROR;
+    }
     let Some(actor_type) = (unsafe { read_c_string(descriptor.actor_type) }) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
@@ -130,93 +90,10 @@ pub(crate) unsafe extern "C" fn native_register_property(
         Ok(id) => id,
         Err(_) => return NATIVE_STATUS_TYPE_ERROR,
     };
-    if out_id.is_null() {
-        return NATIVE_STATUS_TYPE_ERROR;
-    }
     unsafe { *out_id = id.0 };
     host.properties.push((actor_type, name.clone()));
     host.property_ids.insert(name.clone(), id);
     host.property_kinds.insert(name, kind);
-    NATIVE_STATUS_OK
-}
-
-pub(crate) unsafe extern "C" fn native_register_function(
-    host: *mut c_void,
-    descriptor: NativeFunctionDescriptor,
-) -> i32 {
-    let Some(host) = (unsafe { (host as *mut NativeHost).as_mut() }) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(name) = (unsafe { read_c_string(descriptor.name) }) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let callback = descriptor.callback;
-    let params = unsafe { read_native_action_params(descriptor.params, descriptor.param_len) };
-    let return_type =
-        unsafe { read_c_string(descriptor.return_type) }.and_then(|ty| parse_native_type(&ty));
-    let help = unsafe { read_c_string(descriptor.help) };
-    let function_descriptor = animatix_syntax::schema::FunctionDescriptor {
-        name: name.clone(),
-        params,
-        return_type,
-        help,
-    };
-    let library = host.library.clone();
-    let service_values = host.service_values.clone();
-    let function_name = name.clone();
-    if host
-        .ctx
-        .register_function_with_descriptor(
-            name.clone(),
-            move |args, env| unsafe {
-                let _keep_alive = &library;
-                let mut arena = NativeValueArena::default();
-                let native_args = args
-                    .iter()
-                    .map(|value| value_to_native(value, &mut arena))
-                    .collect::<Result<Vec<_>, _>>()?;
-                let mut out = NativeValue::default();
-                let mut function_host = NativeFunctionHost {
-                    env,
-                    service_values: &service_values,
-                    arena,
-                };
-                let mut native_ctx = NativeFunctionContext {
-                    size: std::mem::size_of::<NativeFunctionContext>(),
-                    host: (&mut function_host as *mut NativeFunctionHost).cast(),
-                    get_env: native_function_get_env,
-                    get_service: native_function_get_service,
-                };
-                let status = callback(
-                    &mut native_ctx,
-                    if native_args.is_empty() {
-                        std::ptr::null()
-                    } else {
-                        native_args.as_ptr()
-                    },
-                    native_args.len(),
-                    &mut out,
-                );
-                match status {
-                    NATIVE_STATUS_OK => native_to_value(out),
-                    NATIVE_STATUS_TYPE_ERROR => Err(EvalError::TypeMismatch(format!(
-                        "native plugin function '{function_name}' rejected its arguments"
-                    ))),
-                    NATIVE_STATUS_UNSUPPORTED => Err(EvalError::UnsupportedConstruct(format!(
-                        "native plugin function '{function_name}' does not support this value"
-                    ))),
-                    _ => Err(EvalError::TypeMismatch(format!(
-                        "native plugin function '{function_name}' failed with status {status}"
-                    ))),
-                }
-            },
-            function_descriptor,
-        )
-        .is_err()
-    {
-        return NATIVE_STATUS_TYPE_ERROR;
-    }
-    host.functions.push(name);
     NATIVE_STATUS_OK
 }
 
@@ -245,69 +122,6 @@ pub(crate) unsafe extern "C" fn native_register_primitive(
         return NATIVE_STATUS_TYPE_ERROR;
     }
     host.primitives.push(name);
-    NATIVE_STATUS_OK
-}
-
-unsafe fn read_native_action_params(
-    params: *const NativeActionParam,
-    len: usize,
-) -> Vec<ActionParam> {
-    if params.is_null() || len == 0 {
-        return Vec::new();
-    }
-    let params = unsafe { std::slice::from_raw_parts(params, len) };
-    params
-        .iter()
-        .map(|param| ActionParam {
-            name: (unsafe { read_c_string(param.name) }).unwrap_or_default(),
-            description: (unsafe { read_c_string(param.description) }).unwrap_or_default(),
-            type_info: (unsafe { read_c_string(param.type_info) }).unwrap_or_default(),
-        })
-        .collect()
-}
-
-pub(crate) unsafe extern "C" fn native_register_action(
-    host: *mut c_void,
-    action: NativeAction,
-) -> i32 {
-    let Some(host) = (unsafe { (host as *mut NativeHost).as_mut() }) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(name) = (unsafe { read_c_string(action.name) }) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(category) = (unsafe { read_c_string(action.category) }) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(description) = (unsafe { read_c_string(action.description) }) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let params = unsafe { read_native_action_params(action.params, action.param_len) };
-    let modifiers = unsafe { read_native_action_params(action.modifiers, action.modifier_len) };
-    let Some(library) = host.library.clone() else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    if host
-        .ctx
-        .register_action(Box::new(NativeActionAdapter {
-            signature: ActionSignature {
-                name: name.clone(),
-                category,
-                description,
-                params,
-                modifiers,
-            },
-            callback: action.execute,
-            property_ids: host.property_ids.clone(),
-            property_kinds: host.property_kinds.clone(),
-            service_values: host.service_values.clone(),
-            _library: library,
-        }))
-        .is_err()
-    {
-        return NATIVE_STATUS_TYPE_ERROR;
-    }
-    host.actions.push(name);
     NATIVE_STATUS_OK
 }
 

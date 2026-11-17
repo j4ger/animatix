@@ -23,7 +23,7 @@ fn bin(a: Expr, op: BinaryOp, b: Expr) -> Expr {
 }
 
 fn call(name: &str, args: Vec<Expr>) -> Expr {
-    Expr::Call(name.to_string(), args)
+    Expr::call(name.to_string(), args)
 }
 
 fn clean_ast(ast: Vec<Stmt>) -> Timeline {
@@ -39,7 +39,15 @@ fn build_module(path: &str, source: &str) -> Timeline {
         .load_program_with_source(std::path::Path::new(path), Some(source))
         .expect("program loads");
     let expanded = program.expand_components(&mut Vec::new());
-    clean_ast(expanded)
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        crate::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
+    assert_clean(&report);
+    report.output
 }
 
 fn build_module_file(path: &std::path::Path) -> Option<Timeline> {
@@ -49,7 +57,15 @@ fn build_module_file(path: &std::path::Path) -> Option<Timeline> {
     let mut graph = animatix_syntax::module::ModuleGraph::new();
     let program = graph.load_program(path).expect("program loads");
     let expanded = program.expand_components(&mut Vec::new());
-    Some(clean_ast(expanded))
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        crate::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
+    assert_clean(&report);
+    Some(report.output)
 }
 
 type Overrides = std::collections::HashMap<String, std::collections::HashMap<String, Value>>;
@@ -238,7 +254,7 @@ for i in {0} {
     let done = timeline.variable_tracks.get("done").expect("done track");
     assert_eq!(
         done.evaluate(0),
-        Some(Value::Num(1.0)),
+        Some(Value::Bool(true)),
         "later statements in the same keyframe should read the shadowed value"
     );
 }
@@ -260,7 +276,7 @@ row: Row, at: (640, 440), gap: 16 {
 let arr = {3, 2, 1}
 for i in {0, 1} [step: 300ms] {
   if arr[i] > arr[i+1] {
-    swap row.b[i], row.b[i+1] [300ms]
+    swap(row.b[i], row.b[i+1], duration: 300ms)
     let arr = list_swap(arr, i, i+1)
   }
 }
@@ -420,15 +436,16 @@ fn timeline_fn_expands_with_block_scope_without_leaking_locals() {
         "fn_scope.amx",
         r#"
 config { colorscheme: "editorial-dark" }
-fn pulse(strength: Num = 1.0) {
+fn pulse(target: Actor, strength: Num = 1.0) { return #{
   let local = strength * 2
-  self.scale = local [100ms]
-}
+  target.scale = local [100ms]
+
+} }
 btn: Rect, size: (100, 50), color: blue
 #0s
-fade-in btn [300ms]
+fade_in(target: btn, duration: 300ms)
 #1s
-pulse btn [strength: 1.5]
+pulse(btn, strength: 1.5)
 "#,
     );
     assert!(
@@ -454,17 +471,18 @@ fn timeline_fn_drives_algorithm_sort() {
         "fn_sort.amx",
         r#"
 config { colorscheme: "editorial-dark", dynamic_layout: true }
-fn bubble_sort(bars, values: List<Num>) {
+fn bubble_sort(bars, values: List<Num>) { return #{
   let arr = values
   for key in {1, 2, 3} [step: 1200ms] {
     for j in {0, 1, 2} [step: 300ms] {
       if j < key && arr[key - j] < arr[key - j - 1] {
-        swap bars[j], bars[j+1] [300ms]
+        swap(bars[j], bars[j+1], duration: 300ms)
         let arr = list_swap(arr, key - j, key - j - 1)
       }
     }
   }
-}
+
+} }
 row: Row, at: (640, 440), gap: 16 {
   for k in {0,1,2,3} {
     b[k]: Rect, size: (70, 80), color: blue, opacity: 1
@@ -495,7 +513,7 @@ fn timeline_fn_dnf_swaps_resolve_index_params() {
         "dnf_fn.amx",
         r#"
 config { colorscheme: "editorial-dark", dynamic_layout: true }
-fn dnf_pass(arr: List<Num>, zero: Num, i: Num, two: Num) {
+fn dnf_pass(arr: List<Num>, zero: Num, i: Num, two: Num) { return #{
   let arr = arr
   let zero = zero
   let i = i
@@ -504,14 +522,14 @@ fn dnf_pass(arr: List<Num>, zero: Num, i: Num, two: Num) {
     if i <= two {
       match arr[i] {
         0 => {
-          swap row.b[zero], row.b[i] [600ms]
+          swap(row.b[zero], row.b[i], duration: 600ms)
           let arr = list_swap(arr, zero, i)
           let zero = zero + 1
           let i = i + 1
         }
         1 => { let i = i + 1 }
         2 => {
-          swap row.b[i], row.b[two] [600ms]
+          swap(row.b[i], row.b[two], duration: 600ms)
           let arr = list_swap(arr, i, two)
           let two = two - 1
         }
@@ -519,7 +537,8 @@ fn dnf_pass(arr: List<Num>, zero: Num, i: Num, two: Num) {
       }
     }
   }
-}
+
+} }
 row: Row, at: (640, 440), gap: 16 {
   for k in {0,1,2,3,4,5} {
     b[k]: Rect, size: (70, 80), color: blue, opacity: 1
@@ -554,17 +573,18 @@ fn timeline_fn_dotted_targets_resolve_against_instance() {
         "fn_dotted.amx",
         r#"
 config { colorscheme: "editorial-dark", dynamic_layout: true }
-fn bubble_sort(bars, values: List<Num>) {
+fn bubble_sort(bars, values: List<Num>) { return #{
   let arr = values
   for key in {1, 2, 3} [step: 1200ms] {
     for j in {0, 1, 2} [step: 300ms] {
       if j < key && arr[key - j] < arr[key - j - 1] {
-        swap bars.bar[key - j], bars.bar[key - j - 1] [300ms]
+        swap(bars.bar[key - j], bars.bar[key - j - 1], duration: 300ms)
         let arr = list_swap(arr, key - j, key - j - 1)
       }
     }
   }
-}
+
+} }
 pub component Bars(values: List<Num>, colors: List<Color>, at: Vec2 = (640, 440)) {
   row: Row, at: at, gap: 8 {
     for v, i in values {
@@ -632,7 +652,7 @@ fn double(n: Num) -> Num {
 }
 box: Rect, size: (100, 50), color: blue
 #0s
-fade-in box [300ms]
+fade_in(target: box, duration: 300ms)
 always {
   box.scale = double(3) [0ms]
 }

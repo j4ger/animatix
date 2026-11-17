@@ -31,14 +31,14 @@ class DiskCleanupTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "df").write_text(
-                "#!/bin/bash\n"
+                "#!/usr/bin/env bash\n"
                 'if [[ "$1" == -PB1 ]]; then\n'
                 '  value="$BEFORE"; [[ ! -e "$STATE" ]] || value="$AFTER"\n'
                 '  printf "Filesystem 1-blocks Used Available Capacity Mounted\nfs 999 1 %s 1%% /\n" "$value"\n'
                 'else echo "human-readable disk report"; fi\nexit "$DISK_STATUS"\n'
             )
             (root / "sudo").write_text(
-                '#!/bin/bash\nprintf "%s\\n" "$*" >> "$CALLS"\ntouch "$STATE"\nexit "$CLEANUP_STATUS"\n'
+                '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$CALLS"\ntouch "$STATE"\nexit "$CLEANUP_STATUS"\n'
             )
             for command in ("df", "sudo"):
                 (root / command).chmod(0o700)

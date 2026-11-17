@@ -45,3 +45,22 @@ fn rewrite_media_statement_position_expressions() {
         other => unreachable!("expected rewritten actor decl statement, got {other:?}"),
     }
 }
+
+#[test]
+fn self_member_paths_add_the_component_prefix_once() {
+    let expression = Expr::Field(
+        Box::new(Expr::Field(Box::new(Expr::Ident("self".to_string())), "badge".to_string())),
+        "read".to_string(),
+    );
+    let rewritten = rewrite_expr(
+        &expression,
+        "cards",
+        Some("background"),
+        &HashSet::from(["badge".to_string()]),
+        &HashMap::new(),
+    );
+    assert_eq!(
+        rewritten,
+        Expr::Path(vec!["cards".to_string(), "badge".to_string(), "read".to_string(),])
+    );
+}

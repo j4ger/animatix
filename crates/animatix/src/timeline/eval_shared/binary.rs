@@ -4,28 +4,45 @@ use super::*;
 
 /// Evaluate a binary operation on two runtime values.
 pub fn eval_binary_op(left: Value, op: &BinaryOp, right: Value) -> Result<Value, EvalError> {
-    // `and`/`or` are truthiness-based and accept both `Num` and `Bool` operands,
-    // so handle them before the type-specific arithmetic arms below.
+    // Boolean-producing operators have the same result type as syntax
+    // inference and callable contracts. Truthiness accepts Num and Bool;
+    // the VM performs short-circuit evaluation before reaching this leaf.
     match op {
-        BinaryOp::And => {
-            return Ok(Value::Num(if left.is_truthy() && right.is_truthy() {
-                1.0
-            } else {
-                0.0
+        BinaryOp::And => return Ok(Value::Bool(left.is_truthy() && right.is_truthy())),
+        BinaryOp::Or => return Ok(Value::Bool(left.is_truthy() || right.is_truthy())),
+        BinaryOp::Eq => return Ok(Value::Bool(left == right)),
+        BinaryOp::Neq => return Ok(Value::Bool(left != right)),
+        BinaryOp::Lt | BinaryOp::Gt | BinaryOp::Lte | BinaryOp::Gte => {
+            let (l, r) = match (&left, &right) {
+                (Value::Num(l), Value::Num(r)) | (Value::Duration(l), Value::Duration(r)) => {
+                    (*l, *r)
+                },
+                _ => {
+                    return Err(EvalError::TypeMismatch(format!(
+                        "comparison {op:?} requires two numbers or two durations, got {left:?} and {right:?}"
+                    )));
+                },
+            };
+            return Ok(Value::Bool(match op {
+                BinaryOp::Lt => l < r,
+                BinaryOp::Gt => l > r,
+                BinaryOp::Lte => l <= r,
+                BinaryOp::Gte => l >= r,
+                _ => unreachable!("comparison family matched above"),
             }));
         },
-        BinaryOp::Or => {
-            return Ok(Value::Num(if left.is_truthy() || right.is_truthy() {
-                1.0
-            } else {
-                0.0
-            }));
-        },
-        _ => {},
+        _ => {}, // Arithmetic is dispatched by value type below.
     }
 
     match (left, right) {
         (Value::Num(l), Value::Num(r)) => eval_num_num(l, r, op),
+        (Value::Duration(l), Value::Duration(r)) => eval_duration_duration(l, r, op),
+        (Value::Duration(l), Value::Num(r)) => match op {
+            BinaryOp::Mul => Ok(Value::Duration(l * r)),
+            BinaryOp::Div => Ok(Value::Duration(safe_div(l, r))),
+            _ => Err(duration_type_error(op, "Duration", "Num")),
+        },
+        (Value::Num(l), Value::Duration(r)) if *op == BinaryOp::Mul => Ok(Value::Duration(l * r)),
         (Value::Vec2(l), Value::Vec2(r)) => eval_vec2_vec2(l, r, op),
         (Value::Vec3(l), Value::Vec3(r)) => eval_vec3_vec3(l, r, op),
         (Value::Color(l), Value::Color(r)) => eval_color_color(l, r, op),
@@ -35,92 +52,39 @@ pub fn eval_binary_op(left: Value, op: &BinaryOp, right: Value) -> Result<Value,
         (Value::Num(l), Value::Vec3(r)) => eval_num_vec3(l, r, op),
         (Value::Color(l), Value::Num(r)) => eval_color_num(l, r, op),
         (Value::Num(l), Value::Color(r)) => eval_num_color(l, r, op),
-        // Catch-all: Eq/Neq works on any pair via PartialEq;
-        // everything else is a type error.
-        (left, right) => {
-            if *op == BinaryOp::Eq {
-                Ok(Value::Num(if left == right { 1.0 } else { 0.0 }))
-            } else if *op == BinaryOp::Neq {
-                Ok(Value::Num(if left != right { 1.0 } else { 0.0 }))
-            } else {
-                Err(EvalError::TypeMismatch(format!(
-                    "Unsupported operation {:?} for {:?} and {:?}",
-                    op, left, right
-                )))
-            }
-        },
+        (left, right) => Err(EvalError::TypeMismatch(format!(
+            "Unsupported operation {op:?} for {left:?} and {right:?}"
+        ))),
     }
 }
 
-/// `Num` op `Num`: arithmetic plus the comparison family.
+fn eval_duration_duration(l: f64, r: f64, op: &BinaryOp) -> Result<Value, EvalError> {
+    match op {
+        BinaryOp::Add => Ok(Value::Duration(l + r)),
+        BinaryOp::Sub => Ok(Value::Duration(l - r)),
+        BinaryOp::Div => Ok(Value::Num(safe_div(l, r))),
+        _ => Err(duration_type_error(op, "Duration", "Duration")),
+    }
+}
+
+fn duration_type_error(op: &BinaryOp, left: &str, right: &str) -> EvalError {
+    EvalError::TypeMismatch(format!("unsupported operation {op:?} for {left} and {right}"))
+}
+
+/// `Num` op `Num`: arithmetic; comparisons are handled before type dispatch.
 fn eval_num_num(l: f64, r: f64, op: &BinaryOp) -> Result<Value, EvalError> {
-    Ok(Value::Num(match op {
+    let value = match op {
         BinaryOp::Add => l + r,
         BinaryOp::Sub => l - r,
         BinaryOp::Mul => l * r,
         BinaryOp::Div => safe_div(l, r),
         BinaryOp::Mod => safe_rem(l, r),
         BinaryOp::Pow => l.powf(r),
-        BinaryOp::Eq => {
-            if l == r {
-                1.0
-            } else {
-                0.0
-            }
-        },
-        BinaryOp::Neq => {
-            if l != r {
-                1.0
-            } else {
-                0.0
-            }
-        },
-        BinaryOp::Lt => {
-            if l < r {
-                1.0
-            } else {
-                0.0
-            }
-        },
-        BinaryOp::Gt => {
-            if l > r {
-                1.0
-            } else {
-                0.0
-            }
-        },
-        BinaryOp::Lte => {
-            if l <= r {
-                1.0
-            } else {
-                0.0
-            }
-        },
-        BinaryOp::Gte => {
-            if l >= r {
-                1.0
-            } else {
-                0.0
-            }
-        },
-        BinaryOp::And => {
-            if l != 0.0 && r != 0.0 {
-                1.0
-            } else {
-                0.0
-            }
-        },
-        BinaryOp::Or => {
-            if l != 0.0 || r != 0.0 {
-                1.0
-            } else {
-                0.0
-            }
-        },
-    }))
+        _ => return Err(EvalError::TypeMismatch(format!("unsupported numeric arithmetic {op:?}"))),
+    };
+    Ok(Value::Num(value))
 }
 
-/// `Vec2` op `Vec2`: component-wise arithmetic.
 fn eval_vec2_vec2(l: [f64; 2], r: [f64; 2], op: &BinaryOp) -> Result<Value, EvalError> {
     match op {
         BinaryOp::Add => Ok(Value::Vec2([l[0] + r[0], l[1] + r[1]])),

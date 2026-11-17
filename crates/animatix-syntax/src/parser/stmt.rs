@@ -16,16 +16,9 @@ use crate::token::TokenKind;
 /// A type-erased parser over the token stream.
 type StmtBoxed<'src, T> = Boxed<'src, 'src, StrInput<'src>, T, ParserExtra<'src>>;
 
-type TypeAnnotationParser<'src> = StmtBoxed<'src, TypeAnnotation>;
+pub(super) type TypeAnnotationParser<'src> = StmtBoxed<'src, TypeAnnotation>;
 
 type TargetParser<'src> = StmtBoxed<'src, Vec<TargetSegment>>;
-
-/// Flat items parsed inside a timeline-function body before local keyframes
-/// are grouped into the statement tree.
-enum FnBodyItem {
-    Keyframe { relative: bool, time: Time },
-    Statement(Box<Stmt>),
-}
 
 /// Parsers shared by several statement builders, built once per recursion.
 struct StmtCtx<'src> {
@@ -44,6 +37,7 @@ struct StmtCtx<'src> {
     conditional: StmtParser<'src>,
     match_stmt: StmtParser<'src>,
     for_stmt: StmtParser<'src>,
+    source: common::SourceIndex<'src>,
 }
 
 impl<'src> StmtCtx<'src> {
@@ -53,6 +47,7 @@ impl<'src> StmtCtx<'src> {
         property: PropertyParser<'src>,
         modifiers: ModifiersParser<'src>,
         inline_items: InlineItemsParser<'src>,
+        source: common::SourceIndex<'src>,
     ) -> Self {
         let ident = common::ident();
         let type_annotation = type_annotation_parser();
@@ -94,6 +89,7 @@ impl<'src> StmtCtx<'src> {
             conditional,
             match_stmt,
             for_stmt,
+            source,
         }
     }
 }
@@ -112,16 +108,20 @@ fn type_keyword<'src>(
         })
 }
 
-fn type_annotation_parser<'src>() -> TypeAnnotationParser<'src> {
+pub(super) fn type_annotation_parser<'src>() -> TypeAnnotationParser<'src> {
     recursive(|type_annotation| {
         let simple = choice((
             type_keyword("Num").to(TypeAnnotation::Num),
+            type_keyword("Duration").to(TypeAnnotation::Duration),
+            type_keyword("Timeline").to(TypeAnnotation::Timeline),
+            type_keyword("Unit").to(TypeAnnotation::Unit),
             type_keyword("Str").to(TypeAnnotation::Str),
             type_keyword("Bool").to(TypeAnnotation::Bool),
             type_keyword("Vec2").to(TypeAnnotation::Vec2),
             type_keyword("Vec3").to(TypeAnnotation::Vec3),
             type_keyword("Vec4").to(TypeAnnotation::Vec4),
             type_keyword("Color").to(TypeAnnotation::Color),
+            type_keyword("Easing").to(TypeAnnotation::Easing),
             type_keyword("Actor").to(TypeAnnotation::Actor),
             type_keyword("Scene").to(TypeAnnotation::Scene),
             type_keyword("Any").to(TypeAnnotation::Any),
@@ -136,16 +136,6 @@ fn type_annotation_parser<'src>() -> TypeAnnotationParser<'src> {
         let canonical_alias = common::ident_occ(OccurrenceKind::Type)
             .then(colon_colon().ignore_then(alias_middle.clone()).repeated().collect::<Vec<_>>())
             .then_ignore(colon_colon())
-            .then(common::type_ident())
-            .map(|((first, middle), last)| {
-                let mut parts = vec![first];
-                parts.extend(middle);
-                parts.push(last);
-                TypeAnnotation::Alias(parts.join("::"))
-            });
-        let legacy_alias = common::ident_occ(OccurrenceKind::Type)
-            .then(dot().ignore_then(alias_middle).repeated().collect::<Vec<_>>())
-            .then_ignore(dot())
             .then(common::type_ident())
             .map(|((first, middle), last)| {
                 let mut parts = vec![first];
@@ -197,8 +187,7 @@ fn type_annotation_parser<'src>() -> TypeAnnotationParser<'src> {
             .or(function)
             .or(enum_annotation)
             .or(common::type_ident().map(TypeAnnotation::Alias))
-            .or(canonical_alias)
-            .or(legacy_alias);
+            .or(canonical_alias);
         let union = atom
             .clone()
             .then(pipe().ignore_then(atom.clone()).repeated().collect::<Vec<_>>())
@@ -224,13 +213,9 @@ fn param_def_parser<'src>(
         .clone()
         .then(
             colon()
-                .ignore_then(
-                    type_annotation
-                        .clone()
-                        .then(assign().ignore_then(expr.clone()).or_not())
-                        .map(|(ty, default)| (Some(ty), default))
-                        .or(expr.clone().map(|e| (None, Some(e)))),
-                )
+                .ignore_then(type_annotation.clone().map(Some))
+                .then(assign().ignore_then(expr.clone()).or_not())
+                .map(|(ty, default)| (ty, default))
                 .or(assign().ignore_then(expr.clone()).map(|e| (None, Some(e))))
                 .or_not()
                 .map(|opt| opt.unwrap_or((None, None))),
@@ -300,10 +285,16 @@ fn import_stmt_parser<'src>() -> StmtParser<'src> {
                 .ignore_then(common::ident_decl_occ(OccurrenceKind::ImportAlias).clone())
                 .or_not(),
         )
-        .map(|(path, alias)| Stmt::Import {
-            path,
-            alias,
-            span: None,
+        .try_map(|(path, alias), span| {
+            if alias.as_deref() == Some("std") {
+                Err(Rich::custom(span, "import alias `std` is reserved for the standard library"))
+            } else {
+                Ok(Stmt::Import {
+                    path,
+                    alias,
+                    span: None,
+                })
+            }
         })
         .labelled("import")
         .as_context()
@@ -502,12 +493,18 @@ fn text_shorthand_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
 
 fn actor_decl_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
     let label_expr = common::label_expr(ctx.expr.clone());
+    let actor_type = common::ident_occ(OccurrenceKind::Type)
+        .clone()
+        .separated_by(colon_colon())
+        .at_least(1)
+        .collect::<Vec<_>>()
+        .map(|parts| parts.join("::"));
     keyword("pub")
         .or_not()
         .map(|p| p.is_some())
         .then(label_expr)
         .then_ignore(colon())
-        .then(common::ident_occ(OccurrenceKind::Type).clone())
+        .then(actor_type)
         .then(
             comma()
                 .ignore_then(ctx.property.clone().separated_by(comma()).collect::<Vec<_>>())
@@ -522,151 +519,54 @@ fn actor_decl_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
                 .or_not()
                 .map(|c| c.unwrap_or_default()),
         )
-        .map(|(((((is_pub, (label, array_index)), ty), props), modifiers), children)| {
-            Stmt::ActorDecl {
-                is_pub,
-                is_anonymous: false,
-                label,
-                array_index,
-                ty,
-                props,
-                modifiers,
+        .map_with(
+            |(
+                ((((is_pub, (label, array_index, label_span)), ty), mut props), mut modifiers),
                 children,
-                span: None,
-            }
-        })
+            ),
+             _extra| {
+                crate::occurrence::record_declaration(
+                    OccurrenceKind::Label,
+                    label.clone(),
+                    label_span,
+                );
+                lift_duration_suffix_from_actor_props(&mut props, &mut modifiers);
+                Stmt::ActorDecl {
+                    is_pub,
+                    is_anonymous: false,
+                    label,
+                    array_index,
+                    ty,
+                    props,
+                    modifiers,
+                    children,
+                    span: None,
+                }
+            },
+        )
         .labelled("actor declaration")
         .as_context()
         .boxed()
 }
 
-/// Parse an action target, accepting one expression index at any path segment.
-fn action_target_parser<'src>(
-    target: TargetParser<'src>,
-) -> StmtBoxed<'src, (String, Option<Expr>, Option<usize>)> {
-    target
-        .try_map(|segments, span| {
-            let count = segments.len();
-            let mut key: Vec<String> = Vec::with_capacity(count);
-            let mut index = None;
-            let mut index_position = None;
-            for (pos, segment) in segments.into_iter().enumerate() {
-                match segment {
-                    TargetSegment::Static(s) => key.push(s),
-                    TargetSegment::Indexed {
-                        base,
-                        index: index_expr,
-                    } => {
-                        if index.is_some() {
-                            return Err(Rich::custom(
-                                span,
-                                "action targets only support one indexed path segment",
-                            ));
-                        }
-                        key.push(base);
-                        index = Some(*index_expr);
-                        index_position = Some(pos);
-                    },
-                }
-            }
-            Ok((key.join("."), index, index_position))
-        })
-        .boxed()
-}
-
-/// A zero-width check that the parser is not standing on the head of the
-/// next statement. `rewind` keeps the matched token in place, so this
-/// costs one lookahead and no input.
-fn not_a_statement_head<'src>() -> impl Parser<'src, StrInput<'src>, (), ParserExtra<'src>> + Clone
-{
-    choice((assign(), reactive_assign(), colon())).rewind().not()
-}
-
-fn action_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
-    // Action targets accept one expression index per dotted path: `swap
-    // bars[j], row.b[j+1]` projects to string paths plus typed index metadata.
-    let action_target = action_target_parser(ctx.target.clone());
-
-    common::ident_occ(OccurrenceKind::Action)
-        .clone()
-        .then(
-            action_target
-                .clone()
-                .then(
-                    comma()
-                        .ignore_then(action_target.clone())
-                        .repeated()
-                        .at_least(1)
-                        .collect::<Vec<_>>(),
-                )
-                .map(|(first, rest)| {
-                    let mut targets = vec![first];
-                    targets.extend(rest);
-                    targets
-                })
-                // A comma-less list may still hold several targets
-                // (`swap bar1 bar2`), but each item has to stop at a
-                // statement boundary. The grammar has no newline tokens, so
-                // an unguarded repeat runs on into the *next* statement:
-                // `persist t` followed by `t.opacity = 0.5` reads
-                // `t.opacity` as a second target and then fails on the `=`.
-                // A dotted path followed by an assignment or a colon is that
-                // next statement's head — an assignment target, or an actor
-                // declaration's label — never another action target.
-                .or(action_target
-                    .clone()
-                    .then_ignore(not_a_statement_head())
-                    .repeated()
-                    .at_least(1)
-                    .collect::<Vec<_>>())
-                .or_not()
-                .map(|opt| opt.unwrap_or_default()),
-        )
-        // Function-style call args: `highlight_key(bars, key)` — a
-        // parenthesized comma-separated list. Plain target-style actions
-        // fall back to the existing bare-expr args.
-        .then(
-            lparen()
-                .ignore_then(ctx.expr.clone().separated_by(comma()).collect::<Vec<_>>())
-                .then_ignore(rparen())
-                // The same boundary rule for the args slot: an expression
-                // followed by an assignment operator is the next statement's
-                // left-hand side, not an argument. `rewind` keeps that
-                // lookahead zero-width, so `repeated` stops without eating the
-                // token it was only looking at.
-                .or(ctx
-                    .expr
-                    .clone()
-                    .then_ignore(not_a_statement_head())
-                    .repeated()
-                    .collect::<Vec<_>>()),
-        )
-        .then(ctx.modifiers.clone())
-        .map_with(
-            |(((verb, parsed_targets), args), modifiers),
-             extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
-                let (mut targets, mut target_index, mut target_index_position) =
-                    (Vec::new(), Vec::new(), Vec::new());
-                for (target, index, position) in parsed_targets {
-                    targets.push(target);
-                    target_index.push(index);
-                    target_index_position.push(position);
-                }
-                Stmt::Action(
-                    Action {
-                        verb,
-                        targets,
-                        target_index,
-                        target_index_position,
-                        args,
-                        modifiers,
-                        byte_span: Some(extra.span()),
-                    },
-                    None,
-                )
+/// Recover a duration modifier when the expression parser read the actor's
+/// trailing `[duration]` as a postfix index on its final property value.
+fn lift_duration_suffix_from_actor_props(props: &mut [Property], modifiers: &mut Vec<Modifier>) {
+    let Some(property) = props.last_mut() else {
+        return;
+    };
+    if let Expr::Index(base, index) = property.value.clone()
+        && matches!(index.as_ref(), Expr::Duration(_))
+    {
+        property.value = *base;
+        modifiers.insert(
+            0,
+            Modifier {
+                name: None,
+                value: *index,
             },
-        )
-        .boxed()
+        );
+    }
 }
 
 fn sequence_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
@@ -692,60 +592,6 @@ fn stagger_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
         .boxed()
 }
 
-fn group_fn_body_items(items: Vec<FnBodyItem>) -> Vec<Stmt> {
-    let mut body = Vec::new();
-    let mut current_keyframe: Option<(bool, Time, Vec<Stmt>)> = None;
-
-    for item in items {
-        match item {
-            FnBodyItem::Keyframe { relative, time } => {
-                if let Some((was_relative, time, statements)) = current_keyframe.take() {
-                    body.push(if was_relative {
-                        Stmt::RelativeKeyframe {
-                            offset: time,
-                            body: statements,
-                            span: None,
-                        }
-                    } else {
-                        Stmt::Keyframe {
-                            time,
-                            body: statements,
-                            span: None,
-                        }
-                    });
-                }
-                current_keyframe = Some((relative, time, Vec::new()));
-            },
-            FnBodyItem::Statement(stmt) => {
-                let stmt = *stmt;
-                if let Some((_, _, statements)) = current_keyframe.as_mut() {
-                    statements.push(stmt);
-                } else {
-                    body.push(stmt);
-                }
-            },
-        }
-    }
-
-    if let Some((relative, time, statements)) = current_keyframe {
-        body.push(if relative {
-            Stmt::RelativeKeyframe {
-                offset: time,
-                body: statements,
-                span: None,
-            }
-        } else {
-            Stmt::Keyframe {
-                time,
-                body: statements,
-                span: None,
-            }
-        });
-    }
-
-    body
-}
-
 fn always_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
     let always_body =
         ctx.stmt.clone().repeated().collect::<Vec<_>>().delimited_by(lbrace(), rbrace());
@@ -758,53 +604,38 @@ fn always_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
 }
 
 fn fn_body_parser<'src>(ctx: &StmtCtx<'src>) -> StmtBoxed<'src, Vec<Stmt>> {
-    // (let/if/match/for/return) plus an optional trailing expression that
-    // is the return value; timeline-function bodies fall back to the full
-    // statement grammar (actions, assignments, ...).
-    let pure_fn_stmt = choice((
-        ctx.let_decl.clone(),
-        ctx.conditional.clone(),
-        ctx.match_stmt.clone(),
-        ctx.for_stmt.clone(),
-        ctx.return_stmt.clone(),
-    ));
-    let pure_fn_body = pure_fn_stmt
-        .repeated()
-        .collect::<Vec<_>>()
-        .then(ctx.expr.clone().or_not())
-        .delimited_by(lbrace(), rbrace())
-        .map(|(stmts, tail)| {
-            let mut body = stmts;
-            if let Some(tail) = tail {
-                body.push(Stmt::Expr(tail, None));
-            }
-            body
-        });
-
-    // Timeline functions can carry their own local clock. Parse the marker
-    // tokens alongside ordinary statements, then group each marker with the
-    // statements up to the next marker into the existing keyframe AST nodes.
-    // `ctx.stmt` already includes `#step`/`#pause`, which remain statements in
-    // the current local keyframe (or at function scope before the first one).
-    let local_keyframe = hash()
-        .ignore_then(plus().or_not())
-        .then(common::time())
-        .then_ignore(colon().or_not())
-        .map(|(relative, time)| FnBodyItem::Keyframe {
-            relative: relative.is_some(),
-            time,
-        });
-    let timeline_body_item = choice((
-        local_keyframe,
-        ctx.stmt.clone().map(|stmt| FnBodyItem::Statement(Box::new(stmt))),
-    ));
-    let timeline_fn_body = timeline_body_item
-        .repeated()
-        .collect::<Vec<_>>()
-        .delimited_by(lbrace(), rbrace())
-        .map(group_fn_body_items);
-
-    pure_fn_body.or(timeline_fn_body).boxed()
+    let source = ctx.source.clone();
+    // Function bodies can end in any expression; the final one is rewritten
+    // as the function's inferred result below.
+    choice((
+        ctx.stmt.clone(),
+        ctx.expr
+            .clone()
+            .map_with(
+                move |expr, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+                    let span = common::source_span(&source, extra.span());
+                    Stmt::Expr(expr, span)
+                },
+            )
+            .boxed(),
+    ))
+    .boxed()
+    .repeated()
+    .collect::<Vec<_>>()
+    .delimited_by(lbrace(), rbrace())
+    // Expression statements are legal between statements, but the last
+    // bare expression in a function body is its inferred return value.
+    .map(|mut body| {
+        if let Some(Stmt::Expr(expr, span)) = body.last().cloned() {
+            body.pop();
+            body.push(Stmt::Return {
+                value: Some(expr),
+                span,
+            });
+        }
+        body
+    })
+    .boxed()
 }
 
 fn fn_decl_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
@@ -813,64 +644,23 @@ fn fn_decl_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
         .or_not()
         .map(|p| p.is_some())
         .then_ignore(keyword("fn"))
-        .then(common::ident_decl_occ(OccurrenceKind::Action).clone())
+        .then(common::ident_decl_occ(OccurrenceKind::Function).clone())
         .then(common::scoped(
             ctx.param_def
                 .clone()
                 .separated_by(comma())
                 .collect::<Vec<_>>()
                 .delimited_by(lparen(), rparen())
-                .or_not()
-                .map(|p| p.unwrap_or_default())
                 .then(thin_arrow().ignore_then(ctx.type_annotation.clone()).or_not())
                 .then(fn_body),
         ))
-        .try_map(|((is_pub, name), ((params, return_type), mut body)), span| {
-            if return_type.is_some()
-                && body.iter().any(|stmt| {
-                    matches!(stmt, Stmt::Keyframe { .. } | Stmt::RelativeKeyframe { .. })
-                })
-            {
-                return Err(Rich::custom(
-                    span,
-                    "local keyframe markers are only allowed in timeline functions",
-                ));
-            }
-
-            // A timeline function's trailing call expression is a nested
-            // function call statement, not a tail value: `fn a() { b() }`
-            // means "call b", so convert `Expr(Call(b))` back to an action.
-            if return_type.is_none() {
-                let tail_call = match body.last() {
-                    Some(Stmt::Expr(Expr::Call(verb, args), _)) => {
-                        Some((verb.clone(), args.clone()))
-                    },
-                    _ => None,
-                };
-                if let Some((verb, args)) = tail_call {
-                    body.pop();
-                    body.push(Stmt::Action(
-                        Action {
-                            verb,
-                            targets: Vec::new(),
-                            target_index: Vec::new(),
-                            target_index_position: Vec::new(),
-                            args,
-                            modifiers: Vec::new(),
-                            byte_span: None,
-                        },
-                        None,
-                    ));
-                }
-            }
-            Ok(Stmt::FnDecl {
-                is_pub,
-                name,
-                params,
-                return_type,
-                body,
-                span: None,
-            })
+        .map(|((is_pub, name), ((params, return_type), body))| Stmt::FnDecl {
+            is_pub,
+            name,
+            params,
+            return_type,
+            body,
+            span: None,
         })
         .boxed()
 }
@@ -958,9 +748,11 @@ pub(crate) fn parser<'src>(
     property: PropertyParser<'src>,
     modifiers: ModifiersParser<'src>,
     inline_items: InlineItemsParser<'src>,
+    source: common::SourceIndex<'src>,
 ) -> Boxed<'src, 'src, StrInput<'src>, Stmt, ParserExtra<'src>> {
     recursive(|stmt| {
-        let ctx = StmtCtx::new(stmt.boxed(), expr, property, modifiers, inline_items);
+        let ctx =
+            StmtCtx::new(stmt.boxed(), expr, property, modifiers, inline_items, source.clone());
         choice((
             block_comment_reject(),
             step_marker(),
@@ -984,7 +776,28 @@ pub(crate) fn parser<'src>(
             typst_shorthand_parser(&ctx),
             text_shorthand_parser(&ctx),
             actor_decl_parser(&ctx),
-            action_parser(&ctx),
+            // Stored plan values can be mounted with a bare reference, such
+            // as `clip` after `let clip = make_clip()`. Their runtime type is
+            // checked when the expression is built.
+            {
+                let source = ctx.source.clone();
+                ctx.expr.clone().try_map(move |expr, byte_span| match expr {
+                    Expr::Call(..)
+                    | Expr::Timeline(..)
+                    | Expr::Sequence(..)
+                    | Expr::Stagger { .. }
+                    | Expr::Ident(..)
+                    | Expr::QualifiedPath(..)
+                    | Expr::Field(..)
+                    | Expr::Index(..) => {
+                        Ok(Stmt::Expr(expr, common::source_span(&source, byte_span)))
+                    },
+                    _ => Err(Rich::custom(
+                        byte_span,
+                        "expression statements must be calls or timeline-plan values",
+                    )),
+                })
+            },
         ))
         .labelled("statement")
         .boxed()

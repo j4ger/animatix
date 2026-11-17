@@ -5,7 +5,8 @@
 //! from the host. The host keeps the loaded `Library` alive for the lifetime
 //! of registered callbacks.
 
-mod action;
+mod callable;
+mod callable_registration;
 pub(crate) mod convert;
 pub(crate) mod hosts;
 mod native;
@@ -36,13 +37,13 @@ pub(crate) use crate::timeline::ActorCategory;
 #[cfg(test)]
 use crate::timeline::ResizeMode;
 #[cfg(test)]
-use crate::timeline::actions::registry::{ActionSignature, BuiltinAction};
-#[cfg(test)]
 pub(crate) use crate::timeline::property_track::TrackAccessor;
+#[cfg(test)]
+use animatix_core::callable::{CallableDescriptor, CallablePhase, CallableType};
 #[cfg(test)]
 pub(crate) use animatix_plugin_api::*;
 
-pub(crate) use action::*;
+pub(crate) use callable_registration::*;
 pub(crate) use convert::*;
 pub(crate) use hosts::*;
 pub use native::NativePlugin;

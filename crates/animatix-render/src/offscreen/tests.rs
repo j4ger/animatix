@@ -421,7 +421,7 @@ m: Mask, size: (200, 150), at: (300, 150) {
 }
 
 #0s
-fade-in m [1ms]
+fade_in(target: m, duration: 1ms)
 "#,
     );
     let frame = render_frame(&mut renderer, &timeline, 0.5, FRAME);
@@ -454,7 +454,7 @@ m: Mask, size: (100, 75), at: (200, 150) {
 }
 
 #0s
-fade-in m [1ms]
+fade_in(target: m, duration: 1ms)
 "#,
     );
     let frame = render_frame(&mut renderer, &timeline, 0.5, FRAME);
@@ -481,7 +481,7 @@ m: Mask, size: (100, 75), at: (200, 150) {
 }
 
 #0s
-fade-in m [1ms]
+fade_in(target: m, duration: 1ms)
 "#,
         "for a text clip_shape",
     );
@@ -502,7 +502,7 @@ m: Mask, size: (100, 75), at: (200, 150) {
 }
 
 #0s
-fade-in m [1ms]
+fade_in(target: m, duration: 1ms)
 "#,
         "for a plot clip_shape",
     );
@@ -604,9 +604,9 @@ card: Filter, anchor: scene.center, offset: (-150, 0) {
 }
 
 #0s
-fade-in sheet [100ms]
-fade-in control [100ms]
-fade-in card [100ms]
+fade_in(target: sheet, duration: 100ms)
+fade_in(target: control, duration: 100ms)
+fade_in(target: card, duration: 100ms)
 
 #0.5s
 card.offset = (0, 0) [1s, ease: linear]

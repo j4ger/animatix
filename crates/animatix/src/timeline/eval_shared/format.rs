@@ -25,6 +25,7 @@ pub(super) enum FormatSpec {
 /// Format one argument value for `format()` substitution.
 pub(super) fn format_value(arg: &Value, spec: FormatSpec) -> String {
     match arg {
+        Value::Null => "null".to_string(),
         Value::PropRef { label, prop } => {
             format!("&{label}.{prop} (not a value; read {label}.{prop})")
         },
@@ -48,8 +49,17 @@ pub(super) fn format_value(arg: &Value, spec: FormatSpec) -> String {
         Value::List(items) => format!("{:?}", items),
         Value::Object(name, fields) => format!("{}({:?})", name, fields),
         Value::NativeFn(_) => "<NativeFn>".to_string(),
+        Value::RegisteredFn { name, .. } => format!("<Callable({name})>"),
         Value::Closure(_, _, _) => "<Closure>".to_string(),
         Value::UserFn { name, .. } => format!("<UserFn({})>", name),
+        Value::Duration(seconds) => match spec {
+            FormatSpec::Fixed { precision } => format!("{:.*}s", precision, seconds),
+            FormatSpec::Default => format!("{seconds}s"),
+        },
+        Value::Unit => "()".to_string(),
+        Value::Easing(easing) => format!("{easing:?}"),
+        Value::ActorRef(actor) => format!("<ActorRef({})>", actor.label()),
+        Value::TimelinePlan(plan) => format!("<TimelinePlan({})>", plan.id()),
     }
 }
 

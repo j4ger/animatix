@@ -132,7 +132,7 @@ fn carried_graph_keeps_coordinate_frame() {
         "    c: PlotCurve, kind: \"cartesian\", func: (x) => x / 2\n",
         "}\n",
         "#1s\n",
-        "persist g\n",
+        "persist(target: g)\n",
         "\n",
         "# SceneB\n",
         "#0s\n",

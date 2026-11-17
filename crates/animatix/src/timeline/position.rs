@@ -12,21 +12,8 @@ use crate::timeline::animation_track::GeometryTracks;
 use crate::timeline::property_track::TrackAccessor;
 
 pub(crate) fn parse_scene_anchor(expr: &Expr) -> Option<SceneAnchor> {
-    match expr {
-        Expr::Path(parts) if parts.len() == 2 && parts[0] == "scene" => match parts[1].as_str() {
-            "top_left" => Some(SceneAnchor::TopLeft),
-            "top" => Some(SceneAnchor::Top),
-            "top_right" => Some(SceneAnchor::TopRight),
-            "left" => Some(SceneAnchor::Left),
-            "center" => Some(SceneAnchor::Center),
-            "right" => Some(SceneAnchor::Right),
-            "bottom_left" => Some(SceneAnchor::BottomLeft),
-            "bottom" => Some(SceneAnchor::Bottom),
-            "bottom_right" => Some(SceneAnchor::BottomRight),
-            _ => None,
-        },
-        _ => None,
-    }
+    let (actor, anchor) = super::lookup::actor_anchor_reference(expr)?;
+    (actor == "scene").then_some(anchor)
 }
 
 pub(crate) fn parse_percent_vec2(expr: &Expr) -> Option<[f32; 2]> {

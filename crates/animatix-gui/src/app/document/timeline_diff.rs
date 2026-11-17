@@ -442,7 +442,7 @@ mod tests {
         let previous =
             TimelineFingerprint::from_document(&load_session("#0s\nbox: Rect, size: (100, 100)\n"));
         let current = TimelineFingerprint::from_document(&load_session(
-            "#0s\nbox: Rect, size: (100, 100)\ncircle: Ellipse, radius: 20\n",
+            "#0s\nbox: Rect, size: (100, 100)\ncircle: Ellipse, radius_x: 20, radius_y: 20\n",
         ));
 
         let diff = TimelineDiff::between(&previous, &current);

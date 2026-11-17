@@ -430,11 +430,18 @@ pub(super) fn validate_plot_func(
                                 Value::Color(_) => "color".to_string(),
                                 Value::Str(_) => "string".to_string(),
                                 Value::List(_) => "list".to_string(),
-                                Value::NativeFn(_) => "function".to_string(),
+                                Value::NativeFn(_) | Value::RegisteredFn { .. } =>
+                                    "function".to_string(),
                                 Value::Closure(_, _, _) => "closure".to_string(),
                                 Value::UserFn { name, .. } => format!("user function {name}"),
                                 Value::Object(name, _) => name.clone(),
                                 Value::Bool(_) => "bool".to_string(),
+                                Value::Null => "null".into(),
+                                Value::Unit => "Unit".into(),
+                                Value::Duration(_) => "Duration".into(),
+                                Value::Easing(_) => "Easing".into(),
+                                Value::ActorRef(_) => "Actor".into(),
+                                Value::TimelinePlan(_) => "Timeline".into(),
                             }
                         ),
                     )

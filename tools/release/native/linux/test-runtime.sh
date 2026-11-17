@@ -70,7 +70,7 @@ config { duration: 1.0, resolution: (320, 180) }
 sound: Audio, source: "tone.wav", volume: 1.0
 #0s
 square: Rect, size: (100, 100), color: "#e74c3c", at: (160, 90)
-fade-in square [200ms]
+fade_in(target: square, duration: 200ms)
 EOF
 
 /package/bin/animatix video scene.amx --duration 1 --fps 5 --width 320 --height 180 \

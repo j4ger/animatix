@@ -86,6 +86,17 @@ impl Timeline {
     ) -> ActorDeclFrame {
         let is_first_decl = !self.world.tracks.contains_key(label);
         let track_id = self.world.spawn(label, ty);
+        let mount_id = self.build_plan_ownership.last().map(|owner| owner.mount_id());
+        let method_table = self.env.bind_component_method_table(label, track_id, mount_id);
+        if self.world.method_table_id(track_id) != method_table
+            && let Some(mut entity) = self.entity_by_id_mut(track_id)
+        {
+            if let Some(method_table) = method_table {
+                entity.set_method_table_id(method_table);
+            } else {
+                entity.clear_method_table_id();
+            }
+        }
         // The World form clears any capability override so caps re-derive from
         // the declaration type on a re-declaration.
         self.world.set_identity(track_id, ty);

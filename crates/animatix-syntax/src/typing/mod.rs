@@ -9,10 +9,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
 use crate::ast::{BinaryOp, Expr, TypeAnnotation};
-pub use crate::builtins::{
-    COLOR_CONSTRUCTOR_FUNCTIONS as COLOR_CONSTRUCTOR_FNS, COLOR_NAMES as NAMED_COLOR_NAMES,
-    COLOR_NAMESPACES, MATH_FUNCTIONS as MATH_FUNCTION_NAMES, named_color_rgba,
-};
+pub use crate::builtins::{COLOR_NAMES as NAMED_COLOR_NAMES, COLOR_NAMESPACES, named_color_rgba};
 use crate::schema::property_specs;
 
 /// A namespaced value, either a concrete type or a nested namespace.
@@ -31,6 +28,12 @@ pub enum Type {
     Any,
     /// Number.
     Num,
+    /// Duration normalized to seconds.
+    Duration,
+    /// Reusable timeline plan value.
+    Timeline,
+    /// No-value result.
+    Unit,
     /// String.
     Str,
     /// Boolean.
@@ -43,6 +46,8 @@ pub enum Type {
     Vec4,
     /// RGBA color.
     Color,
+    /// Easing curve.
+    Easing,
     /// Actor label.
     Actor(String),
     /// Component instance.
@@ -110,21 +115,34 @@ static STDLIB_BUILTINS: LazyLock<HashMap<&'static str, Type>> = LazyLock::new(||
     table
 });
 
-/// The language's built-in functions and their return types.
-static STDLIB_FUNCTIONS: LazyLock<HashMap<&'static str, Type>> = LazyLock::new(|| {
-    let mut table: HashMap<&'static str, Type> =
-        COLOR_CONSTRUCTOR_FNS.iter().map(|name| (*name, Type::Color)).collect();
-    table.extend(MATH_FUNCTION_NAMES.iter().map(|name| (*name, Type::Num)));
-    table.insert("format", Type::Str);
-    table
-});
-
 /// The language's built-in construct types.
 static STDLIB_CONSTRUCTS: LazyLock<HashMap<&'static str, Type>> = LazyLock::new(|| {
     HashMap::from([
         ("Color", Type::Color),
         ("Point", Type::Tuple(vec![Type::Num, Type::Num])),
     ])
+});
+
+/// Function types derived once from the standard callable catalog.
+///
+/// Expression inference frequently sees the same callable on every analyzer
+/// rebuild. Re-converting each catalog parameter there allocated nested type
+/// vectors per occurrence even though catalog signatures are immutable.
+static STDLIB_FUNCTIONS: LazyLock<HashMap<&'static str, Type>> = LazyLock::new(|| {
+    animatix_std::callable::callables()
+        .iter()
+        .map(|callable| {
+            let ty = Type::Function {
+                params: callable
+                    .params
+                    .iter()
+                    .map(|param| Type::from_callable_type(&param.ty))
+                    .collect(),
+                ret: Box::new(Type::from_callable_type(&callable.return_type)),
+            };
+            (callable.name.as_str(), ty)
+        })
+        .collect()
 });
 
 mod env;

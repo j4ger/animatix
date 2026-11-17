@@ -58,8 +58,8 @@ pub(super) fn collect_pub_lets_inner(statements: &[Stmt], result: &mut HashMap<S
 
 /// Resolve re-export expressions by looking up paths that reference imported modules.
 ///
-/// If a `pub let` value is `c.accent` and `c` is an aliased import, this resolves
-/// the path by looking up `accent` in `c`'s namespace exports.
+/// If a `pub let` value is `c::accent` and `c` is an aliased import, this
+/// resolves the path by looking up `accent` in `c`'s namespace exports.
 pub(super) fn resolve_exports(
     raw_exports: HashMap<String, Expr>,
     import_namespaces: &HashMap<String, &Namespace>,
@@ -77,9 +77,9 @@ pub(super) fn resolve_reexport_expr(
     import_namespaces: &HashMap<String, &Namespace>,
 ) -> Expr {
     match expr {
-        Expr::Path(segments) if !segments.is_empty() => {
+        Expr::QualifiedPath(segments) if !segments.is_empty() => {
             if let Some(ns) = import_namespaces.get(&segments[0]) {
-                // This is a re-export path like `c.accent`
+                // This is a re-export path like `c::accent`.
                 // Try to resolve the remaining segments
                 resolve_path_in_namespace(ns, &segments[1..], import_namespaces)
                     .unwrap_or_else(|| expr.clone())
@@ -109,7 +109,7 @@ pub(super) fn resolve_path_in_namespace(
         } else {
             // More segments to resolve — only possible if the value is a namespace path
             match expr {
-                Expr::Path(inner_segments) if !inner_segments.is_empty() => {
+                Expr::QualifiedPath(inner_segments) if !inner_segments.is_empty() => {
                     if let Some(next_ns) = import_namespaces.get(&inner_segments[0]) {
                         resolve_path_in_namespace(next_ns, &inner_segments[1..], import_namespaces)
                     } else {
@@ -154,6 +154,8 @@ pub enum ModuleError {
         /// Path of the second file that defined it.
         second_path: PathBuf,
     },
+    /// A scene references a defining source module absent from its function context.
+    MissingSceneModuleScope(PathBuf),
 }
 
 impl fmt::Display for ModuleError {
@@ -205,6 +207,9 @@ impl fmt::Display for ModuleError {
                 first_path.display(),
                 second_path.display()
             ),
+            ModuleError::MissingSceneModuleScope(path) => {
+                write!(f, "No lexical module scope was loaded for scene source {}", path.display())
+            },
         }
     }
 }

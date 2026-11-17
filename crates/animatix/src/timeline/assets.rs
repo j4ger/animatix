@@ -48,6 +48,16 @@ impl AssetCache {
         self.workspace_root = workspace_root.map(Path::to_path_buf);
     }
 
+    /// Document base currently used for source-relative assets.
+    pub fn document_dir(&self) -> Option<&Path> {
+        self.document_dir.as_deref()
+    }
+
+    /// Change the document base while retaining workspace fallback and decoded assets.
+    pub fn set_document_dir(&mut self, document_dir: Option<&Path>) {
+        self.document_dir = document_dir.map(Path::to_path_buf);
+    }
+
     /// Normalize an asset identifier to the cache key used by the engine.
     pub fn normalize_asset_url(&self, url: &str) -> String {
         if url.is_empty()

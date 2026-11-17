@@ -12,8 +12,8 @@ use std::sync::Arc;
 use animatix_syntax::schema::{PropertyId, PropertyValueKind};
 
 use crate::primitives::{Primitive, PrimitiveRegistrationError, PrimitiveRegistry};
-use crate::timeline::actions::registry::{ActionSignature, BuiltinAction};
 use crate::timeline::{Environment, EvalError, Value};
+pub use animatix_core::callable::{CallableDescriptor, CallableParam, CallablePhase, CallableType};
 
 /// A native expression function registered by an extension.
 pub type ExtensionFunction =
@@ -58,6 +58,8 @@ pub enum PropertyRegistrationError {
 pub enum ExtensionRegistrationError {
     /// The name is already registered in this context.
     Duplicate(String),
+    /// The callable contract is invalid.
+    InvalidContract(String),
 }
 
 /// Registry of extension-registered properties.
@@ -84,9 +86,8 @@ mod tests;
 pub struct ExtensionRegistry {
     primitives: Arc<PrimitiveRegistry>,
     properties: PropertyRegistry,
-    actions: Vec<Box<dyn BuiltinAction>>,
     functions: Vec<(String, Arc<ExtensionFunction>)>,
-    function_descriptors: Vec<animatix_syntax::schema::FunctionDescriptor>,
+    callable_descriptors: Vec<CallableDescriptor>,
     services: HashMap<String, Arc<dyn Any + Send + Sync>>,
     service_descriptors: Vec<animatix_syntax::schema::ServiceDescriptor>,
 }

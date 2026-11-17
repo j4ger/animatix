@@ -3,9 +3,9 @@ pub mod base;
 /// Visual effect actions (bounce, pulse, shake).
 pub mod effects;
 pub use base::{ActionTiming, for_each_action_target};
-/// Entrance actions that bring actors into view (fade-in, wipe-in).
+/// Entrance actions that bring actors into view (fade_in, wipe_in).
 pub mod entrance;
-/// Exit actions that remove actors from view (fade-out).
+/// Exit actions that remove actors from view (fade_out).
 pub mod exit;
 /// Highlight actions for equation fragments (highlight, unhighlight).
 pub mod highlight;
@@ -14,14 +14,14 @@ pub mod motion;
 /// Persistence actions (persist, remove) for multi-scene carry-forward.
 pub mod persistence;
 mod presets;
-/// Action registry types: signatures, parameters, and the [`BuiltinAction`] trait.
+/// BuiltinInvocation registry types: signatures, parameters, and the [`BuiltinAction`] trait.
 pub mod registry;
 /// Reorder actions that change container child order (swap, reorder).
 pub mod reorder;
 /// Reveal actions that animate vector stroke and fill visibility
-/// (draw-in, reveal-in, wipe-out, reveal-out, draw-out).
+/// (draw_in, reveal_in, wipe_out, reveal_out, draw_out).
 pub mod reveal;
-/// Pivot-anchored scale presets (`grow-in`, `shrink-out`).
+/// Pivot-anchored scale presets (`grow_in`, `shrink_out`).
 pub mod scale_presets;
 
 use effects::{Bounce, Pulse, Shake};
@@ -31,24 +31,26 @@ use highlight::{Highlight, Unhighlight};
 use motion::{Move, Rotate, Scale, Shift};
 use persistence::{Persist, Remove};
 use presets::{PopIn, SettleIn};
-use registry::{ActionSignature, BuiltinAction};
+use registry::{BuiltinAction, CallableDescriptor};
 use reorder::{Reorder, Swap};
 use reveal::{DrawIn, DrawOut, RevealIn, RevealOut, WipeOut};
 use scale_presets::{GrowIn, ShrinkOut};
 use tracing::debug;
 
-use crate::ast::Action;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
-use crate::extension_context::ExtensionContext;
 use crate::timeline::Timeline;
 use crate::timeline::property_track::{Interpolate, PropertyTrack, TrackAccessor};
+
+mod invocation;
+pub use invocation::BuiltinInvocation;
 
 mod dispatch;
 mod guards;
 mod targets;
 
-use dispatch::{BuiltinActionKind, execute_action};
+use animatix_std::callable::TimelineBuiltin as BuiltinActionKind;
+use dispatch::execute_action;
 use guards::push_unknown_action_diagnostic;
 #[cfg(test)]
 mod test_support;
@@ -63,29 +65,12 @@ pub(crate) use targets::{
 };
 /// Looks up the action by verb and executes it if found.
 pub fn process_action(
-    action: &Action,
+    action: &BuiltinInvocation,
     time_ms: f64,
     timeline: &mut Timeline,
     diagnostics: &mut Vec<Diagnostic>,
     span: Option<crate::ast::Span>,
 ) {
-    process_action_with_extensions(action, time_ms, timeline, diagnostics, span, None);
-}
-
-/// Like [`process_action`], but honors custom actions from an extension context.
-pub fn process_action_with_extensions(
-    action: &Action,
-    time_ms: f64,
-    timeline: &mut Timeline,
-    diagnostics: &mut Vec<Diagnostic>,
-    span: Option<crate::ast::Span>,
-    extensions: Option<&ExtensionContext>,
-) {
-    if let Some(handler) = extensions.and_then(|ctx| ctx.action(&action.verb)) {
-        execute_action(action, time_ms, timeline, diagnostics, handler);
-        return;
-    }
-
     if let Some(kind) = BuiltinActionKind::from_name(&action.verb) {
         execute_action(action, time_ms, timeline, diagnostics, &kind);
         return;
@@ -95,6 +80,6 @@ pub fn process_action_with_extensions(
 }
 
 /// Exposes all action signatures for LSP/UI integration.
-pub fn get_action_signatures() -> Vec<ActionSignature> {
+pub fn get_action_signatures() -> Vec<CallableDescriptor> {
     BuiltinActionKind::ALL.iter().map(|kind| kind.signature()).collect()
 }

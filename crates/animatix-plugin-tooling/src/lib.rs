@@ -74,8 +74,7 @@ pub fn generate_manifest_toml(library: &Path, output: Option<&Path>) -> Result<S
             Some(manifest_library),
             &primitives,
             &ctx.extension_property_descriptors(),
-            &ctx.action_signatures(),
-            &ctx.function_descriptors(),
+            ctx.callable_descriptors(),
             &ctx.service_descriptors(),
             &effects,
         );

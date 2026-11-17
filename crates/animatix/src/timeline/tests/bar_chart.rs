@@ -317,7 +317,13 @@ card: Card, width: 240, height: 150 {
     let expanded = program.expand_components(&mut expansion_errors);
     assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
 
-    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        crate::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
     let has_track = |needle: &str| report.output.world.tracks.keys().any(|k| k.contains(needle));
     let has_fill_text = report.output.world.tracks.iter().any(|(_k, t)| {
         report
@@ -381,7 +387,13 @@ fn components_gallery_instances_form_single_nodes() {
     let mut expansion_errors = Vec::new();
     let expanded = program.expand_components(&mut expansion_errors);
     assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
-    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        crate::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
 
     let row_id = report.output.get_entity_id("row").expect("row container exists");
     let row_children: Vec<&str> = report.output.world.child_labels(row_id).collect();
@@ -418,7 +430,7 @@ fn components_gallery_instances_form_single_nodes() {
 }
 
 /// A component fn defined in an IMPORTED module must resolve when invoked
-/// cross-file (`pulse_twice p`): the build inlines it and the analyzer's
+/// cross-file (`p.pulse_twice()`): the build inlines it and the analyzer's
 /// semantic check accepts it via the merged action set.
 #[test]
 fn cross_file_component_fn_resolves() {
@@ -429,9 +441,10 @@ fn cross_file_component_fn_resolves() {
     let lib = r#"
 pub component Pulsar {
   box: Rect, size: (120, 80), color: accent.primary
-  fn pulse_twice {
-    pulse box [300ms, intensity: 1.5]
-  }
+  pub fn pulse_twice() { return #{
+    pulse(target: box, duration: 300ms, intensity: 1.5)
+
+} }
 }
 "#;
     let main = r#"
@@ -442,10 +455,10 @@ config { resolution: (640, 360) }
 p: Pulsar
 
 #0s
-fade-in p [200ms]
+fade_in(target: p, duration: 200ms)
 
 #0.5s
-pulse_twice p
+p.pulse_twice()
 "#;
     let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
     graph.upsert_source(Path::new("/proj/fnlib.amx").to_path_buf(), lib.to_string());
@@ -461,7 +474,13 @@ pulse_twice p
     let expanded = program.expand_components(&mut expansion_errors);
     assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
 
-    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        crate::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
     let unknown: Vec<_> = report
         .diagnostics
         .iter()
@@ -471,19 +490,12 @@ pulse_twice p
         unknown.is_empty(),
         "cross-file component fn must not report unknown-action, got: {unknown:?}"
     );
-    // The fn body must inline with the component child rewritten to the
-    // instance label: #0.5s { Block { pulse p [300ms, intensity: 1.5] } }.
-    let pulse_inlined = expanded.iter().any(|s| {
-        matches!(s, Stmt::Keyframe { body, .. } if body.iter().any(|inner| matches!(
-            inner,
-            Stmt::Block { body, .. } if body.iter().any(|a| matches!(
-                a,
-                Stmt::Action(crate::ast::Action { verb, targets, .. }, _)
-                    if verb == "pulse" && targets.iter().any(|t| t == "p")
-            ))
-        )))
-    });
-    assert!(pulse_inlined, "fn body must inline with the instance target");
+    let id = report.output.get_entity_id("p").expect("component actor");
+    let scale = report.output.world.geometry(id).scale.as_ref().expect("pulse scale track");
+    assert!(
+        scale.evaluate(650) > 1.0,
+        "the returned plan targets the imported component instance"
+    );
 }
 
 /// A hosted PlotCurve's declared `color:` must drive its baked stroke —

@@ -26,6 +26,7 @@ use animatix_syntax::ast::{
 use animatix_syntax::format_core::{
     format_expr, format_inline_item, format_stmt_raw, format_stmts_raw,
 };
+use animatix_syntax::visit::{AstFolder, walk_fold_expr, walk_fold_inline_item, walk_fold_stmt};
 use common::{COMMENT_FIXTURES, comment_texts, parse};
 
 // Layer 1 — exhaustive plumbing over `Stmt`
@@ -37,7 +38,6 @@ use common::{COMMENT_FIXTURES, comment_texts, parse};
 /// [`AST_ONLY_VARIANTS`].
 fn variant_of(stmt: &Stmt) -> &'static str {
     match stmt {
-        Stmt::Action(..) => "Action",
         Stmt::LetDecl { .. } => "LetDecl",
         Stmt::ActorDecl { .. } => "ActorDecl",
         Stmt::TypeAlias { .. } => "TypeAlias",
@@ -86,6 +86,7 @@ fn scrub_inline(items: &mut [InlineItem]) {
             InlineItem::ForLoop { body, .. } | InlineItem::SlotFill { items: body, .. } => {
                 scrub_inline(body)
             },
+            InlineItem::Expr(_, _) => {},
             InlineItem::SlotMarker => {},
         }
     }
@@ -101,10 +102,6 @@ fn scrub_inline(items: &mut [InlineItem]) {
 fn scrub_in_place(stmts: &mut [Stmt]) {
     for stmt in stmts {
         match stmt {
-            Stmt::Action(action, span) => {
-                *span = None;
-                action.byte_span = None;
-            },
             Stmt::LetDecl { span, .. }
             | Stmt::TypeAlias { span, .. }
             | Stmt::Import { span, .. }
@@ -183,7 +180,45 @@ fn scrub_in_place(stmts: &mut [Stmt]) {
 fn scrubbed(stmts: &[Stmt]) -> Vec<Stmt> {
     let mut owned = stmts.to_vec();
     scrub_in_place(&mut owned);
-    owned
+    CallArgumentSpanScrubber.fold_stmts(owned)
+}
+
+struct CallArgumentSpanScrubber;
+
+impl AstFolder for CallArgumentSpanScrubber {
+    fn fold_stmt(&mut self, stmt: Stmt) -> Stmt {
+        match stmt {
+            Stmt::Expr(expr, _) => Stmt::Expr(self.fold_expr(expr), None),
+            Stmt::Return { value, .. } => Stmt::Return {
+                value: value.map(|expr| self.fold_expr(expr)),
+                span: None,
+            },
+            other => walk_fold_stmt(self, other),
+        }
+    }
+
+    fn fold_inline_item(&mut self, item: InlineItem) -> InlineItem {
+        match item {
+            InlineItem::Expr(expr, _) => InlineItem::Expr(self.fold_expr(expr), None),
+            other => walk_fold_inline_item(self, other),
+        }
+    }
+
+    fn fold_expr(&mut self, expr: Expr) -> Expr {
+        match expr {
+            Expr::Call(callee, args) => Expr::Call(
+                Box::new(self.fold_expr(*callee)),
+                args.into_iter()
+                    .map(|mut argument| {
+                        argument.byte_span = None;
+                        argument.value = self.fold_expr(argument.value);
+                        argument
+                    })
+                    .collect(),
+            ),
+            other => walk_fold_expr(self, other),
+        }
+    }
 }
 
 /// Every variant name reachable in a document, at any depth.
@@ -196,8 +231,7 @@ fn collect_variants(stmts: &[Stmt], out: &mut Vec<&'static str>) {
     for stmt in stmts {
         out.push(variant_of(stmt));
         match stmt {
-            Stmt::Action(..)
-            | Stmt::LetDecl { .. }
+            Stmt::LetDecl { .. }
             | Stmt::TypeAlias { .. }
             | Stmt::Import { .. }
             | Stmt::Assignment { .. }
@@ -253,10 +287,10 @@ struct Probe {
 
 const PROBES: &[Probe] = &[
     Probe {
-        variant: "Action",
+        variant: "Expr",
         source: "\
 #1s
-move b to (300, 200) [700ms, ease: ease-in-out]
+fade_in(target: b, duration: 700ms)
 b: Rect, size: (20, 20), color: (1.0, 0.5, 0.2, 1.0), at: (60, 90)
 ",
     },
@@ -306,7 +340,7 @@ b: Rect, size: (20, 20), color: (1.0, 0.5, 0.2, 1.0), at: (60, 90)
     Probe {
         variant: "Assignment",
         source: "\
-b.color = (0.9, 0.1, 0.1, 1.0) [300ms, ease: expo-out]
+b.color = (0.9, 0.1, 0.1, 1.0) [300ms, ease: expo_out]
 ",
     },
     Probe {
@@ -380,8 +414,8 @@ for name, idx in {1, 2, 3} [step: 100ms] {
         source: "\
 pub component MetricCard(title: Str = \"Metric\", value: Str = \"0\") {
   card: Rect, size: (120, 60), color: (0.1, 0.1, 0.12, 1.0), at: (0, 0)
-  fn highlight {
-    move self to (10, 10)
+  fn highlight() {
+    move(target: self, to: (10, 10), duration: 300ms)
   }
 }
 ",
@@ -399,14 +433,6 @@ pub fn scaled_amount(v: Num, offset: Num = 1) -> Num {
         source: "\
 fn pick(v: Num) -> Num {
   return v
-}
-",
-    },
-    Probe {
-        variant: "Expr",
-        source: "\
-fn tail_value(v: Num) -> Num {
-  v * 2 + 1
 }
 ",
     },
@@ -429,7 +455,7 @@ b.opacity = 1.0
     Probe {
         variant: "Play",
         source: "\
-play Intro [wipe-left, 500ms, ease: expo-out]
+play Intro [fade, 500ms, ease: expo_out]
 # Intro
 config { resolution: (400, 300), duration: 1 }
 b: Rect, size: (20, 20), color: (1.0, 0.5, 0.2, 1.0), at: (60, 90)
@@ -455,7 +481,6 @@ b: Rect, size: (20, 20), color: (1.0, 0.5, 0.2, 1.0), at: (60, 90)
 const AST_ONLY_VARIANTS: &[&str] = &["Block", "Comment"];
 
 const ALL_VARIANTS: &[&str] = &[
-    "Action",
     "LetDecl",
     "ActorDecl",
     "TypeAlias",
@@ -554,7 +579,6 @@ fn ast_only_variants_still_print_their_content() {
 
     let block = Stmt::Block {
         instance_scope: None,
-        time_scope: None,
         body: vec![Stmt::Comment(" inside".into(), None)],
         span: None,
     };
@@ -577,8 +601,19 @@ fn probes_expr() -> Vec<(&'static str, Expr, &'static str)> {
         ("Str", Expr::Str("hello there".into()), ""),
         ("Bool", Expr::Bool(true), ""),
         ("Null", Expr::Null, ""),
+        ("Duration", Expr::Duration(0.3), ""),
+        ("Unit", Expr::Unit, ""),
         ("Ident", Expr::Ident("ledger_total".into()), ""),
-        ("Path", Expr::Path(vec!["palette".into(), "accent".into()]), ""),
+        (
+            "QualifiedPath",
+            Expr::QualifiedPath(vec!["palette".into(), "accent".into()]),
+            "",
+        ),
+        (
+            "Field",
+            Expr::Field(Box::new(Expr::Ident("palette".into())), "accent".into()),
+            "",
+        ),
         (
             "Index",
             Expr::Index(Box::new(Expr::Ident("items".into())), Box::new(Expr::Num(2.0))),
@@ -602,16 +637,47 @@ fn probes_expr() -> Vec<(&'static str, Expr, &'static str)> {
         ),
         (
             "Call",
-            Expr::Call("lerp".into(), vec![Expr::Num(0.0), Expr::Num(1.0), Expr::Num(0.5)]),
+            Expr::call("lerp", vec![Expr::Num(0.0), Expr::Num(1.0), Expr::Num(0.5)]),
             "",
         ),
         (
-            "Method",
-            Expr::Method(
-                Box::new(Expr::Ident("curve".into())),
-                "scale".into(),
-                vec![Expr::Num(2.0)],
+            "FieldCall",
+            Expr::Call(
+                Box::new(Expr::Field(Box::new(Expr::Ident("curve".into())), "scale".into())),
+                vec![animatix_syntax::ast::CallArgument::positional(Expr::Num(
+                    2.0,
+                ))],
             ),
+            "",
+        ),
+        (
+            "Timeline",
+            Expr::Timeline(animatix_syntax::ast::PlanBody::new(vec![Stmt::Expr(
+                Expr::call("fade_in", vec![Expr::Ident("box".into())]),
+                None,
+            )])),
+            "",
+        ),
+        (
+            "Sequence",
+            Expr::Sequence(animatix_syntax::ast::PlanBody::new(vec![Stmt::Expr(
+                Expr::call("remove", vec![Expr::Ident("box".into())]),
+                None,
+            )])),
+            "",
+        ),
+        (
+            "Stagger",
+            Expr::Stagger {
+                modifiers: vec![animatix_syntax::ast::Modifier {
+                    name: Some("each".into()),
+                    value: Expr::Duration(0.1),
+                }],
+                plan: animatix_syntax::ast::PlanBody::new(vec![Stmt::Expr(
+                    Expr::call("remove", vec![Expr::Ident("box".into())]),
+                    None,
+                )]),
+            },
             "",
         ),
         (
@@ -682,14 +748,20 @@ fn every_expr_variant_round_trips_through_the_printer() {
         "Bool",
         "Null",
         "Ident",
-        "Path",
+        "QualifiedPath",
+        "Field",
         "Index",
         "List",
         "Tuple",
         "Binary",
         "Unary",
         "Call",
-        "Method",
+        "FieldCall",
+        "Duration",
+        "Unit",
+        "Timeline",
+        "Sequence",
+        "Stagger",
         "Closure",
         "LetChain",
         "Conditional",
@@ -712,7 +784,8 @@ fn every_expr_variant_round_trips_through_the_printer() {
             },
         };
         assert_eq!(
-            expr, reparsed,
+            CallArgumentSpanScrubber.fold_expr(expr),
+            CallArgumentSpanScrubber.fold_expr(reparsed.clone()),
             "format_expr lost or rewrote something: {name}\nprinted: {printed:?}\nread back: {reparsed:?}"
         );
     }
@@ -829,24 +902,19 @@ fn every_inline_item_variant_round_trips() {
 
 // The specific regressions this guard exists for
 
-/// Action spellings that must survive formatting unchanged in structure.
-///
-/// The tuple-argument case shipped broken: `animatix fmt` rewrote
-/// `move b to (300, 200)` into `move b, to 300, 200`, which the parser rejects
-/// outright — so running the formatter on any file with a positioned `move`
-/// destroyed it rather than tidying it.
+/// Callable spellings must survive formatting with their argument structure.
 #[test]
-fn every_action_spelling_reparses() {
+fn every_callable_form_reparses() {
     for line in [
-        "move b to (300, 200)",
-        "move b to (300, 200) [700ms, ease: ease-in-out]",
-        "fade-in b [500ms]",
-        "fade-in a, b [500ms]",
-        "scale b by (2, 3)",
-        "shake b 20 [300ms]",
-        "pulse bars[j] [2.3s, intensity: 190]",
-        "highlight_key(bars, 3)",
-        "say b \"hi there\" [1.2s]",
+        "move(target: b, to: (300, 200))",
+        "move(target: b, to: (300, 200), duration: 700ms, ease: ease_in_out)",
+        "fade_in(target: b, duration: 500ms)",
+        "fade_in(targets: {a, b}, duration: 500ms)",
+        "scale(target: b, by: 2)",
+        "shake(target: b, intensity: 20, duration: 300ms)",
+        "pulse(target: bars[j], duration: 2.3s, intensity: 190)",
+        "highlight(target: b, color: red, duration: 300ms)",
+        "swap(a: b, b: a, duration: 500ms)",
     ] {
         let stmts = parse(&format!("{line}\n"));
         let formatted = format_stmts_raw(&stmts, 0, 2);
@@ -854,12 +922,12 @@ fn every_action_spelling_reparses() {
         assert_eq!(
             scrubbed(&stmts),
             scrubbed(&reparsed),
-            "an action did not survive formatting\nauthored: {line}\nformatted: {formatted}"
+            "a call did not survive formatting\nauthored: {line}\nformatted: {formatted}"
         );
         assert_eq!(
             format_stmts_raw(&reparsed, 0, 2),
             formatted,
-            "action formatting is not idempotent for {line:?}"
+            "call formatting is not idempotent for {line:?}"
         );
     }
 }
@@ -873,7 +941,7 @@ fn a_transition_prints_all_three_of_its_fields() {
         (
             "EaseInOut",
             Transition {
-                id: "wipe-left".into(),
+                id: "wipe_left".into(),
                 duration_ms: 500,
                 easing: animatix_syntax::easing::Easing::EaseInOut,
             },
@@ -881,7 +949,7 @@ fn a_transition_prints_all_three_of_its_fields() {
         (
             "ExpoOut",
             Transition {
-                id: "wipe-left".into(),
+                id: "wipe_left".into(),
                 duration_ms: 500,
                 easing: animatix_syntax::easing::Easing::ExpoOut,
             },

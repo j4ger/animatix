@@ -1,4 +1,4 @@
-//! Action target resolution and container expansion.
+//! BuiltinInvocation target resolution and container expansion.
 
 use super::guards::push_unsupported_action_target_diagnostic;
 use super::*;
@@ -132,7 +132,7 @@ pub(crate) fn ensure_vector_reveal_target(
         return false;
     }
 
-    // Text/Code/Typst targets are now allowed; draw-in uses char_progress for typewriter effect.
+    // Text/Code/Typst targets are now allowed; draw_in uses char_progress for typewriter effect.
 
     if capabilities
         .is_some_and(|info| info.capabilities.is_container || info.capabilities.layout_container)

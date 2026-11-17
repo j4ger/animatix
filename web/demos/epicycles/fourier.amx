@@ -23,11 +23,12 @@
 // (Every export here is a literal or a stdlib expression — a module's `pub let`
 // cannot reference its own sibling bindings, since exports evaluate outside the
 // module scope.)
-
 // ── the pen ─────────────────────────────────────────────────────────
-pub let R = 110 // base epicycle radius, px
-pub let pivot_x = 280 // base circle centre; the six-harmonic chain reaches +206 from here
-pub let cy = 405 // the shared centre line of both columns
+pub let R = 110  // base epicycle radius, px
+
+pub let pivot_x = 280  // base circle centre; the six-harmonic chain reaches +206 from here
+
+pub let cy = 405  // the shared centre line of both columns
 
 // ── the plot ────────────────────────────────────────────────────────
 // Left edge 530 clears the six-chain's widest reach (486). The box height is
@@ -38,9 +39,12 @@ pub let cy = 405 // the shared centre line of both columns
 // minus applied to a dotted module path (`-geo.y_hi`) evaluates to nothing and
 // `y_domain` then silently falls back to its ±10 default, with no diagnostic.
 pub let graph_cx = 870
+
 pub let graph_w = 680
-pub let y_lo = -1.75 // the partial sums overshoot 1.5 at the corners
+
+pub let y_lo = -1.75  // the partial sums overshoot 1.5 at the corners
+
 pub let y_hi = 1.75
 
 // ── the clock ───────────────────────────────────────────────────────
-pub let span = 2 * tau // x-domain in radians: two full turns = 4 pi
+pub let span = 2 * tau  // x-domain in radians: two full turns = 4 pi

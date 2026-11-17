@@ -36,24 +36,11 @@ pub trait AstVisitor<'ast> {
     fn visit_modifier(&mut self, modifier: &'ast Modifier) {
         self.visit_expr(&modifier.value);
     }
-
-    /// Visit an action invocation.
-    fn visit_action(&mut self, action: &'ast Action) {
-        for arg in &action.args {
-            self.visit_expr(arg);
-        }
-        for modifier in &action.modifiers {
-            self.visit_modifier(modifier);
-        }
-    }
 }
 
 /// Recursively walk child nodes of a [`Stmt`].
 pub fn walk_stmt<'ast, V: AstVisitor<'ast> + ?Sized>(visitor: &mut V, stmt: &'ast Stmt) {
     match stmt {
-        Stmt::Action(action, _) => {
-            visitor.visit_action(action);
-        },
         Stmt::LetDecl { value, .. } => {
             visitor.visit_expr(value);
         },
@@ -79,12 +66,18 @@ pub fn walk_stmt<'ast, V: AstVisitor<'ast> + ?Sized>(visitor: &mut V, stmt: &'as
         },
         Stmt::TypeAlias { .. } => {},
         Stmt::Import { .. } => {},
-        Stmt::Keyframe { body, .. } => {
+        Stmt::Keyframe { time, body, .. } => {
+            if let Time::Expression(expr) = time {
+                visitor.visit_expr(expr);
+            }
             for s in body {
                 visitor.visit_stmt(s);
             }
         },
-        Stmt::RelativeKeyframe { body, .. } => {
+        Stmt::RelativeKeyframe { offset, body, .. } => {
+            if let Time::Expression(expr) = offset {
+                visitor.visit_expr(expr);
+            }
             for s in body {
                 visitor.visit_stmt(s);
             }
@@ -108,19 +101,10 @@ pub fn walk_stmt<'ast, V: AstVisitor<'ast> + ?Sized>(visitor: &mut V, stmt: &'as
         Stmt::Block {
             body,
             instance_scope,
-            time_scope,
             ..
         } => {
             if let Some(scope) = instance_scope {
                 visitor.visit_expr(&scope.index);
-            }
-            if let Some(scope) = time_scope {
-                if let Some(time_scale) = &scope.time_scale {
-                    visitor.visit_expr(time_scale);
-                }
-                if let Some(clip_duration) = &scope.clip_duration {
-                    visitor.visit_expr(clip_duration);
-                }
             }
             for stmt in body {
                 visitor.visit_stmt(stmt);
@@ -224,9 +208,16 @@ pub fn walk_stmt<'ast, V: AstVisitor<'ast> + ?Sized>(visitor: &mut V, stmt: &'as
 /// Recursively walk child nodes of an [`Expr`].
 pub fn walk_expr<'ast, V: AstVisitor<'ast> + ?Sized>(visitor: &mut V, expr: &'ast Expr) {
     match expr {
-        Expr::Num(_) | Expr::Percent(_) | Expr::Str(_) | Expr::Bool(_) | Expr::Null => {},
+        Expr::Num(_)
+        | Expr::Percent(_)
+        | Expr::Str(_)
+        | Expr::Bool(_)
+        | Expr::Null
+        | Expr::Duration(_)
+        | Expr::Unit => {},
         Expr::Ident(_) => {},
-        Expr::Path(_) => {},
+        Expr::Path(_) | Expr::QualifiedPath(_) => {},
+        Expr::Field(receiver, _) => visitor.visit_expr(receiver),
         Expr::Index(target, index) => {
             visitor.visit_expr(target);
             visitor.visit_expr(index);
@@ -243,15 +234,10 @@ pub fn walk_expr<'ast, V: AstVisitor<'ast> + ?Sized>(visitor: &mut V, expr: &'as
         Expr::Unary(_, inner) => {
             visitor.visit_expr(inner);
         },
-        Expr::Call(_, args) => {
+        Expr::Call(callee, args) => {
+            visitor.visit_expr(callee);
             for arg in args {
-                visitor.visit_expr(arg);
-            }
-        },
-        Expr::Method(receiver, _, args) => {
-            visitor.visit_expr(receiver);
-            for arg in args {
-                visitor.visit_expr(arg);
+                visitor.visit_expr(&arg.value);
             }
         },
         Expr::Closure(_, body) => {
@@ -279,6 +265,39 @@ pub fn walk_expr<'ast, V: AstVisitor<'ast> + ?Sized>(visitor: &mut V, expr: &'as
                 visitor.visit_property(prop);
             }
         },
+        Expr::Timeline(plan) | Expr::Sequence(plan) => {
+            for stmt in &plan.statements {
+                visitor.visit_stmt(stmt);
+            }
+            visit_plan_methods(visitor, &plan.instance_methods);
+        },
+        Expr::Stagger { modifiers, plan } => {
+            for modifier in modifiers {
+                visitor.visit_modifier(modifier);
+            }
+            for stmt in &plan.statements {
+                visitor.visit_stmt(stmt);
+            }
+            visit_plan_methods(visitor, &plan.instance_methods);
+        },
+    }
+}
+
+fn visit_plan_methods<'ast, V: AstVisitor<'ast> + ?Sized>(
+    visitor: &mut V,
+    methods: &'ast crate::module::InstanceFnRegistry,
+) {
+    for per_instance in methods.values() {
+        for template in per_instance.values() {
+            for param in &template.params {
+                if let Some(default) = &param.default {
+                    visitor.visit_expr(default);
+                }
+            }
+            for statement in &template.body {
+                visitor.visit_stmt(statement);
+            }
+        }
     }
 }
 
@@ -330,6 +349,7 @@ pub fn walk_inline_item<'ast, V: AstVisitor<'ast> + ?Sized>(
                 visitor.visit_inline_item(child);
             }
         },
+        InlineItem::Expr(expr, _) => visitor.visit_expr(expr),
         InlineItem::SlotFill { items, .. } => {
             for child in items {
                 visitor.visit_inline_item(child);
@@ -393,29 +413,11 @@ pub trait AstFolder {
             },
         }
     }
-
-    /// Transform an action.
-    fn fold_action(&mut self, action: Action) -> Action {
-        Action {
-            verb: action.verb,
-            targets: action.targets,
-            args: action.args.into_iter().map(|a| self.fold_expr(a)).collect(),
-            modifiers: action.modifiers.into_iter().map(|m| self.fold_modifier(m)).collect(),
-            byte_span: action.byte_span,
-            target_index: action
-                .target_index
-                .into_iter()
-                .map(|opt| opt.map(|expr| self.fold_expr(expr)))
-                .collect(),
-            target_index_position: action.target_index_position,
-        }
-    }
 }
 
 /// Fold child nodes of a [`Stmt`].
 pub fn walk_fold_stmt<F: AstFolder + ?Sized>(folder: &mut F, stmt: Stmt) -> Stmt {
     match stmt {
-        Stmt::Action(action, span) => Stmt::Action(folder.fold_action(action), span),
         Stmt::LetDecl {
             is_pub,
             name,
@@ -450,12 +452,12 @@ pub fn walk_fold_stmt<F: AstFolder + ?Sized>(folder: &mut F, stmt: Stmt) -> Stmt
         },
         Stmt::TypeAlias { .. } | Stmt::Import { .. } => stmt,
         Stmt::Keyframe { time, body, span } => Stmt::Keyframe {
-            time,
+            time: fold_time(folder, time),
             body: folder.fold_stmts(body),
             span,
         },
         Stmt::RelativeKeyframe { offset, body, span } => Stmt::RelativeKeyframe {
-            offset,
+            offset: fold_time(folder, offset),
             body: folder.fold_stmts(body),
             span,
         },
@@ -516,17 +518,11 @@ pub fn walk_fold_stmt<F: AstFolder + ?Sized>(folder: &mut F, stmt: Stmt) -> Stmt
         Stmt::Block {
             body,
             instance_scope,
-            time_scope,
             span,
         } => Stmt::Block {
             body: folder.fold_stmts(body),
             instance_scope: instance_scope.map(|mut scope| {
                 scope.index = folder.fold_expr(scope.index);
-                scope
-            }),
-            time_scope: time_scope.map(|mut scope| {
-                scope.time_scale = scope.time_scale.map(|expr| folder.fold_expr(expr));
-                scope.clip_duration = scope.clip_duration.map(|expr| folder.fold_expr(expr));
                 scope
             }),
             span,
@@ -631,8 +627,15 @@ fn fold_stmt_compound<F: AstFolder + ?Sized>(folder: &mut F, stmt: Stmt) -> Stmt
 /// Fold child nodes of an [`Expr`].
 pub fn walk_fold_expr<F: AstFolder + ?Sized>(folder: &mut F, expr: Expr) -> Expr {
     match expr {
-        Expr::Num(_) | Expr::Percent(_) | Expr::Str(_) | Expr::Bool(_) | Expr::Null => expr,
-        Expr::Ident(_) | Expr::Path(_) => expr,
+        Expr::Num(_)
+        | Expr::Percent(_)
+        | Expr::Str(_)
+        | Expr::Bool(_)
+        | Expr::Null
+        | Expr::Duration(_)
+        | Expr::Unit => expr,
+        Expr::Ident(_) | Expr::Path(_) | Expr::QualifiedPath(_) => expr,
+        Expr::Field(receiver, field) => Expr::Field(Box::new(folder.fold_expr(*receiver)), field),
         Expr::Index(target, index) => {
             Expr::Index(Box::new(folder.fold_expr(*target)), Box::new(folder.fold_expr(*index)))
         },
@@ -642,13 +645,14 @@ pub fn walk_fold_expr<F: AstFolder + ?Sized>(folder: &mut F, expr: Expr) -> Expr
             Expr::Binary(Box::new(folder.fold_expr(*left)), op, Box::new(folder.fold_expr(*right)))
         },
         Expr::Unary(op, inner) => Expr::Unary(op, Box::new(folder.fold_expr(*inner))),
-        Expr::Call(name, args) => {
-            Expr::Call(name, args.into_iter().map(|a| folder.fold_expr(a)).collect())
-        },
-        Expr::Method(receiver, method, args) => Expr::Method(
-            Box::new(folder.fold_expr(*receiver)),
-            method,
-            args.into_iter().map(|a| folder.fold_expr(a)).collect(),
+        Expr::Call(callee, args) => Expr::Call(
+            Box::new(folder.fold_expr(*callee)),
+            args.into_iter()
+                .map(|mut arg| {
+                    arg.value = folder.fold_expr(arg.value);
+                    arg
+                })
+                .collect(),
         ),
         Expr::Closure(params, body) => Expr::Closure(params, Box::new(folder.fold_expr(*body))),
         Expr::LetChain(bindings, tail) => Expr::LetChain(
@@ -669,6 +673,46 @@ pub fn walk_fold_expr<F: AstFolder + ?Sized>(folder: &mut F, expr: Expr) -> Expr
         Expr::Construct(ty, props) => {
             Expr::Construct(ty, props.into_iter().map(|p| folder.fold_property(p)).collect())
         },
+        Expr::Timeline(plan) => Expr::Timeline(fold_plan_body(folder, plan)),
+        Expr::Sequence(plan) => Expr::Sequence(fold_plan_body(folder, plan)),
+        Expr::Stagger { modifiers, plan } => Expr::Stagger {
+            modifiers: modifiers
+                .into_iter()
+                .map(|modifier| folder.fold_modifier(modifier))
+                .collect(),
+            plan: fold_plan_body(folder, plan),
+        },
+    }
+}
+
+fn fold_plan_body<F: AstFolder + ?Sized>(folder: &mut F, plan: PlanBody) -> PlanBody {
+    let instance_methods = plan
+        .instance_methods
+        .into_iter()
+        .map(|(label, methods)| {
+            let methods = methods
+                .into_iter()
+                .map(|(name, mut template)| {
+                    for param in &mut template.params {
+                        param.default = param.default.take().map(|expr| folder.fold_expr(expr));
+                    }
+                    template.body = folder.fold_stmts(template.body);
+                    (name, template)
+                })
+                .collect();
+            (label, methods)
+        })
+        .collect();
+    PlanBody {
+        statements: folder.fold_stmts(plan.statements),
+        instance_methods,
+    }
+}
+
+fn fold_time<F: AstFolder + ?Sized>(folder: &mut F, time: Time) -> Time {
+    match time {
+        Time::Expression(expr) => Time::Expression(Box::new(folder.fold_expr(*expr))),
+        other => other,
     }
 }
 
@@ -719,6 +763,7 @@ pub fn walk_fold_inline_item<F: AstFolder + ?Sized>(
             slot,
             items: items.into_iter().map(|c| folder.fold_inline_item(c)).collect(),
         },
+        InlineItem::Expr(expr, span) => InlineItem::Expr(folder.fold_expr(expr), span),
         InlineItem::SlotMarker => InlineItem::SlotMarker,
     }
 }
@@ -748,14 +793,17 @@ mod tests {
             value: Expr::Binary(
                 Box::new(Expr::Ident("a".to_string())),
                 BinaryOp::Add,
-                Box::new(Expr::Call("f".to_string(), vec![Expr::Ident("b".to_string())])),
+                Box::new(Expr::Call(
+                    Box::new(Expr::Ident("f".to_string())),
+                    vec![CallArgument::positional(Expr::Ident("b".to_string()))],
+                )),
             ),
             span: None,
         };
 
         let mut collector = IdentifierCollector { idents: Vec::new() };
         collector.visit_stmt(&stmt);
-        assert_eq!(collector.idents, vec!["a".to_string(), "b".to_string()]);
+        assert_eq!(collector.idents, vec!["a".to_string(), "f".to_string(), "b".to_string()]);
     }
 
     struct IdentifierRenamer;
@@ -798,40 +846,25 @@ mod tests {
     }
 
     #[test]
-    fn block_time_scope_expressions_are_visited_and_folded() {
-        let block = Stmt::Block {
+    fn computed_keyframe_times_are_visited_and_folded() {
+        let stmt = Stmt::Keyframe {
+            time: Time::Expression(Box::new(Expr::Ident("old".into()))),
             body: vec![],
-            instance_scope: None,
-            time_scope: Some(TimeScopeSpec {
-                time_scale: Some(Expr::Ident("old_scale".into())),
-                clip_duration: Some(Expr::Ident("old_duration".into())),
-                end_limit_duration_ms: None,
-            }),
             span: None,
         };
 
         let mut collector = IdentifierCollector { idents: Vec::new() };
-        collector.visit_stmt(&block);
-        assert_eq!(collector.idents, vec!["old_scale".to_string(), "old_duration".to_string()]);
+        collector.visit_stmt(&stmt);
+        assert_eq!(collector.idents, vec!["old".to_string()]);
 
-        let folded = IdentifierRenamer.fold_stmt(Stmt::Block {
-            body: vec![],
-            instance_scope: None,
-            time_scope: Some(TimeScopeSpec {
-                time_scale: Some(Expr::Ident("old".into())),
-                clip_duration: Some(Expr::Ident("old".into())),
-                end_limit_duration_ms: None,
-            }),
-            span: None,
-        });
-        let Stmt::Block {
-            time_scope: Some(scope),
+        let folded = IdentifierRenamer.fold_stmt(stmt);
+        let Stmt::Keyframe {
+            time: Time::Expression(expr),
             ..
         } = folded
         else {
-            panic!("expected a Block retaining its time scope")
+            panic!("expected computed keyframe time")
         };
-        assert_eq!(scope.time_scale, Some(Expr::Ident("new".into())));
-        assert_eq!(scope.clip_duration, Some(Expr::Ident("new".into())));
+        assert_eq!(*expr, Expr::Ident("new".into()));
     }
 }

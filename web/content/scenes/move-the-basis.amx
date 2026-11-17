@@ -45,22 +45,22 @@ let k = 0
 
 
 #8s
-  fade-in vertical_0 [600ms]
-  fade-in horizontal_0 [600ms]
-  fade-in vertical_1 [600ms]
-  fade-in horizontal_1 [600ms]
-  fade-in vertical_2 [600ms]
-  fade-in horizontal_2 [600ms]
-  fade-in vertical_3 [600ms]
-  fade-in horizontal_3 [600ms]
-  fade-in vertical_4 [600ms]
-  fade-in horizontal_4 [600ms]
-  fade-in sample [600ms]
+  fade_in(target: vertical_0, duration: 0.6s)
+  fade_in(target: horizontal_0, duration: 0.6s)
+  fade_in(target: vertical_1, duration: 0.6s)
+  fade_in(target: horizontal_1, duration: 0.6s)
+  fade_in(target: vertical_2, duration: 0.6s)
+  fade_in(target: horizontal_2, duration: 0.6s)
+  fade_in(target: vertical_3, duration: 0.6s)
+  fade_in(target: horizontal_3, duration: 0.6s)
+  fade_in(target: vertical_4, duration: 0.6s)
+  fade_in(target: horizontal_4, duration: 0.6s)
+  fade_in(target: sample, duration: 0.6s)
 
 #14s
-  fade-in unit_top [600ms]
-  fade-in unit_right [600ms]
-  fade-in area [600ms]
+  fade_in(target: unit_top, duration: 0.6s)
+  fade_in(target: unit_right, duration: 0.6s)
+  fade_in(target: area, duration: 0.6s)
 
 #19s
   always {
@@ -116,29 +116,29 @@ let k = 0
 
 // Fade through clear space: do not stack old/new caption glyphs.
 #2.88s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #3s
   caption.text = "Slide the second basis vector sideways."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)
 
 #7.88s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #8s
   caption.text = "Apply that same rule to every point."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)
 
 #13.88s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #14s
   caption.text = "The unit square becomes a parallelogram. Its area stays 1."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)
 
 #18.88s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #19s
   caption.text = "Area is preserved. Lengths and angles are not."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)

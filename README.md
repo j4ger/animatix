@@ -31,9 +31,9 @@ title: Text, text: "ANIMATIX", font_size: 96, color: text.primary, anchor: scene
 accent: Rect, size: (60, 3), color: accent.primary, anchor: scene.center, offset: (0, -80)
 
 #0.5s
-fade-in title [1s, ease: ease-out]
-fade-in accent [800ms]
-accent.size = (640, 3) [800ms, ease: ease-out]
+fade_in(target: title, duration: 1s, ease: ease_out)
+fade_in(target: accent, duration: 800ms)
+accent.size = (640, 3) [800ms, ease: ease_out]
 ```
 
 ## Try it locally

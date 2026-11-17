@@ -43,7 +43,6 @@
 //   head:  ActHead, kicker: "ACT I", title: "Attention", sub: "one question"
 //   cap:   Caption, text: "Queries weigh every key.", tag: "attention.amx"
 //   chip:  Readout, label: "HEADS", value: "8", at: (250, 560)
-
 // ── StageFloor ─────────────────────────────────────────────────────────────
 // A constant lit backdrop: base plate, two screen-blended radial glows, a
 // hairline motif grid (5 verticals at scene_width*v/6, 3 horizontals) and an
@@ -51,30 +50,17 @@
 // scale the two decorative layers; 0 switches a layer off. The glow ramps are
 // the ambience.amx vocabulary (screen blend, ramp to transparent); their
 // container opacities are what make the wash readable at card size.
-
-pub component StageFloor(accent: Color = accent.primary, glow: Num = 1.0, grid: Num = 1.0) {
+pub component StageFloor(accent: Color = accent.primary, glow: Num = 1, grid: Num = 1) {
   plate: Rect, size: (fill, fill), color: scene.background, anchor: scene.center, opacity: 1, legend: false
-
-  glow_key: Ellipse, size: (1900, 1200), blend: "screen", opacity: 0.55 * glow,
-    fill_gradient: radial((0.5, 0.5), 0.65, {(0%, accent * 0.30), (45%, accent * 0.10), (100%, (0, 0, 0, 0))}),
-    at: (scene_width * 0.32, scene_height * 0.30), legend: false
-
-  glow_fill: Ellipse, size: (1500, 1000), blend: "screen", opacity: 0.40 * glow,
-    fill_gradient: radial((0.5, 0.5), 0.65, {(0%, accent * 0.22), (45%, accent * 0.08), (100%, (0, 0, 0, 0))}),
-    at: (scene_width * 0.76, scene_height * 0.74), legend: false
-
+  glow_key: Ellipse, size: (1900, 1200), blend: "screen", opacity: 0.55 * glow, fill_gradient: radial((0.5, 0.5), 0.65, {(0%, accent * 0.3), (45%, accent * 0.1), (100%, (0, 0, 0, 0))}), at: (scene_width * 0.32, scene_height * 0.3), legend: false
+  glow_fill: Ellipse, size: (1500, 1000), blend: "screen", opacity: 0.4 * glow, fill_gradient: radial((0.5, 0.5), 0.65, {(0%, accent * 0.22), (45%, accent * 0.08), (100%, (0, 0, 0, 0))}), at: (scene_width * 0.76, scene_height * 0.74), legend: false
   for v, i in {1, 2, 3, 4, 5} {
-    gv[i]: Line, from: (0, 0), to: (0, scene_height), stroke: text.muted, stroke_width: 1,
-      at: (scene_width * v / 6, 0), opacity: 0.035 * grid, legend: false
-  }
-
+      gv[i]: Line, from: (0, 0), to: (0, scene_height), stroke: text.muted, stroke_width: 1, at: ((scene_width * v) / 6, 0), opacity: 0.035 * grid, legend: false
+    }
   for h, i in {1, 2, 3} {
-    gh[i]: Line, from: (0, 0), to: (scene_width, 0), stroke: text.muted, stroke_width: 1,
-      at: (0, scene_height * h / 4), opacity: 0.035 * grid, legend: false
-  }
-
-  vignette: Rect, size: (fill, fill), anchor: scene.center, opacity: 1, legend: false,
-    fill_gradient: radial((0.5, 0.5), 0.75, {(0%, (0, 0, 0, 0)), (62%, (0, 0, 0, 0)), (100%, (0, 0, 0, 0.55))})
+      gh[i]: Line, from: (0, 0), to: (scene_width, 0), stroke: text.muted, stroke_width: 1, at: (0, (scene_height * h) / 4), opacity: 0.035 * grid, legend: false
+    }
+  vignette: Rect, size: (fill, fill), anchor: scene.center, opacity: 1, legend: false, fill_gradient: radial((0.5, 0.5), 0.75, {(0%, (0, 0, 0, 0)), (62%, (0, 0, 0, 0)), (100%, (0, 0, 0, 0.55))})
 }
 
 // ── ActHead ────────────────────────────────────────────────────────────────
@@ -84,15 +70,14 @@ pub component StageFloor(accent: Color = accent.primary, glow: Num = 1.0, grid: 
 // trailing transparent `edge` spacer is what pins that width (see the layout
 // note above); the centred EYEBROW / Title / subtitle stack is retired
 // (DESIGN.md §1.6).
-
 pub component ActHead(kicker: Str = "", title: Str, sub: Str = "", accent: Color = accent.primary) {
   root: Col, size: (1088, 220), gap: 10, align: "start", at: (640, 120), opacity: 1 {
-    kicker_text: Text, text: kicker, font_size: 18, font_weight: 600, color: accent, text_max_width: 1088, text_align: "left", opacity: if kicker == "" { 0 } else { 1 }
-    title_text: Text, text: title, font_size: 64, font_weight: "bold", color: text.primary, text_max_width: 1088, text_align: "left", opacity: 1
-    sub_text: Text, text: sub, font_size: 24, color: text.secondary, text_max_width: 1088, text_align: "left", opacity: if sub == "" { 0 } else { 1 }
-    rule: Rect, size: (96, 4), color: accent, opacity: 1
-    edge: Rect, size: (1088, 1), color: (0, 0, 0, 0), opacity: 1, legend: false
-  }
+  kicker_text: Text, text: kicker, font_size: 18, font_weight: 600, color: accent, text_max_width: 1088, text_align: "left", opacity: if kicker == "" { 0 } else { 1 }
+  title_text: Text, text: title, font_size: 64, font_weight: "bold", color: text.primary, text_max_width: 1088, text_align: "left", opacity: 1
+  sub_text: Text, text: sub, font_size: 24, color: text.secondary, text_max_width: 1088, text_align: "left", opacity: if sub == "" { 0 } else { 1 }
+  rule: Rect, size: (96, 4), color: accent, opacity: 1
+  edge: Rect, size: (1088, 1), color: (0, 0, 0, 0), opacity: 1, legend: false
+    }
 }
 
 // ── Caption ────────────────────────────────────────────────────────────────
@@ -104,13 +89,12 @@ pub component ActHead(kicker: Str = "", title: Str, sub: Str = "", accent: Color
 // different length (nested fixed-width slots are not admitted into the
 // parent layout). A `Group` with manual `at` placement is the one composition
 // that lands the band at the same pixels on every scene.
-
 pub component Caption(text: Str, tag: Str = "", accent: Color = accent.primary) {
   root: Group, opacity: 1 {
-    tick: Rect, size: (4, 28), color: accent, at: (66, 668), opacity: 1
-    body: Text, text: text, font_size: 24, color: text.secondary, text_max_width: 900, text_align: "left", text_anchor: "left", at: (80, 668), opacity: 1
-    tag_text: Text, text: tag, font_size: 16, font_family: "mono", color: text.muted, text_anchor: "left", at: (992, 668), opacity: if tag == "" { 0 } else { 1 }
-  }
+  tick: Rect, size: (4, 28), color: accent, at: (66, 668), opacity: 1
+  body: Text, text: text, font_size: 24, color: text.secondary, text_max_width: 900, text_align: "left", text_anchor: "left", at: (80, 668), opacity: 1
+  tag_text: Text, text: tag, font_size: 16, font_family: "mono", color: text.muted, text_anchor: "left", at: (992, 668), opacity: if tag == "" { 0 } else { 1 }
+    }
 }
 
 // ── Readout ────────────────────────────────────────────────────────────────
@@ -119,14 +103,13 @@ pub component Caption(text: Str, tag: Str = "", accent: Color = accent.primary) 
 // omits it). The inner column's transparent `edge` spacer pins the text
 // column to the chip's left padding. Place the chip with `at` (centre-based,
 // like every actor position).
-
 pub component Readout(label: Str, value: Str, accent: Color = accent.primary) {
   root: Stack, size: (240, 84), align: "center", opacity: 1 {
-    bg: Rect, size: (240, 84), corner_radius: 12, color: surface.primary, opacity: 1
-    content: Col, gap: 4, align: "start", opacity: 1 {
-      value_text: Text, text: value, font_size: 28, color: accent, opacity: 1
-      label_text: Text, text: label, font_size: 16, color: text.secondary, opacity: 1
-      edge: Rect, size: (204, 1), color: (0, 0, 0, 0), opacity: 1, legend: false
+  bg: Rect, size: (240, 84), corner_radius: 12, color: surface.primary, opacity: 1
+  content: Col, gap: 4, align: "start", opacity: 1 {
+  value_text: Text, text: value, font_size: 28, color: accent, opacity: 1
+  label_text: Text, text: label, font_size: 16, color: text.secondary, opacity: 1
+  edge: Rect, size: (204, 1), color: (0, 0, 0, 0), opacity: 1, legend: false
+      }
     }
-  }
 }

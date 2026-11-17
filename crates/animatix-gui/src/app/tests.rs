@@ -190,12 +190,12 @@ fn diagnostics_banner_message_shows_build_error_message() {
     let diagnostics = vec![Diagnostic::error(
         DiagnosticCode::UnknownAction,
         DiagnosticPhase::Build,
-        "Unknown action 'fade-ind'",
+        "Unknown callable 'fade_ind'",
     )];
 
     assert_eq!(
         diagnostics_banner_message(&diagnostics),
-        Some("Unknown action 'fade-ind'".to_string())
+        Some("Unknown callable 'fade_ind'".to_string())
     );
 }
 
@@ -221,13 +221,13 @@ fn diagnostics_banner_message_shows_first_error_over_warnings() {
         Diagnostic::error(
             DiagnosticCode::UnknownAction,
             DiagnosticPhase::Build,
-            "Unknown action 'fade-ind'",
+            "Unknown callable 'fade_ind'",
         ),
     ];
 
     assert_eq!(
         diagnostics_banner_message(&diagnostics),
-        Some("Unknown action 'fade-ind'".to_string())
+        Some("Unknown callable 'fade_ind'".to_string())
     );
 }
 

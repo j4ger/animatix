@@ -18,7 +18,7 @@ pub component BoxItem(title: Str) {
 item: BoxItem, title: "Hello", opacity: 0.0
 
 #1s
-fade-in item [500ms]
+fade_in(target: item, duration: 500ms)
 "##;
     let mut graph = animatix_syntax::module::ModuleGraph::new();
     let program = graph
@@ -28,7 +28,13 @@ fade-in item [500ms]
     let expanded = program.expand_components(&mut expansion_errors);
     assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
 
-    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        crate::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
     let timeline = report.output;
     let item_track = timeline.world.tracks.get_id("item").expect("item track exists");
     assert_eq!(
@@ -49,7 +55,7 @@ fn entrance_action_warns_when_target_opacity_remains_zero() {
     const SRC: &str = r##"
 box: Rect, size: (100, 100), opacity: 0.0
 #1s
-wipe-in box [500ms]
+wipe_in(target: box, duration: 500ms)
 "##;
     build_clean(SRC);
 }

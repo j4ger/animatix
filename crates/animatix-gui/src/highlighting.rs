@@ -368,8 +368,7 @@ title: Text {
 
     #[test]
     fn highlight_produces_actual_colors() {
-        let source =
-            "// comment\nlet x = 42\ntitle: Text, text: \"hello\"\n#1s\nfade-in title [1s]\n";
+        let source = "// comment\nlet x = 42\ntitle: Text, text: \"hello\"\n#1s\nfade_in(target: title, duration: 1s)\n";
         let job = highlight_source(source, &egui::Style::default(), &[], None, &[]);
         assert_eq!(job.text, source);
         let default_dark = Color32::from_rgb(235, 219, 178);
@@ -378,7 +377,8 @@ title: Text {
 
     #[test]
     fn highlight_source_sections_have_varied_colors() {
-        let source = "let x = 42\ntitle: Text, text: \"hello\"\n#1s\nfade-in title [1s]\n";
+        let source =
+            "let x = 42\ntitle: Text, text: \"hello\"\n#1s\nfade_in(target: title, duration: 1s)\n";
         let job = highlight_source(source, &egui::Style::default(), &[], None, &[]);
         let colors: std::collections::HashSet<_> =
             job.sections.iter().map(|section| section.format.color).collect();
@@ -419,8 +419,8 @@ title: Text {
     }
 
     #[test]
-    fn indexed_action_target_matches_named_target_label_color() {
-        let source = "fade-in card[0], named [1s]";
+    fn indexed_callable_target_matches_named_target_label_color() {
+        let source = "fade_in(targets: {card[0], named}, duration: 1s)";
         let job = highlight_source(source, &egui::Style::default(), &[], None, &[]);
         assert_eq!(text_color(&job, "card"), text_color(&job, "named"));
     }

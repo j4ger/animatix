@@ -4,7 +4,7 @@
 //! property of every declared track on every [`Timeline::build_eval_env`] call,
 //! making environment construction O(declarations²). Expressions, however, can
 //! only reference an actor label that appears textually in the program: member
-//! access like `pulse.size.x` parses to `Expr::Path(["pulse", "size", "x"])`.
+//! access like `pulse.size.x` forms a static chain of field expressions.
 //!
 //! Collecting those roots once per build lets the build environment inject
 //! only referenced actors' properties:
@@ -76,7 +76,14 @@ fn collect_path_references<'a>(parts: impl Iterator<Item = &'a str>, scan: &mut 
 
 fn collect_expr_roots(expr: &Expr, scan: &mut ReferenceScan) {
     match expr {
-        Expr::Num(_) | Expr::Percent(_) | Expr::Str(_) | Expr::Bool(_) | Expr::Null => {},
+        Expr::Num(_)
+        | Expr::Duration(_)
+        | Expr::Unit
+        | Expr::QualifiedPath(_)
+        | Expr::Percent(_)
+        | Expr::Str(_)
+        | Expr::Bool(_)
+        | Expr::Null => {},
         Expr::Ident(name) => {
             if name.starts_with("scene.stats") {
                 scan.stats_used = true;
@@ -121,19 +128,38 @@ fn collect_expr_roots(expr: &Expr, scan: &mut ReferenceScan) {
         },
         // The function name resolves against the stdlib / user fns in the base
         // environment, not against actor tracks; arguments may reference actors.
-        Expr::Call(name, args) => {
-            if name == "is_animating" {
+        Expr::Call(callee, args) => {
+            if callee
+                .callable_name()
+                .is_some_and(|name| name == "is_animating" || name == "std::is_animating")
+            {
                 scan.is_animating_used = true;
             }
+            // A field callee can read an actor receiver; an identifier callee
+            // resolves in the callable namespace, never as an actor property.
+            if matches!(callee.as_ref(), Expr::Field(..) | Expr::Index(..)) {
+                collect_expr_roots(callee, scan);
+            }
             for arg in args {
-                collect_expr_roots(arg, scan);
+                collect_expr_roots(&arg.value, scan);
             }
         },
-        Expr::Method(receiver, _, args) => {
+        Expr::Field(receiver, field) => {
             collect_expr_roots(receiver, scan);
-            for arg in args {
-                collect_expr_roots(arg, scan);
+            if let Some(root) = receiver.callable_name() {
+                let path = format!("{root}.{field}");
+                if path == "scene.stats" || path.starts_with("scene.stats.") {
+                    scan.stats_used = true;
+                }
+                collect_path_references(path.split('.'), scan);
             }
+        },
+        Expr::Timeline(plan) | Expr::Sequence(plan) => collect_stmt_roots(&plan.statements, scan),
+        Expr::Stagger { modifiers, plan } => {
+            for modifier in modifiers {
+                collect_expr_roots(&modifier.value, scan);
+            }
+            collect_stmt_roots(&plan.statements, scan);
         },
         Expr::Closure(_, body) => collect_expr_roots(body, scan),
         Expr::LetChain(bindings, tail) => {
@@ -213,6 +239,7 @@ fn collect_inline_item_roots(items: &[InlineItem], scan: &mut ReferenceScan) {
                 collect_inline_item_roots(body, scan);
             },
             // A slot marker references no actors; fills carry the slotted items.
+            InlineItem::Expr(expr, _) => collect_expr_roots(expr, scan),
             InlineItem::SlotMarker => {},
             InlineItem::SlotFill { items, .. } => {
                 collect_inline_item_roots(items, scan);
@@ -224,18 +251,6 @@ fn collect_inline_item_roots(items: &[InlineItem], scan: &mut ReferenceScan) {
 fn collect_stmt_roots(stmts: &[Stmt], scan: &mut ReferenceScan) {
     for stmt in stmts {
         match stmt {
-            Stmt::Action(action, _) => {
-                // Action targets name actors (`move btn to ...`).
-                for target in &action.targets {
-                    scan.roots.insert(normalize_root(target));
-                }
-                for index in action.target_index.iter().flatten() {
-                    collect_expr_roots(index, scan);
-                }
-                for arg in &action.args {
-                    collect_expr_roots(arg, scan);
-                }
-            },
             Stmt::LetDecl { value, .. } => collect_expr_roots(value, scan),
             Stmt::ActorDecl {
                 array_index,
@@ -256,7 +271,13 @@ fn collect_stmt_roots(stmts: &[Stmt], scan: &mut ReferenceScan) {
             // Type aliases, imports, and comments carry no expressions that
             // resolve against actor tracks.
             Stmt::TypeAlias { .. } | Stmt::Import { .. } | Stmt::Comment(..) => {},
-            Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
+            Stmt::Keyframe { time, body, .. }
+            | Stmt::RelativeKeyframe {
+                offset: time, body, ..
+            } => {
+                if let animatix_syntax::ast::Time::Expression(expr) = time {
+                    collect_expr_roots(expr, scan);
+                }
                 collect_stmt_roots(body, scan);
             },
             Stmt::Assignment {
@@ -409,7 +430,7 @@ btn: Rect, size: (80, 80)
 plot1: Plot, func: (x) => sin(x * gain)
 
 #1s
-move btn to (400, 300) [500ms]
+move(btn, to: (400, 300), duration: 500ms)
 "#,
         );
         assert!(roots.contains("btn"), "action targets are actor references");

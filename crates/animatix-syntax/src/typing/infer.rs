@@ -62,9 +62,9 @@ pub fn is_subtype(actual: &Type, expected: &Type) -> bool {
         (Type::Component(_), Type::Actor(_)) => true,
         (Type::Union(actual_types), Type::Union(expected_types)) => actual_types
             .iter()
-            .any(|actual| expected_types.iter().any(|expected| is_subtype(actual, expected))),
+            .all(|actual| expected_types.iter().any(|expected| is_subtype(actual, expected))),
         (Type::Union(actual_types), expected) => {
-            actual_types.iter().any(|actual| is_subtype(actual, expected))
+            actual_types.iter().all(|actual| is_subtype(actual, expected))
         },
         (actual, Type::Union(expected_types)) => {
             expected_types.iter().any(|expected| is_subtype(actual, expected))
@@ -88,11 +88,31 @@ fn expected_tuple_arity(expected: &Type) -> usize {
 pub fn infer_expr_type(expr: &Expr, env: &TypeEnv) -> Type {
     match expr {
         Expr::Num(_) | Expr::Percent(_) => Type::Num,
+        Expr::Duration(_) => Type::Duration,
+        Expr::Unit => Type::Unit,
         Expr::Str(_) => Type::Str,
         Expr::Bool(_) => Type::Bool,
         Expr::Null => Type::Any,
-        Expr::Ident(name) => env.lookup_ident(name).unwrap_or(Type::Any),
+        Expr::Ident(name) => env
+            .lookup_ident(name)
+            .or_else(|| crate::easing::parse_easing_name(name).map(|_| Type::Easing))
+            .or_else(|| env.function_type(name))
+            .unwrap_or(Type::Any),
         Expr::Path(parts) => env.lookup_path(parts).unwrap_or(Type::Any),
+        Expr::QualifiedPath(parts) => env
+            .function_type(&parts.join("::"))
+            .or_else(|| env.lookup_path(parts))
+            .unwrap_or(Type::Any),
+        Expr::Field(receiver, field) => {
+            let receiver_ty = infer_expr_type(receiver, env);
+            env.lookup_property(&receiver_ty, field).unwrap_or_else(|| {
+                if matches!(receiver_ty, Type::List(_)) && field == "length" {
+                    Type::Num
+                } else {
+                    Type::Any
+                }
+            })
+        },
         Expr::Index(base, _) => match infer_expr_type(base, env) {
             Type::List(element) => *element,
             Type::Vec2 | Type::Vec3 | Type::Vec4 | Type::Color => Type::Num,
@@ -148,27 +168,45 @@ pub fn infer_expr_type(expr: &Expr, env: &TypeEnv) -> Type {
             Type::Bool => Type::Bool,
             other => other,
         },
-        Expr::Call(name, _) => match env.lookup_ident(name) {
-            Some(Type::Function { ret, .. }) => *ret,
-            _ => env.function_type(name).unwrap_or(Type::Any),
-        },
-        Expr::Method(receiver, name, args) => {
-            if args.is_empty() {
+        Expr::Call(callee, args) => {
+            if let Some(name) = callee_name(callee) {
+                if let Some(Type::Function { ret, .. }) = env.lookup_ident(&name) {
+                    return *ret;
+                }
+                if let Some(ret) = env.function_return_type(&name) {
+                    return ret;
+                }
+            }
+            if let Type::Function { ret, .. } = infer_expr_type(callee, env) {
+                return *ret;
+            }
+            if let Expr::Field(receiver, method) = callee.as_ref()
+                && let Type::Component(component) = infer_expr_type(receiver, env)
+                && let Some(Type::Function { ret, .. }) =
+                    env.function_type(&format!("{component}.{method}"))
+            {
+                return *ret;
+            }
+            if let Some(name) = callee_name(callee) {
+                return env.function_return_type(&name).unwrap_or(Type::Any);
+            }
+            if let Expr::Field(receiver, name) = callee.as_ref() {
                 let receiver_ty = infer_expr_type(receiver, env);
-                if let Some(ty) = env.lookup_property(&receiver_ty, name) {
-                    return ty;
+                if args.is_empty() {
+                    if let Some(ty) = env.lookup_property(&receiver_ty, name) {
+                        return ty;
+                    }
+                    if matches!(receiver_ty, Type::List(_)) && name == "length" {
+                        return Type::Num;
+                    }
                 }
-                if matches!(receiver_ty, Type::List(_)) && name == "length" {
-                    return Type::Num;
-                }
-                return Type::Any;
+                return match (name.as_str(), receiver_ty) {
+                    ("get", Type::List(element)) => *element,
+                    ("get", Type::Str) => Type::Str,
+                    _ => Type::Any,
+                };
             }
-            let receiver_ty = infer_expr_type(receiver, env);
-            match (name.as_str(), receiver_ty) {
-                ("get", Type::List(element)) => *element,
-                ("get", Type::Str) => Type::Str,
-                _ => Type::Any,
-            }
+            Type::Any
         },
         Expr::Closure(params, body) => Type::Function {
             params: params.iter().map(|_| Type::Any).collect(),
@@ -189,5 +227,18 @@ pub fn infer_expr_type(expr: &Expr, env: &TypeEnv) -> Type {
             common_type(&types)
         },
         Expr::Construct(name, _) => env.construct_type(name).unwrap_or(Type::Any),
+        Expr::Timeline(_) | Expr::Sequence(_) | Expr::Stagger { .. } => Type::Timeline,
+    }
+}
+
+fn callee_name(callee: &Expr) -> Option<String> {
+    match callee {
+        Expr::Ident(name) => Some(name.clone()),
+        Expr::Path(parts) => Some(parts.join(".")),
+        Expr::QualifiedPath(parts) => Some(parts.join("::")),
+        Expr::Field(receiver, field) => {
+            callee_name(receiver).map(|prefix| format!("{prefix}.{field}"))
+        },
+        _ => None,
     }
 }

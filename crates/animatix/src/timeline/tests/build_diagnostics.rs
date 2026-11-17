@@ -354,7 +354,7 @@ arrow: Arrow, from: pen.right, to: dot.left
         .collect();
     assert!(
         lookup_errors.is_empty(),
-        "Line and Arrow dynamic actor anchor refs must not emit unknown-lookup-path: {lookup_errors:?}"
+        "Line and Arrow dynamic actor anchor refs must not emit unknown_lookup_path: {lookup_errors:?}"
     );
 }
 
@@ -471,7 +471,7 @@ b: Filter, at: (240, 90) {
     assert_eq!(warnings.len(), 1, "expected one duplicate-label warning: {warnings:?}");
     assert!(
         warnings[0].message.contains("art") && warnings[0].message.contains("re-parents"),
-        "warning should name the label and explain the re-parenting: {}",
+        "warning should name the label and explain the re_parenting: {}",
         warnings[0].message
     );
 }

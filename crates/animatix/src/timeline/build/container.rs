@@ -103,6 +103,15 @@ impl Timeline {
                         diagnostics,
                     );
                 },
+                crate::ast::InlineItem::Expr(expr, span) => {
+                    self.mount_plan_expression(
+                        expr,
+                        *span,
+                        time_ms,
+                        Some(parent_label),
+                        diagnostics,
+                    );
+                },
                 // SlotMarker and SlotFill are resolved during component expansion.
                 // At timeline build time they should never appear in the AST.
                 crate::ast::InlineItem::SlotMarker | crate::ast::InlineItem::SlotFill { .. } => {

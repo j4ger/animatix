@@ -142,8 +142,8 @@ fn opacity_keyframe_count(
 
 /// Build a `highlight`/`unhighlight` action with one duration modifier.
 fn highlight_action(verb: &str, targets: &[&str], duration: &str) -> Stmt {
-    Stmt::Action(
-        Action {
+    crate::timeline::actions::test_support::invocation_stmt(
+        BuiltinInvocation {
             verb: verb.to_string(),
             targets: targets.iter().map(|s| s.to_string()).collect(),
             args: vec![],
@@ -269,8 +269,8 @@ fn different_equations_independent() {
     // affect Fragments in eqB.
     let mut ast = make_two_equations();
     if let Stmt::Keyframe { body, .. } = &mut ast[0] {
-        body.push(Stmt::Action(
-            Action {
+        body.push(crate::timeline::actions::test_support::invocation_stmt(
+            BuiltinInvocation {
                 verb: "highlight".to_string(),
                 targets: vec!["fA1".to_string()],
                 args: vec![],
@@ -330,8 +330,8 @@ fn highlight_with_color_and_blend_no_unsupported_modifier_warning() {
     // parse_timing_modifiers must not emit UnsupportedModifierKey for them.
     let mut ast = make_equation_with_fragment();
     if let Stmt::Keyframe { body, .. } = &mut ast[0] {
-        body.push(Stmt::Action(
-            Action {
+        body.push(crate::timeline::actions::test_support::invocation_stmt(
+            BuiltinInvocation {
                 verb: "highlight".to_string(),
                 targets: vec!["f1".to_string()],
                 args: vec![],

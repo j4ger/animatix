@@ -1,55 +1,59 @@
 import "../lib/theme.amx"
+
 import "../lib/stage.amx"
+
 import "../lib/ui.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 6 }
 
 floor: StageFloor
+
 head: ActHead, kicker: "BASICS · SHAPES", title: "Primitive gallery"
+
 caption: Caption, text: "01_shapes.amx", tag: "basics"
 
 gallery: Grid, cols: 4, gap: 24, padding: 60, anchor: scene.center {
-  text: Text, text: "Typography", font_size: 20, color: accent.primary
-  math: Text, text: "∫ e^(-x) dx", font_size: 24, color: accent.success
-  code: Code, code: "fn animate() { }", language: "rust", font_size: 20, color: accent.warning
-  rect: Rect, size: (80, 80), color: accent.danger
-  ellipse: Ellipse, size: (80, 80), color: accent.primary
-  polygon: Polygon, points: {(0, -40), (40, 0), (0, 40), (-40, 0)}, color: accent.success
-  path: Path, commands: {move_to(-30, 20), line_to(0, -30), line_to(30, 20), close()}, color: accent.warning
-  line: Line, from: (-40, 0), to: (40, 0), stroke: accent.danger, stroke_width: 4
-  image: Image, url: "../assets/checker.png", size: (80, 80)
-  mark: Svg, url: "../assets/animatix-mark.svg", size: (80, 80)
-  arrow: Arrow, from: (-40, 20), to: (40, -20), stroke: accent.primary, stroke_width: 4, head_size: 16
+text: Text, text: "Typography", font_size: 20, color: accent.primary
+math: Text, text: "∫ e^(-x) dx", font_size: 24, color: accent.success
+code: Code, code: "fn animate() { }", language: "rust", font_size: 20, color: accent.warning
+rect: Rect, size: (80, 80), color: accent.danger
+ellipse: Ellipse, size: (80, 80), color: accent.primary
+polygon: Polygon, points: {(0, -40), (40, 0), (0, 40), (-40, 0)}, color: accent.success
+path: Path, commands: {move_to(-30, 20), line_to(0, -30), line_to(30, 20), close()}, color: accent.warning
+line: Line, from: (-40, 0), to: (40, 0), stroke: accent.danger, stroke_width: 4
+image: Image, url: "../assets/checker.png", size: (80, 80)
+mark: Svg, url: "../assets/animatix-mark.svg", size: (80, 80)
+arrow: Arrow, from: (-40, 20), to: (40, -20), stroke: accent.primary, stroke_width: 4, head_size: 16
 }
 
 #0s
-fade-in floor [600ms]
-fade-in head [500ms]
-fade-in caption [400ms]
+  fade_in(target: floor, duration: 0.6s)
+  fade_in(target: head, duration: 0.5s)
+  fade_in(target: caption, duration: 0.4s)
 
 #0.6s
-stagger [80ms] {
-  fade-in text [500ms, ease: ease-out]
-  fade-in math [500ms, ease: ease-out]
-  fade-in code [500ms, ease: ease-out]
-  fade-in rect [500ms, ease: ease-out]
-  fade-in ellipse [500ms, ease: ease-out]
-  fade-in polygon [500ms, ease: ease-out]
-  fade-in path [500ms, ease: ease-out]
-  fade-in line [500ms, ease: ease-out]
-  fade-in image [500ms, ease: ease-out]
-  fade-in mark [500ms, ease: ease-out]
-  fade-in arrow [500ms, ease: ease-out]
-}
+  stagger [0.08s] {
+      fade_in(target: text, duration: 0.5s, ease: ease_out)
+      fade_in(target: math, duration: 0.5s, ease: ease_out)
+      fade_in(target: code, duration: 0.5s, ease: ease_out)
+      fade_in(target: rect, duration: 0.5s, ease: ease_out)
+      fade_in(target: ellipse, duration: 0.5s, ease: ease_out)
+      fade_in(target: polygon, duration: 0.5s, ease: ease_out)
+      fade_in(target: path, duration: 0.5s, ease: ease_out)
+      fade_in(target: line, duration: 0.5s, ease: ease_out)
+      fade_in(target: image, duration: 0.5s, ease: ease_out)
+      fade_in(target: mark, duration: 0.5s, ease: ease_out)
+      fade_in(target: arrow, duration: 0.5s, ease: ease_out)
+    }
 
 #3s
-text.color = accent.danger [600ms]
-math.color = accent.primary [600ms]
-code.color = accent.success [600ms]
-rect.color = accent.warning [600ms]
-ellipse.color = accent.danger [600ms]
-polygon.color = accent.primary [600ms]
-path.color = accent.success [600ms]
-line.stroke = accent.warning [600ms]
-mark.color = accent.primary [600ms]
-arrow.stroke = accent.success [600ms]
+  text.color = accent.danger[0.6s]
+  math.color = accent.primary[0.6s]
+  code.color = accent.success[0.6s]
+  rect.color = accent.warning[0.6s]
+  ellipse.color = accent.danger[0.6s]
+  polygon.color = accent.primary[0.6s]
+  path.color = accent.success[0.6s]
+  line.stroke = accent.warning[0.6s]
+  mark.color = accent.primary[0.6s]
+  arrow.stroke = accent.success[0.6s]

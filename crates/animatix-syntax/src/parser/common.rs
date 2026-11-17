@@ -27,6 +27,16 @@ pub(crate) type ModifiersParser<'src> =
 pub(crate) type InlineItemsParser<'src> =
     Boxed<'src, 'src, StrInput<'src>, Vec<InlineItem>, ParserExtra<'src>>;
 pub(crate) type StmtParser<'src> = Boxed<'src, 'src, StrInput<'src>, Stmt, ParserExtra<'src>>;
+pub(crate) type SourceIndex<'src> = Option<std::sync::Arc<crate::token::LineIndex<'src>>>;
+
+/// Convert a parser byte range through the source's precomputed line index.
+pub(crate) fn source_span(index: &SourceIndex<'_>, bytes: ByteSpan) -> Option<Span> {
+    index.as_ref().map(|index| {
+        let (start_line, start_col) = index.byte_to_line_col(bytes.start);
+        let (end_line, end_col) = index.byte_to_line_col(bytes.end);
+        Span::new(start_line + 1, start_col + 1, end_line + 1, end_col + 1)
+    })
+}
 
 // Identifier parser
 
@@ -179,8 +189,11 @@ pub(crate) fn type_ident<'src>() -> IdentParser<'src> {
 /// Parse a label expression: `name` or `name[index_expr]`.
 pub(crate) fn label_expr<'src>(
     expr: impl Parser<'src, StrInput<'src>, Expr, ParserExtra<'src>> + Clone + 'src,
-) -> Boxed<'src, 'src, StrInput<'src>, (String, Option<Expr>), ParserExtra<'src>> {
-    ident_decl_occ(crate::occurrence::OccurrenceKind::Label)
+) -> Boxed<'src, 'src, StrInput<'src>, (String, Option<Expr>, ByteSpan), ParserExtra<'src>> {
+    ident()
+        .map_with(|name, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+            (name, extra.span())
+        })
         .then(
             expr.clone()
                 .delimited_by(
@@ -189,6 +202,7 @@ pub(crate) fn label_expr<'src>(
                 )
                 .or_not(),
         )
+        .map(|((name, span), index)| (name, index, span))
         .boxed()
 }
 
@@ -205,6 +219,14 @@ pub(crate) fn string_literal<'src>()
 /// Parse a time literal: `2s`, `500ms`, or `1.5s`.
 pub(crate) fn time<'src>() -> TimeParser<'src> {
     token_parser::time().boxed()
+}
+
+/// Parse a keyframe time literal or a computed parenthesized expression.
+pub(crate) fn time_with_expr<'src>(expr: ExprParser<'src>) -> TimeParser<'src> {
+    let computed = token_parser::punct(crate::token::TokenKind::LParen)
+        .rewind()
+        .ignore_then(expr.map(|expr| Time::Expression(Box::new(expr))));
+    token_parser::time().or(computed).boxed()
 }
 
 // Expression with span helper
@@ -252,31 +274,27 @@ pub(crate) fn modifier<'src>(
         ident_occ(crate::occurrence::OccurrenceKind::Property)
             .or(select! { crate::token::TokenKind::Keyword(k) => k })
             .then_ignore(token_parser::colon())
-            .then(choice((
-                time.clone().map(|t| match t {
-                    Time::Seconds(s) => Expr::Ident(format!("{s}s")),
-                    Time::Milliseconds(ms) => Expr::Ident(format!("{ms}ms")),
-                    Time::Beats(b) => Expr::Ident(format!("{b}b")),
-                    other => Expr::Ident(crate::format_core::format_time(&other)),
-                }),
-                keyword_ident().or(expr.clone()),
-            )))
+            .then(choice((time.clone().map(time_to_expr), keyword_ident().or(expr.clone()))))
             .map(|(name, value)| Modifier {
                 name: Some(name),
                 value,
             }),
         time.clone().map(|t| Modifier {
             name: None,
-            value: match t {
-                Time::Seconds(s) => Expr::Ident(format!("{s}s")),
-                Time::Milliseconds(ms) => Expr::Ident(format!("{ms}ms")),
-                Time::Beats(b) => Expr::Ident(format!("{b}b")),
-                other => Expr::Ident(crate::format_core::format_time(&other)),
-            },
+            value: time_to_expr(t),
         }),
         expr.clone().map(|value| Modifier { name: None, value }),
     ))
     .boxed()
+}
+
+fn time_to_expr(time: Time) -> Expr {
+    match time {
+        Time::Seconds(seconds) => Expr::Duration(seconds),
+        Time::Milliseconds(milliseconds) => Expr::Duration(milliseconds as f64 / 1000.0),
+        Time::Expression(expr) => *expr,
+        other => Expr::Ident(crate::format_core::format_time(&other)),
+    }
 }
 
 // Modifiers list parser

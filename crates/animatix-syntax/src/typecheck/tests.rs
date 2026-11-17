@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use super::TypeEnv;
-use crate::ast::{ComponentDef, Expr, Modifier, ParamDef, Property, Stmt, TypeAnnotation};
+use crate::ast::{ComponentDef, Expr, ParamDef, Property, Stmt, TypeAnnotation};
 use crate::diagnostics::DiagnosticCode;
 use crate::module::{ComponentEntry, FnTemplate, ModuleGraph, SourceAccess};
 use crate::test_support::{actor, actor_with_props};
@@ -30,7 +30,7 @@ fn make_env() -> TypeEnv<'static> {
                 is_pub: false,
             },
             source_path: std::path::PathBuf::new(),
-            actions: HashMap::new(),
+            methods: HashMap::new(),
         },
     );
     TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())))
@@ -69,7 +69,7 @@ fn make_rich_probe_env() -> TypeEnv<'static> {
                 is_pub: false,
             },
             source_path: std::path::PathBuf::new(),
-            actions: HashMap::new(),
+            methods: HashMap::new(),
         },
     )]);
     TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())))
@@ -147,76 +147,204 @@ fn local_ticker_example_typechecks_with_keyframes_and_always_body() {
 }
 
 #[test]
-fn timeline_keyframes_still_reject_actor_declarations_recursively() {
-    let diagnostics = typecheck_source("fn invalid() { #0ms\n child: Rect, size: (10, 10) }");
-    assert_eq!(diagnostics.len(), 1, "expected one purity diagnostic: {diagnostics:?}");
-    let message = &diagnostics[0].message;
-    assert!(
-        message.contains("timeline functions cannot declare scenes or actors"),
-        "{message}"
-    );
-    assert!(!message.contains("keyframes"), "local keyframes are allowed: {message}");
-}
-
-#[test]
-fn timeline_functions_accept_sequence_stagger_and_reactive_bindings_recursively() {
+fn ordinary_functions_infer_tail_results_and_check_optional_annotations() {
     let diagnostics = typecheck_source(
         r#"
-fn local_composition(dot, dots) {
-  sequence {
-    fade-in dot [100ms]
-    stagger [25ms] {
-      dot.opacity = 0.5 [100ms]
-      dot.at := (t, 0)
-    }
-  }
-  for item in dots {
-    stagger [40ms] {
-      fade-in item [100ms]
-    }
-  }
-}
+fn add(a: Num, b: Num) { a + b }
+fn enter(dot: Actor) { fade_in(target: dot, duration: 100ms) }
+fn typed_enter(dot: Actor) -> Timeline { fade_in(target: dot, duration: 100ms) }
+fn invalid_result(dot: Actor) -> Num { fade_in(target: dot, duration: 100ms) }
 "#,
     );
-    assert!(
-        diagnostics.is_empty(),
-        "timeline composition and reactive bindings should be allowed: {diagnostics:?}"
+    assert_eq!(
+        diagnostics.len(),
+        1,
+        "expected only the declared return mismatch: {diagnostics:?}"
     );
-}
-
-#[test]
-fn sequence_and_stagger_cannot_hide_actor_declarations_in_timeline_functions() {
-    let diagnostics = typecheck_source(
-        "fn invalid() { sequence { stagger [25ms] { child: Rect, size: (10, 10) } } }",
-    );
-    assert_eq!(diagnostics.len(), 1, "expected the nested actor purity error: {diagnostics:?}");
     assert!(
         diagnostics[0]
             .message
-            .contains("timeline functions cannot declare scenes or actors"),
-        "{}",
-        diagnostics[0].message
+            .contains("declares return type Num, but returns Timeline")
     );
 }
 
 #[test]
-fn pure_functions_still_reject_timeline_sequence_and_reactive_binding() {
-    let sequence_diagnostics =
-        typecheck_source("fn invalid_sequence(dot) -> Num { sequence { fade-in dot [100ms] } }");
+fn incompatible_branch_results_require_an_explicit_union_annotation() {
+    let missing_annotation =
+        typecheck_source("fn choose(flag: Bool) { if flag { return 1 } else { return \"one\" } }");
     assert!(
-        sequence_diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("pure function 'invalid_sequence'")),
-        "pure functions must reject timeline actions even inside sequence: {sequence_diagnostics:?}"
+        missing_annotation.iter().any(|diagnostic| {
+            diagnostic.code == DiagnosticCode::TypeMismatch
+                && diagnostic.message.contains("declare an explicit union return type")
+        }),
+        "incompatible inferred branches need a declared union: {missing_annotation:?}"
     );
 
-    let reactive_diagnostics =
-        typecheck_source("fn invalid_reactive(dot) -> Num { dot.opacity := t }");
+    let explicit_union = typecheck_source(
+        "fn choose(flag: Bool) -> Num | Str { if flag { return 1 } else { return \"one\" } }",
+    );
     assert!(
-        reactive_diagnostics
+        explicit_union.is_empty(),
+        "a matching union annotation should accept both branches: {explicit_union:?}"
+    );
+}
+
+#[test]
+fn function_fallthrough_contributes_unit_to_inferred_return_union() {
+    let missing_annotation = typecheck_source("fn maybe(flag: Bool) { if flag { return 1 } }");
+    assert!(
+        missing_annotation.iter().any(|diagnostic| {
+            diagnostic.code == DiagnosticCode::TypeMismatch
+                && diagnostic.message.contains("declare an explicit union return type")
+        }),
+        "the fallthrough path contributes Unit beside Num: {missing_annotation:?}"
+    );
+
+    let compatible = typecheck_source(
+        "fn maybe(flag: Bool) -> Num | Unit { if flag { return 1 } }\nfn no_op() { let value = 1 }\nfn also_no_op() { return }",
+    );
+    assert!(
+        compatible.is_empty(),
+        "an explicit Unit union and ordinary Unit-only functions should typecheck: {compatible:?}"
+    );
+}
+
+#[test]
+fn gradual_any_branch_does_not_require_an_explicit_union() {
+    let diagnostics = typecheck_source(
+        "fn choose(value: Any, flag: Bool) { if flag { return value } else { return 1 } }",
+    );
+    assert!(
+        diagnostics.is_empty(),
+        "Any remains a gradual supertype for inferred branches: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn local_function_shadows_std_callable_for_direct_and_aliased_calls() {
+    let diagnostics = typecheck_source(
+        "fn sweep(value: Num) { value }\nlet direct = sweep(1)\nlet op = sweep\nlet aliased = op(2)\n",
+    );
+    assert!(
+        diagnostics.is_empty(),
+        "local function calls should use the declared signature: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn explicitly_qualified_std_callable_uses_standard_signature() {
+    let diagnostics = typecheck_source("let result = std::sin(value: 0)\n");
+    assert!(
+        diagnostics.is_empty(),
+        "`std::` should resolve the standard descriptor: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn function_alias_preserves_named_and_default_parameters() {
+    let diagnostics = typecheck_source(
+        "fn add(a: Num, b: Num = 2) { a + b }\nlet op = add\nlet result = op(b: 4, a: 3)\n",
+    );
+    assert!(
+        diagnostics.is_empty(),
+        "valid named/default alias call should typecheck: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn function_alias_rejects_unknown_and_duplicate_named_arguments() {
+    let diagnostics = typecheck_source(
+        "fn add(a: Num, b: Num = 2) { a + b }\nlet op = add\nlet result = op(a: 3, extra: 4)\n",
+    );
+    assert!(
+        diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.message.contains("pure function 'invalid_reactive'")),
-        "pure functions must reject reactive timeline bindings: {reactive_diagnostics:?}"
+            .any(|diagnostic| diagnostic.message.contains("has no parameter named 'extra'")),
+        "unknown named parameter should fail through the callable binder: {diagnostics:?}"
+    );
+
+    let path = PathBuf::from("/virtual/duplicate.amx");
+    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+    graph.upsert_source(path.clone(), "fn add(a: Num, b: Num = 2) { a + b }\nlet op = add\n");
+    let mut program = graph.load_program(&path).expect("source should load");
+    program.statements.push(Stmt::LetDecl {
+        is_pub: false,
+        name: "result".into(),
+        value: Expr::Call(
+            Box::new(Expr::Ident("op".into())),
+            vec![
+                crate::ast::CallArgument::named("a", Expr::Num(3.0)),
+                crate::ast::CallArgument::named("a", Expr::Num(4.0)),
+            ],
+        ),
+        span: None,
+    });
+    let diagnostics = program.typecheck();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("was supplied more than once")),
+        "duplicate names should fail through the shared callable binder: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn imported_function_alias_preserves_named_and_default_parameters() {
+    let main_path = PathBuf::from("/virtual/main.amx");
+    let library_path = PathBuf::from("/virtual/math.amx");
+    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+    graph.upsert_source(
+        main_path.clone(),
+        "import \"./math.amx\" as math\nlet op = math::add\nlet result = op(b: 4, a: 3)\n",
+    );
+    graph.upsert_source(library_path, "pub fn add(a: Num, b: Num = 2) { a + b }\n");
+    let mut program = graph.load_program(&main_path).expect("sources should load");
+    let diagnostics = program.typecheck();
+    assert!(
+        diagnostics.is_empty(),
+        "valid imported alias call should typecheck: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn discarded_timeline_call_in_a_function_is_diagnosed() {
+    let diagnostics = typecheck_source(
+        "fn invalid(dot: Actor) { fade_in(target: dot, duration: 100ms)\n let x = 1 }",
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagnosticCode::DiscardedTimelineValue),
+        "a non-tail timeline expression must not be silently discarded: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn ordinary_functions_reject_unwrapped_timeline_statements() {
+    let diagnostics = typecheck_source("fn invalid() { box: Rect }");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == DiagnosticCode::InvalidFunctionBodyStatement
+                && diagnostic.message.contains("inside `#{ ... }`")
+        }),
+        "a direct actor declaration must not silently disappear from an ordinary function: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn ordinary_functions_keep_pure_for_loops() {
+    let diagnostics = typecheck_source("fn inspect() { for item in {1, 2} { let copied = item } }");
+    assert!(diagnostics.is_empty(), "pure loop should remain legal: {diagnostics:?}");
+}
+
+#[test]
+fn timeline_values_are_composable_return_values() {
+    let diagnostics = typecheck_source(
+        "fn composition(dot: Actor) -> Timeline { #{ fade_in(target: dot, duration: 100ms) } }",
+    );
+    assert!(
+        diagnostics.is_empty(),
+        "expected a valid reusable timeline plan: {diagnostics:?}"
     );
 }
 
@@ -242,11 +370,7 @@ fn strict_types_no_warning_when_annotated() {
 }
 
 #[test]
-fn typecheck_action_param_types() {
-    // Cases:
-    // 1) invalid action param type triggers mismatch diagnostic
-    // 2) valid action param type is accepted without errors
-    use crate::ast::Action;
+fn typecheck_component_method_param_types() {
     for (value, expected_mismatch) in [
         (Expr::Str("too big".to_string()), true),
         (Expr::Num(1.5), false),
@@ -262,7 +386,7 @@ fn typecheck_action_param_types() {
                     is_pub: false,
                 },
                 source_path: std::path::PathBuf::new(),
-                actions: {
+                methods: {
                     let mut actions = HashMap::new();
                     actions.insert(
                         "pulse".to_string(),
@@ -274,7 +398,11 @@ fn typecheck_action_param_types() {
                             }],
                             return_type: None,
                             body: vec![],
+                            is_pub: false,
+                            definition_path: PathBuf::new(),
+                            span: None,
                             instance_index: None,
+                            component_captures: Vec::new(),
                         },
                     );
                     actions
@@ -286,19 +414,11 @@ fn typecheck_action_param_types() {
 
         let stmts = vec![
             actor("btn", "Button"),
-            Stmt::Action(
-                Action {
-                    verb: "pulse".to_string(),
-                    targets: vec!["btn".to_string()],
-                    args: vec![],
-                    modifiers: vec![Modifier {
-                        name: Some("scale".to_string()),
-                        value,
-                    }],
-                    byte_span: None,
-                    target_index: vec![],
-                    target_index_position: vec![],
-                },
+            Stmt::Expr(
+                Expr::Call(
+                    Box::new(Expr::Field(Box::new(Expr::Ident("btn".into())), "pulse".into())),
+                    vec![crate::ast::CallArgument::named("scale", value)],
+                ),
                 None,
             ),
         ];
@@ -335,7 +455,7 @@ fn type_alias_resolves_in_component_param() {
             ComponentEntry {
                 definition: def.clone(),
                 source_path: std::path::PathBuf::new(),
-                actions: HashMap::new(),
+                methods: HashMap::new(),
             },
         );
         let empty_actions = HashMap::new();
@@ -376,13 +496,13 @@ fn example_component_actions_demo_parses_and_typechecks() {
     // Typecheck directly without module loading (avoids path resolution)
     let mut components = HashMap::new();
     for def in crate::module::discovery::collect_component_defs(&ast) {
-        let actions = crate::module::discovery::collect_component_actions(&def);
+        let methods = crate::module::discovery::collect_component_functions(&def, &PathBuf::new());
         components.insert(
             def.name.clone(),
             ComponentEntry {
                 definition: def,
                 source_path: std::path::PathBuf::new(),
-                actions,
+                methods,
             },
         );
     }
@@ -427,7 +547,7 @@ fn named_color_list_accepted_for_list_color_param() {
                 is_pub: false,
             },
             source_path: std::path::PathBuf::new(),
-            actions: HashMap::new(),
+            methods: HashMap::new(),
         },
     );
     let mut env =
@@ -530,7 +650,7 @@ fn unresolved_type_alias_is_reported() {
         ComponentEntry {
             definition: def.clone(),
             source_path: std::path::PathBuf::new(),
-            actions: HashMap::new(),
+            methods: HashMap::new(),
         },
     );
     let empty_actions = HashMap::new();

@@ -124,5 +124,6 @@ fn collect_inline_property_spans<'a>(item: &'a mut InlineItem, out: &mut Vec<&'a
             }
         },
         InlineItem::SlotMarker => {},
+        InlineItem::Expr(_, _) => {},
     }
 }

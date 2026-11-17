@@ -37,6 +37,9 @@ mod workspace;
 // chumsky::Parser trait is not needed directly; parser functions are called via module API.
 use std::path::PathBuf;
 
+pub use animatix_core::callable::{
+    CallableDescriptor, CallableParam, CallablePhase, CallableType, DefaultValue,
+};
 use animatix_syntax::ast::Stmt;
 use animatix_syntax::parser::ParseError;
 use animatix_syntax::token::Token;
@@ -54,8 +57,8 @@ pub use extension_manifest::{
 };
 pub use fixes::{
     SpellingCandidate, batch_removal_ranges, declaration_insertion_line, first_declaration_byte,
-    is_top_level_position, missing_actor_statement, statement_removal_range, suggest_action_names,
-    suggest_label_names,
+    is_top_level_position, missing_actor_statement, statement_removal_range,
+    suggest_callable_names, suggest_label_names,
 };
 pub use rename::{RenameRejection, RenameTarget, rename_at, validate_new_name};
 pub use symbol_table::{
@@ -87,6 +90,9 @@ pub struct Analyzer {
     /// rebuilds. Populated by [`Analyzer::merge_import_symbols`]; edits to the
     /// file itself reuse the cache so per-keystroke rebuilds stay cheap.
     import_symbols: Option<SymbolTable>,
+    /// Public type and function signatures for the file's aliased imports.
+    import_namespaces:
+        Option<std::collections::HashMap<String, animatix_syntax::module::Namespace>>,
     type_diagnostics: Vec<diagnostics::Diagnostic>,
     lint_config: diagnostics::LintConfig,
     extension_manifest: ExtensionManifest,

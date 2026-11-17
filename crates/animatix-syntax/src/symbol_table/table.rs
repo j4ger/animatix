@@ -32,11 +32,14 @@ impl SymbolTable {
                 }
             }
         }
-        // Union known action names (timeline fns defined in the imported
-        // file) so semantic checks accept invocations of component fns
-        // across file boundaries.
-        for name in &other.actions {
-            self.actions.insert(name.clone());
+        for name in &other.pub_functions {
+            self.functions.insert(name.clone());
+            self.pub_functions.insert(name.clone());
+        }
+        for (name, function) in &other.function_defs {
+            if function.is_pub {
+                self.function_defs.entry(name.clone()).or_insert_with(|| function.clone());
+            }
         }
         // The unused-label pass reads three sets besides `labels`, and a
         // direct import flattens `labels` without them, which made every
@@ -78,28 +81,36 @@ impl SymbolTable {
                 .map(|(name, info)| (name.clone(), info.clone()))
                 .collect(),
             type_aliases: self.type_aliases.clone(),
+            functions: self.pub_functions.clone(),
+            pub_functions: self.pub_functions.clone(),
+            function_defs: self
+                .function_defs
+                .iter()
+                .filter(|(_, function)| function.is_pub)
+                .map(|(name, function)| (name.clone(), function.clone()))
+                .collect(),
             scenes: self.scenes.clone(),
             namespaces: self.namespaces.clone(),
             ..Default::default()
         }
     }
 
-    /// Resolve a namespace table by qualified path (e.g., "lib.inner").
+    /// Resolve a namespace table by qualified path (e.g., `lib::inner`).
     pub fn namespace_table(&self, qualified_name: &str) -> Option<&SymbolTable> {
-        let Some((namespace, rest)) = qualified_name.split_once('.') else {
+        let Some((namespace, rest)) = qualified_name.split_once("::") else {
             return self.namespaces.get(qualified_name);
         };
         let ns = self.namespaces.get(namespace)?;
         ns.namespace_table(rest)
     }
 
-    /// Look up a label by namespace-qualified name (e.g., "lib.inner.value").
+    /// Look up a label by namespace-qualified name (e.g., `lib::inner::value`).
     /// Returns the label info if found in the specified namespace.
     pub fn resolve_namespaced_label(&self, qualified_name: &str) -> Option<&LabelInfo> {
         resolve_namespaced(self, qualified_name, |table| &table.labels)
     }
 
-    /// Look up a component by namespace-qualified name (e.g., "lib.inner.MyComponent").
+    /// Look up a component by namespace-qualified name (e.g., `lib::inner::MyComponent`).
     pub fn resolve_namespaced_component(&self, qualified_name: &str) -> Option<&ComponentInfo> {
         resolve_namespaced(self, qualified_name, |table| &table.components)
     }
@@ -117,9 +128,14 @@ impl SymbolTable {
             .map(|ns| ns.components.keys().map(|s| s.as_str()).collect())
             .unwrap_or_default()
     }
+
+    /// Resolve a public function by `module::name` through nested namespaces.
+    pub fn resolve_namespaced_function(&self, qualified_name: &str) -> Option<&FunctionInfo> {
+        resolve_namespaced(self, qualified_name, |table| &table.function_defs)
+    }
 }
 
-/// Resolve a dotted name through nested namespaces and read `map` from the
+/// Resolve a `::`-qualified name through nested namespaces and read `map` from the
 /// namespace that owns its last segment.
 fn resolve_namespaced<'a, T>(
     mut table: &'a SymbolTable,
@@ -128,9 +144,9 @@ fn resolve_namespaced<'a, T>(
 ) -> Option<&'a T> {
     let mut rest = qualified_name;
     loop {
-        let (namespace, tail) = rest.split_once('.')?;
+        let (namespace, tail) = rest.split_once("::")?;
         table = table.namespaces.get(namespace)?;
-        if !tail.contains('.') {
+        if !tail.contains("::") {
             return map(table).get(tail);
         }
         rest = tail;

@@ -230,7 +230,7 @@ impl ResolvedColorscheme {
     /// Inject all defined colors into the runtime environment.
     pub fn seed_environment(&self, env: &mut Environment) {
         for (key, color) in &self.colors {
-            env.set(
+            env.set_host_global(
                 key,
                 Value::Color([
                     color[0] as f64,

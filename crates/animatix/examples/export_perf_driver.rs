@@ -42,10 +42,13 @@ fn main() {
     let expanded = program.expand_components(&mut expansion_errors);
     let context = std::sync::Arc::new(animatix::ExtensionRegistry::new());
     let report = BuildTarget::build_with_options(
-        &expanded,
+        &expanded.statements,
         &program.namespaces,
         Some(&path),
-        BuildOptions::default().with_context(context),
+        BuildOptions::default()
+            .with_context(context)
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
     );
     let duration_s = report.output.duration_s().max(0.001);
     let (timelines, composition): (Vec<Timeline>, Option<animatix::composition::Composition>) =

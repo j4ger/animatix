@@ -82,8 +82,8 @@ fn tokenizes_time_percent_and_strings() {
 }
 
 #[test]
-fn tokenizes_hyphenated_identifiers() {
-    let tokens = tokenize("fade-in move-to a - b");
+fn hyphens_separate_identifiers_and_are_never_part_of_a_name() {
+    let tokens = tokenize("fade-in move_to a - b");
     let idents: Vec<String> = tokens
         .iter()
         .filter_map(|t| match &t.kind {
@@ -91,7 +91,8 @@ fn tokenizes_hyphenated_identifiers() {
             _ => None,
         })
         .collect();
-    assert_eq!(idents, vec!["fade-in", "move-to", "a", "b"]);
+    assert_eq!(idents, vec!["fade", "move_to", "a", "b"]);
+    assert!(tokens.iter().any(|token| token.kind == TokenKind::Minus));
 }
 
 #[test]

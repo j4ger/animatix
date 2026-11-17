@@ -146,7 +146,7 @@ bg: Filter {
   photo: Image, url: "photo.jpg", size: fill
 }
 #1.5s
-bg.soft.radius = 24 [1.5s, ease: ease-out]
+bg.soft.radius = 24 [1.5s, ease: ease_out]
 ```
 
 The chain is **static in membership** (an effect child cannot appear or disappear

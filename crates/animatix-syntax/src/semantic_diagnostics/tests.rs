@@ -215,7 +215,7 @@ fn imported_component_instance_is_not_unknown_type() {
 
 #[test]
 fn namespaced_component_instance_is_not_unknown_type() {
-    // `import "lib/ui.amx" as ui` + `ui.MetricCard` resolves through the
+    // `import "lib/ui.amx" as ui` + `ui::MetricCard` resolves through the
     // namespace tables, not `types`.
     let mut symbols = SymbolTable::build_from_ast(&[]);
     symbols.namespaces.insert(
@@ -237,7 +237,7 @@ fn namespaced_component_instance_is_not_unknown_type() {
             ..Default::default()
         },
     );
-    let stmts = vec![actor_decl_of_type("ui.MetricCard")];
+    let stmts = vec![actor_decl_of_type("ui::MetricCard")];
     let diags = unknown_types(&stmts, &symbols);
     assert!(
         diags.is_empty(),

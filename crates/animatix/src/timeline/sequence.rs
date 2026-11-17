@@ -1,67 +1,13 @@
 use super::{
-    Diagnostic, DiagnosticCode, DiagnosticPhase, Modifier, ModifierHost, ParsedStaggerModifiers,
-    StaggerMetric, StaggerOrigin, Stmt, Timeline, TrackAccessor, parse_stagger_modifiers,
-    parse_timing_modifiers, push_unsupported_stagger_statement_diagnostic, sequence_stmt_kind,
+    Diagnostic, DiagnosticCode, DiagnosticPhase, Modifier, ParsedStaggerModifiers, StaggerMetric,
+    StaggerOrigin, Stmt, Timeline, TrackAccessor, parse_stagger_modifiers,
+    push_unsupported_stagger_statement_diagnostic, sequence_stmt_kind,
 };
 
 impl Timeline {
     pub(super) fn sequence_statement_span_ms(&self, stmt: &Stmt) -> Option<f64> {
-        let mut ignored_diagnostics = Vec::new();
-        match stmt {
-            Stmt::Action(action, ..) => {
-                let parsed = parse_timing_modifiers(
-                    &action.modifiers,
-                    ModifierHost::Action,
-                    Some(&action.verb),
-                    &mut ignored_diagnostics,
-                );
-                Some(parsed.delay_ms + parsed.duration_ms)
-            },
-            Stmt::Assignment {
-                target,
-                property,
-                modifiers,
-                ..
-            } => {
-                let subject =
-                    format!("{}.{}", crate::timeline::assignment_target_key(target), property);
-                let parsed = parse_timing_modifiers(
-                    modifiers,
-                    ModifierHost::Assignment,
-                    Some(&subject),
-                    &mut ignored_diagnostics,
-                );
-                Some(parsed.delay_ms + parsed.duration_ms)
-            },
-            Stmt::Block {
-                body, time_scope, ..
-            } => crate::timeline::sequence_block_span_ms(self, time_scope.as_ref(), body),
-            Stmt::Sequence { body, .. } => {
-                // Total duration of a nested sequence is the sum of its children's durations
-                let mut total = 0.0;
-                for child in body {
-                    total += self.sequence_statement_span_ms(child)?;
-                }
-                Some(total)
-            },
-            Stmt::Stagger {
-                modifiers, body, ..
-            } => {
-                let parsed = parse_stagger_modifiers(modifiers, &mut ignored_diagnostics)?;
-                if body.is_empty() {
-                    return Some(0.0);
-                }
-                let delays = self.compute_stagger_delays(&parsed, body, 0.0);
-                let mut total = 0.0;
-                for (stmt, delay) in body.iter().zip(delays) {
-                    let child_span = self.sequence_statement_span_ms(stmt).unwrap_or(0.0);
-                    total = f64::max(total, delay + child_span);
-                }
-                Some(total)
-            },
-            Stmt::LetDecl { .. } | Stmt::TypeAlias { .. } | Stmt::Comment(..) => Some(0.0),
-            _ => None,
-        }
+        crate::timeline::plan_lowerer::statement_span_ms(stmt, &self.env)
+            .map(|span| span * self.plan_clock_rate)
     }
 
     pub(super) fn process_sequence(
@@ -77,7 +23,6 @@ impl Timeline {
             if let Stmt::Block {
                 body: block_body,
                 instance_scope,
-                time_scope,
                 span,
             } = stmt
             {
@@ -97,7 +42,6 @@ impl Timeline {
                 self.process_block_stmt(
                     block_body,
                     instance_scope.as_ref(),
-                    time_scope.as_ref(),
                     *span,
                     cursor_time_ms,
                     parent_label,
@@ -149,7 +93,7 @@ impl Timeline {
         let delays = self.compute_stagger_delays(&parsed, body, time_ms);
 
         for (index, stmt) in body.iter().enumerate() {
-            let stagger_time_ms = time_ms + delays[index];
+            let stagger_time_ms = time_ms + delays[index] * self.plan_clock_rate;
             if matches!(stmt, Stmt::Block { .. }) {
                 self.process_body(
                     stagger_time_ms,
@@ -193,7 +137,7 @@ impl Timeline {
 
         let mut positions: Vec<Option<[f64; 2]>> = Vec::with_capacity(n);
         for stmt in body {
-            let pos_opt = Self::statement_target_actor(stmt).and_then(|label| {
+            let pos_opt = self.statement_target_actor(stmt).and_then(|label| {
                 self.world.get_id(&label).map(|id| {
                     let geometry = self.world.geometry(id);
                     let pos = geometry.position.get(time_ms as u64, [0.0, 0.0]);
@@ -264,14 +208,36 @@ impl Timeline {
         delays
     }
 
-    fn statement_target_actor(stmt: &Stmt) -> Option<String> {
+    fn statement_target_actor(&self, stmt: &Stmt) -> Option<String> {
         match stmt {
-            Stmt::Action(action, _) => action.targets.first().cloned(),
+            Stmt::Expr(expr, _) => {
+                let value = crate::timeline::evaluate_expr(expr, &self.env).ok()?;
+                match value {
+                    crate::timeline::Value::TimelinePlan(plan) => {
+                        plan.ops().iter().find_map(|op| match op {
+                            crate::timeline::PlanOp::Builtin(call) => {
+                                call.args.iter().find_map(|(name, value)| {
+                                    if matches!(name.as_str(), "target" | "a" | "b")
+                                        && let crate::timeline::Value::ActorRef(actor) = value
+                                    {
+                                        return Some(actor.label().to_string());
+                                    }
+                                    None
+                                })
+                            },
+                            _ => None,
+                        })
+                    },
+                    _ => None,
+                }
+            },
             Stmt::Assignment { target, .. } => {
                 let key = crate::timeline::assignment_target_key(target);
                 if key.is_empty() { None } else { Some(key) }
             },
-            Stmt::Block { body, .. } => body.iter().find_map(Self::statement_target_actor),
+            Stmt::Block { body, .. } => {
+                body.iter().find_map(|stmt| self.statement_target_actor(stmt))
+            },
             _ => None,
         }
     }

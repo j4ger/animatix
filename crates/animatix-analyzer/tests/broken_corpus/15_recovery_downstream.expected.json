@@ -2,6 +2,6 @@
   "diagnostics": [
     { "code": "parse-error", "severity": "error", "line": 4, "col": 0 },
     { "code": "parse-error", "severity": "error", "line": 4, "col": 12 },
-    { "code": "unknown-action", "severity": "warning", "line": 7, "col": 0 }
+    { "code": "unknown-callable", "severity": "warning", "line": 7, "col": 0 }
   ]
 }

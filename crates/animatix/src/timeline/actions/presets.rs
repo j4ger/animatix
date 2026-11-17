@@ -1,22 +1,22 @@
 //! Entrance presets that bundle the two craft moves the plain verbs leave out:
-//! a scale *arrival* (`settle-in`) and an overshooting one (`pop-in`).
+//! a scale *arrival* (`settle_in`) and an overshooting one (`pop_in`).
 //!
-//! Both are a `fade-in` plus a scale ramp onto the actor's authored scale, so
+//! Both are a `fade_in` plus a scale ramp onto the actor's authored scale, so
 //! they read as an object coming to rest instead of a value being dialled up.
 //! They exist because a bare opacity fade is the single most over-used
 //! entrance in the corpus and, per the motion-design craft tables, an entrance
 //! that only changes opacity reads as "floaty".
 
-use super::registry::{ActionSignature, BuiltinAction, base_timing_params};
-use crate::ast::Action;
+use super::registry::{BuiltinAction, CallableDescriptor};
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::timeline::Timeline;
+use crate::timeline::actions::BuiltinInvocation;
 use crate::timeline::property_track::TrackAccessor;
 
-/// How far below its final size a `settle-in` starts.
+/// How far below its final size a `settle_in` starts.
 const SETTLE_START_FACTOR: f32 = 0.92;
-/// How far below its final size a `pop-in` starts.
+/// How far below its final size a `pop_in` starts.
 const POP_START_FACTOR: f32 = 0.6;
 
 /// The shared body of the two entrance presets: the per-verb shape differs only
@@ -50,7 +50,7 @@ const OVERSHOOT_AT: f64 = 0.7;
 /// Run one entrance preset over the action's targets.
 fn run_preset(
     preset: &Preset,
-    action: &Action,
+    action: &BuiltinInvocation,
     time_ms: f64,
     timeline: &mut Timeline,
     diagnostics: &mut Vec<Diagnostic>,
@@ -71,7 +71,7 @@ fn run_preset(
             continue;
         }
 
-        // Opacity: the same lift `fade-in` performs, so a hidden-by-default
+        // Opacity: the same lift `fade_in` performs, so a hidden-by-default
         // actor is revealed through the subtree-aware path and an authored
         // `opacity: 0` seed is lifted past rather than settled on.
         let was_hidden = timeline
@@ -126,32 +126,17 @@ fn run_preset(
     }
 }
 
-/// The `settle-in` signature.
-fn signature(name: &str, description: &str) -> ActionSignature {
-    ActionSignature {
-        name: name.to_string(),
-        category: "Entrance".to_string(),
-        description: description.to_string(),
-        params: vec![],
-        modifiers: base_timing_params(),
-    }
-}
-
 /// Fades in while growing a few percent into place.
 pub struct SettleIn;
 
 impl BuiltinAction for SettleIn {
-    fn signature(&self) -> ActionSignature {
-        signature(
-            "settle-in",
-            "Fades in and eases the target up from a slightly smaller scale, so it arrives \
-             instead of appearing.",
-        )
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::SettleIn.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
@@ -164,16 +149,13 @@ impl BuiltinAction for SettleIn {
 pub struct PopIn;
 
 impl BuiltinAction for PopIn {
-    fn signature(&self) -> ActionSignature {
-        signature(
-            "pop-in",
-            "Fades in and scales up with a back overshoot, for playful or emphatic arrivals.",
-        )
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::PopIn.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,

@@ -1,6 +1,10 @@
 use std::collections::BTreeMap;
 
+use super::super::fast_scalar::{
+    FastScalarExpr, compile_fast_scalar, compile_fast_vec2, resolve_slot_values,
+};
 use super::*;
+use crate::ast::BinaryOp;
 use crate::timeline::Environment;
 
 #[test]
@@ -120,7 +124,7 @@ fn test_vec2_fast_compile_parametric() {
 
 #[test]
 fn test_scalar_fast_compile_rejects_unsupported() {
-    let expr = CompiledExpr::Method(
+    let expr = CompiledExpr::CallMember(
         Box::new(CompiledExpr::LoadEnv("list".to_string())),
         "len".to_string(),
         vec![],

@@ -1,3 +1,0 @@
-btn: Rect, size: (100, 100)
-#0s
-fly btn [1s, ease: linear]

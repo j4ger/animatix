@@ -7,11 +7,14 @@
 
 use std::ffi::{c_char, c_void};
 
+mod callable;
+pub use callable::*;
+
 /// Unstable ABI snapshot id negotiated by the host and plugin.
 ///
 /// Bump on any `repr(C)` layout or callback-table change; the host rejects any
 /// other snapshot. Keep `docs/extension_authoring.md` in sync when bumping.
-pub const UNSTABLE_ABI_VERSION: u32 = 9;
+pub const UNSTABLE_ABI_VERSION: u32 = 10;
 
 /// Numeric runtime value tag.
 pub const NATIVE_VALUE_NUM: u32 = 0;
@@ -78,7 +81,7 @@ pub const NATIVE_EASING_IN: u32 = 1;
 pub const NATIVE_EASING_OUT: u32 = 2;
 /// Easing code: ease in-out.
 pub const NATIVE_EASING_IN_OUT: u32 = 3;
-/// Easing code: the CSS bounce curve (source name `bounce-in`).
+/// Easing code: the CSS bounce curve (source name `bounce_in`).
 pub const NATIVE_EASING_BOUNCE_IN: u32 = 4;
 /// Easing code: elastic overshoot.
 pub const NATIVE_EASING_ELASTIC: u32 = 5;
@@ -91,12 +94,9 @@ pub const NATIVE_EASING_EXPO_OUT: u32 = 8;
 /// Easing code: exponential ease in-out.
 pub const NATIVE_EASING_EXPO_IN_OUT: u32 = 9;
 /// Highest easing code the host recognizes; codes above it are rejected.
-pub const NATIVE_EASING_MAX: u32 = NATIVE_EASING_EXPO_IN_OUT;
-/// Sentinel: an easing curve with parameters, not representable by one `u32`.
-///
-/// `spring(…)` and `cubic-bezier(…)` cannot be named in the single easing slot;
-/// a plugin must read this as "no easing specified", not interpolate it.
-/// Lifting it requires a payload slot, which is an ABI bump.
+pub const NATIVE_EASING_MAX: u32 = NATIVE_EASING_SPRING_V0;
+/// Sentinel used by the scalar easing-code helper when a curve requires the
+/// full [`NativeEasing`] payload. Callable arguments and plan writers carry it.
 pub const NATIVE_EASING_UNSUPPORTED: u32 = u32::MAX;
 
 /// A finite runtime value exchanged with native extension callbacks.
@@ -108,7 +108,11 @@ pub const NATIVE_EASING_UNSUPPORTED: u32 = u32::MAX;
 pub struct NativeValue {
     /// Value tag from the `NATIVE_VALUE_*` constants.
     pub tag: u32,
-    /// Numeric payload for `NATIVE_VALUE_NUM`.
+    /// Opaque invocation-scoped handle for `NATIVE_VALUE_ACTOR`.
+    pub handle: u64,
+    /// Complete payload for `NATIVE_VALUE_EASING`.
+    pub easing: NativeEasing,
+    /// Numeric payload for `NATIVE_VALUE_NUM` or duration seconds.
     pub num: f64,
     /// Boolean payload for `NATIVE_VALUE_BOOL`.
     pub boolean: bool,
@@ -137,6 +141,8 @@ impl Default for NativeValue {
     fn default() -> Self {
         Self {
             tag: NATIVE_VALUE_NUM,
+            handle: 0,
+            easing: NativeEasing::default(),
             num: 0.0,
             boolean: false,
             vec: [0.0; 4],
@@ -282,47 +288,6 @@ pub struct NativeFinalizeContext {
 
 /// Native primitive finalize callback.
 pub type NativeFinalizeFn = unsafe extern "C" fn(*mut NativeFinalizeContext) -> i32;
-
-/// Native expression function callback.
-///
-/// Returns [`NATIVE_STATUS_OK`] or a `NATIVE_STATUS_*` error; output goes to `out`.
-pub type NativeFunction = unsafe extern "C" fn(
-    *mut NativeFunctionContext,
-    args: *const NativeValue,
-    arg_len: usize,
-    out: *mut NativeValue,
-) -> i32;
-
-/// Descriptor passed from a native plugin to register an expression function.
-#[derive(Clone, Copy)]
-#[repr(C)]
-pub struct NativeFunctionDescriptor {
-    /// Function name as written in source.
-    pub name: *const c_char,
-    /// Positional parameter descriptions.
-    pub params: *const NativeActionParam,
-    /// Number of positional parameters.
-    pub param_len: usize,
-    /// Optional return type string, e.g. `"Num"` or `"Color"`.
-    pub return_type: *const c_char,
-    /// Optional help text.
-    pub help: *const c_char,
-    /// Expression callback.
-    pub callback: NativeFunction,
-}
-
-/// Context passed to a native expression function callback.
-#[repr(C)]
-pub struct NativeFunctionContext {
-    /// `size_of::<NativeFunctionContext>()`.
-    pub size: usize,
-    /// Opaque host handle passed back to host callbacks.
-    pub host: *mut c_void,
-    /// Read a frame-environment value by name.
-    pub get_env: unsafe extern "C" fn(*mut c_void, *const c_char, *mut NativeValue) -> i32,
-    /// Read a native service value by name.
-    pub get_service: unsafe extern "C" fn(*mut c_void, *const c_char, *mut usize) -> i32,
-}
 
 /// Primitive UI category.
 pub const NATIVE_PRIMITIVE_CATEGORY_SHAPE: u32 = 0;
@@ -622,80 +587,6 @@ pub type NativeDefaultPropsFn = unsafe extern "C" fn(*mut NativeDefaultPropsCtx)
 pub type NativeDefaultColorKeyFn =
     unsafe extern "C" fn(property: *const c_char, out_key: *mut *const c_char) -> i32;
 
-/// One action parameter or modifier descriptor.
-#[derive(Clone, Copy)]
-#[repr(C)]
-pub struct NativeActionParam {
-    /// Parameter name as used in source.
-    pub name: *const c_char,
-    /// Human-readable description.
-    pub description: *const c_char,
-    /// Expected type string.
-    pub type_info: *const c_char,
-}
-
-/// Descriptor passed from a native plugin to register an action.
-#[derive(Clone, Copy)]
-#[repr(C)]
-pub struct NativeAction {
-    /// Action verb as written in source.
-    pub name: *const c_char,
-    /// High-level grouping for UI.
-    pub category: *const c_char,
-    /// One-line description.
-    pub description: *const c_char,
-    /// Positional parameter descriptors.
-    pub params: *const NativeActionParam,
-    /// Number of positional parameters.
-    pub param_len: usize,
-    /// Named modifier descriptors.
-    pub modifiers: *const NativeActionParam,
-    /// Number of named modifiers.
-    pub modifier_len: usize,
-    /// Execute callback.
-    pub execute: NativeActionExecuteFn,
-}
-
-/// Context passed to a native action execute callback.
-#[repr(C)]
-pub struct NativeActionContext {
-    /// `size_of::<NativeActionContext>()`.
-    pub size: usize,
-    /// Opaque host handle passed back to host callbacks.
-    pub host: *mut c_void,
-    /// Current action time in milliseconds.
-    pub time_ms: f64,
-    /// Number of action targets.
-    pub get_target_count: unsafe extern "C" fn(*mut c_void) -> usize,
-    /// Read one action target.
-    pub get_target: unsafe extern "C" fn(*mut c_void, usize, *mut *const c_char) -> i32,
-    /// Number of positional action arguments.
-    pub get_arg_count: unsafe extern "C" fn(*mut c_void) -> usize,
-    /// Read one positional action argument.
-    pub get_arg: unsafe extern "C" fn(*mut c_void, usize, *mut NativeValue) -> i32,
-    /// Number of action modifiers.
-    pub get_modifier_count: unsafe extern "C" fn(*mut c_void) -> usize,
-    /// Read one action modifier.
-    pub get_modifier: unsafe extern "C" fn(*mut c_void, usize, *mut NativeModifierValue) -> i32,
-    /// Write an extension property keyframe on an actor. The trailing `u32` is
-    /// a `NATIVE_EASING_*` code; an unrecognized code is rejected with
-    /// [`NATIVE_STATUS_TYPE_ERROR`] rather than applied as linear.
-    pub write_keyframe: unsafe extern "C" fn(
-        *mut c_void,
-        *const c_char,
-        *const c_char,
-        NativeValue,
-        u64,
-        u64,
-        u32,
-    ) -> i32,
-    /// Read a native service value by name.
-    pub get_service: unsafe extern "C" fn(*mut c_void, *const c_char, *mut usize) -> i32,
-}
-
-/// Native action execute callback.
-pub type NativeActionExecuteFn = unsafe extern "C" fn(*mut NativeActionContext) -> i32;
-
 /// Service value provided by a native plugin.
 #[repr(C)]
 pub struct NativeService {
@@ -832,12 +723,10 @@ pub struct NativePluginApi {
     /// `PropertyId` into `out_id`.
     pub register_property:
         unsafe extern "C" fn(*mut c_void, NativePropertyDescriptor, *mut u32) -> i32,
-    /// Register a native expression function.
-    pub register_function: unsafe extern "C" fn(*mut c_void, NativeFunctionDescriptor) -> i32,
+    /// Register an ordinary function with a value or inert-plan result.
+    pub register_callable: unsafe extern "C" fn(*mut c_void, NativeCallableDescriptor) -> i32,
     /// Register a native primitive.
     pub register_primitive: unsafe extern "C" fn(*mut c_void, NativePrimitive) -> i32,
-    /// Register a native action.
-    pub register_action: unsafe extern "C" fn(*mut c_void, NativeAction) -> i32,
     /// Provide a native service value with an optional destructor.
     pub provide_service: unsafe extern "C" fn(*mut c_void, NativeService) -> i32,
     /// Register a plugin-authored post-processing effect.
@@ -862,7 +751,7 @@ mod tests {
         let needle =
             format!("The current unstable ABI snapshot is {}", super::UNSTABLE_ABI_VERSION);
         assert!(
-            source.contains(&needle),
+            source.replace("**", "").contains(&needle),
             "docs/extension_authoring.md does not state the current ABI snapshot as {} \
              at 'The current unstable ABI snapshot is ...'; update the doc when \
              UNSTABLE_ABI_VERSION changes",

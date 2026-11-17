@@ -87,7 +87,7 @@ fn solid_scene_at(color: &str, width: u32, height: u32) -> Timeline {
         "config {{ colorscheme: \"editorial-dark\", resolution: ({width}, {height}) }}\n\
          #0s\n\
          r: Rect, size: (400, 400), color: {color}, at: ({}, {})\n\
-         fade-in r [100ms]\n",
+         fade_in(target: r, duration: 100ms)\n",
         width / 2,
         height / 2
     ))
@@ -433,8 +433,8 @@ chip: Filter, anchor: scene.center, offset: (200, 0) {{
 }}
 
 #0s
-fade-in backdrop [300ms]
-fade-in chip [300ms]
+fade_in(target: backdrop, duration: 300ms)
+fade_in(target: chip, duration: 300ms)
 "#
     ));
     let dims = SceneDimensions {
@@ -482,7 +482,7 @@ fn transition_midframe_blends_both_scenes() {
             "config {{ colorscheme: \"editorial-dark\", resolution: (64, 64) }}\n\
              #0s\n\
              r: Rect, size: (200, 200), color: {color}, at: (32, 32)\n\
-             fade-in r [100ms]\n"
+             fade_in(target: r, duration: 100ms)\n"
         ))
     };
 
@@ -532,7 +532,7 @@ fn new_transition_endpoints_return_from_and_to_frames() {
         .expect("incoming single-scene frame");
     let (from_avg, to_avg) = (average(&direct_from), average(&direct_to));
 
-    for id in ["iris", "clock-wipe", "zoom-through"] {
+    for id in ["iris", "clock_wipe", "zoom_through"] {
         let start = transition_with_id(&mut renderer, &warm, &cool, 0.0, id, dims);
         let end = transition_with_id(&mut renderer, &warm, &cool, 1.0, id, dims);
         let (start_avg, end_avg) = (average(&start), average(&end));
@@ -621,7 +621,7 @@ fn clock_wipe_sweeps_clockwise() {
     let warm = solid_scene("(0.9, 0.1, 0.1, 1)", 64);
     let cool = solid_scene("(0.1, 0.2, 0.9, 1)", 64);
 
-    let mid = transition_with_id(&mut renderer, &warm, &cool, 0.5, "clock-wipe", dims);
+    let mid = transition_with_id(&mut renderer, &warm, &cool, 0.5, "clock_wipe", dims);
     let right = pixel(&mid.rgba, 64, 56, 32);
     let left = pixel(&mid.rgba, 64, 8, 32);
     assert!(
@@ -653,7 +653,7 @@ fn zoom_through_crossfades_late() {
         .expect("outgoing single-scene frame");
     let from_avg = average(&direct_from);
 
-    let mid = transition_with_id(&mut renderer, &warm, &cool, 0.5, "zoom-through", dims);
+    let mid = transition_with_id(&mut renderer, &warm, &cool, 0.5, "zoom_through", dims);
     let mid_avg = average(&mid);
     for channel in 0..3 {
         assert!(
@@ -663,7 +663,7 @@ fn zoom_through_crossfades_late() {
         );
     }
 
-    let late = transition_with_id(&mut renderer, &warm, &cool, 0.9, "zoom-through", dims);
+    let late = transition_with_id(&mut renderer, &warm, &cool, 0.9, "zoom_through", dims);
     let late_avg = average(&late);
     assert!(
         late_avg[2] > 150.0 && late_avg[0] < 100.0,
@@ -732,7 +732,7 @@ panel: Filter {
   soft: Blur, radius: 6
   box: Rect, size: (36, 36), color: (0.95, 0.3, 0.25, 1)
 }
-fade-in panel [100ms]
+fade_in(target: panel, duration: 100ms)
 "#,
     );
     let plain = build_checked(
@@ -777,7 +777,7 @@ config { colorscheme: "editorial-dark", resolution: (320, 320) }
 g: Graph, x_domain: (-3, 3), y_domain: (-3, 3), size: (300, 300), at: (160, 160) {
   rose: PlotCurve, kind: "polar", func: (t) => 1.6 * sin(4 * t), color: (0.95, 0.3, 0.25, 1), stroke_width: 2
 }
-fade-in g [100ms]
+fade_in(target: g, duration: 100ms)
 "#;
     let draft_timeline = build_with_quality(source, BuildQuality::Draft);
     let production_timeline = build_with_quality(source, BuildQuality::Production);
@@ -903,10 +903,10 @@ fn storyboard_renders_multiframe_grid_to_disk() {
 box: Rect, at: (50, 50), size: (60, 60), color: (1, 0, 0, 1)
 
 #1s
-fade-in box [500ms]
+fade_in(target: box, duration: 500ms)
 
 #2s
-fade-out box [500ms]
+fade_out(target: box, duration: 500ms)
 "#,
     );
 

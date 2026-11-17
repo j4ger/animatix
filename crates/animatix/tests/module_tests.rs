@@ -1,7 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use animatix::composition::BuildTarget;
-use animatix::timeline::{BuildOptions, DebugRenderOptions, SceneDimensions, Timeline};
+use animatix::timeline::{
+    BuildOptions, DebugRenderOptions, SceneDimensions, Timeline, TrackAccessor,
+};
 use animatix_syntax::ast::{Expr, Stmt};
 use animatix_syntax::module::{LoadedProgram, ModuleError, ModuleGraph, SourceAccess};
 
@@ -25,12 +27,23 @@ fn load_entry(source: &str) -> LoadedProgram {
 
 /// Component expansion, with the expander's diagnostics discarded so the
 /// tests can assert on the resulting shape alone.
-fn expanded(program: &LoadedProgram) -> Vec<Stmt> {
+fn expanded(program: &LoadedProgram) -> animatix_syntax::module::ExpandedProgram {
     program.expand_components(&mut Vec::new())
 }
 
+fn build_expanded(program: &LoadedProgram) -> Timeline {
+    let expanded = expanded(program);
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        BuildOptions::default().with_expanded(&expanded),
+    );
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    report.output
+}
+
 fn expanded_debug(program: &LoadedProgram) -> String {
-    format!("{:#?}", expanded(program))
+    format!("{:#?}", expanded(program).statements)
 }
 
 /// Assert the expanded program mentions every `present` needle and none of the
@@ -56,11 +69,12 @@ fn tuple_arity(expr: &Expr) -> usize {
 }
 
 const BUTTON_COMPONENT: &str = r#"
-pub component Button(text: "OK") {
-    fn pulse {
+pub component Button(text: Str = "OK") {
+    pub fn pulse() { return #{ sequence {
         self.scale = 1.2 [100ms]
         self.scale = 1.0 [100ms]
-    }
+
+    } } }
     frame: Rect, size: (100, 40)
 }
 "#;
@@ -71,11 +85,11 @@ fn load_program_collects_public_imported_components_only() {
         (
             "components.amx",
             r#"
-pub component MetricCard(title: "Throughput") {
+pub component MetricCard(title: Str = "Throughput") {
     label: Text, text: title
 }
 
-component InternalCard(title: "Private") {
+component InternalCard(title: Str = "Private") {
     private_label: Text, text: title
 }
 "#,
@@ -101,7 +115,7 @@ fn load_program_rejects_duplicate_component_exports() {
     graph.upsert_source(
         PathBuf::from("virtual:///first.amx"),
         r#"
-pub component MetricCard(title: "One") {
+pub component MetricCard(title: Str = "One") {
     label: Text, text: title
 }
 "#,
@@ -109,7 +123,7 @@ pub component MetricCard(title: "One") {
     graph.upsert_source(
         PathBuf::from("virtual:///second.amx"),
         r#"
-pub component MetricCard(title: "Two") {
+pub component MetricCard(title: Str = "Two") {
     label: Text, text: title
 }
 "#,
@@ -137,7 +151,7 @@ fn load_program_expand_components_produces_build_input() {
         (
             "components.amx",
             r#"
-pub component MetricCard(title: "Throughput") {
+pub component MetricCard(title: Str = "Throughput") {
     title_text: Text, text: title
 }
 "#,
@@ -154,7 +168,7 @@ card: MetricCard, title: "Latency"
 
     assert_contents(&program, &["card", "Latency"], &["MetricCard"]);
 
-    let timeline = Timeline::build(&expanded(&program));
+    let timeline = build_expanded(&program);
     assert!(timeline.tracks().contains_key("card"));
 }
 
@@ -174,7 +188,7 @@ let private = (1.0, 0.0, 0.0, 1.0)
             r#"
 import "./theme.amx" as theme
 
-panel: Rect, size: (200, 100), color: theme.accent
+panel: Rect, size: (200, 100), color: theme::accent
 "#,
         ),
     ]);
@@ -280,8 +294,8 @@ fn load_program_resolves_reexports() {
             "theme.amx",
             r#"
  import "./colors.amx" as c
- pub let accent = c.primary
- pub let warning = c.danger
+ pub let accent = c::primary
+ pub let warning = c::danger
   "#,
         ),
         (
@@ -289,7 +303,7 @@ fn load_program_resolves_reexports() {
             r#"
  import "./theme.amx" as theme
 
- panel: Rect, size: (200, 100), color: theme.accent
+ panel: Rect, size: (200, 100), color: theme::accent
   "#,
         ),
     ]);
@@ -304,7 +318,43 @@ fn load_program_resolves_reexports() {
 }
 
 #[test]
-fn load_program_custom_component_action_basic() {
+fn load_program_calls_aliased_public_function_in_its_module_scope() {
+    let mut program = load_scene(&[
+        (
+            "measurements.amx",
+            r#"
+fn private_base() { return 40 }
+pub fn preferred_width(extra: Num = 2) { private_base() + extra }
+"#,
+        ),
+        (
+            "scene.amx",
+            r#"
+import "./measurements.amx" as measurements
+
+box: Rect, size: (measurements::preferred_width(), 10)
+"#,
+        ),
+    ]);
+
+    let namespace = program.namespaces.get("measurements").expect("namespace alias");
+    assert!(namespace.function_exports.contains_key("preferred_width"));
+    assert!(!namespace.function_exports.contains_key("private_base"));
+    assert!(program.typecheck().is_empty(), "module callable should typecheck");
+
+    let timeline = build_expanded(&program);
+    let actor = timeline.get_entity_id("box").expect("box actor");
+    let width = &timeline.world().geometry(actor).size;
+    let actual = width.get(0, [0.0, 0.0])[0];
+    let full_width = actual * 2.0;
+    assert!(
+        (full_width - 42.0).abs() < 0.001,
+        "expected aliased fn width 42, got {full_width}"
+    );
+}
+
+#[test]
+fn load_program_component_method_basic() {
     let program = load_scene(&[
         ("button.amx", BUTTON_COMPONENT),
         (
@@ -315,33 +365,20 @@ import "./button.amx"
 btn: Button, text: "Click"
 
 #0s
-pulse btn [200ms]
+btn.pulse()
 "#,
         ),
     ]);
 
-    // The custom action is inlined onto the instance: btn.scale assignments.
-    let debug = expanded_debug(&program);
-    assert!(
-        debug.contains("\"btn\""),
-        "custom action should inline btn assignments: {debug}"
-    );
-    assert!(
-        debug.contains("\"scale\""),
-        "custom action should inline scale property: {debug}"
-    );
-    assert!(
-        !debug.contains("ComponentAction"),
-        "ComponentAction should be removed after inlining"
-    );
-    assert!(
-        !debug.contains("pulse"),
-        "pulse invocation should be replaced with inlined body"
-    );
+    let timeline = build_expanded(&program);
+    let actor = timeline.get_entity_id("btn").unwrap();
+    let scale = timeline.world().geometry(actor).scale.as_ref().expect("method scale track");
+    assert!((scale.evaluate(100) - 1.2).abs() < 0.001);
+    assert!((scale.evaluate(200) - 1.0).abs() < 0.001);
 }
 
 #[test]
-fn load_program_custom_component_action_multi_target() {
+fn load_program_component_method_multi_target() {
     let program = load_scene(&[
         ("button.amx", BUTTON_COMPONENT),
         (
@@ -354,24 +391,25 @@ btn2: Button, text: "Two"
 rect: Rect
 
 #0s
-pulse btn1, btn2, rect [200ms]
+btn1.pulse()
+btn2.pulse()
+std::pulse(rect, duration: 400ms)
 "#,
         ),
     ]);
 
-    let debug = expanded_debug(&program);
-    let scale_count = debug.matches("\"scale\"").count();
+    let timeline = build_expanded(&program);
+    for label in ["btn1", "btn2"] {
+        let actor = timeline.get_entity_id(label).unwrap();
+        let scale = timeline.world().geometry(actor).scale.as_ref().unwrap();
+        assert!((scale.evaluate(100) - 1.2).abs() < 0.001, "method targets {label}");
+        assert_eq!(scale.evaluate(200), 1.0);
+    }
+    let rect = timeline.get_entity_id("rect").unwrap();
+    let scale = timeline.world().geometry(rect).scale.as_ref().unwrap();
     assert!(
-        scale_count >= 4,
-        "Expected both custom action bodies inlined, got {scale_count} scale references"
-    );
-    assert!(
-        debug.contains("pulse"),
-        "Builtin fallback action should remain for the non-component target"
-    );
-    assert!(
-        debug.contains("rect"),
-        "Remaining target should still be present in the fallback action"
+        (scale.evaluate(200) - 1.2).abs() < 0.001,
+        "standard pulse remains an explicit independent call"
     );
 }
 
@@ -400,13 +438,13 @@ deck: Bars, values: {10, 20, 30}
         ),
     ]);
 
-    let timeline = Timeline::build(&expanded(&program));
+    let timeline = build_expanded(&program);
     assert!(timeline.tracks().contains_key("deck.bar__0"));
     assert!(timeline.tracks().contains_key("deck.bar__2"));
 }
 
 #[test]
-fn load_program_custom_component_action_indexed_array_target() {
+fn load_program_component_method_indexed_array_target() {
     let program = load_scene(&[
         (
             "bars.amx",
@@ -418,10 +456,11 @@ pub component Bars(values: List<Num>) {
         }
     }
 
-    fn pulseAt(index: Num) {
+    pub fn pulse_at(index: Num) { return #{ sequence {
         bar[index].scale = 1.1 [100ms]
         bar[index].scale = 1.0 [100ms]
-    }
+
+    } } }
 }
 "#,
         ),
@@ -433,12 +472,12 @@ import "./bars.amx"
 deck: Bars, values: {10, 20, 30}
 
 #0s
-pulseAt deck [index: 1]
+deck.pulse_at(index: 1)
 "#,
         ),
     ]);
 
-    let timeline = Timeline::build(&expanded(&program));
+    let timeline = build_expanded(&program);
     assert!(
         timeline.tracks().contains_key("deck.bar__1"),
         "indexed fn target should resolve to deck.bar__1 at build time"
@@ -446,16 +485,17 @@ pulseAt deck [index: 1]
 }
 
 #[test]
-fn load_program_custom_component_action_self_keyword() {
+fn load_program_component_method_self_keyword() {
     let program = load_scene(&[
         (
             "card.amx",
             r#"
 pub component Card {
-    fn glow {
+    pub fn glow() { return #{
         self.frame.color = accent.primary [300ms]
         self.frame.color = accent.secondary [300ms]
-    }
+
+    } }
     frame: Rect, size: (200, 120)
 }
 "#,
@@ -468,34 +508,41 @@ import "./card.amx"
 card1: Card
 
 #0s
-glow card1 [500ms]
+fit_duration(card1.glow(), 500ms)
 "#,
         ),
     ]);
 
-    let debug = expanded_debug(&program);
+    let timeline = build_expanded(&program);
     // self rewrites to the instance label; self.frame collapses to just card1
     // because frame is the root label.
-    assert!(debug.contains("\"card1\""), "self should rewrite to instance label: {debug}");
+    let root = timeline.get_entity_id("card1").expect("component root actor");
     assert!(
-        !debug.contains("\"frame\""),
-        "root label frame should be rewritten to instance label, not preserved: {debug}"
+        !timeline.tracks().contains_key("card1.frame"),
+        "root label frame should be rewritten to instance label"
     );
-    assert!(debug.contains("\"color\""), "color property should exist: {debug}");
+    let color = timeline
+        .world()
+        .style(root)
+        .color
+        .as_ref()
+        .expect("self.frame.color should create a root color track");
+    assert!(color.keyframes().len() >= 2, "the returned plan should animate root color");
 }
 
 #[test]
-fn load_program_custom_component_action_inside_sequence() {
+fn load_program_component_method_inside_sequence() {
     let program = load_scene(&[
         (
             "badge.amx",
             r#"
 pub component Badge {
-    fn bounce {
+    pub fn bounce() { return #{ sequence {
         self.scale = 1.5 [100ms]
         self.scale = 1.0 [100ms]
-    }
-    icon: Ellipse, radius: 12
+
+    } } }
+    icon: Ellipse, size: (24, 24)
 }
 "#,
         ),
@@ -508,23 +555,23 @@ badge1: Badge
 
 #0s
 sequence {
-    bounce badge1 [200ms]
-    fade-in badge1 [300ms]
+    stretch(badge1.bounce(), 2)
+    fade_in(target: badge1, duration: 300ms)
 }
 "#,
         ),
     ]);
 
-    // Build a timeline to verify sequence timing works with inlined actions.
-    let timeline = Timeline::build(&expanded(&program));
+    // Build a timeline to verify returned plans compose inside a sequence.
+    let timeline = build_expanded(&program);
     assert!(
         timeline.tracks().contains_key("badge1"),
         "badge1 should exist. Tracks: {:?}",
         timeline.tracks().keys().collect::<Vec<_>>()
     );
     let badge_id = timeline.get_entity_id("badge1").expect("badge1 entity");
-    // bounce: each inlined assignment gets the invocation [200ms] modifier,
-    // so total bounce span is 400ms (200ms + 200ms). fade-in starts at 400ms.
+    // stretch doubles each 100ms keyframe in the returned plan, so bounce
+    // spans 400ms and fade-in starts at 400ms.
     let scale = timeline.world().geometry(badge_id).scale.as_ref().expect("scale should exist");
     // At 100ms, first scale assignment is halfway through 200ms: 1.0 → 1.5 = 1.25
     assert!(
@@ -539,13 +586,13 @@ sequence {
         scale.evaluate(250)
     );
     // At 500ms, fade-in is 100ms into 300ms. An uneased entrance now defaults
-    // to `expo-out` (it decelerates into place), so a third of the way through
+    // to `expo_out` (it decelerates into place), so a third of the way through
     // the segment is already ~90% opaque rather than the ~33% a linear ramp
     // would give. See `default_easing_for`.
     let opacity = timeline.world().style(badge_id).opacity.as_ref().expect("opacity should exist");
     assert!(
         opacity.evaluate(500) > 0.8 && opacity.evaluate(500) < 1.0,
-        "Opacity should have most of the way in at 500ms under expo-out, got {}",
+        "Opacity should have most of the way in at 500ms under expo_out, got {}",
         opacity.evaluate(500)
     );
 }
@@ -870,7 +917,7 @@ fn load_program_three_slot_fills() {
         r##"
 config { colorscheme: "editorial-dark", resolution: (800, 500) }
 
-pub component Card(title: "Card") {
+pub component Card(title: Str = "Card") {
   frame: Rect, size: (200, 120), color: surface.primary, corner_radius: 8
   title_text: Text, text: title, font_size: 18, color: text.primary, at: (0, -30)
   content: Col, gap: 8, at: (0, 20) {
@@ -904,26 +951,27 @@ card_c: Card, title: "Test", anchor: scene.center, offset: (0, 0) {
 "##,
     );
 
-    let timeline = Timeline::build(&expanded(&program));
+    let timeline = build_expanded(&program);
     for card in ["card_a", "card_b", "card_c"] {
         assert!(timeline.tracks().contains_key(card), "{card} should exist");
     }
 }
 
 #[test]
-fn load_program_custom_component_action_self_nested_path() {
+fn load_program_component_method_self_nested_path() {
     let program = load_entry(
         r##"
 config { colorscheme: "editorial-dark", resolution: (800, 500) }
 
-pub component Card(title: "Card") {
+pub component Card(title: Str = "Card") {
   frame: Rect, size: (200, 120), color: surface.primary, corner_radius: 8
   title_text: Text, text: title, font_size: 18, color: text.primary, at: (0, -30)
 
-  fn highlight {
+  pub fn highlight() { return #{
     self.frame.color = accent.warning
     self.title_text.color = accent.danger
-  }
+
+  } }
 }
 
 #0s
@@ -932,11 +980,11 @@ scene.background_color = "#1a1a2e"
 card_a: Card, title: "Design", anchor: scene.center, offset: (-120, 0)
 
 #1s
-highlight card_a
+card_a.highlight()
 "##,
     );
 
-    let timeline = Timeline::build(&expanded(&program));
+    let timeline = build_expanded(&program);
     // 'frame' is the root label, so it becomes just 'card_a'.
     assert!(timeline.tracks().contains_key("card_a"), "card_a (root frame) should exist");
     assert!(
@@ -963,7 +1011,7 @@ always {
 "##,
     );
 
-    let timeline = Timeline::build(&expanded(&program));
+    let timeline = build_expanded(&program);
     assert!(timeline.tracks().contains_key("box"), "box should exist");
 }
 
@@ -973,7 +1021,7 @@ fn load_program_from_memory_sources_resolves_imports() {
     graph.upsert_source(
         PathBuf::from("virtual:///components.amx"),
         r#"
-pub component MetricCard(title: "Throughput") {
+pub component MetricCard(title: Str = "Throughput") {
     label: Text, text: title
 }
 "#,
@@ -1002,7 +1050,7 @@ config { colorscheme: "editorial-dark", resolution: (640, 360) }
 a: Rect, size: (100, 100), transform: (1, 0.5, 0, 1, 0, 0), color: accent.primary, at: (200, 150)
 
 #0s
-fade-in a [0ms]
+fade_in(target: a, duration: 0ms)
 "#,
     );
 
@@ -1013,8 +1061,9 @@ fade-in a [0ms]
         "transform declaration should typecheck: {type_diagnostics:?}"
     );
     let ast = expanded(&program);
-    let options = BuildOptions::default();
-    let report = BuildTarget::build_with_options(&ast, &program.namespaces, Some(entry), options);
+    let options = BuildOptions::default().with_expanded(&ast);
+    let report =
+        BuildTarget::build_with_options(&ast.statements, &program.namespaces, Some(entry), options);
     assert!(
         report.diagnostics.is_empty(),
         "transform declaration should build: {:?}",
@@ -1039,7 +1088,7 @@ pub component Box() {
 b: Box, at: (320, 180), opacity: 0.5
 "#,
     );
-    let timeline = Timeline::build(&expanded(&program));
+    let timeline = build_expanded(&program);
     let mut filter_backend = None;
     let frame = timeline.evaluate_program_with_debug(
         0.0,

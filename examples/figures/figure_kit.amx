@@ -50,17 +50,17 @@ cell[i]: Rect, size: (200, 40), corner_radius: 8, color: accent.primary, opacity
 card: InfoCard, title: "d_model = 768", sub: "Float32 coordinates", at: (1080, 520), opacity: 0
 
 #0.1s
-  fade-in head [320ms, ease: expo-out]
+  fade_in(target: head, duration: 0.32s, ease: expo_out)
 
 #1s
-  fade-in vocab [360ms, ease: expo-out]
+  fade_in(target: vocab, duration: 0.36s, ease: expo_out)
 
 #2.2s
-  fade-in rows [360ms, ease: expo-out]
+  fade_in(target: rows, duration: 0.36s, ease: expo_out)
 
 #3.4s
-  fade-in card [320ms, ease: expo-out]
-  pulse card [500ms, intensity: 0.03, delay: 300ms]
+  fade_in(target: card, duration: 0.32s, ease: expo_out)
+  pulse(target: card, duration: 0.5s, intensity: 0.03, delay: 0.3s)
 
 // ── Rest ────────────────────────────────────────────────────────────
 #4.6s

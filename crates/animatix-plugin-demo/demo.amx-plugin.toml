@@ -52,31 +52,50 @@ display_name = "Image URL"
 group = "Pulse"
 help = "Optional cached image URL stamped over the pulse"
 
-[[actions]]
+[[callables]]
+namespace = "demo"
 name = "throb"
-category = "Native"
-description = "Pulse the glow property of each target up over 500ms"
-params = []
+return_type = "Timeline"
+phase = "Build"
+category = "Effects"
+help = "Return a local glow pulse plan for one Pulse actor."
 
-[[actions.modifiers]]
+[[callables.params]]
+name = "target"
+type = "Actor"
+help = "Pulse actor to animate."
+
+[[callables.params]]
+name = "duration"
+type = "Duration"
+default = 0.5
+optional = true
+help = "Plan duration in seconds."
+
+[[callables.params]]
 name = "strength"
-description = "Peak glow reached by the throb"
 type = "Num"
+default = 1.0
+optional = true
+help = "Peak glow reached by the throb."
 
-[[functions]]
+[[callables]]
+namespace = "demo"
 name = "scale"
 return_type = "Num"
-help = "Returns value * factor"
+phase = "BuildAndFrame"
+category = "Math"
+help = "Returns value multiplied by factor."
 
-[[functions.params]]
+[[callables.params]]
 name = "value"
-description = "Number to scale"
 type = "Num"
+help = "Number to scale."
 
-[[functions.params]]
+[[callables.params]]
 name = "factor"
-description = "Scale factor"
 type = "Num"
+help = "Scale factor."
 
 [[services]]
 name = "demo.pulse"

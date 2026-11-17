@@ -8,51 +8,46 @@
 //
 // House-style §1: floor, head, caption, bars and metrics are authored opaque, so
 // frame 0 is the solved picture. §5: value labels 18, title 48, chips 28.
-
 import "../../../examples/lib/theme.amx"
+
 import "../../../examples/lib/stage.amx"
 
-config { colorscheme: "coral", resolution: (1280, 720), duration: 7.0 }
+config { colorscheme: "coral", resolution: (1280, 720), duration: 7 }
 
 let sorted = {5, 12, 17, 31, 42, 68, 76, 93}
 
 // ── stage ───────────────────────────────────────────────────────────
 floor: StageFloor, glow: 1.25, grid: 1.4
 
-head_kicker: Text, text: "FIG 04 · THE RESULT", font_size: 18, font_weight: 600,
-  color: accent.primary, text_align: "left", text_anchor: "left",
-  anchor: scene.top_left, offset: (96, 44), opacity: 1
-head_title: Text, text: "The row, ordered", font_size: 48, font_weight: "bold",
-  color: text.primary, text_align: "left", text_anchor: "left",
-  anchor: scene.top_left, offset: (96, 96), opacity: 1
-head_rule: Rect, size: (96, 4), color: accent.primary,
-  anchor: scene.top_left, offset: (96, 150), opacity: 1
+head_kicker: Text, text: "FIG 04 · THE RESULT", font_size: 18, font_weight: 600, color: accent.primary, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (96, 44), opacity: 1
+
+head_title: Text, text: "The row, ordered", font_size: 48, font_weight: "bold", color: text.primary, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (96, 96), opacity: 1
+
+head_rule: Rect, size: (96, 4), color: accent.primary, anchor: scene.top_left, offset: (96, 150), opacity: 1
 
 // ── the sorted row ──────────────────────────────────────────────────
 baseline: Rect, size: (1248, 2), color: stroke.default, at: (640, 580), opacity: 0.8
-base_glow: Rect, size: (1248, 16), color: accent.primary, blend: "screen",
-  at: (640, 586), opacity: 0.16
+
+base_glow: Rect, size: (1248, 16), color: accent.primary, blend: "screen", at: (640, 586), opacity: 0.16
 
 for v, i in sorted {
-  bar[i]: Rect, size: (104, v * 2.6), corner_radius: 3,
-    stroke: scene.background, stroke_width: 2,
-    fill_gradient: linear(0, {accent.primary * 0.18, accent.primary}),
-    at: (268 + i * 104, 578.5 - v * 1.3), opacity: 1
-  lab[i]: Text, text: format("{:.0}", v), font_size: 18, color: text.secondary,
-    at: (268 + i * 104, 614), opacity: 1
+  bar[i]: Rect, size: (104, v * 2.6), corner_radius: 3, stroke: scene.background, stroke_width: 2, fill_gradient: linear(0, {accent.primary * 0.18, accent.primary}), at: (268 + i * 104, 578.5 - v * 1.3), opacity: 1
+  lab[i]: Text, text: format("{:.0}", v), font_size: 18, color: text.secondary, at: (268 + i * 104, 614), opacity: 1
 }
 
 // The verdict: a check glyph and one word, top-right, clear of the head band.
-tick_mark: Path, icon: "check", stroke: accent.success, stroke_width: 3,
-  fill_opacity: 0.0, at: (1090, 320), scale: 2.2, opacity: 1
-verdict: Text, text: "SORTED", font_size: 30, font_weight: 600, font_family: "mono",
-  color: accent.success, text_anchor: "left", at: (1124, 322), opacity: 1
+tick_mark: Path, icon: "check", stroke: accent.success, stroke_width: 3, fill_opacity: 0, at: (1090, 320), scale: 2.2, opacity: 1
+
+verdict: Text, text: "SORTED", font_size: 30, font_weight: 600, font_family: "mono", color: accent.success, text_anchor: "left", at: (1124, 322), opacity: 1
 
 // ── the metrics ─────────────────────────────────────────────────────
 // Four chips in the band above the bars, clear of the caption band below.
 cmp_chip: Readout, label: "COMPARISONS", value: "28", at: (250, 205)
+
 swap_chip: Readout, label: "SWAPS", value: "15", at: (520, 205)
+
 time_chip: Readout, label: "TIME", value: "O(n²)", at: (790, 205)
+
 space_chip: Readout, label: "SPACE", value: "O(1)", at: (1060, 205)
 
 cap1: Caption, text: "Act III · Twenty-eight comparisons, fifteen swaps, one monotonic row.", tag: "finale.amx", opacity: 1
@@ -60,14 +55,13 @@ cap1: Caption, text: "Act III · Twenty-eight comparisons, fifteen swaps, one mo
 // ── payoff & rest ───────────────────────────────────────────────────
 // The bloom sweeps the row as the camera pushes; both settle back so the rest
 // frame is the whole solved picture (house-style §2, §7).
-sweep: Rect, size: (900, 380), at: (-200, 420), blend: "screen", opacity: 0,
-  fill_gradient: linear(90, {(0%, accent.success * 0.0), (50%, accent.success * 0.45), (100%, accent.success * 0.0)})
+sweep: Rect, size: (900, 380), at: (-200, 420), blend: "screen", opacity: 0, fill_gradient: linear(90, {(0%, accent.success * 0), (50%, accent.success * 0.45), (100%, accent.success * 0)})
 
 #0.2s
-sweep.opacity = 0.6 [260ms, ease: expo-out]
-sweep.at = (1520, 420) [1500ms, ease: ease-out]
-camera.zoom = 1.045 [1300ms, ease: ease-in-out]
+  sweep.opacity = 0.6 [0.26s, ease: expo_out]
+  sweep.at = (1520, 420) [1.5s, ease: ease_out]
+  camera.zoom = 1.045 [1.3s, ease: ease_in_out]
 
-#2.0s
-sweep.opacity = 0 [700ms, delay: 500ms, ease: ease-in-out]
-camera.zoom = 1.0 [1300ms, delay: 400ms, ease: ease-in-out]
+#2s
+  sweep.opacity = 0 [0.7s, delay: 0.5s, ease: ease_in_out]
+  camera.zoom = 1 [1.3s, delay: 0.4s, ease: ease_in_out]

@@ -202,8 +202,8 @@ fn ir_lowering_supports_construct_expression_forms() {
 #[test]
 fn ir_matches_evaluate_expr_for_supported_subset() {
     let expr = Expr::Conditional(
-        Box::new(bin(Expr::Call("sin".to_string(), vec![ident("t")]), BinaryOp::Gt, num(0.0))),
-        Box::new(Expr::Call(
+        Box::new(bin(Expr::call("sin".to_string(), vec![ident("t")]), BinaryOp::Gt, num(0.0))),
+        Box::new(Expr::call(
             "format".to_string(),
             vec![Expr::Str("pulse={}".to_string()), ident("pulse")],
         )),
@@ -225,19 +225,19 @@ fn ir_matches_evaluate_expr_for_supported_subset() {
 #[test]
 fn ir_matches_ast_for_extended_builtins() {
     let cases: Vec<Expr> = vec![
-        Expr::Call("signum".to_string(), vec![num(-2.5)]),
-        Expr::Call("fract".to_string(), vec![num(3.75)]),
-        Expr::Call("hypot".to_string(), vec![num(3.0), num(4.0)]),
-        Expr::Call("pow".to_string(), vec![num(2.0), num(10.0)]),
-        Expr::Call("rem".to_string(), vec![num(7.0), num(4.0)]),
-        Expr::Call("step".to_string(), vec![num(1.0), num(0.5)]),
-        Expr::Call("round".to_string(), vec![num(2.6)]),
-        Expr::Call("seeded_rand".to_string(), vec![num(42.0)]),
-        Expr::Call("factorial".to_string(), vec![num(5.0)]),
-        Expr::Call("sum".to_string(), vec![Expr::List(vec![num(1.0), num(2.0), num(3.5)])]),
+        Expr::call("signum".to_string(), vec![num(-2.5)]),
+        Expr::call("fract".to_string(), vec![num(3.75)]),
+        Expr::call("hypot".to_string(), vec![num(3.0), num(4.0)]),
+        Expr::call("pow".to_string(), vec![num(2.0), num(10.0)]),
+        Expr::call("rem".to_string(), vec![num(7.0), num(4.0)]),
+        Expr::call("step".to_string(), vec![num(1.0), num(0.5)]),
+        Expr::call("round".to_string(), vec![num(2.6)]),
+        Expr::call("seeded_rand".to_string(), vec![num(42.0)]),
+        Expr::call("factorial".to_string(), vec![num(5.0)]),
+        Expr::call("sum".to_string(), vec![Expr::List(vec![num(1.0), num(2.0), num(3.5)])]),
         // >4 numeric items stay a Value::List (not a Vec4), so the sum arm
         // actually takes the list branch through the IR too.
-        Expr::Call("sum".to_string(), vec![Expr::List((0..8).map(|i| num(i as f64)).collect())]),
+        Expr::call("sum".to_string(), vec![Expr::List((0..8).map(|i| num(i as f64)).collect())]),
     ];
 
     for expr in cases {
@@ -252,13 +252,12 @@ fn ir_matches_ast_for_extended_builtins() {
 
 #[test]
 fn factorial_and_sum_reject_invalid_args() {
-    // Both paths must surface the same errors for bad SCALAR arguments (an
-    // IR silent-degradation to CallEnv would turn these into UndefinedVariable
-    // instead of the builtin's own type error).
+    // Both paths must surface the same errors for bad SCALAR arguments; an
+    // incorrect lowering must not bypass the builtin's own type validation.
     let cases: Vec<Expr> = vec![
-        Expr::Call("factorial".to_string(), vec![num(-1.0)]),
-        Expr::Call("factorial".to_string(), vec![num(2.5)]),
-        Expr::Call("factorial".to_string(), vec![num(171.0)]),
+        Expr::call("factorial".to_string(), vec![num(-1.0)]),
+        Expr::call("factorial".to_string(), vec![num(2.5)]),
+        Expr::call("factorial".to_string(), vec![num(171.0)]),
     ];
     for expr in cases {
         let ast_result = evaluate_expr(&expr, &Environment::new());
@@ -300,7 +299,7 @@ fn sum_mixed_type_list_errors_on_both_paths() {
     // tuples (MakeVec, numeric), so both paths keep the Str and sum()
     // rejects it identically.
     let expr =
-        Expr::Call("sum".to_string(), vec![Expr::List(vec![num(1.0), Expr::Str("x".to_string())])]);
+        Expr::call("sum".to_string(), vec![Expr::List(vec![num(1.0), Expr::Str("x".to_string())])]);
     assert!(evaluate_expr(&expr, &Environment::new()).is_err());
 
     let compiled = compile_expr(&expr).expect("builtin should compile");
@@ -347,11 +346,11 @@ fn brace_list_preserves_elements_through_ir() {
 #[test]
 fn ir_matches_ast_for_environment_functions() {
     let cases: Vec<Expr> = vec![
-        Expr::Call("rgb".to_string(), vec![num(255.0), num(0.0), num(128.0)]),
-        Expr::Call("rgba".to_string(), vec![num(1.0), num(0.5), num(0.0), num(0.25)]),
-        Expr::Call("vec2".to_string(), vec![num(3.0), num(4.0)]),
-        Expr::Call("hsv".to_string(), vec![num(120.0), num(1.0), num(1.0)]),
-        Expr::Call("seeded_rand".to_string(), vec![num(42.0)]),
+        Expr::call("rgb".to_string(), vec![num(255.0), num(0.0), num(128.0)]),
+        Expr::call("rgba".to_string(), vec![num(1.0), num(0.5), num(0.0), num(0.25)]),
+        Expr::call("vec2".to_string(), vec![num(3.0), num(4.0)]),
+        Expr::call("hsv".to_string(), vec![num(120.0), num(1.0), num(1.0)]),
+        Expr::call("seeded_rand".to_string(), vec![num(42.0)]),
     ];
 
     for expr in cases {
@@ -503,9 +502,16 @@ fn modifier_ir_executes_construct_expr() {
 
 #[test]
 fn ir_reactive_runtime_executes() {
-    let expanded = load_fixture_program(REACTIVE_FIXTURE);
-    let timeline = Timeline::build(&expanded);
-    let ir = lower_modifier_ir(&expanded).expect("IR lowering should succeed");
+    let (program, expanded) = load_fixture_program(REACTIVE_FIXTURE);
+    let timeline = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        animatix::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    )
+    .output;
+    let ir = lower_modifier_ir(&expanded.statements).expect("IR lowering should succeed");
 
     for time_ms in [500_u64, 1500_u64] {
         let mut overrides = HashMap::new();
@@ -735,9 +741,9 @@ fn ir_truthiness_handles_bool_literals() {
     let mut env = Environment::new();
     let mut overrides = ModifierOverrides::default();
     execute_modifier_ir(&program, &mut env, &mut overrides).expect("execute");
-    assert_eq!(env.get("n"), Some(Value::Num(0.0)));
-    assert_eq!(env.get("and"), Some(Value::Num(0.0)));
-    assert_eq!(env.get("or"), Some(Value::Num(1.0)));
+    assert_eq!(env.get("n"), Some(Value::Bool(false)));
+    assert_eq!(env.get("and"), Some(Value::Bool(false)));
+    assert_eq!(env.get("or"), Some(Value::Bool(true)));
 }
 
 #[test]
@@ -816,14 +822,16 @@ fn indexed_dotted_targets_keep_prefix_and_match_fast_and_generic_execution() {
     );
 }
 
-fn load_fixture_program(source: &str) -> Vec<Stmt> {
+fn load_fixture_program(
+    source: &str,
+) -> (animatix_syntax::module::LoadedProgram, animatix_syntax::module::ExpandedProgram) {
     let temp_dir = tempfile::tempdir().expect("create temp fixture directory");
     let temp_path = temp_dir.path().join("animatix_test_reactive.amx");
     fs::write(&temp_path, source).expect("write temp fixture should succeed");
-    ModuleGraph::new()
-        .load_program(&temp_path)
-        .expect("program should load")
-        .expand_components(&mut Vec::new())
+    let mut graph = ModuleGraph::new();
+    let program = graph.load_program(&temp_path).expect("program should load");
+    let expanded = program.expand_components(&mut Vec::new());
+    (program, expanded)
 }
 
 #[test]
@@ -850,14 +858,14 @@ fn letchain_ir_matches_ast() {
             Box::new(E::Binary(Box::new(E::Ident("a".into())), BO::Mul, Box::new(E::Num(3.0)))),
         )),
     );
-    let call = E::Call("apply".to_string(), vec![expr.clone(), E::Num(4.0)]);
+    let call = E::call("apply".to_string(), vec![expr.clone(), E::Num(4.0)]);
     // No apply builtin exists — invoke the closure directly via the env: bind
     // it to a name and call it.
     let mut env = Environment::new();
     load_standard_library(&mut env);
     let closure_value = evaluate_expr(&expr, &env).expect("closure evaluates");
     env.set("my_fn", closure_value);
-    let call_expr = E::Call("my_fn".to_string(), vec![E::Num(4.0)]);
+    let call_expr = E::call("my_fn".to_string(), vec![E::Num(4.0)]);
 
     // Tree-walker path.
     let ast_value = evaluate_expr(&call_expr, &env).expect("ast eval");
@@ -875,16 +883,16 @@ fn letchain_ir_matches_ast() {
 fn noise_family_and_oklab_lerp_agree_between_ir_and_ast() {
     let color = |r: f64, g: f64, b: f64| {
         // `rgb()` scales by 1/255, so pass 0–1 fractions through as byte values.
-        Expr::Call("rgb".to_string(), vec![num(r * 255.0), num(g * 255.0), num(b * 255.0)])
+        Expr::call("rgb".to_string(), vec![num(r * 255.0), num(g * 255.0), num(b * 255.0)])
     };
     let cases = vec![
-        Expr::Call("noise".to_string(), vec![num(1.5)]),
-        Expr::Call("noise2".to_string(), vec![num(1.5), num(-2.0)]),
-        Expr::Call("seeded_noise".to_string(), vec![num(7.0), num(3.25)]),
-        Expr::Call("seeded_noise2".to_string(), vec![num(7.0), num(3.25), num(9.0)]),
-        Expr::Call("fbm".to_string(), vec![num(1.5), num(4.0)]),
-        Expr::Call("seeded_fbm".to_string(), vec![num(7.0), num(1.5), num(3.0)]),
-        Expr::Call(
+        Expr::call("noise".to_string(), vec![num(1.5)]),
+        Expr::call("noise2".to_string(), vec![num(1.5), num(-2.0)]),
+        Expr::call("seeded_noise".to_string(), vec![num(7.0), num(3.25)]),
+        Expr::call("seeded_noise2".to_string(), vec![num(7.0), num(3.25), num(9.0)]),
+        Expr::call("fbm".to_string(), vec![num(1.5), num(4.0)]),
+        Expr::call("seeded_fbm".to_string(), vec![num(7.0), num(1.5), num(3.0)]),
+        Expr::call(
             "lerp_color_oklab".to_string(),
             vec![color(1.0, 0.0, 0.0), color(0.0, 1.0, 0.0), num(0.5)],
         ),
@@ -905,8 +913,8 @@ fn noise_family_and_oklab_lerp_agree_between_ir_and_ast() {
     let eval = |expr: &Expr| evaluate_expr(expr, &env).expect("eval");
 
     // Noise is deterministic and bounded.
-    let n = eval(&Expr::Call("noise".to_string(), vec![num(1.5)]));
-    let n_again = eval(&Expr::Call("noise".to_string(), vec![num(1.5)]));
+    let n = eval(&Expr::call("noise".to_string(), vec![num(1.5)]));
+    let n_again = eval(&Expr::call("noise".to_string(), vec![num(1.5)]));
     assert_eq!(n, n_again, "noise must be pure");
     let Value::Num(n) = n else {
         panic!("noise must return Num, got {n:?}")
@@ -914,8 +922,8 @@ fn noise_family_and_oklab_lerp_agree_between_ir_and_ast() {
     assert!((0.0..=1.0).contains(&n), "noise in [0,1], got {n}");
 
     // More octaves change the mix but stay in range.
-    let f3 = eval(&Expr::Call("fbm".to_string(), vec![num(1.5), num(3.0)]));
-    let f6 = eval(&Expr::Call("fbm".to_string(), vec![num(1.5), num(6.0)]));
+    let f3 = eval(&Expr::call("fbm".to_string(), vec![num(1.5), num(3.0)]));
+    let f6 = eval(&Expr::call("fbm".to_string(), vec![num(1.5), num(6.0)]));
     assert_ne!(f3, f6, "octave count must matter");
     for v in [f3, f6] {
         let Value::Num(v) = v else {
@@ -926,9 +934,9 @@ fn noise_family_and_oklab_lerp_agree_between_ir_and_ast() {
 
     // OKLab lerp: achromatic mixes stay achromatic and between; a saturated
     // midpoint stays in gamut (the raw sRGB lerp of red→green is muddy olive).
-    let white = Expr::Call("rgb".to_string(), vec![num(255.0); 3]);
-    let black = Expr::Call("rgb".to_string(), vec![num(0.0); 3]);
-    let gray = eval(&Expr::Call("lerp_color_oklab".to_string(), vec![white, black, num(0.5)]));
+    let white = Expr::call("rgb".to_string(), vec![num(255.0); 3]);
+    let black = Expr::call("rgb".to_string(), vec![num(0.0); 3]);
+    let gray = eval(&Expr::call("lerp_color_oklab".to_string(), vec![white, black, num(0.5)]));
     let Value::Color(gray) = gray else {
         panic!("lerp_color_oklab must return Color, got {gray:?}")
     };
@@ -942,7 +950,7 @@ fn noise_family_and_oklab_lerp_agree_between_ir_and_ast() {
         gray[0]
     );
 
-    let mid = eval(&Expr::Call(
+    let mid = eval(&Expr::call(
         "lerp_color_oklab".to_string(),
         vec![color(1.0, 0.0, 0.0), color(0.0, 1.0, 0.0), num(0.5)],
     ));
@@ -960,7 +968,7 @@ fn noise_family_and_oklab_lerp_agree_between_ir_and_ast() {
         mid[0] > 0.65 && mid[1] > 0.5,
         "red→green OKLab midpoint must stay bright, got {mid:?}"
     );
-    let srgb_mid = eval(&Expr::Call(
+    let srgb_mid = eval(&Expr::call(
         "lerp_color".to_string(),
         vec![color(1.0, 0.0, 0.0), color(0.0, 1.0, 0.0), num(0.5)],
     ));
@@ -973,7 +981,7 @@ fn noise_family_and_oklab_lerp_agree_between_ir_and_ast() {
     );
 
     // Endpoints survive the round trip exactly (up to encoding error).
-    let back = eval(&Expr::Call(
+    let back = eval(&Expr::call(
         "lerp_color_oklab".to_string(),
         vec![color(1.0, 0.0, 0.0), color(0.0, 1.0, 0.0), num(0.0)],
     ));
@@ -991,11 +999,11 @@ fn color_builtins_accept_color_strings() {
     let lerp = |a: Expr, b: Expr| {
         let mut env = Environment::new();
         load_standard_library(&mut env);
-        evaluate_expr(&Expr::Call("lerp_color_oklab".to_string(), vec![a, b, num(0.5)]), &env)
+        evaluate_expr(&Expr::call("lerp_color_oklab".to_string(), vec![a, b, num(0.5)]), &env)
             .expect("lerp_color_oklab should evaluate")
     };
     let rgb = |r: f64, g: f64, b: f64| {
-        Expr::Call("rgb".to_string(), vec![num(r * 255.0), num(g * 255.0), num(b * 255.0)])
+        Expr::call("rgb".to_string(), vec![num(r * 255.0), num(g * 255.0), num(b * 255.0)])
     };
 
     let from_strings = lerp(Expr::Str("#ff0000".to_string()), Expr::Str("#00ff00".to_string()));
@@ -1023,7 +1031,7 @@ fn color_builtins_accept_color_strings() {
     let mut env = Environment::new();
     load_standard_library(&mut env);
     let bad = evaluate_expr(
-        &Expr::Call(
+        &Expr::call(
             "lerp_color_oklab".to_string(),
             vec![
                 Expr::Str("not-a-color".to_string()),
@@ -1048,11 +1056,11 @@ fn curve_at_and_curve_smooth_agree_between_ir_and_ast() {
     ]);
 
     let cases = vec![
-        Expr::Call("curve_at".to_string(), vec![curve_expr.clone(), num(0.5)]),
-        Expr::Call("curve_at".to_string(), vec![curve_expr.clone(), num(2.0)]),
-        Expr::Call("curve_at".to_string(), vec![curve_expr.clone(), num(-1.0)]),
-        Expr::Call("curve_smooth".to_string(), vec![curve_expr.clone(), num(1.5), num(0.6)]),
-        Expr::Call("curve_smooth".to_string(), vec![curve_expr, num(2.0), num(0.0)]),
+        Expr::call("curve_at".to_string(), vec![curve_expr.clone(), num(0.5)]),
+        Expr::call("curve_at".to_string(), vec![curve_expr.clone(), num(2.0)]),
+        Expr::call("curve_at".to_string(), vec![curve_expr.clone(), num(-1.0)]),
+        Expr::call("curve_smooth".to_string(), vec![curve_expr.clone(), num(1.5), num(0.6)]),
+        Expr::call("curve_smooth".to_string(), vec![curve_expr, num(2.0), num(0.0)]),
     ];
 
     for expr in &cases {

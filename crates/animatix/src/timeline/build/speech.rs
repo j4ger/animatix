@@ -27,9 +27,17 @@ pub(super) fn needs_speech_transcript_prepass(ast: &[Stmt]) -> bool {
     }
 
     impl<'ast> animatix_syntax::visit::AstVisitor<'ast> for Finder {
-        fn visit_expr(&mut self, _expr: &'ast crate::ast::Expr) {
-            // Expressions cannot declare an actor or a speech-anchored keyframe;
-            // skip large plot-data/closure ASTs on the ordinary build path.
+        fn visit_expr(&mut self, expr: &'ast crate::ast::Expr) {
+            match expr {
+                crate::ast::Expr::Timeline(plan)
+                | crate::ast::Expr::Sequence(plan)
+                | crate::ast::Expr::Stagger { plan, .. } => {
+                    for statement in &plan.statements {
+                        self.visit_stmt(statement);
+                    }
+                },
+                _ => animatix_syntax::visit::walk_expr(self, expr),
+            }
         }
 
         fn visit_stmt(&mut self, stmt: &'ast Stmt) {
@@ -55,7 +63,8 @@ pub(super) fn needs_speech_transcript_prepass(ast: &[Stmt]) -> bool {
                 },
                 InlineItem::ForLoop { .. }
                 | InlineItem::SlotFill { .. }
-                | InlineItem::SlotMarker => {
+                | InlineItem::SlotMarker
+                | InlineItem::Expr(..) => {
                     animatix_syntax::visit::walk_inline_item(self, item);
                     return;
                 },

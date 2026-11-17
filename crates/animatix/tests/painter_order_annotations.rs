@@ -18,8 +18,14 @@ fn build_example() -> Timeline {
     let type_diagnostics = program.typecheck();
     assert!(type_diagnostics.is_empty(), "type diagnostics: {type_diagnostics:?}");
 
-    let ast = program.expand_components(&mut Vec::new());
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let expanded = program.expand_components(&mut Vec::new());
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        animatix::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
     assert!(report.diagnostics.is_empty(), "build diagnostics: {:?}", report.diagnostics);
     report.output
 }

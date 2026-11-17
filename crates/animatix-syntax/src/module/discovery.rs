@@ -1,6 +1,7 @@
 //! AST discovery helpers for collecting definitions and imports.
 
 use std::collections::HashMap;
+use std::path::Path;
 
 use super::{ComponentDef, Stmt};
 use crate::visit::{AstFolder, walk_fold_stmt};
@@ -16,7 +17,9 @@ pub(super) fn collect_imports(statements: &[Stmt]) -> Vec<(String, Option<String
 }
 
 /// Drops `Stmt::Import` from a statement tree.
-struct ImportStripper;
+struct ImportStripper {
+    preserve_keyframe_spans: bool,
+}
 
 impl AstFolder for ImportStripper {
     fn fold_stmts(&mut self, stmts: Vec<Stmt>) -> Vec<Stmt> {
@@ -37,7 +40,7 @@ impl AstFolder for ImportStripper {
             Stmt::Scene { .. } | Stmt::Block { .. } => stmt,
             other => {
                 let mut folded = walk_fold_stmt(self, other);
-                clear_span_for_rebuilt(&mut folded);
+                clear_span_for_rebuilt(&mut folded, self.preserve_keyframe_spans);
                 folded
             },
         }
@@ -58,11 +61,14 @@ fn drops_when_empty(stmt: &Stmt) -> bool {
 
 /// Rebuilt containers lose their position data, matching the previous
 /// hand-written rebuild so diagnostics never point at stale offsets.
-fn clear_span_for_rebuilt(stmt: &mut Stmt) {
+fn clear_span_for_rebuilt(stmt: &mut Stmt, preserve_keyframe_spans: bool) {
     match stmt {
-        Stmt::Keyframe { span, .. }
-        | Stmt::RelativeKeyframe { span, .. }
-        | Stmt::Sequence { span, .. }
+        Stmt::Keyframe { span, .. } | Stmt::RelativeKeyframe { span, .. }
+            if !preserve_keyframe_spans =>
+        {
+            *span = None
+        },
+        Stmt::Sequence { span, .. }
         | Stmt::Stagger { span, .. }
         | Stmt::Always { span, .. }
         | Stmt::ComponentDef(_, span)
@@ -76,10 +82,24 @@ fn clear_span_for_rebuilt(stmt: &mut Stmt) {
 
 /// Remove imports from a statement, dropping a container left empty.
 pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
+    strip_imports_with_keyframe_spans(stmt, false)
+}
+
+/// Strip imports from an entry file while retaining its keyframe locations.
+/// Imported statements are kept spanless when flattened because their source
+/// coordinates belong to a different file.
+pub(super) fn strip_imports_preserving_keyframe_spans(stmt: &Stmt) -> Option<Stmt> {
+    strip_imports_with_keyframe_spans(stmt, true)
+}
+
+fn strip_imports_with_keyframe_spans(stmt: &Stmt, preserve_keyframe_spans: bool) -> Option<Stmt> {
     if matches!(stmt, Stmt::Import { .. }) {
         return None;
     }
-    let folded = ImportStripper.fold_stmt(stmt.clone());
+    let folded = ImportStripper {
+        preserve_keyframe_spans,
+    }
+    .fold_stmt(stmt.clone());
     (!drops_when_empty(&folded)).then_some(folded)
 }
 
@@ -130,6 +150,7 @@ pub fn collect_scenes_from_stmts(stmts: &[Stmt]) -> HashMap<String, super::Scene
                     body: body.clone(),
                     file_prelude: prelude.clone(),
                     span: *span,
+                    definition_path: std::path::PathBuf::new(),
                 },
             );
         }
@@ -139,29 +160,35 @@ pub fn collect_scenes_from_stmts(stmts: &[Stmt]) -> HashMap<String, super::Scene
 
 /// Collect timeline-function templates from a component definition body.
 /// Returns a map of fn_name → function template.
-pub fn collect_component_actions(
+pub fn collect_component_functions(
     definition: &ComponentDef,
+    definition_path: &Path,
 ) -> HashMap<String, crate::module::FnTemplate> {
-    let mut actions = HashMap::new();
+    let mut functions = HashMap::new();
     for stmt in &definition.body {
         if let Stmt::FnDecl {
+            is_pub,
             name,
             params,
             return_type,
             body,
-            ..
+            span,
         } = stmt
         {
-            actions.insert(
+            functions.insert(
                 name.clone(),
                 crate::module::FnTemplate {
                     params: params.clone(),
                     return_type: return_type.clone(),
                     body: body.clone(),
+                    is_pub: *is_pub,
+                    definition_path: definition_path.to_path_buf(),
+                    span: *span,
                     instance_index: None,
+                    component_captures: Vec::new(),
                 },
             );
         }
     }
-    actions
+    functions
 }

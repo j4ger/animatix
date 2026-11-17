@@ -39,6 +39,7 @@ impl Analyzer {
             occurrences: Vec::new(),
             symbols: SymbolTable::default(),
             import_symbols: None,
+            import_namespaces: None,
             type_diagnostics: Vec::new(),
             lint_config: diagnostics::LintConfig::default(),
             extension_manifest: manifest,
@@ -105,10 +106,11 @@ impl Analyzer {
             return;
         };
         let mut graph = animatix_syntax::module::ModuleGraph::new();
-        if graph.load_program(&path).is_err() {
+        let Ok(program) = graph.load_program(&path) else {
             return;
-        }
+        };
         self.import_symbols = Some(graph.resolve_symbols(&path));
+        self.import_namespaces = Some(program.namespaces);
         self.rebuild_symbols();
     }
 
@@ -116,6 +118,7 @@ impl Analyzer {
     /// disk) and rebuild without them.
     pub fn clear_import_symbols(&mut self) {
         self.import_symbols = None;
+        self.import_namespaces = None;
         self.rebuild_symbols();
     }
 
@@ -163,13 +166,16 @@ impl Analyzer {
         let line_index = animatix_syntax::token::LineIndex::new(source);
 
         // Build the symbol table: one declaration pass, one reference pass.
-        let table = if let Some(ref stmts) = self.ast {
+        let mut table = if let Some(ref stmts) = self.ast {
             let mut table = SymbolTable::build(stmts);
             Self::enrich_positions(occurrences, &self.tokens, &line_index, &mut table);
             table
         } else {
             SymbolTable::default()
         };
+        if let Some(resolved) = &self.import_symbols {
+            table.merge(resolved);
+        }
 
         // Cache lint config from source comments
         self.lint_config = diagnostics::LintConfig::from_source(source);
@@ -177,22 +183,38 @@ impl Analyzer {
         // Run type checker
         self.type_diagnostics = if let Some(ref stmts) = self.ast {
             let components = Self::build_component_registry(&table);
-            let module_fns = std::collections::HashMap::new();
+            let module_fns = animatix_syntax::module::ModuleGraph::collect_module_fns(stmts);
             let mut env = animatix_syntax::typecheck::TypeEnv::new(&components, &module_fns);
-            let syntax_diagnostics = env.check_statements(stmts);
-            syntax_diagnostics
+            if let Some(namespaces) = &self.import_namespaces {
+                env.register_module_aliases(namespaces);
+            }
+            for callable in &self.extension_manifest.callables {
+                env.register_callable(callable);
+            }
+            let mut diagnostics = env
+                .check_statements(stmts)
                 .into_iter()
                 .map(|d| diagnostics::convert_syntax_diagnostic_with_index(source, &line_index, d))
-                .collect()
+                .collect::<Vec<_>>();
+            diagnostics.extend(diagnostics::collect_callable_diagnostics(
+                stmts,
+                &table,
+                source,
+                &self.tokens,
+                &self.extension_manifest.callables,
+                true,
+            ));
+            diagnostics
         } else {
             Vec::new()
         };
 
-        let mut table = table;
-        // Re-merge cached import symbols so rebuilds triggered by edits or
-        // manifest updates keep the cross-file view.
-        if let Some(resolved) = &self.import_symbols {
-            table.merge(resolved);
+        // Standard callables are always prelude-visible without a manifest;
+        // keep their canonical qualified and unqualified names available to
+        // completion, hover, and typo fixes from the shared descriptor table.
+        for callable in animatix_std::callable::callables() {
+            table.functions.insert(callable.name.clone());
+            table.functions.insert(callable.qualified_name());
         }
         self.extension_manifest.apply_to(&mut table);
 
@@ -232,13 +254,16 @@ impl Analyzer {
 
         let mut registry = HashMap::new();
         for (name, def) in &table.component_defs {
-            let actions = animatix_syntax::module::discovery::collect_component_actions(def);
+            let methods = animatix_syntax::module::discovery::collect_component_functions(
+                def,
+                std::path::Path::new(""),
+            );
             registry.insert(
                 name.clone(),
                 ComponentEntry {
                     definition: def.clone(),
                     source_path: std::path::PathBuf::new(),
-                    actions,
+                    methods,
                 },
             );
         }

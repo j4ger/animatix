@@ -53,10 +53,13 @@ fn main() {
     }
     let context = std::sync::Arc::new(animatix::ExtensionRegistry::new());
     let report = BuildTarget::build_with_options(
-        &expanded,
+        &expanded.statements,
         &program.namespaces,
         Some(&path),
-        BuildOptions::default().with_context(context),
+        BuildOptions::default()
+            .with_context(context)
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
     );
     for d in &report.diagnostics {
         eprintln!("build: {}", d.message);

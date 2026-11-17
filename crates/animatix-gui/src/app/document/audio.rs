@@ -104,6 +104,7 @@ mod tests {
     fn volume_automation_moves_with_scene_without_changing_duration() {
         let segment = offset_segment(
             animatix::timeline::AudioSegment {
+                actor_id: None,
                 source: "voice.wav".into(),
                 start_time_s: 1.0,
                 duration_s: Some(4.0),

@@ -8,7 +8,7 @@ use animatix_syntax::ast::{Expr, Property, Stmt};
 use animatix_syntax::visit::{AstFolder, walk_fold_stmt};
 use url::Url;
 
-pub(super) const RESOLVE_RESOURCE: &str = "__amx_resolve_resource";
+pub(super) const RESOLVE_RESOURCE: &str = "__host::resolve_resource";
 
 pub(super) struct ResourceOrigin {
     base: String,
@@ -23,7 +23,7 @@ impl ResourceOrigin {
     }
 
     fn resolve(&self, value: Expr) -> Expr {
-        Expr::Call(RESOLVE_RESOURCE.to_string(), vec![Expr::Str(self.base.clone()), value])
+        Expr::call(RESOLVE_RESOURCE, vec![Expr::Str(self.base.clone()), value])
     }
 }
 
@@ -62,7 +62,25 @@ pub(super) fn extensions() -> ExtensionContext {
     let mut context = ExtensionContext::new();
     // A fresh registry cannot contain this host-private name. Keep this branch
     // diagnostic rather than panicking if registration validation changes.
-    if let Err(error) = context.register_function(RESOLVE_RESOURCE, resolve) {
+    let descriptor = animatix_core::callable::CallableDescriptor {
+        namespace: "__host".into(),
+        name: "resolve_resource".into(),
+        params: vec![
+            animatix_core::callable::CallableParam::required(
+                "base",
+                animatix_core::callable::CallableType::Str,
+            ),
+            animatix_core::callable::CallableParam::required(
+                "path",
+                animatix_core::callable::CallableType::Str,
+            ),
+        ],
+        return_type: animatix_core::callable::CallableType::Str,
+        phase: animatix_core::callable::CallablePhase::Build,
+        help: "Resolve a source-relative resource URL".into(),
+        category: "Host".into(),
+    };
+    if let Err(error) = context.register_callable(descriptor, resolve) {
         tracing::error!("failed to register resource resolver: {error}");
     }
     context

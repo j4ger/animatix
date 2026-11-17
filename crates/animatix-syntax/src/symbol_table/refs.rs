@@ -35,29 +35,6 @@ impl SymbolTable {
             Stmt::Expr(expr, ..) => {
                 self.collect_refs_from_expr(expr);
             },
-            Stmt::Action(action, ..) => {
-                for (target, index) in action.targets.iter().zip(action.target_index.iter()) {
-                    if let Some(expr) = index {
-                        // Indexed target (`row.b[j]`): reference the leaf base
-                        // plus the index expression's own references.
-                        let base = target.rsplit('.').next().unwrap_or(target);
-                        self.referenced_labels.insert(base.to_string());
-                        self.collect_refs_from_expr(expr);
-                    } else if target.contains('.') {
-                        // Dotted target (`eq.lhs`): reference the root (checked
-                        // for undefined-label) and the leaf (the actual actor).
-                        let root = target.split('.').next().unwrap_or(target);
-                        let leaf = target.rsplit('.').next().unwrap_or(target);
-                        self.referenced_labels.insert(root.to_string());
-                        self.referenced_labels.insert(leaf.to_string());
-                    } else {
-                        self.referenced_labels.insert(target.clone());
-                    }
-                }
-                for arg in &action.args {
-                    self.collect_refs_from_expr(arg);
-                }
-            },
             Stmt::Assignment {
                 target,
                 property,
@@ -236,6 +213,7 @@ impl SymbolTable {
                     self.collect_inline_references(item);
                 }
             },
+            InlineItem::Expr(expr, _) => self.collect_refs_from_expr(expr),
             InlineItem::SlotMarker => {},
             InlineItem::SlotFill { items, .. } => {
                 for item in items {

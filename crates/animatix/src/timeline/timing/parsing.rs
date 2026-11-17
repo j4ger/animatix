@@ -76,6 +76,7 @@ impl TimingModifierState {
             Some("blend") if host == ModifierHost::Assignment => {
                 self.apply_blend(modifier, host, subject, diagnostics)
             },
+            Some("duration") => self.apply_duration_shorthand(modifier, host, subject, diagnostics),
             // Action-specific effect modifiers are declared in
             // ActionSignature.modifiers and consumed by the action itself
             // (after this parser runs, validate_action_modifiers does the
@@ -109,36 +110,26 @@ impl TimingModifierState {
         subject: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        match &modifier.value {
-            Expr::Ident(raw) => {
-                if let Some(delay_ms) = parse_duration_literal(raw) {
-                    if self.saw_delay {
-                        push_conflicting_modifier_diagnostic(diagnostics, "delay", host, subject);
-                    }
-                    self.parsed.delay_ms = delay_ms;
-                    self.saw_delay = true;
-                } else {
-                    push_modifier_diagnostic(
-                        diagnostics,
-                        DiagnosticCode::InvalidModifierValue,
-                        format!(
-                            "Unsupported delay value '{raw}' on {}; expected a time literal such as 120ms or 1s.",
-                            host.display_name()
-                        ),
-                        subject,
-                    );
-                }
-            },
-            other => push_modifier_diagnostic(
+        if let Some(delay_ms) = duration_expr_to_ms(&modifier.value) {
+            if self.saw_delay {
+                push_conflicting_modifier_diagnostic(diagnostics, "delay", host, subject);
+            }
+            self.parsed.delay_ms = delay_ms;
+            self.saw_delay = true;
+        } else {
+            let raw = match &modifier.value {
+                Expr::Ident(raw) => format!("'{raw}'"),
+                other => format!("{other:?}"),
+            };
+            push_modifier_diagnostic(
                 diagnostics,
                 DiagnosticCode::InvalidModifierValue,
                 format!(
-                    "Unsupported delay modifier value {:?} on {}; expected a time literal such as 120ms or 1s.",
-                    other,
+                    "Unsupported delay value {raw} on {}; expected a time literal such as 120ms or 1s.",
                     host.display_name()
                 ),
                 subject,
-            ),
+            );
         }
     }
 
@@ -150,28 +141,22 @@ impl TimingModifierState {
         subject: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        match &modifier.value {
-            Expr::Ident(raw) => match parse_duration_literal(raw) {
-                Some(ms) => self.parsed.anticipate_ms = ms,
-                None => push_modifier_diagnostic(
-                    diagnostics,
-                    DiagnosticCode::InvalidModifierValue,
-                    format!(
-                        "Unsupported anticipate value '{raw}' on {}; expected a time literal such as 80ms or 0.1s.",
-                        host.display_name()
-                    ),
-                    subject,
-                ),
-            },
-            other => push_modifier_diagnostic(
+        if let Some(ms) = duration_expr_to_ms(&modifier.value) {
+            self.parsed.anticipate_ms = ms;
+        } else {
+            let value = match &modifier.value {
+                Expr::Ident(raw) => format!("'{raw}'"),
+                other => format!("{other:?}"),
+            };
+            push_modifier_diagnostic(
                 diagnostics,
                 DiagnosticCode::InvalidModifierValue,
                 format!(
-                    "Unsupported anticipate modifier value {other:?} on {}; expected a time literal such as 80ms or 0.1s.",
+                    "Unsupported anticipate value {value} on {}; expected a time literal such as 80ms or 0.1s.",
                     host.display_name()
                 ),
                 subject,
-            ),
+            );
         }
     }
 
@@ -400,51 +385,47 @@ impl TimingModifierState {
         subject: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        match &modifier.value {
-            Expr::Ident(raw) => {
-                if let Some(duration_ms) = parse_duration_literal(raw) {
-                    if self.saw_duration {
-                        push_conflicting_modifier_diagnostic(
-                            diagnostics,
-                            "duration",
-                            host,
-                            subject,
-                        );
-                    }
-                    self.parsed.duration_ms = duration_ms;
-                    self.saw_duration = true;
-                } else if parse_easing_name(raw).is_some() {
-                    push_modifier_diagnostic(
-                        diagnostics,
-                        DiagnosticCode::InvalidModifierValue,
-                        format!(
-                            "Use named syntax like [ease: {raw}] on {}; bare modifiers are reserved for duration values such as 2s or 500ms.",
-                            host.display_name()
-                        ),
-                        subject,
-                    );
-                } else {
-                    push_modifier_diagnostic(
-                        diagnostics,
-                        DiagnosticCode::InvalidModifierValue,
-                        format!(
-                            "Unsupported duration shorthand '{raw}' on {}; expected a bare time literal such as 2s or 500ms.",
-                            host.display_name()
-                        ),
-                        subject,
-                    );
-                }
-            },
-            other => push_modifier_diagnostic(
+        if let Some(duration_ms) = duration_expr_to_ms(&modifier.value) {
+            if self.saw_duration {
+                push_conflicting_modifier_diagnostic(diagnostics, "duration", host, subject);
+            }
+            self.parsed.duration_ms = duration_ms;
+            self.saw_duration = true;
+            return;
+        }
+        if let Expr::Ident(raw) = &modifier.value {
+            if parse_easing_name(raw).is_some() {
+                push_modifier_diagnostic(
+                    diagnostics,
+                    DiagnosticCode::InvalidModifierValue,
+                    format!(
+                        "Use named syntax like [ease: {raw}] on {}; bare modifiers are reserved for duration values such as 2s or 500ms.",
+                        host.display_name()
+                    ),
+                    subject,
+                );
+            } else {
+                push_modifier_diagnostic(
+                    diagnostics,
+                    DiagnosticCode::InvalidModifierValue,
+                    format!(
+                        "Unsupported duration shorthand '{raw}' on {}; expected a bare time literal such as 2s or 500ms.",
+                        host.display_name()
+                    ),
+                    subject,
+                );
+            }
+        } else {
+            push_modifier_diagnostic(
                 diagnostics,
                 DiagnosticCode::InvalidModifierValue,
                 format!(
                     "Unsupported positional modifier value {:?} on {}; expected a bare duration like 2s or 500ms.",
-                    other,
+                    modifier.value,
                     host.display_name()
                 ),
                 subject,
-            ),
+            );
         }
     }
 }

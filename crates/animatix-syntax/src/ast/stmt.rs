@@ -2,6 +2,7 @@ use super::*;
 
 /// Item declared inside a container (Row, Col, Grid): anonymous or labeled.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum InlineItem {
     /// Anonymous item existing only within its container (e.g. `Button, text: "OK"`).
     Anonymous {
@@ -49,6 +50,9 @@ pub enum InlineItem {
         /// Items filling this slot.
         items: Vec<InlineItem>,
     },
+    /// A function call or timeline value placed directly in a container body.
+    /// Its content inherits the surrounding container's parent/time context.
+    Expr(Expr, Option<Span>),
 }
 
 // ── Statements ───────────────────────────────────────────────────────────────
@@ -56,6 +60,7 @@ pub enum InlineItem {
 /// A single segment of an assignment/reactive-binding target path: `Static(label)`
 /// for a pre-resolved label, `Indexed { base, index }` for a runtime index.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum TargetSegment {
     /// A static label segment (e.g. `"container"`, `"bars__0"`).
     Static(String),
@@ -128,10 +133,8 @@ pub fn is_array_member_label(s: &str) -> Option<&str> {
 /// variant by hand. [`crate::walk::recurse_stmt_bodies`] enumerates the
 /// body-bearing variants for non-visitor callers.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Stmt {
-    /// Action invocation: `move btn to (100, 100) [2s]`
-    Action(Action, Option<Span>),
-
     /// Variable declaration: `let x = 0`
     LetDecl {
         /// Whether the variable is exported (`pub`).
@@ -336,9 +339,6 @@ pub enum Stmt {
         body: Vec<Stmt>,
         /// Build-time specialization metadata for an indexed component method.
         instance_scope: Option<InstanceScope>,
-        /// Invocation-local time mapping requested by `time_scale` or
-        /// `clip_duration` modifiers.
-        time_scope: Option<TimeScopeSpec>,
         /// Source span for this block.
         span: Option<Span>,
     },

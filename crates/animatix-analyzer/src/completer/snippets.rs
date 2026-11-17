@@ -55,14 +55,14 @@ pub(super) fn snippet_completions() -> Vec<CompletionItem> {
             label: "sequence".to_string(),
             kind: CompletionKind::Snippet,
             detail: Some("Sequence block".to_string()),
-            documentation: Some("Run actions in sequence".to_string()),
+            documentation: Some("Compose calls and assignments in sequence".to_string()),
             insert_text: Some("sequence {\n    ${1:}\n}".to_string()),
         },
         CompletionItem {
             label: "stagger".to_string(),
             kind: CompletionKind::Snippet,
             detail: Some("Stagger block".to_string()),
-            documentation: Some("Stagger actions with delay".to_string()),
+            documentation: Some("Offset child plans by a shared interval".to_string()),
             insert_text: Some("stagger [${1:150ms}] {\n    ${2:}\n}".to_string()),
         },
     ]

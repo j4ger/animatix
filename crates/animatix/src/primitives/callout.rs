@@ -9,29 +9,21 @@ use crate::timeline::{ActorCaps, Environment, SceneDimensions, Value, VectorShap
 /// Resolve an actor reference at assignment time, including runtime indices
 /// such as `bar[i]` where `i` is bound in the evaluation environment.
 fn parse_actor_ref_with_env(expr: &Expr, env: &Environment) -> Option<String> {
+    match crate::timeline::evaluate_expr(expr, env) {
+        Ok(Value::ActorRef(actor)) => return Some(actor.label().to_string()),
+        Ok(Value::Str(name)) => return Some(name),
+        _ => {}, // Literal actor paths and indexed array bases resolve below.
+    }
     match expr {
-        Expr::Str(s) => Some(s.clone()),
-        Expr::Ident(name) => match env.get(name) {
-            Some(Value::Str(s)) => Some(s.clone()),
-            _ => Some(name.clone()),
-        },
-        Expr::Path(parts) => match crate::timeline::evaluate_expr(expr, env) {
-            Ok(Value::Str(s)) => Some(s),
-            _ => Some(parts.join(".")),
-        },
         Expr::Index(base, index) => {
-            let base_name = match base.as_ref() {
-                Expr::Ident(name) => name.clone(),
-                Expr::Path(parts) if !parts.is_empty() => parts.join("."),
-                _ => return None,
-            };
+            let base_name = parse_actor_ref_with_env(base, env)?;
             let n = match crate::timeline::evaluate_expr(index, env).ok()? {
                 Value::Num(n) if n >= 0.0 && n.floor() == n => n as usize,
                 _ => return None,
             };
             Some(array_actor_label(&base_name, n))
         },
-        _ => None,
+        _ => crate::timeline::lookup::parse_actor_ref_literal(expr),
     }
 }
 

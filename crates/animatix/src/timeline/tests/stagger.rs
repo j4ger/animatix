@@ -21,11 +21,11 @@ fn test_wavefront_stagger() {
 
                 #1s
                 stagger [50ms, from: center] {
-                    fade-in c [200ms]
-                    fade-in a1 [200ms]
-                    fade-in a2 [200ms]
-                    fade-in a3 [200ms]
-                    fade-in a4 [200ms]
+                    fade_in(target: c, duration: 200ms)
+                    fade_in(target: a1, duration: 200ms)
+                    fade_in(target: a2, duration: 200ms)
+                    fade_in(target: a3, duration: 200ms)
+                    fade_in(target: a4, duration: 200ms)
                 }
             "#,
             &[
@@ -37,7 +37,7 @@ fn test_wavefront_stagger() {
             ],
         ),
         (
-            "top-left",
+            "top_left",
             r#"
                 #0s
                 p00: Ellipse, radius_x: 10, radius_y: 10, at: (0, 0)
@@ -46,11 +46,11 @@ fn test_wavefront_stagger() {
                 p11: Ellipse, radius_x: 10, radius_y: 10, at: (100, 100)
 
                 #1s
-                stagger [40ms, from: top-left] {
-                    fade-in p00 [200ms]
-                    fade-in p10 [200ms]
-                    fade-in p01 [200ms]
-                    fade-in p11 [200ms]
+                stagger [40ms, from: top_left] {
+                    fade_in(target: p00, duration: 200ms)
+                    fade_in(target: p10, duration: 200ms)
+                    fade_in(target: p01, duration: 200ms)
+                    fade_in(target: p11, duration: 200ms)
                 }
             "#,
             &[("p00", 1000), ("p10", 1040), ("p01", 1040), ("p11", 1080)],

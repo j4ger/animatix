@@ -82,7 +82,17 @@ fn build_cross_file(
     .unwrap();
     let mut graph = ModuleGraph::new();
     let program = graph.load_program(&main_file).unwrap();
-    (dir, Composition::build_test(&program.statements, &program.namespaces))
+    let expanded = program.expand_components(&mut Vec::new());
+    (
+        dir,
+        Composition::build_with_options(
+            &expanded.statements,
+            &program.namespaces,
+            crate::timeline::BuildOptions::default()
+                .with_function_context(&program.function_context)
+                .with_expanded(&expanded),
+        ),
+    )
 }
 
 /// The 500 ms window before `intro_dur` is where a `play` transition overlaps
@@ -180,7 +190,7 @@ fn composition_reports_build_diagnostics() {
         ),
         (
             "qualified play target needs a namespace alias",
-            "# Intro\n#0s\ntitle: Text, text: \"Welcome\"\nplay module.SceneName\n",
+            "# Intro\n#0s\ntitle: Text, text: \"Welcome\"\nplay module::SceneName\n",
             DiagnosticCode::PlayTargetNotFound,
         ),
         (
@@ -189,20 +199,18 @@ fn composition_reports_build_diagnostics() {
             DiagnosticCode::DuplicateSceneName,
         ),
         (
-            "persist in a single-scene composition",
-            "# OnlyScene\n#0s\nbadge: Ellipse, at: (50, 50), size: (30, 30)\n#1s\npersist badge\n",
+            "persist(target: in a single-scene composition)",
+            "# OnlyScene\n#0s\nbadge: Ellipse, at: (50, 50), size: (30, 30)\n#1s\npersist(target: badge)\n",
             DiagnosticCode::PersistTargetNotCarried,
         ),
         (
-            "persist in the last scene",
-            "# SceneA\n#0s\ntitle: Text, text: \"Hello\", at: (100, 100)\n#1s\npersist title\n\
-             play SceneB\n\n# SceneB\n#0s\n#1s\n",
+            "persist(target: in the last scene)",
+            "# SceneA\n#0s\ntitle: Text, text: \"Hello\", at: (100, 100)\n#1s\npersist(target: title)\nplay SceneB\n\n# SceneB\n#0s\n#1s\n",
             DiagnosticCode::PersistTargetNotCarried,
         ),
         (
-            "persist after remove",
-            "# SceneA\n#0s\nbadge: Ellipse, at: (50, 50), size: (30, 30)\n#1s\nremove badge\n\
-             #2s\npersist badge\n\n# SceneB\n#0s\n",
+            "persist(target: after remove)",
+            "# SceneA\n#0s\nbadge: Ellipse, at: (50, 50), size: (30, 30)\n#1s\nremove(target: badge)\n#2s\npersist(target: badge)\n\n# SceneB\n#0s\n",
             DiagnosticCode::PersistAfterRemove,
         ),
     ];
@@ -222,15 +230,31 @@ fn test_qualified_play_target_uses_namespace_alias() {
         "# Intro\n",
         "#0s\n",
         "title: Text, text: \"Welcome\"\n",
-        "play module.SceneName [fade, 300ms]\n",
+        "play module::SceneName [fade, 300ms]\n",
     ))
     .0
     .unwrap();
     let mut namespaces = HashMap::new();
-    namespaces.insert("module".to_string(), Namespace::default());
+    let mut namespace = Namespace::default();
+    namespace.scenes.insert(
+        "SceneName".into(),
+        crate::module::SceneData {
+            name: "SceneName".into(),
+            config: vec![],
+            body: vec![Stmt::Keyframe {
+                time: crate::ast::Time::Seconds(1.0),
+                body: vec![],
+                span: None,
+            }],
+            file_prelude: vec![],
+            span: None,
+            definition_path: Default::default(),
+        },
+    );
+    namespaces.insert("module".to_string(), namespace);
 
     let report = Composition::build_test(&parsed, &namespaces);
-    assert_eq!(report.output.edges.get("Intro").unwrap().to_scene, "module.SceneName");
+    assert_eq!(report.output.edges.get("Intro").unwrap().to_scene, "module::SceneName");
     assert!(
         !has_code(&report, DiagnosticCode::PlayTargetNotFound),
         "a namespaced alias must resolve the play target"
@@ -296,7 +320,7 @@ fn test_single_scene_no_scenes_parsed() {
         "#0s\n",
         "title: Text, text: \"Hello\"\n",
         "#1s\n",
-        "fade-in title [500ms]\n",
+        "fade_in(target: title, duration: 500ms)\n",
     ));
     let parsed = parsed.unwrap();
     let has_scenes = parsed.iter().any(|s| matches!(s, Stmt::Scene { .. }));
@@ -356,7 +380,7 @@ fn an_authored_transition_ease_reaches_the_blend() {
         "#0s\n",
         "title: Text, text: \"Welcome\"\n",
         "#1s\n",
-        "play Diagram [fade, 500ms, ease: ease-in]\n",
+        "play Diagram [fade, 500ms, ease: ease_in]\n",
         "\n",
         "# Diagram\n",
         "#0s\n",
@@ -373,13 +397,13 @@ fn an_authored_transition_ease_reaches_the_blend() {
     // ease-in is t^2, so the composited progress must sit behind the raw one.
     assert!(
         (blend.eased_progress - blend.progress * blend.progress).abs() < 1e-3,
-        "eased progress {} is not ease-in of {}",
+        "eased progress {} is not ease_in of {}",
         blend.eased_progress,
         blend.progress
     );
     assert!(
         blend.eased_progress < blend.progress,
-        "ease-in must lag the raw ramp: {} vs {}",
+        "ease_in must lag the raw ramp: {} vs {}",
         blend.eased_progress,
         blend.progress
     );
@@ -453,24 +477,81 @@ fn test_scene_config_colorscheme_no_warning() {
 fn test_cross_file_scene_basic() {
     let (_dir, report) = build_cross_file(
         "basic",
-        "# FadeIn\n#0s\nlabel: Text, text: \"Fade In Scene\"\nfade-in label [500ms]\n",
-        "play scenes.FadeIn [fade, 300ms]",
+        "# FadeIn\n#0s\nlabel: Text, text: \"Fade In Scene\"\nfade_in(target: label, duration: 500ms)\n",
+        "play scenes::FadeIn [fade, 300ms]",
     );
     assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
     let comp = &report.output;
 
-    // Both the local "Intro" and cross-file "scenes.FadeIn" must exist.
+    // Both the local "Intro" and cross-file "scenes::FadeIn" must exist.
     assert!(comp.scenes.contains_key("Intro"));
     assert!(
-        comp.scenes.contains_key("scenes.FadeIn"),
-        "Cross-file scene 'scenes.FadeIn' not found. Scenes: {:?}",
+        comp.scenes.contains_key("scenes::FadeIn"),
+        "Cross-file scene 'scenes::FadeIn' not found. Scenes: {:?}",
         comp.scenes.keys().collect::<Vec<_>>()
     );
 
     let edge = comp.edges.get("Intro").unwrap();
-    assert_eq!(edge.to_scene, "scenes.FadeIn");
+    assert_eq!(edge.to_scene, "scenes::FadeIn");
     assert_eq!(edge.transition.id, "fade");
     assert_eq!(edge.transition.duration_ms, 300);
+}
+
+#[test]
+fn test_cross_file_scene_resolves_computed_markers_before_play() {
+    let scenes_source = r#"
+let hold = 700ms
+# TimedScene
+#(hold)
+  label: Text, text: "Timed"
+#+(hold)
+play scenes::Target
+# Target
+#0s
+"#;
+    let (_dir, report) =
+        build_cross_file("computed-play", scenes_source, "play scenes::TimedScene");
+    assert_no_errors(&report);
+
+    let timed = scene(&report.output, "scenes::TimedScene");
+    assert_eq!(
+        report.output.edges.get("scenes::TimedScene").unwrap().to_scene,
+        "scenes::Target"
+    );
+
+    let parsed = parse_source(scenes_source).0.expect("scene source parses");
+    let body = parsed
+        .iter()
+        .find_map(|stmt| match stmt {
+            Stmt::Scene { name, body, .. } if name == "TimedScene" => Some(body),
+            _ => None,
+        })
+        .expect("TimedScene should be grouped from its source");
+    let marker_spans = body
+        .iter()
+        .filter_map(|stmt| match stmt {
+            Stmt::Keyframe {
+                time: crate::ast::Time::Expression(_),
+                span: Some(span),
+                ..
+            }
+            | Stmt::RelativeKeyframe {
+                offset: crate::ast::Time::Expression(_),
+                span: Some(span),
+                ..
+            } => Some(*span),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(marker_spans.len(), 2, "absolute and relative computed markers are retained");
+    assert!(
+        (timed.timeline.marker_time(marker_spans[0]).unwrap() - 700.0).abs() < 1e-6,
+        "the absolute marker resolves from the imported scene's lexical duration"
+    );
+    assert!(
+        (timed.timeline.marker_time(marker_spans[1]).unwrap() - 1400.0).abs() < 1e-6,
+        "the relative marker resolves against the previous imported scene marker"
+    );
 }
 
 #[test]
@@ -480,7 +561,7 @@ fn test_cross_file_scene_not_found() {
     let (_dir, report) = build_cross_file(
         "notfound",
         "# ExistingScene\n#0s\nlabel: Text, text: \"Hi\"\n",
-        "play scenes.NonExistent",
+        "play scenes::NonExistent",
     );
     assert!(
         has_code(&report, DiagnosticCode::PlayTargetNotFound),
@@ -494,11 +575,11 @@ fn test_cross_file_scene_duration_preserved() {
     let (_dir, report) = build_cross_file(
         "duration",
         "# TimedScene\nconfig { duration: 5.0 }\n#0s\nlabel: Text, text: \"Timed\"\n",
-        "play scenes.TimedScene",
+        "play scenes::TimedScene",
     );
     assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
 
-    let timed_scene = scene(&report.output, "scenes.TimedScene");
+    let timed_scene = scene(&report.output, "scenes::TimedScene");
     assert_eq!(timed_scene.explicit_duration_s, Some(5.0));
     assert_eq!(timed_scene.duration_s, 5.0);
 }
@@ -514,7 +595,7 @@ fn test_persist_basic_carry() {
         "#0s\n",
         "title: Text, text: \"Hello\", at: (100, 100)\n",
         "#1s\n",
-        "persist title\n",
+        "persist(target: title)\n",
         "\n",
         "# SceneB\n",
         "#0s\n",
@@ -540,7 +621,7 @@ fn test_persist_carry_then_assign() {
         "#0s\n",
         "title: Text, text: \"Hello\", at: (100, 100)\n",
         "#1s\n",
-        "persist title\n",
+        "persist(target: title)\n",
         "\n",
         "# SceneB\n",
         "#0s\n",
@@ -563,7 +644,7 @@ fn test_persist_chain() {
         "#0s\n",
         "badge: Ellipse, at: (50, 50), size: (30, 30)\n",
         "#1s\n",
-        "persist badge\n",
+        "persist(target: badge)\n",
         "\n",
         "# SceneB\n",
         "#0s\n",
@@ -590,11 +671,11 @@ fn test_remove_breaks_chain() {
         "#0s\n",
         "badge: Ellipse, at: (50, 50), size: (30, 30)\n",
         "#1s\n",
-        "persist badge\n",
+        "persist(target: badge)\n",
         "\n",
         "# SceneB\n",
         "#0s\n",
-        "remove badge\n",
+        "remove(target: badge)\n",
         "\n",
         "# SceneC\n",
         "#0s\n",
@@ -633,7 +714,7 @@ fn test_persist_container_subtree() {
         "    child: Text, text: \"Hi\"\n",
         "}\n",
         "#1s\n",
-        "persist row\n",
+        "persist(target: row)\n",
         "\n",
         "# SceneB\n",
         "#0s\n",
@@ -665,11 +746,12 @@ fn test_persist_container_subtree() {
 /// `PersistTargetNotCarried` because there is no successor scene.
 #[test]
 fn test_persist_in_single_scene_file_warns() {
-    let report =
-        build_target("#0s\ntitle: Text, text: \"Hello\", at: (320, 180)\n#1s\npersist title\n");
+    let report = build_target(
+        "#0s\ntitle: Text, text: \"Hello\", at: (320, 180)\n#1s\npersist(target: title)\n",
+    );
     assert!(
         has_code(&report, DiagnosticCode::PersistTargetNotCarried),
-        "persist in a single-scene file should emit PersistTargetNotCarried: {:?}",
+        "persist(target: in a single-scene file should emit PersistTargetNotCarried: {:?})",
         report.diagnostics
     );
 }
@@ -684,7 +766,7 @@ fn test_auto_color_slot_preserved_across_carry() {
         "#0s\n",
         "circle: Ellipse, at: (200, 200), size: (60, 60), color: auto\n",
         "#1s\n",
-        "persist circle\n",
+        "persist(target: circle)\n",
         "\n",
         "# SceneB\n",
         "#0s\n",
@@ -715,7 +797,7 @@ fn test_plot_curve_carry() {
         "    curve: PlotCurve, kind: \"cartesian\", func: (x) => x * x\n",
         "}\n",
         "#1s\n",
-        "persist g\n",
+        "persist(target: g)\n",
         "\n",
         "# SceneB\n",
         "#0s\n",
@@ -749,7 +831,8 @@ fn test_media_actor_identity_carries() {
         ),
     ];
     for (label, decl, ty) in cases {
-        let source = format!("# SceneA\n#0s\n{decl}\n#1s\npersist {label}\n\n# SceneB\n#0s\n");
+        let source =
+            format!("# SceneA\n#0s\n{decl}\n#1s\npersist(target: {label})\n\n# SceneB\n#0s\n");
         let report = build_composition(&source);
         assert_actor_type(scene(&report.output, "SceneB"), label, ty);
     }
@@ -770,17 +853,17 @@ component Bars(values: List<Num>) {
   }
 }
 
-fn insertion_sort(values: List<Num>) {
+fn insertion_sort(bars: Actor, values: List<Num>) { #{
   let order = {0, 1, 2, 3}
   for key in {1, 2, 3} [step: 1200ms] {
     for j in {0, 1, 2} [step: 300ms] {
       if j < key && values[order[key - j]] < values[order[key - j - 1]] {
-        swap bars.bar[order[key - j]], bars.bar[order[key - j - 1]] [300ms]
+        swap(bars.bar[order[key - j]], bars.bar[order[key - j - 1]], duration: 300ms)
         let order = list_swap(order, key - j, key - j - 1)
       }
     }
   }
-}
+} }
 
 # Title
 #0s
@@ -791,7 +874,7 @@ play Steps [fade, 400ms]
 # Steps
 #0s
 bars: Bars, values: {4, 1, 3, 2}
-insertion_sort({4, 1, 3, 2})
+insertion_sort(bars, {4, 1, 3, 2})
 #4s
 play Result [fade, 400ms]
 
@@ -807,7 +890,13 @@ result: Rect, size: (40, 40)
     let mut diagnostics = Vec::new();
     let expanded = program.expand_components(&mut diagnostics);
     assert!(diagnostics.is_empty(), "expansion diagnostics: {diagnostics:?}");
-    let report = Composition::build_test(&expanded, &program.namespaces);
+    let report = Composition::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        crate::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
     assert!(
         report.diagnostics.is_empty(),
         "insertion sort must build cleanly: {:?}",
@@ -840,7 +929,7 @@ fn test_zero_duration_scene_does_not_collapse_composition() {
         "#0s\n",
         "a: Rect, width: 100, height: 100\n",
         "#0.2s\n",
-        "fade-in a [400ms]\n",
+        "fade_in(target: a, duration: 400ms)\n",
         "play Scene2 [fade, 400ms]\n",
         "\n",
         "# Scene2\n",
@@ -948,7 +1037,7 @@ fn persist_camera_carries_the_transform() {
         "#0.5s\n",
         "camera.zoom = 1.6\n",
         "camera.at = (40, -20) [500ms]\n",
-        "persist camera\n",
+        "persist(target: camera)\n",
         "\n",
         "# SceneB\n",
         "#0s\n",
@@ -1001,7 +1090,7 @@ fn a_carried_camera_keeps_being_carried_until_it_is_removed() {
         "# SceneA\n",
         "#0s\n",
         "camera.zoom = 1.8\n",
-        "persist camera\n",
+        "persist(target: camera)\n",
         "\n",
         "# SceneB\n",
         "#0s\n",
@@ -1024,11 +1113,11 @@ fn remove_camera_stops_the_carry_without_fading_anything() {
         "# SceneA\n",
         "#0s\n",
         "camera.zoom = 1.8\n",
-        "persist camera\n",
+        "persist(target: camera)\n",
         "\n",
         "# SceneB\n",
         "#0s\n",
-        "remove camera\n",
+        "remove(target: camera)\n",
         "\n",
         "# SceneC\n",
         "#0s\n",

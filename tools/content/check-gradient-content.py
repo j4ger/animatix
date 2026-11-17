@@ -54,14 +54,21 @@ def check() -> None:
     # Tie the oracle to authored formulas, rather than testing a detached toy.
     for name in ("losssurface", "gradientdirection", "descent", "learningrate"):
         body = (HERE / f"{name}.amx").read_text()
-        require("2 * x^2 + y^2" in body, f"{name}: loss definition changed; update numerical contract")
+        compact = re.sub(r"\s+", "", body)
+        require("2*x^2+y^2" in compact, f"{name}: loss definition changed; update numerical contract")
         if name == "losssurface":
-            require("(4 * x, 2 * y)" in body, "vector field must equal gradient of loss")
+            require("(4*x,2*y)" in compact, "vector field must equal gradient of loss")
         else:
-            require("let kx = 1 - 4 * lr" in body and "let ky = 1 - 2 * lr" in body, f"{name}: cursor factors differ from the gradient")
+            require(
+                "letkx=1-4*lr" in compact and "letky=1-2*lr" in compact,
+                f"{name}: cursor factors differ from the gradient",
+            )
             for axis, factor in (("x", 4), ("y", 2)):
-                pattern = rf"let n{axis} = if i < steps \{{ ([pm]{axis}) - lr \* {factor} \* \1 \}}"
-                require(re.search(pattern, body) is not None, f"{name}: drawn path and cursor recurrence differ for {axis}")
+                pattern = rf"letn{axis}=ifi<steps\{{([pm]){axis}-\(?(?:r_left|r_right|lr)\*{factor}\)?\*\1{axis}\}}"
+                require(
+                    re.search(pattern, compact) is not None,
+                    f"{name}: drawn path and cursor recurrence differ for {axis}",
+                )
     rates = (HERE / "learningrate.amx").read_text()
     for name, value in (("lr", 0.1), ("r_left", 0.02), ("r_right", 0.35)):
         match = re.search(rf"^let {name} = ([0-9.]+)$", rates, re.M)
@@ -69,10 +76,21 @@ def check() -> None:
 
     # Learning-rate figure now compares normalized loss on a shared Cartesian axis.
     # Equal references must have identical plotted loss; no arbitrary rescaling.
-    require("let initial_loss = 2 * x0^2 + y0^2" in rates, "normalization must use the common initial loss")
-    require("2*x0^2*pow(abs(kx),2*n) + y0^2*pow(abs(ky),2*n)" in rates, "readout must use loss at the discrete iterate")
-    require("let n = floor(clamp((t-1)/6,0,1)*steps)" in rates, "selected marker must sample discrete optimizer steps")
-    require("550 - ratio*240" in rates, "selected loss marker must share the plot's loss scale")
+    compact_rates = re.sub(r"\s+", "", rates)
+    require("letinitial_loss=2*x0^2+y0^2" in compact_rates, "normalization must use the common initial loss")
+    require(
+        re.search(
+            r"\(?2\*x0\^2\)?\*pow\(abs\(kx\),2\*n\)\+y0\^2\*pow\(abs\(ky\),2\*n\)",
+            compact_rates,
+        )
+        is not None,
+        "readout must use loss at the discrete iterate",
+    )
+    require(
+        "letn=floor(clamp((t-1)/6,0,1)*steps)" in compact_rates,
+        "selected marker must sample discrete optimizer steps",
+    )
+    require("550-ratio*240" in compact_rates, "selected loss marker must share the plot's loss scale")
     for rate in (0.02, 0.10, 0.35, 0.50):
         for x,y in iterates(rate,3.4,1.6,48):
             require(0 <= (2*x*x+y*y)/25.68 <= 1+1e-12, "supported loss curve must remain within 0–100%")

@@ -312,7 +312,7 @@ reactive: Text, text: "i", font_size: 28, at: (420, 100)
 always { reactive.text = if (t < 1.0) { "i" } else { "MMMMMMMM" } }
 
 #1s
-highlight formula [1s]
+highlight(target: formula, duration: 1s)
 
 #10s
 title.text = "i" [0s]

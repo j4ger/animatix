@@ -1,5 +1,5 @@
 use super::types::{BuiltinFn, CompiledExpr};
-use crate::ast::{BinaryOp, UnaryOp};
+use crate::ast::UnaryOp;
 use crate::timeline::callout_geometry::env_anchor_point;
 use crate::timeline::env::CapturedEnv;
 use crate::timeline::{Environment, EvalError, Value};
@@ -14,7 +14,60 @@ pub(crate) fn evaluate_compiled_expr(
         CompiledExpr::Const(Value::Num(n)) => Ok(Value::Num(*n)),
         CompiledExpr::Const(value) => Ok(value.clone()),
         CompiledExpr::LoadEnv(name) => {
-            env.get_path(name).ok_or_else(|| EvalError::UndefinedVariable(name.clone()))
+            if name == crate::timeline::env::FRAME_TIME_IDENT {
+                env.frame_time_seconds
+                    .map(Value::Num)
+                    .ok_or_else(|| EvalError::UndefinedVariable(name.clone()))
+            } else if let Some(value) = env.get_path(name) {
+                Ok(wrap_registered_callable(name, value, env))
+            } else if let Some((root, suffix)) = name.split_once('.')
+                && let Some(Value::ActorRef(actor)) = env.get_path(root)
+            {
+                let actor = if env.is_frame_phase() {
+                    suffix.split('.').try_fold(actor, |actor, field| {
+                        actor.child_resolved(field).ok_or_else(|| {
+                            EvalError::UnsupportedConstruct(format!(
+                                "actor member '{field}' was not resolved during build"
+                            ))
+                        })
+                    })?
+                } else {
+                    suffix.split('.').fold(actor, |actor, field| actor.child(field))
+                };
+                Ok(Value::ActorRef(actor))
+            } else if !env.is_frame_phase() && env.has_component_methods(name) {
+                Ok(Value::ActorRef(crate::timeline::plan_value::ActorRef::caller(name.as_str())))
+            } else if let Some(descriptor) = env.callable_descriptor(name) {
+                Ok(Value::RegisteredFn {
+                    name: descriptor.qualified_name(),
+                    descriptor: std::sync::Arc::new(descriptor.clone()),
+                    native: None,
+                })
+            } else if let Some(easing) = crate::easing::parse_easing_name(name) {
+                Ok(Value::Easing(easing))
+            } else {
+                Err(EvalError::UndefinedVariable(name.clone()))
+            }
+        },
+        CompiledExpr::Field(base, field) => {
+            let base = evaluate_compiled_expr(base, env)?;
+            match base {
+                Value::ActorRef(actor) => {
+                    if env.is_frame_phase() {
+                        actor.child_resolved(field).map(Value::ActorRef).ok_or_else(|| {
+                            EvalError::UnsupportedConstruct(format!(
+                                "actor member '{field}' was not resolved during build"
+                            ))
+                        })
+                    } else {
+                        let child = actor.child(field);
+                        Ok(env.get_path(child.label()).unwrap_or(Value::ActorRef(child)))
+                    }
+                },
+                value => value.get_field(field).cloned().ok_or_else(|| {
+                    EvalError::TypeMismatch(format!("value has no field '{field}'"))
+                }),
+            }
         },
         CompiledExpr::MakeVec(items) => eval_make_vec(items, env),
         CompiledExpr::MakeList(items) => {
@@ -34,14 +87,23 @@ pub(crate) fn evaluate_compiled_expr(
                 ));
             }
             let value = evaluate_compiled_expr(expr, env)?;
-            match op {
-                UnaryOp::Neg => Ok(Value::Num(-value.as_num())),
-                UnaryOp::Not => Ok(Value::Num(if value.is_truthy() { 0.0 } else { 1.0 })),
-                UnaryOp::Ref => unreachable!("handled above"),
+            match (op, value) {
+                (UnaryOp::Neg, Value::Num(number)) => Ok(Value::Num(-number)),
+                (UnaryOp::Neg, Value::Duration(seconds)) => Ok(Value::Duration(-seconds)),
+                (UnaryOp::Not, value) => Ok(Value::Bool(!value.is_truthy())),
+                (UnaryOp::Neg, value) => Err(EvalError::TypeMismatch(format!(
+                    "unary '-' expects Num or Duration, got {value:?}"
+                ))),
+                (UnaryOp::Ref, _) => unreachable!("handled above"),
             }
         },
         CompiledExpr::Binary(left, op, right) => {
             let left = evaluate_compiled_expr(left, env)?;
+            match op {
+                crate::ast::BinaryOp::And if !left.is_truthy() => return Ok(Value::Bool(false)),
+                crate::ast::BinaryOp::Or if left.is_truthy() => return Ok(Value::Bool(true)),
+                _ => {},
+            }
             let right = evaluate_compiled_expr(right, env)?;
             crate::timeline::eval_shared::eval_binary_op(left, op, right)
         },
@@ -54,22 +116,74 @@ pub(crate) fn evaluate_compiled_expr(
             }
         },
         CompiledExpr::CallBuiltin(builtin, args) => eval_call_builtin(builtin.clone(), args, env),
-        CompiledExpr::CallEnv(name, args) => {
-            let arg_values: SmallVec<[Value; 4]> = args
-                .iter()
-                .map(|arg| evaluate_compiled_expr(arg, env))
-                .collect::<Result<_, _>>()?;
-            crate::timeline::utils::evaluate_call_value(name, arg_values.into_vec(), env)
+        CompiledExpr::CallNamed(name, args) => {
+            let arg_values = evaluate_named_call_arguments(name, args, env)?;
+            crate::timeline::utils::evaluate_call_arguments(name, arg_values, env)
+        },
+        CompiledExpr::CallMember(receiver, name, args) => {
+            let receiver = evaluate_compiled_expr(receiver, env)?;
+            evaluate_member_call(receiver, name, args, env)
+        },
+        CompiledExpr::CallValue(callee, args) => {
+            let callee = evaluate_compiled_expr(callee, env)?;
+            let arg_values = evaluate_value_call_arguments(&callee, args, env)?;
+            crate::timeline::utils::evaluate_callable_value(callee, arg_values, "<call>", env)
+        },
+        CompiledExpr::Timeline(plan_body) => {
+            if env.is_frame_phase() {
+                return Err(EvalError::UnsupportedConstruct(
+                    "timeline plans can only be created during build".into(),
+                ));
+            }
+            Ok(Value::TimelinePlan(std::sync::Arc::new(
+                crate::timeline::plan_value::TimelinePlan::capture_plan_body(
+                    plan_body.clone(),
+                    env,
+                ),
+            )))
+        },
+        CompiledExpr::SequencePlan(plan_body) => {
+            if env.is_frame_phase() {
+                return Err(EvalError::UnsupportedConstruct(
+                    "sequence plans can only be created during build".into(),
+                ));
+            }
+            let source = vec![crate::ast::Stmt::Sequence {
+                body: plan_body.statements.clone(),
+                span: None,
+            }];
+            Ok(Value::TimelinePlan(std::sync::Arc::new(
+                crate::timeline::plan_value::TimelinePlan::capture_plan_body(
+                    crate::ast::PlanBody {
+                        statements: source,
+                        instance_methods: plan_body.instance_methods.clone(),
+                    },
+                    env,
+                ),
+            )))
+        },
+        CompiledExpr::StaggerPlan(modifiers, plan_body) => {
+            if env.is_frame_phase() {
+                return Err(EvalError::UnsupportedConstruct(
+                    "stagger plans can only be created during build".into(),
+                ));
+            }
+            let source = vec![crate::ast::Stmt::Stagger {
+                modifiers: modifiers.clone(),
+                body: plan_body.statements.clone(),
+                span: None,
+            }];
+            Ok(Value::TimelinePlan(std::sync::Arc::new(
+                crate::timeline::plan_value::TimelinePlan::capture_plan_body(
+                    crate::ast::PlanBody {
+                        statements: source,
+                        instance_methods: plan_body.instance_methods.clone(),
+                    },
+                    env,
+                ),
+            )))
         },
         CompiledExpr::Index(container, index) => eval_index(container, index, env),
-        CompiledExpr::Method(receiver, name, args) => {
-            let receiver_val = evaluate_compiled_expr(receiver, env)?;
-            let arg_values: SmallVec<[Value; 4]> = args
-                .iter()
-                .map(|arg| evaluate_compiled_expr(arg, env))
-                .collect::<Result<_, _>>()?;
-            eval_method(receiver_val, name, &arg_values, env)
-        },
         CompiledExpr::Closure(params, body) => {
             Ok(Value::Closure(params.clone(), body.clone(), CapturedEnv::snapshot(env)))
         },
@@ -78,14 +192,7 @@ pub(crate) fn evaluate_compiled_expr(
             prop: prop.clone(),
         }),
         CompiledExpr::LetChain(bindings, tail) => eval_let_chain(bindings, tail, env),
-        CompiledExpr::Construct(name, fields) => {
-            let mut map = std::collections::HashMap::new();
-            for (field_name, field_expr) in fields {
-                let val = evaluate_compiled_expr(field_expr, env)?;
-                map.insert(field_name.clone(), val);
-            }
-            Ok(Value::Object(name.clone(), map))
-        },
+        CompiledExpr::Construct(name, fields) => eval_construct(name, fields, env),
         CompiledExpr::AnchorLookup { actor, anchor } => {
             if let Some(point) = env_anchor_point(env, actor, *anchor) {
                 Ok(Value::Vec2(point))
@@ -94,6 +201,300 @@ pub(crate) fn evaluate_compiled_expr(
                 env.get_path(&name).ok_or(EvalError::UndefinedVariable(name))
             }
         },
+    }
+}
+
+fn eval_construct(
+    name: &str,
+    fields: &[(String, CompiledExpr)],
+    env: &Environment,
+) -> Result<Value, EvalError> {
+    let fields = fields
+        .iter()
+        .map(|(name, expr)| evaluate_compiled_expr(expr, env).map(|value| (name.clone(), value)))
+        .collect::<Result<_, _>>()?;
+    Ok(Value::Object(name.to_string(), fields))
+}
+
+fn wrap_registered_callable(name: &str, value: Value, env: &Environment) -> Value {
+    let Value::NativeFn(native) = value else {
+        return value;
+    };
+    let Some(descriptor) = env.callable_descriptor(name) else {
+        return Value::NativeFn(native);
+    };
+    Value::RegisteredFn {
+        name: descriptor.qualified_name(),
+        descriptor: std::sync::Arc::new(descriptor.clone()),
+        native: Some(native),
+    }
+}
+
+fn evaluate_named_call_arguments(
+    name: &str,
+    arguments: &[(Option<String>, CompiledExpr)],
+    env: &Environment,
+) -> Result<Vec<(Option<String>, Value)>, EvalError> {
+    evaluate_named_call_arguments_with_offset(name, arguments, env, 0)
+}
+
+fn evaluate_named_call_arguments_with_offset(
+    name: &str,
+    arguments: &[(Option<String>, CompiledExpr)],
+    env: &Environment,
+    positional_offset: usize,
+) -> Result<Vec<(Option<String>, Value)>, EvalError> {
+    let unqualified = name.strip_prefix("std::").unwrap_or(name);
+    let function = if name.starts_with("std::") {
+        env.get(name)
+    } else {
+        env.get(name).or_else(|| env.get(unqualified))
+    };
+    if let Some(Value::UserFn { params, .. }) = function {
+        let params = params
+            .iter()
+            .map(|param| {
+                (
+                    param.name.clone(),
+                    param
+                        .param_type
+                        .as_ref()
+                        .map(crate::timeline::callable::type_annotation_to_callable),
+                    false,
+                )
+            })
+            .collect::<Vec<_>>();
+        return evaluate_arguments_with_params_offset(arguments, &params, env, positional_offset);
+    }
+    let descriptor = env.callable_descriptor(name).or_else(|| env.callable_descriptor(unqualified));
+    let params: Vec<(String, Option<animatix_core::callable::CallableType>, bool)> = descriptor
+        .map(|descriptor| {
+            descriptor
+                .params
+                .iter()
+                .map(|param| (param.name.clone(), Some(param.ty.clone()), param.variadic))
+                .collect()
+        })
+        .unwrap_or_default();
+    evaluate_arguments_with_params_offset(arguments, &params, env, positional_offset)
+}
+
+fn evaluate_member_call(
+    receiver: Value,
+    name: &str,
+    arguments: &[(Option<String>, CompiledExpr)],
+    env: &Environment,
+) -> Result<Value, EvalError> {
+    if let Value::ActorRef(actor) = &receiver {
+        if let Some(method) = env.component_method_for_actor(actor, name) {
+            if !component_method_is_visible(&method, name, env) {
+                return Err(EvalError::UnsupportedMethod(format!(
+                    "component method '{name}' is private"
+                )));
+            }
+            let method = if env.is_frame_phase() {
+                method
+            } else {
+                crate::timeline::fn_eval::bind_component_method_receiver(method, actor)
+            };
+            let values = evaluate_value_call_arguments(&method, arguments, env)?;
+            return crate::timeline::utils::evaluate_callable_value(method, values, name, env);
+        }
+
+        if callable_has_actor_receiver(name, env) {
+            let mut values = evaluate_named_call_arguments_with_offset(name, arguments, env, 1)?;
+            values.insert(0, (None, Value::ActorRef(actor.clone())));
+            return crate::timeline::utils::evaluate_call_arguments(name, values, env);
+        }
+    }
+
+    let values = evaluate_named_call_arguments("<method>", arguments, env)?;
+    crate::timeline::utils::evaluate_method_arguments(receiver, name, values, env)
+}
+
+fn component_method_is_visible(method: &Value, name: &str, env: &Environment) -> bool {
+    let Value::UserFn {
+        component_scope: Some(scope),
+        ..
+    } = method
+    else {
+        return true;
+    };
+    if scope.methods.get(name).is_none_or(|template| template.is_pub) {
+        return true;
+    }
+    env.active_component_scope
+        .as_ref()
+        .is_some_and(|active| std::sync::Arc::ptr_eq(active, scope))
+}
+
+fn callable_has_actor_receiver(name: &str, env: &Environment) -> bool {
+    use animatix_core::callable::CallableType;
+
+    fn accepts_actor(ty: &CallableType) -> bool {
+        match ty {
+            CallableType::Actor => true,
+            CallableType::Union(types) => types.iter().any(accepts_actor),
+            _ => false,
+        }
+    }
+
+    let unqualified = name.strip_prefix("std::").unwrap_or(name);
+    let callable = if name.starts_with("std::") {
+        env.get(name)
+    } else {
+        env.get(name).or_else(|| env.get(unqualified))
+    };
+    match callable {
+        Some(Value::UserFn { params, .. }) => params
+            .first()
+            .and_then(|param| param.param_type.as_ref())
+            .map(crate::timeline::callable::type_annotation_to_callable)
+            .is_some_and(|ty| accepts_actor(&ty)),
+        Some(Value::RegisteredFn { descriptor, .. }) => {
+            descriptor.params.first().is_some_and(|param| accepts_actor(&param.ty))
+        },
+        _ => env
+            .callable_descriptor(name)
+            .or_else(|| env.callable_descriptor(unqualified))
+            .and_then(|descriptor| descriptor.params.first())
+            .is_some_and(|param| accepts_actor(&param.ty)),
+    }
+}
+
+fn evaluate_value_call_arguments(
+    callee: &Value,
+    arguments: &[(Option<String>, CompiledExpr)],
+    env: &Environment,
+) -> Result<Vec<(Option<String>, Value)>, EvalError> {
+    if let Value::UserFn { params, .. } = callee {
+        let params = params
+            .iter()
+            .map(|param| {
+                (
+                    param.name.clone(),
+                    param
+                        .param_type
+                        .as_ref()
+                        .map(crate::timeline::callable::type_annotation_to_callable),
+                    false,
+                )
+            })
+            .collect::<Vec<_>>();
+        evaluate_arguments_with_params(arguments, &params, env)
+    } else if let Value::RegisteredFn { descriptor, .. } = callee {
+        let params = descriptor
+            .params
+            .iter()
+            .map(|param| (param.name.clone(), Some(param.ty.clone()), param.variadic))
+            .collect::<Vec<_>>();
+        evaluate_arguments_with_params(arguments, &params, env)
+    } else {
+        evaluate_arguments_with_params(arguments, &[], env)
+    }
+}
+
+fn evaluate_arguments_with_params(
+    arguments: &[(Option<String>, CompiledExpr)],
+    params: &[(String, Option<animatix_core::callable::CallableType>, bool)],
+    env: &Environment,
+) -> Result<Vec<(Option<String>, Value)>, EvalError> {
+    evaluate_arguments_with_params_offset(arguments, params, env, 0)
+}
+
+fn evaluate_arguments_with_params_offset(
+    arguments: &[(Option<String>, CompiledExpr)],
+    params: &[(String, Option<animatix_core::callable::CallableType>, bool)],
+    env: &Environment,
+    positional_offset: usize,
+) -> Result<Vec<(Option<String>, Value)>, EvalError> {
+    let mut positional_index = positional_offset;
+    arguments
+        .iter()
+        .map(|(name, expression)| {
+            let param_index = if let Some(name) = name {
+                params.iter().position(|(param_name, _, _)| param_name == name)
+            } else {
+                let index = (positional_index < params.len()).then_some(positional_index);
+                if index.is_some() && !params[positional_index].2 {
+                    positional_index += 1;
+                }
+                index
+            };
+            let expected = param_index
+                .and_then(|index| params.get(index))
+                .and_then(|(_, ty, _)| ty.as_ref());
+            let value = evaluate_argument(expression, expected, env)?;
+            Ok((name.clone(), value))
+        })
+        .collect()
+}
+
+fn evaluate_argument(
+    expression: &CompiledExpr,
+    expected: Option<&animatix_core::callable::CallableType>,
+    env: &Environment,
+) -> Result<Value, EvalError> {
+    use animatix_core::callable::CallableType as T;
+    if let CompiledExpr::LoadEnv(symbol) = expression
+        && expected.is_some_and(argument_accepts_color)
+        && env.get_path(symbol).is_none()
+        && let Some(color) = crate::timeline::utils::color_from_text(symbol)
+    {
+        return Ok(Value::Color(color.map(f64::from)));
+    }
+    match (expected, expression) {
+        (Some(T::Actor), CompiledExpr::LoadEnv(label)) => {
+            return actor_reference_value(label, env);
+        },
+        (Some(T::List(inner)), CompiledExpr::MakeList(items))
+            if matches!(inner.as_ref(), T::Actor) =>
+        {
+            let items = items
+                .iter()
+                .map(|item| evaluate_argument(item, Some(inner), env))
+                .collect::<Result<Vec<_>, _>>()?;
+            return Ok(Value::List(items.into()));
+        },
+        (Some(T::Enum(_)), CompiledExpr::LoadEnv(symbol)) if env.get_path(symbol).is_none() => {
+            return Ok(Value::Str(symbol.clone()));
+        },
+        (Some(T::Union(types)), CompiledExpr::LoadEnv(symbol))
+            if types.iter().any(|ty| matches!(ty, T::Enum(_)))
+                && env.get_path(symbol).is_none() =>
+        {
+            return Ok(Value::Str(symbol.clone()));
+        },
+        (Some(T::Easing), CompiledExpr::LoadEnv(symbol)) => match env.get_path(symbol) {
+            Some(Value::Easing(easing)) => return Ok(Value::Easing(easing)),
+            Some(Value::NativeFn(_) | Value::RegisteredFn { .. }) | None => {
+                if let Some(easing) = crate::easing::parse_easing_name(symbol) {
+                    return Ok(Value::Easing(easing));
+                }
+            },
+            Some(_) => {}, // Explicit lexical values keep their own type.
+        },
+        _ => {},
+    }
+    evaluate_compiled_expr(expression, env)
+}
+
+fn argument_accepts_color(ty: &animatix_core::callable::CallableType) -> bool {
+    use animatix_core::callable::CallableType as T;
+    match ty {
+        T::Color => true,
+        T::Union(types) => types.iter().any(argument_accepts_color),
+        _ => false, // Other parameter kinds do not interpret color literals.
+    }
+}
+
+fn actor_reference_value(label: &str, env: &Environment) -> Result<Value, EvalError> {
+    match env.get_path(label) {
+        Some(Value::ActorRef(reference)) => Ok(Value::ActorRef(reference)),
+        Some(value) => Err(EvalError::TypeMismatch(format!(
+            "actor parameter expects an actor reference, got {value:?} for '{label}'"
+        ))),
+        None => Ok(Value::ActorRef(crate::timeline::plan_value::ActorRef::caller(label))),
     }
 }
 
@@ -184,7 +585,9 @@ fn eval_call_builtin(
         BuiltinFn::CurveSmooth => "curve_smooth",
         BuiltinFn::SeededRand => "seeded_rand",
     };
-    if env.get(name).is_some() {
+    if args.iter().any(|value| !matches!(value, Value::Num(_)))
+        || env.get(name).is_some() && !crate::timeline::builtins::is_standard_callable(name, env)
+    {
         return crate::timeline::utils::evaluate_call_value(name, args.into_vec(), env);
     }
     crate::timeline::eval_shared::eval_builtin_fn(name, &args)
@@ -195,9 +598,38 @@ fn eval_index(
     index: &CompiledExpr,
     env: &Environment,
 ) -> Result<Value, EvalError> {
-    let container_val = evaluate_compiled_expr(container, env)?;
     let index_val = evaluate_compiled_expr(index, env)?;
-    let idx = index_val.as_num() as usize;
+    let container_val = match container {
+        CompiledExpr::LoadEnv(name) if env.get_path(name).is_none() => {
+            Value::ActorRef(crate::timeline::plan_value::ActorRef::caller(name.as_str()))
+        },
+        _ => evaluate_compiled_expr(container, env)?,
+    };
+    let raw_index = match index_val {
+        Value::Num(value) => value,
+        other => {
+            return Err(EvalError::TypeMismatch(format!("index must be Num, got {other:?}")));
+        },
+    };
+    if let Value::ActorRef(reference) = &container_val {
+        if !raw_index.is_finite() || raw_index < 0.0 || raw_index.fract() != 0.0 {
+            return Err(EvalError::InvalidActorIndex(raw_index));
+        }
+        let index = raw_index as usize;
+        if env.is_frame_phase() {
+            return reference
+                .indexed_resolved(index)
+                .map(Value::ActorRef)
+                .ok_or(EvalError::InvalidActorIndex(raw_index));
+        }
+        return Ok(Value::ActorRef(reference.indexed(index)));
+    }
+    if !raw_index.is_finite() || raw_index < 0.0 || raw_index.fract() != 0.0 {
+        return Err(EvalError::TypeMismatch(format!(
+            "index must be a non-negative integer, got {raw_index}"
+        )));
+    }
+    let idx = raw_index as usize;
     match container_val {
         Value::List(items) => items.get(idx).cloned().ok_or_else(|| {
             EvalError::TypeMismatch(format!(
@@ -274,16 +706,6 @@ fn eval_let_chain(
     result
 }
 
-/// Evaluate a method call on a receiver value.
-pub(crate) fn eval_method(
-    receiver: Value,
-    name: &str,
-    args: &[Value],
-    env: &Environment,
-) -> Result<Value, EvalError> {
-    crate::timeline::utils::eval_method_dispatch(receiver, name, args, env)
-}
-
 pub(crate) fn make_vec_value(values: Vec<Value>) -> Result<Value, EvalError> {
     let all_num = values.iter().all(|v| matches!(v, Value::Num(_)));
     if all_num {
@@ -302,522 +724,6 @@ pub(crate) fn make_vec_value(values: Vec<Value>) -> Result<Value, EvalError> {
         // Heterogeneous or non-numeric tuple (e.g. tuple of colors, strings, or nested tuples) becomes a List
         Ok(Value::List(values.into()))
     }
-}
-
-/// Pre-indexed compiled expression for high-throughput scalar math evaluation (curve plot
-/// sampling): direct floating-point operations and slot indexing against a contiguous
-/// `&[f64]` slice, with no AST matching or string identifier lookups.
-#[allow(missing_docs)]
-#[derive(Clone, Debug, PartialEq)]
-pub enum FastScalarExpr {
-    Const(f64),
-    Arg,
-    Slot(usize),
-    Neg(Box<FastScalarExpr>),
-    Not(Box<FastScalarExpr>),
-    Add(Box<FastScalarExpr>, Box<FastScalarExpr>),
-    Sub(Box<FastScalarExpr>, Box<FastScalarExpr>),
-    Mul(Box<FastScalarExpr>, Box<FastScalarExpr>),
-    MulAdd(Box<FastScalarExpr>, Box<FastScalarExpr>, Box<FastScalarExpr>),
-    Div(Box<FastScalarExpr>, Box<FastScalarExpr>),
-    Mod(Box<FastScalarExpr>, Box<FastScalarExpr>),
-    Pow(Box<FastScalarExpr>, Box<FastScalarExpr>),
-    Eq(Box<FastScalarExpr>, Box<FastScalarExpr>),
-    Neq(Box<FastScalarExpr>, Box<FastScalarExpr>),
-    Lt(Box<FastScalarExpr>, Box<FastScalarExpr>),
-    Gt(Box<FastScalarExpr>, Box<FastScalarExpr>),
-    Lte(Box<FastScalarExpr>, Box<FastScalarExpr>),
-    Gte(Box<FastScalarExpr>, Box<FastScalarExpr>),
-    And(Box<FastScalarExpr>, Box<FastScalarExpr>),
-    Or(Box<FastScalarExpr>, Box<FastScalarExpr>),
-    Select(Box<FastScalarExpr>, Box<FastScalarExpr>, Box<FastScalarExpr>),
-    Sin(Box<FastScalarExpr>),
-    Cos(Box<FastScalarExpr>),
-    Tan(Box<FastScalarExpr>),
-    Sqrt(Box<FastScalarExpr>),
-    Exp(Box<FastScalarExpr>),
-    Log(Box<FastScalarExpr>),
-    Abs(Box<FastScalarExpr>),
-    Floor(Box<FastScalarExpr>),
-    Ceil(Box<FastScalarExpr>),
-    Round(Box<FastScalarExpr>),
-    Signum(Box<FastScalarExpr>),
-    Fract(Box<FastScalarExpr>),
-    Deg(Box<FastScalarExpr>),
-    Rad(Box<FastScalarExpr>),
-    Min(Box<FastScalarExpr>, Box<FastScalarExpr>),
-    Max(Box<FastScalarExpr>, Box<FastScalarExpr>),
-    Clamp(Box<FastScalarExpr>, Box<FastScalarExpr>, Box<FastScalarExpr>),
-    Lerp(Box<FastScalarExpr>, Box<FastScalarExpr>, Box<FastScalarExpr>),
-    Hypot(Box<FastScalarExpr>, Box<FastScalarExpr>),
-    Step(Box<FastScalarExpr>, Box<FastScalarExpr>),
-    Atan2(Box<FastScalarExpr>, Box<FastScalarExpr>),
-    SeededRand(Box<FastScalarExpr>),
-}
-
-impl FastScalarExpr {
-    #[inline(always)]
-    pub(crate) fn eval(&self, x: f64, slots: &[f64]) -> f64 {
-        match self {
-            Self::Const(c) => *c,
-            Self::Arg => x,
-            Self::Slot(idx) => slots.get(*idx).copied().unwrap_or(f64::NAN),
-            Self::Neg(inner) => -inner.eval(x, slots),
-            Self::Not(inner) => {
-                if inner.eval(x, slots) != 0.0 {
-                    0.0
-                } else {
-                    1.0
-                }
-            },
-            Self::Add(l, r) => l.eval(x, slots) + r.eval(x, slots),
-            Self::Sub(l, r) => l.eval(x, slots) - r.eval(x, slots),
-            Self::Mul(l, r) => l.eval(x, slots) * r.eval(x, slots),
-            Self::MulAdd(a, b, c) => a.eval(x, slots) * b.eval(x, slots) + c.eval(x, slots),
-            Self::Div(l, r) => crate::timeline::utils::safe_div(l.eval(x, slots), r.eval(x, slots)),
-            Self::Mod(l, r) => crate::timeline::utils::safe_rem(l.eval(x, slots), r.eval(x, slots)),
-            Self::Pow(l, r) => l.eval(x, slots).powf(r.eval(x, slots)),
-            Self::Eq(l, r) => {
-                if l.eval(x, slots) == r.eval(x, slots) {
-                    1.0
-                } else {
-                    0.0
-                }
-            },
-            Self::Neq(l, r) => {
-                if l.eval(x, slots) != r.eval(x, slots) {
-                    1.0
-                } else {
-                    0.0
-                }
-            },
-            Self::Lt(l, r) => {
-                if l.eval(x, slots) < r.eval(x, slots) {
-                    1.0
-                } else {
-                    0.0
-                }
-            },
-            Self::Gt(l, r) => {
-                if l.eval(x, slots) > r.eval(x, slots) {
-                    1.0
-                } else {
-                    0.0
-                }
-            },
-            Self::Lte(l, r) => {
-                if l.eval(x, slots) <= r.eval(x, slots) {
-                    1.0
-                } else {
-                    0.0
-                }
-            },
-            Self::Gte(l, r) => {
-                if l.eval(x, slots) >= r.eval(x, slots) {
-                    1.0
-                } else {
-                    0.0
-                }
-            },
-            Self::And(l, r) => {
-                if l.eval(x, slots) != 0.0 && r.eval(x, slots) != 0.0 {
-                    1.0
-                } else {
-                    0.0
-                }
-            },
-            Self::Or(l, r) => {
-                if l.eval(x, slots) != 0.0 || r.eval(x, slots) != 0.0 {
-                    1.0
-                } else {
-                    0.0
-                }
-            },
-            Self::Select(cond, then_expr, else_expr) => {
-                if cond.eval(x, slots) != 0.0 {
-                    then_expr.eval(x, slots)
-                } else {
-                    else_expr.eval(x, slots)
-                }
-            },
-            Self::Sin(inner) => inner.eval(x, slots).sin(),
-            Self::Cos(inner) => inner.eval(x, slots).cos(),
-            Self::Tan(inner) => inner.eval(x, slots).tan(),
-            Self::Sqrt(inner) => inner.eval(x, slots).sqrt(),
-            Self::Exp(inner) => inner.eval(x, slots).exp(),
-            Self::Log(inner) => inner.eval(x, slots).ln(),
-            Self::Abs(inner) => inner.eval(x, slots).abs(),
-            Self::Floor(inner) => inner.eval(x, slots).floor(),
-            Self::Ceil(inner) => inner.eval(x, slots).ceil(),
-            Self::Round(inner) => inner.eval(x, slots).round(),
-            Self::Signum(inner) => inner.eval(x, slots).signum(),
-            Self::Fract(inner) => inner.eval(x, slots).fract(),
-            Self::Deg(inner) => inner.eval(x, slots) * std::f64::consts::PI / 180.0,
-            Self::Rad(inner) => inner.eval(x, slots) * 180.0 / std::f64::consts::PI,
-            Self::Min(l, r) => l.eval(x, slots).min(r.eval(x, slots)),
-            Self::Max(l, r) => l.eval(x, slots).max(r.eval(x, slots)),
-            Self::Clamp(val, lo, hi) => {
-                val.eval(x, slots).clamp(lo.eval(x, slots), hi.eval(x, slots))
-            },
-            Self::Lerp(s, e, t) => {
-                let sv = s.eval(x, slots);
-                let ev = e.eval(x, slots);
-                let tv = t.eval(x, slots);
-                sv + (ev - sv) * tv
-            },
-            Self::Hypot(l, r) => l.eval(x, slots).hypot(r.eval(x, slots)),
-            Self::Step(edge, x_val) => {
-                if x_val.eval(x, slots) < edge.eval(x, slots) {
-                    0.0
-                } else {
-                    1.0
-                }
-            },
-            Self::Atan2(y, x_val) => y.eval(x, slots).atan2(x_val.eval(x, slots)),
-            Self::SeededRand(inner) => {
-                let seed = inner.eval(x, slots);
-                let hash = crate::timeline::builtins::splitmix64(seed.to_bits());
-                hash as f64 / u64::MAX as f64
-            },
-        }
-    }
-
-    pub(crate) fn contains_arg(&self) -> bool {
-        match self {
-            Self::Const(_) | Self::Slot(_) => false,
-            Self::Arg => true,
-            Self::Neg(inner)
-            | Self::Not(inner)
-            | Self::Sin(inner)
-            | Self::Cos(inner)
-            | Self::Tan(inner)
-            | Self::Sqrt(inner)
-            | Self::Exp(inner)
-            | Self::Log(inner)
-            | Self::Abs(inner)
-            | Self::Floor(inner)
-            | Self::Ceil(inner)
-            | Self::Round(inner)
-            | Self::Signum(inner)
-            | Self::Fract(inner)
-            | Self::Deg(inner)
-            | Self::Rad(inner)
-            | Self::SeededRand(inner) => inner.contains_arg(),
-            Self::Add(l, r)
-            | Self::Sub(l, r)
-            | Self::Mul(l, r)
-            | Self::Div(l, r)
-            | Self::Mod(l, r)
-            | Self::Pow(l, r)
-            | Self::Eq(l, r)
-            | Self::Neq(l, r)
-            | Self::Lt(l, r)
-            | Self::Gt(l, r)
-            | Self::Lte(l, r)
-            | Self::Gte(l, r)
-            | Self::And(l, r)
-            | Self::Or(l, r)
-            | Self::Min(l, r)
-            | Self::Max(l, r)
-            | Self::Hypot(l, r)
-            | Self::Step(l, r)
-            | Self::Atan2(l, r) => l.contains_arg() || r.contains_arg(),
-            Self::Select(c, t, e) => c.contains_arg() || t.contains_arg() || e.contains_arg(),
-            Self::Clamp(v, lo, hi) => v.contains_arg() || lo.contains_arg() || hi.contains_arg(),
-            Self::Lerp(s, e, t) => s.contains_arg() || e.contains_arg() || t.contains_arg(),
-            Self::MulAdd(a, b, c) => a.contains_arg() || b.contains_arg() || c.contains_arg(),
-        }
-    }
-
-    pub(crate) fn fold_slots(&self, slots: &[f64]) -> FastScalarExpr {
-        if !self.contains_arg() {
-            return Self::Const(self.eval(0.0, slots));
-        }
-        match self {
-            Self::Const(c) => Self::Const(*c),
-            Self::Arg => Self::Arg,
-            Self::Slot(idx) => Self::Const(slots.get(*idx).copied().unwrap_or(f64::NAN)),
-            Self::Neg(inner) => Self::Neg(Box::new(inner.fold_slots(slots))),
-            Self::Not(inner) => Self::Not(Box::new(inner.fold_slots(slots))),
-            Self::Add(l, r) => match (l.fold_slots(slots), r.fold_slots(slots)) {
-                (Self::Mul(a, b), r) => Self::MulAdd(a, b, Box::new(r)),
-                (l, Self::Mul(a, b)) => Self::MulAdd(a, b, Box::new(l)),
-                (l, r) => Self::Add(Box::new(l), Box::new(r)),
-            },
-            Self::Sub(l, r) => {
-                Self::Sub(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
-            },
-            Self::Mul(l, r) => {
-                Self::Mul(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
-            },
-            Self::MulAdd(a, b, c) => Self::MulAdd(
-                Box::new(a.fold_slots(slots)),
-                Box::new(b.fold_slots(slots)),
-                Box::new(c.fold_slots(slots)),
-            ),
-            Self::Div(l, r) => {
-                Self::Div(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
-            },
-            Self::Mod(l, r) => {
-                Self::Mod(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
-            },
-            Self::Pow(l, r) => {
-                Self::Pow(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
-            },
-            Self::Eq(l, r) => {
-                Self::Eq(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
-            },
-            Self::Neq(l, r) => {
-                Self::Neq(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
-            },
-            Self::Lt(l, r) => {
-                Self::Lt(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
-            },
-            Self::Gt(l, r) => {
-                Self::Gt(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
-            },
-            Self::Lte(l, r) => {
-                Self::Lte(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
-            },
-            Self::Gte(l, r) => {
-                Self::Gte(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
-            },
-            Self::And(l, r) => {
-                Self::And(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
-            },
-            Self::Or(l, r) => {
-                Self::Or(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
-            },
-            Self::Select(c, t, e) => Self::Select(
-                Box::new(c.fold_slots(slots)),
-                Box::new(t.fold_slots(slots)),
-                Box::new(e.fold_slots(slots)),
-            ),
-            Self::Sin(inner) => Self::Sin(Box::new(inner.fold_slots(slots))),
-            Self::Cos(inner) => Self::Cos(Box::new(inner.fold_slots(slots))),
-            Self::Tan(inner) => Self::Tan(Box::new(inner.fold_slots(slots))),
-            Self::Sqrt(inner) => Self::Sqrt(Box::new(inner.fold_slots(slots))),
-            Self::Exp(inner) => Self::Exp(Box::new(inner.fold_slots(slots))),
-            Self::Log(inner) => Self::Log(Box::new(inner.fold_slots(slots))),
-            Self::Abs(inner) => Self::Abs(Box::new(inner.fold_slots(slots))),
-            Self::Floor(inner) => Self::Floor(Box::new(inner.fold_slots(slots))),
-            Self::Ceil(inner) => Self::Ceil(Box::new(inner.fold_slots(slots))),
-            Self::Round(inner) => Self::Round(Box::new(inner.fold_slots(slots))),
-            Self::Signum(inner) => Self::Signum(Box::new(inner.fold_slots(slots))),
-            Self::Fract(inner) => Self::Fract(Box::new(inner.fold_slots(slots))),
-            Self::Deg(inner) => Self::Deg(Box::new(inner.fold_slots(slots))),
-            Self::Rad(inner) => Self::Rad(Box::new(inner.fold_slots(slots))),
-            Self::Min(l, r) => {
-                Self::Min(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
-            },
-            Self::Max(l, r) => {
-                Self::Max(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
-            },
-            Self::Clamp(v, lo, hi) => Self::Clamp(
-                Box::new(v.fold_slots(slots)),
-                Box::new(lo.fold_slots(slots)),
-                Box::new(hi.fold_slots(slots)),
-            ),
-            Self::Lerp(s, e, t) => Self::Lerp(
-                Box::new(s.fold_slots(slots)),
-                Box::new(e.fold_slots(slots)),
-                Box::new(t.fold_slots(slots)),
-            ),
-            Self::Hypot(l, r) => {
-                Self::Hypot(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
-            },
-            Self::Step(edge, x) => {
-                Self::Step(Box::new(edge.fold_slots(slots)), Box::new(x.fold_slots(slots)))
-            },
-            Self::Atan2(y, x) => {
-                Self::Atan2(Box::new(y.fold_slots(slots)), Box::new(x.fold_slots(slots)))
-            },
-            Self::SeededRand(inner) => Self::SeededRand(Box::new(inner.fold_slots(slots))),
-        }
-    }
-}
-
-pub(crate) fn compile_fast_scalar<'a>(
-    expr: &'a CompiledExpr,
-    arg_name: &str,
-    slot_names: &mut Vec<&'a str>,
-) -> Option<FastScalarExpr> {
-    match expr {
-        CompiledExpr::Const(Value::Num(n)) => Some(FastScalarExpr::Const(*n)),
-        CompiledExpr::LoadEnv(name) => {
-            if name == arg_name {
-                Some(FastScalarExpr::Arg)
-            } else {
-                let slot = if let Some(idx) = slot_names.iter().position(|k| *k == name.as_str()) {
-                    idx
-                } else {
-                    let idx = slot_names.len();
-                    slot_names.push(name.as_str());
-                    idx
-                };
-                Some(FastScalarExpr::Slot(slot))
-            }
-        },
-        CompiledExpr::Unary(op, inner) => {
-            let inner_fast = compile_fast_scalar(inner, arg_name, slot_names)?;
-            match op {
-                UnaryOp::Neg => Some(FastScalarExpr::Neg(Box::new(inner_fast))),
-                UnaryOp::Not => Some(FastScalarExpr::Not(Box::new(inner_fast))),
-                UnaryOp::Ref => None,
-            }
-        },
-        CompiledExpr::Binary(left, op, right) => {
-            let l = compile_fast_scalar(left, arg_name, slot_names)?;
-            let r = compile_fast_scalar(right, arg_name, slot_names)?;
-            Some(match op {
-                BinaryOp::Add => match (l, r) {
-                    (FastScalarExpr::Mul(a, b), r) => FastScalarExpr::MulAdd(a, b, Box::new(r)),
-                    (l, FastScalarExpr::Mul(a, b)) => FastScalarExpr::MulAdd(a, b, Box::new(l)),
-                    (l, r) => FastScalarExpr::Add(Box::new(l), Box::new(r)),
-                },
-                BinaryOp::Sub => FastScalarExpr::Sub(Box::new(l), Box::new(r)),
-                BinaryOp::Mul => FastScalarExpr::Mul(Box::new(l), Box::new(r)),
-                BinaryOp::Div => FastScalarExpr::Div(Box::new(l), Box::new(r)),
-                BinaryOp::Mod => FastScalarExpr::Mod(Box::new(l), Box::new(r)),
-                BinaryOp::Pow => FastScalarExpr::Pow(Box::new(l), Box::new(r)),
-                BinaryOp::Eq => FastScalarExpr::Eq(Box::new(l), Box::new(r)),
-                BinaryOp::Neq => FastScalarExpr::Neq(Box::new(l), Box::new(r)),
-                BinaryOp::Lt => FastScalarExpr::Lt(Box::new(l), Box::new(r)),
-                BinaryOp::Gt => FastScalarExpr::Gt(Box::new(l), Box::new(r)),
-                BinaryOp::Lte => FastScalarExpr::Lte(Box::new(l), Box::new(r)),
-                BinaryOp::Gte => FastScalarExpr::Gte(Box::new(l), Box::new(r)),
-                BinaryOp::And => FastScalarExpr::And(Box::new(l), Box::new(r)),
-                BinaryOp::Or => FastScalarExpr::Or(Box::new(l), Box::new(r)),
-            })
-        },
-        CompiledExpr::Select(cond, then_expr, else_expr) => {
-            let c = compile_fast_scalar(cond, arg_name, slot_names)?;
-            let t = compile_fast_scalar(then_expr, arg_name, slot_names)?;
-            let e = compile_fast_scalar(else_expr, arg_name, slot_names)?;
-            Some(FastScalarExpr::Select(Box::new(c), Box::new(t), Box::new(e)))
-        },
-        CompiledExpr::CallBuiltin(builtin, args) => match builtin {
-            BuiltinFn::Sin if args.len() == 1 => Some(FastScalarExpr::Sin(Box::new(
-                compile_fast_scalar(&args[0], arg_name, slot_names)?,
-            ))),
-            BuiltinFn::Cos if args.len() == 1 => Some(FastScalarExpr::Cos(Box::new(
-                compile_fast_scalar(&args[0], arg_name, slot_names)?,
-            ))),
-            BuiltinFn::Tan if args.len() == 1 => Some(FastScalarExpr::Tan(Box::new(
-                compile_fast_scalar(&args[0], arg_name, slot_names)?,
-            ))),
-            BuiltinFn::Sqrt if args.len() == 1 => Some(FastScalarExpr::Sqrt(Box::new(
-                compile_fast_scalar(&args[0], arg_name, slot_names)?,
-            ))),
-            BuiltinFn::Exp if args.len() == 1 => Some(FastScalarExpr::Exp(Box::new(
-                compile_fast_scalar(&args[0], arg_name, slot_names)?,
-            ))),
-            BuiltinFn::Log if args.len() == 1 => Some(FastScalarExpr::Log(Box::new(
-                compile_fast_scalar(&args[0], arg_name, slot_names)?,
-            ))),
-            BuiltinFn::Abs if args.len() == 1 => Some(FastScalarExpr::Abs(Box::new(
-                compile_fast_scalar(&args[0], arg_name, slot_names)?,
-            ))),
-            BuiltinFn::Floor if args.len() == 1 => Some(FastScalarExpr::Floor(Box::new(
-                compile_fast_scalar(&args[0], arg_name, slot_names)?,
-            ))),
-            BuiltinFn::Ceil if args.len() == 1 => Some(FastScalarExpr::Ceil(Box::new(
-                compile_fast_scalar(&args[0], arg_name, slot_names)?,
-            ))),
-            BuiltinFn::Round if args.len() == 1 => Some(FastScalarExpr::Round(Box::new(
-                compile_fast_scalar(&args[0], arg_name, slot_names)?,
-            ))),
-            BuiltinFn::Signum if args.len() == 1 => Some(FastScalarExpr::Signum(Box::new(
-                compile_fast_scalar(&args[0], arg_name, slot_names)?,
-            ))),
-            BuiltinFn::Fract if args.len() == 1 => Some(FastScalarExpr::Fract(Box::new(
-                compile_fast_scalar(&args[0], arg_name, slot_names)?,
-            ))),
-            BuiltinFn::Deg if args.len() == 1 => Some(FastScalarExpr::Deg(Box::new(
-                compile_fast_scalar(&args[0], arg_name, slot_names)?,
-            ))),
-            BuiltinFn::Rad if args.len() == 1 => Some(FastScalarExpr::Rad(Box::new(
-                compile_fast_scalar(&args[0], arg_name, slot_names)?,
-            ))),
-            BuiltinFn::Min if args.len() == 2 => Some(FastScalarExpr::Min(
-                Box::new(compile_fast_scalar(&args[0], arg_name, slot_names)?),
-                Box::new(compile_fast_scalar(&args[1], arg_name, slot_names)?),
-            )),
-            BuiltinFn::Max if args.len() == 2 => Some(FastScalarExpr::Max(
-                Box::new(compile_fast_scalar(&args[0], arg_name, slot_names)?),
-                Box::new(compile_fast_scalar(&args[1], arg_name, slot_names)?),
-            )),
-            BuiltinFn::Clamp if args.len() == 3 => Some(FastScalarExpr::Clamp(
-                Box::new(compile_fast_scalar(&args[0], arg_name, slot_names)?),
-                Box::new(compile_fast_scalar(&args[1], arg_name, slot_names)?),
-                Box::new(compile_fast_scalar(&args[2], arg_name, slot_names)?),
-            )),
-            BuiltinFn::Lerp if args.len() == 3 => Some(FastScalarExpr::Lerp(
-                Box::new(compile_fast_scalar(&args[0], arg_name, slot_names)?),
-                Box::new(compile_fast_scalar(&args[1], arg_name, slot_names)?),
-                Box::new(compile_fast_scalar(&args[2], arg_name, slot_names)?),
-            )),
-            BuiltinFn::Hypot if args.len() == 2 => Some(FastScalarExpr::Hypot(
-                Box::new(compile_fast_scalar(&args[0], arg_name, slot_names)?),
-                Box::new(compile_fast_scalar(&args[1], arg_name, slot_names)?),
-            )),
-            BuiltinFn::Pow if args.len() == 2 => Some(FastScalarExpr::Pow(
-                Box::new(compile_fast_scalar(&args[0], arg_name, slot_names)?),
-                Box::new(compile_fast_scalar(&args[1], arg_name, slot_names)?),
-            )),
-            BuiltinFn::Rem if args.len() == 2 => Some(FastScalarExpr::Mod(
-                Box::new(compile_fast_scalar(&args[0], arg_name, slot_names)?),
-                Box::new(compile_fast_scalar(&args[1], arg_name, slot_names)?),
-            )),
-            BuiltinFn::Step if args.len() == 2 => Some(FastScalarExpr::Step(
-                Box::new(compile_fast_scalar(&args[0], arg_name, slot_names)?),
-                Box::new(compile_fast_scalar(&args[1], arg_name, slot_names)?),
-            )),
-            BuiltinFn::Atan2 if args.len() == 2 => Some(FastScalarExpr::Atan2(
-                Box::new(compile_fast_scalar(&args[0], arg_name, slot_names)?),
-                Box::new(compile_fast_scalar(&args[1], arg_name, slot_names)?),
-            )),
-            BuiltinFn::SeededRand if args.len() == 1 => Some(FastScalarExpr::SeededRand(Box::new(
-                compile_fast_scalar(&args[0], arg_name, slot_names)?,
-            ))),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
-pub(crate) fn compile_fast_vec2<'a>(
-    expr: &'a CompiledExpr,
-    arg_name: &str,
-    slot_names: &mut Vec<&'a str>,
-) -> Option<(FastScalarExpr, FastScalarExpr)> {
-    if let CompiledExpr::MakeVec(items) = expr
-        && items.len() == 2
-    {
-        let x = compile_fast_scalar(&items[0], arg_name, slot_names)?;
-        let y = compile_fast_scalar(&items[1], arg_name, slot_names)?;
-        return Some((x, y));
-    }
-    None
-}
-
-pub(crate) fn resolve_slot_values(
-    slot_names: &[&str],
-    env: &Environment,
-    captures: &CapturedEnv,
-    out: &mut Vec<f64>,
-) -> bool {
-    out.clear();
-    for name in slot_names {
-        if let Some(Value::Num(n)) = env.get_path(name) {
-            out.push(n);
-        } else if let Some(Value::Num(n)) = captures.0.get(*name) {
-            out.push(*n);
-        } else {
-            return false;
-        }
-    }
-    true
 }
 
 #[cfg(test)]

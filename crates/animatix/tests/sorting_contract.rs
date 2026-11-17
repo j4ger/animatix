@@ -11,10 +11,16 @@ fn build(source: &str) -> Timeline {
         .load_program_with_source(std::path::Path::new("sorting.amx"), Some(source))
         .expect("fixture parses");
     let mut diagnostics = Vec::new();
-    let ast = program.expand_components(&mut diagnostics);
+    let expanded = program.expand_components(&mut diagnostics);
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
-    let report =
-        BuildTarget::build_with_options(&ast, &Default::default(), None, BuildOptions::default());
+    let report = BuildTarget::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        None,
+        BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
     assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
     let BuildTarget::SingleScene(timeline) = report.output else {
         panic!("single scene")

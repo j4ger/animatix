@@ -21,7 +21,7 @@ fn preseeded_asset_cache_satisfies_build_time_loads() {
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0.1s
 pic: Image, url: "dot.png", size: (400, 240), at: (320, 180)
-fade-in pic [300ms]
+fade_in(target: pic, duration: 300ms)
 "#;
     let built = super::build_document_with_assets(
         source,
@@ -55,7 +55,7 @@ fn preseeded_svg_source_satisfies_build_time_parse() {
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0.1s
 pic: Svg, url: "mark.svg", size: (300, 300), at: (320, 180)
-fade-in pic [300ms]
+fade_in(target: pic, duration: 300ms)
 "#;
     let built = super::build_document_with_assets(
         source,
@@ -168,10 +168,7 @@ fn parse_failure_reports_diagnostics_without_target() {
 #[test]
 fn build_failure_reports_diagnostics_without_target() {
     let doc = build_document(
-        "config { colorscheme: \"editorial-dark\", resolution: (320, 180) }\n\
-         ghost: DoesNotExist, size: (10, 10)\n\
-         seen: Rect, size: (10, 10), color: accent.primary, at: (20, 20)\n\
-         #0.1s\nfade-in seen [100ms]\n",
+        "config { colorscheme: \"editorial-dark\", resolution: (320, 180) }\nghost: DoesNotExist, size: (10, 10)\nseen: Rect, size: (10, 10), color: accent.primary, at: (20, 20)\n#0.1s\nfade_in(target: seen, duration: 100ms)\n",
         Arc::new(FontContext::new()),
         BuildQuality::Draft,
     );
@@ -198,10 +195,7 @@ fn build_failure_reports_diagnostics_without_target() {
 #[test]
 fn warnings_still_yield_a_document() {
     let doc = build_document(
-        "config { colorscheme: \"editorial-dark\", resolution: (320, 180) }\n\
-         ghost: Rect, size: (10, 10), color: accent.primary, at: (20, 20)\n\
-         seen: Rect, size: (10, 10), color: accent.success, at: (60, 20)\n\
-         #0.1s\nfade-in seen [100ms]\n",
+        "config { colorscheme: \"editorial-dark\", resolution: (320, 180) }\nghost: Rect, size: (10, 10), color: accent.primary, at: (20, 20)\nseen: Rect, size: (10, 10), color: accent.success, at: (60, 20)\n#0.1s\nfade_in(target: seen, duration: 100ms)\n",
         Arc::new(FontContext::new()),
         BuildQuality::Draft,
     );
@@ -465,12 +459,7 @@ fn missing_imports_close_the_graph_through_the_retry_protocol() {
 #[test]
 fn single_scene_persist_target_stays_unwarned() {
     let doc = build_document(
-        "config { colorscheme: \"editorial-dark\", resolution: (320, 180) }\n\
-         #0s\n\
-         badge: Ellipse, size: (30, 30), at: (60, 60)\n\
-         fade-in badge [100ms]\n\
-         #1s\n\
-         persist badge\n",
+        "config { colorscheme: \"editorial-dark\", resolution: (320, 180) }\n#0s\nbadge: Ellipse, size: (30, 30), at: (60, 60)\nfade_in(target: badge, duration: 100ms)\n#1s\npersist(target: badge)\n",
         Arc::new(FontContext::new()),
         BuildQuality::Draft,
     );
@@ -497,7 +486,7 @@ let label = "default"
 
 #0s
 dot: Ellipse, size: (amp, amp), at: (320, 180)
-fade-in dot [100ms]
+fade_in(target: dot, duration: 100ms)
 "#;
     let vars = vec![
         ("amp".to_string(), "320".to_string()),
@@ -708,7 +697,7 @@ fn preparation_expands_exported_components_in_imported_scenes_for_resources() {
 import "./scene.amx" as demo
 # Main
 #0.1s
-play demo.Intro
+play demo::Intro
 "#;
     let module = r#"
 pub component Card(title: Str) {
@@ -867,13 +856,13 @@ fn preparation_follows_nested_play_targets_and_collects_reachable_assets() {
 import "./scene.amx" as demo
 # Main
 #0.1s
-play demo.Intro
+play demo::Intro
 "#;
     let module = r#"
 import "./inner.amx" as inner
 # Intro
 #0.1s
-play demo.inner.Detail
+play demo::inner::Detail
 "#;
     let nested = r#"
 # Detail

@@ -12,8 +12,8 @@ use animatix_plugin_api::{
 use libloading::Library;
 
 use super::{
-    NativeHost, native_provide_service, native_register_action, native_register_effect,
-    native_register_function, native_register_primitive, native_register_property,
+    NativeHost, native_provide_service, native_register_callable, native_register_effect,
+    native_register_primitive, native_register_property,
 };
 use crate::extension_context::ExtensionContext;
 use crate::extension_plugin::{ExtensionPlugin, PluginDisposer, PluginError};
@@ -76,9 +76,8 @@ impl NativePlugin {
                 size: std::mem::size_of::<NativePluginApi>(),
                 version: UNSTABLE_ABI_VERSION,
                 register_property: native_register_property,
-                register_function: native_register_function,
+                register_callable: native_register_callable,
                 register_primitive: native_register_primitive,
-                register_action: native_register_action,
                 provide_service: native_provide_service,
                 register_effect: native_register_effect,
             };
@@ -100,7 +99,7 @@ impl ExtensionPlugin for NativePlugin {
 
     fn install(&self, ctx: &mut ExtensionContext) -> Result<PluginDisposer, PluginError> {
         let library = Arc::clone(&self.library);
-        let (properties, functions, primitives, actions, services) = {
+        let (properties, functions, primitives, services) = {
             let mut host = NativeHost {
                 ctx,
                 library: Some(Arc::clone(&self.library) as Arc<dyn Any + Send + Sync>),
@@ -110,7 +109,6 @@ impl ExtensionPlugin for NativePlugin {
                 service_values: HashMap::new(),
                 functions: Vec::new(),
                 primitives: Vec::new(),
-                actions: Vec::new(),
                 services: Vec::new(),
                 effects: Vec::new(),
             };
@@ -123,7 +121,7 @@ impl ExtensionPlugin for NativePlugin {
                     self.name
                 )));
             }
-            (host.properties, host.functions, host.primitives, host.actions, host.services)
+            (host.properties, host.functions, host.primitives, host.services)
         };
 
         Ok(Box::new(move |ctx: &mut ExtensionContext| {
@@ -132,13 +130,10 @@ impl ExtensionPlugin for NativePlugin {
                 ctx.remove_property(&actor_type, &name);
             }
             for name in functions {
-                ctx.remove_function(&name);
+                ctx.remove_callable(&name);
             }
             for name in primitives {
                 ctx.remove_primitive(&name);
-            }
-            for name in actions {
-                ctx.remove_action(&name);
             }
             for name in services {
                 ctx.remove_service(&name);

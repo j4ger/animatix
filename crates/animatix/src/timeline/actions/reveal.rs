@@ -1,7 +1,7 @@
-use super::registry::{ActionParam, ActionSignature, BuiltinAction, base_timing_params};
-use crate::ast::Action;
+use super::registry::{BuiltinAction, CallableDescriptor};
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
+use crate::timeline::actions::BuiltinInvocation;
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{DEFAULT_WHITE, Timeline};
 
@@ -28,7 +28,7 @@ fn ensure_reveal_stroke(
 /// Seed a scalar track's pre-entrance value.
 ///
 /// A declaration writes its settled value as the track's first keyframe
-/// (`stroke_progress: 1.0` by default). A later `draw-in` adds a start
+/// (`stroke_progress: 1.0` by default). A later `draw_in` adds a start
 /// keyframe at `t_start`, but [`PropertyTrack`](crate::timeline::PropertyTrack)
 /// evaluates to its *first* keyframe for every earlier time, so the actor
 /// paints its settled state from frame 0 and only pops invisible when the
@@ -96,6 +96,7 @@ fn reveal_stagger(modifiers: &[crate::ast::Modifier]) -> Option<f32> {
         .iter()
         .find(|m| m.name.as_deref() == Some("stagger"))
         .and_then(|m| match &m.value {
+            crate::ast::Expr::Duration(seconds) => Some(*seconds as f32),
             crate::ast::Expr::Num(n) => Some(*n as f32),
             crate::ast::Expr::Ident(raw) => {
                 crate::timeline::timing::parse_duration_literal(raw).map(|ms| ms as f32 / 1000.0)
@@ -122,52 +123,13 @@ fn reveal_mask(modifiers: &[crate::ast::Modifier]) -> Option<bool> {
         .find(|m| m.name.as_deref() == Some("mask"))
         .map(|m| match &m.value {
             crate::ast::Expr::Bool(b) => *b,
-            crate::ast::Expr::Ident(s) => s == "true" || s == "baseline",
+            crate::ast::Expr::Ident(s) | crate::ast::Expr::Str(s) => s == "true" || s == "baseline",
             _ => false,
         })
 }
 
-fn split_reveal_params() -> Vec<ActionParam> {
-    vec![
-        ActionParam {
-            name: "by".to_string(),
-            description: "Reveal granularity for text targets: `by: char` (the default), `by: word`, or `by: line`.".to_string(),
-            type_info: "char | word | line".to_string(),
-        },
-        ActionParam {
-            name: "stagger".to_string(),
-            description: "Stagger delay between units (time or fraction).".to_string(),
-            type_info: "time | num".to_string(),
-        },
-        ActionParam {
-            name: "offset_y".to_string(),
-            description: "Vertical translation offset for split reveal.".to_string(),
-            type_info: "num".to_string(),
-        },
-        ActionParam {
-            name: "mask".to_string(),
-            description: "Mask below resting baseline (`baseline` or `true`).".to_string(),
-            type_info: "baseline | bool".to_string(),
-        },
-    ]
-}
-
-fn reveal_signature(name: &str, category: &str, description: &str) -> ActionSignature {
-    let mut modifiers = base_timing_params();
-    if category == "Entrance" {
-        modifiers.extend(split_reveal_params());
-    }
-    ActionSignature {
-        name: name.to_string(),
-        category: category.to_string(),
-        description: description.to_string(),
-        params: vec![],
-        modifiers,
-    }
-}
-
 fn for_each_reveal_target(
-    action: &Action,
+    action: &BuiltinInvocation,
     time_ms: f64,
     timeline: &mut Timeline,
     diagnostics: &mut Vec<Diagnostic>,
@@ -241,17 +203,13 @@ fn apply_text_split_setup(
 }
 
 impl BuiltinAction for DrawIn {
-    fn signature(&self) -> ActionSignature {
-        reveal_signature(
-            "draw-in",
-            "Entrance",
-            "Draws in vector targets by animating stroke progress first, then revealing fill at the end.",
-        )
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::DrawIn.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
@@ -281,7 +239,7 @@ impl BuiltinAction for DrawIn {
             let caps = timeline.world.caps(id);
             let style = timeline.world.style.get_mut(id);
 
-            // Reveal pre-keyframe ("hidden by default") targets: draw-in
+            // Reveal pre-keyframe ("hidden by default") targets: draw_in
             // animates stroke_progress/fill_opacity/char_progress but never
             // opacity, so lift the seeded opacity 0 alongside the draw.
             let meta = timeline
@@ -361,7 +319,7 @@ impl BuiltinAction for DrawIn {
                 // pre-entrance state below, which rewrites the first keyframe.
                 let authored_fill = style.fill_opacity.get(timing.t_start_ms, 1.0);
 
-                // A scheduled `draw-in` must not paint the settled stroke/fill
+                // A scheduled `draw_in` must not paint the settled stroke/fill
                 // from frame 0: the declaration's first keyframe is the settled
                 // value, so seed that keyframe with the entrance pre-state.
                 seed_pre_entrance_value(&mut style.stroke_progress, timing.t_start_ms, 0.0);
@@ -409,17 +367,13 @@ impl BuiltinAction for DrawIn {
 pub struct RevealIn;
 
 impl BuiltinAction for RevealIn {
-    fn signature(&self) -> ActionSignature {
-        reveal_signature(
-            "reveal-in",
-            "Entrance",
-            "Reveals vector targets by drawing stroke progress first, then popping fill at the end.",
-        )
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::RevealIn.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
@@ -449,7 +403,7 @@ impl BuiltinAction for RevealIn {
             let caps = timeline.world.caps(id);
             let style = timeline.world.style.get_mut(id);
 
-            // Reveal pre-keyframe ("hidden by default") targets: reveal-in
+            // Reveal pre-keyframe ("hidden by default") targets: reveal_in
             // animates stroke_progress/fill_opacity but never opacity, so
             // lift the seeded opacity 0 alongside the reveal.
             let meta = timeline
@@ -543,17 +497,13 @@ impl BuiltinAction for RevealIn {
 pub struct WipeOut;
 
 impl BuiltinAction for WipeOut {
-    fn signature(&self) -> ActionSignature {
-        reveal_signature(
-            "wipe-out",
-            "Exit",
-            "Wipes out vector targets by animating stroke progress and fill opacity down together.",
-        )
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::WipeOut.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
@@ -594,17 +544,13 @@ impl BuiltinAction for WipeOut {
 pub struct RevealOut;
 
 impl BuiltinAction for RevealOut {
-    fn signature(&self) -> ActionSignature {
-        reveal_signature(
-            "reveal-out",
-            "Exit",
-            "Exits vector targets by hiding fill at the start, then erasing stroke progress over time.",
-        )
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::RevealOut.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
@@ -642,17 +588,13 @@ impl BuiltinAction for RevealOut {
 pub struct DrawOut;
 
 impl BuiltinAction for DrawOut {
-    fn signature(&self) -> ActionSignature {
-        reveal_signature(
-            "draw-out",
-            "Exit",
-            "Exits vector targets by erasing stroke progress over time while keeping fill until the end.",
-        )
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::DrawOut.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,

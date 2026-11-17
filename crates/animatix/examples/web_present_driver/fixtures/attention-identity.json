@@ -3,23 +3,26 @@
   "origin_commit": "72938ed6f99111b683b5dae007d319426134071d",
   "origin_source": "web/demos/transformer/scenes/attention.amx",
   "origin_source_sha256": "5596a52aa4ec0016ef9c9b0b18671588f6b645e4e767e8c9f8a4bc49c550ac4e",
-  "fixture_source_sha256": "dd5878f9b9e0bffd9804fb5617a8d7048cdb022740402d02b9d12942dc81b38e",
-  "change": "Only import prefixes ../../../../examples/lib/ became lib/. No actor, time, geometry or text change.",
+  "fixture_source_sha256": "77b58e7f475f278aa938ec3b67542a554913235eae22158f6f04f34c27962b6f",
+  "change": "Migrated to canonical function and plan syntax with formatting; actor identities, timing cues, content, and the three-module closure are preserved. The relocated fixture differs from the current web scene only by import prefixes.",
   "modules": [
     {
       "source": "examples/lib/theme.amx",
       "file": "lib/theme.amx",
-      "sha256": "e96493f5535645761d9d22e69f0ffa26b7eac5985c355652cac33130996e3366"
+      "sha256": "e96493f5535645761d9d22e69f0ffa26b7eac5985c355652cac33130996e3366",
+      "migrated_sha256": "7509067903a79734c54b66142cdc2e92dded41109fb13847d49756275a7c85e4"
     },
     {
       "source": "examples/lib/stage.amx",
       "file": "lib/stage.amx",
-      "sha256": "e978cbdf269ea1da5e9a0e4fbd1a349d01827044ce60ef08a0e7dba2d872f305"
+      "sha256": "e978cbdf269ea1da5e9a0e4fbd1a349d01827044ce60ef08a0e7dba2d872f305",
+      "migrated_sha256": "c64d2a613e96e4c9d9efd5e49babc024e01b182fdfcde7fccd3d2696c3da2a49"
     },
     {
       "source": "examples/lib/components.amx",
       "file": "lib/components.amx",
-      "sha256": "323489199f53364c4d62b3455da169fec342d07c757d93071d2e7b3dc853b9ee"
+      "sha256": "323489199f53364c4d62b3455da169fec342d07c757d93071d2e7b3dc853b9ee",
+      "migrated_sha256": "e081e5b3e604b40f5049493ba959bb3d87cbe6e6508605aa10384797d8514f51"
     }
   ],
   "sample_times": [
@@ -41,5 +44,6 @@
       720
     ]
   ],
-  "scope": "Frozen attention input only; basic-shapes workload and renderer/font dependencies remain external."
+  "scope": "Frozen attention input only; basic-shapes workload and renderer/font dependencies remain external.",
+  "migrated_origin_source_sha256": "42a35450b504c036a0b760fb1a9ee8a8d3a54b3a8b4fbaea9092950386950f02"
 }

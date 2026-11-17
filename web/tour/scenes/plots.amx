@@ -12,72 +12,59 @@
 // pipeline seeds the ramp onto the track (`timeline/build/actor.rs`) and the
 // primitive stamps it onto its own commands (`primitives/plot.rs`), so the
 // gradient survives the `stroke_progress` trim.
-
 import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 7.5 }
 
-title: Text, text: "Plots are actors too", font_size: 32, color: text.primary,
-  anchor: scene.top, offset: (0, 56)
+title: Text, text: "Plots are actors too", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 56)
 
-wash: Ellipse, size: (700, 700), at: (450, 400),
-  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b9421a"), (55%, "#8ab4f60a"), (100%, "#8ab4f600")}),
-  blend: "screen"
+wash: Ellipse, size: (700, 700), at: (450, 400), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b9421a"), (55%, "#8ab4f60a"), (100%, "#8ab4f600")}), blend: "screen"
 
 main: Graph, x_domain: (-6, 6), y_domain: (-3, 3), size: (640, 420), stroke: stroke.default, at: (450, 400) {
-  sine: PlotCurve, kind: "cartesian", func: (x) => sin(x),
-    color: accent.primary, stroke_width: 3, stroke_progress: 0,
-    stroke_gradient: linear(0, {(0%, "#f5b942"), (60%, "#ffd60a"), (100%, "#8ab4f6")})
+sine: PlotCurve, kind: "cartesian", func: (x) => sin(x), color: accent.primary, stroke_width: 3, stroke_progress: 0, stroke_gradient: linear(0, {(0%, "#f5b942"), (60%, "#ffd60a"), (100%, "#8ab4f6")})
   // Same geometry, same trim, 18px and 22% alpha: the bloom.
-  sine_glow: PlotCurve, kind: "cartesian", func: (x) => sin(x),
-    color: "#ffd60a38", stroke_width: 18, stroke_progress: 0, blend: "screen"
+sine_glow: PlotCurve, kind: "cartesian", func: (x) => sin(x), color: "#ffd60a38", stroke_width: 18, stroke_progress: 0, blend: "screen"
 }
 
-field: VectorField, func: (x, y) => (cos(x) * cos(y), -sin(x) * sin(y)),
-  density: 9, color: accent.success, x_domain: (-2, 2), y_domain: (-2, 2),
-  at: (1050, 390), size: (300, 300)
+field: VectorField, func: (x, y) => (cos(x) * cos(y), -sin(x) * sin(y)), density: 9, color: accent.success, x_domain: (-2, 2), y_domain: (-2, 2), at: (1050, 390), size: (300, 300)
 
 // The field's own light, so the right half of the plate is not empty when it
 // arrives.
-field_wash: Ellipse, size: (460, 460), at: (1050, 390),
-  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#8fc7a320"), (60%, "#8fc7a309"), (100%, "#8fc7a300")}),
-  blend: "screen"
+field_wash: Ellipse, size: (460, 460), at: (1050, 390), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#8fc7a320"), (60%, "#8fc7a309"), (100%, "#8fc7a300")}), blend: "screen"
 
-cap1: Text, text: "stroke_progress traces the curve", font_size: 22,
-  color: text.secondary, anchor: scene.bottom, offset: (-270, -40)
-cap2: Text, text: "the gradient field of sin(x)cos(y)", font_size: 22,
-  color: text.secondary, at: (1050, 560)
+cap1: Text, text: "stroke_progress traces the curve", font_size: 22, color: text.secondary, anchor: scene.bottom, offset: (-270, -40)
+
+cap2: Text, text: "the gradient field of sin(x)cos(y)", font_size: 22, color: text.secondary, at: (1050, 560)
 
 #0s
-sine.stroke_progress = 0
-sine_glow.stroke_progress = 0
+  sine.stroke_progress = 0
+  sine_glow.stroke_progress = 0
 
 #0.4s
-fade-in title [600ms, ease: expo-out]
-fade-in wash [800ms, ease: expo-out]
+  fade_in(target: title, duration: 0.6s, ease: expo_out)
+  fade_in(target: wash, duration: 0.8s, ease: expo_out)
 
-#1.0s
-fade-in main [600ms, ease: expo-out]
+#1s
+  fade_in(target: main, duration: 0.6s, ease: expo_out)
 
 // cap1 is up BEFORE the trace starts so the beat arrives labeled
 #1.7s
-fade-in cap1 [400ms, ease: expo-out]
+  fade_in(target: cap1, duration: 0.4s, ease: expo_out)
 
 #1.8s
-fade-in sine [300ms, ease: expo-out]
-fade-in sine_glow [300ms, ease: expo-out]
-sine.stroke_progress = 1.0 [2.4s, ease: ease-in-out]
-sine_glow.stroke_progress = 1.0 [2.4s, ease: ease-in-out]
+  fade_in(target: sine, duration: 0.3s, ease: expo_out)
+  fade_in(target: sine_glow, duration: 0.3s, ease: expo_out)
+  sine.stroke_progress = 1 [2.4s, ease: ease_in_out]
+  sine_glow.stroke_progress = 1 [2.4s, ease: ease_in_out]
 
 // hand off to cap2 as the field beat starts
 #4.4s
-fade-out cap1 [200ms, ease: ease-in]
+  fade_out(target: cap1, duration: 0.2s, ease: ease_in)
 
 #4.6s
-fade-in field_wash [700ms, ease: expo-out]
-pop-in field [600ms, ease: expo-out]
-settle-in cap2 [400ms, ease: expo-out]
-
-// No erase cascade: the embed dissolves the finished frame into the next cycle
-// itself, so clearing the plate only blanked the figure through the `hold` at the
-// end of the loop. The composition now rests complete.
+  fade_in(target: field_wash, duration: 0.7s, ease: expo_out)
+  pop_in(target: field, duration: 0.6s, ease: expo_out)
+  settle_in(target: cap2, duration: 0.4s, ease: expo_out)
+  // No erase cascade: the embed dissolves the finished frame into the next cycle
+  // itself, so clearing the plate only blanked the figure through the `hold` at the
+  // end of the loop. The composition now rests complete.

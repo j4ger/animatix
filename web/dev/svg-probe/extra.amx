@@ -3,7 +3,7 @@
 // component types inside a component body are not part of the grammar.
 import "./deeper.amx"
 
-pub component Badge(label: "imported") {
+pub component Badge(label: Str = "imported") {
   plate: Rect, size: (180, 52), corner_radius: 10, color: accent.primary
   mark: Chip, label: label, anchor: scene.center
 }

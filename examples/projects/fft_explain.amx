@@ -1,7 +1,6 @@
 // FFT Explanation Animation
 // A visual walkthrough of the Fast Fourier Transform:
 // time-domain signal → sine decomposition → frequency spectrum → reconstruction.
-
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 // =============================================================================
@@ -9,19 +8,12 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 // =============================================================================
 # TitleCard
 config { colorscheme: "editorial-dark" }
-
-title: Text, text: "Understanding the FFT", font_size: 64,
-  color: text.primary, anchor: scene.center, offset: (0, -40)
-
-subtitle: Text, text: "From time domain to frequency domain", font_size: 28,
-  color: text.secondary, anchor: scene.center, offset: (0, 40)
-
+title: Text, text: "Understanding the FFT", font_size: 64, color: text.primary, anchor: scene.center, offset: (0, -40)
+subtitle: Text, text: "From time domain to frequency domain", font_size: 28, color: text.secondary, anchor: scene.center, offset: (0, 40)
 #0.5s
-fade-in title [800ms, ease: ease-out]
-
+  fade_in(target: title, duration: 0.8s, ease: ease_out)
 #1.5s
-fade-in subtitle [600ms, ease: ease-out]
-
+  fade_in(target: subtitle, duration: 0.6s, ease: ease_out)
 play TimeDomain [fade, 400ms]
 
 // =============================================================================
@@ -29,38 +21,25 @@ play TimeDomain [fade, 400ms]
 // =============================================================================
 # TimeDomain
 config { colorscheme: "editorial-dark" }
-
-step_title: Text, text: "1. A Complex Waveform", font_size: 40,
-  color: text.primary, anchor: scene.top, offset: (0, 60)
-
-signal_graph: Graph, at: (640, 380), size: (900, 300),
-  x_domain: (0, 4), y_domain: (-3, 3) {
-  composite: PlotCurve, kind: "cartesian",
-    func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t),
-    color: accent.primary, stroke_width: 3
+step_title: Text, text: "1. A Complex Waveform", font_size: 40, color: text.primary, anchor: scene.top, offset: (0, 60)
+signal_graph: Graph, at: (640, 380), size: (900, 300), x_domain: (0, 4), y_domain: (-3, 3) {
+composite: PlotCurve, kind: "cartesian", func: (t) => (sin(((2 * pi) * 2) * t) + 0.55 * sin(((2 * pi) * 5) * t)) + 0.3 * sin(((2 * pi) * 9) * t), color: accent.primary, stroke_width: 3
 }
-
-signal_label: Text, text: "x(t) = sin(2π·2t) + 0.55·sin(2π·5t) + 0.3·sin(2π·9t)",
-  font_size: 14, color: text.muted, anchor: scene.center, offset: (0, 250)
-
-// Sampling playhead: sweeps one full window (x_domain 0..4) every 4s, looping.
+signal_label: Text, text: "x(t) = sin(2π·2t) + 0.55·sin(2π·5t) + 0.3·sin(2π·9t)", font_size: 14, color: text.muted, anchor:
+  // Sampling playhead: sweeps one full window (x_domain 0..4) every 4s, looping.
+  scene.center, offset: (0, 250)
 playhead: Rect, size: (2, 300), color: accent.warning, opacity: 0.7, at: (190, 380)
-
 always {
-  let x = 190 + (t % 4.0) / 4.0 * 900
+  let x = 190 + ((t % 4) / 4) * 900
   playhead.at = (x, 380)
 }
-
 #0.5s
-fade-in step_title [500ms, ease: ease-out]
-
+  fade_in(target: step_title, duration: 0.5s, ease: ease_out)
 #1.2s
-fade-in signal_graph [1s, ease: ease-out]
-
+  fade_in(target: signal_graph, duration: 1s, ease: ease_out)
 #2.5s
-fade-in signal_label [400ms]
-fade-in playhead [400ms]
-
+  fade_in(target: signal_label, duration: 0.4s)
+  fade_in(target: playhead, duration: 0.4s)
 play Decomposition [fade, 400ms]
 
 // =============================================================================
@@ -68,88 +47,55 @@ play Decomposition [fade, 400ms]
 // =============================================================================
 # Decomposition
 config { colorscheme: "editorial-dark" }
-
-step2_title: Text, text: "2. Decompose Into Sine Waves", font_size: 40,
-  color: text.primary, anchor: scene.top, offset: (0, 60)
-
-decomp_graph: Graph, at: (640, 400), size: (900, 320),
-  x_domain: (0, 4), y_domain: (-4, 4) {
-  ref_signal: PlotCurve, kind: "cartesian",
-    func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t),
-    color: accent.primary, opacity: 0.3, stroke_width: 2
-  sine_2hz: PlotCurve, kind: "cartesian", func: (t) => sin(2 * pi * 2 * t),
-    color: accent.danger, stroke_width: 3
-  sine_5hz: PlotCurve, kind: "cartesian", func: (t) => 0.55 * sin(2 * pi * 5 * t),
-    color: accent.success, stroke_width: 3
-  sine_9hz: PlotCurve, kind: "cartesian", func: (t) => 0.3 * sin(2 * pi * 9 * t),
-    color: accent.warning, stroke_width: 3
+step2_title: Text, text: "2. Decompose Into Sine Waves", font_size: 40, color: text.primary, anchor: scene.top, offset: (0, 60)
+decomp_graph: Graph, at: (640, 400), size: (900, 320), x_domain: (0, 4), y_domain: (-4, 4) {
+ref_signal: PlotCurve, kind: "cartesian", func: (t) => (sin(((2 * pi) * 2) * t) + 0.55 * sin(((2 * pi) * 5) * t)) + 0.3 * sin(((2 * pi) * 9) * t), color: accent.primary, opacity: 0.3, stroke_width: 2
+sine_2hz: PlotCurve, kind: "cartesian", func: (t) => sin(((2 * pi) * 2) * t), color: accent.danger, stroke_width: 3
+sine_5hz: PlotCurve, kind: "cartesian", func: (t) => 0.55 * sin(((2 * pi) * 5) * t), color: accent.success, stroke_width: 3
+sine_9hz: PlotCurve, kind: "cartesian", func: (t) => 0.3 * sin(((2 * pi) * 9) * t), color: accent.warning, stroke_width: 3
 }
-
-decomp_eq: Equation, font_size: 17, color: text.muted,
-  anchor: scene.center, offset: (0, -210) {
-  pre: Fragment, text: "x(t) = "
-  f1: Fragment, text: "sin(2π·2t)"
-  mid1: Fragment, text: " + 0.55·"
-  f2: Fragment, text: "sin(2π·5t)"
-  mid2: Fragment, text: " + 0.3·"
-  f3: Fragment, text: "sin(2π·9t)"
+decomp_eq: Equation, font_size: 17, color: text.muted, anchor: scene.center, offset: (0, -210) {
+pre: Fragment, text: "x(t) = "
+f1: Fragment, text: "sin(2π·2t)"
+mid1: Fragment, text: " + 0.55·"
+f2: Fragment, text: "sin(2π·5t)"
+mid2: Fragment, text: " + 0.3·"
+f3: Fragment, text: "sin(2π·9t)"
 }
-
 #0.5s
-fade-in step2_title [500ms, ease: ease-out]
-
+  fade_in(target: step2_title, duration: 0.5s, ease: ease_out)
 #1s
-fade-in decomp_graph [500ms]
-fade-in decomp_eq [500ms]
-
+  fade_in(target: decomp_graph, duration: 0.5s)
+  fade_in(target: decomp_eq, duration: 0.5s)
 #2s
-fade-in ref_signal [300ms]
-
+  fade_in(target: ref_signal, duration: 0.3s)
 #3s
-highlight decomp_eq.f1 [color: white, blend: difference, 800ms]
-fade-in sine_2hz [800ms]
-
+  highlight(target: decomp_eq.f1, color: white, blend: difference, duration: 0.8s)
+  fade_in(target: sine_2hz, duration: 0.8s)
 #5s
-unhighlight decomp_eq.f1 [400ms]
-highlight decomp_eq.f2 [color: white, blend: difference, 800ms]
-fade-in sine_5hz [800ms]
-
+  unhighlight(target: decomp_eq.f1, duration: 0.4s)
+  highlight(target: decomp_eq.f2, color: white, blend: difference, duration: 0.8s)
+  fade_in(target: sine_5hz, duration: 0.8s)
 #7s
-unhighlight decomp_eq.f2 [400ms]
-highlight decomp_eq.f3 [color: white, blend: difference, 800ms]
-fade-in sine_9hz [800ms]
-
-play Spectrum [wipe-left, 400ms]
+  unhighlight(target: decomp_eq.f2, duration: 0.4s)
+  highlight(target: decomp_eq.f3, color: white, blend: difference, duration: 0.8s)
+  fade_in(target: sine_9hz, duration: 0.8s)
+play Spectrum [wipe_left, 400ms]
 
 // =============================================================================
 // Scene 4: Frequency spectrum (bar chart)
 // =============================================================================
 # Spectrum
 config { colorscheme: "editorial-dark" }
-
-step3_title: Text, text: "3. Frequency Spectrum", font_size: 40,
-  color: text.primary, anchor: scene.top, offset: (0, 60)
-
-equation: Typst, text: "$x(t) = sum_(k) A_k sin(2 pi f_k t)$",
-  font_size: 20, text_max_width: 800, color: accent.primary, anchor: scene.center, offset: (0, -200)
-
-spectrum: BarChart,
-  data: {("2 Hz", 1.0), ("5 Hz", 0.55), ("9 Hz", 0.3)},
-  size: (600, 260),
-  bar_colors: {(1.0, 0.46, 0.54, 1.0), (0.35, 0.86, 0.63, 1.0), (0.98, 0.83, 0.44, 1.0)},
-  show_axis: true,
-  show_labels: true,
-  at: (640, 420)
-
+step3_title: Text, text: "3. Frequency Spectrum", font_size: 40, color: text.primary, anchor: scene.top, offset: (0, 60)
+equation: Typst, text: "$x(t) = sum_(k) A_k sin(2 pi f_k t)$", font_size: 20, text_max_width: 800, color: accent.primary, anchor: scene.center, offset: (0, -200)
+spectrum: BarChart, data: {("2 Hz", 1), ("5 Hz", 0.55), ("9 Hz", 0.3)}, size: (600, 260), bar_colors: {(1, 0.46, 0.54, 1), (0.35, 0.86, 0.63, 1), (0.98, 0.83, 0.44, 1)}, show_axis: true, show_labels: true, at: (640, 420)
 #0.5s
-fade-in step3_title [500ms, ease: ease-out]
-
+  fade_in(target: step3_title, duration: 0.5s, ease: ease_out)
 #1.2s
-fade-in equation [500ms]
-
+  fade_in(target: equation, duration: 0.5s)
 #2s
-fade-in spectrum [800ms, ease: ease-out]
-
+  fade_in(target: spectrum, duration: 0.8s, ease: ease_out)
 play Reconstruction [fade, 400ms]
 
 // =============================================================================
@@ -157,51 +103,28 @@ play Reconstruction [fade, 400ms]
 // =============================================================================
 # Reconstruction
 config { colorscheme: "editorial-dark" }
-
-step4_title: Text, text: "4. Reconstruction: Sum = Original", font_size: 40,
-  color: text.primary, anchor: scene.top, offset: (0, 60)
-
-eqn2: Typst, text: "$hat(x)(t) = sum_(k=0)^(N-1) X_k e^((2 pi i k t) / N)$",
-  font_size: 18, text_max_width: 800, color: accent.primary, anchor: scene.center, offset: (0, -200)
-
-reconstruct_graph: Graph, at: (640, 400), size: (900, 300),
-  x_domain: (0, 4), y_domain: (-3, 3) {
-  original: PlotCurve, kind: "cartesian",
-    func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t),
-    color: text.muted, opacity: 0.5, stroke_width: 2
-  sum_1: PlotCurve, kind: "cartesian", func: (t) => sin(2 * pi * 2 * t),
-    color: accent.danger, stroke_width: 3, opacity: 0.0
-  sum_2: PlotCurve, kind: "cartesian",
-    func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t),
-    color: accent.warning, stroke_width: 3, opacity: 0.0
-  sum_3: PlotCurve, kind: "cartesian",
-    func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t),
-    color: accent.success, stroke_width: 3, opacity: 0.0
+step4_title: Text, text: "4. Reconstruction: Sum = Original", font_size: 40, color: text.primary, anchor: scene.top, offset: (0, 60)
+eqn2: Typst, text: "$hat(x)(t) = sum_(k=0)^(N-1) X_k e^((2 pi i k t) / N)$", font_size: 18, text_max_width: 800, color: accent.primary, anchor: scene.center, offset: (0, -200)
+reconstruct_graph: Graph, at: (640, 400), size: (900, 300), x_domain: (0, 4), y_domain: (-3, 3) {
+original: PlotCurve, kind: "cartesian", func: (t) => (sin(((2 * pi) * 2) * t) + 0.55 * sin(((2 * pi) * 5) * t)) + 0.3 * sin(((2 * pi) * 9) * t), color: text.muted, opacity: 0.5, stroke_width: 2
+sum_1: PlotCurve, kind: "cartesian", func: (t) => sin(((2 * pi) * 2) * t), color: accent.danger, stroke_width: 3, opacity: 0
+sum_2: PlotCurve, kind: "cartesian", func: (t) => sin(((2 * pi) * 2) * t) + 0.55 * sin(((2 * pi) * 5) * t), color: accent.warning, stroke_width: 3, opacity: 0
+sum_3: PlotCurve, kind: "cartesian", func: (t) => (sin(((2 * pi) * 2) * t) + 0.55 * sin(((2 * pi) * 5) * t)) + 0.3 * sin(((2 * pi) * 9) * t), color: accent.success, stroke_width: 3, opacity: 0
 }
-
-reconstruct_label: Text,
-  text: "Adding harmonics one by one recovers the original signal exactly.",
-  font_size: 18, color: text.secondary, anchor: scene.center, offset: (0, 250)
-
+reconstruct_label: Text, text: "Adding harmonics one by one recovers the original signal exactly.", font_size: 18, color: text.secondary, anchor: scene.center, offset: (0, 250)
 #0.5s
-fade-in step4_title [500ms, ease: ease-out]
-
+  fade_in(target: step4_title, duration: 0.5s, ease: ease_out)
 #1.2s
-fade-in eqn2 [500ms]
-
+  fade_in(target: eqn2, duration: 0.5s)
 #2s
-fade-in reconstruct_graph [800ms, ease: ease-out]
-
+  fade_in(target: reconstruct_graph, duration: 0.8s, ease: ease_out)
 #3.2s
-sum_1.opacity = 1.0 [600ms, ease: ease-out]
-
+  sum_1.opacity = 1 [0.6s, ease: ease_out]
 #4.6s
-sum_1.opacity = 0.0 [300ms]
-sum_2.opacity = 1.0 [600ms, ease: ease-out]
-
-#6.0s
-sum_2.opacity = 0.0 [300ms]
-sum_3.opacity = 1.0 [600ms, ease: ease-out]
-
+  sum_1.opacity = 0[0.3s]
+  sum_2.opacity = 1 [0.6s, ease: ease_out]
+#6s
+  sum_2.opacity = 0[0.3s]
+  sum_3.opacity = 1 [0.6s, ease: ease_out]
 #7.4s
-fade-in reconstruct_label [500ms]
+  fade_in(target: reconstruct_label, duration: 0.5s)

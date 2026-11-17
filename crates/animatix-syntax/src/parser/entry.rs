@@ -8,7 +8,7 @@ use chumsky::prelude::*;
 
 use super::comments::attach_trailing_comments;
 use super::error::ParseError;
-use super::{parser, token_parser};
+use super::token_parser;
 use crate::ast::Stmt;
 use crate::diagnostics::Diagnostic;
 
@@ -38,7 +38,9 @@ pub(super) fn parse_impl(source: &str) -> ParsedSource {
     let spanned = token_parser::spanned(&tokens);
     let input = token_parser::as_input(&spanned);
     let ((ast, errors), occurrences) = crate::occurrence::with_occurrences(|| {
-        parser(Rc::clone(&warnings)).parse(input).into_output_errors()
+        super::api::parser_with_source(source, Rc::clone(&warnings))
+            .parse(input)
+            .into_output_errors()
     });
     let mut ast = ast;
     if let Some(statements) = ast.as_mut() {

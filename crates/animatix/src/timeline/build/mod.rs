@@ -23,11 +23,11 @@
 //! | `keyframe_utils.rs` | Start/delay keyframe snapshots (end values live in `actor/helpers.rs`) |
 
 pub use entry::{BuildOptions, CarryInput};
-pub use inputs::{bind_input_loop, prepare_input_environment};
+pub(crate) use inputs::extend_input_methods;
+pub use inputs::{bind_input_loop, install_input_methods, prepare_input_environment};
 pub(super) use keyframe_utils::{insert_start_keyframes, preserve_delayed_values};
 pub(super) use plot::{PlotCurveParams, build_graph_axis_paths, build_plot_curve_paths};
-pub(crate) use process::time_scope::sequence_block_span_ms;
-pub(crate) use process::{bind_loop_var, pattern_matches};
+pub(crate) use process::{bind_loop_var, parse_for_loop_step, pattern_matches};
 
 use super::*;
 use crate::timeline::plot::PlotCurveKind;

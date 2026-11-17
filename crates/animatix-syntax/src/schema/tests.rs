@@ -131,6 +131,10 @@ fn declared_types_agree_with_descriptor_kinds() {
             Type::List(inner) if matches!(**inner, Type::Vec2) => &[PointList],
             // Expression-only types carry no finite track kind.
             Type::Any
+            | Type::Duration
+            | Type::Timeline
+            | Type::Unit
+            | Type::Easing
             | Type::Vec3
             | Type::Actor(_)
             | Type::Component(_)

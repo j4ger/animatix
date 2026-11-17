@@ -4,9 +4,10 @@
 //! These parsers handle constructs that appear at the top level of a `.amx` file:
 //! scene declarations, keyframes, config blocks, and `play` transitions.
 
+use chumsky::input::MapExtra;
 use chumsky::prelude::*;
 
-use super::common::{self, ModifiersParser, PropertyParser};
+use super::common::{self, ModifiersParser, PropertyParser, TimeParser};
 use super::token_parser::*;
 use crate::ast::*;
 use crate::occurrence::OccurrenceKind;
@@ -17,9 +18,9 @@ pub(crate) fn parser<'src>(
     stmt: common::StmtParser<'src>,
     property: PropertyParser<'src>,
     modifiers: ModifiersParser<'src>,
+    time: TimeParser<'src>,
+    source: common::SourceIndex<'src>,
 ) -> Boxed<'src, 'src, common::StrInput<'src>, Vec<Stmt>, common::ParserExtra<'src>> {
-    let time = common::time();
-
     let config_props = property
         .clone()
         .separated_by(comma())
@@ -38,9 +39,9 @@ pub(crate) fn parser<'src>(
 
     let scene_ref = common::ident_occ(OccurrenceKind::Scene)
         .clone()
-        .separated_by(dot())
+        .separated_by(colon_colon())
         .collect::<Vec<_>>()
-        .map(|parts: Vec<String>| parts.join("."));
+        .map(|parts: Vec<String>| parts.join("::"));
 
     let play_stmt = keyword("play")
         .ignore_then(scene_ref)
@@ -71,21 +72,30 @@ pub(crate) fn parser<'src>(
         .then(time)
         .then_ignore(colon().or_not())
         .then(common::scoped(stmt.clone().repeated().collect::<Vec<_>>()))
-        .map(|((is_relative, t), body)| {
-            if is_relative.is_some() {
-                Stmt::RelativeKeyframe {
-                    offset: t,
-                    body,
-                    span: None,
+        .map_with(
+            move |((is_relative, t), body),
+                  extra: &mut MapExtra<
+                'src,
+                '_,
+                common::StrInput<'src>,
+                common::ParserExtra<'src>,
+            >| {
+                let span = common::source_span(&source, extra.span());
+                if is_relative.is_some() {
+                    Stmt::RelativeKeyframe {
+                        offset: t,
+                        body,
+                        span,
+                    }
+                } else {
+                    Stmt::Keyframe {
+                        time: t,
+                        body,
+                        span,
+                    }
                 }
-            } else {
-                Stmt::Keyframe {
-                    time: t,
-                    body,
-                    span: None,
-                }
-            }
-        })
+            },
+        )
         .labelled("keyframe");
 
     let step_marker = hash()
@@ -120,10 +130,12 @@ pub(crate) fn parser<'src>(
         play_stmt,
         config_stmt,
         stmt.map(|s| match s {
-            Stmt::Action(..) | Stmt::Sequence { .. } | Stmt::Stagger { .. } => Stmt::Keyframe {
-                time: Time::Seconds(0.0),
-                body: vec![s],
-                span: None,
+            Stmt::Expr(Expr::Call(..), _) | Stmt::Sequence { .. } | Stmt::Stagger { .. } => {
+                Stmt::Keyframe {
+                    time: Time::Seconds(0.0),
+                    body: vec![s],
+                    span: None,
+                }
             },
             other => other,
         }),
@@ -220,21 +232,8 @@ pub(crate) fn parse_transition_from_modifiers(
             {
                 transition_id = Some(name.clone());
             },
-            (None, Expr::Ident(name)) if name.ends_with("ms") => {
-                if let Ok(ms) = name.trim_end_matches("ms").parse::<u64>()
-                    && duration_ms == 0
-                {
-                    duration_ms = ms;
-                }
-            },
-            (None, Expr::Ident(name))
-                if name.ends_with('s') && !name.starts_with(|c: char| c.is_alphabetic()) =>
-            {
-                if let Ok(s) = name.trim_end_matches('s').parse::<f64>()
-                    && duration_ms == 0
-                {
-                    duration_ms = (s * 1000.0) as u64;
-                }
+            (None, Expr::Duration(seconds)) if duration_ms == 0 => {
+                duration_ms = (seconds * 1000.0).round() as u64;
             },
             _ => {},
         }

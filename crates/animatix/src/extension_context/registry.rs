@@ -134,98 +134,51 @@ impl ExtensionRegistry {
         self.properties.extension_descriptors()
     }
 
-    /// Register a custom action handler.
+    /// Register a namespaced function with one contract for tooling and execution.
     ///
-    /// The action name must be unique within this context.
-    pub fn register_action(
+    /// Timeline-producing callbacks return an inert `Value::TimelinePlan` and
+    /// must not mutate a World. The ordinary call binder handles all arguments.
+    pub fn register_callable<F>(
         &mut self,
-        action: Box<dyn BuiltinAction>,
-    ) -> Result<(), ExtensionRegistrationError> {
-        let name = action.signature().name.clone();
-        if self.actions.iter().any(|existing| existing.signature().name == name) {
-            return Err(ExtensionRegistrationError::Duplicate(name));
+        descriptor: CallableDescriptor,
+        call: F,
+    ) -> Result<(), ExtensionRegistrationError>
+    where
+        F: Fn(&[Value], &Environment) -> Result<Value, EvalError> + Send + Sync + 'static,
+    {
+        descriptor.validate().map_err(ExtensionRegistrationError::InvalidContract)?;
+        if descriptor.namespace.split("::").next() == Some("std") {
+            return Err(ExtensionRegistrationError::InvalidContract(
+                "the std namespace is reserved".into(),
+            ));
         }
-        self.actions.push(action);
-        Ok(())
-    }
-
-    /// Remove a custom action by name.
-    pub fn remove_action(&mut self, name: &str) -> bool {
-        let before = self.actions.len();
-        self.actions.retain(|action| action.signature().name != name);
-        self.actions.len() != before
-    }
-
-    /// Look up a custom action by name.
-    pub fn action(&self, name: &str) -> Option<&dyn BuiltinAction> {
-        self.actions
-            .iter()
-            .find(|action| action.signature().name == name)
-            .map(|action| action.as_ref())
-    }
-
-    /// Return signatures for custom actions.
-    pub fn action_signatures(&self) -> Vec<ActionSignature> {
-        self.actions.iter().map(|action| action.signature()).collect()
-    }
-
-    /// Register a native expression function.
-    ///
-    /// The function name must be unique within this context.
-    pub fn register_function<F>(
-        &mut self,
-        name: impl Into<String>,
-        call: F,
-    ) -> Result<(), ExtensionRegistrationError>
-    where
-        F: Fn(&[Value], &Environment) -> Result<Value, EvalError> + Send + Sync + 'static,
-    {
-        let name = name.into();
-        let descriptor = animatix_syntax::schema::FunctionDescriptor {
-            name: name.clone(),
-            params: Vec::new(),
-            return_type: None,
-            help: None,
-        };
-        self.register_function_with_descriptor(name, call, descriptor)
-    }
-
-    /// Register a function together with tooling metadata.
-    pub fn register_function_with_descriptor<F>(
-        &mut self,
-        name: impl Into<String>,
-        call: F,
-        descriptor: animatix_syntax::schema::FunctionDescriptor,
-    ) -> Result<(), ExtensionRegistrationError>
-    where
-        F: Fn(&[Value], &Environment) -> Result<Value, EvalError> + Send + Sync + 'static,
-    {
-        let name = name.into();
+        let name = descriptor.qualified_name();
         if self.functions.iter().any(|(existing, _)| *existing == name) {
             return Err(ExtensionRegistrationError::Duplicate(name));
         }
-        self.functions.push((name.clone(), Arc::new(call)));
-        self.function_descriptors.push(descriptor);
+        self.functions.push((name, Arc::new(call)));
+        self.callable_descriptors.push(descriptor);
         Ok(())
     }
 
-    /// Return registered function descriptors.
-    pub fn function_descriptors(&self) -> Vec<animatix_syntax::schema::FunctionDescriptor> {
-        self.function_descriptors.clone()
+    /// Every extension callable's authoritative contract, in registration order.
+    pub fn callable_descriptors(&self) -> &[CallableDescriptor] {
+        &self.callable_descriptors
     }
 
-    /// Remove a registered expression function.
-    pub fn remove_function(&mut self, name: &str) -> bool {
+    /// Remove a function using its canonical qualified name.
+    pub fn remove_callable(&mut self, name: &str) -> bool {
         let before = self.functions.len();
         self.functions.retain(|(existing, _)| existing != name);
-        self.function_descriptors.retain(|descriptor| descriptor.name != name);
+        self.callable_descriptors
+            .retain(|descriptor| descriptor.qualified_name() != name);
         self.functions.len() != before
     }
 
-    /// Install registered functions into an environment.
+    /// Install registered functions and their contracts into an environment.
     pub fn install_functions(&self, env: &mut Environment) {
-        for (name, call) in &self.functions {
-            env.set(name, Value::NativeFn(Arc::clone(call)));
+        for ((_, call), descriptor) in self.functions.iter().zip(&self.callable_descriptors) {
+            env.register_callable(descriptor.clone(), Arc::clone(call));
         }
     }
 

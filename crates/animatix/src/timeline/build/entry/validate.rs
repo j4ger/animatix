@@ -125,19 +125,27 @@ fn scan_runtime_input_expr(
                 visit(right, configured, shadowed, out);
             },
             Expr::Unary(_, value) => visit(value, configured, shadowed, out),
-            Expr::Call(name, args) => {
-                if configured.contains(name) && !shadowed.contains(name) {
-                    out.insert(name.clone());
-                }
+            Expr::Call(callee, args) => {
+                visit(callee, configured, shadowed, out);
                 for arg in args {
-                    visit(arg, configured, shadowed, out);
+                    visit(&arg.value, configured, shadowed, out);
                 }
             },
-            Expr::Method(receiver, _, args) => {
-                visit(receiver, configured, shadowed, out);
-                for arg in args {
-                    visit(arg, configured, shadowed, out);
+            Expr::Field(receiver, _) => visit(receiver, configured, shadowed, out),
+            Expr::Timeline(plan) | Expr::Sequence(plan) => {
+                let active = configured.difference(shadowed).cloned().collect();
+                let mut invalid = std::collections::BTreeMap::new();
+                scan_runtime_input_stmts(&plan.statements, &active, &mut invalid);
+                out.extend(invalid.into_keys());
+            },
+            Expr::Stagger { modifiers, plan } => {
+                for modifier in modifiers {
+                    visit(&modifier.value, configured, shadowed, out);
                 }
+                let active = configured.difference(shadowed).cloned().collect();
+                let mut invalid = std::collections::BTreeMap::new();
+                scan_runtime_input_stmts(&plan.statements, &active, &mut invalid);
+                out.extend(invalid.into_keys());
             },
             // Closures are stored now and their bodies run only when invoked.
             // That is the intended dynamic use of a runtime input.
@@ -168,7 +176,14 @@ fn scan_runtime_input_expr(
                     visit(&prop.value, configured, shadowed, out);
                 }
             },
-            Expr::Num(_) | Expr::Percent(_) | Expr::Str(_) | Expr::Bool(_) | Expr::Null => {},
+            Expr::Num(_)
+            | Expr::Percent(_)
+            | Expr::Str(_)
+            | Expr::Bool(_)
+            | Expr::Null
+            | Expr::Duration(_)
+            | Expr::Unit
+            | Expr::QualifiedPath(_) => {},
         }
     }
 
@@ -278,6 +293,9 @@ fn scan_runtime_input_inline_items(
             crate::ast::InlineItem::SlotFill { items, .. } => {
                 scan_runtime_input_inline_items(items, context, configured, invalid);
             },
+            crate::ast::InlineItem::Expr(expr, _) => {
+                scan_runtime_input_expr(expr, configured, "a container timeline", invalid)
+            },
             crate::ast::InlineItem::SlotMarker => {},
         }
     }
@@ -316,38 +334,23 @@ fn scan_runtime_input_stmts(
                 );
                 scan_runtime_input_inline_items(children, label, configured, invalid);
             },
-            Stmt::Keyframe { body, .. }
-            | Stmt::RelativeKeyframe { body, .. }
-            | Stmt::Sequence { body, .. } => scan_runtime_input_stmts(body, configured, invalid),
+            Stmt::Keyframe { time, body, .. }
+            | Stmt::RelativeKeyframe {
+                offset: time, body, ..
+            } => {
+                if let crate::ast::Time::Expression(expr) = time {
+                    scan_runtime_input_expr(expr, configured, "a time marker", invalid);
+                }
+                scan_runtime_input_stmts(body, configured, invalid);
+            },
+            Stmt::Sequence { body, .. } => scan_runtime_input_stmts(body, configured, invalid),
             Stmt::Stagger {
                 modifiers, body, ..
             } => {
                 scan_runtime_input_modifiers(modifiers, "a `stagger` block", configured, invalid);
                 scan_runtime_input_stmts(body, configured, invalid);
             },
-            Stmt::Block {
-                body, time_scope, ..
-            } => {
-                if let Some(time_scope) = time_scope {
-                    if let Some(expr) = &time_scope.time_scale {
-                        scan_runtime_input_expr(
-                            expr,
-                            configured,
-                            "a call-site `time_scale` mapping",
-                            invalid,
-                        );
-                    }
-                    if let Some(expr) = &time_scope.clip_duration {
-                        scan_runtime_input_expr(
-                            expr,
-                            configured,
-                            "a call-site `clip_duration` mapping",
-                            invalid,
-                        );
-                    }
-                }
-                scan_runtime_input_stmts(body, configured, invalid);
-            },
+            Stmt::Block { body, .. } => scan_runtime_input_stmts(body, configured, invalid),
             Stmt::Assignment {
                 value,
                 property,
@@ -450,25 +453,16 @@ fn scan_runtime_input_stmts(
             // These bodies are lowered to frame-time programs or invoked when
             // a runtime expression calls them; they may safely read inputs.
             Stmt::Always { .. } | Stmt::ReactiveBinding { .. } | Stmt::FnDecl { .. } => {},
-            Stmt::Action(action, _) => {
-                for index in action.target_index.iter().flatten() {
-                    scan_runtime_input_expr(index, configured, "an action target index", invalid);
-                }
-                for arg in &action.args {
-                    scan_runtime_input_expr(arg, configured, "an action argument", invalid);
-                }
-                scan_runtime_input_modifiers(
-                    &action.modifiers,
-                    &format!("action `{}`", action.verb),
-                    configured,
-                    invalid,
-                );
-            },
+            Stmt::Expr(value, _) => scan_runtime_input_expr(
+                value,
+                configured,
+                "a build-time timeline expression",
+                invalid,
+            ),
             Stmt::TypeAlias { .. }
             | Stmt::Import { .. }
             | Stmt::ComponentDef(..)
             | Stmt::Return { .. }
-            | Stmt::Expr(..)
             | Stmt::Play { .. }
             | Stmt::Step { .. }
             | Stmt::Comment(..) => {},
@@ -544,7 +538,7 @@ pub(super) fn validate_reveals(timeline: &Timeline, diagnostics: &mut Vec<Diagno
                     "Actor `{label}` is declared before any keyframe (implicit `opacity: 0.0`) and \
                      is never revealed by an entrance action or opacity assignment, so it will \
                      remain invisible throughout playback. Add an entrance action (e.g. \
-                     `fade-in {label}`), declare it inside a keyframe block, or set `opacity: 1.0` \
+                     `fade_in(target: {label}, duration: 300ms)`), declare it inside a keyframe block, or set `opacity: 1.0` \
                      explicitly on its declaration."
                 ),
             )
@@ -777,7 +771,7 @@ pub(super) fn validate_actors(timeline: &mut Timeline, diagnostics: &mut Vec<Dia
 #[cfg(test)]
 mod runtime_input_structure_tests {
     use super::*;
-    use crate::ast::{Action, Expr, LoopPattern, Modifier, Stmt, TimeScopeSpec};
+    use crate::ast::{CallArgument, Expr, LoopPattern, Modifier, Stmt};
 
     fn input_modifier(name: &str) -> Modifier {
         Modifier {
@@ -796,26 +790,40 @@ mod runtime_input_structure_tests {
             "stagger_gap",
         ];
         let statements = vec![
-            Stmt::Block {
-                body: Vec::new(),
-                instance_scope: None,
-                time_scope: Some(TimeScopeSpec {
-                    time_scale: Some(Expr::Ident("speed".to_string())),
-                    clip_duration: Some(Expr::Ident("clip".to_string())),
-                    end_limit_duration_ms: None,
-                }),
-                span: None,
-            },
-            Stmt::Action(
-                Action {
-                    verb: "move".to_string(),
-                    targets: vec!["box".to_string()],
-                    target_index: vec![None],
-                    target_index_position: vec![None],
-                    args: Vec::new(),
-                    modifiers: vec![input_modifier("action_duration")],
-                    byte_span: None,
-                },
+            Stmt::Expr(
+                Expr::Call(
+                    Box::new(Expr::Ident("stretch".into())),
+                    vec![
+                        CallArgument::named(
+                            "animation",
+                            Expr::Timeline(crate::ast::PlanBody::new(Vec::new())),
+                        ),
+                        CallArgument::named("factor", Expr::Ident("speed".into())),
+                    ],
+                ),
+                None,
+            ),
+            Stmt::Expr(
+                Expr::Call(
+                    Box::new(Expr::Ident("fit_duration".into())),
+                    vec![
+                        CallArgument::named(
+                            "animation",
+                            Expr::Timeline(crate::ast::PlanBody::new(Vec::new())),
+                        ),
+                        CallArgument::named("duration", Expr::Ident("clip".into())),
+                    ],
+                ),
+                None,
+            ),
+            Stmt::Expr(
+                Expr::Call(
+                    Box::new(Expr::Ident("move".into())),
+                    vec![
+                        CallArgument::named("target", Expr::Ident("box".into())),
+                        CallArgument::named("duration", Expr::Ident("action_duration".into())),
+                    ],
+                ),
                 None,
             ),
             Stmt::ForLoop {

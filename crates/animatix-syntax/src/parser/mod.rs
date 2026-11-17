@@ -78,8 +78,8 @@ use crate::ast::*;
 use crate::diagnostics::Diagnostic;
 
 pub use api::{
-    parse_snippet, parse_source, parse_source_complete, parse_source_with_occurrences, parser,
-    strip_snippet_tabstops,
+    parse_snippet, parse_source, parse_source_complete, parse_source_with_occurrences,
+    parse_type_annotation, parser, strip_snippet_tabstops,
 };
 pub use entry::ParsedSource;
 pub use error::ParseError;

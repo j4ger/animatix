@@ -261,7 +261,7 @@ mod tests {
     #[test]
     fn site_probe_for_single_scene_includes_rest_and_midpoint() {
         let (ast, errors) = animatix_syntax::parser::parse_source(
-            "#0s\nbox: Rect, at: (0, 0), size: (10, 10)\n#3s\nfade-out box [500ms]\n",
+            "#0s\nbox: Rect, at: (0, 0), size: (10, 10)\n#3s\nfade_out(target: box, duration: 500ms)\n",
         );
         assert!(errors.is_empty());
         let report = animatix::timeline::Timeline::build_with_diagnostics(

@@ -192,7 +192,13 @@ fn ambience_component_evaluates_at_runtime() {
     let mut diagnostics = Vec::new();
     let expanded = program.expand_components(&mut diagnostics);
     assert!(diagnostics.is_empty(), "expansion diagnostics: {diagnostics:?}");
-    let report = Timeline::build_with_diagnostics(&expanded, &program.namespaces);
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        crate::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
     let timeline = report.output;
     assert!(
         timeline.env_base.contains_key("scene.stats.motion"),

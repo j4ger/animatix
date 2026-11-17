@@ -49,8 +49,8 @@ pub(crate) fn parse_svg_color(value: &str, current_color: Option<&Expr>) -> Opti
             let g = nums[1] as u8;
             let b = nums[2] as u8;
             // Return as rgb(r, g, b) call expression for Animatix to resolve
-            return Some(Expr::Call(
-                "rgb".into(),
+            return Some(Expr::call(
+                "rgb",
                 vec![
                     Expr::Num(r as f64),
                     Expr::Num(g as f64),
@@ -82,7 +82,7 @@ pub(crate) fn parse_hex_color(hex: &str) -> Option<Expr> {
     let g = ((rgb >> 8) & 0xFF) as f64;
     let b = (rgb & 0xFF) as f64;
 
-    Some(Expr::Call("rgb".into(), vec![Expr::Num(r), Expr::Num(g), Expr::Num(b)]))
+    Some(Expr::call("rgb", vec![Expr::Num(r), Expr::Num(g), Expr::Num(b)]))
 }
 
 /// Convert a `<use>` element by resolving its href and cloning the referenced element.
@@ -427,15 +427,15 @@ pub(crate) fn convert_poly(
         let x = nums[i] + transform.tx;
         let y = nums[i + 1] + transform.ty;
         if first {
-            commands.push(Expr::Call("move_to".into(), vec![Expr::Num(x), Expr::Num(y)]));
+            commands.push(Expr::call("move_to", vec![Expr::Num(x), Expr::Num(y)]));
             first = false;
         } else {
-            commands.push(Expr::Call("line_to".into(), vec![Expr::Num(x), Expr::Num(y)]));
+            commands.push(Expr::call("line_to", vec![Expr::Num(x), Expr::Num(y)]));
         }
         i += 2;
     }
     if tag == "polygon" && !first {
-        commands.push(Expr::Call("close".into(), vec![]));
+        commands.push(Expr::call("close", vec![]));
     }
 
     let mut props = vec![

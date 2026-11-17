@@ -55,7 +55,7 @@ impl RenameRejection {
 /// Check whether `new_name` is usable as a rename target.
 ///
 /// The DSL's identifier shape is a leading letter followed by letters, digits,
-/// `_`, or `-` (actions are hyphenated), which is what this enforces.
+/// or `_`, which is what this enforces.
 pub fn validate_new_name(new_name: &str) -> Result<(), String> {
     if new_name.is_empty() {
         return Err("New name must not be empty".to_string());
@@ -65,7 +65,7 @@ pub fn validate_new_name(new_name: &str) -> Result<(), String> {
     if !(first.is_alphabetic() || first == '_') {
         return Err(format!("New name must start with a letter or `_`, got `{first}`"));
     }
-    if let Some(bad) = chars.find(|c| !(c.is_alphanumeric() || *c == '_' || *c == '-')) {
+    if let Some(bad) = chars.find(|c| !(c.is_alphanumeric() || *c == '_')) {
         return Err(format!("New name must not contain `{bad}`"));
     }
     Ok(())
@@ -83,7 +83,6 @@ fn non_renameable_role(kind: OccurrenceKind) -> Option<&'static str> {
         OccurrenceKind::Type => Some("a type name"),
         OccurrenceKind::Property => Some("a property name"),
         OccurrenceKind::Function => Some("a function name"),
-        OccurrenceKind::Action => Some("an action verb"),
         OccurrenceKind::Scene => Some("a scene name"),
         OccurrenceKind::Wildcard => Some("a wildcard"),
     }
@@ -102,7 +101,10 @@ pub fn rename_at(
 ) -> Result<RenameTarget, RenameRejection> {
     // LSP positions count UTF-16 code units, not Unicode scalar values.
     let byte = line_col_to_byte_utf16(source, line, col);
-    let Some(occurrence) = occurrences.iter().find(|o| byte >= o.span.start && byte < o.span.end)
+    let Some(occurrence) = occurrences
+        .iter()
+        .filter(|o| byte >= o.span.start && byte < o.span.end)
+        .max_by_key(|occurrence| occurrence_priority(occurrence.kind))
     else {
         return Err(RenameRejection::NotAnIdentifier);
     };
@@ -110,17 +112,12 @@ pub fn rename_at(
     if let Some(role) = non_renameable_role(occurrence.kind) {
         return Err(RenameRejection::NotRenameable { role });
     }
-    // A bare action verb in statement position (`fade-in box [1s]`) is recorded
-    // as a `Label` declaration by the parser, so the role alone cannot tell it
-    // apart from a real actor binding. Action verbs are language vocabulary —
-    // renaming one would break every call site.
-    if symbols.actions.contains(&occurrence.name) {
+    let name = occurrence.name.clone();
+    if symbols.functions.contains(&name) && !symbols.labels.contains_key(&name) {
         return Err(RenameRejection::NotRenameable {
-            role: "an action verb",
+            role: "a function name",
         });
     }
-
-    let name = occurrence.name.clone();
     let references = crate::references::find_references_at(occurrences, source, line, col);
     if references.is_empty() {
         return Err(RenameRejection::NotAnIdentifier);
@@ -137,6 +134,22 @@ pub fn rename_at(
         references,
         is_public,
     })
+}
+
+fn occurrence_priority(kind: OccurrenceKind) -> u8 {
+    match kind {
+        OccurrenceKind::Label => 100,
+        OccurrenceKind::Type => 96,
+        OccurrenceKind::Function => 94,
+        OccurrenceKind::Parameter => 92,
+        OccurrenceKind::Variable => 90,
+        OccurrenceKind::Property => 70,
+        OccurrenceKind::Scene => 65,
+        OccurrenceKind::Component => 55,
+        OccurrenceKind::TypeAlias => 50,
+        OccurrenceKind::ImportAlias => 45,
+        OccurrenceKind::Wildcard => 40,
+    }
 }
 
 #[cfg(test)]
@@ -196,12 +209,11 @@ outer = x
     }
 
     #[test]
-    fn action_verbs_are_not_renameable() {
-        let source = "box: Rect, size: (10, 10)\n#0s\nfade-in box [1s]\n";
-        // On `fade-in` (line 2, col 1).
-        let err = rename(source, 2, 1).expect_err("action verbs are not renameable");
+    fn callable_names_are_not_renameable() {
+        let source = "box: Rect, size: (10, 10)\n#0s\nfade_in(target: box, duration: 1s)\n";
+        let err = rename(source, 2, 1).expect_err("callable names are not renameable");
         assert!(
-            matches!(err, RenameRejection::NotRenameable { role } if role.contains("action")),
+            matches!(err, RenameRejection::NotRenameable { role } if role.contains("function")),
             "unexpected rejection: {err:?}"
         );
     }
@@ -209,7 +221,8 @@ outer = x
     #[test]
     fn new_name_validation() {
         assert!(validate_new_name("card_title").is_ok());
-        assert!(validate_new_name("fade-in").is_ok(), "hyphenated names are legal");
+        assert!(validate_new_name("fade_in").is_ok(), "snake_case names are legal");
+        assert!(validate_new_name("fade-in").is_err(), "hyphens are no longer legal");
         assert!(validate_new_name("").is_err());
         assert!(validate_new_name("1abc").is_err(), "must not start with a digit");
         assert!(validate_new_name("a b").is_err(), "spaces are not allowed");

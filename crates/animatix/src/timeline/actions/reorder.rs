@@ -1,6 +1,7 @@
-use super::registry::{ActionParam, ActionSignature, BuiltinAction, base_timing_params};
-use crate::ast::{Action, Expr};
+use super::registry::{BuiltinAction, CallableDescriptor};
+use crate::ast::Expr;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use crate::timeline::actions::BuiltinInvocation;
 use crate::timeline::{Easing, Timeline};
 
 /// Swaps the layout positions of two children in their parent container.
@@ -9,20 +10,13 @@ pub struct Swap;
 pub struct Reorder;
 
 impl BuiltinAction for Swap {
-    fn signature(&self) -> ActionSignature {
-        ActionSignature {
-            name: "swap".to_string(),
-            category: "Reorder".to_string(),
-            description: "Swaps the layout positions of two children in their parent container."
-                .to_string(),
-            params: vec![],
-            modifiers: base_timing_params(),
-        }
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::Swap.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
@@ -185,26 +179,13 @@ impl BuiltinAction for Swap {
 }
 
 impl BuiltinAction for Reorder {
-    fn signature(&self) -> ActionSignature {
-        let mut modifiers = base_timing_params();
-        modifiers.push(ActionParam {
-            name: "order".to_string(),
-            description: "New child order as a list of labels (e.g. [order: (c, b, a)])."
-                .to_string(),
-            type_info: "list of identifiers".to_string(),
-        });
-        ActionSignature {
-            name: "reorder".to_string(),
-            category: "Reorder".to_string(),
-            description: "Reorders all children of a container to a specified order.".to_string(),
-            params: vec![],
-            modifiers,
-        }
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::Reorder.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,

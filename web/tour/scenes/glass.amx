@@ -18,68 +18,63 @@
 //
 // The plate keeps moving underneath because that is the only way a backdrop
 // blur reads as blur rather than as a grey rectangle.
-
 import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 6.6 }
 
 // Dense, high-contrast detail: the frost has to have something to destroy.
 plate: Group, at: (640, 360) {
-    b1: Rect, size: (40, 190), at: (-330, 20), color: accent.info, corner_radius: 8
-    b2: Rect, size: (40, 250), at: (-260, -10), color: accent.primary, corner_radius: 8
-    b3: Rect, size: (40, 130), at: (-190, 50), color: accent.warning, corner_radius: 8
-    b4: Rect, size: (40, 300), at: (-120, -35), color: accent.info, corner_radius: 8
-    b5: Rect, size: (40, 170), at: (-50, 30), color: accent.primary, corner_radius: 8
-    b6: Rect, size: (40, 230), at: (20, 0), color: accent.warning, corner_radius: 8
-    b7: Rect, size: (40, 120), at: (90, 55), color: accent.info, corner_radius: 8
-    b8: Rect, size: (40, 280), at: (160, -25), color: accent.primary, corner_radius: 8
-    b9: Rect, size: (40, 150), at: (230, 40), color: accent.warning, corner_radius: 8
-    b10: Rect, size: (40, 210), at: (300, 10), color: accent.info, corner_radius: 8
+b1: Rect, size: (40, 190), at: (-330, 20), color: accent.info, corner_radius: 8
+b2: Rect, size: (40, 250), at: (-260, -10), color: accent.primary, corner_radius: 8
+b3: Rect, size: (40, 130), at: (-190, 50), color: accent.warning, corner_radius: 8
+b4: Rect, size: (40, 300), at: (-120, -35), color: accent.info, corner_radius: 8
+b5: Rect, size: (40, 170), at: (-50, 30), color: accent.primary, corner_radius: 8
+b6: Rect, size: (40, 230), at: (20, 0), color: accent.warning, corner_radius: 8
+b7: Rect, size: (40, 120), at: (90, 55), color: accent.info, corner_radius: 8
+b8: Rect, size: (40, 280), at: (160, -25), color: accent.primary, corner_radius: 8
+b9: Rect, size: (40, 150), at: (230, 40), color: accent.warning, corner_radius: 8
+b10: Rect, size: (40, 210), at: (300, 10), color: accent.info, corner_radius: 8
 }
 
 // The scope: its box is only the frosted region — a Glass scope paints nothing
 // itself, so the panel below is its first child.
 card: Glass, at: (640, 360), size: (520, 250), corner_radius: 26 {
-    frost: Blur, radius: 0
+frost: Blur, radius: 0
     // The card's surface, composited above the blur: a translucent panel with a
     // hairline border — the two pixels that make it read as glass.
-    surface: Rect, size: (520, 250), corner_radius: 26,
-      color: "#ffffff1f", stroke: "#ffffff59", stroke_width: 1.5
+surface: Rect, size: (520, 250), corner_radius: 26, color: "#ffffff1f", stroke: "#ffffff59", stroke_width: 1.5
     // Centred inside the 520x250 panel: at (-150, -28) the 46px title ran from
     // x=325 to x=655 and hung 55px outside the card's own left edge at 380.
-    heading: Text, text: "Backdrop blur", font_size: 46, font_weight: 700,
-      color: text.primary, at: (0, -28)
-    sub: Text, text: "a scope that reads the frame behind it", font_size: 21,
-      color: text.secondary, at: (0, 30)
+heading: Text, text: "Backdrop blur", font_size: 46, font_weight: 700, color: text.primary, at: (0, -28)
+sub: Text, text: "a scope that reads the frame behind it", font_size: 21, color: text.secondary, at: (0, 30)
 }
 
-capOff: Text, text: "frost radius 0", font_size: 20, color: text.secondary,
-  at: (640, 640), opacity: 0.0
+capOff: Text, text: "frost radius 0", font_size: 20, color: text.secondary, at: (640, 640), opacity: 0
+
 // The caption outlives its own number: the close ramps the frost to 44, so it
 // names the property, not a value that is only true for part of the shot.
-capOn: Text, text: "frost.radius climbs — and the text stays sharp",
-  font_size: 20, color: text.secondary, at: (640, 640), opacity: 0.0
+capOn: Text, text: "frost.radius climbs — and the text stays sharp", font_size: 20, color: text.secondary, at: (640, 640), opacity: 0
 
 #0s
-fade-in plate [500ms, ease: expo-out]
-settle-in card [560ms, ease: expo-out, delay: 120ms]
-fade-in capOff [300ms, ease: expo-out, delay: 260ms]
+  fade_in(target: plate, duration: 0.5s, ease: expo_out)
+  settle_in(target: card, duration: 0.56s, ease: expo_out, delay: 0.12s)
+  fade_in(target: capOff, duration: 0.3s, ease: expo_out, delay: 0.26s)
 
 // The plate travels under the panel: the frost is only legible while the
 // content behind it keeps moving.
 #0.8s
-shift plate [by: (300, 0), 4.4s, ease: ease-in-out]
+  shift(target: plate, by: (300, 0), duration: 4.4s, ease: ease_in_out)
 
 #1.6s
-fade-out capOff [200ms, ease: ease-in]
-fade-in capOn [240ms, ease: expo-out]
+  fade_out(target: capOff, duration: 0.2s, ease: ease_in)
+  fade_in(target: capOn, duration: 0.24s, ease: expo_out)
 
 #1.8s
-frost.radius = 22 [900ms, ease: ease-in-out]
+  frost.radius = 22 [0.9s, ease: ease_in_out]
 
 // A short breath down, so the difference is a comparison rather than a claim.
 #4.6s
-frost.radius = 4 [700ms, ease: ease-in-out]
+  frost.radius = 4 [0.7s, ease: ease_in_out]
 
 // The close is a parameter move, not an erase: the frost keeps climbing until the
 // plate behind the panel is unreadable, and the card's own surface, heading and
@@ -88,4 +83,4 @@ frost.radius = 4 [700ms, ease: ease-in-out]
 // its text out too, so the held frame showed a frosted rectangle with no card in
 // it; total frame ink could not see that, because the plate behind carries it.)
 #5.4s
-frost.radius = 44 [1000ms, ease: ease-in-out]
+  frost.radius = 44 [1s, ease: ease_in_out]

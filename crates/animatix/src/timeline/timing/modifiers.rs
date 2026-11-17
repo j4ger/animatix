@@ -8,7 +8,6 @@ use crate::timeline::morph::MorphOptions;
 
 pub(crate) fn sequence_stmt_kind(stmt: &Stmt) -> &'static str {
     match stmt {
-        Stmt::Action(..) => "action",
         Stmt::Assignment { .. } => "assignment",
         Stmt::Sequence { .. } => "sequence",
         Stmt::Stagger { .. } => "stagger",
@@ -43,7 +42,9 @@ pub(crate) fn push_unsupported_stagger_statement_diagnostic(
     let message = if kind == "actor declaration" {
         "Stagger blocks do not support actor declarations. Declare actors before the composition block, then reference them inside.".to_string()
     } else {
-        format!("Stagger blocks support only actions and assignments; '{kind}' is not supported.")
+        format!(
+            "Stagger blocks support only timeline calls and assignments; '{kind}' is not supported."
+        )
     };
     diagnostics.push(
         Diagnostic::error(
@@ -88,7 +89,7 @@ pub(crate) fn push_unknown_target_path_diagnostic(
 impl ModifierHost {
     pub(super) fn display_name(self) -> &'static str {
         match self {
-            ModifierHost::Action => "action",
+            ModifierHost::Action => "timeline call",
             ModifierHost::Assignment => "assignment",
             ModifierHost::Text => "text declaration",
             ModifierHost::Typst => "typst declaration",
@@ -120,7 +121,7 @@ pub(super) fn action_declares_modifier(subject: Option<&str>, name: &str) -> boo
     crate::timeline::actions::get_action_signatures()
         .into_iter()
         .find(|sig| sig.name == verb)
-        .is_some_and(|sig| sig.modifiers.iter().any(|p| p.name == name))
+        .is_some_and(|sig| sig.params.iter().any(|p| p.name == name))
 }
 
 /// Explain an `ease:` value the build layer could not resolve.
@@ -131,21 +132,24 @@ pub(super) fn action_declares_modifier(subject: Option<&str>, name: &str) -> boo
 pub(super) fn ease_value_diagnostic(value: &Expr, host: ModifierHost) -> String {
     let supported = EASING_REGISTRY.iter().map(|(id, _)| *id).collect::<Vec<_>>().join(", ");
     match value {
-        Expr::Call(name, _) => match easing_expects_args(name) {
-            Some(form) => {
-                format!("Ease '{name}' on {} expects the form {form}.", host.display_name())
-            },
-            None => format!(
-                "Unknown easing '{name}' on {}; supported values are {supported}, or cubic-bezier(x1, y1, x2, y2).",
-                host.display_name()
-            ),
+        Expr::Call(callee, _) => {
+            let name = callee.callable_name().unwrap_or_else(|| "<expression>".into());
+            match easing_expects_args(&name) {
+                Some(form) => {
+                    format!("Ease '{name}' on {} expects the form {form}.", host.display_name())
+                },
+                None => format!(
+                    "Unknown easing '{name}' on {}; supported values are {supported}, or cubic_bezier(x1, y1, x2, y2).",
+                    host.display_name()
+                ),
+            }
         },
         Expr::Ident(raw) => format!(
-            "Unsupported ease value '{raw}' on {}; supported values are {supported}, or a cubic-bezier(…) / spring(…) call.",
+            "Unsupported ease value '{raw}' on {}; supported values are {supported}, or a cubic_bezier(…) / spring(…) call.",
             host.display_name()
         ),
         other => format!(
-            "Unsupported ease modifier value {other:?} on {}; expected an easing name or a cubic-bezier(…) / spring(…) call.",
+            "Unsupported ease modifier value {other:?} on {}; expected an easing name or a cubic_bezier(…) / spring(…) call.",
             host.display_name()
         ),
     }

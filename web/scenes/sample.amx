@@ -11,8 +11,8 @@
 // readouts are authored opaque, so frame 0 is a lit, titled stage; the shape
 // itself still *fades in* at 0.5 s because that entrance is the lesson.
 // §5: title 44, caption 24, readout 28/16 — nothing below 16.
-
 import "../../examples/lib/theme.amx"
+
 import "../../examples/lib/stage.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 4.4 }
@@ -20,16 +20,14 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 4.4 }
 // ── the stage ───────────────────────────────────────────────────────
 floor: StageFloor, glow: 1.15, grid: 1.2
 
-head_kicker: Text, text: "THE LANGUAGE", font_size: 18, font_weight: 600,
-  color: accent.primary, text_align: "left", text_anchor: "left",
-  anchor: scene.top_left, offset: (96, 44), opacity: 1
-head_title: Text, text: "One actor, three beats", font_size: 44, font_weight: "bold",
-  color: text.primary, text_align: "left", text_anchor: "left",
-  anchor: scene.top_left, offset: (96, 92), opacity: 1
-head_rule: Rect, size: (96, 4), color: accent.primary,
-  anchor: scene.top_left, offset: (96, 152), opacity: 1
+head_kicker: Text, text: "THE LANGUAGE", font_size: 18, font_weight: 600, color: accent.primary, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (96, 44), opacity: 1
+
+head_title: Text, text: "One actor, three beats", font_size: 44, font_weight: "bold", color: text.primary, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (96, 92), opacity: 1
+
+head_rule: Rect, size: (96, 4), color: accent.primary, anchor: scene.top_left, offset: (96, 152), opacity: 1
 
 beats_chip: Readout, label: "BEATS", value: "3", at: (1070, 120)
+
 dur_chip: Readout, label: "DURATION", value: "4.4s", at: (1070, 220)
 
 cap1: Caption, text: "Act I · One rectangle, three beats: appear, become, move.", tag: "sample.amx"
@@ -39,10 +37,10 @@ shape: Rect, size: (220, 220), color: accent.primary, at: (640, 360)
 
 // ── the three beats (kept in lockstep with the home page's code block) ──
 #0.5s
-fade-in shape [600ms, ease: expo-out]
+  fade_in(target: shape, duration: 0.6s, ease: expo_out)
 
 #1.5s
-shape: Ellipse, size: (220, 170), color: accent.success [900ms, strategy: match]
+  shape: Ellipse, size: (220, 170), color: accent.success [0.9s, strategy: match]
 
-#3.0s
-shift shape [by: (280, 0), 800ms, ease: ease-in-out]
+#3s
+  shift(target: shape, by: (280, 0), duration: 0.8s, ease: ease_in_out)

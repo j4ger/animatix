@@ -16,7 +16,7 @@ fn write_test_svg(source: &str) -> (TestTempDir, std::path::PathBuf) {
 
 #[test]
 fn test_parse_color_family() {
-    let rgb = || Expr::Call("rgb".into(), vec![Expr::Num(255.0), Expr::Num(0.0), Expr::Num(0.0)]);
+    let rgb = || Expr::call("rgb", vec![Expr::Num(255.0), Expr::Num(0.0), Expr::Num(0.0)]);
     let cases: Vec<(&str, Option<Expr>)> = vec![
         ("#ff0000", Some(rgb())),
         ("#f00", Some(rgb())),
@@ -74,17 +74,17 @@ fn test_parse_svg_path_family() {
         (
             "M10 20 L30 40 Z",
             Expr::List(vec![
-                Expr::Call("move_to".into(), vec![Expr::Num(10.0), Expr::Num(20.0)]),
-                Expr::Call("line_to".into(), vec![Expr::Num(30.0), Expr::Num(40.0)]),
-                Expr::Call("close".into(), vec![]),
+                Expr::call("move_to", vec![Expr::Num(10.0), Expr::Num(20.0)]),
+                Expr::call("line_to", vec![Expr::Num(30.0), Expr::Num(40.0)]),
+                Expr::call("close", vec![]),
             ]),
         ),
         (
             "M0 0 C10 10 20 20 30 0 Z",
             Expr::List(vec![
-                Expr::Call("move_to".into(), vec![Expr::Num(0.0), Expr::Num(0.0)]),
-                Expr::Call(
-                    "curve_to".into(),
+                Expr::call("move_to", vec![Expr::Num(0.0), Expr::Num(0.0)]),
+                Expr::call(
+                    "curve_to",
                     vec![
                         Expr::Num(10.0),
                         Expr::Num(10.0),
@@ -94,22 +94,22 @@ fn test_parse_svg_path_family() {
                         Expr::Num(0.0),
                     ],
                 ),
-                Expr::Call("close".into(), vec![]),
+                Expr::call("close", vec![]),
             ]),
         ),
         (
             "M17 7 7 17",
             Expr::List(vec![
-                Expr::Call("move_to".into(), vec![Expr::Num(17.0), Expr::Num(7.0)]),
-                Expr::Call("line_to".into(), vec![Expr::Num(7.0), Expr::Num(17.0)]),
+                Expr::call("move_to", vec![Expr::Num(17.0), Expr::Num(7.0)]),
+                Expr::call("line_to", vec![Expr::Num(7.0), Expr::Num(17.0)]),
             ]),
         ),
         (
             "M20 6 9 17l-5-5",
             Expr::List(vec![
-                Expr::Call("move_to".into(), vec![Expr::Num(20.0), Expr::Num(6.0)]),
-                Expr::Call("line_to".into(), vec![Expr::Num(9.0), Expr::Num(17.0)]),
-                Expr::Call("line_to".into(), vec![Expr::Num(4.0), Expr::Num(12.0)]),
+                Expr::call("move_to", vec![Expr::Num(20.0), Expr::Num(6.0)]),
+                Expr::call("line_to", vec![Expr::Num(9.0), Expr::Num(17.0)]),
+                Expr::call("line_to", vec![Expr::Num(4.0), Expr::Num(12.0)]),
             ]),
         ),
     ];
@@ -229,8 +229,8 @@ fn test_import_with_transform() {
         let stroke_prop = props.iter().find(|p| p.name == "stroke_color").unwrap();
         assert_eq!(
             stroke_prop.value,
-            Expr::Call(
-                "rgb".into(),
+            Expr::call(
+                "rgb",
                 vec![
                     Expr::Num(0x33 as f64),
                     Expr::Num(0x33 as f64),
@@ -439,14 +439,14 @@ fn test_gradient_url_fill_approximation() {
         // 90deg `linear(...)` call with both stops, not an averaged solid.
         let grad = props.iter().find(|p| p.name == "fill_gradient").unwrap();
         match &grad.value {
-            Expr::Call(name, args) => {
-                assert_eq!(name, "linear");
+            Expr::Call(callee, args) => {
+                assert_eq!(callee.callable_name().as_deref(), Some("linear"));
                 assert!(
-                    matches!(args[0], Expr::Num(v) if (v - 90.0).abs() < 1e-6),
+                    matches!(&args[0].value, Expr::Num(v) if (v - 90.0).abs() < 1e-6),
                     "expected a 90deg ramp, got {:?}",
                     args[0]
                 );
-                let Expr::List(stops) = &args[1] else {
+                let Expr::List(stops) = &args[1].value else {
                     panic!("expected a stop list, got {:?}", args[1]);
                 };
                 assert_eq!(stops.len(), 2, "both stops must carry over");
@@ -485,9 +485,9 @@ fn test_gradient_url_stroke() {
         // A gradient stroke imports as `stroke_gradient:`, not a solid.
         let stroke_prop = props.iter().find(|p| p.name == "stroke_gradient").unwrap();
         match &stroke_prop.value {
-            Expr::Call(name, args) => {
-                assert_eq!(name, "linear");
-                let Expr::List(stops) = &args[1] else {
+            Expr::Call(callee, args) => {
+                assert_eq!(callee.callable_name().as_deref(), Some("linear"));
+                let Expr::List(stops) = &args[1].value else {
                     panic!("expected a stop list, got {:?}", args[1]);
                 };
                 assert_eq!(stops.len(), 3, "the middle stop must survive");
@@ -573,11 +573,8 @@ fn test_polygon_conversion() {
         let cmd_prop = props.iter().find(|p| p.name == "commands").unwrap();
         if let Expr::List(commands) = &cmd_prop.value {
             assert_eq!(commands.len(), 5, "polygon should have 5 commands (4 lines + close)");
-            assert_eq!(
-                commands[0],
-                Expr::Call("move_to".into(), vec![Expr::Num(0.0), Expr::Num(0.0)])
-            );
-            assert_eq!(commands[4], Expr::Call("close".into(), vec![]));
+            assert_eq!(commands[0], Expr::call("move_to", vec![Expr::Num(0.0), Expr::Num(0.0)]));
+            assert_eq!(commands[4], Expr::call("close", vec![]));
         } else {
             panic!("Expected List of commands");
         }
@@ -607,12 +604,9 @@ fn test_polyline_conversion() {
                 3,
                 "polyline should have 3 commands (move + 2 lines, no close)"
             );
-            assert_eq!(
-                commands[0],
-                Expr::Call("move_to".into(), vec![Expr::Num(10.0), Expr::Num(20.0)])
-            );
+            assert_eq!(commands[0], Expr::call("move_to", vec![Expr::Num(10.0), Expr::Num(20.0)]));
             // No Z/close command
-            assert!(!commands.iter().any(|c| matches!(c, Expr::Call(name, ..) if name == "close")));
+            assert!(!commands.iter().any(|c| matches!(c, Expr::Call(callee, _) if callee.callable_name().as_deref() == Some("close"))));
         } else {
             panic!("Expected List of commands");
         }
@@ -644,11 +638,11 @@ fn test_radial_gradient_url_fill() {
         // Default radialGeometry is centered with r=50%, so the imported
         // call is `radial((0.5, 0.5), 0.5, {…})`.
         match &grad.value {
-            Expr::Call(name, args) => {
-                assert_eq!(name, "radial");
-                assert_eq!(args[0], Expr::Tuple(vec![Expr::Num(0.5), Expr::Num(0.5)]));
-                assert_eq!(args[1], Expr::Num(0.5));
-                let Expr::List(stops) = &args[2] else {
+            Expr::Call(callee, args) => {
+                assert_eq!(callee.callable_name().as_deref(), Some("radial"));
+                assert_eq!(args[0].value, Expr::Tuple(vec![Expr::Num(0.5), Expr::Num(0.5)]));
+                assert_eq!(args[1].value, Expr::Num(0.5));
+                let Expr::List(stops) = &args[2].value else {
                     panic!("expected a stop list, got {:?}", args[2]);
                 };
                 assert_eq!(stops.len(), 2);

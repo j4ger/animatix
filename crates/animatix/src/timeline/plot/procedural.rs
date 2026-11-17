@@ -18,7 +18,8 @@ use super::{
 use crate::renderer::types::VelloPath;
 use crate::timeline::Value;
 use crate::timeline::modifier_runtime::ir::{
-    CompiledExpr, FastScalarExpr, compile_fast_scalar, compile_fast_vec2, resolve_slot_values,
+    CompiledExpr, FastScalarExpr, compile_fast_scalar_with_env, compile_fast_vec2_with_env,
+    fast_scalar_intrinsics_are_standard, resolve_slot_values,
 };
 
 /// Pre-compiled fast plot expression kind.
@@ -40,13 +41,15 @@ pub fn compile_fast_plot_program(
     body: &CompiledExpr,
     leaf_arg: &str,
     kind: PlotCurveKind,
+    env: &Environment,
 ) -> Option<FastPlotProgram> {
     let mut slot_names_raw = Vec::with_capacity(8);
     let expr = if kind == PlotCurveKind::Parametric {
-        compile_fast_vec2(body, leaf_arg, &mut slot_names_raw)
+        compile_fast_vec2_with_env(body, leaf_arg, &mut slot_names_raw, env)
             .map(|(x, y)| FastExprKind::Vec2(x, y))?
     } else {
-        compile_fast_scalar(body, leaf_arg, &mut slot_names_raw).map(FastExprKind::Scalar)?
+        compile_fast_scalar_with_env(body, leaf_arg, &mut slot_names_raw, env)
+            .map(FastExprKind::Scalar)?
     };
     Some(FastPlotProgram {
         expr,
@@ -491,16 +494,19 @@ fn resolve_fast_leaves(
     let mut fast_leaves = Vec::with_capacity(func_leaves.len());
 
     for leaf in func_leaves {
+        if !fast_scalar_intrinsics_are_standard(leaf.body, env) {
+            return None;
+        }
         let leaf_arg = leaf.args.first().map(String::as_str).unwrap_or(arg_name);
         let body_ptr = leaf.body as *const CompiledExpr as usize;
         let key = (body_ptr, kind_id);
 
         let program = if let Some(cache) = cache {
             cache.get_or_compile_fast_plot(key, || {
-                compile_fast_plot_program(leaf.body, leaf_arg, plot_kind)
+                compile_fast_plot_program(leaf.body, leaf_arg, plot_kind, env)
             })?
         } else {
-            std::sync::Arc::new(compile_fast_plot_program(leaf.body, leaf_arg, plot_kind)?)
+            std::sync::Arc::new(compile_fast_plot_program(leaf.body, leaf_arg, plot_kind, env)?)
         };
 
         let slot_names_refs: Vec<&str> = program.slot_names.iter().map(String::as_str).collect();

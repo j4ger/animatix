@@ -19,14 +19,16 @@ for v, i in values {
 }
 readout: Text, text: "0/0", at: (240, 230), font_size: 20, opacity: 1
 fn insertion_sort(values: List<Num>) {
-  let order = {0, 1, 2, 3}
-  for key in {1, 2, 3} [step: 1200ms] {
-    for j in {0, 1, 2} [step: 300ms] {
-      if j < key {
-        if values[order[key - j]] < values[order[key - j - 1]] {
-          bar[order[key - j]].at = (100+(key - j - 1)*80, 180 - values[order[key - j]]*12.5) [100ms]
-          bar[order[key - j - 1]].at = (100+(key - j)*80, 180 - values[order[key - j - 1]]*12.5) [100ms]
-          let order = list_swap(order, key - j, key - j - 1)
+  return #{
+    let order = {0, 1, 2, 3}
+    for key in {1, 2, 3} [step: 1200ms] {
+      for j in {0, 1, 2} [step: 300ms] {
+        if j < key {
+          if values[order[key - j]] < values[order[key - j - 1]] {
+            bar[order[key - j]].at = (100+(key - j - 1)*80, 180 - values[order[key - j]]*12.5) [100ms]
+            bar[order[key - j - 1]].at = (100+(key - j)*80, 180 - values[order[key - j - 1]]*12.5) [100ms]
+            let order = list_swap(order, key - j, key - j - 1)
+          }
         }
       }
     }

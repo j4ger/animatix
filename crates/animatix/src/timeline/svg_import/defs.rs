@@ -85,10 +85,10 @@ impl GradientDef {
             GradientDef::Linear { x1, y1, x2, y2, .. } => {
                 // CSS convention: 0deg points up, 90deg to the right.
                 let angle = (x2 - x1).atan2(-(y2 - y1)).to_degrees();
-                Some(Expr::Call("linear".into(), vec![Expr::Num(angle), list]))
+                Some(Expr::call("linear", vec![Expr::Num(angle), list]))
             },
-            GradientDef::Radial { cx, cy, r, .. } => Some(Expr::Call(
-                "radial".into(),
+            GradientDef::Radial { cx, cy, r, .. } => Some(Expr::call(
+                "radial",
                 vec![
                     Expr::Tuple(vec![Expr::Num(*cx), Expr::Num(*cy)]),
                     Expr::Num(*r),
@@ -458,8 +458,8 @@ pub(crate) fn parse_svg_color_with_gradients(
                 g,
                 b
             );
-            return Some(Expr::Call(
-                "rgb".into(),
+            return Some(Expr::call(
+                "rgb",
                 vec![
                     Expr::Num(r as f64),
                     Expr::Num(g as f64),

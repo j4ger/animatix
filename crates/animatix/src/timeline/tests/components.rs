@@ -395,7 +395,7 @@ fn spawn_replacing_resets_every_authored_required_store() {
         world.pending_shape_bounds.get(id).get().is_none(),
         "pending bounds handoff resets"
     );
-    assert!(world.highlight(id).is_none(), "highlight resets");
+    assert!(world.highlight(id).is_none(), "highlight(target: resets)");
     assert!(world.tagged_tracks(id).is_empty(), "tagged tracks reset");
     assert!(world.style.get(id).color.is_none(), "style resets");
     assert!(world.geometry.get(id).position.is_none(), "geometry resets");

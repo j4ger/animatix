@@ -148,12 +148,8 @@ impl Timeline {
     /// Resolve animated volume envelopes for all audio segments from their tracks.
     pub(crate) fn resolve_audio_volume_envelopes(&mut self) {
         for seg in &mut self.audio_segments {
-            // Find track with matching normalized source or Audio actor type
-            let matching_id = self.world.tracks.iter().find_map(|(_, id)| {
-                (self.world.actor_type(id) == "Audio" && self.world.geometry(id).volume.is_some())
-                    .then_some(id)
-            });
-            if let Some(audio_id) = matching_id
+            if let Some(audio_id) = seg.actor_id
+                && self.world.actor_type(audio_id) == "Audio"
                 && let Some(vol_track) = &self.world.geometry(audio_id).volume
             {
                 let mut envelope = Vec::new();

@@ -55,30 +55,6 @@ pub(crate) fn type_mismatch_diagnostic(
     )
 }
 
-pub(crate) fn range_diagnostic(
-    severity: DiagnosticSeverity,
-    code: DiagnosticCode,
-    message: String,
-    start: (usize, usize),
-    end: (usize, usize),
-) -> Diagnostic {
-    Diagnostic {
-        severity,
-        phase: DiagnosticPhase::Build,
-        code,
-        message,
-        location: DiagnosticLocation {
-            line: Some(start.0 + 1),
-            column: Some(start.1 + 1),
-            end_line: Some(end.0 + 1),
-            end_col: Some(end.1 + 1),
-            span: None,
-            path: None,
-            subject: None,
-        },
-    }
-}
-
 pub(crate) fn span_positions(span: &Option<Span>) -> (usize, usize, usize, usize) {
     match span {
         Some(s) => (s.start_line, s.start_col, s.end_line, s.end_col),
@@ -150,23 +126,6 @@ pub(crate) fn stage_param_segment(
     Some(label.to_string())
 }
 
-pub(crate) fn find_ident_range(
-    tokens: &[Token],
-    source: &str,
-    text: &str,
-    range: Option<std::ops::Range<usize>>,
-) -> Option<((usize, usize), (usize, usize))> {
-    tokens
-        .iter()
-        .filter(|t| range.as_ref().is_none_or(|r| t.span.start >= r.start && t.span.end <= r.end))
-        .find(|t| matches!(&t.kind, TokenKind::Ident(name) if name == text))
-        .map(|t| {
-            let start = byte_to_line_col(source, t.span.start);
-            let end = byte_to_line_col(source, t.span.end);
-            (start, end)
-        })
-}
-
 /// Locate the `Type` identifier in a `label: Type` declaration pair.
 ///
 /// Matching on the label first keeps several declarations that share a type
@@ -203,10 +162,4 @@ pub(crate) fn find_decl_type_range(
         index += 1;
     }
     None
-}
-
-/// Return the source-level identifier text for a resolved target string.
-pub(crate) fn target_source_text(target: &str) -> &str {
-    let first = target.split('.').next().unwrap_or(target);
-    is_array_member_label(first).unwrap_or(first)
 }

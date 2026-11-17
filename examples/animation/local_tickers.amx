@@ -2,44 +2,46 @@
 // The explicit last stamps hand each scoped motion back to the authored scene.
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 5 }
 
-title: Text, text: "One ticker, two tempos", font_size: 42, font_weight: "bold",
-  color: text.primary, anchor: scene.top, offset: (0, 55)
-subtitle: Text, text: "Each beat starts from its own local zero; the markers never share state.",
-  font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 112)
+title: Text, text: "One ticker, two tempos", font_size: 42, font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 55)
 
-slow_label: Text, text: "A · stretched beat", font_size: 20, color: accent.info,
-  at: (210, 246)
-fast_label: Text, text: "B · clipped beat", font_size: 20, color: accent.warning,
-  at: (210, 426)
+subtitle: Text, text: "Each beat starts from its own local zero; the markers never share state.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 112)
+
+slow_label: Text, text: "A · stretched beat", font_size: 20, color: accent.info, at: (210, 246)
+
+fast_label: Text, text: "B · clipped beat", font_size: 20, color: accent.warning, at: (210, 426)
+
 rail_a: Rect, at: (380, 300), size: (520, 3), color: "#344455"
+
 rail_b: Rect, at: (380, 480), size: (520, 3), color: "#344455"
+
 needle: Ellipse, at: (140, 300), size: (28, 28), color: accent.info
+
 satellite: Ellipse, at: (140, 480), size: (28, 28), color: accent.warning
 
 fn ticker(dot, lane_y: Num) {
-  #0ms
-  dot.at = (140, lane_y)
-  always {
-    dot.at = (140 + 960 * t, lane_y)
-  }
+  return #{ #0ms
+    dot.at = (140, lane_y)
+    always {
+        dot.at = (140 + 960 * t, lane_y)
+      }
   #500ms
-  dot.at = (620, lane_y)
+    dot.at = (620, lane_y) }
 }
 
 #0s
-fade-in title [450ms]
-fade-in subtitle [450ms, delay: 100ms]
-fade-in slow_label [350ms, delay: 150ms]
-fade-in fast_label [350ms, delay: 150ms]
-fade-in rail_a [450ms]
-fade-in rail_b [450ms]
-fade-in needle [400ms, delay: 100ms]
-fade-in satellite [400ms, delay: 100ms]
+  fade_in(target: title, duration: 0.45s)
+  fade_in(target: subtitle, duration: 0.45s, delay: 0.1s)
+  fade_in(target: slow_label, duration: 0.35s, delay: 0.15s)
+  fade_in(target: fast_label, duration: 0.35s, delay: 0.15s)
+  fade_in(target: rail_a, duration: 0.45s)
+  fade_in(target: rail_b, duration: 0.45s)
+  fade_in(target: needle, duration: 0.4s, delay: 0.1s)
+  fade_in(target: satellite, duration: 0.4s, delay: 0.1s)
 
 #1s
-ticker(needle, 300) [time_scale: 2.0]
-ticker(satellite, 480) [clip_duration: 900ms]
+  stretch(animation: ticker(needle, 300), factor: 2)
+  fit_duration(animation: ticker(satellite, 480), duration: 0.9s)
 
 // Reuse the same target later, in its original lane and at another rate.
 #4s
-ticker(needle, 300) [clip_duration: 900ms]
+  fit_duration(animation: ticker(needle, 300), duration: 0.9s)

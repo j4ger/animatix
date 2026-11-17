@@ -18,6 +18,7 @@
 //! The normative contract for the effect pass layout, uniforms, identity
 //! semantics, and failure policy lives in `docs/effects.md`.
 
+pub mod callable;
 pub mod catalog;
 pub mod effects;
 

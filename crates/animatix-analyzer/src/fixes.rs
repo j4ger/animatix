@@ -87,13 +87,18 @@ pub fn suggest_label_names(
     suggest(symbols.labels.keys(), misspelled, limit)
 }
 
-/// Suggest action verbs close to `misspelled`.
-pub fn suggest_action_names(
+/// Suggest callable names close to `misspelled`.
+pub fn suggest_callable_names(
     symbols: &SymbolTable,
     misspelled: &str,
     limit: usize,
 ) -> Vec<SpellingCandidate> {
-    suggest(symbols.actions.iter(), misspelled, limit)
+    let mut functions = symbols.functions.clone();
+    for callable in animatix_std::callable::callables() {
+        functions.insert(callable.name.clone());
+        functions.insert(callable.qualified_name());
+    }
+    suggest(functions.iter(), misspelled, limit)
 }
 
 /// True when `byte` sits at top level (outside every brace/paren block).
@@ -101,7 +106,7 @@ pub fn suggest_action_names(
 /// An *inline child* declaration (an effect stage inside a `Filter`, an actor
 /// inside a `Row`) renders as part of its parent even when its label is never
 /// referenced, so a "remove unused" fix must only ever be offered for
-/// top-level declarations, which are invisible without an entrance action.
+/// top-level declarations, which are invisible without an entrance callable.
 pub fn is_top_level_position(source: &str, byte: usize) -> bool {
     let bytes = source.as_bytes();
     let mut brace_depth: i64 = 0;
@@ -291,7 +296,7 @@ fn is_keyframe_marker(trimmed: &str) -> bool {
 /// The statement text to insert when declaring a missing actor named `name`.
 ///
 /// `Rect` with an explicit size renders visibly and accepts every common
-/// action as a target, which is what the author was trying to reference.
+/// timeline callable as a target, which is what the author was trying to reference.
 pub fn missing_actor_statement(name: &str) -> String {
     let rect_info = animatix_std::catalog_lookup("Rect");
     let type_name = rect_info.map(|info| info.type_name.as_ref()).unwrap_or("Rect");
@@ -360,12 +365,12 @@ mod tests {
     }
 
     #[test]
-    fn suggests_close_action_verbs() {
+    fn suggests_close_callable_names() {
         let symbols = symbol_table("box: Rect, size: (1, 1)\n");
-        let picks = suggest_action_names(&symbols, "fadein", 3);
+        let picks = suggest_callable_names(&symbols, "fadein", 3);
         assert!(
-            picks.iter().any(|c| c.name == "fade-in"),
-            "hyphenated verb is suggested for its unhyphenated typo: {picks:?}"
+            picks.iter().any(|c| c.name == "fade_in"),
+            "snake_case callable is suggested for its typo: {picks:?}"
         );
     }
 
@@ -419,7 +424,7 @@ mod tests {
 
     #[test]
     fn insertion_line_lands_before_first_keyframe() {
-        let source = "a: Text, text: \"x\"\n#0s\nfade-in a [1s]\n";
+        let source = "a: Text, text: \"x\"\n#0s\nfade_in(target: a, duration: 1s)\n";
         assert_eq!(declaration_insertion_line(source), 1);
     }
 

@@ -1,28 +1,21 @@
-use super::registry::{ActionSignature, BuiltinAction, base_timing_params};
-use crate::ast::Action;
+use super::registry::{BuiltinAction, CallableDescriptor};
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::timeline::Timeline;
+use crate::timeline::actions::BuiltinInvocation;
 use crate::timeline::property_track::TrackAccessor;
 
 /// Wipes in vector targets by animating stroke progress and fill opacity together.
 pub struct WipeIn;
 
 impl BuiltinAction for WipeIn {
-    fn signature(&self) -> ActionSignature {
-        ActionSignature {
-            name: "wipe-in".to_string(),
-            category: "Entrance".to_string(),
-            description: "Wipes in the target by animating stroke progress and fill opacity."
-                .to_string(),
-            params: vec![],
-            modifiers: base_timing_params(),
-        }
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::WipeIn.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
@@ -56,7 +49,7 @@ impl BuiltinAction for WipeIn {
                 super::ensure_guard_keyframe(&mut style.fill_opacity, guard_time, 1.0);
             }
 
-            // Reveal pre-keyframe ("hidden by default") targets: wipe-in only
+            // Reveal pre-keyframe ("hidden by default") targets: wipe_in only
             // animates stroke_progress/fill_opacity, so lift the seeded
             // opacity 0 alongside the wipe.
             let meta = timeline
@@ -90,19 +83,13 @@ impl BuiltinAction for WipeIn {
 pub struct FadeIn;
 
 impl BuiltinAction for FadeIn {
-    fn signature(&self) -> ActionSignature {
-        ActionSignature {
-            name: "fade-in".to_string(),
-            category: "Entrance".to_string(),
-            description: "Fades in the target by animating its overall opacity.".to_string(),
-            params: vec![],
-            modifiers: base_timing_params(),
-        }
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::FadeIn.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
@@ -131,7 +118,7 @@ impl BuiltinAction for FadeIn {
             // same (start, 0) → (end, 1) pair AND clears the
             // `hidden_by_default` flag, keeping the flag trustworthy for
             // later entrance actions and diagnostics. The lift cascades into
-            // hidden children so a container fade-in reveals its subtree
+            // hidden children so a container fade_in reveals its subtree
             // (probe 010: Graph-hosted PlotCurves stay seeded at opacity 0).
             let was_hidden = timeline
                 .world
@@ -160,7 +147,7 @@ impl BuiltinAction for FadeIn {
 mod tests {
     use super::super::test_support::text_decl;
     use super::*;
-    use crate::ast::{Action, Expr, Modifier, Property, Stmt, Time};
+    use crate::ast::{Expr, Modifier, Property, Stmt, Time};
     use crate::diagnostics::DiagnosticCode;
 
     fn rect_decl(label: &str) -> Stmt {
@@ -191,8 +178,8 @@ mod tests {
     }
 
     fn action_stmt(verb: &str, target: &str, duration_s: f64) -> Stmt {
-        Stmt::Action(
-            Action {
+        crate::timeline::actions::test_support::invocation_stmt(
+            BuiltinInvocation {
                 verb: verb.to_string(),
                 targets: vec![target.to_string()],
                 args: vec![],
@@ -243,9 +230,9 @@ mod tests {
                     children: vec![],
                     span: None,
                 },
-                Stmt::Action(
-                    Action {
-                        verb: "fade-in".to_string(),
+                crate::timeline::actions::test_support::invocation_stmt(
+                    BuiltinInvocation {
+                        verb: "fade_in".to_string(),
                         targets: vec!["headline".to_string()],
                         args: vec![],
                         modifiers: vec![Modifier {
@@ -276,7 +263,7 @@ mod tests {
     fn wipe_in_animates_stroke_and_fill_together() {
         let ast = vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
-            body: vec![rect_decl("panel"), action_stmt("wipe-in", "panel", 1.0)],
+            body: vec![rect_decl("panel"), action_stmt("wipe_in", "panel", 1.0)],
             span: None,
         }];
 
@@ -311,7 +298,7 @@ mod tests {
 
     // The four entrance actions must agree on what an authored `opacity` means:
     // a resting value the action settles on, except for an explicit 0, which is
-    // a "start hidden" seed the action has to reveal. Before this, `fade-in`
+    // a "start hidden" seed the action has to reveal. Before this, `fade_in`
     // forced every target to 1.0 (discarding an authored 0.25 with no
     // diagnostic) while the reveal actions left an authored 0 in place, keeping
     // the target invisible for the whole timeline.
@@ -322,7 +309,7 @@ mod tests {
             time: Time::Seconds(0.0),
             body: vec![
                 rect_decl_with_opacity("panel", 0.25),
-                action_stmt("fade-in", "panel", 1.0),
+                action_stmt("fade_in", "panel", 1.0),
             ],
             span: None,
         }];
@@ -335,14 +322,14 @@ mod tests {
         assert_eq!(
             style.opacity.get(1000, 1.0),
             0.25,
-            "fade-in must settle on the authored opacity, not 1.0"
+            "fade_in must settle on the authored opacity, not 1.0"
         );
         assert!(report.diagnostics.is_empty());
     }
 
     #[test]
     fn entrance_actions_treat_an_authored_zero_as_a_seed() {
-        for verb in ["fade-in", "wipe-in", "draw-in", "reveal-in"] {
+        for verb in ["fade_in", "wipe_in", "draw_in", "reveal_in"] {
             let ast = vec![Stmt::Keyframe {
                 time: Time::Seconds(0.0),
                 body: vec![
@@ -372,7 +359,7 @@ mod tests {
             time: Time::Seconds(0.0),
             body: vec![
                 rect_decl_with_opacity("panel", 0.25),
-                action_stmt("wipe-in", "panel", 1.0),
+                action_stmt("wipe_in", "panel", 1.0),
             ],
             span: None,
         }];
@@ -391,7 +378,7 @@ mod tests {
             time: Time::Seconds(0.0),
             body: vec![
                 text_decl("headline"),
-                action_stmt("wipe-in", "headline", 1.0),
+                action_stmt("wipe_in", "headline", 1.0),
             ],
             span: None,
         }];
@@ -403,20 +390,20 @@ mod tests {
                 .diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.code == DiagnosticCode::UnsupportedActionTarget),
-            "wipe-in on text should not report unsupported target"
+            "wipe_in on text should not report unsupported target"
         );
     }
 
     #[test]
     fn wipe_in_lifts_hidden_by_default_opacity() {
         // Regression: a pre-keyframe declaration is seeded `opacity = 0`;
-        // wipe-in animates only stroke_progress/fill_opacity, which used to
+        // wipe_in animates only stroke_progress/fill_opacity, which used to
         // leave the target fully transparent forever.
         let ast = vec![
             rect_decl("panel"),
             Stmt::Keyframe {
                 time: Time::Seconds(0.5),
-                body: vec![action_stmt("wipe-in", "panel", 0.7)],
+                body: vec![action_stmt("wipe_in", "panel", 0.7)],
                 span: None,
             },
         ];
@@ -453,7 +440,7 @@ mod tests {
             declared,
             Stmt::Keyframe {
                 time: Time::Seconds(0.5),
-                body: vec![action_stmt("wipe-in", "panel", 0.7)],
+                body: vec![action_stmt("wipe_in", "panel", 0.7)],
                 span: None,
             },
         ];

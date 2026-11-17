@@ -2,6 +2,7 @@
 """Inventory compatibility and diagnostic-runner contracts (no real renderer)."""
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -17,13 +18,16 @@ spec.loader.exec_module(canonical)
 
 class CorpusTests(unittest.TestCase):
     def test_legacy_matches_prior_find(self):
+        env = os.environ.copy()
+        env['LC_ALL'] = 'C'
+        env['LANG'] = 'C'
         old = subprocess.check_output(['bash', '-c', """
 find examples web/scenes web/demos -name '*.amx' -not -path '*/lib/*' \\
 -not -path '*/_site/*' -not -path '*/plugin_pulse.amx' \\
 -not -path '*/epicycles/fourier.amx' | sort | while IFS= read -r f; do
 if [ -f "$(dirname "$f")/main.amx" ] && [ "$(basename "$f")" != main.amx ]; then continue; fi
 printf '%s\\n' "$f"; done
-"""], cwd=ROOT, text=True).splitlines()
+"""], cwd=ROOT, text=True, env=env).splitlines()
         self.assertEqual(old, [p.relative_to(ROOT).as_posix() for p in scene_files()])
 
     def test_canonical_discovers_all_without_legacy_exclusions(self):

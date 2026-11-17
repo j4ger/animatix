@@ -18,11 +18,12 @@ use crate::error::GuiError;
 /// Result of loading and parsing a program.
 pub struct LoadedProgramResult {
     pub raw_statements: Vec<Stmt>,
-    pub expanded_statements: Vec<Stmt>,
+    pub expanded: animatix_syntax::module::ExpandedProgram,
     pub namespaces: HashMap<String, Namespace>,
     pub type_diagnostics: Vec<Diagnostic>,
     pub components: HashMap<String, ComponentEntry>,
     pub module_fns: HashMap<String, FnTemplate>,
+    pub function_context: animatix_syntax::module::FunctionContext,
 }
 
 impl DocumentSession {
@@ -95,9 +96,10 @@ impl DocumentSession {
             components: HashMap::new(),
             module_fns: HashMap::new(),
             last_source_hash: 0,
-            last_component_hash: 0,
+            last_expansion_hash: 0,
             cached_expanded: None,
             cached_module_graph: None,
+            cached_module_sources: HashMap::new(),
         }
     }
 
@@ -150,36 +152,47 @@ impl DocumentSession {
 impl DocumentSession {
     /// Load the program, returning a structured result.
     /// Raw statements are the parsed statements before component expansion.
-    /// Uses cached ModuleGraph to avoid re-reading unchanged imports.
-    /// Skips component expansion when the component registry hasn't changed.
+    /// Reuses parsed imports and expansion only while their source content is unchanged.
     pub(super) fn load_program(&mut self) -> Result<LoadedProgramResult, ModuleError> {
         let mut graph = self.cached_module_graph.take().unwrap_or_default();
+        if self
+            .cached_module_sources
+            .iter()
+            .any(|(path, previous)| fs::read_to_string(path).as_ref().ok() != Some(previous))
+        {
+            // A cached graph intentionally owns its parsed imports. Reopen it
+            // when disk content changes so new function definitions reach both
+            // the expansion hash and the compiled lexical function context.
+            graph = animatix_syntax::module::ModuleGraph::new();
+        }
         let mut program =
             graph.load_program_with_source(&self.file_path, Some(&self.source_text))?;
-        let mut type_diagnostics = program.typecheck();
+        let mut type_diagnostics =
+            program.typecheck_with_callables(self.extension_context.callable_descriptors());
 
-        // Hash the component registry to detect changes.
-        let component_hash = {
+        // Expansion caches complete function scopes, including plan-valued
+        // module lets. Hash every source AST so an imported helper edit cannot
+        // leave an older compiled function context attached to the statements.
+        let expansion_hash = {
             let mut hasher = DefaultHasher::new();
-            let mut names: Vec<&String> = program.components.keys().collect();
-            names.sort();
-            for name in names {
-                name.hash(&mut hasher);
-                let entry = &program.components[name];
-                format!("{:?}", entry.definition).hash(&mut hasher);
+            format!("{:?}", program.statements).hash(&mut hasher);
+            let mut modules = program.function_context.modules.iter().collect::<Vec<_>>();
+            modules.sort_by_key(|(path, _)| *path);
+            for (path, module) in modules {
+                path.hash(&mut hasher);
+                format!("{:?}", module.statements).hash(&mut hasher);
             }
             hasher.finish()
         };
 
-        // Skip expansion if components haven't changed and we have cached results.
-        let expanded_statements = if component_hash == self.last_component_hash {
+        let expanded = if expansion_hash == self.last_expansion_hash {
             if let Some(expanded) = self.cached_expanded.clone() {
                 expanded
             } else {
                 let mut expansion_errors = Vec::new();
                 let expanded = program.expand_components(&mut expansion_errors);
                 self.cached_expanded = Some(expanded.clone());
-                self.last_component_hash = component_hash;
+                self.last_expansion_hash = expansion_hash;
                 Self::push_expansion_diagnostics(&mut type_diagnostics, expansion_errors);
                 expanded
             }
@@ -187,20 +200,38 @@ impl DocumentSession {
             let mut expansion_errors = Vec::new();
             let expanded = program.expand_components(&mut expansion_errors);
             self.cached_expanded = Some(expanded.clone());
-            self.last_component_hash = component_hash;
+            self.last_expansion_hash = expansion_hash;
             Self::push_expansion_diagnostics(&mut type_diagnostics, expansion_errors);
             expanded
         };
 
-        // Cache the graph for next rebuild (preserves parsed imports)
-        self.cached_module_graph = Some(graph);
+        let entry = fs::canonicalize(&self.file_path).unwrap_or_else(|_| self.file_path.clone());
+        let imports = program
+            .function_context
+            .modules
+            .keys()
+            .filter(|path| **path != entry)
+            .map(|path| fs::read_to_string(path).map(|source| (path.clone(), source)))
+            .collect::<Result<HashMap<_, _>, _>>();
+        match imports {
+            Ok(sources) => {
+                self.cached_module_sources = sources;
+                self.cached_module_graph = Some(graph);
+            },
+            Err(_) => {
+                // A file disappeared during the rebuild; the next rebuild must
+                // read disk again and report it rather than reusing this graph.
+                self.cached_module_sources.clear();
+            },
+        }
         Ok(LoadedProgramResult {
             raw_statements: program.statements,
-            expanded_statements,
+            expanded,
             namespaces: program.namespaces,
             type_diagnostics,
             components: program.components,
             module_fns: program.module_fns,
+            function_context: program.function_context,
         })
     }
 

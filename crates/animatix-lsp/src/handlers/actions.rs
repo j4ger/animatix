@@ -76,10 +76,13 @@ pub(crate) async fn code_action(
                     actions.push(CodeActionOrCommand::CodeAction(action));
                 }
             },
-            "unknown-action" => {
+            "unknown-callable" => {
                 if let Some(misspelled) = diagnostic.subject.clone().filter(|s| !s.is_empty()) {
-                    let candidates =
-                        animatix_analyzer::suggest_action_names(analyzer.symbols(), &misspelled, 3);
+                    let candidates = animatix_analyzer::suggest_callable_names(
+                        analyzer.symbols(),
+                        &misspelled,
+                        3,
+                    );
                     let unambiguous = candidates.len() == 1;
                     for candidate in candidates {
                         actions.push(CodeActionOrCommand::CodeAction(CodeAction {

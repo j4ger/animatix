@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use animatix::timeline::{SceneDimensions, Timeline, TrackAccessor};
+use animatix::timeline::{BuildOptions, SceneDimensions, Timeline, TrackAccessor};
 use animatix_syntax::module::ModuleGraph;
 
 const DIMS: SceneDimensions = SceneDimensions {
@@ -16,6 +16,19 @@ fn setup_temp_workspace(test_name: &str) -> tempfile::TempDir {
         .prefix(&format!("amx_speech_test_{test_name}_"))
         .tempdir()
         .expect("create temp dir")
+}
+
+fn build_timeline(path: &std::path::Path) -> animatix_syntax::diagnostics::BuildReport<Timeline> {
+    let mut graph = ModuleGraph::new();
+    let program = graph.load_program(path).expect("load program");
+    let expanded = program.expand_components(&mut Vec::new());
+    Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    )
 }
 
 #[test]
@@ -31,12 +44,7 @@ subs: Captions, opacity: 1.0, at: (960, 900), font_size: 36.0, caption_mode: "wo
 "#;
     fs::write(&amx_path, source).unwrap();
 
-    let ast = ModuleGraph::new()
-        .load_program(&amx_path)
-        .expect("load program")
-        .expand_components(&mut Vec::new());
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build_timeline(&amx_path);
     assert!(report.diagnostics.is_empty(), "build diagnostics: {:?}", report.diagnostics);
 
     let tl = report.output;
@@ -92,12 +100,7 @@ subs: Captions, opacity: 1.0, transcript: "{}", caption_mode: "karaoke", backdro
     );
     fs::write(&amx_path, source).unwrap();
 
-    let ast = ModuleGraph::new()
-        .load_program(&amx_path)
-        .expect("load program")
-        .expand_components(&mut Vec::new());
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build_timeline(&amx_path);
     assert!(report.diagnostics.is_empty(), "build diagnostics: {:?}", report.diagnostics);
 
     let tl = report.output;
@@ -155,12 +158,7 @@ box: Rect, opacity: 0.0, at: (100, 100), size: (50.0, 50.0)
     );
     fs::write(&amx_path, source).unwrap();
 
-    let ast = ModuleGraph::new()
-        .load_program(&amx_path)
-        .expect("load program")
-        .expand_components(&mut Vec::new());
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build_timeline(&amx_path);
     assert!(report.diagnostics.is_empty(), "build diagnostics: {:?}", report.diagnostics);
 
     let tl = report.output;
@@ -203,12 +201,7 @@ box: Rect, at: (100, 100)
     );
     fs::write(&amx_path, source).unwrap();
 
-    let ast = ModuleGraph::new()
-        .load_program(&amx_path)
-        .expect("load program")
-        .expand_components(&mut Vec::new());
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build_timeline(&amx_path);
     assert!(
         !report.diagnostics.is_empty(),
         "should produce error diagnostic for nonexistent marker"
@@ -224,19 +217,18 @@ fn test_demo_scene_captions_evaluation() {
     if !amx_path.exists() {
         return;
     }
-    let ast = ModuleGraph::new()
-        .load_program(&amx_path)
-        .expect("load program")
-        .expand_components(&mut Vec::new());
-
+    let mut graph = ModuleGraph::new();
+    let program = graph.load_program(&amx_path).expect("load program");
+    let expanded = program.expand_components(&mut Vec::new());
     let ext_ctx = std::sync::Arc::new(animatix::extension_context::ExtensionContext::new());
-    let namespaces = std::collections::HashMap::new();
-    let report = animatix::composition::BuildTarget::from_ast_with_context_and_defines(
-        &ast,
-        &namespaces,
+    let report = animatix::composition::BuildTarget::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
         Some(&amx_path),
-        ext_ctx,
-        &[],
+        BuildOptions::default()
+            .with_context(ext_ctx)
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
     );
     assert!(
         report
@@ -270,11 +262,7 @@ subs: Captions, opacity: 1.0, at: (960, 900) {
 }
 "#;
     fs::write(&amx_path, source).unwrap();
-    let ast = ModuleGraph::new()
-        .load_program(&amx_path)
-        .expect("load program")
-        .expand_components(&mut Vec::new());
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build_timeline(&amx_path);
 
     let warned = report.diagnostics.iter().any(|d| {
         d.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Warning

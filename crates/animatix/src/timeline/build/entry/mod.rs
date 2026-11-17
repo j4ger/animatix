@@ -11,6 +11,7 @@ use super::post::{seed_namespace_exports, synthesize_idle_tracks};
 use super::*;
 use crate::timeline::layout::ChildExtent;
 
+mod actor_captures;
 mod builders;
 mod finalize;
 mod format_specs;

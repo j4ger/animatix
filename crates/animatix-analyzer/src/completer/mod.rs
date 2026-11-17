@@ -31,8 +31,10 @@ pub enum CompletionKind {
     Property,
     /// An actor or variable label.
     Label,
-    /// An action verb (e.g., `fade-in`, `move`).
-    Action,
+    /// A callable function (built-in, user-defined, or extension-provided).
+    Callable,
+    /// A named callable parameter.
+    Parameter,
     /// A literal value (e.g., `true`, `null`).
     Value,
     /// A code snippet/template.
@@ -47,12 +49,19 @@ enum CompletionContext {
     TypePosition,
     /// Inside a property block { ... } (expecting property names)
     PropertyBlock { actor_type: Option<String> },
-    /// After an action verb (expecting actor labels)
-    ActionTarget,
-    /// At a statement's verb slot: start of a line/block, or a word that is
-    /// not a known action in verb position (offers action verbs so a typo'd
-    /// verb like `fly` can be corrected from the completion list)
-    VerbPosition,
+    /// Inside a callable argument list.
+    CallArgument {
+        callee: Option<String>,
+        argument_index: usize,
+        current_name: Option<String>,
+        supplied_names: Vec<String>,
+    },
+    /// At a statement or expression position where a call can start.
+    CallablePosition,
+    /// After a namespace separator, completing that namespace's exported functions.
+    NamespacePosition { prefix: String },
+    /// After an actor receiver separator, completing its public methods.
+    MethodPosition { receiver: String },
     /// Inside a modifier list [ ... ] (expecting modifier names)
     ModifierList,
     /// Inside a property value (after "=" or ":")
@@ -65,13 +74,13 @@ enum CompletionContext {
 }
 
 /// Snippet completions for common patterns.
-use actions::*;
+use callables::*;
 use properties::*;
 use snippets::*;
 use values::*;
 
-mod actions;
 mod api;
+mod callables;
 mod context;
 mod properties;
 mod snippets;
@@ -79,5 +88,6 @@ mod snippets;
 mod tests;
 mod values;
 pub use api::completions_at;
+pub(crate) use callables::{callable_for, callable_signature};
 pub use properties::property_documentation;
 pub use snippets::all_snippets;

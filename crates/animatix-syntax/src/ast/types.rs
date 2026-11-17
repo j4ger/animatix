@@ -45,8 +45,9 @@ impl Default for Property {
     }
 }
 
-/// Modifier applied to an action (e.g. duration `2s`, `ease: bounce`).
+/// Timing or easing modifier used by assignments, loops, and stagger blocks.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Modifier {
     /// Optional modifier name (e.g. `ease` in `ease: bounce`).
     pub name: Option<String>,
@@ -54,60 +55,13 @@ pub struct Modifier {
     pub value: Expr,
 }
 
-/// Invocation-local retiming options for an expanded timeline function call.
-///
-/// These expressions are evaluated once at the call site during timeline
-/// construction. `time_scale` multiplies authored time; `clip_duration`
-/// derives a multiplier from the function body's authored extent.
-#[derive(Clone, Debug, PartialEq)]
-pub struct TimeScopeSpec {
-    /// Positive multiplier applied to local times and durations.
-    pub time_scale: Option<Expr>,
-    /// Target duration for the expanded function body.
-    pub clip_duration: Option<Expr>,
-    /// Build-generated maximum active duration inherited from an enclosing
-    /// local time scope. This is not an authored modifier.
-    pub end_limit_duration_ms: Option<f64>,
-}
-
-/// Action invocation (e.g. `move btn to (100, 100) [2s]`).
-#[derive(Clone, Debug, PartialEq)]
-pub struct Action {
-    /// Action verb (e.g. `appear`, `move`, `fade-out`).
-    pub verb: String,
-    /// Target labels the action applies to (e.g. `["btn"]`, `["A", "B",
-    /// "C"]`).
-    ///
-    /// An indexed target like `bars[j]` stores the base projection `"bars"`
-    /// here and the index expression in [`Action::target_index`]. Dotted paths
-    /// keep their string form (for example, `cards.title`) while
-    /// [`Action::target_index_position`] identifies the indexed segment.
-    pub targets: Vec<String>,
-    /// Optional index expression per target, aligned with `targets`.
-    ///
-    /// `None` for plain targets, `Some(expr)` for `name[expr]` targets. Only
-    /// one path segment may carry an index; runtime resolves it to
-    /// `{segment}__N` against the build environment before dispatch.
-    pub target_index: Vec<Option<Expr>>,
-    /// Indexed path segment per target, aligned with `targets` and
-    /// `target_index`. Source targets currently default to the leaf segment;
-    /// component expansion may attach the root segment's index instead.
-    pub target_index_position: Vec<Option<usize>>,
-    /// Positional arguments (e.g. `to (100, 100)`).
-    pub args: Vec<Expr>,
-    /// Named modifiers (e.g. `[2s, ease: bounce]`).
-    pub modifiers: Vec<Modifier>,
-    /// Byte-offset span of the action declaration in the source text.
-    /// Used for diagnostic location reporting.
-    pub byte_span: Option<ByteSpan>,
-}
-
 // 2b. Transition Types (Multi-Scene Composition)
 
 /// Scene transition descriptor for the `play` statement.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Transition {
-    /// Transition ID from the registry (e.g. "fade", "wipe-left").
+    /// Transition ID from the registry (e.g. "fade", "wipe_left").
     pub id: String,
     /// Duration of the transition in milliseconds.
     pub duration_ms: u64,
@@ -130,6 +84,7 @@ impl Default for Transition {
 
 /// Time value used for keyframes and durations.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Time {
     /// Time in seconds (e.g. `2s`, `2.5`).
     Seconds(f64),
@@ -137,6 +92,8 @@ pub enum Time {
     Milliseconds(u64),
     /// Time in beats (e.g. `2b`), resolved by the scene's `config { bpm: … }`.
     Beats(f64),
+    /// Computed time expression used by `#(expr)` and `#+(expr)`.
+    Expression(Box<Expr>),
     /// Speech cue/marker reference: `#track@marker + offset`
     SpeechMarker {
         /// Audio track label (e.g. `voice`).
@@ -175,9 +132,16 @@ pub fn beat_seconds(bpm: f64) -> f64 {
 
 /// Type annotation for parameters.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum TypeAnnotation {
     /// 64-bit floating-point number.
     Num,
+    /// Time duration in canonical seconds.
+    Duration,
+    /// Reusable timeline plan, possibly containing local actor declarations.
+    Timeline,
+    /// No-value function result.
+    Unit,
     /// UTF-8 string.
     Str,
     /// Boolean flag.
@@ -190,6 +154,8 @@ pub enum TypeAnnotation {
     Vec4,
     /// RGBA color.
     Color,
+    /// Easing curve.
+    Easing,
     /// Actor label reference.
     Actor,
     /// Scene name reference.
@@ -219,12 +185,16 @@ impl std::fmt::Display for TypeAnnotation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TypeAnnotation::Num => write!(f, "Num"),
+            TypeAnnotation::Duration => write!(f, "Duration"),
+            TypeAnnotation::Timeline => write!(f, "Timeline"),
+            TypeAnnotation::Unit => write!(f, "Unit"),
             TypeAnnotation::Str => write!(f, "Str"),
             TypeAnnotation::Bool => write!(f, "Bool"),
             TypeAnnotation::Vec2 => write!(f, "Vec2"),
             TypeAnnotation::Vec3 => write!(f, "Vec3"),
             TypeAnnotation::Vec4 => write!(f, "Vec4"),
             TypeAnnotation::Color => write!(f, "Color"),
+            TypeAnnotation::Easing => write!(f, "Easing"),
             TypeAnnotation::Actor => write!(f, "Actor"),
             TypeAnnotation::Scene => write!(f, "Scene"),
             TypeAnnotation::List(inner) => write!(f, "List<{}>", inner),
@@ -251,6 +221,7 @@ impl std::fmt::Display for TypeAnnotation {
 
 /// Parameter definition for component parameters.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ParamDef {
     /// Parameter name.
     pub name: String,
@@ -262,6 +233,7 @@ pub struct ParamDef {
 
 /// Component definition (used in `.actor.actx` files).
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ComponentDef {
     /// Whether the component is exported (`pub`).
     pub is_pub: bool,
@@ -276,6 +248,7 @@ pub struct ComponentDef {
 /// Loop variable binding pattern for `for` loops.
 /// Supports single variable or tuple destructuring.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum LoopPattern {
     /// Single variable: `for x in items { ... }`
     Single(String),

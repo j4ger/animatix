@@ -37,7 +37,11 @@ pub fn count_expr_nodes(expr: &CompiledExpr) -> usize {
         CompiledExpr::Const(_)
         | CompiledExpr::LoadEnv(_)
         | CompiledExpr::PropRef { .. }
+        | CompiledExpr::Timeline(_)
+        | CompiledExpr::SequencePlan(_)
+        | CompiledExpr::StaggerPlan(..)
         | CompiledExpr::AnchorLookup { .. } => 1,
+        CompiledExpr::Field(base, _) => 1 + count_expr_nodes(base),
         CompiledExpr::Unary(_, inner) => 1 + count_expr_nodes(inner),
         CompiledExpr::Binary(left, _, right) => {
             1 + count_expr_nodes(left) + count_expr_nodes(right)
@@ -48,13 +52,19 @@ pub fn count_expr_nodes(expr: &CompiledExpr) -> usize {
         CompiledExpr::MakeVec(items) | CompiledExpr::MakeList(items) => {
             1 + items.iter().map(count_expr_nodes).sum::<usize>()
         },
-        CompiledExpr::CallBuiltin(_, args) | CompiledExpr::CallEnv(_, args) => {
-            1 + args.iter().map(count_expr_nodes).sum::<usize>()
+        CompiledExpr::CallBuiltin(_, args) => 1 + args.iter().map(count_expr_nodes).sum::<usize>(),
+        CompiledExpr::CallNamed(_, args) => {
+            1 + args.iter().map(|(_, arg)| count_expr_nodes(arg)).sum::<usize>()
+        },
+        CompiledExpr::CallMember(receiver, _, args) => {
+            1 + count_expr_nodes(receiver)
+                + args.iter().map(|(_, arg)| count_expr_nodes(arg)).sum::<usize>()
+        },
+        CompiledExpr::CallValue(callee, args) => {
+            1 + count_expr_nodes(callee)
+                + args.iter().map(|(_, arg)| count_expr_nodes(arg)).sum::<usize>()
         },
         CompiledExpr::Index(base, index) => 1 + count_expr_nodes(base) + count_expr_nodes(index),
-        CompiledExpr::Method(receiver, _, args) => {
-            1 + count_expr_nodes(receiver) + args.iter().map(count_expr_nodes).sum::<usize>()
-        },
         CompiledExpr::Closure(_, body) => 1 + count_expr_nodes(body),
         CompiledExpr::LetChain(bindings, tail) => {
             1 + bindings.iter().map(|(_, e)| count_expr_nodes(e)).sum::<usize>()
@@ -201,7 +211,9 @@ fn expr_references_ident(expr: &CompiledExpr, name: &str) -> bool {
         CompiledExpr::MakeVec(items) | CompiledExpr::MakeList(items) => {
             items.iter().any(|item| expr_references_ident(item, name))
         },
-        CompiledExpr::Unary(_, inner) => expr_references_ident(inner, name),
+        CompiledExpr::Field(base, _) | CompiledExpr::Unary(_, base) => {
+            expr_references_ident(base, name)
+        },
         CompiledExpr::Binary(left, _, right) => {
             expr_references_ident(left, name) || expr_references_ident(right, name)
         },
@@ -210,15 +222,22 @@ fn expr_references_ident(expr: &CompiledExpr, name: &str) -> bool {
                 || expr_references_ident(then_expr, name)
                 || expr_references_ident(else_expr, name)
         },
-        CompiledExpr::CallBuiltin(_, args) | CompiledExpr::CallEnv(_, args) => {
+        CompiledExpr::CallBuiltin(_, args) => {
             args.iter().any(|arg| expr_references_ident(arg, name))
+        },
+        CompiledExpr::CallNamed(callee, args) => {
+            callee == name || args.iter().any(|(_, arg)| expr_references_ident(arg, name))
+        },
+        CompiledExpr::CallMember(receiver, _, args) => {
+            expr_references_ident(receiver, name)
+                || args.iter().any(|(_, arg)| expr_references_ident(arg, name))
+        },
+        CompiledExpr::CallValue(callee, args) => {
+            expr_references_ident(callee, name)
+                || args.iter().any(|(_, arg)| expr_references_ident(arg, name))
         },
         CompiledExpr::Index(base, index) => {
             expr_references_ident(base, name) || expr_references_ident(index, name)
-        },
-        CompiledExpr::Method(receiver, _, args) => {
-            expr_references_ident(receiver, name)
-                || args.iter().any(|arg| expr_references_ident(arg, name))
         },
         CompiledExpr::Closure(params, body) => {
             if params.iter().any(|p| p == name) {
@@ -241,6 +260,12 @@ fn expr_references_ident(expr: &CompiledExpr, name: &str) -> bool {
         },
         CompiledExpr::Construct(_, fields) => {
             fields.iter().any(|(_, val)| expr_references_ident(val, name))
+        },
+        CompiledExpr::Timeline(_)
+        | CompiledExpr::SequencePlan(_)
+        | CompiledExpr::StaggerPlan(..) => {
+            // Plans retain source statements and can capture any lexical name.
+            true
         },
         CompiledExpr::Const(_) | CompiledExpr::AnchorLookup { .. } => false,
     }
@@ -295,23 +320,26 @@ fn optimize_expr_scoped(
                 expr
             }
         },
+        CompiledExpr::Field(base, field) => CompiledExpr::Field(
+            Box::new(optimize_expr_scoped(*base, shadow_names, const_env, stats)),
+            field,
+        ),
         CompiledExpr::Unary(op, inner) => {
             let inner_opt = optimize_expr_scoped(*inner, shadow_names, const_env, stats);
-            match op {
-                UnaryOp::Neg => {
-                    if let CompiledExpr::Const(Value::Num(n)) = inner_opt {
-                        stats.folded += 1;
-                        return CompiledExpr::Const(Value::Num(-n));
-                    }
+            match (&op, &inner_opt) {
+                (UnaryOp::Neg, CompiledExpr::Const(Value::Num(n))) => {
+                    stats.folded += 1;
+                    return CompiledExpr::Const(Value::Num(-n));
                 },
-                UnaryOp::Not => {
-                    if let CompiledExpr::Const(val) = inner_opt {
-                        stats.folded += 1;
-                        let res = if val.is_truthy() { 0.0 } else { 1.0 };
-                        return CompiledExpr::Const(Value::Num(res));
-                    }
+                (UnaryOp::Neg, CompiledExpr::Const(Value::Duration(seconds))) => {
+                    stats.folded += 1;
+                    return CompiledExpr::Const(Value::Duration(-seconds));
                 },
-                UnaryOp::Ref => {},
+                (UnaryOp::Not, CompiledExpr::Const(value)) => {
+                    stats.folded += 1;
+                    return CompiledExpr::Const(Value::Bool(!value.is_truthy()));
+                },
+                _ => {},
             }
             CompiledExpr::Unary(op, Box::new(inner_opt))
         },
@@ -366,25 +394,39 @@ fn optimize_expr_scoped(
             }
             CompiledExpr::CallBuiltin(builtin, args_opt)
         },
-        CompiledExpr::CallEnv(name, args) => {
-            let args_opt = args
+        CompiledExpr::CallNamed(name, args) => {
+            let args = args
                 .into_iter()
-                .map(|arg| optimize_expr_scoped(arg, shadow_names, const_env, stats))
+                .map(|(arg_name, arg)| {
+                    (arg_name, optimize_expr_scoped(arg, shadow_names, const_env, stats))
+                })
                 .collect();
-            CompiledExpr::CallEnv(name, args_opt)
+            CompiledExpr::CallNamed(name, args)
+        },
+        CompiledExpr::CallMember(receiver, name, args) => {
+            let receiver = optimize_expr_scoped(*receiver, shadow_names, const_env, stats);
+            let args = args
+                .into_iter()
+                .map(|(arg_name, arg)| {
+                    (arg_name, optimize_expr_scoped(arg, shadow_names, const_env, stats))
+                })
+                .collect();
+            CompiledExpr::CallMember(Box::new(receiver), name, args)
+        },
+        CompiledExpr::CallValue(callee, args) => {
+            let callee = optimize_expr_scoped(*callee, shadow_names, const_env, stats);
+            let args = args
+                .into_iter()
+                .map(|(arg_name, arg)| {
+                    (arg_name, optimize_expr_scoped(arg, shadow_names, const_env, stats))
+                })
+                .collect();
+            CompiledExpr::CallValue(Box::new(callee), args)
         },
         CompiledExpr::Index(base, index) => {
             let base_opt = optimize_expr_scoped(*base, shadow_names, const_env, stats);
             let idx_opt = optimize_expr_scoped(*index, shadow_names, const_env, stats);
             CompiledExpr::Index(Box::new(base_opt), Box::new(idx_opt))
-        },
-        CompiledExpr::Method(receiver, name, args) => {
-            let rec_opt = optimize_expr_scoped(*receiver, shadow_names, const_env, stats);
-            let args_opt = args
-                .into_iter()
-                .map(|arg| optimize_expr_scoped(arg, shadow_names, const_env, stats))
-                .collect();
-            CompiledExpr::Method(Box::new(rec_opt), name, args_opt)
         },
         CompiledExpr::Closure(params, body) => {
             let mut inner_consts = const_env.clone();
@@ -397,40 +439,7 @@ fn optimize_expr_scoped(
             CompiledExpr::Closure(params, Box::new(body_opt))
         },
         CompiledExpr::LetChain(bindings, tail) => {
-            let mut current_consts = const_env.clone();
-            let mut current_shadow = shadow_names.clone();
-            let mut new_bindings = Vec::with_capacity(bindings.len());
-
-            for (name, val_expr) in bindings {
-                let opt_val =
-                    optimize_expr_scoped(val_expr, &current_shadow, &current_consts, stats);
-                if let CompiledExpr::Const(ref c) = opt_val {
-                    current_consts.insert(name.clone(), c.clone());
-                } else {
-                    current_consts.remove(&name);
-                }
-                current_shadow.insert(name.clone());
-                new_bindings.push((name, opt_val));
-            }
-
-            let opt_tail = optimize_expr_scoped(*tail, &current_shadow, &current_consts, stats);
-
-            let mut pruned_bindings = Vec::with_capacity(new_bindings.len());
-            for i in 0..new_bindings.len() {
-                let (_, expr) = &new_bindings[i];
-                if matches!(expr, CompiledExpr::Const(_))
-                    && !is_binding_referenced_after(&new_bindings, &opt_tail, i)
-                {
-                    continue;
-                }
-                pruned_bindings.push(new_bindings[i].clone());
-            }
-
-            if pruned_bindings.is_empty() {
-                opt_tail
-            } else {
-                CompiledExpr::LetChain(pruned_bindings, Box::new(opt_tail))
-            }
+            optimize_let_chain(bindings, *tail, shadow_names, const_env, stats)
         },
         CompiledExpr::MakeVec(items) => {
             let items_opt = items
@@ -455,7 +464,52 @@ fn optimize_expr_scoped(
                 .collect();
             CompiledExpr::Construct(name, fields_opt)
         },
-        CompiledExpr::PropRef { .. } | CompiledExpr::AnchorLookup { .. } => expr,
+        CompiledExpr::PropRef { .. }
+        | CompiledExpr::Timeline(_)
+        | CompiledExpr::SequencePlan(_)
+        | CompiledExpr::StaggerPlan(..)
+        | CompiledExpr::AnchorLookup { .. } => expr,
+    }
+}
+
+fn optimize_let_chain(
+    bindings: Vec<(String, CompiledExpr)>,
+    tail: CompiledExpr,
+    shadow_names: &HashSet<String>,
+    const_env: &HashMap<String, Value>,
+    stats: &mut OptStats,
+) -> CompiledExpr {
+    let mut current_consts = const_env.clone();
+    let mut current_shadow = shadow_names.clone();
+    let mut new_bindings = Vec::with_capacity(bindings.len());
+
+    for (name, val_expr) in bindings {
+        let opt_val = optimize_expr_scoped(val_expr, &current_shadow, &current_consts, stats);
+        if let CompiledExpr::Const(ref c) = opt_val {
+            current_consts.insert(name.clone(), c.clone());
+        } else {
+            current_consts.remove(&name);
+        }
+        current_shadow.insert(name.clone());
+        new_bindings.push((name, opt_val));
+    }
+
+    let opt_tail = optimize_expr_scoped(tail, &current_shadow, &current_consts, stats);
+    let mut pruned_bindings = Vec::with_capacity(new_bindings.len());
+    for i in 0..new_bindings.len() {
+        let (_, expr) = &new_bindings[i];
+        if matches!(expr, CompiledExpr::Const(_))
+            && !is_binding_referenced_after(&new_bindings, &opt_tail, i)
+        {
+            continue;
+        }
+        pruned_bindings.push(new_bindings[i].clone());
+    }
+
+    if pruned_bindings.is_empty() {
+        opt_tail
+    } else {
+        CompiledExpr::LetChain(pruned_bindings, Box::new(opt_tail))
     }
 }
 

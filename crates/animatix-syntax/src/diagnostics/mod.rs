@@ -77,6 +77,8 @@ pub enum DiagnosticCode {
     ColorschemeInheritanceCycle,
     /// Evaluation of a module export failed.
     ModuleExportEvalError,
+    /// A callable could not be resolved, bound, or evaluated.
+    CallableEvaluationError,
     /// A modifier failed to compile.
     ModifierCompilationError,
     /// Coordinate system friction: two position bindings conflict.
@@ -126,6 +128,12 @@ pub enum DiagnosticCode {
     PersistAfterRemove,
     /// The plot function is invalid.
     InvalidPlotFunc,
+    /// A timeline value produced inside a function was discarded.
+    DiscardedTimelineValue,
+    /// Timeline statements in a normal function must be inside a plan value.
+    InvalidFunctionBodyStatement,
+    /// A recursive function cycle lacks an explicit return type.
+    RecursiveFunctionNeedsAnnotation,
     /// The actor type is unknown.
     UnknownActorType,
     /// A type mismatch was detected during type checking.

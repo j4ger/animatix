@@ -2,7 +2,8 @@
 
 use super::*;
 
-use crate::ast::{Action, Modifier};
+use crate::ast::Modifier;
+use crate::timeline::actions::BuiltinInvocation;
 use crate::timeline::actions::process_action;
 
 /// The reorder action must store `EntityId`s in the component, not labels.
@@ -27,7 +28,7 @@ fn reorder_action_stores_ids() {
         }
     ));
 
-    let action = Action {
+    let action = BuiltinInvocation {
         verb: "reorder".to_string(),
         targets: vec!["row".to_string()],
         args: vec![],

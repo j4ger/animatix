@@ -4,7 +4,7 @@ use crate::ast::{Expr, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{Primitive, RenderCtx};
 use crate::timeline::{
-    ActorCaps, Environment, SceneAnchor, SceneDimensions, VectorShapeState, VelloPath,
+    ActorCaps, Environment, SceneDimensions, VectorShapeState, VelloPath,
     lookup_parse_numeric_vec2_with_lookup_diagnostic as parse_numeric_vec2_with_lookup_diagnostic,
 };
 
@@ -73,10 +73,7 @@ impl Primitive for LinePrimitive {
         };
         match name {
             "from" => {
-                if let Expr::Path(segments) = value
-                    && segments.len() == 2
-                    && SceneAnchor::from_str(&segments[1]).is_some()
-                {
+                if crate::timeline::lookup::actor_anchor_reference(value).is_some() {
                     return true;
                 }
                 if let Some(parsed) =
@@ -87,10 +84,7 @@ impl Primitive for LinePrimitive {
                 true
             },
             "to" => {
-                if let Expr::Path(segments) = value
-                    && segments.len() == 2
-                    && SceneAnchor::from_str(&segments[1]).is_some()
-                {
+                if crate::timeline::lookup::actor_anchor_reference(value).is_some() {
                     return true;
                 }
                 if let Some(parsed) =

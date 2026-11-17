@@ -844,7 +844,7 @@ mod tests {
         ui_store.selection.selected_actors.insert("box".to_string());
 
         document_store.source.document.set_source_text(
-            "#0s\nbox: Rect, size: (100, 100)\ncircle: Ellipse, radius: 20\n#2s\nbox.color = red\n"
+            "#0s\nbox: Rect, size: (100, 100)\ncircle: Ellipse, radius_x: 20, radius_y: 20\n#2s\nbox.color = red\n"
                 .to_string(),
         );
 

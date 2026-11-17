@@ -138,6 +138,9 @@ pub(super) fn expand_inline_items(
                     items: expanded,
                 });
             },
+            InlineItem::Expr(expr, span) => {
+                result.push(InlineItem::Expr(expr.clone(), *span));
+            },
         }
     }
     (result, hoisted)
@@ -224,9 +227,6 @@ impl AstFolder for ComponentIndexFolder<'_> {
             other => walk_fold_stmt(self, other),
         }
     }
-    fn fold_action(&mut self, action: crate::ast::Action) -> crate::ast::Action {
-        ComponentIndexFolder::fold_action(self, action)
-    }
 }
 
 impl ComponentIndexFolder<'_> {
@@ -251,37 +251,6 @@ impl ComponentIndexFolder<'_> {
             };
         }
         target
-    }
-
-    fn fold_action(&mut self, mut action: crate::ast::Action) -> crate::ast::Action {
-        if action.target_index.len() < action.targets.len() {
-            action.target_index.resize(action.targets.len(), None);
-        }
-        if action.target_index_position.len() < action.targets.len() {
-            action.target_index_position.resize(action.targets.len(), None);
-        }
-        for ((target, index), position) in action
-            .targets
-            .iter()
-            .zip(&mut action.target_index)
-            .zip(&mut action.target_index_position)
-        {
-            let targets_instance = target == self.root
-                || target.strip_prefix(self.root).is_some_and(|rest| rest.starts_with('.'));
-            if targets_instance && index.is_none() {
-                *index = Some(self.index.clone());
-                *position = Some(self.root.split('.').count().saturating_sub(1));
-            }
-        }
-        action.args = action.args.into_iter().map(|arg| self.fold_expr(arg)).collect();
-        action.modifiers = action.modifiers.into_iter().map(|m| self.fold_modifier(m)).collect();
-        action.target_index = action
-            .target_index
-            .into_iter()
-            .map(|index| index.map(|expr| self.fold_expr(expr)))
-            .collect();
-        action.target_index_position.resize(action.targets.len(), None);
-        action
     }
 }
 
@@ -365,7 +334,18 @@ pub(super) fn expand_component_instance(
     }
     ctx.depth += 1;
 
+    // Resolve nested component types in the module that defined this
+    // component. Merge the caller scope as well so slot-fill items keep their
+    // lexical component names; defining-module names take precedence.
+    let scoped_components = ctx.component_scope(&component.source_path).map(|scope| {
+        let mut merged = components.clone();
+        merged.extend(scope.iter().map(|(name, entry)| (name.clone(), entry.clone())));
+        merged
+    });
+    let components_for_body = scoped_components.as_ref().unwrap_or(components);
+
     let bindings = component_bindings(&component.definition.params, instance_props);
+    let component_captures = component_capture_names(&component.definition.params, instance_props);
     let root_label = first_labeled_stmt(&component.definition.body);
     let known_labels = collect_labels(&component.definition.body);
 
@@ -405,29 +385,38 @@ pub(super) fn expand_component_instance(
         .cloned()
         .collect();
 
-    // Collect timeline functions from rewritten statements
-    let mut instance_actions: HashMap<String, crate::module::FnTemplate> = HashMap::new();
+    // Collect methods from rewritten statements.
+    let mut instance_methods: HashMap<String, crate::module::FnTemplate> = HashMap::new();
     let filtered: Vec<Stmt> = rewritten
         .into_iter()
         .filter_map(|stmt| match &stmt {
             Stmt::FnDecl {
+                is_pub,
                 name,
                 params,
                 return_type,
                 body,
-                ..
+                span,
             } => {
-                instance_actions.insert(
+                instance_methods.insert(
                     name.clone(),
                     crate::module::FnTemplate {
                         params: params.clone(),
                         return_type: return_type.clone(),
                         body: specialize_component_references(
-                            body.clone(),
+                            super::stmt::expand_embedded_plans_in_stmts(
+                                body,
+                                components_for_body,
+                                ctx,
+                            ),
                             instance_label,
                             instance_array_index.as_ref(),
                         ),
+                        is_pub: *is_pub,
+                        definition_path: component.source_path.clone(),
+                        span: *span,
                         instance_index: instance_array_index.clone(),
+                        component_captures: component_captures.clone(),
                     },
                 );
                 None
@@ -436,7 +425,8 @@ pub(super) fn expand_component_instance(
         })
         .collect();
 
-    let (expanded_stmts, mut registry) = expand_statements_inner(&filtered, components, ctx);
+    let (expanded_stmts, mut registry) =
+        expand_statements_inner(&filtered, components_for_body, ctx);
     specialize_nested_instance_methods(
         &mut registry,
         instance_label,
@@ -447,8 +437,8 @@ pub(super) fn expand_component_instance(
         instance_label,
         instance_array_index.as_ref(),
     );
-    if !instance_actions.is_empty() {
-        registry.insert(instance_label.to_string(), instance_actions);
+    if !instance_methods.is_empty() {
+        registry.insert(instance_label.to_string(), instance_methods);
     }
     ctx.depth -= 1;
 
@@ -648,6 +638,24 @@ pub(super) fn component_bindings(
     bindings
 }
 
+/// Collect the caller-scope names used to supply this component instance's
+/// declared parameters. Component defaults are declared in the component's
+/// own module, so they resolve through the method's definition context.
+fn component_capture_names(params: &[ParamDef], instance_props: &[Property]) -> Vec<String> {
+    let mut captures = std::collections::BTreeSet::new();
+    for property in instance_props {
+        if !params.iter().any(|param| param.name == property.name) {
+            continue;
+        }
+        crate::walk::walk_expr(&property.value, &mut |expr| {
+            if let Expr::Ident(name) = expr {
+                captures.insert(name.clone());
+            }
+        });
+    }
+    captures.into_iter().collect()
+}
+
 pub(super) fn first_labeled_stmt(body: &[Stmt]) -> Option<String> {
     for stmt in body {
         if let Stmt::ActorDecl { label, .. } = stmt {
@@ -665,7 +673,7 @@ mod component_index_tests {
     #[test]
     fn dotted_instance_prefix_indexes_the_component_root_segment() {
         let index = Expr::Num(3.0);
-        let mut folder = ComponentIndexFolder {
+        let folder = ComponentIndexFolder {
             root: "layout.cards",
             index: &index,
         };
@@ -684,18 +692,6 @@ mod component_index_tests {
                 TargetSegment::Static("title".into()),
             ]
         );
-        let action = folder.fold_action(crate::ast::Action {
-            verb: "fade-in".into(),
-            targets: vec!["layout.cards.title".into()],
-            target_index: vec![None],
-            target_index_position: vec![None],
-            args: vec![],
-            modifiers: vec![],
-            byte_span: None,
-        });
-        assert_eq!(action.targets, vec!["layout.cards.title"]);
-        assert_eq!(action.target_index, vec![Some(Expr::Num(3.0))]);
-        assert_eq!(action.target_index_position, vec![Some(1)]);
     }
 
     #[test]

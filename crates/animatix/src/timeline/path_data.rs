@@ -61,7 +61,7 @@ pub(crate) fn parse_svg_path_data(d: &str) -> Expr {
             },
             "A" | "a" => parse_arc_to(&tokens, &mut i, &mut current_pos, cmd == "A", &mut commands),
             "Z" | "z" => {
-                commands.push(Expr::Call("close".into(), vec![]));
+                commands.push(Expr::call("close", vec![]));
             },
             _ => {
                 // Unknown command — skip and continue parsing rest of path
@@ -99,7 +99,7 @@ fn parse_move_to(
         };
         let name = if first_pair { "move_to" } else { "line_to" };
         first_pair = false;
-        commands.push(Expr::Call(name.into(), vec![Expr::Num(abs_x), Expr::Num(abs_y)]));
+        commands.push(Expr::call(name, vec![Expr::Num(abs_x), Expr::Num(abs_y)]));
         *current_pos = (abs_x, abs_y);
     }
 }
@@ -121,7 +121,7 @@ fn parse_line_to(
         } else {
             (current_pos.0 + x, current_pos.1 + y)
         };
-        commands.push(Expr::Call("line_to".into(), vec![Expr::Num(abs_x), Expr::Num(abs_y)]));
+        commands.push(Expr::call("line_to", vec![Expr::Num(abs_x), Expr::Num(abs_y)]));
         *current_pos = (abs_x, abs_y);
     }
 }
@@ -145,8 +145,8 @@ fn parse_quad_to(
         } else {
             (current_pos.0 + x1, current_pos.1 + y1, current_pos.0 + x, current_pos.1 + y)
         };
-        commands.push(Expr::Call(
-            "quad_to".into(),
+        commands.push(Expr::call(
+            "quad_to",
             vec![
                 Expr::Num(abs_x1),
                 Expr::Num(abs_y1),
@@ -186,8 +186,8 @@ fn parse_curve_to(
                 current_pos.1 + y,
             )
         };
-        commands.push(Expr::Call(
-            "curve_to".into(),
+        commands.push(Expr::call(
+            "curve_to",
             vec![
                 Expr::Num(abs_x1),
                 Expr::Num(abs_y1),
@@ -213,8 +213,7 @@ fn parse_horizontal_to(
         let x = parse_token_num(&tokens[*i]);
         *i += 1;
         let abs_x = if abs { x } else { current_pos.0 + x };
-        commands
-            .push(Expr::Call("line_to".into(), vec![Expr::Num(abs_x), Expr::Num(current_pos.1)]));
+        commands.push(Expr::call("line_to", vec![Expr::Num(abs_x), Expr::Num(current_pos.1)]));
         *current_pos = (abs_x, current_pos.1);
     }
 }
@@ -231,8 +230,7 @@ fn parse_vertical_to(
         let y = parse_token_num(&tokens[*i]);
         *i += 1;
         let abs_y = if abs { y } else { current_pos.1 + y };
-        commands
-            .push(Expr::Call("line_to".into(), vec![Expr::Num(current_pos.0), Expr::Num(abs_y)]));
+        commands.push(Expr::call("line_to", vec![Expr::Num(current_pos.0), Expr::Num(abs_y)]));
         *current_pos = (current_pos.0, abs_y);
     }
 }
@@ -265,8 +263,8 @@ fn parse_smooth_curve_to(
                 current_pos.1 + y,
             )
         };
-        commands.push(Expr::Call(
-            "curve_to".into(),
+        commands.push(Expr::call(
+            "curve_to",
             vec![
                 Expr::Num(abs_x1),
                 Expr::Num(abs_y1),
@@ -298,8 +296,8 @@ fn parse_smooth_quad_to(
         } else {
             (current_pos.0, current_pos.1, current_pos.0 + x, current_pos.1 + y)
         };
-        commands.push(Expr::Call(
-            "quad_to".into(),
+        commands.push(Expr::call(
+            "quad_to",
             vec![
                 Expr::Num(abs_x1),
                 Expr::Num(abs_y1),
@@ -335,7 +333,7 @@ fn parse_arc_to(
         };
         // Arcs are complex — approximate as line_to for now
         // Full arc support requires calculating arc segment points
-        commands.push(Expr::Call("line_to".into(), vec![Expr::Num(abs_x), Expr::Num(abs_y)]));
+        commands.push(Expr::call("line_to", vec![Expr::Num(abs_x), Expr::Num(abs_y)]));
         *current_pos = (abs_x, abs_y);
     }
 }

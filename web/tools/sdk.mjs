@@ -43,7 +43,7 @@ export function identity(profile = 'release') {
       zopfli_sha256: digest(readFileSync(run('sh', ['-c', 'command -v zopfli']))),
       node: process.version, zlib: process.versions.zlib,
     },
-    flags: { simd128: true, lto: 'fat', codegen_units: 1, relocation_graph: true, wasm_bindgen_no_demangle: true, base_gzip: 'zopfli --i20 --gzip -c', environment_digest: digest(JSON.stringify(buildEnvironment())) },
+    flags: { simd128: true, lto: 'fat', codegen_units: 1, relocation_graph: true, wasm_bindgen_no_demangle: true, base_gzip: 'zopfli --i100 --gzip -c', environment_digest: digest(JSON.stringify(buildEnvironment())) },
   };
   // The embedded engine_commit changes with HEAD; dirtiness itself is only
   // provenance, while every relevant edited byte participates in input_digest.
@@ -124,7 +124,7 @@ export async function assemble(directory, metadataPath, buildIdentity) {
   copyFileSync(join(ROOT, 'web/embed/amx-player.js'), join(directory, 'amx-player.js'));
   for (const file of allFiles(directory).filter(file => /\.(?:wasm|js)$/.test(file))) {
     const compressed = file === versioned['animatix_web_bg.wasm']
-      ? execFileSync('zopfli', ['--i20', '--gzip', '-c', join(directory, file)], { maxBuffer: 32 * 1024 * 1024 })
+      ? execFileSync('zopfli', ['--i100', '--gzip', '-c', join(directory, file)], { maxBuffer: 32 * 1024 * 1024 })
       : gzipSync(readFileSync(join(directory, file)), { level: 9 });
     writeFileSync(join(directory, `${file}.gz`), compressed);
   }

@@ -9,12 +9,13 @@
 Use these rules when generating `.amx` files:
 
 - Start with `config { colorscheme: "editorial-dark", resolution: (1280, 720) }` unless the user asks otherwise.
-- Declare actors as `label: Type, prop: value`; animate later with keyframes (`#1s`) and assignments (`label.prop = value [800ms, ease: ease-out]`).
+- Declare actors as `label: Type, prop: value`; animate later with keyframes (`#1s`) and assignments (`label.prop = value [800ms, ease: ease_out]`).
 - Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Typst`, `Code`, `Math`, `Svg`, `Image`, `Audio`, `Equation`, `Fragment`, `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Glass`, `Mask`, `Callout`, `Legend`, `Connector`, `Counter`, `Captions`, `Cue`.
 - Avoid common hallucinations: `Circle` (use `Ellipse`), `Triangle` (use `Polygon`), `Chart`/`Diagram` (use `Graph`/`PlotCurve`), and any 3D primitives.
 - Colors are RGBA tuples `(r, g, b, a)`, hex strings (`"#ff2d55"`, `"#f55"`, `"#5e5ce600"` with alpha), scheme tokens (`accent.primary`, `text.primary`, etc.), `auto`, or named colors (`RED`/`red`, `GREEN`/`green`, `BLUE`/`blue`, `BLACK`/`black`, `WHITE`/`white`, `YELLOW`/`yellow`, `ORANGE`/`orange`).
-- Timing modifiers use positional duration: `[1s]`, `[800ms, ease: ease-in-out]`, `[delay: 250ms, 0s]`. Do not write `duration: 1s`. Omitting `ease:` on an *action* is usually right — the default is chosen by the verb's role (entrances decelerate, exits accelerate, repositions ease both ways). A plain assignment still defaults to linear; write `ease:` on it when you want a settle.
-- `sequence`/`stagger` may contain actions, assignments, `let`, and nested `sequence`/`stagger`; actor declarations inside them are rejected.
+- Timeline operations are ordinary function calls with parentheses: `fade_in(target: title, duration: 1s, ease: ease_out)`. Positional arguments come before named arguments; animation targets are explicit `target:` or `targets:` parameters. `duration`, `delay`, and `ease` are ordinary parameters. Do not add a call-site `[ ... ]` suffix.
+- Use `sequence { ... }` to order plan statements and `stagger [150ms] { ... }` to offset them. A `#{ ... }` expression builds a local plan; actor declarations inside it belong to each plan mount.
+- Identifiers use `snake_case`; hyphens remain available inside strings such as colorscheme names, display text, and paths. Parameter types use `name: Type`, and defaults use `name: Type = value`.
 - A relative `url:` / `source:` / `transcript:` path resolves against the directory of the file that declares it, then the workspace root — from `examples/basics/`, `examples/assets/checker.png` is written `../assets/checker.png`.
 - Absolute paths and `http(s)://` / `data:` URLs are used verbatim.
 
@@ -32,11 +33,11 @@ Use these rules when generating `.amx` files:
 | Components | dotted assignment targets / rhs property lookup | Yes | Runtime-real | Yes | Yes | Nested-label writes; nonexistent targets report diagnostics |
 | Components | timeline functions (`fn` in components) | Yes | Runtime-real | Yes | Yes | `fn` blocks inside components; expanded into scoped blocks at module load |
 | Modules | `pub let` exports | Yes | Runtime-real | Yes | Yes | Exported values from `.amx` files; see `examples/components/10_modules.amx`. |
-| Modules | `import ... as` namespaced imports | Yes | Runtime-real | Yes | Yes | Aliased imports create namespaces for qualified access (`theme.accent`). |
-| Modules | Re-exports (`pub let x = c.x`) | Yes | Runtime-real | Yes | Yes | Re-export chains resolved transitively through namespace imports. |
+| Modules | `import ... as` namespaced imports | Yes | Runtime-real | Yes | Yes | Aliased imports create namespaces for qualified access (`theme::accent`). |
+| Modules | Re-exports (`pub let x = c::x`) | Yes | Runtime-real | Yes | Yes | Re-export chains resolved transitively through namespace imports. |
 | Expressions | literals / arithmetic / calls / paths / conditionals | Yes | Runtime-real | Yes | Yes | Stable expression core |
 | Expressions | closures | Yes | Runtime-real | Yes | Yes | Used by plotting/reactive examples |
-| Expressions | `Expr::Method` | Yes | Runtime-real | Yes | Yes | Method dispatch: `string.length()`, `list.get(0)`, `num.abs()` |
+| Expressions | Member calls and namespace calls | Yes | Runtime-real | Yes | Yes | Methods use `receiver.method(...)`; imported values/functions use `alias::name` |
 | Expressions | `Expr::Index` | Yes | Runtime-real | Yes | Yes | Array/vector/string index: `items[0]`, `pos[1]`, `text[0]` |
 | Expressions | `Expr::Construct` | Yes | Runtime-real | Yes | Yes | Object construction: `Point { x: 10, y: 20 }` |
 | Primitives | All shapes (`Text`, `Typst`, `Svg`, `Image`, `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Mask`, etc.) | Yes | Runtime-real | Yes | Yes | See `examples/basics/01_shapes.amx`, `examples/layout/13_paths.amx`, `examples/gallery/motion_poster.amx` |
@@ -46,8 +47,7 @@ Use these rules when generating `.amx` files:
 | Post-processing | `Filter` scope + ordered effect chain (14 built-ins) | Yes | Runtime-real | Yes | Yes | Effects are labelled child declarations of a `Filter` scope (`soft: Blur, radius: 10`); animate with `scope.stage.param = value`. GPU-only; no backend means skip + diagnostic. See `examples/animation/08_effects.amx` (composition) and `examples/animation/30_effects_catalog.amx` (14 effects across 13 Filter scopes) |
 | Morphing | re-declaration morphing + path/text interpolation | Yes | Runtime-real | Yes | Yes | Core morph path via re-declaration |
 | Morphing | `strategy:auto\|match\|fade`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing | Yes | Yes | |
-| Actions | Motion: `move`, `shift`, `rotate`, `scale`; Entrance: `fade-in`, `draw-in`, `wipe-in`, `reveal-in`, `settle-in`, `pop-in`, `grow-in`; Exit: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`, `shrink-out`; Effects: `shake`, `pulse`, `bounce`; Highlight: `highlight`, `unhighlight`; Persistence: `persist`, `remove`; Reorder: `swap`, `reorder` (25 built-ins) | Yes | Runtime-real | Yes | Yes | Built-ins |
-| Actions | broader verb-first surface | Yes | Partial | Partial | Yes | Shape exists; small subset implemented |
+| Callables | Motion: `move`, `shift`, `rotate`, `scale`; Entrance/exit: `fade_in`, `draw_in`, `wipe_in`, `reveal_in`, `fade_out`, `wipe_out`, `reveal_out`, `draw_out`; Effects: `shake`, `pulse`, `bounce`; Persistence: `persist`, `remove`; Reorder: `swap`, `reorder` | Yes | Runtime-real | Yes | Yes | Built-ins, user functions, component methods, and plugins share callable signatures |
 | Composition | `sequence { ... }` | Yes | Runtime-real | Yes | Yes | Sequential composition; nested sequences and staggers supported |
 | Composition | `stagger [150ms] { ... }` | Yes | Runtime-real | Yes | Yes | Shared interval offset; nested sequences and staggers supported |
 | Colorscheme | `let name = Colorscheme { extends: "...", auto: (...) }` | Yes | Runtime-real | Yes | Yes | Source parser accepts construct keys including dotted token overrides |
@@ -58,7 +58,7 @@ Use these rules when generating `.amx` files:
 | Multi-Scene | CLI export (video/GIF/image) | — | Runtime-real | Yes | Yes | `render_*_composition` functions; auto-routing via `BuildTarget` |
 | Multi-Scene | GUI scene list / composition timeline | Yes | Runtime-real | Yes | Yes | Scene navigation and composition tracks; edit scene definitions in source |
 | Multi-Scene | Transition blending (dual render) | Yes | Runtime-real | Yes | Yes | Phase 7; `TransitionCompositor` + WGSL shader; wired in CLI preview, GUI preview, and export |
-| Multi-Scene | Cross-file scene composition | Yes | Runtime-real | Yes | Yes | `import "file.amx" as alias` + `play alias.SceneName`; namespace scene registry |
+| Multi-Scene | Cross-file scene composition | Yes | Runtime-real | Yes | Yes | `import "file.amx" as alias` + `play alias::SceneName`; namespace scene registry |
 
 **Key:** Parser=Yes (syntax accepted), Runtime-real (end-to-end execution), Tests=Yes (automated evidence exists).
 
@@ -77,14 +77,15 @@ Use these rules when generating `.amx` files:
 | `let` | Variable/actor declaration | `let x = 0` |
 | `:` | Actor binding + scene placement | `label: Text, text: "OK"` |
 | `#` | Keyframe (`#0s`, `#+1s`, `#2b`, `#voice@marker`, `#voice["word"]`) or scene declaration (`# SceneName`) | `#2.5s`, `#+1s`, `#voice@intro`, `# Intro` |
-| `play` | Scene transition statement | `play Diagram [fade, 300ms]` |
+| `play` | Scene transition envelope | `play Diagram [fade, 300ms]` |
 | `{ }` | Container children, arrays, block scopes | `Row { Item1, Item2 }` |
 | `@` | Slot marker / slot fill prefix | `@slot` (definition), `@header { ... }` (fill) |
-| `[ ]` | Statement modifiers (duration, delay, ease) | `[2s, ease: expo-out]` |
+| `[ ]` | Assignment timing, `for [step:]`, `stagger` interval, and scene transition envelope | `value = 2 [1s]`, `stagger [150ms] { ... }` |
 | `=` | Property assignment (instant or animated) | `btn.color = red` |
 | `,` | Separates object properties | `Type, prop: val` |
-| ` ` | Separates action verb from arguments | `fade-in btn [1s]` |
-| `.` | Nested access / namespacing | `container.child` |
+| `()` | Callable argument list | `fade_in(target: btn, duration: 1s)` |
+| `.` | Member selection and method receiver | `container.child`, `button.pulse()` |
+| `::` | Module namespace qualification | `theme::accent`, `alias::entrance()` |
 
 ---
 
@@ -112,18 +113,18 @@ title: Text, text: "Submit" [2s]
 > **Runtime note:** Re-declaration follows the same timing subset as other modifiers: positional duration shorthand + named `ease`. Unsupported modifier keys are reported explicitly.
 
 **Pre-Keyframe Actor Declarations (Hidden by Default):**
-Actors declared **before the first keyframe** are hidden by default (`opacity: 0`). They remain invisible until an entrance action (e.g. `fade-in`) or an explicit `opacity` assignment makes them visible.
+Actors declared **before the first keyframe** are hidden by default (`opacity: 0`). They remain invisible until an entrance callable (e.g. `fade_in`) or an explicit `opacity` assignment makes them visible.
 
 ```animatix
-// These actors are hidden until fade-in runs
+// These actors are hidden until fade_in runs
 hello: Text, text: "Hello", font_size: 72, color: text.primary, anchor: scene.center
 backdrop: Rect, size: fill, color: scene.background, anchor: scene.center
 
 #0.5s
-fade-in hello [800ms, ease: ease-out]
+fade_in(target: hello, duration: 800ms, ease: ease_out)
 
 #1s
-fade-in backdrop [600ms]
+fade_in(target: backdrop, duration: 600ms)
 ```
 
 Actors declared **inside a keyframe** (including `#0s`) are visible by default (`opacity: 1`). To hide an in-keyframe actor, set `opacity: 0` explicitly.
@@ -133,18 +134,18 @@ Actors declared **inside a keyframe** (including `#0s`) are visible by default (
 actor: Rect, size: (100, 100), opacity: 0   // explicitly hidden
 
 #1s
-fade-in actor [500ms]
+fade_in(target: actor, duration: 500ms)
 ```
 
-**Entrance actions and authored opacity.** An entrance action settles on the
-target's authored opacity: `opacity: 0.25` with `fade-in` leaves the actor at
+**Entrance callables and authored opacity.** An entrance callable settles on the
+target's authored opacity: `opacity: 0.25` with `fade_in` leaves the actor at
 0.25, it does not force 1.0. An authored `opacity: 0` is the one exception —
-that reads as "start hidden", and all four entrance actions (`fade-in`,
-`wipe-in`, `draw-in`, `reveal-in`) reveal it to 1.0. `wipe-in`, `draw-in` and
-`reveal-in` leave a non-zero authored opacity untouched, since they reveal by
+that reads as "start hidden", and all four entrance callables (`fade_in`,
+`wipe_in`, `draw_in`, `reveal_in`) reveal it to 1.0. `wipe_in`, `draw_in` and
+`reveal_in` leave a non-zero authored opacity untouched, since they reveal by
 stroke and fill progress rather than by fading.
 
-A scheduled entrance owns its whole window: `draw-in line [600ms]` at `#1s`
+A scheduled entrance owns its whole window: `draw_in(target: line, duration: 600ms)` at `#1s`
 leaves the line unpainted from frame 0 until its start, even when `opacity: 1`
 is authored. The authored opacity is the settled value, not a frame-0 stroke.
 
@@ -172,24 +173,24 @@ A beat stamp is a keyframe position expressed in the piece's own meter, so
 retuning the tempo moves the whole arrangement without editing a single stamp:
 with `config { bpm: 60 }`, `#2b` is 2 s; with `bpm: 120` it is 1 s. Without a
 `bpm` declaration beats read at the default **120**. Beat *stamps* are supported;
-a beat *duration* (`[2b]`) is not resolved and reports
-`invalid-modifier-value` — write durations in `s`/`ms`.
+beat *durations* are not accepted for assignment timing or callable `Duration`
+parameters — write durations in `s`/`ms`.
 
 ```animatix
 config { bpm: 96 }
 #0s
-fade-in title [1.25s]     // one bar at 96 bpm, written as clock time
+fade_in(target: title, duration: 1.25s) // one bar at 96 bpm, written as clock time
 #1b
-enter lyric [1b, ease: expo-out]
+fade_in(target: lyric, duration: 625ms, ease: expo_out)
 #2b
-enter next_line [1b, ease: expo-out]
+fade_in(target: next_line, duration: 625ms, ease: expo_out)
 ```
 
-Actions under the same keyframe execute **simultaneously**:
+Calls under the same keyframe execute **simultaneously**:
 ```animatix
 #2s
-fade-in A [1s]
-color B to red [2s]
+fade_in(target: A, duration: 1s)
+B.color = red [2s]
 ```
 
 **Speech & Voiceover Synchronization:**
@@ -203,13 +204,13 @@ voice: Audio, source: "voiceover.mp3", transcript: "voiceover.speech.json"
 card: Rect, at: (960, 540), size: (400, 300)
 
 #voice@intro:
-    fade-in card [300ms]
+    fade_in(target: card, duration: 300ms)
 
 #voice["attention"]:
-    color card to accent.primary [200ms]
+    card.color = accent.primary [200ms]
 
 #voice@outro + 500ms:
-    fade-out card [400ms]
+    fade_out(target: card, duration: 400ms)
 ```
 
 The timeline maintains a hierarchical `scene_graph`; transforms/opacities cascade via depth-first search.
@@ -310,292 +311,189 @@ config { colorscheme: "forest" }
 
 ---
 
-## 6. Actions & Modifiers
+## 6. Callable Plans & Timing
 
-**Modifier Syntax:** Square brackets accept a comma-separated list of positional and/or named modifiers.
+Standard animations, user functions, and plugin functions share one call syntax,
+parameter binding rule, and signature model. A call is an ordinary expression;
+standard animation functions return an inert `Timeline` plan that the host adds
+to the current scene or local plan.
 
-- **Universal shorthand:** first bare time literal = duration
-- **Shared timing vocabulary:** positional `duration` shorthand, `delay`, `ease`
-- **Host-specific keys:** when a statement kind explicitly supports them
-
-**Shipped modifier examples:**
 ```animatix
-[2s]                      // Duration shorthand
-[2s, ease: ease-in-out]  // Duration + easing
-[ease: expo-out]         // Easing only (instant change)
-[ease: cubic-bezier(0.16, 1, 0.3, 1)]  // Parameterized curve
-[delay: 250ms, 0s]       // Delayed instant change
-[anticipate: 80ms]       // Counter-move before a `move`/`shift` (Motion verbs only)
-[path_arc: 1.57]         // Morph control (path-morphing only)
-[stretch: true]           // Bounds-normalized morph
+#0s
+fade_in(target: title, duration: 800ms, ease: ease_out)
+move(target: badge, to: (120, -30), duration: 1s)
+shift(target: badge, by: (40, -24), duration: 600ms)
+rotate(target: badge, by: deg(90), duration: 500ms)
 ```
 
-**Default easing is chosen by role.** A timed statement with no `ease:` is not
-linear any more — linear is the one curve the motion craft tables rule out for
-anything but a continuous loop, and "the eye forgives a slow start far less than
-a slow end":
-
-| The statement is | Default | Why |
-|------------------|---------|-----|
-| an entrance (`fade-in`, `wipe-in`, `reveal-in`, `draw-in`, `settle-in`, `pop-in`, `grow-in`) | `expo-out` | arrivals decelerate into place |
-| an exit (`fade-out`, `wipe-out`, `reveal-out`, `draw-out`, `remove`, `shrink-out`) | `ease-in` | departures accelerate away |
-| a reposition (any other action) | `ease-in-out` | it starts and ends at rest |
-| an oscillating effect (`shake`, `pulse`, `bounce`, `highlight`, `unhighlight`) | `linear` | the shape *is* the effect; easing it softens it |
-
-`persist` has no animated span — timing modifiers are ignored — so easing does
-not apply to it.
-
-An explicit `ease:` always wins, and `ease: linear` still means linear. A
-statement with no duration has nothing to ease.
-
-### Easing curves
-
-An easing is a scalar map over the progress between two keyframe values. That
-definition is the whole boundary of what it can express: it modulates travel
-**along the line from the previous value to the next**, so no easing — however
-physical its shape — can move a value off that line. Arcs, orbits and gravity
-are trajectories, not easings; use the `bounce` action, a `motion_offset`
-effect, or an `always` block for those.
-
-| `ease:` | Shape | Use it for |
-|---------|-------|-----------|
-| `linear` | constant | clocks, stroke draws, anything measuring time |
-| `ease-in` | accelerates | exits — leaving the frame |
-| `ease-out` | decelerates (quadratic) | generic arrivals |
-| `ease-in-out` | both | travel between two on-screen places |
-| `expo-out` | leaves fast, settles long | the default "arriving and settling" feel; snappier than `ease-out` |
-| `expo-in-out` | both ends exponential | deliberate, weighty transitions |
-| `spring(damping, frequency)` | overshoots once, rings down | an object coming to rest (defaults `spring(6, 9)`) |
-| `elastic` | multi-cycle overshoot | rubbery emphasis, ration it |
-| `back` | pulls back, then goes | anticipation before a move |
-| `expo` | accelerates hard | a comedic slam |
-| `bounce-in` | CSS bounce: hops *along* the segment | landing on a value, not gravity |
-| `cubic-bezier(x1, y1, x2, y2)` | any monotone or single-overshoot curve | anything not listed |
-
-`bounce` is accepted as a legacy spelling of `bounce-in` and means the curve,
-not the action — the collision is why it is deprecated. `custom` is likewise
-accepted and resolves to `cubic-bezier(0.42, 0, 0.58, 1)`.
-
-Every curve is anchored at both ends (`f(0)=0`, `f(1)=1`), which is what lets a
-keyframe's target value be the resting composition; `every_curve_holds_its_endpoints`
-in `animatix-syntax` pins it. The names are also available inside expressions as
-functions of progress — `ease_out(t)`, `expo_out(t)`, `spring(t)` — for
-`always` blocks and plot closures.
-
-**Runtime support by statement kind:**
-
-| Surface | Support |
-|---------|---------|
-| Built-in actions | positional duration + `delay` + `ease` |
-| Property assignments | positional duration + `delay` + `ease` |
-| Actor re-declarations | positional duration + `delay` + `ease` |
-| `Text`/`Typst`/`Code` declarations | positional duration + `delay` + `ease` |
-| Morph keys (`strategy`, `path_arc`, `stretch`) | timed path-morphing re-declarations only |
-
-Duplicate modifier keys: last value wins. `ease` without duration = instant change.
-
-**Built-in Actions (25):**
-- **Motion:** `move`, `shift`, `rotate`, `scale`
-- **Entrance:** `fade-in`, `draw-in`, `wipe-in`, `reveal-in`, `settle-in`, `pop-in`, `grow-in`
-- **Exit:** `fade-out`, `wipe-out`, `reveal-out`, `draw-out`, `shrink-out`
-- **Effects:** `shake`, `pulse`, `bounce`
-- **Highlight:** `highlight`, `unhighlight` — animate highlight overlay on Equation fragments or Typst actors (whole-actor highlighting)
-- **Persistence:** `persist`, `remove`
-- **Reorder:** `swap`, `reorder`
-
-**Action signatures for generation:**
-
-| Action | Shape |
-|---|---|
-| `fade-in`, `fade-out`, `draw-in`, `draw-out`, `wipe-in`, `wipe-out`, `reveal-in`, `reveal-out` | `verb target [duration, delay, ease]` |
-| `draw-in` on text | `draw-in target [duration, ease]` (typewriter) or `draw-in target [by: word, duration]` (word by word) |
-| `settle-in` | `settle-in target [duration, delay, ease]` — fade plus a few percent of scale, so the actor arrives instead of appearing |
-| `pop-in` | `pop-in target [duration, delay, ease]` — fade plus a scale-up with a back overshoot |
-| `grow-in` | `grow-in target [duration, delay, ease, from: center \| left \| right \| top \| bottom \| (x, y)]` — scale from zero to the authored scale at an optional pivot |
-| `shrink-out` | `shrink-out target [duration, delay, ease, to: center \| left \| right \| top \| bottom \| (x, y)]` — scale from the authored scale to zero without fading |
-| `persist` | `persist target1, target2, ...` (also `persist camera`) — no timing modifiers |
-| `remove` | `remove target1, target2, ... [duration, delay, ease]` (also `remove camera`) |
-| `move` | `move target [to: Vec2 \| along: {commands}, orient, duration, ease, anticipate]` |
-| `shift` | `shift target [by: Vec2, duration, ease, anticipate]` |
-| `rotate` | `rotate target [by: Num, duration, ease]` |
-| `scale` | `scale target [by: Num, duration, ease]` |
-| `shake`, `pulse` | `verb target [duration, intensity: Num]` |
-| `bounce` | `bounce target [duration, intensity: Num, restitution: Num, ease]` |
-| `highlight` | `highlight target [color: Color, blend: Str, padding: Num, radius: Num, duration, ease]` |
-| `unhighlight` | `unhighlight target [duration, ease]` |
-| `swap` | `swap childA, childB [duration, ease]` |
-| `reorder` | `reorder container [order: {childA, childB, ...}, duration, ease]` |
-
-**Rotation:** Two ways to rotate:
-- `rotate item [by: angle, duration]` - Visual transform (applies to actor transform matrix)
-- `item.rotation = value [duration]` - Property-based rotation
-
-> Rotation values are in radians by default. Use the `deg()` helper to convert: `deg(90)` equals ≈1.5708 radians.
-
-Vector reveal actions (`draw-in`, `reveal-in`, `wipe-in`, `wipe-out`, `reveal-out`, `draw-out`) are **leaf-only**; containers/groups report diagnostics.
-
-**Entrance presets.** `settle-in` and `pop-in` are a `fade-in` plus a scale ramp
-onto the actor's own authored scale, so an element comes to rest rather than
-being dialled up in opacity alone. `settle-in` starts at 92% size and arrives on
-`expo-out`; `pop-in` starts at 60% and arrives on `back` (one overshoot). An
-explicit `ease:` overrides the preset's arrival curve.
-
-**Scale presets.** `grow-in` and `shrink-out` animate only the actor's scale,
-with no fade: `grow-in` ramps zero → authored scale (lifting a hidden-by-default
-actor), and `shrink-out` ramps authored scale → zero, leaving opacity untouched
-so a later `grow-in` restores the actor. Both accept `from:`/`to:` with
-`center` (default), `left`, `right`, `top`, `bottom`, or a local `(x, y)` pivot,
-which sets the point the scale grows from or collapses toward. A bottom-anchored
-`grow-in` is the bar-chart rise; `shrink-out` + `grow-in` is a reversible exit.
-
-**Motion along a path.** `move target [along: {…}, 2s]` travels a route instead
-of translating. The commands are the same list `Path, commands:` takes, sampled
-**by arc length** through the same machinery `draw-in` trims with — so the actor
-holds a constant speed instead of crawling through tight curves and sprinting
-along straights, and the route and its trace cannot drift apart. Add
-`orient: true` to turn the actor to face its direction of travel.
+A function call always has parentheses. Positional arguments may precede named
+arguments; each positional argument binds by declaration order and each named
+argument binds by parameter name. Named arguments may appear in any order.
+Prefer named arguments for timeline functions because it makes the actor and
+timing parameters explicit. Function calls do not accept a trailing
+modifier list. Square brackets remain for property transitions, loop step size,
+and stagger interval:
 
 ```animatix
-craft: Polygon, points: {(18, 0), (-12, 11), (-12, -11)}, at: (120, 420),
-  color: "#ffd60a"
-#0.4s
-move craft [along: {move_to(120, 420), curve_to(320, 60, 640, 60, 840, 420)},
-            3s, orient: true]
+badge.opacity = 1 [400ms, ease: ease_out]
+for i in 0..4 [step: 100ms] { ... }
+stagger [150ms] { ... }
 ```
 
-Positions are absolute scene coordinates — the route is drawn where the actor
-should go, so its authored `at` only matters before the travel starts. The
-expansion happens at build time (48-odd keyframes, one per ~40 ms), which keeps
-the motion exact under scrubbing and costs nothing per frame. See
-`examples/animation/40_delightful_kinetic.amx`.
+`duration`, `ease`, and `delay` are ordinary parameters in callable signatures.
+Their values are checked like other arguments, and no call-site modifier can
+replace values authored inside a returned plan.
 
-**Reveal granularity.** `draw-in` on a `Text`/`Code`/`Typst`/`Math` target is a
-typewriter — it animates `char_progress` from 0 to 1, so characters appear in
-reading order. `by: word` steps it instead: each word lands at the start of its
-slot and holds until the next one arrives, which is what makes a caption read as
-kinetic typography rather than as a slow keystroke.
+**Standard timeline functions.** Single-target operations accept exactly one
+of `target: Actor` or `targets: List<Actor>`. `swap` takes `a` and `b`; `reorder`
+takes `target` and `order`. The canonical signatures are declared by
+`animatix_std::callable::callables()` and power parsing-time validation,
+completion, hover, plugin manifests, and runtime binding.
 
 ```animatix
-line: Text, text: "one word at a time", at: (640, 360), font_size: 64
-#0.4s
-draw-in line [by: word, 2.4s]
+fade_in(target: title, duration: 500ms)
+move(target: craft, along: {move_to(120, 420), curve_to(320, 60, 640, 60, 840, 420)}, duration: 2s)
+draw_in(target: caption, by: word, duration: 2.4s)
+reorder(target: row, order: {third, second, first}, duration: 500ms, ease: ease_out)
+swap(a: first, b: second, duration: 500ms)
 ```
 
-The word boundaries come from the actor's own text at build time, so the reveal
-stays exact under scrubbing and needs no per-frame work.
+Motion uses explicit parameters: `move` accepts `to` or `along`, `shift`, `rotate`,
+and `scale` use `by`. Reveal operations use `by`, `stagger`, `offset_y`, and `mask`
+where supported. Entrance and exit presets are ordinary timeline callables:
+`fade_in`, `draw_in`, `wipe_in`, `reveal_in`, `settle_in`, `pop_in`, `grow_in`,
+`fade_out`, `draw_out`, `wipe_out`, `reveal_out`, and `shrink_out`. Other built-ins
+include `shake`, `pulse`, `bounce`, `highlight`, `unhighlight`, `persist`,
+`remove`, `swap`, and `reorder`.
 
-**Anticipation.** `move` and `shift` accept `[anticipate: 80ms]`: before the
-travel starts, the actor leans back by 12% of its distance over that window.
-This is the counter-move that makes a translation read as intentional; without
-it, eased motion still reads as a value being interpolated. The window is
-clipped at `t = 0`, so an action at the very start of a scene simply has no
-room to anticipate.
+Standard functions are prelude-visible by their unqualified names. Explicit
+qualification is also available as `std::fade_in(...)`. Imported public
+functions use their import alias with `::`, for example `motion::entrance(...)`;
+plugin functions use their declared namespace, such as `demo::throb(...)`.
+Component methods use a receiver and the same parentheses and argument rules:
+`button.pulse(amount: 1.2, duration: 200ms)`. A method is callable across module
+boundaries only when declared `pub fn`.
 
-**Effects actions** add emphasis and attention animations:
-- `shake [intensity: N]` - Rapid oscillating horizontal motion
-- `pulse [intensity: N]` - Scale up then return to normal; the peak scale is
-  `current × (1 + N)` — `intensity: 0.05` is a 5% pop, `intensity: 1.0` doubles
-  the actor
-- `bounce [intensity: N, restitution: e]` - Launches the actor off its resting
-  spot and lets gravity settle it: `intensity` is the first hop's height in
-  pixels, and each impact keeps `e` of the previous rebound's velocity, so hop
-  *n* rises `N·e²ⁿ` and stays airborne `d₀·eⁿ` — the contacts fall closer and
-  closer together. The hops are scaled to fill the duration exactly. Because it
-  writes the additive `motion_offset` channel, it stacks under a positional
-  `at` keyframe instead of fighting it.
+### Easing
+
+An easing is a scalar map over progress between two values. It modulates travel
+along that segment; it cannot create a separate trajectory. Use a timeline
+function or a `motion_offset` effect for arcs, orbits, and gravity. Easing values
+use snake_case identifiers.
+
+| `ease` | Shape | Use it for |
+|---|---|---|
+| `linear` | constant | clocks and stroke draws |
+| `ease_in` | accelerates | exits |
+| `ease_out` | decelerates | arrivals |
+| `ease_in_out` | eases at both ends | travel between on-screen places |
+| `expo_out` | leaves fast, settles long | snappy arrivals |
+| `expo_in_out` | exponential at both ends | deliberate transitions |
+| `spring(damping, frequency)` | overshoots once, rings down | objects coming to rest |
+| `elastic` | multi-cycle overshoot | rubbery emphasis |
+| `back` | pulls back, then goes | anticipation |
+| `expo` | accelerates hard | a slam |
+| `bounce_in` | hops along the segment | settling onto a value |
+| `cubic_bezier(x1, y1, x2, y2)` | custom curve | authored easing |
+
+Every curve is anchored at both ends (`f(0)=0`, `f(1)=1`), allowing a keyframe
+target value to remain the resting composition. Parameterized curves carry their
+arguments directly, such as `spring(6, 9)` and
+`cubic_bezier(0.16, 1, 0.3, 1)`.
+
+### Plans, sequencing, and local time
+
+A `#{ ... }` expression builds a local `Timeline` plan. It may contain actor
+declarations and plan statements; actors declared there are local to each plan
+mount. The scene body uses the same plan contents implicitly. `sequence { ... }`
+composes child plans in order, and `stagger [interval] { ... }` offsets child
+plans by the shared interval. Calls at the same keyframe are simultaneous unless
+placed in a sequence.
 
 ```animatix
-fade-in btn [1s]
-move badge [to: (120, -30), 1s]
-shift badge [by: (40, -24), 1s]
-rotate badge [by: 1.5708, 1s]
-scale badge [by: 1.5, 1s]
-draw-in badge [1s]
-fade-out btn [1s]
-wipe-out badge [1s]
-```
-
-Effects examples:
-```animatix
-shake badge [intensity: 2]
-pulse btn [intensity: 1.5]
-bounce badge [intensity: 18]
-```
-
-**Reorder:**
-
-`swap childA, childB [duration]` — Swaps the layout positions of two children in their parent container. Both targets must share a common parent and be `LayoutManaged`. Requires `dynamic_layout: true`.
-
-```animatix
-config { dynamic_layout: true }
-
-row: Row, gap: 8 {
-  a: Rect, size: (30, 40)
-  b: Rect, size: (30, 80)
-  c: Rect, size: (30, 60)
+fn ticker(target: Actor, lane_y: Num) -> Timeline {
+    return #{
+        #0ms
+        target.at = (140, lane_y)
+        always { target.at = (140 + 960 * t, lane_y) }
+        #+500ms
+        target.at = (620, lane_y)
+    }
 }
 
 #1s
-swap a, b [500ms]
-
-#2s
-swap b, c [500ms]
+stretch(animation: ticker(target: needle, lane_y: 300), factor: 2)
+fit_duration(animation: ticker(target: satellite, lane_y: 480), duration: 900ms)
 ```
 
-Overlapping swaps on the same container are disallowed and emit a diagnostic.
+`stretch` and `fit_duration` are explicit ordinary functions that return
+composed plans. They replace call-site `time_scale` and `clip_duration` modifiers.
+Local absolute markers are measured from the plan's start; `#+` markers advance
+from the preceding local marker. Timed assignments, delays, stagger intervals,
+and `for [step: ...]` are scaled together. Nested plans compose their time
+mapping. The compiler lowers them to ordinary scene tracks, so seeking does not
+depend on playback history.
 
-**How it works:** The `swap` action writes a keyframe to a per-container `child_orders` track at `time + duration`. During evaluation, if the current time falls between two child-order keyframes, layout positions are computed for both orders and interpolated with easing. This produces smooth sliding motion without `motion_offset` hacks.
+Within a locally timed `always`, free `t` reads the plan's local time in seconds.
+The block runs from its start, inclusive, to its finite end, exclusive. Write an
+explicit final keyframe when the property should hand back to the surrounding
+scene track. Plot `func` expressions use local time clamped to the plan endpoints.
+Plan timing must be statically measurable; unbounded local `always` blocks,
+unsupported nested control-flow markers, and unbounded loops are diagnosed.
 
-**GUI:** Layout order is authored in source. The current workbench previews
-`swap`/`reorder` but does not provide canvas drag-to-reorder or inspector writes.
+Computed keyframe markers use `#(duration_expr)` for an absolute local time and
+`#+(duration_expr)` for an offset from the previous marker. For example,
+`#(tick * 2)` and `#+(tick)` accept `Duration` expressions resolved during
+build. The free `t` inside `always` remains the local-time value; it is not a
+marker. Runtime inputs cannot choose keyframe positions, because the schedule
+is compiled at build time. A local plan contains timeline statements and actor
+declarations; scene `config` and `play` remain in the surrounding scene body.
+The host resolves passed actor references and allocates plan-local actors for
+each mount, then lowers the immutable plan into the host timeline. It does not
+create a per-frame nested timeline scheduler.
 
-**`reorder`**
+Plan-local actors remain in the host scene after their plan finishes. Their
+identities are private to that mount: source labels cannot address them from
+outside the plan, and `persist` cannot carry them into another scene. Persisting
+a surrounding caller-owned container carries its ordinary children but excludes
+plan-local actors. Actors passed into the plan retain their caller ownership.
 
-`reorder container [order: {childA, childB, childC}, duration]` — Reorders all children of a container to a specified order. The `order` modifier is required and must be a list containing exactly the same labels as the container's current children (no additions or omissions). Requires `dynamic_layout: true`.
+Build-time plan construction and mounting are limited to 16 nested levels;
+exceeding that limit produces a `callable-evaluation-error`. Ordinary function
+calls have a separate 32-call recursion limit.
+
+A function may omit its result annotation when its returns have one compatible
+type. The final bare expression is return syntax; other expression statements
+must evaluate to `Unit`. Every reachable return contributes its result, and a
+path that falls through contributes `Unit`. If those results have incompatible
+types, declare their union (for example, `-> Num | Str`). Gradual `Any` remains
+compatible with other branch types. Every function in a recursive call cycle
+must declare `-> Type`. An explicit annotation is checked against the inferred
+result and does not change execution phase. Parameter annotations are optional;
+unannotated parameters keep gradual `Any` behavior. Defaults use `=` and are
+evaluated in the function's definition environment.
 
 ```animatix
-config { dynamic_layout: true }
-
-row: Row, gap: 8 {
-  a: Rect, size: (30, 40)
-  b: Rect, size: (30, 80)
-  c: Rect, size: (30, 60)
+pub fn entrance(target: Actor, duration: Duration = 500ms) {
+    return #{ fade_in(target: target, duration: duration) }
 }
-
-# Reverse the row
-#2s
-reorder row [order: {c, b, a}, 500ms, ease: ease-out]
-
-# Back to original order
-#3s
-reorder row [order: {a, b, c}, 500ms, ease: ease-out]
 ```
 
-Overlapping reorders on the same container are disallowed and emit a diagnostic, same as `swap`.
+A component method can capture `self` and is called through its instance:
 
-**Composition:**
-
-`sequence { ... }` — chains statements by cumulative span:
 ```animatix
-sequence {
-  fade-in badge [400ms]
-  shift badge [by: (80, 0), 600ms]
-  badge.color = blue [250ms, delay: 100ms]
+pub component Button {
+    pub fn pulse(amount: Num = 1.2) {
+        return #{
+            self.scale = amount [100ms]
+            self.scale = 1.0 [100ms]
+        }
+    }
 }
+
+button: Button
+button.pulse(amount: 1.3)
 ```
-
-`stagger [150ms] { ... }` — offsets each child by shared interval:
-```animatix
-stagger [150ms] {
-  fade-in a [300ms]
-  fade-in b [300ms]
-  fade-in c [300ms]
-}
-```
-
-Nested `sequence`/`stagger` blocks and `let` declarations are allowed. Actor declarations inside `sequence`/`stagger` are rejected; declare actors outside the composition block, then animate them inside it.
-
----
 
 ## 7. Morphing System
 
@@ -665,7 +563,7 @@ and runs for its declared duration.
 
 **Property-Level Animation:**
 ```animatix
-morpher.size = (100, 100) [2s, ease: ease-out]
+morpher.size = (100, 100) [2s, ease: ease_out]
 ```
 
 > **Properties go before the children block.** In `Type, prop: value { ... }`
@@ -886,13 +784,13 @@ soloed, so it cannot suppress the rest of the scene. `solo` is an authored prope
 **Text shorthand:**
 ```animatix
 title: "Hello"                    // desugars to: title: Text, text: "Hello"
-title: "Hello" [2s, ease: expo-out] // with modifiers
+title: "Hello" [2s, ease: expo_out] // with modifiers
 ```
 
 **Typst shorthand:**
 ```animatix
 eq: $$ x^2 + y^2 $$                    // desugars to: eq: Typst, text: "x^2 + y^2"
-eq: $$ x^2 $$ [2s, ease: expo-out]       // with modifiers
+eq: $$ x^2 $$ [2s, ease: expo_out]       // with modifiers
 ```
 
 A bare `$$ ... $$` block produces a `Typst` actor. The text between `$$` delimiters is taken as raw text (unquoted) and becomes the `text` property. A label is required. Modifiers are supported.
@@ -1064,7 +962,7 @@ defaulting to the identity:
 
 ```amx
 #0.5s
-camera.zoom = 1.6 [800ms, ease: expo-out]
+camera.zoom = 1.6 [800ms, ease: expo_out]
 camera.at = (60, -20) [800ms]
 #3s
 camera.zoom = 1.0 [700ms]
@@ -1076,7 +974,7 @@ and `always`, which is how a handheld shake is written:
 
 ```amx
 always {
-  camera.at = (noise(t * 1.7) * 5.0, noise(t * 2.3, 9.0) * 5.0)
+  camera.at = (noise(t * 1.7) * 5.0, seeded_noise(9.0, t * 2.3) * 5.0)
 }
 ```
 
@@ -1096,7 +994,7 @@ Limits worth knowing:
   ```amx
   hud: Text, text: "04 / 12", camera_follow: false, at: (1150, 60)
   #0.5s
-  camera.zoom = 1.6 [800ms, ease: expo-out]   // the plate pushes in, the HUD stays
+  camera.zoom = 1.6 [800ms, ease: expo_out]   // the plate pushes in, the HUD stays
   ```
 
   It is a build-time declaration like `icon`, not a keyframed property: an
@@ -1115,7 +1013,7 @@ Limits worth knowing:
   rectangle and is carried through the same affine the root subtrees were
   wrapped in. The `filter_bounds_follow_the_camera` regression checks the two
   agree before and after a push and pan.
-- The transform can be handed to the next scene: `persist camera` carries `pan`,
+- The transform can be handed to the next scene: `persist(target: camera)` carries `pan`,
   `zoom` and `spin` across a `play` edge, so a push-in continues instead of
   snapping back to identity at the boundary (§19, "Camera Carry"). Seeding those
   axes means the receiving scene *authors* a camera, so it inherits the cost in
@@ -1173,7 +1071,7 @@ Actors declared inside a `Graph` block have their `at`/`position`/`from`/`to` pr
 > internal `__anon_*` label that trips the reserved-label check at build
 > time (`error[build:reserved-label-prefix]`). Give every hosted plot a
 > label; add `// lint-disable: unused-label` if the label is never targeted
-> by assignments or actions.
+> by assignments or timeline callables.
 
 ```animatix
 graph: Graph, at: (960, 540), size: (500, 500), x_domain: (-10, 10), y_domain: (-10, 10) {
@@ -1195,7 +1093,7 @@ bg: Filter, anchor: scene.center {
 }
 
 #1.5s
-bg.soft.radius = 24 [1.5s, ease: ease-out]
+bg.soft.radius = 24 [1.5s, ease: ease_out]
 ```
 
 Effect parameters animate like any other property, addressed as
@@ -1255,7 +1153,7 @@ card: Glass, at: (640, 360), size: (560, 240), corner_radius: 24 {
 }
 
 #1.2s
-frost.radius = 18 [900ms, ease: ease-in-out]
+frost.radius = 18 [900ms, ease: ease_in_out]
 ```
 
 - Like every other container (`Group`, `Filter`, `Mask`), a `Glass` scope paints
@@ -1401,7 +1299,7 @@ come with it:
 - **Heights animate, slots do not.** The result follows the new set's order, so a
   re-ordered dataset moves each bar to its new column at the first frame of the
   window and then interpolates its height. Sorting a chart by value is a
-  `swap`/`reorder` action on separate actors, not a `data` assignment — and
+  `swap`/`reorder` call on separate actors, not a `data` assignment — and
   reordering that way warns anyway, for the caption reason below.
 - **Labels do not follow.** Bar captions are compiled to text at build, into the
   slots the *declaration's* dataset laid out, so an assignment that changes the
@@ -1496,14 +1394,14 @@ always {
 > when the digit count changes.
 
 **Stroke icons.** `Path` accepts `icon: "<name>"` as sugar for an authored
-`commands:` list, so a line icon can be traced on with `draw-in` exactly like a
+`commands:` list, so a line icon can be traced on with `draw_in` exactly like a
 hand-written path:
 
 ```animatix
 tick: Path, icon: "check", stroke: accent.success, stroke_width: 2,
   fill_opacity: 0.0, at: (200, 180), scale: 6
 #0.4s
-draw-in tick [600ms, ease: expo-out]
+draw_in(target: tick, duration: 600ms, ease: expo_out)
 ```
 
 The set is 25 icons copied verbatim from [Lucide](https://github.com/lucide-icons/lucide)
@@ -1556,7 +1454,7 @@ emitted rather than as moving dots. See
 ambient motes whose noise is sampled on a circle so the drift loops.
 
 > Generated actors are addressed as `spark__0`, `spark__1`, … internally, so an
-> entrance action cannot target the whole array — give them `opacity: 1.0` at
+> entrance call cannot target the whole array — give them `opacity: 1.0` at
 > declaration and drive their life from the `always` block instead.
 
 **Seamless loop.** A scene that replays must end where it started. Build the
@@ -1599,8 +1497,8 @@ rail: MarchingRail, length: 900, speed: 40, at: (640, 600)
 ```
 
 One rule comes with them: a component that writes a property from `always`
-owns it. Enter those actors with `fade-in` (opacity), not `settle-in` /
-`pop-in` (scale) or `draw-in` (stroke progress) — a frame-time write wins every
+owns it. Enter those actors with `fade_in` (opacity), not `settle_in` /
+`pop_in` (scale) or `draw_in` (stroke progress) — a frame-time write wins every
 frame, so the entrance would do nothing.
 
 **Where to watch them move.** Every recipe in this section has a running version
@@ -1671,7 +1569,7 @@ index. Inside the body, `name[expr]: Type` declares an array actor element:
 `bars[i]` produces labels `bars__0`, `bars__1`, etc.
 
 Generated actors are first-class timeline actors — they support re-declaration
-morphing, property assignment, and all built-in actions.
+morphing, property assignment, and all built-in timeline callables.
 
 ```animatix
 #0s
@@ -1686,7 +1584,7 @@ for mag, i in values {
 
 #3s
 bars[2].color = accent.danger
-fade-in bars[0] [300ms]
+fade_in(target: bars[0], duration: 300ms)
 ```
 
 Array-indexed declarations work inside containers (`Row`, `Col`, `Grid`,
@@ -1694,8 +1592,9 @@ Array-indexed declarations work inside containers (`Row`, `Col`, `Grid`,
 
 Component instances keep the same indexed identity as primitive declarations;
 their child actors and component-internal references belong to that instance.
-An action target may index one segment of a dotted path, for example
-`fade-in cards[i].title_text [300ms]` or `fade-in panel.bars[i] [300ms]`.
+A callable target may index one segment of a dotted path, for example
+`fade_in(target: cards[i].title_text, duration: 300ms)` or
+`fade_in(target: panel.bars[i], duration: 300ms)`.
 
 **Limitations:**
 - Generated actor labels use `__` as an internal separator (reserved prefix).
@@ -1719,7 +1618,7 @@ always {
 
 The target resolves to `bars__{i}` at frame time and requires the matching
 for-loop-generated actor set. Non-integer or out-of-range indices warn and are
-skipped. Actions remain build-time only.
+skipped. Timeline callables remain build-time only.
 
 ---
 
@@ -1727,12 +1626,12 @@ skipped. Actions remain build-time only.
 
 **Non-aliased imports:** `import "path"` flattens the imported file's statements into the current scene. This is the backward-compatible behavior.
 
-**Aliased imports:** `import "path" as name` loads the file but does NOT flatten its statements. Instead, it collects `pub let` exports and makes them available as `name.export_name`.
+**Aliased imports:** `import "path" as name` loads the file but does NOT flatten its statements. Instead, it collects `pub let` exports and makes them available as `name::export_name`.
 
 ```animatix
 import "./theme.amx" as theme
 
-panel: Rect, size: (200, 100), color: theme.accent
+panel: Rect, size: (200, 100), color: theme::accent
 ```
 
 **Exporting values:** Use `pub let` to export named values from a module:
@@ -1752,14 +1651,14 @@ pub let primary = (0.38, 0.78, 1.0, 1.0)
 
 // theme.amx
 import "./colors.amx" as c
-pub let accent = c.primary
+pub let accent = c::primary
 
 // scene.amx
 import "./theme.amx" as theme
-panel: Rect, color: theme.accent
+panel: Rect, color: theme::accent
 ```
 
-Re-export chains are resolved transitively. Nested aliased imports are available through arbitrary-depth paths such as `lib.inner.export_name`. Values are evaluated at build time in the importing scene's environment.
+Re-export chains are resolved transitively. Nested aliased imports are available through arbitrary-depth paths such as `lib::inner::export_name`. Values are evaluated at build time in the importing scene's environment.
 
 **The theme dual-import idiom.** A theme module typically carries BOTH a
 colorscheme declaration (`pub let gallery = Colorscheme { ... }`) and token
@@ -1769,7 +1668,7 @@ exports (`pub let text_sm = ...`). The two halves travel differently:
   module's statements into the importing file — this is what registers the
   colorscheme;
 - the **aliased** import (`import "../lib/theme.amx" as theme`) exposes the
-  tokens as `theme.text_sm` without flattening.
+  tokens as `theme::text_sm` without flattening.
 
 Gallery demos therefore open with both lines. If a file already binds the
 alias `theme` to another module, add only the unaliased form (two aliases
@@ -1823,102 +1722,65 @@ btn: Button, text: "Submit"
 
 **Non-existent nested targets** report `UnknownTargetPath` diagnostics and are ignored (no orphaned tracks).
 
-### Timeline Functions (Custom Actions)
+### Callable functions and component methods
 
-Define reusable timeline functions at module scope or inside a component
-(formerly `action`). Module functions receive actor targets explicitly;
-component functions can use `self`:
+Built-ins, user functions, component methods, and native plugins use one
+signature and call syntax. Calls require parentheses; positional arguments
+come first, followed by named arguments. Animation targets are explicit
+parameters (`target` or `targets`), and timing is passed by name. A callable
+that produces animation returns a `Timeline` plan instead of mutating the
+current scene implicitly.
 
 ```animatix
-pub component Button(text: Str = "OK") {
-    fn pulse(amount: Num = 1.2) {
-        self.scale = amount [100ms]
-        self.scale = 1.0 [100ms]
+pub fn ticker(target: Actor, lane_y: Num) {
+    return #{
+        #0ms
+        target.at = (140, lane_y)
+        always { target.at = (140 + 960 * t, lane_y) }
+        #+500ms
+        target.at = (620, lane_y)
     }
-    frame: Rect, size: (100, 40)
-}
-```
-
-Invoke on any instance:
-```animatix
-btn: Button, text: "Click"
-
-#0s
-pulse btn [amount: 1.3, 200ms]
-```
-
-**Semantics:**
-- Custom actions are **inlined at component expansion time**. The invocation is replaced with the action's body statements.
-- Invocation timing modifiers **override** body timing modifiers. `pulse btn [200ms]` replaces any `[100ms]` in the body with `[200ms]`.
-- Named invocation modifiers bind to action parameters. `pulse btn [amount: 1.3, 200ms]` binds `amount` and overrides timing. Bound params may also be used as field paths in the body, e.g. `point.x` after `point` is bound.
-- Use `self` to refer to the component instance. `self.scale` rewrites to `btn.scale`.
-- Multi-target invocation (`pulse btn1, btn2`) expands the action body once per matching target, rewriting `self` to each concrete target.
-- Indexed instances can be invoked after their declaration loop, for example
-  `pulse buttons[2]` or `pulse buttons[j]` in a separate loop. Nested instance
-  paths bind to the invocation index; method parameters and local loop bindings
-  retain their own lexical scope. Invalid target indices report the call site.
-  Internal property reads bind to that same instance before expression/`always`
-  compilation. Nested calls restore shadowed caller variables on return.
-- Actions work inside `sequence`, `stagger`, and keyframes with correct timing.
-
-Module functions also support build-time algorithm expansion, including
-`for [step: ...]`; see `examples/projects/leetcode_sort_colors.amx`.
-Functions expand into the scene timeline rather than running as per-frame
-callbacks.
-
-#### Invocation-local time
-
-An untyped timeline function can contain direct absolute and relative time
-markers. Its `#0ms` is the call's start, so the same function can be reused at
-different scene times and on different actors:
-
-```animatix
-fn ticker(dot, lane_y: Num) {
-    #0ms
-    dot.at = (140, lane_y)
-    always { dot.at = (140 + 960 * t, lane_y) }
-    #500ms
-    dot.at = (620, lane_y)
 }
 
 #1s
-ticker(needle, 300) [time_scale: 2]
-ticker(satellite, 480) [clip_duration: 900ms]
+stretch(animation: ticker(needle, lane_y: 300), factor: 2)
+fit_duration(animation: ticker(target: satellite, lane_y: 480), duration: 900ms)
 ```
 
-`time_scale` is a finite positive **duration multiplier**: `2` stretches a
-500ms function to 1s. `clip_duration` is a positive fixed time literal that
-fits the function's measurable extent into that duration; it retimes the
-whole function. These two modifiers are mutually exclusive. A function
-parameter with either name keeps its ordinary parameter-binding meaning.
-The existing positional modifier `[200ms]` continues to override body action
-durations; it does not fit the entire function into 200ms.
+Return annotations may be omitted when a compatible result type can be inferred;
+`-> Timeline` is checked when supplied. Parameter annotations are also optional
+and unannotated parameters keep gradual `Any` behavior. Defaults use `=` and are
+evaluated in the function's definition environment. `pub fn` exports a top-level
+function from its module. Unqualified standard-library callables are in the
+prelude; `std::fade_in(...)` is the explicit qualified form, and imported
+exports use `alias::function(...)`.
 
-Local absolute markers are measured from the call's start; `#+` markers
-advance from the preceding local marker. Timed actions, assignment durations,
-delays, `stagger` intervals and `for [step: ...]` are scaled together. Nested
-function calls compose their time mappings. The compiler lowers them to
-ordinary scene tracks, so seeking does not depend on playback history.
+Component methods have the same function shape. `self` refers to the receiving
+component instance, and method visibility follows `pub fn`:
 
-Within a scoped `always`, free `t` reads the invocation's local time in
-seconds. The block runs only from its start, inclusive, to its finite end,
-exclusive. Author an explicit final keyframe to hand the property back to its
-ordinary scene track, as in `ticker` above. Normal interpolation between scene
-keyframes still applies before and after a call; local time scopes do not add
-implicit hold segments. Plot `func` expressions
-use local time clamped to the scope endpoints, allowing the plotted endpoint
-to remain visible after the invocation ends.
-Finite invocation ends also contribute to inferred scene duration, including
-a function containing only `always` with an explicit `clip_duration`.
+```animatix
+pub component Button(text: Str = "OK") {
+    pub fn pulse(amount: Num = 1.2) {
+        return #{
+            self.scale = amount [100ms]
+            self.scale = 1.0 [#+100ms]
+        }
+    }
+    frame: Rect, size: (100, 40)
+}
 
-This first version requires statically measurable timing. It diagnoses
-unbounded scoped `always`, function-local loop extents, nested keyframe
-markers inside control-flow bodies, and unsupported scene-clock actions.
-Direct markers belong in timeline functions, not typed pure functions or
-component template bodies. A function-local binding named `t` cannot share a
-retimed `always` scope; closure parameters retain their lexical meaning.
-See `examples/animation/local_tickers.amx` for two independent instances and
-an explicit endpoint handoff.
+btn: Button, text: "Click"
+#0s
+btn.pulse(amount: 1.3)
+```
+
+Functions compose as ordinary plans. Their local keyframes and `always` time
+are scoped to the plan mount; explicit `sequence` and `stagger` expressions
+control ordering. `stretch(animation: ..., factor: ...)` and
+`fit_duration(animation: ..., duration: ...)` are regular plan-composition
+functions that replace the removed `time_scale` and `clip_duration` call-site
+modifiers. See `examples/animation/local_tickers.amx` and
+`examples/projects/leetcode_sort_colors.amx`.
 
 ### 12.1 Slots
 
@@ -1980,7 +1842,7 @@ Parameter forms are:
 ```animatix
 name
 name: Type
-name: default_value
+name = default_value
 name: Type = default_value
 ```
 
@@ -1993,7 +1855,7 @@ pub component Button(size: Vec2, color: Color, label: Str) {
 }
 ```
 
-Action parameters follow the same syntax:
+Function and component parameters follow the same syntax:
 
 ```animatix
 pub component Badge(color: Color) {
@@ -2018,8 +1880,8 @@ Aliases are resolved before type checking, so they can wrap primitive types, uni
 functions, and other aliases.
 `pub type` aliases are exported by aliased module imports and must be referenced by `::`-namespaced
 name in the importing scene, e.g. `types::Metric` after `import "./types.amx" as types`. Simple names
-remain local to their defining file, avoiding cross-module collisions. The legacy dotted form
-`types.Metric` is accepted and normalized to `types::Metric` for compatibility.
+remain local to their defining file, avoiding cross-module collisions. Namespace-qualified names
+always use the `::` separator.
 
 Aliases may reference aliases declared later in the same file. An alias that references a missing
 name or forms a cycle is still usable as the gradual `Any` type, but produces a
@@ -2081,6 +1943,7 @@ When no explicit type annotation is given, the type checker infers the type of c
 | Float literal | `Num` | `3.14`, `-0.5` |
 | String literal | `Str` | `"hello"` |
 | Boolean literal | `Bool` | `true`, `false` |
+| Comparison or logical operation | `Bool` | `x > 0`, `!flag`, `a && b` |
 | Tuple `(a, b)` | `Vec2` | `(100, 200)`, `(50%, 75%)` |
 | Tuple `(a, b, c)` | `Vec3` when all elements are `Num` | `(1, 2, 3)` |
 | Tuple `(a, b, c, d)` | `Vec4` when all elements are `Num` | `(0.1, 0.5, 0.8, 1.0)` |
@@ -2093,6 +1956,8 @@ When no explicit type annotation is given, the type checker infers the type of c
 
 Closure parameter types are currently inferred as `Any`; the return type is inferred from the body.
 A call to a closure bound by `let` returns the closure's inferred return type.
+Comparisons and logical operations produce `Bool` values. `&&` and `||` short-circuit;
+their right operand is evaluated only when needed.
 
 ### 13.5 Examples
 
@@ -2148,17 +2013,17 @@ pub component Mapper(pair: Tuple<Str, Num>, callback: Fn(Num, Num) => Num) {
     // pair accepts (Str, Num); callback accepts a closure returning Num
 }
 ```
-`Tuple` and `Fn` are annotation keywords, not expression literals. A parenthesized
-parameter such as `x: (20, 20)` remains a default tuple value for backward
-compatibility.
+`Tuple` and `Fn` are annotation keywords, not expression literals. A tuple
+default is written with `=`, for example `x = (20, 20)`; a colon introduces a
+type annotation.
 
-### 13.6 Backward Compatibility
+### 13.6 Gradual Typing
 
-Type annotations are **optional everywhere**. Existing code without annotations continues to work unchanged:
+Type annotations are **optional everywhere**. Code without annotations remains valid:
 
 - Component and function parameters without annotations accept any value (equivalent to `Any`).
 - The type checker only fires on annotated parameters — unannotated code raises no type diagnostics.
-- Adding annotations to existing components is a **non-breaking change** that enables stricter validation.
+- Adding annotations to components enables stricter validation.
 
 This means the type system can be adopted incrementally: annotate hot spots first (public component boundaries) while leaving internal code unannotated.
 
@@ -2215,12 +2080,12 @@ signal: PlotCurve, kind: "cartesian", func: (x) => sin(x),
   stroke: accent.primary, stroke_width: 4, stroke_progress: 0
 
 #0.5s
-fade-in signal [500ms]
-signal.stroke_progress = 1 [1.5s, ease: ease-out]
+fade_in(target: signal, duration: 500ms)
+signal.stroke_progress = 1 [1.5s, ease: ease_out]
 ```
 
 > Pre-keyframe declarations are hidden by default (see §3), so a curve that
-> only animates `stroke_progress` still needs an entrance action (or an
+> only animates `stroke_progress` still needs an entrance callable (or an
 > in-keyframe declaration) to become visible. A `stroke_progress` assignment
 > alone renders nothing.
 
@@ -2283,7 +2148,7 @@ curve: PlotCurve, kind: "cartesian", func: (x) => sin(x),
   stroke: accent.primary, stroke_width: 3
 
 #2s
-curve.func = (x) => cos(x) [1s, ease: ease-in-out]
+curve.func = (x) => cos(x) [1s, ease: ease_in_out]
 ```
 
 At any point during the transition, the rendered curve is `y = lerp(from_func(x), to_func(x), progress)`. This works for cartesian, polar, parametric, and implicit `PlotCurve`, and for `VectorField`, `Heatmap`, and `ContourSet`, whose scalar/vector fields are blended per sample.
@@ -2401,7 +2266,7 @@ The `Typst` primitive uses **Typst** syntax, not LaTeX. Common mistakes:
 
 **Full Typst math reference:** <https://typst.app/docs/reference/math/>
 
-> **Typst highlight support:** Typst actors support per-actor highlight properties (`highlight_color`, `highlight_opacity`, `highlight_padding`, `highlight_radius`, `highlight_blend`) and the `highlight`/`unhighlight` built-in actions for whole-actor highlighting. This is distinct from Equation+Fragment per-segment highlighting — a Typst actor is highlighted as a single unit.
+> **Typst highlight support:** Typst actors support per-actor highlight properties (`highlight_color`, `highlight_opacity`, `highlight_padding`, `highlight_radius`, `highlight_blend`) and the `highlight`/`unhighlight` built-in callables for whole-actor highlighting. This is distinct from Equation+Fragment per-segment highlighting — a Typst actor is highlighted as a single unit.
 
 ---
 
@@ -2496,10 +2361,10 @@ Sequential algorithms (sorting, simulation steps, event lists) are expressed at
 build time by shadowing a `let` binding inside a `for` loop. The later `let`
 overwrites the variable track at the current keyframe time, and subsequent
 statements in the same build pass read the new value. `if` and `match` bodies
-are evaluated at build time inside keyframes, so they may emit actions.
+are evaluated at build time inside keyframes, so they may emit timeline calls.
 
-Action and assignment targets accept a **leaf expression index** that resolves
-against the build environment: `swap bars[j], bars[j+1]` becomes the concrete
+Callable and assignment targets accept a **leaf expression index** that resolves
+against the build environment: `swap(bars[j], bars[j+1])` becomes the concrete
 `bars__N` keys for each loop iteration. A `[step: ...]` modifier on a `for`
 loop advances the build-time clock by that amount per iteration, so
 loop-emitted events land on distinct keyframe times instead of colliding.
@@ -2512,7 +2377,7 @@ let arr = {5, 2, 8, 1, 9, 3}
 for i in {0, 1, 2, 3, 4} [step: 1200ms] {
   for j in {0, 1, 2, 3} [step: 300ms] {
     if arr[j] > arr[j+1] {
-      swap bars[j], bars[j+1] [300ms]
+      swap(bars[j], bars[j+1], duration: 300ms)
       let arr = list_swap(arr, j, j+1)
     }
   }
@@ -2725,7 +2590,7 @@ These rules are enforced (or warned) by the composition builder:
    level (its transition fires when the scene's duration elapses).
 2. **Config scope.** A `config` block inside a scene applies to that scene;
    a file-level `config` (before the first scene) is the file prelude. For
-   **cross-file scenes** (`import "file.amx" as alias` + `play alias.Scene`),
+**cross-file scenes** (`import "file.amx" as alias` + `play alias::Scene`),
    the entry's shared prelude is prepended to the imported scene's own
    prelude — so theme imports and colorscheme declarations from the entry
    apply — and an explicit `duration:` is read from either config.
@@ -2745,7 +2610,7 @@ Scenes are declared using `# SceneName` at the top level:
 title: Text, text: "Welcome"
 
 #1s
-fade-in title [500ms]
+fade_in(target: title, duration: 500ms)
 ```
 
 ### Transitions
@@ -2757,7 +2622,7 @@ The `play` statement defines the successor scene and transition:
 title: Text, text: "Welcome"
 
 #1s
-fade-in title [500ms]
+fade_in(target: title, duration: 500ms)
 
 play Diagram [fade, 300ms]
 
@@ -2765,7 +2630,7 @@ play Diagram [fade, 300ms]
 graph: Rect, size: (400, 400)
 ```
 
-**Supported transitions (13):** `cut`, `fade`, `wipe-left`, `wipe-right`, `wipe-up`, `wipe-down`, `push-left`, `push-right`, `push-up`, `push-down`, `iris`, `clock-wipe`, `zoom-through`. Transition blending uses a dual offscreen render path with the `TransitionCompositor` WGSL shader. `shared_id` is a cross-scene shared-element (FLIP) overlay, not a `play` transition id.
+**Supported transitions (13):** `cut`, `fade`, `wipe_left`, `wipe_right`, `wipe_up`, `wipe_down`, `push_left`, `push_right`, `push_up`, `push_down`, `iris`, `clock_wipe`, `zoom_through`. Transition blending uses a dual offscreen render path with the `TransitionCompositor` WGSL shader. `shared_id` is a cross-scene shared-element (FLIP) overlay, not a `play` transition id.
 
 ### Per-Scene Configuration
 
@@ -2794,7 +2659,7 @@ Top-level statements before the first scene (imports, `pub let`, file-level `con
 
 ```animatix
 import "./theme.amx" as theme
-pub let accent = theme.accent
+pub let accent = theme::accent
 
 config { resolution: (1280, 720) }
 
@@ -2813,7 +2678,7 @@ Scenes defined in imported files can be composed across modules using aliased im
 // effects.amx
 # FadeIn
 title: Text, text: "Welcome"
-fade-in title [500ms]
+fade_in(target: title, duration: 500ms)
 
 # WipeTransition
 content: Rect, size: (400, 400)
@@ -2826,15 +2691,15 @@ import "effects.amx" as effects
 # Intro
 title: Text, text: "Hello"
 #1s
-fade-out title [300ms]
-play effects.FadeIn [fade, 300ms]
+fade_out(target: title, duration: 300ms)
+play effects::FadeIn [fade, 300ms]
 
 # Diagram
 graph: Rect, size: (200, 200)
-play effects.WipeTransition [wipe-right, 500ms]
+play effects::WipeTransition [wipe_right, 500ms]
 ```
 
-Cross-file scenes are referenced as `alias.SceneName` in `play` statements. Each imported scene retains its own file's prelude (shared components, `pub let` values, config) for timeline compilation.
+Cross-file scenes are referenced as `alias::SceneName` in `play` statements. Each imported scene retains its own file's prelude (shared components, `pub let` values, config) for timeline compilation.
 
 - Non-aliased imports (`import "file.amx"`) still flatten their scenes into the current file (backward compatible).
 - Scene-scoped config keys (`colorscheme`, `duration`) in the imported file apply to its scenes.
@@ -2876,9 +2741,9 @@ config { colorscheme: "editorial-dark" }  // overrides prelude colorscheme
 - Properties present only in the prelude are inherited by all scenes.
 - Properties present only in a scene's config apply only to that scene.
 
-### Backward Compatibility
+### Single-scene files
 
-Files without `# SceneName` declarations are single-scene files — all existing syntax, semantics, and behavior are preserved exactly. The parser produces the same AST as before; the timeline builder follows the existing single-timeline path.
+Files without `# SceneName` declarations are single-scene files. They use the same callable and plan syntax, with one implicit scene body; the timeline builder follows the single-timeline path. The old verb-first action syntax and call-site timing modifiers are removed and are rejected by the parser.
 
 ### CLI Export
 
@@ -2892,17 +2757,17 @@ Multi-scene compositions are automatically detected and routed via `BuildTarget`
 
 ## 19. Scene Persistence
 
-> **Status:** Fully implemented. `persist` and `remove` actions are parsed, built, and carried across scene transitions via the CarryBag mechanism.
+> **Status:** Fully implemented. `persist` and `remove` are timeline callables carried across scene transitions via the CarryBag mechanism.
 
-Actors can persist across scene transitions using `persist` and `remove` actions.
+Actors can persist across scene transitions using the `persist` and `remove` callables.
 
 ### Syntax
 
 ```animatix
-persist actor1, actor2, ...
-remove actor1, actor2, ... [duration]
-persist camera
-remove camera
+persist(targets: {actor1, actor2})
+remove(targets: {actor1, actor2}, duration: 500ms)
+persist(target: camera)
+remove(target: camera)
 ```
 
 ### Semantics
@@ -2912,7 +2777,7 @@ remove camera
 - Persisted actors appear in the next scene at their final state; if the next scene re-declares the same label, it morphs from the carried state.
 - Persistence is **sticky**: once an actor is persisted, it propagates through every subsequent scene automatically until an explicit `remove`.
 - Persisting a container carries its entire subtree (all children) automatically.
-- `persist camera` carries the scene camera instead of an actor — see [Camera Carry](#camera-carry).
+- `persist(target: camera)` carries the scene camera instead of an actor — see [Camera Carry](#camera-carry).
 
 ### Examples
 
@@ -2924,7 +2789,7 @@ title: Text, text: "Welcome", font_size: 48, at: (640, 200)
 badge: Ellipse, size: (60, 60), at: (100, 100), color: accent.primary
 
 #1s
-persist title, badge
+persist(targets: {title, badge})
 
 #2s
 play Main [fade, 500ms]
@@ -2935,7 +2800,7 @@ play Main [fade, 500ms]
 title.text = "Main Scene" [800ms]
 
 #3s
-remove badge [1s]
+remove(target: badge, duration: 1s)
 
 #4s
 play Outro [fade, 500ms]
@@ -2946,7 +2811,7 @@ play Outro [fade, 500ms]
 title.text = "The End" [800ms]
 
 #2s
-remove title [1s]
+remove(target: title, duration: 1s)
 ```
 
 ### Auto-Color Carry
@@ -2955,15 +2820,15 @@ When an actor uses `color: auto`, its auto-color slot is preserved across the ca
 
 ### Camera Carry
 
-`persist camera` carries the scene camera rather than an actor. It exists because a
+`persist(target: camera)` carries the scene camera rather than an actor. It exists because a
 scene that ends mid-push-in otherwise hands the next scene an identity camera, and
 the transform snaps back at the boundary.
 
 ```animatix
 # Intro
 #1s
-camera.zoom = 1.4 [1s, ease: ease-out]
-persist camera
+camera.zoom = 1.4 [1s, ease: ease_out]
+persist(target: camera)
 
 #2s
 play Main [fade, 500ms]
@@ -2979,11 +2844,11 @@ play Main [fade, 500ms]
 - Axes already at identity are skipped, so a scene that inherits nothing never
   enters the per-frame camera path.
 - The carry is sticky like any other persisted target: a scene that never
-  mentions the camera keeps handing it on. `remove camera` ends the chain — it
-  clears the flag without fading, since the camera has no opacity (a timing
-  modifier on it is ignored, with a `PersistIgnoresDuration` warning).
+  mentions the camera keeps handing it on. `remove(target: camera)` ends the chain — it
+  clears the flag without fading, since the camera has no opacity (an explicit
+  `duration:` parameter is ignored, with a `PersistIgnoresDuration` warning).
 - The camera is a reserved target, exactly like `camera.zoom` on the left of an
-  assignment: it is never a declared actor, so `persist camera` needs no label
+  assignment: it is never a declared actor, so `persist(target: camera)` needs no label
   and writes no track. Each scene carries its own camera flag.
 
 ### Layout-Managed Children
@@ -2999,15 +2864,15 @@ row: Row, at: (640, 360), gap: 20 {
 }
 
 #1s
-persist row  // carries row + a + b together
+persist(target: row)  // carries row + a + b together
 ```
 
 ### Warnings
 
 | Code | Meaning |
 |------|---------|
-| `PersistIgnoresDuration` | `persist` (or `remove camera`) was given a duration argument (ignored) |
-| `PersistLayoutManagedChild` | `persist` targets a layout-managed leaf child directly (persist the container instead) |
+| `PersistIgnoresDuration` | `persist` or camera `remove` was given a duration (ignored for these targets) |
+| `PersistLayoutManagedChild` | `persist(target: ...)` targets a layout-managed leaf child directly (persist the container instead) |
 | `PersistTargetNotCarried` | `persist` used in the last scene or a single-scene file (no successor to receive the carry) |
 | `CarryAmbiguousPredecessor` | Scene has multiple predecessors in the play graph (only walk-order predecessor is used) |
 | `PersistAfterRemove` | `persist` follows `remove` for the same actor in the same scene |
@@ -3024,9 +2889,9 @@ author-facing semantics that are now part of the language.
 | Wave | Semantics | Authoring surface |
 |------|-----------|-------------------|
 | 1 — Channels & high-ROI | Text gradient fills; feathered wipes and push transitions; spatial/radial stagger; camera parallax | `fill_gradient`, `gradient_extend`, `gradient_space` on text-like actors; `play ... [wipe-* \| push-*, duration]`; `stagger [each: 40ms, from: center \| top-left \| (x, y), metric: euclidean \| manhattan]`; `parallax: F32` |
-| 2 — Topology & typography | Post-layout orthogonal connectors; split-text reveals; pre-baked rolling counters; standard card/boundary components | `Connector` (`routing: elbow \| l-bend \| straight`); `reveal-in ... [by: char \| word \| line, stagger: ...]`; `Counter`; `CardNode` / `BoundaryBox` in `examples/lib/ui.amx` |
+| 2 — Topology & typography | Post-layout orthogonal connectors; split-text reveals; pre-baked rolling counters; standard card/boundary components | `Connector` (`routing: elbow \| l-bend \| straight`); `reveal_in ... [by: char \| word \| line, stagger: ...]`; `Counter`; `CardNode` / `BoundaryBox` in `examples/lib/ui.amx` |
 | 3 — Materials & 2.5D | Native analytic Gaussian shadows; 2.5D perspective tilt; closed-loop idle micro-motion | `shadow` (`(offset_x, offset_y, blur, spread)`), `shadow_color`; `rotate_x`, `rotate_y`, `perspective`; `idle: "float" \| "breath"` |
-| 4 — Camera & continuity | Target-tracking camera; shared-element FLIP overlay; spring handoff with initial velocity; interactive step pauses | `camera.focus` / `camera.focus_on = "actor"` with `[padding: N]`; `shared_id: "key"` (a FLIP overlay, not a transition id); `spring-v0(damping, frequency, v0)`; `#step N` |
+| 4 — Camera & continuity | Target-tracking camera; shared-element FLIP overlay; spring handoff with initial velocity; interactive step pauses | `camera.focus` / `camera.focus_on = "actor"` with `[padding: N]`; `shared_id: "key"` (a FLIP overlay, not a transition id); `spring_v0(damping, frequency, v0)`; `#step N` |
 
 Semantics that are easy to miss:
 
@@ -3099,13 +2964,13 @@ label: Type, prop1: value1 {
 
 ```amx
 sequence {
-  fade-in a [400ms]
-  fade-in b [400ms]
+  fade_in(target: a, duration: 400ms)
+  fade_in(target: b, duration: 400ms)
 }
 
 stagger [100ms] {
-  fade-in label [400ms]
-  fade-in a [400ms]
+  fade_in(target: label, duration: 400ms)
+  fade_in(target: a, duration: 400ms)
 }
 
 if condition {

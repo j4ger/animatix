@@ -15,7 +15,7 @@ pub enum Easing {
     EaseOut,
     /// Ease in-out — slow start and slow end.
     EaseInOut,
-    /// Bounce easing, named `bounce-in` in source; it is not gravity (`bounce` action).
+    /// Bounce easing, named `bounce_in` in source; it is not gravity (`bounce` action).
     Bounce,
     /// Elastic easing with spring-like overshoot.
     Elastic,
@@ -49,16 +49,16 @@ pub enum Easing {
 
 /// Registry of canonical easing names and human-readable labels, used for editor
 /// completion, UI presentation, and the "supported values" diagnostic. The ids
-/// are what the GUI writes back into source (hyphenated forms).
+/// are what the GUI writes back into source (snake_case forms).
 pub const EASING_REGISTRY: &[(&str, &str)] = &[
     ("linear", "Linear"),
-    ("ease-in", "Ease In"),
-    ("ease-out", "Ease Out"),
-    ("ease-in-out", "Ease In Out"),
-    ("expo-out", "Expo Out"),
-    ("expo-in-out", "Expo In Out"),
+    ("ease_in", "Ease In"),
+    ("ease_out", "Ease Out"),
+    ("ease_in_out", "Ease In Out"),
+    ("expo_out", "Expo Out"),
+    ("expo_in_out", "Expo In Out"),
     ("spring", "Spring"),
-    ("bounce-in", "Bounce In"),
+    ("bounce_in", "Bounce In"),
     ("elastic", "Elastic"),
     ("back", "Back"),
     ("expo", "Expo"),
@@ -288,28 +288,25 @@ fn cubic_bezier_y(t: f32, cp: [f32; 4]) -> f32 {
     3.0 * omt * omt * t * cp[1] + 3.0 * omt * t * t * cp[3] + t * t * t
 }
 
-/// Parse an easing name; accepts hyphenated and unhyphenated lowercase forms.
+/// Parse a canonical snake_case easing name.
 /// Argument-taking names resolve to defaults; see [`parse_easing_call`].
 pub fn parse_easing_name(raw: &str) -> Option<Easing> {
     match raw {
-        "ease-in" | "easein" => Some(Easing::EaseIn),
-        "ease-out" | "easeout" => Some(Easing::EaseOut),
-        "ease-in-out" | "easeinout" => Some(Easing::EaseInOut),
-        "expo-out" | "expoout" => Some(Easing::ExpoOut),
-        "expo-in-out" | "expoinout" => Some(Easing::ExpoInOut),
+        "ease_in" => Some(Easing::EaseIn),
+        "ease_out" => Some(Easing::EaseOut),
+        "ease_in_out" => Some(Easing::EaseInOut),
+        "expo_out" => Some(Easing::ExpoOut),
+        "expo_in_out" => Some(Easing::ExpoInOut),
         "spring" => Some(Easing::Spring {
             damping: DEFAULT_SPRING[0],
             frequency: DEFAULT_SPRING[1],
         }),
-        // `bounce-in` is canonical; `bounce` stays accepted for old source.
-        "bounce-in" | "bouncein" | "bounce" => Some(Easing::Bounce),
+        "bounce_in" => Some(Easing::Bounce),
         "elastic" => Some(Easing::Elastic),
         "back" => Some(Easing::Back),
         "expo" => Some(Easing::Expo),
         "linear" => Some(Easing::Linear),
-        "custom" | "cubic-bezier" | "cubicbezier" => {
-            Some(Easing::CubicBezier(DEFAULT_CUSTOM_EASING))
-        },
+        "cubic_bezier" => Some(Easing::CubicBezier(DEFAULT_CUSTOM_EASING)),
         _ => None,
     }
 }
@@ -318,7 +315,7 @@ pub fn parse_easing_name(raw: &str) -> Option<Easing> {
 /// rejected forms stay for the build layer to diagnose.
 pub fn parse_easing_call(name: &str, args: &[f64]) -> Option<Easing> {
     match name {
-        "cubic-bezier" | "cubicbezier" | "custom" if args.len() == 4 => {
+        "cubic_bezier" if args.len() == 4 => {
             let cp = args.iter().map(|v| *v as f32).collect::<Vec<_>>();
             Some(Easing::CubicBezier([cp[0], cp[1], cp[2], cp[3]]))
         },
@@ -327,7 +324,7 @@ pub fn parse_easing_call(name: &str, args: &[f64]) -> Option<Easing> {
             let frequency = args.get(1).copied().unwrap_or(f64::from(DEFAULT_SPRING[1])) as f32;
             Some(Easing::Spring { damping, frequency })
         },
-        "spring-v0" | "spring_v0" if matches!(args.len(), 1..=3) => {
+        "spring_v0" if matches!(args.len(), 1..=3) => {
             let damping = args.first().copied().unwrap_or(f64::from(DEFAULT_SPRING[0])) as f32;
             let frequency = args.get(1).copied().unwrap_or(f64::from(DEFAULT_SPRING[1])) as f32;
             let v0 = args.get(2).copied().unwrap_or(0.0) as f32;
@@ -344,33 +341,40 @@ pub fn parse_easing_call(name: &str, args: &[f64]) -> Option<Easing> {
 /// Whether an easing name expects arguments, for the build layer's diagnostic.
 pub fn easing_expects_args(name: &str) -> Option<&'static str> {
     match name {
-        "cubic-bezier" | "cubicbezier" => Some("cubic-bezier(x1, y1, x2, y2)"),
+        "cubic_bezier" => Some("cubic_bezier(x1, y1, x2, y2)"),
         "spring" => Some("spring(damping, frequency)"),
-        "spring-v0" | "spring_v0" => Some("spring-v0(damping, frequency, v0)"),
+        "spring_v0" => Some("spring_v0(damping, frequency, v0)"),
         _ => None,
     }
 }
 
-/// Resolve an easing from the written value: a bare name (`ease: expo-out`) or a
-/// call (`ease: cubic-bezier(...)`). Shared by parser and build layer so neither
+/// Resolve an easing from the written value: a bare name (`ease: expo_out`) or a
+/// call (`ease: cubic_bezier(...)`). Shared by parser and build layer so neither
 /// invents its own argument rules.
 pub fn parse_easing_expr(value: &crate::ast::Expr) -> Option<Easing> {
     use crate::ast::Expr;
     match value {
         Expr::Ident(raw) => parse_easing_name(raw),
-        Expr::Call(name, args) => numeric_args(args).and_then(|a| parse_easing_call(name, &a)),
+        Expr::Call(callee, args) => {
+            let name = match callee.as_ref() {
+                Expr::Ident(name) => name.as_str(),
+                _ => return None,
+            };
+            numeric_args(args).and_then(|a| parse_easing_call(name, &a))
+        },
         _ => None,
     }
 }
 
 /// Literal number arguments of an easing call. `-0.5` is accepted because the
 /// tokenizer produces a negation of a literal, not a negative literal.
-fn numeric_args(args: &[crate::ast::Expr]) -> Option<Vec<f64>> {
+fn numeric_args(args: &[crate::ast::CallArgument]) -> Option<Vec<f64>> {
     use crate::ast::{Expr, UnaryOp};
     args.iter()
-        .map(|arg| match arg {
-            Expr::Num(v) => Some(*v),
-            Expr::Unary(UnaryOp::Neg, inner) => match inner.as_ref() {
+        .map(|arg| match (&arg.name, &arg.value) {
+            (Some(_), _) => None,
+            (None, Expr::Num(v)) => Some(*v),
+            (None, Expr::Unary(UnaryOp::Neg, inner)) => match inner.as_ref() {
                 Expr::Num(v) => Some(-v),
                 _ => None,
             },
@@ -386,14 +390,16 @@ pub fn easing_to_expr(easing: Easing) -> crate::ast::Expr {
     use crate::ast::Expr;
     match easing {
         Easing::CubicBezier(cp) => Expr::Call(
-            "cubic-bezier".to_string(),
-            cp.iter().map(|v| Expr::Num(f64::from(*v))).collect(),
+            Box::new(Expr::Ident("cubic_bezier".to_string())),
+            cp.iter()
+                .map(|v| crate::ast::CallArgument::positional(Expr::Num(f64::from(*v))))
+                .collect(),
         ),
         Easing::Spring { damping, frequency } => Expr::Call(
-            "spring".to_string(),
+            Box::new(Expr::Ident("spring".to_string())),
             vec![
-                Expr::Num(f64::from(damping)),
-                Expr::Num(f64::from(frequency)),
+                crate::ast::CallArgument::positional(Expr::Num(f64::from(damping))),
+                crate::ast::CallArgument::positional(Expr::Num(f64::from(frequency))),
             ],
         ),
         Easing::SpringV0 {
@@ -401,11 +407,11 @@ pub fn easing_to_expr(easing: Easing) -> crate::ast::Expr {
             frequency,
             v0,
         } => Expr::Call(
-            "spring-v0".to_string(),
+            Box::new(Expr::Ident("spring_v0".to_string())),
             vec![
-                Expr::Num(f64::from(damping)),
-                Expr::Num(f64::from(frequency)),
-                Expr::Num(f64::from(v0)),
+                crate::ast::CallArgument::positional(Expr::Num(f64::from(damping))),
+                crate::ast::CallArgument::positional(Expr::Num(f64::from(frequency))),
+                crate::ast::CallArgument::positional(Expr::Num(f64::from(v0))),
             ],
         ),
         other => Expr::Ident(easing_source_form(other)),
@@ -417,12 +423,12 @@ pub fn easing_to_expr(easing: Easing) -> crate::ast::Expr {
 pub fn easing_source_form(easing: Easing) -> String {
     match easing {
         Easing::Linear => "linear".to_string(),
-        Easing::EaseIn => "ease-in".to_string(),
-        Easing::EaseOut => "ease-out".to_string(),
-        Easing::EaseInOut => "ease-in-out".to_string(),
-        Easing::ExpoOut => "expo-out".to_string(),
-        Easing::ExpoInOut => "expo-in-out".to_string(),
-        Easing::Bounce => "bounce-in".to_string(),
+        Easing::EaseIn => "ease_in".to_string(),
+        Easing::EaseOut => "ease_out".to_string(),
+        Easing::EaseInOut => "ease_in_out".to_string(),
+        Easing::ExpoOut => "expo_out".to_string(),
+        Easing::ExpoInOut => "expo_in_out".to_string(),
+        Easing::Bounce => "bounce_in".to_string(),
         Easing::Elastic => "elastic".to_string(),
         Easing::Back => "back".to_string(),
         Easing::Expo => "expo".to_string(),
@@ -431,15 +437,15 @@ pub fn easing_source_form(easing: Easing) -> String {
             damping,
             frequency,
             v0,
-        } => format!("spring-v0({damping}, {frequency}, {v0})"),
+        } => format!("spring_v0({damping}, {frequency}, {v0})"),
         Easing::CubicBezier(cp) => format_cubic_bezier(cp),
     }
 }
 
-/// Format a cubic-bezier easing as a CSS-like string, e.g.
-/// `"cubic-bezier(0.42, 0, 0.58, 1)"`.
+/// Format a cubic-bezier easing as a source call, e.g.
+/// `"cubic_bezier(0.42, 0, 0.58, 1)"`.
 pub fn format_cubic_bezier(cp: [f32; 4]) -> String {
-    format!("cubic-bezier({:.2}, {:.2}, {:.2}, {:.2})", cp[0], cp[1], cp[2], cp[3])
+    format!("cubic_bezier({:.2}, {:.2}, {:.2}, {:.2})", cp[0], cp[1], cp[2], cp[3])
 }
 
 #[cfg(test)]
@@ -539,17 +545,17 @@ mod tests {
     /// build layer can say so, rather than falling back to a default.
     #[test]
     fn parameterized_eases_check_their_arity() {
-        assert!(parse_easing_call("cubic-bezier", &[0.16, 1.0, 0.3]).is_none());
+        assert!(parse_easing_call("cubic_bezier", &[0.16, 1.0, 0.3]).is_none());
         assert!(
-            parse_easing_call("cubic-bezier", &[0.16, 1.0, 0.3, 1.0]).is_some(),
+            parse_easing_call("cubic_bezier", &[0.16, 1.0, 0.3, 1.0]).is_some(),
             "the four-point form is the whole reason this exists"
         );
         assert!(parse_easing_call("spring", &[6.0, 9.0]).is_some());
         assert!(parse_easing_call("spring", &[6.0, 9.0, 1.0]).is_none());
-        assert!(parse_easing_call("spring-v0", &[6.0, 9.0, 1.0]).is_some());
-        assert!(parse_easing_call("ease-out", &[1.0]).is_none());
+        assert!(parse_easing_call("spring_v0", &[6.0, 9.0, 1.0]).is_some());
+        assert!(parse_easing_call("ease_out", &[1.0]).is_none());
         assert_eq!(
-            parse_easing_call("cubic-bezier", &[0.16, 1.0, 0.3, 1.0]),
+            parse_easing_call("cubic_bezier", &[0.16, 1.0, 0.3, 1.0]),
             Some(Easing::CubicBezier([0.16, 1.0, 0.3, 1.0]))
         );
     }

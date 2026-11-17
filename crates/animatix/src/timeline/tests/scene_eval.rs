@@ -322,7 +322,7 @@ fn test_runtime_text_recompilation() {
                 body: vec![assignment(
                     "counter",
                     "text",
-                    Expr::Call(
+                    Expr::call(
                         "format".to_string(),
                         vec![Expr::Str("t={}".to_string()), Expr::Ident("t".to_string())],
                     ),

@@ -1,79 +1,69 @@
 // 11 — Color System: Semantic Tokens, Auto, Constants, Colorscheme Extends
 // Scheme tokens, color: auto, built-in constants, Colorscheme with extends.
-
 import "../lib/theme.amx"
+
 import "../lib/theme.amx" as theme
 
 config { colorscheme: "forest", resolution: (1280, 720) }
 
 heading: Text, text: "Color System", font_size: 40, color: text.primary, anchor: scene.top, offset: (0, 50)
+
 subtitle: Text, text: "scheme tokens + auto + built-ins + extends", font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 100)
 
-pub let forest = Colorscheme {
-  extends: "editorial-dark",
-  auto: (
-    (0.35, 0.82, 0.55, 1.0),
-    (0.55, 0.75, 0.40, 1.0),
-    (0.30, 0.72, 0.55, 1.0),
-    (0.80, 0.70, 0.35, 1.0),
-    (0.90, 0.50, 0.50, 1.0)
-  )
-}
+pub let forest = Colorscheme { extends: "editorial-dark", auto: ((0.35, 0.82, 0.55, 1), (0.55, 0.75, 0.4, 1), (0.3, 0.72, 0.55, 1), (0.8, 0.7, 0.35, 1), (0.9, 0.5, 0.5, 1)) }
 
 #0s
-tokens_row: Row, anchor: scene.center, offset: (0, -100), gap: 12, align: "center" {
+  tokens_row: Row, anchor: scene.center, offset: (0, -100), gap: 12, align: "center" {
   t1: Rect, size: (50, 50), color: accent.primary
   t2: Rect, size: (50, 50), color: accent.success
   t3: Rect, size: (50, 50), color: accent.warning
   t4: Rect, size: (50, 50), color: accent.danger
   t5: Rect, size: (50, 50), color: text.primary
   t6: Rect, size: (50, 50), color: surface.primary
-}
-
-auto_row: Row, anchor: scene.center, offset: (0, -20), gap: 12, align: "center" {
+    }
+  auto_row: Row, anchor: scene.center, offset: (0, -20), gap: 12, align: "center" {
   a0: Rect, size: (50, 50), color: auto
   a1: Rect, size: (50, 50), color: auto
   a2: Rect, size: (50, 50), color: auto
   a3: Rect, size: (50, 50), color: auto
   a4: Rect, size: (50, 50), color: auto
-}
-
-const_row: Row, anchor: scene.center, offset: (0, 60), gap: 12, align: "center" {
+    }
+  const_row: Row, anchor: scene.center, offset: (0, 60), gap: 12, align: "center" {
   c0: Rect, size: (50, 50), color: red
   c1: Rect, size: (50, 50), color: green
   c2: Rect, size: (50, 50), color: blue
   c3: Rect, size: (50, 50), color: white
   c4: Rect, size: (50, 50), color: black
-}
+    }
 
 #0.5s
-fade-in heading [600ms, ease: ease-out]
-fade-in subtitle [400ms]
+  fade_in(target: heading, duration: 0.6s, ease: ease_out)
+  fade_in(target: subtitle, duration: 0.4s)
 
 #1s
-stagger [50ms] {
-  fade-in t1 [300ms]
-  fade-in t2 [300ms]
-  fade-in t3 [300ms]
-  fade-in t4 [300ms]
-  fade-in t5 [300ms]
-  fade-in t6 [300ms]
-}
+  stagger [0.05s] {
+      fade_in(target: t1, duration: 0.3s)
+      fade_in(target: t2, duration: 0.3s)
+      fade_in(target: t3, duration: 0.3s)
+      fade_in(target: t4, duration: 0.3s)
+      fade_in(target: t5, duration: 0.3s)
+      fade_in(target: t6, duration: 0.3s)
+    }
 
 #1.5s
-stagger [50ms] {
-  fade-in a0 [300ms]
-  fade-in a1 [300ms]
-  fade-in a2 [300ms]
-  fade-in a3 [300ms]
-  fade-in a4 [300ms]
-}
+  stagger [0.05s] {
+      fade_in(target: a0, duration: 0.3s)
+      fade_in(target: a1, duration: 0.3s)
+      fade_in(target: a2, duration: 0.3s)
+      fade_in(target: a3, duration: 0.3s)
+      fade_in(target: a4, duration: 0.3s)
+    }
 
 #2s
-stagger [50ms] {
-  fade-in c0 [300ms]
-  fade-in c1 [300ms]
-  fade-in c2 [300ms]
-  fade-in c3 [300ms]
-  fade-in c4 [300ms]
-}
+  stagger [0.05s] {
+      fade_in(target: c0, duration: 0.3s)
+      fade_in(target: c1, duration: 0.3s)
+      fade_in(target: c2, duration: 0.3s)
+      fade_in(target: c3, duration: 0.3s)
+      fade_in(target: c4, duration: 0.3s)
+    }

@@ -2,10 +2,10 @@
 #0s
 title: Text, text: "A"
 #0.5s
-fade-in title [100ms]
+fade_in(target: title, duration: 100ms)
 
 # SceneB
 #0s
 title: Text, text: "B"
 #0.5s
-fade-in title [100ms]
+fade_in(target: title, duration: 100ms)

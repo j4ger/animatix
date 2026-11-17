@@ -2,8 +2,8 @@
 //
 // Exercises the full extension surface: a custom `Pulse` primitive with a
 // keyframed `Num` property, a manifest-driven `Enum` property (`mode`), `Str`
-// and `Vec2` properties, a native expression function (`scale`), and a native
-// action (`throb`) that writes keyframes through the host API.
+// and `Vec2` properties, and native callables that build inert plans through
+// the host API.
 //
 // Build and check:
 //   cargo build -p animatix-plugin-demo
@@ -20,14 +20,14 @@ checker: Image, url: "examples/assets/checker.png", opacity: 0
 p: Pulse, glow: 0.25, mode: "dot", caption: "dot", at: (640, 360), origin: (0, 0), image_url: "examples/assets/checker.png"
 
 #0.5s
-fade-in p [500ms]
+fade_in(target: p, duration: 500ms)
 
 #1s
-throb p [strength: 0.8]
+demo::throb(target: p, strength: 0.8)
 
 #2s
 p.mode = "cross" [300ms]
 p.caption = "cross + scale()" [300ms]
 
 #2.8s
-p.glow = scale(0.25, 2.0) [400ms]
+p.glow = demo::scale(value: 0.25, factor: 2.0) [400ms]

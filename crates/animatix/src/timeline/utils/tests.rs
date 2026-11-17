@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::*;
-use crate::ast::{BinaryOp, Expr, Time};
+use crate::ast::{BinaryOp, CallArgument, Expr, Time};
 use crate::timeline::env::{CapturedEnv, Environment, EvalError, Value};
 use crate::timeline::load_standard_library;
 use crate::timeline::modifier_runtime::ir::{CompiledExpr, compile_expr};
@@ -16,7 +16,7 @@ fn eval_cache_reflects_env_mutations() {
     // Same env instance, unmutated → cached value is reused.
     let mut env = Environment::new();
     env.set("x", Value::Num(2.0));
-    let expr = Expr::Call("sin".to_string(), vec![Expr::Ident("x".to_string())]);
+    let expr = Expr::call("sin", vec![Expr::Ident("x".to_string())]);
     let first = evaluate_expr(&expr, &env).expect("eval should succeed");
 
     // Mutating the environment must invalidate memoized values even
@@ -72,7 +72,7 @@ fn test_evaluate_closure() {
     );
     env.set("f", closure);
 
-    let call_expr = Expr::Call("f".to_string(), vec![Expr::Num(4.0)]);
+    let call_expr = Expr::call("f", vec![Expr::Num(4.0)]);
     let result = evaluate_expr(&call_expr, &env).expect("Evaluation failed");
 
     assert_eq!(result, Value::Num(8.0));
@@ -82,8 +82,10 @@ fn test_evaluate_closure() {
 fn test_evaluate_method_string_length() {
     let mut env = Environment::new();
     env.set("text", Value::Str("hello".to_string()));
-    let expr =
-        Expr::Method(Box::new(Expr::Ident("text".to_string())), "length".to_string(), vec![]);
+    let expr = Expr::Call(
+        Box::new(Expr::Field(Box::new(Expr::Ident("text".to_string())), "length".to_string())),
+        vec![],
+    );
 
     let result = evaluate_expr(&expr, &env).unwrap();
     assert_eq!(result.as_num(), 5.0);
@@ -93,10 +95,9 @@ fn test_evaluate_method_string_length() {
 fn test_evaluate_method_string_split() {
     let mut env = Environment::new();
     env.set("text", Value::Str("a,b,c".to_string()));
-    let expr = Expr::Method(
-        Box::new(Expr::Ident("text".to_string())),
-        "split".to_string(),
-        vec![Expr::Str(",".to_string())],
+    let expr = Expr::Call(
+        Box::new(Expr::Field(Box::new(Expr::Ident("text".to_string())), "split".to_string())),
+        vec![CallArgument::positional(Expr::Str(",".to_string()))],
     );
 
     let result = evaluate_expr(&expr, &env).unwrap();
@@ -111,8 +112,10 @@ fn test_evaluate_method_string_split() {
 fn test_evaluate_method_list_length() {
     let mut env = Environment::new();
     env.set("items", Value::List(vec![Value::Num(1.0), Value::Num(2.0)].into()));
-    let expr =
-        Expr::Method(Box::new(Expr::Ident("items".to_string())), "length".to_string(), vec![]);
+    let expr = Expr::Call(
+        Box::new(Expr::Field(Box::new(Expr::Ident("items".to_string())), "length".to_string())),
+        vec![],
+    );
 
     let result = evaluate_expr(&expr, &env).unwrap();
     assert_eq!(result.as_num(), 2.0);
@@ -125,10 +128,9 @@ fn test_evaluate_method_list_get() {
         "items",
         Value::List(vec![Value::Num(10.0), Value::Num(20.0), Value::Num(30.0)].into()),
     );
-    let expr = Expr::Method(
-        Box::new(Expr::Ident("items".to_string())),
-        "get".to_string(),
-        vec![Expr::Num(2.0)],
+    let expr = Expr::Call(
+        Box::new(Expr::Field(Box::new(Expr::Ident("items".to_string())), "get".to_string())),
+        vec![CallArgument::positional(Expr::Num(2.0))],
     );
 
     let result = evaluate_expr(&expr, &env).unwrap();
@@ -143,7 +145,7 @@ fn test_evaluate_object_field_access() {
     fields.insert("y".to_string(), Value::Num(20.0));
     env.set("point", Value::Object("Point".to_string(), fields));
 
-    let expr = Expr::Method(Box::new(Expr::Ident("point".to_string())), "x".to_string(), vec![]);
+    let expr = Expr::Field(Box::new(Expr::Ident("point".to_string())), "x".to_string());
 
     let result = evaluate_expr(&expr, &env).unwrap();
     assert_eq!(result.as_num(), 10.0);
@@ -155,7 +157,7 @@ fn test_evaluate_object_field_missing() {
     let fields = HashMap::new();
     env.set("point", Value::Object("Point".to_string(), fields));
 
-    let expr = Expr::Method(Box::new(Expr::Ident("point".to_string())), "z".to_string(), vec![]);
+    let expr = Expr::Field(Box::new(Expr::Ident("point".to_string())), "z".to_string());
 
     let result = evaluate_expr(&expr, &env);
     assert!(result.is_err());
@@ -166,7 +168,10 @@ fn test_evaluate_object_field_missing() {
 fn test_evaluate_method_num_abs() {
     let mut env = Environment::new();
     env.set("x", Value::Num(-42.5));
-    let expr = Expr::Method(Box::new(Expr::Ident("x".to_string())), "abs".to_string(), vec![]);
+    let expr = Expr::Call(
+        Box::new(Expr::Field(Box::new(Expr::Ident("x".to_string())), "abs".to_string())),
+        vec![],
+    );
 
     let result = evaluate_expr(&expr, &env).unwrap();
     assert_eq!(result.as_num(), 42.5);
@@ -175,7 +180,10 @@ fn test_evaluate_method_num_abs() {
 #[test]
 fn test_evaluate_method_unsupported() {
     let env = Environment::new();
-    let expr = Expr::Method(Box::new(Expr::Ident("graph".to_string())), "plot".to_string(), vec![]);
+    let expr = Expr::Call(
+        Box::new(Expr::Field(Box::new(Expr::Ident("graph".to_string())), "plot".to_string())),
+        vec![],
+    );
 
     let result = evaluate_expr(&expr, &env);
     assert!(result.is_err());
@@ -266,7 +274,7 @@ fn test_evaluate_closure_captures_variable_at_creation_time() {
     // but the closure captured y=3 at creation time.
     env.set("y", Value::Num(10.0));
 
-    let call_expr = Expr::Call("f".to_string(), vec![Expr::Num(4.0)]);
+    let call_expr = Expr::call("f", vec![Expr::Num(4.0)]);
     let result = evaluate_expr(&call_expr, &env).expect("Evaluation failed");
 
     // With capture semantics, y=3 (captured at creation time)
@@ -287,8 +295,8 @@ fn test_evaluate_path_uses_flat_dotted_lookup_key() {
 
 #[test]
 fn test_time_to_ms() {
-    assert_eq!(time_to_ms(&Time::Seconds(2.5)), 2500.0);
-    assert_eq!(time_to_ms(&Time::Milliseconds(500)), 500.0);
+    assert_eq!(time_to_ms(&Time::Seconds(2.5)).unwrap(), 2500.0);
+    assert_eq!(time_to_ms(&Time::Milliseconds(500)).unwrap(), 500.0);
 }
 
 #[test]
@@ -317,15 +325,18 @@ fn test_bool_truthiness_in_conditionals_and_logic() {
     assert_eq!(evaluate_expr(&cond_false, &env).unwrap(), Value::Num(0.0));
 
     let not_true = Expr::Unary(crate::ast::UnaryOp::Not, Box::new(Expr::Bool(true)));
-    assert_eq!(evaluate_expr(&not_true, &env).unwrap(), Value::Num(0.0));
+    assert_eq!(evaluate_expr(&not_true, &env).unwrap(), Value::Bool(false));
+
+    let not_zero = Expr::Unary(crate::ast::UnaryOp::Not, Box::new(Expr::Num(0.0)));
+    assert_eq!(evaluate_expr(&not_zero, &env).unwrap(), Value::Bool(true));
 
     let and_expr =
         Expr::Binary(Box::new(Expr::Bool(true)), BinaryOp::And, Box::new(Expr::Bool(false)));
-    assert_eq!(evaluate_expr(&and_expr, &env).unwrap(), Value::Num(0.0));
+    assert_eq!(evaluate_expr(&and_expr, &env).unwrap(), Value::Bool(false));
 
     let or_expr =
         Expr::Binary(Box::new(Expr::Bool(true)), BinaryOp::Or, Box::new(Expr::Bool(false)));
-    assert_eq!(evaluate_expr(&or_expr, &env).unwrap(), Value::Num(1.0));
+    assert_eq!(evaluate_expr(&or_expr, &env).unwrap(), Value::Bool(true));
 }
 
 #[test]
@@ -333,36 +344,33 @@ fn test_evaluate_expr_sin_cos() {
     let mut env = Environment::new();
     load_standard_library(&mut env);
     // sin(0) = 0
-    let result = evaluate_expr(&Expr::Call("sin".to_string(), vec![Expr::Num(0.0)]), &env)
-        .unwrap_or(Value::Num(0.0));
+    let result =
+        evaluate_expr(&Expr::call("sin", vec![Expr::Num(0.0)]), &env).unwrap_or(Value::Num(0.0));
     assert!({
         let v = result.as_num();
         v.abs() < 1e-10
     });
 
     // sin(PI/2) ≈ 1
-    let result = evaluate_expr(
-        &Expr::Call("sin".to_string(), vec![Expr::Num(std::f64::consts::FRAC_PI_2)]),
-        &env,
-    )
-    .unwrap_or(Value::Num(0.0));
+    let result =
+        evaluate_expr(&Expr::call("sin", vec![Expr::Num(std::f64::consts::FRAC_PI_2)]), &env)
+            .unwrap_or(Value::Num(0.0));
     assert!((result.as_num() - 1.0).abs() < 1e-10);
 
     // cos(0) = 1
-    let result = evaluate_expr(&Expr::Call("cos".to_string(), vec![Expr::Num(0.0)]), &env)
-        .unwrap_or(Value::Num(0.0));
+    let result =
+        evaluate_expr(&Expr::call("cos", vec![Expr::Num(0.0)]), &env).unwrap_or(Value::Num(0.0));
     assert!((result.as_num() - 1.0).abs() < 1e-10);
 
     // cos(PI) ≈ -1
-    let result =
-        evaluate_expr(&Expr::Call("cos".to_string(), vec![Expr::Num(std::f64::consts::PI)]), &env)
-            .unwrap_or(Value::Num(0.0));
+    let result = evaluate_expr(&Expr::call("cos", vec![Expr::Num(std::f64::consts::PI)]), &env)
+        .unwrap_or(Value::Num(0.0));
     assert!((result.as_num() + 1.0).abs() < 1e-10);
 
     // sin nested: sin(PI/6) * 2
     let result = evaluate_expr(
         &Expr::Binary(
-            Box::new(Expr::Call("sin".to_string(), vec![Expr::Num(std::f64::consts::FRAC_PI_6)])),
+            Box::new(Expr::call("sin", vec![Expr::Num(std::f64::consts::FRAC_PI_6)])),
             BinaryOp::Mul,
             Box::new(Expr::Num(2.0)),
         ),
@@ -378,10 +386,7 @@ fn test_evaluate_expr_format() {
     load_standard_library(&mut env);
     // format("value: {}", 42)
     let result = evaluate_expr(
-        &Expr::Call(
-            "format".to_string(),
-            vec![Expr::Str("value: {}".to_string()), Expr::Num(42.0)],
-        ),
+        &Expr::call("format", vec![Expr::Str("value: {}".to_string()), Expr::Num(42.0)]),
         &env,
     )
     .unwrap_or(Value::Num(0.0));
@@ -389,8 +394,8 @@ fn test_evaluate_expr_format() {
 
     // format("x={}, y={}", 10, 20)
     let result = evaluate_expr(
-        &Expr::Call(
-            "format".to_string(),
+        &Expr::call(
+            "format",
             vec![
                 Expr::Str("x={}, y={}".to_string()),
                 Expr::Num(10.0),
@@ -403,17 +408,16 @@ fn test_evaluate_expr_format() {
     assert_eq!(result.as_str(), "x=10, y=20");
 
     // format with no args
-    let result =
-        evaluate_expr(&Expr::Call("format".to_string(), vec![]), &env).unwrap_or(Value::Num(0.0));
+    let result = evaluate_expr(&Expr::call("format", vec![]), &env).unwrap_or(Value::Num(0.0));
     assert_eq!(result.as_str(), "");
 
     // format with text and sin
     let result = evaluate_expr(
-        &Expr::Call(
-            "format".to_string(),
+        &Expr::call(
+            "format",
             vec![
                 Expr::Str("sin(π/2) = {}".to_string()),
-                Expr::Call("sin".to_string(), vec![Expr::Num(std::f64::consts::FRAC_PI_2)]),
+                Expr::call("sin", vec![Expr::Num(std::f64::consts::FRAC_PI_2)]),
             ],
         ),
         &env,
@@ -469,8 +473,8 @@ fn test_evaluate_expr_tuple() {
     // Tuple with call expressions
     let result = evaluate_expr(
         &Expr::Tuple(vec![
-            Expr::Call("sin".to_string(), vec![Expr::Num(0.0)]),
-            Expr::Call("cos".to_string(), vec![Expr::Num(0.0)]),
+            Expr::call("sin", vec![Expr::Num(0.0)]),
+            Expr::call("cos", vec![Expr::Num(0.0)]),
         ]),
         &env,
     )
@@ -502,7 +506,7 @@ fn test_evaluate_expr_modulo() {
     // Modulo with sin result: sin(PI/2) % 2 = 1 % 2 = 1
     let result = evaluate_expr(
         &Expr::Binary(
-            Box::new(Expr::Call("sin".to_string(), vec![Expr::Num(std::f64::consts::FRAC_PI_2)])),
+            Box::new(Expr::call("sin", vec![Expr::Num(std::f64::consts::FRAC_PI_2)])),
             BinaryOp::Mod,
             Box::new(Expr::Num(2.0)),
         ),
@@ -608,8 +612,8 @@ fn test_evaluate_expr_vec2_operations() {
     // Vec2 with sin/cos: (sin(0), cos(0)) = (0, 1)
     let result = evaluate_expr(
         &Expr::Tuple(vec![
-            Expr::Call("sin".to_string(), vec![Expr::Num(0.0)]),
-            Expr::Call("cos".to_string(), vec![Expr::Num(0.0)]),
+            Expr::call("sin", vec![Expr::Num(0.0)]),
+            Expr::call("cos", vec![Expr::Num(0.0)]),
         ]),
         &env,
     )
@@ -706,15 +710,14 @@ fn test_evaluate_expr_rand() {
     load_standard_library(&mut env);
 
     // rand() should return a value between 0 and 1
-    let result =
-        evaluate_expr(&Expr::Call("rand".to_string(), vec![]), &env).unwrap_or(Value::Num(0.0));
+    let result = evaluate_expr(&Expr::call("rand", vec![]), &env).unwrap_or(Value::Num(0.0));
     let val = result.as_num();
     assert!((0.0..1.0).contains(&val), "rand() should return value in [0, 1), got {}", val);
 
     // rand() with expressions: rand() * 100 should be in [0, 100)
     let result = evaluate_expr(
         &Expr::Binary(
-            Box::new(Expr::Call("rand".to_string(), vec![])),
+            Box::new(Expr::call("rand", vec![])),
             BinaryOp::Mul,
             Box::new(Expr::Num(100.0)),
         ),
@@ -778,8 +781,8 @@ fn seeded_rand_different_seeds_produce_different_values() {
     let timeline = super::super::Timeline::build(&ast);
 
     // Evaluate seeded_rand with different seeds directly in the timeline's env
-    let expr1 = Expr::Call("seeded_rand".to_string(), vec![Expr::Num(1.0)]);
-    let expr2 = Expr::Call("seeded_rand".to_string(), vec![Expr::Num(2.0)]);
+    let expr1 = Expr::call("seeded_rand", vec![Expr::Num(1.0)]);
+    let expr2 = Expr::call("seeded_rand", vec![Expr::Num(2.0)]);
 
     let val1 = evaluate_expr(&expr1, &timeline.env).unwrap();
     let val2 = evaluate_expr(&expr2, &timeline.env).unwrap();
@@ -868,9 +871,9 @@ fn test_construct_different_properties_different_hash() {
             Expr::Str("A".to_string()),
         )],
     );
-    let hash_a = super::expr::expr_hash(&construct_a);
-    let hash_b = super::expr::expr_hash(&construct_b);
-    let hash_c = super::expr::expr_hash(&construct_c);
+    let hash_a = super::expr::expr_hash(&construct_a).expect("construct should be cacheable");
+    let hash_b = super::expr::expr_hash(&construct_b).expect("construct should be cacheable");
+    let hash_c = super::expr::expr_hash(&construct_c).expect("construct should be cacheable");
 
     assert_ne!(hash_a, hash_b, "different property values must produce different hashes");
     assert_ne!(hash_a, hash_c, "different property names must produce different hashes");
@@ -915,10 +918,10 @@ fn test_match_different_patterns_different_hash() {
         ],
     );
 
-    let h1 = super::expr::expr_hash(&match_1);
-    let h2 = super::expr::expr_hash(&match_2);
-    let h_str = super::expr::expr_hash(&match_str);
-    let h_range = super::expr::expr_hash(&match_range);
+    let h1 = super::expr::expr_hash(&match_1).expect("match should be cacheable");
+    let h2 = super::expr::expr_hash(&match_2).expect("match should be cacheable");
+    let h_str = super::expr::expr_hash(&match_str).expect("match should be cacheable");
+    let h_range = super::expr::expr_hash(&match_range).expect("match should be cacheable");
 
     assert_ne!(h1, h2, "different numeric pattern values must produce different hashes");
     assert_ne!(h1, h_str, "num pattern vs str pattern must produce different hashes");
@@ -1030,4 +1033,78 @@ fn test_compiled_expr_cache_works_and_cleared() {
     assert_eq!(val3.as_num(), 41.0);
     assert_eq!(super::expr::compiled_expr_cache_len(), 1);
     assert_eq!(super::expr::eval_cache_len(), 1);
+}
+
+#[test]
+fn plan_expressions_bypass_expression_and_compiled_caches() {
+    use crate::ast::PlanBody;
+    use crate::timeline::plan_value::PlanOp;
+
+    clear_eval_cache();
+    let env = Environment::new();
+    let timeline_expr = Expr::Timeline(PlanBody::new(Vec::new()));
+    let sequence_expr = Expr::Sequence(PlanBody::new(Vec::new()));
+
+    assert_eq!(super::expr::expr_hash(&timeline_expr), None);
+    assert_eq!(super::expr::expr_hash(&sequence_expr), None);
+    assert_eq!(
+        super::expr::expr_hash(&Expr::Stagger {
+            modifiers: Vec::new(),
+            plan: PlanBody::new(Vec::new()),
+        }),
+        None
+    );
+    assert_eq!(super::expr::expr_hash(&Expr::List(vec![timeline_expr.clone()])), None);
+    assert_eq!(
+        super::expr::expr_hash(&Expr::call("identity", vec![timeline_expr.clone()])),
+        None
+    );
+    assert_eq!(
+        super::expr::expr_hash(&Expr::Closure(Vec::new(), Box::new(timeline_expr.clone()))),
+        None
+    );
+
+    // Under the old Debug hash, these two expressions had the same tag and
+    // identical body text, so the second evaluation could reuse the first
+    // expression's cached timeline plan.
+    let Value::TimelinePlan(timeline) =
+        evaluate_expr(&timeline_expr, &env).expect("timeline plan should evaluate")
+    else {
+        panic!("expected a timeline plan");
+    };
+    let Value::TimelinePlan(sequence) =
+        evaluate_expr(&sequence_expr, &env).expect("sequence plan should evaluate")
+    else {
+        panic!("expected a sequence plan");
+    };
+    assert_ne!(timeline.ops(), sequence.ops());
+    assert!(matches!(
+        &sequence.ops()[0],
+        PlanOp::Statements(statements)
+            if matches!(statements.first(), Some(crate::ast::Stmt::Sequence { .. }))
+    ));
+
+    let Value::TimelinePlan(repeated) =
+        evaluate_expr(&timeline_expr, &env).expect("repeated timeline should evaluate")
+    else {
+        panic!("expected a repeated timeline plan");
+    };
+    assert_ne!(timeline.id(), repeated.id(), "plan evaluation must capture afresh");
+    assert_eq!(super::expr::eval_cache_len(), 0);
+    assert_eq!(super::expr::compiled_expr_cache_len(), 0);
+}
+
+#[test]
+fn expr_hash_tags_distinguish_closures_and_conditionals() {
+    let closure = Expr::Closure(Vec::new(), Box::new(Expr::Num(1.0)));
+    let conditional = Expr::Conditional(
+        Box::new(Expr::Bool(true)),
+        Box::new(Expr::Num(1.0)),
+        Box::new(Expr::Num(0.0)),
+    );
+    let closure_hash = super::expr::expr_hash(&closure).expect("closure should be cacheable");
+    let conditional_hash =
+        super::expr::expr_hash(&conditional).expect("conditional should be cacheable");
+
+    assert_ne!(closure_hash, conditional_hash);
 }

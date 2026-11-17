@@ -11,16 +11,16 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7 }
   caption: Text, text: "The arrangement does not have to move.", at: (640, 550), font_size: 26, color: "#ADBCCA"
 
 #1.5s
-  a.opacity = 0.25 [500ms]
-  c.opacity = 0.25 [500ms]
-  b.color = "#F4D47B" [500ms]
-  fade-in marker [500ms]
+  a.opacity = 0.25[0.5s]
+  c.opacity = 0.25[0.5s]
+  b.color = "#F4D47B"[0.5s]
+  fade_in(target: marker, duration: 0.5s)
 
 #4s
-  b.opacity = 0.25 [500ms]
-  b.color = "#65D9E8" [500ms]
-  c.opacity = 1 [500ms]
-  c.color = "#F4D47B" [500ms]
-  marker.at = (880, 455) [500ms, ease: ease-in-out]
+  b.opacity = 0.25[0.5s]
+  b.color = "#65D9E8"[0.5s]
+  c.opacity = 1[0.5s]
+  c.color = "#F4D47B"[0.5s]
+  marker.at = (880, 455) [0.5s, ease: ease_in_out]
 
 #7s

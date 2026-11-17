@@ -1,9 +1,9 @@
-//! Action guards and target expansion.
+//! BuiltinInvocation guards and target expansion.
 
 use super::*;
 
 pub(super) fn push_unknown_action_diagnostic(
-    action: &Action,
+    action: &BuiltinInvocation,
     diagnostics: &mut Vec<Diagnostic>,
     span: Option<crate::ast::Span>,
 ) {
@@ -29,7 +29,7 @@ pub(super) fn push_unsupported_action_target_diagnostic(
         Diagnostic::error(
             DiagnosticCode::UnsupportedActionTarget,
             DiagnosticPhase::Build,
-            format!("Action '{verb}' does not support target '{target}': {reason}."),
+            format!("Function '{verb}' does not support target '{target}': {reason}."),
         )
         .with_subject(format!("{verb} {target}"))
         .with_ast_span(span),
@@ -53,9 +53,9 @@ pub(crate) fn ensure_guard_keyframe<T: Interpolate>(
 /// action's window.
 ///
 /// Actors first declared before the first keyframe are seeded `opacity = 0`
-/// (docs/spec.md "Pre-Keyframe Actor Declarations"). `fade-in` animates
-/// opacity itself, but the other entrances (`draw-in`, `wipe-in`,
-/// `reveal-in`) only animate `stroke_progress` / `fill_opacity` /
+/// (docs/spec.md "Pre-Keyframe Actor Declarations"). `fade_in` animates
+/// opacity itself, but the other entrances (`draw_in`, `wipe_in`,
+/// `reveal_in`) only animate `stroke_progress` / `fill_opacity` /
 /// `char_progress` — without this lift their target would stay fully
 /// transparent forever, contradicting the documented contract that any
 /// entrance reveals the actor. Consumes the track's `hidden_by_default` flag
@@ -86,9 +86,9 @@ pub(crate) fn lift_hidden_by_default(
 /// at and must not be overridden. Reach this only for targets that are *not*
 /// `hidden_by_default`: that path seeds its own 0 and lifts to 1.0.
 ///
-/// Before this rule `fade-in` ended every target at a hardcoded 1.0, so an
-/// authored `opacity: 0.25` was discarded with no diagnostic, while `wipe-in`,
-/// `draw-in` and `reveal-in` never touched `opacity` at all — the same authoring
+/// Before this rule `fade_in` ended every target at a hardcoded 1.0, so an
+/// authored `opacity: 0.25` was discarded with no diagnostic, while `wipe_in`,
+/// `draw_in` and `reveal_in` never touched `opacity` at all — the same authoring
 /// meant opposite things depending on which entrance action was picked.
 pub(crate) fn entrance_opacity_target(
     style: &crate::timeline::animation_track::StyleTracks,
@@ -102,7 +102,7 @@ pub(crate) fn entrance_opacity_target(
 /// means (stroke progress, fill opacity, char progress).
 ///
 /// Such an action never writes `opacity`, so the authored 0 keeps the target
-/// invisible for the whole timeline — the mirror image of `fade-in` forcing 1.0.
+/// invisible for the whole timeline — the mirror image of `fade_in` forcing 1.0.
 /// Call only after confirming the target was *not* `hidden_by_default`; that
 /// path's lift already wrote this pair.
 pub(crate) fn reveal_authored_zero_opacity(

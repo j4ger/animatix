@@ -7,6 +7,7 @@ use crate::ast::LoopPattern;
 
 pub(crate) struct LoopScope<'a> {
     bindings: SmallVec<[(&'a str, Option<Value>); 4]>,
+    authored_t_binding: bool,
 }
 
 impl<'a> LoopScope<'a> {
@@ -30,6 +31,7 @@ impl<'a> LoopScope<'a> {
                 .chain(index)
                 .map(|name| (name, env.overrides.get(name).cloned()))
                 .collect(),
+            authored_t_binding: env.has_authored_t_binding(),
         }
     }
 
@@ -42,5 +44,6 @@ impl<'a> LoopScope<'a> {
                 env.mark_mutated();
             }
         }
+        env.set_authored_t_binding(self.authored_t_binding);
     }
 }

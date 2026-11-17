@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use crate::ExtensionManifest;
 
 /// One discovered manifest plus a stable change fingerprint.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ManifestSource {
     /// Manifest file path.
     pub path: PathBuf,

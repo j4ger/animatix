@@ -36,7 +36,7 @@ Real-content capstones demonstrating the full language. Start here.
 | `gallery/epicycles.amx` | Fourier story: Graph-hosted PlotCurves, `stroke_progress` reveals, always-driven pen |
 | `gallery/sorting_theatre.amx` | Insertion-sort theatre: `for` loops, build-time `if`, `[step:]` clocks, `list_swap` |
 | `projects/fft_explain.amx` | Explainer: Typst equation fragments, colored plots, per-fragment reveals |
-| `gallery/brand_reel/` | Multi-file capstone: all six `play` transitions, `persist`/`remove` mascot chain, Audio bed, cross-file scenes (`import as` + `play alias.Scene`) |
+| `gallery/brand_reel/` | Multi-file capstone: all six `play` transitions, `persist`/`remove` mascot chain, Audio bed, cross-file scenes (`import as` + `play alias::Scene`) |
 
 The gallery uses [theme and motion helpers](lib/). Individual files
 declare the imports they need; the runtime does not inject them.
@@ -45,7 +45,7 @@ declare the imports they need; the runtime does not inject them.
 
 | File | Description |
 |------|-------------|
-| `basics/00_hello.amx` | Minimal scene: title card with staggered fade-in |
+| `basics/00_hello.amx` | Minimal scene: title card with staggered fade_in |
 | `basics/01_shapes.amx` | Primitive shapes, image, SVG, Typst, Text, Code |
 | `basics/03_timing.amx` | Timing: sequence, stagger, easing curves |
 | `basics/22_expressions.amx` | Expressions: index access, methods, lerp, clamp, rand |
@@ -66,21 +66,21 @@ declare the imports they need; the runtime does not inject them.
 
 | File | Description |
 |------|-------------|
-| `animation/04_motion.amx` | Actions and reactive `always` expressions |
+| `animation/04_motion.amx` | Timeline callables and reactive `always` expressions |
 | `animation/05_morph.amx` | Re-declaration morphing |
 | `animation/06_reactive.amx` | Reactive expressions and `is_animating(&prop)` state queries |
 | `animation/08_effects.amx` | Filter, shake, pulse, bounce |
 | `animation/30_effects_catalog.amx` | All 14 built-in effects across 13 Filter scopes (Blur … Posterize) |
 | `animation/31_effect_recipes.amx` | Four look recipes: Glow, Film, Neon, Paper |
-| `animation/42_grow_shrink.amx` | Pivot-anchored `grow-in` / `shrink-out` scale presets |
-| `animation/21_actions.amx` | Entrance, motion, exit, and effect actions |
+| `animation/42_grow_shrink.amx` | Pivot-anchored `grow_in` / `shrink_out` scale presets |
+| `animation/21_actions.amx` | Entrance, motion, exit, and effect callables |
 | `animation/local_tickers.amx` | Reusable locally timed function at independent starts and rates, with explicit end-state handoff |
 
 ## Components
 
 | File | Description |
 |------|-------------|
-| `components/09_components.amx` | `pub component`, slots, custom actions, typed params |
+| `components/09_components.amx` | `pub component`, slots, public methods, typed params |
 | `components/10_modules.amx` | Imports, namespaces, `pub let`, re-export chains |
 | `components/29_strict_types.amx` | Strict type annotations and subtyping |
 
@@ -101,7 +101,7 @@ declare the imports they need; the runtime does not inject them.
 | File | Description |
 |------|-------------|
 | `composition/14_multiscene.amx` | Scene declarations and transitions |
-| `composition/19_cross_file_scenes.amx` | Imported scene modules and `play alias.Scene` |
+| `composition/19_cross_file_scenes.amx` | Imported scene modules and `play alias::Scene` |
 | `composition/25_persistence.amx` | `persist` / `remove` across scene transitions |
 
 ## Generation
@@ -129,7 +129,7 @@ language design gaps.
 | `projects/leetcode_sort_colors.amx` | Dutch national flag as a timeline function (`fn dnf_pass` + `list_swap` + `[step: ...]` loops) |
 | `projects/compare_swap.amx` | Locally timed comparison and exchange of two cards, preserving each card's contents |
 | `projects/nested_compare_swap.amx` | Nested comparison cue and conditional swap, reused for slow explanation and quick review |
-| `projects/plugin_pulse.amx` | Native plugin showcase: custom primitive, enum property, action, function, cached image |
+| `projects/plugin_pulse.amx` | Native plugin showcase: custom primitive, enum property, timeline callable, calculation function, cached image |
 
 `projects/plugin_pulse.amx` requires the native demo plugin and its manifest:
 

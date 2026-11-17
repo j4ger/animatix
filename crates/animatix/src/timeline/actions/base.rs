@@ -1,8 +1,9 @@
 //! Common action execution context and target processing utilities.
 
-use crate::ast::{Action, Modifier};
+use crate::ast::Modifier;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
+use crate::timeline::actions::BuiltinInvocation;
 use crate::timeline::entity::EntityId;
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
@@ -28,7 +29,11 @@ pub struct ActionTiming {
 
 impl ActionTiming {
     /// Parse timing modifiers for an action.
-    pub fn parse(action: &Action, time_ms: f64, diagnostics: &mut Vec<Diagnostic>) -> Self {
+    pub fn parse(
+        action: &BuiltinInvocation,
+        time_ms: f64,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Self {
         Self::from_parsed(
             &parse_timing_modifiers(
                 &action.modifiers,
@@ -48,7 +53,7 @@ impl ActionTiming {
     /// This is the single implementation of the hand-rolled
     /// "filter the modifiers, then parse" blocks action files used to repeat.
     pub fn parse_excluding(
-        action: &Action,
+        action: &BuiltinInvocation,
         excluded_keys: &[&str],
         time_ms: f64,
         diagnostics: &mut Vec<Diagnostic>,
@@ -95,7 +100,7 @@ impl ActionTiming {
 
 /// Helper that parses timing, iterates over each target's [`EntityId`], and invokes `apply`.
 pub fn for_each_action_target<F>(
-    action: &Action,
+    action: &BuiltinInvocation,
     time_ms: f64,
     timeline: &mut Timeline,
     diagnostics: &mut Vec<Diagnostic>,
@@ -117,8 +122,8 @@ mod tests {
 
     #[test]
     fn parse_action_timing_default() {
-        let action = Action {
-            verb: "fade-in".to_string(),
+        let action = BuiltinInvocation {
+            verb: "fade_in".to_string(),
             targets: vec!["a".to_string()],
             args: vec![],
             modifiers: vec![],

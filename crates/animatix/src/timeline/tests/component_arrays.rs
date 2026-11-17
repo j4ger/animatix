@@ -36,7 +36,8 @@ pub component MetricCard(title: Str) {
     }
     badge: Badge, label: title
   }
-  fn reveal { fade-in title_text [200ms] }
+  pub fn reveal() { return #{ fade_in(target: title_text, duration: 200ms)
+} }
   always { title_text.opacity = 0.5 }
 }
 
@@ -50,7 +51,7 @@ featured: MetricCard, title: "same"
 
 #0s
 for unused, i in {0, 1, 2, 3} {
-  fade-in cards[i] [200ms]
+  fade_in(target: cards[i], duration: 200ms)
 }
 
 #0.1s
@@ -63,7 +64,7 @@ always {
 #0.3s
 for title, i in {"same", "same"} {
   for unused, j in {0, 1} {
-    reveal cards[i * 2 + j]
+    cards[i * 2 + j].reveal()
   }
 }
 "#;
@@ -80,14 +81,20 @@ for title, i in {"same", "same"} {
     let expanded = program.expand_components(&mut expansion_errors);
     assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
 
-    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        crate::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
     let timeline = report.output;
     assert!(
         timeline.build_loop_scopes.is_empty(),
         "build loop scopes must not escape the build"
     );
     let mut expanded_indices = Vec::new();
-    indexed_actor_declarations(&expanded, &mut expanded_indices);
+    indexed_actor_declarations(&expanded.statements, &mut expanded_indices);
     let unexpected: Vec<_> = report
         .diagnostics
         .iter()
@@ -148,7 +155,7 @@ for title, i in {"same", "same"} {
             timeline
                 .action_events
                 .iter()
-                .any(|event| { event.verb == "fade-in" && event.targets.contains(&target) }),
+                .any(|event| { event.verb == "fade_in" && event.targets.contains(&target) }),
             "component fn action should specialize its child target to {target}"
         );
     }
@@ -160,7 +167,7 @@ for title, i in {"same", "same"} {
         let id = timeline
             .get_entity_id(&format!("{label}.frame"))
             .expect("generated leaf exists");
-        let opacity = timeline.world.style(id).opacity.as_ref().expect("fade-in opacity");
+        let opacity = timeline.world.style(id).opacity.as_ref().expect("fade_in(target: opacity)");
         assert_eq!(opacity.evaluate(0), 0.0, "{label} starts hidden");
         assert_eq!(opacity.evaluate(200), 1.0, "indexed container entrance resolves {label}");
     }
@@ -206,9 +213,10 @@ fn component_method_called_after_declaration_loop_rebinds_nested_targets_to_call
 pub component Badge() {
   glyph: Text, text: "badge"
   badge_frame: Rect, size: (12, 12)
-  fn mark(amount: Num) {
+  pub fn mark(amount: Num) { return #{
     badge_frame.opacity = amount + i * 0
-  }
+
+} }
 }
 pub component Card() {
   card_frame: Rect, size: (40, 40)
@@ -219,7 +227,7 @@ for unused, i in {0, 1, 2} {
   cards[i]: Card
 }
 for amount, j in {0.2, 0.4, 0.6} {
-  mark cards[j].badge [amount: amount]
+  cards[j].badge.mark(amount: amount)
 }
 "#;
     let mut modules = ModuleGraph::new();
@@ -230,7 +238,13 @@ for amount, j in {0.2, 0.4, 0.6} {
     let expanded = program.expand_components(&mut expansion_errors);
     assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
 
-    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        crate::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
     assert!(
         report.diagnostics.iter().all(|diagnostic| {
             diagnostic.code != crate::diagnostics::DiagnosticCode::InvalidPropertyValue
@@ -274,35 +288,58 @@ fn indexed_component_method_errors_keep_the_call_site_location() {
     let source = r#"
 pub component Card() {
   glyph: Text
-  fn mark(amount: Num) { glyph.opacity = amount }
+  pub fn mark(amount: Num) { return #{ glyph.opacity = amount
+} }
 }
 for unused, i in {0, 1} {
   cards[i]: Card
 }
-mark cards[1.5] [amount: 0.5]
-missing_method cards[0]
+cards[1.5].mark(amount: 0.5)
+cards[0].missing_method()
 "#;
     let mut modules = ModuleGraph::new();
     let program = modules
         .load_program_with_source(Path::new("virtual:///indexed_method_errors.amx"), Some(source))
         .expect("load component program");
     let expanded = program.expand_components(&mut Vec::new());
-    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        crate::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
 
     let invalid_index = report
         .diagnostics
         .iter()
         .find(|diagnostic| {
-            diagnostic.code == crate::diagnostics::DiagnosticCode::InvalidPropertyValue
+            diagnostic.code == crate::diagnostics::DiagnosticCode::CallableEvaluationError
+                && diagnostic.message.to_lowercase().contains("index")
         })
         .expect("fractional method index must be diagnosed");
-    assert_eq!(invalid_index.location.line, Some(9));
+    assert_eq!(
+        invalid_index.location.line,
+        source
+            .lines()
+            .position(|line| line.contains("cards[1.5].mark"))
+            .map(|line| line + 1)
+    );
     let unknown_method = report
         .diagnostics
         .iter()
-        .find(|diagnostic| diagnostic.code == crate::diagnostics::DiagnosticCode::UnknownAction)
+        .find(|diagnostic| {
+            diagnostic.code == crate::diagnostics::DiagnosticCode::CallableEvaluationError
+                && diagnostic.message.contains("missing_method")
+        })
         .expect("missing component method must be diagnosed as an unknown action");
-    assert_eq!(unknown_method.location.line, Some(10));
+    assert_eq!(
+        unknown_method.location.line,
+        source
+            .lines()
+            .position(|line| line.contains("cards[0].missing_method"))
+            .map(|line| line + 1)
+    );
 }
 
 #[test]
@@ -310,38 +347,43 @@ fn indexed_methods_keep_shadowing_and_rebind_self_for_constant_and_loop_targets(
     let source = r#"
 pub component Card() {
   glyph: Text
-  fn from_param(i: Num) { self.opacity = i }
-  fn from_local { let i = 0.6
+  pub fn from_param(i: Num) { return #{ self.opacity = i
+} }
+  pub fn from_local() { return #{ let i = 0.6
     self.opacity = i
-  }
-  fn from_for {
+
+} }
+  pub fn from_for() { return #{
     for item, i in {1, 2} { self.opacity = i / 10 }
-  }
-  fn from_dynamic(j: Num) { self.opacity = j }
-  fn from_nested(j: Num) {
-    from_dynamic self [j: 0.5]
+
+} }
+  pub fn from_dynamic(j: Num) { return #{ self.opacity = j
+} }
+  pub fn from_nested(j: Num) { return #{
+    self.from_dynamic(j: 0.5)
     self.opacity = j
-  }
+
+} }
 }
 
 #0s
 for unused, i in {0, 1, 2} {
   cards[i]: Card
 }
-from_param cards[2] [i: 0.3]
+cards[2].from_param(i: 0.3)
 #1s
-from_local cards[2]
+cards[2].from_local()
 #2s
-from_for cards[2]
+cards[2].from_for()
 #3s
 for amount, j in {0.4, 0.5, 0.6} {
-  from_dynamic cards[j] [j: amount]
+  cards[j].from_dynamic(j: amount)
 }
 #5s
 let __animatix_index_snapshot_0 = 0.7
-from_dynamic cards[2] [j: __animatix_index_snapshot_0]
+cards[2].from_dynamic(j: __animatix_index_snapshot_0)
 #6s
-from_nested cards[2] [j: 0.8]
+cards[2].from_nested(j: 0.8)
 "#;
     let mut modules = ModuleGraph::new();
     let program = modules
@@ -351,7 +393,13 @@ from_nested cards[2] [j: 0.8]
         )
         .expect("load component program");
     let expanded = program.expand_components(&mut Vec::new());
-    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        crate::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
     let unexpected: Vec<_> = report
         .diagnostics
         .iter()
@@ -437,10 +485,13 @@ pub component Card(title: Str, tint: Color) {
     bar: Rect, size: (80, 6), color: blue
   }
   marker: Rect, size: (6, 6), color: yellow
-  fn highlight {
+  pub fn highlight() { return #{
     bar.color = heading.color
     always { marker.color = heading.color }
-  }
+
+ #1s
+
+} }
 }
 #0s
 for title, i in {"First", "Second"} {
@@ -448,7 +499,7 @@ for title, i in {"First", "Second"} {
 }
 #1s
 for unused, j in {0, 1} {
-  highlight cards[j]
+  cards[j].highlight()
 }
 "#;
     let mut modules = ModuleGraph::new();
@@ -459,7 +510,13 @@ for unused, j in {0, 1} {
         )
         .expect("load multi-actor component program");
     let expanded = program.expand_components(&mut Vec::new());
-    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        crate::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
     let structural_errors: Vec<_> = report
         .diagnostics
         .iter()
@@ -533,16 +590,17 @@ pub component Card() {
   frame: Rect, size: (100, 50)
   heading: Rect, size: (10, 10), color: green
   bar: Rect, size: (10, 10), color: blue
-  fn recolor {
+  pub fn recolor() { return #{
     bar.color = heading.color [100ms]
     bar.opacity = 0.5 [200ms]
-  }
+
+} }
 }
 #0s
 for unused, i in {0, 1} { cards[i]: Card }
 after: Rect, opacity: 1
 sequence {
-  recolor cards[1]
+  cards[1].recolor()
   after.opacity = 0.25 [50ms]
 }
 "#;
@@ -551,7 +609,13 @@ sequence {
         .load_program_with_source(Path::new("virtual:///indexed_sequence.amx"), Some(source))
         .expect("load indexed method sequence");
     let expanded = program.expand_components(&mut Vec::new());
-    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        crate::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
     assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
     let timeline = report.output;
     let bar = timeline.get_entity_id("cards__1.bar").unwrap();
@@ -561,9 +625,9 @@ sequence {
         timeline.world.style(bar).color.as_ref().unwrap().evaluate(100),
         timeline.world.style(heading).color.as_ref().unwrap().evaluate(100)
     );
-    assert_eq!(timeline.world.style(bar).opacity.as_ref().unwrap().evaluate(300), 0.5);
-    assert_eq!(timeline.world.style(after).opacity.as_ref().unwrap().evaluate(299), 1.0);
-    assert_eq!(timeline.world.style(after).opacity.as_ref().unwrap().evaluate(350), 0.25);
+    assert_eq!(timeline.world.style(bar).opacity.as_ref().unwrap().evaluate(200), 0.5);
+    assert_eq!(timeline.world.style(after).opacity.as_ref().unwrap().evaluate(199), 1.0);
+    assert_eq!(timeline.world.style(after).opacity.as_ref().unwrap().evaluate(250), 0.25);
     assert!(timeline.block_scope.is_empty());
     assert!(
         !timeline

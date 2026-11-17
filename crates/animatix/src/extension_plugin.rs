@@ -155,7 +155,7 @@ mod tests {
             &self,
             ctx: &mut ExtensionContext,
         ) -> Result<super::PluginDisposer, PluginError> {
-            ctx.register_function("double", |args, _env| {
+            ctx.register_callable(contract(), |args, _env| {
                 let Some(Value::Num(n)) = args.first() else {
                     return Err(crate::timeline::EvalError::TypeMismatch(
                         "double expects one number".to_string(),
@@ -166,7 +166,7 @@ mod tests {
             .expect("register function");
             ctx.provide("plugin", "double").expect("provide service");
             Ok(Box::new(|ctx: &mut ExtensionContext| {
-                ctx.remove_function("double");
+                ctx.remove_callable("test::double");
                 ctx.remove_service("plugin");
             }))
         }
@@ -202,26 +202,18 @@ mod tests {
         }
     }
 
-    struct MarkAction;
-
-    impl crate::timeline::actions::registry::BuiltinAction for MarkAction {
-        fn signature(&self) -> crate::timeline::actions::registry::ActionSignature {
-            crate::timeline::actions::registry::ActionSignature {
-                name: "mark".to_string(),
-                category: "Custom".to_string(),
-                description: "Test action".to_string(),
-                params: vec![],
-                modifiers: vec![],
-            }
-        }
-
-        fn execute(
-            &self,
-            _action: &crate::ast::Action,
-            _time_ms: f64,
-            _timeline: &mut crate::timeline::Timeline,
-            _diagnostics: &mut Vec<crate::diagnostics::Diagnostic>,
-        ) {
+    fn contract() -> crate::extension_context::CallableDescriptor {
+        use crate::extension_context::{
+            CallableDescriptor, CallableParam, CallablePhase, CallableType,
+        };
+        CallableDescriptor {
+            namespace: "test".into(),
+            name: "double".into(),
+            params: vec![CallableParam::required("value", CallableType::Num)],
+            return_type: CallableType::Num,
+            phase: CallablePhase::BuildAndFrame,
+            help: String::new(),
+            category: "Test".into(),
         }
     }
 
@@ -235,7 +227,7 @@ mod tests {
 
         let mut env = crate::timeline::Environment::new();
         ctx.install_functions(&mut env);
-        assert!(matches!(env.get("double"), Some(Value::NativeFn(_))));
+        assert!(matches!(env.get("test::double"), Some(Value::NativeFn(_))));
 
         for disposer in disposers {
             disposer(&mut ctx);
@@ -243,7 +235,7 @@ mod tests {
         assert!(ctx.get::<&str>("plugin").is_none());
         let mut env = crate::timeline::Environment::new();
         ctx.install_functions(&mut env);
-        assert!(env.get("double").is_none());
+        assert!(env.get("test::double").is_none());
     }
 
     #[test]
@@ -286,13 +278,13 @@ mod tests {
         assert!(ctx.get::<&str>("plugin").is_none());
         let mut env = crate::timeline::Environment::new();
         ctx.install_functions(&mut env);
-        assert!(env.get("double").is_none());
+        assert!(env.get("test::double").is_none());
     }
 
     #[test]
     fn duplicate_registrations_are_rejected() {
         let mut ctx = ExtensionContext::new();
-        ctx.register_function("double", |args, _env| {
+        ctx.register_callable(contract(), |args, _env| {
             let Some(Value::Num(n)) = args.first() else {
                 return Err(crate::timeline::EvalError::TypeMismatch(
                     "double expects one number".to_string(),
@@ -301,10 +293,7 @@ mod tests {
             Ok(Value::Num(*n * 2.0))
         })
         .expect("first function");
-        assert!(ctx.register_function("double", |_args, _env| Ok(Value::Num(0.0))).is_err());
-
-        ctx.register_action(Box::new(MarkAction)).expect("first action");
-        assert!(ctx.register_action(Box::new(MarkAction)).is_err());
+        assert!(ctx.register_callable(contract(), |_args, _env| Ok(Value::Num(0.0))).is_err());
 
         ctx.provide("theme", "dark").expect("first service");
         assert!(ctx.provide("theme", "light").is_err());

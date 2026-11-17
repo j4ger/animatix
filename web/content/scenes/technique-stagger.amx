@@ -12,12 +12,12 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7 }
   caption: Text, text: "Each starts 300 ms after the last.", at: (640, 525), font_size: 26, color: "#ADBCCA"
 
 #1s
-  stagger [300ms] {
-      fade-in a [600ms]
-      fade-in b [600ms]
-      fade-in c [600ms]
-      fade-in d [600ms]
-      fade-in e [600ms]
+  stagger [0.3s] {
+      fade_in(target: a, duration: 0.6s)
+      fade_in(target: b, duration: 0.6s)
+      fade_in(target: c, duration: 0.6s)
+      fade_in(target: d, duration: 0.6s)
+      fade_in(target: e, duration: 0.6s)
     }
 
 #7s

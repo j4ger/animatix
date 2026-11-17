@@ -13,24 +13,28 @@ pub fn run(input: &Path) {
         },
     };
     let mut module_graph = ModuleGraph::new();
-    let (ast, namespaces) = match module_graph.load_program_with_source(input, Some(&source)) {
-        Ok(mut program) => {
-            let _ = program.typecheck();
-            let mut expansion_errors = Vec::new();
-            let expanded = program.expand_components(&mut expansion_errors);
-            (expanded, program.namespaces)
-        },
-        Err(e) => {
-            error!("Error: {}", e);
-            std::process::exit(1);
-        },
-    };
+    let (expanded, namespaces, function_context) =
+        match module_graph.load_program_with_source(input, Some(&source)) {
+            Ok(mut program) => {
+                let _ = program.typecheck();
+                let mut expansion_errors = Vec::new();
+                let expanded = program.expand_components(&mut expansion_errors);
+                (expanded, program.namespaces, program.function_context)
+            },
+            Err(e) => {
+                error!("Error: {}", e);
+                std::process::exit(1);
+            },
+        };
     let context = std::sync::Arc::new(animatix::extension_context::ExtensionContext::new());
     let report = BuildTarget::build_with_options(
-        &ast,
+        &expanded.statements,
         &namespaces,
         Some(input),
-        animatix::timeline::BuildOptions::default().with_context(context),
+        animatix::timeline::BuildOptions::default()
+            .with_context(context)
+            .with_function_context(&function_context)
+            .with_expanded(&expanded),
     );
     match report.output {
         BuildTarget::MultiScene(comp) => {

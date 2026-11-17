@@ -100,15 +100,6 @@ fn visit_stmts(stmts: &[Stmt], actor: Option<&str>, diagnostics: &mut Vec<Diagno
                 visit_modifiers(modifiers, actor, diagnostics);
                 visit_stmts(body, actor, diagnostics);
             },
-            Stmt::Action(action, _) => {
-                for arg in &action.args {
-                    visit_expr(arg, actor, actor.unwrap_or("action"), None, diagnostics);
-                }
-                for index in action.target_index.iter().flatten() {
-                    visit_expr(index, actor, actor.unwrap_or("action"), None, diagnostics);
-                }
-                visit_modifiers(&action.modifiers, actor, diagnostics);
-            },
             Stmt::ComponentDef(def, _) => visit_stmts(&def.body, actor, diagnostics),
             Stmt::FnDecl { body, .. } => visit_stmts(body, actor, diagnostics),
             Stmt::Scene { body, .. } => visit_stmts(body, actor, diagnostics),
@@ -176,6 +167,9 @@ fn visit_inline_items(
                 visit_inline_items(body, actor, diagnostics);
             },
             InlineItem::SlotFill { items, .. } => visit_inline_items(items, actor, diagnostics),
+            InlineItem::Expr(expr, _) => {
+                visit_expr(expr, actor, actor.unwrap_or("timeline"), None, diagnostics)
+            },
             InlineItem::SlotMarker => {},
         }
     }
@@ -193,13 +187,21 @@ fn visit_expr(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     animatix_syntax::walk::walk_expr(expr, &mut |candidate| {
-        let Expr::Call(name, args) = candidate else {
+        let Expr::Call(callee, args) = candidate else {
             return;
         };
-        if name != "format" {
+        if !callee
+            .callable_name()
+            .is_some_and(|name| name == "format" || name == "std::format")
+        {
             return;
         }
-        let Some(Expr::Str(template)) = args.first() else {
+        let Some(Expr::Str(template)) = args
+            .iter()
+            .find(|arg| arg.name.as_deref() == Some("template"))
+            .or_else(|| args.first())
+            .map(|arg| &arg.value)
+        else {
             return;
         };
         let named = actor.unwrap_or(subject);

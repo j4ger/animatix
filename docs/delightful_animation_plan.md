@@ -12,7 +12,7 @@
 
 | # | 痛点表现 | 根本原因与代码证据 | 视觉与维护缺陷 |
 |---|---------|-------------------|-------------|
-| **P1** | **排版表现力僵硬** | 1. `draw-in` 仅在 `dispatch.rs` 做粗暴的 `paths.truncate(n)` 数组截断；<br>2. 缺乏 Split-Text 原语，`motion_poster.amx` 被迫将单个单词拆成 6 个 `Text` 塞进 `Row`，**彻底摧毁了字距微调（Kerning）和合字**；<br>3. `fill_gradient` 在 `property.rs` 限制为 `AllShapesExceptLine`，文本无法使用渐变；<br>4. 计数器在 `always` 里每帧格式化，每帧击穿 `lock_compile_cache()` 导致全量字体解析。 | 标题文字毫无弹性与呼吸感，无法实现现代 SaaS / Apple 级的字符升起裁切与流光文字。 |
+| **P1** | **排版表现力僵硬** | 1. `draw_in` 仅在 `dispatch.rs` 做粗暴的 `paths.truncate(n)` 数组截断；<br>2. 缺乏 Split-Text 原语，`motion_poster.amx` 被迫将单个单词拆成 6 个 `Text` 塞进 `Row`，**彻底摧毁了字距微调（Kerning）和合字**；<br>3. `fill_gradient` 在 `property.rs` 限制为 `AllShapesExceptLine`，文本无法使用渐变；<br>4. 计数器在 `always` 里每帧格式化，每帧击穿 `lock_compile_cache()` 导致全量字体解析。 | 标题文字毫无弹性与呼吸感，无法实现现代 SaaS / Apple 级的字符升起裁切与流光文字。 |
 | **P2** | **缺乏智能连线与端口吸附** | 只有两点直线的 `Line` / `Arrow`。画正交圆角折线必须手写 `Path, commands: {move_to, line_to, quad_to...}`，**所有拐点和箭头坐标全靠作者草稿纸手算**；且节点移动后连线不会跟随。 | 绘制架构图、流程图极度痛苦，节点位置微调导致所有连线瞬间错位报废。 |
 | **P3** | **物理断层与速度冲击** | 1. 新动作打断旧动作时（`actions/motion/`），仅采样位置点插入新缓动帧，**初速度强行归零或突变**（$C^0$ 连续但 $C^1$ 断裂）；<br>2. `Easing::Spring` (`easing.rs`) 初速度被写死为阻尼系数，无法传导惯性；<br>3. 缺乏跟随机制，`hero.amx` 中下划线与滑块必须手动硬编码相同时间/缓动/像素。 | 动作切换生硬机械，缺乏真实物体的惯性传递与次级运动（Secondary Motion）。 |
 | **P4** | **材质与光影开销沉重** | 1. 卡片投影必须嵌套 `Filter` 作用域；每个 `Filter` 触发一次独立离屏 Vello 光栅化 + 3 次贴图拷贝 + 16-Tap 泊松圆盘 Compute 采样 + 1 次 Blit（`filter_backend.rs`），**完全无法 GPU 合并批处理**；<br>2. 场景树受限于 `kurbo::Affine` 纯 2D 仿射变换，无 2.5D 深度。 | 卡片缺乏层次悬浮感；少量卡片阴影即可导致 GPU 显存带宽击穿、帧率跌破 60fps。 |
@@ -126,7 +126,7 @@ flowchart TD
        }
        ```
     2. **时间轴单轨进度**（`crates/animatix/src/timeline/actions/reveal.rs`）：
-       扩展动作修饰符：`draw-in [by: word, stagger: 40ms, offset_y: 24, mask: baseline]`。
+       扩展动作修饰符：`draw_in [by: word, stagger: 40ms, offset_y: 24, mask: baseline]`。
     3. **帧求值仿射映射**（`crates/animatix/src/primitives/text.rs`）：
        求值阶段遍历各字形，字形序号 $k$ 根据全局进度 $P$ 计算局部归一化时间 $t_k = \text{clamp}\left(\frac{P - k \cdot \text{stagger}}{1 - (K-1)\cdot \text{stagger}}, 0, 1\right)$。
        计算局部位移 $\Delta y_k$ 与透明度 $\text{opacity}_k$。
@@ -251,12 +251,12 @@ req: Connector,
 
 #step 1
 stagger [100ms] {
-  settle-in client [400ms]
-  settle-in server [400ms]
+  settle_in(target: client, duration: 400ms)
+  settle_in(target: server, duration: 400ms)
 }
 
 #step 2
-draw-in req [600ms]
+draw_in(target: req, duration: 600ms)
 ```
 
 ---

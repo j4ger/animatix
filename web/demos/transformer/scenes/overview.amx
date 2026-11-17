@@ -14,12 +14,13 @@
 // House-style §1: the StageFloor and the ActHead carry authored opacity, so
 // frame 0 is a lit, titled stage; the diagram is revealed within it.
 // House-style §5: nothing here renders below 16 px.
-
 import "../../../../examples/lib/theme.amx"
+
 import "../../../../examples/lib/stage.amx"
+
 import "../../../../examples/lib/components.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 11.0 }
+config { colorscheme: "ink", resolution: (1280, 720), duration: 11 }
 
 // The slider target: `--set depth=N` rewrites the block title and readouts.
 let depth = 12
@@ -27,249 +28,246 @@ let depth = 12
 // ── the stage ───────────────────────────────────────────────────────
 floor: StageFloor, glow: 1.3
 
-head_kicker: Text, text: "FIG 00 · FULL ARCHITECTURE BLUEPRINT", font_size: 18,
-  font_weight: 600, color: accent.primary, text_align: "left", text_anchor: "left",
-  anchor: scene.top_left, offset: (96, 56), opacity: 1
-head_title: Text, text: "One loop that writes", font_size: 48, font_weight: "bold",
-  color: text.primary, text_align: "left", text_anchor: "left",
-  anchor: scene.top_left, offset: (96, 96), opacity: 1
-head_rule: Rect, size: (96, 4), color: accent.primary,
-  anchor: scene.top_left, offset: (96, 150), opacity: 1
+head_kicker: Text, text: "FIG 00 · FULL ARCHITECTURE BLUEPRINT", font_size: 18, font_weight: 600, color: accent.primary, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (96, 56), opacity: 1
+
+head_title: Text, text: "One loop that writes", font_size: 48, font_weight: "bold", color: text.primary, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (96, 96), opacity: 1
+
+head_rule: Rect, size: (96, 4), color: accent.primary, anchor: scene.top_left, offset: (96, 150), opacity: 1
 
 cap1: Caption, text: "Tokens enter with a blank slot awaiting prediction.", tag: "overview.amx"
+
 cap2: Caption, text: "Hidden states climb through repeated blocks (× N).", tag: "overview.amx", opacity: 0
+
 cap3: Caption, text: "Autoregressive loop appends “street” back to input.", tag: "overview.amx", opacity: 0
 
 // ── Level 1: Input Sequence Baseline (y = 592) ──────────────────────
 in_row: Row, at: (560, 592), gap: 16, align: "center" {
-  in1: LabeledBox, label: "The", width: 110, height: 54, text_size: 18, corner: 12
-  in2: LabeledBox, label: "animal", width: 110, height: 54, text_size: 18, corner: 12
-  in3: LabeledBox, label: "didn't", width: 110, height: 54, text_size: 18, corner: 12
-  in4: LabeledBox, label: "cross", width: 110, height: 54, text_size: 18, corner: 12
-  in5: LabeledBox, label: "the", width: 110, height: 54, text_size: 18, corner: 12
+in1: LabeledBox, label: "The", width: 110, height: 54, text_size: 18, corner: 12
+in2: LabeledBox, label: "animal", width: 110, height: 54, text_size: 18, corner: 12
+in3: LabeledBox, label: "didn't", width: 110, height: 54, text_size: 18, corner: 12
+in4: LabeledBox, label: "cross", width: 110, height: 54, text_size: 18, corner: 12
+in5: LabeledBox, label: "the", width: 110, height: 54, text_size: 18, corner: 12
 }
 
 // The hook: a dashed blank where the prediction will land, with a caret that
 // blinks for the whole loop so the plate never reads as stalled.
-blank: LabeledBox, label: "?", width: 116, height: 54, text_size: 18, corner: 12,
-  fill: surface.secondary, stroke: text.muted, stroke_width: 2, at: (938, 592)
+blank: LabeledBox, label: "?", width: 116, height: 54, text_size: 18, corner: 12, fill: surface.secondary, stroke: text.muted, stroke_width: 2, at: (938, 592)
+
 caret: Rect, size: (3, 30), corner_radius: 1, color: accent.primary, at: (938, 592), opacity: 0.9
 
 // ── Connectors on Vertical Spine ────────────────────────────────────
 up1: Arrow, from: (560, 556), to: (560, 542), head_size: 8, stroke_width: 2, stroke: text.muted, opacity: 0
+
 up2: Arrow, from: (560, 491), to: (560, 473), head_size: 8, stroke_width: 2, stroke: text.muted, opacity: 0
+
 up3: Arrow, from: (560, 196), to: (560, 176), head_size: 8, stroke_width: 2, stroke: text.muted, opacity: 0
 
 // Smooth autoregressive feedback arc: from LM prediction back to input
-loopback: Path, commands: {
-  move_to(1060, 184), quad_to(1160, 380, 938, 556)
-}, color: accent.primary, stroke: accent.primary, stroke_width: 2.5, opacity: 0, fill_opacity: 0
+loopback: Path, commands: {move_to(1060, 184), quad_to(1160, 380, 938, 556)}, color: accent.primary, stroke: accent.primary, stroke_width: 2.5, opacity: 0, fill_opacity: 0
 
 // A wide screen-blended copy of the same geometry is the loopback's bloom:
 // the payoff flare (house-style §7) arrives with the stroke, not ahead of it.
-loop_glow: Path, commands: {
-  move_to(1060, 184), quad_to(1160, 380, 938, 556)
-}, stroke: accent.primary, stroke_width: 14, fill_opacity: 0, blend: "screen", opacity: 0
+loop_glow: Path, commands: {move_to(1060, 184), quad_to(1160, 380, 938, 556)}, stroke: accent.primary, stroke_width: 14, fill_opacity: 0, blend: "screen", opacity: 0
 
-loop_arrow: Arrow, from: (944, 544), to: (938, 560), head_size: 12, stroke_width: 2.5,
-  stroke: accent.primary, opacity: 0
+loop_arrow: Arrow, from: (944, 544), to: (938, 560), head_size: 12, stroke_width: 2.5, stroke: accent.primary, opacity: 0
 
 // ── Level 2: Embedding + Position Plate (y = 516) ───────────────────
 plate_stack: Stack, at: (560, 516) {
-  plate: Rect, size: (680, 48), corner_radius: 12, color: surface.primary,
-    stroke: stroke.default, stroke_width: 1.4
-  plate_t: Text, text: "Token Embeddings + Positional Encodings (768 Float32)", font_size: 18,
-    color: text.primary
+plate: Rect, size: (680, 48), corner_radius: 12, color: surface.primary, stroke: stroke.default, stroke_width: 1.4
+plate_t: Text, text: "Token Embeddings + Positional Encodings (768 Float32)", font_size: 18, color: text.primary
 }
+
 tag_e: Text, text: "01 · 02", font_size: 16, color: accent.primary, at: (938, 516)
 
 // ── Level 3: Transformer Block × N (y = 330) ────────────────────────
-blk: Rect, size: (720, 280), corner_radius: 18, color: surface.primary,
-  stroke: stroke.default, stroke_width: 1.5, opacity: 0, at: (560, 330)
-blk_title: Text, text: format("Transformer Block × N (Depth = {:.0})", depth), font_size: 20,
-  color: text.primary, at: (560, 182)
+blk: Rect, size: (720, 280), corner_radius: 18, color: surface.primary, stroke: stroke.default, stroke_width: 1.5, opacity: 0, at: (560, 330)
+
+blk_title: Text, text: format("Transformer Block × N (Depth = {:.0})", depth), font_size: 20, color: text.primary, at: (560, 182)
+
 tag_blk: Text, text: "06", font_size: 16, color: accent.primary, at: (790, 182)
 
 rail: Rect, size: (660, 6), corner_radius: 3, color: stroke.default, opacity: 0, at: (560, 330)
+
 rail_lab: Text, text: "residual stream", font_size: 16, color: text.muted, at: (280, 386)
 
 // Skip connections inside the block
-skip1: Path, commands: {
-  move_to(270, 330), quad_to(430, 110, 590, 330)
-}, color: accent.primary, stroke: accent.primary, stroke_width: 2, opacity: 0, fill_opacity: 0
-skip2: Path, commands: {
-  move_to(590, 330), quad_to(740, 110, 850, 330)
-}, color: accent.success, stroke: accent.success, stroke_width: 2, opacity: 0, fill_opacity: 0
+skip1: Path, commands: {move_to(270, 330), quad_to(430, 110, 590, 330)}, color: accent.primary, stroke: accent.primary, stroke_width: 2, opacity: 0, fill_opacity: 0
+
+skip2: Path, commands: {move_to(590, 330), quad_to(740, 110, 850, 330)}, color: accent.success, stroke: accent.success, stroke_width: 2, opacity: 0, fill_opacity: 0
 
 ln1_stack: Stack, at: (290, 330) {
-  ln1: Ellipse, size: (58, 58), color: surface.primary, stroke: accent.warning, stroke_width: 2.2
-  ln1_t: Text, text: "LN", font_size: 16, color: text.primary
+ln1: Ellipse, size: (58, 58), color: surface.primary, stroke: accent.warning, stroke_width: 2.2
+ln1_t: Text, text: "LN", font_size: 16, color: text.primary
 }
+
 ln2_stack: Stack, at: (590, 330) {
-  ln2: Ellipse, size: (58, 58), color: surface.primary, stroke: accent.warning, stroke_width: 2.2
-  ln2_t: Text, text: "LN", font_size: 16, color: text.primary
+ln2: Ellipse, size: (58, 58), color: surface.primary, stroke: accent.warning, stroke_width: 2.2
+ln2_t: Text, text: "LN", font_size: 16, color: text.primary
 }
 
 attn_stack: Stack, at: (440, 330) {
-  attn: Rect, size: (180, 116), corner_radius: 14, color: surface.primary,
-    stroke: accent.info, stroke_width: 1.8
-  attn_content: Col, gap: 6, align: "center" {
-    attn_t: Text, text: "Self-Attention", font_size: 18, color: text.primary
-    attn_s: Text, text: "tokens communicate", font_size: 16, color: accent.info
+attn: Rect, size: (180, 116), corner_radius: 14, color: surface.primary, stroke: accent.info, stroke_width: 1.8
+attn_content: Col, gap: 6, align: "center" {
+attn_t: Text, text: "Self-Attention", font_size: 18, color: text.primary
+attn_s: Text, text: "tokens communicate", font_size: 16, color: accent.info
   }
 }
+
 tag_attn: Text, text: "03 · 04", font_size: 16, color: accent.primary, at: (440, 250)
 
 ffn_stack: Stack, at: (720, 330) {
-  ffn: Rect, size: (180, 116), corner_radius: 14, color: surface.primary,
-    stroke: accent.success, stroke_width: 1.8
-  ffn_content: Col, gap: 6, align: "center" {
-    ffn_t: Text, text: "Feed-Forward", font_size: 18, color: text.primary
-    ffn_s: Text, text: "factual memory", font_size: 16, color: accent.success
+ffn: Rect, size: (180, 116), corner_radius: 14, color: surface.primary, stroke: accent.success, stroke_width: 1.8
+ffn_content: Col, gap: 6, align: "center" {
+ffn_t: Text, text: "Feed-Forward", font_size: 18, color: text.primary
+ffn_s: Text, text: "factual memory", font_size: 16, color: accent.success
   }
 }
+
 tag_ffn: Text, text: "05", font_size: 16, color: accent.primary, at: (720, 250)
 
 // ── Level 4: LM Head & Probability Distribution (y = 128) ───────────
 lmh_stack: Stack, at: (560, 148) {
-  lmh: Rect, size: (420, 48), corner_radius: 12, color: surface.primary,
-    stroke: accent.primary, stroke_width: 1.8
-  lmh_t: Text, text: "LM Head: Linear + Softmax (50,257 Logits)", font_size: 18, color: text.primary
+lmh: Rect, size: (420, 48), corner_radius: 12, color: surface.primary, stroke: accent.primary, stroke_width: 1.8
+lmh_t: Text, text: "LM Head: Linear + Softmax (50,257 Logits)", font_size: 18, color: text.primary
 }
 
 prob_cap: Text, text: "Next Token Probabilities", font_size: 16, color: text.muted, at: (1060, 100)
 
 pw0: Text, text: "street", font_size: 16, color: accent.primary, at: (968, 124)
+
 pw1: Text, text: "road", font_size: 16, color: text.secondary, at: (968, 150)
+
 pw2: Text, text: "grass", font_size: 16, color: text.secondary, at: (968, 176)
 
 pb0: Rect, size: (140, 16), corner_radius: 4, color: accent.primary, at: (1062, 124)
+
 pb1: Rect, size: (76, 16), corner_radius: 4, color: text.secondary, opacity: 0, at: (1030, 150)
+
 pb2: Rect, size: (20, 16), corner_radius: 4, color: text.secondary, opacity: 0, at: (1002, 176)
 
 pv0: Text, text: "0.41", font_size: 16, color: accent.primary, at: (1160, 124)
+
 pv1: Text, text: "0.22", font_size: 16, color: text.secondary, at: (1160, 150)
+
 pv2: Text, text: "0.05", font_size: 16, color: text.secondary, at: (1160, 176)
 
 // ── Timeline Choreography ───────────────────────────────────────────
 // Act I — the hook: the sentence and its blank are on the lit stage at once.
 #0.05s
-stagger [90ms] {
-  fade-in in1 [340ms, ease: expo-out]
-  fade-in in2 [340ms, ease: expo-out]
-  fade-in in3 [340ms, ease: expo-out]
-  fade-in in4 [340ms, ease: expo-out]
-  fade-in in5 [340ms, ease: expo-out]
-}
-pop-in blank [420ms, ease: expo-out, delay: 480ms]
-
-always {
-  // The caret blinks on the loop phase and dims out as the prediction lands:
-  // `always` owns this opacity outright (no keyframe may touch it, or the
-  // build warns that the keyframe is silently overridden).
-  caret.opacity = (0.35 + 0.55 * (0.5 + 0.5 * sin(t * 6.283185307179586 * 1.1))) * clamp((7.9 - t) / 0.3, 0, 1)
-}
+  stagger [0.09s] {
+      fade_in(target: in1, duration: 0.34s, ease: expo_out)
+      fade_in(target: in2, duration: 0.34s, ease: expo_out)
+      fade_in(target: in3, duration: 0.34s, ease: expo_out)
+      fade_in(target: in4, duration: 0.34s, ease: expo_out)
+      fade_in(target: in5, duration: 0.34s, ease: expo_out)
+    }
+  pop_in(target: blank, duration: 0.42s, ease: expo_out, delay: 0.48s)
+  always {
+      // The caret blinks on the loop phase and dims out as the prediction lands:
+      // `always` owns this opacity outright (no keyframe may touch it, or the
+      // build warns that the keyframe is silently overridden).
+      caret.opacity = (0.35 + 0.55 * (0.5 + 0.5 * sin((t * 6.283185307179586) * 1.1))) * clamp((7.9 - t) / 0.3, 0, 1)
+    }
 
 // Act II — the mechanism: the climb, then the block's internals in execution
 // order. No dead hold: the first connector draws 0.85 s in.
 #0.9s
-fade-out cap1 [240ms, ease: ease-in]
-fade-in cap2 [280ms, delay: 200ms, ease: expo-out]
-draw-in up1 [260ms, ease: expo-out]
-up1.opacity = 0.65 [240ms]
-wipe-in plate [400ms, ease: expo-out]
-fade-in plate_t [300ms, delay: 180ms, ease: expo-out]
-fade-in tag_e [280ms, delay: 320ms, ease: expo-out]
+  fade_out(target: cap1, duration: 0.24s, ease: ease_in)
+  fade_in(target: cap2, duration: 0.28s, delay: 0.2s, ease: expo_out)
+  draw_in(target: up1, duration: 0.26s, ease: expo_out)
+  up1.opacity = 0.65[0.24s]
+  wipe_in(target: plate, duration: 0.4s, ease: expo_out)
+  fade_in(target: plate_t, duration: 0.3s, delay: 0.18s, ease: expo_out)
+  fade_in(target: tag_e, duration: 0.28s, delay: 0.32s, ease: expo_out)
 
 #1.9s
-draw-in up2 [260ms, ease: expo-out]
-up2.opacity = 0.65 [240ms]
-wipe-in blk [460ms, ease: expo-out]
-blk.opacity = 0.95 [420ms]
-fade-in blk_title [320ms, delay: 200ms, ease: expo-out]
-fade-in tag_blk [280ms, delay: 380ms, ease: expo-out]
+  draw_in(target: up2, duration: 0.26s, ease: expo_out)
+  up2.opacity = 0.65[0.24s]
+  wipe_in(target: blk, duration: 0.46s, ease: expo_out)
+  blk.opacity = 0.95[0.42s]
+  fade_in(target: blk_title, duration: 0.32s, delay: 0.2s, ease: expo_out)
+  fade_in(target: tag_blk, duration: 0.28s, delay: 0.38s, ease: expo_out)
 
 #2.6s
-draw-in rail [560ms, ease: expo-out]
-rail.opacity = 0.50 [500ms]
-fade-in rail_lab [320ms, delay: 360ms, ease: expo-out]
-wipe-in ln1 [340ms, ease: expo-out]
-fade-in ln1_t [220ms, delay: 160ms, ease: expo-out]
+  draw_in(target: rail, duration: 0.56s, ease: expo_out)
+  rail.opacity = 0.5[0.5s]
+  fade_in(target: rail_lab, duration: 0.32s, delay: 0.36s, ease: expo_out)
+  wipe_in(target: ln1, duration: 0.34s, ease: expo_out)
+  fade_in(target: ln1_t, duration: 0.22s, delay: 0.16s, ease: expo_out)
 
-#3.0s
-wipe-in attn [400ms, ease: expo-out]
-fade-in attn_t [260ms, delay: 180ms, ease: expo-out]
-fade-in attn_s [240ms, delay: 300ms, ease: expo-out]
-fade-in tag_attn [260ms, delay: 280ms, ease: expo-out]
+#3s
+  wipe_in(target: attn, duration: 0.4s, ease: expo_out)
+  fade_in(target: attn_t, duration: 0.26s, delay: 0.18s, ease: expo_out)
+  fade_in(target: attn_s, duration: 0.24s, delay: 0.3s, ease: expo_out)
+  fade_in(target: tag_attn, duration: 0.26s, delay: 0.28s, ease: expo_out)
 
 #3.5s
-draw-in skip1 [480ms, ease: expo-out]
-skip1.opacity = 0.65 [440ms]
+  draw_in(target: skip1, duration: 0.48s, ease: expo_out)
+  skip1.opacity = 0.65[0.44s]
 
 #3.9s
-wipe-in ln2 [340ms, ease: expo-out]
-fade-in ln2_t [220ms, delay: 160ms, ease: expo-out]
+  wipe_in(target: ln2, duration: 0.34s, ease: expo_out)
+  fade_in(target: ln2_t, duration: 0.22s, delay: 0.16s, ease: expo_out)
 
 #4.2s
-wipe-in ffn [400ms, ease: expo-out]
-fade-in ffn_t [260ms, delay: 180ms, ease: expo-out]
-fade-in ffn_s [240ms, delay: 300ms, ease: expo-out]
-fade-in tag_ffn [260ms, delay: 280ms, ease: expo-out]
+  wipe_in(target: ffn, duration: 0.4s, ease: expo_out)
+  fade_in(target: ffn_t, duration: 0.26s, delay: 0.18s, ease: expo_out)
+  fade_in(target: ffn_s, duration: 0.24s, delay: 0.3s, ease: expo_out)
+  fade_in(target: tag_ffn, duration: 0.26s, delay: 0.28s, ease: expo_out)
 
 #4.7s
-draw-in skip2 [480ms, ease: expo-out]
-skip2.opacity = 0.65 [440ms]
+  draw_in(target: skip2, duration: 0.48s, ease: expo_out)
+  skip2.opacity = 0.65[0.44s]
 
 #5.2s
-draw-in up3 [260ms, ease: expo-out]
-up3.opacity = 0.65 [240ms]
-wipe-in lmh [400ms, ease: expo-out]
-fade-in lmh_t [300ms, delay: 180ms, ease: expo-out]
+  draw_in(target: up3, duration: 0.26s, ease: expo_out)
+  up3.opacity = 0.65[0.24s]
+  wipe_in(target: lmh, duration: 0.4s, ease: expo_out)
+  fade_in(target: lmh_t, duration: 0.3s, delay: 0.18s, ease: expo_out)
 
 #5.8s
-fade-in prob_cap [260ms, ease: expo-out]
-stagger [110ms] {
-  wipe-in pb0 [300ms, ease: expo-out]
-  pb1.opacity = 0.45 [300ms]
-  pb2.opacity = 0.45 [300ms]
-}
-stagger [110ms] {
-  fade-in pw0 [240ms, ease: expo-out]
-  fade-in pw1 [240ms, ease: expo-out]
-  fade-in pw2 [240ms, ease: expo-out]
-}
-stagger [110ms] {
-  fade-in pv0 [220ms, ease: expo-out]
-  fade-in pv1 [220ms, ease: expo-out]
-  fade-in pv2 [220ms, ease: expo-out]
-}
+  fade_in(target: prob_cap, duration: 0.26s, ease: expo_out)
+  stagger [0.11s] {
+      wipe_in(target: pb0, duration: 0.3s, ease: expo_out)
+      pb1.opacity = 0.45[0.3s]
+      pb2.opacity = 0.45[0.3s]
+    }
+  stagger [0.11s] {
+      fade_in(target: pw0, duration: 0.24s, ease: expo_out)
+      fade_in(target: pw1, duration: 0.24s, ease: expo_out)
+      fade_in(target: pw2, duration: 0.24s, ease: expo_out)
+    }
+  stagger [0.11s] {
+      fade_in(target: pv0, duration: 0.22s, ease: expo_out)
+      fade_in(target: pv1, duration: 0.22s, ease: expo_out)
+      fade_in(target: pv2, duration: 0.22s, ease: expo_out)
+    }
 
 // Act III — the payoff: the loopback draws with its bloom, the blank trades
 // places with the prediction, and the camera pushes a touch and settles back
 // so the resting frame is the whole blueprint at rest (house-style §2, §7).
 #6.8s
-fade-out cap2 [240ms, ease: ease-in]
-fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
-draw-in loopback [650ms, ease: expo-out]
-loopback.opacity = 0.95 [600ms]
-fade-in loop_glow [500ms, ease: expo-out]
-loop_glow.opacity = 0.35 [500ms]
-draw-in loop_arrow [300ms, delay: 500ms, ease: expo-out]
-loop_arrow.opacity = 0.95 [260ms, delay: 500ms]
+  fade_out(target: cap2, duration: 0.24s, ease: ease_in)
+  fade_in(target: cap3, duration: 0.28s, delay: 0.2s, ease: expo_out)
+  draw_in(target: loopback, duration: 0.65s, ease: expo_out)
+  loopback.opacity = 0.95[0.6s]
+  fade_in(target: loop_glow, duration: 0.5s, ease: expo_out)
+  loop_glow.opacity = 0.35[0.5s]
+  draw_in(target: loop_arrow, duration: 0.3s, delay: 0.5s, ease: expo_out)
+  loop_arrow.opacity = 0.95 [0.26s, delay: 0.5s]
 
 #7.6s
-fade-out blank [260ms, ease: ease-in]
-// Declared inside its cue: an instance-level `opacity: 0` does not reach a
-// component's inner actors, so a pre-declared `street` box leaked its outline
-// from frame 0. Declaring it here makes it exist only from the payoff.
-street: LabeledBox, label: "street", width: 116, height: 54, text_size: 18, corner: 12,
-  fill: surface.primary, stroke: accent.primary, stroke_width: 2.2, at: (938, 592)
-pulse street [600ms, intensity: 0.05, delay: 500ms]
+  fade_out(target: blank, duration: 0.26s, ease: ease_in)
+  // Declared inside its cue: an instance-level `opacity: 0` does not reach a
+  // component's inner actors, so a pre-declared `street` box leaked its outline
+  // from frame 0. Declaring it here makes it exist only from the payoff.
+  street: LabeledBox, label: "street", width: 116, height: 54, text_size: 18, corner: 12, fill: surface.primary, stroke: accent.primary, stroke_width: 2.2, at: (938, 592)
+  pulse(target: street, duration: 0.6s, intensity: 0.05, delay: 0.5s)
 
 #8.8s
-loop_glow.opacity = 0.12 [900ms, ease: ease-in-out]
+  loop_glow.opacity = 0.12 [0.9s, ease: ease_in_out]
 
 // ── Rest ────────────────────────────────────────────────────────────
-#10.0s
+#10s
 // The assembled blueprint — tokens, prediction, block internals, probability
 // ladder and loopback — holds. Nothing erases; the loop wraps onto itself.

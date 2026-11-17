@@ -25,7 +25,7 @@ fn audit_json_shape_and_default_exit_zero() {
     // surface it and still exit 0 under the default '--fail-on error'.
     let (_project, input) = temp_project(
         "json",
-        "#0s\nghost: Text, text: \"hidden\", at: (10, 10)\n#1s\nfade-in ghost [100ms]\n",
+        "#0s\nghost: Text, text: \"hidden\", at: (10, 10)\n#1s\nfade_in(target: ghost, duration: 100ms)\n",
     );
     let output = Command::new(target_bin())
         .args([
@@ -78,7 +78,7 @@ fn audit_json_shape_and_default_exit_zero() {
 fn audit_fail_on_warning_exits_one_but_never_exits_zero() {
     let (_project, input) = temp_project(
         "exit",
-        "#0s\nghost: Text, text: \"hidden\", at: (10, 10)\n#1s\nfade-in ghost [100ms]\n",
+        "#0s\nghost: Text, text: \"hidden\", at: (10, 10)\n#1s\nfade_in(target: ghost, duration: 100ms)\n",
     );
     let path = input.to_str().unwrap();
 

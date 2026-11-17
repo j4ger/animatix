@@ -1,6 +1,9 @@
+use animatix_core::callable::{
+    CallableDescriptor, CallableParam, CallablePhase, CallableType, DefaultValue,
+};
 use animatix_syntax::schema::{
-    ActionParam, ActionSignature, ChildProcessingKind, FunctionDescriptor, PrimitiveCapabilities,
-    PrimitiveCategory, PrimitiveSpec, PropertyDescriptor, PropertyValueKind, ServiceDescriptor,
+    ChildProcessingKind, PrimitiveCapabilities, PrimitiveCategory, PrimitiveSpec,
+    PropertyDescriptor, PropertyValueKind, ServiceDescriptor,
 };
 use animatix_syntax::typing::Type;
 
@@ -35,16 +38,27 @@ type = "Num"
 }
 
 #[test]
-fn applies_action_function_and_service_names() {
+fn applies_unified_callable_and_service_names() {
     let manifest = ExtensionManifest::from_toml(
         r#"
-[[actions]]
-name = "pulse"
+[[callables]]
+namespace = "demo"
+name = "throb"
+return_type = "Timeline"
+phase = "Build"
 category = "Native"
-description = "Demo action"
+help = "Demo timeline callable"
 
-[[functions]]
+[[callables.params]]
+name = "target"
+type = "Actor"
+optional = true
+
+[[callables]]
+namespace = "demo"
 name = "double"
+return_type = "Num"
+phase = "BuildAndFrame"
 
 [[services]]
 name = "demo.pulse"
@@ -54,9 +68,22 @@ name = "demo.pulse"
 
     let mut table = SymbolTable::default();
     manifest.apply_to(&mut table);
-    assert!(table.actions.contains("pulse"));
-    assert!(table.functions.contains("double"));
+    assert!(table.functions.contains("demo::throb"));
+    assert!(table.functions.contains("demo::double"));
     assert!(table.services.contains("demo.pulse"));
+    assert!(ExtensionManifest::from_toml("[[actions]]\nname = 'pulse'\n").is_err());
+    assert!(ExtensionManifest::from_toml("[[functions]]\nname = 'double'\n").is_err());
+}
+
+#[test]
+fn rejects_reserved_standard_namespace_tree() {
+    for namespace in ["std", "std::internal"] {
+        let source = format!(
+            "[[callables]]\nnamespace = '{namespace}'\nname = 'custom'\nreturn_type = 'Num'\nphase = 'BuildAndFrame'\n"
+        );
+        let error = ExtensionManifest::from_toml(&source).expect_err("std namespace is reserved");
+        assert!(error.contains("reserved `std` namespace"), "{error}");
+    }
 }
 
 #[test]
@@ -157,26 +184,37 @@ fn runtime_manifest_roundtrips_through_toml() {
         help: Some("Pulse radius glow amount".to_string()),
     };
 
-    let action = ActionSignature {
-        name: "pulse".to_string(),
+    let callable = CallableDescriptor {
+        namespace: "demo".to_string(),
+        name: "throb".to_string(),
+        params: vec![CallableParam {
+            name: "strength".to_string(),
+            ty: CallableType::Num,
+            default: Some(DefaultValue::Num(0.5)),
+            optional: true,
+            variadic: false,
+            help: "Target actor".to_string(),
+        }],
+        return_type: CallableType::Timeline,
+        phase: CallablePhase::Build,
+        help: "Demo timeline callable".to_string(),
         category: "Native".to_string(),
-        description: "Demo pulse action".to_string(),
-        params: vec![ActionParam {
-            name: "target".to_string(),
-            description: "Target actor".to_string(),
-            type_info: "Str".to_string(),
-        }],
-        modifiers: vec![],
     };
-    let function = FunctionDescriptor {
+    let function = CallableDescriptor {
+        namespace: "demo".to_string(),
         name: "double".to_string(),
-        params: vec![ActionParam {
+        params: vec![CallableParam {
             name: "value".to_string(),
-            description: "Input value".to_string(),
-            type_info: "Num".to_string(),
+            ty: CallableType::Num,
+            default: None,
+            optional: false,
+            variadic: false,
+            help: "Input value".to_string(),
         }],
-        return_type: Some(Type::Num),
-        help: Some("Doubles a value".to_string()),
+        return_type: CallableType::Num,
+        phase: CallablePhase::BuildAndFrame,
+        help: "Doubles a value".to_string(),
+        category: "Math".to_string(),
     };
     let service = ServiceDescriptor {
         name: "demo.pulse".to_string(),
@@ -188,8 +226,7 @@ fn runtime_manifest_roundtrips_through_toml() {
         Some("libdemo.so".to_string()),
         &[primitive],
         &[property],
-        &[action],
-        &[function],
+        &[callable, function],
         &[service],
         &[],
     );
@@ -197,8 +234,9 @@ fn runtime_manifest_roundtrips_through_toml() {
     assert!(toml.contains("icon_id = \"extension:pulse\""));
     assert!(toml.contains("type = \"U32\""));
     assert!(toml.contains("child_processing = \"Filter\""));
-    assert!(toml.contains("[[actions]]"));
-    assert!(toml.contains("[[functions]]"));
+    assert!(toml.contains("[[callables]]"));
+    assert!(!toml.contains("[[actions]]"));
+    assert!(!toml.contains("[[functions]]"));
     assert!(toml.contains("[[services]]"));
 
     let parsed = ExtensionManifest::from_toml(&toml).expect("parse manifest");

@@ -13,8 +13,8 @@
 // whole plate, which is what house-style rule 2 demands. In the DSL the loop
 // is declared with `seamless_loop: true` (autoplay/loop/hold are player
 // attributes, not config keys).
-
 import "../../examples/lib/theme.amx"
+
 import "../../examples/lib/stage.amx"
 
 config { colorscheme: "tide", resolution: (1280, 720), duration: 8, seamless_loop: true }
@@ -23,8 +23,7 @@ floor: StageFloor
 
 head: ActHead, kicker: "HOUSE STYLE", title: "A Lit Stage at t=0", sub: "StageFloor, ActHead, Caption and Readout, drawn in the tide palette"
 
-dial: Ellipse, size: (420, 420), at: (880, 410), fill_opacity: 0, stroke: accent.primary, stroke_width: 14,
-  stroke_gradient: sweep(0, {accent.primary, accent.success, accent.info, accent.primary}), opacity: 1
+dial: Ellipse, size: (420, 420), at: (880, 410), fill_opacity: 0, stroke: accent.primary, stroke_width: 14, stroke_gradient: sweep(0, {accent.primary, accent.success, accent.info, accent.primary}), opacity: 1
 
 chip: Readout, label: "PALETTE", value: "tide", at: (250, 560)
 

@@ -7,10 +7,11 @@ use std::sync::Arc;
 
 use animatix_core::caps::ActorCategory;
 
-use crate::ast::{Action, Expr, Modifier, Property, Stmt, Time};
+use crate::ast::{Expr, Modifier, Property, Stmt, Time};
 use crate::diagnostics::{Diagnostic, DiagnosticCode};
 use crate::primitives::{BuildCtx, Primitive};
 use crate::timeline::Timeline;
+use crate::timeline::actions::BuiltinInvocation;
 use crate::timeline::actions::process_action;
 use crate::timeline::actions::registry::BuiltinAction;
 use crate::timeline::property_track::TrackAccessor;
@@ -84,8 +85,8 @@ fn image_decl(label: &str) -> Stmt {
 }
 
 fn action_stmt(verb: &str, target: &str, duration_s: f64) -> Stmt {
-    Stmt::Action(
-        Action {
+    crate::timeline::actions::test_support::invocation_stmt(
+        BuiltinInvocation {
             verb: verb.to_string(),
             targets: vec![target.to_string()],
             args: vec![],
@@ -105,7 +106,7 @@ fn action_stmt(verb: &str, target: &str, duration_s: f64) -> Stmt {
 fn draw_in_sets_stroke_progress_and_delays_fill_until_end() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
-        body: vec![circle_decl("shape"), action_stmt("draw-in", "shape", 1.0)],
+        body: vec![circle_decl("shape"), action_stmt("draw_in", "shape", 1.0)],
         span: None,
     }];
 
@@ -122,7 +123,7 @@ fn draw_in_sets_stroke_progress_and_delays_fill_until_end() {
 
 #[test]
 fn vector_reveal_lifts_hidden_by_default_opacity() {
-    for verb in ["draw-in", "reveal-in"] {
+    for verb in ["draw_in", "reveal_in"] {
         let ast = vec![
             circle_decl("shape"),
             Stmt::Keyframe {
@@ -136,11 +137,11 @@ fn vector_reveal_lifts_hidden_by_default_opacity() {
         let shape_id = report.output.world.get_id("shape").expect("shape id");
         let style = report.output.world.style(shape_id);
 
-        if verb == "draw-in" {
-            // The regression this test pins: draw-in must lift the seeded
+        if verb == "draw_in" {
+            // The regression this test pins: draw_in must lift the seeded
             // opacity from t=0 and ramp it during the draw, not only end at 1.
-            assert_eq!(style.opacity.get(0, 1.0), 0.0, "draw-in hidden at t=0");
-            assert!(style.opacity.get(900, 1.0) > 0.0, "draw-in opacity must rise during the draw");
+            assert_eq!(style.opacity.get(0, 1.0), 0.0, "draw_in hidden at t=0");
+            assert!(style.opacity.get(900, 1.0) > 0.0, "draw_in opacity must rise during the draw");
         }
         assert_eq!(style.opacity.get(400, 1.0), 0.0, "{verb} hidden before");
         assert_eq!(style.opacity.get(1200, 1.0), 1.0, "{verb} visible after");
@@ -151,13 +152,13 @@ fn vector_reveal_lifts_hidden_by_default_opacity() {
 
 #[test]
 fn draw_in_typewriter_lifts_hidden_by_default_opacity() {
-    // Text draw-in animates char_progress only; the opacity hide must
+    // Text draw_in animates char_progress only; the opacity hide must
     // still be lifted so the typewriter effect is visible.
     let ast = vec![
         text_decl("headline"),
         Stmt::Keyframe {
             time: Time::Seconds(0.5),
-            body: vec![action_stmt("draw-in", "headline", 0.7)],
+            body: vec![action_stmt("draw_in", "headline", 0.7)],
             span: None,
         },
     ];
@@ -175,7 +176,7 @@ fn draw_in_typewriter_lifts_hidden_by_default_opacity() {
 fn wipe_out_reports_unsupported_image_targets() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
-        body: vec![image_decl("photo"), action_stmt("wipe-out", "photo", 1.0)],
+        body: vec![image_decl("photo"), action_stmt("wipe_out", "photo", 1.0)],
         span: None,
     }];
 
@@ -195,7 +196,7 @@ fn reveal_out_hides_fill_then_erases_stroke() {
         time: Time::Seconds(0.0),
         body: vec![
             circle_decl("shape"),
-            action_stmt("reveal-out", "shape", 1.0),
+            action_stmt("reveal_out", "shape", 1.0),
         ],
         span: None,
     }];
@@ -218,9 +219,9 @@ fn reveal_out_preserves_prior_state_for_delayed_instant_change() {
         time: Time::Seconds(0.0),
         body: vec![
             circle_decl("shape"),
-            Stmt::Action(
-                Action {
-                    verb: "reveal-out".to_string(),
+            crate::timeline::actions::test_support::invocation_stmt(
+                BuiltinInvocation {
+                    verb: "reveal_out".to_string(),
                     targets: vec!["shape".to_string()],
                     args: vec![],
                     modifiers: vec![
@@ -256,7 +257,7 @@ fn reveal_out_preserves_prior_state_for_delayed_instant_change() {
 
 #[test]
 fn text_vector_reveal_proceeds_without_diagnostics() {
-    for (verb, expected_fill_start) in [("reveal-out", 0.0), ("draw-out", 1.0)] {
+    for (verb, expected_fill_start) in [("reveal_out", 0.0), ("draw_out", 1.0)] {
         let ast = vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
             body: vec![text_decl("headline"), action_stmt(verb, "headline", 1.0)],
@@ -284,7 +285,7 @@ fn text_vector_reveal_proceeds_without_diagnostics() {
 fn draw_out_keeps_fill_until_the_end() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
-        body: vec![circle_decl("shape"), action_stmt("draw-out", "shape", 1.0)],
+        body: vec![circle_decl("shape"), action_stmt("draw_out", "shape", 1.0)],
         span: None,
     }];
 
@@ -304,12 +305,12 @@ fn draw_out_keeps_fill_until_the_end() {
 
 #[test]
 fn draw_in_on_text_animates_char_progress() {
-    // draw-in on Text should animate char_progress 0→1 instead of stroke_progress.
+    // draw_in on Text should animate char_progress 0→1 instead of stroke_progress.
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
         body: vec![
             text_decl("headline"),
-            action_stmt("draw-in", "headline", 2.0),
+            action_stmt("draw_in", "headline", 2.0),
         ],
         span: None,
     }];
@@ -334,10 +335,10 @@ fn draw_in_on_text_animates_char_progress() {
 
 #[test]
 fn draw_in_on_text_does_not_set_stroke_progress() {
-    // draw-in on Text should NOT modify stroke_progress or fill_opacity.
+    // draw_in on Text should NOT modify stroke_progress or fill_opacity.
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
-        body: vec![text_decl("msg"), action_stmt("draw-in", "msg", 1.0)],
+        body: vec![text_decl("msg"), action_stmt("draw_in", "msg", 1.0)],
         span: None,
     }];
 
@@ -366,10 +367,10 @@ fn draw_in_on_text_does_not_set_stroke_progress() {
 
 #[test]
 fn draw_in_on_regular_shape_still_animates_stroke_progress() {
-    // Verify that draw-in on regular shapes still uses stroke_progress.
+    // Verify that draw_in on regular shapes still uses stroke_progress.
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
-        body: vec![circle_decl("shape"), action_stmt("draw-in", "shape", 1.0)],
+        body: vec![circle_decl("shape"), action_stmt("draw_in", "shape", 1.0)],
         span: None,
     }];
 
@@ -394,7 +395,7 @@ fn draw_in_on_regular_shape_still_animates_stroke_progress() {
 fn reveal_in_draws_stroke_then_pops_fill() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
-        body: vec![circle_decl("shape"), action_stmt("reveal-in", "shape", 1.0)],
+        body: vec![circle_decl("shape"), action_stmt("reveal_in", "shape", 1.0)],
         span: None,
     }];
 
@@ -434,9 +435,17 @@ fn draw_in_uses_text_capability_for_extension_primitives() {
         report.diagnostics
     );
     let mut timeline = report.output;
-    let action = match action_stmt("draw-in", "p", 1.0) {
-        Stmt::Action(action, _) => action,
-        _ => unreachable!("action statement"),
+    let action = BuiltinInvocation {
+        verb: "draw_in".into(),
+        targets: vec!["p".into()],
+        args: vec![],
+        modifiers: vec![Modifier {
+            name: None,
+            value: Expr::Duration(1.0),
+        }],
+        byte_span: None,
+        target_index: vec![],
+        target_index_position: vec![],
     };
     let mut diagnostics = Vec::new();
     process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);

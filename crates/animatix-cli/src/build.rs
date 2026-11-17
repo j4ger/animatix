@@ -42,10 +42,13 @@ pub fn try_load_and_build(
     extensions: &CliExtensions,
     defines: &[(String, String)],
 ) -> Result<(BuildTarget, Vec<Diagnostic>), String> {
-    let (ast, namespaces, type_diagnostics) = {
-        let mut program =
-            ModuleGraph::new().load_program(input).map_err(|e| format!("Error: {e}"))?;
-        let diagnostics = program.typecheck();
+    let mut program = ModuleGraph::new().load_program(input).map_err(|e| format!("Error: {e}"))?;
+    let mut ctx = animatix::extension_context::ExtensionContext::new();
+    let disposers = extensions
+        .install_into(&mut ctx)
+        .map_err(|e| format!("Plugin install failed: {e}"))?;
+    let (expanded, namespaces, function_context, type_diagnostics) = {
+        let diagnostics = program.typecheck_with_callables(ctx.callable_descriptors());
         let mut expansion_errors = Vec::new();
         let expanded = program.expand_components(&mut expansion_errors);
         let mut diagnostics = diagnostics;
@@ -56,20 +59,19 @@ pub fn try_load_and_build(
                 error,
             ));
         }
-        (expanded, program.namespaces, diagnostics)
+        (expanded, program.namespaces, program.function_context, diagnostics)
     };
 
-    let mut ctx = animatix::extension_context::ExtensionContext::new();
-    let disposers = extensions
-        .install_into(&mut ctx)
-        .map_err(|e| format!("Plugin install failed: {e}"))?;
     let context = std::sync::Arc::new(ctx);
-    let report = BuildTarget::from_ast_with_context_and_defines(
-        &ast,
+    let report = BuildTarget::build_with_options(
+        &expanded.statements,
         &namespaces,
         Some(input),
-        context,
-        defines,
+        animatix::timeline::BuildOptions::default()
+            .with_context(context)
+            .with_defines(defines)
+            .with_function_context(&function_context)
+            .with_expanded(&expanded),
     );
     let mut all_diagnostics = type_diagnostics;
     all_diagnostics.extend(report.diagnostics);

@@ -160,7 +160,6 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<Vec<ModifierIrStmt>, IrLowerError>
                 body: lower_modifier_block(body)?,
             }])
         },
-        Stmt::Action(..) => Err(IrLowerError::UnsupportedStatement("action")),
         Stmt::ActorDecl { .. }
         | Stmt::Import { .. }
         | Stmt::TypeAlias { .. }
@@ -189,7 +188,7 @@ pub fn compile_expr(expr: &Expr) -> Result<CompiledExpr, IrLowerError> {
         Expr::Percent(n) => Ok(CompiledExpr::Const(Value::Num(*n / 100.0))),
         Expr::Str(s) => Ok(CompiledExpr::Const(Value::Str(s.clone()))),
         Expr::Bool(b) => Ok(CompiledExpr::Const(Value::Bool(*b))),
-        Expr::Null => Ok(CompiledExpr::Const(Value::Num(0.0))),
+        Expr::Null => Ok(CompiledExpr::Const(Value::Null)),
         Expr::Ident(name) => Ok(CompiledExpr::LoadEnv(name.clone())),
         Expr::Path(parts) => {
             // Lazy anchor-point resolution: `actor.right` style paths are
@@ -207,6 +206,24 @@ pub fn compile_expr(expr: &Expr) -> Result<CompiledExpr, IrLowerError> {
             }
             Ok(CompiledExpr::LoadEnv(parts.join(".")))
         },
+        Expr::QualifiedPath(parts) => Ok(CompiledExpr::LoadEnv(parts.join("::"))),
+        Expr::Field(receiver, field) => {
+            if let Some(mut parts) = static_access_parts(receiver) {
+                parts.push(field.clone());
+                if parts.len() == 2
+                    && parts[0] != "scene"
+                    && let Some(anchor) = SceneAnchor::from_str(&parts[1])
+                {
+                    return Ok(CompiledExpr::AnchorLookup {
+                        actor: parts[0].clone(),
+                        anchor,
+                    });
+                }
+                Ok(CompiledExpr::LoadEnv(parts.join(".")))
+            } else {
+                Ok(CompiledExpr::Field(Box::new(compile_expr(receiver)?), field.clone()))
+            }
+        },
         Expr::Tuple(items) => items
             .iter()
             .map(compile_expr)
@@ -220,7 +237,7 @@ pub fn compile_expr(expr: &Expr) -> Result<CompiledExpr, IrLowerError> {
         Expr::Unary(op, expr) => {
             if *op == crate::ast::UnaryOp::Ref {
                 // `&label.prop` — the parser guarantees a two-segment path.
-                if let Expr::Path(parts) = expr.as_ref()
+                if let Some(parts) = static_access_parts(expr)
                     && let [label, prop] = parts.as_slice()
                 {
                     return Ok(CompiledExpr::PropRef {
@@ -244,39 +261,49 @@ pub fn compile_expr(expr: &Expr) -> Result<CompiledExpr, IrLowerError> {
             Box::new(compile_expr(then_expr)?),
             Box::new(compile_expr(else_expr)?),
         )),
-        Expr::Call(name, args) => {
-            let args = args.iter().map(compile_expr).collect::<Result<Vec<_>, _>>()?;
-            if let Some(builtin) = builtin_for_name(name) {
-                Ok(CompiledExpr::CallBuiltin(builtin, args))
+        Expr::Call(callee, args) => {
+            if let Expr::Field(receiver, field) = callee.as_ref() {
+                let receiver = compile_expr(receiver)?;
+                let args = args
+                    .iter()
+                    .map(|arg| compile_expr(&arg.value).map(|value| (arg.name.clone(), value)))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(CompiledExpr::CallMember(Box::new(receiver), field.clone(), args))
+            } else if let Some(name) = static_callee_name(callee) {
+                if args.iter().all(|arg| arg.name.is_none())
+                    && let Some(builtin) = builtin_for_name(&name)
+                {
+                    let args = args
+                        .iter()
+                        .map(|arg| compile_expr(&arg.value))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    return Ok(CompiledExpr::CallBuiltin(builtin, args));
+                }
+                let args = args
+                    .iter()
+                    .map(|arg| compile_expr(&arg.value).map(|value| (arg.name.clone(), value)))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(CompiledExpr::CallNamed(name, args))
             } else {
-                Ok(CompiledExpr::CallEnv(name.clone(), args))
+                let callee = compile_expr(callee)?;
+                let args = args
+                    .iter()
+                    .map(|arg| compile_expr(&arg.value).map(|value| (arg.name.clone(), value)))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(CompiledExpr::CallValue(Box::new(callee), args))
             }
+        },
+        Expr::Duration(seconds) => Ok(CompiledExpr::Const(Value::Duration(*seconds))),
+        Expr::Unit => Ok(CompiledExpr::Const(Value::Unit)),
+        Expr::Timeline(body) => Ok(CompiledExpr::Timeline(body.clone())),
+        Expr::Sequence(body) => Ok(CompiledExpr::SequencePlan(body.clone())),
+        Expr::Stagger { modifiers, plan } => {
+            Ok(CompiledExpr::StaggerPlan(modifiers.clone(), plan.clone()))
         },
         Expr::Index(container, index) => {
             let container = compile_expr(container)?;
             let index = compile_expr(index)?;
             Ok(CompiledExpr::Index(Box::new(container), Box::new(index)))
-        },
-        Expr::Method(receiver, name, args) => {
-            // `{label}.map(x, y)` resolves against the env's dotted
-            // NativeFn keys ("{label}.map"), so a plain path receiver
-            // lowers to a joined env call instead of a bare receiver
-            // lookup (which would fail with UndefinedVariable).
-            let receiver_parts: Option<Vec<String>> = match &**receiver {
-                Expr::Path(parts) => Some(parts.clone()),
-                Expr::Ident(name) => Some(vec![name.clone()]),
-                _ => None,
-            };
-            if let Some(mut key_parts) = receiver_parts {
-                key_parts.push(name.clone());
-                let args: Vec<_> = args.iter().map(compile_expr).collect::<Result<Vec<_>, _>>()?;
-                // The joined key must match the registration shape in
-                // timeline::env_keys::native_fn.
-                return Ok(CompiledExpr::CallEnv(key_parts.join("."), args));
-            }
-            let receiver = compile_expr(receiver)?;
-            let args: Vec<_> = args.iter().map(compile_expr).collect::<Result<Vec<_>, _>>()?;
-            Ok(CompiledExpr::Method(Box::new(receiver), name.clone(), args))
         },
         Expr::Closure(params, body) => {
             Ok(CompiledExpr::Closure(params.clone(), Box::new(compile_expr(body)?)))
@@ -336,6 +363,32 @@ pub fn compile_expr(expr: &Expr) -> Result<CompiledExpr, IrLowerError> {
     }
 }
 
+fn static_callee_name(callee: &Expr) -> Option<String> {
+    match callee {
+        Expr::Ident(name) => Some(name.clone()),
+        Expr::Path(parts) => Some(parts.join(".")),
+        Expr::QualifiedPath(parts) => Some(parts.join("::")),
+        Expr::Field(receiver, field) => {
+            let receiver = static_callee_name(receiver)?;
+            Some(format!("{receiver}.{field}"))
+        },
+        _ => None,
+    }
+}
+
+fn static_access_parts(expression: &Expr) -> Option<Vec<String>> {
+    match expression {
+        Expr::Ident(name) => Some(vec![name.clone()]),
+        Expr::Path(parts) => Some(parts.clone()),
+        Expr::Field(base, field) => {
+            let mut parts = static_access_parts(base)?;
+            parts.push(field.clone());
+            Some(parts)
+        },
+        _ => None,
+    }
+}
+
 fn builtin_for_name(name: &str) -> Option<BuiltinFn> {
     match name {
         "sin" => Some(BuiltinFn::Sin),
@@ -345,7 +398,7 @@ fn builtin_for_name(name: &str) -> Option<BuiltinFn> {
         "tan" => Some(BuiltinFn::Tan),
         "sqrt" => Some(BuiltinFn::Sqrt),
         "exp" => Some(BuiltinFn::Exp),
-        "ln" | "log" => Some(BuiltinFn::Log),
+        "ln" => Some(BuiltinFn::Log),
         "atan2" => Some(BuiltinFn::Atan2),
         "clamp" => Some(BuiltinFn::Clamp),
         "abs" => Some(BuiltinFn::Abs),
@@ -353,8 +406,8 @@ fn builtin_for_name(name: &str) -> Option<BuiltinFn> {
         "max" => Some(BuiltinFn::Max),
         "floor" => Some(BuiltinFn::Floor),
         "ceil" => Some(BuiltinFn::Ceil),
-        "deg" | "deg_to_rad" => Some(BuiltinFn::Deg),
-        "rad" | "rad_to_deg" => Some(BuiltinFn::Rad),
+        "deg" => Some(BuiltinFn::Deg),
+        "rad" => Some(BuiltinFn::Rad),
         "signum" => Some(BuiltinFn::Signum),
         "fract" => Some(BuiltinFn::Fract),
         "hypot" => Some(BuiltinFn::Hypot),
@@ -364,10 +417,8 @@ fn builtin_for_name(name: &str) -> Option<BuiltinFn> {
         "round" => Some(BuiltinFn::Round),
         "list_swap" => Some(BuiltinFn::ListSwap),
         "list_set" => Some(BuiltinFn::ListSet),
-        // NOTE: every builtin in eval_shared::eval_builtin_fn MUST have an arm
-        // here. This match is not compiler-enforced (Option + catch-all), and
-        // a missing arm silently lowers to CallEnv, which then fails at frame
-        // time with UndefinedVariable. The ir_tests parity suite guards this.
+        // Every builtin in eval_shared::eval_builtin_fn must have an arm here.
+        // This match is not compiler-enforced; ir_tests checks its parity.
         "factorial" => Some(BuiltinFn::Factorial),
         "sum" => Some(BuiltinFn::SumList),
         "curve_at" => Some(BuiltinFn::CurveAt),

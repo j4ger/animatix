@@ -237,14 +237,14 @@ fn draw_in_adds_visible_stroke_to_filled_shape() {
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
 a: Rect, size: (100, 100), color: accent.primary, at: (200, 150)
-draw-in a [1s]
+draw_in(target: a, duration: 1s)
 "#,
     );
     let track = timeline.world.tracks.get_id("a").expect("rect track");
     assert_eq!(timeline.world.style(track).stroke_width.get(0, 99.0), 2.0);
     let fill = timeline.world.style(track).color.get(0, [0.0, 0.0, 0.0, 1.0]);
     let stroke = timeline.world.style(track).stroke_color.get(0, [0.0, 0.0, 0.0, 1.0]);
-    assert_eq!(stroke, fill, "draw-in outline should use the fill color");
+    assert_eq!(stroke, fill, "draw_in outline should use the fill color");
 }
 
 #[test]
@@ -254,7 +254,7 @@ fn reveal_in_adds_visible_stroke_to_filled_shape() {
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
 a: Rect, size: (100, 100), color: accent.primary, at: (200, 150)
-reveal-in a [1s]
+reveal_in(target: a, duration: 1s)
 "#,
     );
     let track = timeline.world.tracks.get_id("a").expect("rect track");
@@ -572,15 +572,15 @@ fn invalid_easing_name_warns_on_assignment() {
     let source = r#"
 r: Rect, size: (100, 100), color: accent.primary
 #0s
-r.at = (320, 180) [500ms, ease: bounce-out]
+r.at = (320, 180) [500ms, ease: bounce_out]
 "#;
     let report = build(source);
     assert!(
         report.diagnostics.iter().any(|d| {
             d.code == crate::diagnostics::DiagnosticCode::InvalidModifierValue
-                && d.message.contains("bounce-out")
+                && d.message.contains("bounce_out")
         }),
-        "expected an InvalidModifierValue diagnostic naming 'bounce-out', got: {:?}",
+        "expected an InvalidModifierValue diagnostic naming 'bounce_out', got: {:?}",
         report.diagnostics
     );
 }
@@ -611,7 +611,7 @@ config { colorscheme: "editorial-dark", resolution: (480, 270) }
 label: Text, text: "init", font_size: 18, anchor: scene.center, text_max_width: 440
 
 #0.2s
-fade-in label [100ms]
+fade_in(target: label, duration: 100ms)
 
 #0.5s
 let base = 4
@@ -629,7 +629,23 @@ label.text = format("step(2)={} base={}", step(2), base)
         report.diagnostics
     );
     // step(2) = (4*10)+2 = 42; the outer `base` must still be 4 afterwards.
-    assert_eq!(text_at(&report.output, "label", 1000), "step(2)=42 base=4");
+    let diagnostic_env = report.output.build_eval_env(500);
+    let diagnostic_expr = crate::ast::Expr::call(
+        "format",
+        vec![
+            crate::ast::Expr::Str("step(2)={} base={}".into()),
+            crate::ast::Expr::call("step", vec![crate::ast::Expr::Num(2.0)]),
+            crate::ast::Expr::Ident("base".into()),
+        ],
+    );
+    assert_eq!(
+        text_at(&report.output, "label", 1000),
+        "step(2)=42 base=4",
+        "VM result: {:?}; step: {:?}; base: {:?}",
+        crate::timeline::evaluate_expr(&diagnostic_expr, &diagnostic_env),
+        diagnostic_env.get("step"),
+        diagnostic_env.get("base")
+    );
 }
 
 #[test]
@@ -649,7 +665,7 @@ c: PlotCurve, kind: "cartesian",
   color: accent.primary, stroke_width: 3, at: (320, 180), size: (400, 300)
 
 #0.2s
-fade-in c [100ms]
+fade_in(target: c, duration: 100ms)
     "#;
     let report = build(source);
     assert!(
@@ -685,11 +701,11 @@ status: Text, text: "idle", font_size: 18, anchor: scene.center, text_max_width:
 box: Rect, size: (80, 40), color: accent.primary, anchor: scene.center
 
 #0.2s
-fade-in status [150ms]
-fade-in box [200ms]
+fade_in(target: status, duration: 150ms)
+fade_in(target: box, duration: 200ms)
 
 #1s
-box.at = (420, 260) [1s, ease: ease-in-out]
+box.at = (420, 260) [1s, ease: ease_in_out]
 
 always {
   status.text = if is_animating(&box.at) { "moving" } else { "at rest" }
@@ -769,7 +785,7 @@ config { colorscheme: "editorial-dark", resolution: (480, 270) }
 label: Text, text: "init", font_size: 18, anchor: scene.center, text_max_width: 440
 
 #0.2s
-fade-in label [100ms]
+fade_in(target: label, duration: 100ms)
 
 #0.5s
 let maker = (x) => {
@@ -831,7 +847,7 @@ fn prop_ref_build_diagnostics() {
 
     for (source, expected_msg, code) in cases {
         let report = build(&format!(
-            "config {{ colorscheme: \"editorial-dark\", resolution: (480, 270) }}\n#0.2s\nfade-in box [200ms]\n{}",
+            "config {{ colorscheme: \"editorial-dark\", resolution: (480, 270) }}\n#0.2s\nfade_in(target: box, duration: 200ms)\n{}",
             source
         ));
         assert!(
@@ -856,11 +872,11 @@ config { colorscheme: "editorial-dark", resolution: (640, 360) }
 box: Rect, size: {40, 40}, color: accent.primary, anchor: scene.center
 
 #0.2s
-fade-in box [150ms]
+fade_in(target: box, duration: 150ms)
 
 #1s
-box.at = {420, 260} [500ms, ease: ease-out]
-box.size = {120, 60} [500ms, ease: ease-out]
+box.at = {420, 260} [500ms, ease: ease_out]
+box.size = {120, 60} [500ms, ease: ease_out]
     "#;
     let report = build(source);
     assert!(

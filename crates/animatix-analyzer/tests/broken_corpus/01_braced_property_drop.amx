@@ -4,4 +4,4 @@ title: Text {
   font_size: 32
 }
 #0s
-fade-in title [1s]
+fade_in(target: title, duration: 1s)

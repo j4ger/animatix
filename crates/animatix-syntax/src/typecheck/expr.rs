@@ -17,7 +17,13 @@ pub(super) fn expr_summary(expr: &Expr) -> String {
         Expr::Construct(name, _) => format!("construct '{}'", name),
         Expr::Binary(_, op, _) => format!("binary {:?} expression", op),
         Expr::Unary(op, _) => format!("unary {:?} expression", op),
-        Expr::Call(name, args) => format!("call '{}({})'", name, args.len()),
+        Expr::Call(callee, args) => format!(
+            "call '{}({})'",
+            callee.callable_name().unwrap_or_else(|| "<expression>".to_string()),
+            args.len()
+        ),
+        Expr::Duration(seconds) => format!("duration {}s", seconds),
+        Expr::Unit => "unit".to_string(),
         _ => "expression".to_string(),
     }
 }

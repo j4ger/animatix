@@ -35,8 +35,8 @@ fn corpus_dir() -> PathBuf {
 }
 
 fn actual_diagnostics(source: &str) -> BTreeSet<ExpectedDiagnostic> {
-    Analyzer::new(source)
-        .diagnostics()
+    let diagnostics = Analyzer::new(source).diagnostics();
+    diagnostics
         .into_iter()
         .map(|d| ExpectedDiagnostic {
             code: d.code.map(|c| c.to_string()).unwrap_or_default(),

@@ -7,8 +7,10 @@ mod hierarchy;
 mod highlight;
 mod keyframes;
 mod meta;
+mod method_table;
 mod payload;
 mod plan;
+mod plan_ownership;
 mod shape;
 mod style;
 mod tagged;
@@ -18,6 +20,8 @@ pub use component::{ComponentStore, RequiredStore};
 pub use fields::{TrackFields, TrackFieldsMut};
 pub use hierarchy::SceneHierarchyComponent;
 pub use meta::EntityMeta;
+pub use method_table::MethodTableId;
+pub use plan_ownership::PlanOwnership;
 pub use tagged::TaggedTracksComponent;
 pub use view::{EntityMut, EntityRef};
 
@@ -61,6 +65,10 @@ pub struct World {
     /// Explicit capability overrides for extension primitives.
     pub(crate) caps_overrides: ComponentStore<animatix_core::caps::ActorCaps>,
     pub(crate) property_plan: RequiredStore<crate::timeline::plan::PropertyPlan>,
+    /// Plan-mount owner for actors declared inside reusable timeline plans.
+    pub(crate) plan_ownership: ComponentStore<PlanOwnership>,
+    /// Handle to immutable method metadata for this expanded actor instance.
+    pub(crate) method_table_id: ComponentStore<MethodTableId>,
     /// Per-entity visibility/lock/camera metadata.
     pub(crate) meta: ComponentStore<EntityMeta>,
     pub(crate) container_layout: ComponentStore<ContainerMetadata>,
@@ -98,7 +106,8 @@ macro_rules! for_each_store {
     ($mac:ident $(, $arg:tt)*) => {
         $mac! { $( $arg, )* hierarchy, highlight, tagged_tracks, actor_types, caps, behavior,
         shape_memos, pending_shape_bounds, bounds_slots, style, geometry, text, shape,
-        property_plan, meta, caps_overrides, container_layout, child_order, coordinate_frame,
+        property_plan, plan_ownership, method_table_id, meta, caps_overrides, container_layout,
+        child_order, coordinate_frame,
         persistence, auto_color, transcript, local_bounds, legend, effects, plot_payload,
         svg_payload, image_payload, decl_span, }
     };

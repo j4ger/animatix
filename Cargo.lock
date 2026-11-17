@@ -156,6 +156,7 @@ dependencies = [
 name = "animatix-analyzer"
 version = "0.1.0"
 dependencies = [
+ "animatix-core",
  "animatix-std",
  "animatix-syntax",
  "chumsky",

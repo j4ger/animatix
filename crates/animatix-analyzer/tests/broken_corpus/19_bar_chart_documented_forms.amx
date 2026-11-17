@@ -20,4 +20,4 @@ chart: BarChart, size: (400, 240),
   show_labels: "true"
 
 #1s
-fade-in chart [500ms]
+fade_in(target: chart, duration: 500ms)

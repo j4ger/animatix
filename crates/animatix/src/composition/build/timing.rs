@@ -191,6 +191,12 @@ fn inject_carried_state(
             .retain(|d| d.location.subject.as_deref() != Some(scene_subject.as_str()));
 
         // Rebuild with carry injection.
+        let source = state.scene_sources.get(&scene_name).cloned();
+        let mut scoped_options = super::builder::source_options(options, source.as_deref());
+        scoped_options.instance_methods = state.scene_instance_methods.get(&scene_name);
+        if let Some(context) = state.scene_function_contexts.get(&scene_name) {
+            scoped_options.function_context = Some(context);
+        }
         let scene_options = BuildOptions {
             carry: Some(crate::timeline::CarryInput {
                 bag: &carry_bag,
@@ -198,7 +204,7 @@ fn inject_carried_state(
                 source_duration_ms: pred_duration_ms,
                 dims: default_dims,
             }),
-            ..options.clone()
+            ..scoped_options
         };
         let build_report = Timeline::build_with_options(&merged_body, namespaces, scene_options);
 

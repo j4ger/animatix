@@ -70,15 +70,50 @@ GUI / CLI     engine examples (dev-dependency only)
      to_source::stmts_to_source()  (re-serialization for GUI write-back)
 ```
 
-The AST is round-trippable. The GUI workbench edits source through its code editor; the Inspector, preview and timeline are read-only review surfaces. Legacy AST mutation helpers remain available to internal tooling, but are not a GUI authoring channel. Formatting is normalized when those helpers re-serialize. `parser::parse_source_complete` is the semantic parse entry point used by module loading and the runtime (`parse_source`/`parse_source_with_occurrences` expose narrower views of the same parse). The analyzer keeps the token stream plus AST for positions, completions, hover, and references.
+The AST is round-trippable, including named call arguments, namespace paths,
+receiver methods, and local timeline-plan expressions. Source write-back keeps
+those structures as AST nodes and formatting normalizes their surface syntax.
+The GUI workbench edits source through its code editor; the Inspector, preview,
+and timeline are read-only review surfaces. `parser::parse_source_complete` is
+the semantic parse entry point used by module loading and the runtime
+(`parse_source`/`parse_source_with_occurrences` expose narrower views of the
+same parse). The analyzer keeps the token stream plus AST for positions,
+completions, hover, and references.
 
 ### Module System
 
-The `ModuleGraph` manages file dependencies: tracks `import` declarations, resolves relative paths, and collects `pub` exports (components via `pub component`, values via `pub let`).
+The `ModuleGraph` manages file dependencies, resolves relative paths, and
+collects `pub` exports: components, values, type aliases, and top-level
+functions. An aliased import exposes a public function as `alias::function`;
+private sibling functions remain in the defining module's function scope.
+Component methods use `instance.method(...)` and cross-component calls require
+`pub fn`.
+
+Component expansion returns an `ExpandedProgram`: the expanded statements plus
+method registries for unscoped instances and for each named scene. Hosts pass
+that object through `BuildOptions::with_expanded`; it also carries the function
+context compiled over expanded module statements. When a caller supplies an
+unexpanded context, apply `with_expanded` after it so the expanded context is
+used. The composition builder selects the exact scene's registry for its
+timeline build. A method template keeps its definition module and
+indexed-instance binding so normal function lookup and array specialization
+still work after expansion. These registries resolve names during the build;
+frame-time pure method calls use entity-bound callable handles with the instance
+index already specialized. The owning entity stores its method-table handle in
+`World`; the immutable callable registry is shared scene metadata. No frame-time
+actor-label normalization or instance-index parsing is needed. `Timeline`, `Sequence`, and
+`Stagger` expressions also carry their own instance scopes, so equal labels in
+separate plan values do not collide.
 
 ### Type Checking
 
-After parsing and module expansion, the gradual type checker validates component instantiation properties and action invocation arguments against parameter type annotations. Unannotated parameters accept any value. The checker produces `DiagnosticCode::TypeMismatch` errors that flow into both CLI and LSP diagnostics.
+After parsing and module expansion, the gradual type checker validates
+component properties and callable arguments against one signature model.
+Standard and extension signatures come from `CallableDescriptor`; user
+functions contribute AST-derived parameter signatures. Positional arguments
+must precede named arguments. Unannotated user parameters accept any value, and
+an optional function result annotation checks the inferred result. The checker
+produces type diagnostics shared by CLI and LSP.
 
 ### Timeline Compilation
 
@@ -113,6 +148,11 @@ explains spawn/hierarchy and snapshot behavior, and defines the component-change
 checklist and structure gate. This overview intentionally omits that inventory;
 update `ecs.md` when the ECS model changes.
 
+Actors declared in local timeline plans carry an optional ownership component.
+Their spatial parent remains the ordinary scene hierarchy; ownership only
+controls identity and the persistence boundary. A persistent caller-owned
+container excludes private plan actors when producing its carry snapshot.
+
 The plot host's `CoordinateFrameComponent` is the sole source for a hosted
 child's coordinate resolution. `{label}_x_domain`, `_y_domain`, and `_padding`
 env entries are derived from it at build time for authored expressions; build
@@ -124,7 +164,7 @@ Actor evaluation and build-time customization are decoupled from monolithic trai
 - **`BehaviorId`**: A compact integer stored on every entity (`RequiredStore<BehaviorId>`). Enabled `BUILT_INS` rows define the initial IDs in canonical order; runtime plugins receive IDs after those rows in registration order.
 - **`BehaviorDef`**: Immutable behavior descriptor registered in `BehaviorRegistry`, containing capability projections (`ActorCaps`), the family function pointers or extension adapter, and the evaluation source.
 - **Family Systems (`timeline/behavior/builtin/`)**: Built-ins are organized into 10 domain family systems (`shape`, `text`, `media`, `plot`, `container`, `effect`, `equation`, `captions`, `annotation`, `group`). Built-in behaviors evaluate through direct, unboxed function pointers (`EvaluateFn`, `BuildExtraFn`), eliminating dynamic dispatch overhead on frame hot paths.
-- **Extension Adapter**: Plugins implement `Primitive` and are adapted as `BehaviorSource::Extension(Arc<dyn Primitive>)`, preserving backward compatibility with extension ecosystems.
+- **Extension Adapter**: Plugins implement `Primitive` and are adapted as `BehaviorSource::Extension(Arc<dyn Primitive>)`, keeping extension build and evaluation calls behind the host-owned behavior descriptor.
 - **Tree Recursion**: Frame evaluation retains hierarchical tree traversal (`render_actor_node_by_id`) to support static subtree caching, hierarchical coordinate/camera accumulation, and offscreen compositing order for GPU effects (`Filter`, `Mask`, `Glass`).
 
 ### PropertyTrack
@@ -201,7 +241,7 @@ When `config { dynamic_layout: true }` is enabled, admitted children are re-samp
 
 ### Layout Order in the Workbench
 
-Author layout order and `swap`/`reorder` actions in `.amx`. The GUI displays the
+Author layout order and `swap`/`reorder` callable invocations in `.amx`. The GUI displays the
 result but does not offer canvas reordering or inspector property edits. Its
 command boundary rejects these mutations; see [GUI workbench](gui-workbench.md).
 
@@ -270,7 +310,7 @@ bg: Filter {
   img: Image, url: "photo.jpg", size: fill
 }
 #1.5s
-bg.soft.radius = 24 [1.5s, ease: ease-out]
+bg.soft.radius = 24 [1.5s, ease: ease_out]
 ```
 
 The normative contract — pass layout, bind group, uniform rules, identity
@@ -468,7 +508,7 @@ editors instead of requiring a bespoke core enum and GUI enum per property. `Val
 fixed no-payload choices with the same generic editor path.
 
 User-facing aliases (`type LegendMode = Bool | Str`) are parsed into `Stmt::TypeAlias` and resolved
-by the type environment before component/action parameter checking, so aliases can compose primitives,
+by the type environment before callable parameter checking, so aliases can compose primitives,
 unions, lists, and other aliases.
 
 ### ReadSource — separating write from read
@@ -634,7 +674,7 @@ unambiguously. See [source formatting](spec.md#appendix-a-source-formatting-spec
 ### Imports
 
 - `import "path"` — flattens imported statements into current scene
-- `import "path" as name` — creates namespace for `pub let` exports (`name.export_name`)
+- `import "path" as name` — creates namespace for `pub let` exports (`name::export_name`)
 
 ### Components
 
@@ -673,10 +713,10 @@ animatix-gui (direct calls)    animatix-lsp (tower-lsp, JSON-RPC)
   pipeline and the analyzer workspace. `Workspace` is a thin facade over that
   graph, so analyzer and runtime resolution cannot drift.
 - **Canonical parser API**: Chumsky remains the semantic AST source of truth; the analyzer uses the lossless token stream plus AST for position queries
-- **LSP capabilities**: completion (context-aware, including action verbs in
-  verb position), hover, goto-definition, document symbols, workspace symbols,
+- **LSP capabilities**: completion (context-aware callable, named parameter,
+  namespace, and component-method completions), signature hover, goto-definition, document symbols, workspace symbols,
   references, rename (`prepareRename` + scope-aware `rename`), code actions
-  (spelling quick-fixes for `undefined-label`/`unknown-action`), semantic
+  (spelling quick-fixes for `undefined-label`/`unknown-callable`), semantic
   tokens, formatting, and diagnostics. Watched-file notifications
   (`workspace/didChangeWatchedFiles`) refresh import and plugin-manifest
   symbols when a file changes on disk outside the editor.
@@ -869,7 +909,7 @@ crates/
 │       ├── formatter.rs   # Source formatting
 │       ├── transition_registry.rs
 │       ├── icon_glyphs.rs
-│       ├── typecheck/     # Gradual type checker (action, expr, property, stmt)
+│       ├── typecheck/     # Gradual type checker (callable, expr, property, stmt)
 │       ├── walk.rs        # Shared AST traversal primitives
 │       └── module/        # Module system (discovery, expand, rewrite)
 │
@@ -935,7 +975,7 @@ incompatible:
 - **Value-returning recursion**: Functions that walk and return a value (e.g.,
   `format_expr` returns `String`, `infer_expr_type` returns `typing::Type`)
 - **Owned tree transformation**: Functions that take ownership and produce new
-  trees (e.g., `inline_custom_actions`)
+  trees (e.g., `ModuleGraph::expand_components`)
 
 These sites use guardrail tests (in `format_core.rs` and `apply.rs`) to ensure
 variant coverage is reviewed when new AST variants are added.
@@ -982,11 +1022,11 @@ variant coverage is reviewed when new AST variants are added.
 - Func transitions blend function outputs per sample (`lerp(f(x), g(x), p)`) rather than morphing sampled paths; the per-sample cache is keyed per source body.
 
 ### Scene Persistence
-- `persist` and `remove` reuse `Stmt::Action`, not new AST surface. Persisted state is a build-time carry bag of single-keyframe track snapshots taken at scene end time.
+- `persist` and `remove` are ordinary `Expr::Call` plan expressions with standard descriptors. Persisted state is a build-time carry bag of single-keyframe track snapshots taken at scene end time.
 - Persistence is sticky until explicit `remove`; re-declaring a carried actor morphs from its carried state. Carried children re-root to `Absolute`, and colors carry as baked RGBA while preserving the auto-color slot index.
 
 ### Text and Charts
-- Text content changes should interpolate cached glyph paths with `Fade`; typography changes (font/size/weight/spacing/color) recompile glyphs per frame. Typewriter `draw-in` is preferred for entrances.
+- Text content changes should interpolate cached glyph paths with `Fade`; typography changes (font/size/weight/spacing/color) recompile glyphs per frame. Typewriter `draw_in` is preferred for entrances.
 - BarChart `data` and `bar_colors` use brace-list `{...}` syntax; build-time-static paths resolve through shared eval helpers.
 
 ### eparts Widget Framework

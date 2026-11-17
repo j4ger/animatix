@@ -157,9 +157,12 @@ impl Timeline {
             },
         };
         let env_is_pooled = self.env_pool.borrow().is_none();
+        env.inherit_frame_metadata_from(&self.env);
+        env.set_frame_phase();
         if let Some(values) = runtime_inputs.and_then(|inputs| inputs.values.clone()) {
             env.set_runtime_inputs(Some(values));
         }
+        env.set_frame_time_seconds(time_ms as f64 / 1000.0);
         env.set("t", Value::Num(time_ms as f64 / 1000.0));
         env.set("scene_width", Value::Num(scene_dimensions.width as f64));
         env.set("scene_height", Value::Num(scene_dimensions.height as f64));

@@ -60,6 +60,9 @@ impl Timeline {
         // 6. Freeze the environment and derive legend/idle/audio state.
         super::finalize::finalize_assets_legend(&mut timeline, &mut diagnostics);
 
+        // Construction uses the same cache-invalidating mutation paths as
+        // edits, but a newly built document starts its edit history at zero.
+        timeline.eval_caches.content_epoch.set(0);
         BuildReport::new(timeline, diagnostics)
     }
 }

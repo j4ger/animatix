@@ -84,6 +84,8 @@ pub enum CompiledExpr {
     Const(Value),
     /// Load a value from the environment by name.
     LoadEnv(String),
+    /// Read a field from a runtime object.
+    Field(Box<CompiledExpr>, String),
     /// Construct a vector of expressions (from paren tuples): coerces 2-4
     /// numeric elements to Vec2/3/4.
     MakeVec(Vec<CompiledExpr>),
@@ -98,12 +100,20 @@ pub enum CompiledExpr {
     Select(Box<CompiledExpr>, Box<CompiledExpr>, Box<CompiledExpr>),
     /// Call a built-in function.
     CallBuiltin(BuiltinFn, Vec<CompiledExpr>),
-    /// Call a function stored in the evaluation environment by name.
-    CallEnv(String, Vec<CompiledExpr>),
+    /// Call a named function with positional and named arguments.
+    CallNamed(String, Vec<(Option<String>, CompiledExpr)>),
+    /// Call a method on an evaluated receiver with named arguments preserved.
+    CallMember(Box<CompiledExpr>, String, Vec<(Option<String>, CompiledExpr)>),
+    /// Call a value returned by another expression.
+    CallValue(Box<CompiledExpr>, Vec<(Option<String>, CompiledExpr)>),
+    /// Build an inert plan from source statements at evaluation time.
+    Timeline(crate::ast::PlanBody),
+    /// Build a sequential plan from source statements at evaluation time.
+    SequencePlan(crate::ast::PlanBody),
+    /// Build a staggered plan from source statements at evaluation time.
+    StaggerPlan(Vec<crate::ast::Modifier>, crate::ast::PlanBody),
     /// Index into a collection.
     Index(Box<CompiledExpr>, Box<CompiledExpr>),
-    /// Call a method on an expression.
-    Method(Box<CompiledExpr>, String, Vec<CompiledExpr>),
     /// Create a closure value (parameter names, compiled body expression).
     /// The environment is captured at evaluation time.
     Closure(Vec<String>, Box<CompiledExpr>),
@@ -136,6 +146,7 @@ impl CompiledExpr {
     pub fn collect_prop_refs(&self, out: &mut Vec<(String, String)>) {
         match self {
             CompiledExpr::Const(_) | CompiledExpr::LoadEnv(_) => {},
+            CompiledExpr::Field(base, _) => base.collect_prop_refs(out),
             CompiledExpr::PropRef { label, prop } => out.push((label.clone(), prop.clone())),
             CompiledExpr::MakeList(items) => {
                 for item in items {
@@ -157,20 +168,34 @@ impl CompiledExpr {
                 then_expr.collect_prop_refs(out);
                 else_expr.collect_prop_refs(out);
             },
-            CompiledExpr::CallBuiltin(_, args) | CompiledExpr::CallEnv(_, args) => {
+            CompiledExpr::CallBuiltin(_, args) => {
                 for arg in args {
                     arg.collect_prop_refs(out);
                 }
             },
+            CompiledExpr::CallNamed(_, args) => {
+                for (_, arg) in args {
+                    arg.collect_prop_refs(out);
+                }
+            },
+            CompiledExpr::CallMember(receiver, _, args) => {
+                receiver.collect_prop_refs(out);
+                for (_, arg) in args {
+                    arg.collect_prop_refs(out);
+                }
+            },
+            CompiledExpr::CallValue(callee, args) => {
+                callee.collect_prop_refs(out);
+                for (_, arg) in args {
+                    arg.collect_prop_refs(out);
+                }
+            },
+            CompiledExpr::Timeline(_)
+            | CompiledExpr::SequencePlan(_)
+            | CompiledExpr::StaggerPlan(..) => {},
             CompiledExpr::Index(base, index) => {
                 base.collect_prop_refs(out);
                 index.collect_prop_refs(out);
-            },
-            CompiledExpr::Method(base, _, args) => {
-                base.collect_prop_refs(out);
-                for arg in args {
-                    arg.collect_prop_refs(out);
-                }
             },
             CompiledExpr::Construct(_, fields) => {
                 for (_, field) in fields {
@@ -192,6 +217,7 @@ impl CompiledExpr {
     pub fn references_ident(&self, name: &str) -> bool {
         match self {
             CompiledExpr::LoadEnv(id) => id == name,
+            CompiledExpr::Field(base, _) => base.references_ident(name),
             CompiledExpr::MakeVec(items) => items.iter().any(|item| item.references_ident(name)),
             CompiledExpr::MakeList(items) => items.iter().any(|item| item.references_ident(name)),
             CompiledExpr::Unary(_, expr) => expr.references_ident(name),
@@ -204,12 +230,19 @@ impl CompiledExpr {
                     || else_expr.references_ident(name)
             },
             CompiledExpr::CallBuiltin(_, args) => args.iter().any(|arg| arg.references_ident(name)),
-            CompiledExpr::CallEnv(_, args) => args.iter().any(|arg| arg.references_ident(name)),
+            CompiledExpr::CallNamed(callee, args) => {
+                callee == name || args.iter().any(|(_, arg)| arg.references_ident(name))
+            },
+            CompiledExpr::CallMember(receiver, _, args) => {
+                receiver.references_ident(name)
+                    || args.iter().any(|(_, arg)| arg.references_ident(name))
+            },
+            CompiledExpr::CallValue(callee, args) => {
+                callee.references_ident(name)
+                    || args.iter().any(|(_, arg)| arg.references_ident(name))
+            },
             CompiledExpr::Index(container, index) => {
                 container.references_ident(name) || index.references_ident(name)
-            },
-            CompiledExpr::Method(receiver, _, args) => {
-                receiver.references_ident(name) || args.iter().any(|arg| arg.references_ident(name))
             },
             CompiledExpr::Closure(_, body) => body.references_ident(name),
             CompiledExpr::PropRef { label, .. } => label == name,
@@ -220,7 +253,11 @@ impl CompiledExpr {
             CompiledExpr::Construct(_, fields) => {
                 fields.iter().any(|(_, value)| value.references_ident(name))
             },
-            CompiledExpr::Const(_) | CompiledExpr::AnchorLookup { .. } => false,
+            CompiledExpr::Const(_)
+            | CompiledExpr::Timeline(_)
+            | CompiledExpr::SequencePlan(_)
+            | CompiledExpr::StaggerPlan(..)
+            | CompiledExpr::AnchorLookup { .. } => false,
         }
     }
 }

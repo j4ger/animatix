@@ -13,6 +13,22 @@ use crate::timeline::{
 
 /// Helper to parse a `ConnectorEndpoint` from an expression in the build environment.
 pub fn parse_connector_endpoint(expr: &Expr, env: &Environment) -> Option<ConnectorEndpoint> {
+    match crate::timeline::evaluate_expr(expr, env) {
+        Ok(Value::Vec2([x, y])) => return Some(ConnectorEndpoint::Point([x as f32, y as f32])),
+        Ok(Value::ActorRef(actor)) => {
+            return Some(ConnectorEndpoint::Target {
+                actor: actor.label().to_string(),
+                anchor: None,
+            });
+        },
+        _ => {}, // Authored anchor metadata and symbolic targets resolve below.
+    }
+    if let Some((actor, anchor)) = crate::timeline::lookup::actor_anchor_reference(expr) {
+        return Some(ConnectorEndpoint::Target {
+            actor,
+            anchor: Some(anchor),
+        });
+    }
     match expr {
         Expr::Tuple(items) if items.len() == 2 => {
             // Check if (x, y) numeric coordinate tuple
@@ -25,7 +41,9 @@ pub fn parse_connector_endpoint(expr: &Expr, env: &Environment) -> Option<Connec
             // Otherwise check (node, anchor)
             let node_name = match &items[0] {
                 Expr::Ident(s) | Expr::Str(s) => s.clone(),
-                Expr::Path(parts) => parts.join("."),
+                Expr::Path(_) | Expr::Field(..) => {
+                    crate::timeline::lookup::parse_actor_ref_literal(&items[0])?
+                },
                 _ => return None,
             };
             let anchor_name = match &items[1] {
@@ -38,20 +56,10 @@ pub fn parse_connector_endpoint(expr: &Expr, env: &Environment) -> Option<Connec
                 anchor,
             })
         },
-        Expr::Path(parts) if parts.len() == 2 => {
-            let anchor = SceneAnchor::from_str(&parts[1].replace('-', "_"));
-            if anchor.is_some() {
-                Some(ConnectorEndpoint::Target {
-                    actor: parts[0].clone(),
-                    anchor,
-                })
-            } else {
-                Some(ConnectorEndpoint::Target {
-                    actor: parts.join("."),
-                    anchor: None,
-                })
-            }
-        },
+        Expr::Path(_) | Expr::Field(..) => Some(ConnectorEndpoint::Target {
+            actor: crate::timeline::lookup::parse_actor_ref_literal(expr)?,
+            anchor: None,
+        }),
         Expr::Ident(s) | Expr::Str(s) => Some(ConnectorEndpoint::Target {
             actor: s.clone(),
             anchor: None,

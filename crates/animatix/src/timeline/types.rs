@@ -240,6 +240,9 @@ impl Default for SceneDimensions {
 /// A single audio segment to be muxed during export.
 #[derive(Clone, Debug)]
 pub struct AudioSegment {
+    /// Audio actor identity whose volume track belongs to this segment. Export
+    /// and GUI-created segments may omit this association.
+    pub actor_id: Option<EntityId>,
     /// Path or identifier of the audio asset.
     pub source: String,
     /// Start time within the global timeline in seconds.

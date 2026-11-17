@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
 use super::ExtensionContext;
-use crate::ast::Action;
 use crate::composition::BuildTarget;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::primitives::{BuildCtx, Primitive};
-use crate::timeline::actions::registry::{ActionSignature, BuiltinAction};
 use crate::timeline::{ActorCategory, TextKind, Timeline, TrackAccessor, Value};
+use animatix_core::callable::{CallableDescriptor, CallableParam, CallablePhase, CallableType};
 
 struct Marker;
 
@@ -63,36 +62,28 @@ impl Primitive for Gauge {
     }
 }
 
-struct MarkAction;
-
-impl BuiltinAction for MarkAction {
-    fn signature(&self) -> ActionSignature {
-        ActionSignature {
-            name: "mark".to_string(),
-            category: "Custom".to_string(),
-            description: "Extension action".to_string(),
-            params: vec![],
-            modifiers: vec![],
-        }
+fn descriptor(name: &str, result: CallableType) -> CallableDescriptor {
+    CallableDescriptor {
+        namespace: "test".into(),
+        name: name.into(),
+        params: vec![CallableParam::required("value", CallableType::Num)],
+        return_type: result,
+        phase: CallablePhase::BuildAndFrame,
+        help: "Test callable".into(),
+        category: "Test".into(),
     }
+}
 
-    fn execute(
-        &self,
-        action: &Action,
-        time_ms: f64,
-        timeline: &mut Timeline,
-        _diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        for target in &action.targets {
-            if let Some(id) = timeline.world.get_id(target) {
-                timeline.world.style_mut(id).opacity.ensure(1.0).add_keyframe(
-                    time_ms as u64,
-                    0.25,
-                    Easing::Linear,
-                );
-            }
-        }
-    }
+fn register_double(ctx: &mut ExtensionContext) {
+    ctx.register_callable(descriptor("double", CallableType::Num), |args, _env| {
+        let Some(Value::Num(n)) = args.first() else {
+            return Err(crate::timeline::EvalError::TypeMismatch(
+                "double expects one number".into(),
+            ));
+        };
+        Ok(Value::Num(*n * 2.0))
+    })
+    .expect("register callable");
 }
 
 /// Content-lint warnings (`never-revealed`) fire on minimal fixtures whose
@@ -130,46 +121,21 @@ fn context_registers_capabilities() {
         },
     )
     .expect("register primitive");
-    ctx.register_action(Box::new(MarkAction)).expect("register action");
-    ctx.register_function("double", |args, _env| {
-        let Some(Value::Num(n)) = args.first() else {
-            return Err(crate::timeline::EvalError::TypeMismatch(
-                "double expects one number".to_string(),
-            ));
-        };
-        Ok(Value::Num(*n * 2.0))
-    })
-    .expect("register function");
+    register_double(&mut ctx);
     ctx.provide("threshold", 42_u32).expect("provide service");
 
     assert!(ctx.primitive_registry().find("Marker").is_some());
-    assert!(ctx.action("mark").is_some());
     assert_eq!(ctx.get::<u32>("threshold"), Some(&42));
 
     let mut env = crate::timeline::Environment::new();
     ctx.install_functions(&mut env);
-    assert!(matches!(env.get("double"), Some(Value::NativeFn(_))));
+    assert!(matches!(env.get("test::double"), Some(Value::NativeFn(_))));
 }
 
 #[test]
 fn context_records_tooling_descriptors() {
     let mut ctx = ExtensionContext::new();
-    ctx.register_action(Box::new(MarkAction)).expect("register action");
-    ctx.register_function_with_descriptor(
-        "double",
-        |_args, _env| Ok(Value::Num(42.0)),
-        animatix_syntax::schema::FunctionDescriptor {
-            name: "double".to_string(),
-            params: vec![animatix_syntax::schema::ActionParam {
-                name: "value".to_string(),
-                description: "Input value".to_string(),
-                type_info: "Num".to_string(),
-            }],
-            return_type: Some(animatix_syntax::typing::Type::Num),
-            help: Some("Doubles a number".to_string()),
-        },
-    )
-    .expect("register function");
+    register_double(&mut ctx);
     ctx.provide_with_descriptor(
         "theme",
         "dark",
@@ -181,8 +147,7 @@ fn context_records_tooling_descriptors() {
     )
     .expect("provide service");
 
-    assert_eq!(ctx.action_signatures()[0].name, "mark");
-    assert_eq!(ctx.function_descriptors()[0].params[0].name, "value");
+    assert_eq!(ctx.callable_descriptors()[0].params[0].name, "value");
     assert_eq!(ctx.service_descriptors()[0].type_info.as_deref(), Some("str"));
 }
 
@@ -271,44 +236,25 @@ fn context_can_dispose_registered_capabilities() {
         },
     )
     .expect("register primitive");
-    ctx.register_action(Box::new(MarkAction)).expect("register action");
-    ctx.register_function("double", |args, _env| {
-        let Some(Value::Num(n)) = args.first() else {
-            return Err(crate::timeline::EvalError::TypeMismatch(
-                "double expects one number".to_string(),
-            ));
-        };
-        Ok(Value::Num(*n * 2.0))
-    })
-    .expect("register function");
+    register_double(&mut ctx);
     ctx.provide("threshold", 42_u32).expect("provide service");
 
     assert!(ctx.remove_primitive("Marker"));
     assert!(!ctx.remove_primitive("Marker"));
-    assert!(ctx.remove_action("mark"));
-    assert!(ctx.remove_function("double"));
+    assert!(ctx.remove_callable("test::double"));
     assert!(ctx.remove_service("threshold"));
     assert!(ctx.primitive_registry().find("Marker").is_none());
-    assert!(ctx.action("mark").is_none());
     assert!(ctx.get::<u32>("threshold").is_none());
 }
 
 #[test]
 fn build_with_context_installs_extension_functions() {
-    let (ast, errors) = animatix_syntax::parser::parse_source("let answer = double(21)");
+    let (ast, errors) = animatix_syntax::parser::parse_source("let answer = test::double(21)");
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let ast = ast.expect("parsed AST");
 
     let mut ctx = ExtensionContext::new();
-    ctx.register_function("double", |args, _env| {
-        let Some(Value::Num(n)) = args.first() else {
-            return Err(crate::timeline::EvalError::TypeMismatch(
-                "double expects one number".to_string(),
-            ));
-        };
-        Ok(Value::Num(*n * 2.0))
-    })
-    .expect("register function");
+    register_double(&mut ctx);
 
     let report =
         Timeline::build_with_context(&ast, &std::collections::HashMap::new(), Arc::new(ctx));
@@ -321,21 +267,41 @@ fn build_with_context_installs_extension_functions() {
 }
 
 #[test]
+fn lexical_user_functions_retain_native_callables_during_frame_sampling() {
+    let (ast, errors) = animatix_syntax::parser::parse_source(
+        "fn amount(value: Num) { test::double(value) }\n\
+         r: Rect, opacity: 1\n\
+         always { r.opacity = amount(t) }",
+    );
+    assert!(errors.is_empty(), "{errors:?}");
+    let mut context = ExtensionContext::new();
+    register_double(&mut context);
+    let report = Timeline::build_with_context(
+        &ast.unwrap(),
+        &std::collections::HashMap::new(),
+        Arc::new(context),
+    );
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    let timeline = report.output;
+    let dimensions = crate::timeline::SceneDimensions::default();
+    let mut overrides = std::collections::HashMap::new();
+    let mut env = timeline.build_frame_env(250, dimensions, &overrides);
+    for program in &timeline.modifier_programs {
+        timeline
+            .apply_modifier_program(program, 250, dimensions, &mut env, &mut overrides)
+            .unwrap();
+    }
+    assert_eq!(overrides["r"]["opacity"], Value::Num(0.5));
+}
+
+#[test]
 fn build_target_accepts_extension_context() {
-    let (ast, errors) = animatix_syntax::parser::parse_source("let answer = double(21)");
+    let (ast, errors) = animatix_syntax::parser::parse_source("let answer = test::double(21)");
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let ast = ast.expect("parsed AST");
 
     let mut ctx = ExtensionContext::new();
-    ctx.register_function("double", |args, _env| {
-        let Some(Value::Num(n)) = args.first() else {
-            return Err(crate::timeline::EvalError::TypeMismatch(
-                "double expects one number".to_string(),
-            ));
-        };
-        Ok(Value::Num(*n * 2.0))
-    })
-    .expect("register function");
+    register_double(&mut ctx);
 
     let report = BuildTarget::build_with_options(
         &ast,
@@ -356,20 +322,12 @@ fn build_target_accepts_extension_context() {
 
 #[test]
 fn build_target_propagates_context_to_composition() {
-    let (ast, errors) = animatix_syntax::parser::parse_source("# A\nlet answer = double(21)");
+    let (ast, errors) = animatix_syntax::parser::parse_source("# A\nlet answer = test::double(21)");
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let ast = ast.expect("parsed AST");
 
     let mut ctx = ExtensionContext::new();
-    ctx.register_function("double", |args, _env| {
-        let Some(Value::Num(n)) = args.first() else {
-            return Err(crate::timeline::EvalError::TypeMismatch(
-                "double expects one number".to_string(),
-            ));
-        };
-        Ok(Value::Num(*n * 2.0))
-    })
-    .expect("register function");
+    register_double(&mut ctx);
 
     let report = BuildTarget::build_with_options(
         &ast,
@@ -574,22 +532,40 @@ fn extension_property_survives_carry_bag_serde() {
 }
 
 #[test]
-fn build_with_context_dispatches_custom_actions() {
-    let (ast, errors) =
-        animatix_syntax::parser::parse_source("target: Rect, size: (10, 10)\n#0s\nmark target");
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let ast = ast.expect("parsed AST");
-
+fn build_with_context_mounts_inert_extension_plans() {
+    use crate::timeline::{PlanDuration, TimelinePlanBuilder};
+    let (ast, errors) = animatix_syntax::parser::parse_source(
+        "target: Rect, size: (10, 10)\n#0s\ntest::mark(target)",
+    );
+    assert!(errors.is_empty(), "{errors:?}");
     let mut ctx = ExtensionContext::new();
-    ctx.register_action(Box::new(MarkAction)).expect("register action");
+    let mut contract = descriptor("mark", CallableType::Timeline);
+    contract.params = vec![CallableParam::required("target", CallableType::Actor)];
+    contract.phase = CallablePhase::Build;
+    ctx.register_callable(contract, |args, _| {
+        let Some(Value::ActorRef(actor)) = args.first() else {
+            return Err(crate::timeline::EvalError::TypeMismatch("expected actor".into()));
+        };
+        let mut builder = TimelinePlanBuilder::default();
+        builder.append_property_op(
+            actor.clone(),
+            "opacity",
+            Value::Num(0.25),
+            PlanDuration::default(),
+            PlanDuration::default(),
+            Some(Easing::Linear),
+        );
+        Ok(Value::TimelinePlan(Arc::new(builder.finish())))
+    })
+    .expect("register plan function");
     let report =
-        Timeline::build_with_context(&ast, &std::collections::HashMap::new(), Arc::new(ctx));
+        Timeline::build_with_context(&ast.expect("AST"), &Default::default(), Arc::new(ctx));
     assert!(
         without_content_lints(&report.diagnostics).next().is_none(),
-        "unexpected diagnostics: {:?}",
+        "{:?}",
         report.diagnostics
     );
-    let id = report.output.world.get_id("target").expect("actor track");
+    let id = report.output.world.get_id("target").expect("actor");
     assert_eq!(report.output.world.style(id).opacity.get(0, 1.0), 0.25);
 }
 
@@ -627,4 +603,44 @@ fn build_with_context_registers_extension_behavior_for_render_dispatch() {
         "entity behavior id must match the registry"
     );
     let _ = timeline.evaluate(0.0, crate::timeline::SceneDimensions::default());
+}
+
+#[test]
+fn invalid_callable_contracts_do_not_partially_register() {
+    use animatix_core::callable::DefaultValue;
+    let mut ctx = ExtensionContext::new();
+    let mut invalid_default = descriptor("wrong_default", CallableType::Num);
+    invalid_default.params[0].default = Some(DefaultValue::Duration(0.5));
+    assert!(ctx.register_callable(invalid_default, |_, _| Ok(Value::Num(0.0))).is_err());
+    let mut invalid_phase = descriptor("frame_plan", CallableType::Timeline);
+    invalid_phase.phase = CallablePhase::BuildAndFrame;
+    assert!(ctx.register_callable(invalid_phase, |_, _| Ok(Value::Unit)).is_err());
+    let mut reserved = descriptor("sin", CallableType::Num);
+    reserved.namespace = "std".into();
+    assert!(ctx.register_callable(reserved, |_, _| Ok(Value::Num(0.0))).is_err());
+    assert!(ctx.callable_descriptors().is_empty());
+    let mut env = crate::timeline::Environment::new();
+    ctx.install_functions(&mut env);
+    assert!(env.get("test::wrong_default").is_none());
+}
+
+#[test]
+fn namespaced_native_functions_do_not_replace_standard_prelude_contracts() {
+    let mut context = ExtensionContext::new();
+    let mut native = descriptor("sin", CallableType::Num);
+    native.params.clear();
+    context.register_callable(native, |_, _| Ok(Value::Num(42.0))).unwrap();
+    let mut env = crate::timeline::Environment::new();
+    crate::timeline::load_standard_library(&mut env);
+    context.install_functions(&mut env);
+    for (source, expected) in [("sin(0)", 0.0), ("test::sin()", 42.0)] {
+        let (ast, errors) =
+            animatix_syntax::parser::parse_source(&format!("let answer = {source}"));
+        assert!(errors.is_empty(), "{errors:?}");
+        let crate::ast::Stmt::LetDecl { value, .. } = &ast.unwrap()[0] else {
+            panic!("let")
+        };
+        assert_eq!(crate::timeline::evaluate_expr(value, &env).unwrap(), Value::Num(expected));
+    }
+    assert_eq!(env.callable_descriptor("sin").unwrap().namespace, "std");
 }

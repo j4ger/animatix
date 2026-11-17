@@ -98,11 +98,11 @@ left.text = "A SHORT REPLACEMENT" [0s]
 right.text = "A LONGER RIGHT-ANCHORED REPLACEMENT" [0s]
 
 #2s
-reveal-in left [800ms, by: word, offset_y: 14, ease: ease-out]
+reveal_in(target: left, duration: 800ms, by: word, offset_y: 14, ease: ease_out)
 
 #4s
 morph: Text, text: "AFTER MORPH WITH A DIFFERENT WIDTH", text_anchor: "right",
-  at: (900, 190), font_size: 32 [2s, ease: ease-in-out]
+  at: (900, 190), font_size: 32 [2s, ease: ease_in_out]
 "#,
     );
 

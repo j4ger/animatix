@@ -35,6 +35,8 @@ impl Timeline {
             resolution: None,
             declared_duration_s: None,
             local_time_scope_end_ms: 0,
+            plan_clock_rate: 1.0,
+            build_plan_ownership: Vec::new(),
             next_auto_color_index: 0,
             layout_children_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
             layout_engine: LayoutEngine::new(),
@@ -63,6 +65,7 @@ impl Timeline {
             referenced_properties: std::collections::HashMap::new(),
             audio_segments: Vec::new(),
             action_events: Vec::new(),
+            resolved_markers: Vec::new(),
             plot_path_cache: std::collections::HashMap::new(),
             modifier_hash: 0,
         }
@@ -112,18 +115,13 @@ impl Timeline {
             .unwrap_or_default()
     }
 
-    /// Signatures for extension actions installed on this build.
-    pub fn extension_action_signatures(&self) -> Vec<animatix_syntax::schema::ActionSignature> {
-        self.extensions.as_ref().map(|ctx| ctx.action_signatures()).unwrap_or_default()
-    }
-
-    /// Descriptors for extension functions installed on this build.
-    pub fn extension_function_descriptors(
+    /// Unified callable descriptors installed on this build.
+    pub fn extension_callable_descriptors(
         &self,
-    ) -> Vec<animatix_syntax::schema::FunctionDescriptor> {
+    ) -> Vec<animatix_core::callable::CallableDescriptor> {
         self.extensions
             .as_ref()
-            .map(|ctx| ctx.function_descriptors())
+            .map(|ctx| ctx.callable_descriptors().to_vec())
             .unwrap_or_default()
     }
 

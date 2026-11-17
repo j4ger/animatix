@@ -101,8 +101,9 @@ mod tests {
 
     #[test]
     fn numeric_sampling_is_even_and_includes_endpoints() {
-        let target =
-            single_target("#0s\nbox: Rect, at: (0, 0), size: (10, 10)\n#2s\nfade-in box [1s]\n");
+        let target = single_target(
+            "#0s\nbox: Rect, at: (0, 0), size: (10, 10)\n#2s\nfade_in(target: box, duration: 1s)\n",
+        );
         let times = compute_sample_times(&target, &SampleSpec::Count(5), 16);
         assert_eq!(times.len(), 5);
         assert!(times[0].abs() < f64::EPSILON);
@@ -112,7 +113,7 @@ mod tests {
     #[test]
     fn keyframe_sampling_includes_start_and_rest_and_respects_cap() {
         let target = single_target(
-            "#0s\nbox: Rect, at: (0, 0), size: (10, 10)\n#1s\nfade-in box [500ms]\n#3s\nfade-out box [500ms]\n",
+            "#0s\nbox: Rect, at: (0, 0), size: (10, 10)\n#1s\nfade_in(target: box, duration: 500ms)\n#3s\nfade_out(target: box, duration: 500ms)\n",
         );
         let times = compute_sample_times(&target, &SampleSpec::Keyframes, 4);
         assert!(times.len() <= 4);

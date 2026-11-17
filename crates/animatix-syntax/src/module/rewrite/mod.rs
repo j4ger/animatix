@@ -1,4 +1,4 @@
-use super::{Action, Expr, HashMap, HashSet, InlineItem, Property, Stmt, TargetSegment};
+use super::{Expr, HashMap, HashSet, InlineItem, Property, Stmt, TargetSegment};
 
 use apply::*;
 

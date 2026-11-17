@@ -65,7 +65,7 @@ icon.url = "{}" [1s]
     let size_at_2000 = geometry.size.get(2000, DEFAULT_LAYOUT_HALF_SIZE);
     assert!(
         size_at_2000[0] > size_at_0[0],
-        "assigned SVG should grow the measured half-size: {} -> {}",
+        "assigned SVG should grow the measured half_size: {} -> {}",
         size_at_0[0],
         size_at_2000[0],
     );

@@ -2,6 +2,24 @@ use animatix_syntax::ast::TypeAnnotation;
 
 use super::*;
 
+/// Common literal values offered when the expected parameter is unknown.
+pub(super) fn value_completions() -> Vec<CompletionItem> {
+    [
+        ("true", "Boolean"),
+        ("false", "Boolean"),
+        ("null", "Null value"),
+    ]
+    .into_iter()
+    .map(|(label, detail)| CompletionItem {
+        label: label.to_string(),
+        kind: CompletionKind::Value,
+        detail: Some(detail.to_string()),
+        documentation: None,
+        insert_text: None,
+    })
+    .collect()
+}
+
 /// Value completions for a property, derived from the component definition's
 /// declared parameter type, or from the property name when the type is
 /// unannotated.

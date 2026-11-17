@@ -192,6 +192,17 @@ impl Timeline {
             extension_id = Some(id);
         }
         if let Some(id) = extension_id {
+            let mount_id = self.build_plan_ownership.last().map(|owner| owner.mount_id());
+            let method_table = self.env.bind_component_method_table(label, id, mount_id);
+            if self.world.method_table_id(id) != method_table
+                && let Some(mut entity) = self.entity_by_id_mut(id)
+            {
+                if let Some(method_table) = method_table {
+                    entity.set_method_table_id(method_table);
+                } else {
+                    entity.clear_method_table_id();
+                }
+            }
             // Identity lives in `World`; set it from the registration type so
             // caps and plan lookups resolve the extension primitive (and a
             // re-declaration cannot keep a stale type).

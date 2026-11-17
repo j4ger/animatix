@@ -21,12 +21,14 @@ pub struct SymbolTable {
     pub properties: HashMap<String, Vec<String>>,
     /// Expected types per property: ("Text", "font_size") → `typing::Type::Num`.
     pub property_types: HashMap<(String, String), typing::Type>,
-    /// Keywords and built-in actions.
+    /// Language keywords.
     pub keywords: HashSet<String>,
-    /// Built-in action verbs (e.g., "fade-in", "move", "rotate").
-    pub actions: HashSet<String>,
-    /// Extension expression function names.
+    /// Built-in, extension, and user function names visible in this workspace.
     pub functions: HashSet<String>,
+    /// Public user functions that can be re-exported from this file.
+    pub pub_functions: HashSet<String>,
+    /// User function signatures used by editor and call binding queries.
+    pub function_defs: HashMap<String, FunctionInfo>,
     /// Extension service names.
     pub services: HashSet<String>,
     /// Imports declared in this file.
@@ -72,6 +74,21 @@ pub struct ImportInfo {
     pub alias: Option<String>,
     /// Full source span of the import statement.
     pub span: Option<Span>,
+}
+
+/// A user function declaration indexed for tooling and type checking.
+#[derive(Debug, Clone)]
+pub struct FunctionInfo {
+    /// Source name.
+    pub name: String,
+    /// Declared parameters, including names, annotations and defaults.
+    pub params: Vec<ParamDef>,
+    /// Optional result annotation; inference remains independent of it.
+    pub return_type: Option<TypeAnnotation>,
+    /// Source span of the declaration.
+    pub span: Option<Span>,
+    /// Whether this function is exported.
+    pub is_pub: bool,
 }
 
 /// Information about a labeled entity.

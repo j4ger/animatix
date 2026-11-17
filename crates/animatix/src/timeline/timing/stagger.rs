@@ -12,34 +12,23 @@ pub(crate) fn parse_stagger_modifiers(
     for modifier in modifiers {
         match modifier.name.as_deref() {
             None => {
-                if let Expr::Ident(raw) = &modifier.value {
-                    if let Some(parsed_ms) = parse_duration_literal(raw) {
-                        if saw_interval {
-                            push_conflicting_modifier_diagnostic(
-                                diagnostics,
-                                "duration-shorthand",
-                                ModifierHost::Action,
-                                Some("stagger"),
-                            );
-                        }
-                        interval_ms = Some(parsed_ms);
-                        saw_interval = true;
-                    } else {
-                        push_modifier_diagnostic(
+                if let Some(parsed_ms) = duration_expr_to_ms(&modifier.value) {
+                    if saw_interval {
+                        push_conflicting_modifier_diagnostic(
                             diagnostics,
-                            DiagnosticCode::InvalidModifierValue,
-                            format!(
-                                "Unsupported stagger interval '{raw}'; expected a time literal such as 120ms or 1s."
-                            ),
+                            "duration-shorthand",
+                            ModifierHost::Action,
                             Some("stagger"),
                         );
                     }
+                    interval_ms = Some(parsed_ms);
+                    saw_interval = true;
                 } else {
                     push_modifier_diagnostic(
                         diagnostics,
                         DiagnosticCode::InvalidModifierValue,
                         format!(
-                            "Unsupported stagger interval modifier {:?}; expected a time literal such as 120ms or 1s.",
+                            "Unsupported stagger interval {:?}; expected a time literal such as 120ms or 1s.",
                             modifier.value
                         ),
                         Some("stagger"),
@@ -47,34 +36,23 @@ pub(crate) fn parse_stagger_modifiers(
                 }
             },
             Some("each") => {
-                if let Expr::Ident(raw) = &modifier.value {
-                    if let Some(parsed_ms) = parse_duration_literal(raw) {
-                        if saw_interval {
-                            push_conflicting_modifier_diagnostic(
-                                diagnostics,
-                                "each",
-                                ModifierHost::Action,
-                                Some("stagger"),
-                            );
-                        }
-                        interval_ms = Some(parsed_ms);
-                        saw_interval = true;
-                    } else {
-                        push_modifier_diagnostic(
+                if let Some(parsed_ms) = duration_expr_to_ms(&modifier.value) {
+                    if saw_interval {
+                        push_conflicting_modifier_diagnostic(
                             diagnostics,
-                            DiagnosticCode::InvalidModifierValue,
-                            format!(
-                                "Unsupported stagger each value '{raw}'; expected a time literal such as 120ms or 1s."
-                            ),
+                            "each",
+                            ModifierHost::Action,
                             Some("stagger"),
                         );
                     }
+                    interval_ms = Some(parsed_ms);
+                    saw_interval = true;
                 } else {
                     push_modifier_diagnostic(
                         diagnostics,
                         DiagnosticCode::InvalidModifierValue,
                         format!(
-                            "Unsupported stagger each modifier {:?}; expected a time literal such as 120ms or 1s.",
+                            "Unsupported stagger each value {:?}; expected a time literal such as 120ms or 1s.",
                             modifier.value
                         ),
                         Some("stagger"),
@@ -82,10 +60,16 @@ pub(crate) fn parse_stagger_modifiers(
                 }
             },
             Some("from") => match &modifier.value {
-                Expr::Ident(name) | Expr::Str(name) if name == "center" => {
+                Expr::Ident(name) if name == "center" => {
                     from_origin = Some(StaggerOrigin::Center);
                 },
-                Expr::Ident(name) | Expr::Str(name) if name == "top-left" || name == "top_left" => {
+                Expr::Str(name) if name == "center" => {
+                    from_origin = Some(StaggerOrigin::Center);
+                },
+                Expr::Ident(name) if name == "top_left" => {
+                    from_origin = Some(StaggerOrigin::TopLeft);
+                },
+                Expr::Str(name) if name == "top-left" || name == "top_left" => {
                     from_origin = Some(StaggerOrigin::TopLeft);
                 },
                 Expr::Tuple(items) if items.len() == 2 => match (&items[0], &items[1]) {
@@ -183,10 +167,10 @@ pub(super) fn default_easing_for(host: ModifierHost, subject: Option<&str>) -> E
         return Easing::Linear;
     }
     match subject.unwrap_or_default() {
-        "fade-in" | "wipe-in" | "reveal-in" | "draw-in" | "settle-in" | "pop-in" | "grow-in" => {
+        "fade_in" | "wipe_in" | "reveal_in" | "draw_in" | "settle_in" | "pop_in" | "grow_in" => {
             Easing::ExpoOut
         },
-        "fade-out" | "wipe-out" | "reveal-out" | "draw-out" | "remove" | "shrink-out" => {
+        "fade_out" | "wipe_out" | "reveal_out" | "draw_out" | "remove" | "shrink_out" => {
             Easing::EaseIn
         },
         // Oscillating effects are continuous loops: their shape is the effect,

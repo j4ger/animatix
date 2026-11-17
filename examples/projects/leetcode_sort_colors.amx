@@ -9,8 +9,8 @@
 //
 // No per-frame mutable state is introduced — the random-access guarantee
 // holds, and the function body's locals never leak into the scene.
-
 import "../lib/stage.amx"
+
 import "../lib/theme.amx"
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720), dynamic_layout: true }
@@ -20,59 +20,64 @@ let values = {2, 0, 1, 2, 1, 0}
 let colors = {(1, 0, 0, 1), (0.9, 0.9, 0.9, 1), (0, 0, 1, 1)}
 
 head: ActHead, kicker: "LEETCODE · SORT COLORS", title: "Sort Colors"
+
 caption: Caption, text: "red 0 · white 1 · blue 2 — partition via zero/i/two pointers", tag: "leetcode"
 
 row: Row, at: (640, 440), gap: 16, align: "center" {
-  for k in {0, 1, 2, 3, 4, 5} {
-    b[k]: Rect, size: (70, 60 + values[k] * 60), color: colors[values[k]]
+for k in {0, 1, 2, 3, 4, 5} {
+b[k]: Rect, size: (70, 60 + values[k] * 60), color: colors[values[k]]
   }
 }
 
 zero_p: Text, text: "▼ zero", font_size: 18, color: accent.success, at: (425, 250)
+
 i_p: Text, text: "▼ i", font_size: 18, color: accent.warning, at: (425, 218)
+
 two_p: Text, text: "▲ two", font_size: 18, color: accent.danger, at: (855, 590)
 
 // Timeline function: one DNF partition pass emitting swaps and pointer moves.
 // `order[k]` = the original bar index at slot k; the pointers `zero`, `i`,
 // `two` index slots.
 fn dnf_pass(values: List<Num>) {
-  let order = {0, 1, 2, 3, 4, 5}
+  return #{ let order = {0, 1, 2, 3, 4, 5}
   let zero = 0
   let i = 0
   let two = 5
-  for step in {0, 1, 2, 3, 4, 5, 6, 7} [step: 700ms] {
+  for step in {0, 1, 2, 3, 4, 5, 6, 7} [step: 0.7s] {
     if i <= two {
-      zero_p.at = (425 + zero * 86, 250) [600ms]
-      i_p.at = (425 + i * 86, 218) [600ms]
-      two_p.at = (425 + two * 86, 590) [600ms]
-      match values[order[i]] {
+        zero_p.at = (425 + zero * 86, 250)[0.6s]
+        i_p.at = (425 + i * 86, 218)[0.6s]
+        two_p.at = (425 + two * 86, 590)[0.6s]
+        match values[order[i]] {
         0 => {
-          swap row.b[order[zero]], row.b[order[i]] [600ms]
-          let order = list_swap(order, zero, i)
-          let zero = zero + 1
-          let i = i + 1
-        }
+              swap(row.b[order[zero]], row.b[order[i]], duration: 0.6s)
+              let order = list_swap(order, zero, i)
+              let zero = zero + 1
+              let i = i + 1
+              },
         1 => {
-          let i = i + 1
-        }
+              let i = i + 1
+              },
         2 => {
-          swap row.b[order[i]], row.b[order[two]] [600ms]
-          let order = list_swap(order, i, two)
-          let two = two - 1
-        }
-        _ => {}
+              swap(row.b[order[i]], row.b[order[two]], duration: 0.6s)
+              let order = list_swap(order, i, two)
+              let two = two - 1
+              },
+        _ => {
+
+              }
+            }
       }
-    }
-  }
+  } }
 }
 
 #0s
-fade-in head [500ms]
-fade-in caption [400ms, delay: 200ms]
-fade-in row [600ms, ease: ease-out]
-fade-in zero_p [300ms]
-fade-in i_p [300ms]
-fade-in two_p [300ms]
+  fade_in(target: head, duration: 0.5s)
+  fade_in(target: caption, duration: 0.4s, delay: 0.2s)
+  fade_in(target: row, duration: 0.6s, ease: ease_out)
+  fade_in(target: zero_p, duration: 0.3s)
+  fade_in(target: i_p, duration: 0.3s)
+  fade_in(target: two_p, duration: 0.3s)
 
 #1s
-dnf_pass(values)
+  dnf_pass(values)

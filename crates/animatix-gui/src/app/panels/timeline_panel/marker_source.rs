@@ -29,10 +29,13 @@ pub(super) fn locate_cached(ui: &egui::Ui, source: &str, markers: &mut [TimingMa
     ui.data_mut(|data| data.insert_temp(id, (revision, lines)));
 }
 
-/// The parser currently leaves timing AST spans empty. Validate the entire
-/// direct-header sequence before assigning positions; implicit #0 keyframes or
+/// Validate the entire direct-header sequence against the current source.
+/// Parsed spans can belong to a last-good AST, and implicit #0 keyframes or
 /// other mismatches must never steal a later authored header's location.
 pub(super) fn locate(source: &str, markers: &mut [TimingMarker]) {
+    for marker in markers.iter_mut() {
+        marker.line = None;
+    }
     let tokens: Vec<_> = tokenize(source)
         .into_iter()
         .filter(|token| !matches!(token.kind, TokenKind::Comment(_)))

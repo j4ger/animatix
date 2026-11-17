@@ -9,7 +9,7 @@ use crate::extension_context::ExtensionContext;
 use crate::timeline::Environment;
 
 unsafe extern "C" fn double(
-    _ctx: *mut NativeFunctionContext,
+    _ctx: *mut NativeCallableContext,
     args: *const NativeValue,
     arg_len: usize,
     out: *mut NativeValue,
@@ -32,7 +32,18 @@ unsafe extern "C" fn double(
     NATIVE_STATUS_OK
 }
 
-unsafe extern "C" fn pulse_action(_ctx: *mut NativeActionContext) -> i32 {
+unsafe extern "C" fn pulse_plan(
+    _ctx: *mut NativeCallableContext,
+    _args: *const NativeValue,
+    _len: usize,
+    out: *mut NativeValue,
+) -> i32 {
+    unsafe {
+        *out = NativeValue {
+            tag: NATIVE_VALUE_TIMELINE,
+            ..NativeValue::default()
+        };
+    }
     NATIVE_STATUS_OK
 }
 
@@ -56,7 +67,6 @@ fn native_host_callbacks_install_and_dispose_capabilities() {
         service_values: HashMap::new(),
         functions: Vec::new(),
         primitives: Vec::new(),
-        actions: Vec::new(),
         services: Vec::new(),
         effects: Vec::new(),
     };
@@ -83,13 +93,23 @@ fn native_host_callbacks_install_and_dispose_capabilities() {
     assert_ne!(property_id, 0);
     assert_eq!(
         unsafe {
-            native_register_function(
+            native_register_callable(
                 (&mut host as *mut NativeHost).cast::<c_void>(),
-                NativeFunctionDescriptor {
+                NativeCallableDescriptor {
+                    namespace: c"demo".as_ptr(),
                     name: c"double".as_ptr(),
-                    params: std::ptr::null(),
-                    param_len: 0,
-                    return_type: std::ptr::null(),
+                    params: &NativeCallableParam {
+                        name: c"value".as_ptr(),
+                        type_info: c"Num".as_ptr(),
+                        help: std::ptr::null(),
+                        default_value: std::ptr::null(),
+                        optional: false,
+                        variadic: false,
+                    },
+                    param_len: 1,
+                    return_type: c"Num".as_ptr(),
+                    phase: NATIVE_CALLABLE_BUILD_AND_FRAME,
+                    category: c"Test".as_ptr(),
                     help: std::ptr::null(),
                     callback: double,
                 },
@@ -125,17 +145,18 @@ fn native_host_callbacks_install_and_dispose_capabilities() {
     );
     assert_eq!(
         unsafe {
-            native_register_action(
+            native_register_callable(
                 (&mut host as *mut NativeHost).cast::<c_void>(),
-                NativeAction {
+                NativeCallableDescriptor {
+                    namespace: c"demo".as_ptr(),
                     name: c"pulse".as_ptr(),
                     category: c"Native".as_ptr(),
-                    description: c"Demo native pulse action".as_ptr(),
+                    help: c"Demo native pulse plan".as_ptr(),
+                    return_type: c"Timeline".as_ptr(),
+                    phase: NATIVE_CALLABLE_BUILD,
                     params: std::ptr::null(),
                     param_len: 0,
-                    modifiers: std::ptr::null(),
-                    modifier_len: 0,
-                    execute: pulse_action,
+                    callback: pulse_plan,
                 },
             )
         },
@@ -161,19 +182,17 @@ fn native_host_callbacks_install_and_dispose_capabilities() {
         properties,
         functions,
         primitives,
-        actions,
         services,
         ..
     } = host;
     assert_eq!(properties, vec![("Rect".to_string(), "glow".to_string())]);
-    assert_eq!(functions, vec!["double".to_string()]);
+    assert_eq!(functions, vec!["demo::double".to_string(), "demo::pulse".to_string()]);
     assert_eq!(primitives, vec!["Pulse".to_string()]);
-    assert_eq!(actions, vec!["pulse".to_string()]);
     assert_eq!(services, vec!["demo.pulse".to_string()]);
 
     let mut env = Environment::new();
     ctx.install_functions(&mut env);
-    let Some(Value::NativeFn(call)) = env.get("double") else {
+    let Some(Value::NativeFn(call)) = env.get("demo::double") else {
         panic!("double was not installed");
     };
     assert_eq!(
@@ -182,17 +201,17 @@ fn native_host_callbacks_install_and_dispose_capabilities() {
     );
     DROPPED_SERVICES.store(0, std::sync::atomic::Ordering::SeqCst);
     assert!(ctx.primitive_registry().find("Pulse").is_some());
-    assert!(ctx.action("pulse").is_some());
+    assert!(ctx.callable_descriptors().iter().any(|d| d.name == "pulse"));
     assert!(ctx.get::<NativeServiceHandle>("demo.pulse").is_some());
 
     assert!(ctx.remove_property("Rect", "glow"));
-    assert!(ctx.remove_function("double"));
+    assert!(ctx.remove_callable("demo::double"));
     assert!(ctx.remove_primitive("Pulse"));
-    assert!(ctx.remove_action("pulse"));
+    assert!(ctx.remove_callable("demo::pulse"));
     assert!(ctx.remove_service("demo.pulse"));
     assert_eq!(DROPPED_SERVICES.load(std::sync::atomic::Ordering::SeqCst), 1);
     assert!(ctx.primitive_registry().find("Pulse").is_none());
-    assert!(ctx.action("pulse").is_none());
+    assert!(!ctx.callable_descriptors().iter().any(|d| d.name == "pulse"));
     assert!(ctx.get::<NativeServiceHandle>("demo.pulse").is_none());
 }
 
@@ -210,7 +229,6 @@ fn native_host_rollback_removes_partial_registrations() {
         service_values: HashMap::new(),
         functions: Vec::new(),
         primitives: Vec::new(),
-        actions: Vec::new(),
         services: Vec::new(),
         effects: Vec::new(),
     };
@@ -236,13 +254,23 @@ fn native_host_rollback_removes_partial_registrations() {
     );
     assert_eq!(
         unsafe {
-            native_register_function(
+            native_register_callable(
                 (&mut host as *mut NativeHost).cast::<c_void>(),
-                NativeFunctionDescriptor {
+                NativeCallableDescriptor {
+                    namespace: c"demo".as_ptr(),
                     name: c"double".as_ptr(),
-                    params: std::ptr::null(),
-                    param_len: 0,
-                    return_type: std::ptr::null(),
+                    params: &NativeCallableParam {
+                        name: c"value".as_ptr(),
+                        type_info: c"Num".as_ptr(),
+                        help: std::ptr::null(),
+                        default_value: std::ptr::null(),
+                        optional: false,
+                        variadic: false,
+                    },
+                    param_len: 1,
+                    return_type: c"Num".as_ptr(),
+                    phase: NATIVE_CALLABLE_BUILD_AND_FRAME,
+                    category: c"Test".as_ptr(),
                     help: std::ptr::null(),
                     callback: double,
                 },
@@ -278,17 +306,18 @@ fn native_host_rollback_removes_partial_registrations() {
     );
     assert_eq!(
         unsafe {
-            native_register_action(
+            native_register_callable(
                 (&mut host as *mut NativeHost).cast::<c_void>(),
-                NativeAction {
+                NativeCallableDescriptor {
+                    namespace: c"demo".as_ptr(),
                     name: c"pulse".as_ptr(),
                     category: c"Native".as_ptr(),
-                    description: c"Demo native pulse action".as_ptr(),
+                    help: c"Demo native pulse plan".as_ptr(),
+                    return_type: c"Timeline".as_ptr(),
+                    phase: NATIVE_CALLABLE_BUILD,
                     params: std::ptr::null(),
                     param_len: 0,
-                    modifiers: std::ptr::null(),
-                    modifier_len: 0,
-                    execute: pulse_action,
+                    callback: pulse_plan,
                 },
             )
         },
@@ -313,10 +342,10 @@ fn native_host_rollback_removes_partial_registrations() {
     host.rollback();
 
     assert!(ctx.property_spec("Pulse", "glow").is_none());
-    assert!(ctx.action("pulse").is_none());
+    assert!(!ctx.callable_descriptors().iter().any(|d| d.name == "pulse"));
     assert!(ctx.get::<NativeServiceHandle>("demo.pulse").is_none());
     assert!(ctx.primitive_registry().find("Pulse").is_none());
     let mut env = Environment::new();
     ctx.install_functions(&mut env);
-    assert!(env.get("double").is_none());
+    assert!(env.get("demo::double").is_none());
 }

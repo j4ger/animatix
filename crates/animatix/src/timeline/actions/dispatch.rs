@@ -10,132 +10,16 @@ use super::*;
 /// instead of constructing a `Vec<Box<dyn BuiltinAction>>` for every lookup.
 /// `ALL` preserves the historical registry order used by
 /// [`super::get_action_signatures`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum BuiltinActionKind {
-    FadeIn,
-    WipeIn,
-    Move,
-    Shift,
-    Rotate,
-    Scale,
-    DrawIn,
-    RevealIn,
-    DrawOut,
-    FadeOut,
-    Persist,
-    Remove,
-    WipeOut,
-    RevealOut,
-    Shake,
-    Pulse,
-    Bounce,
-    SettleIn,
-    PopIn,
-    GrowIn,
-    ShrinkOut,
-    Highlight,
-    Unhighlight,
-    Swap,
-    Reorder,
-}
-
-impl BuiltinActionKind {
-    /// Every built-in action, in registry/signature-listing order.
-    pub(super) const ALL: [Self; 25] = [
-        Self::FadeIn,
-        Self::WipeIn,
-        Self::Move,
-        Self::Shift,
-        Self::Rotate,
-        Self::Scale,
-        Self::DrawIn,
-        Self::RevealIn,
-        Self::DrawOut,
-        Self::FadeOut,
-        Self::Persist,
-        Self::Remove,
-        Self::WipeOut,
-        Self::RevealOut,
-        Self::Shake,
-        Self::Pulse,
-        Self::Bounce,
-        Self::SettleIn,
-        Self::PopIn,
-        Self::GrowIn,
-        Self::ShrinkOut,
-        Self::Highlight,
-        Self::Unhighlight,
-        Self::Swap,
-        Self::Reorder,
-    ];
-
-    /// Resolve an action verb to its static built-in handler.
-    pub(super) fn from_name(name: &str) -> Option<Self> {
-        Some(match name {
-            "fade-in" => Self::FadeIn,
-            "wipe-in" => Self::WipeIn,
-            "move" => Self::Move,
-            "shift" => Self::Shift,
-            "rotate" => Self::Rotate,
-            "scale" => Self::Scale,
-            "draw-in" => Self::DrawIn,
-            "reveal-in" => Self::RevealIn,
-            "draw-out" => Self::DrawOut,
-            "fade-out" => Self::FadeOut,
-            "persist" => Self::Persist,
-            "remove" => Self::Remove,
-            "wipe-out" => Self::WipeOut,
-            "reveal-out" => Self::RevealOut,
-            "shake" => Self::Shake,
-            "pulse" => Self::Pulse,
-            "bounce" => Self::Bounce,
-            "settle-in" => Self::SettleIn,
-            "pop-in" => Self::PopIn,
-            "grow-in" => Self::GrowIn,
-            "shrink-out" => Self::ShrinkOut,
-            "highlight" => Self::Highlight,
-            "unhighlight" => Self::Unhighlight,
-            "swap" => Self::Swap,
-            "reorder" => Self::Reorder,
-            _ => return None,
-        })
-    }
-}
+use animatix_std::callable::TimelineBuiltin as BuiltinActionKind;
 
 impl BuiltinAction for BuiltinActionKind {
-    fn signature(&self) -> ActionSignature {
-        match self {
-            Self::FadeIn => FadeIn.signature(),
-            Self::WipeIn => WipeIn.signature(),
-            Self::Move => Move.signature(),
-            Self::Shift => Shift.signature(),
-            Self::Rotate => Rotate.signature(),
-            Self::Scale => Scale.signature(),
-            Self::DrawIn => DrawIn.signature(),
-            Self::RevealIn => RevealIn.signature(),
-            Self::DrawOut => DrawOut.signature(),
-            Self::FadeOut => FadeOut.signature(),
-            Self::Persist => Persist.signature(),
-            Self::Remove => Remove.signature(),
-            Self::WipeOut => WipeOut.signature(),
-            Self::RevealOut => RevealOut.signature(),
-            Self::Shake => Shake.signature(),
-            Self::Pulse => Pulse.signature(),
-            Self::Bounce => Bounce.signature(),
-            Self::SettleIn => SettleIn.signature(),
-            Self::PopIn => PopIn.signature(),
-            Self::GrowIn => GrowIn.signature(),
-            Self::ShrinkOut => ShrinkOut.signature(),
-            Self::Highlight => Highlight.signature(),
-            Self::Unhighlight => Unhighlight.signature(),
-            Self::Swap => Swap.signature(),
-            Self::Reorder => Reorder.signature(),
-        }
+    fn signature(&self) -> CallableDescriptor {
+        self.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
@@ -171,7 +55,7 @@ impl BuiltinAction for BuiltinActionKind {
 }
 
 pub(super) fn execute_action<H: BuiltinAction + ?Sized>(
-    action: &Action,
+    action: &BuiltinInvocation,
     time_ms: f64,
     timeline: &mut Timeline,
     diagnostics: &mut Vec<Diagnostic>,
@@ -239,8 +123,8 @@ pub(super) fn execute_action<H: BuiltinAction + ?Sized>(
 /// (`highlight ball [intensity: 1.3]` on the shipped gradient_descent example
 /// was a no-op). This check turns those into diagnostics.
 fn validate_action_modifiers(
-    action: &Action,
-    signature: &ActionSignature,
+    action: &BuiltinInvocation,
+    signature: &CallableDescriptor,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     const TIMING_KEYS: [&str; 2] = ["delay", "ease"];
@@ -251,21 +135,17 @@ fn validate_action_modifiers(
         if TIMING_KEYS.contains(&name) {
             continue;
         }
-        if signature.modifiers.iter().any(|p| p.name == name) {
+        if signature.params.iter().any(|p| p.name == name) {
             continue;
         }
-        let declared = signature
-            .modifiers
-            .iter()
-            .map(|p| p.name.as_str())
-            .collect::<Vec<_>>()
-            .join(", ");
+        let declared =
+            signature.params.iter().map(|p| p.name.as_str()).collect::<Vec<_>>().join(", ");
         diagnostics.push(
             Diagnostic::warning(
                 DiagnosticCode::UnsupportedModifierKey,
                 DiagnosticPhase::Build,
                 format!(
-                    "Action '{}' does not declare a '{}' modifier (declared: {}). The value is ignored.",
+                    "Function '{}' does not declare a '{}' modifier (declared: {}). The value is ignored.",
                     signature.name, name, declared
                 ),
             )

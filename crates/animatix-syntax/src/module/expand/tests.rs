@@ -8,7 +8,7 @@ fn test_expand_preserves_forloop_index_var() {
     let (stmts, _errors) = crate::parser::parse_source(source);
     let stmts = stmts.unwrap();
     let components = std::collections::HashMap::new();
-    let (expanded, _registry) = expand_statements(&stmts, &components);
+    let expanded = expand_statements(&stmts, &components).statements;
     // Find the ForLoop
     let for_stmt = expanded.iter().find(|s| matches!(s, Stmt::ForLoop { .. })).unwrap();
     if let Stmt::ForLoop { index_var, .. } = for_stmt {
@@ -58,13 +58,13 @@ for value, i in {10, 20, 30} {
                 def.name.clone(),
                 super::super::ComponentEntry {
                     definition: def.clone(),
-                    actions: Default::default(),
+                    methods: Default::default(),
                     source_path: std::path::PathBuf::new(),
                 },
             );
         }
     }
-    let (expanded, _registry) = expand_statements(&stmts, &components);
+    let expanded = expand_statements(&stmts, &components).statements;
     let Stmt::ForLoop { body, .. } =
         expanded.iter().find(|stmt| matches!(stmt, Stmt::ForLoop { .. })).unwrap()
     else {
@@ -109,13 +109,13 @@ grp: Group {
                 def.name.clone(),
                 super::super::ComponentEntry {
                     definition: def.clone(),
-                    actions: Default::default(),
+                    methods: Default::default(),
                     source_path: std::path::PathBuf::new(),
                 },
             );
         }
     }
-    let (expanded, _registry) = expand_statements(&stmts, &components);
+    let expanded = expand_statements(&stmts, &components).statements;
 
     let always_count = expanded.iter().filter(|s| matches!(s, Stmt::Always { .. })).count();
     assert_eq!(
@@ -161,13 +161,13 @@ b: Badge, text: "hi", opacity: 1, at: (320, 240)
                 def.name.clone(),
                 super::super::ComponentEntry {
                     definition: def.clone(),
-                    actions: Default::default(),
+                    methods: Default::default(),
                     source_path: std::path::PathBuf::new(),
                 },
             );
         }
     }
-    let (expanded, _registry) = expand_statements(&stmts, &components);
+    let expanded = expand_statements(&stmts, &components).statements;
     let root = expanded
         .iter()
         .find_map(|s| match s {
@@ -204,13 +204,13 @@ t: Tint, opacity: 0.5
                 def.name.clone(),
                 super::super::ComponentEntry {
                     definition: def.clone(),
-                    actions: Default::default(),
+                    methods: Default::default(),
                     source_path: std::path::PathBuf::new(),
                 },
             );
         }
     }
-    let (expanded, _registry) = expand_statements(&stmts, &components);
+    let expanded = expand_statements(&stmts, &components).statements;
     let root = expanded
         .iter()
         .find_map(|s| match s {
@@ -243,13 +243,13 @@ b: Box, opacity: 0.5
                 def.name.clone(),
                 super::super::ComponentEntry {
                     definition: def.clone(),
-                    actions: Default::default(),
+                    methods: Default::default(),
                     source_path: std::path::PathBuf::new(),
                 },
             );
         }
     }
-    let (expanded, _registry) = expand_statements(&stmts, &components);
+    let expanded = expand_statements(&stmts, &components).statements;
     let root = expanded
         .iter()
         .find_map(|s| match s {
@@ -290,13 +290,13 @@ b: Box, size: 40
                 super::super::ComponentEntry {
                     definition: def.clone(),
                     source_path: std::path::PathBuf::from("scene.amx"),
-                    actions: std::collections::HashMap::new(),
+                    methods: std::collections::HashMap::new(),
                 },
             );
         }
     }
 
-    let (expanded, _registry) = expand_statements(&stmts, &components);
+    let expanded = expand_statements(&stmts, &components).statements;
     let scene = expanded
         .iter()
         .find_map(|s| {
@@ -339,13 +339,13 @@ card: Card
                 def.name.clone(),
                 super::super::ComponentEntry {
                     definition: def.clone(),
-                    actions: Default::default(),
+                    methods: Default::default(),
                     source_path: std::path::PathBuf::new(),
                 },
             );
         }
     }
-    let (expanded, _) = expand_statements(&stmts, &components);
+    let expanded = expand_statements(&stmts, &components).statements;
     let (group_props, children) = expanded
         .iter()
         .find_map(|stmt| match stmt {
@@ -382,4 +382,241 @@ card: Card
         }),
         "relative root width must fill the Group's allocated cell: {root_props:?}"
     );
+}
+
+#[test]
+fn methods_are_kept_in_the_registry_for_their_own_scene() {
+    let source = r#"
+pub component FirstCard {
+  pub fn pulse() { return #{ self.opacity = 0.25 } }
+  root: Rect
+}
+
+pub component SecondCard {
+  pub fn pulse() { return #{ self.opacity = 0.75 } }
+  root: Rect
+}
+# FirstScene
+card: FirstCard
+# SecondScene
+card: SecondCard
+"#;
+    let (statements, errors) = crate::parser::parse_source(source);
+    assert!(errors.is_empty(), "unexpected parse errors: {errors:?}");
+    let statements = statements.expect("scene source should parse");
+    let components = statements
+        .iter()
+        .filter_map(|stmt| match stmt {
+            Stmt::ComponentDef(definition, _) => Some((
+                definition.name.clone(),
+                crate::module::ComponentEntry {
+                    definition: definition.clone(),
+                    source_path: std::path::PathBuf::new(),
+                    methods: Default::default(),
+                },
+            )),
+            _ => None,
+        })
+        .collect();
+
+    let expanded = expand_statements(&statements, &components);
+    assert!(expanded.instance_methods.is_empty());
+    let method_opacity = |scene: &str| {
+        let template = expanded.scene_methods[scene]["card"]["pulse"].clone();
+        template
+            .body
+            .iter()
+            .find_map(|stmt| match stmt {
+                Stmt::Return {
+                    value: Some(Expr::Timeline(plan)),
+                    ..
+                } => plan.statements.iter().find_map(|stmt| match stmt {
+                    Stmt::Assignment {
+                        property,
+                        value: Expr::Num(value),
+                        ..
+                    } if property == "opacity" => Some(*value),
+                    _ => None,
+                }),
+                _ => None,
+            })
+            .expect("method should return its timeline plan")
+    };
+    assert_eq!(method_opacity("FirstScene"), 0.25);
+    assert_eq!(method_opacity("SecondScene"), 0.75);
+}
+
+#[test]
+fn reusable_plan_sites_keep_independent_component_methods_and_expand_components() {
+    let source = r#"
+component Card(width: Num) {
+  box: Rect, size: (width, 20)
+  fn reveal(amount: Num = width) {
+    #{
+      #0s
+      box.opacity = amount
+    }
+  }
+}
+let first = #{
+  local: Card, width: 10
+  local.reveal(amount: 1)
+}
+let second = #{
+  local: Card, width: 20
+  local.reveal(amount: 2)
+}
+fn make(width: Num) {
+  #{
+    local: Card, width: width
+    local.reveal()
+  }
+}
+"#;
+    let (statements, errors) = crate::parser::parse_source(source);
+    assert!(errors.is_empty(), "unexpected parse errors: {errors:?}");
+    let statements = statements.expect("source should parse");
+    let components = statements
+        .iter()
+        .filter_map(|stmt| match stmt {
+            Stmt::ComponentDef(definition, _) => Some((
+                definition.name.clone(),
+                crate::module::ComponentEntry {
+                    definition: definition.clone(),
+                    source_path: std::path::PathBuf::from("/modules/cards.amx"),
+                    methods: crate::module::discovery::collect_component_functions(
+                        definition,
+                        std::path::Path::new("/modules/cards.amx"),
+                    ),
+                },
+            )),
+            _ => None,
+        })
+        .collect();
+    let expanded = expand_statements(&statements, &components);
+
+    let plan = |name: &str| {
+        expanded
+            .statements
+            .iter()
+            .find_map(|stmt| match stmt {
+                Stmt::LetDecl {
+                    name: binding,
+                    value: Expr::Timeline(plan),
+                    ..
+                } if binding == name => Some(plan),
+                _ => None,
+            })
+            .expect("let binding should hold a reusable plan")
+    };
+    let first = plan("first");
+    let second = plan("second");
+    assert!(first.statements.iter().any(|stmt| matches!(
+        stmt,
+        Stmt::ActorDecl { label, .. } if label == "local"
+    )));
+    assert!(second.statements.iter().any(|stmt| matches!(
+        stmt,
+        Stmt::ActorDecl { label, .. } if label == "local"
+    )));
+    assert!(first.instance_methods.contains_key("local"));
+    assert!(second.instance_methods.contains_key("local"));
+    assert_eq!(
+        first.instance_methods["local"]["reveal"].params[0].default,
+        Some(Expr::Ident("width".into()))
+    );
+    assert_eq!(
+        second.instance_methods["local"]["reveal"].params[0].default,
+        Some(Expr::Ident("width".into()))
+    );
+
+    let reexpanded = expand_statements(&expanded.statements, &components);
+    for name in ["first", "second"] {
+        let plan = reexpanded
+            .statements
+            .iter()
+            .find_map(|stmt| match stmt {
+                Stmt::LetDecl {
+                    name: binding,
+                    value: Expr::Timeline(plan),
+                    ..
+                } if binding == name => Some(plan),
+                _ => None,
+            })
+            .expect("re-expanded binding should retain its plan");
+        assert!(
+            plan.instance_methods.contains_key("local"),
+            "re-expansion must preserve method scope for plan {name}"
+        );
+    }
+
+    let make = expanded
+        .statements
+        .iter()
+        .find_map(|stmt| match stmt {
+            Stmt::FnDecl { name, body, .. } if name == "make" => Some(body),
+            _ => None,
+        })
+        .expect("make function should remain in expanded statements");
+    assert!(matches!(
+        make.as_slice(),
+        [Stmt::Return {
+            value: Some(Expr::Timeline(plan)),
+            ..
+        }] if plan.instance_methods.contains_key("local")
+    ));
+}
+
+#[test]
+fn component_methods_capture_names_from_instance_parameter_expressions() {
+    let source = r#"
+component Card(width: Num) {
+  box: Rect, size: (width, 20)
+  fn scaled(factor: Num) { width * factor }
+}
+fn make(w: Num) {
+  #{
+    local: Card, width: w
+    local.scaled(2)
+  }
+}
+"#;
+    let (statements, errors) = crate::parser::parse_source(source);
+    assert!(errors.is_empty(), "unexpected parse errors: {errors:?}");
+    let statements = statements.expect("source should parse");
+    let components = statements
+        .iter()
+        .filter_map(|stmt| match stmt {
+            Stmt::ComponentDef(definition, _) => Some((
+                definition.name.clone(),
+                crate::module::ComponentEntry {
+                    definition: definition.clone(),
+                    source_path: std::path::PathBuf::from("/modules/cards.amx"),
+                    methods: crate::module::discovery::collect_component_functions(
+                        definition,
+                        std::path::Path::new("/modules/cards.amx"),
+                    ),
+                },
+            )),
+            _ => None,
+        })
+        .collect();
+    let expanded = expand_statements(&statements, &components);
+    let plan = expanded
+        .statements
+        .iter()
+        .find_map(|stmt| match stmt {
+            Stmt::FnDecl { name, body, .. } if name == "make" => {
+                body.iter().find_map(|stmt| match stmt {
+                    Stmt::Return {
+                        value: Some(Expr::Timeline(plan)),
+                        ..
+                    } => Some(plan),
+                    _ => None,
+                })
+            },
+            _ => None,
+        })
+        .expect("make should return its plan");
+    assert_eq!(plan.instance_methods["local"]["scaled"].component_captures, ["w"]);
 }

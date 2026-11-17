@@ -37,12 +37,11 @@ pub(crate) fn parse_actor_ref_literal(expr: &Expr) -> Option<String> {
         Expr::Str(s) => Some(s.clone()),
         Expr::Ident(s) => Some(s.clone()),
         Expr::Path(parts) => Some(parts.join(".")),
+        Expr::Field(base, field) => {
+            parse_actor_ref_literal(base).map(|base| format!("{base}.{field}"))
+        },
         Expr::Index(base, index) => {
-            let base_name = match base.as_ref() {
-                Expr::Ident(name) => name.clone(),
-                Expr::Path(parts) if !parts.is_empty() => parts.join("."),
-                _ => return None,
-            };
+            let base_name = parse_actor_ref_literal(base)?;
             let n = match index.as_ref() {
                 Expr::Num(n) if n.trunc() == *n && *n >= 0.0 => Some(*n as usize),
                 _ => None,
@@ -51,6 +50,16 @@ pub(crate) fn parse_actor_ref_literal(expr: &Expr) -> Option<String> {
         },
         _ => None,
     }
+}
+
+/// Read authored anchor metadata from either a member chain or a generated
+/// static path. The numeric evaluator alone cannot retain an anchor binding.
+pub(crate) fn actor_anchor_reference(
+    expr: &Expr,
+) -> Option<(String, crate::timeline::SceneAnchor)> {
+    let path = expr.callable_name()?;
+    let (actor, anchor) = path.rsplit_once('.')?;
+    crate::timeline::SceneAnchor::from_str(anchor).map(|anchor| (actor.to_string(), anchor))
 }
 
 /// Build a joined dot-separated key from target segments, using the base label
@@ -135,7 +144,12 @@ pub(crate) fn evaluate_expr_with_lookup_diagnostic(
 ) -> Option<Value> {
     match evaluate_expr(expr, env) {
         Ok(value) => Some(value),
-        Err(EvalError::UndefinedVariable(lookup_key)) if lookup_key.contains('.') => {
+        Err(EvalError::UndefinedVariable(lookup_key))
+            if lookup_key.contains('.')
+                || matches!(expr, Expr::Field(..)) && expr.callable_name().is_some() =>
+        {
+            let lookup_key =
+                expr.callable_name().filter(|key| key.contains('.')).unwrap_or(lookup_key);
             let candidate_keys = env.all_keys();
             let suggestion =
                 best_path_suggestion(&lookup_key, candidate_keys.iter().map(String::as_str));
@@ -162,7 +176,7 @@ pub(crate) fn parse_color_in_env_with_lookup_diagnostic(
             let candidate_keys = env.all_keys();
             let suggestion =
                 best_path_suggestion(&lookup_key, candidate_keys.iter().map(String::as_str));
-            if matches!(expr, Expr::Path(parts) if parts.len() > 2) {
+            if expr.callable_name().is_some_and(|path| path.split('.').count() > 2) {
                 push_unknown_lookup_path_diagnostic(diagnostics, subject, &lookup_key, suggestion);
                 return Some(fallback);
             }

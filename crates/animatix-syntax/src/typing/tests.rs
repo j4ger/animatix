@@ -26,18 +26,20 @@ fn color_namespace_paths_are_colors() {
         "motion".to_string(),
     ]);
     assert_eq!(infer_expr_type(&stats, &env), Type::List(Box::new(Type::Num)));
-    let curve_call = Expr::Call("curve_at".to_string(), vec![stats.clone(), Expr::Num(0.5)]);
+    let curve_call = Expr::call("curve_at", vec![stats.clone(), Expr::Num(0.5)]);
     assert_eq!(infer_expr_type(&curve_call, &env), Type::Num);
-    let smooth_call =
-        Expr::Call("curve_smooth".to_string(), vec![stats, Expr::Num(0.5), Expr::Num(0.7)]);
+    let smooth_call = Expr::call("curve_smooth", vec![stats, Expr::Num(0.5), Expr::Num(0.7)]);
     assert_eq!(infer_expr_type(&smooth_call, &env), Type::Num);
 }
 
 #[test]
 fn color_functions_return_colors() {
     let env = std_env();
-    for name in COLOR_CONSTRUCTOR_FNS {
-        let call = Expr::Call(name.to_string(), vec![]);
+    for callable in animatix_std::callable::callables()
+        .iter()
+        .filter(|callable| callable.return_type == animatix_core::callable::CallableType::Color)
+    {
+        let call = Expr::call(callable.name.clone(), vec![]);
         assert_eq!(infer_expr_type(&call, &env), Type::Color);
     }
 }
@@ -260,7 +262,7 @@ fn closure_and_call_return_types_infer() {
 
     let mut env = std_env();
     env.bind("f", function_ty);
-    assert_eq!(infer_expr_type(&Expr::Call("f".to_string(), vec![]), &env), Type::Num);
+    assert_eq!(infer_expr_type(&Expr::call("f", vec![]), &env), Type::Num);
 }
 
 #[test]
@@ -328,4 +330,39 @@ fn plot_curve_has_graph_ranges() {
     for property in ["x_range", "y_range", "func"] {
         assert!(plot_curve.contains(&property.to_string()), "missing {property}");
     }
+}
+
+#[test]
+fn type_parse_uses_complete_source_annotation_grammar() {
+    assert_eq!(Type::parse("Actor"), Some(Type::Actor("Actor".to_string())));
+    assert_eq!(Type::parse("Scene"), Some(Type::Scene));
+    assert_eq!(
+        Type::parse("List<Actor | Scene>"),
+        Some(Type::List(Box::new(Type::Union(vec![
+            Type::Actor("Actor".to_string()),
+            Type::Scene,
+        ]))))
+    );
+    assert_eq!(
+        Type::parse("Tuple<Num, Str, Actor>"),
+        Some(Type::Tuple(vec![Type::Num, Type::Str, Type::Actor("Actor".to_string()),]))
+    );
+    assert_eq!(
+        Type::parse("Fn(Actor, Num) => Scene"),
+        Some(Type::Function {
+            params: vec![Type::Actor("Actor".to_string()), Type::Num],
+            ret: Box::new(Type::Scene),
+        })
+    );
+    assert_eq!(
+        Type::parse("Enum(left, right)"),
+        Some(Type::Enum(vec!["left".to_string(), "right".to_string()]))
+    );
+    assert_eq!(Type::parse("U32"), Some(Type::Num));
+    assert_eq!(Type::parse("String"), Some(Type::Str));
+    assert_eq!(Type::parse("List<U32>"), Some(Type::List(Box::new(Type::Num))));
+    assert_eq!(Type::parse("MissingType"), None);
+    assert_eq!(Type::parse("List<MissingType>"), None);
+    assert_eq!(Type::parse("Num trailing"), None);
+    assert_eq!(Type::parse("Enum()"), None);
 }

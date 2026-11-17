@@ -17,7 +17,7 @@ config { colorscheme: "editorial-dark", resolution: (480, 270) }
 box: Rect, size: (80, 40), color: accent.primary, anchor: scene.center
 
 #0.2s
-fade-in box [200ms]
+fade_in(target: box, duration: 200ms)
 
 #1s
 box.at = {280, "x"} [300ms]
@@ -104,7 +104,7 @@ const SCENE_WITH_DURATION: &str = r#"
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 2.0 }
 r: Rect, size: (100, 100), color: accent.primary, at: (640, 360)
 #5s
-fade-in r [500ms]
+fade_in(target: r, duration: 500ms)
 "#;
 
 #[test]
@@ -149,7 +149,7 @@ fn declared_duration_longer_than_content_extends_playback_without_warning() {
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 8.0 }
 r: Rect, size: (100, 100), color: accent.primary, at: (640, 360)
 #1s
-fade-in r [500ms]
+fade_in(target: r, duration: 500ms)
 "#,
     );
 
@@ -172,7 +172,7 @@ fn duration_config_must_be_a_positive_number() {
 config {{ colorscheme: "editorial-dark", duration: {value} }}
 r: Rect, size: (100, 100), color: accent.primary, at: (640, 360)
 #1s
-fade-in r [500ms]
+fade_in(target: r, duration: 500ms)
 "#
         ));
 
@@ -204,7 +204,7 @@ fn unknown_config_key_is_reported_instead_of_dropped() {
 config { colorscheme: "editorial-dark", colur_scheme: "warm" }
 r: Rect, size: (100, 100), color: accent.primary, opacity: 0.25, at: (640, 360)
 #1s
-fade-in r [500ms]
+fade_in(target: r, duration: 500ms)
 "#,
     );
 
@@ -233,7 +233,7 @@ config {
 }
 r: Rect, size: (100, 100), color: accent.primary, at: (640, 360)
 #1s
-fade-in r [500ms]
+fade_in(target: r, duration: 500ms)
 "#,
     );
 
@@ -256,7 +256,7 @@ config { resolution: (640, 360), duration: 3 }
 box: Rect, size: (140, 140), color: accent.primary, at: (320, 180)
 
 #0.3s
-fade-in box [250ms, ease: ease-out]
+fade_in(target: box, duration: 250ms, ease: ease_out)
 
 #1.5s
 box: Ellipse, size: (140, 140), color: accent.success [900ms, strategy: match]
@@ -304,7 +304,7 @@ fn bounce_action_settles_with_decaying_hops() {
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
 a: Rect, size: (40, 40), color: accent.primary, at: (200, 150)
-bounce a [1s, intensity: 100]
+bounce(target: a, duration: 1s, intensity: 100)
 "#,
     );
     let track = timeline.world.tracks.get_id("a").expect("rect track");
@@ -332,7 +332,7 @@ fn bounce_restitution_stretches_the_series_to_the_duration() {
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
 a: Rect, size: (40, 40), color: accent.primary, at: (200, 150)
-bounce a [1s, intensity: 100, restitution: 0.9]
+bounce(target: a, duration: 1s, intensity: 100, restitution: 0.9)
 "#,
     );
     let track = timeline.world.tracks.get_id("a").expect("rect track");
@@ -356,7 +356,7 @@ fn action_modifiers_are_tolerated_from_the_signature_not_a_literal_list() {
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
 a: Rect, size: (40, 40), color: accent.primary, at: (200, 150)
-bounce a [1s, intensity: 40, restitution: 0.7]
+bounce(target: a, duration: 1s, intensity: 40, restitution: 0.7)
 "#,
     );
     let noisy: Vec<_> = report
@@ -375,7 +375,7 @@ fn a_misspelled_action_modifier_still_warns() {
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
 a: Rect, size: (40, 40), color: accent.primary, at: (200, 150)
-bounce a [1s, intensy: 40]
+bounce(a, duration: 1s, intensy: 40)
 "#,
     );
     assert!(
@@ -656,7 +656,7 @@ config { colorscheme: "editorial-dark", resolution: (640, 360), seamless_loop: t
 
 box: Rect, size: (100, 100), at: (200, 180), color: accent.primary
 #0s
-fade-in box [200ms]
+fade_in(target: box, duration: 200ms)
 box.at = (200, 180)
 #2s
 box.at = (440, 180)
@@ -760,9 +760,9 @@ card: Rect, size: (120, 80), at: (200, 180), color: accent.primary
 chip: Ellipse, size: (60, 60), at: (420, 180), color: accent.warning
 
 #0.5s
-settle-in card [500ms]
+settle_in(target: card, duration: 500ms)
 #1s
-pop-in chip [500ms]
+pop_in(target: chip, duration: 500ms)
     "#;
     let report = build(source);
     assert!(
@@ -783,7 +783,7 @@ pop-in chip [500ms]
     };
     assert!(
         (scale_start - 0.92).abs() < 1e-3,
-        "settle-in must start 8% under its resting scale, got {scale_start}"
+        "settle_in must start 8% under its resting scale, got {scale_start}"
     );
     assert!(
         (scale_end - 1.0).abs() < 1e-3,
@@ -794,7 +794,7 @@ pop-in chip [500ms]
     };
     assert!(
         opacity_mid > 0.0 && opacity_mid < 1.0,
-        "settle-in must be mid-fade at the halfway point, got {opacity_mid}"
+        "settle_in must be mid-fade at the halfway point, got {opacity_mid}"
     );
 
     // pop-in: starts at 60% and overshoots past its target, which is what the
@@ -804,7 +804,7 @@ pop-in chip [500ms]
     };
     assert!(
         (pop_start - 0.6).abs() < 1e-3,
-        "pop-in must start at 60% scale, got {pop_start}"
+        "pop_in must start at 60% scale, got {pop_start}"
     );
     let mut max_scale = 0.0_f32;
     for ms in (1000..=1500).step_by(25) {
@@ -813,7 +813,7 @@ pop-in chip [500ms]
         };
         max_scale = max_scale.max(v);
     }
-    assert!(max_scale > 1.0, "pop-in must overshoot past its target, peaked at {max_scale}");
+    assert!(max_scale > 1.0, "pop_in must overshoot past its target, peaked at {max_scale}");
 }
 
 #[test]
@@ -826,9 +826,9 @@ config { colorscheme: "editorial-dark", resolution: (640, 360) }
 dot: Ellipse, size: (40, 40), at: (200, 180), color: accent.primary
 
 #0s
-fade-in dot [200ms]
+fade_in(target: dot, duration: 200ms)
 #1s
-move dot [to: (200, 0), 500ms, anticipate: 100ms]
+move(target: dot, to: (200, 0), duration: 500ms, anticipate: 100ms)
     "#;
     let report = build(source);
     assert!(
@@ -878,7 +878,7 @@ t: Text, text: label, at: (200, 180), color: tint
 u: Text, text: label, at: (200, 240)
 
 #0s
-fade-in t [200ms]
+fade_in(target: t, duration: 200ms)
     "#;
     let ast = parse(source);
     let namespaces = std::collections::HashMap::new();
@@ -1032,7 +1032,7 @@ half: Rect, size: (20, 20), at: (400, 180), color: accent.primary, scale: 0.5
 plain: Rect, size: (20, 20), at: (500, 180), color: accent.primary
 
 #0s
-fade-in box [200ms]
+fade_in(target: box, duration: 200ms)
 "#;
     let report = build(source);
     let timeline = report.output;
@@ -1060,7 +1060,7 @@ dot: Ellipse, size: (20, 20), at: (100, 100), color: accent.primary, opacity: 1.
 #0s
 dot.at = (100, 100)
 #0.5s
-move dot [along: {move_to(100, 100), line_to(500, 100)}, 2s]
+move(target: dot, along: {move_to(100, 100), line_to(500, 100)}, duration: 2s)
 "#;
     let timeline = build_clean(source);
 
@@ -1105,7 +1105,7 @@ config {{ colorscheme: "editorial-dark", resolution: (640, 360) }}
 
 line: Text, text: "aa bb cc dd", at: (320, 180), font_size: 40
 #0s
-draw-in line [4s{extra}]
+draw_in(target: line, duration: 4s{extra})
 "#
         );
         build_clean(&source)
@@ -1145,7 +1145,7 @@ draw-in line [4s{extra}]
     let mid = progress_at(&chars, 1000);
     assert!(
         mid > 0.7 && mid < 0.95,
-        "the default reveal is a smooth ramp under expo-out, got {mid}"
+        "the default reveal is a smooth ramp under expo_out, got {mid}"
     );
     assert!(
         progress_at(&chars, 200) < 0.35,
@@ -1230,13 +1230,19 @@ fn unary_minus_on_imported_module_path_resolves_in_graph_domain() {
     let scene_path = dir.path().join("scene.amx");
     std::fs::write(
         &scene_path,
-        "import \"./geo.amx\" as geo\ng: Graph, opacity: 1.0, size: (400, 300), x_domain: (-5, 5), y_domain: (-geo.y_hi, geo.y_hi)\n",
+        "import \"./geo.amx\" as geo\ng: Graph, opacity: 1.0, size: (400, 300), x_domain: (-5, 5), y_domain: (-geo::y_hi, geo::y_hi)\n",
     )
     .expect("write scene");
     let mut graph = animatix_syntax::module::ModuleGraph::new();
     let program = graph.load_program(&scene_path).expect("program loads");
     let expanded = program.expand_components(&mut Vec::new());
-    let report = Timeline::build_with_diagnostics(&expanded, &program.namespaces);
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        crate::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
     assert!(
         without_content_lints(&report.diagnostics).next().is_none(),
         "diagnostics: {:?}",
@@ -1248,4 +1254,24 @@ fn unary_minus_on_imported_module_path_resolves_in_graph_domain() {
         },
         other => panic!("expected Vec2([-1.75, 1.75]) for g_y_domain, got {other:?}"),
     }
+}
+
+#[test]
+fn gradients_use_named_arguments_and_function_return_values() {
+    let source = r##"
+fn paint(angle: Num) { linear(stops: {"#ff0000", "#0000ff"}, angle: angle) }
+let fill = paint(75)
+#0s
+r: Rect, size: (100, 60), fill_gradient: fill
+"##;
+    let timeline = build_clean(source);
+    let paths = render_paths(&timeline, 0.0);
+    let gradient = paths
+        .iter()
+        .find_map(|path| path.fill_gradient.as_deref())
+        .expect("gradient paint");
+    assert_eq!(gradient.stops.len(), 2);
+    assert!(
+        matches!(gradient.shape, crate::renderer::types::GradientShape::Linear { angle } if angle == 75.0)
+    );
 }

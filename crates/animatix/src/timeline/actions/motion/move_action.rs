@@ -5,21 +5,13 @@ use super::*;
 pub struct Move;
 
 impl BuiltinAction for Move {
-    fn signature(&self) -> ActionSignature {
-        ActionSignature {
-            name: "move".to_string(),
-            category: "Motion".to_string(),
-            description:
-                "Moves the target to a local translation offset on top of its existing placement."
-                    .to_string(),
-            params: vec![],
-            modifiers: motion_timing_params(),
-        }
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::Move.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
@@ -146,7 +138,7 @@ impl BuiltinAction for Move {
 
 /// Expand `move … [along: {…}]` into arc-length-sampled keyframes.
 fn run_move_along(
-    action: &Action,
+    action: &BuiltinInvocation,
     along: &crate::ast::Modifier,
     time_ms: f64,
     timeline: &mut Timeline,

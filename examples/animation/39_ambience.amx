@@ -1,5 +1,7 @@
 import "../lib/theme.amx"
+
 import "../lib/stage.amx"
+
 import "../lib/ambience.amx"
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6, seamless_loop: true }
@@ -8,28 +10,28 @@ floor: StageFloor
 
 // No ActHead/Caption here: the STAT-1 demo needs a stats population of
 // exactly the two moving actors, or the wash's target gets diluted.
-bg: Ambience, tint: rgb(1.0, 0.62, 0.04), base_opacity: 0.22, tau: 0.5
+bg: Ambience, tint: rgb(1, 0.62, 0.04), base_opacity: 0.22, tau: 0.5
 
-hero: Ellipse, size: (120, 120), color: accent.primary, at: (320, 360), opacity: 1.0
-satellite: Rect, size: (70, 70), corner_radius: 12, color: accent.secondary, at: (960, 360), opacity: 1.0
+hero: Ellipse, size: (120, 120), color: accent.primary, at: (320, 360), opacity: 1
+
+satellite: Rect, size: (70, 70), corner_radius: 12, color: accent.secondary, at: (960, 360), opacity: 1
 
 #0s
-hero.at = (320, 360)
-satellite.at = (960, 360)
+  hero.at = (320, 360)
+  satellite.at = (960, 360)
 
 #1.5s
-hero.at = (640, 240) [ease: ease-in-out]
-satellite.at = (640, 480) [ease: ease-in-out]
+  hero.at = (640, 240) [ease: ease_in_out]
+  satellite.at = (640, 480) [ease: ease_in_out]
 
 #3s
-hero.at = (960, 360) [ease: ease-in-out]
-satellite.at = (320, 360) [ease: ease-in-out]
+  hero.at = (960, 360) [ease: ease_in_out]
+  satellite.at = (320, 360) [ease: ease_in_out]
 
 #4.5s
-hero.at = (640, 480) [ease: ease-in-out]
-satellite.at = (640, 240) [ease: ease-in-out]
+  hero.at = (640, 480) [ease: ease_in_out]
+  satellite.at = (640, 240) [ease: ease_in_out]
 
 #6s
-hero.at = (320, 360) [ease: ease-in-out]
-satellite.at = (960, 360) [ease: ease-in-out]
-
+  hero.at = (320, 360) [ease: ease_in_out]
+  satellite.at = (960, 360) [ease: ease_in_out]

@@ -45,7 +45,7 @@ pub fn hover_at(
         _ => return None,
     }
 
-    // Labels, types, actions, and keywords take precedence over property names.
+    // Labels, types, callables, and keywords take precedence over property names.
     if let Some(info) = symbols.labels.get(text) {
         let kind = match info.kind {
             LabelKind::Actor => "Actor",
@@ -80,13 +80,26 @@ pub fn hover_at(
             range,
         });
     }
-    if symbols.actions.contains(text) {
+    let qualified_name = qualified_callable_at(tokens, token, text);
+    let callable = qualified_name
+        .as_deref()
+        .and_then(|name| crate::completer::callable_for(name, symbols, manifest))
+        .or_else(|| crate::completer::callable_for(text, symbols, manifest));
+    if let Some(callable) = callable {
         return Some(HoverInfo {
             contents: format!(
-                "**Action** `{}`\n\n{}",
-                text,
-                animatix_syntax::builtins::action_documentation(text)
+                "**Callable** `{}`\n\n{}",
+                crate::completer::callable_signature(&callable),
+                callable.help
             ),
+            range,
+        });
+    }
+    if symbols.functions.contains(text)
+        || qualified_name.as_ref().is_some_and(|name| symbols.functions.contains(name))
+    {
+        return Some(HoverInfo {
+            contents: format!("**Callable** `{}`", qualified_name.as_deref().unwrap_or(text)),
             range,
         });
     }
@@ -138,6 +151,25 @@ pub fn hover_at(
         }
     }
 
+    None
+}
+
+fn qualified_callable_at(tokens: &[Token], token: &Token, text: &str) -> Option<String> {
+    let index = tokens.iter().position(|candidate| candidate.span == token.span)?;
+    if index >= 2
+        && matches!(tokens[index - 1].kind, TokenKind::ColonColon)
+        && let TokenKind::Ident(namespace) = &tokens[index - 2].kind
+    {
+        return Some(format!("{namespace}::{text}"));
+    }
+    if index >= 2
+        && matches!(tokens[index - 1].kind, TokenKind::Dot)
+        && let TokenKind::Ident(receiver) = &tokens[index - 2].kind
+    {
+        return Some(format!("{receiver}.{text}"));
+    }
+    // A standard callable is also available unqualified, but explicit `std::`
+    // qualification should be reflected in the displayed signature.
     None
 }
 

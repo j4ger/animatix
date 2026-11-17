@@ -108,18 +108,20 @@ pub fn build_prepared(
     }
     let mut diagnostics = analysis.diagnostics.clone();
     let report = BuildTarget::build_with_options(
-        &prepared.syntax.expanded,
+        &prepared.syntax.expanded.statements,
         &prepared.syntax.namespaces,
         None,
         BuildOptions {
             font_context: Some(font_context),
             quality: Some(quality),
+            function_context: Some(&prepared.syntax.function_context),
             asset_cache: assets,
             extensions: Some(Arc::new(super::resources::extensions())),
             skip_persist_target_warning: true,
             defines: &prepared.vars,
             ..Default::default()
-        },
+        }
+        .with_expanded(&prepared.syntax.expanded),
     );
     let target = report.output;
     diagnostics.extend(report.diagnostics.iter().map(DiagnosticDto::from_diagnostic));
@@ -131,7 +133,7 @@ pub fn build_prepared(
         });
     }
     let (duration_s, width, height) = document_extent(&target);
-    let markers = timeline_markers(&prepared.syntax.expanded, &target);
+    let markers = timeline_markers(&prepared.syntax.expanded.statements, &target);
     let pause_points = target.pause_points().iter().map(|&ms| ms as f64 / 1000.0).collect();
     let ok = !diagnostics.iter().any(|d| d.severity == "error");
     let runtime_inputs = if ok {

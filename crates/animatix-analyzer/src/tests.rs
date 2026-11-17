@@ -69,7 +69,7 @@ fn stage_param_assignment_is_not_checked_against_host_properties() {
 }
 box: Rect, size: 42
 #0s
-fade-in box [1s]
+fade_in(target: box, duration: 1s)
 "#;
     let mismatches = messages_for_code(&Analyzer::new(source), "type-mismatch");
     assert!(
@@ -181,6 +181,79 @@ type = "Num"
     let gauge = completions.iter().find(|item| item.label == "Gauge").expect("Gauge completion");
     assert_eq!(gauge.detail.as_deref(), Some("Plots"));
     assert_eq!(gauge.documentation.as_deref(), Some("Gauge Dial (Plots)"));
+}
+
+#[test]
+fn extension_callable_descriptor_drives_argument_typechecking() {
+    let descriptor = animatix_core::callable::CallableDescriptor {
+        namespace: "demo".into(),
+        name: "pulse".into(),
+        params: vec![animatix_core::callable::CallableParam::required(
+            "target",
+            animatix_core::callable::CallableType::Actor,
+        )],
+        return_type: animatix_core::callable::CallableType::Timeline,
+        phase: animatix_core::callable::CallablePhase::Build,
+        help: "Pulse an actor.".into(),
+        category: "Effects".into(),
+    };
+    let manifest = ExtensionManifest {
+        callables: vec![descriptor],
+        ..Default::default()
+    };
+    let analyzer = Analyzer::new("#0s\ndemo::pulse(5)\n").with_extension_manifest(manifest);
+
+    let mismatches = messages_for_code(&analyzer, "type-mismatch");
+    assert_eq!(mismatches.len(), 1, "extension signatures typecheck: {mismatches:?}");
+    assert!(mismatches[0].contains("demo::pulse"));
+}
+
+#[test]
+fn imported_public_function_signature_drives_namespace_call_typechecking() {
+    let dir = std::env::temp_dir().join(format!(
+        "animatix-imported-callable-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0)
+    ));
+    std::fs::create_dir_all(&dir).expect("create temp directory");
+    let library = dir.join("motion.amx");
+    std::fs::write(
+        &library,
+        "pub fn blink(target: Actor) { return #{ fade_in(target: target, duration: 500ms) } }\n",
+    )
+    .expect("write library");
+    let source = "import \"motion.amx\" as motion\n#0s\nmotion::blink(5)\n";
+    let main = dir.join("main.amx");
+    std::fs::write(&main, source).expect("write main source");
+
+    let mut analyzer = Analyzer::new_with_path(source, Some(main));
+    analyzer.merge_import_symbols();
+    let mismatches = messages_for_code(&analyzer, "type-mismatch");
+    assert_eq!(mismatches.len(), 1, "imported signatures typecheck: {mismatches:?}");
+    assert!(mismatches[0].contains("motion::blink"));
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn component_method_signature_drives_receiver_call_typechecking() {
+    let source = r#"
+pub component Button {
+  pub fn pulse(amount: Num) {
+    return #{ self.scale = amount [100ms] }
+  }
+}
+button: Button
+#0s
+button.pulse(amount: "wrong")
+"#;
+    let analyzer = Analyzer::new(source);
+    let mismatches = messages_for_code(&analyzer, "type-mismatch");
+    assert_eq!(mismatches.len(), 1, "component methods share callable types: {mismatches:?}");
+    assert!(mismatches[0].contains("pulse"));
 }
 
 #[test]
@@ -342,7 +415,7 @@ fn workspace_resolves_aliased_imports_to_namespaces() {
 
     let lib_source = r#"
 pub let accent = rgb(255, 0, 0)
-pub component Button(text: "Click") {}
+pub component Button(text: Str = "Click") {}
 "#;
     let main_source = r#"
 import "lib.amx" as lib
@@ -370,10 +443,10 @@ title: Text {
     assert!(!lib_ns.labels.contains_key("btn"));
 
     // Namespace-qualified lookup should work for exports only.
-    assert!(resolved.resolve_namespaced_label("lib.accent").is_some());
-    assert!(resolved.resolve_namespaced_component("lib.Button").is_some());
-    assert!(resolved.resolve_namespaced_label("lib.btn").is_none());
-    assert!(resolved.resolve_namespaced_label("lib.unknown").is_none());
+    assert!(resolved.resolve_namespaced_label("lib::accent").is_some());
+    assert!(resolved.resolve_namespaced_component("lib::Button").is_some());
+    assert!(resolved.resolve_namespaced_label("lib::btn").is_none());
+    assert!(resolved.resolve_namespaced_label("lib::unknown").is_none());
 }
 
 #[test]
@@ -428,13 +501,13 @@ import "lib.amx" as lib
     workspace.add_file(PathBuf::from("/project/main.amx"), main_source);
 
     let resolved = workspace.resolve_symbols(Path::new("/project/main.amx"));
-    assert!(resolved.resolve_namespaced_label("lib.inner.accent").is_some());
-    assert!(resolved.resolve_namespaced_component("lib.inner.InnerButton").is_some());
-    assert!(resolved.resolve_namespaced_label("lib.inner.missing").is_none());
-    let mut labels = resolved.namespace_labels("lib.inner");
+    assert!(resolved.resolve_namespaced_label("lib::inner::accent").is_some());
+    assert!(resolved.resolve_namespaced_component("lib::inner::InnerButton").is_some());
+    assert!(resolved.resolve_namespaced_label("lib::inner::missing").is_none());
+    let mut labels = resolved.namespace_labels("lib::inner");
     labels.sort();
     assert_eq!(labels, vec!["accent"], "component-internal labels should not be exported");
-    assert_eq!(resolved.namespace_components("lib.inner"), vec!["InnerButton"]);
+    assert_eq!(resolved.namespace_components("lib::inner"), vec!["InnerButton"]);
 }
 
 #[test]
@@ -478,12 +551,12 @@ fn hover_on_type_returns_type_documentation() {
 }
 
 #[test]
-fn hover_builtin_actions_in_symbol_table() {
+fn builtin_timeline_functions_are_in_the_catalog() {
     let analyzer = Analyzer::new(TITLE_SOURCE);
     let symbols = analyzer.symbols();
-    assert!(symbols.actions.contains("fade-in"));
-    assert!(symbols.actions.contains("move"));
-    assert!(symbols.actions.contains("rotate"));
+    assert!(symbols.functions.contains("fade_in"));
+    assert!(symbols.functions.contains("move"));
+    assert!(symbols.functions.contains("rotate"));
 }
 
 #[test]

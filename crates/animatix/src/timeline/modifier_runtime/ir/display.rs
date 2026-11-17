@@ -109,6 +109,9 @@ impl fmt::Display for DisplayCompiledExpr<'_> {
         match self.0 {
             CompiledExpr::Const(value) => write!(f, "const({value:?})"),
             CompiledExpr::LoadEnv(name) => write!(f, "load({name})"),
+            CompiledExpr::Field(base, name) => {
+                write!(f, "{}.{}", DisplayCompiledExpr(base), name)
+            },
             CompiledExpr::MakeVec(items) => {
                 write!(f, "vec(")?;
                 for (idx, item) in items.iter().enumerate() {
@@ -152,28 +155,50 @@ impl fmt::Display for DisplayCompiledExpr<'_> {
                 }
                 write!(f, ")")
             },
-            CompiledExpr::CallEnv(name, args) => {
+            CompiledExpr::CallNamed(name, args) => {
                 write!(f, "{name}(")?;
-                for (idx, arg) in args.iter().enumerate() {
+                for (idx, (arg_name, arg)) in args.iter().enumerate() {
                     if idx > 0 {
                         write!(f, ", ")?;
+                    }
+                    if let Some(arg_name) = arg_name {
+                        write!(f, "{arg_name}: ")?;
                     }
                     write!(f, "{}", DisplayCompiledExpr(arg))?;
                 }
                 write!(f, ")")
             },
+            CompiledExpr::CallMember(receiver, name, args) => {
+                write!(f, "{}.{name}(", DisplayCompiledExpr(receiver))?;
+                for (idx, (arg_name, arg)) in args.iter().enumerate() {
+                    if idx > 0 {
+                        write!(f, ", ")?;
+                    }
+                    if let Some(arg_name) = arg_name {
+                        write!(f, "{arg_name}: ")?;
+                    }
+                    write!(f, "{}", DisplayCompiledExpr(arg))?;
+                }
+                write!(f, ")")
+            },
+            CompiledExpr::CallValue(callee, args) => {
+                write!(f, "{}(", DisplayCompiledExpr(callee))?;
+                for (idx, (arg_name, arg)) in args.iter().enumerate() {
+                    if idx > 0 {
+                        write!(f, ", ")?;
+                    }
+                    if let Some(arg_name) = arg_name {
+                        write!(f, "{arg_name}: ")?;
+                    }
+                    write!(f, "{}", DisplayCompiledExpr(arg))?;
+                }
+                write!(f, ")")
+            },
+            CompiledExpr::Timeline(_) => write!(f, "timeline-plan"),
+            CompiledExpr::SequencePlan(_) => write!(f, "sequence-plan"),
+            CompiledExpr::StaggerPlan(..) => write!(f, "stagger-plan"),
             CompiledExpr::Index(container, index) => {
                 write!(f, "{}[{}]", DisplayCompiledExpr(container), DisplayCompiledExpr(index))
-            },
-            CompiledExpr::Method(receiver, name, args) => {
-                write!(f, "{}.{name}(", DisplayCompiledExpr(receiver))?;
-                for (idx, arg) in args.iter().enumerate() {
-                    if idx > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{}", DisplayCompiledExpr(arg))?;
-                }
-                write!(f, ")")
             },
             CompiledExpr::Closure(params, _body) => {
                 write!(f, "closure({:?})", params)

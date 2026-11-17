@@ -15,9 +15,10 @@
 // House-style §1: the floor, head, plot frame and guides carry authored
 // opacity, so frame 0 is a lit, titled stage; the wave draws *within* it.
 // House-style §1.5: nothing here renders below 16 px.
-
 import "../../../examples/lib/theme.amx"
+
 import "../../../examples/lib/stage.amx"
+
 import "fourier.amx" as geo
 
 config { resolution: (1280, 720) }
@@ -30,102 +31,95 @@ let harmonics = 4
 
 // Plot frame geometry, derived from the shared R/cy so the tie-line invariant
 // (fourier.amx) holds for every act that draws this box.
-let plot_h = 2 * geo.y_hi * pi * geo.R / 4
-let plot_l = geo.graph_cx - geo.graph_w / 2
-let plot_t = geo.cy - plot_h / 2
+let plot_h = (((2 * geo::y_hi) * pi) * geo::R) / 4
+
+let plot_l = geo::graph_cx - geo::graph_w / 2
+
+let plot_t = geo::cy - plot_h / 2
 
 // ── the stage ───────────────────────────────────────────────────────
 floor: StageFloor, glow: 1.2
 
-goal_head: ActHead, kicker: "FIG 01 · THE DESTINATION", title: "A square wave from circles",
-  sub: "the curve every later scene assembles"
+goal_head: ActHead, kicker: "FIG 01 · THE DESTINATION", title: "A square wave from circles", sub: "the curve every later scene assembles"
 
 cap1: Caption, text: "Act I · The destination: sheer sides, flat tops, one impossible curve.", tag: "goal.amx"
+
 cap2: Caption, text: "Act II · Odd sines add up; every corner overshoots before it settles.", tag: "goal.amx", opacity: 0
+
 cap3: Caption, text: "Act III · The finished square wave holds, drawn once and left standing.", tag: "goal.amx", opacity: 0
 
 // ── the working diagram ─────────────────────────────────────────────
-goal_graph: Graph, at: (geo.graph_cx, geo.cy), size: (geo.graph_w, plot_h),
-  x_domain: (0, geo.span), y_domain: (geo.y_lo, geo.y_hi), grid: false, ticks: false, tick_labels: "false", opacity: 1 {
-  hi: PlotCurve, kind: "cartesian", func: (x) => 1,
-    stroke: stroke.default, stroke_width: 1.5, dash_pattern: {9, 7}, opacity: 1
-  lo: PlotCurve, kind: "cartesian", func: (x) => -1,
-    stroke: stroke.default, stroke_width: 1.5, dash_pattern: {9, 7}, opacity: 1
-  goal_wave: PlotCurve, kind: "cartesian",
-    func: (x) => (4 / pi) * (sin(x) + (if harmonics > 1 { sin(3 * x) / 3 } else { 0 }) + (if harmonics > 2 { sin(5 * x) / 5 } else { 0 }) + (if harmonics > 3 { sin(7 * x) / 7 } else { 0 }) + (if harmonics > 4 { sin(9 * x) / 9 } else { 0 }) + (if harmonics > 5 { sin(11 * x) / 11 } else { 0 })),
-    color: accent.primary, stroke_width: 3.5, stroke_progress: 0, opacity: 1
-  goal_glow: PlotCurve, kind: "cartesian",
-    func: (x) => (4 / pi) * (sin(x) + (if harmonics > 1 { sin(3 * x) / 3 } else { 0 }) + (if harmonics > 2 { sin(5 * x) / 5 } else { 0 }) + (if harmonics > 3 { sin(7 * x) / 7 } else { 0 }) + (if harmonics > 4 { sin(9 * x) / 9 } else { 0 }) + (if harmonics > 5 { sin(11 * x) / 11 } else { 0 })),
-    color: accent.primary, stroke_width: 14, blend: "screen", stroke_progress: 0, opacity: 0
+goal_graph: Graph, at: (geo::graph_cx, geo::cy), size: (geo::graph_w, plot_h), x_domain: (0, geo::span), y_domain: (geo::y_lo, geo::y_hi), grid: false, ticks: false, tick_labels: "false", opacity: 1 {
+hi: PlotCurve, kind: "cartesian", func: (x) => 1, stroke: stroke.default, stroke_width: 1.5, dash_pattern: {9, 7}, opacity: 1
+lo: PlotCurve, kind: "cartesian", func: (x) => -1, stroke: stroke.default, stroke_width: 1.5, dash_pattern: {9, 7}, opacity: 1
+goal_wave: PlotCurve, kind: "cartesian", func: (x) => (4 / pi) * (((((sin(x) + (if harmonics > 1 { sin(3 * x) / 3 } else { 0 })) + (if harmonics > 2 { sin(5 * x) / 5 } else { 0 })) + (if harmonics > 3 { sin(7 * x) / 7 } else { 0 })) + (if harmonics > 4 { sin(9 * x) / 9 } else { 0 })) + (if harmonics > 5 { sin(11 * x) / 11 } else { 0 })), color: accent.primary, stroke_width: 3.5, stroke_progress: 0, opacity: 1
+goal_glow: PlotCurve, kind: "cartesian", func: (x) => (4 / pi) * (((((sin(x) + (if harmonics > 1 { sin(3 * x) / 3 } else { 0 })) + (if harmonics > 2 { sin(5 * x) / 5 } else { 0 })) + (if harmonics > 3 { sin(7 * x) / 7 } else { 0 })) + (if harmonics > 4 { sin(9 * x) / 9 } else { 0 })) + (if harmonics > 5 { sin(11 * x) / 11 } else { 0 })), color: accent.primary, stroke_width: 14, blend: "screen", stroke_progress: 0
+  // Hand-drawn y labels: Graph's own tick labels compile at 10 px, below the
+
+  // house-style floor. Graph still draws its axis and arrow; only the numbers are
+
+  // ours, at a readable 16 px.
+  , opacity: 0
 }
 
-// Hand-drawn y labels: Graph's own tick labels compile at 10 px, below the
-// house-style floor. Graph still draws its axis and arrow; only the numbers are
-// ours, at a readable 16 px.
-ylab_p1: Text, text: "+1", font_size: 16, font_family: "mono", color: text.muted,
-  text_anchor: "right", at: (plot_l - 14, geo.cy - pi * geo.R / 4), opacity: 0.9
-ylab_0: Text, text: "0", font_size: 16, font_family: "mono", color: text.muted,
-  text_anchor: "right", at: (plot_l - 14, geo.cy), opacity: 0.9
-ylab_m1: Text, text: "-1", font_size: 16, font_family: "mono", color: text.muted,
-  text_anchor: "right", at: (plot_l - 14, geo.cy + pi * geo.R / 4), opacity: 0.9
+ylab_p1: Text, text: "+1", font_size: 16, font_family: "mono", color: text.muted, text_anchor: "right", at: (plot_l - 14, geo::cy - (pi * geo::R) / 4), opacity: 0.9
 
-goal_axis: Text, text: "θ — two full turns of the radius", font_size: 16,
-  color: text.muted, text_anchor: "left", at: (plot_l, plot_t - 26), opacity: 0.9
+ylab_0: Text, text: "0", font_size: 16, font_family: "mono", color: text.muted, text_anchor: "right", at: (plot_l - 14, geo::cy), opacity: 0.9
+
+ylab_m1: Text, text: "-1", font_size: 16, font_family: "mono", color: text.muted, text_anchor: "right", at: (plot_l - 14, geo::cy + (pi * geo::R) / 4), opacity: 0.9
+
+goal_axis: Text, text: "θ — two full turns of the radius", font_size: 16, color: text.muted, text_anchor: "left", at: (plot_l, plot_t - 26), opacity: 0.9
 
 // ── the editorial column ────────────────────────────────────────────
-goal_eq: Text, text: "y(x) = 4/π · Σ sin((2n+1)x)/(2n+1)", font_size: 26,
-  color: accent.primary, text_align: "left", text_anchor: "left",
-  text_max_width: 400, anchor: scene.top_left, offset: (96, 270), opacity: 0
-goal_eq_sub: Text, text: "odd n only — every even harmonic cancels", font_size: 18,
-  color: text.secondary, text_align: "left", text_anchor: "left",
-  text_max_width: 400, anchor: scene.top_left, offset: (96, 316), opacity: 0
+goal_eq: Text, text: "y(x) = 4/π · Σ sin((2n+1)x)/(2n+1)", font_size: 26, color: accent.primary, text_align: "left", text_anchor: "left", text_max_width: 400, anchor: scene.top_left, offset: (96, 270), opacity: 0
 
-goal_gibbs: Text, text: "corners overshoot — Gibbs", font_size: 16,
-  color: accent.warning, text_anchor: "right",
-  at: (plot_l + geo.graph_w, plot_t - 26), opacity: 0
+goal_eq_sub: Text, text: "odd n only — every even harmonic cancels", font_size: 18, color: text.secondary, text_align: "left", text_anchor: "left", text_max_width: 400, anchor: scene.top_left, offset: (96, 316), opacity: 0
+
+goal_gibbs: Text, text: "corners overshoot — Gibbs", font_size: 16, color: accent.warning, text_anchor: "right", at: (plot_l + geo::graph_w, plot_t - 26), opacity: 0
 
 // ── the numbers ─────────────────────────────────────────────────────
 chip_h: Readout, label: "HARMONICS", value: format("{:.0}", harmonics), at: (620, 613), opacity: 0
+
 chip_f: Readout, label: "FREQUENCY", value: format("1–{:.0}×", 2 * harmonics - 1), at: (880, 613), opacity: 0
+
 chip_a: Readout, label: "AMPLITUDE", value: format("{:.2}", 4 / pi), at: (1140, 613), opacity: 0
 
 // ── Act I · the hook ────────────────────────────────────────────────
 // The plot frame is already lit at t=0; the wave starts tracing 200 ms in.
 #0.2s
-goal_wave.stroke_progress = 1.0 [3.4s, ease: ease-in-out]
-goal_glow.stroke_progress = 1.0 [3.4s, ease: ease-in-out]
+  goal_wave.stroke_progress = 1 [3.4s, ease: ease_in_out]
+  goal_glow.stroke_progress = 1 [3.4s, ease: ease_in_out]
 
 // ── Act II · the mechanism ──────────────────────────────────────────
 // The sum is on the page while the curve is still drawing, then the corner
 // overshoot is named once the trace has reached it.
 #2.2s
-fade-out cap1 [240ms, ease: ease-in]
-fade-in cap2 [280ms, delay: 200ms, ease: expo-out]
-fade-in goal_eq [500ms, ease: expo-out]
-fade-in goal_eq_sub [420ms, delay: 180ms, ease: expo-out]
+  fade_out(target: cap1, duration: 0.24s, ease: ease_in)
+  fade_in(target: cap2, duration: 0.28s, delay: 0.2s, ease: expo_out)
+  fade_in(target: goal_eq, duration: 0.5s, ease: expo_out)
+  fade_in(target: goal_eq_sub, duration: 0.42s, delay: 0.18s, ease: expo_out)
 
 #4.4s
-fade-in goal_gibbs [420ms, ease: expo-out]
+  fade_in(target: goal_gibbs, duration: 0.42s, ease: expo_out)
 
 #4.9s
-stagger [110ms] {
-  fade-in chip_h [380ms, ease: expo-out]
-  fade-in chip_f [380ms, ease: expo-out]
-  fade-in chip_a [380ms, ease: expo-out]
-}
+  stagger [0.11s] {
+      fade_in(target: chip_h, duration: 0.38s, ease: expo_out)
+      fade_in(target: chip_f, duration: 0.38s, ease: expo_out)
+      fade_in(target: chip_a, duration: 0.38s, ease: expo_out)
+    }
 
 // ── Act III · the payoff ────────────────────────────────────────────
 // The traced wave gets its screen-blend bloom and the camera pushes a touch
 // and settles, leaving the completed curve and its harness as the rest frame.
-#6.0s
-fade-out cap2 [240ms, ease: ease-in]
-fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
-goal_glow.opacity = 0.30 [700ms, ease: expo-out]
-camera.zoom = 1.04 [1.2s, ease: ease-in-out]
+#6s
+  fade_out(target: cap2, duration: 0.24s, ease: ease_in)
+  fade_in(target: cap3, duration: 0.28s, delay: 0.2s, ease: expo_out)
+  goal_glow.opacity = 0.3 [0.7s, ease: expo_out]
+  camera.zoom = 1.04 [1.2s, ease: ease_in_out]
 
 #7.1s
-goal_glow.opacity = 0.16 [700ms, ease: ease-in-out]
-camera.zoom = 1.0 [1.0s, ease: ease-in-out]
-
-// ── Rest ────────────────────────────────────────────────────────────
-// The completed wave, its ±1 guides, formula, readouts and settled bloom hold.
+  goal_glow.opacity = 0.16 [0.7s, ease: ease_in_out]
+  camera.zoom = 1 [1s, ease: ease_in_out]
+  // ── Rest ────────────────────────────────────────────────────────────
+  // The completed wave, its ±1 guides, formula, readouts and settled bloom hold.

@@ -1,27 +1,21 @@
-use super::registry::{ActionSignature, BuiltinAction, base_timing_params};
-use crate::ast::Action;
+use super::registry::{BuiltinAction, CallableDescriptor};
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::timeline::Timeline;
+use crate::timeline::actions::BuiltinInvocation;
 use crate::timeline::property_track::TrackAccessor;
 
 /// Fades out the target by animating its overall opacity to 0.
 pub struct FadeOut;
 
 impl BuiltinAction for FadeOut {
-    fn signature(&self) -> ActionSignature {
-        ActionSignature {
-            name: "fade-out".to_string(),
-            category: "Exit".to_string(),
-            description: "Fades out the target by animating its overall opacity to 0.".to_string(),
-            params: vec![],
-            modifiers: base_timing_params(),
-        }
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::FadeOut.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
@@ -57,7 +51,7 @@ impl BuiltinAction for FadeOut {
 mod tests {
     use super::super::test_support::text_decl_with;
     use super::*;
-    use crate::ast::{Action, Expr, Modifier, Stmt, Time};
+    use crate::ast::{Expr, Modifier, Stmt, Time};
 
     #[test]
     fn fade_out_animates_opacity_to_zero() {
@@ -65,9 +59,9 @@ mod tests {
             time: Time::Seconds(0.0),
             body: vec![
                 text_decl_with("headline", "Bye"),
-                Stmt::Action(
-                    Action {
-                        verb: "fade-out".to_string(),
+                crate::timeline::actions::test_support::invocation_stmt(
+                    BuiltinInvocation {
+                        verb: "fade_out".to_string(),
                         targets: vec!["headline".to_string()],
                         args: vec![],
                         modifiers: vec![Modifier {

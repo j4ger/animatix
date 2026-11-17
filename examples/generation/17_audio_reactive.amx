@@ -1,36 +1,36 @@
 // 17 — Audio Reactive: embedded soundtrack & waveform visualizer
 // Demonstrates Audio (non-visual) + always-driven sine bar animation.
-
 import "../lib/theme.amx"
+
 import "../lib/theme.amx" as theme
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 // Non-visual audio actor — mixed during export, no runtime beat detection.
-track: Audio, source: "../assets/pulse.wav", volume: 1.0 [delay: 0s, 4s]
+track: Audio, source: "../assets/pulse.wav", volume: 1 [delay: 0s, 4s]
 
 title: Text, text: "Audio Reactive", font_size: 40, color: text.primary, anchor: scene.top, offset: (0, 60)
+
 sub: Text, text: "Audio primitive + waveform visualizer (always-driven)", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 105)
 
 #0s
-// Waveform bars generated with a for-loop (array-indexed actors) inside a Row.
-bars: Row, anchor: scene.center, offset: (0, 40), gap: 6, align: "center" {
+  // Waveform bars generated with a for-loop (array-indexed actors) inside a Row.
+  bars: Row, anchor: scene.center, offset: (0, 40), gap: 6, align: "center" {
   for i in {0, 1, 2, 3, 4, 5, 6, 7} {
-    bar[i]: Rect, size: (8, 16), color: accent.primary
-  }
-}
-
-// Continuous waveform — runtime-indexed bar[i] driven by always.
-always {
-  let amp = 70.0
-  let freq = 4.0
-  for i in {0, 1, 2, 3, 4, 5, 6, 7} {
-    let h = 16.0 + amp * (0.5 + 0.5 * sin(freq * t + i * 0.8))
-    bar[i].size = (8, h)
-  }
-}
+  bar[i]: Rect, size: (8, 16), color: accent.primary
+      }
+    }
+  // Continuous waveform — runtime-indexed bar[i] driven by always.
+  always {
+      let amp = 70
+      let freq = 4
+      for i in {0, 1, 2, 3, 4, 5, 6, 7} {
+            let h = 16 + amp * (0.5 + 0.5 * sin(freq * t + i * 0.8))
+            bar[i].size = (8, h)
+          }
+    }
 
 #0.5s
-fade-in title [600ms, ease: ease-out]
-fade-in sub [400ms, delay: 100ms]
-fade-in bars [500ms, delay: 200ms]
+  fade_in(target: title, duration: 0.6s, ease: ease_out)
+  fade_in(target: sub, duration: 0.4s, delay: 0.1s)
+  fade_in(target: bars, duration: 0.5s, delay: 0.2s)

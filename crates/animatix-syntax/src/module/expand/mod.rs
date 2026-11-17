@@ -3,45 +3,58 @@ use super::{
     ComponentEntry, Expr, HashMap, HashSet, InlineItem, InstanceFnRegistry, MatchPattern, ParamDef,
     Property, Stmt, TargetSegment,
 };
+use context::{ExpansionCtx, MAX_EXPANSION_DEPTH};
+use std::path::PathBuf;
+use std::sync::Arc;
 
-/// Maximum nesting depth for component expansion before reporting a cycle error.
-const MAX_EXPANSION_DEPTH: usize = 64;
+mod context;
+pub(super) use context::expand_function_context;
 
-/// Mutable state threaded through the component expansion pipeline.
-struct ExpansionCtx {
-    /// Monotonically increasing counter for generating unique anonymous labels.
-    anon_counter: usize,
-    /// Current component nesting depth (for cycle detection).
-    depth: usize,
-}
-
-impl ExpansionCtx {
-    fn new() -> Self {
-        Self {
-            anon_counter: 0,
-            depth: 0,
-        }
-    }
-
-    /// Generate a unique label for an anonymous component instance.
-    fn next_anon_label(&mut self) -> String {
-        let label = format!("__anon_{}", self.anon_counter);
-        self.anon_counter += 1;
-        label
-    }
-}
-
+#[cfg(test)]
 pub(super) fn expand_statements(
     statements: &[Stmt],
     components: &HashMap<String, ComponentEntry>,
-) -> (Vec<Stmt>, InstanceFnRegistry) {
-    let mut ctx = ExpansionCtx::new();
-    let mut expanded = Vec::new();
-    let mut registry = InstanceFnRegistry::new();
+) -> crate::module::ExpandedProgram {
+    expand_statements_in_context(statements, components, ExpansionCtx::new())
+}
+
+pub(super) fn expand_statements_with_component_scopes(
+    statements: &[Stmt],
+    components: &HashMap<String, ComponentEntry>,
+    scopes: &HashMap<PathBuf, HashMap<String, ComponentEntry>>,
+) -> crate::module::ExpandedProgram {
+    let scopes = scopes
+        .iter()
+        .map(|(path, components)| (path.clone(), Arc::new(components.clone())))
+        .collect();
+    expand_statements_in_context(
+        statements,
+        components,
+        ExpansionCtx::with_component_scopes(scopes),
+    )
+}
+
+fn expand_statements_in_context(
+    statements: &[Stmt],
+    components: &HashMap<String, ComponentEntry>,
+    mut ctx: ExpansionCtx,
+) -> crate::module::ExpandedProgram {
+    let mut expanded = crate::module::ExpandedProgram::default();
     for stmt in statements {
-        expand_stmt_into(stmt, components, &mut expanded, &mut registry, &mut ctx);
+        if let Stmt::Scene { name, .. } = stmt {
+            let registry = expanded.scene_methods.entry(name.clone()).or_default();
+            expand_stmt_into(stmt, components, &mut expanded.statements, registry, &mut ctx);
+        } else {
+            expand_stmt_into(
+                stmt,
+                components,
+                &mut expanded.statements,
+                &mut expanded.instance_methods,
+                &mut ctx,
+            );
+        }
     }
-    (expanded, registry)
+    expanded
 }
 
 use component::*;

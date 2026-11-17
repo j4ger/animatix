@@ -71,16 +71,6 @@ impl<'a> Lexer<'a> {
     fn lex_ident_or_keyword(&mut self) -> TokenKind {
         let start = self.pos;
         self.consume_ident();
-        // Hyphenated identifiers: `fade-in`, `move-to`. The hyphen must be
-        // immediately followed by an identifier start with no whitespace, which
-        // mirrors the PEG parser's `ident().then(just('-').then(ident()).repeated())`.
-        while self.peek() == b'-'
-            && (self.peek_n(1).is_ascii_alphabetic() || self.peek_n(1) == b'_')
-        {
-            self.pos += 1; // '-'
-            self.consume_ident();
-        }
-
         let text = &self.src[start..self.pos];
         let lower = text.to_ascii_lowercase();
         // Keywords are all-lowercase words; `Fn` stays an identifier so the

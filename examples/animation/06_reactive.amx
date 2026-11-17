@@ -1,65 +1,67 @@
 // 06 — Reactive: Live Focus Reticle
 // Uses always + the is_animating property query to detect keyframe-driven motion.
-
 import "../lib/theme.amx"
+
 import "../lib/stage.amx"
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 10 }
 
 floor: StageFloor
-head: ActHead, kicker: "ANIMATION · REACTIVE", title: "Live focus reticle",
-  sub: "Property queries like `is_animating` driving continuous reactive styling."
+
+head: ActHead, kicker: "ANIMATION · REACTIVE", title: "Live focus reticle", sub: "Property queries like `is_animating` driving continuous reactive styling."
+
 caption: Caption, text: "Reticle tracks keyframe motion, switching to pulse mode when idle.", tag: "06_reactive.amx"
 
 status: Text, text: "IDLE", font_size: 18, color: text.muted, at: (640, 580)
 
 ring: Ellipse, size: (50, 50), color: accent.primary, stroke_width: 3, at: (640, 420)
+
 cross_h: Rect, size: (80, 2), color: accent.primary, at: (640, 420)
+
 cross_v: Rect, size: (2, 80), color: accent.primary, at: (640, 420)
+
 dot: Ellipse, size: (6, 6), color: accent.danger, at: (640, 420)
 
 #0s
-fade-in floor [600ms]
-fade-in head [500ms]
-fade-in caption [400ms, delay: 300ms]
-stagger [80ms] {
-  fade-in ring [400ms, delay: 200ms]
-  fade-in cross_h [400ms, delay: 200ms]
-  fade-in cross_v [400ms, delay: 200ms]
-  fade-in dot [400ms, delay: 200ms]
-  fade-in status [400ms, delay: 200ms]
-}
+  fade_in(target: floor, duration: 0.6s)
+  fade_in(target: head, duration: 0.5s)
+  fade_in(target: caption, duration: 0.4s, delay: 0.3s)
+  stagger [0.08s] {
+      fade_in(target: ring, duration: 0.4s, delay: 0.2s)
+      fade_in(target: cross_h, duration: 0.4s, delay: 0.2s)
+      fade_in(target: cross_v, duration: 0.4s, delay: 0.2s)
+      fade_in(target: dot, duration: 0.4s, delay: 0.2s)
+      fade_in(target: status, duration: 0.4s, delay: 0.2s)
+    }
 
 #1s
-ring.at = (400, 320) [1s, ease: ease-in-out]
+  ring.at = (400, 320) [1s, ease: ease_in_out]
 
 #2.5s
-ring.at = (880, 500) [1s, ease: ease-in-out]
+  ring.at = (880, 500) [1s, ease: ease_in_out]
 
 #4s
-ring.at = (640, 420) [1s, ease: ease-out]
-
-always {
-  cross_h.at = ring.at
-  cross_v.at = ring.at
-  dot.at = ring.at
-
-  if !is_animating(&ring.at) {
-    let p = 0.5 + 0.5 * sin(t * 3)
-    cross_h.color = accent.success
-    cross_v.color = accent.success
-    ring.color = accent.success
-    ring.size = (50 - p * 10, 50 - p * 10)
-    ring.stroke_width = 3.0 - p * 1.0
-    status.text = "IDLE — at rest"
-    status.color = accent.success
-  } else {
-    cross_h.color = accent.primary
-    cross_v.color = accent.primary
-    ring.color = accent.primary
-    ring.size = (50, 50)
-    ring.stroke_width = 3.0
-    status.text = "TRACKING — keyframe active"
-    status.color = accent.warning
-  }
-}
+  ring.at = (640, 420) [1s, ease: ease_out]
+  always {
+      cross_h.at = ring.at
+      cross_v.at = ring.at
+      dot.at = ring.at
+      if !is_animating(&ring.at) {
+            let p = 0.5 + 0.5 * sin(t * 3)
+            cross_h.color = accent.success
+            cross_v.color = accent.success
+            ring.color = accent.success
+            ring.size = (50 - p * 10, 50 - p * 10)
+            ring.stroke_width = 3 - p * 1
+            status.text = "IDLE — at rest"
+            status.color = accent.success
+          } else {
+            cross_h.color = accent.primary
+            cross_v.color = accent.primary
+            ring.color = accent.primary
+            ring.size = (50, 50)
+            ring.stroke_width = 3
+            status.text = "TRACKING — keyframe active"
+            status.color = accent.warning
+          }
+    }

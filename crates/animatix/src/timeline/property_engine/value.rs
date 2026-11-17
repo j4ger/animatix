@@ -298,9 +298,16 @@ pub(super) fn property_value_from_value(value: Value) -> Option<PropertyValue> {
                 return None;
             }
         },
-        Value::Object(_, _)
+        Value::Null
+        | Value::Object(_, _)
         | Value::NativeFn(_)
+        | Value::RegisteredFn { .. }
         | Value::Closure(_, _, _)
-        | Value::UserFn { .. } => return None,
+        | Value::UserFn { .. }
+        | Value::ActorRef(_)
+        | Value::TimelinePlan(_)
+        | Value::Duration(_)
+        | Value::Easing(_)
+        | Value::Unit => return None,
     })
 }

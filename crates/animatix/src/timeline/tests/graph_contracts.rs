@@ -44,7 +44,13 @@ disabled: AxisGraph, draw: false
     let mut expansion_errors = Vec::new();
     let expanded = program.expand_components(&mut expansion_errors);
     assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
-    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        crate::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
     let timeline = report.output;
 
     for label in ["from_variable", "from_component"] {

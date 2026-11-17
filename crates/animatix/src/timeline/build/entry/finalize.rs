@@ -13,10 +13,14 @@ use super::*;
 /// collected before idle tracks could add generated actors, and hierarchy links
 /// are resolved last so carry-injected tracks join the tree.
 pub(super) fn finalize_assets_legend(timeline: &mut Timeline, diagnostics: &mut Vec<Diagnostic>) {
+    timeline.env.bind_world_actor_refs(&timeline.world);
+    actor_captures::rebind_plot_actor_captures(timeline);
     // Freeze the base environment into an Arc for cheap sharing: after build
     // the env is stable, so build_frame_env references this Arc instead of
     // copying all entries.
-    timeline.env_base = std::sync::Arc::new(std::mem::take(&mut timeline.env.overrides));
+    let mut frozen_base = timeline.env.base.as_deref().cloned().unwrap_or_default();
+    frozen_base.extend(std::mem::take(&mut timeline.env.overrides));
+    timeline.env_base = std::sync::Arc::new(frozen_base);
     // Restore env with the frozen base layer
     timeline.env.base = Some(std::sync::Arc::clone(&timeline.env_base));
 

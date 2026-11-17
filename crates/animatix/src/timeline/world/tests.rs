@@ -64,6 +64,37 @@ fn spawn_replacing_clears_the_coordinate_frame() {
 }
 
 #[test]
+fn plan_ownership_is_slot_aligned_cloned_and_cleared_on_replacement() {
+    let mut world = World::new();
+    let private = world.spawn("private", "Rect");
+    let caller = world.spawn("caller", "Rect");
+    let ownership = PlanOwnership::new(41);
+    let methods = MethodTableId::new(7);
+    world.view_mut(private).unwrap().set_plan_ownership(ownership);
+    world.view_mut(private).unwrap().set_method_table_id(methods);
+
+    assert_eq!(world.plan_ownership(private), Some(ownership));
+    assert_eq!(world.view(private).unwrap().plan_ownership(), Some(ownership));
+    assert_eq!(world.method_table_id(private), Some(methods));
+    assert_eq!(world.view(private).unwrap().method_table_id(), Some(methods));
+    assert_eq!(world.plan_ownership(caller), None);
+    assert_eq!(world.plan_ownership.len(), world.len());
+    assert_eq!(world.method_table_id.len(), world.len());
+
+    let snapshot = world.clone();
+    assert_eq!(snapshot.plan_ownership(private), Some(ownership));
+    assert_eq!(snapshot.method_table_id(private), Some(methods));
+    assert_eq!(snapshot.plan_ownership(caller), None);
+
+    world.spawn_replacing("private", "Ellipse");
+    assert_eq!(world.plan_ownership(private), None);
+    assert_eq!(world.method_table_id(private), None);
+    world.clear();
+    assert!(world.plan_ownership.is_empty());
+    assert!(world.method_table_id.is_empty());
+}
+
+#[test]
 fn views_resolve_by_label_and_id() {
     let world = {
         let mut world = World::new();

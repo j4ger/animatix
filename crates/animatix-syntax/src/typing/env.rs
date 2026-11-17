@@ -109,6 +109,11 @@ impl TypeEnv {
         }
     }
 
+    /// Register a function type for user functions and component methods.
+    pub fn register_function(&mut self, name: &str, ty: Type) {
+        self.functions.insert(name.to_string(), ty);
+    }
+
     /// Declare an actor label with its primitive/component type name.
     pub fn declare_actor(&mut self, label: &str, ty: &str) {
         self.actors.insert(label.to_string(), Type::Actor(ty.to_string()));
@@ -272,7 +277,22 @@ impl TypeEnv {
         if let Some(ty) = self.functions.get(name) {
             return Some(ty.clone());
         }
-        STDLIB_FUNCTIONS.get(name).cloned()
+        let canonical = name.strip_prefix("std::").unwrap_or(name);
+        super::STDLIB_FUNCTIONS.get(canonical).cloned()
+    }
+
+    /// Look up only a callable's result type without materializing its full
+    /// parameter signature. Call-expression inference uses this for the common
+    /// direct-call path; value-position identifiers still use `function_type`.
+    pub fn function_return_type(&self, name: &str) -> Option<Type> {
+        if let Some(Type::Function { ret, .. }) = self.functions.get(name) {
+            return Some(ret.as_ref().clone());
+        }
+        let canonical = name.strip_prefix("std::").unwrap_or(name);
+        match super::STDLIB_FUNCTIONS.get(canonical) {
+            Some(Type::Function { ret, .. }) => Some(ret.as_ref().clone()),
+            _ => None,
+        }
     }
 
     /// Look up a construct type.

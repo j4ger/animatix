@@ -4,53 +4,53 @@
     {
       "id": "one-rule-many-forms",
       "source": "scenes/one-rule-many-forms.amx",
-      "source_sha256": "f2264893dc7b6bae79b2609fe473887c16248e19d37280364a0f6faa43a7d0fc",
+      "source_sha256": "6f928228fb16c09a3d8be94668c5e388bcc5941700e54d3fb01a1b6327ee23db",
       "poster": "posters/one-rule-many-forms.png",
       "poster_time_seconds": 6.5,
-      "poster_sha256": "c676801d22d209ecb3fae3de792e5ee8796c1a123f4d9b08013fbfd8a6f2aedb",
+      "poster_sha256": "fc7fb47c0fa7335d7d16cf78f39697b8b8ffbcf0d805b1680aa2d9db495199d7",
       "recording": "previews/one-rule-many-forms.mp4",
-      "recording_sha256": "8b8af5d7412683be78645178f8e3117069746ad5a7828b8c328e0d923beed233",
+      "recording_sha256": "b0b69d787fe68c871b7a9e8d8051d91356c2d240ef1ff20fd43210c0a67e2918",
       "duration_seconds": 20.0,
       "width": 1280,
       "height": 720,
       "fps": "24/1",
       "audio": false,
       "parameters": "authored defaults",
-      "renderer": "native CLI with video at authored 1280x720; FFmpeg 24fps timestamp normalization, no crop or resize"
+      "renderer": "native CLI video at authored 1280x720; FFmpeg 24fps timestamp normalization to exact duration, no crop or resize"
     },
     {
       "id": "when-waves-meet",
       "source": "scenes/when-waves-meet.amx",
-      "source_sha256": "b124d267bdb14cbf678a076a604b1e840d7e64ce984f8a62fc1dab97507c1b5f",
+      "source_sha256": "fdcb589236cf21106ed409a98b1a8532ff04f8331882e20100142bf22f350c37",
       "poster": "posters/when-waves-meet.png",
       "poster_time_seconds": 15,
-      "poster_sha256": "11bb915dee57e9c980add801b462d50390b0f71d32c2b4ca2010cc81049bee6d",
+      "poster_sha256": "e684d3271d96e72f1178c5af0a7524a54e7083b6a432d7000c2e7b53ef50cd8a",
       "recording": "previews/when-waves-meet.mp4",
-      "recording_sha256": "ad8cc752d0b6a75cfcb36057bacf950e471e073ff9a939c50741a3b991567a15",
+      "recording_sha256": "56b91cf358ddca5d3e2c7db149b8442964bb82f5a708e280226f08fafa422a7a",
       "duration_seconds": 28.0,
       "width": 1280,
       "height": 720,
       "fps": "24/1",
       "audio": false,
       "parameters": "authored defaults",
-      "renderer": "native CLI with video at authored 1280x720; FFmpeg 24fps timestamp normalization, no crop or resize"
+      "renderer": "native CLI video at authored 1280x720; FFmpeg 24fps timestamp normalization to exact duration, no crop or resize"
     },
     {
       "id": "words-keep-time",
       "source": "scenes/words-keep-time.amx",
-      "source_sha256": "94518011c0e9b6a32f94ba0be423980175dd385800e2e91477fbe44140df8784",
+      "source_sha256": "27a245cb0762f3862be35c954e795b500f765a96e99fa596b46141f5b0102429",
       "poster": "posters/words-keep-time.png",
       "poster_time_seconds": 20,
-      "poster_sha256": "d96ab46d5019b7b18fdce67af7f3f9fba6b280dfc003dd5f1d8371c0f6abc534",
+      "poster_sha256": "324fd27551cff8a912a4d08f515031033b8876a7b87faf8fa73d4ae55aaf54fb",
       "recording": "previews/words-keep-time.mp4",
-      "recording_sha256": "0698325c309bca2f5737d07f6bf3d543f8ba6720f591cb2de8bd29bbde292857",
+      "recording_sha256": "cfd61e0f907ecda58b61e678fc869bde183cad325255f2ae57c90d3d3987bd98",
       "duration_seconds": 20.0,
       "width": 1280,
       "height": 720,
       "fps": "24/1",
       "audio": false,
       "parameters": "authored defaults",
-      "renderer": "native CLI with video at authored 1280x720; FFmpeg 24fps timestamp normalization, no crop or resize"
+      "renderer": "native CLI video at authored 1280x720; FFmpeg 24fps timestamp normalization to exact duration, no crop or resize"
     },
     {
       "id": "move-the-basis",
@@ -64,10 +64,10 @@
       "fps": "24/1",
       "audio": false,
       "parameters": "authored defaults",
-      "renderer": "native OffscreenRenderer (SwiftShader), same CLI source builder; RGBA frames encoded with external FFmpeg, 24fps, no crop or resize",
-      "source_sha256": "bbf83269239b7751d7bc5d262c822c3c99412b5e42d57adcdc76bef2bea9611f",
-      "poster_sha256": "d7e3341441a051bdc9bdf4c774a8c596616721ad4328851eeaaf0f1f72b610ac",
-      "recording_sha256": "c17bd46ed0c04be2b5fde5b835e6e0c1fe7f3b860589ed1ba91305ae16c0d0e3"
+      "renderer": "native CLI video at authored 1280x720; FFmpeg 24fps timestamp normalization to exact duration, no crop or resize",
+      "source_sha256": "0e96e52be7041ae057ec20ccb1611a06e36ae9384be5c478a4d9a4ff477143e0",
+      "poster_sha256": "d33bb95d533c046436fb8bd56768d3ac54fc11db82cfeb4960412ffecdbcc037",
+      "recording_sha256": "8837b232549daa563021fca13885efd615c01aa2f9e564e61acf38add1a281e6"
     },
     {
       "id": "make-room",
@@ -81,10 +81,10 @@
       "fps": "24/1",
       "audio": false,
       "parameters": "authored defaults",
-      "renderer": "native OffscreenRenderer (SwiftShader), same CLI source builder; RGBA frames encoded with external FFmpeg, 24fps, no crop or resize",
-      "source_sha256": "a8505612fcd6ddf145677bd00cc24226d21c6550231df39d6134e70e48e0e712",
-      "poster_sha256": "cfe0f4c3cca53d802659dd83160bb4ff552a66f4dbed7fb8be83cc3812f1f7a9",
-      "recording_sha256": "2e873803c3884f714f0f7b26e77aa527ce8be11461d8ba30a959aa69a7227fcc"
+      "renderer": "native CLI video at authored 1280x720; FFmpeg 24fps timestamp normalization to exact duration, no crop or resize",
+      "source_sha256": "93972ea0fcba6c6ad6aff580caf25c86373679c10b619ed098ecaa65db9bf662",
+      "poster_sha256": "a71f2e15d75d48667417856a172bed43277663d4b0a4b41ac2b1aece6aa537c4",
+      "recording_sha256": "79b818eccc62f24e789c36c3d4462f47f783ba8052be6de2d32796defe43415f"
     }
   ],
   "stills": [
@@ -96,8 +96,8 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "6cdf53add5c0e3afc2bb37eabfdfae579d1c851085929bcbfd1d2242d751ff3d",
-      "poster_sha256": "d6e0d630fd2e06eba549490f6d1714c81f83d0af052239aa40867f45cf1227a1"
+      "source_sha256": "beaec9b884887e236ac177ecac1ff11652e99e852b5b0b87c56ca5c68b4b7ac0",
+      "poster_sha256": "51f5daac789c9f66d132aca75e0122d114f8ee8b6172395ebec293d131fbebfc"
     },
     {
       "id": "compose",
@@ -107,8 +107,8 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "76757429d692a8b3237751bed5172721f2b2df70d155f4cea8b5045e88063f21",
-      "poster_sha256": "7b596733bd17b02f5fdcd55f643173820b622fbe01f6593ed3d03876f39fbc2e"
+      "source_sha256": "633cf1de9768aee473ef11f0302fee4f4f69a475859bd85631e64bccd82ad91c",
+      "poster_sha256": "5ecb1d72ce6085350e0392621b31f17f8379fa50c4cf7b8c90c4c4db606005bb"
     },
     {
       "id": "repeat",
@@ -118,8 +118,8 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "381b179f047f6b036a92151db7af37b6c037dcdf0793810ac029b8b96ba02a7c",
-      "poster_sha256": "292be852b464a449149e395e769e737def733a1cd525b6978f5e843048c0f61a"
+      "source_sha256": "7dd83b976105e665317a94302a16c41b1188c8c9180b6c5afc273de1527847ab",
+      "poster_sha256": "9602db90151485d29380cb169d64afe1b5d38187b68a9264427386fa77448656"
     },
     {
       "id": "values",
@@ -129,8 +129,8 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "bf5603a6309602ef7fb6a226d25b11f6d2a927251d9e1d8f2957cee5fd45550c",
-      "poster_sha256": "87a53c1a02bdcca08a40aaa0bf478ed8405f56aaa9ccd0a4e77d618161ead70d"
+      "source_sha256": "2bc9227688177f3ef43736369ef8726a1bc4f66c06e4ebd2ddaf955c7a427b56",
+      "poster_sha256": "a4aec7820849fe82909ec9a3c56e682c6024471b3154943a51f448b84c07fb5b"
     },
     {
       "id": "timing",
@@ -140,8 +140,8 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "5d749c82e7459327a4b1f391b365aa923f369d8d5aeab684fef3c7499f8f4828",
-      "poster_sha256": "0ff8fdab9b2f659f05b046a8d4565aeb879fc65e0140a9ed314e833a65dc9994"
+      "source_sha256": "2774af8cba851242459ac5fa962d282c42143eb68e4c1d52e4ec57277c63af2d",
+      "poster_sha256": "36692dfefca385ed6eff0403c6ca6981bb3aa8d3b0a203c650332b424bdf977e"
     },
     {
       "id": "finish",
@@ -151,8 +151,8 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "35eccccccee164fa8ba442c8d4a260dc4ae2a6ece21d7e3b097d4930875d1dbf",
-      "poster_sha256": "8660f5b0dccc89ab916ce4df7b37b59a315f0e598af1ab268acf551ac9c71910"
+      "source_sha256": "1232ddd662180b2a5fbf0159620df5f547e8f1aaccbc38b07cf609e348912edb",
+      "poster_sha256": "631306346a7f3fcd4dba09c8ade51084861c188ffcdf118caf81004c151ac8ca"
     },
     {
       "id": "technique-focus",
@@ -162,8 +162,8 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "76444d25e88d25548ef36c9ca29f88a7c0481c8e3d1f7ef3ba9fb64f1c3cfb48",
-      "poster_sha256": "0b02e413b4a224f051113e63e1f5ae4dec5d02bfb6b6f61f80d753023a88ba9e"
+      "source_sha256": "c56b050a790e517409b55404fdfe439c3881aa101d3ee7f214952a46d7015b78",
+      "poster_sha256": "ed2ab28deb196d1d2ef6571d4a90b48df75570a22b99111c89afd225a1393ba0"
     },
     {
       "id": "technique-labels",
@@ -174,7 +174,7 @@
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
       "source_sha256": "7fdee6712e33511dd5a0b05565aa59ac77d6b93e03fca4aee55856c714af1501",
-      "poster_sha256": "b7f842e5aeb85b55564336f6f1a655d888b2b55ef2aaf625653ff4c66836c1d3"
+      "poster_sha256": "71c757302066dd03aba285154d57c0b351bbc393f32c562aff3334cbd4eb19f6"
     },
     {
       "id": "technique-reveal",
@@ -184,8 +184,8 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "ace56da37869a954b2c5a8b857c35ea10dde4fb5da0b120b2ac642ef795e2045",
-      "poster_sha256": "acc0d2ab9acdad4456a6ec902022392531ba559ec4d791d2e3fc881a69e8e0fd"
+      "source_sha256": "d87c0ded0f459c43f32da0277a275ef8e1fcff50c25095fec6dfcc372ab60cbf",
+      "poster_sha256": "0e7550cbf618728859f1e3af23cd334d1d6fa8a48736a6126403e347a342d043"
     },
     {
       "id": "technique-stagger",
@@ -195,8 +195,8 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "d3b33c4be4b90f1537e27794d9f9473abc67c590c408bbabf7fb8c0665223078",
-      "poster_sha256": "07577e2ffd4266cb94342505fcd159cc924f5304afe349e1545a499b6d78f8ef"
+      "source_sha256": "172c7e47f9c32709fa520d49b7f60ddde19e0da8e95a6e9b664daa4cfca62ff4",
+      "poster_sha256": "577fcaa718783559554641e6a72581889ea22b26d7ec25833918f53f06d13e9f"
     }
   ]
 }

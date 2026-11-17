@@ -13,9 +13,9 @@ use crate::dto::MarkerDto;
 pub(super) fn timeline_markers(stmts: &[Stmt], target: &BuildTarget) -> Vec<MarkerDto> {
     let mut markers: Vec<MarkerDto> = Vec::new();
     match target {
-        BuildTarget::SingleScene(_) => {
+        BuildTarget::SingleScene(timeline) => {
             let mut times = Vec::new();
-            collect_keyframe_stmt_times(stmts, 0.0, &mut times);
+            collect_keyframe_stmt_times(stmts, timeline, 0.0, &mut times);
             for t in times {
                 markers.push(MarkerDto {
                     t,
@@ -54,7 +54,9 @@ pub(super) fn timeline_markers(stmts: &[Stmt], target: &BuildTarget) -> Vec<Mark
                     continue;
                 };
                 let mut times = Vec::new();
-                collect_keyframe_stmt_times(body, *start, &mut times);
+                if let Some(scene) = composition.scenes.get(name) {
+                    collect_keyframe_stmt_times(body, &scene.timeline, *start, &mut times);
+                }
                 for t in times {
                     markers.push(MarkerDto {
                         t,
@@ -77,33 +79,24 @@ pub(super) fn timeline_markers(stmts: &[Stmt], target: &BuildTarget) -> Vec<Mark
     markers
 }
 
-/// Collect absolute `#Ns` keyframe-statement times, offset by `base` (the
-/// owning scene's global start). Relative (`#+Ns`) keyframes are skipped:
-/// their absolute time depends on playback order, and the author's beats are
-/// the absolute marks.
-fn collect_keyframe_stmt_times(stmts: &[Stmt], base: f64, out: &mut Vec<f64>) {
+/// Use the compiler's resolved clock rather than evaluating source expressions
+/// again. This includes relative markers, tempo and lexical duration variables.
+fn collect_keyframe_stmt_times(
+    stmts: &[Stmt],
+    timeline: &animatix::timeline::Timeline,
+    base: f64,
+    out: &mut Vec<f64>,
+) {
     for stmt in stmts {
         match stmt {
-            Stmt::Keyframe { time, body, .. } => {
-                let t = match time {
-                    animatix_syntax::ast::Time::Seconds(s) => *s,
-                    animatix_syntax::ast::Time::Milliseconds(ms) => *ms as f64 / 1000.0,
-                    // Marker placement only: beat stamps land at their
-                    // default-tempo position, the same convention the outline
-                    // and analyzer views use.
-                    animatix_syntax::ast::Time::Beats(b) => {
-                        b * animatix_syntax::ast::beat_seconds(animatix_syntax::ast::DEFAULT_BPM)
-                    },
-                    animatix_syntax::ast::Time::SpeechMarker { offset_ms, .. }
-                    | animatix_syntax::ast::Time::SpeechWord { offset_ms, .. } => {
-                        *offset_ms as f64 / 1000.0
-                    },
-                };
-                out.push(base + t);
-                collect_keyframe_stmt_times(body, base, out);
+            Stmt::Keyframe { body, span, .. } | Stmt::RelativeKeyframe { body, span, .. } => {
+                if let Some(time) = span.and_then(|span| timeline.marker_time(span)) {
+                    out.push(base + time / 1000.0);
+                }
+                collect_keyframe_stmt_times(body, timeline, base, out);
             },
-            Stmt::Scene { body, .. } => collect_keyframe_stmt_times(body, base, out),
-            _ => {},
+            Stmt::Scene { body, .. } => collect_keyframe_stmt_times(body, timeline, base, out),
+            _ => {}, // Generated plan-local markers have no unique root source position.
         }
     }
 }

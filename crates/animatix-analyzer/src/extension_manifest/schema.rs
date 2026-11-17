@@ -1,9 +1,11 @@
 //! Raw manifest schema, canonical TOML wire shapes, and model conversion.
 
+use animatix_core::callable::{
+    CallableDescriptor, CallableParam, CallablePhase, CallableType, DefaultValue,
+};
 use animatix_syntax::schema::{
-    ActionParam, ActionSignature, ChildProcessingKind, FunctionDescriptor, PrimitiveCapabilities,
-    PrimitiveCategory, PrimitiveDescriptor, PropertyDescriptor, PropertyValueKind,
-    ServiceDescriptor,
+    ChildProcessingKind, PrimitiveCapabilities, PrimitiveCategory, PrimitiveDescriptor,
+    PropertyDescriptor, PropertyValueKind, ServiceDescriptor,
 };
 use animatix_syntax::typing::Type;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -16,6 +18,7 @@ pub type ManifestPrimitive = PrimitiveDescriptor;
 pub type ManifestProperty = PropertyDescriptor;
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct RawManifest {
     #[serde(default)]
     library: Option<String>,
@@ -24,9 +27,7 @@ struct RawManifest {
     #[serde(default)]
     properties: Vec<RawProperty>,
     #[serde(default)]
-    actions: Vec<RawAction>,
-    #[serde(default)]
-    functions: Vec<RawFunction>,
+    callables: Vec<RawCallable>,
     #[serde(default)]
     services: Vec<RawService>,
     #[serde(default)]
@@ -99,33 +100,34 @@ struct RawProperty {
 }
 
 #[derive(Deserialize)]
-struct RawAction {
+#[serde(deny_unknown_fields)]
+struct RawCallable {
+    namespace: String,
     name: String,
+    #[serde(default)]
+    params: Vec<RawCallableParam>,
+    return_type: String,
+    phase: String,
+    #[serde(default)]
+    help: String,
+    #[serde(default)]
     category: String,
-    description: String,
-    #[serde(default)]
-    params: Vec<RawActionParam>,
-    #[serde(default)]
-    modifiers: Vec<RawActionParam>,
 }
 
 #[derive(Deserialize)]
-struct RawActionParam {
+#[serde(deny_unknown_fields)]
+struct RawCallableParam {
     name: String,
-    description: String,
     #[serde(rename = "type")]
     ty: String,
-}
-
-#[derive(Deserialize)]
-struct RawFunction {
-    name: String,
     #[serde(default)]
-    params: Vec<RawActionParam>,
+    default: Option<toml::Value>,
     #[serde(default)]
-    return_type: Option<String>,
+    optional: bool,
     #[serde(default)]
-    help: Option<String>,
+    variadic: bool,
+    #[serde(default)]
+    help: String,
 }
 
 #[derive(Deserialize)]
@@ -143,8 +145,7 @@ struct OutputManifest<'a> {
     library: Option<&'a str>,
     primitives: Vec<OutputPrimitive<'a>>,
     properties: Vec<OutputProperty<'a>>,
-    actions: Vec<OutputAction<'a>>,
-    functions: Vec<OutputFunction<'a>>,
+    callables: Vec<OutputCallable<'a>>,
     services: Vec<OutputService<'a>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     effects: Vec<OutputEffect<'a>>,
@@ -213,30 +214,29 @@ struct OutputProperty<'a> {
 }
 
 #[derive(Serialize)]
-struct OutputAction<'a> {
+struct OutputCallable<'a> {
+    namespace: &'a str,
     name: &'a str,
+    params: Vec<OutputCallableParam<'a>>,
+    return_type: String,
+    phase: &'static str,
+    help: &'a str,
     category: &'a str,
-    description: &'a str,
-    params: Vec<OutputActionParam<'a>>,
-    modifiers: Vec<OutputActionParam<'a>>,
 }
 
 #[derive(Serialize)]
-struct OutputActionParam<'a> {
+struct OutputCallableParam<'a> {
     name: &'a str,
-    description: &'a str,
     #[serde(rename = "type")]
-    ty: &'a str,
-}
-
-#[derive(Serialize)]
-struct OutputFunction<'a> {
-    name: &'a str,
-    params: Vec<OutputActionParam<'a>>,
+    ty: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    return_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    help: Option<&'a str>,
+    default: Option<toml::Value>,
+    #[serde(skip_serializing_if = "is_false")]
+    optional: bool,
+    #[serde(skip_serializing_if = "is_false")]
+    variadic: bool,
+    #[serde(skip_serializing_if = "str_is_empty")]
+    help: &'a str,
 }
 
 #[derive(Serialize)]
@@ -252,12 +252,16 @@ fn is_false(value: &bool) -> bool {
     !*value
 }
 
+fn str_is_empty(value: &str) -> bool {
+    value.is_empty()
+}
+
 impl<'de> Deserialize<'de> for ExtensionManifest {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        Ok(Self::from_raw(RawManifest::deserialize(deserializer)?))
+        Self::from_raw(RawManifest::deserialize(deserializer)?).map_err(serde::de::Error::custom)
     }
 }
 
@@ -305,25 +309,17 @@ impl ExtensionManifest {
                     })
                 })
                 .collect(),
-            actions: self
-                .actions
+            callables: self
+                .callables
                 .iter()
-                .map(|action| OutputAction {
-                    name: &action.name,
-                    category: &action.category,
-                    description: &action.description,
-                    params: action.params.iter().map(output_action_param).collect(),
-                    modifiers: action.modifiers.iter().map(output_action_param).collect(),
-                })
-                .collect(),
-            functions: self
-                .functions
-                .iter()
-                .map(|function| OutputFunction {
-                    name: &function.name,
-                    params: function.params.iter().map(output_action_param).collect(),
-                    return_type: function.return_type.as_ref().map(ToString::to_string),
-                    help: function.help.as_deref(),
+                .map(|callable| OutputCallable {
+                    namespace: &callable.namespace,
+                    name: &callable.name,
+                    params: callable.params.iter().map(output_callable_param).collect(),
+                    return_type: callable_type_name(&callable.return_type),
+                    phase: callable_phase_name(callable.phase),
+                    help: &callable.help,
+                    category: &callable.category,
                 })
                 .collect(),
             services: self
@@ -355,7 +351,9 @@ impl ExtensionManifest {
         toml::to_string(&output).map_err(|err| err.to_string())
     }
 
-    fn from_raw(raw: RawManifest) -> Self {
+    fn from_raw(raw: RawManifest) -> Result<Self, String> {
+        let callables =
+            raw.callables.into_iter().map(raw_callable).collect::<Result<Vec<_>, _>>()?;
         let properties = raw
             .properties
             .into_iter()
@@ -431,29 +429,6 @@ impl ExtensionManifest {
             })
             .collect();
 
-        let actions = raw
-            .actions
-            .into_iter()
-            .map(|action| ActionSignature {
-                name: action.name,
-                category: action.category,
-                description: action.description,
-                params: action.params.into_iter().map(raw_action_param).collect(),
-                modifiers: action.modifiers.into_iter().map(raw_action_param).collect(),
-            })
-            .collect::<Vec<_>>();
-
-        let functions = raw
-            .functions
-            .into_iter()
-            .map(|function| FunctionDescriptor {
-                name: function.name,
-                params: function.params.into_iter().map(raw_action_param).collect(),
-                return_type: function.return_type.as_deref().map(parse_manifest_type),
-                help: function.help,
-            })
-            .collect::<Vec<_>>();
-
         let services = raw
             .services
             .into_iter()
@@ -481,23 +456,248 @@ impl ExtensionManifest {
             })
             .collect();
 
-        Self {
+        Ok(Self {
             library: raw.library,
             primitives,
             properties,
-            actions,
-            functions,
+            callables,
             services,
             effects,
-        }
+        })
     }
 }
 
-fn raw_action_param(param: RawActionParam) -> ActionParam {
-    ActionParam {
-        name: param.name,
-        description: param.description,
-        type_info: param.ty,
+fn raw_callable(raw: RawCallable) -> Result<CallableDescriptor, String> {
+    if raw.namespace.split("::").next() == Some("std") {
+        return Err("extension callables cannot claim the reserved `std` namespace tree".into());
+    }
+    let mut params = Vec::with_capacity(raw.params.len());
+    for param in raw.params {
+        let ty = parse_callable_type(&param.ty)?;
+        let has_default = param.default.is_some();
+        let default = param.default.map(|value| parse_callable_default(value, &ty)).transpose()?;
+        params.push(CallableParam {
+            name: param.name,
+            ty,
+            default,
+            optional: param.optional || has_default,
+            variadic: param.variadic,
+            help: param.help,
+        });
+    }
+    let descriptor = CallableDescriptor {
+        namespace: raw.namespace,
+        name: raw.name,
+        params,
+        return_type: parse_callable_type(&raw.return_type)?,
+        phase: parse_callable_phase(&raw.phase)?,
+        help: raw.help,
+        category: raw.category,
+    };
+    descriptor.validate()?;
+    Ok(descriptor)
+}
+
+fn parse_callable_default(value: toml::Value, ty: &CallableType) -> Result<DefaultValue, String> {
+    match value {
+        toml::Value::Integer(value) => Ok(if matches!(ty, CallableType::Duration) {
+            DefaultValue::Duration(value as f64)
+        } else {
+            DefaultValue::Num(value as f64)
+        }),
+        toml::Value::Float(value) => Ok(if matches!(ty, CallableType::Duration) {
+            DefaultValue::Duration(value)
+        } else {
+            DefaultValue::Num(value)
+        }),
+        toml::Value::Boolean(value) => Ok(DefaultValue::Bool(value)),
+        toml::Value::String(value) => match ty {
+            CallableType::Easing | CallableType::Enum(_) => Ok(DefaultValue::Ident(value)),
+            CallableType::Duration => parse_duration_seconds(&value)
+                .map(DefaultValue::Duration)
+                .ok_or_else(|| format!("invalid duration default `{value}`")),
+            _ => Ok(DefaultValue::Str(value)),
+        },
+        other => Err(format!("unsupported callable default value `{other}`")),
+    }
+}
+
+fn parse_duration_seconds(value: &str) -> Option<f64> {
+    let value = value.trim();
+    let (number, scale) = if let Some(number) = value.strip_suffix("ms") {
+        (number, 0.001)
+    } else {
+        (value.strip_suffix('s')?, 1.0)
+    };
+    number.trim().parse::<f64>().ok().map(|value| value * scale)
+}
+
+fn parse_callable_phase(value: &str) -> Result<CallablePhase, String> {
+    match value {
+        "Build" | "build" => Ok(CallablePhase::Build),
+        "BuildAndFrame" | "build_and_frame" => Ok(CallablePhase::BuildAndFrame),
+        _ => Err(format!("unknown callable phase `{value}`")),
+    }
+}
+
+fn parse_callable_type(value: &str) -> Result<CallableType, String> {
+    let value = value.trim();
+    let basic = match value {
+        "Any" => Some(CallableType::Any),
+        "Num" => Some(CallableType::Num),
+        "Bool" => Some(CallableType::Bool),
+        "Str" => Some(CallableType::Str),
+        "Vec2" => Some(CallableType::Vec2),
+        "Vec3" => Some(CallableType::Vec3),
+        "Vec4" => Some(CallableType::Vec4),
+        "Color" => Some(CallableType::Color),
+        "Duration" => Some(CallableType::Duration),
+        "Timeline" => Some(CallableType::Timeline),
+        "Unit" => Some(CallableType::Unit),
+        "Actor" => Some(CallableType::Actor),
+        "Scene" => Some(CallableType::Scene),
+        "Easing" => Some(CallableType::Easing),
+        _ => None,
+    };
+    if let Some(basic) = basic {
+        return Ok(basic);
+    }
+    if let Some(inner) = type_inner(value, "List") {
+        return Ok(CallableType::List(Box::new(parse_callable_type(inner)?)));
+    }
+    if let Some(inner) = type_inner(value, "Enum") {
+        return Ok(CallableType::Enum(
+            split_type_parts(inner).into_iter().map(str::to_owned).collect(),
+        ));
+    }
+    if let Some(inner) = type_inner(value, "Tuple") {
+        return Ok(CallableType::Tuple(
+            split_type_parts(inner)
+                .into_iter()
+                .map(parse_callable_type)
+                .collect::<Result<Vec<_>, _>>()?,
+        ));
+    }
+    if let Some(signature) = value.strip_prefix("Fn(")
+        && let Some((params, result)) = signature.split_once(") => ")
+    {
+        let params = split_type_parts(params)
+            .into_iter()
+            .enumerate()
+            .map(|(index, ty)| Ok((format!("arg{index}"), parse_callable_type(ty)?)))
+            .collect::<Result<Vec<_>, String>>()?;
+        return Ok(CallableType::Function {
+            params,
+            ret: Box::new(parse_callable_type(result)?),
+        });
+    }
+    let union = split_type_parts_with(value, '|');
+    if union.len() > 1 {
+        return Ok(CallableType::Union(
+            union.into_iter().map(parse_callable_type).collect::<Result<Vec<_>, _>>()?,
+        ));
+    }
+    Err(format!("unknown callable type `{value}`"))
+}
+
+fn type_inner<'a>(value: &'a str, constructor: &str) -> Option<&'a str> {
+    let rest = value.strip_prefix(constructor)?.trim();
+    let inner = rest
+        .strip_prefix('<')
+        .and_then(|rest| rest.strip_suffix('>'))
+        .or_else(|| rest.strip_prefix('[').and_then(|rest| rest.strip_suffix(']')))
+        .or_else(|| rest.strip_prefix('(').and_then(|rest| rest.strip_suffix(')')))?;
+    Some(inner.trim())
+}
+
+fn split_type_parts(value: &str) -> Vec<&str> {
+    split_type_parts_with(value, ',')
+}
+
+fn split_type_parts_with(value: &str, separator: char) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut start = 0;
+    let mut depth = 0i32;
+    for (index, ch) in value.char_indices() {
+        if matches!(ch, '<' | '[' | '(') {
+            depth += 1;
+        } else if matches!(ch, '>' | ']' | ')') {
+            depth -= 1;
+        } else if ch == separator && depth == 0 {
+            let part = value[start..index].trim();
+            if !part.is_empty() {
+                parts.push(part);
+            }
+            start = index + ch.len_utf8();
+        }
+    }
+    let last = value[start..].trim();
+    if !last.is_empty() {
+        parts.push(last);
+    }
+    parts
+}
+
+fn callable_type_name(ty: &CallableType) -> String {
+    match ty {
+        CallableType::Any => "Any".into(),
+        CallableType::Num => "Num".into(),
+        CallableType::Bool => "Bool".into(),
+        CallableType::Str => "Str".into(),
+        CallableType::Vec2 => "Vec2".into(),
+        CallableType::Vec3 => "Vec3".into(),
+        CallableType::Vec4 => "Vec4".into(),
+        CallableType::Color => "Color".into(),
+        CallableType::Duration => "Duration".into(),
+        CallableType::Timeline => "Timeline".into(),
+        CallableType::Unit => "Unit".into(),
+        CallableType::Actor => "Actor".into(),
+        CallableType::Scene => "Scene".into(),
+        CallableType::Easing => "Easing".into(),
+        CallableType::List(inner) => format!("List[{}]", callable_type_name(inner)),
+        CallableType::Tuple(items) => format!(
+            "Tuple({})",
+            items.iter().map(callable_type_name).collect::<Vec<_>>().join(", ")
+        ),
+        CallableType::Union(items) => {
+            items.iter().map(callable_type_name).collect::<Vec<_>>().join(" | ")
+        },
+        CallableType::Enum(items) => format!("Enum({})", items.join(", ")),
+        CallableType::Function { params, ret } => format!(
+            "Fn({}) => {}",
+            params
+                .iter()
+                .map(|(_, ty)| callable_type_name(ty))
+                .collect::<Vec<_>>()
+                .join(", "),
+            callable_type_name(ret)
+        ),
+    }
+}
+
+fn callable_phase_name(phase: CallablePhase) -> &'static str {
+    match phase {
+        CallablePhase::Build => "Build",
+        CallablePhase::BuildAndFrame => "BuildAndFrame",
+    }
+}
+
+fn output_callable_param(param: &CallableParam) -> OutputCallableParam<'_> {
+    OutputCallableParam {
+        name: &param.name,
+        ty: callable_type_name(&param.ty),
+        default: param.default.as_ref().map(output_callable_default),
+        optional: param.optional,
+        variadic: param.variadic,
+        help: &param.help,
+    }
+}
+
+fn output_callable_default(default: &DefaultValue) -> toml::Value {
+    match default {
+        DefaultValue::Num(value) | DefaultValue::Duration(value) => toml::Value::Float(*value),
+        DefaultValue::Bool(value) => toml::Value::Boolean(*value),
+        DefaultValue::Str(value) | DefaultValue::Ident(value) => toml::Value::String(value.clone()),
     }
 }
 
@@ -554,14 +754,6 @@ fn output_property_type(kind: PropertyValueKind) -> &'static str {
         PropertyValueKind::String => "Str",
         PropertyValueKind::PointList => "List<Vec2>",
         PropertyValueKind::Generic => "Any",
-    }
-}
-
-fn output_action_param(param: &ActionParam) -> OutputActionParam<'_> {
-    OutputActionParam {
-        name: &param.name,
-        description: &param.description,
-        ty: &param.type_info,
     }
 }
 

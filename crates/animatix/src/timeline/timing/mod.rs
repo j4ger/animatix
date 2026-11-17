@@ -71,3 +71,13 @@ pub(crate) use parsing::parse_timing_modifiers;
 pub(crate) use stagger::parse_stagger_modifiers;
 
 pub(in crate::timeline::timing) use modifiers::{action_declares_modifier, ease_value_diagnostic};
+
+/// Resolve a statically written duration expression to milliseconds.
+pub(crate) fn duration_expr_to_ms(expression: &Expr) -> Option<f64> {
+    let milliseconds = match expression {
+        Expr::Duration(seconds) => seconds * 1000.0,
+        Expr::Ident(raw) => parse_duration_literal(raw)?,
+        _ => return None,
+    };
+    (milliseconds.is_finite() && milliseconds >= 0.0).then_some(milliseconds)
+}

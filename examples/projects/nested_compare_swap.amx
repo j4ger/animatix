@@ -1,62 +1,57 @@
 // One algorithm step, reused for a slow explanation and a quick review.
 // The comparison cue has its own local clock; sequence waits for its extent.
-config {
-  colorscheme: "editorial-dark",
-  resolution: (1280, 720),
-  duration: 4,
-  dynamic_layout: true
-}
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 4, dynamic_layout: true }
 
 pub component Pair(label: Str, y: Num) {
-  heading: Text, text: label, font_size: 26, color: text.secondary,
-    at: (640, y - 90)
+  heading: Text, text: label, font_size: 26, color: text.secondary, at: (640, y - 90)
   row: Row, at: (640, y), gap: 100, align: "center" {
-    card8: Stack, size: (160, 100), opacity: 1, scale: 1 {
-      tile8: Rect, size: (160, 100), color: accent.danger, corner_radius: 14
-      number8: Counter, value: 8, font_size: 48, color: text.primary
+  card8: Stack, size: (160, 100), opacity: 1, scale: 1 {
+  tile8: Rect, size: (160, 100), color: accent.danger, corner_radius: 14
+  number8: Counter, value: 8, font_size: 48, color: text.primary
+      }
+  card3: Stack, size: (160, 100), opacity: 1, scale: 1 {
+  tile3: Rect, size: (160, 100), color: accent.info, corner_radius: 14
+  number3: Counter, value: 3, font_size: 48, color: text.primary
+      }
     }
-    card3: Stack, size: (160, 100), opacity: 1, scale: 1 {
-      tile3: Rect, size: (160, 100), color: accent.info, corner_radius: 14
-      number3: Counter, value: 3, font_size: 48, color: text.primary
-    }
-  }
 }
 
 // A reusable 400ms comparison cue, independent of scene start time.
 fn emphasize(a, b) {
-  #0ms
-  a.scale = 1
-  b.scale = 1
+  return #{ #0ms
+    a.scale = 1
+    b.scale = 1
   #200ms
-  a.scale = 1.12
-  b.scale = 1.12
+    a.scale = 1.12
+    b.scale = 1.12
   #400ms
-  a.scale = 1
-  b.scale = 1
+    a.scale = 1
+    b.scale = 1 }
 }
 
 // Compose a comparison cue and the algorithm's conditional exchange.
 fn compare_and_swap(a, b, left: Num, right: Num) {
-  if left > right {
+  return #{ if left > right {
     sequence {
-      emphasize(a, b) [time_scale: 1.5]
-      swap a, b [500ms, ease: ease-in-out]
-    }
+        stretch(animation: emphasize(a, b), factor: 1.5)
+        swap(a, b, duration: 0.5s, ease: ease_in_out)
+      }
   } else {
-    emphasize(a, b) [time_scale: 1.5]
-  }
+    stretch(animation: emphasize(a, b), factor: 1.5)
+  } }
 }
 
-title: Text, text: "One compare-swap, two tempos", font_size: 40,
-  font_weight: "bold", color: text.primary, at: (640, 65)
+title: Text, text: "One compare-swap, two tempos", font_size: 40, font_weight: "bold", color: text.primary, at: (640, 65)
+
 slow: Pair, label: "Slow explanation", y: 290
+
 fast: Pair, label: "Quick review", y: 540
 
 #0s
-fade-in title [300ms]
-fade-in slow [300ms]
-fade-in fast [300ms]
+  fade_in(target: title, duration: 0.3s)
+  fade_in(target: slow, duration: 0.3s)
+  fade_in(target: fast, duration: 0.3s)
 
 #1s
-compare_and_swap(slow.card8, slow.card3, 8, 3) [time_scale: 2]
-compare_and_swap(fast.card8, fast.card3, 8, 3) [clip_duration: 900ms]
+  stretch(animation: compare_and_swap(slow.card8, slow.card3, 8, 3), factor: 2)
+  fit_duration(animation: compare_and_swap(fast.card8, fast.card3, 8, 3), duration: 0.9s)

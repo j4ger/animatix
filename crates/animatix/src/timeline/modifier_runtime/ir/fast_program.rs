@@ -3,9 +3,9 @@
 //! Replaces boxed `Value` tree traversal with unboxed `FastScalarExpr` evaluation
 //! for numeric and Vec2 property assignments in `always` and `drive` blocks.
 
-use super::eval::{FastScalarExpr, compile_fast_scalar, compile_fast_vec2};
 use super::exec::{execute_stmt, record_override};
-use super::types::{CompiledExpr, ModifierIrStmt, ModifierOverrides};
+use super::fast_scalar::{FastScalarExpr, compile_fast_scalar, compile_fast_vec2};
+use super::types::{BuiltinFn, CompiledExpr, ModifierIrStmt, ModifierOverrides};
 use crate::timeline::frame_env::apply_override_incremental;
 use crate::timeline::{Environment, EvalError, Value};
 
@@ -14,6 +14,8 @@ use crate::timeline::{Environment, EvalError, Value};
 pub enum FastValueExpr {
     /// A single numeric scalar expression.
     Scalar(FastScalarExpr),
+    /// A Boolean expression represented as 0/1 inside the scalar evaluator.
+    Bool(FastScalarExpr),
     /// A 2D vector expression of two scalar components (X, Y).
     Vec2(FastScalarExpr, FastScalarExpr),
 }
@@ -31,6 +33,9 @@ pub struct FastAssignStmt {
     pub expr: FastValueExpr,
     /// Environment variable names that must be resolved into slot indices.
     pub slot_names: Vec<String>,
+    /// Unqualified built-ins whose lexical bindings must stay canonical for
+    /// this expression to use its intrinsic fast path.
+    pub builtin_names: Vec<String>,
     /// Generic fallback statement if runtime slot types are non-numeric.
     pub generic: ModifierIrStmt,
 }
@@ -64,6 +69,7 @@ pub fn compile_fast_stmt(stmt: &ModifierIrStmt) -> FastStmt {
         if matches!(value, CompiledExpr::LoadEnv(_)) {
             return FastStmt::Generic(stmt.clone());
         }
+        let builtin_names = unqualified_builtin_names(value);
 
         let mut slot_names_raw = Vec::new();
         if let Some((x, y)) = compile_fast_vec2(value, "\0", &mut slot_names_raw) {
@@ -74,6 +80,7 @@ pub fn compile_fast_stmt(stmt: &ModifierIrStmt) -> FastStmt {
                 property: property.clone(),
                 expr: FastValueExpr::Vec2(x, y),
                 slot_names,
+                builtin_names: builtin_names.clone(),
                 generic: stmt.clone(),
             });
         }
@@ -85,6 +92,7 @@ pub fn compile_fast_stmt(stmt: &ModifierIrStmt) -> FastStmt {
                 property: property.clone(),
                 expr: FastValueExpr::Vec2(FastScalarExpr::Const(*x), FastScalarExpr::Const(*y)),
                 slot_names: Vec::new(),
+                builtin_names: Vec::new(),
                 generic: stmt.clone(),
             });
         }
@@ -96,14 +104,130 @@ pub fn compile_fast_stmt(stmt: &ModifierIrStmt) -> FastStmt {
                 target: target.clone(),
                 target_key: target_key.clone(),
                 property: property.clone(),
-                expr: FastValueExpr::Scalar(s),
+                expr: if super::fast_scalar::boolean_result(value) {
+                    FastValueExpr::Bool(s)
+                } else {
+                    FastValueExpr::Scalar(s)
+                },
                 slot_names,
+                builtin_names,
                 generic: stmt.clone(),
             });
         }
     }
 
     FastStmt::Generic(stmt.clone())
+}
+
+fn unqualified_builtin_names(expression: &CompiledExpr) -> Vec<String> {
+    fn builtin_name(builtin: &BuiltinFn) -> &'static str {
+        match builtin {
+            BuiltinFn::Sin => "sin",
+            BuiltinFn::Cos => "cos",
+            BuiltinFn::Lerp => "lerp",
+            BuiltinFn::Format => "format",
+            BuiltinFn::Tan => "tan",
+            BuiltinFn::Sqrt => "sqrt",
+            BuiltinFn::Exp => "exp",
+            BuiltinFn::Log => "ln",
+            BuiltinFn::Atan2 => "atan2",
+            BuiltinFn::Clamp => "clamp",
+            BuiltinFn::Abs => "abs",
+            BuiltinFn::Min => "min",
+            BuiltinFn::Max => "max",
+            BuiltinFn::Floor => "floor",
+            BuiltinFn::Ceil => "ceil",
+            BuiltinFn::Deg => "deg",
+            BuiltinFn::Rad => "rad",
+            BuiltinFn::ListSwap => "list_swap",
+            BuiltinFn::ListSet => "list_set",
+            BuiltinFn::Signum => "signum",
+            BuiltinFn::Fract => "fract",
+            BuiltinFn::Hypot => "hypot",
+            BuiltinFn::Pow => "pow",
+            BuiltinFn::Rem => "rem",
+            BuiltinFn::Step => "step",
+            BuiltinFn::Round => "round",
+            BuiltinFn::Factorial => "factorial",
+            BuiltinFn::SumList => "sum",
+            BuiltinFn::CurveAt => "curve_at",
+            BuiltinFn::CurveSmooth => "curve_smooth",
+            BuiltinFn::SeededRand => "seeded_rand",
+        }
+    }
+
+    fn walk(expression: &CompiledExpr, names: &mut Vec<String>) {
+        match expression {
+            CompiledExpr::Const(_)
+            | CompiledExpr::LoadEnv(_)
+            | CompiledExpr::Timeline(_)
+            | CompiledExpr::SequencePlan(_)
+            | CompiledExpr::StaggerPlan(..)
+            | CompiledExpr::PropRef { .. }
+            | CompiledExpr::AnchorLookup { .. } => {},
+            CompiledExpr::Field(base, _)
+            | CompiledExpr::Unary(_, base)
+            | CompiledExpr::Closure(_, base) => walk(base, names),
+            CompiledExpr::MakeVec(items) | CompiledExpr::MakeList(items) => {
+                for item in items {
+                    walk(item, names);
+                }
+            },
+            CompiledExpr::Binary(left, _, right) => {
+                walk(left, names);
+                walk(right, names);
+            },
+            CompiledExpr::Select(condition, then_expr, else_expr) => {
+                walk(condition, names);
+                walk(then_expr, names);
+                walk(else_expr, names);
+            },
+            CompiledExpr::CallBuiltin(builtin, args) => {
+                names.push(builtin_name(builtin).to_string());
+                for arg in args {
+                    walk(arg, names);
+                }
+            },
+            CompiledExpr::CallNamed(_, args) => {
+                for (_, arg) in args {
+                    walk(arg, names);
+                }
+            },
+            CompiledExpr::CallMember(receiver, _, args) => {
+                walk(receiver, names);
+                for (_, arg) in args {
+                    walk(arg, names);
+                }
+            },
+            CompiledExpr::CallValue(callee, args) => {
+                walk(callee, names);
+                for (_, arg) in args {
+                    walk(arg, names);
+                }
+            },
+            CompiledExpr::Index(base, index) => {
+                walk(base, names);
+                walk(index, names);
+            },
+            CompiledExpr::Construct(_, fields) => {
+                for (_, field) in fields {
+                    walk(field, names);
+                }
+            },
+            CompiledExpr::LetChain(bindings, tail) => {
+                for (_, value) in bindings {
+                    walk(value, names);
+                }
+                walk(tail, names);
+            },
+        }
+    }
+
+    let mut names = Vec::new();
+    walk(expression, &mut names);
+    names.sort();
+    names.dedup();
+    names
 }
 
 impl FastModifierProgram {
@@ -127,8 +251,14 @@ pub fn execute_fast_modifier_ir(
         match stmt {
             FastStmt::FastAssign(assign) => {
                 slots.clear();
-                let mut fallback_generic = false;
+                let mut fallback_generic = assign
+                    .builtin_names
+                    .iter()
+                    .any(|name| !crate::timeline::builtins::is_standard_callable(name, frame_env));
                 for name in &assign.slot_names {
+                    if fallback_generic {
+                        break;
+                    }
                     match frame_env.get_path(name) {
                         Some(Value::Num(n)) => slots.push(n),
                         _ => {
@@ -148,6 +278,7 @@ pub fn execute_fast_modifier_ir(
                         let n = expr.eval(0.0, &slots);
                         Value::Num(n)
                     },
+                    FastValueExpr::Bool(expr) => Value::Bool(expr.eval(0.0, &slots) != 0.0),
                     FastValueExpr::Vec2(x_expr, y_expr) => {
                         let x = x_expr.eval(0.0, &slots);
                         let y = y_expr.eval(0.0, &slots);
@@ -186,6 +317,35 @@ pub fn execute_fast_modifier_ir(
 mod tests {
     use super::*;
     use crate::ast::BinaryOp;
+
+    #[test]
+    fn fast_boolean_assignment_preserves_the_generic_value_kind() {
+        let statement = ModifierIrStmt::Assign {
+            target: vec!["state".into()],
+            target_key: "state".into(),
+            property: "enabled".into(),
+            value: CompiledExpr::Binary(
+                Box::new(CompiledExpr::LoadEnv("t".into())),
+                BinaryOp::Gt,
+                Box::new(CompiledExpr::Const(Value::Num(1.0))),
+            ),
+        };
+        let mut generic = Environment::new();
+        generic.set(
+            "state",
+            Value::Object(
+                "State".into(),
+                std::collections::HashMap::from([("enabled".into(), Value::Bool(false))]),
+            ),
+        );
+        generic.set("t", Value::Num(2.0));
+        let mut fast = generic.clone();
+        execute_stmt(&statement, &mut generic, &mut ModifierOverrides::default()).unwrap();
+        let program = FastModifierProgram::compile(&[statement]);
+        execute_fast_modifier_ir(&program, &mut fast, &mut ModifierOverrides::default()).unwrap();
+        assert_eq!(fast.get_path("state.enabled"), Some(Value::Bool(true)));
+        assert_eq!(fast.get("state"), generic.get("state"));
+    }
 
     #[test]
     fn test_compile_fast_scalar_assign() {
@@ -303,5 +463,47 @@ mod tests {
 
         execute_fast_modifier_ir(&program, &mut env, &mut overrides).expect("fallback succeeds");
         assert_eq!(overrides["panel"]["color"], Value::Color([1.0, 0.0, 0.0, 1.0]));
+    }
+
+    #[test]
+    fn shadowed_builtin_uses_lexical_callable_instead_of_fast_intrinsic() {
+        let stmt = ModifierIrStmt::Assign {
+            target: vec!["panel".to_string()],
+            target_key: "panel".to_string(),
+            property: "opacity".to_string(),
+            value: CompiledExpr::CallBuiltin(
+                BuiltinFn::Sin,
+                vec![CompiledExpr::LoadEnv("t".to_string())],
+            ),
+        };
+        let mut ir =
+            crate::timeline::modifier_runtime::ir::ModifierIrProgram::without_fast(vec![stmt]);
+        crate::timeline::modifier_runtime::ir::optimize_program(
+            &mut ir,
+            &std::collections::HashSet::new(),
+        );
+        assert!(matches!(
+            &ir.statements[0],
+            ModifierIrStmt::Assign {
+                value: CompiledExpr::CallBuiltin(BuiltinFn::Sin, _),
+                ..
+            }
+        ));
+        let program = FastModifierProgram::compile(&ir.statements);
+        let mut env = Environment::new();
+        env.set("t", Value::Num(0.5));
+        env.set(
+            "sin",
+            Value::NativeFn(std::sync::Arc::new(|args, _| match args {
+                [Value::Num(value)] => Ok(Value::Num(value + 2.0)),
+                _ => Err(EvalError::TypeMismatch("sin expects one number".into())),
+            })),
+        );
+        let mut overrides = ModifierOverrides::default();
+
+        execute_fast_modifier_ir(&program, &mut env, &mut overrides)
+            .expect("shadowed callable evaluates through the generic path");
+
+        assert_eq!(overrides["panel"]["opacity"], Value::Num(2.5));
     }
 }

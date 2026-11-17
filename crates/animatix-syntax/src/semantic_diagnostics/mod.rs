@@ -21,7 +21,6 @@ mod tests;
 
 pub use collect::{collect_semantic_diagnostics, plot_runtime_params};
 pub(crate) use spans::{
-    find_decl_type_range, find_ident_range, is_component_array_member, property_positions,
-    range_diagnostic, span_diagnostic, span_positions, stage_param_segment, target_source_text,
-    type_mismatch_diagnostic,
+    find_decl_type_range, is_component_array_member, property_positions, span_diagnostic,
+    span_positions, stage_param_segment, type_mismatch_diagnostic,
 };

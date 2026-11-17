@@ -41,9 +41,9 @@ fn source_with(ease: &str) -> String {
 #[test]
 fn parameterized_eases_parse_to_their_curves() {
     let cases: &[(&str, Easing)] = &[
-        ("cubic-bezier(0.16, 1, 0.3, 1)", Easing::CubicBezier([0.16, 1.0, 0.3, 1.0])),
+        ("cubic_bezier(0.16, 1, 0.3, 1)", Easing::CubicBezier([0.16, 1.0, 0.3, 1.0])),
         (
-            "cubic-bezier(0.42, -0.3, 0.58, 1.2)",
+            "cubic_bezier(0.42, -0.3, 0.58, 1.2)",
             Easing::CubicBezier([0.42, -0.3, 0.58, 1.2]),
         ),
         (
@@ -53,11 +53,9 @@ fn parameterized_eases_parse_to_their_curves() {
                 frequency: 9.0,
             },
         ),
-        ("expo-out", Easing::ExpoOut),
-        ("expo-in-out", Easing::ExpoInOut),
-        // `bounce` stays accepted as the legacy spelling of the CSS curve.
-        ("bounce", Easing::Bounce),
-        ("bounce-in", Easing::Bounce),
+        ("expo_out", Easing::ExpoOut),
+        ("expo_in_out", Easing::ExpoInOut),
+        ("bounce_in", Easing::Bounce),
     ];
     for (written, expected) in cases {
         let parsed = first_easing(&parse(&source_with(written)));
@@ -68,10 +66,10 @@ fn parameterized_eases_parse_to_their_curves() {
 #[test]
 fn eases_survive_the_source_roundtrip() {
     for written in [
-        "cubic-bezier(0.16, 1, 0.3, 1)",
+        "cubic_bezier(0.16, 1, 0.3, 1)",
         "spring(6, 9)",
-        "expo-out",
-        "ease-in-out",
+        "expo_out",
+        "ease_in_out",
     ] {
         let original = first_easing(&parse(&source_with(written)));
         let serialized = animatix_syntax::to_source::stmts_to_source(&parse(&source_with(written)));
@@ -87,12 +85,12 @@ fn eases_survive_the_source_roundtrip() {
 fn a_wrong_arity_bezier_is_not_silently_accepted() {
     // Three control points must not become an easing — the build layer is the
     // one that reports it, so the parser has to leave the modifier in place.
-    let stmts = parse(&source_with("cubic-bezier(0.16, 1, 0.3)"));
+    let stmts = parse(&source_with("cubic_bezier(0.16, 1, 0.3)"));
     assert_eq!(first_easing(&stmts), None, "a 3-point bezier resolved to something");
     let kept = stmts.iter().any(|s| match s {
         Stmt::Assignment { modifiers, .. } => modifiers.iter().any(|m| {
             m.name.as_deref() == Some("ease")
-                && matches!(&m.value, Expr::Call(name, args) if name == "cubic-bezier" && args.len() == 3)
+                && matches!(&m.value, Expr::Call(callee, args) if callee.callable_name().as_deref() == Some("cubic_bezier") && args.len() == 3)
         }),
         Stmt::Keyframe { body, .. } => body.iter().any(|s| match s {
             Stmt::Assignment { modifiers, .. } => modifiers.iter().any(|m| {
@@ -138,9 +136,9 @@ fn a_play_transition_ease_parses_and_survives_formatting() {
     };
 
     for (written, want) in [
-        ("ease-in-out", Easing::EaseInOut),
-        ("expo-out", Easing::ExpoOut),
-        ("cubic-bezier(0.16, 1, 0.3, 1)", Easing::CubicBezier([0.16, 1.0, 0.3, 1.0])),
+        ("ease_in_out", Easing::EaseInOut),
+        ("expo_out", Easing::ExpoOut),
+        ("cubic_bezier(0.16, 1, 0.3, 1)", Easing::CubicBezier([0.16, 1.0, 0.3, 1.0])),
     ] {
         let parsed = first_transition_easing(&parse(&doc(written)));
         assert_eq!(parsed, Some(want), "play [{written}] did not resolve its easing");

@@ -1,8 +1,8 @@
 //! Build an analyzer manifest from runtime extension descriptors.
 
+use animatix_core::callable::CallableDescriptor;
 use animatix_syntax::schema::{
-    ActionSignature, FunctionDescriptor, PrimitiveCategory, PrimitiveDescriptor, PrimitiveSpec,
-    PropertyDescriptor, ServiceDescriptor,
+    PrimitiveCategory, PrimitiveDescriptor, PrimitiveSpec, PropertyDescriptor, ServiceDescriptor,
 };
 
 use super::manifest::{ExtensionManifest, ManifestEffect};
@@ -16,8 +16,7 @@ impl ExtensionManifest {
         library: Option<String>,
         primitives: &[PrimitiveSpec],
         properties: &[PropertyDescriptor],
-        actions: &[ActionSignature],
-        functions: &[FunctionDescriptor],
+        callables: &[CallableDescriptor],
         services: &[ServiceDescriptor],
         effects: &[ManifestEffect],
     ) -> Self {
@@ -76,8 +75,7 @@ impl ExtensionManifest {
                     help: property.help.clone(),
                 })
                 .collect(),
-            actions: actions.to_vec(),
-            functions: functions.to_vec(),
+            callables: callables.to_vec(),
             services: services.to_vec(),
         }
     }

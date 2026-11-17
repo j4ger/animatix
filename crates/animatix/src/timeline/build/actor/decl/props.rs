@@ -707,9 +707,7 @@ impl Timeline {
                 }
                 if matches!(caps.shape, Some(ShapeKind::Line | ShapeKind::Arrow))
                     && (prop.name == "from" || prop.name == "to")
-                    && let Expr::Path(segments) = &prop.value
-                    && segments.len() == 2
-                    && SceneAnchor::from_str(&segments[1]).is_some()
+                    && crate::timeline::lookup::actor_anchor_reference(&prop.value).is_some()
                 {
                     continue;
                 }

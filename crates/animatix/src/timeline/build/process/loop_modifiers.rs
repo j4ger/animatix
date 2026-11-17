@@ -2,34 +2,57 @@
 
 use super::*;
 
+static NEXT_CAPTURE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
 impl Timeline {
     pub(super) fn collect_scoped_modifiers(
         &mut self,
         body: Vec<Stmt>,
-        diagnostics: &mut Vec<Diagnostic>,
+        _diagnostics: &mut Vec<Diagnostic>,
     ) {
         if (self.build_loop_scopes.is_empty() && self.block_scope.is_empty()) || body.is_empty() {
             self.modifiers.extend(body);
             return;
         }
-        let mut bindings = std::collections::BTreeMap::new();
         let names = self
             .build_loop_scopes
             .iter()
             .flatten()
-            .chain(self.block_scope.iter().flat_map(|scope| scope.keys()));
+            .chain(self.block_scope.iter().flat_map(|scope| scope.keys()))
+            .cloned()
+            .collect::<std::collections::BTreeSet<_>>();
+        // Actor identity is static at this point. Materialize aliases in both
+        // reads and assignment targets rather than looking them up per frame.
+        let aliases = names
+            .iter()
+            .filter_map(|name| match self.env.get(name) {
+                Some(Value::ActorRef(actor)) => Some((name.clone(), actor.label().to_owned())),
+                _ => None, // Scalar and callable captures are bound below.
+            })
+            .collect();
+        let body = crate::timeline::actor_aliases::resolve_actor_aliases(body, aliases);
+        let referenced = crate::timeline::plan_value::referenced_statement_names(&body);
+        let mut bindings = std::collections::BTreeMap::new();
         for name in names {
-            if let Some(value) = self.env.get(name) {
-                if let Some(expr) = crate::timeline::value_parser::value_to_expr(&value) {
-                    bindings.insert(name.clone(), expr);
-                } else {
-                    diagnostics.push(Diagnostic::warning(
-                        DiagnosticCode::InvalidPropertyValue,
-                        DiagnosticPhase::Build,
-                        format!("Reactive lexical capture '{name}' cannot capture {value:?}; use scalar/list values."),
-                    ));
-                }
+            if !referenced.contains(&name) {
+                continue;
             }
+            let Some(value) = self.env.get(&name) else {
+                continue;
+            };
+            if matches!(value, Value::ActorRef(_)) {
+                continue; // Already rewritten to its concrete actor above.
+            }
+            let expr = crate::timeline::value_parser::value_to_expr(&value).unwrap_or_else(|| {
+                // The existing environment base also holds compiler literals.
+                // An unspellable key preserves callable/closure identity without
+                // inventing source syntax or serializing a live value to text.
+                let id = NEXT_CAPTURE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                let key = format!("\0reactive_capture_{id}");
+                self.env.set(&key, value);
+                Expr::Ident(key)
+            });
+            bindings.insert(name, expr);
         }
         let (names, values): (Vec<_>, Vec<_>) = bindings.into_iter().unzip();
         // A single-iteration lexical scope preserves shadowing by runtime

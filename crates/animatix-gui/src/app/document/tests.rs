@@ -220,10 +220,10 @@ fn rebuild_uses_expanded_program_pipeline_for_imported_components() {
     write_file(
         &library,
         r#"
-pub component MetricCard(title: "Default") {
+pub component MetricCard(title: Str = "Default") {
 frame: Rect, size: (240, 120), color: blue
 title_text: Text { text: title, at: (0, -20) }
-badge: Ellipse, radius: 12, color: gold
+badge: Ellipse, radius_x: 12, radius_y: 12, color: gold
 badge.color = red
 }
 "#,
@@ -304,7 +304,7 @@ fn rebuild_surfaces_duplicate_component_exports_and_clears_compiled_state() {
     write_file(
         &first,
         r#"
-pub component MetricCard(title: "One") {
+pub component MetricCard(title: Str = "One") {
 title_text: Text { text: title }
 }
 "#,
@@ -314,7 +314,7 @@ title_text: Text { text: title }
     write_file(
         &second,
         r#"
-pub component MetricCard(title: "Two") {
+pub component MetricCard(title: Str = "Two") {
 title_text: Text { text: title }
 }
 "#,
@@ -597,4 +597,31 @@ fn malformed_actor_worker_preserves_last_good_snapshot() {
     store.publish_rebuild_result(true);
     assert!(store.showing_last_good());
     assert!(std::sync::Arc::ptr_eq(&before, &store.last_good_snapshot().unwrap()));
+}
+
+#[test]
+fn imported_function_edits_invalidate_the_expanded_function_context() {
+    use animatix::timeline::TrackAccessor;
+    let dir = temp_project_dir("expanded_function_cache").unwrap();
+    let entry = dir.join("scene.amx");
+    let library = dir.join("math.amx");
+    write_file(&library, "pub fn width() { 20 }").unwrap();
+    write_file(
+        &entry,
+        "import \"math.amx\" as math\n#0s\nr: Rect, size: (math::width(), 20), opacity: 1",
+    )
+    .unwrap();
+    let mut document = DocumentSession::load(entry).unwrap();
+    let authored_width = |document: &DocumentSession| {
+        let timeline = document.timeline.as_ref().unwrap();
+        let id = timeline.world().get_id("r").unwrap();
+        timeline.world().geometry(id).size.get(0, [0.0; 2])[0] * 2.0
+    };
+    assert_eq!(authored_width(&document), 20.0);
+    write_file(&library, "pub fn width() { 42 }").unwrap();
+    // Trigger a source revision while retaining the same entry AST and
+    // component definitions; only the imported function scope has changed.
+    document.source_text.push('\n');
+    document.rebuild().unwrap();
+    assert_eq!(authored_width(&document), 42.0);
 }

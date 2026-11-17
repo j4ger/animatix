@@ -2,13 +2,16 @@
 //! constant propagation, and match scrutinee single-evaluation CSE).
 
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use animatix::timeline::modifier_runtime::ir::{
     BuiltinFn, CompiledExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides, compile_expr,
     execute_modifier_ir, lower_modifier_body, lower_modifier_ir, optimize_expr, optimize_program,
 };
 use animatix::timeline::{Environment, Value};
-use animatix_syntax::ast::{BinaryOp, Expr, MatchPattern, Stmt, TargetSegment, UnaryOp};
+use animatix_syntax::ast::{
+    BinaryOp, CallArgument, Expr, MatchPattern, Stmt, TargetSegment, UnaryOp,
+};
 
 fn assignment(target: Vec<TargetSegment>, property: &str, value: Expr) -> Stmt {
     Stmt::Assignment {
@@ -42,11 +45,11 @@ fn test_constant_unary_folding_parity() {
     // Logical NOT of truthy / falsy
     let not_true =
         CompiledExpr::Unary(UnaryOp::Not, Box::new(CompiledExpr::Const(Value::Bool(true))));
-    assert_eq!(eval_expr_in_empty_env(not_true), Value::Num(0.0));
+    assert_eq!(eval_expr_in_empty_env(not_true), Value::Bool(false));
 
     let not_zero =
         CompiledExpr::Unary(UnaryOp::Not, Box::new(CompiledExpr::Const(Value::Num(0.0))));
-    assert_eq!(eval_expr_in_empty_env(not_zero), Value::Num(1.0));
+    assert_eq!(eval_expr_in_empty_env(not_zero), Value::Bool(true));
 }
 
 #[test]
@@ -169,11 +172,11 @@ fn test_optimize_expr_unary_and_builtin_folding() {
     assert_eq!(opt_neg, CompiledExpr::Const(Value::Num(42.0)));
     assert_eq!(stats_neg.folded, 2);
 
-    // Unary Not: !0.0 -> Const(Num(1.0)), !1.0 -> Const(Num(0.0))
+    // Unary Not always returns Bool, including for numeric operands.
     let not_zero =
         CompiledExpr::Unary(UnaryOp::Not, Box::new(CompiledExpr::Const(Value::Num(0.0))));
     let (opt_not_zero, stats_not_zero) = optimize_expr(not_zero, &HashSet::new());
-    assert_eq!(opt_not_zero, CompiledExpr::Const(Value::Num(1.0)));
+    assert_eq!(opt_not_zero, CompiledExpr::Const(Value::Bool(true)));
     assert_eq!(stats_not_zero.folded, 1);
 
     // Builtin functions: sqrt(16.0) -> Const(Num(4.0)), abs(-5.0) -> Const(Num(5.0))
@@ -560,4 +563,38 @@ fn test_optimize_program_keeps_builtin_calls_for_runtime_shadowing() {
         ),
         _ => panic!("expected let statement"),
     }
+}
+
+#[test]
+fn optimized_let_chain_keeps_a_name_used_as_a_callee() {
+    let expr = Expr::LetChain(
+        vec![("choose".to_string(), Expr::Ident("abs".to_string()))],
+        Box::new(Expr::Call(
+            Box::new(Expr::Ident("choose".to_string())),
+            vec![CallArgument::positional(Expr::Num(-2.0))],
+        )),
+    );
+    let compiled = compile_expr(&expr).expect("let-chain expression should compile");
+    let (optimized, _) = optimize_expr(compiled.clone(), &HashSet::new());
+
+    let evaluate = |expr| {
+        let mut env = Environment::new();
+        let abs = animatix_std::callable::callable("abs")
+            .expect("standard abs descriptor")
+            .clone();
+        env.register_callable(abs, Arc::new(|args, _| Ok(Value::Num(args[0].as_num().abs()))));
+
+        let program = ModifierIrProgram::without_fast(vec![ModifierIrStmt::Let {
+            name: "__res".to_string(),
+            value: expr,
+        }]);
+        let mut overrides = ModifierOverrides::default();
+        execute_modifier_ir(&program, &mut env, &mut overrides)
+            .expect("expression should evaluate");
+        env.get("__res").expect("result should be bound")
+    };
+
+    let unoptimized = evaluate(compiled);
+    assert_eq!(unoptimized, Value::Num(2.0));
+    assert_eq!(evaluate(optimized), unoptimized);
 }

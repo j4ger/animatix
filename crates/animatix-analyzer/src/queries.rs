@@ -1,5 +1,7 @@
 //! Query surface: completions, diagnostics, hover, navigation, and highlighting.
 
+use std::collections::HashSet;
+
 use animatix_syntax::ast::Span;
 use animatix_syntax::token::TokenKind;
 
@@ -81,6 +83,7 @@ impl Analyzer {
                 &self.symbols,
                 &self.tokens,
                 &self.source,
+                self.import_namespaces.as_ref(),
             ));
         }
         // Imports that resolve to no file are errors (the CLI build rejects
@@ -114,6 +117,18 @@ impl Analyzer {
             }
         }
         diagnostics.extend_from_slice(&self.type_diagnostics);
+        // Parser recovery can leave malformed identifiers in the partial AST.
+        // Suppress follow-on warnings from any parse-error line, regardless
+        // of which diagnostic pass produced them; keep errors on that line.
+        let parse_error_lines: HashSet<usize> = diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_deref() == Some("parse-error"))
+            .map(|diagnostic| diagnostic.line)
+            .collect();
+        diagnostics.retain(|diagnostic| {
+            diagnostic.severity != crate::diagnostics::DiagnosticSeverity::Warning
+                || !parse_error_lines.contains(&diagnostic.line)
+        });
         diagnostics
     }
 

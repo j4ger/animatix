@@ -29,7 +29,8 @@ pub(crate) async fn completion(
                 animatix_analyzer::CompletionKind::Type => CompletionItemKind::TYPE_PARAMETER,
                 animatix_analyzer::CompletionKind::Property => CompletionItemKind::PROPERTY,
                 animatix_analyzer::CompletionKind::Label => CompletionItemKind::VARIABLE,
-                animatix_analyzer::CompletionKind::Action => CompletionItemKind::FUNCTION,
+                animatix_analyzer::CompletionKind::Callable => CompletionItemKind::FUNCTION,
+                animatix_analyzer::CompletionKind::Parameter => CompletionItemKind::VARIABLE,
                 animatix_analyzer::CompletionKind::Value => CompletionItemKind::VALUE,
                 animatix_analyzer::CompletionKind::Snippet => CompletionItemKind::SNIPPET,
             };

@@ -1,10 +1,11 @@
 // SVG probe (rect variant): same actor shape, only the asset differs.
 import "../../../examples/lib/theme.amx"
 
-config { colorscheme: "ink", resolution: (640, 360), duration: 3.0 }
+config { colorscheme: "ink", resolution: (640, 360), duration: 3 }
 
-backdrop: Rect, size: (640, 360), color: text.primary, opacity: 1.0, at: (320, 180)
+backdrop: Rect, size: (640, 360), color: text.primary, opacity: 1, at: (320, 180)
+
 logo: Svg, url: "mark_rect.svg", at: (320, 180)
 
 #0.2s
-fade-in logo [300ms, ease: expo-out]
+  fade_in(target: logo, duration: 0.3s, ease: expo_out)

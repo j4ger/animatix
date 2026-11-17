@@ -32,260 +32,260 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 24 }
   three_label: Text, text: "3", at: (820, 380), font_size: 40, font_weight: "bold", color: "#F3F5F7"
 
 #3s
-  two_a.at = (340, 245) [400ms, ease: ease-in-out]
-  two_a_label.at = (340, 245) [400ms, ease: ease-in-out]
-  two_a.color = "#A77D35" [300ms]
+  two_a.at = (340, 245) [0.4s, ease: ease_in_out]
+  two_a_label.at = (340, 245) [0.4s, ease: ease_in_out]
+  two_a.color = "#A77D35"[0.3s]
 
 #3.8s
   comparisons.text = "1"
-  four.color = "#45667C" [200ms]
+  four.color = "#45667C"[0.2s]
 
 #4.15s
-  four.at = (340, 380) [400ms, ease: ease-in-out]
-  four_label.at = (340, 380) [400ms, ease: ease-in-out]
-  four.color = "#24394C" [400ms]
+  four.at = (340, 380) [0.4s, ease: ease_in_out]
+  four_label.at = (340, 380) [0.4s, ease: ease_in_out]
+  four.color = "#24394C"[0.4s]
   shifts.text = "1"
 
 #4.85s
-  two_a.at = (180, 245) [350ms, ease: ease-in-out]
-  two_a_label.at = (180, 245) [350ms, ease: ease-in-out]
+  two_a.at = (180, 245) [0.35s, ease: ease_in_out]
+  two_a_label.at = (180, 245) [0.35s, ease: ease_in_out]
 
 #5.25s
-  two_a.at = (180, 380) [400ms, ease: ease-in-out]
-  two_a_label.at = (180, 380) [400ms, ease: ease-in-out]
-  two_a.color = "#24394C" [400ms]
-  prefix.at = (260, 458) [400ms]
-  prefix.size = (270, 5) [400ms]
+  two_a.at = (180, 380) [0.4s, ease: ease_in_out]
+  two_a_label.at = (180, 380) [0.4s, ease: ease_in_out]
+  two_a.color = "#24394C"[0.4s]
+  prefix.at = (260, 458)[0.4s]
+  prefix.size = (270, 5)[0.4s]
 
 #6.45s
-  five.at = (500, 245) [400ms, ease: ease-in-out]
-  five_label.at = (500, 245) [400ms, ease: ease-in-out]
-  five.color = "#A77D35" [300ms]
+  five.at = (500, 245) [0.4s, ease: ease_in_out]
+  five_label.at = (500, 245) [0.4s, ease: ease_in_out]
+  five.color = "#A77D35"[0.3s]
 
 #7.25s
   comparisons.text = "2"
-  four.color = "#45667C" [200ms]
+  four.color = "#45667C"[0.2s]
 
 #7.9s
-  four.color = "#24394C" [200ms]
+  four.color = "#24394C"[0.2s]
 
 #7.9s
-  five.at = (500, 245) [350ms, ease: ease-in-out]
-  five_label.at = (500, 245) [350ms, ease: ease-in-out]
+  five.at = (500, 245) [0.35s, ease: ease_in_out]
+  five_label.at = (500, 245) [0.35s, ease: ease_in_out]
 
 #8.3s
-  five.at = (500, 380) [400ms, ease: ease-in-out]
-  five_label.at = (500, 380) [400ms, ease: ease-in-out]
-  five.color = "#24394C" [400ms]
-  prefix.at = (340, 458) [400ms]
-  prefix.size = (430, 5) [400ms]
+  five.at = (500, 380) [0.4s, ease: ease_in_out]
+  five_label.at = (500, 380) [0.4s, ease: ease_in_out]
+  five.color = "#24394C"[0.4s]
+  prefix.at = (340, 458)[0.4s]
+  prefix.size = (430, 5)[0.4s]
 
 #9.5s
-  two_b.at = (660, 245) [400ms, ease: ease-in-out]
-  two_b_label.at = (660, 245) [400ms, ease: ease-in-out]
-  two_b.color = "#A77D35" [300ms]
+  two_b.at = (660, 245) [0.4s, ease: ease_in_out]
+  two_b_label.at = (660, 245) [0.4s, ease: ease_in_out]
+  two_b.color = "#A77D35"[0.3s]
 
 #10.3s
   comparisons.text = "3"
-  five.color = "#45667C" [200ms]
+  five.color = "#45667C"[0.2s]
 
 #10.65s
-  five.at = (660, 380) [400ms, ease: ease-in-out]
-  five_label.at = (660, 380) [400ms, ease: ease-in-out]
-  five.color = "#24394C" [400ms]
+  five.at = (660, 380) [0.4s, ease: ease_in_out]
+  five_label.at = (660, 380) [0.4s, ease: ease_in_out]
+  five.color = "#24394C"[0.4s]
   shifts.text = "2"
 
 #11.35s
   comparisons.text = "4"
-  four.color = "#45667C" [200ms]
+  four.color = "#45667C"[0.2s]
 
 #11.7s
-  four.at = (500, 380) [400ms, ease: ease-in-out]
-  four_label.at = (500, 380) [400ms, ease: ease-in-out]
-  four.color = "#24394C" [400ms]
+  four.at = (500, 380) [0.4s, ease: ease_in_out]
+  four_label.at = (500, 380) [0.4s, ease: ease_in_out]
+  four.color = "#24394C"[0.4s]
   shifts.text = "3"
 
 #12.4s
   comparisons.text = "5"
-  two_a.color = "#45667C" [200ms]
+  two_a.color = "#45667C"[0.2s]
 
 #13.05s
-  two_a.color = "#24394C" [200ms]
+  two_a.color = "#24394C"[0.2s]
 
 #13.05s
-  two_b.at = (340, 245) [350ms, ease: ease-in-out]
-  two_b_label.at = (340, 245) [350ms, ease: ease-in-out]
+  two_b.at = (340, 245) [0.35s, ease: ease_in_out]
+  two_b_label.at = (340, 245) [0.35s, ease: ease_in_out]
 
 #13.45s
-  two_b.at = (340, 380) [400ms, ease: ease-in-out]
-  two_b_label.at = (340, 380) [400ms, ease: ease-in-out]
-  two_b.color = "#24394C" [400ms]
-  prefix.at = (420, 458) [400ms]
-  prefix.size = (590, 5) [400ms]
+  two_b.at = (340, 380) [0.4s, ease: ease_in_out]
+  two_b_label.at = (340, 380) [0.4s, ease: ease_in_out]
+  two_b.color = "#24394C"[0.4s]
+  prefix.at = (420, 458)[0.4s]
+  prefix.size = (590, 5)[0.4s]
 
 #14.65s
-  three.at = (820, 245) [400ms, ease: ease-in-out]
-  three_label.at = (820, 245) [400ms, ease: ease-in-out]
-  three.color = "#A77D35" [300ms]
+  three.at = (820, 245) [0.4s, ease: ease_in_out]
+  three_label.at = (820, 245) [0.4s, ease: ease_in_out]
+  three.color = "#A77D35"[0.3s]
 
 #15.45s
   comparisons.text = "6"
-  five.color = "#45667C" [200ms]
+  five.color = "#45667C"[0.2s]
 
 #15.8s
-  five.at = (820, 380) [400ms, ease: ease-in-out]
-  five_label.at = (820, 380) [400ms, ease: ease-in-out]
-  five.color = "#24394C" [400ms]
+  five.at = (820, 380) [0.4s, ease: ease_in_out]
+  five_label.at = (820, 380) [0.4s, ease: ease_in_out]
+  five.color = "#24394C"[0.4s]
   shifts.text = "4"
 
 #16.5s
   comparisons.text = "7"
-  four.color = "#45667C" [200ms]
+  four.color = "#45667C"[0.2s]
 
 #16.85s
-  four.at = (660, 380) [400ms, ease: ease-in-out]
-  four_label.at = (660, 380) [400ms, ease: ease-in-out]
-  four.color = "#24394C" [400ms]
+  four.at = (660, 380) [0.4s, ease: ease_in_out]
+  four_label.at = (660, 380) [0.4s, ease: ease_in_out]
+  four.color = "#24394C"[0.4s]
   shifts.text = "5"
 
 #17.55s
   comparisons.text = "8"
-  two_b.color = "#45667C" [200ms]
+  two_b.color = "#45667C"[0.2s]
 
 #18.2s
-  two_b.color = "#24394C" [200ms]
+  two_b.color = "#24394C"[0.2s]
 
 #18.2s
-  three.at = (500, 245) [350ms, ease: ease-in-out]
-  three_label.at = (500, 245) [350ms, ease: ease-in-out]
+  three.at = (500, 245) [0.35s, ease: ease_in_out]
+  three_label.at = (500, 245) [0.35s, ease: ease_in_out]
 
 #18.6s
-  three.at = (500, 380) [400ms, ease: ease-in-out]
-  three_label.at = (500, 380) [400ms, ease: ease-in-out]
-  three.color = "#24394C" [400ms]
-  prefix.at = (500, 458) [400ms]
-  prefix.size = (750, 5) [400ms]
+  three.at = (500, 380) [0.4s, ease: ease_in_out]
+  three_label.at = (500, 380) [0.4s, ease: ease_in_out]
+  three.color = "#24394C"[0.4s]
+  prefix.at = (500, 458)[0.4s]
+  prefix.size = (750, 5)[0.4s]
 
 #19.8s
-  two_a.color = "#235650" [500ms]
-  two_b.color = "#235650" [500ms]
+  two_a.color = "#235650"[0.5s]
+  two_b.color = "#235650"[0.5s]
 
 // Fade through clear space: do not stack old/new caption glyphs.
 #2.88s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #3s
   caption.text = "Lift 2a. Compare it with the sorted prefix."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)
 
 #4.03s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #4.15s
   caption.text = "4 is larger. Shift it right."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)
 
 #5.13s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #5.25s
   caption.text = "Insert 2a. The sorted prefix grows."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)
 
 #6.33s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #6.45s
   caption.text = "Lift 5. Compare it with the sorted prefix."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)
 
 #7.13s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #7.25s
   caption.text = "4 is smaller. The key belongs after it."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)
 
 #8.18s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #8.3s
   caption.text = "Insert 5. The sorted prefix grows."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)
 
 #9.38s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #9.5s
   caption.text = "Lift 2b. Compare it with the sorted prefix."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)
 
 #10.53s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #10.65s
   caption.text = "5 is larger. Shift it right."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)
 
 #11.58s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #11.7s
   caption.text = "4 is larger. Shift it right."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)
 
 #12.28s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #12.4s
   caption.text = "Equal keys stay in their original order."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)
 
 #13.33s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #13.45s
   caption.text = "Insert 2b. The sorted prefix grows."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)
 
 #14.53s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #14.65s
   caption.text = "Lift 3. Compare it with the sorted prefix."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)
 
 #15.68s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #15.8s
   caption.text = "5 is larger. Shift it right."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)
 
 #16.73s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #16.85s
   caption.text = "4 is larger. Shift it right."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)
 
 #17.43s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #17.55s
   caption.text = "2b is smaller. The key belongs after it."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)
 
 #18.48s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #18.6s
   caption.text = "Insert 3. The sorted prefix grows."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)
 
 #19.68s
-  fade-out caption [120ms]
+  fade_out(target: caption, duration: 0.12s)
 
 #19.8s
   caption.text = "Sorted. The two equal keys still read 2a, then 2b."
-  fade-in caption [120ms]
+  fade_in(target: caption, duration: 0.12s)

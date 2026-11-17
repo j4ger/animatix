@@ -8,6 +8,7 @@ use super::expr::evaluate_expr;
 /// Format a single Value into its display string.
 pub(super) fn format_value(value: &Value) -> String {
     match value {
+        Value::Null => "null".to_string(),
         Value::PropRef { label, prop } => {
             format!("&{label}.{prop} (not a value; read {label}.{prop})")
         },
@@ -27,8 +28,14 @@ pub(super) fn format_value(value: &Value) -> String {
         Value::List(items) => format!("{:?}", items),
         Value::Object(name, fields) => format!("{}({:?})", name, fields),
         Value::NativeFn(_) => "<NativeFn>".to_string(),
+        Value::RegisteredFn { name, .. } => format!("<Callable({name})>"),
         Value::Closure(args, _, _) => format!("<Closure({:?})>", args),
         Value::UserFn { name, .. } => format!("<UserFn({})>", name),
+        Value::Duration(seconds) => format!("{}s", seconds),
+        Value::Unit => "()".to_string(),
+        Value::Easing(easing) => format!("{easing:?}"),
+        Value::ActorRef(actor) => format!("<ActorRef({})>", actor.label()),
+        Value::TimelinePlan(plan) => format!("<TimelinePlan({})>", plan.id()),
     }
 }
 
@@ -108,18 +115,21 @@ pub fn parse_color_in_env(expr: &Expr, env: &Environment) -> [f32; 4] {
 ///
 /// A beat stamp resolves at the default tempo; a build that knows the scene's
 /// `config { bpm: … }` uses [`time_to_ms_at_beat`] instead.
-pub fn time_to_ms(time: &Time) -> f64 {
+pub fn time_to_ms(time: &Time) -> Result<f64, crate::timeline::EvalError> {
     time_to_ms_at_beat(time, crate::ast::beat_seconds(crate::ast::DEFAULT_BPM) * 1000.0)
 }
 
 /// Convert a `Time` to milliseconds with `beat_ms` as the length of one beat.
-pub fn time_to_ms_at_beat(time: &Time, beat_ms: f64) -> f64 {
+pub fn time_to_ms_at_beat(time: &Time, beat_ms: f64) -> Result<f64, crate::timeline::EvalError> {
     match time {
-        Time::Seconds(s) => *s * 1000.0,
-        Time::Milliseconds(ms) => *ms as f64,
-        Time::Beats(b) => *b * beat_ms,
+        Time::Seconds(s) => Ok(*s * 1000.0),
+        Time::Milliseconds(ms) => Ok(*ms as f64),
+        Time::Beats(b) => Ok(*b * beat_ms),
         Time::SpeechMarker { offset_ms, .. } | Time::SpeechWord { offset_ms, .. } => {
-            *offset_ms as f64
+            Ok(*offset_ms as f64)
         },
+        Time::Expression(_) => Err(crate::timeline::EvalError::UnsupportedConstruct(
+            "expression times need a build environment".into(),
+        )),
     }
 }

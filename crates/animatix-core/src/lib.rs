@@ -17,6 +17,7 @@
 //! - [`stroke_icons`]: the bundled stroke-icon table that the engine's `icon:` property expands
 //!   into `Path` geometry.
 
+pub mod callable;
 pub mod caps;
 pub mod effect;
 pub mod error;

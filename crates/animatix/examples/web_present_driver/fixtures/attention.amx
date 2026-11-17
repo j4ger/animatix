@@ -11,9 +11,10 @@
 //
 // House-style §1: StageFloor + compact head + caption are opaque at t=0.
 // House-style §5: title 48, captions 24, readouts 28, formulas 22 — all >= 16.
-
 import "lib/theme.amx"
+
 import "lib/stage.amx"
+
 import "lib/components.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 8.4 }
@@ -23,193 +24,180 @@ let dim = 64
 // ── the stage ───────────────────────────────────────────────────────
 floor: StageFloor, glow: 1.3
 
-head_eyebrow: Text, text: "FIG 03 · SCALED DOT-PRODUCT ATTENTION", font_size: 18,
-  font_weight: 600, color: accent.primary, text_align: "left", text_anchor: "left",
-  anchor: scene.top_left, offset: (96, 44), opacity: 0
-head_title: Text, text: "Who is “it”?", font_size: 48, font_weight: "bold",
-  color: text.primary, text_align: "left", text_anchor: "left",
-  anchor: scene.top_left, offset: (96, 96), opacity: 1
-head_rule: Rect, size: (96, 4), color: accent.primary,
-  anchor: scene.top_left, offset: (96, 150), opacity: 1
+head_eyebrow: Text, text: "FIG 03 · SCALED DOT-PRODUCT ATTENTION", font_size: 18, font_weight: 600, color: accent.primary, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (96, 44), opacity: 0
 
-cap1: Caption, text: "Token “it” emits a Query seeking its true antecedent.",
-  tag: "attention.amx", opacity: 1
-cap2: Caption, text: "“animal” (0.64) wins affinity over “street” (0.18).",
-  tag: "attention.amx", opacity: 0
-cap3: Caption, text: "Values gather: “it” absorbs the features of “animal”.",
-  tag: "attention.amx", opacity: 0
+head_title: Text, text: "Who is “it”?", font_size: 48, font_weight: "bold", color: text.primary, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (96, 96), opacity: 1
+
+head_rule: Rect, size: (96, 4), color: accent.primary, anchor: scene.top_left, offset: (96, 150), opacity: 1
+
+cap1: Caption, text: "Token “it” emits a Query seeking its true antecedent.", tag: "attention.amx", opacity: 1
+
+cap2: Caption, text: "“animal” (0.64) wins affinity over “street” (0.18).", tag: "attention.amx", opacity: 0
+
+cap3: Caption, text: "Values gather: “it” absorbs the features of “animal”.", tag: "attention.amx", opacity: 0
 
 formula_chip: Stack, at: (980, 78), size: (420, 50), opacity: 0 {
-  f_bg: Rect, size: (420, 50), corner_radius: 12, color: surface.primary,
-    stroke: stroke.default, stroke_width: 1.2
-  f_txt: Text, text: format("softmax(QK^T / √{:.0}) V", dim), font_size: 22, color: text.secondary
+f_bg: Rect, size: (420, 50), corner_radius: 12, color: surface.primary, stroke: stroke.default, stroke_width: 1.2
+f_txt: Text, text: format("softmax(QK^T / √{:.0}) V", dim), font_size: 22, color: text.secondary
 }
 
 // ── Act I: tokens, with the query token marked ──────────────────────
-q_halo: Ellipse, size: (240, 240), blend: "screen", opacity: 0,
-  fill_gradient: radial((0.5, 0.5), 0.6, {(0%, accent.warning * 0.22), (100%, (0, 0, 0, 0))}),
-  at: (875, 190)
+q_halo: Ellipse, size: (240, 240), blend: "screen", opacity: 0, fill_gradient: radial((0.5, 0.5), 0.6, {(0%, accent.warning * 0.22), (100%, (0, 0, 0, 0))}), at: (875, 190)
 
 tok_row: Row, at: (530, 190), gap: 12, align: "center" {
-  tok1: LabeledBox, label: "The", width: 126, height: 54, text_size: 20
-  tok2: LabeledBox, label: "animal", width: 126, height: 54, text_size: 20
-  tok3: LabeledBox, label: "cross", width: 126, height: 54, text_size: 20
-  tok4: LabeledBox, label: "street", width: 126, height: 54, text_size: 20
-  tok5: LabeledBox, label: "because", width: 126, height: 54, text_size: 19
-  tok6: LabeledBox, label: "it", width: 126, height: 54, text_size: 20,
-    fill: surface.primary, stroke: accent.warning, stroke_width: 2.2
+tok1: LabeledBox, label: "The", width: 126, height: 54, text_size: 20
+tok2: LabeledBox, label: "animal", width: 126, height: 54, text_size: 20
+tok3: LabeledBox, label: "cross", width: 126, height: 54, text_size: 20
+tok4: LabeledBox, label: "street", width: 126, height: 54, text_size: 20
+tok5: LabeledBox, label: "because", width: 126, height: 54, text_size: 19
+tok6: LabeledBox, label: "it", width: 126, height: 54, text_size: 20, fill: surface.primary, stroke: accent.warning, stroke_width: 2.2
 }
 
-q_badge: Text, text: "QUERY TOKEN (Q)", font_size: 16, font_weight: 600, color: accent.warning,
-  text_anchor: "center", at: (875, 252), opacity: 0
+q_badge: Text, text: "QUERY TOKEN (Q)", font_size: 16, font_weight: 600, color: accent.warning, text_anchor: "center", at: (875, 252), opacity: 0
 
 // ── Act II: Key projections and the score race ──────────────────────
-k_label: Text, text: "Key vectors (K)", font_size: 18, font_weight: 600, color: text.muted,
-  text_align: "left", text_anchor: "left", at: (96, 262), opacity: 0
+k_label: Text, text: "Key vectors (K)", font_size: 18, font_weight: 600, color: text.muted, text_align: "left", text_anchor: "left", at: (96, 262), opacity: 0
 
-beam_q_k: Arrow, from: (875, 224), to: (323, 263), head_size: 10,
-  stroke: accent.primary, stroke_width: 4.5, opacity: 0
-beam_glow: Arrow, from: (875, 224), to: (323, 263), head_size: 10,
-  stroke: accent.primary, stroke_width: 14, blend: "screen", opacity: 0
+beam_q_k: Arrow, from: (875, 224), to: (323, 263), head_size: 10, stroke: accent.primary, stroke_width: 4.5, opacity: 0
 
-key_sweep: Rect, size: (860, 44), corner_radius: 10, color: accent.primary,
-  blend: "screen", opacity: 0, at: (530, 292)
+beam_glow: Arrow, from: (875, 224), to: (323, 263), head_size: 10, stroke: accent.primary, stroke_width: 14, blend: "screen", opacity: 0
+
+key_sweep: Rect, size: (860, 44), corner_radius: 10, color: accent.primary, blend: "screen", opacity: 0, at: (530, 292)
 
 k_row: Row, at: (530, 292), gap: 12, align: "center" {
-  k1: LabeledBox, label: "K1 · determiner", width: 126, height: 38, text_size: 15,
-    fill: surface.secondary, text_color: accent.info, corner: 8, stroke: stroke.default
-  k2: LabeledBox, label: "K2 · subject", width: 126, height: 38, text_size: 15,
-    fill: surface.secondary, text_color: accent.info, corner: 8, stroke: stroke.default
-  k3: LabeledBox, label: "K3 · action", width: 126, height: 38, text_size: 15,
-    fill: surface.secondary, text_color: accent.info, corner: 8, stroke: stroke.default
-  k4: LabeledBox, label: "K4 · object", width: 126, height: 38, text_size: 15,
-    fill: surface.secondary, text_color: accent.info, corner: 8, stroke: stroke.default
-  k5: LabeledBox, label: "K5 · reason", width: 126, height: 38, text_size: 15,
-    fill: surface.secondary, text_color: accent.warning, corner: 8, stroke: stroke.default
-  k6: LabeledBox, label: "K6 · pronoun", width: 126, height: 38, text_size: 15,
-    fill: surface.secondary, text_color: accent.warning, corner: 8, stroke: accent.warning
+k1: LabeledBox, label: "K1 · determiner", width: 126, height: 38, text_size: 15, fill: surface.secondary, text_color: accent.info, corner: 8, stroke: stroke.default
+k2: LabeledBox, label: "K2 · subject", width: 126, height: 38, text_size: 15, fill: surface.secondary, text_color: accent.info, corner: 8, stroke: stroke.default
+k3: LabeledBox, label: "K3 · action", width: 126, height: 38, text_size: 15, fill: surface.secondary, text_color: accent.info, corner: 8, stroke: stroke.default
+k4: LabeledBox, label: "K4 · object", width: 126, height: 38, text_size: 15, fill: surface.secondary, text_color: accent.info, corner: 8, stroke: stroke.default
+k5: LabeledBox, label: "K5 · reason", width: 126, height: 38, text_size: 15, fill: surface.secondary, text_color: accent.warning, corner: 8, stroke: stroke.default
+k6: LabeledBox, label: "K6 · pronoun", width: 126, height: 38, text_size: 15, fill: surface.secondary, text_color: accent.warning, corner: 8, stroke: accent.warning
 }
 
-base_rule: Line, from: (120, 520), to: (940, 520), stroke_width: 1.5,
-  color: stroke.default, opacity: 0
+base_rule: Line, from: (120, 520), to: (940, 520), stroke_width: 1.5, color: stroke.default, opacity: 0
 
 b1: Rect, size: (54, 14), corner_radius: 6, color: accent.primary, at: (185, 513), opacity: 0
+
 b2: Rect, size: (54, 150), corner_radius: 6, color: accent.primary, at: (323, 445), opacity: 0
+
 b3: Rect, size: (54, 12), corner_radius: 6, color: accent.primary, at: (461, 514), opacity: 0
+
 b4: Rect, size: (54, 46), corner_radius: 6, color: accent.primary, at: (599, 497), opacity: 0
+
 b5: Rect, size: (54, 10), corner_radius: 6, color: accent.primary, at: (737, 515), opacity: 0
+
 b6: Rect, size: (54, 28), corner_radius: 6, color: accent.warning, at: (875, 506), opacity: 0
 
-winner_ring: Rect, size: (72, 170), corner_radius: 12, color: accent.primary,
-  fill_opacity: 0, stroke: accent.primary, stroke_width: 2.4, at: (323, 445), opacity: 0
-winner_tag: Text, text: "WINNER · 64% ON “ANIMAL” (VS 18% “STREET”)", font_size: 16, font_weight: 600, color: accent.primary,
-  text_anchor: "left", at: (420, 385), opacity: 0
+winner_ring: Rect, size: (72, 170), corner_radius: 12, color: accent.primary, fill_opacity: 0, stroke: accent.primary, stroke_width: 2.4, at: (323, 445), opacity: 0
+
+winner_tag: Text, text: "WINNER · 64% ON “ANIMAL” (VS 18% “STREET”)", font_size: 16, font_weight: 600, color: accent.primary, text_anchor: "left", at: (420, 385), opacity: 0
 
 // ── Act III: weighted value gathering and the context vector ─────────
 w1: Text, text: "0.02", font_size: 16, color: text.secondary, text_anchor: "center", at: (185, 548), opacity: 0
+
 w2: Text, text: "0.64", font_size: 18, font_weight: 600, color: accent.primary, text_anchor: "center", at: (323, 548), opacity: 0
+
 w3: Text, text: "0.04", font_size: 16, color: text.secondary, text_anchor: "center", at: (461, 548), opacity: 0
+
 w4: Text, text: "0.18", font_size: 16, color: text.secondary, text_anchor: "center", at: (599, 548), opacity: 0
+
 w5: Text, text: "0.02", font_size: 16, color: text.secondary, text_anchor: "center", at: (737, 548), opacity: 0
+
 w6: Text, text: "0.10", font_size: 16, color: accent.warning, text_anchor: "center", at: (875, 548), opacity: 0
 
-v_stream_line: Arrow, from: (323, 532), to: (500, 586), head_size: 12,
-  stroke: accent.primary, stroke_width: 3.0, opacity: 0
-v6_stream_line: Arrow, from: (875, 532), to: (560, 586), head_size: 10,
-  stroke: accent.warning, stroke_width: 2.0, opacity: 0
+v_stream_line: Arrow, from: (323, 532), to: (500, 586), head_size: 12, stroke: accent.primary, stroke_width: 3, opacity: 0
+
+v6_stream_line: Arrow, from: (875, 532), to: (560, 586), head_size: 10, stroke: accent.warning, stroke_width: 2, opacity: 0
 
 // ── Timeline Choreography ───────────────────────────────────────────
 // Act I — tokens land and query is spotlighted
-#0.10s
-fade-in head_eyebrow [260ms, ease: expo-out]
-fade-in formula_chip [320ms, ease: expo-out]
-stagger [80ms] {
-  fade-in tok1 [300ms, ease: expo-out]
-  fade-in tok2 [300ms, ease: expo-out]
-  fade-in tok3 [300ms, ease: expo-out]
-  fade-in tok4 [300ms, ease: expo-out]
-  fade-in tok5 [300ms, ease: expo-out]
-  fade-in tok6 [300ms, ease: expo-out]
-}
-fade-in q_badge [280ms, delay: 360ms, ease: expo-out]
+#0.1s
+  fade_in(target: head_eyebrow, duration: 0.26s, ease: expo_out)
+  fade_in(target: formula_chip, duration: 0.32s, ease: expo_out)
+  stagger [0.08s] {
+      fade_in(target: tok1, duration: 0.3s, ease: expo_out)
+      fade_in(target: tok2, duration: 0.3s, ease: expo_out)
+      fade_in(target: tok3, duration: 0.3s, ease: expo_out)
+      fade_in(target: tok4, duration: 0.3s, ease: expo_out)
+      fade_in(target: tok5, duration: 0.3s, ease: expo_out)
+      fade_in(target: tok6, duration: 0.3s, ease: expo_out)
+    }
+  fade_in(target: q_badge, duration: 0.28s, delay: 0.36s, ease: expo_out)
 
 // Act II — Keys arrive, then Query scores them
-#1.00s
-fade-in k_label [280ms, ease: expo-out]
-stagger [70ms] {
-  fade-in k1 [280ms, ease: expo-out]
-  fade-in k2 [280ms, ease: expo-out]
-  fade-in k3 [280ms, ease: expo-out]
-  fade-in k4 [280ms, ease: expo-out]
-  fade-in k5 [280ms, ease: expo-out]
-  fade-in k6 [280ms, ease: expo-out]
-}
+#1s
+  fade_in(target: k_label, duration: 0.28s, ease: expo_out)
+  stagger [0.07s] {
+      fade_in(target: k1, duration: 0.28s, ease: expo_out)
+      fade_in(target: k2, duration: 0.28s, ease: expo_out)
+      fade_in(target: k3, duration: 0.28s, ease: expo_out)
+      fade_in(target: k4, duration: 0.28s, ease: expo_out)
+      fade_in(target: k5, duration: 0.28s, ease: expo_out)
+      fade_in(target: k6, duration: 0.28s, ease: expo_out)
+    }
 
-#1.40s
-q_halo.opacity = 1.0 [560ms, ease: expo-out]
-key_sweep.opacity = 0.18 [420ms, ease: expo-out]
+#1.4s
+  q_halo.opacity = 1 [0.56s, ease: expo_out]
+  key_sweep.opacity = 0.18 [0.42s, ease: expo_out]
 
-#2.10s
-fade-out cap1 [240ms, ease: ease-in]
-fade-in cap2 [280ms, delay: 200ms, ease: expo-out]
-score_guide: Text, text: "Attention weights = softmax(Q_it · K^T / √d_k)", font_size: 18, font_weight: 600,
-  color: text.muted, text_align: "left", text_anchor: "left", at: (96, 330), opacity: 0
-fade-in score_guide [300ms, ease: expo-out]
-draw-in base_rule [400ms, ease: expo-out]
-base_rule.opacity = 0.45 [360ms]
-draw-in beam_q_k [540ms, ease: expo-out]
-beam_q_k.opacity = 0.95 [480ms]
-draw-in beam_glow [540ms, ease: expo-out]
-beam_glow.opacity = 0.28 [480ms]
+#2.1s
+  fade_out(target: cap1, duration: 0.24s, ease: ease_in)
+  fade_in(target: cap2, duration: 0.28s, delay: 0.2s, ease: expo_out)
+  score_guide: Text, text: "Attention weights = softmax(Q_it · K^T / √d_k)", font_size: 18, font_weight: 600, color: text.muted, text_align: "left", text_anchor: "left", at: (96, 330), opacity: 0
+  fade_in(target: score_guide, duration: 0.3s, ease: expo_out)
+  draw_in(target: base_rule, duration: 0.4s, ease: expo_out)
+  base_rule.opacity = 0.45 [0.36s]
+  draw_in(target: beam_q_k, duration: 0.54s, ease: expo_out)
+  beam_q_k.opacity = 0.95 [0.48s]
+  draw_in(target: beam_glow, duration: 0.54s, ease: expo_out)
+  beam_glow.opacity = 0.28 [0.48s]
 
 #2.35s
-key_sweep.opacity = 0 [260ms, ease: ease-in]
+  key_sweep.opacity = 0 [0.26s, ease: ease_in]
 
-#3.10s
-stagger [80ms] {
-  b1.opacity = 0.45 [320ms]
-  b2.opacity = 1.00 [360ms]
-  b3.opacity = 0.45 [320ms]
-  b4.opacity = 0.70 [320ms]
-  b5.opacity = 0.45 [320ms]
-  b6.opacity = 0.60 [320ms]
-}
-stagger [60ms] {
-  fade-in w1 [240ms, ease: expo-out]
-  fade-in w2 [260ms, ease: expo-out]
-  fade-in w3 [240ms, ease: expo-out]
-  fade-in w4 [240ms, ease: expo-out]
-  fade-in w5 [240ms, ease: expo-out]
-  fade-in w6 [240ms, ease: expo-out]
-}
-fade-in winner_ring [360ms, delay: 200ms, ease: expo-out]
-fade-in winner_tag [300ms, delay: 320ms, ease: expo-out]
-pulse b2 [600ms, intensity: 0.05, delay: 350ms]
+#3.1s
+  stagger [0.08s] {
+      b1.opacity = 0.45 [0.32s]
+      b2.opacity = 1 [0.36s]
+      b3.opacity = 0.45 [0.32s]
+      b4.opacity = 0.7 [0.32s]
+      b5.opacity = 0.45 [0.32s]
+      b6.opacity = 0.6 [0.32s]
+    }
+  stagger [0.06s] {
+      fade_in(target: w1, duration: 0.24s, ease: expo_out)
+      fade_in(target: w2, duration: 0.26s, ease: expo_out)
+      fade_in(target: w3, duration: 0.24s, ease: expo_out)
+      fade_in(target: w4, duration: 0.24s, ease: expo_out)
+      fade_in(target: w5, duration: 0.24s, ease: expo_out)
+      fade_in(target: w6, duration: 0.24s, ease: expo_out)
+    }
+  fade_in(target: winner_ring, duration: 0.36s, delay: 0.2s, ease: expo_out)
+  fade_in(target: winner_tag, duration: 0.3s, delay: 0.32s, ease: expo_out)
+  pulse(target: b2, duration: 0.6s, intensity: 0.05, delay: 0.35s)
 
 // Act III — values stream into the context vector
-#4.60s
-fade-out cap2 [240ms, ease: ease-in]
-fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
-draw-in v_stream_line [500ms, ease: expo-out]
-v_stream_line.opacity = 0.95 [450ms]
-draw-in v6_stream_line [450ms, delay: 100ms, ease: expo-out]
-v6_stream_line.opacity = 0.70 [400ms, delay: 100ms]
+#4.6s
+  fade_out(target: cap2, duration: 0.24s, ease: ease_in)
+  fade_in(target: cap3, duration: 0.28s, delay: 0.2s, ease: expo_out)
+  draw_in(target: v_stream_line, duration: 0.5s, ease: expo_out)
+  v_stream_line.opacity = 0.95 [0.45s]
+  draw_in(target: v6_stream_line, duration: 0.45s, delay: 0.1s, ease: expo_out)
+  v6_stream_line.opacity = 0.7 [0.4s, delay: 0.1s]
 
-#5.40s
-out_card: Stack, at: (530, 620), size: (780, 64), opacity: 0 {
-  out_bg: Rect, size: (780, 64), corner_radius: 14, color: surface.primary,
-    stroke: accent.primary, stroke_width: 1.8
+#5.4s
+  out_card: Stack, at: (530, 620), size: (780, 64), opacity: 0 {
+  out_bg: Rect, size: (780, 64), corner_radius: 14, color: surface.primary, stroke: accent.primary, stroke_width: 1.8
   out_col: Col, gap: 4, align: "center" {
-    out_t1: Text, text: "Output z = 0.64·V(animal) + 0.18·V(street) + 0.10·V(it) + …", font_size: 18, font_weight: 600, color: text.primary, text_max_width: 700
-    out_t2: Text, text: "Coreference resolved: “it” now carries the features of “animal”", font_size: 16, color: accent.primary, text_max_width: 700
-  }
-}
-fade-in out_card [420ms, ease: expo-out]
-pulse out_card [650ms, intensity: 0.03, delay: 400ms]
+  out_t1: Text, text: "Output z = 0.64·V(animal) + 0.18·V(street) + 0.10·V(it) + …", font_size: 18, font_weight: 600, color: text.primary, text_max_width: 700
+  out_t2: Text, text: "Coreference resolved: “it” now carries the features of “animal”", font_size: 16, color: accent.primary, text_max_width: 700
+      }
+    }
+  fade_in(target: out_card, duration: 0.42s, ease: expo_out)
+  pulse(target: out_card, duration: 0.65s, intensity: 0.03, delay: 0.4s)
 
-#6.40s
-beam_glow.opacity = 0.16 [800ms, ease: ease-in-out]
+#6.4s
+  beam_glow.opacity = 0.16 [0.8s, ease: ease_in_out]
 
 // ── Rest ────────────────────────────────────────────────────────────
-#8.30s
+#8.3s
 // Tokens, keys, bars, winner ring, value streams and the context card all stand.

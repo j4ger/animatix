@@ -3,75 +3,86 @@
 // Single source of truth: `phase` drives both curves and the phase dial.
 // All plots share x scale and 40 px per amplitude unit; the sum gets more headroom.
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 26 }
+
 let phase = 0
+
 let cyan = "#65D9E8"
+
 let coral = "#FF947D"
+
 let gold = "#F4D47B"
 
 #0s
-back: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
-kicker: Text, text: "WAVES / 01", font_size: 16, color: "#90A4B8", at: (640, 48)
-title: Text, text: "The power of phase", font_size: 48, font_weight: "bold", at: (640, 99), color: "#F3F5F7"
-subtitle: Text, text: "Same waves. Different timing. A different result.", font_size: 22, at: (640, 148), color: "#ADBCCA"
-
-// Three horizontal lanes, with 52 px reserved for the signal labels.
-a_label: Text, text: "A", font_size: 24, at: (80, 258), color: cyan
-b_label: Text, text: "B", font_size: 24, at: (80, 384), color: coral
-sum_label: Text, text: "A + B", font_size: 22, at: (80, 550), color: gold
-plot_a: Graph, at: (510, 258), size: (740, 96), x_domain: (0, 4*pi), y_domain: (-1.2, 1.2), stroke: "#344455", grid: false, ticks: false, tick_labels: "none" {
+  back: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
+  kicker: Text, text: "WAVES / 01", font_size: 16, color: "#90A4B8", at: (640, 48)
+  title: Text, text: "The power of phase", font_size: 48, font_weight: "bold", at: (640, 99), color: "#F3F5F7"
+  subtitle: Text, text: "Same waves. Different timing. A different result.", font_size: 22, at: (640, 148), color: "#ADBCCA"
+  // Three horizontal lanes, with 52 px reserved for the signal labels.
+  a_label: Text, text: "A", font_size: 24, at: (80, 258), color: cyan
+  b_label: Text, text: "B", font_size: 24, at: (80, 384), color: coral
+  sum_label: Text, text: "A + B", font_size: 22, at: (80, 550), color: gold
+  plot_a: Graph, at: (510, 258), size: (740, 96), x_domain: (0, 4 * pi), y_domain: (-1.2, 1.2), stroke: "#344455", grid: false, ticks: false, tick_labels: "none" {
   wave_a: PlotCurve, kind: "cartesian", func: (x) => sin(x), stroke: cyan, stroke_width: 4
-}
-plot_b: Graph, at: (510, 384), size: (740, 96), x_domain: (0, 4*pi), y_domain: (-1.2, 1.2), stroke: "#344455", grid: false, ticks: false, tick_labels: "none" {
+    }
+  plot_b: Graph, at: (510, 384), size: (740, 96), x_domain: (0, 4 * pi), y_domain: (-1.2, 1.2), stroke: "#344455", grid: false, ticks: false, tick_labels: "none" {
   wave_b: PlotCurve, kind: "cartesian", func: (x) => sin(x + phase), stroke: coral, stroke_width: 4
-}
-plot_sum: Graph, at: (510, 550), size: (740, 176), x_domain: (0, 4*pi), y_domain: (-2.2, 2.2), stroke: "#344455", grid: false, ticks: false, tick_labels: "none" {
+    }
+  plot_sum: Graph, at: (510, 550), size: (740, 176), x_domain: (0, 4 * pi), y_domain: (-2.2, 2.2), stroke: "#344455", grid: false, ticks: false, tick_labels: "none" {
   wave_sum: PlotCurve, kind: "cartesian", func: (x) => sin(x) + sin(x + phase), stroke: gold, stroke_width: 5
-}
-
-separator: Line, from: (940, 210), to: (940, 624), stroke: "#344455", stroke_width: 1
-phase_label: Text, text: "RELATIVE PHASE", font_size: 16, at: (1080, 220), color: "#90A4B8"
-orbit: Ellipse, at: (1080, 326), size: (116, 116), fill_opacity: 0, stroke: "#344455", stroke_width: 2
-fixed: Ellipse, at: (1138, 326), size: (12, 12), color: cyan
-hand: Line, from: (1080, 326), to: (1138, 326), stroke: coral, stroke_width: 2
-moving: Ellipse, at: (1138, 326), size: (12, 12), color: coral
-phase_value: Text, text: "0°", font_size: 30, at: (1080, 420), color: "#F3F5F7"
-state: Text, text: "IN STEP", font_size: 20, font_weight: "bold", at: (1080, 502), color: gold
-explanation: Text, text: "Twice the amplitude", font_size: 18, at: (1080, 540), color: "#ADBCCA"
-footer: Text, text: "Superposition: add the two heights at every point.", font_size: 20, at: (640, 676), color: "#ADBCCA"
-
-// Hold the three significant states, allowing time to read.
-// Phase is evaluated analytically: scrubbing is deterministic.
-always {
-  if t < 5 { phase = 0 }
-  if t >= 5 && t < 10 { phase = pi * ease_in_out((t - 5) / 5) }
-  if t >= 10 && t < 14 { phase = pi }
-  if t >= 14 && t < 20 { phase = pi + pi * ease_in_out((t - 14) / 6) }
-  if t >= 20 { phase = 2 * pi }
-  moving.at = (1080 + 58*cos(phase), 326 - 58*sin(phase))
-  hand.to = moving.at
-  if t < 5 {
-    phase_value.text = "0°"
-    state.text = "IN STEP"
-    explanation.text = "Twice the amplitude"
-  }
-  if t >= 5 && t < 10 {
-    phase_value.text = "0° → 180°"
-    state.text = "DRIFTING APART"
-    explanation.text = "The sum gets smaller"
-  }
-  if t >= 10 && t < 14 {
-    phase_value.text = "180°"
-    state.text = "CANCELLED"
-    explanation.text = "Equal and opposite"
-  }
-  if t >= 14 && t < 20 {
-    phase_value.text = "180° → 360°"
-    state.text = "COMING TOGETHER"
-    explanation.text = "The sum grows again"
-  }
-  if t >= 20 {
-    phase_value.text = "360° = 0°"
-    state.text = "IN STEP AGAIN"
-    explanation.text = "One full turn later"
-  }
-}
+    }
+  separator: Line, from: (940, 210), to: (940, 624), stroke: "#344455", stroke_width: 1
+  phase_label: Text, text: "RELATIVE PHASE", font_size: 16, at: (1080, 220), color: "#90A4B8"
+  orbit: Ellipse, at: (1080, 326), size: (116, 116), fill_opacity: 0, stroke: "#344455", stroke_width: 2
+  fixed: Ellipse, at: (1138, 326), size: (12, 12), color: cyan
+  hand: Line, from: (1080, 326), to: (1138, 326), stroke: coral, stroke_width: 2
+  moving: Ellipse, at: (1138, 326), size: (12, 12), color: coral
+  phase_value: Text, text: "0°", font_size: 30, at: (1080, 420), color: "#F3F5F7"
+  state: Text, text: "IN STEP", font_size: 20, font_weight: "bold", at: (1080, 502), color: gold
+  explanation: Text, text: "Twice the amplitude", font_size: 18, at: (1080, 540), color: "#ADBCCA"
+  footer: Text, text: "Superposition: add the two heights at every point.", font_size: 20, at: (640, 676), color: "#ADBCCA"
+  // Hold the three significant states, allowing time to read.
+  // Phase is evaluated analytically: scrubbing is deterministic.
+  always {
+      if t < 5 {
+            phase = 0
+          }
+      if t >= 5 && t < 10 {
+            phase = pi * ease_in_out((t - 5) / 5)
+          }
+      if t >= 10 && t < 14 {
+            phase = pi
+          }
+      if t >= 14 && t < 20 {
+            phase = pi + pi * ease_in_out((t - 14) / 6)
+          }
+      if t >= 20 {
+            phase = 2 * pi
+          }
+      moving.at = (1080 + 58 * cos(phase), 326 - 58 * sin(phase))
+      hand.to = moving.at
+      if t < 5 {
+            phase_value.text = "0°"
+            state.text = "IN STEP"
+            explanation.text = "Twice the amplitude"
+          }
+      if t >= 5 && t < 10 {
+            phase_value.text = "0° → 180°"
+            state.text = "DRIFTING APART"
+            explanation.text = "The sum gets smaller"
+          }
+      if t >= 10 && t < 14 {
+            phase_value.text = "180°"
+            state.text = "CANCELLED"
+            explanation.text = "Equal and opposite"
+          }
+      if t >= 14 && t < 20 {
+            phase_value.text = "180° → 360°"
+            state.text = "COMING TOGETHER"
+            explanation.text = "The sum grows again"
+          }
+      if t >= 20 {
+            phase_value.text = "360° = 0°"
+            state.text = "IN STEP AGAIN"
+            explanation.text = "One full turn later"
+          }
+    }

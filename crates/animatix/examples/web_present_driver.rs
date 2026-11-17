@@ -239,10 +239,13 @@ fn load_fixture(name: &str, path: PathBuf) -> Result<Fixture, Box<dyn Error>> {
     }
     let context = Arc::new(animatix::ExtensionRegistry::new());
     let report = BuildTarget::build_with_options(
-        &expanded,
+        &expanded.statements,
         &program.namespaces,
         Some(&path),
-        BuildOptions::default().with_context(context),
+        BuildOptions::default()
+            .with_context(context)
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
     );
     collect_diagnostics(&mut diagnostics, "build", report.diagnostics, &path)?;
     let timeline = match report.output {

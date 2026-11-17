@@ -134,7 +134,6 @@ macro_rules! define_native_get_service {
 }
 
 // Shared with `registration.rs` so the host pointer/null/string protocol has one definition.
-pub(crate) use define_native_get_service;
 
 define_native_get_service!(native_get_service, NativePrimitiveEvaluateHost);
 
@@ -351,6 +350,9 @@ pub(crate) fn native_build_child(
         } => (label.as_str(), ty.as_str(), props),
         InlineItem::ForLoop { .. } => ("for", "ForLoop", &empty_props),
         InlineItem::SlotMarker => ("@slot", "Slot", &empty_props),
+        // This is source metadata, not a primitive or a World entity. The host
+        // container walker mounts the expression's plan under the real parent.
+        InlineItem::Expr(..) => ("", "TimelineExpression", &empty_props),
         InlineItem::SlotFill { slot, .. } => (slot.as_str(), "SlotFill", &empty_props),
     };
     let (label_ptr, _) = arena.string(label);
@@ -571,129 +573,3 @@ pub(crate) unsafe extern "C" fn native_assignment_write_keyframe(
 }
 
 pub(crate) struct NativeFinalizeHost;
-
-pub(crate) struct NativeActionHost<'a> {
-    pub(crate) timeline: &'a mut crate::timeline::Timeline,
-    pub(crate) targets: Vec<*const c_char>,
-    pub(crate) args: Vec<NativeValue>,
-    pub(crate) modifiers: Vec<NativeModifierValue>,
-    pub(crate) property_ids: &'a HashMap<String, animatix_syntax::schema::PropertyId>,
-    pub(crate) property_kinds: &'a HashMap<String, animatix_syntax::schema::PropertyValueKind>,
-    pub(crate) service_values: &'a HashMap<String, usize>,
-}
-
-pub(crate) unsafe extern "C" fn native_action_get_target_count(host: *mut c_void) -> usize {
-    let Some(host) = (unsafe { (host as *mut NativeActionHost).as_ref() }) else {
-        return 0;
-    };
-    host.targets.len()
-}
-
-pub(crate) unsafe extern "C" fn native_action_get_target(
-    host: *mut c_void,
-    index: usize,
-    out: *mut *const c_char,
-) -> i32 {
-    let Some(host) = (unsafe { (host as *mut NativeActionHost).as_ref() }) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(target) = host.targets.get(index) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    unsafe { *out = *target };
-    NATIVE_STATUS_OK
-}
-
-pub(crate) unsafe extern "C" fn native_action_get_arg_count(host: *mut c_void) -> usize {
-    let Some(host) = (unsafe { (host as *mut NativeActionHost).as_ref() }) else {
-        return 0;
-    };
-    host.args.len()
-}
-
-pub(crate) unsafe extern "C" fn native_action_get_arg(
-    host: *mut c_void,
-    index: usize,
-    out: *mut NativeValue,
-) -> i32 {
-    let Some(host) = (unsafe { (host as *mut NativeActionHost).as_ref() }) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(arg) = host.args.get(index) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    unsafe { *out = *arg };
-    NATIVE_STATUS_OK
-}
-
-pub(crate) unsafe extern "C" fn native_action_get_modifier_count(host: *mut c_void) -> usize {
-    let Some(host) = (unsafe { (host as *mut NativeActionHost).as_ref() }) else {
-        return 0;
-    };
-    host.modifiers.len()
-}
-
-pub(crate) unsafe extern "C" fn native_action_get_modifier(
-    host: *mut c_void,
-    index: usize,
-    out: *mut NativeModifierValue,
-) -> i32 {
-    let Some(host) = (unsafe { (host as *mut NativeActionHost).as_ref() }) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(modifier) = host.modifiers.get(index) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    unsafe { *out = *modifier };
-    NATIVE_STATUS_OK
-}
-
-pub(crate) unsafe extern "C" fn native_action_write_keyframe(
-    host: *mut c_void,
-    target: *const c_char,
-    name: *const c_char,
-    value: NativeValue,
-    t_start_ms: u64,
-    t_end_ms: u64,
-    easing: u32,
-) -> i32 {
-    let Some(host) = (unsafe { (host as *mut NativeActionHost).as_mut() }) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(target) = (unsafe { read_c_string(target) }) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(name) = (unsafe { read_c_string(name) }) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(track_id) = host.timeline.world.get_id(&target) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(id) = host.property_ids.get(&name) else {
-        if lookup_property(&name).is_some() {
-            return NATIVE_STATUS_UNSUPPORTED;
-        }
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(kind) = host.property_kinds.get(&name) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(property_value) = native_to_property_value(value, *kind) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(easing) = native_easing(easing) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    crate::timeline::property_engine::write_property_plan_slot(
-        host.timeline.world.property_plan.get_mut(track_id),
-        *id,
-        crate::timeline::PropertyKind::from(*kind),
-        property_value,
-        t_start_ms,
-        t_end_ms,
-        easing,
-    );
-    NATIVE_STATUS_OK
-}
-
-define_native_get_service!(native_action_get_service, NativeActionHost);

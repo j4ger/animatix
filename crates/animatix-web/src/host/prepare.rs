@@ -2,7 +2,6 @@
 
 use std::{cell::RefCell, collections::HashMap, path::PathBuf, sync::Arc};
 
-use animatix_syntax::ast::Stmt;
 use animatix_syntax::module::{ModuleError, ModuleGraph, Namespace, SourceAccess};
 use animatix_syntax::visit::AstFolder;
 use serde::Serialize;
@@ -47,8 +46,9 @@ pub struct AnalysisDto {
 
 #[derive(Default)]
 pub(super) struct PreparedSyntax {
-    pub expanded: Vec<Stmt>,
+    pub expanded: animatix_syntax::module::ExpandedProgram,
     pub namespaces: HashMap<String, Namespace>,
+    pub function_context: animatix_syntax::module::FunctionContext,
     diagnostics: Vec<DiagnosticDto>,
 }
 
@@ -104,7 +104,13 @@ pub fn prepare_document(
         diagnostics: syntax.diagnostics.clone(),
         ..Default::default()
     };
-    super::requirements::collect(&syntax.expanded, &syntax.namespaces, vars, &mut analysis);
+    super::requirements::collect(
+        &syntax.expanded,
+        &syntax.namespaces,
+        &syntax.function_context,
+        vars,
+        &mut analysis,
+    );
     analysis.ok = !analysis.diagnostics.iter().any(|diagnostic| diagnostic.severity == "error");
     PreparedProgram {
         syntax,
@@ -161,9 +167,12 @@ fn prepare_syntax(
     for error in errors {
         analysis.diagnostics.push(error_diagnostic("expansion-error", &error, None));
     }
+    let function_context =
+        expanded.expanded_function_context.clone().unwrap_or(program.function_context);
     Ok(PreparedSyntax {
         expanded,
         namespaces: program.namespaces,
+        function_context,
         diagnostics: analysis.diagnostics,
     })
 }

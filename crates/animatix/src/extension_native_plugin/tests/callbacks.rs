@@ -655,7 +655,6 @@ fn native_register_effect_registers_and_rejects_bad_layout() {
         service_values: HashMap::new(),
         functions: Vec::new(),
         primitives: Vec::new(),
-        actions: Vec::new(),
         services: Vec::new(),
         effects: Vec::new(),
     };

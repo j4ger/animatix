@@ -1,40 +1,36 @@
 // explain-figure.amx — 图表讲解模板：图 + Callout + 结论行。
 // 适合「画一个东西然后解释它」。Callout 由 DSL 结构豁免重叠（callout_target）。
 import "../lib/theme.amx"
+
 import "../lib/stage.amx"
+
 import "../lib/figure.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 7 }
 
 floor: StageFloor
+
 head: ActHead, kicker: "EXPLAIN · FIGURE", title: "Draw it, then say it"
+
 caption: Caption, text: "The callout lands on the drawn feature.", tag: "explain-figure"
 
 // NOTE: a Graph + PlotCurve is the idiomatic chart, but its generated
 // tick/curve sub-actors are flagged by `actor.opacity-never-positive` today
 // (see docs/roadmap.md). A hand-drawn Path keeps this template warning-free.
-plot: Path, commands: {move_to(180, 300), curve_to(360, 140, 560, 140, 740, 300),
-  curve_to(880, 400, 980, 360, 1080, 240)},
-  stroke: accent.primary, stroke_width: 5, fill_opacity: 0,
-  anchor: scene.center, offset: (-40, 20)
+plot: Path, commands: {move_to(180, 300), curve_to(360, 140, 560, 140, 740, 300), curve_to(880, 400, 980, 360, 1080, 240)}, stroke: accent.primary, stroke_width: 5, fill_opacity: 0, anchor: scene.center, offset: (-40, 20)
 
-note: Callout {
-  target: plot,
-  place: right,
-  standoff: 24,
-  label: "sin peaks at x = π/2",
-}
+note: Callout, target: plot, place: right, standoff: 24, label: "sin peaks at x = π/2"
 
 #0s
-fade-in floor [600ms]
-fade-in head [500ms]
-fade-in caption [400ms]
+  fade_in(target: floor, duration: 0.6s)
+  fade_in(target: head, duration: 0.5s)
+  fade_in(target: caption, duration: 0.4s)
 
 #0.8s
-draw-in plot [1400ms, ease: expo-out]
+  draw_in(target: plot, duration: 1.4s, ease: expo_out)
 
 #2.6s
-fade-in note [400ms]
+  fade_in(target: note, duration: 0.4s)
 
 #5.8s
 // rest：图与标注都停住。

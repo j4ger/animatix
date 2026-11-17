@@ -1,44 +1,56 @@
 // 15 — For Loop: Gallery
 // Procedural per-frame wave animation using for inside always.
-
 import "../lib/theme.amx"
+
 import "../lib/theme.amx" as theme
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 title: Text, text: "For Loop Gallery", font_size: 48, color: text.primary, anchor: scene.top, offset: (0, 60)
+
 sub: Text, text: "for inside always drives per-frame motion", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 110)
 
 #0s
-p0: Ellipse, size: (50, 50), color: accent.primary, at: (240, 400)
-p1: Ellipse, size: (50, 50), color: accent.success, at: (360, 400)
-p2: Ellipse, size: (50, 50), color: accent.warning, at: (480, 400)
-p3: Ellipse, size: (50, 50), color: accent.danger, at: (600, 400)
-p4: Ellipse, size: (50, 50), color: accent.primary, at: (720, 400)
-p5: Ellipse, size: (50, 50), color: accent.success, at: (840, 400)
-
-always {
-  for i in {0, 1, 2, 3, 4, 5} {
-    let offset_y = 80.0 * sin(t * 2.0 + i * 1.047)
-    if i == 0 { p0.at = (240.0, 400.0 + offset_y) }
-    if i == 1 { p1.at = (360.0, 400.0 + offset_y) }
-    if i == 2 { p2.at = (480.0, 400.0 + offset_y) }
-    if i == 3 { p3.at = (600.0, 400.0 + offset_y) }
-    if i == 4 { p4.at = (720.0, 400.0 + offset_y) }
-    if i == 5 { p5.at = (840.0, 400.0 + offset_y) }
-  }
-}
+  p0: Ellipse, size: (50, 50), color: accent.primary, at: (240, 400)
+  p1: Ellipse, size: (50, 50), color: accent.success, at: (360, 400)
+  p2: Ellipse, size: (50, 50), color: accent.warning, at: (480, 400)
+  p3: Ellipse, size: (50, 50), color: accent.danger, at: (600, 400)
+  p4: Ellipse, size: (50, 50), color: accent.primary, at: (720, 400)
+  p5: Ellipse, size: (50, 50), color: accent.success, at: (840, 400)
+  always {
+      for i in {0, 1, 2, 3, 4, 5} {
+            let offset_y = 80 * sin(t * 2 + i * 1.047)
+            if i == 0 {
+                    p0.at = (240, 400 + offset_y)
+                  }
+            if i == 1 {
+                    p1.at = (360, 400 + offset_y)
+                  }
+            if i == 2 {
+                    p2.at = (480, 400 + offset_y)
+                  }
+            if i == 3 {
+                    p3.at = (600, 400 + offset_y)
+                  }
+            if i == 4 {
+                    p4.at = (720, 400 + offset_y)
+                  }
+            if i == 5 {
+                    p5.at = (840, 400 + offset_y)
+                  }
+          }
+    }
 
 #0.5s
-fade-in title [600ms, ease: ease-out]
-fade-in sub [400ms, delay: 200ms]
+  fade_in(target: title, duration: 0.6s, ease: ease_out)
+  fade_in(target: sub, duration: 0.4s, delay: 0.2s)
 
 #1s
-stagger [70ms] {
-  fade-in p0 [400ms]
-  fade-in p1 [400ms]
-  fade-in p2 [400ms]
-  fade-in p3 [400ms]
-  fade-in p4 [400ms]
-  fade-in p5 [400ms]
-}
+  stagger [0.07s] {
+      fade_in(target: p0, duration: 0.4s)
+      fade_in(target: p1, duration: 0.4s)
+      fade_in(target: p2, duration: 0.4s)
+      fade_in(target: p3, duration: 0.4s)
+      fade_in(target: p4, duration: 0.4s)
+      fade_in(target: p5, duration: 0.4s)
+    }

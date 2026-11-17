@@ -17,14 +17,14 @@ fn snippet_body(snippet: &str) -> Vec<Stmt> {
         .collect()
 }
 
-fn snippet_action(snippet: &str) -> Action {
+fn snippet_call(snippet: &str) -> Expr {
     snippet_body(snippet)
         .into_iter()
         .find_map(|stmt| match stmt {
-            Stmt::Action(action, _) => Some(action),
+            Stmt::Expr(expr @ Expr::Call(..), _) => Some(expr),
             _ => None,
         })
-        .expect("expected an Action statement")
+        .expect("expected a function call statement")
 }
 
 fn snippet_assignment(snippet: &str) -> Stmt {
@@ -146,6 +146,68 @@ fn test_closure_parser() {
 }
 
 #[test]
+fn closure_block_can_capture_outer_let_and_shadow_inside() {
+    let stmts = parse_ok(
+        "let base = 4\nlet step = (v) => { let base = base * 10 let out = base + v out }\n",
+    );
+    match &stmts[1] {
+        Stmt::LetDecl { value, .. } => match value {
+            Expr::Closure(params, body) => {
+                assert_eq!(params, &["v"]);
+                assert!(matches!(body.as_ref(), Expr::LetChain(bindings, tail)
+                    if bindings.len() == 2 && matches!(tail.as_ref(), Expr::Ident(name) if name == "out")));
+            },
+            other => panic!("expected closure, got {other:?}"),
+        },
+        other => panic!("expected let declaration, got {other:?}"),
+    }
+}
+
+#[test]
+fn closure_let_chain_parses_after_a_keyframe() {
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (480, 270) }
+
+label: Text, text: "init", font_size: 18, anchor: scene.center, text_max_width: 440
+
+#0.2s
+fade_in(target: label, duration: 100ms)
+
+#0.5s
+let base = 4
+let step = (v) => {
+  let base = base * 10
+  let out = base + v
+  out
+}
+label.text = format("step(2)={} base={}", step(2), base)
+"#;
+    assert!(!parse_ok(source).is_empty());
+}
+
+#[test]
+fn closure_let_chain_accepts_nested_closure_tail() {
+    parse_ok("let inner = (y) => y + a\n");
+    parse_ok("let outer = (x) => { (y) => y + x }\n");
+    let source = r#"
+#0.5s
+let maker = (x) => {
+  let a = x * 10
+  (y) => y + a
+}
+let add20 = maker(2)
+label.text = format("add20(4) = {}", add20(4))
+"#;
+    let (stmts, errors) = crate::parser::parse_source(source);
+    assert!(errors.is_empty(), "nested closure parse errors: {errors:?}");
+    let stmts = stmts.expect("nested closure should produce an AST");
+    assert!(stmts.iter().any(|stmt| matches!(stmt, Stmt::Keyframe { body, .. }
+        if body.iter().any(|stmt| matches!(stmt, Stmt::LetDecl { name, value: Expr::Closure(_, body), .. }
+            if name == "maker" && matches!(body.as_ref(), Expr::LetChain(bindings, tail)
+                if bindings.len() == 1 && matches!(tail.as_ref(), Expr::Closure(_, _))))))));
+}
+
+#[test]
 fn test_shorthand_parser() {
     // Cases: (1) Text shorthand string literal, (2) Typst shorthand math delimiters ($$).
     for (input, expected_label, expected_ty, expected_prop, expected_val) in [
@@ -183,7 +245,7 @@ fn test_shorthand_with_modifiers() {
     // Cases: (1) Text shorthand with duration and ease, (2) Typst shorthand with duration.
     for (input, expected_label, expected_ty, expected_prop, expected_val, expected_mod_count) in [
         (
-            r#"title: "Slide 1" [2s, ease: ease-in-out]"#,
+            r#"title: "Slide 1" [2s, ease: ease_in_out]"#,
             "title",
             "Text",
             "text",
@@ -250,6 +312,64 @@ fn test_vec2_value_span_accuracy() {
 }
 
 #[test]
+fn expression_statement_and_inline_expression_capture_source_spans() {
+    let source = "fn f() {\n  first()\n  7\n}\ngroup: Group { second() }\n";
+    let statements = parse_ok(source);
+    let Stmt::FnDecl { body, .. } = &statements[0] else {
+        panic!("expected function declaration");
+    };
+    let Stmt::Expr(Expr::Call(..), Some(call_span)) = &body[0] else {
+        panic!("non-tail call should retain its source span: {:?}", body[0]);
+    };
+    assert_eq!((call_span.start_line, call_span.start_col), (2, 3));
+    assert_eq!((call_span.end_line, call_span.end_col), (2, 10));
+    let Stmt::Return {
+        span: Some(tail_span),
+        ..
+    } = &body[1]
+    else {
+        panic!("tail expression should retain its source span: {:?}", body[1]);
+    };
+    assert_eq!((tail_span.start_line, tail_span.start_col), (3, 3));
+
+    let Stmt::ActorDecl { children, .. } = &statements[1] else {
+        panic!("expected Group declaration");
+    };
+    assert!(
+        matches!(
+            &children[0],
+            InlineItem::Expr(Expr::Call(..), Some(span))
+                if (span.start_line, span.start_col) == (5, 16)
+        ),
+        "inline expression should retain its source span: {:?}",
+        children[0]
+    );
+
+    let keyframe_statements = parse_ok("#0s\n  cards[1.5].mark()\n");
+    let Stmt::Keyframe {
+        body,
+        span: Some(keyframe_span),
+        ..
+    } = &keyframe_statements[0]
+    else {
+        panic!("expected keyframe");
+    };
+    assert_eq!((keyframe_span.start_line, keyframe_span.start_col), (1, 1));
+    assert!(matches!(
+        &body[0],
+        Stmt::Expr(Expr::Call(..), Some(span))
+            if (span.start_line, span.start_col) == (2, 3)
+    ));
+
+    let relative_keyframe_statements = parse_ok("#+0.5s\n  cards[1].opacity = 1\n");
+    assert!(matches!(
+        &relative_keyframe_statements[0],
+        Stmt::RelativeKeyframe { span: Some(span), .. }
+            if (span.start_line, span.start_col) == (1, 1)
+    ));
+}
+
+#[test]
 fn test_multiple_properties_span_independence() {
     // Test that spans for multiple properties don't overlap
     let input = r#"backdrop: Rect, size: (100, 200), color: red, anchor: center"#;
@@ -289,8 +409,9 @@ fn test_reactive_binding_parser() {
         assert_eq!(property, "at");
         // Verify it's a binary expression (tracker.at + (...))
         if let Expr::Binary(left, BinaryOp::Add, _right) = value {
-            if let Expr::Path(parts) = left.as_ref() {
-                assert_eq!(parts, &["tracker", "at"]);
+            if let Expr::Field(receiver, field) = left.as_ref() {
+                assert!(matches!(receiver.as_ref(), Expr::Ident(name) if name == "tracker"));
+                assert_eq!(field, "at");
             } else {
                 panic!("Expected Path for left side");
             }
@@ -479,70 +600,75 @@ fn parse_snippet_stagger() {
 }
 
 #[test]
-fn parse_action_with_dotted_target() {
-    // Single dotted target: `highlight decomp_eq.f1 [800ms]`
-    let action = snippet_action("highlight decomp_eq.f1 [800ms]");
-    assert_eq!(action.verb, "highlight");
-    assert_eq!(action.targets, vec!["decomp_eq.f1"]);
+fn parse_function_call_with_dotted_actor_argument() {
+    let call = snippet_call("highlight(target: decomp_eq.f1, duration: 800ms)");
+    let Expr::Call(callee, args) = call else {
+        panic!("expected call expression");
+    };
+    assert_eq!(callee.callable_name().as_deref(), Some("highlight"));
+    assert_eq!(args[0].name.as_deref(), Some("target"));
+    assert!(matches!(&args[0].value, Expr::Field(_, field) if field == "f1"));
+    assert_eq!(args[1].name.as_deref(), Some("duration"));
+    assert_eq!(args[1].value, Expr::Duration(0.8));
 }
 
 #[test]
-fn a_bare_action_does_not_swallow_the_next_lines_assignment() {
-    // Regression: the grammar has no newline tokens, and an action statement
-    // used to read *both* its target list and its argument list as unbounded
-    // repeats. So `persist t` swallowed the next statement's left-hand side —
-    // as a second target, or as an argument — and the `=` then failed to
-    // parse. Measured before the fix: targets ["t", "t.opacity"], then
-    // `expected expression, modifier list, statement, …, found '='`.
-    let action_and_assignment = |source: &str| {
-        let stmts = parse_ok(source);
-        let body = match &stmts[0] {
-            Stmt::Keyframe { body, .. } => body,
-            other => panic!("expected a keyframe, got {other:?}"),
-        };
-        assert_eq!(body.len(), 2, "expected the action and the assignment");
-        match &body[0] {
-            Stmt::Action(action, _) => {
-                assert!(
-                    !action.targets.iter().any(|t| t.contains('.')),
-                    "the next line's left-hand side became a target: {:?}",
-                    action.targets
-                );
-                assert!(
-                    action.args.is_empty(),
-                    "the next line's left-hand side became an argument: {:?}",
-                    action.args
-                );
-            },
-            other => panic!("expected an Action, got {other:?}"),
-        }
-        assert!(matches!(&body[1], Stmt::Assignment { .. }));
+fn call_named_arguments_accept_reserved_keyword_names() {
+    let call = snippet_call(
+        "draw_in(target: title, duration: 1s, by: word, offset_y: 30, mask: baseline, stagger: 0.1s)",
+    );
+    let Expr::Call(_, args) = call else {
+        panic!("expected call expression");
     };
+    assert_eq!(args.last().and_then(|argument| argument.name.as_deref()), Some("stagger"));
+    assert_eq!(args.last().map(|argument| &argument.value), Some(&Expr::Duration(0.1)));
+}
 
-    // One target, no comma; then a comma-separated list.
-    action_and_assignment("#0s\npersist t\nt.opacity = 0.5 [200ms]");
-    action_and_assignment("#0s\npersist a, b\na.opacity = 0.5 [200ms]");
-
-    // The guard is on the statement boundary only. A space-separated target
-    // list still runs on (`swap bar1 bar2`, pinned by
-    // `test_swap_action_space_separated_targets`), so a bare particle like
-    // `by` still lands in the target list rather than the argument list —
-    // which is why `builtins.rs` advertises `rotate target [by: 90]`
-    // instead. Pinning both halves keeps the fix from widening into a
-    // language change.
-    let stmts = parse_ok("#0s\nswap bar1 bar2 [500ms]");
-    let body = match &stmts[0] {
-        Stmt::Keyframe { body, .. } => body,
-        other => panic!("expected a keyframe, got {other:?}"),
+#[test]
+fn function_call_arguments_are_parenthesized_before_next_assignment() {
+    let stmts = parse_ok("#0s\npersist(target: t)\nt.opacity = 0.5 [200ms]");
+    let Stmt::Keyframe { body, .. } = &stmts[0] else {
+        panic!("expected keyframe");
     };
-    match &body[0] {
-        Stmt::Action(action, _) => {
-            assert_eq!(action.verb, "swap");
-            assert_eq!(action.targets, vec!["bar1", "bar2"]);
-            assert!(action.args.is_empty());
-        },
-        other => panic!("expected an Action, got {other:?}"),
-    }
+    assert_eq!(body.len(), 2);
+    assert!(matches!(&body[0], Stmt::Expr(Expr::Call(..), _)));
+    assert!(matches!(&body[1], Stmt::Assignment { .. }));
+}
+
+#[test]
+fn parse_function_call_with_multiple_dotted_targets() {
+    let call = snippet_call("highlight(targets: {eq.f1, eq.f2}, duration: 500ms)");
+    let Expr::Call(callee, args) = call else {
+        panic!("expected call expression");
+    };
+    assert_eq!(callee.callable_name().as_deref(), Some("highlight"));
+    assert_eq!(args[0].name.as_deref(), Some("targets"));
+    assert!(matches!(&args[0].value, Expr::List(items) if items.len() == 2));
+}
+
+#[test]
+fn parse_indexed_actor_arguments_as_normal_expressions() {
+    let call = snippet_call("fade_in(target: dots[0], duration: 300ms)");
+    let Expr::Call(_, args) = call else {
+        panic!("expected call expression");
+    };
+    assert!(matches!(&args[0].value, Expr::Index(base, index)
+        if matches!(base.as_ref(), Expr::Ident(name) if name == "dots")
+        && matches!(index.as_ref(), Expr::Num(n) if *n == 0.0)));
+}
+
+#[test]
+fn parse_indexed_actor_arguments_with_field_access() {
+    let call = snippet_call("fade_in(target: cards[j].title_text, duration: 300ms)");
+    let Expr::Call(_, args) = call else {
+        panic!("expected call expression");
+    };
+    assert!(matches!(&args[0].value, Expr::Field(receiver, field)
+        if field == "title_text" && matches!(receiver.as_ref(), Expr::Index(..))));
+    assert_eq!(
+        crate::format_core::format_expr(&Expr::Call(Box::new(Expr::Ident("fade_in".into())), args)),
+        "fade_in(target: cards[j].title_text, duration: 0.3s)"
+    );
 }
 
 #[test]
@@ -553,14 +679,9 @@ fn test_method_call_with_args() {
     let value = assignment_value(&body[0]);
     // The value should be a Method call: graph.map(mx, my)
     assert!(
-        matches!(
-            value,
-            Expr::Method(receiver, name, args)
-                if matches!(receiver.as_ref(), Expr::Ident(n) if n == "descent_graph")
-                && name == "map"
-                && args.len() == 2
-        ),
-        "Expected Method(Ident(descent_graph), 'map', [mx, my]), got {:?}",
+        matches!(value, Expr::Call(callee, args)
+            if callee.callable_name().as_deref() == Some("descent_graph.map") && args.len() == 2),
+        "Expected Call(Field(descent_graph, map), [mx, my]), got {:?}",
         value
     );
 }
@@ -571,26 +692,22 @@ fn test_method_call_on_dot_path() {
     let body = always_body("always { x = a.b.c(d) }");
     let value = assignment_value(&body[0]);
     assert!(
-        matches!(
-            value,
-            Expr::Method(receiver, name, args)
-                if matches!(receiver.as_ref(), Expr::Path(parts) if parts == &["a", "b"])
-                && name == "c"
-                && args.len() == 1
-        ),
-        "Expected Method(Path([a,b]), 'c', [d]), got {:?}",
+        matches!(value, Expr::Call(callee, args)
+            if callee.callable_name().as_deref() == Some("a.b.c") && args.len() == 1),
+        "Expected Call(Field(Field(a,b),c), [d]), got {:?}",
         value
     );
 }
 
 #[test]
 fn test_field_access_still_works() {
-    // Ensure bare field access (no parens) still produces Path
+    // Bare member access is represented by a Field expression.
     let body = always_body("always { x = descent_graph.at }");
     let value = assignment_value(&body[0]);
     assert!(
-        matches!(value, Expr::Path(parts) if parts == &["descent_graph", "at"]),
-        "Expected Path([descent_graph, at]), got {:?}",
+        matches!(value, Expr::Field(receiver, field)
+            if matches!(receiver.as_ref(), Expr::Ident(name) if name == "descent_graph") && field == "at"),
+        "Expected Field(descent_graph, at), got {:?}",
         value
     );
 }
@@ -599,7 +716,7 @@ fn test_field_access_still_works() {
 fn test_any_type_annotation_in_action_param() {
     // `Any` in a parameter type annotation should parse without error.
     assert_eq!(
-        fn_param_type(r#"fn transform(x: Any = 0) { fade-in x [300ms] }"#),
+        fn_param_type(r#"fn transform(x: Any = 0) { fade_in(target: x, duration: 300ms) }"#),
         Some(TypeAnnotation::Any)
     );
 }
@@ -607,7 +724,9 @@ fn test_any_type_annotation_in_action_param() {
 #[test]
 fn test_union_type_annotation_in_action_param() {
     assert_eq!(
-        fn_param_type(r#"fn transform(x: Bool | Str = "x") { fade-in x [300ms] }"#),
+        fn_param_type(
+            r#"fn transform(x: Bool | Str = "x") { fade_in(target: x, duration: 300ms) }"#
+        ),
         Some(TypeAnnotation::Union(vec![TypeAnnotation::Bool, TypeAnnotation::Str]))
     );
 }
@@ -615,7 +734,9 @@ fn test_union_type_annotation_in_action_param() {
 #[test]
 fn test_enum_type_annotation_parses_in_action_param() {
     assert_eq!(
-        fn_param_type(r#"fn transform(x: Enum(left, right, top)) { fade-in x [300ms] }"#),
+        fn_param_type(
+            r#"fn transform(x: Enum(left, right, top)) { fade_in(target: x, duration: 300ms) }"#
+        ),
         Some(TypeAnnotation::Enum(vec![
             "left".to_string(),
             "right".to_string(),
@@ -654,11 +775,8 @@ fn test_namespaced_type_alias_reference_parses() {
 }
 
 #[test]
-fn test_legacy_dotted_type_alias_normalizes() {
-    assert_eq!(
-        component_param_types("pub component Card(value: types.Metric) {}\n"),
-        vec![Some(TypeAnnotation::Alias("types::Metric".to_string()))]
-    );
+fn dotted_type_alias_is_rejected() {
+    assert!(parse_err("pub component Card(value: types.Metric) {}\n"));
 }
 
 #[test]
@@ -702,8 +820,8 @@ fn test_rich_type_annotations_in_component_params() {
 
 #[test]
 fn parenthesized_param_value_stays_default_expression() {
-    // `(Num, Num)` is a tuple expression default, not a type annotation.
-    let stmts = parse_ok("component C(x: (Num, Num)) {}\n");
+    // `:` introduces a type and `=` introduces a default expression.
+    let stmts = parse_ok("component C(x = (Num, Num)) {}\n");
     if let Stmt::ComponentDef(def, _) = &stmts[0] {
         assert_eq!(def.params[0].param_type, None);
         assert_eq!(
@@ -719,11 +837,14 @@ fn parenthesized_param_value_stays_default_expression() {
 }
 
 #[test]
-fn parse_action_with_multiple_dotted_targets() {
-    // Comma-separated dotted targets: `highlight eq.f1, eq.f2 [500ms]`
-    let action = snippet_action("highlight eq.f1, eq.f2 [500ms]");
-    assert_eq!(action.verb, "highlight");
-    assert_eq!(action.targets, vec!["eq.f1", "eq.f2"]);
+fn parse_call_with_multiple_dotted_targets() {
+    let call = snippet_call("highlight(targets: {eq.f1, eq.f2}, duration: 500ms)");
+    let Expr::Call(callee, args) = call else {
+        panic!("expected call expression");
+    };
+    assert_eq!(callee.callable_name().as_deref(), Some("highlight"));
+    assert!(matches!(&args[0].value, Expr::List(items) if items.len() == 2));
+    assert_eq!(args[1].name.as_deref(), Some("duration"));
 }
 
 // Gap 1a: subscript in value expressions
@@ -740,55 +861,6 @@ fn parse_subscript_expr_integer() {
         ),
         "expected Index(Ident(items), Num(0)), got {:?}",
         value
-    );
-}
-
-#[test]
-fn parse_subscript_does_not_consume_modifier_bracket() {
-    // `fade-in x [300ms]` — the `[300ms]` must be a modifier, not a subscript.
-    let a = snippet_action("fade-in x [300ms]");
-    assert_eq!(a.targets, vec!["x"], "target should be 'x', not 'x[300ms]'");
-    assert!(!a.modifiers.is_empty(), "modifier list should not be empty");
-}
-
-// Gap 1b: array-indexed targets
-
-#[test]
-fn parse_indexed_action_target() {
-    // `fade-in dots[0] [300ms]` → target resolves to "dots__0"
-    let a = snippet_action("fade-in dots[0] [300ms]");
-    assert_eq!(a.targets, vec!["dots__0"]);
-    assert_eq!(a.target_index, vec![None]);
-}
-
-#[test]
-fn parse_indexed_action_target_with_expression() {
-    // `swap bars[j], bars[j+1] [300ms]` → base projections + index exprs
-    let a = snippet_action("swap bars[j], bars[j+1] [300ms]");
-    assert_eq!(a.targets, vec!["bars", "bars"]);
-    assert_eq!(a.target_index.len(), 2);
-    assert!(matches!(a.target_index[0], Some(Expr::Ident(_))));
-    assert!(matches!(a.target_index[1], Some(Expr::Binary(..))));
-}
-
-#[test]
-fn parse_dotted_indexed_action_target() {
-    // `swap row.b[j], row.b[j+1]` keeps the dotted base projection.
-    let a = snippet_action("swap row.b[j], row.b[j+1] [300ms]");
-    assert_eq!(a.targets, vec!["row.b", "row.b"]);
-    assert!(a.target_index.iter().all(Option::is_some));
-    assert_eq!(a.target_index_position, vec![Some(1), Some(1)]);
-}
-
-#[test]
-fn parse_root_indexed_dotted_action_target_and_format_it() {
-    let action = snippet_action("fade-in cards[j].title_text [300ms]");
-    assert_eq!(action.targets, vec!["cards.title_text"]);
-    assert_eq!(action.target_index, vec![Some(Expr::Ident("j".into()))]);
-    assert_eq!(action.target_index_position, vec![Some(0)]);
-    assert_eq!(
-        crate::format_core::format_action(&action),
-        "fade-in cards[j].title_text [300ms]"
     );
 }
 
@@ -962,10 +1034,8 @@ fn parse_unary_minus_on_dotted_path() {
     };
     match value {
         Expr::Unary(UnaryOp::Neg, inner) => match inner.as_ref() {
-            Expr::Path(parts) => {
-                assert_eq!(parts, &["geo", "y_hi"]);
-            },
-            other => panic!("expected Expr::Path inside Unary(Neg), got: {:?}", other),
+            Expr::Field(_, field) => assert_eq!(field, "y_hi"),
+            other => panic!("expected Expr::Field inside Unary(Neg), got: {:?}", other),
         },
         other => panic!("expected Expr::Unary(Neg, ...), got: {:?}", other),
     }
@@ -978,13 +1048,12 @@ fn parse_method_call_with_binary_expression_argument() {
         panic!("expected let declaration");
     };
     match value {
-        Expr::Method(receiver, method, args) => {
-            assert!(matches!(receiver.as_ref(), Expr::Ident(name) if name == "g"));
-            assert_eq!(method, "map");
+        Expr::Call(callee, args) => {
+            assert_eq!(callee.callable_name().as_deref(), Some("g.map"));
             assert_eq!(args.len(), 2);
-            assert!(matches!(&args[0], Expr::Binary(_, BinaryOp::Add, _)));
+            assert!(matches!(&args[0].value, Expr::Binary(_, BinaryOp::Add, _)));
         },
-        other => panic!("expected Expr::Method, got: {:?}", other),
+        other => panic!("expected Expr::Call, got: {:?}", other),
     }
 }
 
@@ -1072,7 +1141,7 @@ fn test_collections() {
 
 #[test]
 fn test_assignments_and_paths() {
-    let stmt = parse_single_stmt("morpher.size = (100, 100) [2s, ease: ease-out]");
+    let stmt = parse_single_stmt("morpher.size = (100, 100) [2s, ease: ease_out]");
     if let Stmt::Assignment {
         target,
         property,
@@ -1086,7 +1155,7 @@ fn test_assignments_and_paths() {
         assert_eq!(property, "size");
         assert_eq!(value, Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]));
         assert_eq!(modifiers.len(), 1);
-        assert_eq!(modifiers[0].value, Expr::Ident("2s".to_string()));
+        assert_eq!(modifiers[0].value, Expr::Duration(2.0));
         assert_eq!(easing, Some(crate::easing::Easing::EaseOut));
     } else {
         panic!("expected Assignment");
@@ -1099,7 +1168,7 @@ fn test_assignments_and_paths() {
         panic!("expected Assignment");
     }
 
-    let stmt = parse_single_stmt("btn.opacity = 0.5 [ease: bounce]");
+    let stmt = parse_single_stmt("btn.opacity = 0.5 [ease: bounce_in]");
     if let Stmt::Assignment { easing, .. } = stmt {
         assert_eq!(easing, Some(crate::easing::Easing::Bounce));
     } else {
@@ -1137,7 +1206,12 @@ fn test_assignments_and_paths() {
             Stmt::LetDecl {
                 is_pub: false,
                 name: name.to_string(),
-                value: Expr::Path(segments.iter().map(|s| s.to_string()).collect()),
+                value: segments
+                    .iter()
+                    .skip(1)
+                    .fold(Expr::Ident(segments[0].to_string()), |receiver, field| {
+                        Expr::Field(Box::new(receiver), (*field).to_string())
+                    }),
                 span: None,
             },
             "path expression for {source:?}"
@@ -1148,11 +1222,11 @@ fn test_assignments_and_paths() {
 #[test]
 fn test_sequence_parse() {
     let stmt = parse_single_stmt(
-        "sequence { fade-in badge [500ms] badge.color = red [250ms, delay: 100ms] }",
+        "sequence { fade_in(target: badge, duration: 500ms) badge.color = red [250ms, delay: 100ms] }",
     );
     if let Stmt::Sequence { body, .. } = stmt {
         assert_eq!(body.len(), 2);
-        assert!(matches!(&body[0], Stmt::Action(..)));
+        assert!(matches!(&body[0], Stmt::Expr(Expr::Call(..), _)));
         assert!(matches!(&body[1], Stmt::Assignment { .. }));
     } else {
         panic!("expected Sequence, got {stmt:?}");
@@ -1160,28 +1234,57 @@ fn test_sequence_parse() {
 }
 
 #[test]
+fn duration_suffix_is_not_parsed_as_collection_index() {
+    let assignment = parse_single_stmt("badge.opacity = 0.25[500ms]");
+    match assignment {
+        Stmt::Assignment {
+            value, modifiers, ..
+        } => {
+            assert_eq!(value, Expr::Num(0.25));
+            assert_eq!(modifiers.len(), 1);
+            assert_eq!(modifiers[0].value, Expr::Duration(0.5));
+        },
+        other => panic!("expected Assignment, got {other:?}"),
+    }
+
+    let actor = parse_single_stmt("badge: Ellipse, opacity: 0.25[500ms]");
+    match actor {
+        Stmt::ActorDecl {
+            props, modifiers, ..
+        } => {
+            assert_eq!(props[0].value, Expr::Num(0.25));
+            assert_eq!(modifiers.len(), 1);
+            assert_eq!(modifiers[0].value, Expr::Duration(0.5));
+        },
+        other => panic!("expected ActorDecl, got {other:?}"),
+    }
+}
+
+#[test]
 fn test_stagger_parse() {
-    let stmt =
-        parse_single_stmt("stagger [150ms] { fade-in first [200ms] second.color = red [100ms] }");
+    let stmt = parse_single_stmt(
+        "stagger [150ms] { fade_in(target: first, duration: 200ms) second.color = red [100ms] }",
+    );
     if let Stmt::Stagger {
         modifiers, body, ..
     } = stmt
     {
         assert_eq!(modifiers.len(), 1);
-        assert_eq!(modifiers[0].value, Expr::Ident("150ms".to_string()));
+        assert_eq!(modifiers[0].value, Expr::Duration(0.15));
         assert_eq!(body.len(), 2);
     } else {
         panic!("expected Stagger, got {stmt:?}");
     }
 
-    let stmt = parse_single_stmt("stagger [each: 150ms] { fade-in first [200ms] }");
+    let stmt =
+        parse_single_stmt("stagger [each: 150ms] { fade_in(target: first, duration: 200ms) }");
     if let Stmt::Stagger {
         modifiers, body, ..
     } = stmt
     {
         assert_eq!(modifiers.len(), 1);
         assert_eq!(modifiers[0].name.as_deref(), Some("each"));
-        assert_eq!(modifiers[0].value, Expr::Ident("150ms".to_string()));
+        assert_eq!(modifiers[0].value, Expr::Duration(0.15));
         assert_eq!(body.len(), 1);
     } else {
         panic!("expected Stagger, got {stmt:?}");
@@ -1202,9 +1305,9 @@ fn test_config_parse() {
 
 #[test]
 fn test_qualified_play_parse() {
-    let stmts = parse_ok("play module.SceneName [fade, 300ms]");
+    let stmts = parse_ok("play module::SceneName [fade, 300ms]");
     if let Stmt::Play { scene_name, .. } = &stmts[0] {
-        assert_eq!(scene_name, "module.SceneName");
+        assert_eq!(scene_name, "module::SceneName");
     } else {
         panic!("expected Play");
     }
@@ -1236,8 +1339,9 @@ fn test_actor_decl_full() {
 
 #[test]
 fn test_actor_decl_modifiers_and_paths() {
-    let stmt =
-        parse_single_stmt("badge: Ellipse, radius: 20 [delay: 250ms, ease: ease-in, ease: bounce]");
+    let stmt = parse_single_stmt(
+        "badge: Ellipse, radius: 20 [delay: 250ms, ease: ease_in, ease: bounce_in]",
+    );
     if let Stmt::ActorDecl { modifiers, .. } = stmt {
         assert_eq!(modifiers.len(), 3);
         assert_eq!(modifiers[0].name.as_deref(), Some("delay"));
@@ -1250,7 +1354,10 @@ fn test_actor_decl_modifiers_and_paths() {
     let stmt = parse_single_stmt("badge: Ellipse, color: auto, stroke: stroke.default");
     if let Stmt::ActorDecl { props, .. } = stmt {
         assert_eq!(props[1].name, "stroke");
-        assert_eq!(props[1].value, Expr::Path(vec!["stroke".to_string(), "default".to_string()]));
+        assert_eq!(
+            props[1].value,
+            Expr::Field(Box::new(Expr::Ident("stroke".to_string())), "default".to_string())
+        );
     } else {
         panic!("expected ActorDecl");
     }
@@ -1261,7 +1368,10 @@ fn test_actor_decl_modifiers_and_paths() {
         assert_eq!(ty, "Svg");
         assert_eq!(props.len(), 3);
         assert_eq!(props[1].name, "anchor");
-        assert_eq!(props[1].value, Expr::Path(vec!["scene".to_string(), "top".to_string()]));
+        assert_eq!(
+            props[1].value,
+            Expr::Field(Box::new(Expr::Ident("scene".to_string())), "top".to_string())
+        );
     } else {
         panic!("expected Svg ActorDecl");
     }
@@ -1349,7 +1459,9 @@ fn test_compound_property_expressions() {
     if let Stmt::ActorDecl { props, .. } = stmt {
         if let Expr::List(calls) = &props[0].value {
             assert_eq!(calls.len(), 3);
-            assert!(matches!(calls[0], Expr::Call(ref name, _) if name == "move_to"));
+            assert!(
+                matches!(&calls[0], Expr::Call(callee, _) if callee.callable_name().as_deref() == Some("move_to"))
+            );
         } else {
             panic!("expected List of calls");
         }
@@ -1396,60 +1508,54 @@ fn test_relative_keyframes() {
 }
 
 #[test]
-fn timeline_function_body_groups_local_absolute_and_relative_keyframes() {
+fn function_returns_a_reusable_timeline_expression() {
     let ast = parse_ok(
         r#"
-fn ticker(dot, lane_y: Num) {
-  #0ms
-  dot.at = (140, lane_y)
-  always { dot.at = (140 + 960 * t, lane_y) }
-  #+250ms
-  #step 1
-  dot.at = (380, lane_y)
-  #500ms
-  dot.at = (620, lane_y)
+fn ticker(dot, lane_y: Num) -> Timeline {
+  #{
+    #0ms
+    dot.at = (140, lane_y)
+    #+250ms
+    dot.at = (380, lane_y)
+    #500ms
+    dot.at = (620, lane_y)
+  }
 }
 "#,
     );
     let Stmt::FnDecl {
-        return_type: None,
+        return_type: Some(TypeAnnotation::Timeline),
         body,
         ..
     } = &ast[0]
     else {
-        panic!("expected an untyped timeline function, got {:?}", ast[0]);
+        panic!("expected a typed timeline function, got {:?}", ast[0]);
     };
-
-    assert_eq!(body.len(), 3, "each local marker should begin one keyframe");
-    let Stmt::Keyframe {
-        time: Time::Milliseconds(0),
-        body: first,
-        ..
-    } = &body[0]
-    else {
-        panic!("expected the local #0ms keyframe, got {:?}", body[0]);
-    };
-    assert!(matches!(&first[0], Stmt::Assignment { .. }));
-    assert!(matches!(&first[1], Stmt::Always { .. }));
-
-    let Stmt::RelativeKeyframe {
-        offset: Time::Milliseconds(250),
-        body: relative,
-        ..
-    } = &body[1]
-    else {
-        panic!("expected the local #+250ms keyframe, got {:?}", body[1]);
-    };
-    assert!(matches!(&relative[0], Stmt::Step { index: Some(1), .. }));
-    assert!(matches!(&relative[1], Stmt::Assignment { .. }));
-
-    assert!(matches!(
-        &body[2],
-        Stmt::Keyframe {
-            time: Time::Milliseconds(500),
-            body,
+    let [
+        Stmt::Return {
+            value: Some(Expr::Timeline(plan)),
             ..
-        } if matches!(body.as_slice(), [Stmt::Assignment { .. }])
+        },
+    ] = body.as_slice()
+    else {
+        panic!("expected final timeline expression to be the return value: {body:?}");
+    };
+    assert!(matches!(
+        plan.statements.as_slice(),
+        [
+            Stmt::Keyframe {
+                time: Time::Milliseconds(0),
+                ..
+            },
+            Stmt::RelativeKeyframe {
+                offset: Time::Milliseconds(250),
+                ..
+            },
+            Stmt::Keyframe {
+                time: Time::Milliseconds(500),
+                ..
+            },
+        ]
     ));
 }
 
@@ -1464,9 +1570,13 @@ fn local_keyframes_parse_in_the_real_ticker_example() {
     else {
         panic!("expected ticker function")
     };
-    assert_eq!(body.len(), 2);
-    assert!(matches!(&body[0], Stmt::Keyframe { .. }));
-    assert!(matches!(&body[1], Stmt::Keyframe { .. }));
+    assert!(matches!(
+        body.as_slice(),
+        [Stmt::Return {
+            value: Some(Expr::Timeline(_)),
+            ..
+        }]
+    ));
 }
 
 #[test]
@@ -1478,7 +1588,7 @@ fn pure_function_tail_expression_and_component_keyframe_restriction_remain() {
             return_type: Some(_),
             body,
             ..
-        } if matches!(body.as_slice(), [Stmt::Expr(Expr::Binary(_, BinaryOp::Mul, _), _)])
+        } if matches!(body.as_slice(), [Stmt::Return { value: Some(Expr::Binary(_, BinaryOp::Mul, _)), .. }])
     ));
 
     assert!(parse_err("fn invalid() -> Num { #0ms\n return 1 }"));
@@ -1493,7 +1603,7 @@ fn test_negative_relative_keyframes_rejected() {
 
 #[test]
 fn test_conditionals() {
-    let stmt = parse_single_stmt("if active { appear btn }");
+    let stmt = parse_single_stmt("if active { fade_in(target: btn, duration: 300ms) }");
     if let Stmt::Conditional {
         condition,
         then_branch,
@@ -1508,7 +1618,9 @@ fn test_conditionals() {
         panic!("expected Conditional");
     }
 
-    let stmt = parse_single_stmt("if active { fade-in btn } else { fade-out btn }");
+    let stmt = parse_single_stmt(
+        "if active { fade_in(target: btn, duration: 300ms) } else { fade_out(target: btn, duration: 300ms) }",
+    );
     if let Stmt::Conditional { else_branch, .. } = stmt {
         assert!(else_branch.is_some());
     } else {
@@ -1525,7 +1637,7 @@ fn test_conditionals() {
 
 #[test]
 fn test_for_loops() {
-    let stmt = parse_single_stmt("for (x, y) in points { appear dot }");
+    let stmt = parse_single_stmt("for (x, y) in points { fade_in(target: dot, duration: 300ms) }");
     if let Stmt::ForLoop {
         var,
         index_var,
@@ -1542,7 +1654,8 @@ fn test_for_loops() {
         panic!("expected ForLoop");
     }
 
-    let stmt = parse_single_stmt("for (a, b), i in items { appear dot }");
+    let stmt =
+        parse_single_stmt("for (a, b), i in items { fade_in(target: dot, duration: 300ms) }");
     if let Stmt::ForLoop { var, index_var, .. } = stmt {
         assert_eq!(var, LoopPattern::Tuple(vec!["a".to_string(), "b".to_string()]));
         assert_eq!(index_var.as_deref(), Some("i"));
@@ -1593,6 +1706,18 @@ fn test_imports() {
 }
 
 #[test]
+fn std_namespace_alias_is_reserved_for_standard_callables() {
+    let (_, errors) = parse_source(r#"import "local.amx" as std"#);
+    assert!(
+        !errors.is_empty(),
+        "the canonical `std::` namespace must not be shadowed: {errors:?}"
+    );
+
+    let (_, errors) = parse_source("#0s\n  let value = std::sin(0)");
+    assert!(errors.is_empty(), "explicit standard calls should parse: {errors:?}");
+}
+
+#[test]
 fn test_slot_marker_and_fill() {
     let stmt = parse_single_stmt("header: Col { @slot }");
     let (_, _, children) = actor_parts(stmt);
@@ -1636,8 +1761,8 @@ fn test_match_stmt_and_expr() {
         r#"
 #0s
 match floor(t) % 3 {
-  0 => { fade-in a [300ms] },
-  1 => { fade-in b [300ms] },
+  0 => { fade_in(target: a, duration: 300ms) },
+  1 => { fade_in(target: b, duration: 300ms) },
   _ => {}
 }
 "#,
@@ -1693,12 +1818,27 @@ always {
 
 #[test]
 fn test_rejected_syntax() {
-    assert!(parse_err("on appear { fade-in btn }"));
-    assert!(parse_err("on disappear { fade-out btn }"));
-    assert!(parse_err("loop { move btn [1s] }"));
-    assert!(parse_err("loop 5s { fade btn [1s] }"));
+    assert!(parse_err("on appear { fade_in(target: btn, duration: 1s) }"));
+    assert!(parse_err("on disappear { fade_out(target: btn, duration: 1s) }"));
+    assert!(parse_err("loop { move(target: btn, to: (10, 20), duration: 1s) }"));
+    assert!(parse_err("loop 5s { fade(target: btn, duration: 1s) }"));
     assert!(parse_err("yield"));
     assert!(parse_err("stop job"));
     assert!(parse_err("pause job"));
     assert!(parse_err("resume job"));
+}
+
+#[test]
+fn parser_recovers_each_invalid_run_and_keeps_following_declarations() {
+    let source = "title: Text, text: \"before\"\n\n@@@ total garbage @@@\n\nsubtitle: Text, text: \"after\"\n#0s\nfade_in(target: title, duration: 1s)\n";
+    let parsed = parse_source_complete(source);
+    let error_positions: Vec<(usize, usize)> =
+        parsed.errors.iter().map(|error| (error.line - 1, error.column - 1)).collect();
+    assert_eq!(error_positions, vec![(2, 0), (2, 18)]);
+
+    let statements = parsed.ast.expect("recovery should retain later statements");
+    assert!(statements.iter().any(|statement| matches!(
+        statement,
+        Stmt::ActorDecl { label, .. } if label == "subtitle"
+    )));
 }

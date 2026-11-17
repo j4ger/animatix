@@ -314,17 +314,31 @@ mod tests {
             &self,
             ctx: &mut ExtensionContext,
         ) -> Result<PluginDisposer, animatix::extension_plugin::PluginError> {
-            ctx.register_function("double", |args, _env| {
-                let Some(animatix::timeline::Value::Num(n)) = args.first() else {
-                    return Err(animatix::timeline::EvalError::TypeMismatch(
-                        "double expects one number".to_string(),
-                    ));
-                };
-                Ok(animatix::timeline::Value::Num(*n * 2.0))
-            })
+            ctx.register_callable(
+                animatix::extension_context::CallableDescriptor {
+                    namespace: "test".into(),
+                    name: "double".into(),
+                    params: vec![animatix::extension_context::CallableParam::required(
+                        "value",
+                        animatix::extension_context::CallableType::Num,
+                    )],
+                    return_type: animatix::extension_context::CallableType::Num,
+                    phase: animatix::extension_context::CallablePhase::BuildAndFrame,
+                    help: String::new(),
+                    category: "Test".into(),
+                },
+                |args, _env| {
+                    let Some(animatix::timeline::Value::Num(n)) = args.first() else {
+                        return Err(animatix::timeline::EvalError::TypeMismatch(
+                            "double expects one number".to_string(),
+                        ));
+                    };
+                    Ok(animatix::timeline::Value::Num(*n * 2.0))
+                },
+            )
             .expect("register function");
             Ok(Box::new(|ctx| {
-                ctx.remove_function("double");
+                ctx.remove_callable("test::double");
             }))
         }
     }
@@ -357,7 +371,15 @@ mod tests {
         let context = manager.context();
         let mut env = animatix::timeline::Environment::new();
         context.install_functions(&mut env);
-        assert!(matches!(env.get("double"), Some(animatix::timeline::Value::NativeFn(_))));
+        let value = animatix::timeline::evaluate_expr(
+            &animatix_syntax::ast::Expr::call(
+                "test::double",
+                vec![animatix_syntax::ast::Expr::Num(3.0)],
+            ),
+            &env,
+        )
+        .expect("registered plugin callable");
+        assert_eq!(value, animatix::timeline::Value::Num(6.0));
     }
 
     #[test]

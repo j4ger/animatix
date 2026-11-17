@@ -27,7 +27,7 @@ pub(super) fn alias(parent_label: &str) -> Option<(String, String)> {
 
 /// Component expansion prefixes descendants with source instance labels such
 /// as `cards.frame`; specialize them under their concrete array parent.
-pub(super) fn qualify_child(label: &str, parent_label: &str) -> String {
+pub(in crate::timeline::build) fn qualify_child(label: &str, parent_label: &str) -> String {
     if let Some((source_prefix, concrete_prefix)) = alias(parent_label)
         && let Some(suffix) =
             label.strip_prefix(&source_prefix).and_then(|rest| rest.strip_prefix('.'))
@@ -64,8 +64,12 @@ struct ComponentPropertyPathFolder<'a> {
 impl AstFolder for ComponentPropertyPathFolder<'_> {
     fn fold_expr(&mut self, expr: Expr) -> Expr {
         match expr {
-            Expr::Ident(name) if name == self.source_prefix => {
-                Expr::Ident(self.concrete_prefix.to_string())
+            Expr::Ident(name) => match name.strip_prefix(self.source_prefix) {
+                Some("") => Expr::Ident(self.concrete_prefix.to_string()),
+                Some(suffix) if suffix.starts_with('.') => {
+                    Expr::Ident(format!("{}{suffix}", self.concrete_prefix))
+                },
+                _ => Expr::Ident(name),
             },
             Expr::Path(parts) => {
                 let path = parts.join(".");

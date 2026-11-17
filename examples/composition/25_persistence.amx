@@ -1,7 +1,7 @@
 // 25 — Scene Persistence
 // Refactored to house-style three-act template, preserving persistence mechanics.
-
 import "../lib/theme.amx"
+
 import "../lib/stage.amx"
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
@@ -11,56 +11,47 @@ config { duration: 5 }
 floor: StageFloor
 head: ActHead, kicker: "ACT I · SETUP", title: "Persistence Setup"
 caption: Caption, text: "Define actors and persist them.", tag: "setup"
-
 #0s
-fade-in floor [500ms]
-fade-in head [500ms]
-fade-in caption [400ms]
-
+  fade_in(target: floor, duration: 0.5s)
+  fade_in(target: head, duration: 0.5s)
+  fade_in(target: caption, duration: 0.4s)
 #0.5s
-title: Text, text: "Scene Persistence Demo", font_size: 48, at: (640, 200)
-badge: Ellipse, at: (270, 190), size: (60, 60), color: auto
-fade-in title [800ms]
-fade-in badge [600ms]
-
+  title: Text, text: "Scene Persistence Demo", font_size: 48, at: (640, 200)
+  badge: Ellipse, at: (270, 190), size: (60, 60), color: auto
+  fade_in(target: title, duration: 0.8s)
+  fade_in(target: badge, duration: 0.6s)
 #2s
-fade-out head [400ms]
-persist title, badge, camera
-camera.zoom = 1.4 [1s, ease: ease-out]
-
+  fade_out(target: head, duration: 0.4s)
+  persist(targets: {title, badge, camera})
+  camera.zoom = 1.4 [1s, ease: ease_out]
 #4.5s
-play Develop [wipe-left, 500ms]
+play Develop [wipe_left, 500ms]
 
 # Develop
 config { duration: 6 }
 floor: StageFloor
 caption: Caption, text: "The carried title is the heading — no ActHead needed.", tag: "develop"
-
 #0s
-fade-in floor [500ms]
-fade-in caption [400ms]
-
+  fade_in(target: floor, duration: 0.5s)
+  fade_in(target: caption, duration: 0.4s)
 #0.5s
-// Use the carried actors
-title.text = "Main Scene" [800ms]
-subtitle: Text, text: "Actors persist across scenes", font_size: 28, at: (640, 400)
-fade-in subtitle [600ms]
-
+  // Use the carried actors
+  title.text = "Main Scene"[0.8s]
+  subtitle: Text, text: "Actors persist across scenes", font_size: 28, at: (640, 400)
+  fade_in(target: subtitle, duration: 0.6s)
 #2s
-container: Row, at: (640, 520), gap: 24 {
-    box1: Rect, size: (80, 80), color: auto
-    box2: Rect, size: (80, 80), color: auto
-    box3: Rect, size: (80, 80), color: auto
-}
-fade-in container [500ms]
-persist container
-
+  container: Row, at: (640, 520), gap: 24 {
+  box1: Rect, size: (80, 80), color: auto
+  box2: Rect, size: (80, 80), color: auto
+  box3: Rect, size: (80, 80), color: auto
+    }
+  fade_in(target: container, duration: 0.5s)
+  persist(target: container)
 #4s
-remove badge [600ms]
-remove subtitle [800ms]
-remove title, container [1s]
-remove camera
-
+  remove(target: badge, duration: 0.6s)
+  remove(target: subtitle, duration: 0.8s)
+  remove(targets: {title, container}, duration: 1s)
+  remove(target: camera)
 #5.5s
 play Payoff [fade, 500ms]
 
@@ -69,12 +60,10 @@ config { duration: 5 }
 floor: StageFloor
 head: ActHead, kicker: "ACT III · PAYOFF", title: "Outro"
 caption: Caption, text: "Resting composition.", tag: "payoff"
-
 #0s
-fade-in floor [500ms]
-fade-in head [500ms]
-fade-in caption [400ms]
-
+  fade_in(target: floor, duration: 0.5s)
+  fade_in(target: head, duration: 0.5s)
+  fade_in(target: caption, duration: 0.4s)
 #0.8s
-end: Text, text: "The End", font_size: 32, color: text.secondary, at: (640, 360)
-fade-in end [800ms]
+  end: Text, text: "The End", font_size: 32, color: text.secondary, at: (640, 360)
+  fade_in(target: end, duration: 0.8s)

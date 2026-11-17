@@ -209,68 +209,26 @@ pub fn parse_point_list_expr(expr: &Expr, env: &Environment) -> Option<Vec<kurbo
     }
 }
 
-/// Parse an AST list of path commands (e.g. `move_to`, `line_to`) into a `kurbo::BezPath`.
+/// Evaluate a path-command list through the ordinary expression pipeline.
 pub fn parse_path_commands_expr(expr: &Expr, env: &Environment) -> Option<kurbo::BezPath> {
-    let Expr::List(items) = expr else {
+    let value = match evaluate_expr(expr, env) {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::debug!(?error, "cannot evaluate path commands");
+            return None;
+        },
+    };
+    let super::super::Value::List(items) = value else {
+        tracing::warn!(?value, "path commands expect a list");
         return None;
     };
-
     let mut path = kurbo::BezPath::new();
-
-    for item in items {
-        let Expr::Call(name, args) = item else {
+    for item in items.iter() {
+        if super::super::path_commands::append(&mut path, item).is_none() {
+            tracing::warn!(?item, "invalid path command; discarding path");
             return None;
-        };
-
-        match name.as_str() {
-            "move_to" => {
-                if args.len() != 2 {
-                    return None;
-                }
-                let x = evaluate_expr(&args[0], env).ok()?.as_num();
-                let y = evaluate_expr(&args[1], env).ok()?.as_num();
-                path.move_to((x, y));
-            },
-            "line_to" => {
-                if args.len() != 2 {
-                    return None;
-                }
-                let x = evaluate_expr(&args[0], env).ok()?.as_num();
-                let y = evaluate_expr(&args[1], env).ok()?.as_num();
-                path.line_to((x, y));
-            },
-            "quad_to" => {
-                if args.len() != 4 {
-                    return None;
-                }
-                let x1 = evaluate_expr(&args[0], env).ok()?.as_num();
-                let y1 = evaluate_expr(&args[1], env).ok()?.as_num();
-                let x2 = evaluate_expr(&args[2], env).ok()?.as_num();
-                let y2 = evaluate_expr(&args[3], env).ok()?.as_num();
-                path.quad_to((x1, y1), (x2, y2));
-            },
-            "curve_to" => {
-                if args.len() != 6 {
-                    return None;
-                }
-                let x1 = evaluate_expr(&args[0], env).ok()?.as_num();
-                let y1 = evaluate_expr(&args[1], env).ok()?.as_num();
-                let x2 = evaluate_expr(&args[2], env).ok()?.as_num();
-                let y2 = evaluate_expr(&args[3], env).ok()?.as_num();
-                let x3 = evaluate_expr(&args[4], env).ok()?.as_num();
-                let y3 = evaluate_expr(&args[5], env).ok()?.as_num();
-                path.curve_to((x1, y1), (x2, y2), (x3, y3));
-            },
-            "close" => {
-                if !args.is_empty() {
-                    return None;
-                }
-                path.close_path();
-            },
-            _ => return None,
         }
     }
-
     Some(path)
 }
 

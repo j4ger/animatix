@@ -9,11 +9,12 @@
 //! (merged into the symbol table), plot runtime parameters, and builtins
 //! never flag.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::LazyLock;
 
 use animatix_syntax::ast::Stmt;
+use animatix_syntax::module::Namespace;
 use animatix_syntax::occurrence::{Occurrence, OccurrenceKind};
 use animatix_syntax::token::{Token, TokenKind, byte_to_line_col};
 use animatix_syntax::{builtins, easing};
@@ -67,6 +68,7 @@ pub fn collect_unresolved_variables(
     symbols: &SymbolTable,
     tokens: &[Token],
     source: &str,
+    imported_namespaces: Option<&HashMap<String, Namespace>>,
 ) -> Vec<Diagnostic> {
     let local_exempt = document_exempt_names(stmts, symbols);
     let assignment_targets = collect_assignment_target_names(stmts);
@@ -86,6 +88,12 @@ pub fn collect_unresolved_variables(
         if resolve_scope(occurrences, occurrence).is_some() {
             continue;
         }
+        if is_known_callable_namespace_qualifier(tokens, occurrence, symbols) {
+            continue;
+        }
+        if is_resolved_qualified_value(tokens, occurrence, symbols, imported_namespaces) {
+            continue;
+        }
         // Last resort: the name exists anywhere in this file or its merged
         // imports (actors, lets, components, scenes), or is bound by a bare
         // assignment target (`name = value` acts as a let). File-global, so
@@ -99,7 +107,7 @@ pub fn collect_unresolved_variables(
             continue;
         }
         // A bare identifier immediately after `name:` is a keyword-argument
-        // value (`ease: ease-in-out`, `place: bottom`), and a bare identifier
+        // value (`ease: ease_in_out`, `place: bottom`), and a bare identifier
         // immediately before `:` is a keyword-argument name (`[intensity:
         // 1.05]`) — modifier/enum vocabulary, not variable reads.
         if is_keyword_argument_token(tokens, occurrence) {
@@ -127,28 +135,24 @@ pub fn collect_unresolved_variables(
     diagnostics
 }
 
-/// The document-independent half of the exemption set: builtins (functions,
-/// colors, the time variables), easing curves in both spellings, transition ids
-/// used bare inside modifier lists, anchor / alignment enums and action
-/// particles.
+/// The document-independent half of the exemption set: standard callable
+/// names, colors, time variables, easing curves, transition ids used bare in
+/// modifier lists, and anchor/alignment enums.
 ///
 /// Built once per process on purpose. This pass re-runs on every keystroke, and
 /// the whole set is vocabulary the language declares — nothing in it can depend
 /// on the file being edited, so building it per update allocated ~200 `String`s
 /// to answer a constant question.
 static STATIC_EXEMPT: LazyLock<HashSet<String>> = LazyLock::new(|| {
-    let mut exempt: HashSet<String> = [
-        builtins::MATH_FUNCTIONS,
-        builtins::LIST_FUNCTIONS,
-        builtins::COLOR_CONSTRUCTOR_FUNCTIONS,
-        builtins::FORMAT_FUNCTIONS,
-        builtins::COLOR_NAMES,
-        builtins::COLOR_NAMESPACES,
-    ]
-    .concat()
-    .into_iter()
-    .map(String::from)
-    .collect();
+    let mut exempt: HashSet<String> = [builtins::COLOR_NAMES, builtins::COLOR_NAMESPACES]
+        .concat()
+        .into_iter()
+        .map(String::from)
+        .collect();
+    for callable in animatix_std::callable::callables() {
+        exempt.insert(callable.name.clone());
+        exempt.insert(callable.qualified_name());
+    }
     for name in [
         "t",
         "pi",
@@ -162,9 +166,6 @@ static STATIC_EXEMPT: LazyLock<HashSet<String>> = LazyLock::new(|| {
         "camera",
         "auto",
         "step",
-        // Action particles (`move target to (x, y)`, `rotate target by 90`).
-        "to",
-        "by",
         // Anchor / alignment enum values.
         "center",
         "top",
@@ -181,22 +182,11 @@ static STATIC_EXEMPT: LazyLock<HashSet<String>> = LazyLock::new(|| {
     ] {
         exempt.insert(name.to_string());
     }
-    // Easing names in both hyphenated (`ease-in-out`) and registry
-    // (`easeinout`) spellings.
+    // Canonical easing identifiers are snake_case.
     for (key, _) in easing::EASING_REGISTRY {
         exempt.insert(key.to_string());
     }
-    for name in [
-        "linear",
-        "ease-in",
-        "ease-out",
-        "ease-in-out",
-        "easein",
-        "easeout",
-        "easeinout",
-    ] {
-        exempt.insert(name.to_string());
-    }
+    exempt.insert("linear".to_string());
     // Transition ids used bare inside modifier lists (`[fade, 300ms]`).
     exempt.extend(animatix_syntax::transition_registry::all_ids().iter().map(|s| (*s).to_string()));
     exempt
@@ -216,7 +206,7 @@ fn document_exempt_names(stmts: &[Stmt], symbols: &SymbolTable) -> HashSet<Strin
 }
 
 /// True when the occurrence's identifier sits in a keyword-argument position:
-/// immediately preceded by `identifier:` (the value, `ease: ease-in-out`) or
+/// immediately preceded by `identifier:` (the value, `ease: ease_in_out`) or
 /// immediately followed by `:` (the name, `[intensity: 1.05]`).
 fn is_keyword_argument_token(tokens: &[Token], occurrence: &Occurrence) -> bool {
     let Some(index) = tokens.iter().position(|t| t.span.start == occurrence.span.start) else {
@@ -228,6 +218,119 @@ fn is_keyword_argument_token(tokens: &[Token], occurrence: &Occurrence) -> bool 
     let followed_by_colon =
         tokens.get(index + 1).is_some_and(|next| matches!(next.kind, TokenKind::Colon));
     preceded_by_name_colon || followed_by_colon
+}
+
+/// A qualified imported value is represented by a variable occurrence for its
+/// final segment (`palette::primary`). Resolve the whole path against imported
+/// namespaces before treating that segment as an unbound bare variable.
+fn is_resolved_qualified_value(
+    tokens: &[Token],
+    occurrence: &Occurrence,
+    symbols: &SymbolTable,
+    imported_namespaces: Option<&HashMap<String, Namespace>>,
+) -> bool {
+    let Some(index) = tokens.iter().position(|token| token.span.start == occurrence.span.start)
+    else {
+        return false;
+    };
+    let mut start = index;
+    while start >= 2
+        && matches!(&tokens[start - 1].kind, TokenKind::ColonColon)
+        && matches!(&tokens[start - 2].kind, TokenKind::Ident(_))
+    {
+        start -= 2;
+    }
+    if start == index {
+        return false;
+    }
+
+    let path = tokens[start..=index]
+        .iter()
+        .filter_map(|token| match &token.kind {
+            TokenKind::Ident(name) => Some(name.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("::");
+    symbols.resolve_namespaced_label(&path).is_some()
+        || imported_namespaces.is_some_and(|namespaces| namespace_exports_value(namespaces, &path))
+}
+
+/// A known callable namespace segment is not a variable read when it begins
+/// an explicitly qualified path (`std::floor(...)`, `demo::throb(...)`). Keep
+/// this tied to registered callable namespaces so unknown prefixes still
+/// receive unresolved-name diagnostics.
+fn is_known_callable_namespace_qualifier(
+    tokens: &[Token],
+    occurrence: &Occurrence,
+    symbols: &SymbolTable,
+) -> bool {
+    let Some(index) = tokens.iter().position(|token| token.span.start == occurrence.span.start)
+    else {
+        return false;
+    };
+    let mut start = index;
+    while start >= 2
+        && matches!(&tokens[start - 1].kind, TokenKind::ColonColon)
+        && matches!(&tokens[start - 2].kind, TokenKind::Ident(_))
+    {
+        start -= 2;
+    }
+
+    let mut segment_index = start;
+    let mut segments = Vec::new();
+    let mut occurrence_segment = None;
+    while let Some(Token {
+        kind: TokenKind::Ident(name),
+        ..
+    }) = tokens.get(segment_index)
+    {
+        if segment_index == index {
+            occurrence_segment = Some(segments.len());
+        }
+        segments.push(name.as_str());
+        if !matches!(
+            tokens.get(segment_index + 1).map(|token| &token.kind),
+            Some(TokenKind::ColonColon)
+        ) {
+            break;
+        }
+        segment_index += 2;
+    }
+
+    let Some(occurrence_segment) = occurrence_segment else {
+        return false;
+    };
+    if occurrence_segment + 1 >= segments.len() {
+        return false;
+    }
+    let namespace = segments[..=occurrence_segment].join("::");
+    let namespace_prefix = format!("{namespace}::");
+    symbols.functions.iter().any(|name| name.starts_with(&namespace_prefix))
+}
+
+fn namespace_exports_value(namespaces: &HashMap<String, Namespace>, path: &str) -> bool {
+    let mut parts = path.split("::");
+    let Some(first) = parts.next() else {
+        return false;
+    };
+    let Some(mut namespace) = namespaces.get(first) else {
+        return false;
+    };
+    let Some(mut next) = parts.next() else {
+        return false;
+    };
+    loop {
+        if let Some(segment) = parts.next() {
+            let Some(nested) = namespace.namespaces.get(next) else {
+                return false;
+            };
+            namespace = nested;
+            next = segment;
+        } else {
+            return namespace.exports.contains_key(next);
+        }
+    }
 }
 
 /// Walk all actor declarations, collecting plot runtime-parameter names.
@@ -260,7 +363,9 @@ fn collect_assignment_target_names(stmts: &[Stmt]) -> HashSet<String> {
 
 #[cfg(test)]
 mod tests {
+    use super::collect_unresolved_variables;
     use crate::Analyzer;
+    use crate::symbol_table::SymbolTable;
 
     fn unresolved(source: &str) -> Vec<String> {
         Analyzer::new(source)
@@ -284,7 +389,7 @@ mod tests {
         let source = r#"let accent = rgb(1, 0, 0)
 box: Rect, size: (10, 10)
 #0s
-fade-in box [1s]
+fade_in(target: box, duration: 1s)
 always {
   half = accent + t
   clamped = clamp(half, 0, 1)
@@ -297,6 +402,42 @@ always {
             "bound/builtin names must not flag: {diags:?}",
             diags = unresolved(source)
         );
+    }
+
+    #[test]
+    fn explicit_std_namespace_does_not_flag_as_an_unresolved_variable() {
+        let source = "let rounded = std::floor(1.5)\n";
+        let diagnostics = unresolved(source);
+        assert!(diagnostics.is_empty(), "qualified standard callable flagged: {diagnostics:?}");
+    }
+
+    #[test]
+    fn registered_extension_namespace_resolves_but_unknown_prefix_still_warns() {
+        fn unresolved_with_function(source: &str, function: &str) -> Vec<String> {
+            let parsed = animatix_syntax::parser::parse_source_complete(source);
+            let statements = parsed.ast.expect("source parses");
+            let mut symbols = SymbolTable::default();
+            symbols.functions.insert(function.to_string());
+            collect_unresolved_variables(
+                &statements,
+                &parsed.occurrences,
+                &symbols,
+                &parsed.tokens,
+                source,
+                None,
+            )
+            .into_iter()
+            .map(|diagnostic| diagnostic.message)
+            .collect()
+        }
+
+        assert!(
+            unresolved_with_function("let value = demo::scale(2)\n", "demo::scale").is_empty(),
+            "a registered callable namespace is not an unresolved variable"
+        );
+        let unknown = unresolved_with_function("let value = ghost::scale(2)\n", "demo::scale");
+        assert_eq!(unknown.len(), 1, "unknown namespace must stay visible: {unknown:?}");
+        assert!(unknown[0].contains("ghost"), "{unknown:?}");
     }
 
     #[test]
@@ -352,6 +493,39 @@ always {
             .filter(|d| d.code.as_deref() == Some("unresolved-variable"))
             .collect();
         assert!(diags.is_empty(), "imported bindings must not flag: {diags:?}");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn aliased_pub_let_values_resolve_by_qualified_path() {
+        let dir = std::env::temp_dir().join(format!(
+            "animatix-unresolved-qualified-import-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let lib_path = dir.join("lib.amx");
+        std::fs::write(&lib_path, "pub let primary = rgb(1, 0, 0)\n").expect("write lib");
+
+        let main_path = dir.join("main.amx");
+        let source = r#"import "lib.amx" as palette
+valid: Rect, size: (10, 10), color: palette::primary
+invalid: Rect, size: (10, 10), color: palette::missing
+"#;
+        std::fs::write(&main_path, source).expect("write main");
+        let mut analyzer = crate::Analyzer::new_with_path(source, Some(main_path));
+        analyzer.merge_import_symbols();
+        let diags: Vec<_> = analyzer
+            .diagnostics()
+            .into_iter()
+            .filter(|d| d.code.as_deref() == Some("unresolved-variable"))
+            .collect();
+        assert_eq!(diags.len(), 1, "only missing namespace exports should warn: {diags:?}");
+        assert!(diags[0].message.contains("'missing'"), "{diags:?}");
 
         std::fs::remove_dir_all(&dir).ok();
     }

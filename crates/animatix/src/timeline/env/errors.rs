@@ -16,6 +16,9 @@ impl fmt::Display for EvalError {
             EvalError::UnsupportedIndex => {
                 write!(f, "Unsupported runtime index expression")
             },
+            EvalError::InvalidActorIndex(value) => {
+                write!(f, "actor array index must be a non-negative integer, got {value}")
+            },
             EvalError::UnsupportedConstruct(name) => {
                 write!(f, "Unsupported runtime construct expression: {}", name)
             },

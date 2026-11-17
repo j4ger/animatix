@@ -77,7 +77,7 @@ pub(super) fn seed_namespace_environment(
     namespace: &crate::module::Namespace,
 ) {
     for (name, expr) in &namespace.exports {
-        let key = format!("{prefix}.{name}");
+        let key = format!("{prefix}::{name}");
         match evaluate_expr(expr, env) {
             Ok(value) => {
                 env.set(&key, value);
@@ -96,6 +96,6 @@ pub(super) fn seed_namespace_environment(
     }
 
     for (alias, nested) in &namespace.namespaces {
-        seed_namespace_environment(env, diagnostics, &format!("{prefix}.{alias}"), nested);
+        seed_namespace_environment(env, diagnostics, &format!("{prefix}::{alias}"), nested);
     }
 }

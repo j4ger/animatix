@@ -227,8 +227,7 @@ fn plugin_status_manifests_ui(
         for source in &snapshot.sources {
             let primitives = source.manifest.primitives.len();
             let properties = source.manifest.properties.len();
-            let actions = source.manifest.actions.len();
-            let functions = source.manifest.functions.len();
+            let functions = source.manifest.callables.len();
             let services = source.manifest.services.len();
             egui::Frame::new()
                 .fill(theme.palette.surface.widget)
@@ -257,7 +256,6 @@ fn plugin_status_manifests_ui(
                     ui.horizontal_wrapped(|ui| {
                         capability_badge(ui, "P", primitives, theme);
                         capability_badge(ui, "Props", properties, theme);
-                        capability_badge(ui, "Actions", actions, theme);
                         capability_badge(ui, "Fns", functions, theme);
                         capability_badge(ui, "Svcs", services, theme);
                     });

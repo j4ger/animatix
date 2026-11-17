@@ -239,6 +239,57 @@ fn color_arg(name: &str, value: &Value) -> Result<[f64; 4], EvalError> {
 
 /// Register the built-in expression constants and functions into `env`.
 pub fn load_standard_library(env: &mut Environment) {
+    let standard = standard_environment();
+    let mut mutated = false;
+    if let Some(values) = standard.base.as_ref() {
+        // Keep the immutable stdlib in the shared base layer. Build-time
+        // evaluation clones Environment frequently; copying these entries into
+        // its override map made each clone duplicate the full stdlib.
+        if let Some(base) = &env.base {
+            if !Arc::ptr_eq(base, values) {
+                let mut merged = (**base).clone();
+                merged.extend(values.iter().map(|(name, value)| (name.clone(), value.clone())));
+                env.base = Some(Arc::new(merged));
+                mutated = true;
+            }
+        } else {
+            env.base = Some(Arc::clone(values));
+            mutated = true;
+        }
+
+        // Preserve the previous registration precedence: a pre-existing
+        // override with a standard name was replaced by the standard binding.
+        let shadowed = env
+            .overrides
+            .keys()
+            .filter(|name| values.contains_key(*name))
+            .cloned()
+            .collect::<Vec<_>>();
+        for name in shadowed {
+            env.overrides.remove(&name);
+            mutated = true;
+        }
+    }
+    if env.callable_descriptors.is_empty() {
+        env.callable_descriptors = Arc::clone(&standard.callable_descriptors);
+        mutated = true;
+    } else if !Arc::ptr_eq(&env.callable_descriptors, &standard.callable_descriptors)
+        && standard.callable_descriptors.iter().any(|(name, descriptor)| {
+            env.callable_descriptors
+                .get(name)
+                .is_none_or(|current| !Arc::ptr_eq(current, descriptor))
+        })
+    {
+        Arc::make_mut(&mut env.callable_descriptors)
+            .extend(standard.callable_descriptors.iter().map(|(k, v)| (k.clone(), Arc::clone(v))));
+        mutated = true;
+    }
+    if mutated {
+        env.mark_mutated();
+    }
+}
+
+fn populate_standard_library(env: &mut Environment) {
     register_constants(env);
     register_numeric_fns(env);
     register_easing_fns(env);
@@ -251,6 +302,68 @@ pub fn load_standard_library(env: &mut Environment) {
     register_rgb_constructors(env);
     register_vector_constructors(env);
     register_hsl_constructors(env);
+    super::path_commands::register(env);
+    register_standard_callable_contracts(env);
+}
+
+/// Start an isolated lexical environment with a shared standard-library base.
+/// Function calls can use this without allocating closures and cloning the
+/// catalog again for every sample of a plot or modifier.
+pub(crate) fn standard_environment() -> Environment {
+    let standard = standard_library_base();
+    let mut env = Environment::with_base(Arc::clone(&standard.values));
+    env.callable_descriptors = Arc::clone(&standard.contracts);
+    env
+}
+
+struct StandardLibraryBase {
+    values: Arc<super::env::EnvMap>,
+    contracts:
+        Arc<std::collections::HashMap<String, Arc<animatix_core::callable::CallableDescriptor>>>,
+}
+
+fn standard_library_base() -> &'static StandardLibraryBase {
+    static STANDARD: std::sync::OnceLock<StandardLibraryBase> = std::sync::OnceLock::new();
+    STANDARD.get_or_init(|| {
+        let mut env = Environment::new();
+        populate_standard_library(&mut env);
+        StandardLibraryBase {
+            values: Arc::new(env.overrides),
+            contracts: env.callable_descriptors,
+        }
+    })
+}
+
+/// Whether this lexical name still refers to its canonical standard function.
+/// The identity check borrows both maps; it does not allocate an environment
+/// or a qualified-name string on the frame path.
+pub(crate) fn is_standard_callable(name: &str, env: &Environment) -> bool {
+    let standard = standard_library_base();
+    let canonical = name.strip_prefix("std::").unwrap_or(name);
+    if !env.let_scopes.borrow().is_empty() {
+        // Scoped bindings can shadow the standard name. `get_ref` deliberately
+        // cannot borrow values held in the interior-mutability scope stack.
+        return match (env.get(name), standard.values.get(canonical)) {
+            (Some(Value::NativeFn(actual)), Some(Value::NativeFn(expected))) => {
+                Arc::ptr_eq(&actual, expected)
+            },
+            _ => false,
+        };
+    }
+    match (env.get_ref(name), standard.values.get(canonical)) {
+        (Some(Value::NativeFn(actual)), Some(Value::NativeFn(expected))) => {
+            Arc::ptr_eq(actual, expected)
+        },
+        _ => false,
+    }
+}
+
+fn register_standard_callable_contracts(env: &mut Environment) {
+    for descriptor in animatix_std::callable::callables() {
+        if let Some(Value::NativeFn(call)) = env.get(&descriptor.name) {
+            env.register_callable(descriptor.clone(), call);
+        }
+    }
 }
 
 /// Mathematical and time constants (`PI`, `TAU`, `E`, …).
@@ -309,15 +422,13 @@ fn register_easing_fns(env: &mut Environment) {
     register_num1!(env, "ease_in", |t| { apply_easing(t as f32, Easing::EaseIn) as f64 });
     register_num1!(env, "ease_out", |t| { apply_easing(t as f32, Easing::EaseOut) as f64 });
     register_num1!(env, "ease_in_out", |t| { apply_easing(t as f32, Easing::EaseInOut) as f64 });
-    register_num1!(env, "bounce", |t| { apply_easing(t as f32, Easing::Bounce) as f64 });
+    register_num1!(env, "bounce_in", |t| { apply_easing(t as f32, Easing::Bounce) as f64 });
     register_num1!(env, "elastic", |t| { apply_easing(t as f32, Easing::Elastic) as f64 });
     register_num1!(env, "back", |t| { apply_easing(t as f32, Easing::Back) as f64 });
     register_num1!(env, "expo", |t| { apply_easing(t as f32, Easing::Expo) as f64 });
     register_num1!(env, "expo_out", |t| { apply_easing(t as f32, Easing::ExpoOut) as f64 });
     register_num1!(env, "expo_in_out", |t| { apply_easing(t as f32, Easing::ExpoInOut) as f64 });
-    // The default spring; `ease: spring(damping, frequency)` is where the
-    // parameters live, and an `always` block can write the oscillator itself.
-    register_num1!(env, "spring", |t| {
+    register_num1!(env, "spring_curve", |t| {
         apply_easing(
             t as f32,
             Easing::Spring {
@@ -426,21 +537,6 @@ fn register_series_fn(env: &mut Environment) {
         "sum_range",
         Value::NativeFn(Arc::new(|args, env| {
             expect_arg_count("sum_range", args, 3)?;
-            let (params, body, captures) = match &args[0] {
-                Value::Closure(params, body, captures) => (params, body, captures),
-                other => {
-                    return Err(EvalError::TypeMismatch(format!(
-                        "sum_range expects a closure as first argument, got {:?}",
-                        other
-                    )));
-                },
-            };
-            if params.len() != 1 {
-                return Err(EvalError::TypeMismatch(format!(
-                    "sum_range expects a single-parameter closure, got {} parameters",
-                    params.len()
-                )));
-            }
             let lo = expect_num("sum_range", &args[1])?;
             let hi = expect_num("sum_range", &args[2])?;
             if lo < 0.0 || lo.fract() != 0.0 || hi < 0.0 || hi.fract() != 0.0 {
@@ -454,6 +550,15 @@ fn register_series_fn(env: &mut Environment) {
                 return Err(EvalError::TypeMismatch(
                     "sum_range exceeded 100,000 iterations".to_string(),
                 ));
+            }
+            let Value::Closure(params, body, captures) = &args[0] else {
+                return sum_range_callable(&args[0], lo, hi, env);
+            };
+            if params.len() != 1 {
+                return Err(EvalError::TypeMismatch(format!(
+                    "sum_range expects a single-parameter closure, got {} parameters",
+                    params.len()
+                )));
             }
 
             // Build the child env once: caller base + lexical captures, then
@@ -490,6 +595,49 @@ fn register_series_fn(env: &mut Environment) {
             Ok(Value::Num(acc))
         })),
     );
+}
+
+fn sum_range_callable(
+    function: &Value,
+    lo: u64,
+    hi: u64,
+    env: &Environment,
+) -> Result<Value, EvalError> {
+    let parameter_count = match function {
+        Value::UserFn { params, .. } => Some(params.len()),
+        Value::RegisteredFn { descriptor, .. } => {
+            Some(descriptor.params.iter().filter(|param| !param.variadic).count())
+        },
+        Value::NativeFn(_) => None,
+        other => {
+            return Err(EvalError::TypeMismatch(format!(
+                "sum_range expects a function as its first argument, got {other:?}"
+            )));
+        },
+    };
+    if let Some(count) = parameter_count
+        && count != 1
+    {
+        return Err(EvalError::TypeMismatch(format!(
+            "sum_range expects a single-parameter function, got {count} parameters"
+        )));
+    }
+    let mut total = 0.0;
+    for value in lo..=hi {
+        let result = crate::timeline::utils::evaluate_callable_value(
+            function.clone(),
+            vec![(None, Value::Num(value as f64))],
+            "sum_range callback",
+            env,
+        )?;
+        let Value::Num(result) = result else {
+            return Err(EvalError::TypeMismatch(format!(
+                "sum_range callback must return a number, got {result:?}"
+            )));
+        };
+        total += result;
+    }
+    Ok(Value::Num(total))
 }
 
 /// Property-state query: is the referenced property currently between

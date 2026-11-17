@@ -47,9 +47,9 @@ animatix audit scene.amx --delta target/review/before.json --evidence target/rev
 
 ### 常见源码问题
 
-- 数组元素通过 `for item, i in list` 和 `name[i]: Type` 生成；动作使用具体索引
-  （例如 `fade-in bars[0] [300ms]`），不要使用 `bars[*]` 通配符。
-- 第一个关键帧前声明且未显式设置 `opacity` 的 actor 默认不可见，需要入场动作
+- 数组元素通过 `for item, i in list` 和 `name[i]: Type` 生成；动画调用使用具体索引
+  （例如 `fade_in(target: bars[0], duration: 300ms)`），不要使用 `bars[*]` 通配符。
+- 第一个关键帧前声明且未显式设置 `opacity` 的 actor 默认不可见，需要入口调用
   或显式 opacity；在关键帧内声明则默认可见。
 - `camera.zoom` 以场景中心缩放，可能把边缘元素推离画布。结合证据图判断裁切是否刻意。
 

@@ -9,7 +9,7 @@
 //! - vector paths, text (`Text` + `Code` render kinds), a highlight layer, and a best-effort image
 //!   command resolved from the asset cache
 //! - a native expression function (`scale`)
-//! - a native action (`throb`) that writes keyframes through the host API
+//! - a native function (`throb`) that constructs an inert timeline plan
 //! - a typed service with an explicit destructor
 //!
 //! Build with `cargo build -p animatix-plugin-demo`, then pass the resulting
@@ -23,17 +23,18 @@
 use std::ffi::{c_char, c_void};
 
 use animatix_plugin_api::{
-    NATIVE_CAP_MORPHABLE_PATHS, NATIVE_CAP_VECTOR_PATHS, NATIVE_CAP_VECTOR_REVEAL_TARGET,
-    NATIVE_EASING_OUT, NATIVE_EFFECT_PARAM_KIND_F32, NATIVE_PATH_ELLIPSE, NATIVE_PATH_LINE,
+    NATIVE_CALLABLE_BUILD, NATIVE_CALLABLE_BUILD_AND_FRAME, NATIVE_CAP_MORPHABLE_PATHS,
+    NATIVE_CAP_VECTOR_PATHS, NATIVE_CAP_VECTOR_REVEAL_TARGET, NATIVE_EASING_OUT,
+    NATIVE_EFFECT_PARAM_KIND_F32, NATIVE_PATH_ELLIPSE, NATIVE_PATH_LINE,
     NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC, NATIVE_PROPERTY_ENUM,
     NATIVE_PROPERTY_F32, NATIVE_PROPERTY_STRING, NATIVE_PROPERTY_VEC2, NATIVE_RESIZE_MODE_SIZE,
     NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_TEXT_KIND_CODE, NATIVE_TEXT_KIND_TEXT,
-    NATIVE_VALUE_ENUM, NATIVE_VALUE_NUM, NATIVE_VALUE_STRING, NATIVE_VALUE_VEC2, NativeAction,
-    NativeActionContext, NativeActionParam, NativeEffectDescriptor, NativeEffectParam,
-    NativeEffectPass, NativeFunctionContext, NativeFunctionDescriptor, NativeHighlightCommand,
-    NativeImageCommand, NativeModifierValue, NativePathCommand, NativePluginApi, NativePrimitive,
-    NativePrimitiveEvaluateCtx, NativePropertyDescriptor, NativeService, NativeTextCommand,
-    NativeValue,
+    NATIVE_VALUE_ACTOR, NATIVE_VALUE_DURATION, NATIVE_VALUE_ENUM, NATIVE_VALUE_NUM,
+    NATIVE_VALUE_STRING, NATIVE_VALUE_TIMELINE, NATIVE_VALUE_VEC2, NativeCallableContext,
+    NativeCallableDescriptor, NativeCallableParam, NativeEasing, NativeEffectDescriptor,
+    NativeEffectParam, NativeEffectPass, NativeHighlightCommand, NativeImageCommand,
+    NativePathCommand, NativePluginApi, NativePrimitive, NativePrimitiveEvaluateCtx,
+    NativePropertyDescriptor, NativeService, NativeTextCommand, NativeValue,
 };
 
 /// WGSL for the demo `Pixelate` effect: one pass that samples the centre of
@@ -128,7 +129,7 @@ pub unsafe extern "C" fn animatix_plugin_install(
     if status != NATIVE_STATUS_OK {
         return status;
     }
-    let status = register_throb_action(api, host);
+    let status = register_throb_function(api, host);
     if status != NATIVE_STATUS_OK {
         return status;
     }
@@ -206,28 +207,22 @@ fn register_properties(api: &NativePluginApi, host: *mut c_void) -> i32 {
 
 /// Register the `scale` native expression function.
 fn register_scale_function(api: &NativePluginApi, host: *mut c_void) -> i32 {
-    // ── Native expression function ─────────────────────────────────────────
     let function_params = [
-        NativeActionParam {
-            name: c"value".as_ptr(),
-            description: c"Number to scale".as_ptr(),
-            type_info: c"Num".as_ptr(),
-        },
-        NativeActionParam {
-            name: c"factor".as_ptr(),
-            description: c"Scale factor".as_ptr(),
-            type_info: c"Num".as_ptr(),
-        },
+        parameter(c"value", c"Num", None),
+        parameter(c"factor", c"Num", None),
     ];
     unsafe {
-        (api.register_function)(
+        (api.register_callable)(
             host,
-            NativeFunctionDescriptor {
+            NativeCallableDescriptor {
+                namespace: c"demo".as_ptr(),
                 name: c"scale".as_ptr(),
                 params: function_params.as_ptr(),
                 param_len: function_params.len(),
                 return_type: c"Num".as_ptr(),
+                phase: NATIVE_CALLABLE_BUILD_AND_FRAME,
                 help: c"Returns value * factor".as_ptr(),
+                category: c"Native".as_ptr(),
                 callback: scale,
             },
         )
@@ -269,25 +264,39 @@ fn register_pulse_primitive(api: &NativePluginApi, host: *mut c_void) -> i32 {
     unsafe { (api.register_primitive)(host, primitive) }
 }
 
-/// Register the `throb` native action with its one named modifier.
-fn register_throb_action(api: &NativePluginApi, host: *mut c_void) -> i32 {
-    // ── Native action with one named modifier ──────────────────────────────
-    let action_modifiers = [NativeActionParam {
-        name: c"strength".as_ptr(),
-        description: c"Peak glow reached by the throb".as_ptr(),
-        type_info: c"Num".as_ptr(),
-    }];
-    let action = NativeAction {
-        name: c"throb".as_ptr(),
-        category: c"Native".as_ptr(),
-        description: c"Pulse the glow property of each target up over 500ms".as_ptr(),
-        params: std::ptr::null(),
-        param_len: 0,
-        modifiers: action_modifiers.as_ptr(),
-        modifier_len: action_modifiers.len(),
-        execute: throb,
+/// Register the `throb` function with a typed Actor target and Duration.
+fn register_throb_function(api: &NativePluginApi, host: *mut c_void) -> i32 {
+    let duration = NativeValue {
+        tag: NATIVE_VALUE_DURATION,
+        num: 0.5,
+        ..NativeValue::default()
     };
-    unsafe { (api.register_action)(host, action) }
+    let strength = NativeValue {
+        tag: NATIVE_VALUE_NUM,
+        num: 1.0,
+        ..NativeValue::default()
+    };
+    let params = [
+        parameter(c"target", c"Actor", None),
+        parameter(c"duration", c"Duration", Some(&duration)),
+        parameter(c"strength", c"Num", Some(&strength)),
+    ];
+    unsafe {
+        (api.register_callable)(
+            host,
+            NativeCallableDescriptor {
+                namespace: c"demo".as_ptr(),
+                name: c"throb".as_ptr(),
+                params: params.as_ptr(),
+                param_len: params.len(),
+                return_type: c"Timeline".as_ptr(),
+                phase: NATIVE_CALLABLE_BUILD,
+                help: c"Construct a glow animation for one actor".as_ptr(),
+                category: c"Native".as_ptr(),
+                callback: throb,
+            },
+        )
+    }
 }
 
 /// Register the plugin-authored `Pixelate` post-processing effect.
@@ -345,7 +354,7 @@ fn provide_demo_service(api: &NativePluginApi, host: *mut c_void) -> i32 {
 /// `ctx` and `args` must be the callback context and argument array passed by
 /// the Animatix host; `out` must point to writable `NativeValue` storage.
 unsafe extern "C" fn scale(
-    _ctx: *mut NativeFunctionContext,
+    _ctx: *mut NativeCallableContext,
     args: *const NativeValue,
     arg_len: usize,
     out: *mut NativeValue,
@@ -701,7 +710,7 @@ fn emit_image_stamp(
     }
 }
 
-/// Execute callback for the `throb` demo action.
+/// Build the inert glow plan returned by `throb`.
 ///
 /// Writes a `glow` keyframe on every target over a fixed 500ms window using
 /// the named `strength` modifier as the peak value.
@@ -709,53 +718,55 @@ fn emit_image_stamp(
 /// # Safety
 ///
 /// `ctx` must be the callback context passed by the Animatix host.
-unsafe extern "C" fn throb(ctx: *mut NativeActionContext) -> i32 {
-    let ctx = unsafe { &*ctx };
-    let mut strength: f64 = 1.0;
-    let modifier_count = unsafe { (ctx.get_modifier_count)(ctx.host) };
-    for index in 0..modifier_count {
-        let mut modifier = NativeModifierValue {
-            name: std::ptr::null(),
-            value: NativeValue::default(),
-        };
-        if unsafe { (ctx.get_modifier)(ctx.host, index, &mut modifier) } != NATIVE_STATUS_OK {
-            continue;
-        }
-        if modifier.name.is_null() {
-            continue;
-        }
-        let name = unsafe { read_c_string(modifier.name) }.unwrap_or_default();
-        if name == "strength" && modifier.value.tag == NATIVE_VALUE_NUM {
-            strength = modifier.value.num;
-        }
+unsafe extern "C" fn throb(
+    ctx: *mut NativeCallableContext,
+    args: *const NativeValue,
+    arg_len: usize,
+    out: *mut NativeValue,
+) -> i32 {
+    if ctx.is_null() || args.is_null() || out.is_null() || arg_len != 3 {
+        return NATIVE_STATUS_TYPE_ERROR;
     }
-
-    let duration_ms = 500u64;
-    let target_count = unsafe { (ctx.get_target_count)(ctx.host) };
-    for index in 0..target_count {
-        let mut target: *const c_char = std::ptr::null();
-        if unsafe { (ctx.get_target)(ctx.host, index, &mut target) } != NATIVE_STATUS_OK {
-            continue;
-        }
-        let value = NativeValue {
-            tag: NATIVE_VALUE_NUM,
-            num: strength.clamp(0.0, 1.0),
+    let ctx = unsafe { &*ctx };
+    let args = unsafe { std::slice::from_raw_parts(args, arg_len) };
+    if args[0].tag != NATIVE_VALUE_ACTOR
+        || args[1].tag != NATIVE_VALUE_DURATION
+        || args[2].tag != NATIVE_VALUE_NUM
+    {
+        return NATIVE_STATUS_TYPE_ERROR;
+    }
+    let mut glow_id = 0;
+    let status = unsafe { (ctx.get_property_id)(ctx.host, c"glow".as_ptr(), &mut glow_id) };
+    if status != NATIVE_STATUS_OK {
+        return status;
+    }
+    let value = NativeValue {
+        tag: NATIVE_VALUE_NUM,
+        num: args[2].num.clamp(0.0, 1.0),
+        ..NativeValue::default()
+    };
+    let status = unsafe {
+        (ctx.append_property_op)(
+            ctx.host,
+            args[0].handle,
+            glow_id,
+            value,
+            0.0,
+            args[1].num,
+            NativeEasing {
+                code: NATIVE_EASING_OUT,
+                ..NativeEasing::default()
+            },
+        )
+    };
+    if status != NATIVE_STATUS_OK {
+        return status;
+    }
+    unsafe {
+        *out = NativeValue {
+            tag: NATIVE_VALUE_TIMELINE,
             ..NativeValue::default()
         };
-        let status = unsafe {
-            (ctx.write_keyframe)(
-                ctx.host,
-                target,
-                c"glow".as_ptr(),
-                value,
-                ctx.time_ms as u64,
-                ctx.time_ms as u64 + duration_ms,
-                NATIVE_EASING_OUT,
-            )
-        };
-        if status != NATIVE_STATUS_OK {
-            return status;
-        }
     }
     NATIVE_STATUS_OK
 }
@@ -811,4 +822,19 @@ unsafe fn read_c_string(ptr: *const c_char) -> Option<String> {
         return None;
     }
     unsafe { std::ffi::CStr::from_ptr(ptr) }.to_str().ok().map(str::to_owned)
+}
+
+fn parameter(
+    name: &std::ffi::CStr,
+    ty: &std::ffi::CStr,
+    default: Option<&NativeValue>,
+) -> NativeCallableParam {
+    NativeCallableParam {
+        name: name.as_ptr(),
+        type_info: ty.as_ptr(),
+        help: std::ptr::null(),
+        default_value: default.map_or(std::ptr::null(), |value| value as *const NativeValue),
+        optional: default.is_some(),
+        variadic: false,
+    }
 }

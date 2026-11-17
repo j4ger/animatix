@@ -1,9 +1,13 @@
 //! Diagnostic collection from parse errors and semantic checks.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::sync::LazyLock;
 
+use animatix_core::callable::{CallableDescriptor, CallableType};
 use animatix_syntax::ast::*;
 use animatix_syntax::parser::ParseError;
+use animatix_syntax::token::{Token, TokenKind};
+use animatix_syntax::visit::AstVisitor;
 
 use crate::symbol_table::SymbolTable;
 
@@ -25,8 +29,8 @@ pub struct Diagnostic {
     /// An optional error code for categorisation.
     pub code: Option<std::sync::Arc<str>>,
     /// The identifier the diagnostic is about, when the producer recorded
-    /// one (`undefined-label` → the missing label, `unknown-action` → the
-    /// verb, `unused-label` → the declaration's name).
+    /// one (`undefined-label` → the missing label, `unknown-callable` → the
+    /// function, `unused-label` → the declaration's name).
     ///
     /// Consumers must read this instead of re-parsing the English message.
     pub subject: Option<std::sync::Arc<str>>,
@@ -221,6 +225,14 @@ pub fn collect_diagnostics_with_config(
                 .into_iter()
                 .map(|d| convert_syntax_diagnostic_with_index(source, &line_index, d)),
         );
+        diagnostics.extend(collect_callable_diagnostics(
+            stmts,
+            symbols,
+            source,
+            tokens,
+            &[],
+            false,
+        ));
     }
 
     // 2b. Suppress semantic warnings that share a line with a parse error.
@@ -228,7 +240,7 @@ pub fn collect_diagnostics_with_config(
     // Error recovery (chumsky `skip_then_retry_until`) resumes at the next
     // statement start, so the tokens it skipped can still be re-read as a
     // malformed statement — e.g. a garbage line `@@@ nope @@@` parses as an
-    // action `nope`, yielding a phantom "unknown action". That warning is an
+    // call `nope`, yielding a phantom "unknown callable". That warning is an
     // artefact of the recovery, not a real problem with the source, so drop
     // warnings on any line that already carries a parse error. Errors are
     // never suppressed.
@@ -262,6 +274,211 @@ pub fn collect_diagnostics_with_config(
     });
 
     diagnostics
+}
+
+/// Validate callable names and explicit actor targets in expression calls.
+/// The standard catalogue supplies built-in signatures; the caller may add
+/// plugin descriptors when it has a manifest.
+pub(crate) fn collect_callable_diagnostics(
+    stmts: &[Stmt],
+    symbols: &SymbolTable,
+    source: &str,
+    tokens: &[Token],
+    extensions: &[CallableDescriptor],
+    extensions_only: bool,
+) -> Vec<Diagnostic> {
+    let mut actor_params = HashSet::new();
+    animatix_syntax::walk::walk_stmts(stmts, &mut |stmt| {
+        if let Stmt::FnDecl { params, .. } = stmt {
+            for param in params {
+                if matches!(param.param_type.as_ref(), Some(TypeAnnotation::Actor)) {
+                    actor_params.insert(param.name.clone());
+                }
+            }
+        }
+    });
+    let mut visitor = CallableDiagnosticVisitor {
+        symbols,
+        source,
+        tokens,
+        extensions,
+        extensions_only,
+        actor_params,
+        diagnostics: Vec::new(),
+        reported: HashSet::new(),
+    };
+    for stmt in stmts {
+        visitor.visit_stmt(stmt);
+    }
+    visitor.diagnostics
+}
+
+static STANDARD_CALLABLES_BY_NAME: LazyLock<HashMap<&'static str, &'static CallableDescriptor>> =
+    LazyLock::new(|| {
+        animatix_std::callable::callables()
+            .iter()
+            .map(|callable| (callable.name.as_str(), callable))
+            .collect()
+    });
+
+struct CallableDiagnosticVisitor<'a> {
+    symbols: &'a SymbolTable,
+    source: &'a str,
+    tokens: &'a [Token],
+    extensions: &'a [CallableDescriptor],
+    extensions_only: bool,
+    actor_params: HashSet<String>,
+    diagnostics: Vec<Diagnostic>,
+    reported: HashSet<(String, usize)>,
+}
+
+impl CallableDiagnosticVisitor<'_> {
+    fn visit_call(&mut self, callee: &Expr, args: &[CallArgument]) {
+        let Some(name) = callee.callable_name() else {
+            return;
+        };
+        if self.extensions_only {
+            if let Some(descriptor) = self.extensions.iter().find(|c| c.qualified_name() == name) {
+                let (persistence, actor_params) = actor_call_info(descriptor);
+                self.check_actor_arguments(&name, persistence, &actor_params, args);
+            }
+            return;
+        }
+        let callable = self.callable(&name).map(actor_call_info);
+        if !matches!(callee, Expr::Field(..))
+            && callable.is_none()
+            && !self.symbols.functions.contains(&name)
+            && !self.symbols.labels.contains_key(&name)
+            && self.symbols.resolve_namespaced_function(&name).is_none()
+        {
+            self.report_unknown_callable(&name);
+        }
+        let Some(descriptor) = callable else {
+            return;
+        };
+        self.check_actor_arguments(&name, descriptor.0, &descriptor.1, args);
+    }
+
+    fn callable(&self, name: &str) -> Option<&CallableDescriptor> {
+        STANDARD_CALLABLES_BY_NAME
+            .get(name.strip_prefix("std::").unwrap_or(name))
+            .copied()
+            .or_else(|| self.extensions.iter().find(|callable| callable.qualified_name() == name))
+    }
+
+    fn report_unknown_callable(&mut self, name: &str) {
+        let short_name = name.rsplit("::").next().unwrap_or(name);
+        let Some((index, token)) = self.tokens.iter().enumerate().find(|(index, token)| {
+            matches!(&token.kind, TokenKind::Ident(token_name) if token_name == short_name)
+                && self.tokens.get(index + 1).is_some_and(|next| next.kind == TokenKind::LParen)
+        }) else {
+            return;
+        };
+        if !self.reported.insert((name.to_string(), token.span.start)) {
+            return;
+        }
+        let (line, col) = animatix_syntax::token::byte_to_line_col(self.source, token.span.start);
+        let (end_line, end_col) =
+            animatix_syntax::token::byte_to_line_col(self.source, token.span.end);
+        self.diagnostics.push(Diagnostic {
+            severity: DiagnosticSeverity::Warning,
+            line,
+            col,
+            end_line,
+            end_col,
+            message: format!("Unknown callable '{name}'"),
+            code: Some("unknown-callable".into()),
+            subject: Some(name.to_string().into()),
+        });
+        let _ = index;
+    }
+
+    fn check_actor_arguments(
+        &mut self,
+        name: &str,
+        persistence: bool,
+        actor_params: &[(usize, String)],
+        args: &[CallArgument],
+    ) {
+        for (param_index, param_name) in actor_params {
+            let argument = args
+                .iter()
+                .find(|arg| arg.name.as_deref() == Some(param_name.as_str()))
+                .or_else(|| args.iter().filter(|arg| arg.name.is_none()).nth(*param_index));
+            let Some(argument) = argument else { continue };
+            let mut roots = Vec::new();
+            actor_roots(&argument.value, &mut roots);
+            for root in roots {
+                let is_camera = root == "camera" && persistence;
+                if is_camera
+                    || root == "self"
+                    || self.actor_params.contains(root)
+                    || self.symbols.labels.contains_key(root)
+                    || self.symbols.array_labels.contains(root)
+                {
+                    continue;
+                }
+                let span = argument.byte_span.unwrap_or_default();
+                let location = Span::from_byte_span(self.source, span);
+                let code = "undefined-label";
+                if !self.reported.insert((format!("{name}:{root}"), span.start)) {
+                    continue;
+                }
+                self.diagnostics.push(Diagnostic {
+                    severity: DiagnosticSeverity::Warning,
+                    line: location.start_line.saturating_sub(1),
+                    col: location.start_col.saturating_sub(1),
+                    end_line: location.end_line.saturating_sub(1),
+                    end_col: location.end_col.saturating_sub(1),
+                    message: format!("Undefined label: {root}"),
+                    code: Some(code.into()),
+                    subject: Some(root.into()),
+                });
+            }
+        }
+    }
+}
+
+impl<'ast> AstVisitor<'ast> for CallableDiagnosticVisitor<'_> {
+    fn visit_expr(&mut self, expr: &'ast Expr) {
+        if let Expr::Call(callee, args) = expr {
+            self.visit_call(callee, args);
+        }
+        animatix_syntax::visit::walk_expr(self, expr);
+    }
+}
+
+fn actor_call_info(descriptor: &CallableDescriptor) -> (bool, Vec<(usize, String)>) {
+    let persistence = matches!(descriptor.name.as_str(), "persist" | "remove");
+    let actor_params = descriptor
+        .params
+        .iter()
+        .enumerate()
+        .filter(|(_, param)| {
+            param.ty == CallableType::Actor
+                || matches!(&param.ty, CallableType::List(inner) if **inner == CallableType::Actor)
+        })
+        .map(|(index, param)| (index, param.name.clone()))
+        .collect();
+    (persistence, actor_params)
+}
+
+fn actor_roots<'a>(expr: &'a Expr, roots: &mut Vec<&'a str>) {
+    match expr {
+        Expr::Ident(name) => roots.push(name),
+        Expr::Path(parts) | Expr::QualifiedPath(parts) => {
+            if let Some(root) = parts.first() {
+                roots.push(root);
+            }
+        },
+        Expr::Index(base, _) | Expr::Field(base, _) => actor_roots(base, roots),
+        Expr::List(items) => {
+            for item in items {
+                actor_roots(item, roots);
+            }
+        },
+        _ => {},
+    }
 }
 
 /// Convert a syntax-level diagnostic into the analyzer DTO.

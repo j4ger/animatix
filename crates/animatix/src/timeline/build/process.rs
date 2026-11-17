@@ -6,12 +6,12 @@ use std::borrow::Cow;
 use tracing::instrument;
 
 use super::*;
-use crate::ast::{Action, InlineItem, LoopPattern, MatchPattern, Property, Span};
+use crate::ast::{InlineItem, LoopPattern, MatchPattern, Property, Span};
 
 mod indexed_component;
+pub(super) use indexed_component::qualify_child;
 mod loop_modifiers;
 mod scoped_instance;
-pub(super) mod time_scope;
 
 pub(crate) fn bind_loop_var(
     env: &mut Environment,
@@ -23,6 +23,9 @@ pub(crate) fn bind_loop_var(
     match var {
         LoopPattern::Single(name) => {
             env.set(name, value);
+            if name == "t" {
+                env.set_authored_t_binding(true);
+            }
         },
         LoopPattern::Tuple(names) => {
             let components: Vec<Value> = match &value {
@@ -36,6 +39,9 @@ pub(crate) fn bind_loop_var(
             let min_len = names.len().min(components.len());
             for (i, name) in names.iter().enumerate().take(min_len) {
                 env.set(name, components[i].clone());
+            }
+            if names.iter().any(|name| name == "t") {
+                env.set_authored_t_binding(true);
             }
             if names.len() != components.len() {
                 diagnostics.push(
@@ -109,7 +115,10 @@ impl Timeline {
                             target,
                             property,
                             value,
-                            modifiers,
+                            &crate::timeline::plan_lowerer::scale_modifiers(
+                                modifiers,
+                                self.plan_clock_rate,
+                            ),
                             *easing,
                             time_ms,
                             *span,
@@ -167,9 +176,6 @@ impl Timeline {
                 } => {
                     self.process_stagger(time_ms, modifiers, body, parent_label, diagnostics);
                 },
-                Stmt::Action(action, span) => {
-                    self.process_action_stmt(action, *span, time_ms, diagnostics)
-                },
                 Stmt::LetDecl { name, value, .. } => {
                     self.process_let_decl_stmt(name, value, time_ms, diagnostics)
                 },
@@ -211,11 +217,9 @@ impl Timeline {
                     body,
                     span,
                     instance_scope,
-                    time_scope,
                 } => self.process_block_stmt(
                     body,
                     instance_scope.as_ref(),
-                    time_scope.as_ref(),
                     *span,
                     time_ms,
                     parent_label,
@@ -230,13 +234,8 @@ impl Timeline {
                         "'return' is only valid inside a pure function body".to_string(),
                     ));
                 },
-                Stmt::Expr(..) => {
-                    diagnostics.push(Diagnostic::error(
-                        DiagnosticCode::InvalidPropertyValue,
-                        DiagnosticPhase::Build,
-                        "bare expressions are only valid as the tail of a pure function body"
-                            .to_string(),
-                    ));
+                Stmt::Expr(expr, span) => {
+                    self.mount_plan_expression(expr, *span, time_ms, parent_label, diagnostics);
                 },
             }
         }
@@ -327,71 +326,6 @@ impl Timeline {
         self.apply_camera_follow_decl(&resolved_label, qualified_props.as_ref(), diagnostics);
     }
 
-    /// Lower one action statement: resolve `name[expr]` targets against the
-    /// build environment, record metadata for the GUI, and dispatch.
-    fn process_action_stmt(
-        &mut self,
-        action: &Action,
-        span: Option<Span>,
-        time_ms: f64,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        // Resolve `name[expr]` targets against the build
-        // environment (loop variables, `let` bindings) before
-        // dispatch, e.g. `swap bars[j], bars[j+1]` -> concrete keys.
-        let needs_resolution = action.target_index.iter().any(Option::is_some);
-        let resolved_action = if needs_resolution {
-            let mut resolved = action.clone();
-            resolved.targets = action
-                .targets
-                .iter()
-                .zip(action.target_index.iter())
-                .enumerate()
-                .map(|(target_index, (target, index))| {
-                    resolve_action_target_index(
-                        target,
-                        index.as_ref(),
-                        action.target_index_position.get(target_index).copied().flatten(),
-                        &self.env,
-                        diagnostics,
-                        time_ms as u64,
-                        span,
-                    )
-                })
-                .collect();
-            resolved.target_index = vec![None; resolved.targets.len()];
-            resolved.target_index_position = vec![None; resolved.targets.len()];
-            resolved
-        } else {
-            action.clone()
-        };
-        let action = &resolved_action;
-
-        // Record action metadata for GUI timeline visualization
-        let (duration_ms, easing) = parse_action_timing_simple(&action.modifiers);
-        let category = categorize_action(&action.verb);
-        for target in &action.targets {
-            self.action_events.push(ActionEvent {
-                verb: action.verb.clone(),
-                targets: vec![target.clone()],
-                start_time_ms: time_ms as u64,
-                duration_ms,
-                easing,
-                category,
-            });
-        }
-
-        let extensions = self.extensions.clone();
-        process_action_with_extensions(
-            action,
-            time_ms,
-            self,
-            diagnostics,
-            span,
-            extensions.as_deref(),
-        );
-    }
-
     /// Lower one `let` declaration: a `--set` override, then a build-time
     /// evaluated binding, either block-local or a scene variable track.
     fn process_let_decl_stmt(
@@ -412,15 +346,12 @@ impl Timeline {
         }
         // Anchor-point refs (`n0.right`) are frame-time-resolved and cannot be
         // used in build-time `let` constants (transforms/bounds not resolved at build).
-        if let crate::ast::Expr::Path(segments) = value
-            && segments.len() == 2
-            && SceneAnchor::from_str(&segments[1]).is_some()
-        {
+        if let Some((actor, anchor)) = crate::timeline::lookup::actor_anchor_reference(value) {
             let msg = format!(
-                "'{}' references '{}' which is a frame-time anchor-point property; \
+                "'{}' references '{actor}.{}' which is a frame-time anchor-point property; \
                  cannot resolve at build time. Use in 'always' or assignment instead.",
                 name,
-                segments.join(".")
+                anchor.as_str()
             );
             diagnostics.push(Diagnostic::warning(
                 DiagnosticCode::InvalidPropertyValue,
@@ -440,7 +371,11 @@ impl Timeline {
                     locals
                         .entry(name.to_string())
                         .or_insert_with(|| self.env.overrides.get(name).cloned());
-                    self.env.set(name, val);
+                    if name == "t" {
+                        self.env.set_authored_t(val);
+                    } else {
+                        self.env.set(name, val);
+                    }
                 } else {
                     self.variable_tracks
                         .entry(name.to_string())
@@ -449,7 +384,11 @@ impl Timeline {
                         .insert(time_ms as u64, val.clone());
                     // Make the shadowed value visible to subsequent statements
                     // in the same build pass (algorithm precomputation).
-                    self.env.set(name, val);
+                    if name == "t" {
+                        self.env.set_authored_t(val);
+                    } else {
+                        self.env.set(name, val);
+                    }
                 }
             },
             Err(e) => {
@@ -571,13 +510,16 @@ impl Timeline {
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let step_ms = parse_for_loop_step(modifiers, diagnostics);
+        let step_ms = parse_for_loop_step(modifiers, &self.env, time_ms, diagnostics);
         let scope = crate::timeline::env::LoopScope::capture(&self.env, var, index_var.as_deref());
         self.build_loop_scopes.push(scope.names().map(str::to_string).collect());
         for (idx, value) in for_iter_values(iterable, &self.env).into_iter().enumerate() {
             bind_loop_var(&mut self.env, var, value, idx, diagnostics);
             if let Some(iv) = index_var {
                 self.env.set(iv, Value::Num(idx as f64));
+                if iv == "t" {
+                    self.env.set_authored_t_binding(true);
+                }
             }
             self.process_body(time_ms + step_ms * idx as f64, body, parent_label, diagnostics);
         }
@@ -602,6 +544,9 @@ impl Timeline {
             bind_loop_var(&mut self.env, var, value, idx, diagnostics);
             if let Some(iv) = index_var {
                 self.env.set(iv, Value::Num(idx as f64));
+                if iv == "t" {
+                    self.env.set_authored_t_binding(true);
+                }
             }
             self.process_inline_items(time_ms, body, parent_label, diagnostics);
         }
@@ -610,66 +555,34 @@ impl Timeline {
     }
 }
 
-/// Parse duration and easing from an action's modifiers without emitting diagnostics.
-/// This is called before `process_action` (which calls `parse_timing_modifiers`) to
-/// avoid duplicating diagnostic warnings.
-fn parse_action_timing_simple(modifiers: &[Modifier]) -> (u64, Easing) {
-    let mut duration_ms: u64 = 1000;
-    let mut easing = Easing::EaseOut;
-
-    for modifier in modifiers {
-        match modifier.name.as_deref() {
-            // Named "ease" modifier: [ease: bounce]
-            Some("ease") => {
-                if let Some(raw) = config_string_value(&modifier.value)
-                    && let Some(parsed_easing) = parse_easing_name(&raw)
-                {
-                    easing = parsed_easing;
-                }
-            },
-            // Named "delay" modifier: only relevant for start_time, not duration
-            Some("delay") => {},
-            // Named modifiers that aren't timing-related (e.g. "by", "to", "from") — skip
-            Some(_) => {},
-            // Bare (unnamed) modifiers: [2s] or [500ms]
-            None => {
-                if let Some(raw) = config_string_value(&modifier.value)
-                    && let Some(d) = parse_duration_literal(&raw)
-                {
-                    duration_ms = d as u64;
-                }
-            },
-        }
-    }
-
-    (duration_ms, easing)
-}
-
-/// Categorize an action verb for UI color coding.
-fn categorize_action(verb: &str) -> ActionCategory {
-    match verb {
-        "fade-in" | "wipe-in" => ActionCategory::Entrance,
-        "fade-out" | "wipe-out" => ActionCategory::Exit,
-        "move" | "shift" | "rotate" | "scale" => ActionCategory::Motion,
-        "bounce" | "pulse" | "shake" => ActionCategory::Effect,
-        "swap" | "reorder" => ActionCategory::Reorder,
-        "draw-in" | "reveal-in" | "draw-out" | "reveal-out" => ActionCategory::Reveal,
-        _ => ActionCategory::Motion,
-    }
-}
-
-/// Parse the `step` modifier from a for-loop header; defaults to 0ms.
+/// Resolve the `step` modifier from a for-loop header; defaults to 0ms.
 ///
 /// `for i in {0, 1, 2} [step: 250ms] { ... }` advances the build-time clock by
-/// 250ms per iteration. Invalid or negative values emit a diagnostic and fall
-/// back to 0ms (no time advancement).
-fn parse_for_loop_step(modifiers: &[Modifier], diagnostics: &mut Vec<Diagnostic>) -> f64 {
+/// 250ms per iteration. A bound Duration expression is also evaluated once at
+/// loop entry. Invalid or negative values emit a diagnostic and fall back to
+/// 0ms (no time advancement).
+pub(crate) fn parse_for_loop_step(
+    modifiers: &[Modifier],
+    env: &Environment,
+    time_ms: f64,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> f64 {
     for modifier in modifiers {
         if modifier.name.as_deref() == Some("step") {
-            let parsed = match &modifier.value {
-                Expr::Ident(raw) | Expr::Str(raw) => parse_duration_literal(raw),
-                _ => None,
-            };
+            let eval_env = build_eval_env_static(env, time_ms.max(0.0) as u64);
+            let parsed =
+                crate::timeline::timing::duration_expr_to_ms(&modifier.value).or_else(|| {
+                    match &modifier.value {
+                        Expr::Str(raw) => parse_duration_literal(raw),
+                        _ => match evaluate_expr(&modifier.value, &eval_env).ok()? {
+                            Value::Duration(seconds) if seconds.is_finite() => {
+                                let milliseconds = seconds * 1000.0;
+                                milliseconds.is_finite().then_some(milliseconds)
+                            },
+                            _ => None,
+                        },
+                    }
+                });
             return match parsed {
                 Some(ms) if ms >= 0.0 => ms,
                 Some(ms) => {
@@ -693,73 +606,6 @@ fn parse_for_loop_step(modifiers: &[Modifier], diagnostics: &mut Vec<Diagnostic>
         }
     }
     0.0
-}
-
-/// Resolve a `name[expr]` action target against the build environment.
-///
-/// Plain targets pass through unchanged. For an indexed target the index
-/// expression is evaluated (loop variables and `let` bindings are in scope at
-/// build time). The typed position selects which dotted-path segment receives
-/// the concrete array suffix. An unresolved or invalid index emits a diagnostic
-/// and leaves the base name in place so the normal unknown-target path
-/// reports it.
-pub(crate) fn resolve_action_target_index(
-    target: &str,
-    index: Option<&Expr>,
-    index_position: Option<usize>,
-    env: &Environment,
-    diagnostics: &mut Vec<Diagnostic>,
-    time_ms: u64,
-    span: Option<crate::ast::Span>,
-) -> String {
-    let Some(index_expr) = index else {
-        return target.to_string();
-    };
-    let eval_env = build_eval_env_static(env, time_ms);
-    match evaluate_expr(index_expr, &eval_env) {
-        Ok(Value::Num(n)) if n >= 0.0 && n == n.floor() => {
-            let mut segments: Vec<String> = target.split('.').map(str::to_string).collect();
-            let position = index_position.unwrap_or_else(|| segments.len().saturating_sub(1));
-            if let Some(segment) = segments.get_mut(position) {
-                *segment = crate::ast::array_actor_label(segment, n as usize);
-                segments.join(".")
-            } else {
-                diagnostics.push(Diagnostic::warning(
-                    DiagnosticCode::InvalidPropertyValue,
-                    DiagnosticPhase::Build,
-                    format!(
-                        "Action target index position {} is outside '{}'; leaving the target unchanged",
-                        position, target
-                    ),
-                ).with_ast_span(span));
-                target.to_string()
-            }
-        },
-        Ok(Value::Num(n)) => {
-            diagnostics.push(
-                Diagnostic::warning(
-                    DiagnosticCode::InvalidPropertyValue,
-                    DiagnosticPhase::Build,
-                    format!(
-                        "Action target index for '{target}' must be a non-negative integer, got {n}"
-                    ),
-                )
-                .with_ast_span(span),
-            );
-            target.to_string()
-        },
-        _ => {
-            diagnostics.push(
-                Diagnostic::warning(
-                    DiagnosticCode::InvalidPropertyValue,
-                    DiagnosticPhase::Build,
-                    format!("Failed to evaluate action target index for '{target}' at build time"),
-                )
-                .with_ast_span(span),
-            );
-            target.to_string()
-        },
-    }
 }
 
 /// Resolve an array-indexed actor label to a concrete timeline label.
@@ -866,9 +712,7 @@ pub(crate) fn pattern_matches(pat: &MatchPattern, value: &Value) -> bool {
 
 #[cfg(test)]
 mod indexed_component_label_tests {
-    use super::{indexed_component::qualify_child, resolve_action_target_index};
-    use crate::ast::{Expr, Span};
-    use crate::timeline::Environment;
+    use super::indexed_component::qualify_child;
 
     #[test]
     fn component_children_receive_their_resolved_array_parent_identity() {
@@ -877,23 +721,5 @@ mod indexed_component_label_tests {
         assert_eq!(qualify_child("cards.title", "cards__2.root"), "cards__2.title");
         assert_eq!(qualify_child("layout.cards.frame", "layout.cards__2"), "layout.cards__2.frame");
         assert_eq!(qualify_child("other.frame", "cards__2"), "other.frame");
-    }
-
-    #[test]
-    fn invalid_index_diagnostic_keeps_the_action_call_site() {
-        let mut diagnostics = Vec::new();
-        let span = Span::new(12, 3, 12, 18);
-        let target = resolve_action_target_index(
-            "cards",
-            Some(&Expr::Num(1.5)),
-            Some(0),
-            &Environment::new(),
-            &mut diagnostics,
-            0,
-            Some(span),
-        );
-        assert_eq!(target, "cards");
-        assert_eq!(diagnostics.len(), 1);
-        assert_eq!(diagnostics[0].location.line, Some(12));
     }
 }

@@ -552,14 +552,14 @@ mod tests {
             ..Default::default()
         };
         let formatter = Formatter::new(config);
-        let stmts = parse("sequence {\nfade-in btn [1s]\n}");
+        let stmts = parse("sequence {\nfade_in(target: btn, duration: 1s)\n}");
         let result = formatter.format(&stmts);
-        assert!(result.contains("    fade-in btn [1s]"));
+        assert!(result.contains("    fade_in(target: btn, duration: 1s)"));
     }
 
     #[test]
     fn format_blank_lines_between_top_level() {
-        let stmts = parse("#0s\ntitle: Text\n\n#1s\nfade-in title [1s]");
+        let stmts = parse("#0s\ntitle: Text\n\n#1s\nfade_in(target: title, duration: 1s)");
         let formatter = Formatter::default();
         let result = formatter.format(&stmts);
         let lines: Vec<&str> = result.lines().collect();
@@ -611,7 +611,38 @@ mod tests {
     #[test]
     fn idempotent_leaf_and_container() {
         assert_idempotent(r#"title: Text, text: "Hello""#);
-        assert_idempotent("sequence {\nfade-in btn [1s]\nfade-in title [500ms]\n}");
+        assert_idempotent(
+            "sequence {\nfade_in(target: btn, duration: 1s)\nfade_in(target: title, duration: 500ms)\n}",
+        );
+    }
+
+    #[test]
+    fn escaped_string_content_is_idempotent() {
+        let source =
+            r#"label: Text, text: "path=C:\tmp\file, line\nnext, quote: \"hi\", token: \$name""#;
+        let formatter = Formatter::default();
+        let original = parse(source);
+        let first = formatter.format_source(source, &original);
+        let reparsed = parse(&first);
+
+        fn text_value(stmts: &[Stmt]) -> &str {
+            let Stmt::ActorDecl { props, .. } = &stmts[0] else {
+                panic!("expected actor declaration");
+            };
+            let Expr::Str(value) = &props[0].value else {
+                panic!("expected string property");
+            };
+            value
+        }
+
+        let expected = r#"path=C:\tmp\file, line\nnext, quote: \"hi\", token: \$name"#;
+        assert_eq!(text_value(&original), expected);
+        assert_eq!(text_value(&reparsed), expected, "formatting must preserve raw escapes");
+        assert_eq!(
+            first,
+            formatter.format_source(&first, &reparsed),
+            "string escapes must not grow on a second pass"
+        );
     }
 
     #[test]

@@ -18,7 +18,7 @@ shear's determinant and length distinction. They do not replace visual review.
   matrix scene. The final source uses explicit line identities and a shared
   reactive block. This is a source workaround, not an engine fix.
 - Timed caption string changes produced overlapping old/new text in a sampled
-  sorting frame. Explicit fade-out, immediate string change and fade-in made the
+  sorting frame. Explicit fade_out, immediate string change and fade_in made the
   reading order unambiguous. This is not presented as a morph implementation.
 - Four technique scenes were checked and rendered into six-frame storyboards
   with the native renderer using SwiftShader. Every storyboard was inspected.

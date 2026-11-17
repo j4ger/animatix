@@ -25,6 +25,19 @@ pub(super) fn rewrite_expr(
     known_labels: &HashSet<String>,
     bindings: &HashMap<String, Expr>,
 ) -> Expr {
+    if let Some(mut members) = self_member_path(expr) {
+        if members.first().is_some_and(|member| root_label == Some(member.as_str())) {
+            members.remove(0);
+        }
+        let mut path = vec![prefix.to_string()];
+        path.extend(members);
+        return if path.len() == 1 {
+            Expr::Ident(prefix.to_string())
+        } else {
+            Expr::Path(path)
+        };
+    }
+
     match expr {
         Expr::Ident(name) => bindings.get(name).cloned().unwrap_or_else(|| {
             Expr::Ident(rewrite_label_ref(name, prefix, root_label, known_labels))
@@ -78,6 +91,11 @@ pub(super) fn rewrite_expr(
                 Expr::Path(parts.clone())
             }
         },
+        Expr::QualifiedPath(parts) => Expr::QualifiedPath(parts.clone()),
+        Expr::Field(receiver, field) => Expr::Field(
+            Box::new(rewrite_expr(receiver, prefix, root_label, known_labels, bindings)),
+            rewrite_label(field, prefix, root_label, known_labels),
+        ),
         Expr::Index(target, index) => Expr::Index(
             Box::new(rewrite_expr(target, prefix, root_label, known_labels, bindings)),
             Box::new(rewrite_expr(index, prefix, root_label, known_labels, bindings)),
@@ -103,17 +121,14 @@ pub(super) fn rewrite_expr(
             op.clone(),
             Box::new(rewrite_expr(value, prefix, root_label, known_labels, bindings)),
         ),
-        Expr::Call(name, args) => Expr::Call(
-            name.clone(),
+        Expr::Call(callee, args) => Expr::Call(
+            Box::new(rewrite_expr(callee, prefix, root_label, known_labels, bindings)),
             args.iter()
-                .map(|arg| rewrite_expr(arg, prefix, root_label, known_labels, bindings))
-                .collect(),
-        ),
-        Expr::Method(target, name, args) => Expr::Method(
-            Box::new(rewrite_expr(target, prefix, root_label, known_labels, bindings)),
-            name.clone(),
-            args.iter()
-                .map(|arg| rewrite_expr(arg, prefix, root_label, known_labels, bindings))
+                .map(|arg| crate::ast::CallArgument {
+                    name: arg.name.clone(),
+                    value: rewrite_expr(&arg.value, prefix, root_label, known_labels, bindings),
+                    byte_span: arg.byte_span,
+                })
                 .collect(),
         ),
         Expr::Closure(params, body) => Expr::Closure(
@@ -138,6 +153,28 @@ pub(super) fn rewrite_expr(
             name.clone(),
             rewrite_properties(props, prefix, root_label, known_labels, bindings),
         ),
+        Expr::Timeline(plan) => {
+            Expr::Timeline(rewrite_plan(plan, prefix, root_label, known_labels, bindings))
+        },
+        Expr::Sequence(plan) => {
+            Expr::Sequence(rewrite_plan(plan, prefix, root_label, known_labels, bindings))
+        },
+        Expr::Stagger { modifiers, plan } => Expr::Stagger {
+            modifiers: modifiers
+                .iter()
+                .map(|modifier| crate::ast::Modifier {
+                    name: modifier.name.clone(),
+                    value: rewrite_expr(
+                        &modifier.value,
+                        prefix,
+                        root_label,
+                        known_labels,
+                        bindings,
+                    ),
+                })
+                .collect(),
+            plan: rewrite_plan(plan, prefix, root_label, known_labels, bindings),
+        },
         Expr::Match(scrutinee, arms) => Expr::Match(
             Box::new(rewrite_expr(scrutinee, prefix, root_label, known_labels, bindings)),
             arms.iter()
@@ -156,10 +193,52 @@ pub(super) fn rewrite_expr(
                 .collect(),
         ),
         Expr::Num(value) => Expr::Num(*value),
+        Expr::Duration(value) => Expr::Duration(*value),
+        Expr::Unit => Expr::Unit,
         Expr::Percent(value) => Expr::Percent(*value),
         Expr::Str(value) => Expr::Str(value.clone()),
         Expr::Bool(value) => Expr::Bool(*value),
         Expr::Null => Expr::Null,
+    }
+}
+
+fn self_member_path(expr: &Expr) -> Option<Vec<String>> {
+    match expr {
+        Expr::Ident(name) if name == "self" => Some(Vec::new()),
+        Expr::Path(parts) if parts.first().is_some_and(|part| part == "self") => {
+            Some(parts.iter().skip(1).cloned().collect())
+        },
+        Expr::Field(receiver, field) => {
+            let mut members = self_member_path(receiver)?;
+            members.push(field.clone());
+            Some(members)
+        },
+        _ => None,
+    }
+}
+
+fn rewrite_plan(
+    plan: &crate::ast::PlanBody,
+    prefix: &str,
+    root_label: Option<&str>,
+    known_labels: &HashSet<String>,
+    bindings: &HashMap<String, Expr>,
+) -> crate::ast::PlanBody {
+    crate::ast::PlanBody {
+        statements: plan
+            .statements
+            .iter()
+            .map(|stmt| {
+                crate::module::rewrite::rewrite_stmt(
+                    stmt,
+                    prefix,
+                    root_label,
+                    known_labels,
+                    bindings,
+                )
+            })
+            .collect(),
+        instance_methods: plan.instance_methods.clone(),
     }
 }
 

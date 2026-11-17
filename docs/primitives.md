@@ -66,10 +66,10 @@ This is distinct from Equation+Fragment per-segment highlighting — a Typst act
 eq: Typst, text: "x^2 + 3", font_size: 18, at: (640, 360)
 
 #2s
-  highlight eq [color: yellow, blend: multiply, 800ms]
+  highlight(target: eq, color: yellow, blend: multiply, duration: 800ms)
 
 #4s
-  unhighlight eq [400ms]
+  unhighlight(target: eq, duration: 400ms)
 ```
 
 ## Code
@@ -124,7 +124,7 @@ Counter glyphs in the destination timeline, including subsequent affix updates.
 kpi: Counter, value: 1250, font_size: 48, color: accent.primary, suffix: " req/s", comma: true, at: (640, 360)
 
 #2s
-kpi.value = 8490 [3s, ease: ease-in-out]
+kpi.value = 8490 [3s, ease: ease_in_out]
 ```
 
 ## Svg
@@ -371,7 +371,7 @@ subs: Captions, at: (640, 580), caption_mode: "pop", font_size: 28 {
 
 `Path` also accepts `icon: "<name>"` as build-time sugar for an authored
 `commands:` list — 25 Lucide-derived stroke marks on a 24×24 grid, origin at the
-top-left. Trace them on with `draw-in`; size them with `scale:`. See
+top-left. Trace them on with `draw_in`; size them with `scale:`. See
 [`spec.md`](spec.md) §Recipes for the full name list and the arc exclusion.
 
 ## Graph
@@ -415,7 +415,7 @@ All plot primitives support animated transitions between functions using timed `
 curve: PlotCurve, kind: "cartesian", func: (x) => sin(x), stroke: accent.primary
 
 #2s
-curve.func = (x) => cos(x) [1s, ease: ease-in-out]
+curve.func = (x) => cos(x) [1s, ease: ease_in_out]
 ```
 
 The default transition blends evaluated outputs at each sample point: `y = lerp(from(x), to(x), progress)`. This works for cartesian, polar, parametric, and implicit `PlotCurve`, plus `VectorField`, `Heatmap`, and `ContourSet` (their scalar/vector fields are blended per sample).
@@ -625,10 +625,10 @@ Does not render independently — the parent Equation handles all rendering.
 **Example:**
 ```animatix
 #2s
-  highlight eq.f1 [color: white, blend: difference, 800ms]
+  highlight(target: eq.f1, color: white, blend: difference, duration: 800ms)
 
 #4s
-  unhighlight eq.f1 [400ms]
+  unhighlight(target: eq.f1, duration: 400ms)
 ```
 
 ---
@@ -714,7 +714,7 @@ bg: Filter, bounds: (0, 0, 1280, 720) {
   photo: Image, url: "photo.jpg", size: fill
 }
 #1.5s
-bg.soft.radius = 24 [1.5s, ease: ease-out]
+bg.soft.radius = 24 [1.5s, ease: ease_out]
 ```
 
 Effects apply in declaration order; a stage whose parameters are all at their
@@ -784,7 +784,7 @@ card: Glass, at: (640, 360), size: (560, 240), corner_radius: 24 {
 }
 
 #1.2s
-frost.radius = 18 [900ms, ease: ease-in-out]
+frost.radius = 18 [900ms, ease: ease_in_out]
 ```
 
 ---
@@ -911,7 +911,7 @@ Both dash and gradient ride *outside* the shape-command memo — an animated das
 offset or ramp would otherwise be served stale from a cached encoding, which is
 why a scene that uses neither pays nothing for them.
 
-`stroke_progress` (what `draw-in` writes) trims stroke-only geometry by arc
+`stroke_progress` (what `draw_in` writes) trims stroke-only geometry by arc
 length on any shape, not just plots; closed and filled shapes keep the
 fill-reveal semantics instead.
 

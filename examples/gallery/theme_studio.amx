@@ -38,17 +38,17 @@ pub component ExplodableCard(width: Num = 420, height: Num = 220) {
   chip_wrap: Group, at: (28, 160) {
   chip: Chip, label: "strict", color: accent.success, text_color: text.primary
     }
-  fn explode() {
-      self.icon.at = (28 - 60, 28) [500ms]
-      self.title_text.at = (92 + 80, 34) [500ms]
-      self.body_text.at = (28, 96 + 24) [500ms]
-      self.chip_wrap.at = (28 + 80, 160) [500ms]
+  pub fn explode() {
+      return #{ self.icon.at = (28 - 60, 28)[0.5s]
+      self.title_text.at = (92 + 80, 34)[0.5s]
+      self.body_text.at = (28, 96 + 24)[0.5s]
+      self.chip_wrap.at = (28 + 80, 160)[0.5s] }
     }
-  fn implode() {
-      self.icon.at = (28, 28) [400ms]
-      self.title_text.at = (92, 34) [400ms]
-      self.body_text.at = (28, 96) [400ms]
-      self.chip_wrap.at = (28, 160) [400ms]
+  pub fn implode() {
+      return #{ self.icon.at = (28, 28)[0.4s]
+      self.title_text.at = (92, 34)[0.4s]
+      self.body_text.at = (28, 96)[0.4s]
+      self.chip_wrap.at = (28, 160)[0.4s] }
     }
 }
 
@@ -80,26 +80,26 @@ pub component ExplodableCard(width: Num = 420, height: Num = 220) {
     }
 
 #0.5s
-  fade-in title [600ms, ease: ease-out]
+  fade_in(target: title, duration: 0.6s, ease: ease_out)
 
 #+0.3s
-  stagger [80ms] {
-      fade-in m1 [400ms]
-      fade-in m2 [400ms]
-      fade-in m3 [400ms]
+  stagger [0.08s] {
+      fade_in(target: m1, duration: 0.4s)
+      fade_in(target: m2, duration: 0.4s)
+      fade_in(target: m3, duration: 0.4s)
     }
 
 #+0.4s
-  stagger [60ms] {
-      fade-in login [400ms]
-      fade-in panel [400ms]
+  stagger [0.06s] {
+      fade_in(target: login, duration: 0.4s)
+      fade_in(target: panel, duration: 0.4s)
     }
 
 #+0.4s
-  stagger [50ms] {
-      fade-in c0 [320ms]
-      fade-in c1 [320ms]
-      fade-in c2 [320ms]
-      fade-in c3 [320ms]
-      fade-in c4 [320ms]
+  stagger [0.05s] {
+      fade_in(target: c0, duration: 0.32s)
+      fade_in(target: c1, duration: 0.32s)
+      fade_in(target: c2, duration: 0.32s)
+      fade_in(target: c3, duration: 0.32s)
+      fade_in(target: c4, duration: 0.32s)
     }

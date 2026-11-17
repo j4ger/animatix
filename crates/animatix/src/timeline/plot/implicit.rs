@@ -4,7 +4,8 @@ use super::adaptive::math_to_screen_padded;
 use super::procedural::{FastExprKind, FastPlotProgram};
 use super::{Environment, FuncSource, Value, flatten_blend};
 use crate::timeline::modifier_runtime::ir::{
-    CompiledExpr, compile_fast_scalar, evaluate_compiled_expr,
+    CompiledExpr, compile_fast_scalar_with_env, evaluate_compiled_expr,
+    fast_scalar_intrinsics_are_standard,
 };
 
 pub fn implicit_intersection(
@@ -55,6 +56,9 @@ impl FastImplicitEvaluator {
         for (weight, src) in flat {
             match src {
                 FuncSource::Compiled(args, body, captures) => {
+                    if !fast_scalar_intrinsics_are_standard(body, env) {
+                        return None;
+                    }
                     let arg_x = args.first().map(String::as_str).unwrap_or("x");
                     let arg_y = args.get(1).map(String::as_str).unwrap_or("y");
                     let body_ptr = &**body as *const CompiledExpr as usize;
@@ -63,7 +67,12 @@ impl FastImplicitEvaluator {
                     let program = if let Some(cache) = cache {
                         cache.get_or_compile_fast_plot(key, || {
                             let mut slot_names_raw = Vec::with_capacity(8);
-                            let expr = compile_fast_scalar(body, arg_x, &mut slot_names_raw)?;
+                            let expr = compile_fast_scalar_with_env(
+                                body,
+                                arg_x,
+                                &mut slot_names_raw,
+                                env,
+                            )?;
                             Some(FastPlotProgram {
                                 expr: FastExprKind::Scalar(expr),
                                 slot_names: slot_names_raw
@@ -74,7 +83,8 @@ impl FastImplicitEvaluator {
                         })?
                     } else {
                         let mut slot_names_raw = Vec::with_capacity(8);
-                        let expr = compile_fast_scalar(body, arg_x, &mut slot_names_raw)?;
+                        let expr =
+                            compile_fast_scalar_with_env(body, arg_x, &mut slot_names_raw, env)?;
                         std::sync::Arc::new(FastPlotProgram {
                             expr: FastExprKind::Scalar(expr),
                             slot_names: slot_names_raw.into_iter().map(str::to_string).collect(),

@@ -90,45 +90,17 @@ impl Timeline {
         // constants at build time). Frame-time `always` assignments never pass
         // through here — they are lowered to `AssignIndexed` IR instead.
         let target = if target.iter().any(|s| matches!(s, TargetSegment::Indexed { .. })) {
-            target
-                .iter()
-                .map(|segment| match segment {
-                    TargetSegment::Static(s) => TargetSegment::Static(s.clone()),
-                    TargetSegment::Indexed { base, index } => {
-                        match evaluate_expr(index, &eval_env) {
-                            Ok(Value::Num(n)) if n >= 0.0 && n == n.floor() => {
-                                TargetSegment::Static(crate::ast::array_actor_label(
-                                    base, n as usize,
-                                ))
-                            },
-                            Ok(Value::Num(n)) => {
-                                diagnostics.push(Diagnostic::warning(
-                                    DiagnosticCode::InvalidPropertyValue,
-                                    DiagnosticPhase::Build,
-                                    format!(
-                                        "Assignment target index for '{}' must be a non-negative integer, got {}",
-                                        base, n
-                                    ),
-                                ).with_ast_span(span));
-                                TargetSegment::Static(base.clone())
-                            },
-                            _ => {
-                                diagnostics.push(Diagnostic::warning(
-                                    DiagnosticCode::InvalidPropertyValue,
-                                    DiagnosticPhase::Build,
-                                    format!(
-                                        "Failed to evaluate assignment target index for '{}' at build time",
-                                        base
-                                    ),
-                                ).with_ast_span(span));
-                                TargetSegment::Static(base.clone())
-                            },
-                        }
-                    },
-                })
-                .collect::<Vec<_>>()
+            self.resolve_indexed_assignment_target(target, &eval_env, span, diagnostics)
         } else {
-            target.to_vec()
+            let key = target.iter().map(TargetSegment::label_str).collect::<Vec<_>>().join(".");
+            match eval_env.get_path(&key) {
+                Some(Value::ActorRef(actor)) => actor
+                    .label()
+                    .split('.')
+                    .map(|part| TargetSegment::Static(part.to_string()))
+                    .collect(),
+                _ => target.to_vec(),
+            }
         };
         let assignment_subject = format!("{}.{}", assignment_target_key(&target), property);
         let ParsedTimingModifiers {
@@ -239,6 +211,101 @@ impl Timeline {
             actor_type,
             track_id,
         })
+    }
+
+    /// Resolve indexed source path segments to concrete actor labels. If the
+    /// ActorRef already contains the preceding source path (for example the
+    /// `row` prefix in `row.b[i]`), replace that consumed prefix instead of
+    /// joining it twice. ActorRefs without that prefix remain children of the
+    /// authored path, as in a flattened `row.b__i` hierarchy.
+    fn resolve_indexed_assignment_target(
+        &self,
+        target: &[TargetSegment],
+        eval_env: &Environment,
+        span: Option<crate::ast::Span>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Vec<TargetSegment> {
+        let mut resolved = Vec::with_capacity(target.len());
+        for segment in target {
+            match segment {
+                TargetSegment::Static(label) => {
+                    resolved.push(TargetSegment::Static(label.clone()));
+                },
+                TargetSegment::Indexed { base, index } => {
+                    let index = match evaluate_expr(index, eval_env) {
+                        Ok(Value::Num(index))
+                            if index.is_finite() && index >= 0.0 && index == index.floor() =>
+                        {
+                            index as usize
+                        },
+                        Ok(Value::Num(index)) => {
+                            diagnostics.push(
+                                Diagnostic::warning(
+                                    DiagnosticCode::InvalidPropertyValue,
+                                    DiagnosticPhase::Build,
+                                    format!(
+                                        "Assignment target index for '{}' must be a non-negative integer, got {}",
+                                        base, index
+                                    ),
+                                )
+                                .with_ast_span(span),
+                            );
+                            resolved.push(TargetSegment::Static(base.clone()));
+                            continue;
+                        },
+                        _ => {
+                            diagnostics.push(
+                                Diagnostic::warning(
+                                    DiagnosticCode::InvalidPropertyValue,
+                                    DiagnosticPhase::Build,
+                                    format!(
+                                        "Failed to evaluate assignment target index for '{}' at build time",
+                                        base
+                                    ),
+                                )
+                                .with_ast_span(span),
+                            );
+                            resolved.push(TargetSegment::Static(base.clone()));
+                            continue;
+                        },
+                    };
+                    let indexed_actor = match eval_env.get_path(base) {
+                        Some(Value::ActorRef(actor)) => Some(actor.indexed(index)),
+                        Some(Value::List(items)) => items.get(index).and_then(|item| match item {
+                            Value::ActorRef(actor) => Some(actor.clone()),
+                            _ => None,
+                        }),
+                        _ => None,
+                    };
+                    if let Some(actor) = indexed_actor {
+                        let authored_prefix = resolved
+                            .iter()
+                            .map(TargetSegment::label_str)
+                            .collect::<Vec<_>>()
+                            .join(".");
+                        if !authored_prefix.is_empty()
+                            && actor
+                                .label()
+                                .strip_prefix(&authored_prefix)
+                                .is_some_and(|suffix| suffix.starts_with('.'))
+                        {
+                            resolved.clear();
+                        }
+                        resolved.extend(
+                            actor
+                                .label()
+                                .split('.')
+                                .map(|part| TargetSegment::Static(part.to_string())),
+                        );
+                    } else {
+                        resolved.push(TargetSegment::Static(crate::ast::array_actor_label(
+                            base, index,
+                        )));
+                    }
+                },
+            }
+        }
+        resolved
     }
 
     /// Let the actor's primitive handle its own special cases. `true` when the

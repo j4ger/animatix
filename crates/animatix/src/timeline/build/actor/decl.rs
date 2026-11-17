@@ -277,19 +277,18 @@ impl Timeline {
             if prop.name != "from" && prop.name != "to" {
                 continue;
             }
-            let crate::ast::Expr::Path(segments) = &prop.value else {
+            let Some((mut actor, anchor)) =
+                crate::timeline::lookup::actor_anchor_reference(&prop.value)
+            else {
                 continue;
             };
-            if segments.len() != 2 {
-                continue;
+            if let Some(Value::ActorRef(reference)) = self.env.get_path(&actor) {
+                actor = reference.label().to_string();
             }
-            let Some(anchor) = SceneAnchor::from_str(&segments[1]) else {
-                continue;
-            };
             if prop.name == "from" {
-                shape.from_anchor = Some((segments[0].clone(), anchor));
+                shape.from_anchor = Some((actor, anchor));
             } else {
-                shape.to_anchor = Some((segments[0].clone(), anchor));
+                shape.to_anchor = Some((actor, anchor));
             }
         }
     }

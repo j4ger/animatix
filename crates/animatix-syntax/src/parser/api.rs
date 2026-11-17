@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use chumsky::prelude::*;
 
@@ -37,6 +38,24 @@ pub fn parse_source_complete(source: &str) -> ParsedSource {
 pub fn parse_source(source: &str) -> (Option<Vec<Stmt>>, Vec<ParseError>) {
     let parsed = parse_impl(source);
     (parsed.ast, parsed.errors)
+}
+
+/// Parse one complete source type annotation using the grammar used by
+/// function, component, and type-alias declarations.
+pub fn parse_type_annotation(source: &str) -> Option<TypeAnnotation> {
+    let (tokens, token_issues) = crate::token::tokenize_with_issues(source);
+    if !token_issues.is_empty() {
+        return None;
+    }
+    let spanned = token_parser::spanned(&tokens);
+    let input = token_parser::as_input(&spanned);
+    let ((annotation, errors), _) = crate::occurrence::with_occurrences(|| {
+        super::stmt::type_annotation_parser()
+            .then_ignore(end())
+            .parse(input)
+            .into_output_errors()
+    });
+    if errors.is_empty() { annotation } else { None }
 }
 
 /// Strip VS Code–style tab-stop placeholders from snippet text.
@@ -107,11 +126,42 @@ pub fn parse_snippet(snippet: &str) -> Option<Vec<Stmt>> {
 pub fn parser<'src>(
     warnings: Rc<RefCell<Vec<Diagnostic>>>,
 ) -> impl Parser<'src, token_parser::TokInput<'src>, Vec<Stmt>, token_parser::TokErr<'src>> {
-    let expr = expr::parser();
+    parser_impl(warnings, None)
+}
+
+/// Build the source-backed parser used by public parse entry points.
+///
+/// It records line and column spans for expression statements, which callers
+/// use for diagnostics raised while evaluating those expressions.
+pub(crate) fn parser_with_source<'src>(
+    source: &'src str,
+    warnings: Rc<RefCell<Vec<Diagnostic>>>,
+) -> impl Parser<'src, token_parser::TokInput<'src>, Vec<Stmt>, token_parser::TokErr<'src>> {
+    parser_impl(warnings, Some(source))
+}
+
+fn parser_impl<'src>(
+    warnings: Rc<RefCell<Vec<Diagnostic>>>,
+    source: Option<&'src str>,
+) -> impl Parser<'src, token_parser::TokInput<'src>, Vec<Stmt>, token_parser::TokErr<'src>> {
+    let source_index = source.map(crate::token::LineIndex::new).map(Arc::new);
+    let expr = expr::parser(Rc::clone(&warnings), source_index.clone());
     let property = common::property(expr.clone());
     let modifier = common::modifier(expr.clone(), common::time());
     let modifiers = common::modifiers(modifier);
-    let inline_items = inline::parser(expr.clone(), property.clone(), modifiers.clone(), warnings);
-    let stmt = stmt::parser(expr.clone(), property.clone(), modifiers.clone(), inline_items);
-    top_level::parser(stmt, property, modifiers)
+    let inline_items = inline::parser(
+        expr.clone(),
+        property.clone(),
+        modifiers.clone(),
+        Rc::clone(&warnings),
+        source_index.clone(),
+    );
+    let stmt = stmt::parser(
+        expr.clone(),
+        property.clone(),
+        modifiers.clone(),
+        inline_items,
+        source_index.clone(),
+    );
+    top_level::parser(stmt, property, modifiers, common::time_with_expr(expr), source_index)
 }

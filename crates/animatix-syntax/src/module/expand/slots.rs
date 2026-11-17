@@ -93,8 +93,7 @@ pub(super) fn resolve_slots(
                 }
             },
             // Non-container variants cannot hold slot markers.
-            Stmt::Action(..)
-            | Stmt::LetDecl { .. }
+            Stmt::LetDecl { .. }
             | Stmt::Assignment { .. }
             | Stmt::ReactiveBinding { .. }
             | Stmt::Keyframe { .. }

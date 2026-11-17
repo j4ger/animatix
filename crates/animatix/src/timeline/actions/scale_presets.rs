@@ -1,10 +1,10 @@
-//! Pivot-anchored scale presets: `grow-in` and `shrink-out`.
+//! Pivot-anchored scale presets: `grow_in` and `shrink_out`.
 //!
 //! The plain `scale` verb multiplies whatever scale the actor already samples
 //! and scales around the actor's centre. These two presets answer a different
-//! authoring question: *where does the object grow from?* `grow-in` ramps the
+//! authoring question: *where does the object grow from?* `grow_in` ramps the
 //! scale from zero to the actor's authored scale, so the actor is built out of
-//! a point; `shrink-out` ramps it back to zero without fading, so an exit reads
+//! a point; `shrink_out` ramps it back to zero without fading, so an exit reads
 //! as the object collapsing rather than evaporating.
 //!
 //! A non-centre pivot moves the actor while it scales: the pivot must stay at
@@ -14,10 +14,11 @@
 //! the pivot stays exact between samples rather than drifting off the easing
 //! curve. A centre pivot needs no offset and uses the plain two-keyframe ramp.
 
-use super::registry::{ActionParam, ActionSignature, BuiltinAction, base_timing_params};
-use crate::ast::{Action, Expr};
+use super::registry::{BuiltinAction, CallableDescriptor};
+use crate::ast::Expr;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::{Easing, apply_easing};
+use crate::timeline::actions::BuiltinInvocation;
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{DEFAULT_LAYOUT_HALF_SIZE, Timeline};
 
@@ -65,9 +66,9 @@ impl ScaleOrigin {
 /// The direction of the scale ramp.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Direction {
-    /// `grow-in`: zero → authored scale.
+    /// `grow_in`: zero → authored scale.
     Grow,
-    /// `shrink-out`: authored scale → zero.
+    /// `shrink_out`: authored scale → zero.
     Shrink,
 }
 
@@ -90,7 +91,7 @@ fn push_origin_diagnostic(
 fn parse_origin(
     modifiers: &[crate::ast::Modifier],
     key: &str,
-    action: &Action,
+    action: &BuiltinInvocation,
     timeline: &Timeline,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> ScaleOrigin {
@@ -188,7 +189,7 @@ fn resolve_pivot(
     origin: ScaleOrigin,
     half: [f32; 2],
     target: &str,
-    action: &Action,
+    action: &BuiltinInvocation,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<[f32; 2]> {
     if origin.is_center() {
@@ -261,10 +262,10 @@ fn write_pivot_ramp(
     }
 }
 
-/// The scale the actor rests at, ignoring an earlier `shrink-out`.
+/// The scale the actor rests at, ignoring an earlier `shrink_out`.
 ///
-/// `grow-in` must be reversible: after `shrink-out` has driven the scale to
-/// zero, the next `grow-in` has to return to the scale the actor was authored
+/// `grow_in` must be reversible: after `shrink_out` has driven the scale to
+/// zero, the next `grow_in` has to return to the scale the actor was authored
 /// at, not to the zero it currently samples. Scan the preceding keyframes for
 /// the most recent positive value; a non-positive ramp end is not a resting
 /// scale.
@@ -313,7 +314,7 @@ fn half_extents(
 fn run_scale_preset(
     direction: Direction,
     origin_key: &str,
-    action: &Action,
+    action: &BuiltinInvocation,
     time_ms: f64,
     timeline: &mut Timeline,
     diagnostics: &mut Vec<Diagnostic>,
@@ -385,47 +386,17 @@ fn run_scale_preset(
     }
 }
 
-fn signature(
-    name: &str,
-    category: &str,
-    description: &str,
-    origin_key: &str,
-    origin_description: &str,
-) -> ActionSignature {
-    let mut modifiers = vec![ActionParam {
-        name: origin_key.to_string(),
-        description: origin_description.to_string(),
-        type_info: "center | left | right | top | bottom | (x, y)".to_string(),
-    }];
-    modifiers.extend(base_timing_params());
-    ActionSignature {
-        name: name.to_string(),
-        category: category.to_string(),
-        description: description.to_string(),
-        params: vec![],
-        modifiers,
-    }
-}
-
 /// Grows the target from zero scale to its authored scale.
 pub struct GrowIn;
 
 impl BuiltinAction for GrowIn {
-    fn signature(&self) -> ActionSignature {
-        signature(
-            "grow-in",
-            "Entrance",
-            "Grows the target from zero to its authored scale, optionally anchored to an edge, \
-             and lifts a hidden-by-default actor without fading an already-visible one.",
-            "from",
-            "Scale anchor: 'center' (default), 'left', 'right', 'top', 'bottom', or an (x, y) \
-             local pivot offset.",
-        )
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::GrowIn.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
@@ -438,21 +409,13 @@ impl BuiltinAction for GrowIn {
 pub struct ShrinkOut;
 
 impl BuiltinAction for ShrinkOut {
-    fn signature(&self) -> ActionSignature {
-        signature(
-            "shrink-out",
-            "Exit",
-            "Shrinks the target from its authored scale to zero without changing opacity, \
-             optionally anchored to an edge; a later grow-in restores it.",
-            "to",
-            "Scale anchor: 'center' (default), 'left', 'right', 'top', 'bottom', or an (x, y) \
-             local pivot offset.",
-        )
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::ShrinkOut.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,

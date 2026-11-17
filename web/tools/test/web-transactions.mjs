@@ -86,7 +86,7 @@ for (const byte of rasterPixels) rasterHash = Math.imul(rasterHash ^ byte, 16777
 const rasterFixture = encodeFramePng({ width: 2, height: 2, rgba: rasterPixels.toString('base64'), hash: rasterHash });
 const fixtures = new Map([
   ['base.amx', graphics],
-  ['palette.amx', 'import "./nested/value.amx" as value\npub let tint = value.tint\n'],
+  ['palette.amx', 'import "./nested/value.amx" as value\npub let tint = value::tint\n'],
   ['nested/value.amx', 'pub let tint = (0.1, 0.8, 0.2, 1)\n'],
   ['slow.amx', 'pub let tint = (0.2, 0.3, 0.9, 1)\n'],
   ['left/module.amx', 'pub component Left { icon: Svg, url: "icon.data", size: (40, 40), opacity: 1 }\n'],
@@ -927,9 +927,9 @@ async function main() {
       unsupportedTypst: `${config}label: Typst, text: "#str.from-unicode(1114111)", font_size: 18, color: (1, 1, 1, 1), at: (64, 36), opacity: 1\n`,
       semiboldRegular: `${config}label: Text, text: "Variable weight sample", font_family: "Open Sans", font_size: 32, font_weight: 400, color: (1, 1, 1, 1), at: (64, 36), opacity: 1\n`,
       semibold: `${config}label: Text, text: "Variable weight sample", font_family: "Open Sans", font_size: 32, font_weight: "semibold", color: (1, 1, 1, 1), at: (64, 36), opacity: 1\n`,
-      imported: `${config}import "./palette.amx" as palette\nbox: Rect, size: (60, 40), at: (64, 36), color: palette.tint, opacity: 1\n`,
+      imported: `${config}import "./palette.amx" as palette\nbox: Rect, size: (60, 40), at: (64, 36), color: palette::tint, opacity: 1\n`,
       sharedProgress: readFileSync(join(ROOT, 'examples/data/shared_progress_math.amx'), 'utf8'),
-      slow: `${config}import "./slow.amx" as slow\nbox: Rect, size: (60, 40), at: (64, 36), color: slow.tint, opacity: 1\n`,
+      slow: `${config}import "./slow.amx" as slow\nbox: Rect, size: (60, 40), at: (64, 36), color: slow::tint, opacity: 1\n`,
       latest: solid('(0.1, 0.8, 0.2, 1)'),
       missingAsset: `${config}pic: Svg, url: "missing.data", size: (40, 40), at: (64, 36), opacity: 1\n`,
       relativeAssets: `${config}import "./left/module.amx"\nimport "./right/module.amx"\nleft: Left, at: (32, 36), opacity: 1\nright: Right, at: (96, 36), opacity: 1\n`,

@@ -18,6 +18,9 @@ use animatix_plugin_api::{
     NATIVE_VALUE_STRING_LIST, NATIVE_VALUE_TRANSFORM, NATIVE_VALUE_U32, NATIVE_VALUE_VARIANT,
     NATIVE_VALUE_VEC2, NATIVE_VALUE_VEC3, NATIVE_VALUE_VEC4, NativePathCommand, NativeValue,
 };
+use animatix_plugin_api::{
+    NATIVE_VALUE_DURATION, NATIVE_VALUE_EASING, NATIVE_VALUE_NULL, NATIVE_VALUE_UNIT,
+};
 use kurbo::Shape;
 
 use crate::primitives::ChildProcessing;
@@ -281,6 +284,20 @@ pub(crate) fn value_to_native(
 ) -> Result<NativeValue, EvalError> {
     let mut native = NativeValue::default();
     match value {
+        Value::Null => {
+            native.tag = NATIVE_VALUE_NULL;
+        },
+        Value::Duration(seconds) => {
+            native.tag = NATIVE_VALUE_DURATION;
+            native.num = *seconds;
+        },
+        Value::Unit => {
+            native.tag = NATIVE_VALUE_UNIT;
+        },
+        Value::Easing(easing) => {
+            native.tag = NATIVE_VALUE_EASING;
+            native.easing = super::callable::encode_native_easing(*easing);
+        },
         Value::Num(num) => {
             native.tag = NATIVE_VALUE_NUM;
             native.num = *num;
@@ -478,6 +495,12 @@ pub(crate) fn read_native_list(native: &NativeValue) -> Result<Vec<Value>, EvalE
 
 pub(crate) fn native_to_value(native: NativeValue) -> Result<Value, EvalError> {
     match native.tag {
+        NATIVE_VALUE_NULL => Ok(Value::Null),
+        NATIVE_VALUE_DURATION if native.num.is_finite() => Ok(Value::Duration(native.num)),
+        NATIVE_VALUE_UNIT => Ok(Value::Unit),
+        NATIVE_VALUE_EASING => super::callable::decode_native_easing(native.easing)
+            .map(Value::Easing)
+            .ok_or_else(|| EvalError::TypeMismatch("invalid native easing payload".into())),
         NATIVE_VALUE_NUM => Ok(Value::Num(native.num)),
         NATIVE_VALUE_BOOL => Ok(Value::Bool(native.boolean)),
         NATIVE_VALUE_U32 => Ok(Value::Num(native.num)),

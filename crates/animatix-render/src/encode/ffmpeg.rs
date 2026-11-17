@@ -176,6 +176,7 @@ mod tests {
     #[test]
     fn mux_rejects_nonpositive_or_nonfinite_export_duration() {
         let segments = [animatix::timeline::AudioSegment {
+            actor_id: None,
             source: "tone.wav".into(),
             start_time_s: 0.0,
             duration_s: None,

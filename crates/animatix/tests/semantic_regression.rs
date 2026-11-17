@@ -25,8 +25,14 @@ fn build_report(source: &str) -> (Timeline, Vec<String>) {
     let mut program = graph.load_program(entry).expect("fixture should parse and load");
     let type_diagnostics = program.typecheck();
     assert!(type_diagnostics.is_empty(), "type diagnostics: {type_diagnostics:?}");
-    let ast = program.expand_components(&mut Vec::new());
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let expanded = program.expand_components(&mut Vec::new());
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        animatix::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
     let diagnostics =
         report.diagnostics.iter().map(|diagnostic| format!("{diagnostic:?}")).collect();
     (report.output, diagnostics)
@@ -162,10 +168,10 @@ fn local_ticker_example_is_seekable_scoped_and_hands_off_at_clip_end() {
     close(center(bounds(&at_start, "needle")).0, 140.0, "local zero value");
 
     let first_mid = frame(&timeline, 1.5);
-    close(center(bounds(&first_mid, "needle")).0, 380.0, "time_scale midpoint");
+    close(center(bounds(&first_mid, "needle")).0, 380.0, "stretch midpoint");
     close(center(bounds(&first_mid, "needle")).1, 300.0, "first instance lane");
     let satellite_mid = frame(&timeline, 1.45);
-    close(center(bounds(&satellite_mid, "satellite")).0, 380.0, "clip_duration midpoint");
+    close(center(bounds(&satellite_mid, "satellite")).0, 380.0, "fit_duration midpoint");
     close(center(bounds(&satellite_mid, "satellite")).1, 480.0, "second instance lane");
 
     let first_end = frame(&timeline, 2.0);
@@ -193,7 +199,7 @@ fn local_ticker_example_is_seekable_scoped_and_hands_off_at_clip_end() {
         "second call stays in the original lane",
     );
     let second_end = frame(&timeline, 4.9);
-    close(center(bounds(&second_end, "needle")).0, 620.0, "clip_duration end handoff");
+    close(center(bounds(&second_end, "needle")).0, 620.0, "fit_duration end handoff");
     let after_second_end = frame(&timeline, 4.92);
     close(
         center(bounds(&after_second_end, "needle")).0,
@@ -224,25 +230,27 @@ fn nested_local_time_scopes_compose_and_preserve_relative_handoffs() {
 config { colorscheme: "editorial-dark", resolution: (900, 500), duration: 4 }
 dot: Ellipse, at: (100, 300), size: (24, 24), color: accent.info
 
-fn inner(dot, lane_y: Num) {
+fn inner(dot, lane_y: Num) { return #{
   #0ms
   dot.at = (140, lane_y)
   always { dot.at = (140 + 960 * t, lane_y) }
   #500ms
   dot.at = (620, lane_y)
-}
 
-fn outer(dot, lane_y: Num) {
+} }
+
+fn outer(dot, lane_y: Num) { return #{
   #0ms
-  inner(dot, lane_y) [time_scale: 2.0]
+  stretch(inner(dot, lane_y), 2.0)
   #+1200ms
   dot.at = (900, lane_y)
-}
+
+} }
 
 #0s
-fade-in dot [100ms]
+fade_in(target: dot, duration: 100ms)
 #1s
-outer(dot, 300) [time_scale: 2.0]
+stretch(outer(dot, 300), 2.0)
 "#,
     );
 
@@ -296,15 +304,16 @@ graph: Graph, at: (450, 250), size: (520, 320),
     stroke: accent.info, stroke_width: 5
 }
 
-fn sweep(plot) {
+fn sweep(plot) { return #{
   #0ms
   plot.func = (x) => sin(x + t)
   #500ms
   plot.func = (x) => sin(x + 0.5)
-}
+
+} }
 
 #1s
-sweep(graph.curve) [time_scale: 2.0]
+stretch(sweep(graph.curve), 2.0)
 
 #3s
 graph.curve.func = (x) => sin(x + 1.0)
@@ -332,33 +341,37 @@ graph.curve.func = (x) => sin(x + 1.0)
 }
 
 #[test]
-fn locally_scoped_always_rejects_t_bindings_that_shadow_its_scene_guard() {
-    for (name, function, invocation) in [
+fn local_plan_intervals_do_not_depend_on_authored_t_bindings() {
+    for (name, function, invocation, expected_x) in [
         (
             "function parameter",
             r#"
-fn bad(dot, t: Num) {
+fn bad(dot, t: Num) { return #{
   #0ms
   always { dot.at = (100 + 960 * t, 300) }
   #500ms
   dot.at = (620, 300)
-}
+
+} }
 "#,
-            "bad(dot, 0.25) [time_scale: 2.0]",
+            "stretch(bad(dot, 0.25), 2.0)",
+            340.0,
         ),
         (
             "loop binding",
             r#"
-fn bad(dot) {
+fn bad(dot) { return #{
   #0ms
   for t in {0, 1} {
     always { dot.at = (100 + 10 * t, 300) }
   }
   #500ms
   dot.at = (620, 300)
-}
+
+} }
 "#,
-            "bad(dot) [time_scale: 2.0]",
+            "stretch(bad(dot), 2.0)",
+            110.0,
         ),
     ] {
         let source = format!(
@@ -371,21 +384,22 @@ dot: Ellipse, at: (100, 300), size: (20, 20), color: accent.info
 {invocation}
 "#
         );
-        let (timeline, diagnostics) = build_report(&source);
-        assert!(
-            diagnostics.iter().any(|diagnostic| {
-                diagnostic.contains("InvalidModifierValue")
-                    && diagnostic.contains("function-local `t`")
-                    && diagnostic.contains("scene clock")
-            }),
-            "{name} must reject the scoped invocation with a precise `t`-shadow diagnostic: {diagnostics:?}"
+        let timeline = build(&source);
+        close(
+            center(bounds(&frame(&timeline, 0.98), "dot")).0,
+            100.0,
+            &format!("{name} before plan"),
         );
-        assert!(
-            !timeline.has_keyframe_at("dot", "position", 1000),
-            "{name} must skip the invalid function call instead of partially applying it"
+        close(
+            center(bounds(&frame(&timeline, 1.5), "dot")).0,
+            expected_x,
+            &format!("{name} lexical t"),
         );
-        let sample = frame(&timeline, 1.5);
-        close(center(bounds(&sample, "dot")).0, 100.0, &format!("{name} skipped call value"));
+        close(
+            center(bounds(&frame(&timeline, 2.02), "dot")).0,
+            620.0,
+            &format!("{name} finite plan end"),
+        );
     }
 }
 

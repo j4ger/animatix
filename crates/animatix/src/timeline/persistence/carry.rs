@@ -30,6 +30,19 @@ fn collect_persistent_entries(
     ancestors_are_persistent: bool,
     entries: &mut BTreeMap<String, CarryEntry>,
 ) {
+    let Some(id) = timeline.world.get_id(label) else {
+        tracing::warn!("Skipping persistent entry for missing actor '{}'", label);
+        return;
+    };
+
+    // A mounted plan owns its local actors. Ownership is an explicit boundary:
+    // caller persistence does not propagate through it. Any caller-owned actor
+    // below this point that explicitly persists is visited independently from
+    // `persistence_flags_iter` and becomes a carry root of its own.
+    if timeline.world.plan_ownership(id).is_some() {
+        return;
+    }
+
     let is_persistent = timeline.persistence_flag(label) || ancestors_are_persistent;
 
     if !is_persistent {
@@ -48,10 +61,8 @@ fn collect_persistent_entries(
         );
     }
 
-    let Some(id) = timeline.world.get_id(label) else {
-        tracing::warn!("Skipping persistent entry for missing actor '{}'", label);
-        return;
-    };
+    let carried_child_labels: std::collections::HashSet<String> =
+        child_entries.keys().cloned().collect();
     let effects = timeline.world.effects(id).map(|chain| snapshot_effects(chain, time_ms));
     let highlight = snapshot_highlight_at(timeline.world.highlight_or_default(id), time_ms);
     let property_plan = snapshot_property_plan_at(timeline.world.property_plan(id), time_ms);
@@ -77,7 +88,9 @@ fn collect_persistent_entries(
     let child_order = timeline.world.child_order.get(id).map(|component| {
         let order_labels = |ids: &[EntityId]| -> Vec<String> {
             ids.iter()
-                .filter_map(|child_id| timeline.world.label(*child_id).map(str::to_string))
+                .filter_map(|child_id| timeline.world.label(*child_id))
+                .filter(|child_label| carried_child_labels.contains(*child_label))
+                .map(str::to_string)
                 .collect()
         };
         CarriedChildOrder {
@@ -100,7 +113,16 @@ fn collect_persistent_entries(
             children: child_entries,
             persistent: timeline.persistence_flag(label),
             auto_color_slot: timeline.auto_color_slot(label),
-            container_layout: timeline.container_layout(label).cloned(),
+            container_layout: timeline.container_layout(label).map(|layout| {
+                let mut layout = layout.clone();
+                layout.child_order.retain(|child_id| {
+                    timeline
+                        .world
+                        .label(*child_id)
+                        .is_some_and(|child_label| carried_child_labels.contains(child_label))
+                });
+                layout
+            }),
             transcript: timeline.transcript(label).cloned(),
             coordinate_frame: timeline.coordinate_frame_for(label).cloned(),
             effects,

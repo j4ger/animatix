@@ -153,7 +153,7 @@ fn backticked_label_extracts_actor_names() {
 fn unpositioned_build_diagnostics_get_anchored() {
     // A `never-revealed` warning reaches the CLI with no location; the
     // analyzer resolves the quoted label to its declaration.
-    let source = "title: Text, text: \"hi\"\n#0s\nfade-in title [1s]\n";
+    let source = "title: Text, text: \"hi\"\n#0s\nfade_in(target: title, duration: 1s)\n";
     let analyzer = animatix_analyzer::Analyzer::new(source);
     let mut diagnostics = vec![Diagnostic::warning(
         DiagnosticCode::NeverRevealed,
@@ -192,9 +192,9 @@ fn auto_storyboard_times_sample_start_cues_and_rest() {
 #0s
 box: Rect, at: (0, 0), size: (10, 10)
 #1s
-fade-in box [500ms]
+fade_in(target: box, duration: 500ms)
 #3s
-fade-out box [500ms]
+fade_out(target: box, duration: 500ms)
 "#;
     let (ast, errors) = animatix_syntax::parser::parse_source(source);
     assert!(errors.is_empty());
@@ -217,23 +217,37 @@ fade-out box [500ms]
 /// overrides must see it.
 #[test]
 fn set_overrides_evaluate_against_the_extension_context() {
-    let source = "#0s\nbadge: Ellipse, at: (50, 50), size: (30, 30)\n#1s\nfade-in badge\n";
+    let source = "#0s\nbadge: Ellipse, at: (50, 50), size: (30, 30)\n#1s\nfade_in(target: badge)\n";
     let (ast, errors) = animatix_syntax::parser::parse_source(source);
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let ast = ast.expect("parsed AST");
 
     let mut ctx = animatix::extension_context::ExtensionContext::new();
-    ctx.register_function("twice", |args, _env| {
-        let Some(animatix::timeline::Value::Num(n)) = args.first() else {
-            return Err(animatix::timeline::EvalError::TypeMismatch(
-                "twice expects one number".to_string(),
-            ));
-        };
-        Ok(animatix::timeline::Value::Num(*n * 2.0))
-    })
+    ctx.register_callable(
+        animatix::extension_context::CallableDescriptor {
+            namespace: "test".into(),
+            name: "twice".into(),
+            params: vec![animatix::extension_context::CallableParam::required(
+                "value",
+                animatix::extension_context::CallableType::Num,
+            )],
+            return_type: animatix::extension_context::CallableType::Num,
+            phase: animatix::extension_context::CallablePhase::BuildAndFrame,
+            help: String::new(),
+            category: "Test".into(),
+        },
+        |args, _env| {
+            let Some(animatix::timeline::Value::Num(n)) = args.first() else {
+                return Err(animatix::timeline::EvalError::TypeMismatch(
+                    "twice expects one number".to_string(),
+                ));
+            };
+            Ok(animatix::timeline::Value::Num(*n * 2.0))
+        },
+    )
     .expect("register function");
 
-    let defines = vec![("answer".to_string(), "twice(21)".to_string())];
+    let defines = vec![("answer".to_string(), "test::twice(21)".to_string())];
     let report = BuildTarget::from_ast_with_context_and_defines(
         &ast,
         &std::collections::HashMap::new(),

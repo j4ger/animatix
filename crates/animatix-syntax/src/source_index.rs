@@ -238,18 +238,7 @@ mod tests {
                 value: Expr::Num(0.0),
                 span: None,
             },
-            Stmt::Action(
-                crate::ast::Action {
-                    verb: "move".to_string(),
-                    targets: vec!["btn".to_string()],
-                    args: vec![],
-                    modifiers: vec![],
-                    byte_span: None,
-                    target_index: vec![],
-                    target_index_position: vec![],
-                },
-                None,
-            ),
+            Stmt::Expr(crate::ast::Expr::call("move", vec![Expr::Ident("btn".to_string())]), None),
         ];
 
         let index = SourceIndex::build(&stmts);

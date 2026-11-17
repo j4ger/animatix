@@ -221,8 +221,36 @@ impl<'a> Walker<'a> {
                 InlineItem::SlotFill { items, .. } => {
                     self.walk_children(items, flagging);
                 },
+                InlineItem::Expr(expr, _) => self.walk_expr_plan(expr, flagging),
                 InlineItem::SlotMarker => {},
             }
+        }
+    }
+
+    fn walk_expr_plan(&mut self, expr: &animatix_syntax::ast::Expr, flagging: bool) {
+        use animatix_syntax::ast::Expr;
+        match expr {
+            Expr::Timeline(plan) | Expr::Sequence(plan) => {
+                self.walk_statements(&plan.statements, &mut Namespace::default(), flagging);
+            },
+            Expr::Stagger { plan, .. } => {
+                self.walk_statements(&plan.statements, &mut Namespace::default(), flagging);
+            },
+            // A directly embedded call/plan expression may have a literal plan
+            // as an argument. Walk children through the syntax visitor below.
+            _ => {
+                let mut plans: Vec<Vec<Stmt>> = Vec::new();
+                animatix_syntax::walk::walk_expr(expr, &mut |nested| match nested {
+                    Expr::Timeline(plan) | Expr::Sequence(plan) => {
+                        plans.push(plan.statements.clone());
+                    },
+                    Expr::Stagger { plan, .. } => plans.push(plan.statements.clone()),
+                    _ => {},
+                });
+                for statements in plans {
+                    self.walk_statements(&statements, &mut Namespace::default(), flagging);
+                }
+            },
         }
     }
 }
@@ -261,6 +289,12 @@ fn absolute_time_key(time: &Time) -> u64 {
             word.hash(&mut hasher);
             occurrence.hash(&mut hasher);
             offset_ms.hash(&mut hasher);
+            hasher.finish()
+        },
+        Time::Expression(expr) => {
+            use std::hash::{Hash, Hasher};
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            format!("{expr:?}").hash(&mut hasher);
             hasher.finish()
         },
     }
@@ -322,7 +356,7 @@ title: Text, text: "two"
     fn morph_redeclaration_at_later_keyframe_is_legal() {
         let source = r#"title: Text, text: "one"
 #0s
-fade-in title [100ms]
+fade_in(target: title, duration: 100ms)
 #1s
 title: Text, text: "two"
 "#;

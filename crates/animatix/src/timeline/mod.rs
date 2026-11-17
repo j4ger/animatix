@@ -8,6 +8,7 @@
 //! parser AST.
 /// Timeline action processing (hover, click, etc.).
 pub mod actions;
+mod actor_aliases;
 pub mod actor_caps;
 /// Asset loading and caching.
 pub mod assets;
@@ -15,13 +16,14 @@ mod assignments;
 pub mod behavior;
 pub use behavior::{BehaviorDef, BehaviorId, BehaviorRegistry};
 mod build;
-pub(crate) use build::sequence_block_span_ms;
 pub use build::{BuildOptions, CarryInput};
 mod builtins;
+pub(crate) mod callable;
 pub mod callout_geometry;
 pub(crate) mod camera;
 pub mod colorscheme;
 pub mod components;
+mod plan_lowerer;
 pub use components::{
     AutoColorComponent, ChildOrderComponent, CoordinateContext, CoordinateFrameComponent,
     CoordinateFrameTarget, LocalBoundsComponent, PersistenceComponent, TranscriptComponent,
@@ -63,6 +65,7 @@ pub mod modifier_exec;
 pub mod modifier_runtime;
 /// Path morphing between vector shapes.
 pub mod morph;
+pub(crate) mod path_commands;
 pub mod path_progress;
 pub mod plan;
 pub(crate) mod plot;
@@ -101,6 +104,11 @@ mod sequence;
 pub use legend::{LegendMode, LegendTracks};
 
 pub mod path_data;
+/// Inert reusable timeline-plan values and their native-callable builder.
+pub mod plan_value;
+pub use plan_value::{
+    ActorRef, BoundBuiltinCall, PlanDuration, PlanOp, TimelinePlan, TimelinePlanBuilder,
+};
 /// Vector shape definitions and rendering.
 pub mod shapes;
 /// SVG parsing and manipulation utilities.
@@ -120,9 +128,8 @@ pub mod utils;
 /// Vello path wrapper with fill/stroke.
 pub mod vello_path;
 
-use actions::process_action_with_extensions;
 pub(crate) use assignments::recompile_text_at_assignment;
-pub use build::{bind_input_loop, prepare_input_environment};
+pub use build::{bind_input_loop, install_input_methods, prepare_input_environment};
 pub use builtins::load_standard_library;
 use colorscheme::{BuiltInColorscheme, ResolvedColorscheme};
 pub use env::{CapturedEnv, Environment, EvalError, Value};
@@ -226,6 +233,10 @@ pub struct Timeline {
     /// Build-only loop names, used to capture reactive bodies at their declaration.
     /// Empty after the build walk; these are lexical variables, not actor state.
     pub(crate) build_loop_scopes: Vec<Vec<String>>,
+    /// Build-only plan ownership active while one plan body lowers statements.
+    /// Each spawned entity receives a typed `PlanOwnership` component; this
+    /// stack contains only the current placement tokens, never actor data.
+    pub(crate) build_plan_ownership: Vec<world::PlanOwnership>,
     /// Runtime primitive registry used by builds that supply extensions.
     pub(crate) primitive_registry: std::sync::Arc<crate::primitives::PrimitiveRegistry>,
     /// Dense, O(1) indexable behavior registry for built-ins and extensions.
@@ -259,6 +270,10 @@ pub struct Timeline {
     /// bodies do not create ordinary keyframes, but their scope still extends
     /// the inferred content duration so playback reaches its end boundary.
     pub(crate) local_time_scope_end_ms: u64,
+    /// Affine local-clock scale active while lowering a reusable plan.
+    pub(crate) plan_clock_rate: f64,
+    /// Resolved absolute keyframe marker times indexed by authored source span.
+    pub(crate) resolved_markers: Vec<(crate::ast::Span, f64)>,
     /// Next auto-color slot for `color: auto`: a scene-level allocation counter,
     /// not per-entity state (the slot itself lives in [`AutoColorComponent`]).
     pub(crate) next_auto_color_index: usize,

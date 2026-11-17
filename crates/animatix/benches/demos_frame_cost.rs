@@ -71,17 +71,19 @@ fn build_target(path: &Path) -> BuildTarget {
     let mut program = graph.load_program(path).expect("demo loads");
     program.typecheck();
     let mut expansion_errors = Vec::new();
-    let ast = program.expand_components(&mut expansion_errors);
+    let expanded = program.expand_components(&mut expansion_errors);
     assert!(
         expansion_errors.is_empty(),
         "{}: expansion errors {expansion_errors:?}",
         path.display()
     );
     let report = BuildTarget::build_with_options(
-        &ast,
+        &expanded.statements,
         &program.namespaces,
         Some(path),
-        BuildOptions::default(),
+        BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
     );
     report.output
 }

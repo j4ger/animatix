@@ -49,12 +49,16 @@ fn collect_scope(
                 span,
             } => {
                 let relative = matches!(statement, Stmt::RelativeKeyframe { .. });
+                let compiled =
+                    span.and_then(|span| timeline?.marker_time(span)).map(|ms| ms / 1000.0);
                 let value = resolve_time(time, timeline);
-                let local = if relative {
-                    previous.zip(value).map(|(a, b)| a + b)
-                } else {
-                    value
-                };
+                let local = compiled.or_else(|| {
+                    if relative {
+                        previous.zip(value).map(|(a, b)| a + b)
+                    } else {
+                        value
+                    }
+                });
                 previous = local;
                 out.push(TimingMarker {
                     expression: format!("#{}{}", if relative { "+" } else { "" }, time.to_source()),
@@ -77,7 +81,9 @@ fn resolve_time(time: &Time, timeline: Option<&Timeline>) -> Option<f64> {
         Time::Seconds(s) => *s,
         Time::Milliseconds(ms) => *ms as f64 / 1000.0,
         // Tempo may be expression-driven. Do not silently assume the default BPM.
-        Time::Beats(_) => return None,
+        Time::Beats(_) | Time::Expression(_) => return None,
+        // Expressions execute in their lexical build environment. Re-evaluating
+        // them against the final environment could place a marker incorrectly.
         Time::SpeechMarker {
             track,
             marker,

@@ -327,31 +327,71 @@ fn parse_f32_list_value(
     }
 }
 
-/// Parse a `ValueType::Gradient` from a `linear(…)` / `radial(…)` / `sweep(…)`
-/// call.
+/// Register gradient constructors as ordinary values, sharing argument binding
+/// with every other standard callable.
+pub(crate) fn register_gradient_functions(env: &mut Environment) {
+    use std::sync::Arc;
+    for name in ["linear", "radial", "sweep"] {
+        env.set(
+            name,
+            Value::NativeFn(Arc::new(move |args, _| {
+                Ok(Value::Object(
+                    "Gradient".into(),
+                    std::collections::HashMap::from([
+                        ("kind".into(), Value::Str(name.into())),
+                        ("arguments".into(), Value::List(args.to_vec().into())),
+                    ]),
+                ))
+            })),
+        );
+    }
+}
+
+/// Read a gradient value after ordinary expression evaluation. This supports
+/// stored values and functions returning gradients as well as direct calls.
 fn parse_gradient_value(
     expr: &Expr,
     env: &Environment,
     diagnostics: &mut Vec<Diagnostic>,
     subject: &str,
 ) -> Option<PropertyValue> {
-    let (kind_name, args) = match expr {
-        Expr::Call(name, args) => (name.as_str(), args.as_slice()),
-        _ => {
-            diagnostics.push(
-                Diagnostic::warning(
-                    DiagnosticCode::InvalidPropertyValue,
-                    DiagnosticPhase::Build,
-                    "expected linear(…), radial(…) or sweep(…), e.g. \
-                     fill_gradient: linear(135, {\"#ff2d55\", \"#5e5ce6\"})"
-                        .to_string(),
-                )
-                .with_subject(subject),
-            );
-            return None;
-        },
+    let value = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
+    let Value::Object(ref kind, ref fields) = value else {
+        gradient_value_error(&value, diagnostics, subject);
+        return None;
     };
-    parse_gradient(kind_name, args, env, diagnostics, subject).map(PropertyValue::Gradient)
+    if kind != "Gradient" {
+        gradient_value_error(&value, diagnostics, subject);
+        return None;
+    }
+    let (Some(Value::Str(kind)), Some(Value::List(arguments))) =
+        (fields.get("kind"), fields.get("arguments"))
+    else {
+        gradient_value_error(&value, diagnostics, subject);
+        return None;
+    };
+    let mut args = arguments
+        .iter()
+        .filter(|value| !matches!(value, Value::Null))
+        .map(value_to_expr)
+        .collect::<Option<Vec<_>>>()?;
+    // The sweep constructor names its optional center last; the geometry
+    // parser consumes geometry before the stop list.
+    if kind == "sweep" && args.len() == 3 {
+        args.swap(1, 2);
+    }
+    parse_gradient(kind, &args, env, diagnostics, subject).map(PropertyValue::Gradient)
+}
+
+fn gradient_value_error(value: &Value, diagnostics: &mut Vec<Diagnostic>, subject: &str) {
+    diagnostics.push(
+        Diagnostic::warning(
+            DiagnosticCode::InvalidPropertyValue,
+            DiagnosticPhase::Build,
+            format!("expected a gradient from linear(), radial() or sweep(), got {value:?}"),
+        )
+        .with_subject(subject),
+    );
 }
 
 /// Parse a `ValueType::PointList` from a list expression or an expression that
@@ -593,7 +633,7 @@ fn parse_gradient(
 
     let mut parsed: Vec<(Option<f32>, [f32; 4])> = Vec::with_capacity(items.len());
     for item in items {
-        if let Expr::Tuple(pair) = item
+        if let Expr::Tuple(pair) | Expr::List(pair) = item
             && pair.len() == 2
         {
             let offset = scalar_expr(&pair[0], env, diagnostics, subject)? as f32;
@@ -684,18 +724,13 @@ fn union_type_name(types: &[ValueType]) -> String {
 /// This is the inverse of the general `Expr → PropertyValue` parsing and is
 /// used to translate plugin-provided default property values into source
 /// defaults. Returns `None` for values that cannot be authored as a scalar
-/// property expression (functions, closures, objects).
-#[cfg_attr(
-    not(feature = "plugin-loading"),
-    allow(dead_code) // Consumed by the native-plugin adapter's `default_props`
-                     // (extension_native_plugin.rs) only when the
-                     // `plugin-loading` feature is enabled.
-)]
+/// property expression (functions, closures, actor references and plans).
 pub fn value_to_expr(value: &crate::timeline::Value) -> Option<Expr> {
     use crate::timeline::Value;
     match value {
         // References do not round-trip to source expressions.
         Value::PropRef { .. } => None,
+        Value::Null => Some(Expr::Null),
         Value::Num(n) => Some(Expr::Num(*n)),
         Value::Str(s) => Some(Expr::Str(s.clone())),
         Value::Bool(b) => Some(Expr::Bool(*b)),
@@ -712,8 +747,27 @@ pub fn value_to_expr(value: &crate::timeline::Value) -> Option<Expr> {
         Value::List(items) => {
             items.iter().map(value_to_expr).collect::<Option<Vec<_>>>().map(Expr::List)
         },
-        // Functions/closures/objects cannot be authored as scalar defaults.
-        Value::NativeFn(_) | Value::Closure(..) | Value::UserFn { .. } | Value::Object(..) => None,
+        // Executable values and entity/plan identities cannot become scalar defaults.
+        Value::NativeFn(_)
+        | Value::RegisteredFn { .. }
+        | Value::Closure(..)
+        | Value::UserFn { .. }
+        | Value::ActorRef(_)
+        | Value::TimelinePlan(_) => None,
+        Value::Duration(seconds) => Some(Expr::Duration(*seconds)),
+        Value::Unit => Some(Expr::Unit),
+        Value::Easing(easing) => Some(crate::easing::easing_to_expr(*easing)),
+        Value::Object(name, fields) => {
+            let mut fields = fields.iter().collect::<Vec<_>>();
+            fields.sort_by(|a, b| a.0.cmp(b.0));
+            let props = fields
+                .into_iter()
+                .map(|(name, value)| {
+                    value_to_expr(value).map(|value| crate::ast::Property::new(name.clone(), value))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            Some(Expr::Construct(name.clone(), props))
+        },
     }
 }
 

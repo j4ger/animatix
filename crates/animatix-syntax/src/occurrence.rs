@@ -21,8 +21,6 @@ pub enum OccurrenceKind {
     Parameter,
     /// Function or method name.
     Function,
-    /// Action verb.
-    Action,
     /// Scene name.
     Scene,
     /// Component definition name.
@@ -66,7 +64,6 @@ impl OccurrenceKind {
             OccurrenceKind::Property => "property",
             OccurrenceKind::Parameter => "parameter",
             OccurrenceKind::Function => "function",
-            OccurrenceKind::Action => "action",
             OccurrenceKind::ImportAlias => "importalias",
             OccurrenceKind::Wildcard => "wildcard",
             OccurrenceKind::Variable => "variable",
@@ -163,6 +160,32 @@ pub(crate) fn record_declaration(kind: OccurrenceKind, name: String, span: ByteS
     record_with(kind, name, span, true);
 }
 
+/// Reclassify the callee token immediately preceding an opening call paren.
+/// Its original occurrence was emitted while parsing the access chain; using
+/// the token occurrence keeps whitespace and chained field spans exact.
+pub(crate) fn mark_call_callee(name: &str, call_start: usize) {
+    PARSER_STATE.with(|stack| {
+        let mut stack = stack.borrow_mut();
+        let Some(state) = stack.last_mut() else {
+            return;
+        };
+        let candidate = state
+            .occurrences
+            .iter()
+            .enumerate()
+            .filter(|(_, occurrence)| {
+                occurrence.name == name
+                    && !occurrence.declaration
+                    && occurrence.span.end <= call_start
+            })
+            .max_by_key(|(_, occurrence)| occurrence.span.end)
+            .map(|(index, _)| index);
+        if let Some(index) = candidate {
+            state.occurrences[index].kind = OccurrenceKind::Function;
+        }
+    });
+}
+
 fn is_better_occurrence(new: &Occurrence, old: &Occurrence) -> bool {
     if new.declaration != old.declaration {
         return new.declaration;
@@ -179,7 +202,6 @@ fn occurrence_priority(kind: OccurrenceKind) -> u8 {
         OccurrenceKind::Variable => 90,
         OccurrenceKind::Property => 70,
         OccurrenceKind::Scene => 65,
-        OccurrenceKind::Action => 60,
         OccurrenceKind::Component => 55,
         OccurrenceKind::TypeAlias => 50,
         OccurrenceKind::ImportAlias => 45,

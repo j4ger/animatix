@@ -43,7 +43,14 @@ pub fn source_pipeline(path: &Path, source: &str) -> Timeline {
         graph.load_program_with_source(path, Some(source)).expect("module load failed");
     let _type_diags = program.typecheck();
     let expanded = program.expand_components(&mut Vec::new());
-    Timeline::build(&expanded)
+    Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        animatix::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    )
+    .output
 }
 
 /// Keep a separate real-file I/O path, including the entry read each iteration.

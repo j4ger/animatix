@@ -56,17 +56,9 @@ fn first_difference(a: &str, b: &str) -> Option<(String, String)> {
 /// Both serializers must be stable: serializing an already-serialized document
 /// has to produce byte-identical output, and must never fail to parse.
 ///
-/// `animatix fmt` used to rewrite `move b to (300, 200)` into
-/// `move b, to 300, 200`, which the parser rejects — a single format pass
-/// destroyed the file. Statement *counts* could not see that, and neither
-/// could the old `assert_eq!(arms, arms)` guardrails.
+/// Tuple-valued named arguments must survive the formatter without changing
+/// the parsed structure. Statement *counts* cannot detect argument loss.
 ///
-/// The one accepted exception is asserted narrowly below: a string literal's
-/// backslashes grow on every pass, because the lexer stores the raw text
-/// between the quotes while `format_expr` escapes it again. Decoding escapes at
-/// lex time is a language-semantics decision (see `docs/roadmap.md`), so
-/// instability is tolerated *only* where a backslash is on the line that
-/// changed — anything else fails.
 #[test]
 fn both_serializers_are_stable_across_the_repo() {
     let formatter =
@@ -78,7 +70,6 @@ fn both_serializers_are_stable_across_the_repo() {
     assert!(files.len() > 100, "expected the repo's .amx corpus, found {}", files.len());
 
     let mut failures: Vec<String> = Vec::new();
-    let mut escape_debt: Vec<std::path::PathBuf> = Vec::new();
 
     for file_path in &files {
         let Ok(source) = std::fs::read_to_string(file_path) else {
@@ -128,13 +119,9 @@ fn both_serializers_are_stable_across_the_repo() {
             let Some((before, after)) = first_difference(&serialized, &second) else {
                 continue;
             };
-            if before.contains('\\') {
-                escape_debt.push(file_path.clone());
-            } else {
-                failures.push(format!(
-                    "{label}: {serializer_name} is not idempotent\n  pass 1: {before}\n  pass 2: {after}"
-                ));
-            }
+            failures.push(format!(
+                "{label}: {serializer_name} is not idempotent\n  pass 1: {before}\n  pass 2: {after}"
+            ));
         }
     }
 
@@ -143,20 +130,6 @@ fn both_serializers_are_stable_across_the_repo() {
         "{} file(s) fail serializer stability:\n{}",
         failures.len(),
         failures.join("\n\n")
-    );
-
-    // The tolerance above must stay scoped to the escape bug: every excused
-    // file has to actually contain a backslash, or the exemption is hiding
-    // something else.
-    let unjustified: Vec<String> = escape_debt
-        .iter()
-        .filter(|path| std::fs::read_to_string(path).is_ok_and(|text| !text.contains('\\')))
-        .map(|path| path.display().to_string())
-        .collect();
-    assert!(
-        unjustified.is_empty(),
-        "serializer instability was excused as the string-escape bug in files with no \
-         backslash at all: {unjustified:?}"
     );
 }
 
@@ -224,14 +197,9 @@ fn formatter_preserves_comments_across_repo_files() {
             let Some((first_pass, second_pass)) = first_difference(&formatted, &second) else {
                 continue;
             };
-            // Pre-existing escape debt: string literals grow a backslash on
-            // every pass because the lexer keeps raw escapes. Ignore only that
-            // known case; see `both_serializers_are_stable_across_the_repo`.
-            if !first_pass.contains('\\') {
-                failures.push(format!(
-                    "{label}: comment formatting is not idempotent\n  pass 1: {first_pass}\n  pass 2: {second_pass}"
-                ));
-            }
+            failures.push(format!(
+                "{label}: comment formatting is not idempotent\n  pass 1: {first_pass}\n  pass 2: {second_pass}"
+            ));
         }
     }
 

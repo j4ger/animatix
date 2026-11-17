@@ -21,6 +21,7 @@ mod child_order;
 mod colorscheme;
 #[cfg(test)]
 mod component_arrays;
+mod component_functions;
 #[cfg(test)]
 mod components;
 #[cfg(test)]
@@ -31,6 +32,9 @@ mod container_helpers;
 mod coordinate_frame;
 #[cfg(test)]
 mod counter_affixes;
+#[cfg(test)]
+mod frame_actor_shadow_audit;
+mod frame_component_methods;
 #[cfg(test)]
 mod frame_dedup;
 #[cfg(test)]
@@ -81,3 +85,5 @@ mod transform_cache;
 mod variable_tracks;
 
 pub(crate) use timeline_core::without_content_lints;
+
+mod plan_syntax;

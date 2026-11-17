@@ -89,6 +89,7 @@ pub fn walk_inline_item_mut(item: &mut InlineItem, visitor: &mut dyn FnMut(&mut 
         InlineItem::SlotFill { items, .. } => {
             walk_inline_items_mut(items, visitor);
         },
+        InlineItem::Expr(..) => {},
         InlineItem::SlotMarker => {},
     }
 }
@@ -276,6 +277,28 @@ pub fn time_to_seconds(t: &Time) -> f64 {
         Time::SpeechMarker { offset_ms, .. } | Time::SpeechWord { offset_ms, .. } => {
             *offset_ms as f64 / 1000.0
         },
+        // A dynamic expression has no static frame position. Constant
+        // duration and numeric expressions are still useful to outlines.
+        Time::Expression(expr) => static_time_expression(expr).unwrap_or(0.0),
+    }
+}
+
+fn static_time_expression(expr: &Expr) -> Option<f64> {
+    match expr {
+        Expr::Num(value) | Expr::Duration(value) => Some(*value),
+        Expr::Unary(crate::ast::UnaryOp::Neg, inner) => Some(-static_time_expression(inner)?),
+        Expr::Binary(left, op, right) => {
+            let left = static_time_expression(left)?;
+            let right = static_time_expression(right)?;
+            match op {
+                crate::ast::BinaryOp::Add => Some(left + right),
+                crate::ast::BinaryOp::Sub => Some(left - right),
+                crate::ast::BinaryOp::Mul => Some(left * right),
+                crate::ast::BinaryOp::Div if right != 0.0 => Some(left / right),
+                _ => None,
+            }
+        },
+        _ => None,
     }
 }
 

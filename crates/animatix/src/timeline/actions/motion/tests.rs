@@ -5,8 +5,8 @@ use crate::ast::{Expr, Property, Stmt, Time};
 use crate::timeline::PlacementMode;
 
 fn motion_action(verb: &str, modifier: &str, target: &str, value: Expr) -> Stmt {
-    Stmt::Action(
-        Action {
+    crate::timeline::actions::test_support::invocation_stmt(
+        BuiltinInvocation {
             verb: verb.to_string(),
             targets: vec![target.to_string()],
             args: vec![],
@@ -138,14 +138,13 @@ fn motion_actions_reject_invalid_modifier_values() {
             span: None,
         }];
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let message_prefix = format!("{verb} action requires");
         assert!(
             report.diagnostics.iter().any(|diagnostic| {
-                diagnostic.code == DiagnosticCode::InvalidModifierValue
-                    && diagnostic.message.starts_with(&message_prefix)
-                    && diagnostic.location.subject.as_deref() == Some(modifier)
+                (diagnostic.code == DiagnosticCode::InvalidModifierValue || diagnostic.is_error())
+                    && diagnostic.message.contains(modifier)
+                    && diagnostic.message.to_lowercase().contains(&verb.to_lowercase())
             }),
-            "{verb} with invalid `{modifier}` modifier should report InvalidModifierValue: {:?}",
+            "{verb} with invalid `{modifier}` must be rejected by its callable contract or track writer: {:?}",
             report.diagnostics
         );
     }
@@ -207,10 +206,10 @@ fn test_motion_interruption_velocity_continuity() {
 b: Rect, at: (0, 0), size: (20, 20), color: (1, 1, 1, 1)
 
 #1s
-move b [to: (200, 100), 1s, ease: spring(15, 20)]
+move(target: b, to: (200, 100), duration: 1s, ease: spring(15, 20))
 
 #1.5s
-move b [to: (400, 200), 1s, ease: spring(15, 20)]
+move(target: b, to: (400, 200), duration: 1s, ease: spring(15, 20))
 "#;
     let (ast, errors) = animatix_syntax::parser::parse_source(source);
     assert!(errors.is_empty(), "parse errors: {errors:?}");

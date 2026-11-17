@@ -20,7 +20,7 @@ bg: Filter {
   photo: Image, url: "photo.jpg"         // content
 }
 #1.5s
-bg.soft.radius = 24 [1.5s, ease: ease-out]  // effect params animate
+bg.soft.radius = 24 [1.5s, ease: ease_out]  // effect params animate
 ```
 
 Rules:

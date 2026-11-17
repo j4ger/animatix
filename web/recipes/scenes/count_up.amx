@@ -4,19 +4,19 @@ import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (640, 360), duration: 5 }
 
-kpi: Text, text: "0", font_size: 92, color: accent.warning, at: (320, 158), opacity: 1.0
-cap: Text, text: "requests per second", font_size: 20, color: text.secondary,
-  at: (320, 226), opacity: 1.0
+kpi: Text, text: "0", font_size: 92, color: accent.warning, at: (320, 158), opacity: 1
+
+cap: Text, text: "requests per second", font_size: 20, color: text.secondary, at: (320, 226), opacity: 1
 
 always {
   let p = clamp(t / 1.6, 0, 1)
   // Eased by hand: the counter should arrive with the plate, not linearly.
-  let eased = 1.0 - pow(1.0 - p, 3.0)
+  let eased = 1 - pow(1 - p, 3)
   // `format` knows `{}` and `{.N}` — no thousands grouping — so the target is a
   // number that reads without one.
   kpi.text = format("{}", floor(8412 * eased))
 }
 
 #0s
-fade-in cap [400ms]
-settle-in kpi [420ms]
+  fade_in(target: cap, duration: 0.4s)
+  settle_in(target: kpi, duration: 0.42s)

@@ -35,11 +35,19 @@ pub fn run(
         (source, file.to_string())
     };
     let mut module_graph = ModuleGraph::new();
-    let (ast, namespaces, type_diagnostics) = match module_graph
+    let mut ctx = animatix::extension_context::ExtensionContext::new();
+    let (expanded, namespaces, function_context, type_diagnostics, disposers) = match module_graph
         .load_program_with_source(std::path::Path::new(&file_label), Some(&source))
     {
         Ok(mut program) => {
-            let diagnostics = program.typecheck();
+            let disposers = match extensions.install_into(&mut ctx) {
+                Ok(disposers) => disposers,
+                Err(e) => {
+                    error!("Plugin install failed: {e}");
+                    std::process::exit(1);
+                },
+            };
+            let diagnostics = program.typecheck_with_callables(ctx.callable_descriptors());
             let mut expansion_errors = Vec::new();
             let expanded = program.expand_components(&mut expansion_errors);
             let mut diagnostics = diagnostics;
@@ -50,7 +58,7 @@ pub fn run(
                     error,
                 ));
             }
-            (expanded, program.namespaces, diagnostics)
+            (expanded, program.namespaces, program.function_context, diagnostics, disposers)
         },
         Err(e) => {
             // Report the parse failure through the normal diagnostic
@@ -65,25 +73,20 @@ pub fn run(
             std::process::exit(1);
         },
     };
-    let mut ctx = animatix::extension_context::ExtensionContext::new();
-    let disposers = match extensions.install_into(&mut ctx) {
-        Ok(disposers) => disposers,
-        Err(e) => {
-            error!("Plugin install failed: {e}");
-            std::process::exit(1);
-        },
-    };
     let context = std::sync::Arc::new(ctx);
-    let report = BuildTarget::from_ast_with_context_and_defines(
-        &ast,
+    let report = BuildTarget::build_with_options(
+        &expanded.statements,
         &namespaces,
         if file_label == "-" {
             None
         } else {
             Some(std::path::Path::new(&file_label))
         },
-        context,
-        set,
+        animatix::timeline::BuildOptions::default()
+            .with_context(context)
+            .with_defines(set)
+            .with_function_context(&function_context)
+            .with_expanded(&expanded),
     );
     let _disposers = disposers;
     let mut diagnostics = type_diagnostics;

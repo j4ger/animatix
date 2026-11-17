@@ -1,15 +1,18 @@
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 4 }
+
 #0s
-background: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
-// Row owns alignment; Group applies one transform to the composition.
-cluster: Group, opacity: 1, at: (640, 360) {
+  background: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
+  // Row owns alignment; Group applies one transform to the composition.
+  cluster: Group, opacity: 1, at: (640, 360) {
   row: Row, opacity: 1, gap: 28, align: "center" {
-    circle: Ellipse, opacity: 1, size: (100, 100), color: "#65D9E8"
-    square: Rect, opacity: 1, size: (100, 100), corner_radius: 20, color: "#ABA4FA"
-    small: Rect, opacity: 1, size: (64, 64), corner_radius: 14, color: "#F4D47B"
-  }
-}
+  circle: Ellipse, opacity: 1, size: (100, 100), color: "#65D9E8"
+  square: Rect, opacity: 1, size: (100, 100), corner_radius: 20, color: "#ABA4FA"
+  small: Rect, opacity: 1, size: (64, 64), corner_radius: 14, color: "#F4D47B"
+      }
+    }
+
 #1s
-cluster.rotation = 0.15 [1s, ease: ease-in-out]
+  cluster.rotation = 0.15 [1s, ease: ease_in_out]
+
 #2s
-cluster.rotation = 0 [1s, ease: ease-in-out]
+  cluster.rotation = 0 [1s, ease: ease_in_out]

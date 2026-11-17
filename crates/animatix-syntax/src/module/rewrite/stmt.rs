@@ -59,37 +59,6 @@ impl AstFolder for ModuleRewriter<'_> {
                 value_span,
                 span,
             },
-            Stmt::Action(action, span) => Stmt::Action(
-                Action {
-                    verb: action.verb,
-                    targets: action
-                        .targets
-                        .iter()
-                        .map(|target| {
-                            rewrite_label_ref(
-                                target,
-                                self.prefix,
-                                self.root_label,
-                                self.known_labels,
-                            )
-                        })
-                        .collect(),
-                    args: action.args.into_iter().map(|a| self.fold_expr(a)).collect(),
-                    modifiers: action
-                        .modifiers
-                        .into_iter()
-                        .map(|m| self.fold_modifier(m))
-                        .collect(),
-                    byte_span: action.byte_span,
-                    target_index: action
-                        .target_index
-                        .into_iter()
-                        .map(|opt| opt.map(|expr| self.fold_expr(expr)))
-                        .collect(),
-                    target_index_position: action.target_index_position,
-                },
-                span,
-            ),
             Stmt::ReactiveBinding {
                 target,
                 property,

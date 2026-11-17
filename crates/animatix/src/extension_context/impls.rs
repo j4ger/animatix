@@ -18,6 +18,7 @@ impl fmt::Display for ExtensionRegistrationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Duplicate(name) => write!(f, "extension '{name}' is already registered"),
+            Self::InvalidContract(message) => write!(f, "invalid callable contract: {message}"),
         }
     }
 }

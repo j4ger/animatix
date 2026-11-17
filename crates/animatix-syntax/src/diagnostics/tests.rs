@@ -18,6 +18,7 @@ fn diagnostic_codes_format_honestly() {
     for (code, expected) in [
         (DiagnosticCode::SourceLoadFailure, "source-load-failure"),
         (DiagnosticCode::RenderFailure, "render-failure"),
+        (DiagnosticCode::CallableEvaluationError, "callable-evaluation-error"),
         (DiagnosticCode::PersistIgnoresDuration, "persist-ignores-duration"),
         (DiagnosticCode::PersistLayoutManagedChild, "persist-layout-managed-child"),
         (DiagnosticCode::PersistTargetNotCarried, "persist-target-not-carried"),

@@ -6,17 +6,17 @@
 //! reserved `camera` target, which carries the scene camera's transform
 //! instead of a track (and therefore has nothing to fade).
 
-use super::registry::{ActionSignature, BuiltinAction, base_timing_params};
-use crate::ast::Action;
+use super::registry::{BuiltinAction, CallableDescriptor};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
 use crate::timeline::Timeline;
+use crate::timeline::actions::BuiltinInvocation;
 use crate::timeline::property_track::TrackAccessor;
 
-/// Helper: apply a fade-out to the target track at the given time range.
+/// Helper: apply a fade_out to the target track at the given time range.
 ///
-/// Reuses the fade-out logic from `exit.rs::FadeOut` to avoid duplication
-/// between the `fade-out` action and the `remove` action.
+/// Reuses the fade_out logic from `exit.rs::FadeOut` to avoid duplication
+/// between the `fade_out` action and the `remove` action.
 pub(crate) fn apply_fade_out_opacity(
     timeline: &mut Timeline,
     target: &str,
@@ -53,23 +53,13 @@ pub(crate) fn apply_fade_out_opacity(
 pub struct Persist;
 
 impl BuiltinAction for Persist {
-    fn signature(&self) -> ActionSignature {
-        ActionSignature {
-            name: "persist".to_string(),
-            category: "Persistence".to_string(),
-            description: "Marks the target actor(s) to be carried forward across \
-                          scene boundaries in multi-scene compositions. `persist camera` \
-                          carries the scene camera's transform instead of an actor. \
-                          Timing modifiers are ignored."
-                .to_string(),
-            params: vec![],
-            modifiers: vec![], // no timing modifiers accepted
-        }
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::Persist.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         _time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
@@ -142,23 +132,13 @@ impl BuiltinAction for Persist {
 pub struct Remove;
 
 impl BuiltinAction for Remove {
-    fn signature(&self) -> ActionSignature {
-        ActionSignature {
-            name: "remove".to_string(),
-            category: "Persistence".to_string(),
-            description: "Fades out the target actor and clears its persistence flag, \
-                          preventing it from being carried to the next scene. \
-                          Optional duration controls the fade-out speed. \
-                          `remove camera` only clears the flag: the camera has no opacity."
-                .to_string(),
-            params: vec![],
-            modifiers: base_timing_params(),
-        }
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::Remove.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
@@ -196,7 +176,7 @@ impl BuiltinAction for Remove {
                 continue;
             }
 
-            // Apply fade-out opacity keyframes (reuse shared helper)
+            // Apply fade_out opacity keyframes (reuse shared helper)
             apply_fade_out_opacity(timeline, target, t_start_ms, t_end_ms, delay_ms, easing);
 
             // Clear the persistence flag so this actor is NOT carried forward
@@ -209,7 +189,7 @@ impl BuiltinAction for Remove {
 mod tests {
     use super::super::test_support::text_decl;
     use super::*;
-    use crate::ast::{Action, Expr, Modifier, Stmt, Time};
+    use crate::ast::{Expr, Modifier, Stmt, Time};
     use crate::diagnostics::DiagnosticSeverity;
 
     // Persist tests
@@ -220,7 +200,7 @@ mod tests {
         let id = timeline.world.spawn("actor", "Rect");
         timeline.world.style_mut(id).opacity.ensure(1.0);
 
-        let action = Action {
+        let action = BuiltinInvocation {
             verb: "persist".to_string(),
             targets: vec!["actor".to_string()],
             args: vec![],
@@ -245,7 +225,7 @@ mod tests {
             timeline.world.style_mut(id).opacity.ensure(1.0);
         }
 
-        let action = Action {
+        let action = BuiltinInvocation {
             verb: "persist".to_string(),
             targets: vec!["a".to_string(), "b".to_string(), "c".to_string()],
             args: vec![],
@@ -270,7 +250,7 @@ mod tests {
         let id = timeline.world.spawn("actor", "Rect");
         timeline.world.style_mut(id).opacity.ensure(1.0);
 
-        let action = Action {
+        let action = BuiltinInvocation {
             verb: "persist".to_string(),
             targets: vec!["actor".to_string()],
             args: vec![],
@@ -300,7 +280,7 @@ mod tests {
     fn persist_emits_error_for_nonexistent_target() {
         let mut timeline = Timeline::new();
 
-        let action = Action {
+        let action = BuiltinInvocation {
             verb: "persist".to_string(),
             targets: vec!["nonexistent".to_string()],
             args: vec![],
@@ -328,7 +308,7 @@ mod tests {
         timeline.world.style_mut(id).opacity.ensure(1.0);
         timeline.set_persistence_flag("actor", true);
 
-        let action = Action {
+        let action = BuiltinInvocation {
             verb: "remove".to_string(),
             targets: vec!["actor".to_string()],
             args: vec![],
@@ -360,7 +340,7 @@ mod tests {
             .ensure(1.0)
             .add_keyframe(0, 1.0, Easing::Linear);
 
-        let action = Action {
+        let action = BuiltinInvocation {
             verb: "remove".to_string(),
             targets: vec!["actor".to_string()],
             args: vec![],
@@ -390,7 +370,7 @@ mod tests {
             .ensure(1.0)
             .add_keyframe(0, 1.0, Easing::Linear);
 
-        let action = Action {
+        let action = BuiltinInvocation {
             verb: "remove".to_string(),
             targets: vec!["actor".to_string()],
             args: vec![],
@@ -419,7 +399,7 @@ mod tests {
     fn remove_emits_error_for_nonexistent_target() {
         let mut timeline = Timeline::new();
 
-        let action = Action {
+        let action = BuiltinInvocation {
             verb: "remove".to_string(),
             targets: vec!["nonexistent".to_string()],
             args: vec![],
@@ -446,8 +426,8 @@ mod tests {
             time: Time::Seconds(0.0),
             body: vec![
                 text_decl("headline"),
-                Stmt::Action(
-                    Action {
+                crate::timeline::actions::test_support::invocation_stmt(
+                    BuiltinInvocation {
                         verb: "persist".to_string(),
                         targets: vec!["headline".to_string()],
                         args: vec![],
@@ -475,8 +455,8 @@ mod tests {
             time: Time::Seconds(0.0),
             body: vec![
                 text_decl("headline"),
-                Stmt::Action(
-                    Action {
+                crate::timeline::actions::test_support::invocation_stmt(
+                    BuiltinInvocation {
                         verb: "remove".to_string(),
                         targets: vec!["headline".to_string()],
                         args: vec![],

@@ -59,6 +59,181 @@ fn file_symbols_and_imports_are_available_after_load() {
 }
 
 #[test]
+fn loaded_entry_keyframes_keep_source_spans_but_imported_spans_do_not_leak() {
+    let main_path = PathBuf::from("/virtual/main.amx");
+    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+    graph.upsert_source(
+        PathBuf::from("/virtual/lib.amx"),
+        "#8s\nlet imported_tick = 1\n".to_string(),
+    );
+    graph.upsert_source(
+        main_path.clone(),
+        "import \"./lib.amx\"\n#0.1s\nlet local_tick = 1\n".to_string(),
+    );
+
+    let program = graph.load_program(&main_path).expect("source should load");
+    assert!(program.statements.iter().any(|stmt| matches!(
+        stmt,
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(time),
+            span: Some(span),
+            ..
+        } if (*time - 0.1).abs() < f64::EPSILON && span.start_line == 2
+    )));
+    assert!(program.statements.iter().any(|stmt| matches!(
+        stmt,
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(time),
+            span: None,
+            ..
+        } if (*time - 8.0).abs() < f64::EPSILON
+    )));
+}
+
+#[test]
+fn imported_scene_expansion_uses_its_private_component_scope() {
+    let main_path = PathBuf::from("/virtual/main.amx");
+    let lib_path = PathBuf::from("/virtual/lib.amx");
+    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+    graph.upsert_source(main_path.clone(), "import \"./lib.amx\" as lib\n".to_string());
+    graph.upsert_source(
+        lib_path,
+        r#"
+component Card(width: Num = 10) {
+  root: Rect, size: (width, 20)
+  fn pulse() { #{ root.opacity = width } }
+}
+# Demo
+card: Card, width: 42
+"#
+        .to_string(),
+    );
+    let program = graph.load_program(&main_path).expect("modules should load");
+    let scene = &program.namespaces["lib"].scenes["Demo"];
+
+    let expanded = program
+        .function_context
+        .expand_scene(scene)
+        .expect("scene source module scope should be available");
+    assert!(expanded.statements.iter().any(|stmt| matches!(
+        stmt,
+        Stmt::ActorDecl { label, ty, .. } if label == "card" && ty == "Rect"
+    )));
+    assert!(expanded.instance_methods["card"].contains_key("pulse"));
+    assert!(expanded.expanded_function_context.is_some());
+}
+
+#[test]
+fn imported_scene_keeps_computed_marker_spans_for_play_timing() {
+    let main_path = PathBuf::from("/virtual/main.amx");
+    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+    graph.upsert_source(main_path.clone(), "import \"./scenes.amx\" as scenes\n".to_string());
+    graph.upsert_source(
+        PathBuf::from("/virtual/scenes.amx"),
+        r#"
+let hold = 700ms
+# Timed
+#(hold)
+  let first = 1
+#+(hold)
+  let second = 2
+play Done
+# Done
+"#
+        .to_string(),
+    );
+
+    let program = graph.load_program(&main_path).expect("modules should load");
+    let scene = &program.namespaces["scenes"].scenes["Timed"];
+    let expanded = program
+        .function_context
+        .expand_scene(scene)
+        .expect("scene source module scope should be available");
+    let computed_markers = expanded
+        .statements
+        .iter()
+        .filter_map(|stmt| match stmt {
+            Stmt::Keyframe {
+                time: crate::ast::Time::Expression(_),
+                span,
+                ..
+            }
+            | Stmt::RelativeKeyframe {
+                offset: crate::ast::Time::Expression(_),
+                span,
+                ..
+            } => Some(*span),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(computed_markers.len(), 2, "both computed markers must survive expansion");
+    assert!(computed_markers.iter().all(Option::is_some));
+    assert!(
+        expanded
+            .statements
+            .iter()
+            .any(|stmt| matches!(stmt, Stmt::Play { scene_name, .. } if scene_name == "Done"))
+    );
+}
+
+#[test]
+fn returned_function_plans_keep_expanded_component_method_scope() {
+    let path = PathBuf::from("/virtual/main.amx");
+    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+    graph.upsert_source(
+        path.clone(),
+        r#"
+component Card(width: Num) {
+  box: Rect, size: (width, 20)
+  fn scaled(factor: Num) { width * factor }
+  pub fn resize(factor: Num = 2) { #{ self.size = (scaled(factor), 20) } }
+}
+fn card(width: Num) {
+  #{ local: Card, width: width
+    local.resize()
+  }
+}
+"#,
+    );
+
+    let program = graph.load_program(&path).expect("source should load");
+    let expanded = program.expand_components(&mut Vec::new());
+    let context = expanded
+        .expanded_function_context
+        .as_ref()
+        .expect("loaded program should carry expanded function scope");
+    let template = &context.visible["card"];
+    let plan = template
+        .body
+        .iter()
+        .find_map(|stmt| match stmt {
+            Stmt::Return {
+                value: Some(Expr::Timeline(plan)),
+                ..
+            } => Some(plan),
+            _ => None,
+        })
+        .expect("card should return a timeline plan");
+
+    assert!(plan.statements.iter().any(|stmt| matches!(
+        stmt,
+        Stmt::ActorDecl { label, ty, .. } if label == "local" && ty == "Rect"
+    )));
+    assert!(plan.instance_methods["local"].contains_key("resize"));
+    let resize = &plan.instance_methods["local"]["resize"];
+    assert!(resize.body.iter().any(|stmt| matches!(
+        stmt,
+        Stmt::Return {
+            value: Some(Expr::Timeline(method_plan)),
+            ..
+        } if method_plan.statements.iter().any(|inner| matches!(
+            inner,
+            Stmt::Assignment { property, .. } if property == "size"
+        ))
+    )));
+}
+
+#[test]
 fn standalone_load_keeps_local_symbols_when_import_missing() {
     let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
     graph.upsert_source(

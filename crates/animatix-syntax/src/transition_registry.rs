@@ -30,49 +30,49 @@ pub static REGISTRY: &[TransitionDef] = &[
         shader_case: 1,
     },
     TransitionDef {
-        id: "wipe-left",
+        id: "wipe_left",
         display_name: "Wipe Left",
         default_duration_ms: 300,
         shader_case: 2,
     },
     TransitionDef {
-        id: "wipe-right",
+        id: "wipe_right",
         display_name: "Wipe Right",
         default_duration_ms: 300,
         shader_case: 3,
     },
     TransitionDef {
-        id: "wipe-up",
+        id: "wipe_up",
         display_name: "Wipe Up",
         default_duration_ms: 300,
         shader_case: 4,
     },
     TransitionDef {
-        id: "wipe-down",
+        id: "wipe_down",
         display_name: "Wipe Down",
         default_duration_ms: 300,
         shader_case: 5,
     },
     TransitionDef {
-        id: "push-left",
+        id: "push_left",
         display_name: "Push Left",
         default_duration_ms: 300,
         shader_case: 6,
     },
     TransitionDef {
-        id: "push-right",
+        id: "push_right",
         display_name: "Push Right",
         default_duration_ms: 300,
         shader_case: 7,
     },
     TransitionDef {
-        id: "push-up",
+        id: "push_up",
         display_name: "Push Up",
         default_duration_ms: 300,
         shader_case: 8,
     },
     TransitionDef {
-        id: "push-down",
+        id: "push_down",
         display_name: "Push Down",
         default_duration_ms: 300,
         shader_case: 9,
@@ -84,13 +84,13 @@ pub static REGISTRY: &[TransitionDef] = &[
         shader_case: 10,
     },
     TransitionDef {
-        id: "clock-wipe",
+        id: "clock_wipe",
         display_name: "Clock Wipe",
         default_duration_ms: 600,
         shader_case: 11,
     },
     TransitionDef {
-        id: "zoom-through",
+        id: "zoom_through",
         display_name: "Zoom Through",
         default_duration_ms: 700,
         shader_case: 12,
@@ -124,7 +124,7 @@ mod tests {
 
     #[test]
     fn test_push_transitions_in_registry() {
-        for name in ["push-left", "push-right", "push-up", "push-down"] {
+        for name in ["push_left", "push_right", "push_up", "push_down"] {
             let def = find(name);
             assert!(def.is_some(), "Expected transition '{name}' to be recognized");
         }
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_iris_clock_wipe_and_zoom_through_transitions_in_registry() {
-        for (name, shader_case) in [("iris", 10), ("clock-wipe", 11), ("zoom-through", 12)] {
+        for (name, shader_case) in [("iris", 10), ("clock_wipe", 11), ("zoom_through", 12)] {
             let def = find(name)
                 .unwrap_or_else(|| panic!("Expected transition '{name}' to be recognized"));
             assert_eq!(def.shader_case, shader_case, "'{name}' must use its own shader arm");

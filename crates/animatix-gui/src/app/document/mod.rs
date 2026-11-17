@@ -80,14 +80,16 @@ pub struct DocumentSession {
     pub keyframe_lines: Vec<usize>,
     /// Component registry from the last successful program load.
     pub components: HashMap<String, ComponentEntry>,
-    /// Module-scoped actions from the last successful program load.
+    /// Module-scoped functions from the last successful program load.
     pub module_fns: HashMap<String, FnTemplate>,
     /// Hash of source_text at last successful rebuild — skip rebuild if unchanged.
     last_source_hash: u64,
-    /// Hash of component registry at last successful rebuild — skip expansion if unchanged.
-    last_component_hash: u64,
-    /// Cached expanded statements — reused when components haven't changed.
-    cached_expanded: Option<Vec<Stmt>>,
+    /// Hash of the complete source graph at the last successful expansion.
+    last_expansion_hash: u64,
+    /// Cached statements and callable metadata for an unchanged source graph.
+    cached_expanded: Option<animatix_syntax::module::ExpandedProgram>,
     /// Cached module graph — preserves parsed imports across rebuilds.
     cached_module_graph: Option<ModuleGraph>,
+    /// Disk imports corresponding to the cached graph; entry source is editor-owned.
+    cached_module_sources: HashMap<PathBuf, String>,
 }

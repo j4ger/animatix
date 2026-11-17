@@ -7,19 +7,49 @@
 
 use chumsky::input::MapExtra;
 use chumsky::prelude::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use super::common::{self, ExprParser, ParserExtra, StrInput};
 use super::token_parser::*;
 use crate::ast::*;
+use crate::diagnostics::Diagnostic;
 use crate::occurrence::OccurrenceKind;
+use crate::token::TokenKind;
+
+enum PlanItem {
+    Keyframe { relative: bool, time: Time },
+    Statement(Stmt),
+}
 
 /// Build the expression parser.
 ///
 /// Returns a boxed parser that parses any expression in the `.amx` DSL.
-pub(crate) fn parser<'src>() -> ExprParser<'src> {
+pub(crate) fn parser<'src>(
+    warnings: Rc<RefCell<Vec<Diagnostic>>>,
+    source: common::SourceIndex<'src>,
+) -> ExprParser<'src> {
     recursive(|expr| {
         let expr: ExprParser<'src> = expr.boxed();
-        let access = access_parser(&expr, atom_parsers(&expr));
+        // Timeline-valued expressions contain the same statement grammar as
+        // scenes. Build this nested statement parser from the recursive expr
+        // handle so timeline plans can contain nested plans and normal calls.
+        let property = common::property(expr.clone());
+        let modifier = common::modifier(expr.clone(), common::time());
+        let modifiers = common::modifiers(modifier);
+        let inline = super::inline::parser(
+            expr.clone(),
+            property.clone(),
+            modifiers.clone(),
+            warnings.clone(),
+            source.clone(),
+        );
+        let stmt =
+            super::stmt::parser(expr.clone(), property, modifiers.clone(), inline, source.clone());
+        let access = access_parser(
+            expr.clone(),
+            atom_parsers(expr.clone(), stmt.clone(), modifiers.clone()),
+        );
         let logical = binary_chain(unary_parser(access));
         let closure = closure_parser(&expr);
         let conditional_expr = conditional_parser(&expr);
@@ -38,7 +68,11 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
 /// Covers numbers, percents, strings, booleans, null, `&actor.prop` references,
 /// calls, tuple/array literals and type constructors. Every recursive position
 /// uses `expr`.
-fn atom_parsers<'src>(expr: &ExprParser<'src>) -> ExprParser<'src> {
+fn atom_parsers<'src>(
+    expr: ExprParser<'src>,
+    stmt: super::common::StmtParser<'src>,
+    modifiers: super::common::ModifiersParser<'src>,
+) -> ExprParser<'src> {
     let variable_ident = common::ident_occ(OccurrenceKind::Variable);
 
     let num = number().map(Expr::Num);
@@ -54,7 +88,9 @@ fn atom_parsers<'src>(expr: &ExprParser<'src>) -> ExprParser<'src> {
         .collect::<Vec<_>>()
         .delimited_by(lparen(), rparen())
         .map(|items| {
-            if items.len() == 1 {
+            if items.is_empty() {
+                Expr::Unit
+            } else if items.len() == 1 {
                 items.into_iter().next().unwrap_or(Expr::Tuple(Vec::new()))
             } else {
                 Expr::Tuple(items)
@@ -71,22 +107,10 @@ fn atom_parsers<'src>(expr: &ExprParser<'src>) -> ExprParser<'src> {
         .map(Expr::List)
         .boxed();
 
-    let call = common::ident()
-        .map_with(|name, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
-            (name, extra.span())
-        })
-        .then(
-            expr.clone()
-                .separated_by(comma())
-                .allow_trailing()
-                .collect::<Vec<_>>()
-                .delimited_by(lparen(), rparen()),
-        )
-        .map(|((name, span), args)| {
-            crate::occurrence::record(OccurrenceKind::Function, name.clone(), span);
-            Expr::Call(name, args)
-        })
-        .boxed();
+    let duration = select! {
+        TokenKind::Time { value, ms } => Expr::Duration(if ms { value / 1000.0 } else { value }),
+    }
+    .boxed();
 
     let construct = common::ident()
         .map_with(|name, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
@@ -128,14 +152,45 @@ fn atom_parsers<'src>(expr: &ExprParser<'src>) -> ExprParser<'src> {
         .map(|(label, prop)| Expr::Unary(UnaryOp::Ref, Box::new(Expr::Path(vec![label, prop]))))
         .labelled("property reference");
 
+    let plan_body = plan_body_parser(expr.clone(), stmt.clone());
+    let timeline = hash()
+        .ignore_then(plan_body.clone())
+        .try_map(|body, span| {
+            if body.iter().any(|stmt| {
+                matches!(stmt, crate::ast::Stmt::Config { .. } | crate::ast::Stmt::Play { .. })
+            }) {
+                Err(Rich::custom(span, "config and play are only allowed at the scene/file level"))
+            } else {
+                Ok(Expr::Timeline(PlanBody::new(body)))
+            }
+        })
+        .boxed();
+
+    let sequence = keyword("sequence")
+        .ignore_then(plan_body.clone())
+        .map(|body| Expr::Sequence(PlanBody::new(body)))
+        .boxed();
+
+    let stagger = keyword("stagger")
+        .ignore_then(modifiers.clone())
+        .then(plan_body)
+        .map(|(modifiers, body)| Expr::Stagger {
+            modifiers,
+            plan: PlanBody::new(body),
+        })
+        .boxed();
+
     choice((
         prop_ref,
         percent,
+        duration,
         num,
         str_val,
         bool_val,
         null_val,
-        call,
+        timeline,
+        sequence,
+        stagger,
         tuple,
         array,
         construct,
@@ -144,13 +199,86 @@ fn atom_parsers<'src>(expr: &ExprParser<'src>) -> ExprParser<'src> {
     .boxed()
 }
 
+fn plan_body_parser<'src>(
+    expr: ExprParser<'src>,
+    stmt: super::common::StmtParser<'src>,
+) -> impl Parser<'src, StrInput<'src>, Vec<Stmt>, ParserExtra<'src>> + Clone {
+    let keyframe = hash()
+        .ignore_then(plus().or_not())
+        .then(common::time_with_expr(expr.clone()))
+        .then_ignore(colon().or_not())
+        .map(|(relative, time)| PlanItem::Keyframe {
+            relative: relative.is_some(),
+            time,
+        });
+    let item = choice((keyframe, stmt.clone().map(PlanItem::Statement)));
+    item.repeated()
+        .collect::<Vec<_>>()
+        .delimited_by(lbrace(), rbrace())
+        .map(group_plan_items)
+}
+
+fn group_plan_items(items: Vec<PlanItem>) -> Vec<Stmt> {
+    let mut body = Vec::new();
+    let mut keyframe: Option<(bool, Time, Vec<Stmt>)> = None;
+
+    for item in items {
+        match item {
+            PlanItem::Keyframe { relative, time } => {
+                if let Some((was_relative, old_time, statements)) = keyframe.take() {
+                    body.push(if was_relative {
+                        Stmt::RelativeKeyframe {
+                            offset: old_time,
+                            body: statements,
+                            span: None,
+                        }
+                    } else {
+                        Stmt::Keyframe {
+                            time: old_time,
+                            body: statements,
+                            span: None,
+                        }
+                    });
+                }
+                keyframe = Some((relative, time, Vec::new()));
+            },
+            PlanItem::Statement(statement) => {
+                if let Some((_, _, statements)) = keyframe.as_mut() {
+                    statements.push(statement);
+                } else {
+                    body.push(statement);
+                }
+            },
+        }
+    }
+
+    if let Some((relative, time, statements)) = keyframe {
+        body.push(if relative {
+            Stmt::RelativeKeyframe {
+                offset: time,
+                body: statements,
+                span: None,
+            }
+        } else {
+            Stmt::Keyframe {
+                time,
+                body: statements,
+                span: None,
+            }
+        });
+    }
+    body
+}
+
 /// Field/method/index access chain applied to `base_atom`.
-fn access_parser<'src>(expr: &ExprParser<'src>, base_atom: ExprParser<'src>) -> ExprParser<'src> {
+fn access_parser<'src>(expr: ExprParser<'src>, base_atom: ExprParser<'src>) -> ExprParser<'src> {
     let ident = common::ident();
 
     #[derive(Clone)]
     enum PostfixStep {
-        Field(String, Option<Vec<Expr>>),
+        Field(String),
+        Qualified(String),
+        Call(Vec<CallArgument>, ByteSpan),
         Index(Expr),
     }
     let field_segment = ident.clone().map_with(
@@ -159,53 +287,115 @@ fn access_parser<'src>(expr: &ExprParser<'src>, base_atom: ExprParser<'src>) -> 
         },
     );
     let postfix_step = choice((
-        dot()
-            .ignore_then(field_segment)
-            .then(
-                expr.clone()
-                    .separated_by(comma())
-                    .allow_trailing()
-                    .collect::<Vec<_>>()
-                    .delimited_by(lparen(), rparen())
-                    .or_not(),
-            )
-            .map(|((seg, span), args)| {
-                crate::occurrence::record(
-                    if args.is_some() {
-                        OccurrenceKind::Function
-                    } else {
-                        OccurrenceKind::Property
-                    },
-                    seg.clone(),
-                    span,
-                );
-                PostfixStep::Field(seg, args)
+        dot().ignore_then(field_segment.clone()).map(|(seg, span)| {
+            crate::occurrence::record(OccurrenceKind::Property, seg.clone(), span);
+            PostfixStep::Field(seg)
+        }),
+        colon_colon().ignore_then(field_segment.clone()).map(|(seg, span)| {
+            crate::occurrence::record(OccurrenceKind::Variable, seg.clone(), span);
+            PostfixStep::Qualified(seg)
+        }),
+        call_arguments(expr.clone())
+            .delimited_by(lparen(), rparen())
+            // A following arrow means these parentheses start a closure, not
+            // call arguments. This lets a closure tail follow a let-binding
+            // expression such as `let scale = x * 10\n(y) => y + scale`.
+            .then_ignore(arrow().not())
+            .map_with(|args, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+                PostfixStep::Call(args, extra.span())
             }),
         lbracket()
-            .ignore_then(expr.clone())
+            // Duration brackets following an assignment/property value are
+            // animation modifiers (`opacity = 0.5 [250ms]`), not indexing.
+            // A duration is never a valid collection index, so leave this
+            // bracket for the enclosing statement's modifier parser.
+            .ignore_then(expr.clone().filter(|index| !matches!(index, Expr::Duration(_))))
             .then_ignore(rbracket())
             .map(PostfixStep::Index),
     ));
 
     base_atom
         .foldl(postfix_step.repeated(), |base, step| match step {
-            PostfixStep::Field(segment, args) => {
-                if let Some(args) = args {
-                    Expr::Method(Box::new(base), segment, args)
-                } else {
-                    match base {
-                        Expr::Ident(name) => Expr::Path(vec![name, segment]),
-                        Expr::Path(mut parts) => {
-                            parts.push(segment);
-                            Expr::Path(parts)
-                        },
-                        other => Expr::Method(Box::new(other), segment, Vec::new()),
-                    }
+            PostfixStep::Field(segment) => Expr::Field(Box::new(base), segment),
+            PostfixStep::Qualified(segment) => match base {
+                Expr::Ident(name) => Expr::QualifiedPath(vec![name, segment]),
+                Expr::QualifiedPath(mut parts) => {
+                    parts.push(segment);
+                    Expr::QualifiedPath(parts)
+                },
+                other => Expr::Field(Box::new(other), segment),
+            },
+            PostfixStep::Call(args, span) => {
+                if let Some(name) = callee_occurrence(&base) {
+                    crate::occurrence::mark_call_callee(&name, span.start);
                 }
+                Expr::Call(Box::new(base), args)
             },
             PostfixStep::Index(index_expr) => Expr::Index(Box::new(base), Box::new(index_expr)),
         })
         .boxed()
+}
+
+fn call_arguments<'src>(
+    expr: ExprParser<'src>,
+) -> impl Parser<'src, StrInput<'src>, Vec<CallArgument>, ParserExtra<'src>> + Clone {
+    let parameter_name = common::ident().or(select! { TokenKind::Keyword(name) => name }).map_with(
+        |name, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+            crate::occurrence::record(OccurrenceKind::Parameter, name.clone(), extra.span());
+            name
+        },
+    );
+    let named = parameter_name
+        .then_ignore(colon())
+        .then(common::expr_with_span(expr.clone()))
+        .map(|(name, (value, byte_span))| CallArgument {
+            name: Some(name),
+            value,
+            byte_span: Some(byte_span),
+        });
+    let positional = common::expr_with_span(expr.clone()).map(|(value, byte_span)| CallArgument {
+        name: None,
+        value,
+        byte_span: Some(byte_span),
+    });
+    choice((named, positional))
+        .separated_by(comma())
+        .allow_trailing()
+        .collect::<Vec<_>>()
+        .try_map(|args, span| {
+            let mut named_seen = false;
+            let mut names = std::collections::HashSet::new();
+            for argument in &args {
+                match &argument.name {
+                    Some(name) => {
+                        named_seen = true;
+                        if !names.insert(name.clone()) {
+                            return Err(Rich::custom(
+                                span,
+                                format!("duplicate named argument '{name}'"),
+                            ));
+                        }
+                    },
+                    None if named_seen => {
+                        return Err(Rich::custom(
+                            span,
+                            "positional arguments must come before named arguments",
+                        ));
+                    },
+                    None => {},
+                }
+            }
+            Ok(args)
+        })
+}
+
+fn callee_occurrence(callee: &Expr) -> Option<String> {
+    match callee {
+        Expr::Ident(name) => Some(name.clone()),
+        Expr::Field(_, name) => Some(name.clone()),
+        Expr::Path(parts) | Expr::QualifiedPath(parts) => parts.last().cloned(),
+        _ => None,
+    }
 }
 
 /// Prefix operators (`-`, `!`) applied to an access chain.

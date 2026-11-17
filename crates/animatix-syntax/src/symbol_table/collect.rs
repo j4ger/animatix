@@ -1,5 +1,21 @@
 use super::*;
 
+struct ExprPlanCollector<'a> {
+    table: &'a mut SymbolTable,
+    component_depth: usize,
+}
+
+impl<'ast> crate::visit::AstVisitor<'ast> for ExprPlanCollector<'_> {
+    fn visit_expr(&mut self, expr: &'ast Expr) {
+        match expr {
+            Expr::Timeline(plan) | Expr::Sequence(plan) | Expr::Stagger { plan, .. } => {
+                self.table.collect_body(&plan.statements, self.component_depth);
+            },
+            _ => crate::visit::walk_expr(self, expr),
+        }
+    }
+}
+
 impl SymbolTable {
     /// Build a symbol table for one parsed AST.
     ///
@@ -10,7 +26,10 @@ impl SymbolTable {
         let mut table = Self {
             types: crate::builtins::types().iter().cloned().collect(),
             keywords: crate::builtins::KEYWORDS.iter().map(|s| s.to_string()).collect(),
-            actions: crate::builtins::ACTIONS.iter().map(|s| s.to_string()).collect(),
+            functions: animatix_std::callable::callables()
+                .iter()
+                .map(|callable| callable.name.clone())
+                .collect(),
             properties: typing::known_properties().clone(),
             property_types: typing::known_property_types().clone(),
             scenes: HashMap::new(),
@@ -90,6 +109,7 @@ impl SymbolTable {
             } => {
                 self.collect_let_decl(*is_pub, name, value, *span);
             },
+            Stmt::Expr(expr, _) => self.collect_expr_plans(expr, component_depth),
 
             Stmt::ActorDecl {
                 is_pub,
@@ -118,9 +138,24 @@ impl SymbolTable {
             },
 
             Stmt::FnDecl {
-                name, params, body, ..
+                is_pub,
+                name,
+                params,
+                return_type,
+                body,
+                span,
             } => {
-                self.collect_fn_decl(name, params, body, component_depth);
+                self.function_defs.insert(
+                    name.clone(),
+                    FunctionInfo {
+                        name: name.clone(),
+                        params: params.clone(),
+                        return_type: return_type.clone(),
+                        span: *span,
+                        is_pub: *is_pub,
+                    },
+                );
+                self.collect_fn_decl(*is_pub, name, params, body, component_depth);
             },
 
             Stmt::ForLoop {
@@ -293,12 +328,16 @@ impl SymbolTable {
     /// Register a function name, its parameters, `self`, and its body labels.
     fn collect_fn_decl(
         &mut self,
+        is_pub: bool,
         name: &str,
         params: &[ParamDef],
         body: &[Stmt],
         component_depth: usize,
     ) {
-        self.actions.insert(name.to_string());
+        self.functions.insert(name.to_string());
+        if is_pub {
+            self.pub_functions.insert(name.to_string());
+        }
         // Function parameters and `self` are valid labels inside the
         // function body.
         for param in params {
@@ -423,6 +462,14 @@ impl SymbolTable {
         }
     }
 
+    fn collect_expr_plans(&mut self, expr: &Expr, component_depth: usize) {
+        let mut visitor = ExprPlanCollector {
+            table: self,
+            component_depth,
+        };
+        crate::visit::AstVisitor::visit_expr(&mut visitor, expr);
+    }
+
     /// Register a scene and recurse into its body.
     fn collect_scene(
         &mut self,
@@ -526,6 +573,7 @@ impl SymbolTable {
                 }
             },
             InlineItem::SlotMarker => {},
+            InlineItem::Expr(expr, _) => self.collect_expr_plans(expr, component_depth),
             InlineItem::SlotFill { items, .. } => {
                 for item in items {
                     self.collect_inline_declarations(item, component_depth);

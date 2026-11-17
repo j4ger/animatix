@@ -1,0 +1,14 @@
+pub component Card {
+  frame: Rect, size: (10, 10)
+
+  pub fn highlight(tint: Color) {
+    return #{
+      self.frame.color = tint [300ms]
+    }
+  }
+}
+
+c1: Card {}
+
+#0s
+c1.highlight(tint: 42)

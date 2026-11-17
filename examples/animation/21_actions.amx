@@ -1,35 +1,39 @@
 // 21 — Actions: Entrances, Motion & Exits
 // Compact sampler for leaf vector reveal actions.
-
 import "../lib/theme.amx"
+
 import "../lib/stage.amx"
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 head: ActHead, kicker: "ACTIONS · ENTRANCE, MOTION & EXIT", title: "Action Surface"
+
 caption: Caption, text: "Four leaves, four reveal verbs — then they move and exit.", tag: "21_actions.amx"
 
 floor: StageFloor
 
 path: Path, commands: {move_to(-60, 30), curve_to(-20, -60, 30, -60, 60, 30)}, stroke: accent.primary, stroke_width: 5, at: (280, 360)
+
 panel: Rect, size: (120, 90), color: accent.success, at: (500, 360)
+
 label: Polygon, points: {(-30, -30), (30, 0), (-30, 30)}, color: accent.warning, at: (720, 360)
+
 exit_path: Path, commands: {move_to(-50, -30), line_to(50, -30), line_to(0, 50), close()}, stroke: accent.danger, stroke_width: 5, at: (960, 360)
 
 #0.5s
-fade-in floor [600ms]
-fade-in head [500ms]
-fade-in caption [400ms]
-draw-in path [700ms]
-wipe-in panel [700ms]
-reveal-in label [700ms]
-fade-in exit_path [500ms]
+  fade_in(target: floor, duration: 0.6s)
+  fade_in(target: head, duration: 0.5s)
+  fade_in(target: caption, duration: 0.4s)
+  draw_in(target: path, duration: 0.7s)
+  wipe_in(target: panel, duration: 0.7s)
+  reveal_in(target: label, duration: 0.7s)
+  fade_in(target: exit_path, duration: 0.5s)
 
 #1.5s
-move panel [to: (500, 260), 700ms, ease: ease-in-out]
+  move(target: panel, to: (500, 260), duration: 0.7s, ease: ease_in_out)
 
 #2.6s
-draw-out path [600ms]
-wipe-out panel [600ms]
-reveal-out label [600ms]
-draw-out exit_path [600ms]
+  draw_out(target: path, duration: 0.6s)
+  wipe_out(target: panel, duration: 0.6s)
+  reveal_out(target: label, duration: 0.6s)
+  draw_out(target: exit_path, duration: 0.6s)

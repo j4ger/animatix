@@ -14,7 +14,7 @@ use super::super::effects::EffectChainTrack;
 use super::super::entity::EntityId;
 use super::super::legend::LegendTracks;
 use super::super::types::ContainerMetadata;
-use super::World;
+use super::{MethodTableId, PlanOwnership, World};
 
 /// Borrowed read-only view of one entity.
 #[derive(Clone, Copy, Debug)]
@@ -52,6 +52,19 @@ impl<'w> EntityRef<'w> {
     #[inline(always)]
     pub fn decl_span(self) -> Option<&'w animatix_syntax::ast::Span> {
         self.world.decl_span.get(self.id)
+    }
+
+    /// Plan placement that owns the entity, when it was declared by a
+    /// reusable timeline plan.
+    #[inline(always)]
+    pub fn plan_ownership(self) -> Option<PlanOwnership> {
+        self.world.plan_ownership(self.id)
+    }
+
+    /// Immutable component-method table handle assigned to the entity.
+    #[inline(always)]
+    pub fn method_table_id(self) -> Option<MethodTableId> {
+        self.world.method_table_id(self.id)
     }
 
     /// The entity's visibility/lock/camera metadata.
@@ -185,6 +198,38 @@ impl<'w> EntityMut<'w> {
     #[inline(always)]
     pub fn set_decl_span(&mut self, span: animatix_syntax::ast::Span) {
         self.world.decl_span.get_or_insert_with(self.id, || span);
+    }
+
+    /// Plan placement that owns the entity, when present.
+    #[inline(always)]
+    pub fn plan_ownership(&self) -> Option<PlanOwnership> {
+        self.world.plan_ownership(self.id)
+    }
+
+    /// Set plan ownership for this entity. Timeline entry points that create
+    /// an `EntityMut` invalidate the frame cache before mutation.
+    #[inline(always)]
+    pub(crate) fn set_plan_ownership(&mut self, ownership: PlanOwnership) {
+        self.world.set_plan_ownership(self.id, ownership);
+    }
+
+    /// Immutable component-method table handle assigned to the entity.
+    #[inline(always)]
+    pub fn method_table_id(&self) -> Option<MethodTableId> {
+        self.world.method_table_id(self.id)
+    }
+
+    /// Assign the immutable method-table handle for this entity. Timeline
+    /// entry points that create an `EntityMut` invalidate the frame cache.
+    #[inline(always)]
+    pub(crate) fn set_method_table_id(&mut self, table: MethodTableId) {
+        self.world.set_method_table_id(self.id, table);
+    }
+
+    /// Remove the entity's method-table handle.
+    #[inline(always)]
+    pub(crate) fn clear_method_table_id(&mut self) -> Option<MethodTableId> {
+        self.world.clear_method_table_id(self.id)
     }
 
     /// The entity's visibility/lock/camera metadata.

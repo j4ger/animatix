@@ -49,95 +49,6 @@ pub fn types() -> &'static [String] {
     })
 }
 
-/// Built-in action verbs.
-pub const ACTIONS: &[&str] = &[
-    "fade-in",
-    "draw-in",
-    "wipe-in",
-    "reveal-in",
-    "settle-in",
-    "pop-in",
-    "grow-in",
-    "fade-out",
-    "wipe-out",
-    "reveal-out",
-    "draw-out",
-    "shrink-out",
-    "move",
-    "shift",
-    "rotate",
-    "scale",
-    "shake",
-    "pulse",
-    "bounce",
-    "highlight",
-    "unhighlight",
-    "persist",
-    "remove",
-    "swap",
-    "reorder",
-];
-
-/// Built-in functions that construct a color value.
-pub const COLOR_CONSTRUCTOR_FUNCTIONS: &[&str] = &["rgb", "rgba", "hsv", "hsl", "hsla"];
-
-/// Built-in scalar/math functions.
-///
-/// This list is the language's declaration of what `eval_shared` implements:
-/// the analyzer exempts these names from `unresolved-variable`, and
-/// the static type layer types the call. A builtin missing here works at
-/// runtime and is still wrong — the editor flags it and completion never
-/// offers it. Checked against `eval_shared`'s dispatch in batch 3, which found
-/// eleven such names.
-pub const MATH_FUNCTIONS: &[&str] = &[
-    "abs",
-    "atan2",
-    "clamp",
-    "ceil",
-    "cos",
-    "curve_at",
-    "curve_smooth",
-    "deg",
-    "deg_to_rad",
-    "exp",
-    "factorial",
-    "fbm",
-    "floor",
-    "fract",
-    "hypot",
-    "lerp",
-    "ln",
-    "log",
-    "max",
-    "min",
-    "noise",
-    "noise2",
-    "pow",
-    "rad",
-    "rad_to_deg",
-    "rand",
-    "rem",
-    "round",
-    "seeded_fbm",
-    "seeded_noise",
-    "seeded_noise2",
-    "seeded_rand",
-    "signum",
-    "sin",
-    "sqrt",
-    "step",
-    "sum",
-    "tan",
-];
-
-/// Built-in list helpers. Separate from [`MATH_FUNCTIONS`] because they do not
-/// return a number: `list_set`/`list_swap` return a new list, and typing them
-/// as `Num` would make the type checker reject the assignment the docs show.
-pub const LIST_FUNCTIONS: &[&str] = &["list_set", "list_swap"];
-
-/// Built-in string-formatting function.
-pub const FORMAT_FUNCTIONS: &[&str] = &["format"];
-
 /// Built-in colorscheme namespaces whose two-segment paths are colors.
 pub const COLOR_NAMESPACES: &[&str] = &["accent", "text", "surface", "stroke"];
 
@@ -158,36 +69,6 @@ pub fn named_color_rgba(name: &str) -> Option<[f64; 4]> {
         "yellow" | "YELLOW" => Some([1.0, 1.0, 0.0, 1.0]),
         "orange" | "ORANGE" => Some([1.0, 0.65, 0.0, 1.0]),
         _ => None,
-    }
-}
-
-/// Documentation for a built-in action.
-pub fn action_documentation(name: &str) -> &'static str {
-    match name {
-        "fade-in" => "Fade in from transparent.",
-        "draw-in" => "Draw in (like handwriting).",
-        "wipe-in" => "Wipe in from edge.",
-        "settle-in" => "Fade in while easing up from a slightly smaller scale.",
-        "pop-in" => "Fade in and scale up with a back overshoot.",
-        "grow-in" => {
-            "Grow in from zero scale to the authored scale, optionally anchored to an edge."
-        },
-        "fade-out" => "Fade out to transparent.",
-        "wipe-out" => "Wipe out to edge.",
-        "reveal-out" => "Reveal out (reverse draw).",
-        "draw-out" => "Draw out (reverse handwriting).",
-        "shrink-out" => "Shrink out from the authored scale to zero without fading.",
-        "move" => "Move to position: `move target [to: (x, y), 1s]`",
-        "shift" => "Shift by offset: `shift target [by: (dx, dy), 1s]`",
-        "rotate" => "Rotate: `rotate target [by: 1.5708, 1s]`",
-        "scale" => "Scale: `scale target [by: 2, 1s]`",
-        "persist" => {
-            "Mark actor(s) to carry into the next scene: `persist actor1, actor2`. `persist camera` also hands over the camera transform."
-        },
-        "remove" => {
-            "Fade out and stop persisting: `remove actor [500ms]`. `remove camera` stops the camera carry (no fade)."
-        },
-        _ => "Unknown action.",
     }
 }
 

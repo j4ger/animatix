@@ -27,11 +27,11 @@ fn stdlib_env() -> Environment {
 }
 
 fn sin_x_expr() -> Expr {
-    Expr::Call("sin".to_string(), vec![Expr::Ident("x".to_string())])
+    Expr::call("sin".to_string(), vec![Expr::Ident("x".to_string())])
 }
 
 fn cos_x_expr() -> Expr {
-    Expr::Call("cos".to_string(), vec![Expr::Ident("x".to_string())])
+    Expr::call("cos".to_string(), vec![Expr::Ident("x".to_string())])
 }
 
 fn compiled_body(body: Expr) -> CompiledExpr {
@@ -314,7 +314,7 @@ fn epicycles_plot(resolution: usize) -> ProceduralPlot {
     let four_over_pi = bin(BinaryOp::Div, Expr::Num(4.0), Expr::Ident("pi".to_string()));
     let third = bin(
         BinaryOp::Div,
-        Expr::Call(
+        Expr::call(
             "sin".to_string(),
             vec![bin(
                 BinaryOp::Mul,
@@ -329,7 +329,7 @@ fn epicycles_plot(resolution: usize) -> ProceduralPlot {
         four_over_pi,
         bin(
             BinaryOp::Add,
-            Expr::Call("sin".to_string(), vec![Expr::Ident("x".to_string())]),
+            Expr::call("sin".to_string(), vec![Expr::Ident("x".to_string())]),
             third,
         ),
     );
@@ -672,7 +672,13 @@ fn runtime_input_matching_slow_plot_argument_keeps_lexical_argument_value() {
         .procedural_plot(track)
         .expect("curve should have a procedural plot");
     assert!(
-        crate::timeline::plot::compile_fast_plot_program(&plot.func_body, "x", plot.kind).is_none(),
+        crate::timeline::plot::compile_fast_plot_program(
+            &plot.func_body,
+            "x",
+            plot.kind,
+            &timeline.env
+        )
+        .is_none(),
         "the user function call should force the slow closure evaluator"
     );
 

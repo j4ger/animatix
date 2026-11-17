@@ -8,13 +8,18 @@ use animatix_std::catalog::catalog_lookup;
 use animatix_syntax::ast::{
     Expr, InlineItem, LoopPattern, Property, Stmt, TargetSegment, array_actor_label,
 };
-use animatix_syntax::module::{ComponentEntry, LoadedProgram, Namespace, SceneData};
+use animatix_syntax::module::{
+    ExpandedProgram, FunctionContext, InstanceFnRegistry, Namespace, SceneData,
+};
 use animatix_syntax::visit::{AstVisitor, walk_inline_item, walk_stmt};
 
 use super::prepare::{AnalysisDto, AssetRequirement, error_diagnostic};
 
 struct Requirements<'a> {
     env: Environment,
+    function_context: &'a FunctionContext,
+    scene_methods: &'a HashMap<String, InstanceFnRegistry>,
+    plan_depth: usize,
     overrides: HashSet<&'a str>,
     actors: HashMap<String, String>,
     children: HashMap<String, HashSet<String>>,
@@ -29,17 +34,25 @@ struct Requirements<'a> {
 }
 
 pub(super) fn collect(
-    statements: &[Stmt],
+    expanded: &ExpandedProgram,
     namespaces: &HashMap<String, Namespace>,
+    function_context: &FunctionContext,
     vars: &[(String, String)],
     analysis: &mut AnalysisDto,
 ) {
+    let statements = &expanded.statements;
     let vars = if statements.iter().any(|stmt| matches!(stmt, Stmt::Scene { .. })) {
         &[][..]
     } else {
         vars
     };
-    let (mut env, diagnostics) = prepare_input_environment(statements, namespaces, vars);
+    let (mut env, diagnostics) = prepare_input_environment(
+        statements,
+        namespaces,
+        vars,
+        Some(function_context),
+        Some(&expanded.instance_methods),
+    );
     super::resources::extensions().install_functions(&mut env);
     analysis
         .diagnostics
@@ -47,6 +60,9 @@ pub(super) fn collect(
     let overrides = vars.iter().map(|(name, _)| name.as_str()).collect();
     let mut visitor = Requirements {
         env,
+        function_context,
+        scene_methods: &expanded.scene_methods,
+        plan_depth: 0,
         overrides,
         actors: HashMap::new(),
         children: HashMap::new(),
@@ -80,6 +96,67 @@ pub(super) fn collect(
 }
 
 impl Requirements<'_> {
+    fn mounted_expression(&mut self, expression: &Expr) {
+        match evaluate_expr(expression, &self.env) {
+            Ok(Value::TimelinePlan(plan)) => self.plan(&plan),
+            Ok(_) => {}, // Unit and ordinary calculation statements declare no assets.
+            Err(error) => self.analysis.diagnostics.push(error_diagnostic(
+                "plan-requirements",
+                &format!("cannot resolve timeline requirements: {error}"),
+                None,
+            )),
+        }
+    }
+
+    fn plan(&mut self, plan: &animatix::timeline::TimelinePlan) {
+        use animatix::timeline::PlanOp;
+        let saved = self.env.clone();
+        plan.captures().merge_into(&mut self.env);
+        self.plan_depth += 1;
+        for operation in plan.ops() {
+            match operation {
+                PlanOp::Statements(statements) => {
+                    for statement in statements.iter() {
+                        self.visit_stmt(statement);
+                    }
+                },
+                PlanOp::Sequence(children) | PlanOp::Stagger { children, .. } => {
+                    for child in children.iter() {
+                        self.plan(child);
+                    }
+                },
+                PlanOp::Retimed { plan, .. } => self.plan(plan),
+                PlanOp::Property {
+                    actor,
+                    property,
+                    value,
+                    ..
+                } => {
+                    if matches!(property.as_str(), "source" | "url") {
+                        if let Value::Str(path) = value {
+                            if let Some(ty) = self.actors.get(actor.label()).cloned() {
+                                self.actor(
+                                    &ty,
+                                    actor.label(),
+                                    &[Property::new(property, Expr::Str(path.clone()))],
+                                );
+                            }
+                        } else {
+                            self.analysis.diagnostics.push(error_diagnostic(
+                                "plan-requirements",
+                                "resource property cannot be resolved from a plan value",
+                                Some(actor.label()),
+                            ));
+                        }
+                    }
+                },
+                PlanOp::Builtin(_) => {}, // Standard motion operations do not introduce resources.
+            }
+        }
+        self.plan_depth -= 1;
+        self.env = saved;
+    }
+
     fn loop_values(&self, iterable: &Expr) -> Option<Vec<Value>> {
         const MAX_ITERATIONS: usize = 100_000;
         match evaluate_expr(iterable, &self.env) {
@@ -227,49 +304,34 @@ impl Requirements<'_> {
                 continue;
             };
             let saved = self.env.clone();
-            let statements = scene.file_prelude.iter().chain(scene.body.iter()).cloned().collect();
-            // Cross-file scenes retain their source AST until composition build.
-            // Expand their exported components through the syntax module's normal
-            // expansion path so resource/font closure sees the concrete actors.
-            let mut definitions =
-                animatix_syntax::module::discovery::collect_component_defs(&scene.file_prelude)
-                    .into_iter()
-                    .map(|definition| (definition.name.clone(), definition))
-                    .collect::<HashMap<_, _>>();
-            definitions.extend(
-                namespace
-                    .component_exports
-                    .iter()
-                    .map(|(name, definition)| (name.clone(), definition.clone())),
+            let expanded = match self.function_context.expand_scene(scene) {
+                Ok(expanded) => expanded,
+                Err(error) => {
+                    self.analysis.diagnostics.push(error_diagnostic(
+                        "expansion-error",
+                        &error.to_string(),
+                        None,
+                    ));
+                    continue;
+                },
+            };
+            let mut scoped = self.function_context.clone();
+            if let Some(module) = scoped.modules.get(&scene.definition_path) {
+                scoped.visible = module.visible_functions.clone().into();
+            }
+            let (mut env, diagnostics) = prepare_input_environment(
+                &expanded.statements,
+                &namespace.namespaces,
+                &[],
+                Some(&scoped),
+                Some(&expanded.instance_methods),
             );
-            let components = definitions
-                .into_iter()
-                .map(|(name, definition)| {
-                    (
-                        name.clone(),
-                        ComponentEntry {
-                            definition: definition.clone(),
-                            source_path: std::path::PathBuf::from("<namespace-scene>"),
-                            actions: animatix_syntax::module::discovery::collect_component_actions(
-                                &definition,
-                            ),
-                        },
-                    )
-                })
-                .collect();
-            let mut expansion_errors = Vec::new();
-            let expanded = LoadedProgram {
-                statements,
-                components,
-                ..Default::default()
-            }
-            .expand_components(&mut expansion_errors);
-            for error in expansion_errors {
-                self.analysis
-                    .diagnostics
-                    .push(error_diagnostic("expansion-error", &error, None));
-            }
-            for statement in &expanded {
+            super::resources::extensions().install_functions(&mut env);
+            self.analysis
+                .diagnostics
+                .extend(diagnostics.iter().map(crate::dto::DiagnosticDto::from_diagnostic));
+            self.env = env;
+            for statement in &expanded.statements {
                 self.visit_stmt(statement);
             }
             self.env = saved;
@@ -370,6 +432,8 @@ impl Requirements<'_> {
 
     fn actor(&mut self, ty: &str, label: &str, props: &[Property]) {
         self.actors.insert(label.to_string(), ty.to_string());
+        self.env
+            .set(label, Value::ActorRef(animatix::timeline::ActorRef::caller(label)));
         if let Some(parent) = &self.inline_parent {
             self.children.entry(parent.clone()).or_default().insert(label.to_string());
         }
@@ -492,7 +556,7 @@ fn resolve_namespace_scene<'a>(
     namespaces: &'a HashMap<String, Namespace>,
     target: &str,
 ) -> Option<(&'a Namespace, &'a SceneData)> {
-    let parts: Vec<_> = target.split('.').collect();
+    let parts: Vec<_> = target.split("::").collect();
     if parts.len() < 2 || parts.iter().any(|part| part.is_empty()) {
         return None;
     }
@@ -505,20 +569,57 @@ fn resolve_namespace_scene<'a>(
 }
 
 impl<'ast> AstVisitor<'ast> for Requirements<'_> {
+    fn visit_expr(&mut self, _expr: &'ast Expr) {
+        // Expressions are evaluated at their consuming statement. An inert
+        // plan stored in a let and an unused function require no resources.
+    }
+
     fn visit_stmt(&mut self, statement: &'ast Stmt) {
         match statement {
+            Stmt::Scene {
+                name, config, body, ..
+            } => {
+                let saved = self.env.clone();
+                let empty = InstanceFnRegistry::new();
+                animatix::timeline::install_input_methods(
+                    &mut self.env,
+                    self.scene_methods.get(name).unwrap_or(&empty),
+                    Some(self.function_context),
+                );
+                for prop in config {
+                    if prop.name == "resolution"
+                        && let Ok(Value::Vec2([width, height])) =
+                            evaluate_expr(&prop.value, &self.env)
+                    {
+                        self.env.set_host_global("scene_width", Value::Num(width));
+                        self.env.set_host_global("scene_height", Value::Num(height));
+                    }
+                }
+                for statement in body {
+                    self.visit_stmt(statement);
+                }
+                self.env = saved;
+                return;
+            },
+            Stmt::FnDecl { .. } => return, // Definitions are inert until called.
+            Stmt::Expr(expression, _) => {
+                self.mounted_expression(expression);
+                return;
+            },
             Stmt::Config { settings, .. } => {
                 for prop in settings {
                     if prop.name == "resolution"
                         && let Ok(Value::Vec2([width, height])) =
                             evaluate_expr(&prop.value, &self.env)
                     {
-                        self.env.set("scene_width", Value::Num(width));
-                        self.env.set("scene_height", Value::Num(height));
+                        self.env.set_host_global("scene_width", Value::Num(width));
+                        self.env.set_host_global("scene_height", Value::Num(height));
                     }
                 }
             },
-            Stmt::LetDecl { name, value, .. } if !self.overrides.contains(name.as_str()) => {
+            Stmt::LetDecl { name, value, .. }
+                if self.plan_depth > 0 || !self.overrides.contains(name.as_str()) =>
+            {
                 match evaluate_expr(value, &self.env) {
                     Ok(value) => self.env.set(name, value),
                     Err(error) => {
@@ -651,6 +752,10 @@ impl<'ast> AstVisitor<'ast> for Requirements<'_> {
     }
 
     fn visit_inline_item(&mut self, item: &'ast InlineItem) {
+        if let InlineItem::Expr(expression, _) = item {
+            self.mounted_expression(expression);
+            return;
+        }
         if let InlineItem::ForLoop {
             var,
             index_var,

@@ -230,7 +230,9 @@ impl CompletionPopup {
                     CompletionKind::Type => egui_phosphor::regular::CUBE,
                     CompletionKind::Property => egui_phosphor::regular::WRENCH,
                     CompletionKind::Label => egui_phosphor::regular::TAG,
-                    CompletionKind::Action => egui_phosphor::regular::LIGHTNING,
+                    CompletionKind::Callable | CompletionKind::Parameter => {
+                        egui_phosphor::regular::LIGHTNING
+                    },
                     CompletionKind::Value => egui_phosphor::regular::HASH,
                     CompletionKind::Snippet => egui_phosphor::regular::CODE,
                 };
@@ -239,7 +241,7 @@ impl CompletionPopup {
                     CompletionKind::Type => t.palette.accent.cyan,
                     CompletionKind::Property => t.palette.accent.primary,
                     CompletionKind::Label => t.palette.status.success,
-                    CompletionKind::Action => t.palette.status.info,
+                    CompletionKind::Callable | CompletionKind::Parameter => t.palette.status.info,
                     CompletionKind::Value => t.palette.text.secondary,
                     CompletionKind::Snippet => t.palette.accent.primary_hover,
                 };

@@ -35,9 +35,11 @@ pub(crate) fn rule_build_never_revealed(facts: &ReviewFacts, out: &mut Vec<RuleI
                 "diagnostic_code": diagnostic.code,
                 "diagnostic_severity": diagnostic.severity.as_str(),
             }),
-            suggestion: "Add an entrance action (fade-in, wipe-in, draw-in, reveal-in) or an \
-                         explicit opacity assignment so the actor is revealed."
-                .to_string(),
+            suggestion: concat!(
+                "Add an entrance callable (`fade_in`, `wipe_in`, `draw_in`, `reveal_in`) or an ",
+                "explicit opacity assignment so the actor is revealed."
+            )
+            .to_string(),
             baseline_state: None,
         });
     }

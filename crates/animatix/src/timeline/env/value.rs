@@ -1,8 +1,35 @@
 use super::*;
 
+/// Lexical component methods available while evaluating one method body.
+/// The scope stores source templates, never runtime callable values, so nested
+/// methods do not form an `Arc` cycle.
+#[derive(Clone)]
+pub struct ComponentMethodScope {
+    /// Component instance root that owns these methods.
+    pub(crate) source_label: String,
+    /// All methods on the component instance, including private helpers.
+    pub(crate) methods: Arc<HashMap<String, crate::module::FnTemplate>>,
+    /// Names of caller values used by each method's component parameter
+    /// bindings. These are the only call-site locals a component method may
+    /// capture across the module-lexical function boundary.
+    pub(crate) component_captures: Arc<HashMap<String, Vec<String>>>,
+    /// Values of component parameter bindings captured when the actor is
+    /// built. These preserve expressions such as `width: w` after the lexical
+    /// caller scope is gone at frame time.
+    pub(crate) captured_values: Arc<HashMap<String, HashMap<String, Value>>>,
+    /// Symbolic declaration-time array index attached to these methods.
+    pub(crate) instance_index: Option<crate::ast::Expr>,
+    /// Actor selected by the method call, including an indexed instance.
+    pub(crate) bound_actor: Option<crate::timeline::plan_value::ActorRef>,
+    /// Concrete value of the declaration index variable for this receiver.
+    pub(crate) bound_index: Option<(String, usize)>,
+}
+
 /// Runtime value type used in the timeline evaluation environment.
 #[derive(Clone)]
 pub enum Value {
+    /// Absence of a value. Distinct from unit, which is a function result.
+    Null,
     /// 64-bit floating-point number.
     Num(f64),
     /// UTF-8 string.
@@ -29,6 +56,18 @@ pub enum Value {
     /// Native Rust function callable from the runtime.
     #[allow(clippy::type_complexity)]
     NativeFn(Arc<dyn Fn(&[Value], &Environment) -> Result<Value, EvalError> + Send + Sync>),
+    /// First-class function value retaining its canonical signature when
+    /// stored under an alias or passed as a parameter.
+    RegisteredFn {
+        /// Canonical callable path used for dispatch (for example `std::sin`).
+        name: String,
+        /// Shared public parameter, phase and return contract.
+        descriptor: Arc<animatix_core::callable::CallableDescriptor>,
+        /// Native callback, when this callable is implemented in Rust.
+        #[allow(clippy::type_complexity)]
+        native:
+            Option<Arc<dyn Fn(&[Value], &Environment) -> Result<Value, EvalError> + Send + Sync>>,
+    },
     /// User-defined closure (parameter names, compiled body, captured environment).
     Closure(Vec<String>, Box<CompiledExpr>, CapturedEnv),
     /// A reference to an actor property slot (e.g. produced by
@@ -43,32 +82,58 @@ pub enum Value {
         /// The property name.
         prop: String,
     },
+    /// A typed duration in canonical seconds. It is intentionally distinct
+    /// from `Num` so time and ordinary arithmetic cannot be confused.
+    Duration(f64),
+    /// The explicit no-result value of a unit-returning function.
+    Unit,
+    /// A typed easing value returned by an easing constructor.
+    Easing(crate::easing::Easing),
+    /// An actor identity passed by reference into a timeline plan.
+    ActorRef(crate::timeline::plan_value::ActorRef),
+    /// An inert timeline plan; it is lowered only when mounted in a Timeline.
+    TimelinePlan(Arc<crate::timeline::plan_value::TimelinePlan>),
     /// User-declared pure function (`fn f(...) -> T`), evaluated at build time.
     UserFn {
         /// Function name.
         name: String,
         /// Parameter definitions (name + optional default).
         params: std::sync::Arc<Vec<crate::ast::ParamDef>>,
+        /// Optional return type assertion.
+        return_type: Option<crate::ast::TypeAnnotation>,
         /// Body statements; the tail expression (last non-return statement's
         /// expression) provides the return value when no `return` fires.
         body: std::sync::Arc<Vec<crate::ast::Stmt>>,
+        /// Loaded module graph used to resolve private helpers and values.
+        function_context: Option<std::sync::Arc<crate::module::FunctionContext>>,
+        /// Source module that owns this function's lexical environment.
+        definition_path: Option<std::path::PathBuf>,
+        /// Component method scope, present only for component-bound methods.
+        component_scope: Option<Arc<ComponentMethodScope>>,
     },
 }
 
 impl fmt::Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Value::Null => write!(f, "Null"),
             Value::Num(n) => write!(f, "Num({})", n),
             Value::Str(s) => write!(f, "Str({:?})", s),
             Value::Bool(b) => write!(f, "Bool({})", b),
             Value::Vec2(v) => write!(f, "Vec2({:?})", v),
             Value::PropRef { label, prop } => write!(f, "PropRef({label}.{prop})"),
+            Value::Duration(seconds) => write!(f, "Duration({seconds}s)"),
+            Value::Unit => write!(f, "Unit"),
+            Value::Easing(easing) => write!(f, "Easing({easing:?})"),
+            Value::ActorRef(actor) => write!(f, "ActorRef({})", actor.label()),
+            Value::TimelinePlan(plan) => write!(f, "<TimelinePlan({})>", plan.id()),
             Value::Vec3(v) => write!(f, "Vec3({:?})", v),
             Value::Vec4(v) => write!(f, "Vec4({:?})", v),
             Value::Color(c) => write!(f, "Color({:?})", c),
             Value::List(items) => write!(f, "List({:?})", items),
             Value::Object(name, fields) => write!(f, "{}({:?})", name, fields),
             Value::NativeFn(_) => write!(f, "<NativeFn>"),
+            Value::RegisteredFn { name, .. } => write!(f, "<Callable({name})>"),
             Value::Closure(args, _, _) => write!(f, "<Closure({:?})>", args),
             Value::UserFn { name, .. } => write!(f, "<UserFn({name})>"),
         }
@@ -78,6 +143,7 @@ impl fmt::Debug for Value {
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
+            (Value::Null, Value::Null) => true,
             (Value::Num(a), Value::Num(b)) => a == b,
             (Value::Str(a), Value::Str(b)) => a == b,
             (Value::Bool(a), Value::Bool(b)) => a == b,
@@ -89,17 +155,27 @@ impl PartialEq for Value {
             (Value::Object(name_a, fields_a), Value::Object(name_b, fields_b)) => {
                 name_a == name_b && fields_a == fields_b
             },
+            (Value::Duration(a), Value::Duration(b)) => a == b,
+            (Value::Unit, Value::Unit) => true,
+            (Value::Easing(a), Value::Easing(b)) => a == b,
+            (Value::ActorRef(a), Value::ActorRef(b)) => a == b,
+            (Value::TimelinePlan(a), Value::TimelinePlan(b)) => a == b,
             // Native functions and closures cannot be compared for equality
+            (Value::RegisteredFn { .. }, _) | (_, Value::RegisteredFn { .. }) => false,
             _ => false,
         }
     }
 }
 
 impl Value {
-    /// Extract the contained number, or `0.0` if the value is not a `Num`.
+    /// Project numbers and booleans to a numeric scalar (true is 1, false is 0).
+    /// Other kinds project to zero; callable type validation remains strict.
     pub fn as_num(&self) -> f64 {
         match self {
+            Value::Null => 0.0,
             Value::Num(n) => *n,
+            Value::Bool(true) => 1.0,
+            Value::Bool(false) => 0.0,
             _ => 0.0,
         }
     }
@@ -107,6 +183,7 @@ impl Value {
     /// Extract the contained string, or an empty string if the value is not a `Str`.
     pub fn as_str(&self) -> String {
         match self {
+            Value::Null => String::new(),
             Value::Str(s) => s.clone(),
             _ => String::new(),
         }
@@ -126,6 +203,7 @@ impl Value {
     /// every other value type are falsy.
     pub fn is_truthy(&self) -> bool {
         match self {
+            Value::Null => false,
             Value::Num(n) => *n != 0.0,
             Value::Bool(b) => *b,
             _ => false,
@@ -135,6 +213,7 @@ impl Value {
     /// Extract the contained 2D vector, or `[0.0, 0.0]` if the value is not a `Vec2`.
     pub fn as_vec2(&self) -> [f64; 2] {
         match self {
+            Value::Null => [0.0, 0.0],
             Value::Vec2(v) => *v,
             _ => [0.0, 0.0],
         }
@@ -143,6 +222,7 @@ impl Value {
     /// Extract the contained 3D vector, or `[0.0, 0.0, 0.0]` if the value is not a `Vec3`.
     pub fn as_vec3(&self) -> [f64; 3] {
         match self {
+            Value::Null => [0.0; 3],
             Value::Vec3(v) => *v,
             _ => [0.0, 0.0, 0.0],
         }
@@ -151,6 +231,7 @@ impl Value {
     /// Extract the contained 4D vector, or `[0.0; 4]` if the value is not a `Vec4`.
     pub fn as_vec4(&self) -> [f64; 4] {
         match self {
+            Value::Null => [0.0; 4],
             Value::Vec4(v) => *v,
             _ => [0.0, 0.0, 0.0, 0.0],
         }

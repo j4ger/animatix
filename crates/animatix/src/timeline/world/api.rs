@@ -4,7 +4,7 @@ use crate::timeline::components::CoordinateFrameComponent;
 use crate::timeline::effects::EffectChainTrack;
 use crate::timeline::entity::EntityId;
 use crate::timeline::legend::LegendTracks;
-use crate::timeline::world::{EntityMut, EntityRef, World};
+use crate::timeline::world::{EntityMut, EntityRef, MethodTableId, PlanOwnership, World};
 
 impl World {
     /// Create an empty world.
@@ -82,6 +82,36 @@ impl World {
     pub fn set_behavior(&mut self, id: EntityId, behavior: crate::timeline::behavior::BehaviorId) {
         self.ensure_len();
         *self.behavior.get_mut(id) = behavior;
+    }
+
+    /// Plan placement that owns this actor, when it was declared by a
+    /// reusable timeline plan.
+    #[inline(always)]
+    pub fn plan_ownership(&self, id: EntityId) -> Option<PlanOwnership> {
+        self.plan_ownership.get(id).copied()
+    }
+
+    /// Assign plan ownership to one entity. The owner is build metadata about
+    /// entity identity, stored in the same slot-aligned World as its state.
+    pub(crate) fn set_plan_ownership(&mut self, id: EntityId, ownership: PlanOwnership) {
+        self.plan_ownership.insert(id, ownership);
+    }
+
+    /// Immutable component-method table assigned to this entity, when it has
+    /// instance methods.
+    #[inline(always)]
+    pub fn method_table_id(&self, id: EntityId) -> Option<MethodTableId> {
+        self.method_table_id.get(id).copied()
+    }
+
+    /// Assign the immutable method-table handle for this entity.
+    pub(crate) fn set_method_table_id(&mut self, id: EntityId, table: MethodTableId) {
+        self.method_table_id.insert(id, table);
+    }
+
+    /// Remove the method-table handle from this entity.
+    pub(crate) fn clear_method_table_id(&mut self, id: EntityId) -> Option<MethodTableId> {
+        self.method_table_id.remove(id)
     }
 
     /// Borrow an entity's coordinate frame, when it is a plot host.

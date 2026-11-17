@@ -23,24 +23,60 @@ pub fn prepare_input_environment(
     statements: &[Stmt],
     namespaces: &std::collections::HashMap<String, crate::module::Namespace>,
     overrides: &[(String, String)],
+    function_context: Option<&crate::module::FunctionContext>,
+    instance_methods: Option<&crate::module::InstanceFnRegistry>,
 ) -> (Environment, Vec<Diagnostic>) {
-    let mut env = Environment::new();
+    let mut env = crate::timeline::builtins::standard_environment();
     let mut diagnostics = Vec::new();
-    load_standard_library(&mut env);
-    for (name, params, body) in fn_eval::collect_pure_fns(statements) {
+    let fallback_context = function_context
+        .is_none()
+        .then(|| fn_eval::context_from_ast(statements, namespaces));
+    let function_context = function_context
+        .map(|context| std::sync::Arc::new(context.clone()))
+        .or_else(|| fallback_context.as_ref().map(|(context, _)| context.clone()));
+    env.set_function_context(function_context.clone());
+    if let Some(methods) = instance_methods {
+        install_input_methods(&mut env, methods, function_context.as_deref());
+    }
+    let fallback_path = fallback_context.as_ref().map(|(_, path)| path.clone());
+    let mut seeded = std::collections::HashSet::new();
+    if let Some(context) = &function_context {
+        for (name, template) in context.visible.iter() {
+            env.set(name, fn_eval::user_function_value(name, template, Some(context.clone())));
+            seeded.insert(name.clone());
+        }
+        for (alias, namespace) in namespaces {
+            seed_input_namespace_functions(
+                &mut env,
+                &format!("{alias}::"),
+                namespace,
+                context,
+                &mut seeded,
+            );
+        }
+    }
+    for (name, params, return_type, body) in fn_eval::collect_user_fns(statements) {
+        if seeded.contains(&name) {
+            continue;
+        }
         env.set(
             &name,
             Value::UserFn {
                 name: name.clone(),
                 params: std::sync::Arc::new(params),
+                return_type,
                 body: std::sync::Arc::new(body),
+                function_context: function_context.clone(),
+                definition_path: fallback_path.clone(),
+                component_scope: None,
             },
         );
+        seeded.insert(name);
     }
     BuiltInColorscheme::DefaultDark.resolved().seed_environment(&mut env);
     let dims = SceneDimensions::default();
-    env.set("scene_width", Value::Num(dims.width as f64));
-    env.set("scene_height", Value::Num(dims.height as f64));
+    env.set_host_global("scene_width", Value::Num(dims.width as f64));
+    env.set_host_global("scene_height", Value::Num(dims.height as f64));
     let external_colorschemes =
         super::color_inputs::load_colorscheme_declarations(statements, &mut diagnostics);
     for (alias, namespace) in namespaces {
@@ -63,7 +99,7 @@ pub fn prepare_input_environment(
     }
     for define in defines::parse_defines(overrides, &mut diagnostics) {
         match evaluate_expr(&define.value, &env) {
-            Ok(value) => env.set(&define.name, value),
+            Ok(value) => env.set_host_global(&define.name, value),
             Err(error) => diagnostics.push(Diagnostic::error(
                 DiagnosticCode::InvalidPropertyValue,
                 DiagnosticPhase::Build,
@@ -72,6 +108,72 @@ pub fn prepare_input_environment(
         }
     }
     (env, diagnostics)
+}
+
+/// Install per-instance component methods into a preparation environment.
+/// The table is callable-resolution metadata for resource discovery only; it
+/// is not stored in the timeline ECS or frame actor state.
+pub fn install_input_methods(
+    env: &mut Environment,
+    methods: &crate::module::InstanceFnRegistry,
+    function_context: Option<&crate::module::FunctionContext>,
+) {
+    env.clear_component_methods();
+    extend_input_methods(env, methods, function_context);
+}
+
+/// Add one lexical method registry over the current scope. Timeline-plan
+/// mounting uses this to overlay its private local labels temporarily.
+pub(crate) fn extend_input_methods(
+    env: &mut Environment,
+    methods: &crate::module::InstanceFnRegistry,
+    function_context: Option<&crate::module::FunctionContext>,
+) {
+    let function_context = function_context.map(|context| std::sync::Arc::new(context.clone()));
+    for (instance_label, templates) in methods {
+        let has_private_actor_identity = matches!(
+            env.get(instance_label),
+            Some(Value::ActorRef(actor)) if !actor.is_caller()
+        );
+        if !has_private_actor_identity {
+            env.set(
+                instance_label,
+                Value::ActorRef(crate::timeline::plan_value::ActorRef::caller(
+                    instance_label.clone(),
+                )),
+            );
+        }
+        let scope = fn_eval::component_method_scope(instance_label, templates);
+        for (name, template) in templates {
+            env.set_component_method(
+                instance_label,
+                name,
+                fn_eval::component_user_function_value(
+                    name,
+                    template,
+                    function_context.clone(),
+                    std::sync::Arc::clone(&scope),
+                ),
+            );
+        }
+    }
+}
+
+fn seed_input_namespace_functions(
+    env: &mut Environment,
+    prefix: &str,
+    namespace: &crate::module::Namespace,
+    context: &std::sync::Arc<crate::module::FunctionContext>,
+    seeded: &mut std::collections::HashSet<String>,
+) {
+    for (name, template) in &namespace.function_exports {
+        let qualified = format!("{prefix}{name}");
+        env.set(&qualified, fn_eval::user_function_value(name, template, Some(context.clone())));
+        seeded.insert(qualified);
+    }
+    for (alias, nested) in &namespace.namespaces {
+        seed_input_namespace_functions(env, &format!("{prefix}{alias}::"), nested, context, seeded);
+    }
 }
 
 #[cfg(test)]
@@ -112,12 +214,13 @@ config { colorscheme: "palette" }
         let namespaces = std::collections::HashMap::from([("theme".to_string(), namespace)]);
         let overrides = vec![("gain".to_string(), "4".to_string())];
 
-        let (prepared_env, diagnostics) = prepare_input_environment(&ast, &namespaces, &overrides);
+        let (prepared_env, diagnostics) =
+            prepare_input_environment(&ast, &namespaces, &overrides, None, None);
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
         let expression = Expr::Binary(
-            Box::new(Expr::Call("add_one".to_string(), vec![Expr::Ident("gain".to_string())])),
+            Box::new(Expr::call("add_one", vec![Expr::Ident("gain".to_string())])),
             BinaryOp::Add,
-            Box::new(Expr::Path(vec!["theme".to_string(), "factor".to_string()])),
+            Box::new(Expr::QualifiedPath(vec!["theme".to_string(), "factor".to_string()])),
         );
         assert!(matches!(evaluate_expr(&expression, &prepared_env), Ok(Value::Num(7.0))));
 
@@ -135,7 +238,8 @@ config { colorscheme: "palette" }
 
     #[test]
     fn preparation_loop_binding_matches_native_vec2_and_color_destructuring() {
-        let (mut env, diagnostics) = prepare_input_environment(&[], &Default::default(), &[]);
+        let (mut env, diagnostics) =
+            prepare_input_environment(&[], &Default::default(), &[], None, None);
         assert!(diagnostics.is_empty());
         let names = |suffix: &str, count: usize| {
             LoopPattern::Tuple((0..count).map(|index| format!("{suffix}{index}")).collect())

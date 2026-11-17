@@ -1,15 +1,19 @@
 import "../lib/theme.amx"
+
 import "../lib/stage.amx"
 
 config { colorscheme: "paper", resolution: (1280, 720), duration: 4 }
 
 floor: StageFloor
-head: ActHead, kicker: "UI · TICKER", title: "Count up ticker",
-  sub: "Counter 数字滚动演示。"
+
+head: ActHead, kicker: "UI · TICKER", title: "Count up ticker", sub: "Counter 数字滚动演示。"
+
 caption: Caption, text: "The counter interpolates values over time.", tag: "33_count_up_ticker"
 
 label: Text, text: "ships this quarter", at: (640, 467), font_size: 26
+
 kpi: Text, text: "0%", at: (640, 333), font_size: 132
+
 rule: Rect, size: (320, 4), at: (640, 416), corner_radius: 2, fill_gradient: linear(90, {"#ff2d55", "#ff9f0a"})
 
 always {
@@ -19,9 +23,9 @@ always {
 }
 
 #0s
-fade-in floor [600ms]
-fade-in head [500ms]
-fade-in caption [400ms, delay: 300ms]
-fade-in label [400ms]
-settle-in kpi [500ms]
-fade-in rule [400ms]
+  fade_in(target: floor, duration: 0.6s)
+  fade_in(target: head, duration: 0.5s)
+  fade_in(target: caption, duration: 0.4s, delay: 0.3s)
+  fade_in(target: label, duration: 0.4s)
+  settle_in(target: kpi, duration: 0.5s)
+  fade_in(target: rule, duration: 0.4s)

@@ -103,7 +103,9 @@ def outro(clear: list[str], duration: float) -> str:
     if not clear:
         return ""
     at = duration - TRANSITION_MS / 1000.0 - 0.35
-    stmts = "\n".join(f"fade-out {name} [350ms, ease: ease-in]" for name in clear)
+    stmts = "\n".join(
+        f"fade_out(target: {name}, duration: 350ms, ease: ease_in)" for name in clear
+    )
     return f"\n\n// Plate only: the next act titles at the same anchor.\n#{at:.2f}s\n{stmts}\n"
 
 

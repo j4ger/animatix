@@ -4,7 +4,8 @@
 use super::PlotActorProps;
 use super::*;
 use crate::timeline::modifier_runtime::ir::{
-    FastScalarExpr, compile_fast_scalar, compile_fast_vec2, evaluate_compiled_expr,
+    FastScalarExpr, compile_fast_scalar_with_env, compile_fast_vec2_with_env,
+    evaluate_compiled_expr,
 };
 use crate::timeline::plot::{
     FuncSource, ProceduralPlot, build_implicit_plot_path_from_source, flatten_blend,
@@ -131,7 +132,7 @@ impl FastScalarField {
             let x_name = args.first().map(String::as_str).unwrap_or("x");
             let y_name = args.get(1).map(String::as_str).unwrap_or("y");
             let mut names = Vec::new();
-            let expr = compile_fast_scalar(body, x_name, &mut names)?;
+            let expr = compile_fast_scalar_with_env(body, x_name, &mut names, env)?;
             let y_slot = names.iter().position(|n| *n == y_name);
             let slots = resolve_slots(&names, y_slot, env, captures)?;
             leaves.push(FastScalarLeaf {
@@ -179,7 +180,7 @@ impl FastVectorField {
             let x_name = args.first().map(String::as_str).unwrap_or("x");
             let y_name = args.get(1).map(String::as_str).unwrap_or("y");
             let mut names = Vec::new();
-            let (x_expr, y_expr) = compile_fast_vec2(body, x_name, &mut names)?;
+            let (x_expr, y_expr) = compile_fast_vec2_with_env(body, x_name, &mut names, env)?;
             let y_slot = names.iter().position(|n| *n == y_name);
             let slots = resolve_slots(&names, y_slot, env, captures)?;
             leaves.push(FastVectorLeaf {

@@ -24,208 +24,189 @@
 //
 // Type floors (DESIGN §1.5): head 48, captions 24, readout values 28, labels
 // 16 — nothing renders below 16 px.
-
 import "../../../examples/lib/theme.amx"
+
 import "../../../examples/lib/stage.amx"
 
-config { colorscheme: "moss", resolution: (1280, 720), duration: 23.0 }
+config { colorscheme: "moss", resolution: (1280, 720), duration: 23 }
 
 // The slider target: the extra rotation (degrees) carried by the middle act.
-let theta = 0.0
+let theta = 0
 
 // Plane geometry. The plane is a Mask at (916, 420) whose children live in
 // plane-local coordinates, so the composed lattice cannot leak past the plate.
 let cx = 0
+
 let cy = 0
+
 let s = 90
 
 // The resting matrix is computed at build time so every Readout declares its
 // final/total value; frame-time `.text` writes do not render offline.
 let thF = deg(theta) + pi / 2
+
 let cF = cos(thF)
+
 let sF = sin(thF)
+
 let m11F = cF
+
 let m12F = cF - sF
+
 let m21F = -sF
+
 let m22F = -(sF + cF)
 
 // ── the stage ───────────────────────────────────────────────────────
 floor: StageFloor, glow: 1.35
 
-head_kicker: Text, text: "FIG 00 · THE COMPLETE 3-STAGE TRANSFORMATION", font_size: 18,
-  font_weight: 600, color: accent.primary, text_align: "left", text_anchor: "left",
-  anchor: scene.top_left, offset: (96, 44), opacity: 1
-head_title: Text, text: "One machine, three transformations", font_size: 48, font_weight: "bold",
-  color: text.primary, text_align: "left", text_anchor: "left",
-  anchor: scene.top_left, offset: (96, 96), opacity: 1
-head_rule: Rect, size: (96, 4), color: accent.primary,
-  anchor: scene.top_left, offset: (96, 150), opacity: 1
+head_kicker: Text, text: "FIG 00 · THE COMPLETE 3-STAGE TRANSFORMATION", font_size: 18, font_weight: 600, color: accent.primary, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (96, 44), opacity: 1
+
+head_title: Text, text: "One machine, three transformations", font_size: 48, font_weight: "bold", color: text.primary, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (96, 96), opacity: 1
+
+head_rule: Rect, size: (96, 4), color: accent.primary, anchor: scene.top_left, offset: (96, 150), opacity: 1
 
 cap1: Caption, text: "Act I · Shear: k climbs, every point slides, and the area never changes.", tag: "scene.amx"
+
 cap2: Caption, text: "Act II · Rotation: the grid turns a quarter turn; columns are the basis.", tag: "scene.amx", opacity: 0
+
 cap3: Caption, text: "Act III · Collapse: det crosses zero, the plane folds, and comes out mirrored.", tag: "scene.amx", opacity: 0
 
 // ── the machine panel ───────────────────────────────────────────────
-panel: Rect, size: (520, 420), corner_radius: 18, color: surface.secondary,
-  stroke: stroke.default, stroke_width: 1.2, at: (356, 380), opacity: 0.9
+panel: Rect, size: (520, 420), corner_radius: 18, color: surface.secondary, stroke: stroke.default, stroke_width: 1.2, at: (356, 380), opacity: 0.9
 
-panel_title: Text, text: "MATRIX M = C · R · S", font_size: 18, font_family: "mono", color: text.secondary,
-  text_anchor: "left", anchor: scene.top_left, offset: (112, 180), opacity: 1
+panel_title: Text, text: "MATRIX M = C · R · S", font_size: 18, font_family: "mono", color: text.secondary, text_anchor: "left", anchor: scene.top_left, offset: (112, 180), opacity: 1
 
 a_chip: Readout, label: "COL 1 · ROW 1", value: format("{:.1}", m11F), at: (232, 252)
+
 b_chip: Readout, label: "COL 2 · ROW 1", value: format("{:.1}", m12F), at: (480, 252)
+
 c_chip: Readout, label: "COL 1 · ROW 2", value: format("{:.1}", m21F), at: (232, 344)
+
 d_chip: Readout, label: "COL 2 · ROW 2", value: format("{:.1}", m22F), at: (480, 344)
 
 det_chip: Readout, label: "DETERMINANT", value: format("{:.1}", m11F * m22F - m12F * m21F), at: (232, 470)
-det_note: Text, text: "signed area = det M", font_size: 20, color: text.muted,
-  text_anchor: "left", anchor: scene.top_left, offset: (372, 450), opacity: 1
-flip_note: Text, text: "orientation flips", font_size: 20, color: accent.danger,
-  text_anchor: "left", anchor: scene.top_left, offset: (372, 486), opacity: 0
 
-formula: Text, text: "M = C · R(θ) · S(k)", font_size: 22, font_family: "mono",
-  color: text.secondary, text_anchor: "left", anchor: scene.top_left, offset: (112, 546), opacity: 1
+det_note: Text, text: "signed area = det M", font_size: 20, color: text.muted, text_anchor: "left", anchor: scene.top_left, offset: (372, 450), opacity: 1
+
+flip_note: Text, text: "orientation flips", font_size: 20, color: accent.danger, text_anchor: "left", anchor: scene.top_left, offset: (372, 486), opacity: 0
+
+formula: Text, text: "M = C · R(θ) · S(k)", font_size: 22, font_family: "mono", color: text.secondary, text_anchor: "left", anchor: scene.top_left, offset: (112, 546), opacity: 1
 
 // ── the plane ───────────────────────────────────────────────────────
 plane: Mask, size: (600, 480), at: (916, 420), opacity: 1 {
-  clip_shape: Rect, size: (600, 480), opacity: 1
-
-  grid_card: Rect, size: (600, 480), corner_radius: 18, color: surface.primary,
-    stroke: stroke.default, stroke_width: 1.2, opacity: 0.72
-
-  bloom: Ellipse, size: (700, 540), blend: "screen", opacity: 0,
-    fill_gradient: radial((0.5, 0.5), 0.70, {(0%, accent.primary * 0.32), (55%, accent.primary * 0.10), (100%, (0, 0, 0, 0))})
-
+clip_shape: Rect, size: (600, 480), opacity: 1
+grid_card: Rect, size: (600, 480), corner_radius: 18, color: surface.primary, stroke: stroke.default, stroke_width: 1.2, opacity: 0.72
+bloom: Ellipse, size: (700, 540), blend: "screen", opacity: 0, fill_gradient: radial((0.5, 0.5), 0.7, {(0%, accent.primary * 0.32), (55%, accent.primary * 0.1), (100%, (0, 0, 0, 0))})
   // Seven vertical and seven horizontal grid lines, declared on the identity.
   // `always` applies the composed matrix to every endpoint.
-  for gx, i in {-3, -2, -1, 0, 1, 2, 3} {
-    gv[i]: Line, from: (cx + s * gx, cy - s * 2.4), to: (cx + s * gx, cy + s * 2.4),
-      stroke: stroke.default, stroke_width: 1.3, opacity: 0.75
+for gx, i in {-3, -2, -1, 0, 1, 2, 3} {
+gv[i]: Line, from: (cx + s * gx, cy - s * 2.4), to: (cx + s * gx, cy + s * 2.4), stroke: stroke.default, stroke_width: 1.3, opacity: 0.75
   }
-
-  for gy, i in {-2.4, -1.6, -0.8, 0, 0.8, 1.6, 2.4} {
-    gh[i]: Line, from: (cx - s * 3.2, cy - s * gy), to: (cx + s * 3.2, cy - s * gy),
-      stroke: stroke.default, stroke_width: 1.3, opacity: 0.75
+for gy, i in {-2.4, -1.6, -0.8, 0, 0.8, 1.6, 2.4} {
+gh[i]: Line, from: (cx - s * 3.2, cy - s * gy), to: (cx + s * 3.2, cy - s * gy), stroke: stroke.default, stroke_width: 1.3, opacity: 0.75
   }
-
-  x_axis: Line, from: (cx - s * 3.2, cy), to: (cx + s * 3.2, cy),
-    stroke: text.muted, stroke_width: 1.8, opacity: 0.9
-  y_axis: Line, from: (cx, cy - s * 2.4), to: (cx, cy + s * 2.4),
-    stroke: text.muted, stroke_width: 1.8, opacity: 0.9
-
+x_axis: Line, from: (cx - s * 3.2, cy), to: (cx + s * 3.2, cy), stroke: text.muted, stroke_width: 1.8, opacity: 0.9
+y_axis: Line, from: (cx, cy - s * 2.4), to: (cx, cy + s * 2.4), stroke: text.muted, stroke_width: 1.8, opacity: 0.9
   // The singular line, lit when det crosses zero in Act III.
-  fold_line: Line, from: (cx - s * 3.2, cy), to: (cx + s * 3.2, cy),
-    stroke: accent.danger, stroke_width: 3, opacity: 0
-
-  origin_dot: Ellipse, size: (10, 10), color: accent.primary, at: (cx, cy), opacity: 1
-  x_lab: Text, text: "x", font_size: 18, color: text.muted, at: (cx + s * 3.2 - 12, cy + 16), opacity: 1
-  y_lab: Text, text: "y", font_size: 18, color: text.muted, at: (cx + 14, cy - s * 2.4 + 6), opacity: 1
-
+fold_line: Line, from: (cx - s * 3.2, cy), to: (cx + s * 3.2, cy), stroke: accent.danger, stroke_width: 3, opacity: 0
+origin_dot: Ellipse, size: (10, 10), color: accent.primary, at: (cx, cy), opacity: 1
+x_lab: Text, text: "x", font_size: 18, color: text.muted, at: ((cx + s * 3.2) - 12, cy + 16), opacity: 1
+y_lab: Text, text: "y", font_size: 18, color: text.muted, at: (cx + 14, (cy - s * 2.4) + 6), opacity: 1
   // The unit square — the shape whose signed area is det M.
-  sq_bottom: Line, from: (cx, cy), to: (cx + s, cy), stroke: accent.warning, stroke_width: 2.4, opacity: 0.95
-  sq_top: Line, from: (cx, cy - s), to: (cx + s, cy - s), stroke: accent.warning, stroke_width: 2.4, opacity: 0.95
-  sq_left: Line, from: (cx, cy), to: (cx, cy - s), stroke: accent.warning, stroke_width: 2.4, opacity: 0.95
-  sq_right: Line, from: (cx + s, cy), to: (cx + s, cy - s), stroke: accent.warning, stroke_width: 2.4, opacity: 0.95
-
-  i_hat: Arrow, from: (cx, cy), to: (cx + s, cy), head_size: 12,
-    stroke: accent.primary, stroke_width: 4, opacity: 1
-  j_hat: Arrow, from: (cx, cy), to: (cx, cy - s), head_size: 12,
-    stroke: accent.info, stroke_width: 4, opacity: 1
-  i_t: Text, text: "i", font_size: 22, color: accent.primary, at: (cx + s + 20, cy - 14), opacity: 1
-  j_t: Text, text: "j", font_size: 22, color: accent.info, at: (cx + 16, cy - s - 14), opacity: 1
+sq_bottom: Line, from: (cx, cy), to: (cx + s, cy), stroke: accent.warning, stroke_width: 2.4, opacity: 0.95
+sq_top: Line, from: (cx, cy - s), to: (cx + s, cy - s), stroke: accent.warning, stroke_width: 2.4, opacity: 0.95
+sq_left: Line, from: (cx, cy), to: (cx, cy - s), stroke: accent.warning, stroke_width: 2.4, opacity: 0.95
+sq_right: Line, from: (cx + s, cy), to: (cx + s, cy - s), stroke: accent.warning, stroke_width: 2.4, opacity: 0.95
+i_hat: Arrow, from: (cx, cy), to: (cx + s, cy), head_size: 12, stroke: accent.primary, stroke_width: 4, opacity: 1
+j_hat: Arrow, from: (cx, cy), to: (cx, cy - s), head_size: 12, stroke: accent.info, stroke_width: 4, opacity: 1
+i_t: Text, text: "i", font_size: 22, color: accent.primary, at: ((cx + s) + 20, cy - 14), opacity: 1
+j_t: Text, text: "j", font_size: 22, color: accent.info, at: (cx + 16, (cy - s) - 14), opacity: 1
 }
 
 #0.2s
-fade-in sq_bottom [360ms, ease: expo-out]
-fade-in sq_top [360ms, delay: 60ms, ease: expo-out]
-fade-in sq_left [360ms, delay: 120ms, ease: expo-out]
-fade-in sq_right [360ms, delay: 180ms, ease: expo-out]
+  fade_in(target: sq_bottom, duration: 0.36s, ease: expo_out)
+  fade_in(target: sq_top, duration: 0.36s, delay: 0.06s, ease: expo_out)
+  fade_in(target: sq_left, duration: 0.36s, delay: 0.12s, ease: expo_out)
+  fade_in(target: sq_right, duration: 0.36s, delay: 0.18s, ease: expo_out)
 
 #5.9s
-fade-out cap1 [240ms, ease: ease-in]
-fade-in cap2 [280ms, delay: 200ms, ease: expo-out]
+  fade_out(target: cap1, duration: 0.24s, ease: ease_in)
+  fade_in(target: cap2, duration: 0.28s, delay: 0.2s, ease: expo_out)
 
 #13.6s
-fade-out cap2 [240ms, ease: ease-in]
-fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
-
-always {
-  // The three actuators, each a smoothstep of its own act window:
-  //   k : 0 → 1 over 0.35s … 5.95s  (shear)
-  //   θ : 0 → 90° over 6.2s … 13.4s (rotation, plus the slider's theta)
-  //   d : 1 → −1 over 14.2s … 20.7s (collapse)
-  let ku = clamp((t - 0.35) / 5.6, 0, 1)
-  let ru = clamp((t - 6.2) / 7.2, 0, 1)
-  let du = clamp((t - 14.2) / 6.5, 0, 1)
-  let k = ku * ku * (3 - 2 * ku)
-  let th = deg(theta) + (ru * ru * (3 - 2 * ru)) * (pi / 2)
-  let dd = 1.0 - 2.0 * (du * du * (3 - 2 * du))
-
-  // M = C · R(θ) · S(k), written out so the readouts can track every entry.
-  let co = cos(th)
-  let si = sin(th)
-  let m11 = co
-  let m12 = co * k - si
-  let m21 = dd * si
-  let m22 = dd * (si * k + co)
-
-  // Vertical grid lines: x = gx, y sweeps -2.4 … 2.4.
-  for gx, i in {-3, -2, -1, 0, 1, 2, 3} {
-    gv[i].from = (cx + s * (m11 * gx + m12 * -2.4), cy - s * (m21 * gx + m22 * -2.4))
-    gv[i].to = (cx + s * (m11 * gx + m12 * 2.4), cy - s * (m21 * gx + m22 * 2.4))
-  }
-
-  // Horizontal grid lines: y = gy, x sweeps -3.2 … 3.2.
-  for gy, i in {-2.4, -1.6, -0.8, 0, 0.8, 1.6, 2.4} {
-    gh[i].from = (cx + s * (m11 * -3.2 + m12 * gy), cy - s * (m21 * -3.2 + m22 * gy))
-    gh[i].to = (cx + s * (m11 * 3.2 + m12 * gy), cy - s * (m21 * 3.2 + m22 * gy))
-  }
-
-  // The unit square in matrix coordinates: (0,0), (1,0), (1,1), (0,1).
-  sq_bottom.from = (cx, cy)
-  sq_bottom.to = (cx + s * m11, cy - s * m21)
-  sq_top.from = (cx + s * m12, cy - s * m22)
-  sq_top.to = (cx + s * (m11 + m12), cy - s * (m21 + m22))
-  sq_left.from = (cx, cy)
-  sq_left.to = (cx + s * m12, cy - s * m22)
-  sq_right.from = (cx + s * m11, cy - s * m21)
-  sq_right.to = (cx + s * (m11 + m12), cy - s * (m21 + m22))
-
-  // Basis vectors and their labels — the columns, live.
-  i_hat.to = (cx + s * m11, cy - s * m21)
-  j_hat.to = (cx + s * m12, cy - s * m22)
-  i_t.at = (cx + s * m11 + 20, cy - s * m21 - 14)
-  j_t.at = (cx + s * m12 + 16, cy - s * m22 - 14)
-
-  a_chip.value_text.text = format("{:.1}", m11)
-  b_chip.value_text.text = format("{:.1}", m12)
-  c_chip.value_text.text = format("{:.1}", m21)
-  d_chip.value_text.text = format("{:.1}", m22)
-  det_chip.value_text.text = format("{:.1}", m11 * m22 - m12 * m21)
-}
+  fade_out(target: cap2, duration: 0.24s, ease: ease_in)
+  fade_in(target: cap3, duration: 0.28s, delay: 0.2s, ease: expo_out)
+  always {
+      // The three actuators, each a smoothstep of its own act window:
+      //   k : 0 → 1 over 0.35s … 5.95s  (shear)
+      //   θ : 0 → 90° over 6.2s … 13.4s (rotation, plus the slider's theta)
+      //   d : 1 → −1 over 14.2s … 20.7s (collapse)
+      let ku = clamp((t - 0.35) / 5.6, 0, 1)
+      let ru = clamp((t - 6.2) / 7.2, 0, 1)
+      let du = clamp((t - 14.2) / 6.5, 0, 1)
+      let k = (ku * ku) * (3 - 2 * ku)
+      let th = deg(theta) + ((ru * ru) * (3 - 2 * ru)) * (pi / 2)
+      let dd = 1 - 2 * ((du * du) * (3 - 2 * du))
+      // M = C · R(θ) · S(k), written out so the readouts can track every entry.
+      let co = cos(th)
+      let si = sin(th)
+      let m11 = co
+      let m12 = co * k - si
+      let m21 = dd * si
+      let m22 = dd * (si * k + co)
+      // Vertical grid lines: x = gx, y sweeps -2.4 … 2.4.
+      for gx, i in {-3, -2, -1, 0, 1, 2, 3} {
+            gv[i].from = (cx + s * (m11 * gx + m12 * -2.4), cy - s * (m21 * gx + m22 * -2.4))
+            gv[i].to = (cx + s * (m11 * gx + m12 * 2.4), cy - s * (m21 * gx + m22 * 2.4))
+          }
+      // Horizontal grid lines: y = gy, x sweeps -3.2 … 3.2.
+      for gy, i in {-2.4, -1.6, -0.8, 0, 0.8, 1.6, 2.4} {
+            gh[i].from = (cx + s * (m11 * -3.2 + m12 * gy), cy - s * (m21 * -3.2 + m22 * gy))
+            gh[i].to = (cx + s * (m11 * 3.2 + m12 * gy), cy - s * (m21 * 3.2 + m22 * gy))
+          }
+      // The unit square in matrix coordinates: (0,0), (1,0), (1,1), (0,1).
+      sq_bottom.from = (cx, cy)
+      sq_bottom.to = (cx + s * m11, cy - s * m21)
+      sq_top.from = (cx + s * m12, cy - s * m22)
+      sq_top.to = (cx + s * (m11 + m12), cy - s * (m21 + m22))
+      sq_left.from = (cx, cy)
+      sq_left.to = (cx + s * m12, cy - s * m22)
+      sq_right.from = (cx + s * m11, cy - s * m21)
+      sq_right.to = (cx + s * (m11 + m12), cy - s * (m21 + m22))
+      // Basis vectors and their labels — the columns, live.
+      i_hat.to = (cx + s * m11, cy - s * m21)
+      j_hat.to = (cx + s * m12, cy - s * m22)
+      i_t.at = ((cx + s * m11) + 20, (cy - s * m21) - 14)
+      j_t.at = ((cx + s * m12) + 16, (cy - s * m22) - 14)
+      a_chip.value_text.text = format("{:.1}", m11)
+      b_chip.value_text.text = format("{:.1}", m12)
+      c_chip.value_text.text = format("{:.1}", m21)
+      d_chip.value_text.text = format("{:.1}", m22)
+      det_chip.value_text.text = format("{:.1}", m11 * m22 - m12 * m21)
+    }
 
 // ── the crossing ────────────────────────────────────────────────────
 // d passes zero at t ≈ 17.45s: the determinant readout flips red, j turns
 // with the mirror, and the singular line lights along the x-axis.
 #17.45s
-det_chip.value_text.color = accent.danger [250ms]
-j_hat.stroke = accent.danger [250ms]
-j_t.color = accent.danger [250ms]
-fold_line.opacity = 0.70 [400ms, ease: expo-out]
-fade-in flip_note [300ms, delay: 150ms, ease: expo-out]
+  det_chip.value_text.color = accent.danger[0.25s]
+  j_hat.stroke = accent.danger[0.25s]
+  j_t.color = accent.danger[0.25s]
+  fold_line.opacity = 0.7 [0.4s, ease: expo_out]
+  fade_in(target: flip_note, duration: 0.3s, delay: 0.15s, ease: expo_out)
 
 // ── Act III · payoff ────────────────────────────────────────────────
 // The bloom sweeps behind the folded plane while the camera pushes and
 // settles back, so the resting frame is the composed grid, its parallelogram,
 // both basis vectors, the red determinant and det = −1.0 held on the stage.
 #20.9s
-bloom.opacity = 0.45 [700ms, ease: expo-out]
-camera.zoom = 1.06 [1.2s, ease: ease-in-out]
+  bloom.opacity = 0.45 [0.7s, ease: expo_out]
+  camera.zoom = 1.06 [1.2s, ease: ease_in_out]
 
-#22.0s
-bloom.opacity = 0.20 [900ms, ease: ease-in-out]
-camera.zoom = 1.0 [1.0s, ease: ease-in-out]
-
-// ── Rest ────────────────────────────────────────────────────────────
-// The composed lattice, the parallelogram, both basis vectors, the red
-// determinant and the singular line hold; nothing erases.
+#22s
+  bloom.opacity = 0.2 [0.9s, ease: ease_in_out]
+  camera.zoom = 1 [1s, ease: ease_in_out]
+  // ── Rest ────────────────────────────────────────────────────────────
+  // The composed lattice, the parallelogram, both basis vectors, the red
+  // determinant and the singular line hold; nothing erases.

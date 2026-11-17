@@ -8,19 +8,20 @@
 //
 //   animatix image web/dev/var_probe.amx --set amp=320 --set hue=0.85 \
 //     --time 1 -o target/review/var_probe.png
+config { colorscheme: "editorial-dark", resolution: (640, 360), duration: 2 }
 
-config { colorscheme: "editorial-dark", resolution: (640, 360), duration: 2.0 }
+let amp = 200  // ellipse diameter, scene units
 
-let amp = 200   // ellipse diameter, scene units
-let hue = 0.5   // 0..1: steel at 0, amber at 1
+let hue = 0.5  // 0..1: steel at 0, amber at 1
 
 // Declared before the first keyframe with no explicit opacity, so both are
 // seeded hidden and the fade-ins below reveal them: sample at t >= 0.9s.
-ring: Ellipse, size: (amp * 1.4, amp * 1.4), at: (320, 180),
-  color: rgb(hue, 0.72, 1.0 - hue), opacity: 0.22
-dot: Ellipse, size: (amp, amp), at: (320, 180), color: rgb(hue, 0.72, 1.0 - hue)
+ring: Ellipse, size: (amp * 1.4, amp * 1.4), at: (320, 180), color: rgb(hue, 0.72, 1 - hue), opacity: 0.22
+
+dot: Ellipse, size: (amp, amp), at: (320, 180), color: rgb(hue, 0.72, 1 - hue)
 
 #0.3s
-fade-in ring [400ms, ease: expo-out]
+  fade_in(target: ring, duration: 0.4s, ease: expo_out)
+
 #0.5s
-fade-in dot [400ms, ease: expo-out]
+  fade_in(target: dot, duration: 0.4s, ease: expo_out)

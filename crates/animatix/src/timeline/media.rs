@@ -445,6 +445,7 @@ impl Timeline {
         std::sync::Arc::make_mut(&mut self.asset_cache).record_usage(&normalized_source, label);
         self.warn_unknown_declaration_properties(label, "Audio", props, diagnostics);
         self.audio_segments.push(AudioSegment {
+            actor_id: Some(track_id),
             source: normalized_source,
             start_time_s,
             duration_s,

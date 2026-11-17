@@ -139,9 +139,19 @@ The correctness-fix evidence and disposition of AMX-01–11 are recorded in
 Config `resolution` currently requires positive numeric literals: `--set W=...`
 does not make `resolution: (W, H)` an evaluated expression. Keep this limitation
 visible in authoring guidance; design config-expression evaluation and validation
-before advertising parameterized canvas dimensions. Hyphenated identifiers also
-remain legal (`x-clock` is one identifier); subtraction should be written
-`x - clock`. A diagnostic hint can improve mistakes without changing tokenization.
+before advertising parameterized canvas dimensions.
+
+### Callable syntax migration validation (active)
+
+- **Callable/plan migration build cost.** The 2026-11-17 CPU quick comparison
+  retains 85/85 coverage but still reports
+  material regressions in module/component/reactive builds and analyzer updates.
+  Preserve the original baseline and adjacent old-source text control; do not
+  attribute the text timing drift to the migration without further evidence.
+  After ECS repairs, the 85-case comparison against the preceding migration
+  build has one material analyzer-update regression and two inconclusive rows;
+  the original pre-migration baseline still has eleven material regressions.
+  See [`history/2026-11.md`](history/2026-11.md).
 
 ### Structure gate (active)
 
@@ -252,18 +262,17 @@ the behaviour is *wrong* or merely *shaped badly*; what it did land is archived 
 
 | # | Item | Evidence |
 |---|---|---|
-| 2 | **`animatix fmt` reflows declarations.** | Comment deletion is fixed (2026-11-03): `Formatter::format_source` reinserts every `//` class from the lossless token stream — file header, free-standing, in-block, trailing, comment-only — with round-trip, idempotence, and scrubbed-AST tests. Remaining: formatting still collapses every multi-line declaration onto one line (`web/scenes/hero.amx` 202 → 124 lines), and nested-block indentation is sometimes doubled. |
-| 3 | **The native-plugin ABI silently flattens most easings to Linear.** | `easing_code` (`extension_native_plugin/`) maps everything outside {EaseIn, EaseOut, EaseInOut} onto code 0, so a plugin reading a `spring`, `bounce`, or `cubic-bezier` track sees a linear one. Pre-dates this pass. Widening the code space is a plugin-API version bump, not an easing change. |
-| 5 | **A component actor declared between keyframes renders half-drawn.** | `hash/lookup.amx`'s `q2`/`q3` (`LabeledBox`) appeared as a dim box *without its label* in beats before their own `fade-in`. Worked around scene-side with `opacity: 0.0`, but the engine question stands: "declared inside a keyframe is visible immediately" should not produce a partially drawn component. Narrowed 2026-10-03: the mechanism first blamed for it — a re-declaration sampling its own target because a sibling wrote a keyframe at the same `#t` — was probed on plain shape actors in four orderings and does **not** reproduce (the pre-frame keeps the old shape and colour and the morph still lands on target); `a_redeclaration_starts_from_what_it_replaces_not_from_its_target` pins that. What is left is specific to *component* actors, whose parts are separate sub-actors seeded during expansion, and it still needs a minimal repro outside the demo. |
+| 2 | **`animatix fmt` reflows declarations.** | Comment deletion is fixed (2026-11-03): `Formatter::format_source` reinserts every `//` class from the lossless token stream — file header, free-standing, in-block, trailing, comment-only — with round-trip, idempotence, and scrubbed-AST tests. Remaining: formatting still collapses every multi-line declaration onto one line (`web/scenes/hero.amx` 202 → 124 lines), and nested-block indentation is sometimes doubled. A `for` inside a container can also lose indentation on its header and child nodes (`format_core::format_inline_item`, reproduced by `web/content/scenes/one-rule-many-forms.amx`). |
+| 3 | **The native-plugin ABI silently flattens most easings to Linear.** | `easing_code` (`extension_native_plugin/`) maps everything outside {EaseIn, EaseOut, EaseInOut} onto code 0, so a plugin reading a `spring`, `bounce`, or `cubic_bezier` track sees a linear one. Pre-dates this pass. Widening the code space is a plugin-API version bump, not an easing change. |
+| 5 | **A component actor declared between keyframes renders half-drawn.** | `hash/lookup.amx`'s `q2`/`q3` (`LabeledBox`) appeared as a dim box *without its label* in beats before their own `fade_in`. Worked around scene-side with `opacity: 0.0`, but the engine question stands: "declared inside a keyframe is visible immediately" should not produce a partially drawn component. Narrowed 2026-10-03: the mechanism first blamed for it — a re-declaration sampling its own target because a sibling wrote a keyframe at the same `#t` — was probed on plain shape actors in four orderings and does **not** reproduce (the pre-frame keeps the old shape and colour and the morph still lands on target); `a_redeclaration_starts_from_what_it_replaces_not_from_its_target` pins that. What is left is specific to *component* actors, whose parts are separate sub-actors seeded during expansion, and it still needs a minimal repro outside the demo. |
 | 13 | **A string literal's backslashes grow every time a file is formatted.** | The lexer stores the raw text between the quotes (`token/` `lex_string` skips escape pairs but never decodes them) while `format_expr`'s `Str` arm re-escapes (`s.replace('\\', "\\\\")`), so `"…\n…"` becomes `"…\\n…"` and then `"…\\\\n…"`: `animatix fmt` is not idempotent and each pass drifts the rendered text further. Three supported repo files are affected (`examples/gallery/sorting_theatre.amx`, `examples/layout/27_layout_text.amx`, `web/demos/transformer/scenes/attention.amx`); `roundtrip_examples.rs` excuses instability *only* when the changed line contains a backslash, so another cause cannot appear silently. The fix is a language decision, not a printer tweak: decode escapes at lex time so `Expr::Str` holds the value (then `\n` in `text:` finally means a newline, and Typst's `\sqrt` stops needing `\\sqrt`), or declare the field raw-text and give the ~10 GUI `Expr::Str(…)` construction sites an explicit escaping constructor. Today the field means both things at once, which is why no printer rule can be right. |
 
 ### Design flaws — the shape invites the wrong thing
 
 | # | Item |
 |---|---|
-| 14 | **An action's preposition is stored as one of its targets.** `move b to (300, 200)` parses to `targets: ["b", "to"]`, `args: [Num(300), Num(200)]` — the grammar (`parser/stmt.rs`) reads any run of identifiers as targets and then flattens a parenthesized argument group into the same `args` list, so the AST cannot tell `to (300, 200)` from `to 300 200`, nor a preposition from a second actor. Consequences: the printer has to *guess* punctuation (`format_action` now wraps ≥2 args in parens to stay reparseable), `animatix fmt` could not round-trip the positional form at all until that fix, and every `.amx` in this repo therefore uses the keyword form instead (`move panel [to: (500, 260), 700ms]`) — which is either good documentation or a scar from the formatter, and is not something any test can currently tell. Giving `Action` an explicit argument *shape* (preposition kept, groups preserved) is the durable fix; until then no tooling can distinguish "move two actors" from "move one actor to". |
-| 8 | **Nothing keeps a coupled ease pair in sync.** The hero's carriage "rides the draw tip" by repeating the `draw-in`'s start, span *and* ease. A mechanical retune of the draw silently separated the two and no test or diagnostic noticed. Either give the follower its own construct, or warn on two segments with identical span and different easing. |
-| 9 | **Curve names that promise physics.** An easing is a scalar map over progress between two values; it can only modulate travel *along* that line, so no easing can produce an arc. `bounce` was renamed `bounce-in` and the boundary is now written into `docs/spec.md`, but `elastic` still promises a spring and delivers a progress wobble. |
+| 8 | **Nothing keeps a coupled ease pair in sync.** The hero's carriage "rides the draw tip" by repeating the `draw_in`'s start, span *and* ease. A mechanical retune of the draw silently separated the two and no test or diagnostic noticed. Either give the follower its own construct, or warn on two segments with identical span and different easing. |
+| 9 | **Curve names that promise physics.** An easing is a scalar map over progress between two values; it can only modulate travel *along* that line, so no easing can produce an arc. `bounce` was renamed `bounce_in` and the boundary is now written into `docs/spec.md`, but `elastic` still promises a spring and delivers a progress wobble. |
 | 10 | **Headless cannot see the site's primary surface.** Partly solved 2026-10-03: `AmxPlayer::debug_readback_rgba(t, cb)` hands back the frame's RGBA bytes, which a browser harness turns into a PNG through an `OffscreenCanvas` — verified end to end against `web/demos/matrix/`, capturing a real 1280×720 WebGPU frame out of headless Chromium (usage in `web/README.md`). Still open: it captures the *scene*, not the *page* (site chrome, scroll-reveal and hover furniture remain invisible), and a probe frame costs seconds, so it is a review tool rather than a CI gate. |
 | 11 | **Nothing keeps the corpus on its motion vocabulary.** The site was 155-of-207 annotations on one quadratic curve, with ~880 timed statements carrying no ease at all (so: Linear). Fixed by convention plus `docs/spec.md`'s reference table, but nothing enforces it — a scene can slide back to monoculture unnoticed. A lint over "which role uses which curve" is the durable version of this pass. |
 
@@ -406,7 +415,7 @@ reading of the code.
   byte-identical frames with its three `highlight decomp_eq.fN` beats deleted
   (1 px of 921 600 at the peak, 0 px four frames later), and a minimal
   `Equation { Fragment, Fragment }` scene shows the same for both `highlight` and
-  `reveal-in` on a fragment — per-fragment *actions* record, and never draw.
+  `reveal_in` on a fragment — per-fragment *actions* record, and never draw.
   `scene_eval/` does build `HighlightLayer` commands from `frags`, so the
   question is why the Equation branch is not the one that renders these scenes
   (`primitives/equation.rs` has no highlight code at all, only a doc comment
@@ -508,9 +517,9 @@ around in `web/demos/epicycles/` rather than fixed in the engine.
   the stamp or reject it; content currently writes stamps that look like
   schedule and are decoration, which is how a 15 s act ended up with its
   outgoing cascade tuned to 14.4 s.
-- **`fade-in` on a stroke-only actor animates `stroke_progress`, so it fights a
+- **`fade_in` on a stroke-only actor animates `stroke_progress`, so it fights a
   per-frame write to the same property.** An `Ellipse` with `fill_opacity: 0`
-  used as an angle arc, revealed by `fade-in` and driven by
+  used as an angle arc, revealed by `fade_in` and driven by
   `arc.stroke_progress = …` in `always`, renders as a closed ring and reports
   `always-overrides-keyframes` even after the declaration drops its
   `stroke_progress`. The warning is right that something is overriding, and
@@ -691,7 +700,7 @@ tracked.
 
 - **`Graph`-generated sub-actors trip the lifecycle rules.** A `Graph` + `PlotCurve`
   evaluates tick/curve sub-actors (`plot_tick_x_0`, `curve`) whose own opacity
-  track is flat zero — the container's `draw-in` drives them. `actor.
+  track is flat zero — the container's `draw_in` drives them. `actor.
   opacity-never-positive` has no way to tell "container-generated fragment"
   from "author-declared actor that never shows": `parent` is `None` for these
   (they are evaluation-time spawns, not hierarchy children) and the label has

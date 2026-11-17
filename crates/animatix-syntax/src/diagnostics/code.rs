@@ -46,6 +46,7 @@ impl fmt::Display for DiagnosticCode {
                 write!(f, "colorscheme-inheritance-cycle")
             },
             DiagnosticCode::ModuleExportEvalError => write!(f, "module-export-eval-error"),
+            DiagnosticCode::CallableEvaluationError => write!(f, "callable-evaluation-error"),
             DiagnosticCode::ModifierCompilationError => write!(f, "modifier-compilation-error"),
             DiagnosticCode::ConflictingPositionBinding => {
                 write!(f, "conflicting-position-binding")
@@ -71,6 +72,13 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::CarryAmbiguousPredecessor => write!(f, "carry-ambiguous-predecessor"),
             DiagnosticCode::PersistAfterRemove => write!(f, "persist-after-remove"),
             DiagnosticCode::InvalidPlotFunc => write!(f, "invalid-plot-func"),
+            DiagnosticCode::DiscardedTimelineValue => write!(f, "discarded-timeline-value"),
+            DiagnosticCode::InvalidFunctionBodyStatement => {
+                write!(f, "invalid-function-body-statement")
+            },
+            DiagnosticCode::RecursiveFunctionNeedsAnnotation => {
+                write!(f, "recursive-function-needs-annotation")
+            },
             DiagnosticCode::UnknownActorType => write!(f, "unknown-actor-type"),
             DiagnosticCode::TypeMismatch => write!(f, "type-mismatch"),
             DiagnosticCode::ModifierRuntimeError => write!(f, "modifier-runtime-error"),

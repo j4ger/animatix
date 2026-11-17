@@ -14,7 +14,6 @@ fn native_register_property_rejects_same_name_across_actor_types() {
         service_values: HashMap::new(),
         functions: Vec::new(),
         primitives: Vec::new(),
-        actions: Vec::new(),
         services: Vec::new(),
         effects: Vec::new(),
     };

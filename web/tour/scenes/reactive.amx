@@ -21,98 +21,91 @@
 // `ring.size = (238, 238)` on a 220 actor grows it by 18 px, not 476 — which is
 // what the doubling bug in `primitives::override_size` used to make impossible;
 // the scene had to keep its breathing to scalars.
-
 import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 6.8 }
 
-title: Text, text: "Live focus reticle", font_size: 32, color: text.primary,
-  anchor: scene.top, offset: (0, 60)
-status: Text, text: "IDLE", font_size: 22, color: text.muted,
-  anchor: scene.bottom, offset: (0, -56)
+title: Text, text: "Live focus reticle", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 60)
 
-capA: Text, text: "`always { }` re-runs every frame", font_size: 22,
-  color: text.secondary, anchor: scene.bottom, offset: (0, -100), opacity: 0.0
-capB: Text, text: "is_animating(&ring.at) flips the readout", font_size: 22,
-  color: text.secondary, anchor: scene.bottom, offset: (0, -100), opacity: 0.0
+status: Text, text: "IDLE", font_size: 22, color: text.muted, anchor: scene.bottom, offset: (0, -56)
+
+capA: Text, text: "`always { }` re-runs every frame", font_size: 22, color: text.secondary, anchor: scene.bottom, offset: (0, -100), opacity: 0
+
+capB: Text, text: "is_animating(&ring.at) flips the readout", font_size: 22, color: text.secondary, anchor: scene.bottom, offset: (0, -100), opacity: 0
 
 // The plate light travels with the reticle — the scene reads as a lens, not
 // as stickers on black.
-glow: Ellipse, size: (520, 520), anchor: scene.center, opacity: 0.0,
-  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94226"), (55%, "#f5b9420c"), (100%, "#f5b94200")}),
-  blend: "screen"
+glow: Ellipse, size: (520, 520), anchor: scene.center, opacity: 0, fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94226"), (55%, "#f5b9420c"), (100%, "#f5b94200")}), blend: "screen"
 
-ring: Ellipse, size: (220, 220), stroke: accent.primary, stroke_width: 4,
-  fill_opacity: 0.0, anchor: scene.center
+ring: Ellipse, size: (220, 220), stroke: accent.primary, stroke_width: 4, fill_opacity: 0, anchor: scene.center
+
 // The acquisition ring: a dashed circle the reticle carries with it. Its ants
 // march continuously, so the readout has a live edge even while idle.
-lock: Ellipse, size: (286, 286), stroke: accent.info, stroke_width: 2,
-  fill_opacity: 0.0, dash_pattern: {12, 9}, anchor: scene.center
+lock: Ellipse, size: (286, 286), stroke: accent.info, stroke_width: 2, fill_opacity: 0, dash_pattern: {12, 9}, anchor: scene.center
+
 cross_h: Rect, size: (360, 3), color: text.primary, anchor: scene.center
+
 cross_v: Rect, size: (3, 360), color: text.primary, anchor: scene.center
-dot: Ellipse, size: (18, 18), anchor: scene.center,
-  fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffffff"), (45%, "#ece7db"), (100%, "#7d786f")})
+
+dot: Ellipse, size: (18, 18), anchor: scene.center, fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffffff"), (45%, "#ece7db"), (100%, "#7d786f")})
 
 #0s
-lock.dash_offset = 0
-lock.dash_offset = 420 [6.8s, ease: linear]
-ring.at = (640, 380)
+  lock.dash_offset = 0
+  lock.dash_offset = 420 [6.8s, ease: linear]
+  ring.at = (640, 380)
 
 #1s
-ring.at = (400, 260) [1s, ease: ease-in-out]
+  ring.at = (400, 260) [1s, ease: ease_in_out]
 
 #2.2s
-ring.at = (900, 430) [1s, ease: ease-in-out]
-
-always {
-  cross_h.at = ring.at
-  cross_v.at = ring.at
-  dot.at = ring.at
-  glow.at = ring.at
-  lock.at = ring.at
-  // the arms keep their bone voice from the declaration — colour here is
-  // the ring's and the status line's semantic channel, not theirs
-
-  if !is_animating(&ring.at) {
-    let p = 0.5 + 0.5 * sin(t * 3)
-    ring.stroke = accent.success
-    ring.stroke_width = 6.0 - p * 2.4
-    ring.size = (220 + p * 18, 220 + p * 18)
-    status.text = "IDLE — at rest"
-    status.color = accent.success
-  } else {
-    ring.stroke = accent.primary
-    ring.stroke_width = 4.0
-    ring.size = (220, 220)
-    status.text = "TRACKING — keyframe active"
-    status.color = accent.primary
-  }
-}
+  ring.at = (900, 430) [1s, ease: ease_in_out]
+  always {
+      cross_h.at = ring.at
+      cross_v.at = ring.at
+      dot.at = ring.at
+      glow.at = ring.at
+      lock.at = ring.at
+      // the arms keep their bone voice from the declaration — colour here is
+      // the ring's and the status line's semantic channel, not theirs
+      if !is_animating(&ring.at) {
+            let p = 0.5 + 0.5 * sin(t * 3)
+            ring.stroke = accent.success
+            ring.stroke_width = 6 - p * 2.4
+            ring.size = (220 + p * 18, 220 + p * 18)
+            status.text = "IDLE — at rest"
+            status.color = accent.success
+          } else {
+            ring.stroke = accent.primary
+            ring.stroke_width = 4
+            ring.size = (220, 220)
+            status.text = "TRACKING — keyframe active"
+            status.color = accent.primary
+          }
+    }
 
 #0.5s
-stagger [80ms] {
-  fade-in title [500ms, ease: expo-out]
-  fade-in glow [400ms, ease: expo-out]
-  fade-in ring [400ms, ease: expo-out]
-  fade-in lock [400ms, ease: expo-out]
-  fade-in cross_h [400ms, ease: expo-out]
-  fade-in cross_v [400ms, ease: expo-out]
-  pop-in dot [400ms, ease: expo-out]
-  fade-in status [400ms, ease: expo-out]
-}
+  stagger [0.08s] {
+      fade_in(target: title, duration: 0.5s, ease: expo_out)
+      fade_in(target: glow, duration: 0.4s, ease: expo_out)
+      fade_in(target: ring, duration: 0.4s, ease: expo_out)
+      fade_in(target: lock, duration: 0.4s, ease: expo_out)
+      fade_in(target: cross_h, duration: 0.4s, ease: expo_out)
+      fade_in(target: cross_v, duration: 0.4s, ease: expo_out)
+      pop_in(target: dot, duration: 0.4s, ease: expo_out)
+      fade_in(target: status, duration: 0.4s, ease: expo_out)
+    }
 
 #0.6s
-fade-in capA [300ms, ease: expo-out]
+  fade_in(target: capA, duration: 0.3s, ease: expo_out)
 
 #2.4s
-fade-out capA [200ms, ease: ease-in]
+  fade_out(target: capA, duration: 0.2s, ease: ease_in)
 
 #2.6s
-fade-in capB [300ms, ease: expo-out]
+  fade_in(target: capB, duration: 0.3s, ease: expo_out)
 
 #4.6s
-fade-out capB [200ms, ease: ease-in]
-
-// No erase cascade: the embed dissolves the finished frame into the next cycle
-// itself, so clearing the plate only blanked the figure through the `hold` at the
-// end of the loop. The composition now rests complete.
+  fade_out(target: capB, duration: 0.2s, ease: ease_in)
+  // No erase cascade: the embed dissolves the finished frame into the next cycle
+  // itself, so clearing the plate only blanked the figure through the `hold` at the
+  // end of the loop. The composition now rests complete.

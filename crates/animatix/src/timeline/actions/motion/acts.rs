@@ -5,21 +5,13 @@ use super::*;
 pub struct Shift;
 
 impl BuiltinAction for Shift {
-    fn signature(&self) -> ActionSignature {
-        ActionSignature {
-            name: "shift".to_string(),
-            category: "Motion".to_string(),
-            description:
-                "Applies a relative local translation on top of the target's existing placement."
-                    .to_string(),
-            params: vec![],
-            modifiers: motion_timing_params(),
-        }
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::Shift.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
@@ -136,21 +128,13 @@ impl BuiltinAction for Shift {
 pub struct Rotate;
 
 impl BuiltinAction for Rotate {
-    fn signature(&self) -> ActionSignature {
-        ActionSignature {
-            name: "rotate".to_string(),
-            category: "Motion".to_string(),
-            description:
-                "Applies a relative local rotation in radians on top of the target's existing placement."
-                    .to_string(),
-            params: vec![],
-            modifiers: motion_timing_params(),
-        }
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::Rotate.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
@@ -225,21 +209,13 @@ impl BuiltinAction for Rotate {
 pub struct Scale;
 
 impl BuiltinAction for Scale {
-    fn signature(&self) -> ActionSignature {
-        ActionSignature {
-            name: "scale".to_string(),
-            category: "Motion".to_string(),
-            description:
-                "Applies a relative uniform local scale on top of the target's existing placement."
-                    .to_string(),
-            params: vec![],
-            modifiers: motion_timing_params(),
-        }
+    fn signature(&self) -> CallableDescriptor {
+        animatix_std::callable::TimelineBuiltin::Scale.descriptor().clone()
     }
 
     fn execute(
         &self,
-        action: &Action,
+        action: &BuiltinInvocation,
         time_ms: f64,
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,

@@ -220,7 +220,13 @@ host: Col, size: (400, auto), at: (400, 300), gap: 0 {
         )
         .expect("load component program");
     let expanded = program.expand_components(&mut Vec::new());
-    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        crate::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
     assert!(
         report.diagnostics.iter().all(|diagnostic| !diagnostic.is_error()),
         "component layout diagnostics: {:?}",

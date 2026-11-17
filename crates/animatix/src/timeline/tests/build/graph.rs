@@ -33,7 +33,7 @@ fn test_reactive_binding_desugars_to_modifier() {
                         Box::new(Expr::Binary(
                             Box::new(Expr::Num(100.0)),
                             BinaryOp::Mul,
-                            Box::new(Expr::Call(
+                            Box::new(Expr::call(
                                 "cos".to_string(),
                                 vec![Expr::Ident("t".to_string())],
                             )),
@@ -45,7 +45,7 @@ fn test_reactive_binding_desugars_to_modifier() {
                         Box::new(Expr::Binary(
                             Box::new(Expr::Num(100.0)),
                             BinaryOp::Mul,
-                            Box::new(Expr::Call(
+                            Box::new(Expr::call(
                                 "sin".to_string(),
                                 vec![Expr::Ident("t".to_string())],
                             )),
@@ -157,7 +157,7 @@ fn explicit_opacity_before_keyframe_is_honored() {
 fn graph_axes_invisible_before_fadein() {
     // Graph declared before any keyframe → default_opacity = 0.0
     // fade-in at #0.5s should animate opacity 0→1
-    let source = "g1: Graph, x_domain: (-4, 4), y_domain: (-2, 18), size: (380, 280), at: (280, 200)\n\n#0.5s\nfade-in g1 [400ms]";
+    let source = "g1: Graph, x_domain: (-4, 4), y_domain: (-2, 18), size: (380, 280), at: (280, 200)\n\n#0.5s\nfade_in(target: g1, duration: 400ms)";
     let timeline = build(source).output;
 
     let track = timeline.world.tracks.get_id("g1").expect("g1 track should exist");
@@ -167,9 +167,9 @@ fn graph_axes_invisible_before_fadein() {
     let opacity_at_1000 = timeline.world.style(track).opacity.as_ref().map(|t| t.evaluate(1000));
 
     assert_eq!(opacity_at_0, Some(0.0), "opacity should be 0 at t=0");
-    assert_eq!(opacity_at_500, Some(0.0), "opacity should be 0 at t=500ms (fade-in start)");
-    assert_eq!(opacity_at_900, Some(1.0), "opacity should be 1 at t=900ms (fade-in end)");
-    assert_eq!(opacity_at_1000, Some(1.0), "opacity should stay 1 after fade-in");
+    assert_eq!(opacity_at_500, Some(0.0), "opacity should be 0 at t=500ms (fade_in start)");
+    assert_eq!(opacity_at_900, Some(1.0), "opacity should be 1 at t=900ms (fade_in end)");
+    assert_eq!(opacity_at_1000, Some(1.0), "opacity should stay 1 after fade_in");
 }
 
 #[test]
@@ -182,14 +182,14 @@ fn container_fadein_reveals_graph_hosted_children() {
         }
 
         #0.3s
-        fade-in g [300ms]
+        fade_in(target: g, duration: 300ms)
     "#;
     let timeline = build(source).output;
 
     let child = timeline.world.tracks.get_id("c").expect("child curve track should exist");
     assert!(
         !timeline.world.meta(child).hidden_by_default,
-        "container fade-in must lift the child's hidden-by-default flag"
+        "container fade_in must lift the child's hidden-by-default flag"
     );
     let opacity_at_0 = timeline.world.style(child).opacity.as_ref().map(|t| t.evaluate(0));
     let opacity_at_1000 = timeline.world.style(child).opacity.as_ref().map(|t| t.evaluate(1000));
@@ -201,7 +201,7 @@ fn container_fadein_reveals_graph_hosted_children() {
     assert_eq!(
         opacity_at_1000,
         Some(1.0),
-        "child opacity should be lifted to 1 after the container fade-in window"
+        "child opacity should be lifted to 1 after the container fade_in window"
     );
 }
 
@@ -215,7 +215,7 @@ fn pre_keyframe_graph_container_is_hidden_until_its_entrance() {
         }
 
         #1.0s
-        fade-in g [300ms]
+        fade_in(target: g, duration: 300ms)
     "#;
     let timeline = build(source).output;
 
@@ -258,7 +258,7 @@ fn every_built_track_identity_is_consistent() {
         }
 
         #0s
-        fade-in title [1ms]
+        fade_in(target: title, duration: 1ms)
     "#;
     let timeline = build(source).output;
 
@@ -332,7 +332,7 @@ fn plot_closure_calls_pure_fn_at_frame_time() {
     // LG-1 premise check: a plot closure body may call a pure user fn. The
     // body references `t` so the procedural plot is dynamic (per-frame
     // resampling fires), and the frame env's frozen base must resolve
-    // `double` through the CallEnv dispatch. The sampled curve at t where
+    // `double` through the named-call dispatch. The sampled curve at t where
     // the dynamic gate is active must equal double(x) = 2x, not NaN.
     let source = r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
@@ -345,7 +345,7 @@ c: PlotCurve, kind: "cartesian", func: (x) => double(x) + 0 * t,
   color: accent.primary, stroke_width: 3, at: (320, 180), size: (400, 300)
 
 #0.2s
-fade-in c [100ms]
+fade_in(target: c, duration: 100ms)
     "#;
     let report = build(source);
     assert!(
@@ -380,7 +380,7 @@ p: Path, commands: {move_to(0, 0), line_to(100, 0), line_to(100, 100), line_to(0
   stroke: accent.primary, stroke_width: 4, fill_opacity: 0.0, at: (320, 180)
 
 #0s
-draw-in p [1s, ease: linear]
+draw_in(target: p, duration: 1s, ease: linear)
     "#;
     let report = build(source);
     assert!(
@@ -428,7 +428,7 @@ underline: Path, commands: {move_to(100, 180), line_to(540, 180)},
   stroke: accent.primary, stroke_width: 6, fill_opacity: 0.0
 
 #0s
-draw-in underline [1s, ease: linear]
+draw_in(target: underline, duration: 1s, ease: linear)
     "#;
     let report = build(source);
     assert!(
@@ -472,7 +472,7 @@ line_a: Line, from: (100, 180), to: (540, 180), stroke: accent.primary,
   stroke_width: 6, opacity: 1
 
 #1s
-draw-in line_a [600ms, ease: linear]
+draw_in(target: line_a, duration: 600ms, ease: linear)
     "#;
     let report = build(source);
     assert_clean(&report);
@@ -481,7 +481,7 @@ draw-in line_a [600ms, ease: linear]
         render_paths(&timeline, time).iter().filter(|vp| vp.stroke.is_some()).count()
     };
 
-    assert_eq!(stroked(0.0), 0, "the line must not paint before its draw-in");
+    assert_eq!(stroked(0.0), 0, "the line must not paint before its draw_in");
     assert_eq!(stroked(0.9), 0, "still hidden until the action begins");
     assert!(stroked(1.3) > 0, "mid-draw must paint a partial stroke");
     assert!(stroked(1.7) > 0, "the draw completes on its authored duration");
@@ -581,7 +581,7 @@ config { colorscheme: "editorial-dark", resolution: (480, 270) }
 label: Text, text: "init", font_size: 18, anchor: scene.center, text_max_width: 440
 
 #0.2s
-fade-in label [100ms]
+fade_in(target: label, duration: 100ms)
 
 #0.5s
 let fact_sum = sum_range((k) => factorial(k), 1, 3)
@@ -612,7 +612,7 @@ c: PlotCurve, kind: "cartesian",
   color: accent.primary, stroke_width: 3, at: (320, 180), size: (400, 300)
 
 #0.2s
-fade-in c [100ms]
+fade_in(target: c, duration: 100ms)
     "#;
     let report = build(source);
     assert!(
@@ -671,21 +671,19 @@ fn anonymous_graph_child_builds_without_reserved_prefix_error() {
 
 #[test]
 fn undeclared_action_modifier_warns() {
-    // Modifiers not declared in an action's signature must trigger an
-    // UnsupportedModifierKey diagnostic.
+    // Named arguments outside the callable contract are errors.
     let source = r#"
         config { colorscheme: "editorial-dark", resolution: (640, 360) }
 
         ball: Ellipse, size: (16, 16), color: accent.warning, at: (320, 180)
 
         #0.2s
-        highlight ball [600ms, intensity: 1.3]
+        highlight(target: ball, duration: 600ms, intensity: 1.3)
     "#;
     let report = build(source);
     assert!(
         report.diagnostics.iter().any(|d| {
-            d.code == crate::diagnostics::DiagnosticCode::UnsupportedModifierKey
-                && d.message.contains("intensity")
+            d.is_error() && d.message.contains("intensity") && d.message.contains("highlight")
         }),
         "undeclared `intensity` on highlight must warn, got: {:?}",
         report.diagnostics
@@ -701,10 +699,10 @@ fn declared_action_modifier_does_not_warn() {
         ball: Ellipse, size: (16, 16), color: accent.warning, at: (320, 180)
 
         #0.2s
-        fade-in ball [300ms]
+        fade_in(target: ball, duration: 300ms)
 
         #0.6s
-        shake ball [intensity: 2]
+        shake(target: ball, intensity: 2)
     "#;
     let report = build(source);
     assert!(
@@ -984,8 +982,8 @@ fn assert_map_round_trip(timeline: &Timeline) {
         let math = map_inv_fn(&[Value::Num(sx), Value::Num(sy)], env).expect("map_inverse call");
         match math {
             Value::Vec2([rx, ry]) => {
-                assert!((rx - mx).abs() < 1e-6, "x round-trip: {mx} -> {sx} -> {rx}");
-                assert!((ry - my).abs() < 1e-6, "y round-trip: {my} -> {sy} -> {ry}");
+                assert!((rx - mx).abs() < 1e-6, "x round_trip: {mx} -> {sx} -> {rx}");
+                assert!((ry - my).abs() < 1e-6, "y round_trip: {my} -> {sy} -> {ry}");
             },
             other => panic!("map_inverse returned {other:?}"),
         }

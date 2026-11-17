@@ -68,17 +68,22 @@ fn walk_statements_inner(
     for stmt in ast {
         match stmt {
             Stmt::Config { .. } => {},
-            Stmt::Keyframe { time, body, .. } => {
+            Stmt::Keyframe { time, body, span } => {
                 state.has_seen_keyframe = true;
                 timeline.default_opacity = 1.0;
-                state.current_build_time_ms = time_to_ms_at_beat(time, timeline.beat_duration_ms());
+                if let Some(time_ms) = timeline.resolve_marker_time(time, *span, diagnostics) {
+                    state.current_build_time_ms = time_ms;
+                    timeline.record_resolved_marker(*span, time_ms);
+                }
                 timeline.process_body(state.current_build_time_ms, body, None, diagnostics);
             },
-            Stmt::RelativeKeyframe { offset, body, .. } => {
+            Stmt::RelativeKeyframe { offset, body, span } => {
                 state.has_seen_keyframe = true;
                 timeline.default_opacity = 1.0;
-                state.current_build_time_ms +=
-                    time_to_ms_at_beat(offset, timeline.beat_duration_ms());
+                if let Some(offset_ms) = timeline.resolve_marker_time(offset, *span, diagnostics) {
+                    state.current_build_time_ms += offset_ms;
+                    timeline.record_resolved_marker(*span, state.current_build_time_ms);
+                }
                 timeline.process_body(state.current_build_time_ms, body, None, diagnostics);
             },
             Stmt::Conditional {
@@ -145,6 +150,7 @@ fn walk_statements_inner(
             | Stmt::Assignment { .. }
             | Stmt::Sequence { .. }
             | Stmt::Stagger { .. }
+            | Stmt::Expr(..)
             | Stmt::LetDecl { .. }
             | Stmt::Always { .. }
             | Stmt::ForLoop { .. }

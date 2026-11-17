@@ -3,40 +3,42 @@
 config { colorscheme: "editorial-dark", resolution: (1280, 720), dynamic_layout: true }
 
 heading: Text, text: "One rule. Twelve actors.", font_size: 54, color: text.primary, at: (640, 100)
+
 intro: Text, text: "Generate the shapes. Let the container do the spacing.", font_size: 24, color: text.secondary, at: (640, 160)
+
 label: Text, text: "01 / GENERATE", font_size: 21, color: "#62D8CD", at: (640, 575)
+
 note: Text, text: "array + Grid + dynamic layout", font_size: 18, color: text.muted, at: (640, 635)
 
 tiles: Grid, cols: 6, gap: 18, anchor: scene.center {
-  for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
-    tile[i]: Rect, size: (76, 76), corner_radius: 12,
-      color: lerp_color_oklab("#63DACE", "#A4A5FA", i / 11.0)
+for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
+tile[i]: Rect, size: (76, 76), corner_radius: 12, color: lerp_color_oklab("#63DACE", "#A4A5FA", i / 11)
   }
 }
 
 #0s
-fade-in heading [600ms]
-fade-in intro [600ms, delay: 150ms]
-fade-in note [600ms]
-fade-in label [500ms]
-fade-in tiles [700ms, delay: 500ms]
+  fade_in(target: heading, duration: 0.6s)
+  fade_in(target: intro, duration: 0.6s, delay: 0.15s)
+  fade_in(target: note, duration: 0.6s)
+  fade_in(target: label, duration: 0.5s)
+  fade_in(target: tiles, duration: 0.7s, delay: 0.5s)
 
 #2s
-label.text = "02 / GROW THE SHAPES"
-for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
-  tile[i].size = (92, 92) [1400ms, ease: ease-in-out]
-}
+  label.text = "02 / GROW THE SHAPES"
+  for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
+      tile[i].size = (92, 92) [1.4s, ease: ease_in_out]
+    }
 
 #4.5s
-label.text = "03 / MAKE ROOM"
-for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
-  tile[i].size = (52, 52) [1400ms, ease: ease-in-out]
-}
+  label.text = "03 / MAKE ROOM"
+  for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
+      tile[i].size = (52, 52) [1.4s, ease: ease_in_out]
+    }
 
 #7s
-label.text = "One layout rule. No per-shape coordinates."
-for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
-  tile[i].size = (76, 76) [1200ms, ease: ease-in-out]
-}
+  label.text = "One layout rule. No per-shape coordinates."
+  for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
+      tile[i].size = (76, 76) [1.2s, ease: ease_in_out]
+    }
 
 #9s

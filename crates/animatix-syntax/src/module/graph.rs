@@ -171,8 +171,7 @@ impl ModuleGraph {
         if !parsed.errors.is_empty() {
             return Err(ModuleError::ParseErrors(parsed.errors));
         }
-        let mut statements = parsed.ast.unwrap_or_default();
-        set_action_spans(&mut statements, &source);
+        let statements = parsed.ast.unwrap_or_default();
         let imports = collect_imports(&statements);
         let id = self.alloc_id();
         let symbols = crate::symbol_table::SymbolTable::build(&statements);
@@ -296,10 +295,9 @@ impl ModuleGraph {
             return Err(ModuleError::ParseErrors(parse_errors));
         }
 
-        let mut statements = parsed.ast.unwrap_or_default();
+        let statements = parsed.ast.unwrap_or_default();
 
         // Convert byte spans captured during parsing into line/col spans.
-        set_action_spans(&mut statements, &source);
 
         let imports = collect_imports(&statements);
 
@@ -368,7 +366,7 @@ impl ModuleGraph {
             .ok_or_else(|| ModuleError::FileNotFound(path.to_path_buf()))?;
 
         let mut result = Vec::new();
-        self.flatten_module_stmts(entry_id, &mut result, &mut Vec::new());
+        self.flatten_module_stmts(entry_id, entry_id, &mut result, &mut Vec::new());
 
         Ok(result)
     }
@@ -411,13 +409,30 @@ impl ModuleGraph {
             .ok_or_else(|| ModuleError::FileNotFound(path.to_path_buf()))?;
 
         let mut statements = Vec::new();
-        self.flatten_module_stmts(entry_id, &mut statements, &mut Vec::new());
+        self.flatten_module_stmts(entry_id, entry_id, &mut statements, &mut Vec::new());
 
         let mut components = HashMap::new();
         self.collect_components_recursive(entry_id, entry_id, &mut components, &mut Vec::new())?;
 
-        // Collect module-scoped actions from flattened statements
-        let module_fns = Self::collect_module_fns(&statements);
+        // Keep definitions grouped by their source module so a function's
+        // private sibling helpers resolve in the defining lexical scope.
+        let mut module_fns = HashMap::new();
+        let mut function_modules = HashMap::new();
+        self.collect_module_function_scopes(
+            entry_id,
+            &mut Vec::new(),
+            &mut module_fns,
+            &mut function_modules,
+        );
+        let mut sourced_statements = Vec::new();
+        self.flatten_module_stmts_with_origin(entry_id, &mut sourced_statements, &mut Vec::new());
+        let scene_paths = sourced_statements
+            .into_iter()
+            .filter_map(|(path, stmt)| match stmt {
+                Stmt::Scene { name, .. } => Some((name, path)),
+                _ => None,
+            })
+            .collect();
 
         let mut namespaces = HashMap::new();
         // Collect namespaces from the entry file's direct aliased imports,
@@ -431,14 +446,18 @@ impl ModuleGraph {
                         let resolved_type_exports = self.collect_resolved_type_exports(import_id);
                         let resolved_component_exports =
                             self.collect_resolved_component_exports(import_id);
+                        let resolved_function_exports =
+                            self.collect_resolved_function_exports(import_id);
                         let resolved_scenes = self.collect_resolved_scenes(import_id);
                         let resolved_namespaces = self.collect_resolved_namespaces(import_id);
                         namespaces.insert(
                             alias.clone(),
                             Namespace {
+                                definition_path: import_path.clone(),
                                 exports: resolved_exports,
                                 type_exports: resolved_type_exports,
                                 component_exports: resolved_component_exports,
+                                function_exports: resolved_function_exports,
                                 scenes: resolved_scenes,
                                 namespaces: resolved_namespaces,
                             },
@@ -451,6 +470,11 @@ impl ModuleGraph {
         Ok(LoadedProgram {
             statements,
             components,
+            function_context: FunctionContext {
+                visible: std::sync::Arc::new(module_fns.clone()),
+                modules: std::sync::Arc::new(function_modules),
+                scene_paths: std::sync::Arc::new(scene_paths),
+            },
             module_fns,
             namespaces,
         })
@@ -469,34 +493,42 @@ impl ModuleGraph {
         }
     }
 
-    /// Collect module-scoped actions from a list of statements.
-    /// Walks into keyframe / relative-keyframe / sequence / stagger / always / drive / conditional
-    /// / for bodies.
+    /// Collect module-scoped functions from a list of statements.
+    /// Walks into body-bearing statements while preserving source declarations.
     #[doc(hidden)]
     pub fn collect_module_fns(stmts: &[Stmt]) -> HashMap<String, FnTemplate> {
-        let mut actions = HashMap::new();
+        let mut functions = HashMap::new();
         for stmt in stmts {
-            Self::collect_module_fns_from_stmt(stmt, &mut actions);
+            Self::collect_module_fns_from_stmt(stmt, Path::new(""), &mut functions);
         }
-        actions
+        functions
     }
 
-    fn collect_module_fns_from_stmt(stmt: &Stmt, actions: &mut HashMap<String, FnTemplate>) {
+    fn collect_module_fns_from_stmt(
+        stmt: &Stmt,
+        definition_path: &Path,
+        functions: &mut HashMap<String, FnTemplate>,
+    ) {
         match stmt {
             Stmt::FnDecl {
+                is_pub,
                 name,
                 params,
                 return_type,
                 body,
-                ..
+                span,
             } => {
-                actions.insert(
+                functions.insert(
                     name.clone(),
                     FnTemplate {
                         params: params.clone(),
                         return_type: return_type.clone(),
                         body: body.clone(),
+                        is_pub: *is_pub,
+                        definition_path: definition_path.to_path_buf(),
+                        span: *span,
                         instance_index: None,
+                        component_captures: Vec::new(),
                     },
                 );
             },
@@ -507,7 +539,7 @@ impl ModuleGraph {
             | Stmt::Always { body, .. }
             | Stmt::ForLoop { body, .. } => {
                 for stmt in body {
-                    Self::collect_module_fns_from_stmt(stmt, actions);
+                    Self::collect_module_fns_from_stmt(stmt, definition_path, functions);
                 }
             },
             Stmt::Conditional {
@@ -516,23 +548,162 @@ impl ModuleGraph {
                 ..
             } => {
                 for stmt in then_branch {
-                    Self::collect_module_fns_from_stmt(stmt, actions);
+                    Self::collect_module_fns_from_stmt(stmt, definition_path, functions);
                 }
                 if let Some(else_body) = else_branch {
                     for stmt in else_body {
-                        Self::collect_module_fns_from_stmt(stmt, actions);
+                        Self::collect_module_fns_from_stmt(stmt, definition_path, functions);
                     }
                 }
             },
             Stmt::Match { arms, .. } => {
                 for (_, body) in arms {
                     for stmt in body {
-                        Self::collect_module_fns_from_stmt(stmt, actions);
+                        Self::collect_module_fns_from_stmt(stmt, definition_path, functions);
                     }
                 }
             },
             _ => {},
         }
+    }
+
+    fn collect_module_function_scopes(
+        &self,
+        file_id: FileId,
+        visited: &mut Vec<FileId>,
+        visible: &mut HashMap<String, FnTemplate>,
+        scopes: &mut HashMap<PathBuf, FunctionModule>,
+    ) {
+        if visited.contains(&file_id) {
+            return;
+        }
+        let Some(module) = self.files.get(&file_id) else {
+            return;
+        };
+        visited.push(file_id);
+        for (import_path, alias) in &module.imports {
+            let resolved = Self::resolve_path(&module.path, import_path);
+            if let Some(import_id) = self.file_id_for_path(&resolved) {
+                if alias.is_some() {
+                    let mut hidden = HashMap::new();
+                    self.collect_module_function_scopes(import_id, visited, &mut hidden, scopes);
+                } else {
+                    self.collect_module_function_scopes(import_id, visited, visible, scopes);
+                }
+            }
+        }
+        let local = Self::collect_module_fns_at_path(&module.statements, &module.path);
+        visible.extend(local.clone());
+        scopes.insert(
+            module.path.clone(),
+            FunctionModule {
+                statements: module.statements.clone(),
+                functions: local,
+                visible_functions: self.collect_visible_module_functions(file_id, &mut Vec::new()),
+                namespaces: self.collect_resolved_namespaces(file_id),
+                components: self.collect_function_module_components(file_id, true, &mut Vec::new()),
+            },
+        );
+        visited.pop();
+    }
+
+    /// Collect the component names visible from one source module. Imported
+    /// unaliased components keep their public simple names; aliased imports are
+    /// qualified so private definitions never leak into the caller's scope.
+    fn collect_function_module_components(
+        &self,
+        file_id: FileId,
+        include_private: bool,
+        visited: &mut Vec<FileId>,
+    ) -> HashMap<String, ComponentEntry> {
+        if visited.contains(&file_id) {
+            return HashMap::new();
+        }
+        let Some(module) = self.files.get(&file_id) else {
+            return HashMap::new();
+        };
+        visited.push(file_id);
+        let mut components = HashMap::new();
+        for (import_path, alias) in &module.imports {
+            let resolved = Self::resolve_path(&module.path, import_path);
+            let Some(import_id) = self.file_id_for_path(&resolved) else {
+                continue;
+            };
+            let imported = self.collect_function_module_components(import_id, false, visited);
+            for (name, entry) in imported {
+                let visible_name =
+                    alias.as_ref().map_or(name.clone(), |alias| format!("{alias}::{name}"));
+                components.insert(visible_name, entry);
+            }
+        }
+        for definition in module.statements.iter().filter_map(|stmt| match stmt {
+            Stmt::ComponentDef(definition, _) => Some(definition),
+            _ => None,
+        }) {
+            if !include_private && !definition.is_pub {
+                continue;
+            }
+            let methods = collect_component_functions(definition, &module.path);
+            components.insert(
+                definition.name.clone(),
+                ComponentEntry {
+                    definition: definition.clone(),
+                    source_path: module.path.clone(),
+                    methods,
+                },
+            );
+        }
+        visited.pop();
+        components
+    }
+
+    /// Resolve functions addressable without a namespace from one source file.
+    fn collect_visible_module_functions(
+        &self,
+        file_id: FileId,
+        visited: &mut Vec<FileId>,
+    ) -> HashMap<String, FnTemplate> {
+        if visited.contains(&file_id) {
+            return HashMap::new();
+        }
+        let Some(module) = self.files.get(&file_id) else {
+            return HashMap::new();
+        };
+        visited.push(file_id);
+        let mut visible = HashMap::new();
+        for (import_path, alias) in &module.imports {
+            if alias.is_some() {
+                continue;
+            }
+            let resolved = Self::resolve_path(&module.path, import_path);
+            if let Some(import_id) = self.file_id_for_path(&resolved) {
+                visible.extend(self.collect_visible_module_functions(import_id, visited));
+            }
+        }
+        visible.extend(Self::collect_module_fns_at_path(&module.statements, &module.path));
+        visited.pop();
+        visible
+    }
+
+    fn collect_module_fns_at_path(
+        stmts: &[Stmt],
+        definition_path: &Path,
+    ) -> HashMap<String, FnTemplate> {
+        let mut functions = HashMap::new();
+        for stmt in stmts {
+            Self::collect_module_fns_from_stmt(stmt, definition_path, &mut functions);
+        }
+        functions
+    }
+
+    fn collect_resolved_function_exports(&self, file_id: FileId) -> HashMap<String, FnTemplate> {
+        let Some(module) = self.files.get(&file_id) else {
+            return HashMap::new();
+        };
+        Self::collect_module_fns_at_path(&module.statements, &module.path)
+            .into_iter()
+            .filter(|(_, function)| function.is_pub)
+            .collect()
     }
 
     /// Collect resolved exports for a module, resolving re-export paths transitively.
@@ -584,9 +755,11 @@ impl ModuleGraph {
             namespaces.insert(
                 alias.clone(),
                 Namespace {
+                    definition_path: import_path.clone(),
                     exports: self.collect_resolved_exports(sub_id),
                     type_exports: self.collect_resolved_type_exports(sub_id),
                     component_exports: self.collect_resolved_component_exports(sub_id),
+                    function_exports: self.collect_resolved_function_exports(sub_id),
                     scenes: self.collect_resolved_scenes(sub_id),
                     namespaces: self.collect_resolved_namespaces(sub_id),
                 },
@@ -605,12 +778,23 @@ impl ModuleGraph {
         };
 
         // Flatten this module's statements (including non-aliased imports)
-        let mut flat = Vec::new();
+        let mut sourced = Vec::new();
         let mut visited = Vec::new();
-        // We inline the flatten logic here to avoid borrow conflicts with `self`.
-        self.flatten_module_stmts(file_id, &mut flat, &mut visited);
+        self.flatten_module_stmts_with_origin(file_id, &mut sourced, &mut visited);
+        let flat = sourced.iter().map(|(_, stmt)| stmt.clone()).collect::<Vec<_>>();
 
         let mut scenes = collect_scenes_from_stmts(&flat);
+        let scene_paths = sourced
+            .iter()
+            .filter_map(|(path, stmt)| match stmt {
+                Stmt::Scene { name, .. } => Some((name.clone(), path.clone())),
+                _ => None,
+            })
+            .collect::<HashMap<_, _>>();
+        for (name, scene) in &mut scenes {
+            scene.definition_path =
+                scene_paths.get(name).cloned().unwrap_or_else(|| module.path.clone());
+        }
 
         // Recursively collect scenes from aliased sub-imports.
         // These are available as "alias.SceneName" in the parent namespace.
@@ -630,6 +814,36 @@ impl ModuleGraph {
         scenes
     }
 
+    /// Flatten statements while retaining the source module for each statement.
+    fn flatten_module_stmts_with_origin(
+        &self,
+        file_id: FileId,
+        result: &mut Vec<(PathBuf, Stmt)>,
+        visited: &mut Vec<FileId>,
+    ) {
+        if visited.contains(&file_id) {
+            return;
+        }
+        visited.push(file_id);
+        if let Some(module) = self.files.get(&file_id) {
+            for (import_path, alias) in &module.imports {
+                if alias.is_some() {
+                    continue;
+                }
+                let resolved = Self::resolve_path(&module.path, import_path);
+                if let Some(import_id) = self.file_id_for_path(&resolved) {
+                    self.flatten_module_stmts_with_origin(import_id, result, visited);
+                }
+            }
+            for stmt in &module.statements {
+                if let Some(stmt) = strip_imports(stmt) {
+                    result.push((module.path.clone(), stmt));
+                }
+            }
+        }
+        visited.pop();
+    }
+
     /// Flatten a module's statements into `result`, following non-aliased imports.
     ///
     /// `visited` guards against import cycles. Aliased imports are not inlined;
@@ -637,6 +851,7 @@ impl ModuleGraph {
     fn flatten_module_stmts(
         &self,
         file_id: FileId,
+        entry_id: FileId,
         result: &mut Vec<Stmt>,
         visited: &mut Vec<FileId>,
     ) {
@@ -652,12 +867,17 @@ impl ModuleGraph {
                 }
                 let import_path = Self::resolve_path(&module.path, &imp.0);
                 if let Some(import_id) = self.file_id_for_path(&import_path) {
-                    self.flatten_module_stmts(import_id, result, visited);
+                    self.flatten_module_stmts(import_id, entry_id, result, visited);
                 }
             }
 
             for stmt in &module.statements {
-                if let Some(stmt) = strip_imports(stmt) {
+                let stripped = if file_id == entry_id {
+                    strip_imports_preserving_keyframe_spans(stmt)
+                } else {
+                    strip_imports(stmt)
+                };
+                if let Some(stmt) = stripped {
                     result.push(stmt);
                 }
             }
@@ -697,13 +917,13 @@ impl ModuleGraph {
                     });
                 }
 
-                let actions = collect_component_actions(&definition);
+                let methods = collect_component_functions(&definition, &module.path);
                 components.insert(
                     definition.name.clone(),
                     ComponentEntry {
                         definition,
                         source_path: module.path.clone(),
-                        actions,
+                        methods,
                     },
                 );
             }

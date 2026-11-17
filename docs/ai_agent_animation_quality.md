@@ -126,7 +126,7 @@ snapshot of the animation at a given time.
       "parent": null,
       "container_role": "content",
       "source_line": 12,
-      "active_actions": ["fade-in"]
+      "active_actions": ["fade_in"]
     }
   ],
   "layout": {

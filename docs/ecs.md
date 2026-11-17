@@ -67,6 +67,8 @@ EntityId(u32) ── entities: EntityStore { label ↔ id maps }
                        ├── child_order:     ComponentStore<ChildOrderComponent>
                        ├── coordinate:      ComponentStore<CoordinateFrameComponent>
                        ├── persistence:     ComponentStore<PersistenceComponent>
+                       ├── plan_ownership:  ComponentStore<PlanOwnership>
+                       ├── method_table_id: ComponentStore<MethodTableId>
                        ├── auto_color:      ComponentStore<AutoColorComponent>
                        ├── transcript:      ComponentStore<TranscriptComponent>
                        ├── legend:          ComponentStore<LegendTracks>
@@ -113,11 +115,20 @@ Rules:
 - **One source of truth per domain.** Per-entity state exists in exactly one
   component store; a new label-keyed `Timeline` map or a duplicate field is a
   design bug. No dual writes across a merge boundary.
+- **Plan ownership is entity metadata.** `PlanOwnership` is an optional
+  `World` component keyed by `EntityId`; it marks actors created by one mounted
+  reusable plan. Carry walks read this component and never infer ownership
+  from generated labels. The mount token is build identity only.
+- **Method dispatch uses typed handles.** `MethodTableId` is an optional
+  `World` component keyed by `EntityId`; the immutable callable registry is
+  keyed by that handle. Frame evaluation must not recover component methods by
+  parsing actor labels.
 - **Mutation invalidates the frame cache.** Every writable entry point
   (`Timeline::world_mut`, `entity_mut`, `spawn_entity`, component helpers)
   calls `invalidate_frame_cache` first. Build-time writes go through the same
   entry points; there is no cache to invalidate yet, but the invariant is
-  uniform.
+  uniform. Once construction finishes, the new document's content epoch is
+  reset to zero: it counts subsequent edits, not initialization writes.
 - **Lexical build scopes are not entity state.** Expanded indexed method blocks
   carry an `InstanceScope` in the syntax AST. The build resolves its captured
   index and specializes property reads before lowering expressions/modifiers.
@@ -164,6 +175,8 @@ Rules:
 | `ContainerMetadata` | layout type/gap/padding/align/cols/child order (`EntityId`s) | optional containers (`ComponentStore<ContainerMetadata>`) |
 | `CoordinateFrameComponent` | domain/scale/padding/grid/ticks/tick labels | optional (plot hosts; sole source for hosted-child coordinate resolution) |
 | `PersistenceComponent` | `persistent: bool` | optional (`ComponentStore<PersistenceComponent>`) |
+| `PlanOwnership` | unique plan-mount identity | optional for actors declared by a mounted local plan (`ComponentStore<PlanOwnership>`) |
+| `MethodTableId` | handle to an immutable, instance-bound callable table | optional for expanded component instances (`ComponentStore<MethodTableId>`) |
 | `AutoColorComponent` | auto-color slot | optional (`ComponentStore<AutoColorComponent>`) |
 | `ChildOrderComponent` | `PropertyTrack<Vec<EntityId>>` | optional (`ComponentStore<ChildOrderComponent>`) |
 | `TranscriptComponent` | speech transcript | optional (`ComponentStore<TranscriptComponent>`) |
@@ -194,7 +207,11 @@ are the identity accessors, and `visible`, `locked`, `camera_follow`,
 - Modifier `Overrides`: keyed by expression targets, including synthesized
   array labels (`base__n`); it is per-frame evaluation state.
 - `audio_segments`: ordered export list consumed by `animatix-render` as
-  `&[AudioSegment]`; there is no per-entity lookup.
+  `&[AudioSegment]`. An optional `actor_id` links a segment to its volume
+  track in `World`; the segment does not duplicate the actor's component data.
+  That id belongs to the owning timeline: cloning the timeline preserves its
+  entity slots, while rebuilding a scene creates fresh segment associations.
+  Carry bags do not serialize audio segments or their ids.
 - `background_color`, `camera`, colorschemes, asset cache, font context,
   layout engine/caches, `variable_tracks`, `action_events`, config/duration,
   modifier programs.
@@ -207,12 +224,47 @@ are the identity accessors, and `visible`, `locked`, `camera_follow`,
 - `build_loop_scopes`: temporary lexical loop names during the build walk,
   used to capture loop-local values in reactive bodies. Empty after building;
   these are variable scopes, not per-entity state.
+- `build_plan_ownership`: a build-only stack of active mount tokens. New
+  entities receive the current token in their ownership component; nested
+  mounts restore the enclosing token when they finish. Empty after building;
+  the stack never stores actors or replaces the ownership component.
+- The immutable component-method registry holds pre-bound callable tables by
+  `MethodTableId`. The entity's component is the authoritative instance binding;
+  frame actor references carry derived entity/table handles. Source labels and
+  array suffixes are resolved during the build, so frame dispatch does not
+  normalize actor labels or parse instance indices.
+  Isolated function environments share the existing frozen environment's
+  actor-reference bindings as lexical values. Only actor references are visible
+  through that fallback; caller locals and unrelated module values remain
+  isolated. This shares resolved handles, not actor state or a second identity
+  registry.
 - Layout admission (`ContainerLayoutChild`) and resolved positions
   (`LayoutPositions`) are keyed by `EntityId` end to end; labels appear only
-  at the GUI/action boundary.
+  at the GUI/call boundary.
 
 Adding a resource instead of a component is a decision to document in the PR:
 "looked up by label/order, not by entity id".
+
+### Local timeline plans
+
+`#{ ... }` and user or native functions that return `Timeline` build immutable
+local-time plans. Their actor references are scoped to each mount; the engine
+resolves them into the current host timeline only when it mounts the plan.
+Native timeline callbacks receive call-scoped actor handles and a plan writer
+that records extension-property operations. They cannot mutate `World` or write
+scene tracks during callback execution. Plans lower into the host's ordinary
+timeline rather than running as per-frame nested schedulers. Local markers must
+resolve to finite build-time durations; runtime inputs cannot change the plan's
+schedule. The native writer currently records timed operations for properties
+registered by that plugin. This keeps callbacks independent of whether a plan
+is mounted directly in a scene, in a sequence, or inside another plan.
+
+Mount-local actors use an internal label namespace that source declarations
+cannot spell. Their ownership is a `World` component keyed by `EntityId`,
+independent of their spatial parent. Passing an existing actor into a plan does
+not transfer its ownership. Private actors stay in the host after the local
+clock ends, but cannot be persisted or included indirectly in a parent's carry
+snapshot. Nested mounts retain their own ownership tokens.
 
 ### 2.4 Behavior Layer: Family Systems and Extension Adapter
 
@@ -332,6 +384,14 @@ keyframe by its per-tier collapse helper (`snapshot_style_at`,
 - `CarryBag` stays label-keyed on the wire; `EntityId` is an in-memory handle
   and is never part of the `.amx` source, the carry wire format, or
   `PropertyPlan` serialization.
+- Plan ownership is intentionally absent from carry snapshots: plan-local
+  entities are excluded, including when an ordinary ancestor is persistent.
+  Child-order and container references are restricted to the children actually
+  carried. Injected actors belong to the destination scene, so a replaced
+  entity starts without plan ownership.
+- Method-table handles are local to a scene's callable registry and are not
+  serialized in carry bags. Entity replacement clears them; they cannot be
+  reused as destination-scene registry indices.
 - Counter glyph data is derived and skipped by serde. Injection rebuilds it
   from the destination entity's restored text, style and tagged tracks using
   the destination font context; it does not depend on a source glyph cache.

@@ -537,7 +537,7 @@ In particular:
   `fill_opacity: 0.0`.
 - Runtime fonts are explicit. Check `missing-glyph` diagnostics instead of
   assuming a browser-installed font or an arbitrary Unicode character is available.
-- Avoid overlapping entrance actions on a container and its children; inspect the
+- Avoid overlapping entrance callables on a container and its children; inspect the
   resulting opacity rather than assuming independent fades.
 
 Hosting requirements for the runtime host: serve JavaScript as

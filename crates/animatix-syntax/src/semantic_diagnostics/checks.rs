@@ -1,5 +1,5 @@
 use super::*;
-use crate::ast::{Action, Expr, Property, TargetSegment};
+use crate::ast::{Expr, Property, TargetSegment};
 
 /// Bare identifiers are the DSL spelling for string-valued enums
 /// (`align: end`, `easing: ease-out`).  When the property expects a
@@ -24,9 +24,6 @@ pub(super) fn check_stmt(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match stmt {
-        Stmt::Action(action, span) => {
-            check_action(action, span, symbols, tokens, source, diagnostics)
-        },
         Stmt::Assignment {
             target,
             property,
@@ -42,67 +39,6 @@ pub(super) fn check_stmt(
             ..
         } => check_actor_decl(label, ty, props, span, symbols, tokens, source, diagnostics),
         _ => {},
-    }
-}
-
-/// Warn about an unknown action verb and about action targets that name no
-/// declared label (the reserved scene camera is exempt).
-fn check_action(
-    action: &Action,
-    span: &Option<Span>,
-    symbols: &SymbolTable,
-    tokens: &[Token],
-    source: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let (line, col, end_line, end_col) = span_positions(span);
-    let byte_range = action.byte_span.map(|s| s.start..s.end);
-    if !symbols.actions.contains(&action.verb) {
-        let (vstart, vend) = find_ident_range(tokens, source, &action.verb, byte_range.clone())
-            .unwrap_or_else(|| ((line - 1, col - 1), (end_line - 1, end_col - 1)));
-        diagnostics.push(
-            range_diagnostic(
-                DiagnosticSeverity::Warning,
-                DiagnosticCode::UnknownAction,
-                format!("Unknown action: {}", action.verb),
-                vstart,
-                vend,
-            )
-            .with_subject(action.verb.clone()),
-        );
-    }
-
-    for target in &action.targets {
-        // Dotted targets (`eq.lhs`, `row.b[j]` projected to `row.b`) are
-        // resolved by walking the scene hierarchy at build time, so only
-        // the root label needs to be defined here — mirroring the
-        // assignment-target check.
-        let check_label = target.split('.').next().unwrap_or(target);
-        // `persist camera` / `remove camera` address the reserved scene
-        // camera, which is never a declared actor. Gated on the verb
-        // because no other action has an engine path for it.
-        let is_persisted_camera = check_label == animatix_core::property::CAMERA_TARGET
-            && matches!(action.verb.as_str(), "persist" | "remove");
-        let is_defined = is_persisted_camera
-            || symbols.labels.contains_key(check_label)
-            || is_array_member_label(check_label)
-                .is_some_and(|base| symbols.array_labels.contains(base))
-            || is_component_array_member(symbols, check_label);
-        if !is_defined {
-            let source_text = target_source_text(target);
-            let (tstart, tend) = find_ident_range(tokens, source, source_text, byte_range.clone())
-                .unwrap_or_else(|| ((line - 1, col - 1), (end_line - 1, end_col - 1)));
-            diagnostics.push(
-                range_diagnostic(
-                    DiagnosticSeverity::Warning,
-                    DiagnosticCode::UndefinedLabel,
-                    format!("Undefined label: {}", check_label),
-                    tstart,
-                    tend,
-                )
-                .with_subject(check_label.to_string()),
-            );
-        }
     }
 }
 

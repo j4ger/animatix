@@ -1,6 +1,13 @@
 use super::*;
 use crate::symbol_table::SymbolTable;
 
+fn diagnostics_for_source(source: &str) -> Vec<Diagnostic> {
+    let parsed = animatix_syntax::parser::parse_source_complete(source);
+    let statements = parsed.ast.as_deref().unwrap_or_default();
+    let symbols = SymbolTable::build_from_ast(statements);
+    collect_diagnostics(source, &parsed.errors, &symbols, parsed.ast.as_deref(), &parsed.tokens)
+}
+
 #[test]
 fn empty_source_has_no_diagnostics() {
     let diagnostics = collect_diagnostics("", &[], &SymbolTable::default(), None, &[]);
@@ -8,33 +15,12 @@ fn empty_source_has_no_diagnostics() {
 }
 
 #[test]
-fn unknown_action_detected() {
-    let stmts = vec![Stmt::Action(
-        Action {
-            verb: "fly".to_string(),
-            targets: vec!["btn".to_string()],
-            args: vec![],
-            modifiers: vec![],
-            byte_span: None,
-            target_index: vec![],
-            target_index_position: vec![],
-        },
-        None,
-    )];
-    let symbols = SymbolTable::build_from_ast(&[]);
-    let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), &[]);
-
-    let unknown_actions: Vec<_> = diagnostics
-        .iter()
-        .filter(|d| d.code.as_deref() == Some("unknown-action"))
-        .collect();
-    assert_eq!(unknown_actions.len(), 1);
-    assert!(unknown_actions[0].message.contains("fly"));
-    assert_eq!(
-        unknown_actions[0].subject.as_deref(),
-        Some("fly"),
-        "quick-fix consumers read `subject`, not the English message"
-    );
+fn unknown_callable_detected() {
+    let diagnostics = diagnostics_for_source("fly(target: btn, duration: 1s)\n");
+    let unknowns: Vec<_> =
+        diagnostics.iter().filter(|d| d.subject.as_deref() == Some("fly")).collect();
+    assert_eq!(unknowns.len(), 1);
+    assert!(unknowns[0].message.contains("fly"));
 }
 
 #[test]
@@ -67,20 +53,7 @@ fn span_takes_precedence_over_stale_line_columns() {
 
 #[test]
 fn undefined_label_detected() {
-    let stmts = vec![Stmt::Action(
-        Action {
-            verb: "move".to_string(),
-            targets: vec!["nonexistent".to_string()],
-            args: vec![],
-            modifiers: vec![],
-            byte_span: None,
-            target_index: vec![],
-            target_index_position: vec![],
-        },
-        None,
-    )];
-    let symbols = SymbolTable::build_from_ast(&[]);
-    let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), &[]);
+    let diagnostics = diagnostics_for_source("move(target: nonexistent, by: (1, 0))\n");
 
     let undefined: Vec<_> = diagnostics
         .iter()
@@ -90,34 +63,20 @@ fn undefined_label_detected() {
     assert!(undefined[0].message.contains("nonexistent"));
 }
 
-/// `camera` is a reserved target, never a declared actor — but only the two
-/// persistence actions have an engine path for it, so the exemption is
-/// verb-gated and `move camera` stays the mistake it looks like.
+/// `camera` is a reserved target, never a declared actor — persistence
+/// callables accept it while motion callables still require an Actor value.
 #[test]
-fn the_reserved_camera_is_a_target_only_for_persistence_actions() {
-    let undefined_for = |verb: &str| {
-        let stmts = vec![Stmt::Action(
-            Action {
-                verb: verb.to_string(),
-                targets: vec!["camera".to_string()],
-                args: vec![],
-                modifiers: vec![],
-                byte_span: None,
-                target_index: vec![],
-                target_index_position: vec![],
-            },
-            None,
-        )];
-        let symbols = SymbolTable::build_from_ast(&[]);
-        collect_diagnostics("", &[], &symbols, Some(&stmts), &[])
+fn the_reserved_camera_is_a_target_only_for_persistence_callables() {
+    let undefined_for = |call: &str| {
+        diagnostics_for_source(call)
             .into_iter()
             .filter(|d| d.code.as_deref() == Some("undefined-label"))
             .count()
     };
 
-    assert_eq!(undefined_for("persist"), 0, "`persist camera` is how the carry is written");
-    assert_eq!(undefined_for("remove"), 0, "`remove camera` is how the carry ends");
-    assert_eq!(undefined_for("move"), 1, "no other action routes the camera target");
+    assert_eq!(undefined_for("persist(target: camera)\n"), 0);
+    assert_eq!(undefined_for("remove(target: camera)\n"), 0);
+    assert_eq!(undefined_for("move(target: camera, by: (1, 0))\n"), 1);
 }
 
 #[test]
@@ -145,10 +104,11 @@ fn unknown_type_detected() {
 
 #[test]
 fn lint_config_from_source_parses_disable_directives() {
-    let specific =
-        LintConfig::from_source("// lint-disable: unused-label, unknown-action\n#0s\ntitle: Text");
+    let specific = LintConfig::from_source(
+        "// lint-disable: unused-label, unknown-callable\n#0s\ntitle: Text",
+    );
     assert!(specific.is_disabled("unused-label"));
-    assert!(specific.is_disabled("unknown-action"));
+    assert!(specific.is_disabled("unknown-callable"));
     assert!(!specific.is_disabled("unknown-type"));
 
     let all_warnings = LintConfig::from_source("// lint-disable-all-warnings\n#0s\ntitle: Text");

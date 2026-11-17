@@ -1,79 +1,89 @@
 // A silent study of emphasis, not a claim of voiceover synchronization.
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 20 }
+
 #0s
-background: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
-kicker: Text, text: "SAME SENTENCE / DIFFERENT EMPHASIS", at: (640, 90), font_size: 20, color: "#90A4B8"
-we: Text, text: "We", at: (310, 320), font_size: 72, font_weight: "bold", color: "#F3F5F7"
-can: Text, text: "can", at: (465, 320), font_size: 72, font_weight: "bold", color: "#F3F5F7"
-change: Text, text: "change", at: (715, 320), font_size: 72, font_weight: "bold", color: "#F3F5F7"
-this: Text, text: "this.", at: (980, 320), font_size: 72, font_weight: "bold", color: "#F3F5F7"
-meaning: Text, text: "Read it once.", at: (640, 465), font_size: 30, color: "#ADBCCA"
-underline: Rect, at: (310, 380), size: (106, 4), color: "#65D9E8", opacity: 0
+  background: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
+  kicker: Text, text: "SAME SENTENCE / DIFFERENT EMPHASIS", at: (640, 90), font_size: 20, color: "#90A4B8"
+  we: Text, text: "We", at: (310, 320), font_size: 72, font_weight: "bold", color: "#F3F5F7"
+  can: Text, text: "can", at: (465, 320), font_size: 72, font_weight: "bold", color: "#F3F5F7"
+  change: Text, text: "change", at: (715, 320), font_size: 72, font_weight: "bold", color: "#F3F5F7"
+  this: Text, text: "this.", at: (980, 320), font_size: 72, font_weight: "bold", color: "#F3F5F7"
+  meaning: Text, text: "Read it once.", at: (640, 465), font_size: 30, color: "#ADBCCA"
+  underline: Rect, at: (310, 380), size: (106, 4), color: "#65D9E8", opacity: 0
+
 #2s
-we.color = "#65D9E8" [400ms]
-fade-in underline [400ms]
-meaning.text = "Who will act?" [400ms]
+  we.color = "#65D9E8"[0.4s]
+  fade_in(target: underline, duration: 0.4s)
+  meaning.text = "Who will act?"[0.4s]
+
 #6s
-we.color = "#F3F5F7" [400ms]
-can.color = "#ABA4FA" [400ms]
-underline.at = (465, 380) [500ms, ease: ease-in-out]
-underline.size = (130, 4) [500ms]
-underline.color = "#ABA4FA" [400ms]
-meaning.text = "Is it possible?" [400ms]
+  we.color = "#F3F5F7"[0.4s]
+  can.color = "#ABA4FA"[0.4s]
+  underline.at = (465, 380) [0.5s, ease: ease_in_out]
+  underline.size = (130, 4)[0.5s]
+  underline.color = "#ABA4FA"[0.4s]
+  meaning.text = "Is it possible?"[0.4s]
+
 #10s
-can.color = "#F3F5F7" [400ms]
-change.color = "#F4D47B" [400ms]
-underline.at = (715, 380) [500ms, ease: ease-in-out]
-underline.size = (250, 4) [500ms]
-underline.color = "#F4D47B" [400ms]
-meaning.text = "What will we do?" [400ms]
+  can.color = "#F3F5F7"[0.4s]
+  change.color = "#F4D47B"[0.4s]
+  underline.at = (715, 380) [0.5s, ease: ease_in_out]
+  underline.size = (250, 4)[0.5s]
+  underline.color = "#F4D47B"[0.4s]
+  meaning.text = "What will we do?"[0.4s]
+
 #14.5s
-fade-out we [400ms]
-fade-out can [400ms]
-fade-out change [400ms]
-fade-out this [400ms]
-fade-out meaning [400ms]
-fade-out underline [400ms]
+  fade_out(target: we, duration: 0.4s)
+  fade_out(target: can, duration: 0.4s)
+  fade_out(target: change, duration: 0.4s)
+  fade_out(target: this, duration: 0.4s)
+  fade_out(target: meaning, duration: 0.4s)
+  fade_out(target: underline, duration: 0.4s)
 
 #0s
-label_0: Text, text: "WHO", at: (185, 250), font_size: 16, color: "#65D9E8", opacity: 0
-word_0_0: Text, text: "We", at: (370, 250), font_size: 52, font_weight: "bold", color: "#65D9E8", opacity: 0
-word_0_1: Text, text: "can", at: (505, 250), font_size: 52, font_weight: "bold", color: "#ADBCCA", opacity: 0
-word_0_2: Text, text: "change", at: (710, 250), font_size: 52, font_weight: "bold", color: "#ADBCCA", opacity: 0
-word_0_3: Text, text: "this.", at: (930, 250), font_size: 52, font_weight: "bold", color: "#ADBCCA", opacity: 0
+  label_0: Text, text: "WHO", at: (185, 250), font_size: 16, color: "#65D9E8", opacity: 0
+  word_0_0: Text, text: "We", at: (370, 250), font_size: 52, font_weight: "bold", color: "#65D9E8", opacity: 0
+  word_0_1: Text, text: "can", at: (505, 250), font_size: 52, font_weight: "bold", color: "#ADBCCA", opacity: 0
+  word_0_2: Text, text: "change", at: (710, 250), font_size: 52, font_weight: "bold", color: "#ADBCCA", opacity: 0
+  word_0_3: Text, text: "this.", at: (930, 250), font_size: 52, font_weight: "bold", color: "#ADBCCA", opacity: 0
+
 #15s
-fade-in label_0 [600ms]
-fade-in word_0_0 [600ms]
-fade-in word_0_1 [600ms]
-fade-in word_0_2 [600ms]
-fade-in word_0_3 [600ms]
+  fade_in(target: label_0, duration: 0.6s)
+  fade_in(target: word_0_0, duration: 0.6s)
+  fade_in(target: word_0_1, duration: 0.6s)
+  fade_in(target: word_0_2, duration: 0.6s)
+  fade_in(target: word_0_3, duration: 0.6s)
 
 #0s
-label_1: Text, text: "POSSIBILITY", at: (185, 360), font_size: 16, color: "#ABA4FA", opacity: 0
-word_1_0: Text, text: "We", at: (370, 360), font_size: 52, font_weight: "bold", color: "#ADBCCA", opacity: 0
-word_1_1: Text, text: "can", at: (505, 360), font_size: 52, font_weight: "bold", color: "#ABA4FA", opacity: 0
-word_1_2: Text, text: "change", at: (710, 360), font_size: 52, font_weight: "bold", color: "#ADBCCA", opacity: 0
-word_1_3: Text, text: "this.", at: (930, 360), font_size: 52, font_weight: "bold", color: "#ADBCCA", opacity: 0
+  label_1: Text, text: "POSSIBILITY", at: (185, 360), font_size: 16, color: "#ABA4FA", opacity: 0
+  word_1_0: Text, text: "We", at: (370, 360), font_size: 52, font_weight: "bold", color: "#ADBCCA", opacity: 0
+  word_1_1: Text, text: "can", at: (505, 360), font_size: 52, font_weight: "bold", color: "#ABA4FA", opacity: 0
+  word_1_2: Text, text: "change", at: (710, 360), font_size: 52, font_weight: "bold", color: "#ADBCCA", opacity: 0
+  word_1_3: Text, text: "this.", at: (930, 360), font_size: 52, font_weight: "bold", color: "#ADBCCA", opacity: 0
+
 #15s
-fade-in label_1 [600ms]
-fade-in word_1_0 [600ms]
-fade-in word_1_1 [600ms]
-fade-in word_1_2 [600ms]
-fade-in word_1_3 [600ms]
+  fade_in(target: label_1, duration: 0.6s)
+  fade_in(target: word_1_0, duration: 0.6s)
+  fade_in(target: word_1_1, duration: 0.6s)
+  fade_in(target: word_1_2, duration: 0.6s)
+  fade_in(target: word_1_3, duration: 0.6s)
 
 #0s
-label_2: Text, text: "ACTION", at: (185, 470), font_size: 16, color: "#F4D47B", opacity: 0
-word_2_0: Text, text: "We", at: (370, 470), font_size: 52, font_weight: "bold", color: "#ADBCCA", opacity: 0
-word_2_1: Text, text: "can", at: (505, 470), font_size: 52, font_weight: "bold", color: "#ADBCCA", opacity: 0
-word_2_2: Text, text: "change", at: (710, 470), font_size: 52, font_weight: "bold", color: "#F4D47B", opacity: 0
-word_2_3: Text, text: "this.", at: (930, 470), font_size: 52, font_weight: "bold", color: "#ADBCCA", opacity: 0
+  label_2: Text, text: "ACTION", at: (185, 470), font_size: 16, color: "#F4D47B", opacity: 0
+  word_2_0: Text, text: "We", at: (370, 470), font_size: 52, font_weight: "bold", color: "#ADBCCA", opacity: 0
+  word_2_1: Text, text: "can", at: (505, 470), font_size: 52, font_weight: "bold", color: "#ADBCCA", opacity: 0
+  word_2_2: Text, text: "change", at: (710, 470), font_size: 52, font_weight: "bold", color: "#F4D47B", opacity: 0
+  word_2_3: Text, text: "this.", at: (930, 470), font_size: 52, font_weight: "bold", color: "#ADBCCA", opacity: 0
+
 #15s
-fade-in label_2 [600ms]
-fade-in word_2_0 [600ms]
-fade-in word_2_1 [600ms]
-fade-in word_2_2 [600ms]
-fade-in word_2_3 [600ms]
+  fade_in(target: label_2, duration: 0.6s)
+  fade_in(target: word_2_0, duration: 0.6s)
+  fade_in(target: word_2_1, duration: 0.6s)
+  fade_in(target: word_2_2, duration: 0.6s)
+  fade_in(target: word_2_3, duration: 0.6s)
+
 #0s
-closing: Text, text: "Timing changes what we hear, even in silence.", at: (640, 620), font_size: 24, color: "#ADBCCA", opacity: 0
+  closing: Text, text: "Timing changes what we hear, even in silence.", at: (640, 620), font_size: 24, color: "#ADBCCA", opacity: 0
+
 #15.5s
-fade-in closing [600ms]
+  fade_in(target: closing, duration: 0.6s)

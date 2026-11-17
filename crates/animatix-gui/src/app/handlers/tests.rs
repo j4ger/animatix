@@ -158,7 +158,7 @@ fn scroll_to_line_focuses_diagnostic() {
 const TEST_SOURCE: &str = r#"config { resolution: (1280, 720) }
 
 box: Rect, at: (100, 100), size: (100, 100), color: blue
-circle: Ellipse, at: (200, 200), radius: 50, color: red
+circle: Ellipse, at: (200, 200), radius_x: 50, radius_y: 50, color: red
 "#;
 
 // ── handle_save (filesystem) ───────────────────────────────────────

@@ -27,11 +27,11 @@ impl Primitive for PathPrimitive {
             Property::new(
                 "commands",
                 Expr::List(vec![
-                    Expr::Call("move_to".into(), vec![Expr::Num(-50.0), Expr::Num(-50.0)]),
-                    Expr::Call("line_to".into(), vec![Expr::Num(50.0), Expr::Num(-50.0)]),
-                    Expr::Call("line_to".into(), vec![Expr::Num(50.0), Expr::Num(50.0)]),
-                    Expr::Call("line_to".into(), vec![Expr::Num(-50.0), Expr::Num(50.0)]),
-                    Expr::Call("close".into(), vec![]),
+                    Expr::call("move_to", vec![Expr::Num(-50.0), Expr::Num(-50.0)]),
+                    Expr::call("line_to", vec![Expr::Num(50.0), Expr::Num(-50.0)]),
+                    Expr::call("line_to", vec![Expr::Num(50.0), Expr::Num(50.0)]),
+                    Expr::call("line_to", vec![Expr::Num(-50.0), Expr::Num(50.0)]),
+                    Expr::call("close", vec![]),
                 ]),
             ),
             Property::new("color", Expr::Ident("accent.primary".into())),
