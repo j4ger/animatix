@@ -28,6 +28,10 @@ Local changes:
   exclude those bytes from side-module initializers.
 - Connect overlapping data symbols within a segment so a byte range has one
   module owner, including shared capability chunks.
+- Emit side-module data symbols and indirect-function initializers in stable
+  symbol-index and table-offset order. Preserve alias bytes, main-owned exclusions,
+  and the existing duplicate-offset selection; do not reorder arbitrary input
+  active segments.
 - Retain zero-sized data symbols for graph identity without emitting empty
   side-module initializers.
 - Associate data relocations with every intersecting source symbol range and
@@ -37,6 +41,11 @@ Local changes:
 - Validate the supported table, memory, and active data-segment layout before
   splitting; fail closed if original Rust-mangled names are present but do not
   survive bindgen mapping. Focused tests cover these boundaries.
+
+- Release the original relocation IR and temporary name maps after graph
+  bridging, before live-main analysis reparses the bindgen output. Do not retain
+  unused reverse-graph or per-node relocation copies. This changes allocation
+  lifetimes only; graph traversal and sorting logic remain unchanged.
 
 The vendor can be removed when the selected upstream splitter handles original
 function-index relocations, overlapping data-symbol ownership, and the validated
