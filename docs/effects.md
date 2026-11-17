@@ -132,6 +132,11 @@ no per-frame reallocation).
 effect to that region: the sub-scene is rendered, seeded, dispatched, and
 harvested entirely inside `bounds ∪ worst-case support` (clamped to the scene),
 and the result is composited back at the region origin.
+A valid authored region that covers the whole canvas after camera mapping,
+support padding and clipping selects the full-scene path; it does **not**
+fall back to a content-derived ROI. This distinction matters for region-relative
+effects such as `Vignette`. Absent or nonpositive-size bounds retain automatic
+content-region derivation.
 
 **Region-scoped dispatch (implemented 2026-09-16).** The chain dispatches over
 the **region**, not the full canvas: the sub-scene is rendered into a

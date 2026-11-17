@@ -365,6 +365,7 @@ bg: Filter, bounds: (40, 30, 120, 80) {
             0,
             kurbo::Affine::IDENTITY,
         )
+        .expect("valid authored bounds")
         .expect("authored bounds must produce a region");
 
     // Worst-case support = blur radius (10), applied on every side.
@@ -395,6 +396,7 @@ camera.zoom = 2.0
 
     let before = timeline
         .effect_scope_region(scope, dims, 0, timeline.camera.affine(0, dims, None))
+        .expect("valid authored bounds")
         .expect("identity camera keeps the authored rectangle");
     assert_eq!(before.origin, [30.0, 20.0]);
 
@@ -403,13 +405,14 @@ camera.zoom = 2.0
     // the region clips to the frame.
     let after = timeline
         .effect_scope_region(scope, dims, 2000, timeline.camera.affine(2000, dims, None))
+        .expect("valid authored bounds")
         .expect("the pushed scope still has a region");
     assert_eq!(after.origin, [0.0, 0.0]);
     assert_eq!(after.size.width, 170);
     assert_eq!(after.size.height, 140);
 }
 
-/// Without authored bounds the scope keeps the full-scene path.
+/// Without authored bounds the caller derives the content region.
 #[test]
 fn filter_without_bounds_has_no_region() {
     let timeline = build_timeline(
@@ -984,4 +987,110 @@ long.text_max_width = 60
         assigned_half_width < declared_half_width,
         "runtime text_max_width must re-wrap the rendered text: declared={declared_half_width}, assigned={assigned_half_width}"
     );
+}
+
+#[test]
+fn explicit_full_filter_region_is_distinct_from_derived_region() {
+    for (bounds, full) in [
+        ("", None),
+        (", bounds: (0,0,0,200)", None),
+        (", bounds: (0,0,-1,200)", None),
+        (", bounds: (0,0,400,200)", Some(true)),
+        (", bounds: (-50,-50,500,300)", Some(true)),
+        (", bounds: (2,2,396,196)", Some(true)),
+        (", bounds: (40,40,320,120)", Some(false)),
+    ] {
+        let timeline = build_timeline(&format!(
+            r#"
+config {{ resolution: (400,200) }}
+scope: Filter{bounds} {{ fx: Blur, radius: 4
+ box: Rect, size: (120,60), opacity: 1
+}}
+"#
+        ));
+        let id = timeline.world.tracks.get_id("scope").unwrap();
+        let region = timeline.effect_scope_region(
+            id,
+            SceneDimensions {
+                width: 400,
+                height: 200,
+            },
+            0,
+            kurbo::Affine::IDENTITY,
+        );
+        assert_eq!(region.map(|r| r.is_none()), full, "{bounds}");
+    }
+}
+
+#[test]
+fn explicit_filter_region_fullness_is_resolved_after_camera_and_padding() {
+    let dims = SceneDimensions {
+        width: 400,
+        height: 200,
+    };
+    for follow in [true, false] {
+        let timeline = build_timeline(&format!(
+            r#"
+config {{ resolution: (400,200) }}
+scope: Filter, bounds: (0,0,400,200), camera_follow: {follow} {{
+ fx: Blur, radius: 4
+ box: Rect, size: (120,60), opacity: 1
+}}
+#1s
+camera.zoom = 0.5
+"#
+        ));
+        let id = timeline.world.tracks.get_id("scope").unwrap();
+        let first =
+            timeline.effect_scope_region(id, dims, 0, timeline.camera.affine(0, dims, None));
+        assert!(first.expect("authored").is_none(), "initial full scene");
+        let zoomed = timeline
+            .effect_scope_region(id, dims, 1000, timeline.camera.affine(1000, dims, None))
+            .expect("authored");
+        if follow {
+            let region = zoomed.expect("zoomed-out bounds are smaller than scene");
+            assert_eq!(region.origin, [96.0, 46.0]);
+            assert_eq!((region.size.width, region.size.height), (208, 108));
+        } else {
+            assert!(zoomed.is_none(), "camera opt-out retains full-scene bounds");
+        }
+    }
+}
+
+#[test]
+fn invalid_nonfinite_filter_bounds_do_not_select_full_scene() {
+    for value in [
+        [f32::NAN, 0., 400., 200.],
+        [0., f32::INFINITY, 400., 200.],
+        [0., 0., f32::INFINITY, 200.],
+        [0., 0., 400., f32::NAN],
+        [f32::MAX, 0., f32::MAX, 200.],
+        [0., f32::MAX, 400., f32::MAX],
+    ] {
+        let mut timeline = build_timeline("scope: Filter { box: Rect, size:(120,60) }");
+        let id = timeline.world.tracks.get_id("scope").unwrap();
+        timeline.world.write_property_field(
+            id,
+            crate::timeline::property_registry::ActorField::Tagged("filter_bounds"),
+            crate::timeline::PropertyValue::Vec4(value),
+            0,
+            0,
+            crate::easing::Easing::Linear,
+            &mut Vec::new(),
+        );
+        assert!(
+            timeline
+                .effect_scope_region(
+                    id,
+                    SceneDimensions {
+                        width: 400,
+                        height: 200
+                    },
+                    0,
+                    kurbo::Affine::IDENTITY
+                )
+                .is_none(),
+            "{value:?}"
+        );
+    }
 }

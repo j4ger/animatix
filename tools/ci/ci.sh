@@ -135,7 +135,8 @@ Documentation Links|doc-links ci-policy-tests|nix|ubuntu-latest|nix|pr|doc-links
 eparts|eparts|nix|ubuntu-latest|nix|pr|eparts-linux
 eparts|eparts|native|macos-latest|rust-stable|pr|eparts-macos
 eparts|eparts|native|windows-latest|rust-stable|pr|eparts-windows
-Check & Lint|audit scene-audit budget-audit canonical-audit check lint doc no-video|nix|ubuntu-latest|nix|pr|check-lint
+Security Audit|audit|nix|ubuntu-latest|nix|pr|security-audit
+Check & Lint|scene-audit budget-audit canonical-audit check lint doc no-video|nix|ubuntu-latest|nix|pr|check-lint
 Test & Examples|test examples|nix|ubuntu-latest|nix|pr|test-examples
 Render Smoke & Scenes|render-smoke|nix|ubuntu-latest|nix|pr|render-scenes
 Benchmarks|ext-bench|nix|ubuntu-latest|nix|pr|benchmarks
@@ -411,6 +412,8 @@ gate_ci_policy_tests() {
   python3 tools/quality/test-legacy-contract-fixtures.py
   python3 tools/quality/test-audit-corpus.py
   python3 tools/ci/test-ci-control.py
+  python3 tools/ci/test-security-audit.py
+  python3 tools/ci/test-security-policy.py
   python3 tools/ci/test-phase-timing.py
   python3 tools/ci/test-phase-gates.py
   python3 tools/ci/test-joint-audit.py
@@ -852,26 +855,7 @@ gate_audit() {
     echo "error: cargo-audit not in this shell — it comes from nixpkgs in devShells.default" >&2
     return 1
   }
-  # Every swallowed advisory is listed in tools/quality/audit-allow.txt with the reason
-  # it cannot be lifted here, and is printed on every run. An unannotated line is
-  # an error: the file is a debt register, not a mute button.
-  local ignores=() line id
-  if [ -f tools/quality/audit-allow.txt ]; then
-    while IFS= read -r line; do
-      case "$line" in ''|'#'*) continue ;; esac
-      id="${line%%$'\t'*}"
-      if [ "$id" = "$line" ]; then
-        echo "error: tools/quality/audit-allow.txt line for $id has no TAB-separated reason" >&2
-        return 1
-      fi
-      ignores+=(--ignore "$id")
-    done < tools/quality/audit-allow.txt
-  fi
-  if [ "${#ignores[@]}" -gt 0 ]; then
-    echo "allowing ${#ignores[@]} advisory(ies) — reasons from tools/quality/audit-allow.txt:"
-    grep -vE '^#|^$' tools/quality/audit-allow.txt | while IFS=$'\t' read -r a b; do printf '  %s  %s\n' "$a" "$b"; done
-  fi
-  cargo audit "${ignores[@]}"
+  python3 tools/ci/security-audit.py
 }
 
 gate_release_resolve() {
