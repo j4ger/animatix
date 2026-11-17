@@ -575,7 +575,10 @@ impl<'a> Splitter<'a> {
     fn create_ifunc_initializers(&self, out: &mut Module, unique_symbols: &HashSet<Node>) {
         let ifunc_table = self.load_funcref_table(out);
 
-        let mut initializers = HashMap::new();
+        // Preserve the existing last-write-wins selection for each table offset,
+        // but emit those distinct offsets in a stable order. Random HashMap
+        // iteration otherwise changes side-module bytes between identical runs.
+        let mut initializers = BTreeMap::new();
         for segment in out.elements.iter_mut() {
             let ElementKind::Active { offset, .. } = &mut segment.kind else {
                 continue;
@@ -799,30 +802,36 @@ impl<'a> Splitter<'a> {
                 continue;
             };
 
-            // And then assign chunks of the data to new data entries that will override the individual slots
-            for unique in unique_symbols {
-                if let Node::DataSymbol(id) = unique {
-                    if let Some(symbol) = self.data_symbols.get(id) {
-                        if symbol.which_data_segment == idx {
-                            // Zero-sized definitions retain graph/address identity but own no
-                            // bytes to copy into a side module.
-                            if symbol.symbol_size == 0 {
-                                continue;
-                            }
-                            let range = checked_data_symbol_range(
-                                contents.len(),
-                                symbol.segment_offset,
-                                symbol.symbol_size,
-                            )?;
-                            for owned_range in subtract_ranges(range, &main_owned_ranges) {
-                                let offset = ConstExpr::Value(ir::Value::I32(
-                                    data_offset + owned_range.start as i32,
-                                ));
-                                out.data.add(
-                                    DataKind::Active { memory, offset },
-                                    contents[owned_range].to_vec(),
-                                );
-                            }
+            // Emit in stable symbol-index order, not randomized HashSet order.
+            // Overlapping aliases copy the same original `contents` bytes at
+            // identical addresses, after subtracting the same main-owned ranges;
+            // reordering these copies cannot change their writes. This does not
+            // reorder arbitrary input segments (secondary segments stay empty).
+            let mut ordered_symbols: Vec<_> = unique_symbols.iter().filter_map(|node| {
+                if let Node::DataSymbol(id) = node { Some(*id) } else { None }
+            }).collect();
+            ordered_symbols.sort_unstable();
+            for id in ordered_symbols {
+                if let Some(symbol) = self.data_symbols.get(&id) {
+                    if symbol.which_data_segment == idx {
+                        // Zero-sized definitions retain graph/address identity but own no
+                        // bytes to copy into a side module.
+                        if symbol.symbol_size == 0 {
+                            continue;
+                        }
+                        let range = checked_data_symbol_range(
+                            contents.len(),
+                            symbol.segment_offset,
+                            symbol.symbol_size,
+                        )?;
+                        for owned_range in subtract_ranges(range, &main_owned_ranges) {
+                            let offset = ConstExpr::Value(ir::Value::I32(
+                                data_offset + owned_range.start as i32,
+                            ));
+                            out.data.add(
+                                DataKind::Active { memory, offset },
+                                contents[owned_range].to_vec(),
+                            );
                         }
                     }
                 }
@@ -1873,6 +1882,125 @@ fn subtract_ranges(range: Range<usize>, cuts: &[Range<usize>]) -> Vec<Range<usiz
 #[cfg(test)]
 mod graph_bridge_tests {
     use super::*;
+
+    fn empty_test_splitter() -> Splitter<'static> {
+        Splitter {
+            source_module: Module::default(), original: &[], bindgened: &[],
+            fns_to_ids: HashMap::new(), _ids_to_fns: Vec::new(),
+            shared_symbols: BTreeSet::new(), split_points: Vec::new(), chunks: Vec::new(),
+            data_symbols: BTreeMap::new(), main_graph: HashSet::new(),
+            call_graph: HashMap::new(), parent_graph: HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn deterministic_data_emission_preserves_overlapping_aliases_and_main_bytes() {
+        let mut expected_bytes = None;
+        for round in 0..32 {
+            let mut splitter = empty_test_splitter();
+            let ty = splitter.source_module.types.add(&[], &[]);
+            let (func, import_id) = splitter.source_module.add_import_func("test", "split", ty);
+            let export_id = splitter.source_module.exports.add("split", func);
+            // IDs are intentionally not ordered by address; two aliases overlap,
+            // one exact alias is duplicated, one symbol is empty, and ID 9 is live.
+            for (id, start, size) in [(1, 8, 8), (2, 0, 12), (3, 8, 8), (4, 3, 0), (9, 5, 4)] {
+                splitter.data_symbols.insert(id, DataSymbol {
+                    index: id, range: start..start + size, segment_offset: start,
+                    symbol_size: size, which_data_segment: 0,
+                });
+            }
+            splitter.main_graph.insert(Node::DataSymbol(9));
+            splitter.split_points.push(SplitPoint {
+                module_name: "test".into(), import_id, export_id,
+                import_func: func, export_func: func, component_name: "test".into(),
+                index: 0, reachable_graph: (1..=4).map(Node::DataSymbol).collect(),
+                hash_name: "test".into(), import_name: "test".into(), export_name: "test".into(),
+            });
+            let mut out = Module::default();
+            let memory = out.memories.add_local(false, false, 1, None, None);
+            let contents: Vec<u8> = (0..16).collect();
+            out.data.add(DataKind::Active { memory, offset: ConstExpr::Value(ir::Value::I32(100)) }, contents.clone());
+            // A separate active segment must remain empty in the side module.
+            out.data.add(DataKind::Active { memory, offset: ConstExpr::Value(ir::Value::I32(200)) }, vec![99; 4]);
+            let mut unique = HashSet::new();
+            for n in 0..4 {
+                unique.insert(Node::DataSymbol(1 + (n + round) % 4));
+            }
+            splitter.clear_data_segments(&mut out, &unique).unwrap();
+            let mut actual = vec![0xcc; 16];
+            let mut nonempty = 0;
+            for data in out.data.iter() {
+                let DataKind::Active { offset: ConstExpr::Value(ir::Value::I32(offset)), .. } = data.kind else { panic!("unexpected data kind") };
+                if data.value.is_empty() { continue; }
+                nonempty += 1;
+                let start = offset as usize - 100;
+                let end = start + data.value.len();
+                assert!(end <= 5 || start >= 9, "side writes must not touch main-owned bytes");
+                assert_eq!(data.value, contents[start..end]);
+                actual[start..end].copy_from_slice(&data.value);
+            }
+            assert_eq!(nonempty, 4); // duplicate aliases retain their original writes
+            let mut expected = contents.clone();
+            expected[5..9].fill(0xcc);
+            assert_eq!(actual, expected);
+            let bytes = out.emit_wasm();
+            match &expected_bytes {
+                Some(expected) => assert_eq!(&bytes, expected),
+                None => expected_bytes = Some(bytes),
+            }
+        }
+    }
+
+    #[test]
+    fn deterministic_element_initializers_preserve_last_selected_write() {
+        let mut expected_bytes = None;
+        for round in 0..32 {
+            let splitter = empty_test_splitter();
+            let mut out = Module::default();
+            let ty = out.types.add(&[], &[]);
+            let (a, _) = out.add_import_func("test", "a", ty);
+            let (b, _) = out.add_import_func("test", "b", ty);
+            let table = out.tables.add_local(false, 16, None, RefType::FUNCREF);
+            // A later initializer replaces offset 4, while offset 5 is unchanged.
+            for (offset, items) in [
+                (4, ElementItems::Functions(vec![a, a])),
+                (1, ElementItems::Expressions(RefType::FUNCREF, vec![ConstExpr::RefFunc(a)])),
+                (4, ElementItems::Expressions(RefType::FUNCREF, vec![ConstExpr::RefFunc(b)])),
+                (9, ElementItems::Functions(vec![b])),
+            ] {
+                let id = out.elements.add(ElementKind::Active {
+                    table, offset: ConstExpr::Value(ir::Value::I32(offset)),
+                }, items);
+                out.tables.get_mut(table).elem_segments.insert(id);
+            }
+            let mut unique = HashSet::new();
+            for id in if round % 2 == 0 { [a, b] } else { [b, a] } {
+                unique.insert(Node::Function(id));
+            }
+            splitter.create_ifunc_initializers(&mut out, &unique);
+            let mut entries = Vec::new();
+            for element in out.elements.iter() {
+                let ElementKind::Active { table: actual_table, offset: ConstExpr::Value(ir::Value::I32(offset)) } = element.kind else { panic!("unexpected element kind") };
+                assert_eq!(actual_table, table);
+                let function = match &element.items {
+                    ElementItems::Functions(ids) => { assert_eq!(ids.len(), 1); ids[0] }
+                    ElementItems::Expressions(_, exprs) => {
+                        assert_eq!(exprs.len(), 1);
+                        let ConstExpr::RefFunc(id) = exprs[0] else { panic!("unexpected expression") }; id
+                    }
+                };
+                entries.push((offset, function));
+            }
+            assert_eq!(entries, vec![(1, a), (4, b), (5, a), (9, b)]);
+            assert_eq!(out.tables.get(table).elem_segments.len(), 4);
+            let bytes = out.emit_wasm();
+            match &expected_bytes {
+                Some(expected) => assert_eq!(&bytes, expected),
+                None => expected_bytes = Some(bytes),
+            }
+        }
+    }
+
 
     #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
     enum TestNode {

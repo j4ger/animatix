@@ -40,6 +40,7 @@ def identity():
             'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
             'ref': os.environ['GITHUB_REF'], 'lock_sha256': digest(ROOT / 'Cargo.lock'),
             'flake_sha256': digest(ROOT / 'flake.lock'), 'patch_sha256': digest(PATCH),
+            'common_splitter_sha256': digest(ROOT / 'crates/vendor/wasm-split-cli/src/lib.rs'),
             'rustc': command('rustc', '-vV'), 'cargo': command('cargo', '-V'),
             'wasm_bindgen': command('wasm-bindgen', '--version'),
             'profile': 'wasm-dev: baseline opt-level1/debug=true/fat-LTO/CGU1',
@@ -139,13 +140,20 @@ def build_tools():
     tools = OUT / 'tools'
     tools.mkdir()
     env = {**os.environ, 'CARGO_BUILD_JOBS': '2', 'CARGO_TARGET_DIR': str(OUT / 'host')}
+    sources = {}
     for variant in ('baseline', 'candidate'):
         if variant == 'candidate':
+            if command('git', 'status', '--porcelain', '--untracked-files=no'):
+                raise RuntimeError('baseline build changed tracked source')
             checked('patch-check', ['git', 'apply', '--check', str(PATCH)], EVIDENCE)
             checked('patch-apply', ['git', 'apply', str(PATCH)], EVIDENCE)
         checked(f'build-{variant}', ['cargo', 'build', '--locked', '-p', 'animatix-web-build'],
                 EVIDENCE, rss_mib=6144, seconds=1200, env=env)
         shutil.copy2(OUT / 'host/debug/animatix-web-build', tools / variant)
+        sources[variant] = {name: digest(ROOT / name) for name in (
+            'crates/vendor/wasm-split-cli/README.md', 'crates/vendor/wasm-split-cli/src/lib.rs')}
+        if variant == 'candidate':
+            checked('candidate-reverse-check', ['git', 'apply', '--reverse', '--check', str(PATCH)], EVIDENCE)
     checked('candidate-unit-tests', ['cargo', 'test', '--locked', '-p', 'wasm-split-cli',
                                     '--lib'], EVIDENCE, rss_mib=6144, seconds=600, env=env)
     changed = set(command('git', 'diff', '--name-only').splitlines())
@@ -153,6 +161,9 @@ def build_tools():
                }
     if changed != allowed:
         raise RuntimeError('candidate touched unexpected tracked files')
+    (EVIDENCE / 'source-identity.json').write_text(json.dumps({'variants': sources,
+        'common_commit': command('git', 'rev-parse', 'HEAD'),
+        'candidate_patch_sha256': digest(PATCH)}, indent=2) + '\n')
     (EVIDENCE / 'tools.json').write_text(json.dumps({v: digest(tools / v) for v in ('baseline', 'candidate')}, indent=2))
     return tools
 
@@ -164,6 +175,53 @@ def output_hashes(directory):
     if any(not p.is_file() or p.is_symlink() or p.suffix not in {'.wasm', '.js', '.json'} for p in files):
         raise ValueError('unexpected splitter output')
     return {p.name: {'bytes': p.stat().st_size, 'sha256': digest(p)} for p in files}
+
+
+def wasm_sections(path):
+    """Bounded streaming section evidence; not a semantic equivalence proof."""
+    path = Path(path)
+    size = path.stat().st_size
+    if size > 256 * 1024**2:
+        raise ValueError('split module exceeds evidence bound')
+    result = []
+    with path.open('rb') as stream:
+        if stream.read(8) != b'\0asm\1\0\0\0':
+            raise ValueError('bad Wasm header')
+        while stream.tell() < size:
+            if len(result) >= 1024:
+                raise ValueError('too many Wasm sections')
+            offset = stream.tell()
+            section_id = stream.read(1)[0]
+            length = 0
+            for shift in range(0, 35, 7):
+                byte = stream.read(1)
+                if not byte:
+                    raise ValueError('truncated section size')
+                value = byte[0]
+                if shift == 28 and value > 15:
+                    raise ValueError('invalid u32 section size')
+                length |= (value & 127) << shift
+                if value < 128:
+                    break
+            else:
+                raise ValueError('invalid section size')
+            if length > size - stream.tell():
+                raise ValueError('truncated section body')
+            sha = hashlib.sha256()
+            remaining = length
+            while remaining:
+                chunk = stream.read(min(1024**2, remaining))
+                if not chunk:
+                    raise ValueError('truncated section body')
+                sha.update(chunk)
+                remaining -= len(chunk)
+            result.append({'id': section_id, 'offset': offset, 'bytes': length,
+                           'sha256': sha.hexdigest()})
+    return result
+
+
+def section_evidence(directory):
+    return {p.name: wasm_sections(p) for p in sorted(directory.glob('*.wasm'))}
 
 
 def compare():
@@ -186,11 +244,15 @@ def compare():
                 'input_identity': expected, 'results': results, 'complete': False}, indent=2) + '\n')
             if report['exit_code'] == 0 and report['stop_reason'] is None:
                 report['raw_outputs'] = output_hashes(output)
+                report['raw_sections'] = section_evidence(output)
+                (EVIDENCE / f'{label}-raw-sections.json').write_text(json.dumps(report['raw_sections'], indent=2) + '\n')
                 for module in sorted(output.glob('*.wasm')):
                     checked(f'validate-{label}-{module.stem}',
                             ['wasm-opt', str(module), '-Oz', '--strip-debug', '-o', str(module)],
                             EVIDENCE, rss_mib=4096, seconds=180)
                 report['normalized_outputs'] = output_hashes(output)
+                report['normalized_sections'] = section_evidence(output)
+                (EVIDENCE / f'{label}-normalized-sections.json').write_text(json.dumps(report['normalized_sections'], indent=2) + '\n')
             else:
                 failed = True
             (EVIDENCE / 'comparison.json').write_text(json.dumps({'scope': 'split-only-not-SDK',

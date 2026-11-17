@@ -73,3 +73,19 @@ runner memory can differ from nominal public-runner specifications; failure
 under a guard is useful evidence, not a reason to claim the candidate fixed
 full-input splitting. End-to-end SDK integrity, browser behavior, release size,
 and normal CI gates remain outside this experimental workflow.
+
+## Second controlled comparison
+
+Both tools now start from the same deterministic data/element-emission source
+in this diagnostic commit. The candidate alone additionally applies the
+allocation-lifetime patch (production hunks unchanged; the new test fixture
+omits the removed field for candidate compilation). A clean tracked tree is required after the baseline
+build, the patch and reverse-check must succeed, and source hashes for both
+variants are saved. The input identity also binds the common splitter source.
+
+Raw and normalized Wasm section IDs, byte offsets, lengths and SHA-256 digests
+are retained before output cleanup. This bounded, streaming evidence can locate
+section-level nondeterminism without uploading module bodies. Section hashes are
+not semantic equivalence checks; strict normalized whole-file equality remains
+the acceptance criterion. Resource budgets, A/B+BA order, no-cache-write and
+no-publish boundaries are unchanged. This is still not a full SDK/browser test.

@@ -28,6 +28,10 @@ Local changes:
   exclude those bytes from side-module initializers.
 - Connect overlapping data symbols within a segment so a byte range has one
   module owner, including shared capability chunks.
+- Emit side-module data symbols and indirect-function initializers in stable
+  symbol-index and table-offset order. Preserve alias bytes, main-owned exclusions,
+  and the existing duplicate-offset selection; do not reorder arbitrary input
+  active segments.
 - Retain zero-sized data symbols for graph identity without emitting empty
   side-module initializers.
 - Associate data relocations with every intersecting source symbol range and

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Hermetic resource/identity tests, no full SDK compilation or network."""
 import copy
+import io
 import json
 import os
 from pathlib import Path
@@ -102,6 +103,39 @@ class ComparisonTests(unittest.TestCase):
             self.assertFalse(result['complete'])
             self.assertFalse(result['normalized_outputs_identical'])
             self.assertEqual(len(result['results']), 2)
+
+
+class SectionEvidenceTests(unittest.TestCase):
+    def parse(self, data):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'sample.wasm'
+            path.write_bytes(data)
+            return probe.wasm_sections(path)
+
+    def test_sections_preserve_order_and_distinguish_payloads(self):
+        header = b'\0asm\1\0\0\0'
+        a = self.parse(header + b'\x0b\x02ab\x00\x01c')
+        b = self.parse(header + b'\x0b\x02ba\x00\x01c')
+        self.assertEqual([x['id'] for x in a], [11, 0])
+        self.assertEqual([x['offset'] for x in a], [8, 12])
+        self.assertNotEqual(a[0]['sha256'], b[0]['sha256'])
+        self.assertEqual(a[1], b[1])
+
+    def test_file_truncated_after_stat_is_rejected(self):
+        # Stat says the full body exists, but the opened stream ends early.
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'sample.wasm'
+            path.write_bytes(b'\0asm\1\0\0\0\x0b\x03abc')
+            with patch.object(Path, 'open', return_value=io.BytesIO(b'\0asm\1\0\0\0\x0b\x03a')):
+                with self.assertRaisesRegex(ValueError, 'truncated section body'):
+                    probe.wasm_sections(path)
+
+    def test_malformed_input_rejected(self):
+        for data in (b'bad', b'\0asm\1\0\0\0\x0b\x80',
+                     b'\0asm\1\0\0\0\x0b\x03ab',
+                     b'\0asm\1\0\0\0\x0b\xff\xff\xff\xff\x10'):
+            with self.assertRaises(ValueError):
+                self.parse(data)
 
 
 class ResourceTests(unittest.TestCase):

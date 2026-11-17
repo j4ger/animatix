@@ -186,3 +186,8 @@ index 7a9af447..4e3ad75d 100644
                  }
              }
          }
+@@ -1891,3 +1875,3 @@ mod graph_bridge_tests {
+             data_symbols: BTreeMap::new(), main_graph: HashSet::new(),
+-            call_graph: HashMap::new(), parent_graph: HashMap::new(),
++            call_graph: HashMap::new(),
+         }
