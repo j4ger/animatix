@@ -143,6 +143,71 @@ before advertising parameterized canvas dimensions. Hyphenated identifiers also
 remain legal (`x-clock` is one identifier); subtraction should be written
 `x - clock`. A diagnostic hint can improve mistakes without changing tokenization.
 
+### Motion-authoring trial follow-ups (2026-11-17)
+
+These additions extend the existing delivery plan and AMX-11, rather than
+opening parallel export, template or audit projects. Evidence comes from a
+13-second data-story trial on `5a06a88f`: two parameter variants, native
+SwiftShader renders, inspected hold/transition frames and 186 consecutive
+pixel-checked frames. This is not browser, audio-sync, real-time playback or
+hardware-performance evidence. Keep the work independent of the ongoing `fn`
+syntax redesign; no syntax or new primitive is selected by this list.
+
+1. **Sampled content and semantic assertions (P1, extends AMX-11).** Design
+   machine-readable sampled text/numeric content and stable actor identity
+   alongside existing measured geometry, with explicit units and unsupported/
+   skipped coverage. The sorting oracle already checks live readouts through
+   native engine/SDK access; CLI `check`/structural `audit` are not substitutes
+   for that semantic oracle. Reuse the current evaluation/fact pipeline rather
+   than introducing another inspector or audit framework.
+   **Acceptance:** a small data-story fixture checks label/value/encoded-width
+   agreement before, during and after a change; stale labels, wrong identity,
+   and a constant final answer must build and then fail the assertions. Compare
+   fresh, forward and reverse/random seeks. A checked source expression or
+   expected-value JSON alone is not evidence of sampled output.
+2. **Coordinate and measurement contracts (P1, extends AMX-11).** Document the
+   units/basis of public measurements: authored full size versus internal
+   half-extents, local versus scene coordinates, content bounds versus ink,
+   and effective frame-time values. Extend the targeted dynamic-bounds/Filter
+   ROI regressions with a broader transformed/nested/animated effect-clipping
+   matrix and native/browser coverage; do not reopen those targeted fixes as
+   new backlog items. **Acceptance:** independent rendered-ink checks agree
+   with the documented bounds contract within declared tolerances, or report
+   unsupported measurements explicitly. Include a changing-size benchmark:
+   a fixed-size layout scrub is not evidence for this dynamic path. Keep the
+   existing Graph-coordinate findings separate unless a shared cause is proven.
+3. **Author/review/repair recipe (P1, extends parameterized templates).** Turn
+   one small data-story and one typography/diagram scene into portable examples
+   of compile → effective-parameter capture → hold and transition sampling →
+   targeted repair → recheck. Use the existing CLI and frame-export work, not a
+   second renderer or general agent framework. The trial needed manual stacked
+   segment center arithmetic, a narrower-label variant, and replacement of an
+   intentionally rolling Counter with a plain Text readout for precise digits;
+   none proves a missing core primitive. Try reusable components/guidance first.
+   **Acceptance:** a second parameter set exposes narrow/long labels, keeps
+   data encodings truthful, and can be regenerated from saved inputs. Review
+   intermediate frames, not only endpoints; preserve the failed and repaired
+   evidence and report what was actually inspected.
+4. **Narration/caption timing acceptance (P1, within first-run delivery).** Extend
+   the existing narrated starter acceptance with one shared cue/time source for
+   captions, scene holds and the actual recorded audio. The trial only exercised
+   caption cues; it did not validate narration. **Acceptance:** render the actual
+   shipped parameter variant, sample within each hold, check audio/caption onset
+   and end boundaries plus seeks in both directions, and state tolerance and
+   preview/export coverage. Do not label planned cues or a silent video as
+   audio-synchronization evidence.
+5. **Small motion-coverage corpus (P2, after reliable contracts).** Start with
+   data reduction, rank overtaking, kinetic text and an explanatory diagram;
+   record native / composed / workaround / unsupported status, authoring effort
+   and evidence per case instead of claiming a global coverage percentage.
+   Extend the existing sorting fixture with samples inside a swap, then use a
+   separate changing-value rank fixture for overtaking: stable identity, tie
+   policy, smooth position, labels and value widths must agree at crossing.
+   Integer-rank teleportation must fail even when before/after order is correct.
+   Keep semantic tests distinct from actual visual continuity/occlusion review;
+   native SDK tests do not establish browser parity. Expand the corpus only
+   when a new case probes a distinct mechanism or failure mode.
+
 ### Structure gate (active)
 
 The large-file/large-function programme is governed by [`ecs.md`](ecs.md) §8:
@@ -571,6 +636,20 @@ only as an empty/non-empty gate). And a hex *string* colour is accepted by
 `override_color()` for shapes but the text style path matches only
 `Value::Color | Value::Vec4`, so `always { t.color = "#00ff00" }` does nothing
 while the tuple form works.
+
+### Dynamic `shadow` sampling follow-up (2026-11-17, open)
+
+A native trial accepted an `always` write to `shadow`, but the rendering sample
+path did not consume frame overrides and the requested shadow did not appear.
+This is a remaining property-contract issue under the P0 reliable-editing plan,
+not a completed fix and not a reopening of shipped `DropShadow.softness` work.
+Pin a minimal reproducer and define the supported frame-time `shadow` contract:
+consume the sampled value through the existing property/effect path, or diagnose
+unsupported writes instead of silently accepting them. Add declaration/keyframe/
+`always` comparisons, before/during/after samples and reverse/random seeks,
+checking actual shadow pixels and effect bounds, not only source acceptance.
+Preserve the working static-shadow path and report native/browser test coverage
+separately. Keep this distinct from dynamic-size bounds and Filter ROI repairs.
 
 ### Divergent defaults — same property, two answers
 
