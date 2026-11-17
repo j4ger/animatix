@@ -1,0 +1,188 @@
+diff --git a/crates/vendor/wasm-split-cli/README.md b/crates/vendor/wasm-split-cli/README.md
+index 3285b3f6..c0c1ea11 100644
+--- a/crates/vendor/wasm-split-cli/README.md
++++ b/crates/vendor/wasm-split-cli/README.md
+@@ -38,6 +38,11 @@ Local changes:
+   splitting; fail closed if original Rust-mangled names are present but do not
+   survive bindgen mapping. Focused tests cover these boundaries.
+ 
++- Release the original relocation IR and temporary name maps after graph
++  bridging, before live-main analysis reparses the bindgen output. Do not retain
++  unused reverse-graph or per-node relocation copies. This changes allocation
++  lifetimes only; graph traversal and sorting logic remain unchanged.
++
+ The vendor can be removed when the selected upstream splitter handles original
+ function-index relocations, overlapping data-symbol ownership, and the validated
+ ABI boundaries without these patches, and its output passes Animatix's web
+diff --git a/crates/vendor/wasm-split-cli/src/lib.rs b/crates/vendor/wasm-split-cli/src/lib.rs
+index 7a9af447..4e3ad75d 100644
+--- a/crates/vendor/wasm-split-cli/src/lib.rs
++++ b/crates/vendor/wasm-split-cli/src/lib.rs
+@@ -47,7 +47,6 @@ pub struct Splitter<'a> {
+     data_symbols: BTreeMap<usize, DataSymbol>,
+     main_graph: HashSet<Node>,
+     call_graph: HashMap<Node, HashSet<Node>>,
+-    parent_graph: HashMap<Node, HashSet<Node>>,
+ }
+ 
+ /// The results of splitting the wasm module with some additional metadata for later use.
+@@ -102,7 +101,6 @@ impl<'a> Splitter<'a> {
+             main_graph: Default::default(),
+             chunks: Default::default(),
+             call_graph: Default::default(),
+-            parent_graph: Default::default(),
+             shared_symbols: Default::default(),
+         };
+ 
+@@ -1011,48 +1009,52 @@ impl<'a> Splitter<'a> {
+     /// Accumulate the relocations from the original module, create a relocation map, and then convert
+     /// that to our *new* module's symbols.
+     fn build_call_graph(&mut self) -> Result<()> {
+-        let original = ModuleWithRelocations::new(self.original)?;
+-
+-        let old_names: HashMap<String, FunctionId> = original
+-            .module
+-            .funcs
+-            .iter()
+-            .flat_map(|f| Some((f.name.clone()?, f.id())))
+-            .collect();
+-
+-        let new_names: HashMap<String, FunctionId> = self
+-            .source_module
+-            .funcs
+-            .iter()
+-            .flat_map(|f| Some((f.name.clone()?, f.id())))
+-            .collect();
+-
+-        let mut old_to_new = HashMap::new();
+-
+-        validate_mangled_function_mapping(old_names.keys(), new_names.keys())?;
+-
+-        for (new_name, new_func) in new_names.iter() {
+-            if let Some(old_func) = old_names.get(new_name) {
+-                old_to_new.insert(*old_func, new_func);
++        // The original IR (including copied DWARF) and name maps are only needed
++        // for relocation bridging. Drop them before reparsing the live main closure.
++        self.call_graph = {
++            let original = ModuleWithRelocations::new(self.original)?;
++
++            let old_names: HashMap<String, FunctionId> = original
++                .module
++                .funcs
++                .iter()
++                .flat_map(|f| Some((f.name.clone()?, f.id())))
++                .collect();
++
++            let new_names: HashMap<String, FunctionId> = self
++                .source_module
++                .funcs
++                .iter()
++                .flat_map(|f| Some((f.name.clone()?, f.id())))
++                .collect();
++
++            let mut old_to_new = HashMap::new();
++
++            validate_mangled_function_mapping(old_names.keys(), new_names.keys())?;
++
++            for (new_name, new_func) in new_names.iter() {
++                if let Some(old_func) = old_names.get(new_name) {
++                    old_to_new.insert(*old_func, new_func);
++                }
+             }
+-        }
+ 
+-        let get_old = |old: &Node| -> Option<Node> {
+-            match old {
+-                Node::Function(id) => old_to_new.get(id).map(|new_id| Node::Function(**new_id)),
+-                Node::DataSymbol(id) => Some(Node::DataSymbol(*id)),
+-            }
+-        };
++            let get_old = |old: &Node| -> Option<Node> {
++                match old {
++                    Node::Function(id) => old_to_new.get(id).map(|new_id| Node::Function(**new_id)),
++                    Node::DataSymbol(id) => Some(Node::DataSymbol(*id)),
++                }
++            };
+ 
+-        // Preserve relocation edges across old functions that wasm-bindgen
+-        // removes or renames. For each surviving parent, walk through missing
+-        // intermediate nodes until reaching mapped descendants, then attach
+-        // those descendants to the original parent. A per-parent visited set
+-        // makes cycles in the original call/data graph safe. In particular,
+-        // do not attach recovered nodes to `main`: that would turn every
+-        // wasm-bindgen shim reachable through a removed describe function into
+-        // a main root and prevent capability splitting.
+-        self.call_graph = bridge_relocation_graph(&original.call_graph, |node| get_old(&node));
++            // Preserve relocation edges across old functions that wasm-bindgen
++            // removes or renames. For each surviving parent, walk through missing
++            // intermediate nodes until reaching mapped descendants, then attach
++            // those descendants to the original parent. A per-parent visited set
++            // makes cycles in the original call/data graph safe. In particular,
++            // do not attach recovered nodes to `main`: that would turn every
++            // wasm-bindgen shim reachable through a removed describe function into
++            // a main root and prevent capability splitting.
++            bridge_relocation_graph(&original.call_graph, |node| get_old(&node))
++        };
+ 
+         // Walk the functions and try to disconnect any holes manually
+         // This will attempt to resolve any of the new symbols like the shim functions
+@@ -1078,13 +1080,6 @@ impl<'a> Splitter<'a> {
+             }
+         }
+ 
+-        // Fill in the parent graph
+-        for (parnet, children) in self.call_graph.iter() {
+-            for child in children {
+-                self.parent_graph.entry(*child).or_default().insert(*parnet);
+-            }
+-        }
+-
+         // Now go fill in the reachability graph for each of the split points
+         // Keep split reachability narrow while retaining mapped descendants
+         // across symbols removed by wasm-bindgen.
+@@ -1322,8 +1317,6 @@ struct ModuleWithRelocations<'a> {
+     function_ids: Vec<FunctionId>,
+     symbols: Vec<SymbolInfo<'a>>,
+     call_graph: HashMap<Node, HashSet<Node>>,
+-    parents: HashMap<Node, HashSet<Node>>,
+-    relocation_map: HashMap<Node, Vec<RelocationEntry>>,
+     data_symbols: BTreeMap<usize, DataSymbol>,
+     data_section_range: Range<usize>,
+ }
+@@ -1340,20 +1333,12 @@ impl<'a> ModuleWithRelocations<'a> {
+             data_section_range: raw_data.data_range,
+             symbols: raw_data.symbols,
+             call_graph: Default::default(),
+-            relocation_map: Default::default(),
+-            parents: Default::default(),
+         };
+ 
+         module.build_code_call_graph()?;
+         module.build_data_call_graph()?;
+         add_data_alias_edges(&mut module.call_graph, &module.data_symbols);
+ 
+-        for (func, children) in module.call_graph.iter() {
+-            for child in children {
+-                module.parents.entry(*child).or_default().insert(*func);
+-            }
+-        }
+-
+         Ok(module)
+     }
+ 
+@@ -1378,7 +1363,6 @@ impl<'a> ModuleWithRelocations<'a> {
+                 if let Some(target) = self.get_symbol_dep_node(entry.index as usize)? {
+                     let us = Node::Function(func_id);
+                     self.call_graph.entry(us).or_default().insert(target);
+-                    self.relocation_map.entry(us).or_default().push(*entry);
+                 }
+             }
+         }
+@@ -1414,7 +1398,6 @@ impl<'a> ModuleWithRelocations<'a> {
+                 for owner in owners {
+                     let source = Node::DataSymbol(symbols_sorted[owner].1);
+                     self.call_graph.entry(source).or_default().insert(target);
+-                    self.relocation_map.entry(source).or_default().push(*entry);
+                 }
+             }
+         }

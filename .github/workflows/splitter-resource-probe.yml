@@ -1,0 +1,92 @@
+name: Splitter resource probe (no publication)
+on:
+  push:
+    branches: [experiment/splitter-resource-20261117]
+permissions:
+  contents: read
+concurrency:
+  group: splitter-probe-${{ github.run_id }}
+  cancel-in-progress: false
+env:
+  NIX_CONFIG: |
+    fallback = true
+    substituters = https://cache.nixos.org/
+jobs:
+  input:
+    if: ${{ github.repository == 'j4ger/animatix' && github.ref == 'refs/heads/experiment/splitter-resource-20261117' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    outputs:
+      artifact_id: ${{ steps.input_artifact.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate diagnostic and fetch checksum-pinned installer
+        run: tools/ci/ci.sh gate splitter-probe-tests splitter-probe-installer
+      - uses: DeterminateSystems/determinate-nix-action@16f94ba7aae399b9f9077c254b6719ec6de7e3e3
+        with:
+          source-binary: ${{ runner.temp }}/splitter-nix-installer
+          github-token: ''
+          diagnostic-endpoint: ''
+          kvm: false
+          trust-runner-user: false
+      - name: Build one unchanged dev input (not an SDK)
+        env:
+          SPLITTER_PROBE_REAL_TOOLS: "1"
+        run: nix develop .#web-build --command tools/ci/ci.sh gate splitter-probe-tests splitter-probe-input
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        id: input_artifact
+        with:
+          name: splitter-input-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/splitter-probe/input/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+      - name: Retain bounded input evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: splitter-input-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/splitter-probe/evidence/*.json
+            target/splitter-probe/evidence/*.log
+          if-no-files-found: warn
+          retention-days: 1
+  split:
+    needs: input
+    if: ${{ github.repository == 'j4ger/animatix' && github.ref == 'refs/heads/experiment/splitter-resource-20261117' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Fetch checksum-pinned installer without cache writes
+        run: tools/ci/ci.sh gate splitter-probe-installer
+      - uses: DeterminateSystems/determinate-nix-action@16f94ba7aae399b9f9077c254b6719ec6de7e3e3
+        with:
+          source-binary: ${{ runner.temp }}/splitter-nix-installer
+          github-token: ''
+          diagnostic-endpoint: ''
+          kvm: false
+          trust-runner-user: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: ${{ needs.input.outputs.artifact_id }}
+          path: target/splitter-probe/input
+          merge-multiple: true
+      - name: Validate same-run input and compare baseline/candidate splitters
+        run: nix develop .#web-build --command tools/ci/ci.sh gate splitter-probe-compare
+      - name: Retain bounded comparison evidence, never SDK outputs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: splitter-comparison-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/splitter-probe/evidence/*.json
+            target/splitter-probe/evidence/*.log
+          if-no-files-found: warn
+          retention-days: 1

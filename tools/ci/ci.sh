@@ -49,6 +49,10 @@ cd "$root"
 # Adding a gate here is the whole job: `--list` feeds the matrix, so CI picks it
 # up. Nothing in .github/ has to learn its name.
 GATE_TABLE='
+splitter-probe-installer|none|ubuntu-latest|none|control
+splitter-probe-tests|none|ubuntu-latest|none|control
+splitter-probe-input|web|ubuntu-latest|nix|control
+splitter-probe-compare|web|ubuntu-latest|nix|control
 fmt|nix|ubuntu-latest|nix|pr
 lint|nix|ubuntu-latest|nix|pr
 check|nix|ubuntu-latest|nix|pr
@@ -448,6 +452,11 @@ gate_ci_result() { python3 tools/ci/ci-control.py required; }
 gate_cloudflare_pages_publish() {
   python3 web/tools/deploy/cloudflare-pages.py publish
 }
+
+gate_splitter_probe_installer() { python3 tools/ci/experiments/splitter_probe.py installer; }
+gate_splitter_probe_tests() { python3 tools/ci/experiments/test_splitter_probe.py; }
+gate_splitter_probe_input() { python3 tools/ci/experiments/splitter_probe.py input; }
+gate_splitter_probe_compare() { python3 tools/ci/experiments/splitter_probe.py compare; }
 
 gate_cloudflare_pages_initialize() {
   python3 web/tools/deploy/cloudflare-pages-release.py --initialize
