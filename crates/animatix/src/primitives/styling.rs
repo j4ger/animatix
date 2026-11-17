@@ -192,15 +192,17 @@ impl World {
         }
         let commands = vec![RenderCommand::Paths { paths }];
         let mut memo = self.shape_memos.get(id).borrow_mut();
-        if memo.commands.is_none() {
-            let bounds = commands
-                .iter()
-                .filter_map(|cmd| cmd.local_bounds(None))
-                .reduce(|acc, rect| acc.union(rect));
-            memo.store(epoch, style, state, commands.clone(), bounds);
-            drop(memo);
-            self.offer_shape_command_bounds(id, bounds);
-        }
+        // A same-epoch state/style change can leave the previous payload in
+        // this slot. Always replace it with the freshly built geometry and
+        // publish its bounds, including paths that bypass take_shape_commands
+        // (dash, gradient, stroke progress). Slot occupancy is not validity.
+        let bounds = commands
+            .iter()
+            .filter_map(|cmd| cmd.local_bounds(None))
+            .reduce(|acc, rect| acc.union(rect));
+        memo.store(epoch, style, state, commands.clone(), bounds);
+        drop(memo);
+        self.offer_shape_command_bounds(id, bounds);
         Ok(commands)
     }
 
@@ -265,6 +267,8 @@ pub(crate) fn evaluate_shape_render(
     let has_dash = !style_tracks.dash_pattern.get(ctx.time_ms, Vec::new()).is_empty();
     let has_gradient =
         style_tracks.fill_gradient.is_some() || style_tracks.stroke_gradient.is_some();
+    let shadow = shape_shadow_command(ctx, state);
+    let bounds_changed = progress < 1.0 || shadow.is_some();
     let mut commands = if progress < 1.0 {
         let built = ctx.world.expect("shape memo requires a world").build_shape_commands(
             ctx.id,
@@ -306,6 +310,14 @@ pub(crate) fn evaluate_shape_render(
         ctx.world
             .expect("shape memo requires a world")
             .offer_shape_command_bounds(ctx.id, bounds);
+        if shadow.is_some() {
+            // The take emptied the memo. Restore its undecorated payload
+            // before inserting a shadow; recycling the decorated Vec would
+            // accumulate another shadow on every subsequent cache hit.
+            ctx.world
+                .expect("shape memo requires a world")
+                .recycle_shape_commands(ctx.id, commands.clone());
+        }
         commands
     } else {
         ctx.world.expect("shape memo requires a world").build_shape_commands(
@@ -320,15 +332,24 @@ pub(crate) fn evaluate_shape_render(
         )?
     };
 
-    attach_shape_shadow(&mut commands, ctx, state);
+    if let Some(shadow) = shadow {
+        commands.insert(0, shadow);
+    }
+    if bounds_changed {
+        // The memo stores undecorated geometry. Picking and filter ROI need
+        // the final command envelope after trimming and shadow insertion.
+        let bounds = commands
+            .iter()
+            .filter_map(|cmd| cmd.local_bounds(None))
+            .reduce(|a, b| a.union(b));
+        ctx.world
+            .expect("shape memo requires a world")
+            .offer_shape_command_bounds(ctx.id, bounds);
+    }
     Ok(Some(commands))
 }
 
-fn attach_shape_shadow(
-    commands: &mut Vec<RenderCommand>,
-    ctx: &EvaluateCtx,
-    state: &VectorShapeState,
-) {
+fn shape_shadow_command(ctx: &EvaluateCtx, state: &VectorShapeState) -> Option<RenderCommand> {
     use crate::timeline::ActorField;
     use crate::timeline::property_engine::PropertyValue;
     let shadow_val = ctx.read_property_value(ActorField::Tagged("shadow"), ctx.time_ms);
@@ -343,15 +364,14 @@ fn attach_shape_shadow(
             VectorShapeState::Rect(r) => (r.size, r.corner_radius),
             _ => ([50.0, 50.0], 0.0),
         };
-        commands.insert(
-            0,
-            RenderCommand::Shadow {
-                size,
-                corner_radius,
-                params,
-                color,
-            },
-        );
+        Some(RenderCommand::Shadow {
+            size,
+            corner_radius,
+            params,
+            color,
+        })
+    } else {
+        None
     }
 }
 

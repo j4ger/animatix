@@ -11,6 +11,9 @@ use animatix_render::offscreen::{OffscreenRenderer, RenderedFrame};
 
 mod common;
 
+#[path = "offscreen_render/filter_region_contract.rs"]
+mod filter_region_contract;
+
 use common::{build, build_checked, parse, solid_rect_timeline};
 
 /// `None` means "no GPU here, skip" — unless `ANIMATIX_REQUIRE_GPU` is set,

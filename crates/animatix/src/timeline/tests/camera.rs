@@ -309,6 +309,7 @@ camera.zoom = 2.0
 
     let region = timeline
         .effect_scope_region(scope, dims, 2000, camera)
+        .expect("valid authored bounds")
         .expect("the scope has a region");
     // Exactly what the identity camera gives the same authored rectangle:
     // (40, 30)-(160, 110), padded by the blur's 10 px support on each side.

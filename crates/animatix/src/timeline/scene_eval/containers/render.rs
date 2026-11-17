@@ -8,9 +8,11 @@ use crate::timeline::{EntityId, SceneDimensions, Timeline};
 
 impl Timeline {
     /// Compute the region of interest for an effect scope from an authored
-    /// `bounds: (x, y, w, h)` (tagged `filter_bounds` storage). Returns `None`
-    /// when no bounds are authored, the region is degenerate, or it already
-    /// covers the whole scene (the historical full-scene path).
+    /// `bounds: (x, y, w, h)` (tagged `filter_bounds` storage).
+    /// Outer `None` means absent/invalid bounds: derive the content region.
+    /// `Some(None)` means valid authored bounds cover the whole scene: use
+    /// the full-scene backend, NEVER fall back to a content-derived region.
+    /// `Some(Some(region))` is a bounded authored region.
     ///
     /// The authored rect is in scene coordinates but the sub-scene is rendered
     /// with the camera applied and the result blits back in that same space, so
@@ -25,7 +27,7 @@ impl Timeline {
         scene_dimensions: SceneDimensions,
         time_ms: u64,
         camera: kurbo::Affine,
-    ) -> Option<crate::timeline::effects::EffectRegion> {
+    ) -> Option<Option<crate::timeline::effects::EffectRegion>> {
         let value = self.world.read_property_value(
             id,
             crate::timeline::property_registry::ActorField::Tagged("filter_bounds"),
@@ -34,7 +36,8 @@ impl Timeline {
         let Some(crate::timeline::PropertyValue::Vec4([x, y, w, h])) = value else {
             return None;
         };
-        if w <= 0.0 || h <= 0.0 {
+        if ![x, y, w, h, x + w, y + h].iter().all(|value| value.is_finite()) || w <= 0.0 || h <= 0.0
+        {
             return None;
         }
         let rect = kurbo::Rect::new(x as f64, y as f64, (x + w) as f64, (y + h) as f64);
@@ -60,14 +63,14 @@ impl Timeline {
                 p * cam[5],
             ])
         };
-        Self::region_from_rect(
+        Some(Self::region_from_rect(
             camera.transform_rect_bbox(rect),
             self.world
                 .effects(id)
                 .map(|effects| effects.worst_case_support())
                 .unwrap_or(0.0),
             scene_dimensions,
-        )
+        ))
     }
 
     /// Union the recorded world bounds of `label`'s content subtree into `out`.

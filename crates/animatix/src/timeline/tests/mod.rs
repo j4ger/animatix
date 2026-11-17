@@ -81,3 +81,6 @@ mod transform_cache;
 mod variable_tracks;
 
 pub(crate) use timeline_core::without_content_lints;
+
+#[cfg(test)]
+mod shape_bounds;

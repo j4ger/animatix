@@ -197,7 +197,7 @@ impl Timeline {
             kurbo::Affine::IDENTITY
         };
         match self.effect_scope_region(node_id, scene_dimensions, time_ms, camera) {
-            Some(region) => Some(region),
+            Some(region) => region,
             None => {
                 let mut content: Option<kurbo::Rect> = None;
                 for child in self.world.child_labels(node_id) {
