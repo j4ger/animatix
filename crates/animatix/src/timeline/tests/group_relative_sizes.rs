@@ -412,3 +412,108 @@ fn group_reflow_at_65_groups_warns_and_preserves_unresolved_descendants() {
     assert!(report.output.world.tracks.contains_key("leaf"));
     assert_ne!(layout_size(&report.output, "leaf"), [400.0, 300.0]);
 }
+
+fn assert_mixed_group_col_boundary(count: usize) {
+    let mut source =
+        String::from("config { resolution: (800, 600) }\nroot: Group, size:(800,600) {\n");
+    for index in 1..count {
+        let ty = if index % 2 == 1 { "Col" } else { "Group" };
+        source.push_str(&format!("g{index}: {ty}, size:(fill,auto) {{\n"));
+    }
+    source.push_str("leaf: Rect, size:(fill,20), opacity:1\n");
+    for _ in 0..count {
+        source.push_str("}\n");
+    }
+    eprintln!("mixed layout count={count}: parse");
+    let ast = super::support::parse(&source);
+    eprintln!("mixed layout count={count}: build");
+    let report = super::support::build_ast(&ast);
+    eprintln!("mixed layout count={count}: drop AST");
+    drop(ast);
+    eprintln!("mixed layout count={count}: assert sizes");
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    assert!(
+        !report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback),
+        "{:?}",
+        report.diagnostics
+    );
+    assert_eq!(layout_size(&report.output, "root"), [400.0, 300.0]);
+    for index in 1..count {
+        assert_eq!(
+            layout_size(&report.output, &format!("g{index}")),
+            [400.0, 10.0],
+            "g{index}"
+        );
+    }
+    assert_eq!(layout_size(&report.output, "leaf"), [400.0, 10.0]);
+}
+
+// Keep native stack overflows confined to a child process: these tests check
+// the promised boundary, not unlimited depth, and do not enlarge the stack.
+#[cfg(not(target_arch = "wasm32"))]
+mod mixed_boundary_isolation {
+    const INPUT: &str = "ANIMATIX_MIXED_LAYOUT_BOUNDARY";
+    const COMPLETE: &str = "mixed boundary worker completed";
+
+    #[test]
+    #[ignore = "worker for native mixed-boundary tests"]
+    fn worker() {
+        let Ok(value) = std::env::var(INPUT) else {
+            // Running --include-ignored directly is harmless. The parent
+            // requires COMPLETE, so accidentally filtering zero work cannot pass.
+            return;
+        };
+        let count: usize = value.parse().expect("boundary count");
+        assert!(matches!(count, 63 | 64));
+        super::assert_mixed_group_col_boundary(count);
+        eprintln!("{COMPLETE}");
+    }
+
+    fn run(count: usize) {
+        let module = module_path!().split_once("::").expect("crate module").1;
+        let test = format!("{module}::worker");
+        let output = std::process::Command::new(std::env::current_exe().expect("test executable"))
+            .args([
+                "--exact",
+                &test,
+                "--ignored",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env(INPUT, count.to_string())
+            .output()
+            .expect("spawn mixed boundary worker");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            output.status.success() && stderr.contains(COMPLETE),
+            "mixed count={count}, status={}; stdout:\n{stdout}\nstderr:\n{stderr}",
+            output.status
+        );
+    }
+
+    #[test]
+    fn mixed_group_col_63_levels() {
+        run(63);
+    }
+
+    #[test]
+    fn mixed_group_col_64_levels() {
+        run(64);
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[test]
+fn mixed_group_col_63_levels() {
+    assert_mixed_group_col_boundary(63);
+}
+
+#[cfg(target_arch = "wasm32")]
+#[test]
+fn mixed_group_col_64_levels() {
+    assert_mixed_group_col_boundary(64);
+}
