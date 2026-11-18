@@ -722,3 +722,119 @@ repeated_size_axis_probe!(repeated_size_d_layout_y, repeated_size_d_track_y, "d"
 repeated_size_axis_probe!(repeated_size_e_layout_y, repeated_size_e_track_y, "e", 1, 10.0);
 repeated_size_axis_probe!(repeated_size_f_layout_y, repeated_size_f_track_y, "f", 1, 20.0);
 repeated_size_axis_probe!(repeated_size_d_layout_x, repeated_size_d_track_x, "d", 0, 40.0);
+
+#[test]
+fn non_repeated_shape_sizes_keep_authored_order_and_animation() {
+    let report = build(
+        r#"
+before: Ellipse, radius_y: 30, size: (40, 20), opacity: 1
+after: Ellipse, size: (40, 20), radius_y: 30, opacity: 1
+#2s
+before.size = (80, 60) [2s]
+"#,
+    );
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    let before = report.output.world.get_id("before").unwrap();
+    let after = report.output.world.get_id("after").unwrap();
+    assert_eq!(report.output.world.geometry(after).size.get(0, [0.0; 2]), [20.0, 30.0]);
+    let geometry = report.output.world.geometry(before);
+    for (time, expected) in [
+        (0, [20.0, 10.0]),
+        (2000, [20.0, 10.0]),
+        (3000, [30.0, 20.0]),
+        (4000, [40.0, 30.0]),
+        (0, [20.0, 10.0]),
+    ] {
+        assert_eq!(geometry.size.get(time, [0.0; 2]), expected, "time={time}");
+        assert_eq!(geometry.layout_size_get(time), Some(expected), "time={time}");
+    }
+}
+
+#[test]
+fn single_shape_pass_keeps_corner_radius_validation() {
+    let report = build("box: Rect, size: (80, 40), corner_radius: \"invalid\", opacity: 1");
+    let warnings: Vec<_> = report
+        .diagnostics
+        .iter()
+        .filter(|d| {
+            d.code == crate::diagnostics::DiagnosticCode::InvalidPropertyValue
+                && d.message.contains("corner_radius expects a number")
+        })
+        .collect();
+    assert_eq!(warnings.len(), 1, "{:?}", report.diagnostics);
+    assert_eq!(warnings[0].severity, crate::diagnostics::DiagnosticSeverity::Warning);
+    assert_eq!(warnings[0].location.subject.as_deref(), Some("box.corner_radius"));
+}
+
+#[test]
+fn single_shape_pass_reports_unknown_icon_once_with_instance_label() {
+    let report = build("mark: Path, icon: \"definitely-not-an-icon\", opacity: 1");
+    let warnings: Vec<_> = report
+        .diagnostics
+        .iter()
+        .filter(|d| {
+            d.code == crate::diagnostics::DiagnosticCode::InvalidPropertyValue
+                && d.message.contains("unknown icon")
+        })
+        .collect();
+    assert_eq!(warnings.len(), 1, "{:?}", report.diagnostics);
+    assert_eq!(warnings[0].location.subject.as_deref(), Some("mark.icon"));
+}
+
+#[test]
+fn single_shape_pass_keeps_line_and_arrow_endpoints_on_redeclaration() {
+    for ty in ["Line", "Arrow"] {
+        let report = build(&format!(
+            "edge: {ty}, from: (10,20), to: (80,90), opacity: 1\n\
+             #1s\nedge: {ty}, to: (100,120), opacity: 1\n"
+        ));
+        assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+        let id = report.output.world.get_id("edge").unwrap();
+        let shape = report.output.world.shape_or_default(id);
+        assert_eq!(shape.line_from.get(0, [0.0; 2]), [10.0, 20.0], "{ty}");
+        assert_eq!(shape.line_to.get(0, [0.0; 2]), [80.0, 90.0], "{ty}");
+        assert_eq!(shape.line_from.get(1000, [0.0; 2]), [10.0, 20.0], "{ty}");
+        assert_eq!(shape.line_to.get(1000, [0.0; 2]), [100.0, 120.0], "{ty}");
+    }
+}
+
+#[test]
+fn single_shape_pass_keeps_glass_clip_corner_radius() {
+    let report = build(
+        r#"
+card: Glass, size: (200, 100), corner_radius: 17 {
+  content: Rect, size: (40, 20), opacity: 1
+}
+#1s
+card: Glass, size: (220, 120)
+"#,
+    );
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    let id = report.output.world.get_id("card").unwrap();
+    let shape = report.output.world.shape_or_default(id);
+    assert_eq!(shape.corner_radius.get(0, 0.0), 17.0);
+    assert_eq!(shape.corner_radius.get(1000, 0.0), 17.0);
+}
+
+#[test]
+fn failed_corner_radius_evaluation_keeps_existing_zero_fallback() {
+    let report = build(
+        r#"
+box: Rect, size: (80, 40), corner_radius: 17, opacity: 1
+#1s
+box: Rect, corner_radius: unavailable_corner.radius, opacity: 1
+"#,
+    );
+    assert!(
+        report.diagnostics.iter().any(|d| {
+            d.code == crate::diagnostics::DiagnosticCode::UnknownLookupPath
+                && d.location.subject.as_deref() == Some("box.corner_radius")
+        }),
+        "failed expression must be diagnosed: {:?}",
+        report.diagnostics
+    );
+    let id = report.output.world.get_id("box").unwrap();
+    let shape = report.output.world.shape_or_default(id);
+    assert_eq!(shape.corner_radius.get(0, 0.0), 17.0);
+    assert_eq!(shape.corner_radius.get(1000, 0.0), 0.0);
+}

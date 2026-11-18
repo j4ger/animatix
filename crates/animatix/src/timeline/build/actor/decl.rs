@@ -143,14 +143,12 @@ impl Timeline {
             has_explicit_stroke,
             &mut state,
         );
-        self.apply_explicit_declaration_props(
+        self.apply_explicit_declaration_style_props(
             &mut state,
             label,
-            ty,
             props,
             &eval_env,
             &primitive,
-            vector_shape,
             diagnostics,
         );
 
