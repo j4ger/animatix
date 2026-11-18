@@ -342,14 +342,16 @@ half_scene: Group, size: (50%, auto) {
     assert_eq!(layout_size(&report.output, "half_scene").map(|half| half * 2.0), [320.0, 20.0]);
 }
 
-fn group_depth_limit_fixture(group_count: usize) -> crate::timeline::BuildReport<Timeline> {
+fn deep_group_fixture(group_count: usize, mixed: bool) -> crate::timeline::BuildReport<Timeline> {
     let mut source = String::from("config { resolution: (800, 600) }\n");
     source.push_str("g0: Group, size: (800, 600) {\n");
-    // The scalar `fill` shorthand only fills width; this fixture exercises both axes.
     for index in 1..group_count {
-        source.push_str(&format!("g{index}: Group, size: (fill, fill) {{\n"));
+        let ty = if mixed && index % 2 == 1 { "Col" } else { "Group" };
+        let size = if mixed { "(fill, auto)" } else { "(fill, fill)" };
+        source.push_str(&format!("g{index}: {ty}, size: {size} {{\n"));
     }
-    source.push_str("leaf: Rect, size: (fill, fill), opacity: 1\n");
+    let size = if mixed { "(fill, 20)" } else { "(fill, fill)" };
+    source.push_str(&format!("leaf: Rect, size: {size}, opacity: 1\n"));
     for _ in 0..group_count {
         source.push_str("}\n");
     }
@@ -357,163 +359,179 @@ fn group_depth_limit_fixture(group_count: usize) -> crate::timeline::BuildReport
 }
 
 #[test]
-fn group_reflow_resolves_fill_through_63_and_64_groups() {
-    // Root depth is zero. With 64 Groups the last Group runs at depth 63
-    // and still resolves its leaf; this is not unlimited-depth support.
-    for group_count in [63, 64] {
-        let report = group_depth_limit_fixture(group_count);
+fn iterative_group_reflow_resolves_every_axis_beyond_old_depth_limit() {
+    for count in [1, 63, 64, 65, 128, 256] {
+        let report = deep_group_fixture(count, false);
+        assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{count}: {:?}", report.diagnostics);
         assert!(
-            !report.diagnostics.iter().any(|d| {
-                d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
-                    && d.message.contains("depth")
-            }),
-            "unexpected depth fallback: {:?}",
-            report.diagnostics
-        );
-        assert_eq!(layout_size(&report.output, "leaf"), [400.0, 300.0]);
-    }
-}
-
-#[test]
-fn group_reflow_at_65_groups_warns_and_preserves_unresolved_descendants() {
-    let report = group_depth_limit_fixture(65);
-    assert!(
-        !report
-            .diagnostics
-            .iter()
-            .any(|d| { d.severity == crate::diagnostics::DiagnosticSeverity::Error }),
-        "depth fallback must remain non-fatal: {:?}",
-        report.diagnostics
-    );
-    let depth_warning_count = report
-        .diagnostics
-        .iter()
-        .filter(|d| {
-            d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
-                && d.message.contains("depth")
-        })
-        .count();
-    assert_eq!(depth_warning_count, 1, "one warning at the reflow boundary");
-    let warning = report
-        .diagnostics
-        .iter()
-        .find(|d| {
-            d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
-                && d.message.contains("depth")
-        })
-        .expect("depth-limited reflow must report its partial-layout fallback");
-    assert_eq!(warning.severity, crate::diagnostics::DiagnosticSeverity::Warning);
-    assert_eq!(warning.phase, crate::diagnostics::DiagnosticPhase::Build);
-    assert!(warning.message.contains("64"));
-    assert_eq!(warning.location.subject.as_deref(), Some("g64"));
-    // The parent pass resolves g64 itself, but its children are not reflowed.
-    // Keep the leaf entity and its old measurements rather than deleting it.
-    assert_eq!(layout_size(&report.output, "g64"), [400.0, 300.0]);
-    assert!(report.output.world.tracks.contains_key("leaf"));
-    assert_ne!(layout_size(&report.output, "leaf"), [400.0, 300.0]);
-}
-
-// Temporary diagnostic splits retain the original boundary assertions above.
-#[test]
-fn layout_depth_probe_all_fixtures_build_and_keep_leaf() {
-    for count in [1, 63, 64, 65] {
-        let report = group_depth_limit_fixture(count);
-        assert!(report.output.world.tracks.contains_key("leaf"));
-    }
-}
-
-#[test]
-fn layout_depth_probe_all_fixtures_have_no_errors() {
-    for count in [1, 63, 64, 65] {
-        let report = group_depth_limit_fixture(count);
-        assert!(
-            report.diagnostics.iter().all(|d| !d.is_error()),
+            !report.diagnostics.iter().any(|d| d.code
+                == crate::diagnostics::DiagnosticCode::LayoutSizeFallback),
             "{count}: {:?}",
             report.diagnostics
         );
+        for index in 0..count {
+            assert_eq!(
+                layout_size(&report.output, &format!("g{index}")),
+                [400.0, 300.0],
+                "count={count}, group={index}"
+            );
+        }
+        assert_eq!(layout_size(&report.output, "leaf"), [400.0, 300.0], "count={count}");
     }
 }
 
 #[test]
-fn layout_depth_probe_root_fixed_dimensions() {
-    for count in [1, 63, 64, 65] {
-        let report = group_depth_limit_fixture(count);
-        assert_eq!(layout_size(&report.output, "g0"), [400.0, 300.0], "{count}");
-    }
-}
-
-#[test]
-fn layout_depth_probe_shallow_leaf_dimensions() {
-    let report = group_depth_limit_fixture(1);
-    assert_eq!(layout_size(&report.output, "leaf"), [400.0, 300.0]);
-}
-
-#[test]
-fn layout_depth_probe_63_groups_leaf_dimensions() {
-    let report = group_depth_limit_fixture(63);
-    assert_eq!(layout_size(&report.output, "leaf"), [400.0, 300.0]);
-}
-
-#[test]
-fn layout_depth_probe_64_groups_leaf_dimensions() {
-    let report = group_depth_limit_fixture(64);
-    assert_eq!(layout_size(&report.output, "leaf"), [400.0, 300.0]);
-}
-
-#[test]
-fn layout_depth_probe_under_limit_has_no_depth_warning() {
-    for count in [63, 64] {
-        let report = group_depth_limit_fixture(count);
+fn iterative_mixed_group_col_reflow_preserves_top_down_widths() {
+    for count in [4, 65, 128] {
+        let report = deep_group_fixture(count, true);
+        assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{count}: {:?}", report.diagnostics);
         assert!(
-            !report.diagnostics.iter().any(|d| {
-                d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
-                    && d.message.contains("depth")
-            }),
+            !report.diagnostics.iter().any(|d| d.code
+                == crate::diagnostics::DiagnosticCode::LayoutSizeFallback),
             "{count}: {:?}",
             report.diagnostics
         );
+        assert_eq!(layout_size(&report.output, "leaf"), [400.0, 10.0], "count={count}");
+        for index in 1..count {
+            assert_eq!(
+                layout_size(&report.output, &format!("g{index}")),
+                [400.0, 10.0],
+                "count={count}, group={index}"
+            );
+        }
     }
 }
 
 #[test]
-fn layout_depth_probe_65_groups_has_one_depth_warning() {
-    let report = group_depth_limit_fixture(65);
-    let warnings: Vec<_> = report
-        .diagnostics
-        .iter()
-        .filter(|d| {
-            d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
-                && d.message.contains("depth")
-        })
-        .collect();
-    assert_eq!(warnings.len(), 1, "{:?}", report.diagnostics);
+fn iterative_reflow_reports_a_malformed_hierarchy_cycle() {
+    let mut timeline = deep_group_fixture(2, false).output;
+    let root = timeline.world.get_id("g0").unwrap();
+    let child = timeline.world.get_id("g1").unwrap();
+    // Normal hierarchy construction is a tree. Inject corruption explicitly:
+    // the worklist must terminate instead of overflowing or looping forever.
+    timeline.world.hierarchy.get_mut(child).children.push(root);
+    let mut diagnostics = Vec::new();
+    timeline.finalize_group_layout("g0", 0, &mut diagnostics);
+    assert_eq!(diagnostics.iter().filter(|d| d.is_error()).count(), 1, "{diagnostics:?}");
+    assert!(diagnostics.iter().any(|d| d.is_error()
+        && d.message.contains("cycle")
+        && d.location.subject.as_deref() == Some("g0")));
 }
 
 #[test]
-fn layout_depth_probe_65_groups_depth_warning_subject_and_severity() {
-    let report = group_depth_limit_fixture(65);
-    assert!(
-        report.diagnostics.iter().any(|d| {
-            d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
-                && d.message.contains("depth")
-                && d.message.contains("64")
-                && d.location.subject.as_deref() == Some("g64")
-                && d.severity == crate::diagnostics::DiagnosticSeverity::Warning
-                && d.phase == crate::diagnostics::DiagnosticPhase::Build
-        }),
-        "{:?}",
-        report.diagnostics
+fn iterative_group_reflow_handles_deep_world_without_parser_or_ast_recursion() {
+    use crate::timeline::taffy_layout::{ChildSizeSpec, SizeSpec};
+    let mut timeline = Timeline::new();
+    const DEPTH: usize = 4096;
+    for index in 0..DEPTH {
+        let label = format!("g{index}");
+        let id = timeline.world.spawn(&label, "Group");
+        let geometry = timeline.world.geometry_mut(id);
+        geometry.size_spec = Some(if index == 0 {
+            ChildSizeSpec::fixed([400.0, 300.0])
+        } else {
+            ChildSizeSpec {
+                width: SizeSpec::Fill,
+                height: SizeSpec::Fill,
+            }
+        });
+        geometry.ensure_layout_size([1.0, 1.0]);
+        if index > 0 {
+            timeline.world.set_parent_label(&label, Some(&format!("g{}", index - 1)));
+        }
+    }
+    let leaf = timeline.world.spawn("leaf", "Rect");
+    let geometry = timeline.world.geometry_mut(leaf);
+    geometry.size_spec = Some(ChildSizeSpec {
+        width: SizeSpec::Fill,
+        height: SizeSpec::Fill,
+    });
+    geometry.ensure_layout_size([1.0, 1.0]);
+    timeline.world.set_parent_label("leaf", Some(&format!("g{}", DEPTH - 1)));
+    let mut diagnostics = Vec::new();
+    timeline.finalize_group_layout("g0", 0, &mut diagnostics);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    for index in 0..DEPTH {
+        assert_eq!(layout_size(&timeline, &format!("g{index}")), [400.0, 300.0]);
+    }
+    assert_eq!(layout_size(&timeline, "leaf"), [400.0, 300.0]);
+}
+
+#[test]
+fn iterative_reflow_terminates_mixed_and_container_hierarchy_cycles() {
+    for (source, tail, root_is_group) in [
+        (
+            "root: Group, size:(800,600) { col: Col, size:(fill,auto) { tail: Group, size:(fill,auto) { leaf: Rect, size:(20,20) } } }",
+            "tail",
+            true,
+        ),
+        (
+            "root: Col, size:(800,600) { tail: Col, size:(fill,auto) { leaf: Rect, size:(20,20) } }",
+            "tail",
+            false,
+        ),
+    ] {
+        let mut timeline = build(source).output;
+        let root = timeline.world.get_id("root").unwrap();
+        let tail = timeline.world.get_id(tail).unwrap();
+        timeline.world.hierarchy.get_mut(tail).children.push(root);
+        let mut diagnostics = Vec::new();
+        if root_is_group {
+            timeline.finalize_group_layout("root", 0, &mut diagnostics);
+        } else {
+            timeline.reflow_nested_layouts("root", 0, &mut diagnostics);
+        }
+        assert_eq!(diagnostics.iter().filter(|d| d.is_error()).count(), 1, "{diagnostics:?}");
+        assert!(diagnostics.iter().any(|d| d.is_error()
+            && d.message.contains("cycle")
+            && d.location.subject.as_deref() == Some("root")));
+    }
+}
+
+#[test]
+fn iterative_branched_grid_reflow_keeps_sibling_order_and_wrapped_text_heights() {
+    let report = build(
+        r#"
+#0s
+root: Group, size: (500, 600) {
+    grid: Grid, size: (fill, auto), cols: 2, gap: 20 {
+        left: Group, size: (fill, auto) {
+            left_col: Col, size: (fill, auto), gap: 8 {
+                row: Row, size: (fill, 20), gap: 10 {
+                    first: Rect, size: (20, 20)
+                    second: Rect, size: (20, 20)
+                }
+                copy: Text, text: "This paragraph must wrap inside its final grid column and publish its full height before the next sibling is placed.", font_size: 20
+            }
+        }
+        right: Group, size: (fill, auto) {
+            right_col: Col, size: (fill, auto), gap: 8 {
+                other: Text, text: "The right branch also wraps and must not inherit measurements from the left sibling branch.", font_size: 20
+                footer: Rect, size: (40, 20)
+            }
+        }
+    }
+}
+"#,
     );
-}
-
-#[test]
-fn layout_depth_probe_65_groups_boundary_parent_resolved() {
-    let report = group_depth_limit_fixture(65);
-    assert_eq!(layout_size(&report.output, "g64"), [400.0, 300.0]);
-}
-
-#[test]
-fn layout_depth_probe_65_groups_leaf_keeps_fallback_dimensions() {
-    let report = group_depth_limit_fixture(65);
-    assert_ne!(layout_size(&report.output, "leaf"), [400.0, 300.0]);
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    let timeline = report.output;
+    for label in ["left", "left_col", "right", "right_col"] {
+        assert!((layout_size(&timeline, label)[0] * 2.0 - 240.0).abs() < 1.0, "{label}");
+    }
+    for label in ["copy", "other"] {
+        assert!((text_wrap_width(&timeline, label) - 240.0).abs() < 1.0, "{label}");
+        assert!(layout_size(&timeline, label)[1] > 20.0, "{label} must wrap");
+    }
+    let position = |label: &str| {
+        timeline.world.geometry(timeline.world.get_id(label).unwrap()).position.get(0, [0.0; 2])
+    };
+    assert!(position("left")[0] < position("right")[0]);
+    assert!(position("first")[0] < position("second")[0]);
+    assert!(position("row")[1] < position("copy")[1]);
+    assert!(position("other")[1] < position("footer")[1]);
+    for (column, text) in [("left_col", "copy"), ("right_col", "other")] {
+        let expected_height = layout_size(&timeline, text)[1] * 2.0 + 20.0 + 8.0;
+        assert!((layout_size(&timeline, column)[1] * 2.0 - expected_height).abs() < 1.0, "{column}");
+    }
 }

@@ -19,7 +19,7 @@ impl Timeline {
         let Some(container_id) = self.world.get_id(container_label) else {
             return;
         };
-        self.reflow_nested_children(container_id, time_ms, diagnostics, 0);
+        self.reflow_nested_children(container_id, time_ms, diagnostics);
         self.remeasure_container_extent(container_id, time_ms);
         self.apply_container_layout(container_label, time_ms as f64, diagnostics);
     }
@@ -75,79 +75,6 @@ impl Timeline {
             }
         }
         self.publish_measured_container_extent(&label, measured_size, time_ms);
-    }
-
-    pub(super) fn reflow_nested_children(
-        &mut self,
-        parent_id: crate::timeline::EntityId,
-        time_ms: u64,
-        diagnostics: &mut Vec<Diagnostic>,
-        depth: usize,
-    ) {
-        // The scene hierarchy is acyclic. This hard bound protects builds from
-        // pathological nesting and makes the sizing policy finite: each node
-        // gets one final-width text measure and one bottom-up size publication.
-        if depth >= MAX_NESTED_LAYOUT_DEPTH {
-            let label = self.world.label(parent_id).unwrap_or("<unknown>");
-            tracing::warn!(
-                "nested layout reflow stopped at depth {MAX_NESTED_LAYOUT_DEPTH} for '{label}'"
-            );
-            diagnostics.push(
-                Diagnostic::warning(
-                    DiagnosticCode::LayoutSizeFallback,
-                    DiagnosticPhase::Build,
-                    format!(
-                        "Nested layout reflow stopped at depth {MAX_NESTED_LAYOUT_DEPTH} for '{label}'; descendants keep their pre-parent measurements."
-                    ),
-                )
-                .with_subject(label),
-            );
-            return;
-        }
-
-        let child_ids = self.world.hierarchy(parent_id).children.clone();
-        for child_id in child_ids {
-            let Some(child_label) = self.world.label(child_id).map(str::to_string) else {
-                continue;
-            };
-            if self.world.caps(child_id).is_group_like() {
-                if self.group_needs_layout_reflow(child_id) {
-                    self.reflow_group_children(
-                        child_id,
-                        time_ms,
-                        diagnostics,
-                        depth + 1,
-                        [true; 2],
-                    );
-                }
-                continue;
-            }
-            if self.container_layout(&child_label).is_none() {
-                continue;
-            }
-
-            // Parent layout has already written the child's resolved slot size
-            // when its size spec is auto/fill/percent. Fixed dimensions remain
-            // authored and are retained by the same geometry track.
-            let child_size = {
-                let geometry = self.world.geometry(child_id);
-                geometry
-                    .layout_size_last()
-                    .or_else(|| geometry.size.as_ref().map(|track| track.last_value()))
-                    .unwrap_or([0.0, 0.0])
-                    .map(|half| half * 2.0)
-            };
-
-            self.propagate_text_child_widths(&child_label, child_size, time_ms, diagnostics);
-            self.apply_container_layout(&child_label, time_ms as f64, diagnostics);
-            self.reflow_nested_children(child_id, time_ms, diagnostics, depth + 1);
-
-            // Descendants may have acquired wrapped heights. Recompute this
-            // container from those final child extents before returning to its
-            // parent, then place its children once against the final sizes.
-            self.remeasure_container_extent(child_id, time_ms);
-            self.apply_container_layout(&child_label, time_ms as f64, diagnostics);
-        }
     }
 
     fn push_layout_size_exclusion_diagnostic(

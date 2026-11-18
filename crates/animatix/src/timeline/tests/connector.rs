@@ -659,16 +659,23 @@ fn connector_actor_anchor_binding_survives_numeric_build_environment() {
     env.set("node.at", Value::Vec2([100.0, 200.0]));
     env.set("node.size", Value::Vec2([40.0, 60.0]));
     let expr = Expr::Path(vec!["node".into(), "right".into()]);
-    assert_eq!(crate::timeline::evaluate_expr(&expr, &env).unwrap(), Value::Vec2([120.0, 200.0]));
+    assert_eq!(
+        crate::timeline::evaluate_expr(&expr, &env).unwrap(),
+        Value::Vec2([120.0, 200.0])
+    );
     let endpoint = parse_connector_endpoint(&expr, &env).unwrap();
-    assert!(matches!(endpoint, ConnectorEndpoint::Target { actor, anchor: Some(SceneAnchor::Right) }
-        if actor == "node"));
+    assert!(
+        matches!(endpoint, ConnectorEndpoint::Target { actor, anchor: Some(SceneAnchor::Right) }
+        if actor == "node")
+    );
 
     env.set("alias", Value::ActorRef(ActorRef::caller("node")));
     let alias = Expr::Path(vec!["alias".into(), "left".into()]);
     let endpoint = parse_connector_endpoint(&alias, &env).unwrap();
-    assert!(matches!(endpoint, ConnectorEndpoint::Target { actor, anchor: Some(SceneAnchor::Left) }
-        if actor == "node"));
+    assert!(
+        matches!(endpoint, ConnectorEndpoint::Target { actor, anchor: Some(SceneAnchor::Left) }
+        if actor == "node")
+    );
 }
 
 #[test]
@@ -711,6 +718,8 @@ fn connector_anchor_respects_object_shadowing_and_nested_actor_aliases() {
     env.set("holder", Value::Object("Holder".into(), [("child".into(), child)].into()));
     let expr = Expr::Path(vec!["holder".into(), "child".into(), "right".into()]);
     let endpoint = parse_connector_endpoint(&expr, &env).unwrap();
-    assert!(matches!(endpoint, ConnectorEndpoint::Target { actor, anchor: Some(SceneAnchor::Right) }
-        if actor == "actual.child"));
+    assert!(
+        matches!(endpoint, ConnectorEndpoint::Target { actor, anchor: Some(SceneAnchor::Right) }
+        if actor == "actual.child")
+    );
 }
