@@ -44,7 +44,6 @@ pub struct AnalysisDto {
     pub assets: Vec<AssetRequirement>,
 }
 
-#[derive(Default)]
 pub(super) struct PreparedSyntax {
     pub expanded: animatix_syntax::module::ExpandedProgram,
     pub namespaces: HashMap<String, Namespace>,
@@ -52,16 +51,18 @@ pub(super) struct PreparedSyntax {
     diagnostics: Vec<DiagnosticDto>,
 }
 
+type PreparedSyntaxResult = Result<PreparedSyntax, Box<AnalysisDto>>;
+
 thread_local! {
     // Syntax identity excludes vars/quality/fonts. A bounded source cache lets
     // slider updates reuse parsed/expanded ASTs while rechecking dependencies.
-    static SYNTAX: RefCell<HashMap<[u8;32], Arc<PreparedSyntax>>> = RefCell::new(HashMap::new());
+    static SYNTAX: RefCell<HashMap<[u8;32], Arc<PreparedSyntaxResult>>> = RefCell::new(HashMap::new());
 }
 
 /// Immutable source snapshot reused by every quality/font-aware build.
 #[derive(Clone)]
 pub struct PreparedProgram {
-    pub(super) syntax: Arc<PreparedSyntax>,
+    pub(super) syntax: Arc<PreparedSyntaxResult>,
     pub(super) vars: Vec<(String, String)>,
     pub analysis: AnalysisDto,
 }
@@ -77,37 +78,39 @@ pub fn prepare_document(
     let cached = SYNTAX.with(|cache| cache.borrow().get(&key).cloned());
     let syntax = match cached {
         Some(syntax) => syntax,
-        None => match prepare_syntax(source, modules, source_url) {
-            Ok(syntax) => {
-                let syntax = Arc::new(syntax);
-                SYNTAX.with(|cache| {
-                    let mut cache = cache.borrow_mut();
-                    if cache.len() >= 32 {
-                        cache.retain(|_, syntax| Arc::strong_count(syntax) > 1);
-                    }
-                    if cache.len() < 32 {
-                        cache.insert(key, syntax.clone());
-                    }
-                });
-                syntax
-            },
-            Err(analysis) => {
-                return PreparedProgram {
-                    syntax: Arc::new(PreparedSyntax::default()),
-                    vars: vars.to_vec(),
-                    analysis: *analysis,
-                };
-            },
+        None => {
+            // Cache failures too: no empty success sentinel or dropped errors.
+            let syntax = Arc::new(prepare_syntax(source, modules, source_url));
+            SYNTAX.with(|cache| {
+                let mut cache = cache.borrow_mut();
+                if cache.len() >= 32 {
+                    cache.retain(|_, syntax| Arc::strong_count(syntax) > 1);
+                }
+                if cache.len() < 32 {
+                    cache.insert(key, syntax.clone());
+                }
+            });
+            syntax
+        },
+    };
+    let success = match syntax.as_ref() {
+        Ok(success) => success,
+        Err(analysis) => {
+            return PreparedProgram {
+                syntax: syntax.clone(),
+                vars: vars.to_vec(),
+                analysis: analysis.as_ref().clone(),
+            };
         },
     };
     let mut analysis = AnalysisDto {
-        diagnostics: syntax.diagnostics.clone(),
+        diagnostics: success.diagnostics.clone(),
         ..Default::default()
     };
     super::requirements::collect(
-        &syntax.expanded,
-        &syntax.namespaces,
-        &syntax.function_context,
+        &success.expanded,
+        &success.namespaces,
+        &success.function_context,
         vars,
         &mut analysis,
     );
@@ -140,7 +143,7 @@ fn prepare_syntax(
     source: &str,
     modules: &[(PathBuf, String)],
     source_url: Option<&str>,
-) -> Result<PreparedSyntax, Box<AnalysisDto>> {
+) -> PreparedSyntaxResult {
     let path = PathBuf::from(ENTRY_PATH);
     let mut graph = graph(source, modules);
     let mut analysis = AnalysisDto::default();
@@ -162,11 +165,12 @@ fn prepare_syntax(
         );
         program = graph.load_program(&path).map_err(|error| module_error(error, &mut analysis))?;
     }
-    let mut errors = Vec::new();
-    let expanded = program.expand_components(&mut errors);
-    for error in errors {
-        analysis.diagnostics.push(error_diagnostic("expansion-error", &error, None));
-    }
+    let expanded = program.expand_components().map_err(|error| {
+        analysis
+            .diagnostics
+            .extend(error.diagnostics.iter().map(DiagnosticDto::from_diagnostic));
+        Box::new(analysis.clone())
+    })?;
     let function_context =
         expanded.expanded_function_context.clone().unwrap_or(program.function_context);
     Ok(PreparedSyntax {

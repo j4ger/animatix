@@ -631,16 +631,15 @@ fn blend_screen_child_outside_parent_keeps_unbounded_layer() {
     );
     let scene = timeline.evaluate(0.0, HD);
 
-    // A blend node that has children is a container: its own world-space bounds
-    // are not recorded, so `blend_layer_clip_rect` cannot prove a tight rect and
-    // must keep the full-surface layer. That is exactly the safety net for the
-    // "child reaches outside the parent" case — a child that overflows a
-    // parent-sized clip is never cut. (Leaf blend actors — the StageFloor glows —
-    // do record bounds and take the tight path; see
-    // `static_blend_scene_uses_bounded_clip_with_stable_structure`.)
+    // Rect actors record their own bounds even when they have children.
+    // The child extends beyond those bounds, so tightening to the parent
+    // would clip its ink. Verify the actual geometric precondition rather
+    // than relying on a failed label lookup for an insertion-ordered registry.
+    let outer = timeline.precise_bounds_for("outer").expect("parent Rect bounds");
+    let inner = timeline.precise_bounds_for("inner").expect("child Rect bounds");
     assert!(
-        timeline.precise_bounds_for("outer").is_none(),
-        "a blend container records no own bounds, so the tight clip is not provable"
+        inner.x0 < outer.x0 || inner.y0 < outer.y0 || inner.x1 > outer.x1 || inner.y1 > outer.y1,
+        "fixture child must extend beyond its parent's own bounds"
     );
     assert!(
         encoded_blend_clip_is_unbounded(&scene),

@@ -830,7 +830,7 @@ fn load_fixture_program(
     fs::write(&temp_path, source).expect("write temp fixture should succeed");
     let mut graph = ModuleGraph::new();
     let program = graph.load_program(&temp_path).expect("program should load");
-    let expanded = program.expand_components(&mut Vec::new());
+    let expanded = program.expand_components().expect("component expansion");
     (program, expanded)
 }
 

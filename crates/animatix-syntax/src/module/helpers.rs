@@ -154,8 +154,6 @@ pub enum ModuleError {
         /// Path of the second file that defined it.
         second_path: PathBuf,
     },
-    /// A scene references a defining source module absent from its function context.
-    MissingSceneModuleScope(PathBuf),
 }
 
 impl fmt::Display for ModuleError {
@@ -207,9 +205,6 @@ impl fmt::Display for ModuleError {
                 first_path.display(),
                 second_path.display()
             ),
-            ModuleError::MissingSceneModuleScope(path) => {
-                write!(f, "No lexical module scope was loaded for scene source {}", path.display())
-            },
         }
     }
 }

@@ -160,7 +160,9 @@ impl BuildTarget {
         };
         if let Some(path) = source_path {
             for diag in &mut report.diagnostics {
-                diag.location.path = Some(path.to_path_buf());
+                if diag.location.path.is_none() {
+                    diag.location.path = Some(path.to_path_buf());
+                }
             }
             report.output.set_asset_source_base(path);
         }

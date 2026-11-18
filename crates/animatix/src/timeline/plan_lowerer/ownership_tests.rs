@@ -24,9 +24,7 @@ fn build_expanded(source: &str) -> Timeline {
     let program = modules
         .load_program_with_source(Path::new("virtual:///plan_ownership.amx"), Some(source))
         .expect("load component source");
-    let mut expansion_errors = Vec::new();
-    let expanded = program.expand_components(&mut expansion_errors);
-    assert!(expansion_errors.is_empty(), "{expansion_errors:?}");
+    let expanded = program.expand_components().expect("component expansion");
 
     let report = Timeline::build_with_options(
         &expanded.statements,

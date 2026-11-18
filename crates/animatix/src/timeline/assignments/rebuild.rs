@@ -64,6 +64,8 @@ pub(super) fn handle_size_assignment(
             );
         }
     } else if instant_delayed {
+        geometry.size.ensure(default_size);
+        geometry.ensure_layout_size(default_size);
         preserve_instant_delayed_value(&mut geometry.size, t_start_ms);
         preserve_instant_delayed_value(&mut geometry.layout_size, t_start_ms);
     }

@@ -41,9 +41,7 @@ disabled: AxisGraph, draw: false
         diagnostics.iter().all(|diagnostic| !diagnostic.is_error()),
         "component argument diagnostics: {diagnostics:?}"
     );
-    let mut expansion_errors = Vec::new();
-    let expanded = program.expand_components(&mut expansion_errors);
-    assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
+    let expanded = program.expand_components().expect("component expansion");
     let report = Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,
@@ -92,4 +90,112 @@ explicit: NumberPlane, size: (200, 160), x_domain: (-5, 5), y_domain: (-4, 4),
         encode(&explicit),
         "NumberPlane draws from x_range/y_range and does not consume Graph-only flags"
     );
+}
+
+fn nested_graph_entrance_fixture() -> Timeline {
+    let source = r#"
+config { resolution: (1280, 720), duration: 5 }
+pub component PlotCard() {
+    graph: Graph, size: (400, 300), x_domain: (-pi, pi), y_domain: (-2, 2) {
+        curve: PlotCurve, kind: "cartesian", func: (x) => sin(x), stroke_width: 4
+        hidden: PlotCurve, kind: "cartesian", func: (x) => cos(x), stroke_width: 4, opacity: 0
+    }
+}
+pub component Pane() {
+    root: Group, at: (0, 0), opacity: 1 {
+        card: PlotCard, at: (320, 240)
+    }
+}
+live: Pane
+idle: Pane
+#1s
+fade_in(target: live.card, duration: 1s)
+#3s
+fade_in(target: live.card.hidden, duration: 1s)
+"#;
+    let mut modules = ModuleGraph::new();
+    let mut program = modules
+        .load_program_with_source(Path::new("virtual:///nested_graph_entrance.amx"), Some(source))
+        .expect("load nested Graph entrance fixture");
+    let type_diagnostics = program.typecheck();
+    assert!(type_diagnostics.iter().all(|d| !d.is_error()), "{type_diagnostics:?}");
+    let expanded = program.expand_components().expect("component expansion");
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        crate::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    for label in [
+        "live.card",
+        "live.card.curve",
+        "live.card.hidden",
+        "idle.card",
+        "idle.card.curve",
+        "idle.card.hidden",
+    ] {
+        assert!(report.output.world.get_id(label).is_some(), "missing {label}");
+    }
+    report.output
+}
+
+#[test]
+fn nested_component_graph_entrance_preserves_authored_hidden_child_across_seek_and_cache() {
+    let timeline = nested_graph_entrance_fixture();
+    let dimensions = crate::timeline::SceneDimensions {
+        width: 1280,
+        height: 720,
+    };
+    // Repeat frames for cache hits, seek backwards after the first entrance,
+    // then repeat after the explicitly hidden child gets its own entrance.
+    for time in [
+        0.0, 1.0, 1.5, 2.0, 2.0, 0.0, 2.0, 3.0, 3.5, 4.0, 4.0, 0.0, 4.0,
+    ] {
+        let mut filter_backend = None;
+        let program = timeline.evaluate_program_with_debug(
+            time,
+            dimensions,
+            crate::timeline::DebugRenderOptions::default(),
+            &mut filter_backend,
+        );
+        assert!(program.diagnostics.iter().all(|d| !d.is_error()), "{:?}", program.diagnostics);
+        for label in ["live.card", "live.card.curve", "live.card.hidden"] {
+            let start = if label.ends_with(".hidden") { 3.0 } else { 1.0 };
+            let items: Vec<_> = program.items.iter().filter(|item| item.label == label).collect();
+            if time <= start {
+                assert!(
+                    items.iter().all(|item| item.opacity == 0.0 || item.commands.is_empty()),
+                    "{label} leaked before its entrance at {time}s"
+                );
+            } else {
+                assert!(!items.is_empty(), "{label} missing after entrance at {time}s");
+                assert!(items.iter().any(|item| !item.commands.is_empty()), "{label} has no draws");
+                assert!(items.iter().all(|item| item.opacity > 0.0), "{label} still hidden");
+                if time < start + 1.0 {
+                    assert!(items.iter().all(|item| item.opacity < 1.0), "{label} skipped fade");
+                } else {
+                    assert!(items.iter().all(|item| (item.opacity - 1.0).abs() < 1e-6));
+                }
+                let bounds = program.precise_bounds.get(label).expect("visible actor bounds");
+                assert!(bounds.width() > 0.0 && bounds.height() > 0.0, "{label}: {bounds:?}");
+                assert_eq!(
+                    timeline.precise_bounds_for(label),
+                    Some(*bounds),
+                    "{label} cache bounds"
+                );
+            }
+        }
+        for label in ["idle.card", "idle.card.curve", "idle.card.hidden"] {
+            assert!(
+                program
+                    .items
+                    .iter()
+                    .filter(|item| item.label == label)
+                    .all(|item| item.opacity == 0.0 || item.commands.is_empty()),
+                "entrance leaked to the other component instance: {label} at {time}s"
+            );
+        }
+    }
 }

@@ -95,7 +95,18 @@ impl Composition {
         let composition =
             timing::finalize_global_timeline(scenes, &walk_order, &declaration_order, &edges);
 
-        BuildReport::new(composition, diagnostics)
+        // Keep failures from distinct imported source files, even when their
+        // component names and instance chains are identical.
+        let mut unique = Vec::new();
+        for diagnostic in diagnostics {
+            if !unique.contains(&diagnostic) {
+                unique.push(diagnostic);
+            }
+        }
+        BuildReport {
+            output: composition,
+            diagnostics: unique,
+        }
     }
 
     /// Extract the first `play` statement from a scene body.
@@ -471,14 +482,7 @@ fn collect_cross_file_scenes(
             let expanded = match expand_imported_scene(scene_data, ns, options.function_context) {
                 Ok(expanded) => expanded,
                 Err(error) => {
-                    state.diagnostics.push(
-                        Diagnostic::error(
-                            DiagnosticCode::SourceLoadFailure,
-                            DiagnosticPhase::Build,
-                            error.to_string(),
-                        )
-                        .with_subject(&target),
-                    );
+                    state.diagnostics.extend(error.diagnostics);
                     continue;
                 },
             };
@@ -589,7 +593,7 @@ fn expand_imported_scene(
     scene: &crate::module::SceneData,
     namespace: &Namespace,
     context: Option<&crate::module::FunctionContext>,
-) -> Result<crate::module::ExpandedProgram, crate::module::ModuleError> {
+) -> Result<crate::module::ExpandedProgram, crate::module::ExpansionError> {
     if let Some(context) = context {
         return context.expand_scene(scene);
     }
@@ -622,10 +626,10 @@ fn expand_imported_scene(
         span: scene.span,
     });
     statements.extend(scene.body.clone());
-    Ok(crate::module::LoadedProgram {
+    crate::module::LoadedProgram {
         statements,
         components,
         ..Default::default()
     }
-    .expand_components(&mut Vec::new()))
+    .expand_components()
 }

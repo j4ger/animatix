@@ -38,7 +38,7 @@ fn build_module(path: &str, source: &str) -> Timeline {
     let program = graph
         .load_program_with_source(std::path::Path::new(path), Some(source))
         .expect("program loads");
-    let expanded = program.expand_components(&mut Vec::new());
+    let expanded = program.expand_components().expect("component expansion");
     let report = Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,
@@ -56,7 +56,7 @@ fn build_module_file(path: &std::path::Path) -> Option<Timeline> {
     }
     let mut graph = animatix_syntax::module::ModuleGraph::new();
     let program = graph.load_program(path).expect("program loads");
-    let expanded = program.expand_components(&mut Vec::new());
+    let expanded = program.expand_components().expect("component expansion");
     let report = Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,

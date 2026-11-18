@@ -1235,7 +1235,7 @@ fn unary_minus_on_imported_module_path_resolves_in_graph_domain() {
     .expect("write scene");
     let mut graph = animatix_syntax::module::ModuleGraph::new();
     let program = graph.load_program(&scene_path).expect("program loads");
-    let expanded = program.expand_components(&mut Vec::new());
+    let expanded = program.expand_components().expect("component expansion");
     let report = Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,

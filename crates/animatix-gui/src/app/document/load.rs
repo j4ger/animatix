@@ -18,7 +18,8 @@ use crate::error::GuiError;
 /// Result of loading and parsing a program.
 pub struct LoadedProgramResult {
     pub raw_statements: Vec<Stmt>,
-    pub expanded: animatix_syntax::module::ExpandedProgram,
+    pub expanded:
+        Result<animatix_syntax::module::ExpandedProgram, animatix_syntax::module::ExpansionError>,
     pub namespaces: HashMap<String, Namespace>,
     pub type_diagnostics: Vec<Diagnostic>,
     pub components: HashMap<String, ComponentEntry>,
@@ -167,7 +168,7 @@ impl DocumentSession {
         }
         let mut program =
             graph.load_program_with_source(&self.file_path, Some(&self.source_text))?;
-        let mut type_diagnostics =
+        let type_diagnostics =
             program.typecheck_with_callables(self.extension_context.callable_descriptors());
 
         // Expansion caches complete function scopes, including plan-valued
@@ -185,25 +186,23 @@ impl DocumentSession {
             hasher.finish()
         };
 
-        let expanded = if expansion_hash == self.last_expansion_hash {
+        let expansion = if expansion_hash == self.last_expansion_hash {
             if let Some(expanded) = self.cached_expanded.clone() {
                 expanded
             } else {
-                let mut expansion_errors = Vec::new();
-                let expanded = program.expand_components(&mut expansion_errors);
+                let expanded = program.expand_components();
                 self.cached_expanded = Some(expanded.clone());
                 self.last_expansion_hash = expansion_hash;
-                Self::push_expansion_diagnostics(&mut type_diagnostics, expansion_errors);
                 expanded
             }
         } else {
-            let mut expansion_errors = Vec::new();
-            let expanded = program.expand_components(&mut expansion_errors);
+            let expanded = program.expand_components();
             self.cached_expanded = Some(expanded.clone());
             self.last_expansion_hash = expansion_hash;
-            Self::push_expansion_diagnostics(&mut type_diagnostics, expansion_errors);
             expanded
         };
+
+        let expanded = expansion;
 
         let entry = fs::canonicalize(&self.file_path).unwrap_or_else(|_| self.file_path.clone());
         let imports = program
@@ -233,21 +232,6 @@ impl DocumentSession {
             module_fns: program.module_fns,
             function_context: program.function_context,
         })
-    }
-
-    /// Convert timeline-function expansion errors (recursion cycles, statement-level
-    /// pure-function calls) into build diagnostics attached to the document.
-    fn push_expansion_diagnostics(
-        diagnostics: &mut Vec<animatix_syntax::diagnostics::Diagnostic>,
-        errors: Vec<String>,
-    ) {
-        for error in errors {
-            diagnostics.push(animatix_syntax::diagnostics::Diagnostic::error(
-                animatix_syntax::diagnostics::DiagnosticCode::UnknownAction,
-                animatix_syntax::diagnostics::DiagnosticPhase::Build,
-                error,
-            ));
-        }
     }
 }
 

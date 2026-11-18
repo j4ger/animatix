@@ -221,11 +221,12 @@ impl Timeline {
     }
 
     /// World-space bounds for `label` recorded during the current frame, if any.
-    /// Point queries are rare, so a binary search over the sorted registry is plenty.
+    /// Resolve through entity identity: registry labels are in insertion/slot order,
+    /// not lexical order. Keep this lookup aligned with the slots used by drawing.
     pub(crate) fn precise_bounds_for(&self, label: &str) -> Option<kurbo::Rect> {
         self.ensure_bounds_registry();
-        let registry = self.eval_caches.bounds_registry.borrow().clone()?;
-        let slot = registry.labels.binary_search_by(|probe| probe.as_str().cmp(label)).ok()?;
+        let id = self.world.get_id(label)?;
+        let slot = self.world.bounds_slot(id) as usize;
         self.eval_caches.precise_bounds.borrow().slots.get(slot).copied().flatten()
     }
 

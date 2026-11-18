@@ -6,7 +6,7 @@ use vello::peniko::Color;
 
 use crate::primitives::build_arrow_path;
 use crate::primitives::connector::{
-    build_connector_path, resolve_connector_endpoint, route_connector,
+    build_connector_path, resolve_connector_endpoint_local, route_connector,
 };
 use crate::primitives::evaluate_text_paths_with_content;
 use crate::primitives::{EvaluateCtx, RenderCommand, TextCompileCtx, sample_shape_style};
@@ -182,27 +182,36 @@ pub fn evaluate_connector(
         }
     }
 
-    let (pos_from_init, _) = resolve_connector_endpoint(
+    let Some((pos_from_init, _)) = resolve_connector_endpoint_local(
         &ep_from,
         ctx.target_resolver,
         ctx.time_ms,
         ctx.scene_dimensions,
         None,
-    );
-    let (pos_to, norm_to) = resolve_connector_endpoint(
+        ctx.local_transform,
+    ) else {
+        return Ok(None);
+    };
+    let Some((pos_to, norm_to)) = resolve_connector_endpoint_local(
         &ep_to,
         ctx.target_resolver,
         ctx.time_ms,
         ctx.scene_dimensions,
         Some(pos_from_init),
-    );
-    let (pos_from, norm_from) = resolve_connector_endpoint(
+        ctx.local_transform,
+    ) else {
+        return Ok(None);
+    };
+    let Some((pos_from, norm_from)) = resolve_connector_endpoint_local(
         &ep_from,
         ctx.target_resolver,
         ctx.time_ms,
         ctx.scene_dimensions,
         Some(pos_to),
-    );
+        ctx.local_transform,
+    ) else {
+        return Ok(None);
+    };
 
     let waypoints = route_connector(pos_from, norm_from, pos_to, norm_to, routing, 20.0);
     let (shaft_path, arrowhead_path) =

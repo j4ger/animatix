@@ -342,11 +342,19 @@ impl<T: Interpolate> PropertyTrack<T> {
             return clone_val(cached_value);
         }
 
-        let result = if let Some((_found_time, prev_val, found_val, progress, found_easing)) =
+        let result = if let Some((found_time, prev_val, found_val, progress, found_easing)) =
             self.interpolation_segment(time_ms)
         {
-            let eased_progress = apply_easing(progress, *found_easing);
-            prev_val.interpolate(found_val, eased_progress)
+            // An authored endpoint is its exact value, not an arithmetic blend.
+            // In particular, infinity + (finite - infinity) * 1 is NaN.
+            // Use the integer timestamp so rounding of interior progress does
+            // not change interpolation semantics before the endpoint.
+            if time_ms == found_time {
+                clone_val(found_val)
+            } else {
+                let eased_progress = apply_easing(progress, *found_easing);
+                prev_val.interpolate(found_val, eased_progress)
+            }
         } else {
             // No interior segment - use default or boundary value
             if self.keyframes.is_empty() {
@@ -461,6 +469,82 @@ impl PropertyTrack<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn exact_keyframe_endpoints_do_not_blend_nonfinite_values() {
+        let mut track = PropertyTrack::new(f32::INFINITY);
+        track.add_keyframe(499, f32::INFINITY, Easing::Linear);
+        track.add_keyframe(500, 800.0, Easing::Linear);
+        for time in [0, 499, 500, 501, 500, 0] {
+            assert_eq!(track.evaluate(time), if time < 500 { f32::INFINITY } else { 800.0 });
+            assert_eq!(track.evaluate_copy(time), track.evaluate(time));
+        }
+        // Exercise Many storage and both directions of the infinity boundary.
+        track.add_keyframe(600, f32::NEG_INFINITY, Easing::Linear);
+        track.add_keyframe(700, 42.0, Easing::Linear);
+        assert_eq!(track.evaluate(600), f32::NEG_INFINITY);
+        assert_eq!(track.evaluate(700), 42.0);
+        assert_eq!(track.evaluate(500), 800.0);
+
+        let mut vector = PropertyTrack::new([f32::NAN, f32::INFINITY]);
+        vector.add_keyframe(0, [f32::NAN, f32::INFINITY], Easing::Linear);
+        vector.add_keyframe(10, [3.0, 4.0], Easing::Linear);
+        assert_eq!(vector.evaluate(10), [3.0, 4.0]);
+        assert!(vector.evaluate(0)[0].is_nan());
+
+        let mut double = PropertyTrack::new(f64::NEG_INFINITY);
+        double.add_keyframe(0, f64::NEG_INFINITY, Easing::Linear);
+        double.add_keyframe(10, 2.0, Easing::Linear);
+        assert_eq!(double.evaluate(10), 2.0);
+    }
+
+    #[test]
+    fn finite_interior_interpolation_is_unchanged_by_endpoint_sampling() {
+        let mut track = PropertyTrack::new(0.0_f32);
+        track.add_keyframe(0, 10.0, Easing::Linear);
+        track.add_keyframe(1000, 30.0, Easing::Linear);
+        for time in [500, 0, 999, 1000, 250, 1001] {
+            let expected = 10.0 + 20.0 * (time as f32 / 1000.0).clamp(0.0, 1.0);
+            assert_eq!(track.evaluate(time), expected);
+        }
+    }
+
+    #[test]
+    fn exact_endpoint_sampling_preserves_finite_velocity_contract() {
+        let mut scalar = PropertyTrack::new(0.0_f32);
+        scalar.add_keyframe(0, 10.0, Easing::Linear);
+        scalar.add_keyframe(1000, 30.0, Easing::Linear);
+        let mut vector = PropertyTrack::new([0.0_f32; 2]);
+        vector.add_keyframe(0, [10.0, 20.0], Easing::Linear);
+        vector.add_keyframe(1000, [30.0, 60.0], Easing::Linear);
+        // Existing semantics include the final timestamp in the incoming
+        // segment for velocity, even though value sampling returns its endpoint.
+        for time in [500, 1000, 1001, 0, 1000, 500] {
+            let expected = if time > 0 && time <= 1000 { 0.02 } else { 0.0 };
+            let _ = scalar.evaluate(time);
+            let _ = vector.evaluate(time);
+            assert_eq!(scalar.velocity_at(time), expected);
+            assert_eq!(vector.velocity_at(time), [expected, expected * 2.0]);
+        }
+    }
+
+    #[test]
+    fn replacing_cached_endpoint_invalidates_value_for_repeated_seeks() {
+        let mut track = PropertyTrack::new(0.0_f32);
+        track.add_keyframe(0, 10.0, Easing::Linear);
+        track.add_keyframe(1000, 30.0, Easing::Linear);
+        assert_eq!(track.evaluate(1000), 30.0);
+        assert_eq!(track.evaluate_copy(1000), 30.0);
+        track.add_keyframe(1000, 50.0, Easing::Linear);
+        assert_eq!(track.evaluate(1000), 50.0);
+        assert_eq!(track.evaluate(500), 30.0);
+        assert_eq!(track.evaluate(1000), 50.0);
+        track.keyframes_mut().insert(1000, (70.0, Easing::Linear));
+        assert_eq!(track.evaluate_copy(1000), 70.0);
+        assert_eq!(track.evaluate(0), 10.0);
+        assert_eq!(track.evaluate(500), 40.0);
+        assert_eq!(track.evaluate(1000), 70.0);
+    }
 
     /// A type that does not implement `Interpolate`.
     /// Verifies that `keyframes_raw()` works without the trait bound.

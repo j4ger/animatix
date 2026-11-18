@@ -49,19 +49,23 @@ pub fn try_load_and_build(
         .map_err(|e| format!("Plugin install failed: {e}"))?;
     let (expanded, namespaces, function_context, type_diagnostics) = {
         let diagnostics = program.typecheck_with_callables(ctx.callable_descriptors());
-        let mut expansion_errors = Vec::new();
-        let expanded = program.expand_components(&mut expansion_errors);
-        let mut diagnostics = diagnostics;
-        for error in expansion_errors {
-            diagnostics.push(Diagnostic::error(
-                animatix_syntax::diagnostics::DiagnosticCode::UnknownAction,
-                animatix_syntax::diagnostics::DiagnosticPhase::Build,
-                error,
-            ));
-        }
+        let expanded = program.expand_components().map_err(|error| {
+            diagnostics
+                .iter()
+                .chain(error.diagnostics.iter())
+                .map(format_diagnostic)
+                .collect::<Vec<_>>()
+                .join("\n")
+        })?;
         (expanded, program.namespaces, program.function_context, diagnostics)
     };
 
+    if type_diagnostics.iter().any(Diagnostic::is_error) {
+        return Ok((
+            BuildTarget::SingleScene(animatix::timeline::Timeline::new()),
+            type_diagnostics,
+        ));
+    }
     let context = std::sync::Arc::new(ctx);
     let report = BuildTarget::build_with_options(
         &expanded.statements,

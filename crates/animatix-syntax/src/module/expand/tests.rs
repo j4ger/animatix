@@ -620,3 +620,65 @@ fn make(w: Num) {
         .expect("make should return its plan");
     assert_eq!(plan.instance_methods["local"]["scaled"].component_captures, ["w"]);
 }
+
+#[test]
+fn two_component_instances_keep_self_root_indexed_targets_isolated() {
+    let source = r#"
+pub component Deck() {
+    root: Group {
+        for i in {0, 1} {
+            cells[i]: Group {
+                arm: Rect, size: (20, 20)
+            }
+        }
+    }
+    for i in {0, 1} {
+        self.root.cells[i].arm.opacity = 0.5 [1s]
+    }
+}
+a: Deck
+b: Deck
+"#;
+    let (statements, errors) = crate::parser::parse_source(source);
+    assert!(errors.is_empty(), "{errors:?}");
+    let statements = statements.expect("source parses");
+    let mut components = HashMap::new();
+    for stmt in &statements {
+        if let Stmt::ComponentDef(def, _) = stmt {
+            components.insert(
+                def.name.clone(),
+                ComponentEntry {
+                    definition: def.clone(),
+                    methods: Default::default(),
+                    source_path: std::path::PathBuf::new(),
+                },
+            );
+        }
+    }
+    assert!(components.contains_key("Deck"), "fixture must define Deck");
+    let expanded = expand_statements(&statements, &components);
+    let mut targets = Vec::new();
+    crate::walk::walk_stmts(&expanded.statements, &mut |stmt| {
+        if let Stmt::Assignment {
+            target, property, ..
+        } = stmt
+            && property == "opacity"
+        {
+            targets.push(target.clone());
+        }
+    });
+    let expected = ["a", "b"]
+        .into_iter()
+        .map(|instance| {
+            vec![
+                TargetSegment::Static(instance.to_string()),
+                TargetSegment::Indexed {
+                    base: "cells".to_string(),
+                    index: Box::new(Expr::Ident("i".to_string())),
+                },
+                TargetSegment::Static("arm".to_string()),
+            ]
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(targets, expected);
+}

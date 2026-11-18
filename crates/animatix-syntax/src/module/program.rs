@@ -48,9 +48,11 @@ impl LoadedProgram {
         false
     }
 
-    /// Expand component instances into concrete statements and preserve the
-    /// method templates required by the engine's callable VM.
-    pub fn expand_components(&self, _diagnostics: &mut Vec<String>) -> super::ExpandedProgram {
+    /// Expand component instances and callable bodies atomically.
+    ///
+    /// Failure contains all structured diagnostics and no partial program.
+    pub fn expand_components(&self) -> Result<super::ExpandedProgram, super::ExpansionError> {
+        let mut diagnostics = Vec::new();
         let component_scopes = self
             .function_context
             .modules
@@ -61,9 +63,10 @@ impl LoadedProgram {
             &self.statements,
             &self.components,
             &component_scopes,
+            &mut diagnostics,
         );
         expanded.expanded_function_context =
-            Some(super::expand::expand_function_context(&self.function_context));
-        expanded
+            Some(super::expand::expand_function_context(&self.function_context, &mut diagnostics));
+        super::expand::finish_expansion(expanded, diagnostics)
     }
 }

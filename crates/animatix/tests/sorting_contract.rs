@@ -10,9 +10,7 @@ fn build(source: &str) -> Timeline {
     let program = graph
         .load_program_with_source(std::path::Path::new("sorting.amx"), Some(source))
         .expect("fixture parses");
-    let mut diagnostics = Vec::new();
-    let expanded = program.expand_components(&mut diagnostics);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let expanded = program.expand_components().expect("component expansion");
     let report = BuildTarget::build_with_options(
         &expanded.statements,
         &program.namespaces,

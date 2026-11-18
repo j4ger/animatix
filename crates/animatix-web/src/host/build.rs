@@ -88,8 +88,13 @@ pub fn build_prepared(
     quality: BuildQuality,
     assets: Option<Arc<AssetCache>>,
 ) -> BuiltDocument {
-    let analysis = &prepared.analysis;
-    if !analysis.ok {
+    let syntax = prepared.syntax.as_ref();
+    // A cached syntax error is authoritative even if a caller edits analysis.
+    let analysis = match syntax {
+        Ok(_) => &prepared.analysis,
+        Err(analysis) => analysis.as_ref(),
+    };
+    if syntax.is_err() || !analysis.ok {
         return BuiltDocument {
             target: None,
             result: LoadResultDto {
@@ -106,22 +111,23 @@ pub fn build_prepared(
             },
         };
     }
+    let syntax = syntax.as_ref().expect("syntax errors returned before build");
     let mut diagnostics = analysis.diagnostics.clone();
     let report = BuildTarget::build_with_options(
-        &prepared.syntax.expanded.statements,
-        &prepared.syntax.namespaces,
+        &syntax.expanded.statements,
+        &syntax.namespaces,
         None,
         BuildOptions {
             font_context: Some(font_context),
             quality: Some(quality),
-            function_context: Some(&prepared.syntax.function_context),
+            function_context: Some(&syntax.function_context),
             asset_cache: assets,
             extensions: Some(Arc::new(super::resources::extensions())),
             skip_persist_target_warning: true,
             defines: &prepared.vars,
             ..Default::default()
         }
-        .with_expanded(&prepared.syntax.expanded),
+        .with_expanded(&syntax.expanded),
     );
     let target = report.output;
     diagnostics.extend(report.diagnostics.iter().map(DiagnosticDto::from_diagnostic));
@@ -133,7 +139,7 @@ pub fn build_prepared(
         });
     }
     let (duration_s, width, height) = document_extent(&target);
-    let markers = timeline_markers(&prepared.syntax.expanded.statements, &target);
+    let markers = timeline_markers(&syntax.expanded.statements, &target);
     let pause_points = target.pause_points().iter().map(|&ms| ms as f64 / 1000.0).collect();
     let ok = !diagnostics.iter().any(|d| d.severity == "error");
     let runtime_inputs = if ok {

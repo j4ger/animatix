@@ -43,8 +43,10 @@ the descriptor rather than from source return annotation syntax. Use
 `remove_callable("demo::double")` when unloading an in-place registration.
 
 Module-backed builds that contain component methods should keep the expansion
-metadata with the statements. `LoadedProgram::expand_components` returns an
-`ExpandedProgram`; pass its `statements` and call
+metadata with the statements. `LoadedProgram::expand_components()` returns
+`Result<ExpandedProgram, ExpansionError>`. Handle `Err` by reporting its structured
+`diagnostics` and stopping the build; do not replace failure with an empty program.
+On success, pass the expanded program's `statements` and call
 `BuildOptions::with_expanded(&expanded)` when building. Apply it after
 `with_function_context` because it supplies the context compiled over expanded
 statements. That metadata retains instance methods at the program root and

@@ -46,11 +46,7 @@ fn main() {
     for d in &type_diagnostics {
         eprintln!("typecheck: {}", d.message);
     }
-    let mut expansion_errors = Vec::new();
-    let expanded = program.expand_components(&mut expansion_errors);
-    for e in &expansion_errors {
-        eprintln!("expansion: {e}");
-    }
+    let expanded = program.expand_components().expect("component expansion");
     let context = std::sync::Arc::new(animatix::ExtensionRegistry::new());
     let report = BuildTarget::build_with_options(
         &expanded.statements,

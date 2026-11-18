@@ -307,11 +307,9 @@ impl Requirements<'_> {
             let expanded = match self.function_context.expand_scene(scene) {
                 Ok(expanded) => expanded,
                 Err(error) => {
-                    self.analysis.diagnostics.push(error_diagnostic(
-                        "expansion-error",
-                        &error.to_string(),
-                        None,
-                    ));
+                    self.analysis.diagnostics.extend(
+                        error.diagnostics.iter().map(crate::dto::DiagnosticDto::from_diagnostic),
+                    );
                     continue;
                 },
             };

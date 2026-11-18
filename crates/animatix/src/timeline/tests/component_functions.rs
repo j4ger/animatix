@@ -14,9 +14,7 @@ fn build(source: &str) -> BuildTarget {
         .unwrap();
     let diagnostics = program.typecheck();
     assert!(diagnostics.iter().all(|d| !d.is_error()), "{diagnostics:?}");
-    let mut errors = Vec::new();
-    let expanded = program.expand_components(&mut errors);
-    assert!(errors.is_empty(), "{errors:?}");
+    let expanded = program.expand_components().expect("component expansion");
     let report = BuildTarget::build_with_options(
         &expanded.statements,
         &program.namespaces,
@@ -152,7 +150,7 @@ play remote::Remote
             ),
         )
         .unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
+    let expanded = program.expand_components().expect("component expansion");
     let report = BuildTarget::build_with_options(
         &expanded.statements,
         &program.namespaces,
@@ -166,4 +164,51 @@ play remote::Remote
         panic!("composition")
     };
     assert_eq!(root_widths(&composition.scenes["remote::Remote"].timeline), vec![25.0]);
+}
+
+#[test]
+fn same_named_inline_children_keep_instance_identity_and_animation_isolated() {
+    // Regression for the old component label collector: it collected `body`
+    // but not its inline `arm`, so both instances shared the bare `arm` track.
+    let BuildTarget::SingleScene(timeline) = build(
+        r#"
+component Switch(x: Num) {
+  body: Group, at: (x, 100), opacity: 1 {
+    arm: Line, from: (0, 0), to: (40, 50), opacity: 1
+  }
+}
+a: Switch, x: 100
+b: Switch, x: 300
+#1s
+a.arm.to = (0, 50) [1s]
+#3s
+b.arm.to = (20, 50) [1s]
+"#,
+    ) else {
+        panic!("single scene")
+    };
+    let a = timeline.get_entity_id("a.arm").expect("a owns its inline arm");
+    let b = timeline.get_entity_id("b.arm").expect("b owns its inline arm");
+    assert_ne!(a, b, "same-named children must be distinct entities");
+    assert!(timeline.get_entity_id("arm").is_none(), "no unqualified shared child");
+    assert_eq!(timeline.world.resolve_path(&["a", "arm"]).as_deref(), Some("a.arm"));
+    assert_eq!(timeline.world.resolve_path(&["b", "arm"]).as_deref(), Some("b.arm"));
+
+    let endpoint =
+        |entity, time_ms| timeline.world.shape_or_default(entity).line_to.get(time_ms, [0.0; 2]);
+    assert_eq!(endpoint(a, 0), [40.0, 50.0]);
+    assert_eq!(endpoint(b, 0), [40.0, 50.0]);
+    let a_mid = endpoint(a, 1500);
+    assert!(a_mid[0] > 0.0 && a_mid[0] < 40.0, "a must move continuously: {a_mid:?}");
+    assert_eq!(a_mid[1], 50.0);
+    for time_ms in [1000, 1500, 2000, 2500] {
+        assert_eq!(endpoint(b, time_ms), [40.0, 50.0], "a must not animate b at {time_ms}");
+    }
+    let b_mid = endpoint(b, 3500);
+    assert!(b_mid[0] > 20.0 && b_mid[0] < 40.0, "b must move continuously: {b_mid:?}");
+    assert_eq!(b_mid[1], 50.0);
+    for time_ms in [2000, 3000, 3500, 4000] {
+        assert_eq!(endpoint(a, time_ms), [0.0, 50.0], "b must not animate a at {time_ms}");
+    }
+    assert_eq!(endpoint(b, 4000), [20.0, 50.0]);
 }

@@ -818,3 +818,197 @@ fn nested_filter_and_glass_scopes_with_future_effects_admit_backend() {
          current stages are identity"
     );
 }
+
+#[test]
+fn precise_bounds_lookup_uses_entity_slots_not_label_sort_order() {
+    for labels in [
+        ["zebra", "alpha", "middle"],
+        ["middle", "zebra", "alpha"],
+        ["alpha", "middle", "zebra"],
+    ] {
+        let mut timeline = Timeline::new();
+        for label in labels {
+            spawn_seen(&mut timeline, label, "Rect");
+        }
+        timeline.ensure_bounds_registry();
+        for (index, label) in labels.into_iter().enumerate() {
+            let id = timeline.get_entity_id(label).expect("fixture entity");
+            let slot = timeline.world.bounds_slot(id);
+            let x = 10.0 * index as f64;
+            let bounds = kurbo::Rect::new(x, 20.0, x + 4.0, 26.0);
+            timeline.record_precise_bounds(slot, label, bounds);
+        }
+        for (index, label) in labels.into_iter().enumerate() {
+            let x = 10.0 * index as f64;
+            assert_eq!(
+                timeline.precise_bounds_for(label),
+                Some(kurbo::Rect::new(x, 20.0, x + 4.0, 26.0)),
+                "label {label} must retain its own entity's slot in order {labels:?}"
+            );
+        }
+        assert_eq!(timeline.precise_bounds_for("absent"), None);
+    }
+}
+
+fn deeply_nested_bounds_fixture(depth: usize, reverse_roots: bool) -> Timeline {
+    let marker = "m_marker: Rect, at: (500, 100), size: (30, 20), stroke_width: 0, opacity: 1\n";
+    let mut source = String::from("#0s\n");
+    if reverse_roots {
+        source.push_str(marker);
+    }
+    source.push_str("z_root: Group, at: (100, 100), scale: 1, opacity: 1 {\n");
+    for level in 0..depth {
+        // Reverse-looking labels keep slot and lexical order deliberately different.
+        source.push_str(&format!("g{}: Group, at: (2, 2), opacity: 1 {{\n", depth - level));
+    }
+    source.push_str("a_leaf: Rect, at: (20, 10), size: (40, 20), stroke_width: 0, opacity: 1\n");
+    for _ in 0..depth {
+        source.push_str("}\n");
+    }
+    source.push_str("}\n");
+    if !reverse_roots {
+        source.push_str(marker);
+    }
+    source.push_str("#1s\nz_root.scale = 0.5 [1s]\n");
+    crate::timeline::tests::build_timeline(&source)
+}
+
+fn assert_program_bounds_match_lookup(
+    timeline: &Timeline,
+    bounds: &std::collections::HashMap<String, kurbo::Rect>,
+) {
+    for label in ["a_leaf", "m_marker"] {
+        let expected = bounds.get(label).expect("rendered leaf/marker bounds");
+        assert!(expected.width() > 0.0 && expected.height() > 0.0);
+        assert_eq!(timeline.precise_bounds_for(label), Some(*expected), "lookup for {label}");
+    }
+}
+
+#[test]
+fn deep_group_bounds_survive_observable_frame_cache_restore() {
+    let dims = SceneDimensions {
+        width: 1280,
+        height: 720,
+    };
+    for depth in [1, 4, 16, 32] {
+        for reverse_roots in [false, true] {
+            let timeline = deeply_nested_bounds_fixture(depth, reverse_roots);
+            for time in [0.0, 1.5, 2.0, 0.0] {
+                let program = timeline.evaluate_program_with_debug(
+                    time,
+                    dims,
+                    DebugRenderOptions::default(),
+                    &mut None,
+                );
+                assert_program_bounds_match_lookup(&timeline, &program.precise_bounds);
+                assert_deep_bounds_geometry(&timeline, depth, time);
+                // Leave the cached frame intact but remove the observable table:
+                // the next same-time request must restore it, not just retain it.
+                timeline.eval_caches.precise_bounds.borrow_mut().clear_frame();
+                let cached = timeline.evaluate_program_with_debug(
+                    time,
+                    dims,
+                    DebugRenderOptions::default(),
+                    &mut None,
+                );
+                assert_eq!(cached.precise_bounds, program.precise_bounds);
+                assert_program_bounds_match_lookup(&timeline, &program.precise_bounds);
+                assert_deep_bounds_geometry(&timeline, depth, time);
+            }
+        }
+    }
+}
+
+#[test]
+fn deep_group_bounds_survive_scene_only_frame_cache_restore() {
+    let dims = SceneDimensions {
+        width: 1280,
+        height: 720,
+    };
+    for depth in [1, 4, 16, 32] {
+        for reverse_roots in [false, true] {
+            let timeline = deeply_nested_bounds_fixture(depth, reverse_roots);
+            for time in [0.0, 1.5, 2.0, 0.0] {
+                let _ = timeline.evaluate(time, dims);
+                let labels = ["a_leaf", "m_marker"];
+                assert_deep_bounds_geometry(&timeline, depth, time);
+                let expected = labels.map(|label| {
+                    timeline.precise_bounds_for(label).expect("rendered descendant bounds")
+                });
+                timeline.eval_caches.precise_bounds.borrow_mut().clear_frame();
+                let _ = timeline.evaluate(time, dims);
+                for (label, expected) in labels.into_iter().zip(expected) {
+                    assert_eq!(timeline.precise_bounds_for(label), Some(expected));
+                }
+            }
+        }
+    }
+}
+
+fn assert_deep_bounds_geometry(timeline: &Timeline, depth: usize, time: f64) {
+    let scale = if time == 0.0 {
+        1.0
+    } else if time == 2.0 {
+        0.5
+    } else {
+        // The midpoint is checked for lookup/cache consistency separately;
+        // absolute geometry assertions need not assume a default easing curve.
+        return;
+    };
+    let center_x = 100.0 + (20.0 + 2.0 * depth as f64) * scale;
+    let center_y = 100.0 + (10.0 + 2.0 * depth as f64) * scale;
+    let expected_leaf = kurbo::Rect::new(
+        center_x - 20.0 * scale,
+        center_y - 10.0 * scale,
+        center_x + 20.0 * scale,
+        center_y + 10.0 * scale,
+    );
+    let expected_marker = kurbo::Rect::new(485.0, 90.0, 515.0, 110.0);
+    for (label, expected) in [("a_leaf", expected_leaf), ("m_marker", expected_marker)] {
+        let actual = timeline.precise_bounds_for(label).expect("rendered bounds");
+        for (actual, expected) in [
+            (actual.x0, expected.x0),
+            (actual.y0, expected.y0),
+            (actual.x1, expected.x1),
+            (actual.y1, expected.y1),
+        ] {
+            assert!(
+                (actual - expected).abs() < 1e-3,
+                "{label} at depth {depth}, time {time}: expected {expected}, got {actual}"
+            );
+        }
+    }
+}
+
+#[test]
+fn precise_bounds_registry_rebuilds_after_invalidation_and_spawn() {
+    let mut timeline = Timeline::new();
+    timeline.spawn_entity("z_original", "Rect");
+    timeline.spawn_entity("m_original", "Rect");
+    for phase in 0..3 {
+        if phase == 1 {
+            timeline.invalidate_frame_cache();
+        } else if phase == 2 {
+            // New label sorts before existing labels, but must keep its newly
+            // allocated entity slot rather than shifting old slot meanings.
+            timeline.spawn_entity("a_new", "Rect");
+        }
+        assert!(timeline.eval_caches.bounds_registry.borrow().is_none());
+        timeline.ensure_bounds_registry();
+        let labels: Vec<String> = timeline.world.tracks.keys().cloned().collect();
+        for (index, label) in labels.iter().enumerate() {
+            assert_eq!(timeline.precise_bounds_for(label), None, "old frame must be cleared");
+            let id = timeline.get_entity_id(label).expect("registered entity");
+            let x = 10.0 * index as f64;
+            let expected = kurbo::Rect::new(x, 0.0, x + 5.0, 7.0);
+            timeline.record_precise_bounds(timeline.world.bounds_slot(id), label, expected);
+        }
+        for (index, label) in labels.iter().enumerate() {
+            let x = 10.0 * index as f64;
+            assert_eq!(
+                timeline.precise_bounds_for(label),
+                Some(kurbo::Rect::new(x, 0.0, x + 5.0, 7.0))
+            );
+        }
+    }
+}

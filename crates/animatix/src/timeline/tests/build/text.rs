@@ -24,9 +24,7 @@ fade_in(target: item, duration: 500ms)
     let program = graph
         .load_program_with_source(std::path::Path::new("virtual:///comp_repro.amx"), Some(SRC))
         .expect("load program");
-    let mut expansion_errors = Vec::new();
-    let expanded = program.expand_components(&mut expansion_errors);
-    assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
+    let expanded = program.expand_components().expect("component expansion");
 
     let report = Timeline::build_with_options(
         &expanded.statements,

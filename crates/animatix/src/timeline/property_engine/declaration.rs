@@ -534,6 +534,11 @@ fn write_track<T: Clone + crate::timeline::property_track::Interpolate + Default
             .ensure(default.clone())
             .add_keyframe(t_start_ms, start_val, Easing::Linear);
     } else if has_delay {
+        // The fence helper uses Rust's `T::default()` for a missing track,
+        // which is not necessarily this property's semantic default (scale
+        // and opacity start at 1, an affine transform starts at identity).
+        // Seed it first; ensure leaves an existing authored track unchanged.
+        field.ensure(default.clone());
         preserve_instant_delayed_value(field, t_start_ms);
     }
     field.ensure(default).add_keyframe(t_end_ms, value, easing);

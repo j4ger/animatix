@@ -17,8 +17,13 @@ pub fn run(input: &Path) {
         match module_graph.load_program_with_source(input, Some(&source)) {
             Ok(mut program) => {
                 let _ = program.typecheck();
-                let mut expansion_errors = Vec::new();
-                let expanded = program.expand_components(&mut expansion_errors);
+                let expanded = match program.expand_components() {
+                    Ok(expanded) => expanded,
+                    Err(error) => {
+                        crate::build::print_build_diagnostics(&error.diagnostics);
+                        std::process::exit(1);
+                    },
+                };
                 (expanded, program.namespaces, program.function_context)
             },
             Err(e) => {

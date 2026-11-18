@@ -42,7 +42,7 @@ pub fn source_pipeline(path: &Path, source: &str) -> Timeline {
     let mut program =
         graph.load_program_with_source(path, Some(source)).expect("module load failed");
     let _type_diags = program.typecheck();
-    let expanded = program.expand_components(&mut Vec::new());
+    let expanded = program.expand_components().expect("component expansion");
     Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,

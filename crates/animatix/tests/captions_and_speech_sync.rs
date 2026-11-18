@@ -21,7 +21,7 @@ fn setup_temp_workspace(test_name: &str) -> tempfile::TempDir {
 fn build_timeline(path: &std::path::Path) -> animatix_syntax::diagnostics::BuildReport<Timeline> {
     let mut graph = ModuleGraph::new();
     let program = graph.load_program(path).expect("load program");
-    let expanded = program.expand_components(&mut Vec::new());
+    let expanded = program.expand_components().expect("component expansion");
     let mut assets = animatix::timeline::assets::AssetCache::new();
     assets.set_base_dirs(path.parent(), None);
     Timeline::build_with_options(
@@ -261,7 +261,7 @@ fn test_demo_scene_captions_evaluation() {
     }
     let mut graph = ModuleGraph::new();
     let program = graph.load_program(&amx_path).expect("load program");
-    let expanded = program.expand_components(&mut Vec::new());
+    let expanded = program.expand_components().expect("component expansion");
     let ext_ctx = std::sync::Arc::new(animatix::extension_context::ExtensionContext::new());
     let report = animatix::composition::BuildTarget::build_with_options(
         &expanded.statements,

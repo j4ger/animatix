@@ -228,15 +228,7 @@ fn load_fixture(name: &str, path: PathBuf) -> Result<Fixture, Box<dyn Error>> {
     let type_diagnostics = program.typecheck();
     let mut diagnostics = Vec::new();
     collect_diagnostics(&mut diagnostics, "typecheck", type_diagnostics, &path)?;
-    let mut expansion_errors = Vec::new();
-    let expanded = program.expand_components(&mut expansion_errors);
-    if !expansion_errors.is_empty() {
-        return Err(error(format!(
-            "fixture {} has component expansion errors: {}",
-            path.display(),
-            expansion_errors.join("; ")
-        )));
-    }
+    let expanded = program.expand_components()?;
     let context = Arc::new(animatix::ExtensionRegistry::new());
     let report = BuildTarget::build_with_options(
         &expanded.statements,

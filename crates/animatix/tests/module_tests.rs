@@ -28,7 +28,7 @@ fn load_entry(source: &str) -> LoadedProgram {
 /// Component expansion, with the expander's diagnostics discarded so the
 /// tests can assert on the resulting shape alone.
 fn expanded(program: &LoadedProgram) -> animatix_syntax::module::ExpandedProgram {
-    program.expand_components(&mut Vec::new())
+    program.expand_components().expect("component expansion")
 }
 
 fn build_expanded(program: &LoadedProgram) -> Timeline {
