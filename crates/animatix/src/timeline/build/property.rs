@@ -4,6 +4,57 @@
 use super::*;
 use crate::ast::Property;
 
+/// Evaluate only the authored numeric axes of one size property.
+/// Relative keywords and percentages belong to layout and leave their axis unchanged.
+pub(super) fn evaluate_numeric_size_axes(
+    value: &Expr,
+    eval_env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> [Option<f32>; 2] {
+    let mut axes = [None; 2];
+    if let Expr::Tuple(items) = value
+        && items.len() == 2
+    {
+        for (axis, item) in items.iter().enumerate() {
+            // A mixed fixed/auto tuple cannot evaluate as a Vec2.
+            // Seed each numeric axis independently so the fixed
+            // dimension survives while auto remains content-sized.
+            let is_percent = match item {
+                Expr::Percent(_) => true,
+                Expr::Str(value) => {
+                    value.strip_suffix('%').is_some_and(|pct| pct.parse::<f32>().is_ok())
+                },
+                _ => false,
+            };
+            let is_auto_keyword = matches!(
+                item,
+                Expr::Ident(value) | Expr::Str(value)
+                    if matches!(value.as_str(), "auto" | "fit" | "fill")
+            );
+            if is_percent || is_auto_keyword {
+                continue;
+            }
+            match evaluate_expr_with_lookup_diagnostic(item, eval_env, diagnostics, subject) {
+                Some(Value::Num(value)) => {
+                    axes[axis] = Some(value as f32 / 2.0);
+                },
+                Some(value) => tracing::warn!(
+                    "{}: numeric size dimension expected a number, got {:?}",
+                    subject,
+                    value
+                ),
+                None => {}, // Evaluation failure already produced a diagnostic.
+            }
+        }
+    } else if let Some(Value::Vec2([w, h])) =
+        evaluate_expr_with_lookup_diagnostic(value, eval_env, diagnostics, subject)
+    {
+        axes = [Some(w as f32 / 2.0), Some(h as f32 / 2.0)];
+    }
+    axes
+}
+
 /// The plot-family declaration keys both property walkers parse identically.
 ///
 /// `extract_actor_properties` feeds the generic actor path (graph hosts,
@@ -90,58 +141,15 @@ impl PlotPropBag {
         let prop_subject = format!("{}.{}", label, prop.name);
         match prop.name.as_str() {
             "size" => {
-                // A non-numeric size spec (`percent`, `auto`, `fill`, …) is
-                // applied by the layout path; the numeric pair only seeds the
-                // half-size both plot layouts and bounds use.
-                if let Expr::Tuple(items) = &prop.value
-                    && items.len() == 2
+                for (axis, value) in
+                    evaluate_numeric_size_axes(&prop.value, eval_env, diagnostics, &prop_subject)
+                        .into_iter()
+                        .enumerate()
                 {
-                    for (axis, item) in items.iter().enumerate() {
-                        // A mixed fixed/auto tuple cannot evaluate as a Vec2.
-                        // Seed each numeric axis independently so the fixed
-                        // dimension survives while auto remains content-sized.
-                        let is_percent = match item {
-                            Expr::Percent(_) => true,
-                            Expr::Str(value) => value
-                                .strip_suffix('%')
-                                .is_some_and(|pct| pct.parse::<f32>().is_ok()),
-                            _ => false,
-                        };
-                        let is_auto_keyword = matches!(
-                            item,
-                            Expr::Ident(value) | Expr::Str(value)
-                                if matches!(value.as_str(), "auto" | "fit" | "fill")
-                        );
-                        if is_percent || is_auto_keyword {
-                            continue;
-                        }
-                        match evaluate_expr_with_lookup_diagnostic(
-                            item,
-                            eval_env,
-                            diagnostics,
-                            &prop_subject,
-                        ) {
-                            Some(Value::Num(value)) => {
-                                self.initial_size[axis] = value as f32 / 2.0;
-                                self.numeric_size_axes[axis] = true;
-                            },
-                            Some(value) => tracing::warn!(
-                                "{}: numeric size dimension expected a number, got {:?}",
-                                prop_subject,
-                                value
-                            ),
-                            None => {}, // Evaluation failure already produced a diagnostic.
-                        }
+                    if let Some(value) = value {
+                        self.initial_size[axis] = value;
+                        self.numeric_size_axes[axis] = true;
                     }
-                } else if let Some(Value::Vec2([w, h])) = evaluate_expr_with_lookup_diagnostic(
-                    &prop.value,
-                    eval_env,
-                    diagnostics,
-                    &prop_subject,
-                ) {
-                    self.initial_size[0] = w as f32 / 2.0;
-                    self.initial_size[1] = h as f32 / 2.0;
-                    self.numeric_size_axes = [true, true];
                 }
             },
             "radius" => {

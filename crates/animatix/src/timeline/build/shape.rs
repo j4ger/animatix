@@ -4,18 +4,11 @@
 use super::*;
 use crate::ast::Property;
 
-/// The mutable `RectState` of a shape state, when it is a rectangle.
-fn rect_state_mut(state: &mut VectorShapeState) -> Option<&mut crate::timeline::shapes::RectState> {
-    match state {
-        VectorShapeState::Rect(rect) => Some(rect),
-        _ => None,
-    }
-}
-
 impl Timeline {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn build_vector_shape_state(
         &self,
+        label: &str,
         ty: &str,
         props: &[Property],
         time_ms: f64,
@@ -63,43 +56,52 @@ impl Timeline {
         apply_vector_shape_defaults(ty, &mut vector_shape_state);
 
         for prop in props {
-            let prop_subject = format!("{}.{}", ty, prop.name);
+            let prop_subject = format!("{}.{}", label, prop.name);
             match prop.name.as_str() {
                 "at" | "anchor" | "offset" => {},
-                // Rect-specific: seeds the initial shape state so the build-time
-                // paths match what `Rect::evaluate` recomputes from the track.
                 "corner_radius" => {
-                    let radius = evaluate_expr_with_lookup_diagnostic(
+                    // Glass also uses Rect-backed state for its frost clip,
+                    // despite not exposing a Rect primitive or ShapeKind.
+                    let value = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
                         &eval_env,
                         diagnostics,
                         &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    if let (Value::Num(radius), Some(rect)) =
-                        (radius, rect_state_mut(&mut vector_shape_state))
-                    {
-                        rect.corner_radius = radius as f32;
+                    );
+                    if let VectorShapeState::Rect(rect) = &mut vector_shape_state {
+                        match value {
+                            Some(Value::Num(radius)) => rect.corner_radius = radius as f32,
+                            Some(other) => diagnostics.push(
+                                Diagnostic::warning(
+                                    DiagnosticCode::InvalidPropertyValue,
+                                    DiagnosticPhase::Build,
+                                    format!("corner_radius expects a number, got {other:?}"),
+                                )
+                                .with_subject(&prop_subject),
+                            ),
+                            None => rect.corner_radius = 0.0,
+                        }
                     }
                 },
                 "size" => {
-                    let size_val = evaluate_expr_with_lookup_diagnostic(
+                    let axes = super::property::evaluate_numeric_size_axes(
                         &prop.value,
                         &eval_env,
                         diagnostics,
                         &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    if let Value::Vec2([w, h]) = size_val {
-                        if let Some(size) = vector_shape_state.size_mut() {
-                            *size = [w as f32 / 2.0, h as f32 / 2.0];
-                        } else {
-                            diagnostics.push(Diagnostic::warning(
-                                DiagnosticCode::InvalidPropertyValue,
-                                DiagnosticPhase::Build,
-                                format!("size is not supported on {}", ty),
-                            ));
+                    );
+                    if let Some(size) = vector_shape_state.size_mut() {
+                        for (axis, value) in axes.into_iter().enumerate() {
+                            if let Some(value) = value {
+                                size[axis] = value;
+                            }
                         }
+                    } else if axes.into_iter().any(|value| value.is_some()) {
+                        diagnostics.push(Diagnostic::warning(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            format!("size is not supported on {}", ty),
+                        ));
                     }
                 },
                 _ => {

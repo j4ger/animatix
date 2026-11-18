@@ -3,7 +3,7 @@
 //! Each pass owns one property family and is called from
 //! [`Timeline::process_actor_decl`](super::Timeline::process_actor_decl) at the
 //! point in the declaration lifecycle where its writes belong: the explicit
-//! style/geometry pass runs before the track is spawned, while the connector and
+//! style pass runs before the track is spawned, while the connector and
 //! registry-complement passes need the spawned track.
 
 use super::super::helpers::ActorKeyframeValues;
@@ -116,6 +116,7 @@ impl Timeline {
             .is_some_and(|info| info.capabilities.is_shape);
         let shape_type = shape_type_for_actor(ty).unwrap_or(ShapeType::Rect);
         let vector_shape_state = self.build_vector_shape_state(
+            label,
             ty,
             props,
             time_ms,
@@ -187,21 +188,20 @@ impl Timeline {
         }
     }
 
-    /// Apply the declaration's explicit style/geometry properties in authored
-    /// order.
+    /// Apply the declaration's explicit style properties in authored order.
+    /// Shape geometry was already resolved by `build_vector_shape_state`.
+    /// Replaying only primitive-specific properties here would let an earlier
+    /// radius override a later size and evaluate shape expressions twice.
     ///
     /// This is the pre-spawn pass: it only computes the values the declaration
     /// tail writes into the fresh keyframes, so it must not touch the world.
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn apply_explicit_declaration_props(
+    pub(super) fn apply_explicit_declaration_style_props(
         &mut self,
         state: &mut DeclarationPropertyState,
         label: &str,
-        ty: &str,
         props: &[Property],
         eval_env: &Environment,
         primitive: &PrimitiveFamilyDescriptor,
-        has_vector_shape: bool,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         for prop in props {
@@ -343,26 +343,7 @@ impl Timeline {
                     .unwrap_or(Value::Num(0.0));
                     state.dash_offset = v.as_num() as f32;
                 },
-                _ if has_vector_shape
-                    && apply_vector_shape_property(
-                        ty,
-                        &prop.name,
-                        &prop.value,
-                        eval_env,
-                        diagnostics,
-                        &prop_subject,
-                        &mut state.vector_shape_state,
-                    ) =>
-                {
-                    (
-                        state.size,
-                        state.line_from,
-                        state.line_to,
-                        state.arc_angles,
-                        state.corner_radius,
-                    ) = extract_shape_state_values(&state.vector_shape_state);
-                },
-                _ => {}, // Non-style, non-shape properties are handled by general declaration passes.
+                _ => {}, // Geometry and other properties are handled by their declaration passes.
             }
         }
     }

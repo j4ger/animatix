@@ -412,3 +412,254 @@ fn group_reflow_at_65_groups_warns_and_preserves_unresolved_descendants() {
     assert!(report.output.world.tracks.contains_key("leaf"));
     assert_ne!(layout_size(&report.output, "leaf"), [400.0, 300.0]);
 }
+
+#[test]
+fn mixed_size_declarations_seed_fixed_axes_before_layout() {
+    let report = build(
+        r#"
+root_width: Rect, size: (20, auto), opacity: 1
+root_height: Rect, size: (auto, 30), opacity: 1
+host: Group, size: (800, 600) {
+  horizontal: Rect, size: (fill, 20), opacity: 1
+  vertical: Rect, size: (30, fill), opacity: 1
+}
+"#,
+    );
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    assert_eq!(layout_size(&report.output, "root_width")[0], 10.0);
+    assert_eq!(layout_size(&report.output, "root_height")[1], 15.0);
+    for (label, expected) in [("horizontal", [400.0, 10.0]), ("vertical", [15.0, 300.0])] {
+        assert_eq!(layout_size(&report.output, label), expected);
+        let id = report.output.world.get_id(label).unwrap();
+        assert_eq!(report.output.world.geometry(id).size.get(0, [0.0; 2]), expected);
+    }
+}
+
+#[test]
+fn mixed_size_fixed_axis_survives_redeclaration_and_still_animates() {
+    let report = build(
+        r#"
+r: Rect, size: (auto, 20), opacity: 1
+#1s
+r: Rect, opacity: 1
+#2s
+r.size = (100, 60) [2s]
+"#,
+    );
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    let id = report.output.world.get_id("r").unwrap();
+    let geometry = report.output.world.geometry(id);
+    for (time, expected) in [
+        (0, 10.0),
+        (1000, 10.0),
+        (2000, 10.0),
+        (3000, 20.0),
+        (4000, 30.0),
+    ] {
+        assert_eq!(geometry.size.get(time, [0.0; 2])[1], expected, "time={time}");
+    }
+}
+
+#[test]
+fn repeated_mixed_sizes_follow_shape_property_order() {
+    let report = build(
+        r#"
+a: Ellipse, size: (auto, 20), radius_y: 30, size: auto, opacity: 1
+b: Ellipse, radius_y: 30, size: (auto, 20), opacity: 1
+c: Ellipse, size: (40, 20), radius_y: 30, size: auto, opacity: 1
+d: Ellipse, size: (auto, 20), radius_y: 30, size: (80, 100), opacity: 1
+e: Ellipse, size: auto, radius_y: 30, size: (auto, 20), opacity: 1
+f: Ellipse, size: (auto, 20), radius_y: 30, size: (auto, 40), opacity: 1
+"#,
+    );
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    for (label, height) in [
+        ("a", 30.0),
+        ("b", 10.0),
+        ("c", 30.0),
+        ("d", 50.0),
+        ("e", 10.0),
+        ("f", 20.0),
+    ] {
+        assert_eq!(layout_size(&report.output, label)[1], height, "{label}");
+        let id = report.output.world.get_id(label).unwrap();
+        assert_eq!(report.output.world.geometry(id).size.get(0, [0.0; 2])[1], height, "{label}");
+    }
+    assert_eq!(layout_size(&report.output, "d")[0], 40.0);
+}
+
+#[test]
+fn mixed_size_numeric_expressions_and_vec2_values_keep_their_meaning() {
+    let report = build(
+        r#"
+let height = 20
+let dimensions = (40, 60)
+vector: Rect, size: dimensions, opacity: 1
+host: Group, size: (800, 600) {
+  numeric: Rect, size: (fill, height + 10), opacity: 1
+  percent: Rect, size: (50%, height + 20), opacity: 1
+  quoted: Rect, size: ("25%", height), opacity: 1
+}
+"#,
+    );
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    for (label, expected) in [
+        ("vector", [20.0, 30.0]),
+        ("numeric", [400.0, 15.0]),
+        ("percent", [200.0, 20.0]),
+        ("quoted", [100.0, 10.0]),
+    ] {
+        assert_eq!(layout_size(&report.output, label), expected, "{label}");
+    }
+}
+
+#[test]
+fn mixed_group_col_layout_preserves_fixed_leaf_height_through_64_levels() {
+    // Odd counts end in Group; even counts end in Col. Both must publish
+    // the authored leaf height, not a default from an unresolved mixed tuple.
+    for count in [3, 4, 63, 64] {
+        let mut source =
+            String::from("config { resolution: (800, 600) }\nroot: Group, size:(800,600) {\n");
+        for index in 1..count {
+            let ty = if index % 2 == 1 { "Col" } else { "Group" };
+            source.push_str(&format!("g{index}: {ty}, size:(fill,auto) {{\n"));
+        }
+        source.push_str("leaf: Rect, size:(fill,20), opacity:1\n");
+        for _ in 0..count {
+            source.push_str("}\n");
+        }
+        let report = build(&source);
+        assert!(
+            !report.diagnostics.iter().any(|d| {
+                d.is_error() || d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
+            }),
+            "count={count}: {:?}",
+            report.diagnostics
+        );
+        assert_eq!(layout_size(&report.output, "root"), [400.0, 300.0]);
+        for index in 1..count {
+            assert_eq!(
+                layout_size(&report.output, &format!("g{index}")),
+                [400.0, 10.0],
+                "count={count}, g{index}"
+            );
+        }
+        assert_eq!(layout_size(&report.output, "leaf"), [400.0, 10.0]);
+    }
+}
+
+#[test]
+fn non_repeated_shape_sizes_keep_authored_order_and_animation() {
+    let report = build(
+        r#"
+before: Ellipse, radius_y: 30, size: (40, 20), opacity: 1
+after: Ellipse, size: (40, 20), radius_y: 30, opacity: 1
+#2s
+before.size = (80, 60) [2s]
+"#,
+    );
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    let before = report.output.world.get_id("before").unwrap();
+    let after = report.output.world.get_id("after").unwrap();
+    assert_eq!(report.output.world.geometry(after).size.get(0, [0.0; 2]), [20.0, 30.0]);
+    let geometry = report.output.world.geometry(before);
+    for (time, expected) in [
+        (0, [20.0, 10.0]),
+        (2000, [20.0, 10.0]),
+        (3000, [30.0, 20.0]),
+        (4000, [40.0, 30.0]),
+        (0, [20.0, 10.0]),
+    ] {
+        assert_eq!(geometry.size.get(time, [0.0; 2]), expected, "time={time}");
+        assert_eq!(geometry.layout_size_get(time), Some(expected), "time={time}");
+    }
+}
+
+#[test]
+fn single_shape_pass_keeps_corner_radius_validation() {
+    let report = build("box: Rect, size: (80, 40), corner_radius: \"invalid\", opacity: 1");
+    let warnings: Vec<_> = report
+        .diagnostics
+        .iter()
+        .filter(|d| {
+            d.code == crate::diagnostics::DiagnosticCode::InvalidPropertyValue
+                && d.message.contains("corner_radius expects a number")
+        })
+        .collect();
+    assert_eq!(warnings.len(), 1, "{:?}", report.diagnostics);
+    assert_eq!(warnings[0].severity, crate::diagnostics::DiagnosticSeverity::Warning);
+    assert_eq!(warnings[0].location.subject.as_deref(), Some("box.corner_radius"));
+}
+
+#[test]
+fn single_shape_pass_reports_unknown_icon_once_with_instance_label() {
+    let report = build("mark: Path, icon: \"definitely-not-an-icon\", opacity: 1");
+    let warnings: Vec<_> = report
+        .diagnostics
+        .iter()
+        .filter(|d| {
+            d.code == crate::diagnostics::DiagnosticCode::InvalidPropertyValue
+                && d.message.contains("unknown icon")
+        })
+        .collect();
+    assert_eq!(warnings.len(), 1, "{:?}", report.diagnostics);
+    assert_eq!(warnings[0].location.subject.as_deref(), Some("mark.icon"));
+}
+
+#[test]
+fn single_shape_pass_keeps_line_and_arrow_endpoints_on_redeclaration() {
+    for ty in ["Line", "Arrow"] {
+        let report = build(&format!(
+            "edge: {ty}, from: (10,20), to: (80,90), opacity: 1\n\
+             #1s\nedge: {ty}, to: (100,120), opacity: 1\n"
+        ));
+        assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+        let id = report.output.world.get_id("edge").unwrap();
+        let shape = report.output.world.shape_or_default(id);
+        assert_eq!(shape.line_from.get(0, [0.0; 2]), [10.0, 20.0], "{ty}");
+        assert_eq!(shape.line_to.get(0, [0.0; 2]), [80.0, 90.0], "{ty}");
+        assert_eq!(shape.line_from.get(1000, [0.0; 2]), [10.0, 20.0], "{ty}");
+        assert_eq!(shape.line_to.get(1000, [0.0; 2]), [100.0, 120.0], "{ty}");
+    }
+}
+
+#[test]
+fn single_shape_pass_keeps_glass_clip_corner_radius() {
+    let report = build(
+        r#"
+card: Glass, size: (200, 100), corner_radius: 17 {
+  content: Rect, size: (40, 20), opacity: 1
+}
+#1s
+card: Glass, size: (220, 120)
+"#,
+    );
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    let id = report.output.world.get_id("card").unwrap();
+    let shape = report.output.world.shape_or_default(id);
+    assert_eq!(shape.corner_radius.get(0, 0.0), 17.0);
+    assert_eq!(shape.corner_radius.get(1000, 0.0), 17.0);
+}
+
+#[test]
+fn failed_corner_radius_evaluation_keeps_existing_zero_fallback() {
+    let report = build(
+        r#"
+box: Rect, size: (80, 40), corner_radius: 17, opacity: 1
+#1s
+box: Rect, corner_radius: unavailable_corner.radius, opacity: 1
+"#,
+    );
+    assert!(
+        report.diagnostics.iter().any(|d| {
+            d.code == crate::diagnostics::DiagnosticCode::UnknownLookupPath
+                && d.location.subject.as_deref() == Some("box.corner_radius")
+        }),
+        "failed expression must be diagnosed: {:?}",
+        report.diagnostics
+    );
+    let id = report.output.world.get_id("box").unwrap();
+    let shape = report.output.world.shape_or_default(id);
+    assert_eq!(shape.corner_radius.get(0, 0.0), 17.0);
+    assert_eq!(shape.corner_radius.get(1000, 0.0), 0.0);
+}
