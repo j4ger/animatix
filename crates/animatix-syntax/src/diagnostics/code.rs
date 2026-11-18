@@ -10,6 +10,8 @@ use super::DiagnosticCode;
 impl fmt::Display for DiagnosticCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            DiagnosticCode::ComponentExpansionDepthExceeded => write!(f, "component-expansion-depth-exceeded"),
+            DiagnosticCode::MissingExpansionScope => write!(f, "missing-expansion-scope"),
             DiagnosticCode::SourceLoadFailure => write!(f, "source-load-failure"),
             DiagnosticCode::ParseError => write!(f, "parse-error"),
             DiagnosticCode::RenderFailure => write!(f, "render-failure"),

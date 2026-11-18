@@ -48,10 +48,15 @@ pub fn run(
                 },
             };
             let diagnostics = program.typecheck_with_callables(ctx.callable_descriptors());
-            let expansion = program.expand_components_with_diagnostics();
-            let expanded = expansion.output;
-            let mut diagnostics = diagnostics;
-            diagnostics.extend(expansion.diagnostics);
+            let expanded = match program.expand_components() {
+                Ok(expanded) => expanded,
+                Err(error) => {
+                    let mut diagnostics = diagnostics;
+                    diagnostics.extend(error.diagnostics);
+                    emit_check_report(&file_label, &source, diagnostics, Vec::new(), format);
+                    return;
+                },
+            };
             (expanded, program.namespaces, program.function_context, diagnostics, disposers)
         },
         Err(e) => {

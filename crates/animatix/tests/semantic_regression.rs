@@ -25,7 +25,7 @@ fn build_report(source: &str) -> (Timeline, Vec<String>) {
     let mut program = graph.load_program(entry).expect("fixture should parse and load");
     let type_diagnostics = program.typecheck();
     assert!(type_diagnostics.is_empty(), "type diagnostics: {type_diagnostics:?}");
-    let expanded = program.expand_components(&mut Vec::new());
+    let expanded = program.expand_components().expect("component expansion");
     let report = Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,

@@ -26,9 +26,7 @@ always { output.opacity = card }
     let program = graph
         .load_program_with_source(Path::new("virtual:///actor_shadow.amx"), Some(source))
         .expect("load source");
-    let mut errors = Vec::new();
-    let expanded = program.expand_components(&mut errors);
-    assert!(errors.is_empty(), "{errors:?}");
+    let expanded = program.expand_components().expect("component expansion");
     let report = Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,

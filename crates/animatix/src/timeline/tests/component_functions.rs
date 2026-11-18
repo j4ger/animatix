@@ -14,9 +14,7 @@ fn build(source: &str) -> BuildTarget {
         .unwrap();
     let diagnostics = program.typecheck();
     assert!(diagnostics.iter().all(|d| !d.is_error()), "{diagnostics:?}");
-    let mut errors = Vec::new();
-    let expanded = program.expand_components(&mut errors);
-    assert!(errors.is_empty(), "{errors:?}");
+    let expanded = program.expand_components().expect("component expansion");
     let report = BuildTarget::build_with_options(
         &expanded.statements,
         &program.namespaces,
@@ -152,7 +150,7 @@ play remote::Remote
             ),
         )
         .unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
+    let expanded = program.expand_components().expect("component expansion");
     let report = BuildTarget::build_with_options(
         &expanded.statements,
         &program.namespaces,

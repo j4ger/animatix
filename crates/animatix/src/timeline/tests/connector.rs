@@ -122,3 +122,193 @@ fn nested_target_connector_stays_on_world_edges_at_multiple_depths() {
         }
     }
 }
+
+#[test]
+fn connector_target_resolution_converts_world_points_and_directions_to_local() {
+    use crate::primitives::connector::resolve_connector_endpoint_local;
+    use crate::timeline::callout_geometry::TargetResolver;
+    use crate::timeline::{ConnectorEndpoint, SceneAnchor};
+    struct Bounds;
+    impl TargetResolver for Bounds {
+        fn target_bounds(&self, _name: &str, _time: u64, _dims: SceneDimensions)
+            -> Option<([f32; 2], [f32; 2])> {
+            Some(([300.0, 200.0], [20.0, 20.0]))
+        }
+    }
+    let dims = SceneDimensions { width: 1280, height: 720 };
+    let target = ConnectorEndpoint::Target { actor: "target".into(), anchor: Some(SceneAnchor::Right) };
+    let transforms = [
+        kurbo::Affine::IDENTITY,
+        kurbo::Affine::translate((80.0, 40.0)),
+        kurbo::Affine::new([2.0, 0.0, 0.0, 0.5, 80.0, 40.0]),
+        kurbo::Affine::rotate(0.7),
+        kurbo::Affine::new([1.0, 0.3, 0.6, 1.0, 80.0, 40.0]),
+    ];
+    for transform in transforms {
+        let (point, normal) = resolve_connector_endpoint_local(
+            &target, Some(&Bounds), 0, dims, None, transform,
+        ).unwrap();
+        let world = transform * kurbo::Point::new(point[0] as f64, point[1] as f64);
+        assert!((world.x - 320.0).abs() < 0.001 && (world.y - 200.0).abs() < 0.001,
+            "target must land on world edge exactly once: {transform:?} {world:?}");
+        let [a, b, c, d, _, _] = transform.as_coeffs();
+        let world_normal = [a * normal[0] as f64 + c * normal[1] as f64,
+            b * normal[0] as f64 + d * normal[1] as f64];
+        assert!(world_normal[0] > 0.0 && world_normal[1].abs() < 0.0001);
+        let numeric = resolve_connector_endpoint_local(
+            &ConnectorEndpoint::Point([5.0, 7.0]), Some(&Bounds), 0, dims, None, transform,
+        ).unwrap();
+        assert_eq!(numeric.0, [5.0, 7.0], "numeric endpoints stay local");
+    }
+    let auto = ConnectorEndpoint::Target { actor: "target".into(), anchor: None };
+    let transform = kurbo::Affine::translate((400.0, 0.0));
+    let (point, _) = resolve_connector_endpoint_local(
+        &auto, Some(&Bounds), 0, dims, Some([0.0, 200.0]), transform,
+    ).unwrap();
+    assert_eq!(point, [-80.0, 200.0], "auto anchor uses other endpoint in world space");
+    assert!(resolve_connector_endpoint_local(
+        &target, None, 0, dims, None, kurbo::Affine::IDENTITY,
+    ).is_none(), "missing targets must not become a fabricated origin endpoint");
+    let collapsed = kurbo::Affine::scale(0.0);
+    assert!(resolve_connector_endpoint_local(&target, Some(&Bounds), 0, dims, None, collapsed).is_none());
+    assert!(resolve_connector_endpoint_local(&ConnectorEndpoint::Point([5.0, 7.0]),
+        Some(&Bounds), 0, dims, None, collapsed).is_some());
+}
+
+#[test]
+fn mixed_connector_draw_commands_attach_target_and_keep_numeric_endpoint_local() {
+    use crate::primitives::RenderCommand;
+    use crate::timeline::DebugRenderOptions;
+    for extra in ["", ", rotation: 30", ", transform: (2,0,0,0.5,0,0)"] {
+        for reverse in [false, true] {
+            let endpoints = if reverse { "from: (0,200), to: target" } else { "from: target, to: (0,200)" };
+            let report = build(&format!(r#"
+target: Rect, at: (300,200), size: (40,40), opacity: 1
+holder: Group, at: (800,0), opacity: 1{extra} {{
+    wire: Connector, {endpoints}, routing: "straight", arrow: false, stroke_width: 2, opacity: 1
+}}
+"#));
+    assert!(report.diagnostics.iter().all(|diagnostic| !diagnostic.is_error()), "{:?}", report.diagnostics);
+    let timeline = report.output;
+    for _ in 0..2 {
+        let program = timeline.evaluate_program_with_debug(
+            0.0, SceneDimensions { width: 1280, height: 720 },
+            DebugRenderOptions { compute_hit_regions: true, ..Default::default() }, &mut None,
+        );
+        let item = program.items.iter().find(|item| item.label == "wire").expect("connector draw item");
+        let paths = item.commands.iter().find_map(|command| {
+            if let RenderCommand::Paths { paths } = command { Some(paths) } else { None }
+        }).expect("connector path command");
+        assert_eq!(paths.len(), 1, "straight shaft without arrow");
+        let elements = paths[0].path.elements();
+        let kurbo::PathEl::MoveTo(start) = elements[0] else { panic!("shaft must start with MoveTo") };
+        let kurbo::PathEl::LineTo(end) = elements[elements.len() - 1] else { panic!("straight shaft must end with LineTo") };
+        let (target_world, numeric_world) = if reverse {
+            (item.transform * end, item.transform * start)
+        } else {
+            (item.transform * start, item.transform * end)
+        };
+        let expected_numeric = item.transform * kurbo::Point::new(0.0, 200.0);
+        let target = program.precise_bounds["target"];
+        assert!(expected_numeric.x - target.center().x > (expected_numeric.y - target.center().y).abs(),
+            "fixture must select target's right edge: {expected_numeric:?} {target:?}");
+        assert!((target_world.x - target.x1).abs() < 0.001 && (target_world.y - target.center().y).abs() < 0.001,
+            "target anchor must be world-space, not translated twice: {target_world:?} {target:?}");
+        assert!((numeric_world.x - expected_numeric.x).abs() < 0.001 && (numeric_world.y - expected_numeric.y).abs() < 0.001,
+            "numeric endpoint must retain local transform: {numeric_world:?} {expected_numeric:?}");
+        assert!(program.precise_bounds.contains_key("wire"));
+        assert!(timeline.hit_regions().iter().any(|(name, _)| name == "wire"));
+    }
+        }
+    }
+}
+
+#[test]
+fn singular_target_connector_emits_no_draw_item_precise_bounds_or_hit_region() {
+    use crate::timeline::DebugRenderOptions;
+    for scale in [0, 1] {
+        let report = build(&format!(r#"
+a: Rect, at: (200,200), size: (40,40), opacity: 1
+b: Rect, at: (400,200), size: (40,40), opacity: 1
+holder: Group, at: (10,5), scale: {scale}, opacity: 1 {{
+    wire: Connector, from: (a,right), to: (b,left), routing: "straight", arrow: false, opacity: 1
+}}
+"#));
+        assert!(report.diagnostics.iter().all(|diagnostic| !diagnostic.is_error()), "{:?}", report.diagnostics);
+        let timeline = report.output;
+        for _ in 0..2 {
+            let program = timeline.evaluate_program_with_debug(
+                0.0, SceneDimensions { width: 1280, height: 720 },
+                DebugRenderOptions { compute_hit_regions: true, ..Default::default() }, &mut None,
+            );
+            let expected = scale != 0;
+            assert_eq!(program.items.iter().any(|item| item.label == "wire"), expected, "draw item at scale={scale}");
+            assert_eq!(program.precise_bounds.contains_key("wire"), expected, "precise bounds at scale={scale}");
+            assert_eq!(timeline.hit_regions().iter().any(|(name, _)| name == "wire"), expected, "hit region at scale={scale}");
+        }
+    }
+}
+
+#[test]
+fn target_connector_clears_bounds_and_hits_across_singular_frames_and_reverse_seek() {
+    use crate::timeline::DebugRenderOptions;
+    let report = build(r#"
+a: Rect, at: (200,200), size: (40,40), opacity: 1
+b: Rect, at: (400,200), size: (40,40), opacity: 1
+holder: Group, at: (10,5), scale: 1, opacity: 1 {
+    wire: Connector, from: (a,right), to: (b,left), routing: "straight", arrow: false, opacity: 1
+}
+#1s
+holder.scale = 0 [0s]
+#2s
+holder.scale = 1 [0s]
+#3s
+"#);
+    assert!(report.diagnostics.iter().all(|diagnostic| !diagnostic.is_error()), "{:?}", report.diagnostics);
+    let timeline = report.output;
+    // Forward, reverse, and repeated exact-frame cache hits on the SAME timeline.
+    for time in [0.5, 1.5, 2.5, 2.5, 1.5, 1.5, 0.5, 2.5, 1.5, 0.5] {
+        let program = timeline.evaluate_program_with_debug(
+            time, SceneDimensions { width: 1280, height: 720 },
+            DebugRenderOptions { compute_hit_regions: true, ..Default::default() }, &mut None,
+        );
+        let visible = !(1.0..2.0).contains(&time);
+        assert_eq!(program.items.iter().any(|item| item.label == "wire"), visible, "draw at t={time}");
+        assert_eq!(program.precise_bounds.contains_key("wire"), visible, "program bounds at t={time}");
+        assert_eq!(timeline.precise_bounds_for("wire").is_some(), visible, "cached bounds at t={time}");
+        assert_eq!(timeline.hit_regions().iter().any(|(name, _)| name == "wire"), visible, "hits at t={time}");
+        if visible {
+            let wire = program.precise_bounds["wire"];
+            let a = program.precise_bounds["a"];
+            let b = program.precise_bounds["b"];
+            assert!((wire.x0 - a.x1).abs() < 2.0 && (wire.x1 - b.x0).abs() < 2.0,
+                "restored connector must recover endpoints at t={time}: {wire:?} {a:?} {b:?}");
+        }
+    }
+}
+
+#[test]
+fn connector_local_resolution_queries_target_once_and_handles_absent_actor() {
+    use std::cell::Cell;
+    use crate::primitives::connector::resolve_connector_endpoint_local;
+    use crate::timeline::callout_geometry::TargetResolver;
+    use crate::timeline::ConnectorEndpoint;
+    struct Bounds { calls: Cell<usize>, present: bool }
+    impl TargetResolver for Bounds {
+        fn target_bounds(&self, _name: &str, _time: u64, _dims: SceneDimensions)
+            -> Option<([f32; 2], [f32; 2])> {
+            self.calls.set(self.calls.get() + 1);
+            self.present.then_some(([300.0, 200.0], [20.0, 20.0]))
+        }
+    }
+    for present in [false, true] {
+        let resolver = Bounds { calls: Cell::new(0), present };
+        let result = resolve_connector_endpoint_local(
+            &ConnectorEndpoint::Target { actor: "target".into(), anchor: None },
+            Some(&resolver), 0, SceneDimensions { width: 1280, height: 720 },
+            Some([400.0, 200.0]), kurbo::Affine::IDENTITY,
+        );
+        assert_eq!(result.is_some(), present);
+        assert_eq!(resolver.calls.get(), 1);
+    }
+}

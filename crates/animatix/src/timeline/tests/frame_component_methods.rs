@@ -37,9 +37,7 @@ always {{ out.opacity = {expression} }}
     let program = graph
         .load_program_with_source(Path::new("virtual:///frame_methods.amx"), Some(&source))
         .expect("load component methods");
-    let mut errors = Vec::new();
-    let expanded = program.expand_components(&mut errors);
-    assert!(errors.is_empty(), "{errors:?}");
+    let expanded = program.expand_components().expect("component expansion");
     let report = Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,
@@ -150,9 +148,7 @@ always { out.opacity = read_scene() }
             Some(source),
         )
         .expect("load scene actor method source");
-    let mut errors = Vec::new();
-    let expanded = program.expand_components(&mut errors);
-    assert!(errors.is_empty(), "{errors:?}");
+    let expanded = program.expand_components().expect("component expansion");
     let report = Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,

@@ -28,6 +28,10 @@ pub enum DiagnosticPhase {
 /// Unique code identifying the kind of diagnostic.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DiagnosticCode {
+    /// Component expansion exceeded its active invocation budget.
+    ComponentExpansionDepthExceeded,
+    /// An imported scene has no defining lexical module scope.
+    MissingExpansionScope,
     /// Failed to load a source file.
     SourceLoadFailure,
     /// A syntax or parse error was encountered.

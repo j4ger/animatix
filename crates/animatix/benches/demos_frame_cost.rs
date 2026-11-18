@@ -70,13 +70,7 @@ fn build_target(path: &Path) -> BuildTarget {
     let mut graph = ModuleGraph::new();
     let mut program = graph.load_program(path).expect("demo loads");
     program.typecheck();
-    let mut expansion_errors = Vec::new();
-    let expanded = program.expand_components(&mut expansion_errors);
-    assert!(
-        expansion_errors.is_empty(),
-        "{}: expansion errors {expansion_errors:?}",
-        path.display()
-    );
+    let expanded = program.expand_components().expect("component expansion");
     let report = BuildTarget::build_with_options(
         &expanded.statements,
         &program.namespaces,

@@ -38,8 +38,7 @@ fn main() {
     let mut graph = ModuleGraph::new();
     let mut program = graph.load_program(&path).expect("module load failed");
     let _ = program.typecheck();
-    let mut expansion_errors = Vec::new();
-    let expanded = program.expand_components(&mut expansion_errors);
+    let expanded = program.expand_components().expect("component expansion");
     let context = std::sync::Arc::new(animatix::ExtensionRegistry::new());
     let report = BuildTarget::build_with_options(
         &expanded.statements,

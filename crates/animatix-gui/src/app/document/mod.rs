@@ -84,11 +84,11 @@ pub struct DocumentSession {
     pub module_fns: HashMap<String, FnTemplate>,
     /// Hash of source_text at last successful rebuild — skip rebuild if unchanged.
     last_source_hash: u64,
-    /// Hash of the complete source graph at the last successful expansion.
+    /// Hash of the complete source graph at the last expansion attempt.
     last_expansion_hash: u64,
-    /// Cached statements and callable metadata for an unchanged source graph.
+    /// Cached expansion result, including structured errors, for an unchanged source graph.
     cached_expanded:
-        Option<animatix_syntax::diagnostics::BuildReport<animatix_syntax::module::ExpandedProgram>>,
+        Option<Result<animatix_syntax::module::ExpandedProgram, animatix_syntax::module::ExpansionError>>,
     /// Cached module graph — preserves parsed imports across rebuilds.
     cached_module_graph: Option<ModuleGraph>,
     /// Disk imports corresponding to the cached graph; entry source is editor-owned.

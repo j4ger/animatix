@@ -18,7 +18,7 @@ use crate::error::GuiError;
 /// Result of loading and parsing a program.
 pub struct LoadedProgramResult {
     pub raw_statements: Vec<Stmt>,
-    pub expanded: animatix_syntax::module::ExpandedProgram,
+    pub expanded: Result<animatix_syntax::module::ExpandedProgram, animatix_syntax::module::ExpansionError>,
     pub namespaces: HashMap<String, Namespace>,
     pub type_diagnostics: Vec<Diagnostic>,
     pub components: HashMap<String, ComponentEntry>,
@@ -167,7 +167,7 @@ impl DocumentSession {
         }
         let mut program =
             graph.load_program_with_source(&self.file_path, Some(&self.source_text))?;
-        let mut type_diagnostics =
+        let type_diagnostics =
             program.typecheck_with_callables(self.extension_context.callable_descriptors());
 
         // Expansion caches complete function scopes, including plan-valued
@@ -189,20 +189,19 @@ impl DocumentSession {
             if let Some(expanded) = self.cached_expanded.clone() {
                 expanded
             } else {
-                let expanded = program.expand_components_with_diagnostics();
+                let expanded = program.expand_components();
                 self.cached_expanded = Some(expanded.clone());
                 self.last_expansion_hash = expansion_hash;
                 expanded
             }
         } else {
-            let expanded = program.expand_components_with_diagnostics();
+            let expanded = program.expand_components();
             self.cached_expanded = Some(expanded.clone());
             self.last_expansion_hash = expansion_hash;
             expanded
         };
 
-        type_diagnostics.extend(expansion.diagnostics);
-        let expanded = expansion.output;
+        let expanded = expansion;
 
         let entry = fs::canonicalize(&self.file_path).unwrap_or_else(|_| self.file_path.clone());
         let imports = program

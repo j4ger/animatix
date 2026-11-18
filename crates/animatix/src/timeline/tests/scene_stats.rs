@@ -189,9 +189,7 @@ fn ambience_component_evaluates_at_runtime() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/animation/39_ambience.amx");
     let program = graph.load_program(&path).unwrap();
-    let mut diagnostics = Vec::new();
-    let expanded = program.expand_components(&mut diagnostics);
-    assert!(diagnostics.is_empty(), "expansion diagnostics: {diagnostics:?}");
+    let expanded = program.expand_components().expect("component expansion");
     let report = Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,

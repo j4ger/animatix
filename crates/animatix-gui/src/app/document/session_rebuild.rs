@@ -74,6 +74,17 @@ impl DocumentSession {
             },
         };
 
+        let expanded = match result.expanded {
+            Ok(expanded) => expanded,
+            Err(error) => {
+                let message = error.to_string();
+                self.diagnostics = result.type_diagnostics;
+                self.diagnostics.extend(error.diagnostics);
+                self.last_rebuild_error = Some(message.clone());
+                return Err(GuiError::Build { message });
+            },
+        };
+
         if let Some(error) = result.type_diagnostics.iter().find(|diagnostic| diagnostic.is_error())
         {
             let message = error.message.clone();
@@ -86,7 +97,7 @@ impl DocumentSession {
         let source_index = SourceIndex::build(&result.raw_statements);
 
         let report = BuildTarget::build_with_options(
-            &result.expanded.statements,
+            &expanded.statements,
             &result.namespaces,
             Some(&self.file_path),
             animatix::timeline::BuildOptions {
@@ -96,7 +107,7 @@ impl DocumentSession {
                 extensions: Some(std::sync::Arc::clone(&self.extension_context)),
                 ..Default::default()
             }
-            .with_expanded(&result.expanded),
+            .with_expanded(&expanded),
         );
         let mut all_diagnostics = result.type_diagnostics;
         all_diagnostics.extend(report.diagnostics);
@@ -110,9 +121,9 @@ impl DocumentSession {
         }
         self.last_rebuild_error = None;
         self.duration_s = report.output.duration_s().max(0.1);
-        self.scene_dimensions = document_scene_dimensions(&result.expanded.statements);
+        self.scene_dimensions = document_scene_dimensions(&expanded.statements);
         self.raw_statements = Some(result.raw_statements);
-        self.expanded_statements = Some(result.expanded.statements);
+        self.expanded_statements = Some(expanded.statements);
         self.source_index = Some(source_index);
         self.namespaces = result.namespaces;
         self.components = result.components;

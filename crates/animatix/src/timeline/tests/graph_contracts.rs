@@ -41,9 +41,7 @@ disabled: AxisGraph, draw: false
         diagnostics.iter().all(|diagnostic| !diagnostic.is_error()),
         "component argument diagnostics: {diagnostics:?}"
     );
-    let mut expansion_errors = Vec::new();
-    let expanded = program.expand_components(&mut expansion_errors);
-    assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
+    let expanded = program.expand_components().expect("component expansion");
     let report = Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,
@@ -121,9 +119,7 @@ fade_in(target: live.card.hidden, duration: 1s)
         .expect("load nested Graph entrance fixture");
     let type_diagnostics = program.typecheck();
     assert!(type_diagnostics.iter().all(|d| !d.is_error()), "{type_diagnostics:?}");
-    let mut errors = Vec::new();
-    let expanded = program.expand_components(&mut errors);
-    assert!(errors.is_empty(), "{errors:?}");
+    let expanded = program.expand_components().expect("component expansion");
     let report = Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,

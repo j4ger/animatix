@@ -297,9 +297,7 @@ let second = two::amount()
         .unwrap();
     let type_errors = program.typecheck();
     assert!(type_errors.iter().all(|d| !d.is_error()), "{type_errors:?}");
-    let mut errors = Vec::new();
-    let expanded = program.expand_components(&mut errors);
-    assert!(errors.is_empty(), "{errors:?}");
+    let expanded = program.expand_components().expect("component expansion");
     // The module-function context is supplied here by the module build boundary.
     let result = Timeline::build_with_options(
         &expanded.statements,

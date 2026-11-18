@@ -77,9 +77,7 @@ for title, i in {"same", "same"} {
         type_diagnostics.iter().all(|diagnostic| !diagnostic.is_error()),
         "component parameter types: {type_diagnostics:?}"
     );
-    let mut expansion_errors = Vec::new();
-    let expanded = program.expand_components(&mut expansion_errors);
-    assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
+    let expanded = program.expand_components().expect("component expansion");
 
     let report = Timeline::build_with_options(
         &expanded.statements,
@@ -234,9 +232,7 @@ for amount, j in {0.2, 0.4, 0.6} {
     let program = modules
         .load_program_with_source(Path::new("virtual:///indexed_method.amx"), Some(source))
         .expect("load component program");
-    let mut expansion_errors = Vec::new();
-    let expanded = program.expand_components(&mut expansion_errors);
-    assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
+    let expanded = program.expand_components().expect("component expansion");
 
     let report = Timeline::build_with_options(
         &expanded.statements,
@@ -301,7 +297,7 @@ cards[0].missing_method()
     let program = modules
         .load_program_with_source(Path::new("virtual:///indexed_method_errors.amx"), Some(source))
         .expect("load component program");
-    let expanded = program.expand_components(&mut Vec::new());
+    let expanded = program.expand_components().expect("component expansion");
     let report = Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,
@@ -392,7 +388,7 @@ cards[2].from_nested(j: 0.8)
             Some(source),
         )
         .expect("load component program");
-    let expanded = program.expand_components(&mut Vec::new());
+    let expanded = program.expand_components().expect("component expansion");
     let report = Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,
@@ -509,7 +505,7 @@ for unused, j in {0, 1} {
             Some(source),
         )
         .expect("load multi-actor component program");
-    let expanded = program.expand_components(&mut Vec::new());
+    let expanded = program.expand_components().expect("component expansion");
     let report = Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,
@@ -608,7 +604,7 @@ sequence {
     let program = modules
         .load_program_with_source(Path::new("virtual:///indexed_sequence.amx"), Some(source))
         .expect("load indexed method sequence");
-    let expanded = program.expand_components(&mut Vec::new());
+    let expanded = program.expand_components().expect("component expansion");
     let report = Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,

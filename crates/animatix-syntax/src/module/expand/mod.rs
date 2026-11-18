@@ -15,7 +15,9 @@ pub(super) fn expand_statements(
     statements: &[Stmt],
     components: &HashMap<String, ComponentEntry>,
 ) -> crate::module::ExpandedProgram {
-    expand_statements_in_context(statements, components, ExpansionCtx::new(), &mut Vec::new())
+    let mut diagnostics = Vec::new();
+    let output = expand_statements_in_context(statements, components, ExpansionCtx::new(), &mut diagnostics);
+    finish_expansion(output, diagnostics).expect("fixture component expansion")
 }
 
 pub(super) fn expand_statements_with_component_scopes(
@@ -77,12 +79,7 @@ pub(crate) use component::INSTANCE_FORWARDED_PROPS;
 pub(super) fn finish_expansion(
     output: crate::module::ExpandedProgram,
     diagnostics: Vec<crate::diagnostics::Diagnostic>,
-) -> crate::diagnostics::BuildReport<crate::module::ExpandedProgram> {
-    let output = if diagnostics.iter().any(crate::diagnostics::Diagnostic::is_error) {
-        crate::module::ExpandedProgram::default()
-    } else {
-        output
-    };
+) -> Result<crate::module::ExpandedProgram, crate::module::ExpansionError> {
     // The same function can appear in several lexical/exported contexts.
     // Unlike generic BuildReport deduplication, preserve distinct source paths.
     let mut unique = Vec::new();
@@ -91,8 +88,9 @@ pub(super) fn finish_expansion(
             unique.push(diagnostic);
         }
     }
-    crate::diagnostics::BuildReport {
-        output,
-        diagnostics: unique,
+    if unique.is_empty() {
+        Ok(output)
+    } else {
+        Err(crate::module::ExpansionError { diagnostics: unique })
     }
 }

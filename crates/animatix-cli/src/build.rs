@@ -49,10 +49,10 @@ pub fn try_load_and_build(
         .map_err(|e| format!("Plugin install failed: {e}"))?;
     let (expanded, namespaces, function_context, type_diagnostics) = {
         let diagnostics = program.typecheck_with_callables(ctx.callable_descriptors());
-        let expansion = program.expand_components_with_diagnostics();
-        let expanded = expansion.output;
-        let mut diagnostics = diagnostics;
-        diagnostics.extend(expansion.diagnostics);
+        let expanded = program.expand_components().map_err(|error| {
+            diagnostics.iter().chain(error.diagnostics.iter())
+                .map(format_diagnostic).collect::<Vec<_>>().join("\n")
+        })?;
         (expanded, program.namespaces, program.function_context, diagnostics)
     };
 

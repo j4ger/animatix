@@ -24,7 +24,7 @@ fn build_timeline_from_source(test_name: &str, source: &str) -> Timeline {
     fs::write(&temp_path, source).expect("write temp fixture should succeed");
     let mut graph = ModuleGraph::new();
     let program = graph.load_program(&temp_path).expect("program should load");
-    let expanded = program.expand_components(&mut Vec::new());
+    let expanded = program.expand_components().expect("component expansion");
     let report = Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,
@@ -283,7 +283,7 @@ curve: PlotCurve, func: (x) => sin(freq * x), domain: (0, 6.28), samples: 100
     fs::write(&temp_path, source).expect("write temp fixture should succeed");
     let mut graph = ModuleGraph::new();
     let program = graph.load_program(&temp_path).expect("program should load");
-    let expanded = program.expand_components(&mut Vec::new());
+    let expanded = program.expand_components().expect("component expansion");
     let report = Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,

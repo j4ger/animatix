@@ -10,7 +10,7 @@ mod types;
 
 pub use indexed::specialize_instance_property_reads;
 pub use types::{
-    ComponentEntry, ExpandedProgram, FileId, FnTemplate, FunctionContext, FunctionModule,
+    ComponentEntry, ExpandedProgram, ExpansionError, FileId, FnTemplate, FunctionContext, FunctionModule,
     InstanceFnRegistry, LoadedProgram, ModuleGraph, Namespace, SceneData, SourceAccess,
 };
 

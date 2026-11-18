@@ -98,53 +98,111 @@ pub fn resolve_connector_endpoint(
                 && let Some((center, half_size)) =
                     resolver.target_bounds(actor, time_ms, scene_dimensions)
             {
-                let resolved_anchor = anchor.unwrap_or_else(|| {
-                    // Auto-choose the most direct anchor side facing the other position
-                    match other_pos {
-                        Some(other) => {
-                            let dx = other[0] - center[0];
-                            let dy = other[1] - center[1];
-                            if dx.abs() >= dy.abs() {
-                                if dx >= 0.0 {
-                                    SceneAnchor::Right
-                                } else {
-                                    SceneAnchor::Left
-                                }
-                            } else {
-                                if dy >= 0.0 {
-                                    SceneAnchor::Bottom
-                                } else {
-                                    SceneAnchor::Top
-                                }
-                            }
-                        },
-                        None => SceneAnchor::Right,
-                    }
-                });
-
-                const FRAC: f32 = std::f32::consts::FRAC_1_SQRT_2;
-                return match resolved_anchor {
-                    SceneAnchor::Left => ([center[0] - half_size[0], center[1]], [-1.0, 0.0]),
-                    SceneAnchor::Right => ([center[0] + half_size[0], center[1]], [1.0, 0.0]),
-                    SceneAnchor::Top => ([center[0], center[1] - half_size[1]], [0.0, -1.0]),
-                    SceneAnchor::Bottom => ([center[0], center[1] + half_size[1]], [0.0, 1.0]),
-                    SceneAnchor::Center => (center, [0.0, 0.0]),
-                    SceneAnchor::TopLeft => {
-                        ([center[0] - half_size[0], center[1] - half_size[1]], [-FRAC, -FRAC])
-                    },
-                    SceneAnchor::TopRight => {
-                        ([center[0] + half_size[0], center[1] - half_size[1]], [FRAC, -FRAC])
-                    },
-                    SceneAnchor::BottomLeft => {
-                        ([center[0] - half_size[0], center[1] + half_size[1]], [-FRAC, FRAC])
-                    },
-                    SceneAnchor::BottomRight => {
-                        ([center[0] + half_size[0], center[1] + half_size[1]], [FRAC, FRAC])
-                    },
-                };
+                return resolve_connector_anchor(center, half_size, *anchor, other_pos);
             }
             ([0.0, 0.0], [1.0, 0.0])
         },
+    }
+}
+
+/// Select an anchor using already-resolved world bounds.
+fn resolve_connector_anchor(
+    center: [f32; 2],
+    half_size: [f32; 2],
+    anchor: Option<SceneAnchor>,
+    other_pos: Option<[f32; 2]>,
+) -> ([f32; 2], [f32; 2]) {
+    let resolved_anchor = anchor.unwrap_or_else(|| {
+        // Auto-choose the most direct anchor side facing the other position
+        match other_pos {
+            Some(other) => {
+                let dx = other[0] - center[0];
+                let dy = other[1] - center[1];
+                if dx.abs() >= dy.abs() {
+                    if dx >= 0.0 {
+                        SceneAnchor::Right
+                    } else {
+                        SceneAnchor::Left
+                    }
+                } else {
+                    if dy >= 0.0 {
+                        SceneAnchor::Bottom
+                    } else {
+                        SceneAnchor::Top
+                    }
+                }
+            },
+            None => SceneAnchor::Right,
+        }
+    });
+
+    const FRAC: f32 = std::f32::consts::FRAC_1_SQRT_2;
+    match resolved_anchor {
+        SceneAnchor::Left => ([center[0] - half_size[0], center[1]], [-1.0, 0.0]),
+        SceneAnchor::Right => ([center[0] + half_size[0], center[1]], [1.0, 0.0]),
+        SceneAnchor::Top => ([center[0], center[1] - half_size[1]], [0.0, -1.0]),
+        SceneAnchor::Bottom => ([center[0], center[1] + half_size[1]], [0.0, 1.0]),
+        SceneAnchor::Center => (center, [0.0, 0.0]),
+        SceneAnchor::TopLeft => {
+            ([center[0] - half_size[0], center[1] - half_size[1]], [-FRAC, -FRAC])
+        },
+        SceneAnchor::TopRight => {
+            ([center[0] + half_size[0], center[1] - half_size[1]], [FRAC, -FRAC])
+        },
+        SceneAnchor::BottomLeft => {
+            ([center[0] - half_size[0], center[1] + half_size[1]], [-FRAC, FRAC])
+        },
+        SceneAnchor::BottomRight => {
+            ([center[0] + half_size[0], center[1] + half_size[1]], [FRAC, FRAC])
+        },
+    }
+}
+
+/// Resolve a connector endpoint into its own command coordinate space.
+/// Numeric points are authored locally; actor targets come from world bounds.
+/// The renderer applies `world_from_local` once to the returned path.
+pub(crate) fn resolve_connector_endpoint_local(
+    endpoint: &ConnectorEndpoint,
+    target_resolver: Option<&dyn TargetResolver>,
+    time_ms: u64,
+    scene_dimensions: SceneDimensions,
+    other_local: Option<[f32; 2]>,
+    world_from_local: kurbo::Affine,
+) -> Option<([f32; 2], [f32; 2])> {
+    if matches!(endpoint, ConnectorEndpoint::Point(_)) {
+        return Some(resolve_connector_endpoint(
+            endpoint, target_resolver, time_ms, scene_dimensions, other_local,
+        ));
+    }
+    // Missing target bounds do not denote the world's origin. Omit the
+    // connector rather than inventing a dangling endpoint at a transformed zero.
+    let ConnectorEndpoint::Target { actor, anchor } = endpoint else { return None; };
+    let (center, half_size) = target_resolver?.target_bounds(actor, time_ms, scene_dimensions)?;
+    // A collapsed target connector has no invertible local coordinate frame.
+    // Skip its geometry for this frame instead of emitting NaN path commands.
+    let determinant = world_from_local.determinant();
+    if !determinant.is_finite() || determinant == 0.0 {
+        return None;
+    }
+    let local_from_world = world_from_local.inverse();
+    let other_world = other_local.map(|point| {
+        let point = world_from_local * kurbo::Point::new(point[0] as f64, point[1] as f64);
+        [point.x as f32, point.y as f32]
+    });
+    let (point, normal) = resolve_connector_anchor(center, half_size, *anchor, other_world);
+    let point = local_from_world * kurbo::Point::new(point[0] as f64, point[1] as f64);
+    let [a, b, c, d, _, _] = local_from_world.as_coeffs();
+    let direction = kurbo::Vec2::new(
+        a * normal[0] as f64 + c * normal[1] as f64,
+        b * normal[0] as f64 + d * normal[1] as f64,
+    );
+    let length = direction.hypot();
+    let normal = if length > 0.0 { direction / length } else { direction };
+    let result = ([point.x as f32, point.y as f32], [normal.x as f32, normal.y as f32]);
+    if result.0.iter().chain(result.1.iter()).all(|value| value.is_finite()) {
+        Some(result)
+    } else {
+        None
     }
 }
 

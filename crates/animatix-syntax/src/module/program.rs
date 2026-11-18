@@ -48,18 +48,10 @@ impl LoadedProgram {
         false
     }
 
-    /// Expand component instances into concrete statements and preserve the
-    /// method templates required by the engine's callable VM.
-    pub fn expand_components(&self, diagnostics: &mut Vec<String>) -> super::ExpandedProgram {
-        let report = self.expand_components_with_diagnostics();
-        diagnostics.extend(report.diagnostics.iter().map(|diagnostic| diagnostic.message.clone()));
-        report.output
-    }
-
-    /// Expand atomically and retain structured errors, including depth limits.
-    pub fn expand_components_with_diagnostics(
-        &self,
-    ) -> crate::diagnostics::BuildReport<super::ExpandedProgram> {
+    /// Expand component instances and callable bodies atomically.
+    ///
+    /// Failure contains all structured diagnostics and no partial program.
+    pub fn expand_components(&self) -> Result<super::ExpandedProgram, super::ExpansionError> {
         let mut diagnostics = Vec::new();
         let component_scopes = self
             .function_context

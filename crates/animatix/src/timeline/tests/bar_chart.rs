@@ -313,9 +313,7 @@ card: Card, width: 240, height: 150 {
         )
         .expect("load program");
     let _diagnostics = program.typecheck();
-    let mut expansion_errors = Vec::new();
-    let expanded = program.expand_components(&mut expansion_errors);
-    assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
+    let expanded = program.expand_components().expect("component expansion");
 
     let report = Timeline::build_with_options(
         &expanded.statements,
@@ -384,9 +382,7 @@ fn components_gallery_instances_form_single_nodes() {
         )
         .expect("load 09");
     let _diagnostics = program.typecheck();
-    let mut expansion_errors = Vec::new();
-    let expanded = program.expand_components(&mut expansion_errors);
-    assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
+    let expanded = program.expand_components().expect("component expansion");
     let report = Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,
@@ -470,9 +466,7 @@ p.pulse_twice()
         .load_program_with_source(Path::new("/proj/main.amx"), None)
         .expect("load program");
     let _diagnostics = program.typecheck();
-    let mut expansion_errors = Vec::new();
-    let expanded = program.expand_components(&mut expansion_errors);
-    assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
+    let expanded = program.expand_components().expect("component expansion");
 
     let report = Timeline::build_with_options(
         &expanded.statements,

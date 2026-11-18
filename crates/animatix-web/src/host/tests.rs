@@ -951,7 +951,7 @@ fn expansion_limit_survives_syntax_cache_without_duplicate_host_errors() {
             .diagnostics
             .iter()
             .filter(|diagnostic| {
-                diagnostic.code == "unknown-action"
+                diagnostic.code == "component-expansion-depth-exceeded"
                     && diagnostic.message.contains("guarded depth budget")
             })
             .count();
@@ -990,4 +990,20 @@ fn reachable_imported_scene_expansion_failure_blocks_preparation_and_cache_hit()
         assert!(!built.result.ok);
         assert!(built.target.is_none());
     }
+}
+
+
+#[test]
+fn cached_expansion_error_cannot_be_bypassed_by_editing_public_analysis() {
+    let source = "component Loop() { root: Loop }\ninstance: Loop\n";
+    let mut prepared = prepare_document(source, &[], &[], None);
+    assert!(prepared.syntax.is_err());
+    prepared.analysis.ok = true;
+    prepared.analysis.diagnostics.clear();
+    let built = build_prepared(&prepared, Arc::new(FontContext::new()), BuildQuality::Draft, None);
+    assert!(!built.result.ok);
+    assert!(built.target.is_none());
+    assert_eq!(built.result.diagnostics.iter().filter(|diagnostic| {
+        diagnostic.code == "component-expansion-depth-exceeded"
+    }).count(), 1);
 }

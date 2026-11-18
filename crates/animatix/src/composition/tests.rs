@@ -82,7 +82,7 @@ fn build_cross_file(
     .unwrap();
     let mut graph = ModuleGraph::new();
     let program = graph.load_program(&main_file).unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
+    let expanded = program.expand_components().expect("component expansion");
     (
         dir,
         Composition::build_with_options(
@@ -887,9 +887,7 @@ result: Rect, size: (40, 40)
     std::fs::write(&entry, source).expect("write fixture");
     let mut graph = ModuleGraph::new();
     let program = graph.load_program(&entry).expect("load fixture");
-    let mut diagnostics = Vec::new();
-    let expanded = program.expand_components(&mut diagnostics);
-    assert!(diagnostics.is_empty(), "expansion diagnostics: {diagnostics:?}");
+    let expanded = program.expand_components().expect("component expansion");
     let report = Composition::build_with_options(
         &expanded.statements,
         &program.namespaces,
@@ -1211,15 +1209,14 @@ fn build_target_keeps_imported_expansion_error_source_path() {
         "component Loop() { root: Loop }\n# Demo\ninstance: Loop\n",
     );
     let program = graph.load_program(Path::new(&main)).unwrap();
-    let expansion = program.expand_components_with_diagnostics();
-    assert!(expansion.diagnostics.is_empty(), "{:?}", expansion.diagnostics);
+    let expansion = program.expand_components().expect("component expansion");
     let report = BuildTarget::build_with_options(
-        &expansion.output.statements,
+        &expansion.statements,
         &program.namespaces,
         Some(&main),
         crate::timeline::BuildOptions::default()
             .with_function_context(&program.function_context)
-            .with_expanded(&expansion.output),
+            .with_expanded(&expansion),
     );
     let errors = report
         .diagnostics
@@ -1248,15 +1245,14 @@ fn composition_keeps_identical_expansion_errors_from_two_imported_files() {
     graph.upsert_source(a.clone(), source);
     graph.upsert_source(b.clone(), source);
     let program = graph.load_program(&main).unwrap();
-    let expansion = program.expand_components_with_diagnostics();
-    assert!(expansion.diagnostics.is_empty());
+    let expansion = program.expand_components().expect("component expansion");
     let report = BuildTarget::build_with_options(
-        &expansion.output.statements,
+        &expansion.statements,
         &program.namespaces,
         Some(&main),
         crate::timeline::BuildOptions::default()
             .with_function_context(&program.function_context)
-            .with_expanded(&expansion.output),
+            .with_expanded(&expansion),
     );
     let errors = report
         .diagnostics

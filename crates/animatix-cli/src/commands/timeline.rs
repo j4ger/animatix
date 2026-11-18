@@ -17,14 +17,13 @@ pub fn run(input: &Path) {
         match module_graph.load_program_with_source(input, Some(&source)) {
             Ok(mut program) => {
                 let _ = program.typecheck();
-                let expansion = program.expand_components_with_diagnostics();
-                if expansion.diagnostics.iter().any(|diagnostic| diagnostic.is_error()) {
-                    for diagnostic in expansion.diagnostics {
-                        error!("{}", diagnostic.message);
-                    }
-                    std::process::exit(1);
-                }
-                let expanded = expansion.output;
+                let expanded = match program.expand_components() {
+                    Ok(expanded) => expanded,
+                    Err(error) => {
+                        crate::build::print_build_diagnostics(&error.diagnostics);
+                        std::process::exit(1);
+                    },
+                };
                 (expanded, program.namespaces, program.function_context)
             },
             Err(e) => {

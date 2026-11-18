@@ -482,23 +482,10 @@ fn collect_cross_file_scenes(
             let expanded = match expand_imported_scene(scene_data, ns, options.function_context) {
                 Ok(expanded) => expanded,
                 Err(error) => {
-                    state.diagnostics.push(
-                        Diagnostic::error(
-                            DiagnosticCode::SourceLoadFailure,
-                            DiagnosticPhase::Build,
-                            error.to_string(),
-                        )
-                        .with_subject(&target),
-                    );
+                    state.diagnostics.extend(error.diagnostics);
                     continue;
                 },
             };
-            let failed = expanded.diagnostics.iter().any(Diagnostic::is_error);
-            state.diagnostics.extend(expanded.diagnostics);
-            if failed {
-                continue;
-            }
-            let expanded = expanded.output;
             let mut merged = state.shared_prelude.clone();
             merged.extend(expanded.statements);
             state.scene_instance_methods.insert(target.clone(), expanded.instance_methods);
@@ -606,12 +593,9 @@ fn expand_imported_scene(
     scene: &crate::module::SceneData,
     namespace: &Namespace,
     context: Option<&crate::module::FunctionContext>,
-) -> Result<
-    crate::diagnostics::BuildReport<crate::module::ExpandedProgram>,
-    crate::module::ModuleError,
-> {
+) -> Result<crate::module::ExpandedProgram, crate::module::ExpansionError> {
     if let Some(context) = context {
-        return context.expand_scene_with_diagnostics(scene);
+        return context.expand_scene(scene);
     }
     let mut definitions =
         animatix_syntax::module::discovery::collect_component_defs(&scene.file_prelude)
@@ -642,10 +626,10 @@ fn expand_imported_scene(
         span: scene.span,
     });
     statements.extend(scene.body.clone());
-    Ok(crate::module::LoadedProgram {
+    crate::module::LoadedProgram {
         statements,
         components,
         ..Default::default()
     }
-    .expand_components_with_diagnostics())
+    .expand_components()
 }

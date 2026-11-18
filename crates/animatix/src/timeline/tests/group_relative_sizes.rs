@@ -219,7 +219,7 @@ host: Col, size: (400, auto), at: (400, 300), gap: 0 {
             Some(source),
         )
         .expect("load component program");
-    let expanded = program.expand_components(&mut Vec::new());
+    let expanded = program.expand_components().expect("component expansion");
     let report = Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,
@@ -409,5 +409,93 @@ fn group_reflow_at_65_groups_warns_and_preserves_unresolved_descendants() {
     // Keep the leaf entity and its old measurements rather than deleting it.
     assert_eq!(layout_size(&report.output, "g64"), [400.0, 300.0]);
     assert!(report.output.world.tracks.contains_key("leaf"));
+    assert_ne!(layout_size(&report.output, "leaf"), [400.0, 300.0]);
+}
+
+// Temporary diagnostic splits retain the original boundary assertions above.
+#[test]
+fn layout_depth_probe_all_fixtures_build_and_keep_leaf() {
+    for count in [1, 63, 64, 65] {
+        let report = group_depth_limit_fixture(count);
+        assert!(report.output.world.tracks.contains_key("leaf"));
+    }
+}
+
+#[test]
+fn layout_depth_probe_all_fixtures_have_no_errors() {
+    for count in [1, 63, 64, 65] {
+        let report = group_depth_limit_fixture(count);
+        assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{count}: {:?}", report.diagnostics);
+    }
+}
+
+#[test]
+fn layout_depth_probe_root_fixed_dimensions() {
+    for count in [1, 63, 64, 65] {
+        let report = group_depth_limit_fixture(count);
+        assert_eq!(layout_size(&report.output, "g0"), [400.0, 300.0], "{count}");
+    }
+}
+
+#[test]
+fn layout_depth_probe_shallow_leaf_dimensions() {
+    let report = group_depth_limit_fixture(1);
+    assert_eq!(layout_size(&report.output, "leaf"), [400.0, 300.0]);
+}
+
+#[test]
+fn layout_depth_probe_63_groups_leaf_dimensions() {
+    let report = group_depth_limit_fixture(63);
+    assert_eq!(layout_size(&report.output, "leaf"), [400.0, 300.0]);
+}
+
+#[test]
+fn layout_depth_probe_64_groups_leaf_dimensions() {
+    let report = group_depth_limit_fixture(64);
+    assert_eq!(layout_size(&report.output, "leaf"), [400.0, 300.0]);
+}
+
+#[test]
+fn layout_depth_probe_under_limit_has_no_depth_warning() {
+    for count in [63, 64] {
+        let report = group_depth_limit_fixture(count);
+        assert!(!report.diagnostics.iter().any(|d| {
+            d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
+                && d.message.contains("depth")
+        }), "{count}: {:?}", report.diagnostics);
+    }
+}
+
+#[test]
+fn layout_depth_probe_65_groups_has_one_depth_warning() {
+    let report = group_depth_limit_fixture(65);
+    let warnings: Vec<_> = report.diagnostics.iter().filter(|d| {
+        d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
+            && d.message.contains("depth")
+    }).collect();
+    assert_eq!(warnings.len(), 1, "{:?}", report.diagnostics);
+}
+
+#[test]
+fn layout_depth_probe_65_groups_depth_warning_subject_and_severity() {
+    let report = group_depth_limit_fixture(65);
+    assert!(report.diagnostics.iter().any(|d| {
+        d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
+            && d.message.contains("depth") && d.message.contains("64")
+            && d.location.subject.as_deref() == Some("g64")
+            && d.severity == crate::diagnostics::DiagnosticSeverity::Warning
+            && d.phase == crate::diagnostics::DiagnosticPhase::Build
+    }), "{:?}", report.diagnostics);
+}
+
+#[test]
+fn layout_depth_probe_65_groups_boundary_parent_resolved() {
+    let report = group_depth_limit_fixture(65);
+    assert_eq!(layout_size(&report.output, "g64"), [400.0, 300.0]);
+}
+
+#[test]
+fn layout_depth_probe_65_groups_leaf_keeps_fallback_dimensions() {
+    let report = group_depth_limit_fixture(65);
     assert_ne!(layout_size(&report.output, "leaf"), [400.0, 300.0]);
 }

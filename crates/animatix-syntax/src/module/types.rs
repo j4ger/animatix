@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use super::helpers::{ModuleError, ParsedModule};
+use super::helpers::ParsedModule;
 use crate::ast::{ComponentDef, Expr, ParamDef, Property, Span, Stmt, TypeAnnotation};
 
 /// Unique identifier for a loaded source file.
@@ -121,27 +121,18 @@ impl FunctionContext {
     /// component declarations inside reusable plans receive their own method
     /// registries. A missing source module is an error rather than an empty
     /// component scope.
-    /// Legacy output-only API. Expansion failures are logged and return an empty
-    /// output, never a partial tree. Use `expand_scene_with_diagnostics` when
-    /// successful empty scenes must be distinguished from failed expansion.
-    pub fn expand_scene(&self, scene: &SceneData) -> Result<ExpandedProgram, ModuleError> {
-        let report = self.expand_scene_with_diagnostics(scene)?;
-        for diagnostic in &report.diagnostics {
-            tracing::error!("{}", diagnostic.message);
-        }
-        Ok(report.output)
-    }
-
-    /// Expand a scene with caller-visible structured expansion diagnostics.
-    pub fn expand_scene_with_diagnostics(
-        &self,
-        scene: &SceneData,
-    ) -> Result<crate::diagnostics::BuildReport<ExpandedProgram>, ModuleError> {
+    pub fn expand_scene(&self, scene: &SceneData) -> Result<ExpandedProgram, ExpansionError> {
         let mut diagnostics = Vec::new();
         let module = self
             .modules
             .get(&scene.definition_path)
-            .ok_or_else(|| ModuleError::MissingSceneModuleScope(scene.definition_path.clone()))?;
+            .ok_or_else(|| ExpansionError {
+                diagnostics: vec![crate::diagnostics::Diagnostic::error(
+                    crate::diagnostics::DiagnosticCode::MissingExpansionScope,
+                    crate::diagnostics::DiagnosticPhase::Build,
+                    format!("Missing defining module scope for scene '{}': {}", scene.name, scene.definition_path.display()),
+                ).with_path(&scene.definition_path)],
+            })?;
         let mut statements = scene.file_prelude.clone();
         if !scene.config.is_empty() {
             statements.push(Stmt::Config {
@@ -163,7 +154,7 @@ impl FunctionContext {
         );
         expanded.expanded_function_context =
             Some(super::expand::expand_function_context(self, &mut diagnostics));
-        Ok(super::expand::finish_expansion(expanded, diagnostics))
+        super::expand::finish_expansion(expanded, diagnostics)
     }
 }
 
@@ -220,3 +211,22 @@ pub struct Namespace {
     /// Nested namespaces from this module's aliased imports.
     pub namespaces: HashMap<String, Namespace>,
 }
+
+/// Fatal component expansion failure. No partial output can escape with an error.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ExpansionError {
+    /// Structured errors, preserving their source paths and locations.
+    pub diagnostics: Vec<crate::diagnostics::Diagnostic>,
+}
+
+impl std::fmt::Display for ExpansionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (index, diagnostic) in self.diagnostics.iter().enumerate() {
+            if index > 0 { writeln!(f)?; }
+            write!(f, "{}", crate::diagnostics::format_diagnostic(diagnostic))?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for ExpansionError {}

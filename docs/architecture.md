@@ -89,7 +89,14 @@ private sibling functions remain in the defining module's function scope.
 Component methods use `instance.method(...)` and cross-component calls require
 `pub fn`.
 
-Component expansion returns an `ExpandedProgram`: the expanded statements plus
+`LoadedProgram::expand_components()` and `FunctionContext::expand_scene(&scene)`
+return `Result<ExpandedProgram, ExpansionError>`. Expansion is atomic: a failure
+returns structured diagnostics, not a partial or apparently successful empty
+program. Hosts stop before building failed expansion and retain failures in their
+expansion caches so a cache hit cannot hide an error. The guarded component depth
+budget remains 64; this is not unlimited recursive-component support.
+
+Successful expansion produces an `ExpandedProgram`: the expanded statements plus
 method registries for unscoped instances and for each named scene. Hosts pass
 that object through `BuildOptions::with_expanded`; it also carries the function
 context compiled over expanded module statements. When a caller supplies an
@@ -975,7 +982,7 @@ incompatible:
 - **Value-returning recursion**: Functions that walk and return a value (e.g.,
   `format_expr` returns `String`, `infer_expr_type` returns `typing::Type`)
 - **Owned tree transformation**: Functions that take ownership and produce new
-  trees (e.g., `ModuleGraph::expand_components`)
+  trees (e.g., `LoadedProgram::expand_components`)
 
 These sites use guardrail tests (in `format_core.rs` and `apply.rs`) to ensure
 variant coverage is reviewed when new AST variants are added.

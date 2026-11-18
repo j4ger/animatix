@@ -197,7 +197,7 @@ fn card(width: Num) {
     );
 
     let program = graph.load_program(&path).expect("source should load");
-    let expanded = program.expand_components(&mut Vec::new());
+    let expanded = program.expand_components().expect("component expansion");
     let context = expanded
         .expanded_function_context
         .as_ref()
@@ -323,9 +323,7 @@ fn acyclic_component_chain_at_depth_limit_keeps_its_leaf() {
     let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
     graph.upsert_source(PathBuf::from("/virtual/depth.amx"), source);
     let program = graph.load_program(Path::new("/virtual/depth.amx")).unwrap();
-    let mut diagnostics = Vec::new();
-    let expanded = program.expand_components(&mut diagnostics);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let expanded = program.expand_components().expect("component expansion");
     let mut leaf_count = 0;
     crate::walk::walk_stmts(&expanded.statements, &mut |stmt| {
         if matches!(stmt, Stmt::ActorDecl { ty, .. } if ty == "Ellipse") {
@@ -363,23 +361,14 @@ instance: Loop
         let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
         graph.upsert_source(PathBuf::from("/virtual/limit.amx"), source);
         let program = graph.load_program(Path::new("/virtual/limit.amx")).unwrap();
-        let mut diagnostics = Vec::new();
-        let expanded = program.expand_components(&mut diagnostics);
-        let report = program.expand_components_with_diagnostics();
-        assert!(
-            !diagnostics.is_empty(),
-            "{name}: hitting an expansion guard must report a caller-visible error"
-        );
+        let report = program.expand_components().expect_err(name);
         assert!(
             report.diagnostics.iter().any(|diagnostic| {
-                diagnostic.code == crate::diagnostics::DiagnosticCode::UnknownAction
+                diagnostic.code == crate::diagnostics::DiagnosticCode::ComponentExpansionDepthExceeded
                     && diagnostic.is_error()
             }),
             "{name}: error must preserve its structured code"
         );
-        assert!(expanded.statements.is_empty(), "{name}: no partial scene");
-        assert!(expanded.instance_methods.is_empty());
-        assert!(expanded.scene_methods.is_empty());
         let cached = report.clone();
         assert_eq!(cached.diagnostics.len(), report.diagnostics.len());
         assert!(cached.diagnostics.iter().all(|diagnostic| diagnostic.is_error()));
@@ -403,17 +392,29 @@ outer: Box {
     let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
     graph.upsert_source(PathBuf::from("/virtual/slots.amx"), source.to_string());
     let program = graph.load_program(Path::new("/virtual/slots.amx")).unwrap();
-    let mut diagnostics = Vec::new();
-    let expanded = program.expand_components(&mut diagnostics);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
-    assert!(program.expand_components_with_diagnostics().diagnostics.is_empty());
-    let mut leaves = 0;
-    crate::walk::walk_stmts(&expanded.statements, &mut |stmt| {
-        if matches!(stmt, Stmt::ActorDecl { ty, .. } if ty == "Ellipse") {
-            leaves += 1;
+    let expanded = program.expand_components().expect("component expansion");
+    struct Leaves(usize);
+    impl<'ast> crate::visit::AstVisitor<'ast> for Leaves {
+        fn visit_stmt(&mut self, stmt: &'ast Stmt) {
+            if matches!(stmt, Stmt::ActorDecl { ty, .. } if ty == "Ellipse") {
+                self.0 += 1;
+            }
+            crate::visit::walk_stmt(self, stmt);
         }
-    });
-    assert_eq!(leaves, 1);
+        fn visit_inline_item(&mut self, item: &'ast crate::ast::InlineItem) {
+            if matches!(item,
+                crate::ast::InlineItem::Labeled { ty, .. }
+                | crate::ast::InlineItem::Anonymous { ty, .. } if ty == "Ellipse") {
+                self.0 += 1;
+            }
+            crate::visit::walk_inline_item(self, item);
+        }
+    }
+    let mut leaves = Leaves(0);
+    for stmt in &expanded.statements {
+        crate::visit::AstVisitor::visit_stmt(&mut leaves, stmt);
+    }
+    assert_eq!(leaves.0, 1, "expanded slot tree: {expanded:?}");
 }
 
 #[test]
@@ -422,35 +423,24 @@ fn failed_embedded_plan_has_one_diagnostic_across_function_context_copies() {
     let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
     graph.upsert_source(PathBuf::from("/virtual/plan.amx"), source.to_string());
     let program = graph.load_program(Path::new("/virtual/plan.amx")).unwrap();
-    let mut diagnostics = Vec::new();
-    let expanded = program.expand_components(&mut diagnostics);
-    let report = program.expand_components_with_diagnostics();
-    assert_eq!(diagnostics.len(), 1);
+    let report = program.expand_components().expect_err("recursive embedded plan");
     assert_eq!(report.diagnostics.len(), 1);
-    assert_eq!(report.diagnostics[0].code, crate::diagnostics::DiagnosticCode::UnknownAction);
-    assert!(expanded.statements.is_empty());
+    assert_eq!(report.diagnostics[0].code, crate::diagnostics::DiagnosticCode::ComponentExpansionDepthExceeded);
 }
 
 #[test]
-fn imported_scene_report_rejects_partial_tree_without_changing_legacy_signature() {
+fn imported_scene_expansion_returns_structured_failure_without_output() {
     let main = PathBuf::from("/virtual/depth-main.amx");
     let lib = PathBuf::from("/virtual/depth-lib.amx");
     let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
     graph.upsert_source(main.clone(), "import \"./depth-lib.amx\" as lib\n");
-    graph.upsert_source(
-        lib.clone(),
-        "component Loop() { root: Loop }\n# Demo\ninstance: Loop\n",
-    );
+    graph.upsert_source(lib.clone(), "component Loop() { root: Loop }\n# Demo\ninstance: Loop\n");
     let program = graph.load_program(&main).unwrap();
     let scene = &program.namespaces["lib"].scenes["Demo"];
-    let report = program.function_context.expand_scene_with_diagnostics(scene).unwrap();
+    let report = program.function_context.expand_scene(scene).expect_err("recursive scene");
     assert_eq!(report.diagnostics.len(), 1);
     assert!(report.diagnostics[0].is_error());
     assert_eq!(report.diagnostics[0].location.path.as_ref(), Some(&lib));
-    assert!(report.output.statements.is_empty());
-    let legacy: Result<crate::module::ExpandedProgram, crate::module::ModuleError> =
-        program.function_context.expand_scene(scene);
-    assert!(legacy.unwrap().statements.is_empty());
 }
 
 #[test]
@@ -464,7 +454,7 @@ fn identical_expansion_failures_in_distinct_files_keep_both_sources() {
     graph.upsert_source(a.clone(), source);
     graph.upsert_source(b.clone(), source);
     let program = graph.load_program(&main).unwrap();
-    let report = program.expand_components_with_diagnostics();
+    let report = program.expand_components().expect_err("recursive imported plans");
     assert_eq!(report.diagnostics.len(), 2, "{:?}", report.diagnostics);
     for path in [&a, &b] {
         assert!(
@@ -475,4 +465,29 @@ fn identical_expansion_failures_in_distinct_files_keep_both_sources() {
         );
     }
     assert_eq!(report.diagnostics[0].message, report.diagnostics[1].message);
+}
+
+
+#[test]
+fn empty_component_expansion_is_success_not_an_error_sentinel() {
+    let expanded = LoadedProgram::default().expand_components().expect("empty program is valid");
+    assert!(expanded.statements.is_empty());
+    assert!(expanded.instance_methods.is_empty());
+}
+
+#[test]
+fn imported_scene_missing_scope_returns_a_structured_error() {
+    let main = PathBuf::from("/virtual/missing-scope-main.amx");
+    let library = PathBuf::from("/virtual/missing-scope-lib.amx");
+    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+    graph.upsert_source(main.clone(), "import \"./missing-scope-lib.amx\" as lib\n");
+    graph.upsert_source(library.clone(), "# Demo\nleaf: Rect\n");
+    let program = graph.load_program(&main).unwrap();
+    let scene = &program.namespaces["lib"].scenes["Demo"];
+    let error = FunctionContext::default().expand_scene(scene).expect_err("missing module scope");
+    assert_eq!(error.diagnostics.len(), 1);
+    let diagnostic = &error.diagnostics[0];
+    assert_eq!(diagnostic.code, crate::diagnostics::DiagnosticCode::MissingExpansionScope);
+    assert!(diagnostic.is_error());
+    assert_eq!(diagnostic.location.path.as_ref(), Some(&library));
 }

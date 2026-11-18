@@ -638,24 +638,51 @@ fn expansion_failure_is_retained_on_gui_cache_hit() {
     let first_hash = session.last_expansion_hash;
     // Clear only the cached error message: if re-expansion occurs rather than
     // the cache hit, this marker would be replaced by the normal diagnostic.
-    session.cached_expanded.as_mut().unwrap().diagnostics[0].message = "cached-depth-error".into();
+    session.cached_expanded.as_mut().unwrap().as_mut().unwrap_err().diagnostics[0].message = "cached-depth-error".into();
     let second = session.load_program().unwrap();
     assert_eq!(session.last_expansion_hash, first_hash);
     assert!(
         first
-            .type_diagnostics
+            .expanded.unwrap_err().diagnostics
             .iter()
             .any(|d| d.message.contains("guarded depth budget"))
     );
     assert_eq!(
         second
-            .type_diagnostics
+            .expanded.unwrap_err().diagnostics
             .iter()
             .filter(|d| d.message == "cached-depth-error")
             .count(),
         1
     );
-    assert!(second.expanded.statements.is_empty());
     assert!(session.rebuild().is_err());
     assert!(session.timeline.is_none());
+}
+
+#[test]
+fn expansion_error_cache_preserves_last_good_scene_without_hiding_failure() {
+    let good = "#0s\nkeep: Rect, size: (40, 30), opacity: 1\n";
+    let mut session = DocumentSession::from_source(
+        PathBuf::from("component-depth-recovery.amx"),
+        good.to_string(),
+    )
+    .unwrap();
+    session.rebuild().expect("initial valid build");
+    assert!(session.timeline.as_ref().unwrap().has_actor("keep"));
+    session.source_text = "component Loop() { root: Loop }\ninstance: Loop\n".into();
+    assert!(session.rebuild().is_err());
+    assert!(session.timeline.as_ref().unwrap().has_actor("keep"));
+    assert!(session.last_rebuild_error.is_some());
+    session.cached_expanded.as_mut().unwrap().as_mut().unwrap_err().diagnostics[0].message =
+        "cached-failed-rebuild".into();
+    assert!(session.rebuild().is_err());
+    assert_eq!(
+        session.diagnostics.iter().filter(|d| d.message == "cached-failed-rebuild").count(),
+        1
+    );
+    session.source_text = good.to_string();
+    session.rebuild().expect("returning to valid source must recover");
+    assert!(session.last_rebuild_error.is_none());
+    assert!(session.timeline.as_ref().unwrap().has_actor("keep"));
+    assert!(session.cached_expanded.as_ref().unwrap().is_ok());
 }
