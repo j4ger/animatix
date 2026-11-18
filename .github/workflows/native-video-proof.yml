@@ -13,31 +13,48 @@ on:
       - 'tools/release/native/video-proof.sh'
       - 'tools/release/native/test-first-run.py'
       - 'tools/release/native/windows_sdk_dxc.py'
-  pull_request:
-    paths:
-      - '.github/workflows/native-video-proof.yml'
-      - 'tools/release/native/video-proof.sh'
-      - 'tools/release/native/test-first-run.py'
-      - 'tools/release/native/windows_sdk_dxc.py'
+      - 'tools/release/dist-*.sh'
+      - 'tools/release/native-package-check.py'
+      - 'tools/ci/ci.sh'
 
 permissions:
   contents: read
 
 jobs:
+  nightly-package:
+    name: Linux nightly archive validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      ANIMATIX_RELEASE_LABEL: nightly
+      NIX_CONFIG: |
+        fallback = true
+        extra-substituters = https://cache.nixos.org/
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: DeterminateSystems/determinate-nix-action@v3
+      - name: Build and verify the Nightly archives
+        run: nix develop .#dist-driver --command tools/ci/ci.sh gate dist-linux
+      - name: Retain Linux acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-package-evidence
+          path: target/perf/distribution-refactor/native/runtime/
+          retention-days: 7
+          if-no-files-found: ignore
   native-video:
     strategy:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
+    timeout-minutes: 120
     env:
-      # Use the dist feature set without its single codegen unit and fat LTO
-      # for hosted smoke trials. Release artifacts use the Cargo.toml profile.
-      CARGO_PROFILE_DIST_LTO: 'off'
-      CARGO_PROFILE_DIST_CODEGEN_UNITS: '16'
       # Cache compiler output independently of vcpkg's in-progress work tree.
-      CARGO_TARGET_DIR: target/cargo-native-video-proof
+      CARGO_TARGET_DIR: target/release-cargo
     steps:
       - uses: actions/checkout@v5
         with:
@@ -45,7 +62,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          key: native-video-proof-isolated-dist
+          key: native-video-release-dist
           cache-on-failure: true
       - name: Build and verify the narrated starter on the target OS
         shell: bash

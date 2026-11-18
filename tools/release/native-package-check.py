@@ -6,6 +6,18 @@ import struct
 import sys
 
 
+WINDOWS_SYSTEM_DLLS = set("""
+advapi32.dll avrt.dll bcrypt.dll cfgmgr32.dll comctl32.dll comdlg32.dll crypt32.dll d2d1.dll
+d3d11.dll d3d12.dll dcomp.dll dinput8.dll dwmapi.dll dwrite.dll dxgi.dll dxva2.dll gdi32.dll
+hid.dll imm32.dll iphlpapi.dll kernel32.dll ksuser.dll mf.dll mfplat.dll mfreadwrite.dll
+mmdevapi.dll msacm32.dll msimg32.dll msvcrt.dll ncrypt.dll netapi32.dll normaliz.dll ntdll.dll
+ole32.dll oleaut32.dll opengl32.dll powrprof.dll propsys.dll psapi.dll rpcrt4.dll secur32.dll
+setupapi.dll shcore.dll shell32.dll shlwapi.dll ucrtbase.dll user32.dll userenv.dll usp10.dll
+uxtheme.dll version.dll win32u.dll winhttp.dll winspool.drv winmm.dll wintrust.dll ws2_32.dll wtsapi32.dll
+xinput1_4.dll
+""".split())
+
+
 def cstring(data, offset):
     end = data.index(b"\0", offset)
     return data[offset:end].decode("utf-8")
@@ -69,42 +81,34 @@ def macho(data):
     return architecture, dependencies
 
 
-def check(platform, directory):
+def check(platform, directory, video=False):
     binaries = []
     architectures = set()
-    for name in ("animatix", "animatix-gui"):
-        path = directory / (name + (".exe" if platform == "windows" else ""))
+    extension = ".exe" if platform == "windows" else ""
+    programs = ("animatix", "animatix-gui", "ffmpeg", "ffprobe") if video else ("animatix", "animatix-gui")
+    dlls = {}
+    if video and platform == "windows":
+        dlls = {path.name.lower(): path for path in sorted(directory.glob("*.dll"))}
+    for path in [*(directory / (name + extension) for name in programs), *dlls.values()]:
         data = path.read_bytes()
         architecture, dependencies = pe(data) if platform == "windows" else macho(data)
         architectures.add(architecture)
         for dependency in dependencies:
             lowered = dependency.lower()
-            if any(token in lowered for token in ("libavcodec", "libavformat", "libavutil", "libswscale", "ffmpeg", "/nix/store/")):
-                raise ValueError(f"no-video package has unexpected dependency: {dependency}")
+            if (not video or platform == "macos") and any(token in lowered for token in ("libavcodec", "libavformat", "libavutil", "libswscale", "ffmpeg", "/nix/store/")):
+                raise ValueError(f"unexpected media library dependency: {dependency}")
             if platform == "macos" and not dependency.startswith(("/System/Library/", "/usr/lib/")):
-                # No private dylibs are shipped by the current no-video package.
                 raise ValueError(f"unbundled macOS dependency: {dependency}")
             if platform == "windows":
-                system = {
-                    "advapi32.dll", "avrt.dll", "bcrypt.dll", "cfgmgr32.dll", "comctl32.dll", "comdlg32.dll",
-                    "crypt32.dll", "d3d11.dll", "d3d12.dll", "dcomp.dll", "dinput8.dll", "dwmapi.dll",
-                    "d2d1.dll", "dwrite.dll", "dxgi.dll", "gdi32.dll", "hid.dll", "imm32.dll", "iphlpapi.dll",
-                    "kernel32.dll", "mmdevapi.dll", "msimg32.dll", "msvcrt.dll", "netapi32.dll", "normaliz.dll", "ntdll.dll",
-                    "ole32.dll", "oleaut32.dll", "opengl32.dll", "powrprof.dll", "propsys.dll", "psapi.dll",
-                    "rpcrt4.dll", "secur32.dll", "setupapi.dll", "shell32.dll", "shlwapi.dll", "user32.dll",
-                    "userenv.dll", "usp10.dll", "uxtheme.dll", "version.dll", "winmm.dll", "winspool.drv",
-                    "win32u.dll", "wintrust.dll", "ws2_32.dll", "wtsapi32.dll", "xinput1_4.dll",
-                }
-                if lowered not in system and not lowered.startswith(("api-ms-win-", "ext-ms-win-")):
-                    # The current ZIP ships only executables and licenses.
-                    raise ValueError(f"unbundled Windows dependency: {dependency}")
+                if lowered not in dlls and lowered not in WINDOWS_SYSTEM_DLLS and not lowered.startswith(("api-ms-win-", "ext-ms-win-")):
+                    raise ValueError(f"unbundled Windows dependency in {path.name}: {dependency}")
         binaries.append({"file": path.name, "architecture": architecture, "dependencies": dependencies})
     if len(architectures) != 1:
-        raise ValueError("CLI/GUI architectures differ")
-    return {"platform": platform, "architecture": architectures.pop(), "video": False, "binaries": binaries}
+        raise ValueError("package architectures differ")
+    return {"platform": platform, "architecture": architectures.pop(), "video": video, "binaries": binaries}
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3 or sys.argv[1] not in {"macos", "windows"}:
-        raise SystemExit("usage: native-package-check.py <macos|windows> BIN_DIR")
-    print(json.dumps(check(sys.argv[1], Path(sys.argv[2])), indent=2))
+    if len(sys.argv) not in {3, 4} or sys.argv[1] not in {"macos", "windows"} or sys.argv[3:] not in ([], ["--video"]):
+        raise SystemExit("usage: native-package-check.py <macos|windows> BIN_DIR [--video]")
+    print(json.dumps(check(sys.argv[1], Path(sys.argv[2]), len(sys.argv) == 4), indent=2))

@@ -100,6 +100,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       ANIMATIX_RELEASE_VERSION: ${{ needs.version.outputs.version }}
+      CARGO_TARGET_DIR: target/release-cargo
     steps:
       - uses: actions/checkout@v5
         name: Checkout
@@ -134,6 +135,14 @@ jobs:
             nix) nix develop --command tools/ci/ci.sh gate "$GATE" ;;
             *)   tools/ci/ci.sh gate "$GATE" ;;
           esac
+      - name: Retain native acceptance evidence
+        if: always() && matrix.shell == 'native'
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-${{ matrix.gate }}
+          path: target/native-video-proof/evidence/
+          retention-days: 14
+          if-no-files-found: ignore
       - name: Upload
         uses: actions/upload-artifact@v7
         with:

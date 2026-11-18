@@ -6,10 +6,10 @@
 # artifact". Keeping it here also means a developer can produce exactly what CI
 # will ship: `tools/release/dist-package.sh linux target/dist`.
 #
-# Usage: tools/release/dist-package.sh <platform> [<bin-dir>]
+# Usage: tools/release/dist-package.sh <platform> [<bin-dir>] [--video]
 #   linux          animatix + animatix-gui, `video` built, .tar.gz
-#   macos          CLI/GUI binaries + Finder Animatix.app, no `video`, .zip
-#   windows        same two .exe, no `video`, .zip
+#   macos          CLI/GUI binaries + Finder Animatix.app, .zip
+#   windows        same two .exe, .zip
 #   site           the deployed tree (web/tools/site/site-artifact.sh), .zip
 #   web-sdk        one verified SDK, including optional code and font faces
 #
@@ -83,18 +83,15 @@ case "$platform" in
     ;;
   macos|windows)
     [ -n "$bindir" ] || { echo "error: $platform needs a bin dir" >&2; exit 2; }
-    # Written as ifs, not `[ … ] && x=1` one-liners: under `set -e` a failing
-    # test at the end of a branch is also that branch's exit status.
     if [ "$platform" = windows ]; then ext=".exe"; else ext=""; fi
-    stage="target/native-package-$platform"
-    rm -rf "$stage"
+    mkdir -p target
+    work="$(mktemp -d target/native-package.XXXXXXXX)"
+    trap 'rm -rf "$work"' EXIT
+    stage="$work/package"
     mkdir -p "$stage"
-    python3 tools/release/native-package-check.py "$platform" "$bindir" > "$stage/runtime-dependencies.json"
+    python3 tools/release/native-package-check.py "$platform" "$bindir" "${@:3}" > "$stage/runtime-dependencies.json"
     triple="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["architecture"])' "$stage/runtime-dependencies.json")"
     name="animatix-${NAME_V}-${triple}-${platform}"
-    for b in animatix animatix-gui; do
-      [ -f "$bindir/$b$ext" ] || { echo "error: $bindir/$b$ext missing" >&2; exit 1; }
-    done
     for b in animatix animatix-gui; do cp "$bindir/$b$ext" "$stage/"; done
     if [ "$platform" = macos ]; then
       python3 crates/animatix-gui/tools/packaging/package-macos.py "$bindir/animatix-gui" "$stage/Animatix.app" "$V"
@@ -102,11 +99,25 @@ case "$platform" in
     else
       python3 crates/animatix-gui/tools/packaging/platform-icon-check.py windows "$stage/animatix-gui.exe"
     fi
+    if [ "${3:-}" = --video ]; then
+      cp "$bindir/ffmpeg$ext" "$bindir/ffprobe$ext" "$stage/"
+      cp -R "$bindir/licenses" "$bindir/media-source" "$stage/"
+      cp "$bindir/build-inputs.txt" "$stage/"
+      if [ "$platform" = windows ]; then
+        cp "$bindir/"*.dll "$stage/"
+      else
+        cp "$bindir/ffmpeg" "$stage/Animatix.app/Contents/MacOS/"
+      fi
+    fi
     for license in LICENSE LICENSE-MIT LICENSE-APACHE; do
       if [ -f "$license" ]; then cp "$license" "$stage/"; fi
     done
-    rm -f "$dist/$name.zip"
-    (cd "$stage" && zip -qrX "$dist/$name.zip" .)
+    archive="$root/$work/$name.zip"
+    (cd "$stage" && zip -qrX "$archive" .)
+    if [ "${3:-}" = --video ]; then
+      python3 tools/release/native/test-first-run.py "$archive" target/native-video-proof/evidence --version "$V"
+    fi
+    mv -f "$archive" "$dist/$name.zip"
     echo "wrote dist/$name.zip"
     ;;
   site)

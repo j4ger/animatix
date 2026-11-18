@@ -3,6 +3,7 @@
 from pathlib import Path
 import runpy
 import struct
+import subprocess
 import tempfile
 import os
 import tarfile
@@ -84,6 +85,27 @@ class PackageTests(unittest.TestCase):
         for name in ("custom.dll", "avcodec-62.dll", "libavcodec-62.dll"):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 self.package("windows", pe(name))
+
+    def test_video_package_checks_transitive_windows_imports(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            for name in ("animatix", "animatix-gui", "ffmpeg", "ffprobe"):
+                (directory / f"{name}.exe").write_bytes(pe("avcodec-62.dll"))
+            (directory / "avcodec-62.dll").write_bytes(pe("zlib1.dll"))
+            with self.assertRaisesRegex(ValueError, "unbundled Windows dependency in avcodec-62.dll: zlib1.dll"):
+                api["check"]("windows", directory, video=True)
+            (directory / "zlib1.dll").write_bytes(pe())
+            self.assertTrue(api["check"]("windows", directory, video=True)["video"])
+
+    def test_nightly_label_reaches_the_linux_build_container(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            docker = Path(temporary) / "docker"
+            docker.write_text('#!/bin/sh\nif [ "$1" = run ]; then printf "%s\\n" "$@"; else echo fixture-image; fi\n')
+            docker.chmod(0o755)
+            result = subprocess.check_output(["bash", "tools/release/dist-linux.sh"], cwd=ROOT, text=True,
+                                             env={**os.environ, "PATH": temporary + os.pathsep + os.environ["PATH"],
+                                                  "ANIMATIX_RELEASE_LABEL": "nightly"})
+            self.assertIn("--env\nANIMATIX_RELEASE_LABEL=nightly\n", result)
 
     def test_malformed_executables_cannot_pass(self):
         for platform in ("windows", "macos"):

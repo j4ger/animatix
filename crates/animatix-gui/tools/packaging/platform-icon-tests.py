@@ -120,7 +120,9 @@ class PlatformIconTests(unittest.TestCase):
             self.assertEqual(zipped.read(prefix + "MacOS/animatix-gui"), binary)
             self.assertEqual(zipped.read(prefix + "Resources/Animatix.icns"), icns())
             self.assertTrue(zipped.getinfo(prefix + "MacOS/animatix-gui").external_attr >> 16 & 0o111)
-        bundle = self.root / "target/native-package-macos/Animatix.app"
+            zipped.extractall(self.root / "extracted")
+        bundle = self.root / "extracted/Animatix.app"
+        (bundle / "Contents/MacOS/animatix-gui").chmod(0o755)
         CHECK["check_macos"](bundle)
         # It remains complete when moved away from the root command-line binaries.
         shutil.move(str(bundle), str(self.root / "Moved.app"))

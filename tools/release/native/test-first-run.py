@@ -3,26 +3,67 @@
 
 from array import array
 import argparse
+import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
+import time
+from zipfile import ZipFile
+
+from windows_sdk_dxc import stage_sdk_dxc
 
 
-def verify(package, project):
+def verify_workbench(gui, scene, project, env):
+    frames = project / "gui-frames.jsonl"
+    with (project / "gui.log").open("wb") as log:
+        process = subprocess.Popen([str(gui), "--perf-log", str(frames), scene], cwd=project,
+                                   env=env, stdout=log, stderr=subprocess.STDOUT)
+        try:
+            deadline = time.monotonic() + 60
+            while time.monotonic() < deadline:
+                if process.poll() is not None:
+                    raise ValueError(f"workbench exited before rendering a preview ({process.returncode})")
+                if frames.exists():
+                    # A concurrent writer can leave the newest line incomplete.
+                    lines = frames.read_text(encoding="utf-8").split("\n")[:-1]
+                    if any(row["actors"] > 0 and row["render_ms"] > 0 and not row["stale"]
+                           for row in map(json.loads, lines)):
+                        print("Packaged workbench rendered the narrated project.")
+                        return
+                time.sleep(0.25)
+            raise ValueError("workbench did not render the project within 60 seconds")
+        finally:
+            if process.poll() is None:
+                process.kill()
+            process.wait()
+
+
+def verify(package, project, version, env):
     suffix = ".exe" if sys.platform == "win32" else ""
+    gui = package / ("animatix-gui" + suffix)
+    bundle = package / "Animatix.app/Contents/MacOS/animatix-gui"
+    if version and sys.platform == "darwin":
+        gui = bundle
 
     def run(tool, *args):
-        return subprocess.check_output([str(package / (tool + suffix)), *args], cwd=project)
+        return subprocess.check_output([str(package / (tool + suffix)), *args], cwd=project, env=env)
 
-    for tool, option in [("animatix", "doctor"), ("animatix-gui", "--doctor")]:
+    for binary, option in [(package / ("animatix" + suffix), "doctor"), (gui, "--doctor")]:
+        if version:
+            output = subprocess.check_output([str(binary), "--version"], cwd=project, env=env, text=True)
+            if output.split()[-1:] != [version]:
+                raise ValueError(f"{binary.name} reports {output.strip()!r}; expected version {version}")
         report = subprocess.run(
-            [str(package / (tool + suffix)), option], cwd=project,
+            [str(binary), option], cwd=project, env=env,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False,
         )
-        (project / f"{tool}-doctor.txt").write_bytes(report.stdout)
+        (project / f"{binary.stem}-doctor.txt").write_bytes(report.stdout)
+        if report.returncode:
+            print(report.stdout.decode(errors="replace"), file=sys.stderr)
         report.check_returncode()
 
     # A path with spaces also exercises quoting in asset resolution and FFmpeg.
@@ -34,6 +75,8 @@ def verify(package, project):
     problems = [item for item in report["errors"] if item["severity"] in {"warning", "error"}]
     if not report["passed"] or problems:
         raise ValueError(f"starter build diagnostics: {problems}")
+    if version:
+        verify_workbench(gui, scene, project, env)
 
     for time, image in [("4", "preview.png"), ("8.5", "preview-last-cue.png")]:
         run("animatix", "image", scene, "--time", time, "--output", image)
@@ -67,13 +110,42 @@ def verify(package, project):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("bin_dir", type=Path)
+    parser.add_argument("package", type=Path)
     parser.add_argument("evidence_dir", type=Path)
+    parser.add_argument("--version", help="Expected version in an assembled release ZIP")
     args = parser.parse_args()
-    with TemporaryDirectory(prefix="animatix-first-run-") as directory:
-        project = Path(directory)
+    env = os.environ.copy()
+    with TemporaryDirectory(prefix="Animatix first run ") as directory:
+        temporary = Path(directory)
+        project = temporary / "project"
+        project.mkdir()
         try:
-            verify(args.bin_dir.resolve(), project)
+            package = args.package.resolve()
+            if args.version:
+                with package.open("rb") as stream:
+                    sha = hashlib.file_digest(stream, "sha256").hexdigest()
+                (project / "archive-sha256.txt").write_text(f"{sha}  {package.name}\n", encoding="ascii")
+                extracted = temporary / "installed package"
+                with ZipFile(package) as archive:
+                    for member in archive.infolist():
+                        relative = Path(member.filename)
+                        if relative.anchor or ".." in relative.parts or "\\" in member.filename or ":" in member.filename:
+                            raise ValueError(f"unsafe release ZIP entry: {member.filename}")
+                    archive.extractall(extracted)
+                    for member in archive.infolist():
+                        if member.external_attr & (0o111 << 16):
+                            (extracted / member.filename).chmod(0o755)
+                package = extracted
+                env["PATH"] = os.defpath if sys.platform != "win32" else str(Path(os.environ["SystemRoot"]) / "System32")
+                env.pop("DYLD_LIBRARY_PATH", None)
+                env.pop("DYLD_FALLBACK_LIBRARY_PATH", None)
+                if sys.platform == "win32" and env.get("GITHUB_ACTIONS") == "true":
+                    # Hosted WARP needs DXC. Keep its SDK DLLs outside the tested ZIP.
+                    sdk = temporary / "runner graphics"
+                    sdk.mkdir()
+                    stage_sdk_dxc(sdk)
+                    env["PATH"] += os.pathsep + str(sdk)
+            verify(package, project, args.version, env)
         finally:
             shutil.copytree(project, args.evidence_dir, dirs_exist_ok=True)
 

@@ -69,18 +69,20 @@ the graphics and displays captions from the same transcript.
 
 Run `animatix-gui --doctor` from a terminal if the workbench cannot open a
 preview or export. The report checks the renderer, text shaping, FFmpeg's AAC
-encoder and the linked H.264 encoder. A video-enabled Linux package provides
-both the encoder and the muxing executable. The macOS and Windows packaging
-proof runs separately from the published release workflow. [Native video proof](../tools/release/native/video-proof.sh)
+encoder and the linked H.264 encoder. The release packages provide both the
+encoder and the muxing executable. The Release build verifies the extracted
+macOS and Windows ZIPs before uploading them, including the packaged workbench
+preview and a 30-second export with audio. [Native video proof](../tools/release/native/video-proof.sh)
 
 The native proof pins the vcpkg ports tree and its FFmpeg 8.x dependency set.
 It builds against those headers, links the macOS libraries statically, and
 stages the Windows DLLs beside both executables. Both stages carry the same
-FFmpeg tools used for muxing and inspection. The Windows stage uses the release
-vcpkg libraries and includes the matched DXC and DXIL DLLs from the runner SDK.
-This pair enables preview on the hosted Windows software adapter. Update the
-FFmpeg pin as a unit and rerun both native proofs before changing the published
-artifacts.
+FFmpeg tools used for muxing and inspection. They include the codec source
+archives, vcpkg recipes and licenses. The companion Linux source archive includes
+the project's source and Cargo dependencies for the same release. On GitHub's
+Windows runner, the acceptance process loads a matched DXC and DXIL pair from
+the runner SDK to exercise its software adapter. The SDK DLLs remain in the
+acceptance environment. Update the FFmpeg pin as a unit and verify both packages.
 
 ### Video export
 
