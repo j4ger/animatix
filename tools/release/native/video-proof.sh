@@ -40,6 +40,13 @@ phase() {
   python3 tools/ci/phase-timing.py --gate native-video-proof --phase "$name" --kind "$kind" -- "$@"
 }
 
+proof_stage="${ANIMATIX_PROOF_STAGE:-}"
+if [ -n "$proof_stage" ] && [ -f "$proof_stage/build-inputs.txt" ]; then
+  cp "$proof_stage/build-inputs.txt" "$output/evidence/"
+  phase package-acceptance execution "$BASH" tools/release/dist-package.sh "$platform" "$proof_stage" --video
+  exit
+fi
+
 printf 'vcpkg_commit=%s\ntriplet=%s\n' "$vcpkg_rev" "$triplet" > "$output/evidence/build-inputs.txt"
 printf 'cargo_dist_lto=%s\ncargo_dist_codegen_units=%s\n' \
   "${CARGO_PROFILE_DIST_LTO:-fat}" "${CARGO_PROFILE_DIST_CODEGEN_UNITS:-1}" >> "$output/evidence/build-inputs.txt"
@@ -128,9 +135,22 @@ if ! "$stage/ffmpeg$ext" -hide_banner -decoders | awk '$2 == "png" { found=1 } E
   exit 1
 fi
 
-phase rust-dist-build cargo cargo build --locked --profile dist -p animatix-cli -p animatix-gui --features video
-cargo_dist="${CARGO_TARGET_DIR:-target}/dist"
-cp "$cargo_dist/animatix$ext" "$cargo_dist/animatix-gui$ext" "$stage/"
+build=(build --locked --profile dist -p animatix-cli -p animatix-gui --features video)
+cargo_output="${CARGO_TARGET_DIR:-target}"
+if [ -n "$ext" ]; then
+  # Target only the shipped binaries so host build scripts keep their normal CRT.
+  rust_target=x86_64-pc-windows-msvc
+  export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-C target-feature=+crt-static"
+  build+=(--target "$rust_target")
+  cargo_output="$cargo_output/$rust_target"
+  printf 'rust_target=%s\nrust_crt_linkage=static\n' "$rust_target" >> "$output/evidence/build-inputs.txt"
+fi
+phase rust-dist-build cargo cargo "${build[@]}"
+cp "$cargo_output/dist/animatix$ext" "$cargo_output/dist/animatix-gui$ext" "$stage/"
 cp "$output/evidence/build-inputs.txt" "$stage/"
+if [ -n "$proof_stage" ]; then
+  # The independent proof can retry the archive check with identical build inputs.
+  cp -R "$stage" "$proof_stage"
+fi
 # Native Python on Windows can otherwise resolve bash to the WSL launcher.
 phase package-acceptance execution "$BASH" tools/release/dist-package.sh "$platform" "$stage" --video

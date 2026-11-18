@@ -17,7 +17,7 @@ uxtheme.dll version.dll win32u.dll winhttp.dll winspool.drv winmm.dll wintrust.d
 xinput1_4.dll
 """.split())
 WINDOWS_SYSTEM_DLLS.update({
-    "avicap32.dll", "bcryptprimitives.dll", "dxcore.dll", "msasn1.dll",
+    "avicap32.dll", "bcryptprimitives.dll", "combase.dll", "dxcore.dll", "msasn1.dll",
     "msvfw32.dll", "mswsock.dll", "windowscodecs.dll", "wsock32.dll",
 })
 

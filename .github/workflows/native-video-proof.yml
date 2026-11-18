@@ -56,6 +56,7 @@ jobs:
     env:
       # Cache compiler output independently of vcpkg's in-progress work tree.
       CARGO_TARGET_DIR: target/release-cargo
+      ANIMATIX_PROOF_STAGE: target/native-video-proof-inputs
     steps:
       - uses: actions/checkout@v5
         with:
@@ -66,9 +67,21 @@ jobs:
           key: native-video-release-dist
           workspaces: . -> target/release-cargo
           cache-on-failure: true
+      - name: Restore staged inputs for acceptance retries
+        id: native-inputs
+        uses: actions/cache/restore@v5
+        with:
+          path: target/native-video-proof-inputs
+          key: native-proof-inputs-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.*', 'rust-toolchain.toml', 'crates/**', 'examples/assets/narration.*', 'tools/release/native/video-proof.sh') }}
       - name: Build and verify the narrated starter on the target OS
         shell: bash
         run: tools/ci/ci.sh gate native-video-proof
+      - name: Retain completed build inputs for a retry
+        if: ${{ !cancelled() && steps.native-inputs.outputs.cache-hit != 'true' && hashFiles('target/native-video-proof-inputs/build-inputs.txt') != '' }}
+        uses: actions/cache/save@v5
+        with:
+          path: target/native-video-proof-inputs
+          key: ${{ steps.native-inputs.outputs.cache-primary-key }}
       - name: Retain native export evidence
         if: always()
         uses: actions/upload-artifact@v4
