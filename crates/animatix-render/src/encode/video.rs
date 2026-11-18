@@ -371,8 +371,9 @@ impl VideoEncoder {
         Ok(())
     }
 
-    /// Drain pending packets and write the trailer.
-    fn finish(&mut self) -> Result<(), ExportError> {
+    /// Drain pending packets, write the trailer, and close the output before
+    /// audio muxing replaces it. Windows prevents replacing an open file.
+    fn finish(mut self) -> Result<(), ExportError> {
         self.encode_context
             .send_frame(None)
             .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;

@@ -46,6 +46,11 @@ jobs:
         with:
           key: native-video-proof-fast-dist
           cache-on-failure: true
+      - uses: actions/cache@v5
+        with:
+          path: target/native-video-proof/vcpkg-archives
+          key: native-video-vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/release/native/video-proof.sh') }}
+          restore-keys: native-video-vcpkg-${{ runner.os }}-${{ runner.arch }}-
       - name: Build and verify the narrated starter on the target OS
         shell: bash
         run: tools/ci/ci.sh gate native-video-proof
