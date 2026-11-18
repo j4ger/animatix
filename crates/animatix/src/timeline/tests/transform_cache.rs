@@ -295,3 +295,107 @@ fn group_scale_diagnostic_direct_rendered_size() {
 fn group_scale_diagnostic_grandchild_rendered_size() {
     group_scale_diagnostic_bounds_ratio("grandchild");
 }
+
+fn instant_parent_scale(time_ms: u64) -> f32 {
+    let timeline = group_scale_fixture("0s");
+    let parent = timeline.get_entity_id("parent").expect("parent entity");
+    timeline.world.geometry(parent).scale.get(time_ms, 1.0)
+}
+
+#[test]
+fn group_scale_diagnostic_instant_initial_default_is_one() {
+    assert_eq!(instant_parent_scale(0), 1.0);
+}
+
+#[test]
+fn group_scale_diagnostic_instant_before_change_is_one() {
+    assert_eq!(instant_parent_scale(999), 1.0);
+}
+
+#[test]
+fn group_scale_diagnostic_instant_target_is_quarter() {
+    assert_eq!(instant_parent_scale(1000), 0.25);
+}
+
+#[test]
+fn group_scale_diagnostic_explicit_seed_instant_track() {
+    let timeline = build_timeline(
+        r#"
+#0s
+parent: Group, at: (200, 150), scale: 1, opacity: 1 {
+    direct: Rect, size: (40, 20), opacity: 1
+}
+#1s
+parent.scale = 0.25 [0s]
+"#,
+    );
+    let parent = timeline.get_entity_id("parent").expect("parent entity");
+    let scale = &timeline.world.geometry(parent).scale;
+    assert_eq!(scale.get(0, 1.0), 1.0);
+    assert_eq!(scale.get(999, 1.0), 1.0);
+    assert_eq!(scale.get(1000, 1.0), 0.25);
+}
+
+fn grandchild_bounds_at(time: f64) -> Option<kurbo::Rect> {
+    let timeline = group_scale_fixture("1s");
+    let _ = timeline.evaluate(time, DIMS);
+    timeline.precise_bounds_for("grandchild")
+}
+
+#[test]
+fn group_scale_diagnostic_grandchild_initial_bounds_exist() {
+    assert!(grandchild_bounds_at(0.0).is_some());
+}
+
+#[test]
+fn group_scale_diagnostic_grandchild_initial_bounds_nonzero() {
+    // Existence has its own test; distinguish missing from degenerate bounds.
+    if let Some(bounds) = grandchild_bounds_at(0.0) {
+        assert!(bounds.width() > 0.0 && bounds.height() > 0.0);
+    }
+}
+
+#[test]
+fn group_scale_diagnostic_grandchild_final_bounds_exist() {
+    assert!(grandchild_bounds_at(2.0).is_some());
+}
+
+#[test]
+fn group_scale_diagnostic_grandchild_final_bounds_nonzero() {
+    if let Some(bounds) = grandchild_bounds_at(2.0) {
+        assert!(bounds.width() > 0.0 && bounds.height() > 0.0);
+    }
+}
+
+#[test]
+fn group_scale_diagnostic_grandchild_registered_in_children() {
+    let timeline = group_scale_fixture("1s");
+    let parent = timeline.get_entity_id("parent").expect("parent");
+    let nested = timeline.get_entity_id("nested").expect("nested");
+    let grandchild = timeline.get_entity_id("grandchild").expect("grandchild");
+    assert!(timeline.world.hierarchy(parent).children.contains(&nested));
+    assert!(timeline.world.hierarchy(nested).children.contains(&grandchild));
+    assert_eq!(timeline.world.hierarchy(grandchild).parent, Some(nested));
+}
+
+#[test]
+fn group_scale_diagnostic_grandchild_visible_from_zero() {
+    let timeline = group_scale_fixture("1s");
+    for label in ["parent", "nested", "grandchild"] {
+        let id = timeline.get_entity_id(label).expect("fixture entity");
+        let meta = timeline.world.meta(id);
+        assert!(meta.visible);
+        assert_eq!(meta.first_seen_ms, 0);
+        assert_eq!(timeline.world.style(id).opacity.get(0, 1.0), 1.0);
+    }
+}
+
+#[test]
+fn group_scale_diagnostic_grandchild_shape_registered() {
+    let timeline = group_scale_fixture("1s");
+    let id = timeline.get_entity_id("grandchild").expect("grandchild");
+    assert_eq!(timeline.world.actor_type(id), "Rect");
+    assert!(timeline.world.caps(id).is_shape);
+    assert!(timeline.behavior_for_node(id, 0).is_some());
+    assert_eq!(timeline.world.geometry(id).size.get(0, [0.0; 2]), [10.0, 20.0]);
+}
