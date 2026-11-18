@@ -460,7 +460,7 @@ pub(crate) struct SoloState {
 /// Dense per-frame precise-bounds storage (slot-id design).
 ///
 /// `slots` is indexed by `World::bounds_slots` ids stamped once per rebuild in
-/// sorted `tracks` order; `written` lists this frame's slots so clear, stash, and
+/// entity insertion order; `written` lists this frame's slots so clear, stash, and
 /// restore are flat `Vec<(u32, kurbo::Rect)>` work — no string keys or hashing.
 #[derive(Default)]
 struct BoundsTable {
@@ -468,10 +468,10 @@ struct BoundsTable {
     written: Vec<u32>,
 }
 
-/// Sorted entity labels giving `World::bounds_slots` values their meaning; rebuilt on invalidation.
+/// Entity labels giving `World::bounds_slots` values their meaning; rebuilt on invalidation.
 #[derive(Clone)]
 struct BoundsRegistry {
-    /// Slot index → label in `tracks` (BTreeMap) order, making slot numbering deterministic.
+    /// Slot index → label in entity insertion order; not lexically sorted.
     labels: Vec<String>,
 }
 

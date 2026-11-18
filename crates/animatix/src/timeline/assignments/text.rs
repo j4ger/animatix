@@ -122,6 +122,8 @@ pub(crate) fn recompile_text_at_assignment(
         );
     } else {
         preserve_instant_delayed_value(&mut text.text_paths, t_start_ms);
+        geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE);
+        geometry.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE);
         preserve_instant_delayed_value(&mut geometry.size, t_start_ms);
         preserve_instant_delayed_value(&mut geometry.layout_size, t_start_ms);
     }

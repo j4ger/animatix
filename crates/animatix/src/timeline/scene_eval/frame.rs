@@ -256,7 +256,7 @@ impl Timeline {
         // the slot table — no string keys, no per-key allocation. Observable
         // (collect_items) entries leave the pairs empty (as before, the bounds
         // live on the cloned program); their rare hits re-derive slots from the
-        // label map by binary search over the registry.
+        // label map through the same entity-to-slot mapping used by drawing.
         {
             let mut table = self.eval_caches.precise_bounds.borrow_mut();
             table.clear_frame();
@@ -264,17 +264,13 @@ impl Timeline {
                 drop(table);
                 self.ensure_bounds_registry();
                 let pairs: Vec<(u32, kurbo::Rect)> = {
-                    let registry = self.eval_caches.bounds_registry.borrow();
                     cached
                         .program
                         .precise_bounds
                         .iter()
                         .filter_map(|(label, rect)| {
-                            let slot = registry
-                                .as_ref()?
-                                .labels
-                                .binary_search_by(|probe| probe.as_str().cmp(label.as_str()))
-                                .ok()? as u32;
+                            let id = self.world.get_id(label)?;
+                            let slot = self.world.bounds_slot(id);
                             Some((slot, *rect))
                         })
                         .collect()

@@ -455,3 +455,114 @@ fn test_property_keyframe_easing() {
     let easing = timeline.world().property_keyframe_easing(id, ActorField::Opacity, 0);
     assert_eq!(easing, Some(Easing::EaseInOut));
 }
+
+#[test]
+fn instant_future_writes_preserve_semantic_defaults_for_scalar_fields() {
+    // These fields share f32 storage, but Rust's f32 default (0) is wrong
+    // for each of their property defaults. Exercise the World dispatch too.
+    for (ty, field, default, target) in [
+        ("Group", ActorField::Scale, 1.0, 0.25),
+        ("Rect", ActorField::Opacity, 1.0, 0.5),
+        ("Rect", ActorField::StrokeWidth, 2.0, 8.0),
+    ] {
+        let mut timeline = crate::timeline::Timeline::new();
+        let id = timeline.world_mut().spawn("test", ty);
+        let mut diagnostics = Vec::new();
+        timeline.world_mut().write_property_field(
+            id,
+            field,
+            PropertyValue::F32(target),
+            1000,
+            1000,
+            Easing::Linear,
+            &mut diagnostics,
+        );
+        assert!(diagnostics.is_empty(), "{field:?}: {diagnostics:?}");
+        for time_ms in [0, 500, 999, 1000, 1500, 0] {
+            let expected = if time_ms < 1000 { default } else { target };
+            assert_eq!(
+                timeline.world().read_property_value(id, field, time_ms),
+                Some(PropertyValue::F32(expected)),
+                "{field:?} at {time_ms}ms"
+            );
+        }
+    }
+}
+
+#[test]
+fn instant_future_writes_preserve_vector_and_transform_defaults() {
+    // All typed writers delegate to write_track, including nonzero vectors
+    // and affine identity. Do not special-case just scale in the fix.
+    let mut vector = None;
+    declaration::write_vec2(
+        &mut vector,
+        PropertyValue::Vec2([10.0, 20.0]),
+        1000,
+        1000,
+        Easing::Linear,
+        [-50.0, 0.0],
+        false,
+        true,
+    );
+    let mut color = None;
+    declaration::write_vec4(
+        &mut color,
+        PropertyValue::Color([1.0, 0.0, 0.0, 1.0]),
+        1000,
+        1000,
+        Easing::Linear,
+        [1.0; 4],
+        false,
+        true,
+    );
+    let mut transform = None;
+    let identity = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+    let scaled = [0.25, 0.0, 0.0, 0.25, 0.0, 0.0];
+    declaration::write_transform(
+        &mut transform,
+        PropertyValue::Transform(scaled),
+        1000,
+        1000,
+        Easing::Linear,
+        identity,
+        false,
+        true,
+    );
+    for time_ms in [0, 500, 999] {
+        assert_eq!(vector.get(time_ms, [0.0; 2]), [-50.0, 0.0]);
+        assert_eq!(color.get(time_ms, [0.0; 4]), [1.0; 4]);
+        assert_eq!(transform.get(time_ms, [0.0; 6]), identity);
+    }
+    assert_eq!(vector.get(1000, [0.0; 2]), [10.0, 20.0]);
+    assert_eq!(color.get(1000, [0.0; 4]), [1.0, 0.0, 0.0, 1.0]);
+    assert_eq!(transform.get(1000, [0.0; 6]), scaled);
+}
+
+#[test]
+fn instant_future_write_preserves_existing_track_instead_of_reseeding_default() {
+    let mut scale = None;
+    declaration::write_f32(
+        &mut scale,
+        PropertyValue::F32(2.0),
+        0,
+        0,
+        Easing::Linear,
+        1.0,
+        false,
+        false,
+    );
+    declaration::write_f32(
+        &mut scale,
+        PropertyValue::F32(0.25),
+        1000,
+        1000,
+        Easing::Linear,
+        1.0,
+        false,
+        true,
+    );
+    for time_ms in [0, 500, 999] {
+        assert_eq!(scale.get(time_ms, 1.0), 2.0);
+    }
+    assert_eq!(scale.get(1000, 1.0), 0.25);
+}

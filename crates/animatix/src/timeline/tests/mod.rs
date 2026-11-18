@@ -89,3 +89,6 @@ pub(crate) use timeline_core::without_content_lints;
 mod plan_syntax;
 #[cfg(test)]
 mod shape_bounds;
+
+#[cfg(test)]
+mod instant_compound_assignments;

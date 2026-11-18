@@ -312,31 +312,17 @@ pub(super) fn rewrite_label_path(
     };
     let rewritten_first = rewrite_label_ref(first_str, prefix, root_label, known_labels);
 
-    // Extract static strings from remaining segments for the self-skip check
-    let rest_static: Vec<&str> = rest
-        .iter()
-        .filter_map(|s| match s {
-            TargetSegment::Static(s) => Some(s.as_str()),
-            TargetSegment::Indexed { .. } => None,
-        })
-        .collect();
-
-    // If the path starts with `self` followed by the root label, skip the root label
-    // since `self` already resolves to the prefixed root actor.
+    // Only remove an immediate static root segment. Preserve all descendant
+    // segments (including runtime indexes) for the shared rewrite loop below.
     let rest = if first_str == "self" {
-        if let Some((second, remaining)) = rest_static.split_first()
-            && root_label == Some(second)
-        {
-            let mut result: Vec<TargetSegment> = split_rewritten_label(&rewritten_first)
-                .into_iter()
-                .map(TargetSegment::Static)
-                .collect();
-            for seg in remaining {
-                result.push(TargetSegment::Static(rewrite_path_segment(seg, prefix, root_label)));
-            }
-            return result;
+        match rest.split_first() {
+            Some((TargetSegment::Static(second), remaining))
+                if root_label == Some(second.as_str()) =>
+            {
+                remaining
+            },
+            _ => rest,
         }
-        rest
     } else {
         rest
     };
