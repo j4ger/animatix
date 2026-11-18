@@ -39,6 +39,8 @@ pub struct CompositionScene {
     pub explicit_duration_s: Option<f64>,
     /// Source span of the scene declaration, for diagnostics.
     pub source_span: Option<Span>,
+    /// Defining module, which can differ from the composition entry file.
+    pub source_path: Option<std::path::PathBuf>,
 }
 
 /// Edge from one scene to another (via `play` or implicit ordering).
@@ -57,6 +59,8 @@ pub struct Composition {
     pub scenes: BTreeMap<String, CompositionScene>,
     /// Default order when no explicit `play` edges exist.
     pub declaration_order: Vec<String>,
+    /// Resolved order after following `play` edges.
+    playback_order: Vec<String>,
     /// Explicit play edges: scene_name → edge.
     pub edges: BTreeMap<String, SceneEdge>,
     /// Total duration of the composition in seconds.

@@ -44,6 +44,28 @@ color association rather than repeated bordered cards. Keep text and plotted
 evidence in separate bands. Use no camera movement to decorate a quantitative
 comparison. These are authoring principles, not a new global component API.
 
+### Align readouts to a shared edge
+
+A fixed-width `Col` with `align: "end"` pins each value to its padded
+right edge. Use `align: "start"` for labels that share a left edge.
+A `Row` with `vertical_align: "baseline"` aligns a large value and its
+smaller unit on a common text baseline.
+
+```animatix
+rates: Col, at: (1060, 410), size: (160, auto), padding: 12, gap: 10, align: "end", opacity: 1 {
+  reference: Text, text: "0.02", font_size: 24, font_family: "mono", opacity: 1
+  selected: Text, text: "0.350", font_size: 24, font_family: "mono", opacity: 1
+}
+loss: Row, at: (1060, 510), size: (auto, 72), gap: 6, vertical_align: "baseline", opacity: 1 {
+  value: Text, text: "90", font_size: 52, opacity: 1
+  unit: Text, text: "%", font_size: 24, opacity: 1
+}
+```
+
+The column's right edge is at x=1140. Its 12 px padding puts both values'
+right edges at x=1128. See both layouts in the runnable
+[readout alignment example](../examples/layout/readout_alignment.amx).
+
 ## Correctness and review
 
 `check-gradient-content.py` retains the optimizer recurrence checks and now

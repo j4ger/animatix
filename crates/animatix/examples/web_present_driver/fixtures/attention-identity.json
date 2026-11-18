@@ -16,7 +16,7 @@
       "source": "examples/lib/stage.amx",
       "file": "lib/stage.amx",
       "sha256": "e978cbdf269ea1da5e9a0e4fbd1a349d01827044ce60ef08a0e7dba2d872f305",
-      "migrated_sha256": "c64d2a613e96e4c9d9efd5e49babc024e01b182fdfcde7fccd3d2696c3da2a49"
+      "migrated_sha256": "353565d8285029b26896fd498079e52cf068fb97d3f799c6e756164bd7f12660"
     },
     {
       "source": "examples/lib/components.amx",

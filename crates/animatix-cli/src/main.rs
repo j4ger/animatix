@@ -35,6 +35,70 @@ struct SetArgs {
     set: Vec<(String, String)>,
 }
 
+#[cfg(feature = "video")]
+#[derive(clap::Args, Debug)]
+struct VideoArgs {
+    /// The input Animatix scene file (.amx)
+    input: PathBuf,
+    #[command(flatten)]
+    set: SetArgs,
+
+    /// Export a named chapter from a multi-scene composition
+    #[arg(long, value_name = "NAME")]
+    scene: Option<String>,
+
+    /// Omit the audio track
+    #[arg(long)]
+    no_audio: bool,
+
+    /// Output video width (defaults to the file's `config { resolution: .. }`, else 1280)
+    #[arg(long)]
+    width: Option<u32>,
+
+    /// Output video height (defaults to the file's `config { resolution: .. }`, else 720)
+    #[arg(long)]
+    height: Option<u32>,
+
+    /// Output framerate
+    #[arg(long, default_value_t = 30)]
+    fps: u32,
+
+    /// Full export duration in seconds. If omitted, auto-detects from timeline length.
+    #[arg(long)]
+    duration: Option<f32>,
+
+    /// Seconds to hold the last frame after the last animation ends. Applied only when
+    /// --duration is omitted.
+    #[arg(long, default_value_t = 1.0)]
+    hold: f32,
+
+    /// Output filename
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+
+    /// Draw per-node content bounding boxes for debugging
+    #[arg(long)]
+    debug_bounds: bool,
+
+    /// Maximum render threads (auto or a number)
+    #[arg(short = 'j', long, default_value = "auto")]
+    threads: export::MaxRenderThreads,
+
+    /// Video codec: auto, libx264, h264_nvenc, h264_vaapi, vp9
+    #[arg(long, default_value = "auto")]
+    codec: export::VideoCodec,
+
+    /// libx264 preset: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower,
+    /// veryslow
+    #[arg(long, default_value = "medium")]
+    preset: export::H264Preset,
+
+    /// Named export preset (720p30, 1080p30, 1080p60, 4k30). Overrides
+    /// width/height/fps/codec/preset.
+    #[arg(long)]
+    export_preset: Option<String>,
+}
+
 #[derive(ClapParser, Debug)]
 #[command(author, version, about, long_about = "Animatix CLI Tool")]
 struct Args {
@@ -63,6 +127,21 @@ enum Commands {
     },
     /// Diagnose GPU, font, audio muxing, and MP4 encoder availability.
     Doctor,
+    /// Inspect the frame ranges and dependencies for incremental chapter video export.
+    #[cfg(feature = "video")]
+    ChapterPlan(commands::chapters::PlanArgs),
+    /// Export the timeline's mixed audio to M4A without rendering video frames.
+    #[cfg(feature = "video")]
+    Audio {
+        /// Input Animatix scene file (.amx).
+        input: PathBuf,
+        /// Audio duration in seconds; defaults to the video export duration.
+        #[arg(long)]
+        duration: Option<f32>,
+        /// Output M4A filename.
+        #[arg(short, long)]
+        output: PathBuf,
+    },
     /// Print the scene table for a multi-scene file (name/start/duration/transitions)
     Timeline {
         /// The input Animatix scene file (.amx)
@@ -155,59 +234,7 @@ enum Commands {
     },
     /// Render a scene to a video file
     #[cfg(feature = "video")]
-    Video {
-        /// The input Animatix scene file (.amx)
-        input: PathBuf,
-        #[command(flatten)]
-        set: SetArgs,
-
-        /// Output video width (defaults to the file's `config { resolution: .. }`, else 1280)
-        #[arg(long)]
-        width: Option<u32>,
-
-        /// Output video height (defaults to the file's `config { resolution: .. }`, else 720)
-        #[arg(long)]
-        height: Option<u32>,
-
-        /// Output framerate
-        #[arg(long, default_value_t = 30)]
-        fps: u32,
-
-        /// Render duration in seconds. If omitted, auto-detects from timeline length.
-        #[arg(long)]
-        duration: Option<f32>,
-
-        /// Seconds to hold the last frame after the last animation ends. Applied only when
-        /// --duration is omitted.
-        #[arg(long, default_value_t = 1.0)]
-        hold: f32,
-
-        /// Output filename
-        #[arg(short, long)]
-        output: Option<PathBuf>,
-
-        /// Draw per-node content bounding boxes for debugging
-        #[arg(long)]
-        debug_bounds: bool,
-
-        /// Maximum render threads (auto or a number)
-        #[arg(short = 'j', long, default_value = "auto")]
-        threads: export::MaxRenderThreads,
-
-        /// Video codec: auto, libx264, h264_nvenc, h264_vaapi, vp9
-        #[arg(long, default_value = "auto")]
-        codec: export::VideoCodec,
-
-        /// libx264 preset: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower,
-        /// veryslow
-        #[arg(long, default_value = "medium")]
-        preset: export::H264Preset,
-
-        /// Named export preset (720p30, 1080p30, 1080p60, 4k30). Overrides
-        /// width/height/fps/codec/preset.
-        #[arg(long)]
-        export_preset: Option<String>,
-    },
+    Video(VideoArgs),
     /// Render a scene to an animated GIF file
     #[cfg(feature = "video")]
     Gif {
@@ -331,7 +358,10 @@ enum PluginCommands {
 }
 
 fn main() {
+    #[cfg(feature = "video")]
     let args = Args::parse();
+    #[cfg(not(feature = "video"))]
+    let args = parse_args_with_feature_help();
 
     let filter = match args.verbose {
         0 => EnvFilter::new("warn"),
@@ -361,6 +391,64 @@ fn main() {
     dispatch(args.command, &extensions);
 }
 
+#[cfg(not(feature = "video"))]
+fn parse_args_with_feature_help() -> Args {
+    use clap::error::{ContextKind, ContextValue, ErrorKind};
+    use clap::{CommandFactory, FromArgMatches};
+
+    let mut command = Args::command();
+    let mut matches = match command.try_get_matches_from_mut(std::env::args_os()) {
+        Ok(matches) => matches,
+        Err(mut error) => {
+            let is_video_subcommand = matches!(
+                error.get(ContextKind::InvalidSubcommand),
+                Some(ContextValue::String(name))
+                    if matches!(name.as_str(), "video" | "gif" | "audio" | "chapter-plan")
+            );
+            // The same spelling may occur as an invalid nested subcommand.
+            if error.kind() == ErrorKind::InvalidSubcommand
+                && is_video_subcommand
+                && error.get(ContextKind::Usage)
+                    == Some(&ContextValue::StyledStr(command.render_usage()))
+            {
+                error.insert(
+                    ContextKind::Suggested,
+                    ContextValue::StyledStrs(vec![
+                        "This command requires the optional 'video' feature. Build it with 'nix develop --command cargo build -p animatix-cli --features video'.".into(),
+                    ]),
+                );
+            }
+            error.exit();
+        },
+    };
+    Args::from_arg_matches_mut(&mut matches)
+        .unwrap_or_else(|error| error.format(&mut command).exit())
+}
+
+#[cfg(feature = "video")]
+fn dispatch_video(args: VideoArgs, extensions: &CliExtensions) {
+    commands::render::run_video(
+        &args.input,
+        args.scene.as_deref(),
+        args.no_audio,
+        args.width,
+        args.height,
+        args.fps,
+        args.duration,
+        args.hold,
+        args.output,
+        args.debug_bounds,
+        export::ExportSettings {
+            max_render_threads: args.threads,
+            video_codec: args.codec,
+            h264_preset: args.preset,
+        },
+        args.export_preset.as_deref(),
+        &args.set.set,
+        extensions,
+    );
+}
+
 fn dispatch(command: Commands, extensions: &CliExtensions) {
     match command {
         Commands::Init { directory } => {
@@ -374,6 +462,24 @@ fn dispatch(command: Commands, extensions: &CliExtensions) {
         },
         Commands::Doctor => {
             if !animatix_render::delivery::print_doctor() {
+                std::process::exit(1);
+            }
+        },
+        #[cfg(feature = "video")]
+        Commands::ChapterPlan(args) => {
+            if let Err(err) = commands::chapters::run_plan(args, extensions) {
+                error!("{err}");
+                std::process::exit(1);
+            }
+        },
+        #[cfg(feature = "video")]
+        Commands::Audio {
+            input,
+            duration,
+            output,
+        } => {
+            if let Err(err) = commands::chapters::run_audio(&input, duration, &output, extensions) {
+                error!("{err}");
                 std::process::exit(1);
             }
         },
@@ -420,38 +526,7 @@ fn dispatch(command: Commands, extensions: &CliExtensions) {
         },
 
         #[cfg(feature = "video")]
-        Commands::Video {
-            input,
-            width,
-            height,
-            fps,
-            duration,
-            hold,
-            output,
-            debug_bounds,
-            threads,
-            codec,
-            preset,
-            export_preset,
-            set,
-        } => {
-            commands::render::run_video(
-                &input,
-                width,
-                height,
-                fps,
-                duration,
-                hold,
-                output,
-                debug_bounds,
-                threads,
-                codec,
-                preset,
-                export_preset.as_deref(),
-                &set.set,
-                extensions,
-            );
-        },
+        Commands::Video(args) => dispatch_video(args, extensions),
 
         #[cfg(feature = "video")]
         Commands::Gif {

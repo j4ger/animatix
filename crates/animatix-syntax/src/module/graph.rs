@@ -82,6 +82,11 @@ impl ModuleGraph {
         self.files.get(&id).map(|module| module.statements.as_slice())
     }
 
+    /// Source paths in the loaded import graph.
+    pub fn loaded_paths(&self) -> impl Iterator<Item = &Path> {
+        self.files.values().map(|module| module.path.as_path())
+    }
+
     /// Return the imports for a registered path, if any.
     pub fn file_imports(&self, path: &Path) -> Option<&[(String, Option<String>)]> {
         let id = self.file_id_for_path(path)?;

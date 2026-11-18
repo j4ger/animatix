@@ -4,25 +4,29 @@
 use super::*;
 
 impl Composition {
+    /// Scheduled scene names in playback order, including scenes with equal start times.
+    pub fn playback_order(&self) -> &[String] {
+        &self.playback_order
+    }
+
     /// Build a [`CompositionSummary`] from this composition's scene graph.
     pub fn summary(&self) -> CompositionSummary {
-        // Playback order = scenes sorted by their global start time.
-        let mut by_start: Vec<(&String, f64)> =
-            self.scene_start_times.iter().map(|(name, t)| (name, *t)).collect();
-        by_start.sort_by(|a, b| a.1.total_cmp(&b.1));
-        let scenes = by_start
+        let scenes = self
+            .playback_order
             .iter()
-            .filter_map(|(name, start)| {
-                let scene = self.scenes.get(*name)?;
-                Some(((*name).clone(), *start, scene.duration_s, scene.explicit_duration_s))
+            .filter_map(|name| {
+                let scene = self.scenes.get(name)?;
+                let start = self.scene_start_times.get(name)?;
+                Some((name.clone(), *start, scene.duration_s, scene.explicit_duration_s))
             })
             .collect();
-        let edges = by_start
+        let edges = self
+            .playback_order
             .iter()
-            .filter_map(|(name, _)| {
-                let edge = self.edges.get(*name)?;
+            .filter_map(|name| {
+                let edge = self.edges.get(name)?;
                 Some((
-                    (*name).clone(),
+                    name.clone(),
                     edge.to_scene.clone(),
                     edge.transition.id.clone(),
                     edge.transition.duration_ms,

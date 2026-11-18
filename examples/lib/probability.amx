@@ -1,0 +1,12 @@
+// value and progress are fractions. x and y locate the shared zero baseline.
+pub component ProbabilityBar(label: Str, value: Num, progress: Num, x: Num, y: Num, width: Num = 480, tint: Color = accent.primary) {
+  name: Text, text: label, at: (x - 20, y), text_anchor: "right", font_size: 24, color: text.primary, opacity: 1
+  track: Line, from: (x, y), to: (x + width, y), stroke: stroke.default, stroke_width: 4, opacity: 1
+  bar: Line, from: (x, y), to: (x, y), stroke: tint, stroke_width: 10, opacity: 1
+  percent: Text, text: "0.00%", at: (x + width + 20, y), font_family: "mono", font_size: 23, text_anchor: "left", color: tint, opacity: 1
+  always {
+      let fraction = clamp(value, 0, 1) * clamp(progress, 0, 1)
+      self.bar.to = (x + width * fraction, y)
+      self.percent.text = format("{:.2f}%", 100 * fraction)
+    }
+}

@@ -268,6 +268,7 @@ pub(super) fn finalize_global_timeline(
     Composition {
         scenes,
         declaration_order: declaration_order.to_vec(),
+        playback_order: walk_order.to_vec(),
         edges: edges.clone(),
         global_duration_s,
         scene_start_times,

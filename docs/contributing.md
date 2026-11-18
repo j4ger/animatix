@@ -99,6 +99,32 @@ Run these inside `nix develop`: its `bindgenHook` generates bindings from the
 matching FFmpeg headers. PNG/WebP export does not require `video`;
 MP4/WebM/MOV/GIF does. See the CLI's `--help` for individual export options.
 
+### Incremental chapter export
+
+For a multi-scene composition, run the chapter export tool from the source
+checkout with Python 3.10+, FFmpeg, FFprobe, and a video-enabled Animatix CLI.
+
+```sh
+python3 tools/content/chapter-export.py path/to/lesson.amx \
+  --animatix target/debug/animatix --output path/to/lesson.mp4
+```
+
+Run the same command after editing the lesson. The tool reuses verified video
+parts under `.animatix-chapters/` beside the source. A chapter starts on the
+first full-export frame at or after its scene's scheduled start and includes
+its incoming transition. Editing a scene or referenced media rebuilds the
+parts that draw that scene, including neighboring transitions and carried
+actors. Shared source and effective encoder settings can invalidate every part.
+
+The tool assembles H.264 video in composition order and copies in one
+continuous AAC mix from Animatix, preserving narration across chapter
+boundaries. The resulting MP4 has navigation markers named after the scenes.
+A failed export keeps the prior output and the verified parts
+remain available on retry. Use `--cache-dir` to share a cache between runs or
+put it on another disk. Use `--dependency PATH` for external render inputs
+such as a font file installed on the host. Animatix resolves imported source,
+images, audio and transcripts as part of its normal build.
+
 ## Repository files
 
 Keep source, lockfiles, test inputs and reviewed visual baselines in Git.

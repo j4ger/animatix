@@ -374,6 +374,26 @@ pub(crate) fn scan_references(stmts: &[Stmt]) -> ReferenceScan {
     scan
 }
 
+pub(super) fn scan_inline_references(items: &[InlineItem]) -> ReferenceScan {
+    let mut scan = ReferenceScan::default();
+    collect_inline_item_roots(items, &mut scan);
+    scan
+}
+
+impl crate::timeline::Timeline {
+    pub(crate) fn merge_reference_scan(&mut self, scan: ReferenceScan) {
+        if let Some(roots) = self.referenced_roots.as_mut() {
+            roots.extend(scan.roots);
+        }
+        self.stats_used |= scan.stats_used;
+        self.is_animating_used |= scan.is_animating_used;
+        self.wildcard_actors.extend(scan.wildcard_actors);
+        for (label, properties) in scan.referenced_properties {
+            self.referenced_properties.entry(label).or_default().extend(properties);
+        }
+    }
+}
+
 /// Collect every actor label root referenced by any expression in `stmts`.
 #[cfg(test)]
 pub(crate) fn collect_referenced_roots(stmts: &[Stmt]) -> HashSet<String> {

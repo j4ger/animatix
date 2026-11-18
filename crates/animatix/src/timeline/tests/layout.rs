@@ -213,6 +213,109 @@ fn test_fixed_size_layout_still_works() {
     }
 }
 
+fn evaluate_layout_bounds(timeline: &Timeline, time_s: f64) {
+    timeline.evaluate_with_debug(
+        time_s,
+        SceneDimensions {
+            width: 640,
+            height: 360,
+        },
+        DebugRenderOptions {
+            compute_hit_regions: true,
+            ..Default::default()
+        },
+        &mut None,
+    );
+}
+
+fn assert_layout_coordinate(actual: f64, expected: f64) {
+    assert!((actual - expected).abs() < 0.1, "expected {expected}, got {actual}");
+}
+
+#[test]
+fn fixed_linear_containers_align_to_their_padded_cross_edges() {
+    let source = r#"
+config { resolution: (640, 360) }
+#0s
+labels: Col, at: (180, 100), size: (200, auto), gap: 9, padding: (11, 7, 19, 13), align: "start" {
+  narrow: Rect, size: (20, 12)
+  wide: Rect, size: (70, 18)
+}
+icons: Row, at: (400, 240), size: (auto, 100), gap: 9, padding: (11, 7, 19, 13), align: "end" {
+  short: Rect, size: (20, 12)
+  tall: Rect, size: (28, 38)
+}
+"#;
+    let timeline = build_output(source);
+    evaluate_layout_bounds(&timeline, 0.0);
+    let bounds = |label| timeline.precise_bounds_for(label).expect("rendered bounds");
+
+    for label in ["narrow", "wide"] {
+        assert_layout_coordinate(bounds(label).x0, 91.0);
+    }
+    for label in ["short", "tall"] {
+        assert_layout_coordinate(bounds(label).y1, 277.0);
+    }
+    assert_layout_coordinate(bounds("wide").y0 - bounds("narrow").y1, 9.0);
+    assert_layout_coordinate(bounds("tall").x0 - bounds("short").x1, 9.0);
+}
+
+#[test]
+fn digital_column_keeps_its_right_edge_through_resize_and_reorder() {
+    let source = r#"
+config { resolution: (640, 360), dynamic_layout: true }
+#0s
+numbers: Col, at: (420, 150), size: (200, 90), gap: 10, padding: (11, 7, 19, 13), align: "end" {
+  short_value: Text, text: "0.02", font_size: 24, font_family: "mono"
+  long_value: Text, text: "0.350", font_size: 24, font_family: "mono"
+}
+numbers.size = (300, 90) [2s]
+#2s
+swap(short_value, long_value, duration: 1s)
+"#;
+    let timeline = build_output(source);
+
+    for (time, right_edge) in [
+        (0.0, 501.0),
+        (1.0, 526.0),
+        (2.0, 551.0),
+        (2.5, 551.0),
+        (3.0, 551.0),
+    ] {
+        evaluate_layout_bounds(&timeline, time);
+        let short = timeline.precise_bounds_for("short_value").expect("first value bounds");
+        let long = timeline.precise_bounds_for("long_value").expect("second value bounds");
+        assert_layout_coordinate(short.x1, right_edge);
+        assert_layout_coordinate(long.x1, right_edge);
+        assert!(short.width() < long.width());
+        if time == 0.0 {
+            assert!(short.y1 < long.y0);
+        } else if time == 3.0 {
+            assert!(long.y1 < short.y0);
+        }
+    }
+}
+
+#[test]
+fn mixed_font_sizes_share_the_painted_baseline_in_a_fixed_row() {
+    let source = r#"
+config { resolution: (640, 360) }
+#0s
+value: Row, at: (320, 180), size: (auto, 90), gap: 6, vertical_align: "baseline" {
+  big: Text, text: "HH", font_size: 52
+  small: Text, text: "H", font_size: 20
+}
+"#;
+    let timeline = build_output(source);
+    evaluate_layout_bounds(&timeline, 0.0);
+    // The flat bottom of H is on the baseline at both sizes.
+    let big = timeline.precise_bounds_for("big").expect("large text bounds");
+    let small = timeline.precise_bounds_for("small").expect("small text bounds");
+    assert_layout_coordinate(big.y1, small.y1);
+    assert_layout_coordinate(small.x0 - big.x1, 6.0);
+    assert!(big.height() > 2.0 * small.height());
+}
+
 /// Regression: `Stack align: "start"` must put the child's top-left corner on
 /// the declared Stack box's top-left corner. Before the fix the child's
 /// *bottom-right* corner landed on the Stack centre (position `-half_size`

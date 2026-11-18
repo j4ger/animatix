@@ -20,9 +20,13 @@ pub mod image;
 pub mod storyboard;
 #[cfg(feature = "video")]
 pub mod video;
+#[cfg(feature = "video")]
+mod video_chapters;
 
 #[cfg(feature = "video")]
 mod audio;
+#[cfg(feature = "video")]
+mod audio_mix;
 mod export_error;
 mod impls;
 #[cfg(feature = "raster-encode")]
@@ -46,11 +50,17 @@ pub use storyboard::{
 
 #[cfg(feature = "video")]
 pub use video::{
-    render_video_composition, render_video_composition_with_options, render_video_timeline,
+    render_video_chapter_with_options, render_video_composition,
+    render_video_composition_with_options, render_video_timeline,
     render_video_timeline_with_options,
 };
+#[cfg(feature = "video")]
+pub use video_chapters::{VideoFrameRange, video_chapter_frame_ranges};
 
 pub use export_error::ExportError;
+
+#[cfg(feature = "video")]
+pub use audio_mix::render_mixed_audio;
 
 use std::sync::atomic::{AtomicBool, AtomicU32};
 
@@ -80,6 +90,8 @@ pub struct ExportOptions<'a> {
     pub cancel: Option<&'a AtomicBool>,
     /// Receives export preflight warnings in UI clients. Other clients log them.
     pub warnings: Option<&'a std::sync::mpsc::Sender<String>>,
+    /// Omit the audio track from video exports.
+    pub skip_audio: bool,
 }
 
 /// A named resolution/fps/codec preset shared by CLI and GUI export paths.

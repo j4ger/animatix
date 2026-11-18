@@ -7,6 +7,96 @@ use animatix_syntax::module::ModuleGraph;
 use super::support::text_at;
 use crate::timeline::{SceneDimensions, Timeline, Value};
 
+#[test]
+fn generated_containers_keep_local_children_and_legacy_array_labels() {
+    let source = r##"
+component Matrix() {
+  board: Grid, cols: 2, opacity: 1 {
+    for value, i in {"a", "b"} {
+      cells[i]: Stack, opacity: 1 {
+        bounds: Rect, size: (40, 40), color: "#FFCC66"
+        digit: Text, text: value, color: bounds.color
+        legacy[i]: Rect, size: (10, 10)
+        for suffix, j in {"1", "2"} {
+          marks[j]: Text, text: format("{}{}", value, suffix)
+        }
+        foreground: Group {
+          swatch: Rect, size: (10, 10), color: red
+          copy: Rect, size: (10, 10), color: swatch.color
+        }
+        background: Group {
+          swatch: Rect, size: (10, 10), color: blue
+          copy: Rect, size: (10, 10), color: swatch.color
+        }
+      }
+    }
+  }
+}
+#0s
+matrix: Matrix
+#0.1s
+matrix.cells[1].digit.text = "changed"
+matrix.cells[1].marks[0].text = "changed mark"
+matrix.legacy[1].opacity = 0.5
+"##;
+    let mut modules = ModuleGraph::new();
+    let program = modules
+        .load_program_with_source(Path::new("virtual:///generated_containers.amx"), Some(source))
+        .expect("load component program");
+    let expanded = program.expand_components().expect("component expansion");
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        crate::timeline::BuildOptions::default().with_expanded(&expanded),
+    );
+    crate::timeline::tests::support::assert_clean(&report);
+    let timeline = &report.output;
+    for (i, value) in ["a", "b"].into_iter().enumerate() {
+        let cell = format!("matrix.cells__{i}");
+        let cell_id = timeline.get_entity_id(&cell).expect("generated cell");
+        let bounds = format!("{cell}.bounds");
+        let digit = format!("{cell}.digit");
+        let legacy = format!("matrix.legacy__{i}");
+        let first_mark = format!("{cell}.marks__0");
+        assert_eq!(
+            timeline.world.child_labels(cell_id).collect::<Vec<_>>(),
+            [
+                bounds.as_str(),
+                &digit,
+                &legacy,
+                &first_mark,
+                &format!("{cell}.marks__1"),
+                &format!("{cell}.foreground"),
+                &format!("{cell}.background"),
+            ],
+        );
+        assert_eq!(text_at(timeline, &digit, 0), value);
+        assert_eq!(text_at(timeline, &first_mark, 0), format!("{value}1"));
+        let bounds = timeline.get_entity_id(&bounds).unwrap();
+        let digit = timeline.get_entity_id(&digit).unwrap();
+        assert_eq!(
+            timeline.world.style(bounds).color.as_ref().unwrap().evaluate(0),
+            timeline.world.style(digit).color.as_ref().unwrap().evaluate(0),
+        );
+        for (subtree, color) in [
+            ("foreground", [1.0, 0.0, 0.0, 1.0]),
+            ("background", [0.0, 0.0, 1.0, 1.0]),
+        ] {
+            let parent = timeline.get_entity_id(&format!("{cell}.{subtree}")).unwrap();
+            for label in ["swatch", "copy"] {
+                let child = timeline.get_entity_id(&format!("{cell}.{subtree}.{label}")).unwrap();
+                assert_eq!(timeline.world.hierarchy(child).parent, Some(parent));
+                assert_eq!(timeline.world.style(child).color.as_ref().unwrap().evaluate(0), color);
+            }
+        }
+    }
+    assert_eq!(text_at(timeline, "matrix.cells__0.digit", 100), "a");
+    assert_eq!(text_at(timeline, "matrix.cells__1.digit", 100), "changed");
+    assert_eq!(text_at(timeline, "matrix.cells__1.marks__0", 100), "changed mark");
+    let legacy_id = timeline.get_entity_id("matrix.legacy__1").unwrap();
+    assert_eq!(timeline.world.style(legacy_id).opacity.as_ref().unwrap().evaluate(100), 0.5);
+}
+
 fn indexed_actor_declarations(statements: &[crate::ast::Stmt], out: &mut Vec<String>) {
     for statement in statements {
         match statement {

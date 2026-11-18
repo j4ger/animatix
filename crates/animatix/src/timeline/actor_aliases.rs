@@ -18,6 +18,14 @@ pub(crate) fn resolve_actor_aliases_expr(expr: Expr, aliases: HashMap<String, St
     ActorAliases { aliases }.fold_expr(expr)
 }
 
+pub(crate) fn resolve_inline_actor_aliases(
+    items: Vec<InlineItem>,
+    aliases: HashMap<String, String>,
+) -> Vec<InlineItem> {
+    let mut resolver = ActorAliases { aliases };
+    items.into_iter().map(|item| resolver.fold_inline_item(item)).collect()
+}
+
 struct ActorAliases {
     aliases: HashMap<String, String>,
 }
@@ -27,10 +35,10 @@ impl ActorAliases {
         if let Some(label) = self.aliases.get(&name) {
             return label.clone();
         }
-        if let Some((root, suffix)) = name.split_once('.')
-            && let Some(label) = self.aliases.get(root)
-        {
-            return format!("{label}.{suffix}");
+        for (offset, _) in name.rmatch_indices('.') {
+            if let Some(label) = self.aliases.get(&name[..offset]) {
+                return format!("{label}{}", &name[offset..]);
+            }
         }
         name
     }
@@ -170,11 +178,14 @@ impl AstFolder for ActorAliases {
     fn fold_expr(&mut self, expr: Expr) -> Expr {
         match expr {
             Expr::Ident(name) => Expr::Ident(self.resolve(name)),
-            Expr::Path(mut parts) => {
-                if let Some(root) = parts.first_mut() {
-                    *root = self.resolve(std::mem::take(root));
+            Expr::Path(parts) => {
+                let source = parts.join(".");
+                let target = self.resolve(source.clone());
+                if target == source {
+                    Expr::Path(parts)
+                } else {
+                    Expr::Path(target.split('.').map(str::to_owned).collect())
                 }
-                Expr::Path(parts)
             },
             Expr::Closure(params, body) => {
                 let previous = self.aliases.clone();

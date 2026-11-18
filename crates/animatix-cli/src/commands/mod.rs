@@ -1,6 +1,8 @@
 pub mod ast;
 pub mod audit;
 pub mod baseline;
+#[cfg(feature = "video")]
+pub mod chapters;
 pub mod check;
 pub mod fmt;
 pub mod lint;

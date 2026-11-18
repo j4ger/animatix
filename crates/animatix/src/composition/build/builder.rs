@@ -372,6 +372,7 @@ fn collect_scenes(
                         duration_s,
                         explicit_duration_s,
                         source_span: *span,
+                        source_path: source.cloned(),
                     },
                 );
 
@@ -550,6 +551,7 @@ fn collect_cross_file_scenes(
                     duration_s,
                     explicit_duration_s,
                     source_span: scene_data.span,
+                    source_path: Some(scene_data.definition_path.clone()),
                 },
             );
             state.declaration_order.push(target.clone());

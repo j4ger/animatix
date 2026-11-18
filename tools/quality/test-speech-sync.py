@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline checks for the Edge TTS word-boundary contract."""
+"""Offline checks for speech synthesis and transcript conversion."""
 
 import asyncio
 import json
@@ -47,6 +47,72 @@ class SynthesisTests(unittest.TestCase):
                     asyncio.run(speech_sync.synthesize_speech("Hello", str(prefix)))
             self.assertEqual(audio.read_bytes(), b"old audio")
             self.assertEqual(transcript.read_text(), "old transcript")
+
+
+class ConversionTests(unittest.TestCase):
+    def convert(self, content, suffix):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / f"input{suffix}"
+            output = Path(directory) / "output.speech.json"
+            source.write_bytes(content.encode("utf-8"))
+            speech_sync.convert_transcript(str(source), str(output))
+            return json.loads(output.read_text(encoding="utf-8"))
+
+    def test_srt_preserves_cue_times_and_multiline_text(self):
+        transcript = self.convert(
+            "\ufeff1\r\n00:00:00,000 --> 00:00:01,234\r\nHello\r\nworld!\r\n"
+            "\r\n \r\n2\r\n01:02:03,004 --> 01:02:04,567\r\nEncore\r\n",
+            ".SRT",
+        )
+
+        self.assertEqual(transcript["duration"], 3724.567)
+        self.assertEqual(transcript["markers"], {})
+        first, second = transcript["segments"]
+        self.assertEqual(
+            (first["id"], first["start"], first["end"], first["text"]),
+            (0, 0.0, 1.234, "Hello world!"),
+        )
+        self.assertEqual(first["words"], [
+            {"word": "Hello", "start": 0.0, "end": 1.234, "confidence": 1.0},
+            {"word": "world!", "start": 0.0, "end": 1.234, "confidence": 1.0},
+        ])
+        self.assertEqual(
+            (second["id"], second["start"], second["end"], second["text"]),
+            (1, 3723.004, 3724.567, "Encore"),
+        )
+
+    def test_invalid_srt_reports_the_cue_and_timestamp(self):
+        with self.assertRaisesRegex(SystemExit, r"invalid SRT .*cue 1: invalid timestamp"):
+            self.convert("1\n00:00:01,234 --> invalid\nHello\n", ".srt")
+
+    def test_json_preserves_zero_and_defaults_only_missing_numbers(self):
+        transcript = self.convert(json.dumps({
+            "duration": 0.0,
+            "markers": {"intro": 0.0},
+            "segments": [
+                {"start": 0.0, "start_s": 1.0, "end": 0.0, "end_s": 1.5},
+                {"start_s": 1.5, "end_s": 2.0, "text": "  Hello  ", "words": [
+                    {"word": "Hello", "start": 0.0, "start_s": 1.5,
+                     "end": 0.0, "end_s": 1.6, "confidence": 0.0, "probability": 0.9},
+                    {"text": "again", "start": None, "start_s": 0.0, "end_s": 0.0,
+                     "confidence": None, "probability": 0.0},
+                    {"word": "!", "start": 1.75, "end": 0.0},
+                    {"word": "default"},
+                ]},
+            ],
+        }), ".json")
+
+        self.assertEqual(transcript["duration"], 0.0)
+        self.assertEqual(transcript["markers"], {"intro": 0.0})
+        first, second = transcript["segments"]
+        self.assertEqual((first["start"], first["end"]), (0.0, 0.0))
+        self.assertEqual((second["start"], second["end"], second["text"]), (1.5, 2.0, "Hello"))
+        self.assertEqual(second["words"], [
+            {"word": "Hello", "start": 0.0, "end": 0.0, "confidence": 0.0},
+            {"word": "again", "start": 0.0, "end": 0.0, "confidence": 0.0},
+            {"word": "!", "start": 1.75, "end": 0.0, "confidence": 1.0},
+            {"word": "default", "start": 1.5, "end": 1.5, "confidence": 1.0},
+        ])
 
 
 if __name__ == "__main__":

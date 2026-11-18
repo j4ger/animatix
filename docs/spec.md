@@ -588,7 +588,7 @@ morpher.size = (100, 100) [2s, ease: ease_out]
 
 Implemented: `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`.
 
-- **Row/Col:** `gap` (spacing, single value or per-axis tuple `(row_gap, col_gap)`), `padding` (inset, single value or per-side tuple `(top, right, bottom, left)`), `align` ("start" | "center" | "end"), `vertical_align` ("baseline" — aligns children by their text baseline instead of the container's cross-axis center)
+- **Row and Col** accept a single `gap` or a `(row_gap, col_gap)` pair. Set `padding` to a single inset or to `(left, top, right, bottom)`. The `align` property positions children vertically in a Row and horizontally in a Col. Use `"start"` or `"end"` to align children with a padded edge, or `"center"` to center them between the two edges. A declared cross-axis size sets the alignment box. An intrinsic cross axis uses the measured content extent. For mixed-size text in a Row, set `vertical_align: "baseline"` to align the text baselines.
 - **Grid:** `cols` + `gap` + `padding`
 - **Stack:** Overlapping children around a shared origin; supports `padding`, `align` ("start" | "center" | "end"). A Stack sizes to the union of its children's measured extents (largest layer per axis, padding included); `align` positions each layer against that box — `start` puts its top-left on the box's top-left, `end` its bottom-right on the box's bottom-right.
 - **Group:** Non-layout grouping/transform inheritance. A Group publishes the union of its children's placed extents to a parent layout, so `*_wrap: Group` wrappers only reserve the space their content actually uses.
@@ -775,7 +775,7 @@ soloed, so it cannot suppress the rest of the scene. `solo` is an authored prope
 | `Image` / `Svg` | `url` |
 | `Filter` | `bounds` (processed region); declares effect children (`Blur`, `ColorGrade`, `Sharpen`, `Vignette`, `MotionBlur`, `Grain`, `Levels`, …) whose parameters animate as `scope.stage.param` |
 | `Graph` / plots | `x_domain`, `y_domain`, `func`, `kind`, `resolution`, `density`, `levels` |
-| `Row` / `Col` / `Grid` / `Stack` | `gap` / `gap: (row, col)`, `padding` / `padding: (top, right, bottom, left)`, `align`, `vertical_align` (Row/Col), `cols` (Grid) |
+| `Row` / `Col` / `Grid` / `Stack` | `gap` / `gap: (row, col)`, `padding` / `padding: (left, top, right, bottom)`, `align`, `vertical_align` (Row/Col), `cols` (Grid) |
 
 `Stack` is an overlap container: a declared `gap` is ignored and the build emits an `ignored-stack-gap` warning. `at` / `offset` on a layout-managed child are applied as manual local offsets on top of its slot and the build warns; prefer `transform` for visual offsets.
 
@@ -1299,6 +1299,8 @@ multi-scene calls report an error. A successfully installed replacement
 document clears inputs; a failed replacement retains the prior document and
 inputs. See [`shared_progress_math.amx`](../examples/data/shared_progress_math.amx).
 
+The [probability bar template](../examples/templates/probability-bars.amx) uses a common zero and width across categories. Pass `ProbabilityBar` a `value` and a `progress` fraction in [0, 1]. Its line endpoint and percentage label read the same fraction on every frame, including when seeking backward.
+
 **BarChart** — produces a set of rectangular bars from `data: {(key, value), ...}` lists. Supports standalone mode (pixel coords) and Graph-child mode (math coords). See `examples/projects/fft_explain.amx`.
 
 `data` keyframes. A later `chart.data = {…} [800ms]` assignment races the bars
@@ -1600,6 +1602,15 @@ fade_in(target: bars[0], duration: 300ms)
 
 Array-indexed declarations work inside containers (`Row`, `Col`, `Grid`,
 `Graph`, etc.) and at the top level inside keyframes.
+
+Each generated container owns its labeled children. For example, `cells[i]:
+Stack { digit: Text, text: value }` gives each cell its own `digit`, and
+`cells[0].digit.text = "new"` updates the first cell. An array declared in a
+nested loop is also local to its generated container, so `cells[0].marks[2]`
+and `cells[1].marks[2]` can coexist. Separate child containers inside a cell
+can reuse a label and refer to their own child by that name. An explicitly
+indexed child declared directly in the container, such as `digit[i]`, keeps
+its existing array label and can still be addressed as `digit[0]`.
 
 Component instances keep the same indexed identity as primitive declarations;
 their child actors and component-internal references belong to that instance.
@@ -2494,6 +2505,8 @@ Returns a `Value::Object` with typed fields. Field reads (`p.x`, `p.a.b`) are im
 | `--fps` | 30 (video), 15 (GIF) | Output framerate |
 | `--width` / `--height` | 1280x720 (video), 640x360 (GIF) | Output resolution |
 | `--export-preset` | *none* | Named preset: `720p30`, `1080p30`, `1080p60`, `4k30`; overrides resolution/fps/codec/preset |
+| `--scene NAME` | whole composition | Export one named chapter (video) |
+| `--no-audio` | include audio | Omit the audio track (video) |
 
 **Export presets:** CLI and GUI share the named `ExportPreset` set. A document can
 also declare `config { export_preset: "1080p30" }`; CLI video/GIF export uses it
@@ -2583,9 +2596,23 @@ See [`audit.md`](audit.md) for the complete audit guide, schema v3, rule list, e
 
 Multi-scene compositions support the same export flags. Duration is auto-detected from the composition's global timeline (`Composition::global_duration_s`) rather than a single timeline.
 
+`video --scene NAME` exports the part of the composition from the first frame at
+or after that scene's scheduled start up to the first frame of the next scene.
+An incoming transition starts in the chapter it leads into, using the full
+video's blend and timing. The final chapter extends to the full export
+cutoff, including any trailing hold. `--fps`, `--duration`, and `--hold` use the
+same settings as the full video, so some very short scenes may have no frames
+at the selected frame rate. The clip includes the mixed audio for the same
+interval, with timestamps relative to the chapter's first frame. Use the
+qualified scene name for an imported scene, such as `intro::Title`.
+Run `animatix timeline INPUT` to list the scheduled scene names.
+
 ```bash
 # Export a multi-scene composition
 animatix video examples/composition/14_multiscene.amx --width 1280 --height 720
+
+# Export one chapter with its incoming transition and audio
+animatix video examples/composition/14_multiscene.amx --scene Develop -o develop.mp4
 
 # GIF export with quick preview settings
 animatix gif examples/composition/19_cross_file_scenes.amx --width 640 --height 360 --fps 10

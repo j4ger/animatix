@@ -25,8 +25,9 @@ impl Timeline {
     }
 
     /// Computes layout positions for a container using a specific child order.
-    pub(crate) fn compute_layout_positions_for_order(
+    fn compute_layout_positions_for_order(
         &self,
+        container_id: EntityId,
         metadata: &ContainerMetadata,
         order: &[EntityId],
         time_ms: u64,
@@ -51,12 +52,32 @@ impl Timeline {
             })
             .collect();
 
-        let positions = LayoutEngine::compute_positions(metadata, &child_extents);
+        let geometry = self.world.geometry(container_id);
+        let size = layout::sampled_container_size(geometry, time_ms);
+        let cross_size =
+            layout::definite_linear_cross_size(metadata.layout_type, geometry.size_spec, size);
+        let child_baselines: Vec<_> = if metadata.vertical_align == "baseline" {
+            admitted_ids
+                .iter()
+                .map(|id| self.world.text_or_default(*id).baseline_get(time_ms))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let positions = LayoutEngine::compute_layout_with_specs(
+            metadata,
+            &child_extents,
+            &child_baselines,
+            &[],
+            &[],
+            [0.0, 0.0],
+            cross_size,
+        );
 
         let mut result = layout::LayoutPositions::new();
         for (i, extent) in child_extents.iter().enumerate() {
             if extent.placement_mode == PlacementMode::LayoutManaged {
-                result.insert_id(admitted_ids[i], positions[i]);
+                result.insert_id(admitted_ids[i], positions[i].position);
             }
         }
         result
@@ -89,8 +110,18 @@ impl Timeline {
                     let t = ((time_ms - t1) as f32 / (t2 - t1) as f32).clamp(0.0, 1.0);
                     let eased_t = apply_easing(t, *easing1);
 
-                    let pos1 = self.compute_layout_positions_for_order(metadata, order1, time_ms);
-                    let pos2 = self.compute_layout_positions_for_order(metadata, order2, time_ms);
+                    let pos1 = self.compute_layout_positions_for_order(
+                        container_id,
+                        metadata,
+                        order1,
+                        time_ms,
+                    );
+                    let pos2 = self.compute_layout_positions_for_order(
+                        container_id,
+                        metadata,
+                        order2,
+                        time_ms,
+                    );
 
                     let mut result = layout::LayoutPositions::new();
                     for id in order1.iter().chain(order2.iter()) {
@@ -103,9 +134,12 @@ impl Timeline {
                 },
                 (Some((_, (order, _))), _) => {
                     // At or after a keyframe (or at the only keyframe): use it directly
-                    return Arc::new(
-                        self.compute_layout_positions_for_order(metadata, order, time_ms),
-                    );
+                    return Arc::new(self.compute_layout_positions_for_order(
+                        container_id,
+                        metadata,
+                        order,
+                        time_ms,
+                    ));
                 },
                 (None, Some((&t, (order, easing)))) => {
                     // Before the first keyframe: interpolate from default_value to first keyframe
@@ -113,11 +147,17 @@ impl Timeline {
                     let eased_t = apply_easing(t, *easing);
 
                     let pos1 = self.compute_layout_positions_for_order(
+                        container_id,
                         metadata,
                         &track.default_value,
                         time_ms,
                     );
-                    let pos2 = self.compute_layout_positions_for_order(metadata, order, time_ms);
+                    let pos2 = self.compute_layout_positions_for_order(
+                        container_id,
+                        metadata,
+                        order,
+                        time_ms,
+                    );
 
                     let mut result = layout::LayoutPositions::new();
                     for id in track.default_value.iter().chain(order.iter()) {

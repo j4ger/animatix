@@ -40,9 +40,8 @@ mod tests;
 mod types;
 
 pub use grid::{compute_taffy_grid_layout, compute_taffy_grid_layout_with_specs};
-pub use linear::{
-    compute_taffy_linear_layout, compute_taffy_linear_layout_with_baselines,
-    compute_taffy_linear_layout_with_specs,
-};
+#[cfg(test)]
+pub use linear::compute_taffy_linear_layout_with_baselines;
+pub use linear::{compute_taffy_linear_layout, compute_taffy_linear_layout_with_specs};
 pub use specs::{ChildSizeSpec, SizeSpec, parse_size_spec};
 pub use types::{SizeConstraints, TaffyLayoutOutput, TaffyLayoutResult};

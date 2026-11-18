@@ -38,8 +38,7 @@ pub fn compute_taffy_linear_layout(
 }
 
 /// Like `compute_taffy_linear_layout` but supports baseline alignment.
-/// `child_baselines` is a per-child baseline offset from text center (f32), empty = no baseline
-/// info. `vertical_align` can be "center", "baseline", "top", or "bottom".
+/// An empty `child_baselines` slice leaves the Taffy cross-axis positions intact.
 pub fn compute_taffy_linear_layout_with_baselines(
     children: &[ChildExtent],
     layout_type: LayoutType,
@@ -49,110 +48,23 @@ pub fn compute_taffy_linear_layout_with_baselines(
     child_baselines: &[f32],
     vertical_align: &str,
 ) -> TaffyLayoutOutput {
-    let _stage = crate::perf::ScopedStage::new(crate::perf::stage::LAYOUT);
-    // Stack is handled separately - all children at origin
-    debug_assert!(layout_type == LayoutType::Row || layout_type == LayoutType::Col);
-
-    if children.is_empty() {
-        return TaffyLayoutOutput {
-            positions: Vec::new(),
-            container_size: [0.0, 0.0],
-        };
-    }
-
-    let mut taffy: TaffyTree<()> = TaffyTree::new();
-    let mut child_nodes: Vec<NodeId> = Vec::with_capacity(children.len());
-
-    for child in children {
-        let node = taffy
-            .new_leaf(fixed_leaf_style(child.half_size))
-            .expect("taffy new_leaf should succeed for valid child size");
-        child_nodes.push(node);
-    }
-
-    let container_style = Style {
-        display: Display::Flex,
-        flex_direction: if layout_type == LayoutType::Row {
-            FlexDirection::Row
-        } else {
-            FlexDirection::Column
-        },
-        align_items: Some(match align {
-            "start" => AlignItems::Start,
-            "end" => AlignItems::End,
-            _ => AlignItems::Center,
-        }),
-        gap: Size {
-            width: LengthPercentage::length(gap[0]),
-            height: LengthPercentage::length(gap[1]),
-        },
-        padding: Rect {
-            left: LengthPercentage::length(padding[0]),
-            right: LengthPercentage::length(padding[2]),
-            top: LengthPercentage::length(padding[1]),
-            bottom: LengthPercentage::length(padding[3]),
-        },
-        ..Default::default()
-    };
-
-    let container_node = taffy
-        .new_with_children(container_style, &child_nodes)
-        .expect("taffy new_with_children should succeed for valid style and children");
-    taffy
-        .compute_layout(container_node, Size::MAX_CONTENT)
-        .expect("taffy compute_layout should succeed");
-
-    let container_layout = taffy
-        .layout(container_node)
-        .expect("taffy layout should exist for computed container node");
-    let container_size = [container_layout.size.width, container_layout.size.height];
-    let mut positions: Vec<TaffyLayoutResult> = children
-        .iter()
-        .zip(child_nodes)
-        .map(|(_child, node)| {
-            let child_layout =
-                taffy.layout(node).expect("taffy layout should exist for computed child node");
-            TaffyLayoutResult {
-                position: center_relative_position(container_layout, child_layout),
-                size: [child_layout.size.width, child_layout.size.height],
-            }
-        })
-        .collect();
-
-    // Baseline alignment: adjust Y positions to align baselines of all children.
-    // Only applies to Row/Col (not Grid) and only when baseline data is available.
-    if vertical_align == "baseline"
-        && !child_baselines.is_empty()
-        && child_baselines.len() >= positions.len()
-    {
-        // Compute the world-space baseline Y for each child
-        let child_baseline_ys: Vec<f64> = positions
-            .iter()
-            .zip(child_baselines.iter())
-            .map(|(pos, bl)| pos.position[1] as f64 + *bl as f64)
-            .collect();
-
-        // Find the highest baseline (smallest Y value since Vello Y is down)
-        // We want all baselines at the same Y, so we align to the highest one.
-        let max_baseline_y = child_baseline_ys.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-
-        // Adjust each child's Y so its baseline aligns with max_baseline_y
-        for (i, pos) in positions.iter_mut().enumerate() {
-            if i < child_baselines.len() {
-                let adjustment =
-                    max_baseline_y - (pos.position[1] as f64 + child_baselines[i] as f64);
-                pos.position[1] += adjustment as f32;
-            }
-        }
-    }
-
-    TaffyLayoutOutput {
-        positions,
-        container_size,
-    }
+    compute_taffy_linear_layout_with_specs(
+        children,
+        layout_type,
+        gap,
+        padding,
+        align,
+        child_baselines,
+        vertical_align,
+        &[],
+        &[],
+        [0.0, 0.0],
+        None,
+    )
 }
 
-/// Like `compute_taffy_linear_layout_with_baselines` but supports child size specs and constraints.
+/// Solve Row/Col flow with optional child size specs and an optional definite
+/// cross axis. An intrinsic cross axis is measured by Taffy.
 pub fn compute_taffy_linear_layout_with_specs(
     children: &[ChildExtent],
     layout_type: LayoutType,
@@ -164,7 +76,10 @@ pub fn compute_taffy_linear_layout_with_specs(
     size_specs: &[Option<ChildSizeSpec>],
     constraints: &[SizeConstraints],
     parent_content_size: [f32; 2],
+    cross_size: Option<f32>,
 ) -> TaffyLayoutOutput {
+    let _stage = (size_specs.is_empty() && constraints.is_empty())
+        .then(|| crate::perf::ScopedStage::new(crate::perf::stage::LAYOUT));
     debug_assert!(layout_type == LayoutType::Row || layout_type == LayoutType::Col);
 
     if children.is_empty() {
@@ -175,6 +90,11 @@ pub fn compute_taffy_linear_layout_with_specs(
     }
 
     let mut taffy: TaffyTree<()> = TaffyTree::new();
+    if cross_size.is_some() {
+        // The actual child geometry can be fractional (especially text).
+        // Keep its layout edge on the same coordinate as the authored edge.
+        taffy.disable_rounding();
+    }
     let mut child_nodes: Vec<NodeId> = Vec::with_capacity(children.len());
     let is_row = layout_type == LayoutType::Row;
     let content_size = [
@@ -235,12 +155,16 @@ pub fn compute_taffy_linear_layout_with_specs(
         // When children have percentage/fill specs, set the container's main-axis size
         // from parent_content_size so Taffy can distribute space correctly.
         size: Size {
-            width: if is_row && needs_parent_main_size && parent_content_size[0] > 0.0 {
+            width: if !is_row {
+                cross_size.map_or(Dimension::auto(), Dimension::length)
+            } else if needs_parent_main_size && parent_content_size[0] > 0.0 {
                 Dimension::length(parent_content_size[0])
             } else {
                 Dimension::auto()
             },
-            height: if !is_row && needs_parent_main_size && parent_content_size[1] > 0.0 {
+            height: if is_row {
+                cross_size.map_or(Dimension::auto(), Dimension::length)
+            } else if needs_parent_main_size && parent_content_size[1] > 0.0 {
                 Dimension::length(parent_content_size[1])
             } else {
                 Dimension::auto()
@@ -299,23 +223,14 @@ pub fn compute_taffy_linear_layout_with_specs(
         })
         .collect();
 
-    // Baseline alignment (same as above)
-    if vertical_align == "baseline"
-        && !child_baselines.is_empty()
-        && child_baselines.len() >= positions.len()
-    {
-        let child_baseline_ys: Vec<f64> = positions
+    if vertical_align == "baseline" && child_baselines.len() >= positions.len() {
+        let baseline_y = positions
             .iter()
-            .zip(child_baselines.iter())
-            .map(|(pos, bl)| pos.position[1] as f64 + *bl as f64)
-            .collect();
-        let max_baseline_y = child_baseline_ys.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-        for (i, pos) in positions.iter_mut().enumerate() {
-            if i < child_baselines.len() {
-                let adjustment =
-                    max_baseline_y - (pos.position[1] as f64 + child_baselines[i] as f64);
-                pos.position[1] += adjustment as f32;
-            }
+            .zip(child_baselines)
+            .map(|(child, offset)| child.position[1] + offset)
+            .fold(f32::NEG_INFINITY, f32::max);
+        for (child, offset) in positions.iter_mut().zip(child_baselines) {
+            child.position[1] = baseline_y - offset;
         }
     }
 

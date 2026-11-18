@@ -1,0 +1,27 @@
+// Readout alignment uses a padded column edge and a shared text baseline.
+import "../lib/theme.amx"
+
+config { colorscheme: "tide", resolution: (960, 540), duration: 2 }
+
+#0s
+title: Text, text: "Readout alignment", font_size: 44, color: text.primary, text_anchor: "left", at: (72, 90)
+
+rate_plate: Rect, size: (388, 308), at: (266, 302), corner_radius: 16, color: surface.primary
+loss_plate: Rect, size: (388, 308), at: (694, 302), corner_radius: 16, color: surface.primary
+rate_heading: Text, text: "Learning rates", font_size: 22, color: text.secondary, text_anchor: "left", at: (100, 185)
+loss_heading: Text, text: "Loss remaining", font_size: 22, color: text.secondary, text_anchor: "left", at: (528, 185)
+
+rate_edge: Rect, size: (1, 150), at: (419, 298), color: stroke.default
+rates: Col, size: (330, auto), at: (266, 298), padding: 12, gap: 14, align: "end" {
+  low: Text, text: "0.02", font_size: 32, font_family: "mono", color: accent.primary
+  selected: Text, text: "0.350", font_size: 32, font_family: "mono", color: accent.warning
+  high: Text, text: "0.50", font_size: 32, font_family: "mono", color: accent.danger
+}
+
+loss: Row, size: (auto, 96), at: (694, 298), gap: 8, vertical_align: "baseline" {
+  value: Text, text: "90", font_size: 72, font_weight: "bold", color: accent.warning
+  unit: Text, text: "%", font_size: 28, color: text.secondary
+}
+
+rate_property: Text, text: 'align: "end"', font_size: 17, font_family: "mono", color: text.muted, text_anchor: "left", at: (100, 416)
+loss_property: Text, text: 'vertical_align: "baseline"', font_size: 17, font_family: "mono", color: text.muted, text_anchor: "left", at: (528, 416)

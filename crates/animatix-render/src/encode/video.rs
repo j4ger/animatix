@@ -8,7 +8,7 @@
 use std::ffi::CString;
 
 use animatix::composition::Composition;
-use animatix::timeline::{DebugRenderOptions, Timeline};
+use animatix::timeline::{AudioSegment, DebugRenderOptions, Timeline};
 use rsmpeg::avcodec::{AVCodec, AVCodecContext};
 use rsmpeg::avformat::AVFormatContextOutput;
 use rsmpeg::avutil::{AVDictionary, AVFrame, AVRational};
@@ -17,9 +17,10 @@ use rsmpeg::swscale::SwsContext;
 use tracing::info;
 
 use super::audio::AudioEncoder;
+use super::video_chapters::{VideoFrameRange, video_chapter_frame_ranges, video_frame_count};
 use crate::encode::{ExportError, ExportOptions, ExportSettings, VideoCodec};
 use crate::render_pipeline::{
-    fill_rgba_frame, render_frames_streaming, render_frames_streaming_composition,
+    fill_rgba_frame, render_frames_streaming, render_frames_streaming_composition_range,
 };
 
 /// Render a single timeline to an MP4 video file with default debug options and
@@ -101,7 +102,43 @@ pub fn render_video_composition_with_options(
     options: ExportOptions<'_>,
 ) -> Result<(), ExportError> {
     encode_video(
-        VideoSource::Composition(composition),
+        VideoSource::Composition(composition, None),
+        width,
+        height,
+        fps,
+        duration,
+        output_file,
+        debug_options,
+        options,
+    )
+}
+
+/// Export one named chapter using its frame range on the full composition clock.
+pub fn render_video_chapter_with_options(
+    composition: &Composition,
+    scene: &str,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
+    options: ExportOptions<'_>,
+) -> Result<(), ExportError> {
+    let chapters = video_chapter_frame_ranges(composition, fps, duration)?;
+    let Some((_, range)) = chapters.iter().find(|(name, _)| *name == scene) else {
+        let available = chapters.iter().map(|(name, _)| *name).collect::<Vec<_>>().join(", ");
+        return Err(ExportError::VideoEncode(format!(
+            "Unknown scene '{scene}'. Available scenes are {available}."
+        )));
+    };
+    if range.is_empty() {
+        return Err(ExportError::VideoEncode(format!(
+            "Scene '{scene}' has no frames at {fps} FPS within the export duration"
+        )));
+    }
+    encode_video(
+        VideoSource::Composition(composition, Some(*range)),
         width,
         height,
         fps,
@@ -113,13 +150,9 @@ pub fn render_video_composition_with_options(
 }
 
 /// Where a video's frames come from.
-///
-/// The two entry points differ only in the renderer they stream from and in
-/// how their audio segments are gathered; everything else lives in
-/// [`encode_video`].
 enum VideoSource<'a> {
     Timeline(&'a Timeline),
-    Composition(&'a Composition),
+    Composition(&'a Composition, Option<VideoFrameRange>),
 }
 
 /// Encode `source` into one video file.
@@ -133,35 +166,26 @@ fn encode_video(
     debug_options: DebugRenderOptions,
     options: ExportOptions<'_>,
 ) -> Result<(), ExportError> {
-    if !duration.is_finite() || duration <= 0.0 || fps == 0 {
-        return Err(ExportError::VideoEncode("Duration and FPS must be positive".into()));
-    }
-    let total_frames = (duration * fps as f32).ceil() as u32;
-    let duration_s = f64::from(duration);
-    let warn = |message| options.warn(message);
-    let segments = match &source {
-        VideoSource::Timeline(timeline) => {
-            warn_caption_cutoff(timeline.caption_end_seconds(), duration_s, "", warn);
-            timeline.audio_segments().to_vec()
-        },
-        VideoSource::Composition(composition) => {
-            for (name, start) in &composition.scene_start_times {
-                let Some(scene) = composition.scenes.get(name) else {
-                    continue;
-                };
-                let caption_end = scene.timeline.caption_end_seconds();
-                if caption_end > 0.0 {
-                    warn_caption_cutoff(
-                        start + caption_end,
-                        (start + scene.duration_s).min(duration_s),
-                        &format!(" in scene '{name}'"),
-                        warn,
-                    );
-                }
-            }
-            composition.audio_segments()
-        },
+    let full_frames = video_frame_count(duration, fps)?;
+    let chapter = match &source {
+        VideoSource::Timeline(_) => None,
+        VideoSource::Composition(_, chapter) => *chapter,
     };
+    let frames = chapter.unwrap_or(VideoFrameRange::new(0, full_frames));
+    let total_frames = frames.len();
+    let frame_time = |frame| f64::from(frame) / f64::from(fps);
+    let full_duration_s = f64::from(duration);
+    let audio_start_s = frame_time(frames.start_frame());
+    let audio_end_s = if chapter.is_some() && frames.end_frame() < full_frames {
+        frame_time(frames.end_frame())
+    } else {
+        full_duration_s
+    };
+    let audio_duration_s = audio_end_s - audio_start_s;
+    let warn = |message| options.warn(message);
+    if chapter.is_none() {
+        warn_caption_cutoffs(&source, full_duration_s, warn);
+    }
     let parent = output_file.parent().filter(|path| !path.as_os_str().is_empty());
     let extension = output_file.extension().and_then(|ext| ext.to_str()).ok_or_else(|| {
         ExportError::VideoEncode("Output path must have a video file extension".into())
@@ -171,14 +195,24 @@ fn encode_video(
         .prefix(".animatix-")
         .suffix(&suffix)
         .tempfile_in(parent.unwrap_or_else(|| std::path::Path::new(".")))?;
-    let mut encoder = setup_video_encoder(temporary.path(), width, height, fps, &options.settings)?;
-    encoder.audio = AudioEncoder::prepare(
-        &mut encoder.format_context,
-        &segments,
-        duration_s,
-        extension.eq_ignore_ascii_case("webm"),
-        warn,
+    let mut encoder = setup_video_encoder(
+        temporary.path(),
+        width,
+        height,
+        fps,
+        &options.settings,
+        chapter.is_some(),
     )?;
+    if !options.skip_audio {
+        encoder.audio = AudioEncoder::prepare(
+            &mut encoder.format_context,
+            &audio_segments(&source),
+            audio_start_s..audio_end_s,
+            extension.eq_ignore_ascii_case("webm"),
+            chapter.is_none(),
+            warn,
+        )?;
+    }
     encoder.write_header()?;
 
     let num_threads = adaptive_thread_count(
@@ -194,7 +228,7 @@ fn encode_video(
         encoder.push_frame(frame, total_frames, width, height, scene_frame)?;
         if let Some(audio) = &mut encoder.audio {
             let time_s = (frame + 1) as f64 / f64::from(fps);
-            audio.advance(&mut encoder.format_context, time_s.min(duration_s))?;
+            audio.advance(&mut encoder.format_context, time_s.min(audio_duration_s))?;
         }
         Ok(())
     };
@@ -212,11 +246,12 @@ fn encode_video(
             options.cancel,
             push_frame,
         )?,
-        VideoSource::Composition(composition) => render_frames_streaming_composition(
+        VideoSource::Composition(composition, _) => render_frames_streaming_composition_range(
             composition,
             width,
             height,
             fps,
+            frames.start_frame(),
             total_frames,
             num_threads,
             debug_options,
@@ -237,6 +272,37 @@ fn encode_video(
     temporary.persist(output_file).map_err(|err| err.error)?;
     info!("Render complete!");
     Ok(())
+}
+
+fn audio_segments(source: &VideoSource<'_>) -> Vec<AudioSegment> {
+    match source {
+        VideoSource::Timeline(timeline) => timeline.audio_segments().to_vec(),
+        VideoSource::Composition(composition, _) => composition.audio_segments(),
+    }
+}
+
+fn warn_caption_cutoffs(source: &VideoSource<'_>, duration_s: f64, warn: impl Fn(String) + Copy) {
+    match source {
+        VideoSource::Timeline(timeline) => {
+            warn_caption_cutoff(timeline.caption_end_seconds(), duration_s, "", warn);
+        },
+        VideoSource::Composition(composition, _) => {
+            for (name, start) in &composition.scene_start_times {
+                let Some(scene) = composition.scenes.get(name) else {
+                    continue;
+                };
+                let caption_end = scene.timeline.caption_end_seconds();
+                if caption_end > 0.0 {
+                    warn_caption_cutoff(
+                        start + caption_end,
+                        (start + scene.duration_s).min(duration_s),
+                        &format!(" in scene '{name}'"),
+                        warn,
+                    );
+                }
+            }
+        },
+    }
 }
 
 fn warn_caption_cutoff(end_s: f64, cutoff_s: f64, context: &str, warn: impl Fn(String)) {
@@ -267,6 +333,7 @@ fn setup_video_encoder(
     height: u32,
     fps: u32,
     settings: &ExportSettings,
+    is_chapter: bool,
 ) -> Result<VideoEncoder, ExportError> {
     // WebM needs VP9; `Auto` means the portable H.264 default for everything else.
     let is_webm = output_file
@@ -303,6 +370,11 @@ fn setup_video_encoder(
         den: 1,
     });
     encode_context.set_pix_fmt(rsmpeg::ffi::AV_PIX_FMT_YUV420P);
+    if is_chapter && encoder.id == rsmpeg::ffi::AV_CODEC_ID_H264 {
+        // Keep decode order equal to display order across independently
+        // encoded chapters, even when clips are only one or two frames long.
+        encode_context.set_max_b_frames(0);
+    }
 
     if format_context.oformat().flags & rsmpeg::ffi::AVFMT_GLOBALHEADER as i32 != 0 {
         encode_context

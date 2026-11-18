@@ -42,7 +42,16 @@ pub fn try_load_and_build(
     extensions: &CliExtensions,
     defines: &[(String, String)],
 ) -> Result<(BuildTarget, Vec<Diagnostic>), String> {
-    let mut program = ModuleGraph::new().load_program(input).map_err(|e| format!("Error: {e}"))?;
+    try_load_and_build_in(&mut ModuleGraph::new(), input, extensions, defines)
+}
+
+pub fn try_load_and_build_in(
+    graph: &mut ModuleGraph,
+    input: &Path,
+    extensions: &CliExtensions,
+    defines: &[(String, String)],
+) -> Result<(BuildTarget, Vec<Diagnostic>), String> {
+    let mut program = graph.load_program(input).map_err(|e| format!("Error: {e}"))?;
     let mut ctx = animatix::extension_context::ExtensionContext::new();
     let disposers = extensions
         .install_into(&mut ctx)

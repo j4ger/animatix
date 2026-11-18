@@ -750,3 +750,32 @@ let p_b = 0.6
         "lane_b marker should move down with its own parameter: start={b_marker_start}, end={b_marker_end}"
     );
 }
+
+#[test]
+fn probability_bar_keeps_its_zero_and_formats_the_visible_fraction() {
+    let timeline = build(&format!(
+        r#"
+        {}
+        let progress = 0
+        always {{ progress = clamp(t / 2, 0, 1) }}
+        row: ProbabilityBar, label: "Cat", value: 0.7864, progress: progress, x: 300, y: 250, width: 500
+        zero: Text, text: "0.00%", at: (820, 250), font_family: "mono", font_size: 23, text_anchor: "left", opacity: 1
+        half: Text, text: "39.32%", at: (820, 250), font_family: "mono", font_size: 23, text_anchor: "left", opacity: 1
+        full: Text, text: "78.64%", at: (820, 250), font_family: "mono", font_size: 23, text_anchor: "left", opacity: 1
+        "#,
+        include_str!("../../../examples/lib/probability.amx"),
+    ));
+    for (time, end_x, reference) in [
+        (0.0, 300.0, "zero"),
+        (1.0, 496.6, "half"),
+        (2.0, 693.2, "full"),
+    ] {
+        let program = frame(&timeline, time);
+        let segment = curve_bounds(&program, "row.bar");
+        close(segment.x0, 300.0, "fixed baseline");
+        close(segment.x1, end_x, "probability endpoint");
+        let percentage = text_outline_signature(&program, "row.percent");
+        assert!(!percentage.is_empty());
+        assert_eq!(percentage, text_outline_signature(&program, reference));
+    }
+}

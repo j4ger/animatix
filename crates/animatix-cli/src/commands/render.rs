@@ -52,6 +52,8 @@ pub fn run_image(
 #[cfg(feature = "video")]
 pub fn run_video(
     input: &Path,
+    scene: Option<&str>,
+    no_audio: bool,
     width: Option<u32>,
     height: Option<u32>,
     fps: u32,
@@ -59,56 +61,28 @@ pub fn run_video(
     hold: f32,
     output: Option<PathBuf>,
     debug_bounds: bool,
-    threads: export::MaxRenderThreads,
-    codec: export::VideoCodec,
-    preset: export::H264Preset,
+    settings: export::ExportSettings,
     export_preset: Option<&str>,
     set: &[(String, String)],
     extensions: &CliExtensions,
 ) {
     info!("Rendering Animatix video: {}", input.display());
-    let (mut width, mut height, mut fps, mut codec, mut preset) =
-        (width, height, fps, codec, preset);
-    if let Some(name) = export_preset {
-        let Some(preset_values) = export::ExportPreset::by_name(name) else {
-            error!("Unknown export preset '{name}'");
-            std::process::exit(2);
-        };
-        width = Some(preset_values.width);
-        height = Some(preset_values.height);
-        fps = preset_values.fps;
-        codec = preset_values.video_codec;
-        preset = preset_values.h264_preset;
+    let (target, diagnostics) = load_and_build(input, extensions, set);
+    if scene.is_some() && diagnostics.iter().any(|diagnostic| diagnostic.is_error()) {
+        std::process::exit(1);
     }
-    let (target, _) = load_and_build(input, extensions, set);
-    if export_preset.is_none() {
-        let configured = match &target {
-            BuildTarget::SingleScene(timeline) => timeline.export_preset(),
-            BuildTarget::MultiScene(composition) => composition
-                .scenes
-                .values()
-                .next()
-                .and_then(|scene| scene.timeline.export_preset()),
-        };
-        if let Some(name) = configured {
-            let Some(preset_values) = export::ExportPreset::by_name(name) else {
-                error!("Unknown export preset '{name}' from config");
+    let (width, height, fps, settings) =
+        match effective_video_settings(&target, width, height, fps, settings, export_preset) {
+            Ok(settings) => settings,
+            Err(message) => {
+                error!("{message}");
                 std::process::exit(2);
-            };
-            width = Some(preset_values.width);
-            height = Some(preset_values.height);
-            fps = preset_values.fps;
-            codec = preset_values.video_codec;
-            preset = preset_values.h264_preset;
-        }
-    }
-    let configured_resolution = configured_resolution(&target);
-    let width = width.or(configured_resolution.map(|(w, _)| w)).unwrap_or(1280);
-    let height = height.or(configured_resolution.map(|(_, h)| h)).unwrap_or(720);
+            },
+        };
     let effective_duration = resolve_duration(duration, &target, hold, 0.5);
     let output_file = output.unwrap_or_else(|| default_output_file("mp4"));
     info!(
-        "Output configuration: {}x{} at {} FPS for {:.2}s -> {}",
+        "Exporting {}x{} at {} FPS with {:.2}s full duration to {}",
         width,
         height,
         fps,
@@ -120,13 +94,24 @@ pub fn run_video(
         draw_bounds: debug_bounds,
         ..Default::default()
     };
-    let options = export::ExportOptions::with_settings(export::ExportSettings {
-        max_render_threads: threads,
-        video_codec: codec,
-        h264_preset: preset,
-    });
-    let result = match &target {
-        BuildTarget::MultiScene(comp) => export::render_video_composition_with_options(
+    let options = export::ExportOptions {
+        settings,
+        skip_audio: no_audio,
+        ..Default::default()
+    };
+    let result = match (&target, scene) {
+        (BuildTarget::MultiScene(comp), Some(scene)) => export::render_video_chapter_with_options(
+            comp,
+            scene,
+            width,
+            height,
+            fps,
+            effective_duration,
+            &output_file,
+            debug_options,
+            options,
+        ),
+        (BuildTarget::MultiScene(comp), None) => export::render_video_composition_with_options(
             comp,
             width,
             height,
@@ -136,7 +121,7 @@ pub fn run_video(
             debug_options,
             options,
         ),
-        BuildTarget::SingleScene(timeline) => export::render_video_timeline_with_options(
+        (BuildTarget::SingleScene(timeline), None) => export::render_video_timeline_with_options(
             timeline.clone(),
             width,
             height,
@@ -146,11 +131,55 @@ pub fn run_video(
             debug_options,
             options,
         ),
+        (BuildTarget::SingleScene(_), Some(_)) => Err(export::ExportError::VideoEncode(
+            "--scene requires a named scene in the composition".into(),
+        )),
     };
     if let Err(e) = result {
         error!("Error: {e}");
         std::process::exit(1);
     }
+}
+
+#[cfg(feature = "video")]
+pub(super) fn effective_video_settings(
+    target: &BuildTarget,
+    width: Option<u32>,
+    height: Option<u32>,
+    fps: u32,
+    settings: export::ExportSettings,
+    export_preset: Option<&str>,
+) -> Result<(u32, u32, u32, export::ExportSettings), String> {
+    let configured_preset = || match target {
+        BuildTarget::SingleScene(timeline) => timeline.export_preset(),
+        BuildTarget::MultiScene(composition) => composition
+            .scenes
+            .values()
+            .next()
+            .and_then(|scene| scene.timeline.export_preset()),
+    };
+    if let Some(name) = export_preset.or_else(configured_preset) {
+        let preset = export::ExportPreset::by_name(name).ok_or_else(|| {
+            let source = if export_preset.is_some() {
+                ""
+            } else {
+                " from config"
+            };
+            format!("Unknown export preset '{name}'{source}")
+        })?;
+        return Ok((
+            preset.width,
+            preset.height,
+            preset.fps,
+            export::ExportSettings {
+                video_codec: preset.video_codec,
+                h264_preset: preset.h264_preset,
+                ..settings
+            },
+        ));
+    }
+    let (default_width, default_height) = configured_resolution(target).unwrap_or((1280, 720));
+    Ok((width.unwrap_or(default_width), height.unwrap_or(default_height), fps, settings))
 }
 
 #[cfg(feature = "video")]
@@ -251,7 +280,7 @@ pub fn run_gif(
 
 /// Resolves export duration for a `BuildTarget` (single or multi-scene).
 #[cfg(feature = "video")]
-fn resolve_duration(
+pub(super) fn resolve_duration(
     duration: Option<f32>,
     target: &BuildTarget,
     hold: f32,

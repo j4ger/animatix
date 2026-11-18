@@ -60,6 +60,7 @@ declare the imports they need; the runtime does not inject them.
 | `layout/12_reorder.amx` | Reorder: `swap`, `reorder`, dynamic layout |
 | `layout/13_paths.amx` | Paths: bezier curves, morphing, affine transforms |
 | `layout/27_layout_text.amx` | Percentage sizing, constraints, typography, wrapping |
+| `layout/readout_alignment.amx` | Right-aligned numeric values and mixed-size text on a shared baseline |
 | `layout/painter_order_annotations.amx` | Background Connector, moving component, and root-level Callout following a nested marker |
 
 ## Animation

@@ -357,16 +357,8 @@ impl Timeline {
         // cell than the container's earlier build-time `size` track. The
         // resolved layout size is the final slot in that case; use authored
         // size only when no resolved extent exists yet.
-        let parent_content_size = {
-            let geometry = self.world.geometry(container_id);
-            geometry
-                .layout_size_get(time_ms)
-                .or_else(|| geometry.layout_size_last())
-                .or_else(|| geometry.size.as_ref().map(|t| t.evaluate(time_ms)))
-                .or_else(|| geometry.size.as_ref().map(|t| t.last_value()))
-                .map(|s| [s[0] * 2.0, s[1] * 2.0])
-                .unwrap_or([0.0, 0.0])
-        };
+        let parent_content_size =
+            super::sampled_container_size(self.world.geometry(container_id), time_ms);
 
         for cl in children {
             let geometry = self.world.geometry(cl.id);
@@ -455,16 +447,24 @@ impl Timeline {
 
         let t_ms = time_ms as u64;
 
-        // Sample child baselines for baseline alignment
-        let child_baselines: Vec<f32> = children
-            .iter()
-            .map(|cl| self.world.text_or_default(cl.id).baseline_get(t_ms))
-            .collect();
+        let child_baselines: Vec<f32> = if metadata.vertical_align == "baseline" {
+            children
+                .iter()
+                .map(|cl| self.world.text_or_default(cl.id).baseline_get(t_ms))
+                .collect()
+        } else {
+            Vec::new()
+        };
 
         // Collect size specs and constraints for the layout pass.
         let (size_specs, constraints, parent_content_size) =
             self.collect_child_layout_specs(container_id, &children, t_ms);
 
+        let cross_size = super::definite_linear_cross_size(
+            metadata.layout_type,
+            declared_size,
+            parent_content_size,
+        );
         let layout_results = LayoutEngine::compute_layout_with_specs(
             &metadata,
             &child_extents,
@@ -472,6 +472,7 @@ impl Timeline {
             &size_specs,
             &constraints,
             parent_content_size,
+            cross_size,
         );
 
         // Write positions and resolved sizes to tracks, only for LayoutManaged children

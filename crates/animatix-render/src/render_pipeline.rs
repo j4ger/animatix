@@ -80,9 +80,7 @@ where
     }
 
     let mut handles = Vec::with_capacity(num_chunks);
-    for (chunk_idx, (renderer, sender)) in
-        renderer_units.into_iter().zip(senders.into_iter()).enumerate()
-    {
+    for (chunk_idx, (renderer, sender)) in renderer_units.into_iter().zip(senders).enumerate() {
         let start = chunk_idx * chunk_size;
         let end = ((chunk_idx + 1) * chunk_size).min(total_frames as usize);
         let timeline = timeline.clone();
@@ -113,7 +111,8 @@ where
                     .map_err(|e| ExportError::FrameRender { frame, message: e })?;
                 if std::env::var_os("ANIMATIX_DUMP_FRAMES").is_some() {
                     let data = rendered.rgba.clone();
-                    let bright = data.chunks_exact(4).step_by(37).filter(|px| px[0] > 60).count();
+                    let (pixels, _) = data.as_chunks::<4>();
+                    let bright = pixels.iter().step_by(37).filter(|px| px[0] > 60).count();
                     eprintln!("[frames] {frame} bright={bright}");
                 }
                 sender.send(rendered).map_err(|_| ExportError::ThreadPanicked)?;
@@ -172,6 +171,39 @@ pub fn render_frames_streaming_composition<F>(
     debug_options: DebugRenderOptions,
     progress: Option<&AtomicU32>,
     cancel: Option<&AtomicBool>,
+    process_frame: F,
+) -> Result<(), ExportError>
+where
+    F: FnMut(usize, RenderedFrame) -> Result<(), ExportError>,
+{
+    render_frames_streaming_composition_range(
+        composition,
+        width,
+        height,
+        fps,
+        0,
+        total_frames,
+        num_threads,
+        debug_options,
+        progress,
+        cancel,
+        process_frame,
+    )
+}
+
+/// Stream composition frames from a global frame offset. The processing
+/// callback still receives clip-local frame indices, starting at zero.
+pub(crate) fn render_frames_streaming_composition_range<F>(
+    composition: &Composition,
+    width: u32,
+    height: u32,
+    fps: u32,
+    first_frame: u32,
+    total_frames: u32,
+    num_threads: usize,
+    debug_options: DebugRenderOptions,
+    progress: Option<&AtomicU32>,
+    cancel: Option<&AtomicBool>,
     mut process_frame: F,
 ) -> Result<(), ExportError>
 where
@@ -214,17 +246,17 @@ where
     }
 
     let mut handles = Vec::with_capacity(num_chunks);
-    for (chunk_idx, (mut renderer, sender)) in
-        renderers.into_iter().zip(senders.into_iter()).enumerate()
-    {
+    for (chunk_idx, (mut renderer, sender)) in renderers.into_iter().zip(senders).enumerate() {
         let start = chunk_idx * chunk_size;
         let end = ((chunk_idx + 1) * chunk_size).min(total_frames as usize);
         let composition = composition.clone();
 
         handles.push(std::thread::spawn(move || -> Result<(), ExportError> {
             let dims = SceneDimensions { width, height };
-            let global_times: Vec<f64> =
-                (start..end).map(|frame| (frame as f64) / (fps as f64)).collect();
+            let first_frame = first_frame as usize;
+            let global_times: Vec<f64> = (first_frame + start..first_frame + end)
+                .map(|frame| frame as f64 / f64::from(fps))
+                .collect();
             // pipelined readback: queue frame N+1's GPU work BEFORE
             // waiting on frame N's pixels (see the single-scene loop).
             let queue_frame = |renderer: &mut OffscreenRenderer,

@@ -27,14 +27,15 @@
 
 use tracing::warn;
 
+use super::animation_track::GeometryTracks;
 use super::taffy_layout::{
-    ChildSizeSpec, SizeConstraints, compute_taffy_grid_layout,
+    ChildSizeSpec, SizeConstraints, SizeSpec, compute_taffy_grid_layout,
     compute_taffy_grid_layout_with_specs, compute_taffy_linear_layout,
     compute_taffy_linear_layout_with_specs,
 };
 use super::{
-    ContainerLayoutChild, ContainerMetadata, Diagnostic, Easing, LayoutEngine, PlacementMode,
-    Timeline, TrackAccessor,
+    ContainerLayoutChild, ContainerMetadata, Diagnostic, Easing, LayoutEngine, LayoutType,
+    PlacementMode, Timeline, TrackAccessor,
 };
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
 use crate::renderer::text::{TextCompileRequest, TextKind, TextStyle};
@@ -59,6 +60,35 @@ pub(crate) use positions::empty_layout_positions;
 pub struct ChildExtent {
     pub half_size: [f32; 2],
     pub placement_mode: PlacementMode,
+}
+
+/// Sample the container's resolved size, including its padding.
+pub(super) fn sampled_container_size(geometry: &GeometryTracks, time_ms: u64) -> [f32; 2] {
+    geometry
+        .layout_size_get(time_ms)
+        .or_else(|| geometry.size.as_ref().map(|track| track.evaluate(time_ms)))
+        .map(|half| half.map(|axis| axis * 2.0))
+        .unwrap_or([0.0, 0.0])
+}
+
+/// A definite cross axis is the alignment box. Intrinsic axes use the
+/// measured children, even when the geometry carries an initial size track.
+pub(super) fn definite_linear_cross_size(
+    layout_type: LayoutType,
+    spec: Option<ChildSizeSpec>,
+    size: [f32; 2],
+) -> Option<f32> {
+    let spec = spec?;
+    let (dimension, size) = match layout_type {
+        LayoutType::Row => (spec.height, size[1]),
+        LayoutType::Col => (spec.width, size[0]),
+        _ => return None,
+    };
+    match dimension {
+        SizeSpec::Fixed(_) => Some(size),
+        SizeSpec::Percent(_) | SizeSpec::Fill if size > 0.0 => Some(size),
+        _ => None, // Intrinsic or unresolved relative dimension.
+    }
 }
 
 /// Pure layout computation for a Stack container with no declared extent.
@@ -185,6 +215,7 @@ pub(crate) fn compute_container_size_with_specs(
                 size_specs,
                 constraints,
                 parent_content_size,
+                None,
             )
         };
         output.container_size

@@ -484,6 +484,7 @@ fn test_linear_layout_with_percent_spec() {
         &specs,
         &constraints,
         [400.0, 100.0],
+        None,
     );
 
     // With 50% + Fill in a row with no gap: a gets 200px, b gets 200px
@@ -520,6 +521,7 @@ fn test_linear_layout_with_constraints() {
         &specs,
         &constraints,
         [500.0, 100.0],
+        None,
     );
 
     // Child a wants 200px width, but max_width is 100px, so it should be clamped
@@ -626,6 +628,7 @@ fn expression_sized_children_use_measured_extent_for_cross_axis_alignment() {
         &specs,
         &constraints,
         [0.0, 0.0],
+        None,
     );
 
     assert_eq!(out.container_size, [416.0, 279.0]);

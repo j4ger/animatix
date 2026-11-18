@@ -304,6 +304,7 @@ impl GuiShell {
                         progress: progress_ref,
                         cancel: cancel_ref,
                         warnings: Some(&warnings),
+                        skip_audio: false,
                     },
                 ),
                 // FFmpeg-only formats without the video feature:

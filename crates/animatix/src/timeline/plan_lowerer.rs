@@ -481,15 +481,7 @@ impl Timeline {
 
     fn merge_plan_references(&mut self, body: &[Stmt]) {
         let scan = crate::timeline::build::referenced_roots::scan_references(body);
-        if let Some(roots) = self.referenced_roots.as_mut() {
-            roots.extend(scan.roots);
-        }
-        self.stats_used |= scan.stats_used;
-        self.is_animating_used |= scan.is_animating_used;
-        self.wildcard_actors.extend(scan.wildcard_actors);
-        for (label, properties) in scan.referenced_properties {
-            self.referenced_properties.entry(label).or_default().extend(properties);
-        }
+        self.merge_reference_scan(scan);
     }
 
     pub(crate) fn resolve_marker_time(

@@ -60,3 +60,4 @@ node_modules/
 
 # Local experiments and reports. Do not ignore fixtures or baseline snapshots.
 /audit_log.txt
+.animatix-chapters/

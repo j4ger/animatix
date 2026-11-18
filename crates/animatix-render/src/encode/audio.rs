@@ -1,6 +1,7 @@
 //! Build and stream a mixed audio track directly into the video container.
 
 use std::ffi::{CStr, CString};
+use std::ops::Range;
 
 use animatix::timeline::AudioSegment;
 use rsmpeg::avcodec::{AVCodec, AVCodecContext};
@@ -95,27 +96,40 @@ impl AudioEncoder {
     pub(super) fn prepare(
         container: &mut AVFormatContextOutput,
         segments: &[AudioSegment],
-        duration_s: f64,
+        range: Range<f64>,
         webm: bool,
+        warn_on_cutoff: bool,
         warn: impl Fn(String),
     ) -> Result<Option<Self>, ExportError> {
         let mut inputs = Vec::with_capacity(segments.len());
         for segment in segments {
-            if segment.start_time_s >= duration_s {
-                warn(format!(
-                    "Export ends at {duration_s:.3}s before audio '{}' starts at {:.3}s.",
-                    segment.source, segment.start_time_s,
-                ));
+            if segment.start_time_s >= range.end {
+                if warn_on_cutoff {
+                    warn(format!(
+                        "Export ends at {:.3}s before audio '{}' starts at {:.3}s.",
+                        range.end, segment.source, segment.start_time_s,
+                    ));
+                }
+                continue;
+            }
+            if segment
+                .duration_s
+                .is_some_and(|duration| segment.start_time_s + duration <= range.start)
+                && range.start > 0.0
+            {
                 continue;
             }
             let input = AudioInput::open(segment).map_err(|err| input_error(segment, err))?;
-            if let Some(end) = input.duration_s.map(|duration| segment.start_time_s + duration)
-                && end > duration_s + 0.001
-            {
-                warn(format!(
-                    "Export ends at {duration_s:.3}s and will cut off audio '{}' ending at {end:.3}s.",
-                    segment.source,
-                ));
+            if let Some(end) = input.duration_s.map(|duration| segment.start_time_s + duration) {
+                if range.start > 0.0 && end <= range.start {
+                    continue;
+                }
+                if warn_on_cutoff && end > range.end + 0.001 {
+                    warn(format!(
+                        "Export ends at {:.3}s and will cut off audio '{}' ending at {end:.3}s.",
+                        range.end, segment.source,
+                    ));
+                }
             }
             inputs.push(input);
         }
@@ -140,7 +154,7 @@ impl AudioEncoder {
             codec.set_flags(codec.flags | ffi::AV_CODEC_FLAG_GLOBAL_HEADER as i32);
         }
         codec.open(None).map_err(media_error)?;
-        let graph = mix_graph(&inputs, &format, duration_s, codec.frame_size)?;
+        let graph = mix_graph(&inputs, &format, range, codec.frame_size)?;
         let mut stream = container.new_stream();
         stream.set_time_base(codec.time_base);
         stream.set_codecpar(codec.extract_codecpar());
@@ -212,11 +226,11 @@ impl AudioEncoder {
 fn mix_graph(
     inputs: &[AudioInput<'_>],
     format: &AudioFormat,
-    duration_s: f64,
+    range: Range<f64>,
     frame_size: i32,
 ) -> Result<AVFilterGraph, ExportError> {
     let graph = AVFilterGraph::new();
-    configure_mix_graph(&graph, inputs, format, duration_s, frame_size)?;
+    configure_mix_graph(&graph, inputs, format, range, frame_size)?;
     Ok(graph)
 }
 
@@ -224,7 +238,7 @@ fn configure_mix_graph(
     graph: &AVFilterGraph,
     inputs: &[AudioInput<'_>],
     format: &AudioFormat,
-    duration_s: f64,
+    range: Range<f64>,
     frame_size: i32,
 ) -> Result<(), ExportError> {
     // The video renderer has its own parallel workers. One filter thread keeps
@@ -251,7 +265,13 @@ fn configure_mix_graph(
         graph,
         c"atrim",
         c"output_trim",
-        &format!("end_sample={}", format.samples(duration_s)),
+        // Crop the mixed samples on the composition clock. The encoder assigns
+        // timestamps from sample zero after trimming.
+        &format!(
+            "start_sample={}:end_sample={}",
+            format.samples(range.start),
+            format.samples(range.end)
+        ),
     )?;
     let mut sink = filter(graph, c"abuffersink", c"output", "")?;
     mix.link(0, &mut stereo, 0).map_err(media_error)?;
@@ -371,3 +391,6 @@ fn media_error(err: RsmpegError) -> ExportError {
 fn input_error(segment: &AudioSegment, error: ExportError) -> ExportError {
     ExportError::VideoEncode(format!("Audio '{}': {error}", segment.source))
 }
+
+#[cfg(test)]
+mod tests;

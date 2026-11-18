@@ -8,6 +8,7 @@ use tracing::instrument;
 use super::*;
 use crate::ast::{InlineItem, LoopPattern, MatchPattern, Property, Span};
 
+mod indexed_children;
 mod indexed_component;
 pub(super) use indexed_component::qualify_child;
 mod loop_modifiers;
@@ -308,12 +309,17 @@ impl Timeline {
             diagnostics,
             time_ms as u64,
         );
+        let scoped_children = if resolved_label != qualified_label && !children.is_empty() {
+            Cow::Owned(indexed_children::scope_children(self, children, label, &resolved_label))
+        } else {
+            Cow::Borrowed(children)
+        };
         self.process_actor_decl(
             &resolved_label,
             ty,
             qualified_props.as_ref(),
             modifiers,
-            children,
+            scoped_children.as_ref(),
             time_ms,
             parent_label,
             diagnostics,

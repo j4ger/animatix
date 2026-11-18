@@ -56,15 +56,16 @@ pub(crate) fn parser<'src>(
         })
         .labelled("play statement");
 
+    let scene_source = source.clone();
     let scene_decl = hash()
         .ignore_then(common::ident_decl_occ(OccurrenceKind::Scene).clone())
-        .map(|name| Stmt::Scene {
+        .map_with(move |name, extra| Stmt::Scene {
             name,
             config: vec![],
             body: vec![],
-            span: None,
+            span: common::source_span(&scene_source, extra.span()),
         })
-        .labelled("reactive binding")
+        .labelled("scene declaration")
         .as_context();
 
     let keyframe = hash()
