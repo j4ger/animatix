@@ -17,7 +17,7 @@ caption: Caption, text: "The callout lands on the drawn feature.", tag: "explain
 // NOTE: a Graph + PlotCurve is the idiomatic chart, but its generated
 // tick/curve sub-actors are flagged by `actor.opacity-never-positive` today
 // (see docs/roadmap.md). A hand-drawn Path keeps this template warning-free.
-plot: Path, commands: {move_to(180, 300), curve_to(360, 140, 560, 140, 740, 300), curve_to(880, 400, 980, 360, 1080, 240)}, stroke: accent.primary, stroke_width: 5, fill_opacity: 0, anchor: scene.center, offset: (-40, 20)
+plot: Path, commands: {move_to(180, 300), curve_to(360, 140, 560, 140, 740, 300), curve_to(880, 400, 980, 360, 1080, 240)}, stroke: accent.primary, stroke_width: 5, fill_opacity: 0, at: (-40, 20)
 
 note: Callout, target: plot, place: right, standoff: 24, label: "sin peaks at x = π/2"
 

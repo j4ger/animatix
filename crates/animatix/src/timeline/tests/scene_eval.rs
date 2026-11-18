@@ -634,10 +634,7 @@ fn blend_screen_child_outside_parent_keeps_unbounded_layer() {
     let outer = timeline.precise_bounds_for("outer").expect("parent Rect bounds");
     let inner = timeline.precise_bounds_for("inner").expect("child Rect bounds");
     assert!(
-        inner.x0 < outer.x0
-            || inner.y0 < outer.y0
-            || inner.x1 > outer.x1
-            || inner.y1 > outer.y1,
+        inner.x0 < outer.x0 || inner.y0 < outer.y0 || inner.x1 > outer.x1 || inner.y1 > outer.y1,
         "fixture child must extend beyond its parent's own bounds"
     );
     assert!(

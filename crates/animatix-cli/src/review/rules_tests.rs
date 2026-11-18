@@ -690,9 +690,15 @@ fn explain_figure_assert_visible_actor_on_frame(label: &str, minimum: f64) {
         .flat_map(|frame| &frame.actors)
         .filter(|actor| actor.label == label && actor.opacity.unwrap_or(0.0) > 0.01)
         .collect();
-    assert!(!visible.is_empty(), "missing visible {label}: {}", explain_figure_evidence(&report));
     assert!(
-        visible.iter().all(|actor| actor.bounds.is_some() && actor.on_frame_fraction >= minimum),
+        !visible.is_empty(),
+        "missing visible {label}: {}",
+        explain_figure_evidence(&report)
+    );
+    assert!(
+        visible
+            .iter()
+            .all(|actor| actor.bounds.is_some() && actor.on_frame_fraction >= minimum),
         "{label} must be at least {minimum} on frame: {}",
         explain_figure_evidence(&report)
     );

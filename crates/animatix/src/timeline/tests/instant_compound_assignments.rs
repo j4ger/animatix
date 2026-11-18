@@ -44,9 +44,8 @@ fn timed_compound_assignments_still_interpolate() {
 
 #[test]
 fn delayed_size_assignment_preserves_undeclared_size_default() {
-    let timeline = build_timeline(
-        "r: Rect, at:(20,30), opacity:1\n#0s\nr.size=(200,160) [delay:2s]\n",
-    );
+    let timeline =
+        build_timeline("r: Rect, at:(20,30), opacity:1\n#0s\nr.size=(200,160) [delay:2s]\n");
     let geometry = timeline.world.geometry(timeline.world.get_id("r").unwrap());
     for time in [0, 1000, 1999, 2000, 2500, 0] {
         let expected = if time < 2000 {
