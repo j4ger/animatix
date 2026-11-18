@@ -124,4 +124,5 @@ phase rust-dist-build cargo cargo build --locked --profile dist -p animatix-cli 
 cargo_dist="${CARGO_TARGET_DIR:-target}/dist"
 cp "$cargo_dist/animatix$ext" "$cargo_dist/animatix-gui$ext" "$stage/"
 cp "$output/evidence/build-inputs.txt" "$stage/"
-phase package-acceptance execution bash tools/release/dist-package.sh "$platform" "$stage" --video
+# Native Python on Windows can otherwise resolve bash to the WSL launcher.
+phase package-acceptance execution "$BASH" tools/release/dist-package.sh "$platform" "$stage" --video

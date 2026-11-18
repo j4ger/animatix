@@ -113,7 +113,7 @@ case "$platform" in
       if [ -f "$license" ]; then cp "$license" "$stage/"; fi
     done
     archive="$root/$work/$name.zip"
-    (cd "$stage" && zip -qrX "$archive" .)
+    python3 -c 'import shutil, sys; shutil.make_archive(sys.argv[1], "zip", sys.argv[2])' "${archive%.zip}" "$stage"
     if [ "${3:-}" = --video ]; then
       python3 tools/release/native/test-first-run.py "$archive" target/native-video-proof/evidence --version "$V"
     fi

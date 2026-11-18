@@ -19,7 +19,8 @@ from windows_sdk_dxc import stage_sdk_dxc
 
 def verify_workbench(gui, scene, project, env):
     frames = project / "gui-frames.jsonl"
-    with (project / "gui.log").open("wb") as log:
+    log_path = project / "gui.log"
+    with log_path.open("wb") as log:
         process = subprocess.Popen([str(gui), "--perf-log", str(frames), scene], cwd=project,
                                    env=env, stdout=log, stderr=subprocess.STDOUT)
         try:
@@ -36,6 +37,9 @@ def verify_workbench(gui, scene, project, env):
                         return
                 time.sleep(0.25)
             raise ValueError("workbench did not render the project within 60 seconds")
+        except Exception:
+            print(log_path.read_text(encoding="utf-8", errors="replace")[-8000:], file=sys.stderr)
+            raise
         finally:
             if process.poll() is None:
                 process.kill()
