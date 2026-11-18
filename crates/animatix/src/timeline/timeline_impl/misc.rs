@@ -49,6 +49,11 @@ impl Timeline {
         &self.audio_segments
     }
 
+    /// Look up the clip declared by an Audio actor.
+    pub fn audio_segment_for_actor(&self, actor: EntityId) -> Option<&AudioSegment> {
+        self.audio_segments.iter().find(|segment| segment.actor_id == Some(actor))
+    }
+
     /// Return runtime diagnostics produced during the most recent frame
     /// evaluation (modifier errors, etc.). Empty if evaluation succeeded
     /// without issues.

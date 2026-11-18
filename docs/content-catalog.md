@@ -12,8 +12,10 @@ explicit archive notices; see `web-content-disposition.md`.
 
 Recipes are a problem-oriented view of examples; templates are starting points.
 Gallery, home highlights, and embedded figures are views of the same works, not
-independent copies. Current showcase and lesson metadata lives in `web/app/src/lib/content.ts`;
-techniques live in `techniques.ts`. [retired work manifest](https://github.com/j4ger/animatix/blob/530b5f8843d31a77b19540ff8f42daf662fddfff/web/works.json) is historical metadata only.
+independent copies. Current showcase and lesson metadata lives in
+`web/app/src/lib/content.ts`; techniques live in
+`web/app/src/lib/techniques.ts`. Legacy URL decisions live in
+`web/app/src/lib/legacy-works.ts`; the former work manifest is retired.
 
 Internally, keep **fixtures** (regression cases), **benchmarks** (fixed workloads),
 **experiments** (unreviewed exploration), **library modules**, and **brand assets**
@@ -50,14 +52,16 @@ The report is intentionally conservative:
 - Import discovery is textual; unresolved paths may be runtime aliases. Literal
   references miss generated URLs, basename lookups, shell discovery and dynamic
   imports. Absence of a reference is **not permission to delete**.
-- This prototype is not wired into CI or the publisher. `--check` validates the
-  review registry, not animation quality or the completeness of dependencies.
+- This inventory is not the publisher's content source. `--check` validates the
+  review registry; the CI `content-sync` gate checks generated plates, import
+  closure and site source contracts, but does not certify animation quality or
+  dependency completeness.
 
 ## Initial source-level decisions
 
 | Candidate | Proposed action | Evidence / next step |
 | --- | --- | --- |
-| Gradient walkthrough | Merge maintenance, not scenes | `scene.amx` explicitly hand-copies four acts. Generate the plate from those acts and retain independent embeds. |
+| Gradient walkthrough | Merge maintenance, not scenes | Resolved: `tools/content/gradient-plate.py` generates `scene.amx` from the four acts, and `content-sync` checks for drift. Retain independent embeds. |
 | Epicycles walkthrough | Keep | Existing generator and `--check` prevent plate/act drift. Keep the source acts and generated output. |
 | Ambience example + web scene | Review | Similar topic, but the example carries a population regression contract. Do not replace it solely on visual similarity. |
 

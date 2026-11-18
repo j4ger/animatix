@@ -44,7 +44,7 @@ config { colorscheme: "editorial-dark" }
 col: Col, gap: 24, padding: 40, anchor: scene.center {
   // font_weight and letter_spacing
 heading: Text, text: "Bold & Spaced", font_size: 56, font_weight: "bold", letter_spacing: 6, color: text.primary
-  // italic + line_height with multi-line text
+  // `\n` is retained literally by current string parsing; it does not insert a line break
 body: Text, text: "Italic body with generous\nline height for readability", font_size: 22, font_style: "italic", line_height: 1.8, color: text.secondary
   // text_align center inside a fixed-width Col
 centered: Text, text: "Centered at normal weight", font_size: 20, text_align: "center", color: text.muted

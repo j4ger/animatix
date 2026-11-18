@@ -1,7 +1,7 @@
 # Content lab: first visual review
 
-Reviewed against `aa4d8d1`, with the experimental additions in this branch.
-No existing source, URL or publication list was removed or moved.
+Reviewed against `aa4d8d1`, with the experimental additions in that working
+tree. This is a dated review snapshot, not a statement about later site changes.
 
 ## What the renders show
 
@@ -13,7 +13,7 @@ sampled visual observations, not proof of every frame, audio or web behavior.
 | `examples/layout/02_layout.amx` | Four small, unlabeled groups sit at the canvas edges. Useful API exercise, weak standalone teaching and showcase. | Rework as one focused layout lesson; preserve current test/discovery behavior. |
 | `examples/generation/28_generation_reactive.amx` | Group, Mask, generated arrays and reactive rules compete in one composition; labels are small. | Split teaching responsibilities rather than promote this as a finished work. |
 | `examples/gallery/epicycles.amx` | A real explanation exists, but thin dark strokes, small annotations and excessive empty space weaken the presentation. | Keep as source material; rewrite the focused explanation, not another public gallery entry. |
-| `web/demos/gradient/scene.amx` | Four acts have coherent hierarchy and a meaningful held composition. | Keep the work; replace hand-copied assembly with a checked generator. |
+| `web/demos/gradient/scene.amx` | Four acts have coherent hierarchy and a meaningful held composition. | At review time, replace hand-copied assembly with a checked generator. **Follow-up:** `tools/content/gradient-plate.py` now generates the plate and `content-sync` checks it. |
 | `web/demos/epicycles/scene.amx` | The figure language is more polished. Sampled act transitions show superimposed headings and footers. | Preserve generated assembly. Review crossfade timing for text readability; this is not evidence of an engine defect. |
 
 The existing sample count is deliberately small. The inventory is comprehensive;
@@ -31,7 +31,9 @@ visual review is not. In particular, registry membership is not a quality badge.
   states, readable labels and a complete resting frame. Audit reports no
   warning/error; graph-child and dial overlaps are intentional info findings.
 
-Neither addition is automatically published through [retired work manifest](https://github.com/j4ger/animatix/blob/530b5f8843d31a77b19540ff8f42daf662fddfff/web/works.json).
+Neither addition is automatically published by virtue of appearing in the
+review overlay; current showcase content is maintained in the Astro content
+source (`web/app/src/lib/content.ts`).
 
 ## Authoring findings
 

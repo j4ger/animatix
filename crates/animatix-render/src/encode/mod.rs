@@ -4,15 +4,13 @@
 //! - [`ExportError`] — unified error type for all export paths
 //! - [`ExportOptions`], [`ExportSettings`], [`MaxRenderThreads`], [`VideoCodec`],
 //!   [`H264Preset`] — configuration, progress and cancellation
-//! - `mux_audio_segments` — ffmpeg CLI-based audio integration
 //!
 //! Sub-modules contain the actual encoding implementations for each format.
 //! Each format exposes one `*_with_options` entry point per target shape plus a
 //! convenience wrapper that defaults the debug options and [`ExportOptions`].
 //!
 //! The error type's trait implementations live in `export_error`, the config
-//! types' implementations in `impls`, and `ffmpeg` discovery plus audio muxing
-//! in `ffmpeg`; this file only declares them and holds the type definitions.
+//! types' implementations in `impls`. Video export and audio mixing use libav in process.
 
 #[cfg(feature = "video")]
 pub mod gif;
@@ -23,8 +21,9 @@ pub mod storyboard;
 #[cfg(feature = "video")]
 pub mod video;
 
+#[cfg(feature = "video")]
+mod audio;
 mod export_error;
-mod ffmpeg;
 mod impls;
 #[cfg(feature = "raster-encode")]
 pub mod raster;
@@ -52,7 +51,6 @@ pub use video::{
 };
 
 pub use export_error::ExportError;
-pub use ffmpeg::{is_ffmpeg_available, mux_audio_segments, require_ffmpeg};
 
 use std::sync::atomic::{AtomicBool, AtomicU32};
 
@@ -80,6 +78,8 @@ pub struct ExportOptions<'a> {
     pub progress: Option<&'a AtomicU32>,
     /// Set by the caller to stop the export; the frame loop checks it per frame.
     pub cancel: Option<&'a AtomicBool>,
+    /// Receives export preflight warnings in UI clients. Other clients log them.
+    pub warnings: Option<&'a std::sync::mpsc::Sender<String>>,
 }
 
 /// A named resolution/fps/codec preset shared by CLI and GUI export paths.

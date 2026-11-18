@@ -1,5 +1,9 @@
 # Web content reset: completion boundary
 
+This is the completion record for the content-reset pass. Its verification
+results describe that checkpoint; consult current source and CI evidence for
+the present implementation and acceptance state.
+
 This pass finishes the editorial disposition of the former public collection;
 it does **not** claim that every old source has been rewritten or corrected.
 

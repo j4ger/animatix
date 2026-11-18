@@ -11,11 +11,12 @@ future-tense wording describes that proposal, not missing implementation. Relate
 
 ## Motivation
 
-Scenes cannot currently see themselves. Anything that should *react to the
-composition* — an ambient backdrop that brightens where the action is, a camera
-that settles when the scene gets busy, a type size that shrinks as the cast grows —
-has to be hand-authored as static values, because there is no derived quantity to
-read.
+Before STAT-1, scenes could not see themselves. Anything that should *react to
+the composition* — an ambient backdrop that brightens where the action is, a
+camera that settles when the scene gets busy, a type size that shrinks as the
+cast grows — had to be hand-authored as static values because there was no
+derived quantity to read. STAT-1 now provides the build-time curves described
+below.
 
 The obvious implementation is a frame-time accumulator, and it is not available:
 `Timeline::evaluate` is `&self` on a cloned timeline per export thread
@@ -24,8 +25,8 @@ and a frame can be served by `restore_frame_cache` (`timeline/scene_eval/`) **wi
 recomputing anything**. Anything that persists between frames is therefore
 order-dependent and thread-dependent.
 
-This note proposes the smallest thing that still removes the whole workaround
-class, built on one observation:
+The original proposal chose the smallest mechanism that removes the whole
+workaround class, built on one observation:
 
 > **A curve is a memory.** If a derived quantity is materialized as a function of
 > time at build, then every "smoothing", "delay" and "lookback" an author wants
@@ -314,7 +315,10 @@ nothing and looks correct in source.
 | Rendered-ink statistics (pixel/luminance) | Readback hard-errors on wasm and is the recorded perf landmine (`docs/performance_evaluation.md` §3.7) | A GPU-side reduction with no CPU round-trip exists |
 | `stat("name")` string lookup | Would need the env route and a name registry; passing the curve as an argument is strictly more general (author-built curves work too) | — |
 
-## Landing order
+## Original implementation plan
+
+The following sequence and gates describe the original proposal. See
+the [language reference](spec.md) for the current authoring contract.
 
 1. `roadmap.md`: add STAT-1 under Planned Features (it is remaining work, so it belongs
    there and nowhere else).

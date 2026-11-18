@@ -19,8 +19,8 @@ tools/release/dist-linux.sh [target/or-dist/output-directory]
 
 The resulting tree has `bin/animatix`, `bin/animatix-gui`, `bin/ffmpeg`, and
 `bin/ffprobe`.
-The two launchers set `PATH` so Animatix's audio mux step uses the bundled
-FFmpeg CLI. Shared FFmpeg libraries and the remaining non-system ELF runtime
+Animatix encodes and muxes audio and video in process. The FFmpeg CLI tools
+are available for media inspection. Shared FFmpeg libraries and the remaining non-system ELF runtime
 dependencies live in `lib/`; executable ELF files use `$ORIGIN` RUNPATH entries.
 The package contains FFmpeg 8.0.3, x264, libvpx 1.16.0, and Opus source archives,
 their license files, the source hash lock, and build metadata.
@@ -90,9 +90,8 @@ its corresponding-source digest matches the build metadata.
 
 That check uses pinned Ubuntu 22.04 and 24.04 runtime images and installs only
 the host Vulkan/lavapipe driver and virtual display tools. It asserts that Nix,
-Rust, and a system FFmpeg are absent, then uses the bundled media tools to render
-and inspect MP4 with AAC audio, WebM with Opus audio, and GIF from a self-contained
-fixture. It also launches a real GUI window on the virtual display. Runtime logs, actual
+Rust, and a system FFmpeg are absent, then exports with a restricted PATH and inspects
+MP4/AAC, WebM/Opus, MOV/AAC, and GIF using absolute paths to the bundled tools. It also launches a real GUI window on the virtual display. Runtime logs, actual
 encoded media, stream metadata, GUI window-tree evidence, and resolved runtime
 package versions are retained below
 `target/perf/distribution-refactor/native/runtime/` (or the optional second
@@ -100,7 +99,8 @@ argument to the checker).
 
 The media check decodes all five expected video frames and verifies the
 container playback duration is within 20 ms of the one-second fixture. It also
-decodes audio to PCM and checks the 440 Hz test tone and nonzero level. The raw
+decodes audio to PCM and checks that the 440 Hz test tone starts on both channels
+at the authored delay. It samples decoded video frames for the matching caption window. The raw
 PCM sample-count budget allows one final encoded frame: AAC uses 1024 samples
 at 44.1 kHz (about 23.2 ms), and Opus uses 960 samples at 48 kHz (882 samples
 after the check's 44.1 kHz resampling). This accounts for codec frame padding

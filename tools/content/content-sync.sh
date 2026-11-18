@@ -57,7 +57,7 @@ fi
 if [ -f web/runtime/runtime-manifest.json ]; then
   node web/tools/sdk.mjs verify web/runtime --current >/dev/null || fail "web SDK is stale or invalid"
 else
-  echo "SKIP: SDK size report — build web/runtime with tools/ci/ci.sh gate web-sdk"
+  echo "SKIP: SDK size report — build web/runtime with tools/ci/ci.sh gate web-build"
 fi
 
 if [ "$FAILED" -ne 0 ]; then

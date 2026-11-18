@@ -7,11 +7,11 @@
 
 ## 1. Model
 
-An **effect** is a stage in an ordered chain owned by a `Filter` compositing
-scope. Effects are **not primitives or actors**: a `Filter` lowers its effect
-children into the scope's own `EffectChainTrack` at build time, so they create
-no scene-graph node, no layout entry, and no hit region. Declaring an effect
-anywhere other than inside a `Filter` scope is a build diagnostic.
+An **effect** is a stage in an ordered chain owned by a `Filter` or `Glass`
+compositing scope. Effects are **not primitives or actors**: the scope lowers
+its effect children into its own `EffectChainTrack` at build time, so they
+create no scene-graph node, no layout entry, and no hit region. Declaring an
+effect anywhere other than inside an effect scope is a build diagnostic.
 
 ```
 bg: Filter {
@@ -178,10 +178,10 @@ Two constraints:
   the zero-readback precondition to "no later sibling intersects the ROI" is an
   optional performance improvement, not a correctness requirement.
 
-> **Filter child labels are scene-global.** Give every child of every Filter
-> scope a unique label (`img_blur`, `img_grade`, …). Reusing a child label such
-> as `img` across two Filter scopes re-parents the single shared actor into the
-> later scope; the earlier scope silently renders empty. `animatix check`
+> **Effect-scope child labels are scene-global.** Give every child of every
+> Filter or Glass scope a unique label (`img_blur`, `img_grade`, …). Reusing a
+> child label such as `img` across two scopes re-parents the single shared actor
+> into the later scope; the earlier scope silently renders empty. `animatix check`
 > reports `duplicate-label`.
 
 ## 4. GPU pass contract

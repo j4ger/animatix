@@ -36,6 +36,25 @@ impl Composition {
         }
     }
 
+    /// Flatten scheduled scenes' audio onto the composition clock, including gain automation.
+    pub fn audio_segments(&self) -> Vec<crate::timeline::AudioSegment> {
+        self.declaration_order
+            .iter()
+            .filter_map(|name| Some((self.scenes.get(name)?, *self.scene_start_times.get(name)?)))
+            .flat_map(|(scene, offset)| {
+                scene.timeline.audio_segments().iter().cloned().map(move |mut segment| {
+                    segment.start_time_s += offset;
+                    if let Some(envelope) = &mut segment.volume_envelope {
+                        for (time, _) in envelope {
+                            *time += offset;
+                        }
+                    }
+                    segment
+                })
+            })
+            .collect()
+    }
+
     /// Interactive pause points across the entire composition in global milliseconds.
     pub fn pause_points(&self) -> &[u64] {
         &self.pause_points

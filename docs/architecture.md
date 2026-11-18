@@ -809,9 +809,8 @@ Not every visual variation needs its own primitive. The rule of thumb:
 
 Targeted `Callout` actors (those with a `target` property) need to compute the arrow attach point from another actor's bounds. This geometry is centralised in `timeline/callout_geometry.rs`:
 
-- `derive_callout_geometry(input, resolver)` is the single source of truth for `from`, `to`, `label_point`, attach side, and standoff. Rendering and retained GUI geometry helpers share this computation. The current workbench does not expose callout drag handles.
-- The `TargetResolver` trait (implemented by `SceneEval`) exposes only what primitives need: actor existence, kind, and world-space bounds/affine at a given time. Primitives no longer receive an unrestricted `&Timeline` reference.
-- Bounds are resolved via the target's accumulated world transform (`actor_world_affine`), so actors nested inside scaled or rotated parents attach correctly. Precise shape/path/text bounds are a known deferred item (see Active Work in `docs/roadmap.md`).
+- `derive_callout_geometry` computes `from`, `to`, `label_point`, attach side, and standoff for rendering.
+- `Timeline` implements `TargetResolver`, which exposes the target's world-space bounding box. It prefers the bounds derived from render commands for a target already evaluated on the current frame. Otherwise it transforms the declared size through `actor_world_affine` or falls back to the sampled position and size when the transform is unavailable.
 - A missing target name is diagnosed at build time (`CalloutTargetNotFound`) so the error surfaces in the editor rather than producing per-frame render log spam.
 
 ---

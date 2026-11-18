@@ -8,7 +8,7 @@
 use std::ffi::CString;
 
 use animatix::composition::Composition;
-use animatix::timeline::{AudioSegment, DebugRenderOptions, Timeline};
+use animatix::timeline::{DebugRenderOptions, Timeline};
 use rsmpeg::avcodec::{AVCodec, AVCodecContext};
 use rsmpeg::avformat::AVFormatContextOutput;
 use rsmpeg::avutil::{AVDictionary, AVFrame, AVRational};
@@ -16,7 +16,8 @@ use rsmpeg::error::RsmpegError;
 use rsmpeg::swscale::SwsContext;
 use tracing::info;
 
-use crate::encode::{ExportError, ExportOptions, ExportSettings, VideoCodec, mux_audio_segments};
+use super::audio::AudioEncoder;
+use crate::encode::{ExportError, ExportOptions, ExportSettings, VideoCodec};
 use crate::render_pipeline::{
     fill_rgba_frame, render_frames_streaming, render_frames_streaming_composition,
 };
@@ -132,84 +133,125 @@ fn encode_video(
     debug_options: DebugRenderOptions,
     options: ExportOptions<'_>,
 ) -> Result<(), ExportError> {
-    let ExportOptions {
-        settings,
-        progress,
-        cancel,
-    } = options;
+    if !duration.is_finite() || duration <= 0.0 || fps == 0 {
+        return Err(ExportError::VideoEncode("Duration and FPS must be positive".into()));
+    }
     let total_frames = (duration * fps as f32).ceil() as u32;
-    info!("Encoding {} frames to video...", total_frames);
-
-    let mut encoder = setup_video_encoder(output_file, width, height, fps, &settings)?;
-
-    let num_threads =
-        adaptive_thread_count(width, height, total_frames, false, encoder.is_hw_encoder, &settings);
-    info!("Using {num_threads} render thread(s) (adaptive).");
-
-    let push_frame =
-        |frame, scene_frame| encoder.push_frame(frame, total_frames, width, height, scene_frame);
-
-    let audio_segments = match source {
+    let duration_s = f64::from(duration);
+    let warn = |message| options.warn(message);
+    let segments = match &source {
         VideoSource::Timeline(timeline) => {
-            render_frames_streaming(
-                timeline,
-                width,
-                height,
-                fps,
-                total_frames,
-                num_threads,
-                debug_options,
-                progress,
-                cancel,
-                push_frame,
-            )?;
+            warn_caption_cutoff(timeline.caption_end_seconds(), duration_s, "", warn);
             timeline.audio_segments().to_vec()
         },
         VideoSource::Composition(composition) => {
-            render_frames_streaming_composition(
-                composition,
-                width,
-                height,
-                fps,
-                total_frames,
-                num_threads,
-                debug_options,
-                progress,
-                cancel,
-                push_frame,
-            )?;
-            composition_audio_segments(composition)
+            for (name, start) in &composition.scene_start_times {
+                let Some(scene) = composition.scenes.get(name) else {
+                    continue;
+                };
+                let caption_end = scene.timeline.caption_end_seconds();
+                if caption_end > 0.0 {
+                    warn_caption_cutoff(
+                        start + caption_end,
+                        (start + scene.duration_s).min(duration_s),
+                        &format!(" in scene '{name}'"),
+                        warn,
+                    );
+                }
+            }
+            composition.audio_segments()
         },
     };
+    let parent = output_file.parent().filter(|path| !path.as_os_str().is_empty());
+    let extension = output_file.extension().and_then(|ext| ext.to_str()).ok_or_else(|| {
+        ExportError::VideoEncode("Output path must have a video file extension".into())
+    })?;
+    let suffix = format!(".{extension}");
+    let temporary = tempfile::Builder::new()
+        .prefix(".animatix-")
+        .suffix(&suffix)
+        .tempfile_in(parent.unwrap_or_else(|| std::path::Path::new(".")))?;
+    let mut encoder = setup_video_encoder(temporary.path(), width, height, fps, &options.settings)?;
+    encoder.audio = AudioEncoder::prepare(
+        &mut encoder.format_context,
+        &segments,
+        duration_s,
+        extension.eq_ignore_ascii_case("webm"),
+        warn,
+    )?;
+    encoder.write_header()?;
+
+    let num_threads = adaptive_thread_count(
+        width,
+        height,
+        total_frames,
+        false,
+        encoder.is_hw_encoder,
+        &options.settings,
+    );
+    info!("Encoding {total_frames} frames to video using {num_threads} render thread(s).");
+    let push_frame = |frame, scene_frame| {
+        encoder.push_frame(frame, total_frames, width, height, scene_frame)?;
+        if let Some(audio) = &mut encoder.audio {
+            let time_s = (frame + 1) as f64 / f64::from(fps);
+            audio.advance(&mut encoder.format_context, time_s.min(duration_s))?;
+        }
+        Ok(())
+    };
+
+    match source {
+        VideoSource::Timeline(timeline) => render_frames_streaming(
+            timeline,
+            width,
+            height,
+            fps,
+            total_frames,
+            num_threads,
+            debug_options,
+            options.progress,
+            options.cancel,
+            push_frame,
+        )?,
+        VideoSource::Composition(composition) => render_frames_streaming_composition(
+            composition,
+            width,
+            height,
+            fps,
+            total_frames,
+            num_threads,
+            debug_options,
+            options.progress,
+            options.cancel,
+            push_frame,
+        )?,
+    }
 
     encoder.finish()?;
-    mux_audio_if_present(&audio_segments, duration as f64, output_file)?;
-
+    drop(encoder);
+    if options
+        .cancel
+        .is_some_and(|flag| flag.load(std::sync::atomic::Ordering::Relaxed))
+    {
+        return Err(ExportError::Cancelled);
+    }
+    temporary.persist(output_file).map_err(|err| err.error)?;
     info!("Render complete!");
     Ok(())
 }
 
-/// Audio segments from every scene in `composition`, offset by that scene's
-/// start time.
-fn composition_audio_segments(composition: &Composition) -> Vec<AudioSegment> {
-    composition
-        .scenes
-        .iter()
-        .flat_map(|(name, scene)| {
-            let start_offset = composition.scene_start_times.get(name).copied().unwrap_or(0.0);
-            let mut segments = scene.timeline.audio_segments().to_vec();
-            for seg in &mut segments {
-                seg.start_time_s += start_offset;
-            }
-            segments
-        })
-        .collect()
+fn warn_caption_cutoff(end_s: f64, cutoff_s: f64, context: &str, warn: impl Fn(String)) {
+    if end_s > cutoff_s + 0.001 {
+        warn(format!(
+            "Export will cut off captions{context} at {cutoff_s:.3}s; the last caption ends at {end_s:.3}s."
+        ));
+    }
 }
 
 /// Result of video encoder initialization.
 /// Caller owns these fields for the frame encoding loop.
 struct VideoEncoder {
     format_context: AVFormatContextOutput,
+    audio: Option<AudioEncoder>,
     encode_context: AVCodecContext,
     sws_context: SwsContext,
     yuv_frame: AVFrame,
@@ -227,7 +269,9 @@ fn setup_video_encoder(
     settings: &ExportSettings,
 ) -> Result<VideoEncoder, ExportError> {
     // WebM needs VP9; `Auto` means the portable H.264 default for everything else.
-    let is_webm = output_file.extension().map(|e| e == "webm").unwrap_or(false);
+    let is_webm = output_file
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("webm"));
     let settings = if is_webm && matches!(settings.video_codec, VideoCodec::Auto) {
         ExportSettings {
             video_codec: VideoCodec::Vp9,
@@ -287,12 +331,6 @@ fn setup_video_encoder(
         stream_index = stream.index;
     }
 
-    format_context
-        .write_header(&mut None)
-        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-
-    let stream_time_base = format_context.streams()[stream_index as usize].time_base;
-
     let sws_context = SwsContext::get_context(
         width as i32,
         height as i32,
@@ -315,18 +353,28 @@ fn setup_video_encoder(
         .alloc_buffer()
         .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
 
+    let encode_context_time_base = encode_context.time_base;
     Ok(VideoEncoder {
         format_context,
+        audio: None,
         encode_context,
         sws_context,
         yuv_frame,
         stream_index,
-        stream_time_base,
+        stream_time_base: encode_context_time_base,
         is_hw_encoder,
     })
 }
 
 impl VideoEncoder {
+    fn write_header(&mut self) -> Result<(), ExportError> {
+        self.format_context
+            .write_header(&mut None)
+            .map_err(|err| ExportError::VideoEncode(format!("{err:?}")))?;
+        self.stream_time_base = self.format_context.streams()[self.stream_index as usize].time_base;
+        Ok(())
+    }
+
     /// Convert one rendered RGBA frame, encode it, and write every packet the
     /// encoder has ready.
     fn push_frame(
@@ -349,21 +397,7 @@ impl VideoEncoder {
         self.encode_context
             .send_frame(Some(&self.yuv_frame))
             .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-        loop {
-            match self.encode_context.receive_packet() {
-                Ok(mut packet) => {
-                    packet.rescale_ts(self.encode_context.time_base, self.stream_time_base);
-                    packet.set_stream_index(self.stream_index);
-                    self.format_context
-                        .interleaved_write_frame(&mut packet)
-                        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-                },
-                Err(RsmpegError::EncoderDrainError) | Err(RsmpegError::EncoderFlushedError) => {
-                    break;
-                },
-                Err(e) => return Err(ExportError::VideoEncode(format!("{e:?}"))),
-            }
-        }
+        self.write_video_packets()?;
 
         use std::io::Write;
         print!("\rEncoding frame {}/{}", frame + 1, total_frames);
@@ -376,39 +410,35 @@ impl VideoEncoder {
         self.encode_context
             .send_frame(None)
             .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-        loop {
-            match self.encode_context.receive_packet() {
-                Ok(mut packet) => {
-                    packet.rescale_ts(self.encode_context.time_base, self.stream_time_base);
-                    packet.set_stream_index(self.stream_index);
-                    self.format_context
-                        .interleaved_write_frame(&mut packet)
-                        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-                },
-                Err(RsmpegError::EncoderDrainError) | Err(RsmpegError::EncoderFlushedError) => {
-                    break;
-                },
-                Err(e) => return Err(ExportError::VideoEncode(format!("{e:?}"))),
-            }
+        self.write_video_packets()?;
+        if let Some(audio) = &mut self.audio {
+            audio.finish(&mut self.format_context)?;
         }
         self.format_context
             .write_trailer()
             .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
         Ok(())
     }
-}
-
-/// Collect audio segments and mux into the output file.
-fn mux_audio_if_present(
-    audio_segments: &[AudioSegment],
-    export_duration_s: f64,
-    output_file: &std::path::Path,
-) -> Result<(), ExportError> {
-    if !audio_segments.is_empty() {
-        super::require_ffmpeg()?;
-        mux_audio_segments(output_file, audio_segments, export_duration_s, output_file)?;
+    fn write_video_packets(&mut self) -> Result<(), ExportError> {
+        loop {
+            match self.encode_context.receive_packet() {
+                Ok(mut packet) => {
+                    if packet.duration <= 0 {
+                        packet.set_duration(1);
+                    }
+                    packet.rescale_ts(self.encode_context.time_base, self.stream_time_base);
+                    packet.set_stream_index(self.stream_index);
+                    self.format_context
+                        .interleaved_write_frame(&mut packet)
+                        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+                },
+                Err(RsmpegError::EncoderDrainError | RsmpegError::EncoderFlushedError) => {
+                    return Ok(());
+                },
+                Err(e) => return Err(ExportError::VideoEncode(format!("{e:?}"))),
+            }
+        }
     }
-    Ok(())
 }
 
 /// Compute an appropriate render thread count based on workload characteristics.

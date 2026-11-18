@@ -30,21 +30,7 @@ impl DocumentSession {
         let doc_dir = self.file_path.parent().unwrap_or(Path::new(""));
 
         let segments: Vec<AudioSegment> = if let Some(composition) = &self.composition {
-            composition
-                .scenes
-                .iter()
-                .filter_map(|(name, scene)| {
-                    composition.scene_start_times.get(name).map(|offset| (scene, *offset))
-                })
-                .flat_map(|(scene, offset)| {
-                    scene
-                        .timeline
-                        .audio_segments()
-                        .iter()
-                        .cloned()
-                        .map(move |segment| offset_segment(segment, offset))
-                })
-                .collect()
+            composition.audio_segments()
         } else if let Some(timeline) = &self.timeline {
             timeline.audio_segments().to_vec()
         } else {
@@ -65,19 +51,6 @@ impl DocumentSession {
             })
             .collect()
     }
-}
-
-fn offset_segment(
-    mut segment: animatix::timeline::AudioSegment,
-    offset: f64,
-) -> animatix::timeline::AudioSegment {
-    segment.start_time_s += offset;
-    if let Some(envelope) = &mut segment.volume_envelope {
-        for (time, _) in envelope {
-            *time += offset;
-        }
-    }
-    segment
 }
 
 #[cfg(test)]
@@ -102,20 +75,37 @@ mod tests {
 
     #[test]
     fn volume_automation_moves_with_scene_without_changing_duration() {
-        let segment = offset_segment(
-            animatix::timeline::AudioSegment {
-                actor_id: None,
-                source: "voice.wav".into(),
-                start_time_s: 1.0,
-                duration_s: Some(4.0),
-                volume: 0.8,
-                volume_envelope: Some(vec![(1.0, 0.0), (3.0, 1.0)]),
-            },
-            5.0,
-        );
-        assert_eq!(segment.start_time_s, 6.0);
-        assert_eq!(segment.duration_s, Some(4.0));
-        assert_eq!(segment.volume_at(7.0), 0.5);
+        let mut document = DocumentSession::from_source(
+            "audio.amx".into(),
+            "# First
+config { duration: 2 }
+# Second
+config { duration: 3 }
+#0s
+a: Audio, source: \"a.wav\", volume: 0.25 [2s]
+#1s
+a.volume = 0.75"
+                .into(),
+        )
+        .unwrap();
+        document.rebuild().unwrap();
+        let composition = document.composition.as_ref().unwrap();
+        let offset = composition.scene_start_times["Second"];
+        let local = &composition.scenes["Second"].timeline.audio_segments()[0];
+        let segments = document.all_audio_segments();
+        let segment = &segments[0];
+        assert_eq!(segment.start_time_s, offset + local.start_time_s);
+        assert_eq!(segment.duration_s, local.duration_s);
+        assert_eq!(segment.volume_at(offset + 0.2), 0.25);
+        assert_eq!(segment.volume_at(offset + 1.1), 0.75);
+        let expected: Vec<_> = local
+            .volume_envelope
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|(time, volume)| (time + offset, *volume))
+            .collect();
+        assert_eq!(segment.volume_envelope.as_ref().unwrap(), &expected);
     }
 
     #[test]

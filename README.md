@@ -5,9 +5,9 @@
 <p align="center"><strong>Scenes in code. Stories in motion.</strong></p>
 <p align="center">A declarative language for explanatory animations, built in Rust.</p>
 <p align="center">
-  <a href="https://amx.j4ger.dev/demos/"><strong>See it in motion ↗</strong></a>
+  <a href="https://amx.j4ger.dev/showcase/"><strong>See it in motion ↗</strong></a>
   &nbsp; · &nbsp;
-  <a href="https://amx.j4ger.dev/tour/">Language tour</a>
+  <a href="https://amx.j4ger.dev/learn/">Language tour</a>
   &nbsp; · &nbsp;
   <a href="docs/README.md">Documentation</a>
 </p>
@@ -38,7 +38,7 @@ accent.size = (640, 3) [800ms, ease: ease_out]
 
 ## Try it locally
 
-**Download** · See [releases](https://github.com/j4ger/animatix/releases) for available builds. The current [Linux x86-64 nightly](https://github.com/j4ger/animatix/releases/tag/nightly) is a development snapshot, not a standalone installer; see [download caveats](docs/contributing.md#downloaded-builds). For a matching build environment, use Nix below.
+See [GitHub Releases](https://github.com/j4ger/animatix/releases) for available builds. The nightly workflow packages a Linux x86-64 development snapshot. For runtime dependencies and portability, see [Downloaded builds](docs/contributing.md#downloaded-builds). Use the Nix shell below to build from source.
 
 <details>
 <summary><strong>Build from source with Nix</strong></summary>

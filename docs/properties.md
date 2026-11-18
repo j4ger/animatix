@@ -1,6 +1,6 @@
 # Animatix Property Reference
 
-> Generated property tables are derived from the syntax property specs and the engine registry.
+> Generated property tables are derived from `animatix-core` property descriptors and the engine registry; syntax property specs are derived from those descriptors.
 > The docs-only group map controls presentation order; it does not define property semantics.
 > Run `cargo run -p animatix --example property_reference -- --write` to update them;
 > the docs gate checks the generated output. For value examples and usage, see [`spec.md`](spec.md).
@@ -291,12 +291,12 @@ not author-facing; they are listed here because they are descriptor rows.
 | Property | Type | Runtime kind | Animated | Assignable | Applies to |
 |----------|------|--------------|----------|------------|------------|
 | `url` | `Str` | `String` | — | ✓ | `Image`, `Svg` |
-| `source` | `Str` | `String` | — | ✓ | `Audio` |
+| `source` | `Str` | `String` | — | ✓ | `Audio`, `Captions` |
 | `volume` | `Num` | `F32` | ✓ | ✓ | `Audio` |
 | `transcript` | `Str` | `String` | — | ✓ | `Audio`, `Captions` |
 <!-- generated-property-table:media:end -->
 
-`source` is the path to the audio asset. `volume` is a multiplier (0.0–1.0) applied at export time.
+`source` is the path to the audio asset on `Audio` and the audio actor label on `Captions`. `volume` is a multiplier (0.0–1.0) applied at export time.
 Audio actors support timing modifiers (`duration`, delay) for clip placement on the global timeline. See [`spec.md`](spec.md) §9 "Audio".
 
 > **Note on `url` assignment:** `Image.url` and `Svg.url` assignments support

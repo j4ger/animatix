@@ -22,10 +22,13 @@ fn build_timeline(path: &std::path::Path) -> animatix_syntax::diagnostics::Build
     let mut graph = ModuleGraph::new();
     let program = graph.load_program(path).expect("load program");
     let expanded = program.expand_components().expect("component expansion");
+    let mut assets = animatix::timeline::assets::AssetCache::new();
+    assets.set_base_dirs(path.parent(), None);
     Timeline::build_with_options(
         &expanded.statements,
         &program.namespaces,
         BuildOptions::default()
+            .with_asset_cache(std::sync::Arc::new(assets))
             .with_function_context(&program.function_context)
             .with_expanded(&expanded),
     )
@@ -175,6 +178,45 @@ box: Rect, opacity: 0.0, at: (100, 100), size: (50.0, 50.0)
 }
 
 #[test]
+fn timed_audio_shifts_captions_and_both_types_of_speech_anchor() {
+    let dir = setup_temp_workspace("delayed_speech");
+    fs::write(
+        dir.path().join("words.json"),
+        r#"{"markers":{"intro":0.2},"segments":[{"text":"Hello","start":0.2,"end":0.9,
+        "words":[{"word":"Hello","start":0.25,"end":0.8}]}]}"#,
+    )
+    .unwrap();
+    let amx_path = dir.path().join("main.amx");
+    fs::write(
+        &amx_path,
+        r#"
+box: Rect, opacity: 0.0, at: (100, 100), size: (50, 50)
+subs: Captions, source: "voice", opacity: 1.0
+#1s
+voice: Audio, source: "tone.wav", transcript: "words.json" [600ms, delay: 400ms]
+#voice@intro
+box.opacity = 1.0
+#voice["Hello"]
+box.size = (100, 50)
+"#,
+    )
+    .unwrap();
+
+    let report = build_timeline(&amx_path);
+    assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
+    let timeline = report.output;
+    assert_eq!(timeline.audio_segments()[0].start_time_s, 1.4);
+    assert!((timeline.caption_end_seconds() - 2.0).abs() < 0.001);
+    let box_id = timeline.get_entity_id("box").unwrap();
+    let opacity = &timeline.world().style(box_id).opacity;
+    assert_eq!(opacity.get(1599, 0.0), 0.0);
+    assert_eq!(opacity.get(1600, 0.0), 1.0);
+    let size = &timeline.world().geometry(box_id).size;
+    assert!(timeline.world().list_keyframes(box_id, "size").contains(&1650));
+    assert_eq!(size.get(1650, [0.0, 0.0])[0], 50.0);
+}
+
+#[test]
 fn test_speech_keyframe_missing_marker_diagnostic() {
     let dir = setup_temp_workspace("missing_marker");
     let json_path = dir.path().join("narration.speech.json");
@@ -242,7 +284,7 @@ fn test_demo_scene_captions_evaluation() {
         animatix::composition::BuildTarget::MultiScene(_) => panic!("Expected single scene"),
     };
     assert!(tl.transcript("voice").is_some());
-    assert!(tl.transcript("subs").is_some());
+    assert!((tl.caption_end_seconds() - 10.025).abs() < 0.001);
     let subs_id = tl.tracks().get_id("subs").expect("subs track must exist");
     assert_eq!(tl.world().actor_type(subs_id), "Captions");
     assert_eq!(tl.world().style(subs_id).opacity.get(2000, 0.0), 1.0);

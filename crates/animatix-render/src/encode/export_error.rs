@@ -27,8 +27,6 @@ pub enum ExportError {
     ThreadPanicked,
     /// Export was cancelled by the user.
     Cancelled,
-    /// ffmpeg binary not found on PATH.
-    FfmpegNotFound,
     /// Internal export error (e.g. target/format mismatch).
     Internal(String),
 }
@@ -47,10 +45,6 @@ impl std::fmt::Display for ExportError {
             Self::InvalidPath(_) => write!(f, "Output path contains null bytes"),
             Self::ThreadPanicked => write!(f, "Render thread panicked"),
             Self::Cancelled => write!(f, "Export cancelled by user"),
-            Self::FfmpegNotFound => write!(
-                f,
-                "ffmpeg is required for audio muxing. Install it from https://ffmpeg.org or via your package manager (e.g. `apt install ffmpeg`, `brew install ffmpeg`)."
-            ),
             Self::Internal(msg) => write!(f, "Internal export error: {msg}"),
         }
     }

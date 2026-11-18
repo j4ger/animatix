@@ -1,6 +1,6 @@
 //! Effect-chain lowering for compositing scopes.
 //!
-//! Effect children of a `Filter` scope are lowered into the scope's
+//! Effect children of a `Filter` or `Glass` scope are lowered into the scope's
 //! [`EffectChainTrack`](crate::timeline::effects::EffectChainTrack) instead of
 //! becoming scene-graph actors: they own no property tiers, no layout, and no
 //! hit region, and are not rendered as content.
@@ -13,7 +13,7 @@ use crate::timeline::timing::{ModifierHost, ParsedTimingModifiers, parse_timing_
 impl Timeline {
     /// Lower one effect declaration into its parent scope's chain.
     ///
-    /// Emits a diagnostic and does nothing when the parent is not a `Filter`
+    /// Emits a diagnostic and does nothing when the parent is not an effect
     /// scope or a parameter is not declared by the effect.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn lower_effect_stage(

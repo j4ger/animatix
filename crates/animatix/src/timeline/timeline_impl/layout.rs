@@ -151,6 +151,7 @@ impl Timeline {
             if let Some(audio_id) = seg.actor_id
                 && self.world.actor_type(audio_id) == "Audio"
                 && let Some(vol_track) = &self.world.geometry(audio_id).volume
+                && !vol_track.keyframes.is_empty()
             {
                 let mut envelope = Vec::new();
                 let t_start_ms = (seg.start_time_s * 1000.0).round() as u64;

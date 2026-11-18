@@ -5,8 +5,8 @@ Audience: contributors. This note records where the "every actor type is one
 concrete gaps that remain before a "fully ideal" abstraction — plus a
 recommended order if those gaps are ever pursued.
 
-It is a status/design note, not a work ticket. The deferred items are also
-recorded in `roadmap.md`; completed work moved to `docs/history/`.
+See [extension follow-ups](roadmap.md#extension-follow-ups) for decisions that
+remain deferred and [history](history/README.md) for completed work.
 
 ## 1. The model today
 
@@ -24,7 +24,7 @@ concerns have these current dispatch paths:
 | Mask clip geometry | Child `BehaviorDef` evaluation | The current mask path evaluates the clip child, collects path commands, and composes transforms; it does not call `Primitive::clip_path`. That method and its native adapter callback remain available, and the callback has a direct test. |
 | Equation fragments | `BehaviorDef` family dispatch | `Primitive::equation_fragment` serves as the extension-adapter surface. |
 | Identity | `World` component identity | `World::actor_type` plus the `BehaviorId` component; `set_identity` derives the capability projection. No per-actor aggregate struct. |
-| Native extensions | `crates/animatix-plugin-api` + `extension_native_plugin/` | `repr(C)` callbacks: `build`, `evaluate`, `handle_assignment`, `finalize_container_build`, `default_props`, `default_color_key`, `clip_path`, `equation_fragment` (ABI snapshot 9). |
+| Native extensions | `crates/animatix-plugin-api` + `extension_native_plugin/` | `repr(C)` callbacks: `build`, `evaluate`, `handle_assignment`, `finalize_container_build`, `default_props`, `default_color_key`, `clip_path`, `equation_fragment` (ABI snapshot 10). |
 
 Invariants are pinned by tests: `every_built_track_identity_is_consistent`
 (`timeline/tests/build/graph.rs`), `registry_matches_primitives` / `child_processing_capabilities_cover_special_containers`
@@ -78,7 +78,7 @@ them without a concrete driver.
 | G2 | **Property system is kind-centric** | `Applicable::includes(&caps, ty)` and `allowed_property_indices(caps, actor_type)` gate applicability by kind; slots/defaults still come from `property_registry/` and `property_engine/`. | Built-in property applicability/defaults declared on the primitive; `kind` reduced to an internal cache key. |
 | G3 | **Overlapping taxonomies** | `ShapeKind`, `ActorCategory`, `PrimitiveCategory` (schema), `ChildProcessing`, `PrimitiveFamily` are mutually mapped and drift-pinned. | One capability description per primitive; the rest derived views. |
 | G4 | **Shape semantics partly outside the trait** | `vector_shape_uses_custom_path` / `exposes_tip_size` are `ShapeType` free functions for the GUI edit-vertices layer (`timeline/shapes/defaults.rs`). | Shape behaviour on the primitive (or `ShapeType` as a primitive view). |
-| G5 | **Child strategy is a closed enum** (declaration, not dispatch) | `ChildProcessing::{Generic,Filter,Mask,Equation}` is a shared-schema/ABI enum; a native plugin cannot author a fifth strategy (ABI 9 deferred). | Open strategy surface. Accepted as-is pending a real plugin need. |
+| G5 | **Child strategy is a closed enum** (declaration, not dispatch) | `ChildProcessingKind::{Generic,Filter,Glass,Mask,Equation,Captions}` is a shared-schema/ABI enum; a native plugin cannot author a seventh strategy. | Open strategy surface. Accepted as-is pending a real plugin need. |
 | G6 | **`RenderCommand` is a second closed ABI** | `#[non_exhaustive]` enum with manual `execute` / `local_bounds` dispatch (`primitives/mod.rs`). | Extensible draw primitives. |
 | G7 | **FFI mirror surface** (inherent) | See §2. | N/A — bounded by what `repr(C)` can carry. |
 
@@ -91,7 +91,7 @@ old `PrimitiveHandle` cache was tried and deleted, and identity now lives in the
 
 Recorded so they are not re-litigated without new evidence:
 
-- **Native `render_children` callback (ABI 9).** Plugins cannot be given the
+- **Native `render_children` callback.** Plugins cannot be given the
   host's child pipelines (see §2). If a plugin ever needs a genuinely new
   strategy, implement the minimal surface — child enumeration + `render_child` +
   a host `push_clip_layer`/`pop_layer` + the existing `append_*` callbacks —

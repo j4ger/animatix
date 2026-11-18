@@ -347,13 +347,13 @@ Goal: make the evaluator useful as a first-pass reviewer.
 
 Shipped in `animatix audit`:
 
-- 11 default structural/render rules plus two `--policy site` resting-frame
-  rules (the full list is in [`audit.md`](audit.md)).
+- Structural and render rules with additional resting-frame checks under
+  `--policy site`. See the [current rule catalog](audit.md#规则目录).
 - Stack/Group/effect-scope/callout/legend exclusions for overlap candidates.
 - Per-issue evidence, persistence, severity, time, actor, and source line.
-- A stable `schema_version: 1` JSON report and text output.
+- Text output and a versioned JSON report. Current reports use [schema v3](audit.md#schema-v3).
 
-Still future work:
+See [review workflow follow-ups](roadmap.md#review-workflow-follow-ups) for planned work.
 
 - `review.toml` policy loading and per-project tolerances.
 - Corpus-wide calibration and a seeded bad-variant benchmark.
@@ -500,7 +500,7 @@ work.
 ## Open Design Questions
 
 1. Should review policy live in a separate `review.toml` or in `.amx` config?
-   The shipped v1 uses `--policy default|site`; `review.toml` remains a future
+   The CLI supports `--policy default|generated|site`. `review.toml` remains a future
    option and should only be added if it proves unavoidable, because a second
    hand-maintained policy file recreates the authoring burden `review` removes.
 2. Should actor roles be inferred or explicit? The plan infers from primitive

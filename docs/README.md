@@ -2,8 +2,8 @@
 
 ## Start here
 
-- [Language tour](https://amx.j4ger.dev/tour/) — learn through animated examples.
-- [Showcase](https://amx.j4ger.dev/demos/) — watch finished scenes in the browser.
+- [Language tour](https://amx.j4ger.dev/learn/) — learn through animated examples.
+- [Showcase](https://amx.j4ger.dev/showcase/) — watch finished scenes in the browser.
 - [Examples](../examples/README.md) — run and adapt `.amx` files.
 - [Desktop workbench](gui-workbench.md) — preview, review timing, and navigate to source.
 - [Build and run](contributing.md) — native tools, Nix shells, and export setup.
@@ -31,7 +31,7 @@ Start with the [contribution guide](../CONTRIBUTING.md). For implementation deta
 
 ## Plans and history
 
-[Roadmap](roadmap.md) tracks remaining work; [history](history/README.md) records completed work and its evidence. Design notes describe proposals or implementation rationale, not a separate feature checklist:
+[Roadmap](roadmap.md) tracks remaining work. [History](history/README.md) records completed work and its evidence. See the design notes for proposals and implementation rationale.
 
 - [Animation direction](delightful_animation_plan.md)
 - [AI-assisted animation review](ai_agent_animation_quality.md)

@@ -56,8 +56,8 @@ eq: $$ x^2 $$ [2s, ease: bounce]       // with modifiers
 ```
 
 **Actions:**
-- `highlight target [color: C, blend: B, padding: P, radius: R, duration, ease]` — animate `highlight_opacity` from 0 to 1 (whole-actor highlight)
-- `unhighlight target [duration, ease]` — animate `highlight_opacity` from current to 0
+- `highlight(target: eq, color: C, blend: B, padding: P, radius: R, duration: D, ease: E)` — animate `highlight_opacity` from 0 to 1 (whole-actor highlight)
+- `unhighlight(target: eq, duration: D, ease: E)` — animate `highlight_opacity` from current to 0
 
 This is distinct from Equation+Fragment per-segment highlighting — a Typst actor is highlighted as a single unit.
 
@@ -309,7 +309,8 @@ guide: Path, commands: {
 Container for speech-synced subtitles. Cues come from `Cue` children or from a transcript file; the container draws the active cue and styles it, and only while a cue is active does anything render.
 
 **Properties:**
-- `transcript`: String — path to a transcript file (`.json`, `.vtt`, `.srt`); parsed at build and used when the container has no `Cue` children
+- `transcript`: String — path to a transcript file (`.json`, `.vtt`, `.srt`); times are scene-relative and used when the container has no `Cue` children
+- `source`: String — label of an `Audio` actor whose transcript supplies cues when the container has no `Cue` children or explicit transcript. The cues and word timings follow the clip start and respect its authored trim.
 - `caption_mode`: String — `"karaoke"`, `"pop"`, or `"line"`; any other value highlights only the current word
 - `active_color`: Color — color of the current word (in `"karaoke"`, also of words already spoken)
 - `inactive_color`: Color — color of the not-yet-spoken words
@@ -329,9 +330,10 @@ Word timings for a `Cue` child are distributed evenly across its text; a transcr
 
 **Example:**
 ```animatix
+voice: Audio, source: "narration.mp3", transcript: "narration.speech.json"
 subs: Captions,
   at: (640, 580),
-  transcript: "narration.speech.json",
+  source: "voice",
   caption_mode: "karaoke",
   active_color: accent.primary,
   inactive_color: text.muted,
@@ -582,6 +584,11 @@ graph: Graph, x_domain: (0, 12), y_domain: (0, 1.1), size: (700, 300) {
 }
 ```
 
+The engine builds hosted charts in the Graph's math coordinate frame, and the
+`hosted_bar_chart_spans_graph_axis` regression checks the resulting path extent
+and baseline. The [roadmap](roadmap.md) still tracks end-to-end visual
+validation of this case; the geometry test alone does not retire that review.
+
 ---
 
 ## Equation
@@ -619,8 +626,13 @@ Does not render independently — the parent Equation handles all rendering.
 - `highlight_radius`: Number — corner radius of highlight rectangle (default `2.0`)
 
 **Actions:**
-- `highlight target [color: C, blend: B, padding: P, radius: R, duration, ease]` — animate `highlight_opacity` from 0 to 1
-- `unhighlight target [duration, ease]` — animate `highlight_opacity` from current to 0
+- `highlight(target: fragment, color: C, blend: B, duration: D, ease: E)` — animate the Fragment's highlight from 0 to 1
+- `unhighlight(target: fragment, duration: D, ease: E)` — animate the Fragment's highlight from its current value to 0
+
+The current engine collects Fragment highlight tracks while rendering the
+parent Equation and emits highlight-layer commands. Automated timing coverage
+checks the tracks; a visual A/B for the rendered overlay remains listed in the
+[roadmap](roadmap.md).
 
 **Example:**
 ```animatix
