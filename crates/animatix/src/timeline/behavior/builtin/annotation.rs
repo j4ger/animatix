@@ -8,9 +8,8 @@ use crate::primitives::build_arrow_path;
 use crate::primitives::connector::{
     build_connector_path, resolve_connector_endpoint, route_connector,
 };
-use crate::primitives::{
-    EvaluateCtx, RenderCommand, TextCompileCtx, evaluate_text_paths, sample_shape_style,
-};
+use crate::primitives::evaluate_text_paths_with_content;
+use crate::primitives::{EvaluateCtx, RenderCommand, TextCompileCtx, sample_shape_style};
 use crate::renderer::error::RenderError;
 use crate::renderer::text::TextKind;
 use crate::timeline::animation_track::{ConnectorEndpoint, ConnectorRouting};
@@ -95,27 +94,41 @@ pub fn evaluate_callout(
         paths: vec![arrow_vello],
     }];
 
-    let mut label_text = ctx
-        .text
-        .map(|t| t.text_content.get(ctx.time_ms, String::new()))
-        .unwrap_or_default();
+    let label_override = match ctx.overrides.and_then(|values| values.get("label")) {
+        Some(Value::Str(value)) => Some(value.as_str()),
+        Some(value) => {
+            tracing::debug!("Callout label override is not text: {value:?}");
+            None
+        },
+        None => None,
+    };
+    let has_label = label_override.map_or_else(
+        || {
+            ctx.text
+                .is_some_and(|text| !text.text_content.get(ctx.time_ms, String::new()).is_empty())
+        },
+        |label| !label.is_empty(),
+    );
     let mut label_at = geometry.label_at.get(ctx.time_ms, [0.0, 50.0]);
 
     if let Some(overrides) = ctx.overrides {
-        if let Some(Value::Str(s)) = overrides.get("label") {
-            label_text = s.clone();
-        }
         if let Some(Value::Vec2(la)) = overrides.get("label_at") {
             label_at = [la[0] as f32, la[1] as f32];
         }
     }
 
-    if !label_text.is_empty() {
+    if has_label {
         let offset_x = (to[0] + label_at[0]) as f64;
         let offset_y = (to[1] + label_at[1]) as f64;
 
         if let Some(text_ctx) = text_ctx {
-            let (paths, _) = evaluate_text_paths(ctx, text_ctx, TextKind::Text, 24.0)?;
+            let (paths, _) = evaluate_text_paths_with_content(
+                ctx,
+                text_ctx,
+                TextKind::Text,
+                24.0,
+                label_override,
+            )?;
 
             let translated_paths: Vec<crate::renderer::types::TextPath> = paths
                 .iter()

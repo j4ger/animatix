@@ -49,6 +49,12 @@ use super::modifier_runtime::ir::CompiledExpr;
 use super::{CapturedEnv, Environment, Value};
 use crate::easing::Easing;
 
+pub(crate) const DEFAULT_AXIS_DOMAIN: [f64; 2] = [-10.0, 10.0];
+pub(crate) const DEFAULT_PARAMETER_DOMAIN: [f64; 2] = [0.0, std::f64::consts::TAU];
+pub(crate) const DEFAULT_PLOT_RESOLUTION: f64 = 96.0;
+pub(crate) const DEFAULT_PLOT_TOLERANCE: f64 = 0.5;
+pub(crate) const DEFAULT_PLOT_MAX_DEPTH: f64 = 10.0;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 /// Discriminant for the four sampling strategies of `PlotCurve`.

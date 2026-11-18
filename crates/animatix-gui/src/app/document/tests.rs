@@ -49,6 +49,22 @@ fn write_file(path: &Path, contents: &str) -> Result<(), GuiError> {
 }
 
 #[test]
+fn save_and_reopen_preserve_quoted_text_and_typst_payloads() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("scene.amx");
+    fs::write(&path, "#0s\n").unwrap();
+    let mut document = DocumentSession::load(path.clone()).unwrap();
+    let source = r#"// Retain this comment.
+title: Text, text: "C:\tmp\file, \"quoted\", \n", opacity: 1
+formula: Typst, text: "Price: \$10", opacity: 1
+"#;
+    document.set_source_text(source.into());
+    document.save_to_disk().unwrap();
+    let reopened = DocumentSession::load(path).unwrap();
+    assert_eq!(reopened.source_text, source);
+}
+
+#[test]
 fn duration_scans_latest_track_keyframe() {
     let ast = vec![
         Stmt::Keyframe {

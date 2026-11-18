@@ -11,6 +11,8 @@ use crate::ast::{Expr, Property};
 use crate::primitives::{Primitive, RenderChildrenCtx, RenderCommand};
 use crate::timeline::SceneDimensions;
 
+pub(crate) const DEFAULT_FONT_SIZE: f32 = 32.0;
+
 /// Opacity multiplier for the `transition_time` caption fade-in.
 ///
 /// `1.0` once the cue is `transition_s` past its own start (and always `1.0`
@@ -62,7 +64,7 @@ impl Primitive for CaptionsPrimitive {
                     Expr::Num(scene.height as f64 * 0.85),
                 ]),
             ),
-            Property::new("font_size", Expr::Num(32.0)),
+            Property::new("font_size", Expr::Num(f64::from(DEFAULT_FONT_SIZE))),
         ]
     }
 }

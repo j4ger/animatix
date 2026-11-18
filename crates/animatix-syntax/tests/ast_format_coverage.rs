@@ -204,7 +204,11 @@ impl AstFolder for CallArgumentSpanScrubber {
         }
     }
 
-    fn fold_expr(&mut self, expr: Expr) -> Expr {
+    fn fold_expr(&mut self, mut expr: Expr) -> Expr {
+        if let Expr::Timeline(plan) | Expr::Sequence(plan) | Expr::Stagger { plan, .. } = &mut expr
+        {
+            scrub_in_place(&mut plan.statements);
+        }
         match expr {
             Expr::Call(callee, args) => Expr::Call(
                 Box::new(self.fold_expr(*callee)),

@@ -797,3 +797,20 @@ chart.data = {("B", 5), ("A", 30)} [800ms]
     assert_eq!(timeline.world.bar_data_transitions(track).len(), 1);
     assert_eq!(timeline.world.bar_data_transitions(track)[0].to[0].0, "B");
 }
+#[test]
+fn inspector_reads_automatic_and_explicit_bar_spacing() {
+    let timeline = super::support::build_timeline(
+        r#"automatic: BarChart, data: {("A", 10), ("B", 20)}
+explicit: BarChart, data: {("A", 10), ("B", 20)}, bar_width: 16, gap: 6
+"#,
+    );
+    for (property, expected) in [("bar_width", 16.), ("gap", 6.)] {
+        let schema = crate::timeline::property_registry::lookup_property(property).unwrap();
+        let read = |actor| {
+            let id = timeline.get_entity_id(actor).unwrap();
+            timeline.world().read_property_value_or_default(id, schema, 0)
+        };
+        assert_eq!(read("automatic"), crate::timeline::PropertyValue::String("auto".into()));
+        assert_eq!(read("explicit"), crate::timeline::PropertyValue::F32(expected));
+    }
+}

@@ -269,7 +269,7 @@ pub fn evaluate_arrow(
     let shape = ctx.shape.expect("arrow primitive requires shape component");
     let mut line_from = shape.line_from.get(ctx.time_ms, [-50.0, 0.0]);
     let mut line_to = shape.line_to.get(ctx.time_ms, [50.0, 0.0]);
-    let head_size = shape.head_size.get(ctx.time_ms, 10.0);
+    let mut head_size = shape.head_size.get(ctx.time_ms, 10.0);
 
     if let Some((actor, anchor)) = shape.from_anchor.as_ref()
         && let Some(resolver) = ctx.target_resolver
@@ -292,6 +292,9 @@ pub fn evaluate_arrow(
         }
         if let Some(Value::Vec2(to)) = overrides.get("to") {
             line_to = [to[0] as f32, to[1] as f32];
+        }
+        if let Some(Value::Num(value)) = overrides.get("head_size") {
+            head_size = *value as f32;
         }
     }
 

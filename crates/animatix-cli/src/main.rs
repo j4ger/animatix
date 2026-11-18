@@ -56,6 +56,13 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Create a self-contained narrated project in a new or empty directory.
+    Init {
+        #[arg(default_value = ".")]
+        directory: PathBuf,
+    },
+    /// Diagnose GPU, font, audio muxing, and MP4 encoder availability.
+    Doctor,
     /// Print the scene table for a multi-scene file (name/start/duration/transitions)
     Timeline {
         /// The input Animatix scene file (.amx)
@@ -356,6 +363,20 @@ fn main() {
 
 fn dispatch(command: Commands, extensions: &CliExtensions) {
     match command {
+        Commands::Init { directory } => {
+            match animatix_render::delivery::create_project(&directory) {
+                Ok(scene) => println!("Created {}", scene.display()),
+                Err(err) => {
+                    eprintln!("Could not create a project in {}: {err}", directory.display());
+                    std::process::exit(1);
+                },
+            }
+        },
+        Commands::Doctor => {
+            if !animatix_render::delivery::print_doctor() {
+                std::process::exit(1);
+            }
+        },
         Commands::Timeline { input } => {
             commands::timeline::run(&input);
         },

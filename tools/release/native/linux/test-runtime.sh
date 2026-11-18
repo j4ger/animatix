@@ -61,6 +61,7 @@ fi
 testdir=/tmp/animatix-linux-package-test
 mkdir -p "$testdir"
 cd "$testdir"
+python3 /workspace/tools/release/native/test-first-run.py /package/bin "$testdir/first-run"
 # Every media operation uses the package; no system codec library can hide a
 # missing dependency in the bundled closure.
 /package/bin/ffmpeg -hide_banner -loglevel error -f lavfi \
@@ -170,14 +171,14 @@ assert_audio out.webm webm-audio 882
 # A version flag does not start eframe or create a preview. Verify a real GUI
 # window under the clean host's virtual display, then close the test process.
 xvfb-run -a sh -eu -c '
-  /package/bin/animatix-gui scene.amx >gui.log 2>&1 &
+  /package/bin/animatix-gui "first-run/Narrated Project/main.amx" >gui.log 2>&1 &
   gui_pid=$!
   trap "kill $gui_pid 2>/dev/null || true" EXIT INT TERM
   found=false
   for attempt in $(seq 1 40); do
     kill -0 "$gui_pid" 2>/dev/null || { cat gui.log >&2; exit 1; }
     xwininfo -root -tree > gui-window-tree.txt
-    if grep -E "Animatix|scene.amx" gui-window-tree.txt >/dev/null; then found=true; break; fi
+    if grep -E "Animatix|main.amx" gui-window-tree.txt >/dev/null; then found=true; break; fi
     sleep 0.5
   done
   [ "$found" = true ] || { cat gui.log >&2; echo "GUI did not create a window" >&2; exit 1; }

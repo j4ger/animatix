@@ -150,6 +150,7 @@ g: Graph, grid: enabled, ticks: enabled
 pub component GraphCard(draw: Bool) {
   hosted: Graph, grid: draw, ticks: draw
 }
+
 instance: GraphCard, draw: true
 "#,
     );
@@ -164,6 +165,33 @@ instance: GraphCard, draw: true
         .filter(|diagnostic| diagnostic.code == DiagnosticCode::TypeMismatch)
         .collect();
     assert_eq!(mismatches.len(), 2, "strings must be rejected for boolean flags: {invalid:?}");
+}
+
+#[test]
+fn inline_actors_get_property_diagnostics_at_their_own_values() {
+    let source = concat!(
+        "row: Row {\n",
+        "  nested: Col {\n",
+        "    labeled: Rect, opacity: \"late\", bogus_property: 1\n",
+        "    Rect, opacity: \"late\"\n",
+        "  }\n",
+        "}\n",
+        "top: Rect, opacity: \"late\"\n",
+    );
+    let (stmts, errors) = crate::parser::parse_source(source);
+    assert!(errors.is_empty(), "unexpected parse errors: {errors:?}");
+    let stmts = stmts.unwrap();
+    let symbols = SymbolTable::build_from_ast(&stmts);
+    let diagnostics = collect_semantic_diagnostics(&stmts, &symbols, &[], source);
+    let locations = |code| {
+        diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == code)
+            .map(|diagnostic| diagnostic.location.line.unwrap())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(locations(DiagnosticCode::TypeMismatch), [3, 4, 7]);
+    assert_eq!(locations(DiagnosticCode::UnknownProperty), [3]);
 }
 
 fn unknown_types(stmts: &[Stmt], symbols: &SymbolTable) -> Vec<String> {

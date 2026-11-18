@@ -90,6 +90,7 @@ pub enum ViewAction {
     ResetLayout,
     OpenFileDialog,
     NewFile,
+    NewProject,
     SaveAsDialog,
     OpenSettings,
     OpenShortcuts,

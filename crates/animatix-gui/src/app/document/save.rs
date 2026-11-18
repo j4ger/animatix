@@ -39,28 +39,18 @@ pub fn default_file_path() -> PathBuf {
 }
 
 pub(super) fn atomic_write(path: &Path, contents: &str) -> Result<(), GuiError> {
-    let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    let file_name = path.file_name().and_then(|name| name.to_str()).unwrap_or("animatix");
-    let temp_path = parent.join(format!(".{file_name}.{}.tmp", std::process::id()));
-
-    let write_result = (|| -> std::io::Result<()> {
-        let mut file = fs::File::create(&temp_path)?;
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    (|| -> std::io::Result<()> {
+        let mut file = tempfile::NamedTempFile::new_in(parent)?;
         file.write_all(contents.as_bytes())?;
-        file.sync_all()?;
-        drop(file);
-
-        #[cfg(windows)]
-        if path.exists() {
-            fs::remove_file(path)?;
-        }
-
-        fs::rename(&temp_path, path)
-    })();
-
-    if write_result.is_err() {
-        let _ = fs::remove_file(&temp_path);
-    }
-    write_result.map_err(|err| GuiError::Io {
+        file.as_file().sync_all()?;
+        file.persist(path).map_err(|err| err.error)?;
+        Ok(())
+    })()
+    .map_err(|err| GuiError::Io {
         path: path.to_path_buf(),
         source: err,
     })

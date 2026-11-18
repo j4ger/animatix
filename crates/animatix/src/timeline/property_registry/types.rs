@@ -106,6 +106,8 @@ impl PropertyFlags {
     pub const PRESENCE: Self = Self(0b0010_0000);
     /// Changes to this property require regenerating vector paths.
     pub const PATH_AFFECTING: Self = Self(0b0100_0000);
+    /// No frame consumer samples an `always` override for this property.
+    pub const NO_FRAME_OVERRIDE: Self = Self(0b1000_0000);
 
     /// `ANIMATED | ASSIGNABLE` combined.
     pub const ASSIGNABLE_A: Self = Self(0b0000_0011);
@@ -489,7 +491,7 @@ pub struct PropertySchema {
     pub applicable: Applicable,
 
     /// Default when the actor does not declare it; runtime-computed because some
-    /// defaults depend on actor kind (`font_size`: 48 Text, 36 Typst, 24 Code).
+    /// defaults depend on actor kind (`font_size`: 48 Text and Typst, 24 Code).
     pub default_value:
         fn(&crate::timeline::ActorCaps) -> crate::timeline::property_engine::PropertyValue,
     /// How this property is read at frame time (env injection, `_animating` flags).
@@ -497,6 +499,16 @@ pub struct PropertySchema {
 }
 
 impl PropertySchema {
+    /// Whether the actor samples an override from `always` for this property.
+    pub(crate) fn supports_frame_override(&self, actor_type: &str) -> bool {
+        self.flags.contains(PropertyFlags::ANIMATED)
+            && !self.flags.contains(PropertyFlags::NO_FRAME_OVERRIDE)
+            && !matches!(
+                (actor_type, self.name),
+                ("Glass", "corner_radius") | ("Legend", "font_size" | "text_max_width")
+            )
+    }
+
     /// `true` if this property affects spatial placement, dimensions, or transform.
     pub fn is_spatial(&self) -> bool {
         self.flags.contains(PropertyFlags::SPATIAL)

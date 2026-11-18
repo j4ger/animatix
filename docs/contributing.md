@@ -47,6 +47,38 @@ The current packaging scripts build a different, relocatable distribution. A
 successful packaging check does not establish that an older uploaded release was
 built with those scripts. Recheck this caveat when replacing the nightly artifact.
 
+### Create a narrated project from a video-enabled package
+
+Keep the extracted binaries and bundled media tools together. From a folder
+outside the repository, run the following commands using the package's CLI.
+
+```sh
+animatix doctor
+animatix init "My Narrated Project"
+animatix check "My Narrated Project/main.amx"
+animatix-gui "My Narrated Project/main.amx"
+animatix video "My Narrated Project/main.amx" --hold 0 --output narrated.mp4
+```
+
+Use the paths to the extracted binaries if they are outside `PATH`. On Windows
+the binaries have an `.exe` suffix. In the workbench, **New narrated project…**
+in the file menu also creates and opens the starter. Choose a new or empty
+directory. Keep `narration.mp3` and `narration.speech.json` beside `main.amx`
+when moving the project. The scene uses the transcript's cue markers to time
+the graphics and displays captions from the same transcript.
+
+Run `animatix-gui --doctor` from a terminal if the workbench cannot open a
+preview or export. The report checks the renderer, text shaping, FFmpeg's AAC
+encoder and the linked H.264 encoder. A video-enabled Linux package provides
+both the encoder and the muxing executable. The macOS and Windows packaging
+proof runs separately from the published release workflow. [Native video proof](../tools/release/native/video-proof.sh)
+
+The native proof pins the vcpkg ports tree and its FFmpeg 8.x dependency set.
+It builds against those headers, links the macOS libraries statically, and
+stages the Windows DLLs beside both executables. Both stages carry the same
+FFmpeg tools used for muxing and inspection. Update the pin as a unit and rerun
+both native proofs before changing the published artifacts.
+
 ### Video export
 
 CLI and GUI builds do **not** enable video by default. Enable it explicitly:

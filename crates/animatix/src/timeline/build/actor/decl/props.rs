@@ -654,30 +654,43 @@ impl Timeline {
         for prop in props {
             if let Some(schema) = crate::timeline::property_registry::lookup_property(&prop.name) {
                 let field = schema.field_for_actor(caps, &actor_type);
-                if !matches!(
-                    field,
-                    crate::timeline::ActorField::Tagged(_)
-                        | crate::timeline::ActorField::Blend
-                        | crate::timeline::ActorField::FillGradient
-                        | crate::timeline::ActorField::StrokeGradient
-                        | crate::timeline::ActorField::GradientExtend
-                        | crate::timeline::ActorField::GradientSpace
-                        | crate::timeline::ActorField::Scale
-                        | crate::timeline::ActorField::MinWidth
-                        | crate::timeline::ActorField::MinHeight
-                        | crate::timeline::ActorField::MaxHeight
-                        | crate::timeline::ActorField::MaxItemWidth
-                        | crate::timeline::ActorField::AudioVolume
-                        | crate::timeline::ActorField::HeadSize
-                        | crate::timeline::ActorField::LabelAt
-                        | crate::timeline::ActorField::CalloutTarget
-                        | crate::timeline::ActorField::CalloutStandoff
-                        | crate::timeline::ActorField::CalloutToOffset
-                        | crate::timeline::ActorField::LineFrom
-                        | crate::timeline::ActorField::LineTo
-                        | crate::timeline::ActorField::TextContent
-                        | crate::timeline::ActorField::TextMaxWidth
-                ) {
+                let caption_typography = caps.child_processing
+                    == animatix_core::caps::ChildProcessingKind::Captions
+                    && matches!(
+                        field,
+                        crate::timeline::ActorField::FontSize
+                            | crate::timeline::ActorField::FontFamily
+                            | crate::timeline::ActorField::FontWeight
+                            | crate::timeline::ActorField::FontStyle
+                            | crate::timeline::ActorField::LineHeight
+                            | crate::timeline::ActorField::WordSpacing
+                    );
+                if !caption_typography
+                    && !matches!(
+                        field,
+                        crate::timeline::ActorField::Tagged(_)
+                            | crate::timeline::ActorField::Blend
+                            | crate::timeline::ActorField::FillGradient
+                            | crate::timeline::ActorField::StrokeGradient
+                            | crate::timeline::ActorField::GradientExtend
+                            | crate::timeline::ActorField::GradientSpace
+                            | crate::timeline::ActorField::Scale
+                            | crate::timeline::ActorField::MinWidth
+                            | crate::timeline::ActorField::MinHeight
+                            | crate::timeline::ActorField::MaxHeight
+                            | crate::timeline::ActorField::MaxItemWidth
+                            | crate::timeline::ActorField::AudioVolume
+                            | crate::timeline::ActorField::HeadSize
+                            | crate::timeline::ActorField::LabelAt
+                            | crate::timeline::ActorField::CalloutTarget
+                            | crate::timeline::ActorField::CalloutStandoff
+                            | crate::timeline::ActorField::CalloutToOffset
+                            | crate::timeline::ActorField::LineFrom
+                            | crate::timeline::ActorField::LineTo
+                            | crate::timeline::ActorField::TextContent
+                            | crate::timeline::ActorField::TextMaxWidth
+                    )
+                {
                     continue;
                 }
                 if field == crate::timeline::ActorField::CalloutTarget {

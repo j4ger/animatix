@@ -109,6 +109,8 @@ web-performance|web-ci|ubuntu-latest|nix|site
 dist-linux|dist-driver|ubuntu-latest|nix|release
 dist-macos|native|macos-latest|rust-stable|release
 dist-windows|native|windows-latest|rust-stable|release
+native-video-proof|native|macos-latest|rust-stable|control
+native-video-proof|native|windows-latest|rust-stable|control
 ci-plan|none|ubuntu-latest|none|control
 ci-result|none|ubuntu-latest|none|control
 release-resolve|none|ubuntu-latest|none|control
@@ -967,6 +969,11 @@ gate_dist_windows() {
   check_binary target/dist/animatix.exe "$want"
   check_binary target/dist/animatix-gui.exe "$want"
   bash tools/release/dist-package.sh windows target/dist
+}
+
+gate_native_video_proof() {
+  want_cargo
+  bash tools/release/native/video-proof.sh
 }
 
 # ── setup ─────────────────────────────────────────────────────────────────────

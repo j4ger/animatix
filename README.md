@@ -40,6 +40,8 @@ accent.size = (640, 3) [800ms, ease: ease_out]
 
 **Download** · See [releases](https://github.com/j4ger/animatix/releases) for available builds. The current [Linux x86-64 nightly](https://github.com/j4ger/animatix/releases/tag/nightly) is a development snapshot, not a standalone installer; see [download caveats](docs/contributing.md#downloaded-builds). For a matching build environment, use Nix below.
 
+Use a video-enabled build to create, preview and export the narrated starter from a folder outside the repository. [First project instructions](docs/contributing.md#create-a-narrated-project-from-a-video-enabled-package)
+
 <details>
 <summary><strong>Build from source with Nix</strong></summary>
 

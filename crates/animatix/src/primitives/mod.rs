@@ -64,7 +64,9 @@ pub(crate) use styling::{ShapeCommandMemo, evaluate_shape_render, stamp_stroke_d
 #[cfg(any(test, feature = "plugin-loading"))]
 pub(crate) use r#trait::clip_bezpath_from_commands;
 pub use r#trait::{Primitive, evaluate_text_paths};
-pub(crate) use r#trait::{resolve_half_size, unreadable_layout_value};
+pub(crate) use r#trait::{
+    evaluate_text_paths_with_content, resolve_half_size, unreadable_layout_value,
+};
 
 /// Child-rendering strategy selected by a primitive.
 pub use animatix_syntax::schema::ChildProcessingKind as ChildProcessing;

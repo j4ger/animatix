@@ -32,6 +32,27 @@ impl GuiShell {
                     ))],
                 }
             },
+            ViewAction::NewProject => {
+                if self.document_store.source.is_dirty() {
+                    self.ui_store.unsaved_changes.open(
+                        "Save changes before creating a narrated project?",
+                        ShellAction::View(ViewAction::NewProject),
+                    );
+                    return vec![];
+                }
+                let Some(directory) = rfd::FileDialog::new()
+                    .set_title("Choose a new or empty project folder")
+                    .pick_folder()
+                else {
+                    return vec![];
+                };
+                match animatix_render::delivery::create_project(&directory) {
+                    Ok(scene) => self.handle_command(Command::OpenFile(scene)),
+                    Err(err) => vec![Effect::Toast(crate::app::components::toast::Toast::error(
+                        format!("Could not create a project in {}: {err}", directory.display()),
+                    ))],
+                }
+            },
             ViewAction::SaveAsDialog => {
                 // Saving under a new name would clear the current document's
                 // sidecar, so require the recovery decision first.

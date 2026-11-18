@@ -27,7 +27,7 @@ pub enum ExportError {
     ThreadPanicked,
     /// Export was cancelled by the user.
     Cancelled,
-    /// ffmpeg binary not found on PATH.
+    /// No usable bundled or PATH ffmpeg executable.
     FfmpegNotFound,
     /// Internal export error (e.g. target/format mismatch).
     Internal(String),
@@ -49,7 +49,7 @@ impl std::fmt::Display for ExportError {
             Self::Cancelled => write!(f, "Export cancelled by user"),
             Self::FfmpegNotFound => write!(
                 f,
-                "ffmpeg is required for audio muxing. Install it from https://ffmpeg.org or via your package manager (e.g. `apt install ffmpeg`, `brew install ffmpeg`)."
+                "Audio muxing requires a working ffmpeg executable. Reinstall the Animatix video package, or install FFmpeg from https://ffmpeg.org and add it to PATH."
             ),
             Self::Internal(msg) => write!(f, "Internal export error: {msg}"),
         }

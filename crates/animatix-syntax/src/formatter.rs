@@ -617,6 +617,17 @@ mod tests {
     }
 
     #[test]
+    fn nested_inline_for_items_use_one_indent_per_level() {
+        let source = "#0s\nrow: Row {\nfor i in {0, 1} {\ntile[i]: Rect\n}\n}\n";
+        let expected =
+            "#0s\n  row: Row {\n    for i in {0, 1} {\n      tile[i]: Rect\n    }\n  }\n";
+        let formatter = Formatter::default();
+        let output = formatter.format_source(source, &parse(source));
+        assert_eq!(output, expected);
+        assert_eq!(formatter.format_source(&output, &parse(&output)), expected);
+    }
+
+    #[test]
     fn escaped_string_content_is_idempotent() {
         let source =
             r#"label: Text, text: "path=C:\tmp\file, line\nnext, quote: \"hi\", token: \$name""#;

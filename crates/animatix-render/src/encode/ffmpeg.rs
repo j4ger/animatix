@@ -1,22 +1,42 @@
 //! `ffmpeg` discovery and CLI-based audio muxing for the export paths.
 
+use std::ffi::{OsStr, OsString};
 use std::sync::OnceLock;
 
 use super::ExportError;
 
-static FFMPEG_AVAILABLE: OnceLock<bool> = OnceLock::new();
+static FFMPEG: OnceLock<Option<OsString>> = OnceLock::new();
 
-/// Check whether `ffmpeg` is available on PATH. Result is cached after first call.
+/// Check for bundled `ffmpeg` beside the executable, then on PATH.
+/// The result is cached after the first call.
 pub fn is_ffmpeg_available() -> bool {
-    *FFMPEG_AVAILABLE.get_or_init(|| {
-        std::process::Command::new("ffmpeg")
-            .arg("-version")
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
-    })
+    ffmpeg().is_some()
+}
+
+fn ffmpeg() -> Option<&'static OsStr> {
+    FFMPEG
+        .get_or_init(|| {
+            let binary = if cfg!(windows) {
+                "ffmpeg.exe"
+            } else {
+                "ffmpeg"
+            };
+            let program = std::env::current_exe()
+                .ok()
+                .map(|path| path.with_file_name(binary))
+                .filter(|path| path.is_file())
+                .map(|path| path.into_os_string())
+                .unwrap_or_else(|| binary.into());
+            let available = std::process::Command::new(&program)
+                .arg("-version")
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+            available.then_some(program)
+        })
+        .as_deref()
 }
 
 /// Returns `Ok(())` if ffmpeg is available, `Err(ExportError::FfmpegNotFound)` otherwise.
@@ -25,6 +45,26 @@ pub fn require_ffmpeg() -> Result<(), ExportError> {
         Ok(())
     } else {
         Err(ExportError::FfmpegNotFound)
+    }
+}
+
+#[cfg(all(feature = "raster-encode", not(target_arch = "wasm32")))]
+pub(crate) fn check_aac_encoder() -> Result<(), String> {
+    let program = ffmpeg().ok_or_else(|| ExportError::FfmpegNotFound.to_string())?;
+    let encoders = std::process::Command::new(program)
+        .args(["-hide_banner", "-encoders"])
+        .output()
+        .map_err(|err| format!("Could not inspect FFmpeg encoders: {err}"))?;
+    let found = encoders.status.success()
+        && String::from_utf8_lossy(&encoders.stdout).lines().any(|line| {
+            let mut fields = line.split_whitespace();
+            fields.next().is_some_and(|flags| flags.starts_with('A'))
+                && fields.next() == Some("aac")
+        });
+    if found {
+        Ok(())
+    } else {
+        Err("FFmpeg audio muxing requires an AAC encoder. Reinstall the Animatix video package or install a full FFmpeg build.".into())
     }
 }
 
@@ -51,7 +91,7 @@ pub fn mux_audio_segments(
         return Ok(());
     }
 
-    require_ffmpeg()?;
+    let ffmpeg = ffmpeg().ok_or(ExportError::FfmpegNotFound)?;
 
     let is_webm = output_path.extension().map(|e| e == "webm").unwrap_or(false);
 
@@ -129,7 +169,7 @@ pub fn mux_audio_segments(
     filter_chains.push(mix_filter);
     let filter_complex = filter_chains.join(";");
 
-    let mut cmd = std::process::Command::new("ffmpeg");
+    let mut cmd = std::process::Command::new(ffmpeg);
     cmd.arg("-y");
     cmd.arg("-i").arg(video_path);
     for seg in segments {

@@ -183,3 +183,34 @@ box.shadow = (20,8,12,2) [1s]
         );
     }
 }
+
+#[test]
+fn reactive_dashes_use_sampled_pattern_and_offset() {
+    let timeline = super::support::build_timeline(
+        r##"
+config { resolution:(400,200), duration:3 }
+box: Rect, size:(100,60), at:(200,100), opacity:1, stroke:"#ffffff", stroke_width:4
+always {
+  box.dash_pattern = {4 + t, 3}
+  box.dash_offset = 10 * t
+}
+"##,
+    );
+    for time in [0., 0.5, 1., 0.5, 0., 1.] {
+        let program = timeline.evaluate_program_with_debug(
+            time,
+            SceneDimensions {
+                width: 400,
+                height: 200,
+            },
+            DebugRenderOptions::default(),
+            &mut None,
+        );
+        let item = program.items.iter().find(|item| item.label == "box").unwrap();
+        let Some(crate::primitives::RenderCommand::Paths { paths }) = item.commands.first() else {
+            panic!("expected vector paths at {time}s");
+        };
+        assert_eq!(paths[0].dash_pattern.as_deref(), Some([4. + time as f32, 3.].as_slice()));
+        assert_eq!(paths[0].dash_offset, 10. * time as f32);
+    }
+}

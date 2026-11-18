@@ -1,0 +1,42 @@
+name: Native Video Proof
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'codex/p0-native-proof'
+  pull_request:
+    paths:
+      - '.github/workflows/native-video-proof.yml'
+      - 'tools/release/native/video-proof.sh'
+      - 'tools/release/native/test-first-run.py'
+
+permissions:
+  contents: read
+
+jobs:
+  native-video:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: native-video-proof
+      - name: Build and verify the narrated starter on the target OS
+        shell: bash
+        run: tools/ci/ci.sh gate native-video-proof
+      - name: Retain native export evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-video-proof-${{ matrix.os }}-${{ github.sha }}
+          path: target/native-video-proof/evidence/
+          retention-days: 7

@@ -35,5 +35,11 @@ rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg8", 
 animatix = { path = "../animatix", features = ["image-decode"] }
 tempfile = "3"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+wgpu = { workspace = true, features = ["metal"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+wgpu = { workspace = true, features = ["dx12"] }
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm_split = { workspace = true }

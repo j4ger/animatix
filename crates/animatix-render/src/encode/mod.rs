@@ -52,6 +52,8 @@ pub use video::{
 };
 
 pub use export_error::ExportError;
+#[cfg(all(feature = "raster-encode", not(target_arch = "wasm32")))]
+pub(crate) use ffmpeg::check_aac_encoder;
 pub use ffmpeg::{is_ffmpeg_available, mux_audio_segments, require_ffmpeg};
 
 use std::sync::atomic::{AtomicBool, AtomicU32};
