@@ -35,6 +35,8 @@ phase() {
 }
 
 printf 'vcpkg_commit=%s\ntriplet=%s\n' "$vcpkg_rev" "$triplet" > "$output/evidence/build-inputs.txt"
+printf 'cargo_dist_lto=%s\ncargo_dist_codegen_units=%s\n' \
+  "${CARGO_PROFILE_DIST_LTO:-fat}" "${CARGO_PROFILE_DIST_CODEGEN_UNITS:-1}" >> "$output/evidence/build-inputs.txt"
 vcpkg="$output/vcpkg-$vcpkg_rev"
 if [ ! -x "$vcpkg/vcpkg$ext" ]; then
   mkdir -p "$vcpkg"
@@ -45,8 +47,9 @@ if [ ! -x "$vcpkg/vcpkg$ext" ]; then
 fi
 [ "$(git -C "$vcpkg" rev-parse HEAD)" = "$vcpkg_rev" ]
 
+# The vcpkg port disables autodetection, and FFmpeg's PNG decoder needs zlib.
 phase ffmpeg-build execution "$vcpkg/vcpkg$ext" install --classic \
-  "ffmpeg[avcodec,avdevice,avfilter,avformat,ffmpeg,ffprobe,opus,swresample,swscale,vpx,x264]:$triplet"
+  "ffmpeg[avcodec,avdevice,avfilter,avformat,ffmpeg,ffprobe,opus,swresample,swscale,vpx,x264,zlib]:$triplet"
 installed="$vcpkg/installed/$triplet"
 unset FFMPEG_BINDING_PATH FFMPEG_DLL_PATH FFMPEG_PKG_CONFIG_PATH FFMPEG_LIBS_DIR
 if [ -z "$ext" ]; then
@@ -59,11 +62,7 @@ else
   export FFMPEG_LIBS_DIR="$(cygpath -m "$installed/lib")"
   export FFMPEG_LINK_MODE=dynamic
 fi
-phase gui-test mixed cargo test --locked -p animatix-gui --lib save_and_reopen_preserve_quoted_text_and_typst_payloads
-phase rust-dist-build cargo cargo build --locked --profile dist -p animatix-cli -p animatix-gui --features video
-
 stage="$(mktemp -d "$output/package.XXXXXXXX")"
-cp "target/dist/animatix$ext" "target/dist/animatix-gui$ext" "$stage/"
 for tool in ffmpeg ffprobe; do
   cp "$installed/tools/ffmpeg/$tool$ext" "$stage/"
 done
@@ -78,4 +77,12 @@ for license in "$installed/share/"*/copyright; do
 done
 
 "$stage/ffmpeg$ext" -version >> "$output/evidence/build-inputs.txt"
+if ! "$stage/ffmpeg$ext" -hide_banner -decoders | awk '$2 == "png" { found=1 } END { exit !found }'; then
+  echo 'The staged FFmpeg must decode PNG for the preview check.' >&2
+  exit 1
+fi
+
+phase gui-test mixed cargo test --locked -p animatix-gui --lib save_and_reopen_preserve_quoted_text_and_typst_payloads
+phase rust-dist-build cargo cargo build --locked --profile dist -p animatix-cli -p animatix-gui --features video
+cp "target/dist/animatix$ext" "target/dist/animatix-gui$ext" "$stage/"
 phase narrated-export execution python3 tools/release/native/test-first-run.py "$stage" "$output/evidence"

@@ -22,6 +22,11 @@ jobs:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
+    env:
+      # Use the dist feature set without its single codegen unit and fat LTO
+      # for hosted smoke trials. Release artifacts use the Cargo.toml profile.
+      CARGO_PROFILE_DIST_LTO: 'off'
+      CARGO_PROFILE_DIST_CODEGEN_UNITS: '16'
     steps:
       - uses: actions/checkout@v5
         with:
@@ -29,7 +34,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          key: native-video-proof
+          key: native-video-proof-fast-dist
+          cache-on-failure: true
       - name: Build and verify the narrated starter on the target OS
         shell: bash
         run: tools/ci/ci.sh gate native-video-proof
