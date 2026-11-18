@@ -5,6 +5,11 @@
 //! derive from the core descriptors. Descriptor row order is the serialized
 //! `PropertyId`: append rows, never reorder or remove them.
 
+use super::plot::{
+    DEFAULT_AXIS_DOMAIN, DEFAULT_PARAMETER_DOMAIN, DEFAULT_PLOT_MAX_DEPTH, DEFAULT_PLOT_RESOLUTION,
+    DEFAULT_PLOT_TOLERANCE,
+};
+use super::property_engine::PropertyValue;
 use PropertyFlags as F;
 use ValueType as V;
 
@@ -166,13 +171,13 @@ static BINDINGS: &[PropertyBinding] = &[
     b!(
         "anchor",
         V::SceneAnchor,
-        F::ASSIGNABLE_AI,
+        F::ASSIGNABLE_AI.union(F::NO_FRAME_OVERRIDE),
         PositionBindingGroup,
         val!(str "center"),
         ReadSource::None_
     ),
     b!("arrow", V::Bool, F::ASSIGNABLE_AI, Tagged, val!(bool true)),
-    b!("ascent", V::F32, F::ANIMATED, Ascent, val!(f32 0.0)),
+    b!("ascent", V::F32, F::ANIMATED.union(F::NO_FRAME_OVERRIDE), Ascent, val!(f32 0.0)),
     b!(
         "at",
         V::Vec2,
@@ -194,37 +199,64 @@ static BINDINGS: &[PropertyBinding] = &[
     b!(
         "background_color",
         V::Color,
-        F::ASSIGNABLE_AI,
+        F::ASSIGNABLE_AI.union(F::NO_FRAME_OVERRIDE),
         Color,
         val!(color 0.0, 0.0, 0.0, 1.0),
         ReadSource::None_
     ),
     b!("bar_colors", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "auto")),
     b!("bar_width", V::F32, F::empty(), NoStorage, val!(f32 0.0)),
-    b!("baseline", V::F32, F::ANIMATED, Baseline, val!(f32 0.0)),
+    b!(
+        "baseline",
+        V::F32,
+        F::ANIMATED.union(F::NO_FRAME_OVERRIDE),
+        Baseline,
+        val!(f32 0.0)
+    ),
     // `blend` and `dash_pattern` are deliberately not INJECTABLE: the frame
     // environment injects every INJECTABLE row of every actor every frame, and a
     // blend name / dash list is written and stamped, never read back. See the note
     // on `fill_gradient`.
-    b!("blend", V::String, F::ASSIGNABLE_A, Blend, val!(str "normal")),
+    b!(
+        "blend",
+        V::String,
+        F::ASSIGNABLE_A.union(F::NO_FRAME_OVERRIDE),
+        Blend,
+        val!(str "normal")
+    ),
     b!(
         "bounds",
         V::Vec4,
-        F::ASSIGNABLE_AI,
+        F::ASSIGNABLE_AI.union(F::NO_FRAME_OVERRIDE),
         Tagged("filter_bounds"),
         val!(vec4 0.0, 0.0, 0.0, 0.0)
     ),
     b!("camera_follow", V::BuildTimeOnly, F::empty(), NoStorage, val!(bool true)),
     b!("caption_mode", V::String, F::ASSIGNABLE_AI, Tagged, val!(str "block")),
-    b!("char_progress", V::F32, F::ASSIGNABLE_AI, CharProgress, val!(f32 1.0)),
+    b!(
+        "char_progress",
+        V::F32,
+        F::ASSIGNABLE_AI.union(F::NO_FRAME_OVERRIDE),
+        CharProgress,
+        val!(f32 1.0)
+    ),
     b!("code", V::String, F::ANIMATED, TextContent, val!(str "")),
     b!("color", V::Color, F::ASSIGNABLE_AI, Color, val!(color 1.0, 1.0, 1.0, 1.0)),
-    b!("cols", V::U32, F::empty(), ContainerLayoutGroup, val!(u32 2)),
+    b!(
+        "cols",
+        V::U32,
+        F::empty(),
+        ContainerLayoutGroup,
+        val!(u32 super::layout::DEFAULT_GRID_COLS as u32)
+    ),
     b!("comma", V::Bool, F::ASSIGNABLE_AI, Tagged, val!(bool false)),
     b!(
         "commands",
         V::CommandList,
-        F::ASSIGNABLE_A.union(F::SPATIAL).union(F::PATH_AFFECTING),
+        F::ASSIGNABLE_A
+            .union(F::SPATIAL)
+            .union(F::PATH_AFFECTING)
+            .union(F::NO_FRAME_OVERRIDE),
         Commands,
         val!(commands)
     ),
@@ -234,7 +266,13 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("data", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "auto")),
     b!("decimals", V::U32, F::ASSIGNABLE_AI, Tagged, val!(u32 0)),
     b!("density", V::F32, F::empty(), PlotDomainGroup, val!(f32 16.0)),
-    b!("descent", V::F32, F::ANIMATED, Descent, val!(f32 0.0)),
+    b!(
+        "descent",
+        V::F32,
+        F::ANIMATED.union(F::NO_FRAME_OVERRIDE),
+        Descent,
+        val!(f32 0.0)
+    ),
     b!("direction", V::String, F::empty(), NoStorage, val!(str "vertical")),
     b!("end", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
     b!("fill_gradient", V::Gradient, F::ASSIGNABLE_A, FillGradient, val!(gradient)),
@@ -253,22 +291,36 @@ static BINDINGS: &[PropertyBinding] = &[
         FontSize,
         val!(
             caps | caps | {
+                use crate::renderer::text::{TextKind, default_font_size};
+                use crate::timeline::actor_caps::TextKind as ActorTextKind;
+                if caps.child_processing == animatix_core::caps::ChildProcessingKind::Captions {
+                    return PropertyValue::F32(crate::primitives::captions::DEFAULT_FONT_SIZE);
+                }
                 match caps.text {
-                    Some(crate::timeline::actor_caps::TextKind::Text)
-                    | Some(crate::timeline::actor_caps::TextKind::Counter) => {
-                        super::property_engine::PropertyValue::F32(48.0)
+                    Some(ActorTextKind::Text) => {
+                        PropertyValue::F32(default_font_size(TextKind::Text))
                     },
-                    Some(crate::timeline::actor_caps::TextKind::Typst) => {
-                        super::property_engine::PropertyValue::F32(36.0)
+                    Some(ActorTextKind::Math) => {
+                        PropertyValue::F32(default_font_size(TextKind::Math))
                     },
-                    _ => super::property_engine::PropertyValue::F32(24.0),
+                    Some(ActorTextKind::Typst) => {
+                        PropertyValue::F32(default_font_size(TextKind::Typst))
+                    },
+                    Some(ActorTextKind::Counter) => {
+                        PropertyValue::F32(crate::primitives::counter::DEFAULT_FONT_SIZE)
+                    },
+                    Some(ActorTextKind::Code) | None => {
+                        PropertyValue::F32(default_font_size(TextKind::Code))
+                    },
                 }
             }
         )
     ),
     b!("font_style", V::String, F::ASSIGNABLE_A, FontStyle, val!(str "normal")),
     b!("font_weight", V::F32, F::ASSIGNABLE_A, FontWeight, val!(f32 400.0)),
-    b!("from", V::Vec2, F::SPATIAL_PATH_AI, LineFrom, val!(vec2 0.0, 0.0)),
+    b!("from", V::Vec2, F::SPATIAL_PATH_AI, LineFrom, |_| ActorField::LineFrom
+        .default_value()
+        .expect("line start default")),
     b!("func", V::BuildTimeOnly, F::empty(), PlotDomainGroup, val!(str "")),
     b!("gap", V::F32, F::empty(), ContainerLayoutGroup, val!(f32 0.0)),
     b!("gradient_extend", V::String, F::ASSIGNABLE_A, GradientExtend, val!(str "pad")),
@@ -278,7 +330,10 @@ static BINDINGS: &[PropertyBinding] = &[
     b!(
         "height",
         V::F32,
-        F::ANIMATED_I.union(F::SPATIAL).union(F::PATH_AFFECTING),
+        F::ANIMATED_I
+            .union(F::SPATIAL)
+            .union(F::PATH_AFFECTING)
+            .union(F::NO_FRAME_OVERRIDE),
         Size,
         val!(f32 100.0),
         ReadSource::Component {
@@ -290,13 +345,31 @@ static BINDINGS: &[PropertyBinding] = &[
     b!(
         "highlight_color",
         V::Color,
-        F::ANIMATED,
+        F::ANIMATED.union(F::NO_FRAME_OVERRIDE),
         HighlightColor,
         val!(vec4 0.3, 0.5, 1.0, 1.0)
     ),
-    b!("highlight_opacity", V::F32, F::ANIMATED, HighlightOpacity, val!(f32 0.0)),
-    b!("highlight_padding", V::F32, F::ANIMATED, HighlightPadding, val!(f32 4.0)),
-    b!("highlight_radius", V::F32, F::ANIMATED, HighlightRadius, val!(f32 3.0)),
+    b!(
+        "highlight_opacity",
+        V::F32,
+        F::ANIMATED.union(F::NO_FRAME_OVERRIDE),
+        HighlightOpacity,
+        val!(f32 0.0)
+    ),
+    b!(
+        "highlight_padding",
+        V::F32,
+        F::ANIMATED.union(F::NO_FRAME_OVERRIDE),
+        HighlightPadding,
+        val!(f32 4.0)
+    ),
+    b!(
+        "highlight_radius",
+        V::F32,
+        F::ANIMATED.union(F::NO_FRAME_OVERRIDE),
+        HighlightRadius,
+        val!(f32 3.0)
+    ),
     b!("icon", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "")),
     b!("idle", V::String, F::ASSIGNABLE_AI, Tagged, val!(str "")),
     b!(
@@ -312,7 +385,7 @@ static BINDINGS: &[PropertyBinding] = &[
     b!(
         "label_color",
         V::Color,
-        F::ASSIGNABLE_A,
+        F::ASSIGNABLE_A.union(F::NO_FRAME_OVERRIDE),
         Tagged("legend_label_color"),
         val!(color 1.0, 1.0, 1.0, 1.0)
     ),
@@ -323,18 +396,42 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("line_cap", V::U32, F::ASSIGNABLE_AI, LineCap, val!(u32 0)),
     b!("line_height", V::F32, F::ASSIGNABLE_A, LineHeight, val!(f32 1.2)),
     b!("line_join", V::U32, F::ASSIGNABLE_AI, LineJoin, val!(u32 0)),
-    b!("max_depth", V::F32, F::empty(), PlotDomainGroup, val!(f32 12.0)),
-    b!("max_height", V::F32, F::SPATIAL_AI, MaxHeight, val!(f32 f32::INFINITY)),
+    b!(
+        "max_depth",
+        V::F32,
+        F::empty(),
+        PlotDomainGroup,
+        val!(f32 DEFAULT_PLOT_MAX_DEPTH as f32)
+    ),
+    b!(
+        "max_height",
+        V::F32,
+        F::SPATIAL_AI.union(F::NO_FRAME_OVERRIDE),
+        MaxHeight,
+        val!(f32 f32::INFINITY)
+    ),
     b!("max_item_width", V::F32, F::SPATIAL_AI, MaxItemWidth, val!(f32 f32::INFINITY)),
     b!("max_lines", V::U32, F::ASSIGNABLE_AI, Tagged, val!(u32 2)),
     b!("max_value", V::F32, F::empty(), NoStorage, val!(f32 0.0)),
     b!("max_width", V::F32, F::ASSIGNABLE_A, TextMaxWidth, val!(f32 0.0)),
-    b!("min_height", V::F32, F::SPATIAL_AI, MinHeight, val!(f32 0.0)),
-    b!("min_width", V::F32, F::SPATIAL_AI, MinWidth, val!(f32 0.0)),
+    b!(
+        "min_height",
+        V::F32,
+        F::SPATIAL_AI.union(F::NO_FRAME_OVERRIDE),
+        MinHeight,
+        val!(f32 0.0)
+    ),
+    b!(
+        "min_width",
+        V::F32,
+        F::SPATIAL_AI.union(F::NO_FRAME_OVERRIDE),
+        MinWidth,
+        val!(f32 0.0)
+    ),
     b!(
         "offset",
         V::Vec2,
-        F::SPATIAL_AI,
+        F::SPATIAL_AI.union(F::NO_FRAME_OVERRIDE),
         PositionBindingGroup,
         val!(vec2 0.0, 0.0),
         ReadSource::None_
@@ -360,7 +457,10 @@ static BINDINGS: &[PropertyBinding] = &[
     b!(
         "points",
         V::PointList,
-        F::ASSIGNABLE_A.union(F::SPATIAL).union(F::PATH_AFFECTING),
+        F::ASSIGNABLE_A
+            .union(F::SPATIAL)
+            .union(F::PATH_AFFECTING)
+            .union(F::NO_FRAME_OVERRIDE),
         Points,
         val!(point_list)
     ),
@@ -391,7 +491,13 @@ static BINDINGS: &[PropertyBinding] = &[
             scale: 1.0
         }
     ),
-    b!("resolution", V::F32, F::empty(), PlotDomainGroup, val!(f32 48.0)),
+    b!(
+        "resolution",
+        V::F32,
+        F::empty(),
+        PlotDomainGroup,
+        val!(f32 DEFAULT_PLOT_RESOLUTION as f32)
+    ),
     b!("rotate_x", V::F32, F::ASSIGNABLE_AI.union(F::SPATIAL), Tagged, val!(f32 0.0)),
     b!("rotate_y", V::F32, F::ASSIGNABLE_AI.union(F::SPATIAL), Tagged, val!(f32 0.0)),
     b!("rotation", V::F32, F::SPATIAL_AI, Rotation, val!(f32 0.0)),
@@ -422,7 +528,13 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("split_mask", V::Bool, F::ASSIGNABLE_A, Tagged, val!(bool false)),
     b!("split_offset_y", V::F32, F::ASSIGNABLE_A, Tagged, val!(f32 0.0)),
     b!("split_stagger", V::F32, F::ASSIGNABLE_A, Tagged, val!(f32 0.0)),
-    b!("standoff", V::F32, F::ASSIGNABLE_AI, CalloutStandoff, val!(f32 40.0)),
+    b!(
+        "standoff",
+        V::F32,
+        F::ASSIGNABLE_AI.union(F::NO_FRAME_OVERRIDE),
+        CalloutStandoff,
+        val!(f32 40.0)
+    ),
     b!("start", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
     b!(
         "stroke",
@@ -433,16 +545,24 @@ static BINDINGS: &[PropertyBinding] = &[
     ),
     b!("stroke_gradient", V::Gradient, F::ASSIGNABLE_A, StrokeGradient, val!(gradient)),
     b!("stroke_progress", V::F32, F::ASSIGNABLE_AI, StrokeProgress, val!(f32 1.0)),
-    b!("stroke_width", V::F32, F::ASSIGNABLE_AI, StrokeWidth, val!(f32 1.0)),
+    b!(
+        "stroke_width",
+        V::F32,
+        F::ASSIGNABLE_AI,
+        StrokeWidth,
+        |caps| PropertyValue::F32(caps.default_stroke_width())
+    ),
     b!("suffix", V::String, F::ASSIGNABLE_AI, Tagged, val!(str "")),
     b!(
         "swatch_size",
         V::F32,
-        F::ASSIGNABLE_A,
+        F::ASSIGNABLE_A.union(F::NO_FRAME_OVERRIDE),
         Tagged("legend_swatch_size"),
         val!(f32 16.0)
     ),
-    b!("t_domain", V::Vec2, F::empty(), PlotDomainGroup, val!(vec2 0.0, 1.0)),
+    b!("t_domain", V::Vec2, F::empty(), PlotDomainGroup, |_| PropertyValue::Vec2(
+        DEFAULT_PARAMETER_DOMAIN.map(|value| value as f32)
+    )),
     b!("target", V::BuildTimeOnly, F::ASSIGNABLE, CalloutTarget, val!(str "")),
     b!("text", V::String, F::ASSIGNABLE_A, TextContent, val!(str "")),
     b!("text_align", V::String, F::ASSIGNABLE_A, TextAlign, val!(str "left")),
@@ -450,17 +570,43 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("text_max_width", V::F32, F::ASSIGNABLE_A, TextMaxWidth, val!(f32 240.0)),
     b!("tick_labels", V::String, F::empty(), PlotDomainGroup, val!(str "auto")),
     b!("ticks", V::Bool, F::empty(), PlotDomainGroup, val!(bool false)),
-    b!("title", V::String, F::ASSIGNABLE_A, Tagged("legend_title"), val!(str "")),
-    b!("to", V::Vec2, F::SPATIAL_PATH_AI, LineTo, val!(vec2 100.0, 0.0)),
-    b!("to_offset", V::Vec2, F::ASSIGNABLE_AI, CalloutToOffset, val!(vec2 0.0, 0.0)),
-    b!("tolerance", V::F32, F::empty(), PlotDomainGroup, val!(f32 2.0)),
+    b!(
+        "title",
+        V::String,
+        F::ASSIGNABLE_A.union(F::NO_FRAME_OVERRIDE),
+        Tagged("legend_title"),
+        val!(str "")
+    ),
+    b!("to", V::Vec2, F::SPATIAL_PATH_AI, LineTo, |_| ActorField::LineTo
+        .default_value()
+        .expect("line end default")),
+    b!(
+        "to_offset",
+        V::Vec2,
+        F::ASSIGNABLE_AI.union(F::NO_FRAME_OVERRIDE),
+        CalloutToOffset,
+        val!(vec2 0.0, 0.0)
+    ),
+    b!(
+        "tolerance",
+        V::F32,
+        F::empty(),
+        PlotDomainGroup,
+        val!(f32 DEFAULT_PLOT_TOLERANCE as f32)
+    ),
     b!("transcript", V::String, F::ASSIGNABLE, Tagged, val!(str "")),
     b!("transform", V::Transform, F::SPATIAL_AI, Transform, val!(transform)),
     b!("transition_time", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
     b!("url", V::String, F::ASSIGNABLE, ImageData, val!(str "")),
     b!("value", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
     b!("vertical_align", V::String, F::empty(), NoStorage, val!(str "center")),
-    b!("volume", V::F32, F::ASSIGNABLE_AI, AudioVolume, val!(f32 1.0)),
+    b!(
+        "volume",
+        V::F32,
+        F::ASSIGNABLE_AI.union(F::NO_FRAME_OVERRIDE),
+        AudioVolume,
+        val!(f32 1.0)
+    ),
     b!(
         "width",
         V::F32,
@@ -474,10 +620,14 @@ static BINDINGS: &[PropertyBinding] = &[
         }
     ),
     b!("word_spacing", V::F32, F::ASSIGNABLE_A, WordSpacing, val!(f32 0.0)),
-    b!("x_domain", V::Vec2, F::empty(), PlotDomainGroup, val!(vec2 - 5.0, 5.0)),
+    b!("x_domain", V::Vec2, F::empty(), PlotDomainGroup, |_| PropertyValue::Vec2(
+        DEFAULT_AXIS_DOMAIN.map(|value| value as f32)
+    )),
     b!("x_range", V::Vec2, F::empty(), PlotDomainGroup, val!(vec2 - 10.0, 10.0)),
     b!("x_scale", V::String, F::empty(), NoStorage, val!(str "linear")),
-    b!("y_domain", V::Vec2, F::empty(), PlotDomainGroup, val!(vec2 - 5.0, 5.0)),
+    b!("y_domain", V::Vec2, F::empty(), PlotDomainGroup, |_| PropertyValue::Vec2(
+        DEFAULT_AXIS_DOMAIN.map(|value| value as f32)
+    )),
     b!("y_range", V::Vec2, F::empty(), PlotDomainGroup, val!(vec2 - 10.0, 10.0)),
     b!("y_scale", V::String, F::empty(), NoStorage, val!(str "linear")),
 ];

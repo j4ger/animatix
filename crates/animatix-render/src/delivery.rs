@@ -1,0 +1,119 @@
+//! Starter project and native capability checks shared by the CLI and workbench.
+
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write};
+use std::path::{Path, PathBuf};
+
+const SCENE: &str = "main.amx";
+const STARTER: [(&str, &[u8]); 3] = [
+    (SCENE, include_bytes!("delivery/starter.amx")),
+    ("narration.mp3", include_bytes!("../../../examples/assets/narration.mp3")),
+    (
+        "narration.speech.json",
+        include_bytes!("../../../examples/assets/narration.speech.json"),
+    ),
+];
+
+/// Create a self-contained narrated project in a new or empty directory.
+/// Returns the scene path. An existing file is never overwritten.
+pub fn create_project(directory: &Path) -> io::Result<PathBuf> {
+    let created_dir = match fs::create_dir(directory) {
+        Ok(()) => true,
+        Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
+            if fs::read_dir(directory)?.next().transpose()?.is_some() {
+                return Err(io::Error::new(
+                    io::ErrorKind::AlreadyExists,
+                    "choose an empty project directory",
+                ));
+            }
+            false
+        },
+        Err(err) => return Err(err),
+    };
+    let mut created = Vec::with_capacity(STARTER.len());
+    let result = (|| {
+        for (name, content) in STARTER {
+            let path = directory.join(name);
+            let mut file = OpenOptions::new().write(true).create_new(true).open(&path)?;
+            created.push(path);
+            file.write_all(content)?;
+        }
+        Ok(directory.join(SCENE))
+    })();
+    if result.is_err() {
+        for path in created {
+            let _ = fs::remove_file(path);
+        }
+        if created_dir {
+            let _ = fs::remove_dir(directory);
+        }
+    }
+    result
+}
+
+fn doctor() -> [(&'static str, Result<(), String>); 4] {
+    use animatix::renderer::text::{FontContext, compile_text_fast};
+
+    let gpu = crate::offscreen::OffscreenRenderer::new().map(|_| ()).map_err(|err| {
+        format!("{err}. Install or update a compatible graphics driver and run in a graphics-capable session.")
+    });
+    let fonts = compile_text_fast(
+        "Animatix",
+        "Open Sans",
+        400.0,
+        "normal",
+        24.0,
+        [1.0; 4],
+        0.0,
+        0.0,
+        &FontContext::new(),
+    )
+    .map_err(|err| err.to_string())
+    .and_then(|text| {
+        if text.glyphs.is_empty() {
+            Err("No glyphs were produced".into())
+        } else {
+            Ok(())
+        }
+    })
+    .map_err(|err| format!("{err}. Reinstall the Animatix package or install Open Sans."));
+    [
+        ("GPU preview and rendering", gpu),
+        ("Text shaping", fonts),
+        ("AAC audio encoder", ffmpeg_encoder(c"aac")),
+        ("H.264 video encoder", ffmpeg_encoder(c"libx264")),
+    ]
+}
+
+#[cfg(feature = "video")]
+fn ffmpeg_encoder(name: &std::ffi::CStr) -> Result<(), String> {
+    if rsmpeg::avcodec::AVCodec::find_encoder_by_name(name).is_some() {
+        Ok(())
+    } else {
+        Err(format!(
+            "This FFmpeg was built without {}. Install a video-enabled Animatix package.",
+            name.to_string_lossy()
+        ))
+    }
+}
+
+#[cfg(not(feature = "video"))]
+fn ffmpeg_encoder(_: &std::ffi::CStr) -> Result<(), String> {
+    Err("Video export is disabled in this build. Install a video-enabled Animatix package.".into())
+}
+
+/// Print the capability check for the CLI and for workbench startup diagnosis.
+/// Returns whether all prerequisites are ready.
+pub fn print_doctor() -> bool {
+    let mut ready = true;
+    for (name, result) in doctor() {
+        match result {
+            Ok(()) => println!("OK      {name}"),
+            Err(err) => {
+                println!("MISSING {name}: {err}");
+                ready = false;
+            },
+        }
+    }
+    ready
+}

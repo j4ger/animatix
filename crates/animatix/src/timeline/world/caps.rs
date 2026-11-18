@@ -44,7 +44,11 @@ impl World {
         if caps.is_shape || caps.shape.is_some() || caps.connector || caps.callout {
             self.ensure_shape(id);
         }
-        if caps.text.is_some() || caps.text_paths || caps.callout {
+        if caps.text.is_some()
+            || caps.text_paths
+            || caps.callout
+            || caps.child_processing == animatix_core::caps::ChildProcessingKind::Captions
+        {
             self.ensure_text(id);
         }
         if actor_type == "Fragment"

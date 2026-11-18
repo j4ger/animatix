@@ -41,14 +41,12 @@ notify = { version = "7.0.0", default-features = false, features = ["macos_fseve
 rfd = "0.15"
 rodio = "0.20"
 wgpu = { workspace = true, default-features = true }
+tempfile = "3"
 
 [[bin]]
 name = "widget-screenshot"
 path = "src/bin/widget-screenshot.rs"
 required-features = ["dev-screenshots"]
-
-[dev-dependencies]
-tempfile = "3"
 
 [build-dependencies]
 # Also available on non-Windows hosts for Windows cross-compilation.

@@ -3,7 +3,7 @@
 use super::grid::compute_grid_layout_results_with_specs;
 use super::linear::compute_linear_layout_results_with_specs;
 use super::positions::LayoutPositions;
-use super::{ChildExtent, compute_stack_layout_results};
+use super::{ChildExtent, DEFAULT_GRID_COLS, compute_stack_layout_results};
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::taffy_layout::{ChildSizeSpec, SizeConstraints, TaffyLayoutResult};
 use crate::timeline::{
@@ -152,7 +152,7 @@ impl LayoutEngine {
                 children,
                 metadata.gap,
                 metadata.padding,
-                metadata.cols.unwrap_or(1).max(1),
+                metadata.cols.unwrap_or(DEFAULT_GRID_COLS).max(1),
                 size_specs,
                 constraints,
                 parent_content_size,

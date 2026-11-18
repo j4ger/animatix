@@ -435,7 +435,7 @@ pub fn format_actor_like(
 
 /// Serialize an inline item (child of a container).
 pub fn format_inline_item(item: &InlineItem, depth: usize, indent_size: usize) -> String {
-    match item {
+    let body = match item {
         InlineItem::Anonymous {
             ty,
             props,
@@ -493,7 +493,8 @@ pub fn format_inline_item(item: &InlineItem, depth: usize, indent_size: usize) -
                 .join("\n");
             format!("@{} {{\n{}\n{}}}", slot, items_str, " ".repeat(indent_size * depth))
         },
-    }
+    };
+    format!("{}{body}", " ".repeat(depth * indent_size))
 }
 
 /// Serialize a component definition.
@@ -519,7 +520,7 @@ pub fn format_stmts_raw(stmts: &[Stmt], depth: usize, indent_size: usize) -> Str
     stmts
         .iter()
         .map(|s| {
-            let raw = format_stmt_raw(s, depth, indent_size);
+            let raw = format_stmt_raw(s, 0, indent_size);
             indent(&raw, depth, indent_size)
         })
         .collect::<Vec<_>>()

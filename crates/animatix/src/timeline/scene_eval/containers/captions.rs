@@ -236,7 +236,7 @@ impl Timeline {
         let caption_opacity = global_opacity
             * crate::primitives::captions::cue_transition_alpha(time_s, cue.start_s, transition_s);
         let text = self.world.text_or_default(node_id);
-        let font_size = text.font_size.get(time_ms, 32.0);
+        let font_size = text.font_size.get(time_ms, crate::primitives::captions::DEFAULT_FONT_SIZE);
         let font_family = text.font_family.get(time_ms, String::new());
         let font_style = text.font_style.get(time_ms, "normal".to_string());
         let font_weight = text.font_weight.get(time_ms, 400.0);

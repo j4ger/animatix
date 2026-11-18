@@ -762,9 +762,9 @@ soloed, so it cannot suppress the rest of the scene. `solo` is an authored prope
 
 **Callout targeted mode** places the arrow tip automatically on a named actor's edge. When `target` is set:
 
-- `place` accepts the typed `CalloutPlace` enum: `top`, `bottom`, `left`, `right`, or `auto` (default). `auto` picks the side closest to `label_at`.
+- `place` accepts `top`, `bottom`, `left`, `right` (default), or `auto`. `auto` currently resolves to the right edge.
 - The engine resolves the target's world-space bounds by composing its full ancestor transform chain, so nested actors inside scaled or rotated containers attach correctly.
-- `standoff` (default `40.0`) offsets the tip from the resolved edge; `to_offset` adds a fine-grained manual tweak on top.
+- `to_offset` adjusts the tip relative to the resolved edge. `standoff` (default `40.0`) sets the distance from the tip to the tail.
 - A missing or unknown `target` name is reported as a build-time `CalloutTargetNotFound` diagnostic rather than a per-frame render warning.
 - Array actors use source-level syntax: `target: bars[2]` in declarations, and `note.target = bars[i]` when `i` is bound in an assignment. Internal generated labels like `bars__2` are an implementation detail and should not appear in user source.
 - **GUI:** Inspect the resolved callout and jump to its declaration; author `target`, `place`, `standoff` and manual endpoints in source. The workbench does not expose drag handles.
@@ -1916,6 +1916,12 @@ name or forms a cycle is still usable as the gradual `Any` type, but produces a
 | `Fn(T, U) => R` | Function with parameter and return types | `(x) => x * 2` |
 | `A \| B` | Union of accepted types | `Bool \| Str`, `Num \| Str` |
 | `Any` | Top type, accepts any value | — |
+
+String literals preserve the spelling between the quotes. A backslash followed
+by a quote keeps the quote inside the literal. Both characters remain in the
+value. Ordinary `Text` keeps sequences such as `\n` verbatim, and `Typst`
+receives its markup escapes, such as `\$`, unchanged. The formatter preserves
+those sequences on successive runs.
 
 **Properties of `Color`** (inherited from `Vec4`):
 | Accessor | Description |

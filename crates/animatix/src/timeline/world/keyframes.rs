@@ -36,9 +36,21 @@ impl World {
         schema: &crate::timeline::property_registry::PropertySchema,
         time_ms: u64,
     ) -> crate::timeline::PropertyValue {
-        let field = schema.field_for_actor(&self.caps(id), self.actor_type(id));
+        let caps = self.caps(id);
+        let field = schema.field_for_actor(&caps, self.actor_type(id));
         self.read_property_value(id, field, time_ms)
-            .unwrap_or_else(|| (schema.default_value)(&self.caps(id)))
+            .or_else(|| match schema.name {
+                "bar_width" => self.bar_layout(id)?.spacing_property(schema.name),
+                "gap" => self
+                    .bar_layout(id)
+                    .and_then(|layout| layout.spacing_property("gap"))
+                    .or_else(|| {
+                        self.legend(id)
+                            .map(|legend| crate::timeline::PropertyValue::F32(legend.gap))
+                    }),
+                _ => None,
+            })
+            .unwrap_or_else(|| (schema.default_value)(&caps))
     }
 
     /// Check if a keyframe exists for the given property at exactly `time_ms`.

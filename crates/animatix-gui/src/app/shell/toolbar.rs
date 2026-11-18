@@ -167,6 +167,10 @@ impl GuiShell {
                     commands.push_back(ShellAction::View(ViewAction::NewFile));
                     ui.close();
                 }
+                if ui.button("New narrated project…").clicked() {
+                    commands.push_back(ShellAction::View(ViewAction::NewProject));
+                    ui.close();
+                }
                 let open_btn =
                     ui.button(format!("{} Open file…", egui_phosphor::regular::FOLDER_OPEN));
                 if open_btn.clicked() {

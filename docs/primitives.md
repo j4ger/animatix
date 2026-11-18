@@ -460,7 +460,7 @@ Pixel-level scalar field visualization using colored rectangles.
 
 **Properties:**
 - `func`: Closure `(x, y) => scalar`
-- `resolution`: Number — grid resolution (default 64)
+- `resolution`: Number — grid resolution (default 96)
 - `x_domain`: Tuple `(min, max)`
 - `y_domain`: Tuple `(min, max)`
 - `size`: Tuple `(width, height)`

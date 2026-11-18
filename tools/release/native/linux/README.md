@@ -71,8 +71,8 @@ build metadata from recording the checkout's temporary build paths.
   not include host ALSA configuration, plugins, or sound devices. Without
   those host facilities the GUI still opens, but audio playback is unavailable.
 - The video-enabled CLI bundles FFmpeg and its non-system runtime closure. The
-  GUI and CLI are built with video enabled on Linux. macOS and Windows release
-  builds remain no-video.
+  GUI and CLI are built with video enabled. For the macOS and Windows release
+  ZIPs, see the [native packaging instructions](../../../../docs/contributing.md#create-a-narrated-project-from-a-video-enabled-package).
 
 The package checker verifies the bundled media libraries, relative RUNPATHs,
 absence of `/nix/store` references, and absence of GPU driver/loader files.

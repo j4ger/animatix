@@ -160,6 +160,18 @@ impl ShapeTracks {
         }
     }
 
+    /// A fade uses both endpoint paths, even when their primitive types match.
+    pub(crate) fn fade_morph_at(&self, style: &StyleTracks, time_ms: u64) -> bool {
+        let Some(options) = &style.morph_options else {
+            return false;
+        };
+        self.vector_paths
+            .as_ref()
+            .and_then(|paths| paths.interpolation_segment(time_ms))
+            .and_then(|(end, ..)| options.keyframes.get(&end))
+            .is_some_and(|(value, _)| value.strategy == crate::timeline::MorphStrategy::Fade)
+    }
+
     /// Evaluate vector paths at `time_ms`, applying morphing if configured.
     ///
     /// A track with no `vector_paths` evaluates to an empty list; geometric

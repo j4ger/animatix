@@ -86,7 +86,18 @@ pub fn write_property_fields(
     }
 
     // ── Tier 2: Uniform dispatch via TrackFieldMut ──
-    let pv_default = ActorField::default_value(field);
+    let pv_default = match field {
+        ActorField::FontSize | ActorField::StrokeWidth => {
+            let property = if field == ActorField::FontSize {
+                "font_size"
+            } else {
+                "stroke_width"
+            };
+            crate::timeline::property_registry::lookup_property(property)
+                .map(|schema| (schema.default_value)(&fields.caps))
+        },
+        _ => field.default_value(),
+    };
     let tagged_default = match field {
         ActorField::Tagged(name) => crate::timeline::property_registry::lookup_property(name)
             .map(|schema| (schema.default_value)(&fields.caps)),

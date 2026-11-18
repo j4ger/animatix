@@ -3,6 +3,10 @@
 
 use super::*;
 use crate::ast::Property;
+use crate::timeline::plot::{
+    DEFAULT_AXIS_DOMAIN, DEFAULT_PARAMETER_DOMAIN, DEFAULT_PLOT_MAX_DEPTH, DEFAULT_PLOT_RESOLUTION,
+    DEFAULT_PLOT_TOLERANCE,
+};
 
 /// Evaluate only the authored numeric axes of one size property.
 /// Relative keywords and percentages belong to layout and leave their axis unchanged.
@@ -87,13 +91,13 @@ impl Default for PlotPropBag {
         Self {
             initial_size: DEFAULT_LAYOUT_HALF_SIZE,
             numeric_size_axes: [false, false],
-            x_domain: [-10.0, 10.0],
-            y_domain: [-10.0, 10.0],
-            t_domain: [0.0, std::f64::consts::TAU],
+            x_domain: DEFAULT_AXIS_DOMAIN,
+            y_domain: DEFAULT_AXIS_DOMAIN,
+            t_domain: DEFAULT_PARAMETER_DOMAIN,
             func: None,
-            tolerance: 0.5,
-            max_depth: 10.0,
-            resolution: 96.0,
+            tolerance: DEFAULT_PLOT_TOLERANCE,
+            max_depth: DEFAULT_PLOT_MAX_DEPTH,
+            resolution: DEFAULT_PLOT_RESOLUTION,
             kind: None,
         }
     }

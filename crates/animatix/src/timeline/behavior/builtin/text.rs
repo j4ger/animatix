@@ -38,7 +38,10 @@ fn evaluate_text_kind(
         } else {
             None
         };
-        let col = style.color.get(ctx.time_ms, [1.0, 1.0, 1.0, 1.0]);
+        let col = ctx
+            .overrides
+            .and_then(|values| crate::primitives::styling::override_color(values, "color"))
+            .unwrap_or_else(|| style.color.get(ctx.time_ms, [1.0, 1.0, 1.0, 1.0]));
         let tint_color = Some(crate::renderer::text::f32_color_to_rgba8(&col));
         let text = ctx.text.expect("text primitive requires text component");
         // `text.hardware_layout` was compiled from the declaration's static

@@ -242,16 +242,27 @@ fn check_actor_decl(
         ));
     }
 
+    check_actor_properties(ty, props, span, symbols, source, diagnostics);
+}
+
+pub(super) fn check_actor_properties(
+    ty: &str,
+    props: &[Property],
+    span: &Option<Span>,
+    symbols: &SymbolTable,
+    source: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     if let Some(known_props) = symbols.properties.get(ty) {
+        let (line, col, _, end_col) = span_positions(span);
+        let plot_params = plot_runtime_params(ty, props);
         for prop in props {
             // Point at the property's own value span so the squiggle
             // lands on the offending property rather than the actor
             // declaration's first character.
             let (prop_line, prop_col, prop_end_line, prop_end_col) =
                 property_positions(prop, source, line, col, end_col);
-            if !known_props.contains(&prop.name)
-                && !plot_runtime_params(ty, props).iter().any(|p| p == &prop.name)
-            {
+            if !known_props.contains(&prop.name) && !plot_params.contains(&prop.name) {
                 diagnostics.push(span_diagnostic(
                     DiagnosticSeverity::Info,
                     DiagnosticCode::UnknownProperty,

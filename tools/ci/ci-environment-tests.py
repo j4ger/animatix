@@ -178,20 +178,25 @@ class Environments(unittest.TestCase):
     def test_direct_workflow_gates_use_nix(self):
         rows = [line.split("\t") for line in ci("--list").stdout.splitlines()]
         for path in (ROOT / ".github/workflows").glob("*.yml"):
-            runner = None
+            runners = [None]
+            matrix_os = []
             for line in path.read_text().splitlines():
                 if line.startswith("  ") and not line.startswith("   "):
-                    runner = None
+                    runners = [None]
+                    matrix_os = []
+                if line.strip().startswith("os: ["):
+                    matrix_os = [value.strip() for value in line.split("[", 1)[1].split("]", 1)[0].split(",")]
                 if line.strip().startswith("runs-on:"):
                     runner = line.split("runs-on:", 1)[1].strip()
+                    runners = matrix_os if runner == "${{ matrix.os }}" and matrix_os else [runner]
                 if "run: tools/ci/ci.sh gate" in line:
                     gates = line.split("run: tools/ci/ci.sh gate", 1)[1].strip().split()
                     for gate in gates:
                         matching = [row for row in rows if row[0] == gate]
                         self.assertTrue(matching, f"unregistered gate in {path.name}: {gate}")
-                        self.assertTrue(any(
+                        self.assertTrue(all(any(
                             shell == "none" or (shell == "native" and platform == runner)
-                            for _, shell, platform, _, _ in matching),
+                            for _, shell, platform, _, _ in matching) for runner in runners),
                             f"bare project gate outside registered environment in {path.name}: {line}")
         nightly = (ROOT / ".github/workflows/nightly.yml").read_text()
         self.assertIn("nix develop .#dist-driver --command tools/ci/ci.sh gate dist-linux", nightly)

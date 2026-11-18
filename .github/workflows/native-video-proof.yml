@@ -1,0 +1,106 @@
+name: Native Video Proof
+
+on:
+  workflow_dispatch:
+    inputs:
+      ffmpeg_only:
+        description: Build or restore the FFmpeg packages without building Animatix
+        type: boolean
+        default: false
+      require_ffmpeg_cache:
+        description: Fail if any FFmpeg dependency needs compiling
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  nightly-package:
+    name: Linux nightly archive validation
+    if: ${{ !inputs.ffmpeg_only && !inputs.require_ffmpeg_cache }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      ANIMATIX_RELEASE_LABEL: nightly
+      NIX_CONFIG: |
+        fallback = true
+        extra-substituters = https://cache.nixos.org/
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: DeterminateSystems/determinate-nix-action@v3
+      - name: Build and verify the Nightly archives
+        run: nix develop .#dist-driver --command tools/ci/ci.sh gate dist-linux
+      - name: Retain Linux acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-package-evidence
+          path: target/perf/distribution-refactor/native/runtime/
+          retention-days: 7
+          if-no-files-found: ignore
+  native-video:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    env:
+      # Cache compiler output independently of vcpkg's in-progress work tree.
+      CARGO_TARGET_DIR: target/release-cargo
+      ANIMATIX_PROOF_STAGE: ${{ !inputs.ffmpeg_only && !inputs.require_ffmpeg_cache && 'target/native-video-proof-inputs' || '' }}
+      ANIMATIX_REQUIRE_FFMPEG_CACHE: ${{ inputs.require_ffmpeg_cache }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        if: ${{ !inputs.ffmpeg_only }}
+        id: rust
+      - uses: Swatinem/rust-cache@v2
+        if: ${{ !inputs.ffmpeg_only }}
+        with:
+          key: native-video-release-dist
+          workspaces: . -> target/release-cargo
+          cache-on-failure: true
+      - name: Restore staged inputs for acceptance retries
+        if: env.ANIMATIX_PROOF_STAGE != ''
+        id: native-inputs
+        uses: actions/cache/restore@v5
+        with:
+          path: target/native-video-proof-inputs
+          key: native-proof-inputs-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('Cargo.*', 'rust-toolchain.toml', 'crates/**', 'examples/assets/narration.*', 'tools/release/native/video-proof.sh', 'tools/release/native/vcpkg-sources.lock') }}
+      - name: Restore FFmpeg dependencies
+        if: steps.native-inputs.outputs.cache-hit != 'true'
+        id: ffmpeg
+        uses: ./.github/actions/native-ffmpeg-cache
+      - name: Prepare FFmpeg packages
+        if: inputs.ffmpeg_only
+        shell: bash
+        run: tools/ci/ci.sh gate native-ffmpeg-cache
+      - name: Build and verify the narrated starter on the target OS
+        if: ${{ !inputs.ffmpeg_only }}
+        shell: bash
+        run: tools/ci/ci.sh gate native-video-proof
+      - name: Save FFmpeg dependencies
+        if: ${{ !inputs.require_ffmpeg_cache && steps.ffmpeg.outputs.path != '' && steps.ffmpeg.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ steps.ffmpeg.outputs.path }}
+          key: ${{ steps.ffmpeg.outputs.cache-primary-key }}
+      - name: Retain completed build inputs for a retry
+        if: ${{ !cancelled() && env.ANIMATIX_PROOF_STAGE != '' && steps.native-inputs.outputs.cache-hit != 'true' && hashFiles('target/native-video-proof-inputs/build-inputs.txt') != '' }}
+        uses: actions/cache/save@v5
+        with:
+          path: target/native-video-proof-inputs
+          key: ${{ steps.native-inputs.outputs.cache-primary-key }}
+      - name: Retain native export evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.ffmpeg_only && 'ffmpeg-cache' || 'native-video-proof' }}-${{ matrix.os }}-${{ github.sha }}
+          path: target/native-video-proof/evidence/
+          retention-days: 7
