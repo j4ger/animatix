@@ -346,8 +346,16 @@ fn deep_group_fixture(group_count: usize, mixed: bool) -> crate::timeline::Build
     let mut source = String::from("config { resolution: (800, 600) }\n");
     source.push_str("g0: Group, size: (800, 600) {\n");
     for index in 1..group_count {
-        let ty = if mixed && index % 2 == 1 { "Col" } else { "Group" };
-        let size = if mixed { "(fill, auto)" } else { "(fill, fill)" };
+        let ty = if mixed && index % 2 == 1 {
+            "Col"
+        } else {
+            "Group"
+        };
+        let size = if mixed {
+            "(fill, auto)"
+        } else {
+            "(fill, fill)"
+        };
         source.push_str(&format!("g{index}: {ty}, size: {size} {{\n"));
     }
     let size = if mixed { "(fill, 20)" } else { "(fill, fill)" };
@@ -355,50 +363,63 @@ fn deep_group_fixture(group_count: usize, mixed: bool) -> crate::timeline::Build
     for _ in 0..group_count {
         source.push_str("}\n");
     }
-    build(&source)
+    eprintln!("layout DSL depth={group_count} mixed={mixed}: parsing");
+    let ast = super::support::parse(&source);
+    eprintln!("layout DSL depth={group_count} mixed={mixed}: building");
+    let report = super::support::build_ast(&ast);
+    eprintln!("layout DSL depth={group_count} mixed={mixed}: dropping AST");
+    drop(ast);
+    eprintln!("layout DSL depth={group_count} mixed={mixed}: built");
+    report
 }
 
-#[test]
-fn iterative_group_reflow_resolves_every_axis_beyond_old_depth_limit() {
-    for count in [1, 63, 64, 65, 128, 256] {
-        let report = deep_group_fixture(count, false);
-        assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{count}: {:?}", report.diagnostics);
-        assert!(
-            !report.diagnostics.iter().any(|d| d.code
-                == crate::diagnostics::DiagnosticCode::LayoutSizeFallback),
-            "{count}: {:?}",
-            report.diagnostics
+fn assert_group_reflow_depth(count: usize) {
+    let report = deep_group_fixture(count, false);
+    assert!(
+        report.diagnostics.iter().all(|d| !d.is_error()),
+        "{count}: {:?}",
+        report.diagnostics
+    );
+    assert!(
+        !report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback),
+        "{count}: {:?}",
+        report.diagnostics
+    );
+    for index in 0..count {
+        assert_eq!(
+            layout_size(&report.output, &format!("g{index}")),
+            [400.0, 300.0],
+            "count={count}, group={index}"
         );
-        for index in 0..count {
-            assert_eq!(
-                layout_size(&report.output, &format!("g{index}")),
-                [400.0, 300.0],
-                "count={count}, group={index}"
-            );
-        }
-        assert_eq!(layout_size(&report.output, "leaf"), [400.0, 300.0], "count={count}");
     }
+    assert_eq!(layout_size(&report.output, "leaf"), [400.0, 300.0], "count={count}");
 }
 
-#[test]
-fn iterative_mixed_group_col_reflow_preserves_top_down_widths() {
-    for count in [4, 65, 128] {
-        let report = deep_group_fixture(count, true);
-        assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{count}: {:?}", report.diagnostics);
-        assert!(
-            !report.diagnostics.iter().any(|d| d.code
-                == crate::diagnostics::DiagnosticCode::LayoutSizeFallback),
-            "{count}: {:?}",
-            report.diagnostics
+fn assert_mixed_reflow_depth(count: usize) {
+    let report = deep_group_fixture(count, true);
+    assert!(
+        report.diagnostics.iter().all(|d| !d.is_error()),
+        "{count}: {:?}",
+        report.diagnostics
+    );
+    assert!(
+        !report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback),
+        "{count}: {:?}",
+        report.diagnostics
+    );
+    assert_eq!(layout_size(&report.output, "leaf"), [400.0, 10.0], "count={count}");
+    for index in 1..count {
+        assert_eq!(
+            layout_size(&report.output, &format!("g{index}")),
+            [400.0, 10.0],
+            "count={count}, group={index}"
         );
-        assert_eq!(layout_size(&report.output, "leaf"), [400.0, 10.0], "count={count}");
-        for index in 1..count {
-            assert_eq!(
-                layout_size(&report.output, &format!("g{index}")),
-                [400.0, 10.0],
-                "count={count}, group={index}"
-            );
-        }
     }
 }
 
@@ -524,7 +545,11 @@ root: Group, size: (500, 600) {
         assert!(layout_size(&timeline, label)[1] > 20.0, "{label} must wrap");
     }
     let position = |label: &str| {
-        timeline.world.geometry(timeline.world.get_id(label).unwrap()).position.get(0, [0.0; 2])
+        timeline
+            .world
+            .geometry(timeline.world.get_id(label).unwrap())
+            .position
+            .get(0, [0.0; 2])
     };
     assert!(position("left")[0] < position("right")[0]);
     assert!(position("first")[0] < position("second")[0]);
@@ -532,6 +557,87 @@ root: Group, size: (500, 600) {
     assert!(position("other")[1] < position("footer")[1]);
     for (column, text) in [("left_col", "copy"), ("right_col", "other")] {
         let expected_height = layout_size(&timeline, text)[1] * 2.0 + 20.0 + 8.0;
-        assert!((layout_size(&timeline, column)[1] * 2.0 - expected_height).abs() < 1.0, "{column}");
+        assert!(
+            (layout_size(&timeline, column)[1] * 2.0 - expected_height).abs() < 1.0,
+            "{column}"
+        );
+    }
+}
+
+// Native subprocesses keep a DSL parser/build/drop stack overflow from aborting
+// the entire library harness. No stack-size override or reduced depth is used.
+#[cfg(not(target_arch = "wasm32"))]
+mod deep_dsl_isolation {
+    use super::{assert_group_reflow_depth, assert_mixed_reflow_depth};
+
+    const INPUT: &str = "ANIMATIX_LAYOUT_DSL_PROBE";
+    const COMPLETE: &str = "layout DSL isolated worker completed";
+
+    #[test]
+    #[ignore = "worker invoked only by the isolated depth tests"]
+    fn worker() {
+        let input = std::env::var(INPUT).expect("isolated worker input");
+        let (mode, count) = input.split_once(':').expect("mode:depth");
+        let count: usize = count.parse().expect("numeric depth");
+        match mode {
+            "group" => assert_group_reflow_depth(count),
+            "mixed" => assert_mixed_reflow_depth(count),
+            _ => panic!("invalid worker mode"),
+        }
+        // Emitted after the fixture and report have been dropped, not merely
+        // after layout assertions. It also proves the exact filter ran a test.
+        eprintln!("{COMPLETE}");
+    }
+
+    fn run(mode: &str, depth: usize) {
+        let module = module_path!().split_once("::").expect("crate-qualified module").1;
+        let test = format!("{module}::worker");
+        let output = std::process::Command::new(std::env::current_exe().expect("test executable"))
+            .args(["--exact", &test, "--ignored", "--nocapture", "--test-threads=1"])
+            .env(INPUT, format!("{mode}:{depth}"))
+            .output()
+            .expect("start isolated layout worker");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            output.status.success() && stderr.contains(COMPLETE),
+            "{mode} depth={depth}, status={}; stdout:\n{stdout}\nstderr:\n{stderr}",
+            output.status
+        );
+    }
+
+    macro_rules! isolated_depth_test {
+        ($name:ident, $mode:literal, $depth:literal) => {
+            #[test]
+            fn $name() {
+                run($mode, $depth);
+            }
+        };
+    }
+
+    isolated_depth_test!(group_depth_1, "group", 1);
+    isolated_depth_test!(group_depth_63, "group", 63);
+    isolated_depth_test!(group_depth_64, "group", 64);
+    isolated_depth_test!(group_depth_65, "group", 65);
+    isolated_depth_test!(group_depth_128, "group", 128);
+    isolated_depth_test!(group_depth_256, "group", 256);
+    isolated_depth_test!(mixed_depth_4, "mixed", 4);
+    isolated_depth_test!(mixed_depth_65, "mixed", 65);
+    isolated_depth_test!(mixed_depth_128, "mixed", 128);
+}
+
+#[cfg(target_arch = "wasm32")]
+#[test]
+fn iterative_group_reflow_resolves_every_axis_beyond_old_depth_limit() {
+    for count in [1, 63, 64, 65, 128, 256] {
+        assert_group_reflow_depth(count);
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[test]
+fn iterative_mixed_group_col_reflow_preserves_top_down_widths() {
+    for count in [4, 65, 128] {
+        assert_mixed_reflow_depth(count);
     }
 }
