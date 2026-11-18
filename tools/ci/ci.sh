@@ -111,6 +111,7 @@ dist-macos|native|macos-latest|rust-stable|release
 dist-windows|native|windows-latest|rust-stable|release
 native-video-proof|native|macos-latest|rust-stable|control
 native-video-proof|native|windows-latest|rust-stable|control
+native-windows-render|native|windows-latest|rust-stable|control
 ci-plan|none|ubuntu-latest|none|control
 ci-result|none|ubuntu-latest|none|control
 release-resolve|none|ubuntu-latest|none|control
@@ -974,6 +975,12 @@ gate_dist_windows() {
 gate_native_video_proof() {
   want_cargo
   bash tools/release/native/video-proof.sh
+}
+
+gate_native_windows_render() {
+  want_cargo
+  cargo build --locked --profile dist -p animatix-cli
+  python3 tools/release/native/windows-render-diagnostics.py
 }
 
 # ── setup ─────────────────────────────────────────────────────────────────────

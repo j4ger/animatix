@@ -1,0 +1,41 @@
+name: Native Windows Render Diagnostics
+
+on:
+  push:
+    branches:
+      - 'codex/p0-native-proof'
+    paths:
+      - '.github/workflows/native-windows-render.yml'
+      - 'tools/release/native/windows-render-diagnostics.py'
+
+permissions:
+  contents: read
+
+jobs:
+  windows-render:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      CARGO_PROFILE_DIST_LTO: 'off'
+      CARGO_PROFILE_DIST_CODEGEN_UNITS: '16'
+      CARGO_PROFILE_DIST_DEBUG: '1'
+      CARGO_PROFILE_DIST_STRIP: 'none'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: native-windows-render
+          cache-on-failure: true
+      - name: Reproduce offscreen rendering without video dependencies
+        shell: bash
+        run: tools/ci/ci.sh gate native-windows-render
+      - name: Retain render evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-windows-render-${{ github.sha }}
+          path: target/native-windows-render/
+          retention-days: 7

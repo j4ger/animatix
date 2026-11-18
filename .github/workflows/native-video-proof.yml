@@ -5,6 +5,13 @@ on:
   push:
     branches:
       - 'codex/p0-native-proof'
+    paths:
+      - 'Cargo.*'
+      - 'rust-toolchain.toml'
+      - 'crates/**'
+      - 'examples/assets/narration.*'
+      - 'tools/release/native/video-proof.sh'
+      - 'tools/release/native/test-first-run.py'
   pull_request:
     paths:
       - '.github/workflows/native-video-proof.yml'
