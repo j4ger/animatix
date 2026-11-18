@@ -109,6 +109,11 @@ web-performance|web-ci|ubuntu-latest|nix|site
 dist-linux|dist-driver|ubuntu-latest|nix|release
 dist-macos|native|macos-latest|rust-stable|release
 dist-windows|native|windows-latest|rust-stable|release
+native-video-proof|native|macos-latest|rust-stable|control
+native-video-proof|native|windows-latest|rust-stable|control
+native-ffmpeg-cache|native|macos-latest|none|control
+native-ffmpeg-cache|native|windows-latest|none|control
+native-windows-render|native|windows-latest|rust-stable|control
 ci-plan|none|ubuntu-latest|none|control
 ci-result|none|ubuntu-latest|none|control
 release-resolve|none|ubuntu-latest|none|control
@@ -916,20 +921,6 @@ gate_dist_web_sdk() {
   bash tools/release/dist-package.sh web-sdk
 }
 
-# The version a shipped binary reports is the only proof the artifact matches the
-# tag it was built from. Without it, a stale target directory is indistinguishable
-# from a fresh build at download time.
-check_binary() {
-  local bin="$1" want="$2" out
-  [ -x "$bin" ] || { echo "error: $bin not produced by the build" >&2; return 1; }
-  out="$("$bin" --version 2>&1)" || { echo "error: $bin --version failed" >&2; return 1; }
-  echo "  $out"
-  if [ -n "$want" ] && ! grep -q "$want" <<<"$out"; then
-    echo "error: $bin reports '$out', expected to contain '$want' (the tag)" >&2
-    return 1
-  fi
-}
-
 gate_dist_linux() {
   # The Nix dist-driver provides orchestration tools only.
   # The fixed Ubuntu 22.04 image supplies the baseline runtime ABI and private
@@ -947,27 +938,27 @@ gate_dist_linux() {
 
 gate_dist_macos() {
   want_cargo
-  # No `video` here on purpose: a macOS FFmpeg would be whatever major version
-  # brew happens to ship, which is not ours to pin. The GUI degrades to a
-  # "requires the 'video' feature (FFmpeg)" message instead of shipping a binary
-  # linked against an unpinned library. This is the feature set the pr-stage
-  # `no-video` gate actually tests.
-  local want="${ANIMATIX_RELEASE_VERSION:-}"
-  want="${want#v}"
-  cargo build --profile dist -p animatix-cli -p animatix-gui
-  check_binary target/dist/animatix "$want"
-  check_binary target/dist/animatix-gui "$want"
-  bash tools/release/dist-package.sh macos target/dist
+  bash tools/release/native/video-proof.sh macos
 }
 
 gate_dist_windows() {
   want_cargo
-  local want="${ANIMATIX_RELEASE_VERSION:-}"
-  want="${want#v}"
-  cargo build --profile dist -p animatix-cli -p animatix-gui
-  check_binary target/dist/animatix.exe "$want"
-  check_binary target/dist/animatix-gui.exe "$want"
-  bash tools/release/dist-package.sh windows target/dist
+  bash tools/release/native/video-proof.sh windows
+}
+
+gate_native_video_proof() {
+  want_cargo
+  bash tools/release/native/video-proof.sh
+}
+
+gate_native_ffmpeg_cache() {
+  bash tools/release/native/video-proof.sh --ffmpeg-only
+}
+
+gate_native_windows_render() {
+  want_cargo
+  cargo build --locked --profile dist -p animatix-cli
+  python3 tools/release/native/windows-render-diagnostics.py
 }
 
 # ── setup ─────────────────────────────────────────────────────────────────────

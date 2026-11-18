@@ -789,7 +789,15 @@ fn snapshot_field(
     let value = timeline
         .world
         .read_property_value(pending.key.entity, pending.key.field, time_ms)
-        .or_else(|| pending.key.field.default_value())
+        .or_else(|| {
+            // These two fields have actor-specific defaults. Other field
+            // defaults are needed for aliases such as a numeric width backed
+            // by a two-component size track.
+            match pending.key.field {
+                ActorField::StrokeWidth | ActorField::FontSize => None,
+                field => field.default_value(),
+            }
+        })
         .or_else(|| Some((pending.schema.default_value)(&timeline.world.caps(pending.key.entity))));
     let Some(value) = value else {
         diagnostics.push(

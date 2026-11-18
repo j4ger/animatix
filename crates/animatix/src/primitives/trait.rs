@@ -120,8 +120,8 @@ fn text_frame_values(
         if let Some(Value::Str(s)) = ov.get("overflow") {
             overflow = s.clone();
         }
-        if let Some(Value::Color(c) | Value::Vec4(c)) = ov.get("color") {
-            color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
+        if let Some(value) = super::styling::override_color(ov, "color") {
+            color = value;
         }
         if let Some(Value::Str(s)) = ov.get("language") {
             language = s.clone();
@@ -321,10 +321,24 @@ pub fn evaluate_text_paths(
     (std::sync::Arc<[crate::renderer::types::TextPath]>, Option<kurbo::BezPath>),
     crate::renderer::error::RenderError,
 > {
+    evaluate_text_paths_with_content(ctx, text_ctx, kind, default_font_size, None)
+}
+
+pub(crate) fn evaluate_text_paths_with_content(
+    ctx: &EvaluateCtx,
+    text_ctx: &mut TextCompileCtx,
+    kind: crate::renderer::text::TextKind,
+    default_font_size: f32,
+    content: Option<&str>,
+) -> Result<TextPathOutcome, crate::renderer::error::RenderError> {
     use crate::timeline::TrackAccessor;
 
     let text = ctx.text.expect("text primitive requires text component");
-    let values = text_frame_values(ctx, text, default_font_size);
+    let mut values = text_frame_values(ctx, text, default_font_size);
+    if let Some(content) = content {
+        values.content = content.to_owned();
+        values.content_override = Some(values.content.clone());
+    }
 
     if let Some(result) = crossfade_text_paths(ctx, text_ctx, kind, text, &values)? {
         return Ok(result);

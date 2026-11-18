@@ -541,11 +541,15 @@ fn transient_property_overrides_bypass_cache_and_override_evaluation() {
 fn captions_cue_start_end_and_active_color_reach_the_primitive() {
     let timeline = build_timeline(
         r##"
-subs: Captions, at: (960, 900), font_size: 32, text_max_width: 640 {
+subs: Captions, at: (960, 900), font_size: 21, text_max_width: 640 {
     cue: Cue, text: "Hello captions", start: 0.5, end: 1.5, active_color: "#ff8800"
 }
 "##,
     );
+    let caption_id = timeline.world.get_id("subs").expect("caption track");
+    let typography = timeline.world.text(caption_id).expect("caption typography");
+    assert_eq!(typography.font_size.get(1000, 32.0), 21.0);
+    assert_eq!(typography.text_max_width.get(1000, 0.0), 640.0);
     let cue_id = timeline.world.get_id("cue").expect("cue track");
 
     // The primitive samples start/end/active_color from the cue's property

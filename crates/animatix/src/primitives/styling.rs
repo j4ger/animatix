@@ -11,7 +11,7 @@ use crate::timeline::{
 };
 
 /// Helper to read a color override from an `always` block's assignment table.
-fn override_color(overrides: &HashMap<String, Value>, key: &str) -> Option<[f32; 4]> {
+pub(crate) fn override_color(overrides: &HashMap<String, Value>, key: &str) -> Option<[f32; 4]> {
     match overrides.get(key) {
         Some(Value::Color(c) | Value::Vec4(c)) => {
             Some([c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32])
@@ -241,17 +241,13 @@ pub(crate) fn evaluate_shape_render(
     ctx: &EvaluateCtx,
     state: &VectorShapeState,
 ) -> Result<Option<Vec<RenderCommand>>, crate::renderer::error::RenderError> {
-    use crate::timeline::TrackAccessor;
-
-    // Cross-type morph: a re-declaration that changes the primitive type
-    // (Rect→Ellipse, Polygon→Path, …) keeps the declaration-time path list in
-    // `vector_paths` — start keyframe = source shape, end keyframe = target,
-    // interpolated by the morph machinery. During the switch window draw that
-    // interpolated outline instead of the endpoint primitive, whose geometry
-    // would otherwise snap. This lives in the shape family so behavior
-    // dispatch still goes through `BehaviorDef::evaluate`.
+    // Cross-type morphs use the interpolated vector path, and fades use both
+    // endpoint paths with independent alpha. A single sampled shape state
+    // cannot represent either result.
     if !ctx.vector_paths.is_empty()
-        && ctx.shape.is_some_and(|shape| shape.cross_type_morph_at(ctx.time_ms))
+        && ctx.shape.is_some_and(|shape| {
+            shape.cross_type_morph_at(ctx.time_ms) || shape.fade_morph_at(ctx.style, ctx.time_ms)
+        })
     {
         return Ok(Some(vec![RenderCommand::Paths {
             paths: ctx.vector_paths.to_vec(),
@@ -264,7 +260,7 @@ pub(crate) fn evaluate_shape_render(
     let epoch = shape.vector_paths_epoch.get();
 
     let progress = sample_stroke_progress(style_tracks, ctx.time_ms, ctx.overrides);
-    let has_dash = !style_tracks.dash_pattern.get(ctx.time_ms, Vec::new()).is_empty();
+    let dash = sample_dash(ctx);
     let has_gradient =
         style_tracks.fill_gradient.is_some() || style_tracks.stroke_gradient.is_some();
     let shadow = shape_shadow_command(ctx, state);
@@ -281,10 +277,12 @@ pub(crate) fn evaluate_shape_render(
             shape,
         )?;
         let mut trimmed = trim_shape_stroke_progress(&built, progress);
-        stamp_shape_dash(&mut trimmed, ctx);
+        if let Some((pattern, offset)) = dash {
+            stamp_shape_dash(&mut trimmed, &pattern, offset);
+        }
         stamp_shape_gradient(&mut trimmed, ctx);
         trimmed
-    } else if has_dash || has_gradient {
+    } else if dash.is_some() || has_gradient {
         let mut built = ctx.world.expect("shape memo requires a world").build_shape_commands(
             ctx.id,
             epoch,
@@ -295,8 +293,8 @@ pub(crate) fn evaluate_shape_render(
             ctx.time_ms,
             shape,
         )?;
-        if has_dash {
-            stamp_shape_dash(&mut built, ctx);
+        if let Some((pattern, offset)) = dash {
+            stamp_shape_dash(&mut built, &pattern, offset);
         }
         if has_gradient {
             stamp_shape_gradient(&mut built, ctx);
@@ -352,27 +350,45 @@ pub(crate) fn evaluate_shape_render(
 fn shape_shadow_command(ctx: &EvaluateCtx, state: &VectorShapeState) -> Option<RenderCommand> {
     use crate::timeline::ActorField;
     use crate::timeline::property_engine::PropertyValue;
-    let shadow_val = ctx.read_property_value(ActorField::Tagged("shadow"), ctx.time_ms);
-    if let Some(PropertyValue::Vec4(params)) = shadow_val
-        && (params[2] > 0.0 || params[3] != 0.0 || params[0] != 0.0 || params[1] != 0.0)
-    {
-        let color = match ctx.read_property_value(ActorField::Tagged("shadow_color"), ctx.time_ms) {
-            Some(PropertyValue::Vec4(c)) | Some(PropertyValue::Color(c)) => c,
-            _ => [0.0, 0.0, 0.0, 0.25],
-        };
-        let (size, corner_radius) = match state {
-            VectorShapeState::Rect(r) => (r.size, r.corner_radius),
-            _ => ([50.0, 50.0], 0.0),
-        };
-        Some(RenderCommand::Shadow {
-            size,
-            corner_radius,
-            params,
-            color,
+    let params = ctx
+        .overrides
+        .and_then(|overrides| overrides.get("shadow"))
+        .and_then(|value| {
+            if let Value::Vec4(components) = value {
+                let params = components.map(|component| component as f32);
+                if params.iter().all(|value| value.is_finite()) {
+                    return Some(params);
+                }
+            }
+            tracing::debug!("`shadow` override requires four finite numbers: {value:?}");
+            None
         })
-    } else {
-        None
+        .or_else(|| match ctx.read_property_value(ActorField::Tagged("shadow"), ctx.time_ms) {
+            Some(PropertyValue::Vec4(params)) => Some(params),
+            _ => None,
+        })?;
+    if !(params[2] > 0.0 || params[3] != 0.0 || params[0] != 0.0 || params[1] != 0.0) {
+        return None;
     }
+    let color = ctx
+        .overrides
+        .and_then(|overrides| override_color(overrides, "shadow_color"))
+        .unwrap_or_else(|| {
+            match ctx.read_property_value(ActorField::Tagged("shadow_color"), ctx.time_ms) {
+                Some(PropertyValue::Vec4(c) | PropertyValue::Color(c)) => c,
+                _ => [0.0, 0.0, 0.0, 0.25],
+            }
+        });
+    let (size, corner_radius) = match state {
+        VectorShapeState::Rect(r) => (r.size, r.corner_radius),
+        _ => ([50.0, 50.0], 0.0),
+    };
+    Some(RenderCommand::Shadow {
+        size,
+        corner_radius,
+        params,
+        color,
+    })
 }
 
 /// Stamp the shared stroke decorations (dash, gradient) onto a plot's commands.
@@ -382,28 +398,52 @@ fn shape_shadow_command(ctx: &EvaluateCtx, state: &VectorShapeState) -> Option<R
 /// shapes get by hand: `dash_pattern:` and `stroke_gradient:` are declared
 /// `Applicable::AllStrokePaths`, which includes `PlotCurve`.
 pub(crate) fn stamp_stroke_decoration(commands: &mut [RenderCommand], ctx: &EvaluateCtx) {
-    stamp_shape_dash(commands, ctx);
+    if let Some((pattern, offset)) = sample_dash(ctx) {
+        stamp_shape_dash(commands, &pattern, offset);
+    }
     stamp_shape_gradient(commands, ctx);
 }
 
-/// Stamp the sampled dash pattern/offset onto every path in `commands`.
-///
-/// Called only while a dash pattern is authored. During a `draw-in` the trim
-/// is applied first, so a dashed stroke draws in with its (fixed-length)
-/// dashes appearing as the path grows.
-fn stamp_shape_dash(commands: &mut [RenderCommand], ctx: &EvaluateCtx) {
-    use crate::timeline::TrackAccessor;
-
-    let style = ctx.style;
-    let pattern = style.dash_pattern.get(ctx.time_ms, Vec::new());
+fn sample_dash(ctx: &EvaluateCtx) -> Option<(Vec<f32>, f32)> {
+    let pattern = ctx
+        .overrides
+        .and_then(|values| values.get("dash_pattern"))
+        .and_then(|value| {
+            if let Some(values) = value.to_f64_vec() {
+                let pattern: Vec<_> = values.into_iter().map(|value| value as f32).collect();
+                if pattern.iter().all(|value| value.is_finite() && *value > 0.0) {
+                    return Some(pattern);
+                }
+            }
+            tracing::debug!(
+                "`dash_pattern` override requires positive, finite dash lengths: {value:?}"
+            );
+            None
+        })
+        .unwrap_or_else(|| ctx.style.dash_pattern.get(ctx.time_ms, Vec::new()));
     if pattern.is_empty() {
-        return;
+        return None;
     }
-    let offset = style.dash_offset.get(ctx.time_ms, 0.0);
+    let offset = ctx
+        .overrides
+        .and_then(|values| values.get("dash_offset"))
+        .and_then(|value| match value {
+            Value::Num(number) if (*number as f32).is_finite() => Some(*number as f32),
+            _ => {
+                tracing::debug!("`dash_offset` override requires a finite number: {value:?}");
+                None
+            },
+        })
+        .unwrap_or_else(|| ctx.style.dash_offset.get(ctx.time_ms, 0.0));
+    Some((pattern, offset))
+}
+
+/// Stamp the sampled dash pattern and offset after any stroke trimming.
+fn stamp_shape_dash(commands: &mut [RenderCommand], pattern: &[f32], offset: f32) {
     for cmd in commands.iter_mut() {
         if let RenderCommand::Paths { paths } = cmd {
             for vp in paths.iter_mut() {
-                vp.dash_pattern = Some(pattern.clone());
+                vp.dash_pattern = Some(pattern.to_vec());
                 vp.dash_offset = offset;
             }
         }

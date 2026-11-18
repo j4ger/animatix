@@ -41,8 +41,8 @@ pub struct CoordinateFrameComponent {
 impl Default for CoordinateFrameComponent {
     fn default() -> Self {
         Self {
-            x_domain: [-10.0, 10.0],
-            y_domain: [-10.0, 10.0],
+            x_domain: super::plot::DEFAULT_AXIS_DOMAIN,
+            y_domain: super::plot::DEFAULT_AXIS_DOMAIN,
             x_scale: ScaleType::Linear,
             y_scale: ScaleType::Linear,
             padding: [0.0; 4],

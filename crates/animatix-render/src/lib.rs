@@ -9,6 +9,8 @@
 //! is the seam.
 
 pub mod core;
+#[cfg(all(feature = "raster-encode", not(target_arch = "wasm32")))]
+pub mod delivery;
 pub mod encode;
 pub mod filter_backend;
 pub mod fullscreen_blit;

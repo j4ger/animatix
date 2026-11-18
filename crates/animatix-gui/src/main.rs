@@ -18,10 +18,16 @@ fn main() {
             },
             "-h" | "--help" => {
                 println!(
-                    "{} {}\n\nUsage: animatix-gui [OPTIONS] [FILE]\n\nOptions:\n  --perf-log <PATH>      Drain stage tracer telemetry into a .jsonl file\n  --demo-script <PATH>   Run scripted GUI performance sessions\n  -h, --help             Print help\n  -V, --version          Print version",
+                    "{} {}\n\nUsage: animatix-gui [OPTIONS] [FILE]\n\nOptions:\n  --doctor               Diagnose preview and narrated MP4 prerequisites\n  --perf-log <PATH>      Drain stage tracer telemetry into a .jsonl file\n  --demo-script <PATH>   Run scripted GUI performance sessions\n  -h, --help             Print help\n  -V, --version          Print version",
                     env!("CARGO_PKG_NAME"),
                     env!("CARGO_PKG_VERSION")
                 );
+                return;
+            },
+            "--doctor" => {
+                if !animatix_render::delivery::print_doctor() {
+                    std::process::exit(1);
+                }
                 return;
             },
             "--perf-log" => match args.next() {

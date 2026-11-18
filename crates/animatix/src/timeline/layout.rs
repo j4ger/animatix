@@ -39,6 +39,8 @@ use super::{
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
 use crate::renderer::text::{TextCompileRequest, TextKind, TextStyle};
 
+pub(crate) const DEFAULT_GRID_COLS: usize = 1;
+
 mod container;
 mod engine;
 mod grid;
@@ -192,14 +194,14 @@ pub(crate) fn compute_container_size_with_specs(
                 children,
                 metadata.gap,
                 metadata.padding,
-                metadata.cols.unwrap_or(1).max(1),
+                metadata.cols.unwrap_or(DEFAULT_GRID_COLS).max(1),
             )
         } else {
             compute_taffy_grid_layout_with_specs(
                 children,
                 metadata.gap,
                 metadata.padding,
-                metadata.cols.unwrap_or(1).max(1),
+                metadata.cols.unwrap_or(DEFAULT_GRID_COLS).max(1),
                 size_specs,
                 constraints,
                 parent_content_size,
@@ -498,7 +500,7 @@ impl Timeline {
             },
             super::LayoutType::Grid => {
                 // Grid: per-cell width = (container_width - padding - gaps) / cols
-                let cols = metadata.cols.unwrap_or(1).max(1);
+                let cols = metadata.cols.unwrap_or(DEFAULT_GRID_COLS).max(1);
                 let total_gaps = metadata.gap[0] * (cols - 1) as f32;
                 let avail = (container_size[0] - padding_h - total_gaps) / cols as f32;
                 avail.max(1.0)

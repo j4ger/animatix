@@ -25,42 +25,29 @@ evidence backlog; reproduce them against current code before assigning fixes.
 
 #### P0 — First-run project and video delivery
 
-- **Phase A: export feasibility.** Determine a reproducible FFmpeg distribution
-  and codec strategy for macOS and Windows, then validate a minimal video-enabled
-  artifact on each supported OS. The current release pipeline only ships video
-  on Linux. Record the chosen dependency/update strategy before expanding release
-  artifacts; keep packaging commands in named `tools/ci/ci.sh` gates.
-- **Phase B: independent projects.** Add a project creation entry point (proposed
-  CLI `init`, with a GUI equivalent) that copies a self-contained starter and its
-  required modules/assets. Remove the need for starters to reference the source
-  repository's `examples/lib/` tree. Include a small narrated example using the
-  existing Audio/Captions path.
-- **Phase C: diagnosis and recovery.** Add environment/capability diagnosis
-  (proposed `doctor`) for GPU, fonts, media and encoders, with actionable errors
-  surfaced consistently in CLI and GUI. Document the installation-to-export path.
+- **Desktop acceptance.** Exercise the release ZIPs on clean macOS and Windows
+  desktops with their normal graphics drivers. Confirm the Windows first-run
+  path on a machine without the developer SDK. The hosted Windows proof uses
+  an SDK DXC pair for WARP. [Hosted package evidence](history/2026-11.md#发布归档验收2026-11-18)
 - **Acceptance:** on a clean supported machine, a user installs the release,
   creates a project outside the repository, previews it, and exports a 30-second
   MP4 with audio without installing Rust. Exercise this path per supported OS.
-
 - **Selectable tracks:** Define delivery formats and player support for embedded
   subtitles and alternate audio tracks. Reuse the existing scene/clip timing to
   derive subtitle cue timestamps and language metadata for the selected container.
 
 #### P0 — Reliable editing and language behavior
 
-- **Phase A: source round-trips.** Resolve the raw-string/value ambiguity noted
-  in the easing-pass findings below; pin formatter idempotence and unchanged text
-  semantics. Keep the workbench source-only. Before adding timeline write-back,
-  require small, comprehensible diffs that preserve comments and unrelated source;
-  inspector property editing is not a goal.
-- **Phase B: property contracts.** Reproduce the silent frame-time no-ops and
-  divergent defaults listed below. For each property, either implement the
-  documented path or diagnose unsupported writes. Consolidate defaults across
-  build, interpolation, inspector and reference documentation; record visual
-  compatibility changes rather than silently changing existing scenes.
-- **Phase C: behavior regressions.** Turn current morph, layout and composition
-  findings into minimal runnable repros, prioritize those blocking ordinary
-  authoring, and close findings only with matching diagnostic or visual evidence.
+- **Source formatting.** Preserve author-selected multiline declarations.
+  Keep the workbench source-only. Before adding
+  timeline write-back, require comprehensible diffs that preserve comments and
+  unrelated source. Inspector property editing is outside this milestone.
+- **Property contracts.** Finish the remaining effective defaults below.
+  Verify actor-specific diagnostics for indexed arrays with mixed types.
+  Record visual compatibility changes to shipped scenes.
+- **Behavior regressions.** Reproduce the remaining same-stamp morph, layout
+  and composition cases below. Give the authored `play` timestamp a defined
+  behavior or a diagnostic.
 - **Acceptance:** repeated formatting is stable; GUI save/reopen preserves text
   semantics; supported property writes visibly work and unsupported writes report
   a diagnostic. Representative scenes agree across preview and export. Run the
@@ -328,20 +315,6 @@ What remains in this family:
   path — `Glass` no longer inherits that restriction, but the filter side of it
   is unchanged.
 
-## Morph: `strategy: fade` has no cross-fade for state shapes
-
-`MorphStrategy::Fade` is documented as a cross-fade overlay, and the tour
-once taught it that way, but for shapes whose geometry lives in the shape
-state rather than a `vector_paths` track (Rect, Ellipse, and points-list
-Polygons — everything the PF-4 shortcut covers) a fade re-declaration
-renders as a color lerp followed by a one-frame silhouette swap: nothing
-cross-fades. A real implementation needs the morph span to evaluate both the
-start and end states and draw them at opposite opacities, which means the
-frame path must be able to build a second state from the *start* type's
-primitive (the same machinery `render_type_name` now dispatches per frame).
-Until then the tour demos morph strategies that visibly work: auto, match,
-path_arc, stretch.
-
 ## Web-demo review pass — engine findings (2026-10-02)
 
 Behaviour gaps found while polishing the site's scenes, each worked around
@@ -367,7 +340,6 @@ the behaviour is *wrong* or merely *shaped badly*; what it did land is archived 
 | 2 | **`animatix fmt` reflows declarations.** | Comment deletion is fixed (2026-11-03): `Formatter::format_source` reinserts every `//` class from the lossless token stream — file header, free-standing, in-block, trailing, comment-only — with round-trip, idempotence, and scrubbed-AST tests. Remaining: formatting still collapses every multi-line declaration onto one line (`web/scenes/hero.amx` 202 → 124 lines), and nested-block indentation is sometimes doubled. A `for` inside a container can also lose indentation on its header and child nodes (`format_core::format_inline_item`, reproduced by `web/content/scenes/one-rule-many-forms.amx`). |
 | 3 | **The native-plugin ABI silently flattens most easings to Linear.** | `easing_code` (`extension_native_plugin/`) maps everything outside {EaseIn, EaseOut, EaseInOut} onto code 0, so a plugin reading a `spring`, `bounce`, or `cubic_bezier` track sees a linear one. Pre-dates this pass. Widening the code space is a plugin-API version bump, not an easing change. |
 | 5 | **A component actor declared between keyframes renders half-drawn.** | `hash/lookup.amx`'s `q2`/`q3` (`LabeledBox`) appeared as a dim box *without its label* in beats before their own `fade_in`. Worked around scene-side with `opacity: 0.0`, but the engine question stands: "declared inside a keyframe is visible immediately" should not produce a partially drawn component. Narrowed 2026-10-03: the mechanism first blamed for it — a re-declaration sampling its own target because a sibling wrote a keyframe at the same `#t` — was probed on plain shape actors in four orderings and does **not** reproduce (the pre-frame keeps the old shape and colour and the morph still lands on target); `a_redeclaration_starts_from_what_it_replaces_not_from_its_target` pins that. What is left is specific to *component* actors, whose parts are separate sub-actors seeded during expansion, and it still needs a minimal repro outside the demo. |
-| 13 | **A string literal's backslashes grow every time a file is formatted.** | The lexer stores the raw text between the quotes (`token/` `lex_string` skips escape pairs but never decodes them) while `format_expr`'s `Str` arm re-escapes (`s.replace('\\', "\\\\")`), so `"…\n…"` becomes `"…\\n…"` and then `"…\\\\n…"`: `animatix fmt` is not idempotent and each pass drifts the rendered text further. Three supported repo files are affected (`examples/gallery/sorting_theatre.amx`, `examples/layout/27_layout_text.amx`, `web/demos/transformer/scenes/attention.amx`); `roundtrip_examples.rs` excuses instability *only* when the changed line contains a backslash, so another cause cannot appear silently. The fix is a language decision, not a printer tweak: decode escapes at lex time so `Expr::Str` holds the value (then `\n` in `text:` finally means a newline, and Typst's `\sqrt` stops needing `\\sqrt`), or declare the field raw-text and give the ~10 GUI `Expr::Str(…)` construction sites an explicit escaping constructor. Today the field means both things at once, which is why no printer rule can be right. |
 
 ### Design flaws — the shape invites the wrong thing
 
@@ -377,15 +349,6 @@ the behaviour is *wrong* or merely *shaped badly*; what it did land is archived 
 | 9 | **Curve names that promise physics.** An easing is a scalar map over progress between two values; it can only modulate travel *along* that line, so no easing can produce an arc. `bounce` was renamed `bounce_in` and the boundary is now written into `docs/spec.md`, but `elastic` still promises a spring and delivers a progress wobble. |
 | 10 | **Page-level animation review.** The current web smoke gate captures visible canvas pixels and exercises scrolling and play controls. Add targeted page-level evidence when a change affects the surrounding interface, such as hover or scroll transitions outside the canvas. |
 | 11 | **Nothing keeps the corpus on its motion vocabulary.** The site was 155-of-207 annotations on one quadratic curve, with ~880 timed statements carrying no ease at all (so: Linear). Fixed by convention plus `docs/spec.md`'s reference table, but nothing enforces it — a scene can slide back to monoculture unnoticed. A lint over "which role uses which curve" is the durable version of this pass. |
-
-## Authoring diagnostics for inline actors
-
-The AST visitor traverses inline children. The semantic property checker
-dispatches through statement nodes, so inline declarations miss those checks.
-Cover `InlineItem::Labeled` declarations in `unknown-property` and
-`type-mismatch` checks, including nested containers and component slots. Use
-equivalent inline and top-level declarations as a regression pair and review the
-affected examples for duplicate diagnostics.
 
 ## Motion-vocabulary round — what it left open (2026-10-05)
 
@@ -603,74 +566,14 @@ the current renderer before changing the authored workarounds.
   left edge, which has no leading edge to miss; a scene that genuinely wants a
   growing trace still cannot land a marker on its end.
 
-## Property-name / flag / default inversions found by the resolution-knob audit (2026-10-08)
+## Remaining property defaults and measurement contracts
 
-The `resolution` clamp was not a lone defect — it is one instance of a shape:
-**a property whose descriptor name, registry binding, frame-time consumer and
-documented default disagree.** Two sweeps over the registry found many more.
-The fixed one is archived in [`history/2026-10.md`](history/2026-10.md); the rest are
-recorded rather than silently half-patched, because several would change shipped visuals.
-
-### Confirmed silent frame-time no-ops (accepted, no diagnostic, no consumer)
-
-Each was checked by rendering and comparing frames. `always` writes to these
-change no pixels:
-
-`stroke_progress` (the reason §05's angle arc had to be deleted — see the
-`stroke_progress` overshoot entry above), `dash_pattern`, `dash_offset` (so
-"marching ants" are only reachable via a keyframe assignment, as
-`web/demos/sorting/scene.amx` does), `blend`, `char_progress`, `commands`,
-`points`, `head_size` on `Arrow`, `standoff` and `to_offset` on `Callout`,
-`corner_radius` on `Glass`, `min_width`/`min_height`/`max_height`, `height`,
-`anchor`/`offset`, `bounds` on `Filter`, the four `highlight_*` properties,
-`ascent`/`descent`/`baseline`, the five Legend properties, `volume` on `Audio`,
-and `background_color` on a non-`scene` actor.
-
-Also `Callout.label` is half-dead: `always { c.label = "" }` hides the text,
-but any replacement string keeps the old glyphs (`callout.rs` uses the value
-only as an empty/non-empty gate). And a hex *string* colour is accepted by
-`override_color()` for shapes but the text style path matches only
-`Value::Color | Value::Vec4`, so `always { t.color = "#00ff00" }` does nothing
-while the tuple form works.
-
-### Dynamic `shadow` sampling follow-up (2026-11-17, open)
-
-A native trial accepted an `always` write to `shadow`, but the rendering sample
-path did not consume frame overrides and the requested shadow did not appear.
-This is a remaining property-contract issue under the P0 reliable-editing plan,
-not a completed fix and not a reopening of shipped `DropShadow.softness` work.
-Pin a minimal reproducer and define the supported frame-time `shadow` contract:
-consume the sampled value through the existing property/effect path, or diagnose
-unsupported writes instead of silently accepting them. Add declaration/keyframe/
-`always` comparisons, before/during/after samples and reverse/random seeks,
-checking actual shadow pixels and effect bounds, not only source acceptance.
-Preserve the working static-shadow path and report native/browser test coverage
-separately. Keep this distinct from dynamic-size bounds and Filter ROI repairs.
-
-### Divergent defaults — same property, two answers
-
-The declaration extractor and the registry binding disagree on the starting
-value, so the number the render uses and the number the inspector/interpolator
-report differ for any scene that does not author the property explicitly:
-
-| property | extractor | registry |
-|---|---|---|
-| `resolution` | 96 | 48 |
-| `tolerance` | 0.5 | 2.0 |
-| `max_depth` | 10 | 12 |
-| `x_domain` / `y_domain` | ±10 | ±5 |
-| `t_domain` | `[0, tau]` | `[0, 1]` |
-| `stroke_width` | 2.0 (`default_stroke_width`) | 1.0 (binding) — and `ActorField::default_value` says 2.0 again |
-| `font_size` | 48 for Text/Typst/Math | 48 / 36 / 24 per kind; docs say 18 |
-| `bar_width` | 20 | 0 |
-| `gap` | 4 (BarChart), 8 (Legend) | 0 |
-| `cols` | 1 (`unwrap_or(1)` in layout) | 2 |
-| `from` / `to` | `[-50,0]` / `[50,0]` | `[0,0]` / `[100,0]` |
-| `size` (Graph parent fallback) | `[500,500]` | `[50,50]` half-size |
-
-The base-grid floors and default sources also vary by plot family. Pin current
-rendered behaviour first, then unify defaults where semantics agree. Use
-separate entries where a property genuinely has per-family defaults.
+- Graph-child coordinate mapping has a 500-by-500 parent fallback.
+  Verify when it can be reached and align its units with the measured Graph
+  geometry and public size readout.
+- Sampling floors for `resolution` differ by plot family. Pin their
+  intended behavior with rendered evidence before unifying or documenting
+  the numeric floors.
 
 ## Release validation still requiring live evidence
 

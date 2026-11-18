@@ -1,0 +1,31 @@
+name: Restore native FFmpeg dependencies
+description: Restore vcpkg binary packages and corresponding sources
+outputs:
+  path:
+    description: Directory containing the binary and source archives
+    value: ${{ steps.keys.outputs.path }}
+  cache-hit:
+    description: Whether the current runner image key was restored
+    value: ${{ steps.cache.outputs.cache-hit }}
+  cache-primary-key:
+    description: Cache key for the current runner image
+    value: ${{ steps.keys.outputs.primary }}
+runs:
+  using: composite
+  steps:
+    - id: keys
+      shell: bash
+      env:
+        CACHE_PATH: ${{ runner.temp }}/animatix-ffmpeg-cache
+        CACHE_PREFIX: native-ffmpeg-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/release/native/video-proof.sh', 'tools/release/native/vcpkg-sources.lock') }}
+      run: |
+        prefix="$CACHE_PREFIX-${ImageOS:?}"
+        printf 'path=%s\nprefix=%s-\nprimary=%s-%s\n' "$CACHE_PATH" "$prefix" "$prefix" "${ImageVersion:?}" >> "$GITHUB_OUTPUT"
+        printf 'ANIMATIX_FFMPEG_CACHE=%s\n' "$CACHE_PATH" >> "$GITHUB_ENV"
+    - id: cache
+      uses: actions/cache/restore@v5
+      with:
+        path: ${{ steps.keys.outputs.path }}
+        key: ${{ steps.keys.outputs.primary }}
+        # vcpkg checks each package's compiler and triplet ABI on restore.
+        restore-keys: ${{ steps.keys.outputs.prefix }}

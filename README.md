@@ -40,6 +40,8 @@ accent.size = (640, 3) [800ms, ease: ease_out]
 
 See [GitHub Releases](https://github.com/j4ger/animatix/releases) for available builds. The nightly workflow packages a Linux x86-64 development snapshot. For runtime dependencies and portability, see [Downloaded builds](docs/contributing.md#downloaded-builds). Use the Nix shell below to build from source.
 
+Use a video-enabled build to create, preview and export the narrated starter from a folder outside the repository. [First project instructions](docs/contributing.md#create-a-narrated-project-from-a-video-enabled-package)
+
 <details>
 <summary><strong>Build from source with Nix</strong></summary>
 

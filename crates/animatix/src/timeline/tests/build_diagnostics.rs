@@ -30,6 +30,50 @@ fn always_overrides_keyframes_warnings() {
 }
 
 #[test]
+fn unsupported_frame_writes_inside_conditionals_report_the_source() {
+    let source = r#"#0s
+shape: Rect, size: (50, 50)
+always {
+  if t > 0 {
+    shape.blend = "multiply"
+  }
+  shape.dash_offset = t
+}
+"#;
+    let report = support::build(source);
+    let diagnostics: Vec<_> = report
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == DiagnosticCode::AlwaysWriteNotAnimatable)
+        .collect();
+    assert_eq!(diagnostics.len(), 1, "{:?}", report.diagnostics);
+    assert_eq!(diagnostics[0].location.subject.as_deref(), Some("blend"));
+    let location = diagnostics[0].location.span.clone().unwrap();
+    assert_eq!(&source[location], "\"multiply\"");
+}
+
+#[test]
+fn unsupported_frame_writes_to_array_members_report_the_indexed_target() {
+    let report = support::build(
+        r#"#0s
+tile[0]: Rect
+tile[1]: Rect
+always {
+  for i in {0, 1} {
+    tile[i].blend = "multiply"
+  }
+}
+"#,
+    );
+    let diagnostic = report
+        .diagnostics
+        .iter()
+        .find(|item| item.code == DiagnosticCode::AlwaysWriteNotAnimatable)
+        .expect("unsupported indexed write diagnostic");
+    assert!(diagnostic.message.contains("tile[i]"));
+}
+
+#[test]
 fn absolute_position_on_layout_managed_child_warning() {
     // A child of a Row with explicit `at` should emit a warning.
     let source = r#"

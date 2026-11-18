@@ -167,6 +167,22 @@ struct BarPlotGeometry {
 }
 
 impl BarChartLayout {
+    pub(crate) fn spacing_property(
+        &self,
+        property: &str,
+    ) -> Option<crate::timeline::PropertyValue> {
+        let (automatic, value) = match property {
+            "bar_width" => (self.bar_width_auto, self.bar_width_val),
+            "gap" => (self.gap_auto, self.gap_val),
+            _ => return None,
+        };
+        Some(if automatic {
+            crate::timeline::PropertyValue::String("auto".into())
+        } else {
+            crate::timeline::PropertyValue::F32(value)
+        })
+    }
+
     /// Whether this chart compiles bar captions at build. A chart that shows
     /// none has nothing that can drift out of position, so the caption guard on
     /// a `data` assignment stays quiet for it.

@@ -4,9 +4,9 @@ use crate::ast::{InlineItem, Stmt};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticSeverity};
 use crate::symbol_table::{LabelKind, SymbolTable};
 use crate::token::Token;
-use crate::walk;
+use crate::visit::{AstVisitor, walk_inline_item, walk_stmt};
 
-use super::checks::check_stmt;
+use super::checks::{check_actor_properties, check_stmt};
 use super::spans::span_diagnostic;
 
 /// Collect the runtime-parameter names a plot-family actor's declaration
@@ -106,11 +106,40 @@ pub fn collect_semantic_diagnostics(
         }
     }
 
-    walk::walk_stmts(stmts, &mut |stmt| {
-        check_stmt(stmt, symbols, tokens, source, &mut diagnostics);
-    });
+    let mut visitor = DiagnosticVisitor {
+        symbols,
+        tokens,
+        source,
+        diagnostics: &mut diagnostics,
+    };
+    for stmt in stmts {
+        visitor.visit_stmt(stmt);
+    }
 
     diagnostics
+}
+
+struct DiagnosticVisitor<'a> {
+    symbols: &'a SymbolTable,
+    tokens: &'a [Token],
+    source: &'a str,
+    diagnostics: &'a mut Vec<Diagnostic>,
+}
+
+impl<'ast> AstVisitor<'ast> for DiagnosticVisitor<'_> {
+    fn visit_stmt(&mut self, stmt: &'ast Stmt) {
+        check_stmt(stmt, self.symbols, self.tokens, self.source, self.diagnostics);
+        walk_stmt(self, stmt);
+    }
+
+    fn visit_inline_item(&mut self, item: &'ast InlineItem) {
+        if let InlineItem::Labeled { ty, props, .. } | InlineItem::Anonymous { ty, props, .. } =
+            item
+        {
+            check_actor_properties(ty, props, &None, self.symbols, self.source, self.diagnostics);
+        }
+        walk_inline_item(self, item);
+    }
 }
 
 fn collect_structural_container_labels(stmts: &[Stmt]) -> HashSet<String> {

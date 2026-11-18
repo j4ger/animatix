@@ -140,3 +140,94 @@ always {{ box.at = (20 * t,0) }}
         }
     }
 }
+
+#[test]
+fn reactive_shadow_matches_keyframed_pixels_across_seeks() {
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let dims = SceneDimensions {
+        width: 400,
+        height: 240,
+    };
+    let source = r##"
+config { resolution: (400,240), duration: 3 }
+scope: Filter, at:(200,120), opacity:1 {
+  fx: Blur, radius: 2
+  box: Rect, size:(100,60), color:"#ff0000", opacity:1,
+    shadow:(0,0,0,0), shadow_color:"#00ff00"
+}
+"##;
+    let keyframed = build(&format!("{source}\n#0s\nbox.shadow = (60,0,12,2) [1s, ease: linear]"));
+    let reactive = build(&format!(
+        "{source}\nalways {{ box.shadow = (60 * clamp(t,0,1),0,12 * clamp(t,0,1),2 * clamp(t,0,1)) }}"
+    ));
+    for time in [0., 0.5, 1., 0.5, 0., 1., 1.] {
+        let actual = renderer.render_timeline(&reactive, time, dims).unwrap();
+        let expected = renderer.render_timeline(&keyframed, time, dims).unwrap();
+        assert_same_pixels(&actual, &expected);
+        let shadow_visible = actual.rgba.as_chunks::<4>().0.iter().any(|p| p[1] > 80 && p[0] < 30);
+        assert_eq!(shadow_visible, time > 0., "shadow at {time}s");
+    }
+}
+
+#[test]
+fn reactive_text_color_and_callout_content_match_static_output() {
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let dims = SceneDimensions {
+        width: 400,
+        height: 240,
+    };
+    let source = |color: &str, label: &str| {
+        format!(
+            r#"config {{ resolution: (400, 240), duration: 2 }}
+#0s
+heading: Text, text: "Heading", font_size: 32, at: (120, 70), color: "{color}"
+note: Callout, from: (-40, 0), to: (40, 0), at: (270, 145), label_at: (-10, 38), label: "{label}"
+"#
+        )
+    };
+    let initial = source("#ffffff", "Beginning");
+    let reactive = build(&format!(
+        "{initial}\nalways {{ heading.color = \"#00ff00\"\n note.label = \"Changed\" }}"
+    ));
+    let expected_timeline = build(&source("#00ff00", "Changed"));
+    let baseline = build(&initial);
+    let actual = renderer.render_timeline(&reactive, 0.5, dims).unwrap();
+    let expected = renderer.render_timeline(&expected_timeline, 0.5, dims).unwrap();
+    let before = renderer.render_timeline(&baseline, 0.5, dims).unwrap();
+    assert_same_pixels(&actual, &expected);
+    assert_ne!(actual.rgba, before.rgba);
+}
+
+#[test]
+fn same_type_fade_morph_draws_both_endpoint_silhouettes() {
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let dims = SceneDimensions {
+        width: 160,
+        height: 120,
+    };
+    let timeline = build(
+        r##"
+config { resolution: (160, 120), duration: 3 }
+#0s
+shape: Rect, at: (80, 60), size: (120, 40), color: "#ff0000"
+#1s
+shape: Rect, at: (80, 60), size: (40, 100), color: "#0000ff" [1s, strategy: fade, ease: linear]
+"##,
+    );
+    for (time, red, blue) in [
+        (0.9, true, false),
+        (1.5, true, true),
+        (2.1, false, true),
+        (1.5, true, true),
+    ] {
+        let frame = renderer.render_timeline(&timeline, time, dims).unwrap();
+        assert_eq!(frame.rgba[(60 * 160 + 35) * 4] > 100, red, "wide arm at {time}s");
+        assert_eq!(frame.rgba[(18 * 160 + 80) * 4 + 2] > 100, blue, "tall arm at {time}s");
+    }
+}

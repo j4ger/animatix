@@ -715,42 +715,61 @@ pub(super) fn validate_actors(timeline: &mut Timeline, diagnostics: &mut Vec<Dia
         }
     }
 
-    // Check for always-blocks overriding keyframed properties.
-    for stmt in &timeline.modifiers {
+    // Include writes in conditional and loop bodies as well as direct statements.
+    animatix_syntax::walk::walk_stmts(&timeline.modifiers, &mut |stmt| {
         if let crate::ast::Stmt::Assignment {
             target,
             property,
             span,
+            value_span,
             ..
         } = stmt
         {
             let actor_key = crate::timeline::assignment_target_key(target);
-            if let Some(id) = timeline.world.get_id(&actor_key) {
-                let not_animatable = crate::timeline::property_registry::lookup_property(property)
-                    .is_some_and(|schema| {
-                        !schema
-                            .flags
-                            .contains(crate::timeline::property_registry::PropertyFlags::ANIMATED)
-                    });
-                if not_animatable {
-                    diagnostics.push(
-                        Diagnostic::warning(
-                            DiagnosticCode::AlwaysWriteNotAnimatable,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "Always block writes `{property}` on actor `{actor_key}`, which \
-                                 is not animatable, so the per-frame write is ignored. Set it \
-                                 in a declaration or a keyframe assignment instead."
-                            ),
-                        )
-                        .with_subject(property),
-                    );
-                } else if timeline.world.is_property_animated(id, property) {
-                    // Only a property that actually *moves* is worth warning
-                    // about: the build seeds a constant keyframe for most
-                    // declared properties, and a frame-time write over a
-                    // value that never changes silently overrides nothing.
-                    diagnostics.push(
+            let is_indexed = target.iter().any(|segment| segment.as_static_str().is_none());
+            let id = if is_indexed {
+                None
+            } else {
+                timeline.world.get_id(&actor_key)
+            };
+            let schema = crate::timeline::property_registry::lookup_property(property);
+            let unsupported = schema.and_then(|schema| {
+                if let Some(id) = id {
+                    let actor_type = timeline.world.actor_type(id);
+                    return (!schema.supports_frame_override(actor_type)).then_some(actor_type);
+                }
+                if is_indexed && !schema.supports_frame_override("") {
+                    return indexed_write_actor_type(&timeline.world, target);
+                }
+                None
+            });
+            if let Some(actor_type) = unsupported {
+                let authored_target = animatix_syntax::format_core::format_target_segments(
+                    target,
+                    animatix_syntax::format_core::format_expr,
+                );
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::AlwaysWriteNotAnimatable,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "Always block writes `{property}` on `{authored_target}` ({actor_type}), \
+                             which does not support a per-frame override. Use a declaration or \
+                             a keyframe operation where the property supports it."
+                        ),
+                    )
+                    .with_subject(property)
+                    .with_ast_span(*span)
+                    .with_byte_span(*value_span),
+                );
+            } else if let Some(id) = id
+                && timeline.world.is_property_animated(id, property)
+            {
+                // Only a property that actually *moves* is worth warning
+                // about: the build seeds a constant keyframe for most
+                // declared properties, and a frame-time write over a
+                // value that never changes silently overrides nothing.
+                diagnostics.push(
                         Diagnostic::warning(
                             DiagnosticCode::AlwaysOverridesKeyframes,
                             DiagnosticPhase::Build,
@@ -762,10 +781,28 @@ pub(super) fn validate_actors(timeline: &mut Timeline, diagnostics: &mut Vec<Dia
                         .with_subject(property)
                         .with_ast_span(*span),
                     );
-                }
             }
         }
-    }
+    });
+}
+
+fn indexed_write_actor_type<'a>(
+    world: &'a crate::timeline::World,
+    target: &[crate::ast::TargetSegment],
+) -> Option<&'a str> {
+    use crate::ast::TargetSegment;
+
+    world.tracks.iter().find_map(|(label, id)| {
+        let mut parts = label.split('.');
+        let matches_target = target.iter().all(|segment| match (segment, parts.next()) {
+            (TargetSegment::Static(expected), Some(part)) => expected == part,
+            (TargetSegment::Indexed { base, .. }, Some(part)) => {
+                crate::ast::is_array_member_label(part) == Some(base.as_str())
+            },
+            (_, None) => false,
+        });
+        (matches_target && parts.next().is_none()).then(|| world.actor_type(id))
+    })
 }
 
 #[cfg(test)]

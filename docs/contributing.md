@@ -47,6 +47,44 @@ The current packaging scripts build a different, relocatable distribution. A
 successful packaging check does not establish that an older uploaded release was
 built with those scripts. Recheck this caveat when replacing the nightly artifact.
 
+### Create a narrated project from a video-enabled package
+
+Keep the extracted binaries and bundled media tools together. From a folder
+outside the repository, run the following commands using the package's CLI.
+
+```sh
+animatix doctor
+animatix init "My Narrated Project"
+animatix check "My Narrated Project/main.amx"
+animatix-gui "My Narrated Project/main.amx"
+animatix video "My Narrated Project/main.amx" --hold 0 --output narrated.mp4
+```
+
+Use the paths to the extracted binaries if they are outside `PATH`. On Windows
+the binaries have an `.exe` suffix. In the workbench, **New narrated project…**
+in the file menu also creates and opens the starter. Choose a new or empty
+directory. Keep `narration.mp3` and `narration.speech.json` beside `main.amx`
+when moving the project. The scene uses the transcript's cue markers to time
+the graphics and displays captions from the same transcript.
+
+Run `animatix-gui --doctor` from a terminal if the workbench cannot open a
+preview or export. The report checks the renderer, text shaping, and the linked
+FFmpeg AAC and H.264 encoders. Animatix mixes and muxes audio in the export
+process. The Release build verifies the extracted macOS and Windows ZIPs
+before uploading them, including the packaged workbench preview and a
+30-second export with audio. [Native video proof](../tools/release/native/video-proof.sh)
+
+The native proof pins the vcpkg ports tree and its FFmpeg 8.x dependency set.
+It builds against those headers, links the macOS libraries statically, and
+stages the Windows DLLs beside both executables. Both stages carry the same
+FFmpeg tools used to inspect the output. They include the codec source
+archives, vcpkg recipes and licenses. The companion Linux source archive includes
+the project's source and Cargo dependencies for the same release. The Windows
+package statically links the Visual C++ runtime. On GitHub's
+Windows runner, the acceptance process loads a matched DXC and DXIL pair from
+the runner SDK to exercise its software adapter. The SDK DLLs remain in the
+acceptance environment. Update the FFmpeg pin as a unit and verify both packages.
+
 ### Video export
 
 CLI and GUI builds do **not** enable video by default. Enable it explicitly:
@@ -367,6 +405,20 @@ The scheduled/manual nightly workflow builds a Linux video-enabled distribution
 and replaces the rolling `nightly` prerelease. Scheduled runs skip unchanged
 `main`; the workflow's force input can request a rebuild. It does not create a
 new versioned release each day.
+
+Release runs the complete Windows and macOS video acceptance as part of the
+distribution gates. The **Native Video Proof** workflow provides a manual
+rehearsal of the native archives and Linux Nightly packaging.
+
+To warm the Windows and macOS vcpkg binary caches before tagging, run
+**Native Video Proof** on the default branch with `ffmpeg_only` enabled.
+Release tags can restore that branch's cache. vcpkg checks each package's ABI
+and builds missing packages from the pinned ports. The cache holds the binary
+package archives and the codec source archives that go into the release ZIP.
+The build verifies the source checksums and downloads missing archives from
+the pinned URLs. To check the warm path on a fresh runner,
+enable `require_ffmpeg_cache`. Leave `ffmpeg_only` disabled for a warm-path run
+that also builds Animatix and validates the extracted native ZIPs.
 
 Detailed explanations, measurements and post-mortems belong in
 [history](history/README.md); [roadmap](roadmap.md) contains unfinished work only.

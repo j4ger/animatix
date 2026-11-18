@@ -33,10 +33,13 @@ impl TextDeclarationKind {
     }
 
     pub(super) fn default_font_size(self) -> f32 {
+        use crate::renderer::text::{TextKind, default_font_size};
         match self {
-            Self::Code => 24.0,
+            Self::Code => default_font_size(TextKind::Code),
             Self::Counter => crate::primitives::counter::DEFAULT_FONT_SIZE,
-            Self::Text | Self::Typst | Self::Math => 48.0,
+            Self::Text => default_font_size(TextKind::Text),
+            Self::Typst => default_font_size(TextKind::Typst),
+            Self::Math => default_font_size(TextKind::Math),
         }
     }
 
