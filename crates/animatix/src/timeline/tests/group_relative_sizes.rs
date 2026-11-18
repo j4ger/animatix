@@ -576,3 +576,92 @@ fn mixed_group_col_63_levels() {
 fn mixed_group_col_64_levels() {
     assert_mixed_group_col_boundary(64);
 }
+
+#[test]
+fn mixed_size_declarations_seed_fixed_axes_before_layout() {
+    let report = build(
+        r#"
+root_width: Rect, size: (20, auto), opacity: 1
+root_height: Rect, size: (auto, 30), opacity: 1
+host: Group, size: (800, 600) {
+  horizontal: Rect, size: (fill, 20), opacity: 1
+  vertical: Rect, size: (30, fill), opacity: 1
+}
+"#,
+    );
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    assert_eq!(layout_size(&report.output, "root_width")[0], 10.0);
+    assert_eq!(layout_size(&report.output, "root_height")[1], 15.0);
+    for (label, expected) in [("horizontal", [400.0, 10.0]), ("vertical", [15.0, 300.0])] {
+        assert_eq!(layout_size(&report.output, label), expected);
+        let id = report.output.world.get_id(label).unwrap();
+        assert_eq!(report.output.world.geometry(id).size.get(0, [0.0; 2]), expected);
+    }
+}
+
+#[test]
+fn mixed_size_fixed_axis_survives_redeclaration_and_still_animates() {
+    let report = build(
+        r#"
+r: Rect, size: (auto, 20), opacity: 1
+#1s
+r: Rect, opacity: 1
+#2s
+r.size = (100, 60) [2s]
+"#,
+    );
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    let id = report.output.world.get_id("r").unwrap();
+    let geometry = report.output.world.geometry(id);
+    for (time, expected) in [(0, 10.0), (1000, 10.0), (2000, 10.0), (3000, 20.0), (4000, 30.0)] {
+        assert_eq!(geometry.size.get(time, [0.0; 2])[1], expected, "time={time}");
+    }
+}
+
+#[test]
+fn repeated_mixed_sizes_follow_shape_property_order() {
+    let report = build(
+        r#"
+a: Ellipse, size: (auto, 20), radius_y: 30, size: auto, opacity: 1
+b: Ellipse, radius_y: 30, size: (auto, 20), opacity: 1
+c: Ellipse, size: (40, 20), radius_y: 30, size: auto, opacity: 1
+d: Ellipse, size: (auto, 20), radius_y: 30, size: (80, 100), opacity: 1
+e: Ellipse, size: auto, radius_y: 30, size: (auto, 20), opacity: 1
+f: Ellipse, size: (auto, 20), radius_y: 30, size: (auto, 40), opacity: 1
+"#,
+    );
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    for (label, height) in
+        [("a", 30.0), ("b", 10.0), ("c", 30.0), ("d", 50.0), ("e", 10.0), ("f", 20.0)]
+    {
+        assert_eq!(layout_size(&report.output, label)[1], height, "{label}");
+        let id = report.output.world.get_id(label).unwrap();
+        assert_eq!(report.output.world.geometry(id).size.get(0, [0.0; 2])[1], height, "{label}");
+    }
+    assert_eq!(layout_size(&report.output, "d")[0], 40.0);
+}
+
+#[test]
+fn mixed_size_numeric_expressions_and_vec2_values_keep_their_meaning() {
+    let report = build(
+        r#"
+let height = 20
+let dimensions = (40, 60)
+vector: Rect, size: dimensions, opacity: 1
+host: Group, size: (800, 600) {
+  numeric: Rect, size: (fill, height + 10), opacity: 1
+  percent: Rect, size: (50%, height + 20), opacity: 1
+  quoted: Rect, size: ("25%", height), opacity: 1
+}
+"#,
+    );
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    for (label, expected) in [
+        ("vector", [20.0, 30.0]),
+        ("numeric", [400.0, 15.0]),
+        ("percent", [200.0, 20.0]),
+        ("quoted", [100.0, 10.0]),
+    ] {
+        assert_eq!(layout_size(&report.output, label), expected, "{label}");
+    }
+}

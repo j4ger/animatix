@@ -83,23 +83,24 @@ impl Timeline {
                     }
                 },
                 "size" => {
-                    let size_val = evaluate_expr_with_lookup_diagnostic(
+                    let axes = super::property::evaluate_numeric_size_axes(
                         &prop.value,
                         &eval_env,
                         diagnostics,
                         &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    if let Value::Vec2([w, h]) = size_val {
-                        if let Some(size) = vector_shape_state.size_mut() {
-                            *size = [w as f32 / 2.0, h as f32 / 2.0];
-                        } else {
-                            diagnostics.push(Diagnostic::warning(
-                                DiagnosticCode::InvalidPropertyValue,
-                                DiagnosticPhase::Build,
-                                format!("size is not supported on {}", ty),
-                            ));
+                    );
+                    if let Some(size) = vector_shape_state.size_mut() {
+                        for (axis, value) in axes.into_iter().enumerate() {
+                            if let Some(value) = value {
+                                size[axis] = value;
+                            }
                         }
+                    } else if axes.into_iter().any(|value| value.is_some()) {
+                        diagnostics.push(Diagnostic::warning(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            format!("size is not supported on {}", ty),
+                        ));
                     }
                 },
                 _ => {
