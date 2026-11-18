@@ -15,6 +15,15 @@ impl Default for ExportSettings {
 }
 
 impl<'a> ExportOptions<'a> {
+    #[cfg(feature = "video")]
+    pub(super) fn warn(&self, message: String) {
+        if let Some(warnings) = self.warnings {
+            let _ = warnings.send(message);
+        } else {
+            tracing::warn!("{message}");
+        }
+    }
+
     /// Options for a settings-only export (no progress or cancellation).
     pub fn with_settings(settings: ExportSettings) -> Self {
         Self {

@@ -346,14 +346,8 @@ impl Timeline {
         let mut source = String::new();
         let mut volume = 1.0f32;
 
-        // `source` and `volume` are read from the declaration props and frozen
-        // into the `AudioSegment` the GUI player and the export mux consume.
-        // Assignments and keyframes on them cannot be honoured by that snapshot
-        // model, so `write_property_field` reports `unimplemented-property`
-        // instead of dropping them silently. Automating them needs a sampled
-        // gain envelope on the segment plus a matching per-frame ffmpeg
-        // expression and GUI `set_volume` tick — see docs/roadmap.md,
-        // "Audio volume automation".
+        // The source is fixed at declaration time. The declared gain also
+        // seeds the property that later volume assignments animate.
         for prop in props {
             let prop_subject = format!("{}.{}", label, prop.name);
             match prop.name.as_str() {
@@ -444,12 +438,17 @@ impl Timeline {
         let normalized_source = self.asset_cache.normalize_asset_url(&source);
         std::sync::Arc::make_mut(&mut self.asset_cache).record_usage(&normalized_source, label);
         self.warn_unknown_declaration_properties(label, "Audio", props, diagnostics);
+        let volume = volume.clamp(0.0, 1.0);
+        self.world
+            .geometry_mut(track_id)
+            .volume
+            .get_or_insert_with(|| crate::timeline::PropertyTrack::new(volume));
         self.audio_segments.push(AudioSegment {
             actor_id: Some(track_id),
             source: normalized_source,
             start_time_s,
             duration_s,
-            volume: volume.clamp(0.0, 1.0),
+            volume,
             volume_envelope: None,
         });
     }

@@ -309,7 +309,8 @@ guide: Path, commands: {
 Container for speech-synced subtitles. Cues come from `Cue` children or from a transcript file; the container draws the active cue and styles it, and only while a cue is active does anything render.
 
 **Properties:**
-- `transcript`: String — path to a transcript file (`.json`, `.vtt`, `.srt`); parsed at build and used when the container has no `Cue` children
+- `transcript`: String — path to a transcript file (`.json`, `.vtt`, `.srt`); times are scene-relative and used when the container has no `Cue` children
+- `source`: String — label of an `Audio` actor whose transcript supplies cues when the container has no `Cue` children or explicit transcript. The cues and word timings follow the clip start and respect its authored trim.
 - `caption_mode`: String — `"karaoke"`, `"pop"`, or `"line"`; any other value highlights only the current word
 - `active_color`: Color — color of the current word (in `"karaoke"`, also of words already spoken)
 - `inactive_color`: Color — color of the not-yet-spoken words
@@ -329,9 +330,10 @@ Word timings for a `Cue` child are distributed evenly across its text; a transcr
 
 **Example:**
 ```animatix
+voice: Audio, source: "narration.mp3", transcript: "narration.speech.json"
 subs: Captions,
   at: (640, 580),
-  transcript: "narration.speech.json",
+  source: "voice",
   caption_mode: "karaoke",
   active_color: accent.primary,
   inactive_color: text.muted,

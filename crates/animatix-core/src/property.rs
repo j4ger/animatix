@@ -217,7 +217,7 @@ declare_property_descriptors! {
     // Authored solo flag: while any actor declares `solo: true`, every
     // non-solo subtree is hidden (recursively) in preview and export alike.
     "solo" => (Applicable::Everything, Bool),
-    "source" => (Applicable::Actors(&["Audio"]), String),
+    "source" => (Applicable::Actors(&["Audio", "Captions"]), String),
     "standoff" => (Applicable::Callout, F32),
     "stroke" => (Applicable::AllStrokePaths, Vec4),
     "stroke_progress" => (Applicable::AllStrokePaths, F32),

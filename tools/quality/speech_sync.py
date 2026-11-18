@@ -2,7 +2,7 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
-#     "edge-tts",
+#     "edge-tts==7.3.1",
 # ]
 # ///
 """
@@ -19,7 +19,7 @@ Usage:
       --markers "intro:0.1,feature:1.9,captions:6.2,outro:9.8" \\
       --output examples/assets/narration
 
-  # Convert Whisper JSON / SRT to universal .speech.json:
+  # Convert Whisper JSON to universal .speech.json (SRT can be used directly):
   uv run tools/quality/speech_sync.py convert input.json -o output.speech.json
 """
 
@@ -49,7 +49,7 @@ async def synthesize_speech(
     audio_path = f"{output_prefix}.mp3"
     json_path = f"{output_prefix}.speech.json"
 
-    communicate = edge_tts.Communicate(text, voice)
+    communicate = edge_tts.Communicate(text, voice, boundary="WordBoundary")
     words = []
     audio_data = bytearray()
 
@@ -67,10 +67,13 @@ async def synthesize_speech(
                 "confidence": 1.0,
             })
 
+    if not audio_data or not words:
+        sys.exit("Error: synthesis did not return both audio and word boundaries. No files were written.")
+
     with open(audio_path, "wb") as f:
         f.write(audio_data)
 
-    total_duration = words[-1]["end"] + 0.3 if words else 0.0
+    total_duration = words[-1]["end"] + 0.3
 
     # Group words into sentence segments by punctuation
     segments = []

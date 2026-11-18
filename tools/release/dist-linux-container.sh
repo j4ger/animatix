@@ -216,16 +216,12 @@ cat > "$stage/bin/animatix" <<'EOF'
 #!/bin/sh
 set -eu
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-PATH="$here:$PATH"
-export PATH
 exec "$here/../libexec/animatix" "$@"
 EOF
 cat > "$stage/bin/animatix-gui" <<'EOF'
 #!/bin/sh
 set -eu
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-PATH="$here:$PATH"
-export PATH
 exec "$here/../libexec/animatix-gui" "$@"
 EOF
 chmod 0755 "$stage/bin/animatix" "$stage/bin/animatix-gui"

@@ -6,7 +6,7 @@ rust-version.workspace = true
 
 [features]
 default = ["raster-encode"]
-video = ["dep:rsmpeg"]
+video = ["dep:rsmpeg", "dep:tempfile"]
 # Single-frame PNG/WebP raster export. Off in the slim web profile (no
 # export path is reachable there).
 raster-encode = ["dep:image"]
@@ -30,6 +30,8 @@ wgpu = { workspace = true, default-features = false, features = ["std", "parking
 # guard these boundaries; removal conditions are in crates/vendor/vello/README.animatix.md.
 vello = { workspace = true }
 rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg8", "link_system_ffmpeg"], optional = true }
+
+tempfile = { version = "3", optional = true }
 
 [dev-dependencies]
 animatix = { path = "../animatix", features = ["image-decode"] }

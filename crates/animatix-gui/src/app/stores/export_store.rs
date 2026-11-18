@@ -20,6 +20,8 @@ pub struct ExportStore {
     pub export_cancelled: Arc<AtomicBool>,
     pub export_start_time: Option<Instant>,
     pub export_total_frames: u32,
+    pub export_warnings: Vec<String>,
+    pub export_warning_receiver: Option<std::sync::mpsc::Receiver<String>>,
 }
 
 impl ExportStore {
@@ -33,11 +35,16 @@ impl ExportStore {
             export_cancelled: Arc::new(AtomicBool::new(false)),
             export_start_time: None,
             export_total_frames: 0,
+            export_warnings: Vec::new(),
+            export_warning_receiver: None,
         }
     }
 
     /// Call this every frame to check if an export thread finished.
     pub fn poll_export_status(&mut self) {
+        if let Some(warnings) = &self.export_warning_receiver {
+            self.export_warnings.extend(warnings.try_iter());
+        }
         if let Some(handle) = self.export_thread.take() {
             if handle.is_finished() {
                 match handle.join() {

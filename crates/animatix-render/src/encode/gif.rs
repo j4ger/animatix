@@ -125,6 +125,7 @@ fn encode_gif(
         settings,
         progress,
         cancel,
+        ..
     } = options;
     let total_frames = (duration * fps as f32).ceil() as u32;
     let frame_duration_ms = ((1000.0 / fps as f64).round() as u16).max(1);

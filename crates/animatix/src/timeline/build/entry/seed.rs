@@ -186,13 +186,14 @@ pub(super) fn seed_environment(
     if super::speech::needs_speech_transcript_prepass(ast) {
         let mut transcript_env = timeline.env.clone();
         let overridden = timeline.cli_defines.clone();
+        let beat_ms = timeline.beat_duration_ms();
         super::speech::collect_transcripts_from_ast(
             ast,
             std::sync::Arc::make_mut(&mut timeline.asset_cache),
             &mut transcripts,
-            diagnostics,
             &mut transcript_env,
             &overridden,
+            beat_ms,
         );
     }
 
