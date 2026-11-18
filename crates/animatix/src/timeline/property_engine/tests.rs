@@ -458,12 +458,15 @@ fn test_property_keyframe_easing() {
 
 #[test]
 fn instant_future_writes_preserve_semantic_defaults_for_scalar_fields() {
-    // These fields share f32 storage, but Rust's f32 default (0) is wrong
-    // for each of their property defaults. Exercise the World dispatch too.
+    // These fields share f32 storage, but their semantic defaults differ.
+    // Filled Rects have no stroke; stroke-primary Lines start at width 2.
+    // Keep both cases so the World dispatch must honor actor capabilities,
+    // while nonzero defaults still catch an unseeded instant-write fence.
     for (ty, field, default, target) in [
         ("Group", ActorField::Scale, 1.0, 0.25),
         ("Rect", ActorField::Opacity, 1.0, 0.5),
-        ("Rect", ActorField::StrokeWidth, 2.0, 8.0),
+        ("Rect", ActorField::StrokeWidth, 0.0, 8.0),
+        ("Line", ActorField::StrokeWidth, 2.0, 8.0),
     ] {
         let mut timeline = crate::timeline::Timeline::new();
         let id = timeline.world_mut().spawn("test", ty);
@@ -477,13 +480,13 @@ fn instant_future_writes_preserve_semantic_defaults_for_scalar_fields() {
             Easing::Linear,
             &mut diagnostics,
         );
-        assert!(diagnostics.is_empty(), "{field:?}: {diagnostics:?}");
+        assert!(diagnostics.is_empty(), "{ty}.{field:?}: {diagnostics:?}");
         for time_ms in [0, 500, 999, 1000, 1500, 0] {
             let expected = if time_ms < 1000 { default } else { target };
             assert_eq!(
                 timeline.world().read_property_value(id, field, time_ms),
                 Some(PropertyValue::F32(expected)),
-                "{field:?} at {time_ms}ms"
+                "{ty}.{field:?} at {time_ms}ms"
             );
         }
     }

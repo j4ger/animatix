@@ -193,7 +193,7 @@ parameter and identity tables.
 <!-- generated-property-table:text-typst-code:start -->
 | Property | Type | Runtime kind | Animated | Assignable | Applies to |
 |----------|------|--------------|----------|------------|------------|
-| `text` | `Str` | `String` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter` |
+| `text` | `Str` | `String` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter`, `Fragment` |
 | `code` | `Str` | `String` | ✓ | — | `Code` |
 | `language` | `Str` | `String` | ✓ | ✓ | `Code` |
 | `font_family` | `Str` | `String` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter`, `Captions` |
