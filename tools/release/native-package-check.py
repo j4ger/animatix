@@ -16,6 +16,10 @@ setupapi.dll shcore.dll shell32.dll shlwapi.dll ucrtbase.dll user32.dll userenv.
 uxtheme.dll version.dll win32u.dll winhttp.dll winspool.drv winmm.dll wintrust.dll ws2_32.dll wtsapi32.dll
 xinput1_4.dll
 """.split())
+WINDOWS_SYSTEM_DLLS.update({
+    "avicap32.dll", "bcryptprimitives.dll", "dxcore.dll", "msasn1.dll",
+    "msvfw32.dll", "mswsock.dll", "windowscodecs.dll", "wsock32.dll",
+})
 
 
 def cstring(data, offset):
@@ -102,6 +106,7 @@ def macho_slices(data):
 
 def check(platform, directory, video=False):
     binaries = []
+    missing = []
     expected_architecture = None
     extension = ".exe" if platform == "windows" else ""
     programs = ("animatix", "animatix-gui", "ffmpeg", "ffprobe") if video else ("animatix", "animatix-gui")
@@ -130,8 +135,10 @@ def check(platform, directory, video=False):
                 raise ValueError(f"unbundled macOS dependency: {dependency}")
             if platform == "windows":
                 if lowered not in dlls and lowered not in WINDOWS_SYSTEM_DLLS and not lowered.startswith(("api-ms-win-", "ext-ms-win-")):
-                    raise ValueError(f"unbundled Windows dependency in {path.name}: {dependency}")
+                    missing.append(f"unbundled Windows dependency in {path.name}: {dependency}")
         binaries.append({"file": path.name, "architecture": expected_architecture, "dependencies": dependencies})
+    if missing:
+        raise ValueError("\n".join(missing))
     return {"platform": platform, "architecture": expected_architecture, "video": video, "binaries": binaries}
 
 
