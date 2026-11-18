@@ -95,7 +95,15 @@ impl Composition {
         let composition =
             timing::finalize_global_timeline(scenes, &walk_order, &declaration_order, &edges);
 
-        BuildReport::new(composition, diagnostics)
+        // Keep failures from distinct imported source files, even when their
+        // component names and instance chains are identical.
+        let mut unique = Vec::new();
+        for diagnostic in diagnostics {
+            if !unique.contains(&diagnostic) {
+                unique.push(diagnostic);
+            }
+        }
+        BuildReport { output: composition, diagnostics: unique }
     }
 
     /// Extract the first `play` statement from a scene body.
@@ -482,6 +490,12 @@ fn collect_cross_file_scenes(
                     continue;
                 },
             };
+            let failed = expanded.diagnostics.iter().any(Diagnostic::is_error);
+            state.diagnostics.extend(expanded.diagnostics);
+            if failed {
+                continue;
+            }
+            let expanded = expanded.output;
             let mut merged = state.shared_prelude.clone();
             merged.extend(expanded.statements);
             state.scene_instance_methods.insert(target.clone(), expanded.instance_methods);
@@ -589,9 +603,9 @@ fn expand_imported_scene(
     scene: &crate::module::SceneData,
     namespace: &Namespace,
     context: Option<&crate::module::FunctionContext>,
-) -> Result<crate::module::ExpandedProgram, crate::module::ModuleError> {
+) -> Result<crate::diagnostics::BuildReport<crate::module::ExpandedProgram>, crate::module::ModuleError> {
     if let Some(context) = context {
-        return context.expand_scene(scene);
+        return context.expand_scene_with_diagnostics(scene);
     }
     let mut definitions =
         animatix_syntax::module::discovery::collect_component_defs(&scene.file_prelude)
@@ -627,5 +641,5 @@ fn expand_imported_scene(
         components,
         ..Default::default()
     }
-    .expand_components(&mut Vec::new()))
+    .expand_components_with_diagnostics())
 }

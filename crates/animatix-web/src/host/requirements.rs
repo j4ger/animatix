@@ -304,7 +304,7 @@ impl Requirements<'_> {
                 continue;
             };
             let saved = self.env.clone();
-            let expanded = match self.function_context.expand_scene(scene) {
+            let expanded = match self.function_context.expand_scene_with_diagnostics(scene) {
                 Ok(expanded) => expanded,
                 Err(error) => {
                     self.analysis.diagnostics.push(error_diagnostic(
@@ -315,6 +315,14 @@ impl Requirements<'_> {
                     continue;
                 },
             };
+            let failed = expanded.diagnostics.iter().any(|diagnostic| diagnostic.is_error());
+            self.analysis.diagnostics.extend(
+                expanded.diagnostics.iter().map(crate::dto::DiagnosticDto::from_diagnostic),
+            );
+            if failed {
+                continue;
+            }
+            let expanded = expanded.output;
             let mut scoped = self.function_context.clone();
             if let Some(module) = scoped.modules.get(&scene.definition_path) {
                 scoped.visible = module.visible_functions.clone().into();

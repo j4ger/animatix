@@ -107,7 +107,7 @@ impl Timeline {
             diagnostics.push(Diagnostic::warning(
                 DiagnosticCode::LayoutSizeFallback,
                 DiagnosticPhase::Build,
-                "Nested Group layout reached the depth limit; descendants keep earlier measurements.",
+                format!("Nested Group layout stopped at depth {MAX_NESTED_LAYOUT_DEPTH}; descendants keep earlier measurements."),
             ).with_subject(self.world.label(id).unwrap_or("<unknown>")));
             return;
         }

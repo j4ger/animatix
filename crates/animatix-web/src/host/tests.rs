@@ -937,3 +937,46 @@ fn preparation_resolves_font_weight_names_before_selecting_faces() {
         );
     }
 }
+
+#[test]
+fn expansion_limit_survives_syntax_cache_without_duplicate_host_errors() {
+    let source = "component Loop() { root: Loop }\ninstance: Loop\n";
+    let first = prepare_document(source, &[], &[], None);
+    let second = prepare_document(source, &[], &[], None);
+    assert!(Arc::ptr_eq(&first.syntax, &second.syntax));
+    for prepared in [&first, &second] {
+        assert!(!prepared.analysis.ok);
+        let count = prepared.analysis.diagnostics.iter()
+            .filter(|diagnostic| diagnostic.code == "unknown-action" && diagnostic.message.contains("guarded depth budget"))
+            .count();
+        assert_eq!(count, 1);
+        let built = build_prepared(
+            prepared,
+            Arc::new(FontContext::new()),
+            BuildQuality::Draft,
+            None,
+        );
+        assert!(!built.result.ok);
+        assert!(built.target.is_none());
+        assert_eq!(built.result.diagnostics, prepared.analysis.diagnostics);
+    }
+}
+
+#[test]
+fn reachable_imported_scene_expansion_failure_blocks_preparation_and_cache_hit() {
+    let source = "import \"./broken.amx\" as broken\n# Intro\nplay broken::Demo\n";
+    let modules = [(PathBuf::from("broken.amx"),
+        "component Loop() { root: Loop }\n# Demo\ninstance: Loop\n".to_string())];
+    let first = prepare_document(source, &modules, &[], None);
+    let second = prepare_document(source, &modules, &[], None);
+    assert!(Arc::ptr_eq(&first.syntax, &second.syntax));
+    for prepared in [&first, &second] {
+        assert!(!prepared.analysis.ok, "{:?}", prepared.analysis);
+        assert_eq!(prepared.analysis.diagnostics.iter().filter(|diagnostic| {
+            diagnostic.message.contains("guarded depth budget")
+        }).count(), 1);
+        let built = build_prepared(prepared, Arc::new(FontContext::new()), BuildQuality::Draft, None);
+        assert!(!built.result.ok);
+        assert!(built.target.is_none());
+    }
+}

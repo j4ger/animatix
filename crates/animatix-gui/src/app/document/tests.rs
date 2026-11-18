@@ -625,3 +625,24 @@ fn imported_function_edits_invalidate_the_expanded_function_context() {
     document.rebuild().unwrap();
     assert_eq!(authored_width(&document), 42.0);
 }
+
+#[test]
+fn expansion_failure_is_retained_on_gui_cache_hit() {
+    let mut session = DocumentSession::from_source(
+        PathBuf::from("component-depth-cache.amx"),
+        "component Loop() { root: Loop }\ninstance: Loop\n".to_string(),
+    ).unwrap();
+    let first = session.load_program().unwrap();
+    assert!(session.cached_expanded.is_some());
+    let first_hash = session.last_expansion_hash;
+    // Clear only the cached error message: if re-expansion occurs rather than
+    // the cache hit, this marker would be replaced by the normal diagnostic.
+    session.cached_expanded.as_mut().unwrap().diagnostics[0].message = "cached-depth-error".into();
+    let second = session.load_program().unwrap();
+    assert_eq!(session.last_expansion_hash, first_hash);
+    assert!(first.type_diagnostics.iter().any(|d| d.message.contains("guarded depth budget")));
+    assert_eq!(second.type_diagnostics.iter().filter(|d| d.message == "cached-depth-error").count(), 1);
+    assert!(second.expanded.statements.is_empty());
+    assert!(session.rebuild().is_err());
+    assert!(session.timeline.is_none());
+}

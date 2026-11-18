@@ -17,8 +17,14 @@ pub fn run(input: &Path) {
         match module_graph.load_program_with_source(input, Some(&source)) {
             Ok(mut program) => {
                 let _ = program.typecheck();
-                let mut expansion_errors = Vec::new();
-                let expanded = program.expand_components(&mut expansion_errors);
+                let expansion = program.expand_components_with_diagnostics();
+                if expansion.diagnostics.iter().any(|diagnostic| diagnostic.is_error()) {
+                    for diagnostic in expansion.diagnostics {
+                        error!("{}", diagnostic.message);
+                    }
+                    std::process::exit(1);
+                }
+                let expanded = expansion.output;
                 (expanded, program.namespaces, program.function_context)
             },
             Err(e) => {

@@ -185,25 +185,24 @@ impl DocumentSession {
             hasher.finish()
         };
 
-        let expanded = if expansion_hash == self.last_expansion_hash {
+        let expansion = if expansion_hash == self.last_expansion_hash {
             if let Some(expanded) = self.cached_expanded.clone() {
                 expanded
             } else {
-                let mut expansion_errors = Vec::new();
-                let expanded = program.expand_components(&mut expansion_errors);
+                let expanded = program.expand_components_with_diagnostics();
                 self.cached_expanded = Some(expanded.clone());
                 self.last_expansion_hash = expansion_hash;
-                Self::push_expansion_diagnostics(&mut type_diagnostics, expansion_errors);
                 expanded
             }
         } else {
-            let mut expansion_errors = Vec::new();
-            let expanded = program.expand_components(&mut expansion_errors);
+            let expanded = program.expand_components_with_diagnostics();
             self.cached_expanded = Some(expanded.clone());
             self.last_expansion_hash = expansion_hash;
-            Self::push_expansion_diagnostics(&mut type_diagnostics, expansion_errors);
             expanded
         };
+
+        type_diagnostics.extend(expansion.diagnostics);
+        let expanded = expansion.output;
 
         let entry = fs::canonicalize(&self.file_path).unwrap_or_else(|_| self.file_path.clone());
         let imports = program
@@ -233,21 +232,6 @@ impl DocumentSession {
             module_fns: program.module_fns,
             function_context: program.function_context,
         })
-    }
-
-    /// Convert timeline-function expansion errors (recursion cycles, statement-level
-    /// pure-function calls) into build diagnostics attached to the document.
-    fn push_expansion_diagnostics(
-        diagnostics: &mut Vec<animatix_syntax::diagnostics::Diagnostic>,
-        errors: Vec<String>,
-    ) {
-        for error in errors {
-            diagnostics.push(animatix_syntax::diagnostics::Diagnostic::error(
-                animatix_syntax::diagnostics::DiagnosticCode::UnknownAction,
-                animatix_syntax::diagnostics::DiagnosticPhase::Build,
-                error,
-            ));
-        }
     }
 }
 

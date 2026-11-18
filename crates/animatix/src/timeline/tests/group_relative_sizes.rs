@@ -341,3 +341,68 @@ half_scene: Group, size: (50%, auto) {
     }
     assert_eq!(layout_size(&report.output, "half_scene").map(|half| half * 2.0), [320.0, 20.0]);
 }
+
+fn group_depth_limit_fixture(group_count: usize) -> crate::timeline::BuildReport<Timeline> {
+    let mut source = String::from("config { resolution: (800, 600) }\n");
+    source.push_str("g0: Group, size: (800, 600) {\n");
+    for index in 1..group_count {
+        source.push_str(&format!("g{index}: Group, size: fill {{\n"));
+    }
+    source.push_str("leaf: Rect, size: fill, opacity: 1\n");
+    for _ in 0..group_count {
+        source.push_str("}\n");
+    }
+    build(&source)
+}
+
+#[test]
+fn group_reflow_resolves_fill_through_63_and_64_groups() {
+    // Root depth is zero. With 64 Groups the last Group runs at depth 63
+    // and still resolves its leaf; this is not unlimited-depth support.
+    for group_count in [63, 64] {
+        let report = group_depth_limit_fixture(group_count);
+        assert!(
+            !report.diagnostics.iter().any(|d| {
+                d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
+                    && d.message.contains("depth")
+            }),
+            "unexpected depth fallback: {:?}",
+            report.diagnostics
+        );
+        assert_eq!(layout_size(&report.output, "leaf"), [400.0, 300.0]);
+    }
+}
+
+#[test]
+fn group_reflow_at_65_groups_warns_and_preserves_unresolved_descendants() {
+    let report = group_depth_limit_fixture(65);
+    assert!(
+        !report.diagnostics.iter().any(|d| {
+            d.severity == crate::diagnostics::DiagnosticSeverity::Error
+        }),
+        "depth fallback must remain non-fatal: {:?}",
+        report.diagnostics
+    );
+    let depth_warning_count = report.diagnostics.iter().filter(|d| {
+        d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
+            && d.message.contains("depth")
+    }).count();
+    assert_eq!(depth_warning_count, 1, "one warning at the reflow boundary");
+    let warning = report
+        .diagnostics
+        .iter()
+        .find(|d| {
+            d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
+                && d.message.contains("depth")
+        })
+        .expect("depth-limited reflow must report its partial-layout fallback");
+    assert_eq!(warning.severity, crate::diagnostics::DiagnosticSeverity::Warning);
+    assert_eq!(warning.phase, crate::diagnostics::DiagnosticPhase::Build);
+    assert!(warning.message.contains("64"));
+    assert_eq!(warning.location.subject.as_deref(), Some("g64"));
+    // The parent pass resolves g64 itself, but its children are not reflowed.
+    // Keep the leaf entity and its old measurements rather than deleting it.
+    assert_eq!(layout_size(&report.output, "g64"), [400.0, 300.0]);
+    assert!(report.output.world.tracks.contains_key("leaf"));
+    assert_ne!(layout_size(&report.output, "leaf"), [400.0, 300.0]);
+}

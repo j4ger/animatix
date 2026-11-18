@@ -72,3 +72,52 @@ wire: Connector, from: (box1, right), to: (box2, left), routing: "elbow", arrow:
         "Connector wire track should be present"
     );
 }
+
+#[test]
+fn nested_target_connector_stays_on_world_edges_at_multiple_depths() {
+    // Identity wrappers must not change meaning; translations must apply once.
+    // No font/GPU dependency: evaluate collects precise vector command bounds.
+    for depth in [1, 2, 8, 16] {
+        let mut source = String::from("config { resolution:(1280,720) }
+");
+        for level in 0..depth {
+            source.push_str(&format!(
+                "g{level}: Group, at:(10,5), opacity:1 {{
+"
+            ));
+        }
+        source.push_str(
+            "leaf_a: Rect, at:(200,200), size:(40,40), opacity:1
+             leaf_b: Rect, at:(400,200), size:(40,40), opacity:1
+             wire: Connector, from:(leaf_a,right), to:(leaf_b,left), routing:\"straight\", arrow:false, stroke_width:2, opacity:1
+",
+        );
+        source.push_str(&"}
+".repeat(depth));
+        let report = build(&source);
+        assert!(
+            report.diagnostics.iter().all(|d| !d.is_error()),
+            "{:?}",
+            report.diagnostics
+        );
+        let timeline = report.output;
+        let dims = SceneDimensions {
+            width: 1280,
+            height: 720,
+        };
+        for _ in 0..2 {
+            let _scene = timeline.evaluate(0.0, dims);
+            let a = timeline.precise_bounds_for("leaf_a").unwrap();
+            let b = timeline.precise_bounds_for("leaf_b").unwrap();
+            let wire = timeline.precise_bounds_for("wire").unwrap();
+            assert!(
+                (wire.x0 - a.x1).abs() < 2.0 && (wire.x1 - b.x0).abs() < 2.0,
+                "depth {depth}: connector endpoints transformed twice: {a:?} {b:?} {wire:?}"
+            );
+            assert!(
+                (wire.center().y - a.center().y).abs() < 2.0,
+                "depth {depth}: connector left target vertically: {a:?} {wire:?}"
+            );
+        }
+    }
+}

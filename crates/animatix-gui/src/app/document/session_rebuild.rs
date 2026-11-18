@@ -74,6 +74,13 @@ impl DocumentSession {
             },
         };
 
+        if let Some(error) = result.type_diagnostics.iter().find(|diagnostic| diagnostic.is_error()) {
+            let message = error.message.clone();
+            self.diagnostics = result.type_diagnostics;
+            self.last_rebuild_error = Some(message.clone());
+            return Err(GuiError::Build { message });
+        }
+
         // Build source index from raw (non-expanded) statements
         let source_index = SourceIndex::build(&result.raw_statements);
 

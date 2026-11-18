@@ -48,16 +48,10 @@ pub fn run(
                 },
             };
             let diagnostics = program.typecheck_with_callables(ctx.callable_descriptors());
-            let mut expansion_errors = Vec::new();
-            let expanded = program.expand_components(&mut expansion_errors);
+            let expansion = program.expand_components_with_diagnostics();
+            let expanded = expansion.output;
             let mut diagnostics = diagnostics;
-            for error in expansion_errors {
-                diagnostics.push(Diagnostic::error(
-                    DiagnosticCode::UnknownAction,
-                    DiagnosticPhase::Build,
-                    error,
-                ));
-            }
+            diagnostics.extend(expansion.diagnostics);
             (expanded, program.namespaces, program.function_context, diagnostics, disposers)
         },
         Err(e) => {
@@ -73,6 +67,10 @@ pub fn run(
             std::process::exit(1);
         },
     };
+    if type_diagnostics.iter().any(Diagnostic::is_error) {
+        emit_check_report(&file_label, &source, type_diagnostics, Vec::new(), format);
+        return;
+    }
     let context = std::sync::Arc::new(ctx);
     let report = BuildTarget::build_with_options(
         &expanded.statements,

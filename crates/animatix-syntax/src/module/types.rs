@@ -121,7 +121,23 @@ impl FunctionContext {
     /// component declarations inside reusable plans receive their own method
     /// registries. A missing source module is an error rather than an empty
     /// component scope.
+    /// Legacy output-only API. Expansion failures are logged and return an empty
+    /// output, never a partial tree. Use `expand_scene_with_diagnostics` when
+    /// successful empty scenes must be distinguished from failed expansion.
     pub fn expand_scene(&self, scene: &SceneData) -> Result<ExpandedProgram, ModuleError> {
+        let report = self.expand_scene_with_diagnostics(scene)?;
+        for diagnostic in &report.diagnostics {
+            tracing::error!("{}", diagnostic.message);
+        }
+        Ok(report.output)
+    }
+
+    /// Expand a scene with caller-visible structured expansion diagnostics.
+    pub fn expand_scene_with_diagnostics(
+        &self,
+        scene: &SceneData,
+    ) -> Result<crate::diagnostics::BuildReport<ExpandedProgram>, ModuleError> {
+        let mut diagnostics = Vec::new();
         let module = self
             .modules
             .get(&scene.definition_path)
@@ -143,9 +159,13 @@ impl FunctionContext {
             &statements,
             &module.components,
             &component_scopes,
+            &mut diagnostics,
         );
-        expanded.expanded_function_context = Some(super::expand::expand_function_context(self));
-        Ok(expanded)
+        expanded.expanded_function_context = Some(super::expand::expand_function_context(
+            self,
+            &mut diagnostics,
+        ));
+        Ok(super::expand::finish_expansion(expanded, diagnostics))
     }
 }
 

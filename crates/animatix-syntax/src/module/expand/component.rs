@@ -322,17 +322,36 @@ pub(super) fn expand_component_instance(
     components: &HashMap<String, ComponentEntry>,
     ctx: &mut ExpansionCtx,
 ) -> (Vec<Stmt>, InstanceFnRegistry) {
-    // Cycle detection: bail out if nesting is too deep.
+    // Retain the existing resource budget. Repeated active definitions alone
+    // are not proof of a cycle: finite same-type slot nesting can be legal.
     if ctx.depth >= MAX_EXPANSION_DEPTH {
-        tracing::error!(
-            "Component expansion depth limit ({}) reached at '{}'. \
-             Possible circular component reference.",
-            MAX_EXPANSION_DEPTH,
-            instance_label
+        use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+        let chain = ctx
+            .active
+            .iter()
+            .map(|(_, name, instance)| format!("{name}({instance})"))
+            .chain(std::iter::once(format!(
+                "{}({instance_label})", component.definition.name
+            )))
+            .collect::<Vec<_>>()
+            .join(" -> ");
+        let code = DiagnosticCode::UnknownAction;
+        let message = format!(
+            "Component expansion exceeds the guarded depth budget of {MAX_EXPANSION_DEPTH}; possible recursive reference: {chain}"
+        );
+        ctx.diagnostics.push(
+            Diagnostic::error(code, DiagnosticPhase::Build, message)
+                .with_subject(instance_label)
+                .with_path(&component.source_path),
         );
         return (Vec::new(), InstanceFnRegistry::new());
     }
     ctx.depth += 1;
+    ctx.active.push((
+        component.source_path.clone(),
+        component.definition.name.clone(),
+        instance_label.to_string(),
+    ));
 
     // Resolve nested component types in the module that defined this
     // component. Merge the caller scope as well so slot-fill items keep their
@@ -441,6 +460,7 @@ pub(super) fn expand_component_instance(
         registry.insert(instance_label.to_string(), instance_methods);
     }
     ctx.depth -= 1;
+    ctx.active.pop();
 
     assemble_component_instance(
         expanded_stmts,

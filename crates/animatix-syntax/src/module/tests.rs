@@ -302,3 +302,164 @@ fn resolve_symbols_carries_the_references_of_what_it_flattens() {
         "a component's internal actor is not a scene actor in either file"
     );
 }
+
+#[test]
+fn acyclic_component_chain_at_depth_limit_keeps_its_leaf() {
+    let mut source = String::from("component C0() { leaf: Ellipse, size:(10,10) }
+");
+    for depth in 1..64 {
+        source.push_str(&format!("component C{depth}() {{ root: C{} }}
+", depth - 1));
+    }
+    source.push_str("instance: C63
+");
+    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+    graph.upsert_source(PathBuf::from("/virtual/depth.amx"), source);
+    let program = graph.load_program(Path::new("/virtual/depth.amx")).unwrap();
+    let mut diagnostics = Vec::new();
+    let expanded = program.expand_components(&mut diagnostics);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let mut leaf_count = 0;
+    crate::walk::walk_stmts(&expanded.statements, &mut |stmt| {
+        if matches!(stmt, Stmt::ActorDecl { ty, .. } if ty == "Ellipse") {
+            leaf_count += 1;
+        }
+    });
+    assert_eq!(
+        leaf_count, 1,
+        "complete acyclic expansion must retain exactly one terminal primitive: {expanded:?}"
+    );
+}
+
+#[test]
+fn component_expansion_limit_and_cycle_are_not_silent_successes() {
+    let mut deep = String::from("component C0() { leaf: Ellipse, size:(10,10) }
+");
+    for depth in 1..65 {
+        deep.push_str(&format!("component C{depth}() {{ root: C{} }}
+", depth - 1));
+    }
+    deep.push_str("instance: C64
+");
+    let recursive = "component Loop() { root: Loop }
+instance: Loop
+".to_string();
+    for (name, source) in [("acyclic-depth-65", deep), ("cycle", recursive)] {
+        let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+        graph.upsert_source(PathBuf::from("/virtual/limit.amx"), source);
+        let program = graph.load_program(Path::new("/virtual/limit.amx")).unwrap();
+        let mut diagnostics = Vec::new();
+        let expanded = program.expand_components(&mut diagnostics);
+        let report = program.expand_components_with_diagnostics();
+        assert!(
+            !diagnostics.is_empty(),
+            "{name}: hitting an expansion guard must report a caller-visible error"
+        );
+        assert!(report.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == crate::diagnostics::DiagnosticCode::UnknownAction
+                && diagnostic.is_error()
+        }), "{name}: error must preserve its structured code");
+        assert!(expanded.statements.is_empty(), "{name}: no partial scene");
+        assert!(expanded.instance_methods.is_empty());
+        assert!(expanded.scene_methods.is_empty());
+        let cached = report.clone();
+        assert_eq!(cached.diagnostics.len(), report.diagnostics.len());
+        assert!(cached.diagnostics.iter().all(|diagnostic| diagnostic.is_error()));
+    }
+}
+
+#[test]
+fn finite_same_component_slot_nesting_is_not_a_definition_cycle() {
+    let source = r#"
+component Box() {
+    body: Group { @slot }
+}
+outer: Box {
+    @body {
+        inner: Box {
+            @body { leaf: Ellipse, size: (10, 10) }
+        }
+    }
+}
+"#;
+    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+    graph.upsert_source(PathBuf::from("/virtual/slots.amx"), source.to_string());
+    let program = graph.load_program(Path::new("/virtual/slots.amx")).unwrap();
+    let mut diagnostics = Vec::new();
+    let expanded = program.expand_components(&mut diagnostics);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert!(program.expand_components_with_diagnostics().diagnostics.is_empty());
+    let mut leaves = 0;
+    crate::walk::walk_stmts(&expanded.statements, &mut |stmt| {
+        if matches!(stmt, Stmt::ActorDecl { ty, .. } if ty == "Ellipse") {
+            leaves += 1;
+        }
+    });
+    assert_eq!(leaves, 1);
+}
+
+#[test]
+fn failed_embedded_plan_has_one_diagnostic_across_function_context_copies() {
+    let source = "component Loop() { root: Loop }\nfn broken() { return #{ instance: Loop } }\n";
+    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+    graph.upsert_source(PathBuf::from("/virtual/plan.amx"), source.to_string());
+    let program = graph.load_program(Path::new("/virtual/plan.amx")).unwrap();
+    let mut diagnostics = Vec::new();
+    let expanded = program.expand_components(&mut diagnostics);
+    let report = program.expand_components_with_diagnostics();
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(report.diagnostics.len(), 1);
+    assert_eq!(report.diagnostics[0].code,
+        crate::diagnostics::DiagnosticCode::UnknownAction);
+    assert!(expanded.statements.is_empty());
+}
+
+#[test]
+fn imported_scene_report_rejects_partial_tree_without_changing_legacy_signature() {
+    let main = PathBuf::from("/virtual/depth-main.amx");
+    let lib = PathBuf::from("/virtual/depth-lib.amx");
+    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+    graph.upsert_source(
+        main.clone(),
+        "import \"./depth-lib.amx\" as lib\n".into(),
+    );
+    graph.upsert_source(
+        lib.clone(),
+        "component Loop() { root: Loop }\n# Demo\ninstance: Loop\n".into(),
+    );
+    let program = graph.load_program(&main).unwrap();
+    let scene = &program.namespaces["lib"].scenes["Demo"];
+    let report = program.function_context.expand_scene_with_diagnostics(scene).unwrap();
+    assert_eq!(report.diagnostics.len(), 1);
+    assert!(report.diagnostics[0].is_error());
+    assert_eq!(report.diagnostics[0].location.path.as_ref(), Some(&lib));
+    assert!(report.output.statements.is_empty());
+    let legacy: Result<crate::module::ExpandedProgram, crate::module::ModuleError> =
+        program.function_context.expand_scene(scene);
+    assert!(legacy.unwrap().statements.is_empty());
+}
+
+#[test]
+fn identical_expansion_failures_in_distinct_files_keep_both_sources() {
+    let main = PathBuf::from("/virtual/two-errors.amx");
+    let a = PathBuf::from("/virtual/a.amx");
+    let b = PathBuf::from("/virtual/b.amx");
+    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+    graph.upsert_source(
+        main.clone(),
+        "import \"./a.amx\" as a\nimport \"./b.amx\" as b\n".into(),
+    );
+    let source = "component Loop() { root: Loop }\nfn broken() { return #{ instance: Loop } }\n";
+    graph.upsert_source(a.clone(), source.into());
+    graph.upsert_source(b.clone(), source.into());
+    let program = graph.load_program(&main).unwrap();
+    let report = program.expand_components_with_diagnostics();
+    assert_eq!(report.diagnostics.len(), 2, "{:?}", report.diagnostics);
+    for path in [&a, &b] {
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.location.path.as_ref() == Some(path)));
+    }
+    assert_eq!(report.diagnostics[0].message, report.diagnostics[1].message);
+}
