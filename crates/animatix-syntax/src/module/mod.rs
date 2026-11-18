@@ -10,8 +10,9 @@ mod types;
 
 pub use indexed::specialize_instance_property_reads;
 pub use types::{
-    ComponentEntry, ExpandedProgram, ExpansionError, FileId, FnTemplate, FunctionContext, FunctionModule,
-    InstanceFnRegistry, LoadedProgram, ModuleGraph, Namespace, SceneData, SourceAccess,
+    ComponentEntry, ExpandedProgram, ExpansionError, FileId, FnTemplate, FunctionContext,
+    FunctionModule, InstanceFnRegistry, LoadedProgram, ModuleGraph, Namespace, SceneData,
+    SourceAccess,
 };
 
 use std::collections::{HashMap, HashSet};

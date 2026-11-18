@@ -26,9 +26,9 @@ auth: CardNode, title: "Auth Service", eyebrow: "SECURITY", sub: "mTLS & JWT", a
 database: CardNode, title: "Distributed DB", eyebrow: "STORAGE", sub: "Raft Consensus", at: (940, 420), focal: true
 
 // Orthogonal smart connectors
-conn1: Connector, from: client.east, to: auth.west, routing: "elbow", corner_radius: 8, arrow: true, stroke: accent.primary, stroke_width: 2
+conn1: Connector, from: client.right, to: auth.left, routing: "elbow", corner_radius: 8, arrow: true, stroke: accent.primary, stroke_width: 2
 
-conn2: Connector, from: auth.east, to: database.west, routing: "elbow", corner_radius: 8, arrow: true, stroke: accent.primary, stroke_width: 2
+conn2: Connector, from: auth.right, to: database.left, routing: "elbow", corner_radius: 8, arrow: true, stroke: accent.primary, stroke_width: 2
 
 // Live throughput metric ticker with rolling counter
 kpi: Col, at: (640, 560), align: "center", gap: 4 {

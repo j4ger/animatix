@@ -992,7 +992,6 @@ fn reachable_imported_scene_expansion_failure_blocks_preparation_and_cache_hit()
     }
 }
 
-
 #[test]
 fn cached_expansion_error_cannot_be_bypassed_by_editing_public_analysis() {
     let source = "component Loop() { root: Loop }\ninstance: Loop\n";
@@ -1003,7 +1002,13 @@ fn cached_expansion_error_cannot_be_bypassed_by_editing_public_analysis() {
     let built = build_prepared(&prepared, Arc::new(FontContext::new()), BuildQuality::Draft, None);
     assert!(!built.result.ok);
     assert!(built.target.is_none());
-    assert_eq!(built.result.diagnostics.iter().filter(|diagnostic| {
-        diagnostic.code == "component-expansion-depth-exceeded"
-    }).count(), 1);
+    assert_eq!(
+        built
+            .result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| { diagnostic.code == "component-expansion-depth-exceeded" })
+            .count(),
+        1
+    );
 }

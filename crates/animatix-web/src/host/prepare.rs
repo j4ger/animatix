@@ -164,7 +164,9 @@ fn prepare_syntax(
         program = graph.load_program(&path).map_err(|error| module_error(error, &mut analysis))?;
     }
     let expanded = program.expand_components().map_err(|error| {
-        analysis.diagnostics.extend(error.diagnostics.iter().map(DiagnosticDto::from_diagnostic));
+        analysis
+            .diagnostics
+            .extend(error.diagnostics.iter().map(DiagnosticDto::from_diagnostic));
         Box::new(analysis.clone())
     })?;
     let function_context =

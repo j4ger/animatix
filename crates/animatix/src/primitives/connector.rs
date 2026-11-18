@@ -171,12 +171,18 @@ pub(crate) fn resolve_connector_endpoint_local(
 ) -> Option<([f32; 2], [f32; 2])> {
     if matches!(endpoint, ConnectorEndpoint::Point(_)) {
         return Some(resolve_connector_endpoint(
-            endpoint, target_resolver, time_ms, scene_dimensions, other_local,
+            endpoint,
+            target_resolver,
+            time_ms,
+            scene_dimensions,
+            other_local,
         ));
     }
     // Missing target bounds do not denote the world's origin. Omit the
     // connector rather than inventing a dangling endpoint at a transformed zero.
-    let ConnectorEndpoint::Target { actor, anchor } = endpoint else { return None; };
+    let ConnectorEndpoint::Target { actor, anchor } = endpoint else {
+        return None;
+    };
     let (center, half_size) = target_resolver?.target_bounds(actor, time_ms, scene_dimensions)?;
     // A collapsed target connector has no invertible local coordinate frame.
     // Skip its geometry for this frame instead of emitting NaN path commands.
@@ -197,7 +203,11 @@ pub(crate) fn resolve_connector_endpoint_local(
         b * normal[0] as f64 + d * normal[1] as f64,
     );
     let length = direction.hypot();
-    let normal = if length > 0.0 { direction / length } else { direction };
+    let normal = if length > 0.0 {
+        direction / length
+    } else {
+        direction
+    };
     let result = ([point.x as f32, point.y as f32], [normal.x as f32, normal.y as f32]);
     if result.0.iter().chain(result.1.iter()).all(|value| value.is_finite()) {
         Some(result)

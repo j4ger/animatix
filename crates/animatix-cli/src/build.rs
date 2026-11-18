@@ -50,8 +50,12 @@ pub fn try_load_and_build(
     let (expanded, namespaces, function_context, type_diagnostics) = {
         let diagnostics = program.typecheck_with_callables(ctx.callable_descriptors());
         let expanded = program.expand_components().map_err(|error| {
-            diagnostics.iter().chain(error.diagnostics.iter())
-                .map(format_diagnostic).collect::<Vec<_>>().join("\n")
+            diagnostics
+                .iter()
+                .chain(error.diagnostics.iter())
+                .map(format_diagnostic)
+                .collect::<Vec<_>>()
+                .join("\n")
         })?;
         (expanded, program.namespaces, program.function_context, diagnostics)
     };

@@ -638,18 +638,23 @@ fn expansion_failure_is_retained_on_gui_cache_hit() {
     let first_hash = session.last_expansion_hash;
     // Clear only the cached error message: if re-expansion occurs rather than
     // the cache hit, this marker would be replaced by the normal diagnostic.
-    session.cached_expanded.as_mut().unwrap().as_mut().unwrap_err().diagnostics[0].message = "cached-depth-error".into();
+    session.cached_expanded.as_mut().unwrap().as_mut().unwrap_err().diagnostics[0].message =
+        "cached-depth-error".into();
     let second = session.load_program().unwrap();
     assert_eq!(session.last_expansion_hash, first_hash);
     assert!(
         first
-            .expanded.unwrap_err().diagnostics
+            .expanded
+            .unwrap_err()
+            .diagnostics
             .iter()
             .any(|d| d.message.contains("guarded depth budget"))
     );
     assert_eq!(
         second
-            .expanded.unwrap_err().diagnostics
+            .expanded
+            .unwrap_err()
+            .diagnostics
             .iter()
             .filter(|d| d.message == "cached-depth-error")
             .count(),
@@ -677,7 +682,11 @@ fn expansion_error_cache_preserves_last_good_scene_without_hiding_failure() {
         "cached-failed-rebuild".into();
     assert!(session.rebuild().is_err());
     assert_eq!(
-        session.diagnostics.iter().filter(|d| d.message == "cached-failed-rebuild").count(),
+        session
+            .diagnostics
+            .iter()
+            .filter(|d| d.message == "cached-failed-rebuild")
+            .count(),
         1
     );
     session.source_text = good.to_string();

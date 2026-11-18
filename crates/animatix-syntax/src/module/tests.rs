@@ -364,7 +364,8 @@ instance: Loop
         let report = program.expand_components().expect_err(name);
         assert!(
             report.diagnostics.iter().any(|diagnostic| {
-                diagnostic.code == crate::diagnostics::DiagnosticCode::ComponentExpansionDepthExceeded
+                diagnostic.code
+                    == crate::diagnostics::DiagnosticCode::ComponentExpansionDepthExceeded
                     && diagnostic.is_error()
             }),
             "{name}: error must preserve its structured code"
@@ -404,7 +405,8 @@ outer: Box {
         fn visit_inline_item(&mut self, item: &'ast crate::ast::InlineItem) {
             if matches!(item,
                 crate::ast::InlineItem::Labeled { ty, .. }
-                | crate::ast::InlineItem::Anonymous { ty, .. } if ty == "Ellipse") {
+                | crate::ast::InlineItem::Anonymous { ty, .. } if ty == "Ellipse")
+            {
                 self.0 += 1;
             }
             crate::visit::walk_inline_item(self, item);
@@ -425,7 +427,10 @@ fn failed_embedded_plan_has_one_diagnostic_across_function_context_copies() {
     let program = graph.load_program(Path::new("/virtual/plan.amx")).unwrap();
     let report = program.expand_components().expect_err("recursive embedded plan");
     assert_eq!(report.diagnostics.len(), 1);
-    assert_eq!(report.diagnostics[0].code, crate::diagnostics::DiagnosticCode::ComponentExpansionDepthExceeded);
+    assert_eq!(
+        report.diagnostics[0].code,
+        crate::diagnostics::DiagnosticCode::ComponentExpansionDepthExceeded
+    );
 }
 
 #[test]
@@ -467,7 +472,6 @@ fn identical_expansion_failures_in_distinct_files_keep_both_sources() {
     assert_eq!(report.diagnostics[0].message, report.diagnostics[1].message);
 }
 
-
 #[test]
 fn empty_component_expansion_is_success_not_an_error_sentinel() {
     let expanded = LoadedProgram::default().expand_components().expect("empty program is valid");
@@ -484,7 +488,9 @@ fn imported_scene_missing_scope_returns_a_structured_error() {
     graph.upsert_source(library.clone(), "# Demo\nleaf: Rect\n");
     let program = graph.load_program(&main).unwrap();
     let scene = &program.namespaces["lib"].scenes["Demo"];
-    let error = FunctionContext::default().expand_scene(scene).expect_err("missing module scope");
+    let error = FunctionContext::default()
+        .expand_scene(scene)
+        .expect_err("missing module scope");
     assert_eq!(error.diagnostics.len(), 1);
     let diagnostic = &error.diagnostics[0];
     assert_eq!(diagnostic.code, crate::diagnostics::DiagnosticCode::MissingExpansionScope);

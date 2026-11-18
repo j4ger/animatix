@@ -87,8 +87,9 @@ pub struct DocumentSession {
     /// Hash of the complete source graph at the last expansion attempt.
     last_expansion_hash: u64,
     /// Cached expansion result, including structured errors, for an unchanged source graph.
-    cached_expanded:
-        Option<Result<animatix_syntax::module::ExpandedProgram, animatix_syntax::module::ExpansionError>>,
+    cached_expanded: Option<
+        Result<animatix_syntax::module::ExpandedProgram, animatix_syntax::module::ExpansionError>,
+    >,
     /// Cached module graph — preserves parsed imports across rebuilds.
     cached_module_graph: Option<ModuleGraph>,
     /// Disk imports corresponding to the cached graph; entry source is editor-owned.

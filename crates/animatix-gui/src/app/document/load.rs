@@ -18,7 +18,8 @@ use crate::error::GuiError;
 /// Result of loading and parsing a program.
 pub struct LoadedProgramResult {
     pub raw_statements: Vec<Stmt>,
-    pub expanded: Result<animatix_syntax::module::ExpandedProgram, animatix_syntax::module::ExpansionError>,
+    pub expanded:
+        Result<animatix_syntax::module::ExpandedProgram, animatix_syntax::module::ExpansionError>,
     pub namespaces: HashMap<String, Namespace>,
     pub type_diagnostics: Vec<Diagnostic>,
     pub components: HashMap<String, ComponentEntry>,

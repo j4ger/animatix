@@ -123,16 +123,20 @@ impl FunctionContext {
     /// component scope.
     pub fn expand_scene(&self, scene: &SceneData) -> Result<ExpandedProgram, ExpansionError> {
         let mut diagnostics = Vec::new();
-        let module = self
-            .modules
-            .get(&scene.definition_path)
-            .ok_or_else(|| ExpansionError {
-                diagnostics: vec![crate::diagnostics::Diagnostic::error(
+        let module = self.modules.get(&scene.definition_path).ok_or_else(|| ExpansionError {
+            diagnostics: vec![
+                crate::diagnostics::Diagnostic::error(
                     crate::diagnostics::DiagnosticCode::MissingExpansionScope,
                     crate::diagnostics::DiagnosticPhase::Build,
-                    format!("Missing defining module scope for scene '{}': {}", scene.name, scene.definition_path.display()),
-                ).with_path(&scene.definition_path)],
-            })?;
+                    format!(
+                        "Missing defining module scope for scene '{}': {}",
+                        scene.name,
+                        scene.definition_path.display()
+                    ),
+                )
+                .with_path(&scene.definition_path),
+            ],
+        })?;
         let mut statements = scene.file_prelude.clone();
         if !scene.config.is_empty() {
             statements.push(Stmt::Config {
@@ -222,7 +226,9 @@ pub struct ExpansionError {
 impl std::fmt::Display for ExpansionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for (index, diagnostic) in self.diagnostics.iter().enumerate() {
-            if index > 0 { writeln!(f)?; }
+            if index > 0 {
+                writeln!(f)?;
+            }
             write!(f, "{}", crate::diagnostics::format_diagnostic(diagnostic))?;
         }
         Ok(())

@@ -16,7 +16,10 @@ fn source_snippet_snaps_spans_onto_char_boundaries() {
 #[test]
 fn diagnostic_codes_format_honestly() {
     for (code, expected) in [
-        (DiagnosticCode::ComponentExpansionDepthExceeded, "component-expansion-depth-exceeded"),
+        (
+            DiagnosticCode::ComponentExpansionDepthExceeded,
+            "component-expansion-depth-exceeded",
+        ),
         (DiagnosticCode::MissingExpansionScope, "missing-expansion-scope"),
         (DiagnosticCode::SourceLoadFailure, "source-load-failure"),
         (DiagnosticCode::RenderFailure, "render-failure"),

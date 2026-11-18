@@ -16,7 +16,8 @@ pub(super) fn expand_statements(
     components: &HashMap<String, ComponentEntry>,
 ) -> crate::module::ExpandedProgram {
     let mut diagnostics = Vec::new();
-    let output = expand_statements_in_context(statements, components, ExpansionCtx::new(), &mut diagnostics);
+    let output =
+        expand_statements_in_context(statements, components, ExpansionCtx::new(), &mut diagnostics);
     finish_expansion(output, diagnostics).expect("fixture component expansion")
 }
 
@@ -91,6 +92,8 @@ pub(super) fn finish_expansion(
     if unique.is_empty() {
         Ok(output)
     } else {
-        Err(crate::module::ExpansionError { diagnostics: unique })
+        Err(crate::module::ExpansionError {
+            diagnostics: unique,
+        })
     }
 }

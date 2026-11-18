@@ -345,10 +345,11 @@ half_scene: Group, size: (50%, auto) {
 fn group_depth_limit_fixture(group_count: usize) -> crate::timeline::BuildReport<Timeline> {
     let mut source = String::from("config { resolution: (800, 600) }\n");
     source.push_str("g0: Group, size: (800, 600) {\n");
+    // The scalar `fill` shorthand only fills width; this fixture exercises both axes.
     for index in 1..group_count {
-        source.push_str(&format!("g{index}: Group, size: fill {{\n"));
+        source.push_str(&format!("g{index}: Group, size: (fill, fill) {{\n"));
     }
-    source.push_str("leaf: Rect, size: fill, opacity: 1\n");
+    source.push_str("leaf: Rect, size: (fill, fill), opacity: 1\n");
     for _ in 0..group_count {
         source.push_str("}\n");
     }
@@ -425,7 +426,11 @@ fn layout_depth_probe_all_fixtures_build_and_keep_leaf() {
 fn layout_depth_probe_all_fixtures_have_no_errors() {
     for count in [1, 63, 64, 65] {
         let report = group_depth_limit_fixture(count);
-        assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{count}: {:?}", report.diagnostics);
+        assert!(
+            report.diagnostics.iter().all(|d| !d.is_error()),
+            "{count}: {:?}",
+            report.diagnostics
+        );
     }
 }
 
@@ -459,33 +464,46 @@ fn layout_depth_probe_64_groups_leaf_dimensions() {
 fn layout_depth_probe_under_limit_has_no_depth_warning() {
     for count in [63, 64] {
         let report = group_depth_limit_fixture(count);
-        assert!(!report.diagnostics.iter().any(|d| {
-            d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
-                && d.message.contains("depth")
-        }), "{count}: {:?}", report.diagnostics);
+        assert!(
+            !report.diagnostics.iter().any(|d| {
+                d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
+                    && d.message.contains("depth")
+            }),
+            "{count}: {:?}",
+            report.diagnostics
+        );
     }
 }
 
 #[test]
 fn layout_depth_probe_65_groups_has_one_depth_warning() {
     let report = group_depth_limit_fixture(65);
-    let warnings: Vec<_> = report.diagnostics.iter().filter(|d| {
-        d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
-            && d.message.contains("depth")
-    }).collect();
+    let warnings: Vec<_> = report
+        .diagnostics
+        .iter()
+        .filter(|d| {
+            d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
+                && d.message.contains("depth")
+        })
+        .collect();
     assert_eq!(warnings.len(), 1, "{:?}", report.diagnostics);
 }
 
 #[test]
 fn layout_depth_probe_65_groups_depth_warning_subject_and_severity() {
     let report = group_depth_limit_fixture(65);
-    assert!(report.diagnostics.iter().any(|d| {
-        d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
-            && d.message.contains("depth") && d.message.contains("64")
-            && d.location.subject.as_deref() == Some("g64")
-            && d.severity == crate::diagnostics::DiagnosticSeverity::Warning
-            && d.phase == crate::diagnostics::DiagnosticPhase::Build
-    }), "{:?}", report.diagnostics);
+    assert!(
+        report.diagnostics.iter().any(|d| {
+            d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
+                && d.message.contains("depth")
+                && d.message.contains("64")
+                && d.location.subject.as_deref() == Some("g64")
+                && d.severity == crate::diagnostics::DiagnosticSeverity::Warning
+                && d.phase == crate::diagnostics::DiagnosticPhase::Build
+        }),
+        "{:?}",
+        report.diagnostics
+    );
 }
 
 #[test]
