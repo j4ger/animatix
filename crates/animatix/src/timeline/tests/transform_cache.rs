@@ -105,3 +105,91 @@ always {
     let bounds = timeline.precise_bounds_for("child").expect("child bounds recorded");
     assert!(bounds.x0 >= 300.0, "override position must apply, got x0={}", bounds.x0);
 }
+
+fn group_scale_fixture(timing: &str) -> Timeline {
+    build_timeline(&format!(
+        r#"
+config {{ colorscheme: "editorial-dark" }}
+#0s
+parent: Group, at: (200, 150), opacity: 1 {{
+    direct: Rect, at: (80, 0), size: (40, 20), color: accent.primary, opacity: 1
+    nested: Group, at: (0, 60), opacity: 1 {{
+        grandchild: Rect, at: (40, 0), size: (20, 40), color: accent.primary, opacity: 1
+    }}
+}}
+#1s
+parent.scale = 0.25 [{timing}]
+"#
+    ))
+}
+
+fn assert_bounds_scaled_about_parent(actual: kurbo::Rect, baseline: kurbo::Rect, scale: f64) {
+    for (actual, original, pivot) in [
+        (actual.x0, baseline.x0, 200.0),
+        (actual.x1, baseline.x1, 200.0),
+        (actual.y0, baseline.y0, 150.0),
+        (actual.y1, baseline.y1, 150.0),
+    ] {
+        let expected = pivot + (original - pivot) * scale;
+        assert!(
+            (actual - expected).abs() < 1e-3,
+            "child bounds must inherit parent scale {scale}: expected {expected}, got {actual}"
+        );
+    }
+}
+
+#[test]
+fn group_scale_duration_reaches_children_and_grandchildren() {
+    let timeline = group_scale_fixture("1s");
+    let _ = timeline.evaluate(0.0, DIMS);
+    let labels = ["direct", "grandchild"];
+    let baseline = labels.map(|label| timeline.precise_bounds_for(label).expect("initial bounds"));
+
+    // Evaluate the rendered frame, not just the transform helper: this also
+    // guards recursive child traversal and the static-child transform cache.
+    let _ = timeline.evaluate(1.5, DIMS);
+    let halfway = timeline.precise_bounds_for("direct").expect("mid-animation bounds");
+    let scale = halfway.width() / baseline[0].width();
+    assert!(
+        scale > 0.25 && scale < 1.0,
+        "duration must have an intermediate scale: {scale}"
+    );
+    for (label, original) in labels.into_iter().zip(baseline) {
+        assert_bounds_scaled_about_parent(
+            timeline.precise_bounds_for(label).expect("mid-animation descendant bounds"),
+            original,
+            scale,
+        );
+    }
+
+    // Non-monotonic sampling catches stale parent transforms when scrubbing.
+    for (time, scale) in [(2.5, 0.25), (0.5, 1.0), (2.0, 0.25)] {
+        let _ = timeline.evaluate(time, DIMS);
+        for (label, original) in labels.into_iter().zip(baseline) {
+            assert_bounds_scaled_about_parent(
+                timeline.precise_bounds_for(label).expect("descendant bounds"),
+                original,
+                scale,
+            );
+        }
+    }
+}
+
+#[test]
+fn group_scale_instant_changes_children_only_at_the_keyframe() {
+    let timeline = group_scale_fixture("0s");
+    let _ = timeline.evaluate(0.0, DIMS);
+    let labels = ["direct", "grandchild"];
+    let baseline = labels.map(|label| timeline.precise_bounds_for(label).expect("initial bounds"));
+
+    for (time, scale) in [(0.5, 1.0), (0.999, 1.0), (1.0, 0.25), (2.0, 0.25), (0.5, 1.0)] {
+        let _ = timeline.evaluate(time, DIMS);
+        for (label, original) in labels.into_iter().zip(baseline) {
+            assert_bounds_scaled_about_parent(
+                timeline.precise_bounds_for(label).expect("descendant bounds"),
+                original,
+                scale,
+            );
+        }
+    }
+}
