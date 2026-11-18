@@ -413,7 +413,7 @@ fn group_reflow_at_65_groups_warns_and_preserves_unresolved_descendants() {
     assert_ne!(layout_size(&report.output, "leaf"), [400.0, 300.0]);
 }
 
-fn assert_mixed_group_col_boundary(count: usize) {
+fn mixed_group_col_fixture(count: usize) -> crate::timeline::BuildReport<Timeline> {
     let mut source =
         String::from("config { resolution: (800, 600) }\nroot: Group, size:(800,600) {\n");
     for index in 1..count {
@@ -431,6 +431,11 @@ fn assert_mixed_group_col_boundary(count: usize) {
     eprintln!("mixed layout count={count}: drop AST");
     drop(ast);
     eprintln!("mixed layout count={count}: assert sizes");
+    report
+}
+
+fn assert_mixed_group_col_boundary(count: usize) {
+    let report = mixed_group_col_fixture(count);
     assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
     assert!(
         !report
@@ -442,11 +447,7 @@ fn assert_mixed_group_col_boundary(count: usize) {
     );
     assert_eq!(layout_size(&report.output, "root"), [400.0, 300.0]);
     for index in 1..count {
-        assert_eq!(
-            layout_size(&report.output, &format!("g{index}")),
-            [400.0, 10.0],
-            "g{index}"
-        );
+        assert_eq!(layout_size(&report.output, &format!("g{index}")), [400.0, 10.0], "g{index}");
     }
     assert_eq!(layout_size(&report.output, "leaf"), [400.0, 10.0]);
 }
@@ -466,13 +467,47 @@ mod mixed_boundary_isolation {
             // requires COMPLETE, so accidentally filtering zero work cannot pass.
             return;
         };
-        let count: usize = value.parse().expect("boundary count");
+        let (count, probe) = value.split_once(':').unwrap_or((&value, "all"));
+        let count: usize = count.parse().expect("boundary count");
         assert!(matches!(count, 63 | 64));
-        super::assert_mixed_group_col_boundary(count);
+        if probe == "all" {
+            super::assert_mixed_group_col_boundary(count);
+        } else {
+            assert_eq!(count, 63);
+            let report = super::mixed_group_col_fixture(count);
+            let size = |label| super::layout_size(&report.output, label);
+            match probe {
+                "build" => {}
+                "no_error" => assert!(report.diagnostics.iter().all(|d| !d.is_error())),
+                "no_fallback" => assert!(!report.diagnostics.iter().any(|d| {
+                    d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
+                })),
+                "root" => assert_eq!(size("root"), [400.0, 300.0]),
+                "last_width" => assert_eq!(size("g62")[0], 400.0),
+                "last_height" => assert_eq!(size("g62")[1], 10.0),
+                "leaf_width" => assert_eq!(size("leaf")[0], 400.0),
+                "leaf_height" => assert_eq!(size("leaf")[1], 10.0),
+                "ancestor_widths" => {
+                    for index in 1..62 {
+                        assert_eq!(size(&format!("g{index}"))[0], 400.0, "g{index}");
+                    }
+                }
+                "ancestor_heights" => {
+                    for index in 1..62 {
+                        assert_eq!(size(&format!("g{index}"))[1], 10.0, "g{index}");
+                    }
+                }
+                _ => panic!("unknown isolated probe: {probe}"),
+            }
+        }
         eprintln!("{COMPLETE}");
     }
 
     fn run(count: usize) {
+        run_probe(count, "all");
+    }
+
+    fn run_probe(count: usize, probe: &str) {
         let module = module_path!().split_once("::").expect("crate module").1;
         let test = format!("{module}::worker");
         let output = std::process::Command::new(std::env::current_exe().expect("test executable"))
@@ -483,17 +518,39 @@ mod mixed_boundary_isolation {
                 "--nocapture",
                 "--test-threads=1",
             ])
-            .env(INPUT, count.to_string())
+            .env(INPUT, format!("{count}:{probe}"))
             .output()
             .expect("spawn mixed boundary worker");
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(
             output.status.success() && stderr.contains(COMPLETE),
-            "mixed count={count}, status={}; stdout:\n{stdout}\nstderr:\n{stderr}",
+            "mixed count={count} probe={probe}, status={}; child stdout={stdout:?}; child stderr={stderr:?}",
             output.status
         );
     }
+
+    // Temporary named probes preserve the original aggregate assertions and
+    // identify which contract failed without depending on captured panic text.
+    macro_rules! probe_63 {
+        ($name:ident, $probe:literal) => {
+            #[test]
+            fn $name() {
+                run_probe(63, $probe);
+            }
+        };
+    }
+
+    probe_63!(mixed_63_fixture_builds_and_drops, "build");
+    probe_63!(mixed_63_no_errors, "no_error");
+    probe_63!(mixed_63_no_fallback, "no_fallback");
+    probe_63!(mixed_63_root_dimensions, "root");
+    probe_63!(mixed_63_g62_width, "last_width");
+    probe_63!(mixed_63_g62_height, "last_height");
+    probe_63!(mixed_63_leaf_width, "leaf_width");
+    probe_63!(mixed_63_leaf_height, "leaf_height");
+    probe_63!(mixed_63_ancestor_widths, "ancestor_widths");
+    probe_63!(mixed_63_ancestor_heights, "ancestor_heights");
 
     #[test]
     fn mixed_group_col_63_levels() {
