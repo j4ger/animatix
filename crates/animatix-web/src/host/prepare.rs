@@ -51,16 +51,18 @@ pub(super) struct PreparedSyntax {
     diagnostics: Vec<DiagnosticDto>,
 }
 
+type PreparedSyntaxResult = Result<PreparedSyntax, Box<AnalysisDto>>;
+
 thread_local! {
     // Syntax identity excludes vars/quality/fonts. A bounded source cache lets
     // slider updates reuse parsed/expanded ASTs while rechecking dependencies.
-    static SYNTAX: RefCell<HashMap<[u8;32], Arc<Result<PreparedSyntax, Box<AnalysisDto>>>>> = RefCell::new(HashMap::new());
+    static SYNTAX: RefCell<HashMap<[u8;32], Arc<PreparedSyntaxResult>>> = RefCell::new(HashMap::new());
 }
 
 /// Immutable source snapshot reused by every quality/font-aware build.
 #[derive(Clone)]
 pub struct PreparedProgram {
-    pub(super) syntax: Arc<Result<PreparedSyntax, Box<AnalysisDto>>>,
+    pub(super) syntax: Arc<PreparedSyntaxResult>,
     pub(super) vars: Vec<(String, String)>,
     pub analysis: AnalysisDto,
 }
@@ -141,7 +143,7 @@ fn prepare_syntax(
     source: &str,
     modules: &[(PathBuf, String)],
     source_url: Option<&str>,
-) -> Result<PreparedSyntax, Box<AnalysisDto>> {
+) -> PreparedSyntaxResult {
     let path = PathBuf::from(ENTRY_PATH);
     let mut graph = graph(source, modules);
     let mut analysis = AnalysisDto::default();

@@ -535,3 +535,113 @@ fn delightful_kinetic_connectors_reference_existing_actor_anchors() {
         }
     }
 }
+
+// Named probes retain the combined regression and isolate status-only failures.
+fn kinetic_probe_timeline() -> crate::timeline::Timeline {
+    use std::path::Path;
+
+    use animatix_syntax::module::ModuleGraph;
+
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/animation/40_delightful_kinetic.amx");
+    let mut modules = ModuleGraph::new();
+    let program = modules.load_program(&path).expect("load kinetic example");
+    let expanded = program.expand_components().expect("expand kinetic example");
+    let report = crate::timeline::Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        crate::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    report.output
+}
+
+fn kinetic_probe_endpoint(wire: &str, from: bool, target: &str) {
+    use crate::timeline::{ConnectorEndpoint, SceneAnchor, TrackAccessor};
+
+    let timeline = kinetic_probe_timeline();
+    assert!(timeline.world.get_id(target).is_some());
+    let geometry = timeline.world.geometry(timeline.world.get_id(wire).unwrap());
+    let fallback = ConnectorEndpoint::Point([0.0, 0.0]);
+    let endpoint = if from {
+        geometry.connector_from.get(2500, fallback)
+    } else {
+        geometry.connector_to.get(2500, fallback)
+    };
+    let anchor = if from {
+        SceneAnchor::Right
+    } else {
+        SceneAnchor::Left
+    };
+    assert!(
+        matches!(endpoint, ConnectorEndpoint::Target { actor, anchor: Some(actual) }
+            if actor == target && actual == anchor)
+    );
+}
+
+fn kinetic_probe_frames(times: &[f64], bounds: bool) {
+    let timeline = kinetic_probe_timeline();
+    for &time in times {
+        let program = timeline.evaluate_program_with_debug(
+            time,
+            SceneDimensions {
+                width: 1280,
+                height: 720,
+            },
+            crate::timeline::DebugRenderOptions::default(),
+            &mut None,
+        );
+        for wire in ["conn1", "conn2"] {
+            if bounds {
+                assert!(program.precise_bounds.contains_key(wire), "{wire} at {time}");
+            } else {
+                assert!(
+                    program.items.iter().any(|item| item.label == wire && !item.commands.is_empty()),
+                    "{wire} at {time}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn kinetic_probe_conn1_from_stores_target_anchor() {
+    kinetic_probe_endpoint("conn1", true, "client");
+}
+
+#[test]
+fn kinetic_probe_conn1_to_stores_target_anchor() {
+    kinetic_probe_endpoint("conn1", false, "auth");
+}
+
+#[test]
+fn kinetic_probe_conn2_from_stores_target_anchor() {
+    kinetic_probe_endpoint("conn2", true, "auth");
+}
+
+#[test]
+fn kinetic_probe_conn2_to_stores_target_anchor() {
+    kinetic_probe_endpoint("conn2", false, "database");
+}
+
+#[test]
+fn kinetic_probe_draws_after_entrance() {
+    kinetic_probe_frames(&[2.5], false);
+}
+
+#[test]
+fn kinetic_probe_draws_at_end() {
+    kinetic_probe_frames(&[5.0], false);
+}
+
+#[test]
+fn kinetic_probe_world_bounds() {
+    kinetic_probe_frames(&[2.5, 5.0], true);
+}
+
+#[test]
+fn kinetic_probe_draws_after_reverse_seek() {
+    kinetic_probe_frames(&[2.5, 5.0, 2.5], false);
+}
