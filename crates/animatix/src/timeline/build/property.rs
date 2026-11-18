@@ -22,9 +22,9 @@ pub(super) fn evaluate_numeric_size_axes(
             // dimension survives while auto remains content-sized.
             let is_percent = match item {
                 Expr::Percent(_) => true,
-                Expr::Str(value) => value
-                    .strip_suffix('%')
-                    .is_some_and(|pct| pct.parse::<f32>().is_ok()),
+                Expr::Str(value) => {
+                    value.strip_suffix('%').is_some_and(|pct| pct.parse::<f32>().is_ok())
+                },
                 _ => false,
             };
             let is_auto_keyword = matches!(
@@ -141,14 +141,10 @@ impl PlotPropBag {
         let prop_subject = format!("{}.{}", label, prop.name);
         match prop.name.as_str() {
             "size" => {
-                for (axis, value) in evaluate_numeric_size_axes(
-                    &prop.value,
-                    eval_env,
-                    diagnostics,
-                    &prop_subject,
-                )
-                .into_iter()
-                .enumerate()
+                for (axis, value) in
+                    evaluate_numeric_size_axes(&prop.value, eval_env, diagnostics, &prop_subject)
+                        .into_iter()
+                        .enumerate()
                 {
                     if let Some(value) = value {
                         self.initial_size[axis] = value;

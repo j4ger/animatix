@@ -613,7 +613,13 @@ r.size = (100, 60) [2s]
     assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
     let id = report.output.world.get_id("r").unwrap();
     let geometry = report.output.world.geometry(id);
-    for (time, expected) in [(0, 10.0), (1000, 10.0), (2000, 10.0), (3000, 20.0), (4000, 30.0)] {
+    for (time, expected) in [
+        (0, 10.0),
+        (1000, 10.0),
+        (2000, 10.0),
+        (3000, 20.0),
+        (4000, 30.0),
+    ] {
         assert_eq!(geometry.size.get(time, [0.0; 2])[1], expected, "time={time}");
     }
 }
@@ -631,9 +637,14 @@ f: Ellipse, size: (auto, 20), radius_y: 30, size: (auto, 40), opacity: 1
 "#,
     );
     assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
-    for (label, height) in
-        [("a", 30.0), ("b", 10.0), ("c", 30.0), ("d", 50.0), ("e", 10.0), ("f", 20.0)]
-    {
+    for (label, height) in [
+        ("a", 30.0),
+        ("b", 10.0),
+        ("c", 30.0),
+        ("d", 50.0),
+        ("e", 10.0),
+        ("f", 20.0),
+    ] {
         assert_eq!(layout_size(&report.output, label)[1], height, "{label}");
         let id = report.output.world.get_id(label).unwrap();
         assert_eq!(report.output.world.geometry(id).size.get(0, [0.0; 2])[1], height, "{label}");
@@ -665,3 +676,49 @@ host: Group, size: (800, 600) {
         assert_eq!(layout_size(&report.output, label), expected, "{label}");
     }
 }
+
+// Temporary diagnostics: keep the aggregate order test unchanged while
+// distinguishing build diagnostics, layout extents, and geometry tracks.
+fn repeated_size_probe_fixture() -> crate::timeline::BuildReport<Timeline> {
+    build(
+        r#"
+a: Ellipse, size: (auto, 20), radius_y: 30, size: auto, opacity: 1
+b: Ellipse, radius_y: 30, size: (auto, 20), opacity: 1
+c: Ellipse, size: (40, 20), radius_y: 30, size: auto, opacity: 1
+d: Ellipse, size: (auto, 20), radius_y: 30, size: (80, 100), opacity: 1
+e: Ellipse, size: auto, radius_y: 30, size: (auto, 20), opacity: 1
+f: Ellipse, size: (auto, 20), radius_y: 30, size: (auto, 40), opacity: 1
+"#,
+    )
+}
+
+#[test]
+fn repeated_size_probe_no_errors() {
+    let report = repeated_size_probe_fixture();
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+}
+
+macro_rules! repeated_size_axis_probe {
+    ($layout_name:ident, $track_name:ident, $label:literal, $axis:literal, $expected:literal) => {
+        #[test]
+        fn $layout_name() {
+            let report = repeated_size_probe_fixture();
+            assert_eq!(layout_size(&report.output, $label)[$axis], $expected);
+        }
+
+        #[test]
+        fn $track_name() {
+            let report = repeated_size_probe_fixture();
+            let id = report.output.world.get_id($label).unwrap();
+            assert_eq!(report.output.world.geometry(id).size.get(0, [0.0; 2])[$axis], $expected);
+        }
+    };
+}
+
+repeated_size_axis_probe!(repeated_size_a_layout_y, repeated_size_a_track_y, "a", 1, 30.0);
+repeated_size_axis_probe!(repeated_size_b_layout_y, repeated_size_b_track_y, "b", 1, 10.0);
+repeated_size_axis_probe!(repeated_size_c_layout_y, repeated_size_c_track_y, "c", 1, 30.0);
+repeated_size_axis_probe!(repeated_size_d_layout_y, repeated_size_d_track_y, "d", 1, 50.0);
+repeated_size_axis_probe!(repeated_size_e_layout_y, repeated_size_e_track_y, "e", 1, 10.0);
+repeated_size_axis_probe!(repeated_size_f_layout_y, repeated_size_f_track_y, "f", 1, 20.0);
+repeated_size_axis_probe!(repeated_size_d_layout_x, repeated_size_d_track_x, "d", 0, 40.0);
