@@ -575,10 +575,8 @@ fn kinetic_probe_endpoint(wire: &str, from: bool, target: &str) {
     } else {
         SceneAnchor::Left
     };
-    assert!(
-        matches!(endpoint, ConnectorEndpoint::Target { actor, anchor: Some(actual) }
-            if actor == target && actual == anchor)
-    );
+    assert!(matches!(endpoint, ConnectorEndpoint::Target { actor, anchor: Some(actual) }
+            if actor == target && actual == anchor));
 }
 
 fn kinetic_probe_frames(times: &[f64], bounds: bool) {
@@ -598,7 +596,10 @@ fn kinetic_probe_frames(times: &[f64], bounds: bool) {
                 assert!(program.precise_bounds.contains_key(wire), "{wire} at {time}");
             } else {
                 assert!(
-                    program.items.iter().any(|item| item.label == wire && !item.commands.is_empty()),
+                    program
+                        .items
+                        .iter()
+                        .any(|item| item.label == wire && !item.commands.is_empty()),
                     "{wire} at {time}"
                 );
             }
@@ -644,4 +645,72 @@ fn kinetic_probe_world_bounds() {
 #[test]
 fn kinetic_probe_draws_after_reverse_seek() {
     kinetic_probe_frames(&[2.5, 5.0, 2.5], false);
+}
+
+#[test]
+fn connector_actor_anchor_binding_survives_numeric_build_environment() {
+    use crate::ast::Expr;
+    use crate::primitives::connector::parse_connector_endpoint;
+    use crate::timeline::plan_value::ActorRef;
+    use crate::timeline::{ConnectorEndpoint, Environment, SceneAnchor, Value};
+
+    let mut env = Environment::new();
+    env.set("node", Value::ActorRef(ActorRef::caller("node")));
+    env.set("node.at", Value::Vec2([100.0, 200.0]));
+    env.set("node.size", Value::Vec2([40.0, 60.0]));
+    let expr = Expr::Path(vec!["node".into(), "right".into()]);
+    assert_eq!(crate::timeline::evaluate_expr(&expr, &env).unwrap(), Value::Vec2([120.0, 200.0]));
+    let endpoint = parse_connector_endpoint(&expr, &env).unwrap();
+    assert!(matches!(endpoint, ConnectorEndpoint::Target { actor, anchor: Some(SceneAnchor::Right) }
+        if actor == "node"));
+
+    env.set("alias", Value::ActorRef(ActorRef::caller("node")));
+    let alias = Expr::Path(vec!["alias".into(), "left".into()]);
+    let endpoint = parse_connector_endpoint(&alias, &env).unwrap();
+    assert!(matches!(endpoint, ConnectorEndpoint::Target { actor, anchor: Some(SceneAnchor::Left) }
+        if actor == "node"));
+}
+
+#[test]
+fn connector_non_actor_anchor_named_values_remain_numeric_points() {
+    use crate::ast::Expr;
+    use crate::primitives::connector::parse_connector_endpoint;
+    use crate::timeline::{ConnectorEndpoint, Environment, Value};
+
+    let mut env = Environment::new();
+    env.set(
+        "options",
+        Value::Object("Options".into(), [("right".into(), Value::Vec2([5.0, 7.0]))].into()),
+    );
+    env.set("scene.right", Value::Vec2([1280.0, 360.0]));
+    for (name, expected) in [("options", [5.0, 7.0]), ("scene", [1280.0, 360.0])] {
+        let expr = Expr::Path(vec![name.into(), "right".into()]);
+        let endpoint = parse_connector_endpoint(&expr, &env).unwrap();
+        assert!(matches!(endpoint, ConnectorEndpoint::Point(point) if point == expected));
+    }
+}
+
+#[test]
+fn connector_anchor_respects_object_shadowing_and_nested_actor_aliases() {
+    use crate::ast::Expr;
+    use crate::primitives::connector::parse_connector_endpoint;
+    use crate::timeline::plan_value::ActorRef;
+    use crate::timeline::{ConnectorEndpoint, Environment, SceneAnchor, Value};
+
+    let mut env = Environment::new();
+    env.set("node", Value::ActorRef(ActorRef::caller("node")));
+    env.set(
+        "node",
+        Value::Object("Options".into(), [("right".into(), Value::Vec2([5.0, 7.0]))].into()),
+    );
+    let expr = Expr::Path(vec!["node".into(), "right".into()]);
+    let endpoint = parse_connector_endpoint(&expr, &env).unwrap();
+    assert!(matches!(endpoint, ConnectorEndpoint::Point(point) if point == [5.0, 7.0]));
+
+    let child = Value::ActorRef(ActorRef::caller("actual.child"));
+    env.set("holder", Value::Object("Holder".into(), [("child".into(), child)].into()));
+    let expr = Expr::Path(vec!["holder".into(), "child".into(), "right".into()]);
+    let endpoint = parse_connector_endpoint(&expr, &env).unwrap();
+    assert!(matches!(endpoint, ConnectorEndpoint::Target { actor, anchor: Some(SceneAnchor::Right) }
+        if actor == "actual.child"));
 }

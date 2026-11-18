@@ -13,6 +13,16 @@ use crate::timeline::{
 
 /// Helper to parse a `ConnectorEndpoint` from an expression in the build environment.
 pub fn parse_connector_endpoint(expr: &Expr, env: &Environment) -> Option<ConnectorEndpoint> {
+    // Preserve a verified actor anchor before numeric evaluation snapshots its
+    // current position. Ordinary object fields and scene coordinates stay numeric.
+    if let Some((actor, anchor)) = crate::timeline::lookup::actor_anchor_reference(expr)
+        && let Some(Value::ActorRef(reference)) = env.get_path(&actor)
+    {
+        return Some(ConnectorEndpoint::Target {
+            actor: reference.label().to_string(),
+            anchor: Some(anchor),
+        });
+    }
     match crate::timeline::evaluate_expr(expr, env) {
         Ok(Value::Vec2([x, y])) => return Some(ConnectorEndpoint::Point([x as f32, y as f32])),
         Ok(Value::ActorRef(actor)) => {
