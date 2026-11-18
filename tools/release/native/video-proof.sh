@@ -47,8 +47,19 @@ if [ ! -x "$vcpkg/vcpkg$ext" ]; then
 fi
 [ "$(git -C "$vcpkg" rev-parse HEAD)" = "$vcpkg_rev" ]
 
+vcpkg_options=(install --classic)
+if [ -n "$ext" ]; then
+  # The video binaries link the release import libraries. The GUI save test
+  # uses its default features.
+  overlay="$output/triplets"
+  mkdir -p "$overlay"
+  cp "$vcpkg/triplets/$triplet.cmake" "$overlay/$triplet.cmake"
+  printf '\nset(VCPKG_BUILD_TYPE release)\n' >> "$overlay/$triplet.cmake"
+  vcpkg_options+=("--overlay-triplets=$(cygpath -m "$overlay")")
+  printf 'vcpkg_build_type=release\n' >> "$output/evidence/build-inputs.txt"
+fi
 # The vcpkg port disables autodetection, and FFmpeg's PNG decoder needs zlib.
-phase ffmpeg-build execution "$vcpkg/vcpkg$ext" install --classic \
+phase ffmpeg-build execution "$vcpkg/vcpkg$ext" "${vcpkg_options[@]}" \
   "ffmpeg[avcodec,avdevice,avfilter,avformat,ffmpeg,ffprobe,opus,swresample,swscale,vpx,x264,zlib]:$triplet"
 installed="$vcpkg/installed/$triplet"
 unset FFMPEG_BINDING_PATH FFMPEG_DLL_PATH FFMPEG_PKG_CONFIG_PATH FFMPEG_LIBS_DIR
@@ -68,6 +79,9 @@ for tool in ffmpeg ffprobe; do
 done
 if [ -n "$ext" ]; then
   cp "$installed/bin/"*.dll "$stage/"
+  # On the hosted Basic Render Driver, FXC output crashes WARP's shader JIT.
+  python3 tools/release/native/windows_sdk_dxc.py "$stage" >> "$output/evidence/build-inputs.txt"
+  export RUST_LOG="${RUST_LOG:-warn,wgpu_hal::dx12::instance=debug}"
 fi
 cp LICENSE "$stage/"
 mkdir -p "$stage/licenses"

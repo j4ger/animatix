@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/native-windows-render.yml'
       - 'tools/release/native/windows-render-diagnostics.py'
+      - 'tools/release/native/windows_sdk_dxc.py'
 
 permissions:
   contents: read

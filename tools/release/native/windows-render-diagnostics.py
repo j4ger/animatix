@@ -7,6 +7,8 @@ import shutil
 import subprocess
 from tempfile import TemporaryDirectory
 
+from windows_sdk_dxc import stage_sdk_dxc
+
 
 def record(command, cwd, log):
     with log.open("wb") as stream:
@@ -19,18 +21,6 @@ def debugger_path():
         return debugger
     sdk = Path(os.environ["ProgramFiles(x86)"]) / "Windows Kits/10/Debuggers/x64/cdb.exe"
     return str(sdk) if sdk.is_file() else None
-
-
-def stage_sdk_dxc(package):
-    sdk_bin = Path(os.environ["ProgramFiles(x86)"]) / "Windows Kits/10/bin"
-    for compiler in sorted(sdk_bin.glob("*/x64/dxcompiler.dll"), reverse=True):
-        validator = compiler.with_name("dxil.dll")
-        if validator.is_file():
-            for dll in (compiler, validator):
-                shutil.copy2(dll, package / dll.name)
-            print(f"Testing the DXC from Windows SDK {compiler.parents[1].name}.")
-            return
-    raise RuntimeError("A Windows SDK with both dxcompiler.dll and dxil.dll is required for this comparison.")
 
 
 def main():

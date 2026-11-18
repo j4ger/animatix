@@ -12,11 +12,13 @@ on:
       - 'examples/assets/narration.*'
       - 'tools/release/native/video-proof.sh'
       - 'tools/release/native/test-first-run.py'
+      - 'tools/release/native/windows_sdk_dxc.py'
   pull_request:
     paths:
       - '.github/workflows/native-video-proof.yml'
       - 'tools/release/native/video-proof.sh'
       - 'tools/release/native/test-first-run.py'
+      - 'tools/release/native/windows_sdk_dxc.py'
 
 permissions:
   contents: read
@@ -26,7 +28,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        # Revalidate Windows with the DXC pair after the macOS export passed.
+        os: [windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     env:
