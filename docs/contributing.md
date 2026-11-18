@@ -76,8 +76,11 @@ proof runs separately from the published release workflow. [Native video proof](
 The native proof pins the vcpkg ports tree and its FFmpeg 8.x dependency set.
 It builds against those headers, links the macOS libraries statically, and
 stages the Windows DLLs beside both executables. Both stages carry the same
-FFmpeg tools used for muxing and inspection. Update the pin as a unit and rerun
-both native proofs before changing the published artifacts.
+FFmpeg tools used for muxing and inspection. The Windows stage uses the release
+vcpkg libraries and includes the matched DXC and DXIL DLLs from the runner SDK.
+This pair enables preview on the hosted Windows software adapter. Update the
+FFmpeg pin as a unit and rerun both native proofs before changing the published
+artifacts.
 
 ### Video export
 

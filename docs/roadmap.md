@@ -25,12 +25,12 @@ evidence backlog; reproduce them against current code before assigning fixes.
 
 #### P0 — First-run project and video delivery
 
-- **Native video release validation.** Run the pinned FFmpeg package proof on
-  macOS and Windows, then verify the packaged workbench preview on each target
-  desktop. Validate the Linux distribution on the clean runtime images. Promote
-  the native video packages through the release workflow after validating the
-  runtime dependencies, licensing and source archive boundaries.
-  [Native proof](../tools/release/native/video-proof.sh)
+- **Native video release validation.** Assemble the final video-enabled
+  archives and verify the packaged workbench preview on each target desktop.
+  Validate the Linux distribution on the clean runtime images. Resolve the
+  redistributable Windows DXC pair and verify the runtime dependencies, licenses
+  and corresponding source archives before promoting the packages through the
+  release workflow. [Hosted proof evidence](history/2026-11.md#首次交付与编辑可靠性2026-11-18)
 - **Acceptance:** on a clean supported machine, a user installs the release,
   creates a project outside the repository, previews it, and exports a 30-second
   MP4 with audio without installing Rust. Exercise this path per supported OS.
