@@ -411,6 +411,7 @@ gate_doc_links() { bash tools/docs/check-docs.sh; }
 gate_ci_policy_tests() {
   python3 tools/quality/test-legacy-contract-fixtures.py
   python3 tools/quality/test-audit-corpus.py
+  python3 tools/quality/test-speech-sync.py
   python3 tools/ci/test-ci-control.py
   python3 tools/ci/test-security-audit.py
   python3 tools/ci/test-security-policy.py

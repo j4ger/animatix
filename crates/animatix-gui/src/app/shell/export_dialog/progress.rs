@@ -110,6 +110,19 @@ impl GuiShell {
             );
         }
 
+        if let Some(warning) = self.export_store.export_warnings.first() {
+            let warning_rect = egui::Rect::from_center_size(
+                egui::pos2(content_rect.center().x, content_rect.top() + 22.0),
+                egui::vec2(content_rect.width().min(420.0), 24.0),
+            );
+            ui.put(
+                warning_rect,
+                egui::Label::new(RichText::new(warning).color(theme.palette.status.warning))
+                    .truncate(),
+            )
+            .on_hover_text(self.export_store.export_warnings.join("\n"));
+        }
+
         // Cancel button
         let btn_size = Vec2::new(100.0, sp.base.row_m);
         let btn_rect = egui::Rect::from_center_size(

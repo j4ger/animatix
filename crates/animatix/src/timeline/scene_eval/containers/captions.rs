@@ -12,6 +12,7 @@ struct ActiveCue {
     start_s: f64,
     end_s: f64,
     words: Vec<animatix_text::transcript::TranscriptWord>,
+    speech_start_s: f64,
     word_char_ranges: Vec<Option<Range<usize>>>,
     active_color: Option<[f32; 4]>,
 }
@@ -182,36 +183,33 @@ impl Timeline {
                     start_s,
                     end_s,
                     words,
+                    speech_start_s: 0.0,
                     word_char_ranges,
                     active_color: cue.active_color,
                 });
             }
         }
 
-        if all_cues.is_empty() {
-            let property_plan = self.world.property_plan(node_id);
-            let transcript = self.transcript(node_label).or_else(|| {
-                let source = property_plan.sample_string_prop("source", time_ms, "");
-                if !source.is_empty() {
-                    self.transcript(&source)
-                } else {
-                    None
+        if all_cues.is_empty()
+            && let Some((transcript, start, limit)) = self.caption_transcript(node_id, time_ms)
+        {
+            for seg in &transcript.segments {
+                let start_s = start + seg.start_s;
+                let end_s = (start + seg.end_s).min(limit);
+                if end_s <= start_s {
+                    continue;
                 }
-            });
-
-            if let Some(t) = transcript {
-                for seg in &t.segments {
-                    let word_char_ranges =
-                        map_timed_words_to_char_ranges(&seg.text, &seg.words, node_label);
-                    all_cues.push(ActiveCue {
-                        text: seg.text.clone(),
-                        start_s: seg.start_s,
-                        end_s: seg.end_s,
-                        words: seg.words.clone(),
-                        word_char_ranges,
-                        active_color: None,
-                    });
-                }
+                all_cues.push(ActiveCue {
+                    text: seg.text.clone(),
+                    start_s,
+                    end_s,
+                    words: seg.words.clone(),
+                    speech_start_s: start,
+                    word_char_ranges: map_timed_words_to_char_ranges(
+                        &seg.text, &seg.words, node_label,
+                    ),
+                    active_color: None,
+                });
             }
         }
 
@@ -267,8 +265,11 @@ impl Timeline {
             pop_scale,
         };
 
-        let active_word_idx =
-            cue.words.iter().position(|w| w.start_s <= time_s && time_s < w.end_s);
+        let speech_time_s = time_s - cue.speech_start_s;
+        let active_word_idx = cue
+            .words
+            .iter()
+            .position(|w| w.start_s <= speech_time_s && speech_time_s < w.end_s);
 
         let request = TextCompileRequest {
             max_width: text_max_width,

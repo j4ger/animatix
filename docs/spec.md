@@ -197,7 +197,7 @@ B.color = red [2s]
 Keyframes can be anchored to spoken markers or word timestamps from an `Audio` track transcript (Universal JSON, Whisper JSON, WebVTT, or SRT):
 - Named marker: `#track@marker`, with optional offset: `#track@marker + 250ms`, `#track@marker - 100ms`
 - Spoken word: `#track["word"]` (matches first occurrence), or `#track["word", 2]` (matches 2nd occurrence)
-- Speech anchors lower statically to absolute milliseconds at build time, with zero runtime evaluation overhead.
+- Speech anchors lower to scene time at build time. The authored Audio start (including its delay) is added to the clip-relative transcript timestamp.
 
 ```animatix
 voice: Audio, source: "voiceover.mp3", transcript: "voiceover.speech.json"
@@ -1191,7 +1191,7 @@ voice: Audio, source: "voiceover.wav", volume: 0.8 [5s, delay: 1s]
 - `delay: <time>` shifts the audio start time on the global timeline.
 - Do not use `duration: 5s`; named `duration` modifiers are rejected.
 
-During video export, all `Audio` actors from the current scene (or all scenes in a composition) are mixed together. Overlapping clips are blended; each clip respects its individual `volume` and start offset.
+During video export, all `Audio` actors from the current scene or scheduled composition scenes are mixed into one stereo track. Overlapping clips retain their timeline offsets, trims, and volume automation. Use `Captions, source: "voice"` to render captions from the `voice` actor on the same audio clock.
 
 ### Available Primitives & Common Confusions
 
@@ -2510,7 +2510,7 @@ override reaches properties that resolve during the walk. Overrides apply to a
 single-scene program; a multi-scene composition warns that they are not applied
 rather than overriding some scenes.
 
-**Parallel rendering:** Video and GIF exports render frames in parallel using all available CPU cores. Each thread gets its own GPU context and a cloned Timeline, then renders a chunk of frames. Encoding (GIF quantization / video muxing) remains sequential to preserve frame order and codec state.
+**Parallel rendering:** Video and GIF exports render frames in parallel using all available CPU cores. Each thread gets its own GPU context and a cloned Timeline, then renders a chunk of frames. Encoding (GIF quantization / video muxing) remains sequential to preserve frame order and codec state. Video export writes both streams to the same container using FFmpeg libraries in process. CLI and GUI warn when the selected duration cuts off known audio or caption content.
 
 **WebM output:** Use the `--codec vp9` flag and a `.webm` output extension to export in WebM format with VP9 video and Opus audio. When `--codec auto` (default) is combined with a `.webm` output path, VP9 is auto-selected. Audio segments are muxed using `libopus` instead of `aac` for WebM output.
 

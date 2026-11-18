@@ -186,6 +186,78 @@ impl Timeline {
         (max_ms as f64) / 1000.0
     }
 
+    /// Last valid caption boundary, including offsets and trims for bound narration.
+    pub fn caption_end_seconds(&self) -> f64 {
+        self.world
+            .tracks
+            .iter()
+            .filter(|&(_, id)| self.world.actor_type(id) == "Captions")
+            .map(|(_, id)| self.caption_container_end(id))
+            .fold(0.0, f64::max)
+    }
+
+    fn caption_container_end(&self, id: EntityId) -> f64 {
+        let mut has_cues = false;
+        let mut end_s: f64 = 0.0;
+        for &cue in &self.world.hierarchy(id).children {
+            if self.world.actor_type(cue) != "Cue" {
+                continue;
+            }
+            has_cues = true;
+            let plan = self.world.property_plan(cue);
+            let mut times = vec![self.world.first_seen(cue)];
+            for property in ["start", "end"] {
+                if let Some(key) = crate::timeline::property_id(property) {
+                    times.extend(plan.keyframe_times(key));
+                }
+            }
+            for time in times {
+                let start = plan.sample_f32_prop("start", time, 0.0);
+                let end = plan.sample_f32_prop("end", time, 0.0);
+                if end > start {
+                    end_s = end_s.max(f64::from(end));
+                }
+            }
+        }
+        if has_cues {
+            return end_s;
+        }
+
+        let mut times = vec![self.world.first_seen(id)];
+        if let Some(key) = crate::timeline::property_id("source") {
+            times.extend(self.world.property_plan(id).keyframe_times(key));
+        }
+        times
+            .into_iter()
+            .filter_map(|time| self.caption_transcript(id, time))
+            .flat_map(|(transcript, start, limit)| {
+                transcript.segments.iter().filter_map(move |cue| {
+                    let end = (start + cue.end_s).min(limit);
+                    (end > start + cue.start_s).then_some(end)
+                })
+            })
+            .fold(0.0, f64::max)
+    }
+
+    pub(crate) fn caption_transcript(
+        &self,
+        caption: EntityId,
+        time_ms: u64,
+    ) -> Option<(&animatix_text::transcript::SpeechTranscript, f64, f64)> {
+        if let Some(transcript) = self.world.transcript.get(caption) {
+            return Some((&transcript.0, 0.0, f64::INFINITY));
+        }
+        let source = self.world.property_plan(caption).sample_string_prop("source", time_ms, "");
+        let track = self.world.get_id(&source)?;
+        let transcript = &self.world.transcript.get(track)?.0;
+        let Some(audio) = self.audio_segment_for_actor(track) else {
+            return Some((transcript, 0.0, f64::INFINITY));
+        };
+        let start = audio.start_time_s;
+        let end = audio.duration_s.map_or(f64::INFINITY, |duration| start + duration);
+        Some((transcript, start, end))
+    }
+
     /// Duration declared by `config { duration: N }`, if any.
     pub fn declared_duration_seconds(&self) -> Option<f64> {
         self.declared_duration_s

@@ -17,6 +17,11 @@ fn rows(timeline: Option<&Timeline>) -> Vec<TranscriptRow> {
     if let Some(timeline) = timeline {
         for (id, transcript) in timeline.transcripts_iter() {
             let label = timeline.get_entity_label(id).unwrap_or("Transcript");
+            let clip = timeline.audio_segment_for_actor(id);
+            let start_s = clip.map_or(0.0, |clip| clip.start_time_s);
+            let end_s = clip
+                .and_then(|clip| clip.duration_s)
+                .map_or(f64::INFINITY, |duration| start_s + duration);
             let cues = transcript
                 .segments
                 .iter()
@@ -39,9 +44,17 @@ fn rows(timeline: Option<&Timeline>) -> Vec<TranscriptRow> {
                             .collect()
                     }
                 })
+                .filter_map(|mut cue| {
+                    cue.start += start_s;
+                    cue.end = (cue.end + start_s).min(end_s);
+                    (cue.end > cue.start).then_some(cue)
+                })
                 .collect::<Vec<_>>();
-            let mut markers: Vec<_> =
-                transcript.markers.iter().map(|(name, time)| (name.clone(), *time)).collect();
+            let mut markers: Vec<_> = transcript
+                .markers
+                .iter()
+                .map(|(name, time)| (name.clone(), start_s + time))
+                .collect();
             markers.sort_by(|a, b| a.0.cmp(&b.0));
             if let Some(existing) = result
                 .iter_mut()
@@ -102,8 +115,10 @@ pub(crate) fn render_speech_track(
             Pos2::new(scroll_rect.left(), y),
             Pos2::new(coords.bar_origin_x, y + row_height),
         );
-        ui.interact(header,panel_id.with(("transcript_label", index)),Sense::hover())
-            .on_hover_text(format!("{label}\nActive scene transcript · original timing + scene offset ({scene_offset_s:.3}s). Audio clip delay is not inferred."));
+        ui.interact(header, panel_id.with(("transcript_label", index)), Sense::hover())
+            .on_hover_text(format!(
+                "{label}\nAudio transcripts follow clip timing and the scene offset ({scene_offset_s:.3}s)."
+            ));
         for (cue_index, item) in row.cues.iter().enumerate() {
             cue(
                 ui,

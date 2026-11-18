@@ -29,7 +29,7 @@ card_feature: CardNode, title: "2. Zero Overhead", eyebrow: "COMPILER", sub: "Co
 card_captions: CardNode, title: "3. Kinetic Captions", eyebrow: "RENDERING", sub: "Word pop & karaoke fill", at: (980, 320)
 
 // First-class Subtitle / Caption container
-subs: Captions, at: (640, 580), transcript: "../assets/narration.speech.json", caption_mode: "karaoke", active_color: accent.primary, inactive_color: text.muted, font_size: 28, backdrop: true, backdrop_color: (0.05, 0.08, 0.14, 0.92), backdrop_radius: 14, backdrop_padding: (28, 14), pop_scale: 1.15
+subs: Captions, at: (640, 580), source: "voice", caption_mode: "karaoke", active_color: accent.primary, inactive_color: text.muted, font_size: 28, backdrop: true, backdrop_color: (0.05, 0.08, 0.14, 0.92), backdrop_radius: 14, backdrop_padding: (28, 14), pop_scale: 1.15
 
 #0s
   fade_in(target: floor, duration: 0.6s)

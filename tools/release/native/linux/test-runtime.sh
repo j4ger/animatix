@@ -28,7 +28,7 @@ icd="$(find /usr/share/vulkan/icd.d -maxdepth 1 -name 'lvp_icd*.json' -print -qu
 [ -n "$icd" ] || { echo "error: host test image has no lavapipe ICD" >&2; exit 1; }
 export VK_ICD_FILENAMES="$icd"
 
-# Confirm the executable resolves FFmpeg from the package and uses no Nix path.
+# Confirm the application links the bundled FFmpeg libraries and uses no Nix path.
 [ ! -x /usr/bin/ffmpeg ] || { echo 'error: clean runtime image unexpectedly has FFmpeg' >&2; exit 1; }
 [ ! -d /nix ] || { echo 'error: clean runtime image unexpectedly has Nix' >&2; exit 1; }
 [ ! -x /usr/bin/rustc ] || { echo 'error: clean runtime image unexpectedly has Rust' >&2; exit 1; }
@@ -67,16 +67,30 @@ cd "$testdir"
   -i 'sine=frequency=440:duration=1.2' -ar 44100 -ac 2 -c:a pcm_s16le tone.wav
 cat > scene.amx <<'EOF'
 config { duration: 1.0, resolution: (320, 180) }
-sound: Audio, source: "tone.wav", volume: 1.0
+sound: Audio, source: "tone.wav", transcript: "tone.srt" [delay: 200ms]
+subs: Captions, source: "sound", opacity: 1.0, at: (160, 145), font_size: 28, color: "#FFFFFF", caption_mode: "line", backdrop: false
 #0s
 square: Rect, size: (100, 100), color: "#e74c3c", at: (160, 90)
 fade_in(target: square, duration: 200ms)
 EOF
+cat > tone.srt <<'EOF'
+1
+00:00:00,000 --> 00:00:00,600
+CAPTION
+EOF
 
-/package/bin/animatix video scene.amx --duration 1 --fps 5 --width 320 --height 180 \
+# Give the launchers only dirname. A subprocess lookup cannot see ffmpeg,
+# even though the test can use the bundled inspection tools by absolute path.
+mkdir -p export-path
+ln -sf "$(command -v dirname)" export-path/dirname
+export_path="$PWD/export-path"
+
+PATH="$export_path" /package/bin/animatix video scene.amx --duration 1 --fps 5 --width 320 --height 180 \
   --threads 1 --codec libx264 --output out.mp4
-/package/bin/animatix video scene.amx --duration 1 --fps 5 --width 320 --height 180 \
+PATH="$export_path" /package/bin/animatix video scene.amx --duration 1 --fps 5 --width 320 --height 180 \
   --threads 1 --codec vp9 --output out.webm
+PATH="$export_path" /package/bin/animatix video scene.amx --duration 1 --fps 5 --width 320 --height 180 \
+  --threads 1 --codec libx264 --output out.mov
 /package/bin/animatix gif scene.amx --duration 1 --fps 5 --width 320 --height 180 \
   --threads 1 --output out.gif
 
@@ -93,8 +107,13 @@ assert_stream out.mp4 v h264
 assert_stream out.mp4 a aac
 assert_stream out.webm v vp9
 assert_stream out.webm a opus
+assert_stream out.mov v h264
+assert_stream out.mov a aac
+mov_brand=$(/package/bin/ffprobe -v error -show_entries format_tags=major_brand \
+  -of default=noprint_wrappers=1:nokey=1 out.mov)
+[ "$mov_brand" = 'qt  ' ] || { echo "error: out.mov has major brand '$mov_brand'" >&2; exit 1; }
 assert_stream out.gif v gif
-for f in out.mp4 out.webm out.gif; do
+for f in out.mp4 out.webm out.mov out.gif; do
   [ -s "$f" ] || { echo "error: empty output: $f" >&2; exit 1; }
 done
 
@@ -119,7 +138,7 @@ assert_audio() {
   }
   # Keep codec diagnostics (including the known Opus packet-header warning) as
   # evidence while requiring the decoder to finish successfully.
-  /package/bin/ffmpeg -v error -xerror -i "$file" -map 0:a:0 -vn -ac 1 -ar 44100 \
+  /package/bin/ffmpeg -v error -xerror -i "$file" -map 0:a:0 -vn -ac 2 -ar 44100 \
     -f s16le -y "$raw" 2>"$decode_log"
   python3 - "$raw" "$name" "$playback_duration" "$frame_samples" <<'PY'
 import array
@@ -135,30 +154,34 @@ if sys.byteorder != "little":
 if not samples:
     raise SystemExit(f"{sys.argv[2]}: decoder produced no PCM samples")
 rate = 44100
-duration = len(samples) / rate
+frames = len(samples) // 2
+duration = frames / rate
 sample_budget = int(sys.argv[4])
-sample_error = abs(len(samples) - rate)
+sample_error = abs(frames - rate)
 if sample_error > sample_budget:
-    raise SystemExit(f"{sys.argv[2]}: decoded {len(samples)} samples ({duration:.6f}s), "
+    raise SystemExit(f"{sys.argv[2]}: decoded {frames} samples per channel ({duration:.6f}s), "
                      f"{sample_error} samples from target; codec frame budget is {sample_budget}")
-playback_samples = min(len(samples), round(float(sys.argv[3]) * rate))
-playback = samples[:playback_samples]
-rms = math.sqrt(sum(sample * sample for sample in playback) / len(playback))
-if rms < 500:
-    raise SystemExit(f"{sys.argv[2]}: decoded audio RMS {rms:.1f} is too quiet")
-crossings = sum((left < 0) != (right < 0) for left, right in zip(playback, playback[1:]))
-frequency = crossings * rate / (2 * (len(playback) - 1))
-if not 425 <= frequency <= 455:
-    raise SystemExit(f"{sys.argv[2]}: decoded tone is {frequency:.1f}Hz, expected 440Hz")
-print(f"{sys.argv[2]} playback: {float(sys.argv[3]):.6f}s; decoded PCM: "
-      f"{len(samples)} samples ({duration:.6f}s), playback analysis: {playback_samples} samples, "
-      f"RMS {rms:.1f}, tone {frequency:.1f}Hz; "
-      f"codec frame budget: {sample_budget} samples")
+def rms(signal):
+    return math.sqrt(sum(sample * sample for sample in signal) / len(signal))
+
+for channel in (0, 1):
+    early = samples[channel:round(0.15 * rate) * 2:2]
+    if rms(early) > 100:
+        raise SystemExit(f"{sys.argv[2]}: channel {channel} was audible before the 200 ms delay")
+    playback = samples[round(0.3 * rate) * 2 + channel:round(0.9 * rate) * 2:2]
+    if rms(playback) < 500:
+        raise SystemExit(f"{sys.argv[2]}: channel {channel} is too quiet after the delay")
+    crossings = sum((left < 0) != (right < 0) for left, right in zip(playback, playback[1:]))
+    frequency = crossings * rate / (2 * (len(playback) - 1))
+    if not 425 <= frequency <= 455:
+        raise SystemExit(f"{sys.argv[2]}: decoded tone is {frequency:.1f}Hz, expected 440Hz")
+print(f"{sys.argv[2]} duration {duration:.6f}s, 440 Hz after 200 ms on both channels")
 PY
 }
 
 assert_video_frames out.mp4
 assert_video_frames out.webm
+assert_video_frames out.mov
 assert_video_frames out.gif
 # The locked AAC encoder emits 1024-sample frames at 44.1 kHz (23.22 ms); Opus
 # emits 960 samples at 48 kHz, or 882 after the 44.1 kHz decode resample (20 ms).
@@ -166,6 +189,23 @@ assert_video_frames out.gif
 # codec frame of decoder padding in raw PCM.
 assert_audio out.mp4 mp4-audio 1024
 assert_audio out.webm webm-audio 882
+assert_audio out.mov mov-audio 1024
+
+# Decode the caption region away from the square. The caption should appear on
+# the 200 ms frame with the tone and disappear at the end of its window.
+/package/bin/ffmpeg -v error -i out.mp4 -map 0:v:0 \
+  -vf 'crop=240:40:40:128' -pix_fmt gray -f rawvideo -y caption.raw
+python3 - <<'PY'
+from pathlib import Path
+
+data = Path("caption.raw").read_bytes()
+frame_size = 240 * 40
+ink = [sum(pixel > 180 for pixel in data[i:i + frame_size])
+       for i in range(0, len(data), frame_size)]
+if len(ink) != 5 or ink[0] or min(ink[1:4]) < 30 or ink[4]:
+    raise SystemExit(f"caption ink by frame did not follow the 200–800 ms cue: {ink}")
+print(f"caption ink per video frame: {ink}")
+PY
 
 # A version flag does not start eframe or create a preview. Verify a real GUI
 # window under the clean host's virtual display, then close the test process.

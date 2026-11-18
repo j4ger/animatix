@@ -517,6 +517,8 @@ impl PropertySchema {
     ) -> ActorField {
         if self.name == "text_max_width" && (caps.legend_host || actor_type == "Legend") {
             ActorField::Tagged("legend_text_max_width")
+        } else if self.name == "source" && actor_type == "Captions" {
+            ActorField::Tagged("source")
         } else {
             self.field
         }

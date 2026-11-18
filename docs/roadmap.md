@@ -42,6 +42,10 @@ evidence backlog; reproduce them against current code before assigning fixes.
   creates a project outside the repository, previews it, and exports a 30-second
   MP4 with audio without installing Rust. Exercise this path per supported OS.
 
+- **Selectable tracks:** Define delivery formats and player support for embedded
+  subtitles and alternate audio tracks. Reuse the existing scene/clip timing to
+  derive subtitle cue timestamps and language metadata for the selected container.
+
 #### P0 — Reliable editing and language behavior
 
 - **Phase A: source round-trips.** Resolve the raw-string/value ambiguity noted
