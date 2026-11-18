@@ -111,10 +111,10 @@ pub fn evaluate_callout(
     );
     let mut label_at = geometry.label_at.get(ctx.time_ms, [0.0, 50.0]);
 
-    if let Some(overrides) = ctx.overrides {
-        if let Some(Value::Vec2(la)) = overrides.get("label_at") {
-            label_at = [la[0] as f32, la[1] as f32];
-        }
+    if let Some(overrides) = ctx.overrides
+        && let Some(Value::Vec2(la)) = overrides.get("label_at")
+    {
+        label_at = [la[0] as f32, la[1] as f32];
     }
 
     if has_label {
