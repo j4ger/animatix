@@ -47,12 +47,8 @@ if [ ! -x "$vcpkg/vcpkg$ext" ]; then
 fi
 [ "$(git -C "$vcpkg" rev-parse HEAD)" = "$vcpkg_rev" ]
 
-archive_cache="$output/vcpkg-archives"
-mkdir -p "$archive_cache"
-export VCPKG_DEFAULT_BINARY_CACHE="$archive_cache"
 vcpkg_options=(install --classic)
 if [ -n "$ext" ]; then
-  export VCPKG_DEFAULT_BINARY_CACHE="$(cygpath -m "$archive_cache")"
   # The video binaries link the release import libraries. The GUI save test
   # uses its default features.
   overlay="$output/triplets"
