@@ -124,6 +124,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: . -> target/release-cargo
+      - name: Restore FFmpeg dependencies
+        if: matrix.shell == 'native' && hashFiles('.github/actions/native-ffmpeg-cache/action.yml') != ''
+        uses: ./.github/actions/native-ffmpeg-cache
       - name: Gate
         shell: bash
         env:

@@ -21,7 +21,7 @@ case "${RUNNER_OS:-$(uname -s)}" in
     ;;
   *) echo 'Run the video proof on native macOS or Windows' >&2; exit 2 ;;
 esac
-if [ "${1:-$platform}" != "$platform" ]; then
+if [ "${1:-$platform}" != "$platform" ] && [ "${1:-}" != --ffmpeg-only ]; then
   echo "Cannot build $1 on $platform" >&2
   exit 2
 fi
@@ -41,7 +41,7 @@ phase() {
 }
 
 proof_stage="${ANIMATIX_PROOF_STAGE:-}"
-if [ -n "$proof_stage" ] && [ -f "$proof_stage/build-inputs.txt" ]; then
+if [ "${1:-}" != --ffmpeg-only ] && [ -n "$proof_stage" ] && [ -f "$proof_stage/build-inputs.txt" ]; then
   cp "$proof_stage/build-inputs.txt" "$output/evidence/"
   phase package-acceptance execution "$BASH" tools/release/dist-package.sh "$platform" "$proof_stage" --video
   exit
@@ -66,6 +66,15 @@ fi
 [ "$(git -C "$vcpkg" rev-parse HEAD)" = "$vcpkg_rev" ]
 
 vcpkg_options=(install --classic)
+ffmpeg_cache="${ANIMATIX_FFMPEG_CACHE:-}"
+if [ -n "$ffmpeg_cache" ]; then
+  if [ -n "$ext" ]; then ffmpeg_cache="$(cygpath -m "$ffmpeg_cache")"; fi
+  mkdir -p "$ffmpeg_cache/binaries" "$ffmpeg_cache/sources"
+  export VCPKG_BINARY_SOURCES="clear;files,$ffmpeg_cache/binaries,readwrite"
+fi
+if [ "${ANIMATIX_REQUIRE_FFMPEG_CACHE:-false}" = true ]; then
+  vcpkg_options+=(--only-binarycaching)
+fi
 if [ -n "$ext" ]; then
   # The video binaries link the release import libraries. The GUI save test
   # uses its default features.
@@ -109,11 +118,23 @@ for license in "$installed/share/"*/copyright; do
   cp "$license" "$stage/licenses/$port.txt"
 done
 git -C "$vcpkg" archive --format=tar.gz HEAD > "$stage/media-source/vcpkg-$vcpkg_rev.tar.gz"
-for source in ffmpeg-ffmpeg-n8.1.2.tar.gz \
-  videolan-x264-31e19f92f00c7003fa115047ce50978bc98c3a0d.tar.gz \
-  webmproject-libvpx-v1.16.0.tar.gz xiph-opus-v1.5.2.tar.gz madler-zlib-v1.3.2.tar.gz; do
-  cp "$vcpkg/downloads/$source" "$stage/media-source/"
-done
+# Binary restores can leave downloads empty. Use the same hashes as the pinned ports.
+mkdir -p "$vcpkg/downloads"
+while read -r source sha512 url; do
+  case "$source" in ''|\#*) continue ;; esac
+  archive="$vcpkg/downloads/$source"
+  if [ -n "$ffmpeg_cache" ] && [ -f "$ffmpeg_cache/sources/$source" ]; then
+    archive="$ffmpeg_cache/sources/$source"
+  fi
+  if [ ! -f "$archive" ] || [ "$("$vcpkg/vcpkg$ext" hash "$archive" sha512)" != "$sha512" ]; then
+    (cd "$vcpkg/downloads" && "$vcpkg/vcpkg$ext" x-download "$source" "--sha512=$sha512" "--url=$url") </dev/null
+    archive="$vcpkg/downloads/$source"
+  fi
+  cp "$archive" "$stage/media-source/"
+  if [ -n "$ffmpeg_cache" ] && [ "$archive" != "$ffmpeg_cache/sources/$source" ]; then
+    cp "$archive" "$ffmpeg_cache/sources/"
+  fi
+done < tools/release/native/vcpkg-sources.lock
 if [ -n "$ext" ]; then
   cp "$overlay/$triplet.cmake" "$stage/media-source/"
 fi
@@ -133,6 +154,9 @@ EOF
 if ! "$stage/ffmpeg$ext" -hide_banner -decoders | awk '$2 == "png" { found=1 } END { exit !found }'; then
   echo 'The staged FFmpeg must decode PNG for the preview check.' >&2
   exit 1
+fi
+if [ "${1:-}" = --ffmpeg-only ]; then
+  exit 0
 fi
 
 build=(build --locked --profile dist -p animatix-cli -p animatix-gui --features video)

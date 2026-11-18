@@ -111,6 +111,8 @@ dist-macos|native|macos-latest|rust-stable|release
 dist-windows|native|windows-latest|rust-stable|release
 native-video-proof|native|macos-latest|rust-stable|control
 native-video-proof|native|windows-latest|rust-stable|control
+native-ffmpeg-cache|native|macos-latest|none|control
+native-ffmpeg-cache|native|windows-latest|none|control
 native-windows-render|native|windows-latest|rust-stable|control
 ci-plan|none|ubuntu-latest|none|control
 ci-result|none|ubuntu-latest|none|control
@@ -946,6 +948,10 @@ gate_dist_windows() {
 gate_native_video_proof() {
   want_cargo
   bash tools/release/native/video-proof.sh
+}
+
+gate_native_ffmpeg_cache() {
+  bash tools/release/native/video-proof.sh --ffmpeg-only
 }
 
 gate_native_windows_render() {

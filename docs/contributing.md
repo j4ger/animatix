@@ -410,6 +410,16 @@ Release runs the complete Windows and macOS video acceptance as part of the
 distribution gates. The **Native Video Proof** workflow provides a manual
 rehearsal of the native archives and Linux Nightly packaging.
 
+To warm the Windows and macOS vcpkg binary caches before tagging, run
+**Native Video Proof** on the default branch with `ffmpeg_only` enabled.
+Release tags can restore that branch's cache. vcpkg checks each package's ABI
+and builds missing packages from the pinned ports. The cache holds the binary
+package archives and the codec source archives that go into the release ZIP.
+The build verifies the source checksums and downloads missing archives from
+the pinned URLs. To check the warm path on a fresh runner,
+enable `require_ffmpeg_cache`. Leave `ffmpeg_only` disabled for a warm-path run
+that also builds Animatix and validates the extracted native ZIPs.
+
 Detailed explanations, measurements and post-mortems belong in
 [history](history/README.md); [roadmap](roadmap.md) contains unfinished work only.
 For Linux binary/source archive identity and rebuild instructions, see the
