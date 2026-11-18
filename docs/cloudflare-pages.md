@@ -1,17 +1,16 @@
 # Cloudflare Pages migration
 
-The target is **Pages Git integration**, not Workers Builds. The Astro site is
-static; Pages does not need Wrangler, a Worker upload token or Worker versions.
-Rust/Wasm stays in the existing Nix CI. Pages only downloads the original signed
-SDK, builds Astro and publishes `_site`.
+The signed production path uses **Pages Git integration**. Nix CI builds the
+Rust/Wasm SDK. The Pages build verifies and downloads that SDK, builds the
+static Astro site, and publishes `_site`.
 
 ## Current state
 
-`amx.j4ger.dev` is served by the `animatix-pages` Cloudflare Pages project.
-GitHub `j4ger/animatix` is connected with production branch `deploy/pages`.
-Main CI signs the tested SDK; the sole publisher advances that branch and waits
-for its Pages deployment. `deploy/pages-state` holds the durable release journal.
-Both branches are infrastructure state, not disposable development branches.
+The recorded production setup connects `amx.j4ger.dev` to the
+`animatix-pages` Pages project and connects GitHub `j4ger/animatix` with
+production branch `deploy/pages`. Main CI can sign the tested SDK and run the
+journal-backed publisher. That publisher advances `deploy/pages` and waits for
+the Pages deployment. `deploy/pages-state` holds the durable release journal.
 
 Automatic production/preview builds in Pages stay disabled. The configured
 build command is `bash tools/ci/ci.sh gate cloudflare-pages-build`, output `_site`,
@@ -22,6 +21,15 @@ The normal path has passed real CI signing, Pages build, SDK verification and
 custom-domain acceptance. That does not claim every failure-recovery or rollback
 scenario has been exercised remotely. A Workers schema-2 permit is deliberately
 not accepted by Pages.
+
+The repository also retains [a direct-upload Pages workflow](../.github/workflows/cloudflare-pages.yml).
+It is eligible after successful main CI or a manual run on main if
+`CLOUDFLARE_PAGES_PROJECT` is configured. It assembles and smoke-tests the site
+before using a separate API credential to upload directly. This workflow has
+its own concurrency group and operates outside the release journal.
+The hosted settings determine whether that path is enabled and which project
+it targets. The journal-backed production setup requires a single publisher
+for its project. See [release validation](roadmap.md#release-validation-still-requiring-live-evidence).
 
 ## Signed build
 

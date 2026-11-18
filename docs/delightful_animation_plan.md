@@ -1,8 +1,10 @@
 # Delightful Animation & Kinetic Design Plan (赏心悦目动效与动能排版架构规划)
 
-> **状态**：设计提案与技术实施方案（2026-10-10）。
+> **状态**：历史设计提案与技术实施方案快照（2026-10-10），不是当前状态说明或待办清单。文中的现状审查、代码路径、性能数字和“尚缺”判断均为当时记录，后续实现已使其中多项过时；请以 [`spec.md`](spec.md) §20 的 Wave 1–4 语义和 [`roadmap.md`](roadmap.md) 的未完成工作为准。
 > **目标**：突破当前 Animatix 语言的“机械感 / AI味”，融合编辑级设计系统（如 `diagram-design` 规范），建立涵盖**动能排版**、**智能连接与端口**、**连续物理**、**材质光影**、**2.5D深度**、**智能运镜**与**无缝转场**的高级动效体系。
 > **关联文档**：[`docs/spec.md`](spec.md), [`docs/architecture.md`](architecture.md), [`docs/roadmap.md`](roadmap.md), [`docs/primitive_abstraction.md`](primitive_abstraction.md), [`docs/ai_agent_animation_quality.md`](ai_agent_animation_quality.md)。
+
+本提案的大部分语言与运行时项目已在 Wave 1–4 落地，包括文本渐变、空间错落、连接器、逐字/逐词/逐行 reveal、Counter、阴影、透视倾斜、idle 微动、共享元素转场、弹簧初速度接续和 `#step`。`CardNode` 与 `BoundaryBox` 也已作为组件实现于 `examples/lib/ui.amx`。这里保留原始问题陈述与设计推导作为历史记录，不应据此认定这些能力仍未实现。领域图表包和外部格式转换器等建议仍属提案；只有列入 `roadmap.md` 的项目才是当前确认的工作。
 
 ---
 

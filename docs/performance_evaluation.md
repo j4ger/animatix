@@ -142,22 +142,23 @@ optimization loop:
 2. **No label grouping by UX surface.** Benches are organized by *implementation
    area*, not by *user-visible property* (rebuild latency, scrub frame latency,
    export throughput). It is hard to answer "is authoring faster?"
-3. **GPU / render / export path is unmeasured.** Criterion benches stop at the
-   `vello::Scene`; rasterization (offscreen renderer), transitions, and video/GIF
-   export throughput are not in the automated suite (they need a GPU, so they
-   can't run in the headless CI job).
-4. **GUI rebuild latency & preview FPS have no automated numbers.** The GUI has a
-   live HUD (`animatix-gui/src/app/preview/performance.rs`:
-   `PerformanceMetrics` tracks FPS / rebuild / render time), but that is a
-   *display* instrument, not an *automated* suite. `set_gpu_memory` is even
-   marked `#[allow(dead_code)] // Reserved for GPU memory tracking integration`.
-5. **No memory profiling.** Peak RSS / allocations / GPU texture memory are not
-   captured, so allocation storms (e.g. per-frame `Vec` clones, `SceneItem`
-   collection) are invisible.
-6. **No hierarchical stage tracing in production code.** `cost_breakdown` is
-   hand-rolled for one scene shape; there is no uniform, always-available
-   per-stage timer (rebuild / build-frame-env / sample / encode / rasterize) that
-   both the benchmark suite and the GUI HUD could share.
+3. **GPU / render / export coverage is limited and manual.** The `gpu` Criterion
+   target renders example demos through the offscreen renderer and readback, and
+   `export_perf_driver.rs` measures real `.amx` export frames with stage data.
+   The `gpu` target is in the opt-in `full` tier, not the default quick guard;
+   transition and video/GIF throughput still lack a stable automated baseline.
+4. **GUI rebuild latency & preview FPS lack a controlled benchmark suite.** The
+   GUI has a live HUD and `--perf-log` JSONL sink for `PerformanceMetrics` and
+   per-stage samples; these provide telemetry, not a repeatable benchmark with
+   controlled input and regression verdicts.
+5. **Memory profiling is partial.** The dhat allocation drivers cover steady
+   state and real `.amx` export paths. Peak RSS and GPU texture memory are not
+   captured, so those resource costs still need dedicated instrumentation.
+6. **Stage tracing is available, but does not cover every layer.** The engine's
+   `ScopedStage` tracer feeds benchmark drivers and the GUI perf log. GPU raster,
+   readback, and encode boundaries are measured by export drivers rather than
+   by the engine tracer; a unified measurement contract across those layers
+   remains open.
 7. **Narrow scenario corpus.** Most benches use small synthetic scenes; real
    insertion-sort and generated scenes are only lightly exercised
    (`full_pipeline` loads a handful of examples). Large / reactive / generated
@@ -1650,12 +1651,12 @@ it moves and the **gate** that protects it.
 | Result merge/report | `tools/quality/perf-report.sh` | **added (PF-3 foundation)**; emits `target/perf/latest.json` |
 | Persistent cross-run baselines + hard relative gate | `PERF_BASELINE_DIR` + `perf-bench compare` | **added (PF-3 foundation)**; CI artifact upload/download remains PF-2 |
 | Shared stage tracing | `crates/animatix/src/perf.rs` + `ScopedStage` | **added** (PF-8, 2026-08-31; `perf-tracing` default-on feature) |
-| Scenario suite benches | `crates/animatix/benches/` | add |
+| Scenario suite benches | `crates/animatix/benches/` | **partial** — Criterion suites and the opt-in GPU demo target exist; a separate frozen multi-scenario suite is not complete |
 | Steady-state time driver | `crates/animatix/examples/perf_driver.rs` | **added** (2026-09-03; §3.5 note) |
 | Steady-state allocation driver (dhat) | `crates/animatix/examples/alloc_driver.rs` + `crates/animatix/examples/common/scenario_60actors.rs` | **added** (PF-6, 2026-09-04; §3.5 note) |
 | Export-path allocation driver (dhat, real `.amx`) | `crates/animatix/examples/export_alloc_driver.rs` | **added** (PF-6 round 9, 2026-09-05; §3.5 note) |
 | Export-path throughput driver (PF-7, stage breakdown) | `crates/animatix/examples/export_perf_driver.rs` | **added** (PF-7 baseline, 2026-09-05; §5 P4) |
-| GPU/export + memory capture | `animatix-cli perf` (or bench under `nix develop`) | add (PF-7) |
+| GPU/export + memory capture | `animatix-cli perf` (or bench under `nix develop`) | **partial** — export throughput/allocation drivers exist; CLI perf command and GPU memory capture remain open (PF-7) |
 | GUI JSONL perf sink | `animatix-gui` `--perf-log` | **added** (PF-9, 2026-08-31; `crates/animatix-gui/src/app/perf_log.rs`) |
 | Web frame driver + CPU timer | `AmxPlayer::debug_bench_frames` / `debug_bench_warmup` | **added** (Layer W, 2026-09-30) |
 | Web GPU sync point | `debug_gpu_drain()` | **added** (Layer W, 2026-09-30) |

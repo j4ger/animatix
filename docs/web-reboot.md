@@ -1,5 +1,10 @@
 # Web reboot: implementation notes
 
+This is a historical implementation and acceptance record for the reboot
+checkpoint. Its test counts and environment observations describe that run, not
+the present checkout; use `web/README.md`, current source and CI evidence for
+current behavior.
+
 ## Architecture
 
 `web/app/` is an Astro static site. No UI framework is hydrated. TypeScript is reserved for explicit scene loading, presets and the source workspace. The existing Rust/Wasm SDK remains an external, versioned distribution at `runtime/`; Vite must not bundle it or relocate its manifest. All generated site URLs use the configured base, including GitHub Pages `/animatix/`.

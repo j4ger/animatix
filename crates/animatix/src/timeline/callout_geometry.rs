@@ -1,8 +1,4 @@
 //! Shared geometry derivation for `Callout` actors.
-//!
-//! Both the core renderer (`CalloutPrimitive::evaluate`) and the GUI
-//! (handle drawing / hit-testing) use [`derive_callout_geometry`] so that the
-//! tip position is computed by exactly one formula.
 
 use crate::timeline::animation_track::{CalloutPlace, SceneAnchor};
 use crate::timeline::{Environment, SceneDimensions, Timeline, TrackAccessor, Value};
@@ -17,9 +13,7 @@ pub trait TargetResolver {
     /// Return the world-space AABB centre and half-size of the named actor at
     /// `time_ms`, or `None` if the actor does not exist.
     ///
-    /// The returned half-size is the half-extent of the world-space AABB (i.e.
-    /// the local `size` corners transformed through the world affine), so
-    /// nested translations, scales, and rotations are reflected in the result.
+    /// The half-size is the half-extent of the returned bounding box.
     fn target_bounds(
         &self,
         name: &str,

@@ -23,7 +23,7 @@ mixed history and open work). Split into monthly volumes on 2026-10-29; the old
 | [`2026-08.md`](2026-08.md) | August 2026 | 10 entries |
 | [`2026-09.md`](2026-09.md) | September 2026 | 21 entries |
 | [`2026-10.md`](2026-10.md) | October 2026 | 31 entries |
-| [`2026-11.md`](2026-11.md) | November 2026 | 3 entries |
+| [`2026-11.md`](2026-11.md) | November 2026 | 21 sections |
 
 ## August 2026 — [`2026-08.md`](2026-08.md)
 
@@ -99,8 +99,20 @@ mixed history and open work). Split into monthly volumes on 2026-10-29; the old
 ## November 2026 — [`2026-11.md`](2026-11.md)
 
 - Author Review, Effect Contract, and Motion Additions (2026-11-01)
+- Web Portfolio v2 and playback performance (2026-11-03–05)
+- Dependency, GPU, and test-maintenance studies (2026-11-05–07)
+- GUI document-core and source-editor retirement (2026-11-08, 15)
 - 用户体验反馈：正确性修复与实施评估 (2026-11-13)
 - 嵌套 Grid 自动尺寸、Counter 动态前后缀与 ECS 复核 (2026-11-13)
+- 体验反馈收尾：实例方法、Group 约束与恢复边界 (2026-11-14)
+- Maintenance surface reduction and intrinsic text layout (2026-11-15–16)
+- 局部动画复用与交互数值输入 (2026-11-16)
+- 可调用时间计划语法迁移与统一调用语法整合 (2026-11-17)
+- Documentation audit (2026-11-18)
+
+The dated focused records in `history/2026-11-15-*.md` and
+`history/2026-11-16-*.md` are additional evidence files; they are not headings
+inside the monthly volume.
 
 ## Themes
 

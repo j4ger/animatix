@@ -157,7 +157,7 @@ Rules:
 | Component | Data | Presence |
 |---|---|---|
 | `EntityMeta` | id, label, actor_type, first_seen_ms, visible, locked, camera_follow, parallax, hidden_by_default | optional (reads fall back to `EntityMeta::DEFAULT`) |
-| `DeclarationSpan` | `Span` of the actor declaration (absent when the parser had none) | optional |
+| `decl_span` | `animatix_syntax::ast::Span` of the actor declaration (absent when the parser had none) | optional |
 | `ActorCaps` | category, child_processing, shape, text, flags | every entity (`RequiredStore<ActorCaps>`) |
 | `BehaviorId` | Enabled `BUILT_INS` row indices; extensions are assigned after the built-in rows | every entity (`RequiredStore<BehaviorId>`) |
 | `SceneHierarchyComponent` | `parent: Option<EntityId>`, `children: Vec<EntityId>` | every entity (`RequiredStore<SceneHierarchyComponent>`) |
@@ -172,6 +172,7 @@ Rules:
 | `PlotPayload` | plot curves, surfaces, fields, domains, axis options | optional (`ComponentStore<PlotPayload>`) |
 | `SvgPayload` | parsed SVG tree and asset source metadata | optional (`ComponentStore<SvgPayload>`) |
 | `ImagePayload` | texture asset handle, dimensions, image source metadata | optional (`ComponentStore<ImagePayload>`) |
+| `LocalBoundsComponent` | declaration-time local-space bounds used by frame evaluation | optional (`ComponentStore<LocalBoundsComponent>`) |
 | `ContainerMetadata` | layout type/gap/padding/align/cols/child order (`EntityId`s) | optional containers (`ComponentStore<ContainerMetadata>`) |
 | `CoordinateFrameComponent` | domain/scale/padding/grid/ticks/tick labels | optional (plot hosts; sole source for hosted-child coordinate resolution) |
 | `PersistenceComponent` | `persistent: bool` | optional (`ComponentStore<PersistenceComponent>`) |
@@ -375,6 +376,9 @@ keyframe by its per-tier collapse helper (`snapshot_style_at`,
   `CarryEntry::meta` carries the declaration-authored `EntityMeta` subset
   (`visible`, `camera_follow`, `parallax`, `hidden_by_default` — not `locked`
   or `first_seen_ms`, which are editor/per-scene state).
+- `CarryEntry::local_bounds` carries cached declaration-time local bounds for
+  actors whose bounds are known at build time. Frame-derived memo bounds remain
+  disposable evaluation state and are not carried.
 - The same holds for a plot host's coordinate frame
   (`CarryEntry::coordinate_frame`): a persistent `Graph` keeps its domains,
   scales and padding in the successor scene, so its child plots resolve there.

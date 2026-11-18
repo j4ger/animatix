@@ -43,7 +43,7 @@ Use these rules when generating `.amx` files:
 | Primitives | All shapes (`Text`, `Typst`, `Svg`, `Image`, `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Mask`, etc.) | Yes | Runtime-real | Yes | Yes | See `examples/basics/01_shapes.amx`, `examples/layout/13_paths.amx`, `examples/gallery/motion_poster.amx` |
 | 3D | `Graph3D`, `Line3D`, `Polyhedron` | — | **Not supported** | — | Yes | Explicitly not planned; all rendering is 2D |
 | Primitives | `Code` | Yes | Runtime-real | Yes | Yes | `language` selects Typst syntax highlighting; token colours follow the colorscheme (empty/unknown renders plain). See `examples/basics/31_code.amx` |
-| Plotting | `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane` | Yes | Runtime-real | Yes | Yes | `PlotCurve` with `kind: cartesian|polar|parametric|implicit`. See `examples/data/07_plots.amx`, `examples/data/18_number_plane_contours.amx` |
+| Plotting | `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane` | Yes | Runtime-real | Yes | Yes | `PlotCurve` with `kind: cartesian|polar|parametric|implicit`. See `examples/data/07_plots.amx`, `examples/data/18_number_plane_contours.amx`, `examples/data/26_data_math.amx` |
 | Post-processing | `Filter` scope + ordered effect chain (14 built-ins) | Yes | Runtime-real | Yes | Yes | Effects are labelled child declarations of a `Filter` scope (`soft: Blur, radius: 10`); animate with `scope.stage.param = value`. GPU-only; no backend means skip + diagnostic. See `examples/animation/08_effects.amx` (composition) and `examples/animation/30_effects_catalog.amx` (14 effects across 13 Filter scopes) |
 | Morphing | re-declaration morphing + path/text interpolation | Yes | Runtime-real | Yes | Yes | Core morph path via re-declaration |
 | Morphing | `strategy:auto\|match\|fade`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing | Yes | Yes | |
@@ -67,6 +67,13 @@ Use these rules when generating `.amx` files:
 ## 1. File Types
 
 - **`.amx`**: Main source files loaded via `import "..."`. Suffix conventions (`.actor.amx`, `.lib.amx`) are stylistic, not distinct runtime kinds.
+
+**String literal contents are retained verbatim.** The lexer skips a backslash
+and the following character while finding the closing quote, but it does not
+decode escapes; for example, `"\n"` contains the two characters backslash
+and `n`, not a newline. An unescaped physical newline ends a quoted string.
+Formatting may re-escape backslashes, so repeated formatting of strings
+containing backslashes is a known limitation tracked in the roadmap.
 
 ---
 
@@ -706,7 +713,9 @@ a: Rect, size: (500, 50), min_width: 100, max_width: 300, min_height: 20
 
 **Shapes:** `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`
 
-**Text-like:** `Text`, `Typst`, `Code`, `Svg`, `Image`
+**Text-like:** `Text`, `Typst` (`Math` alias), `Code`, `Counter`
+
+**Media:** `Svg`, `Image`, `Audio`
 
 **Equation:** `Equation` (container), `Fragment` (child) — typeset equations with per-segment highlighting
 
@@ -1197,15 +1206,17 @@ During video export, all `Audio` actors from the current scene (or all scenes in
 
 **Shapes:** `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`
 
-**Text-like:** `Text`, `Typst`, `Code`, `Svg`, `Image`
+**Text-like:** `Text`, `Typst` (`Math` alias), `Code`, `Counter`
+
+**Media:** `Svg`, `Image`, `Audio`
 
 **Plotting:** `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`
 
-**Containers:** `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`
+**Containers:** `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Glass`, `Mask`, `Equation`
 
-**Annotations:** `Callout`, `Legend`
+**Annotations:** `Callout`, `Legend`, `Connector`, `Captions`
 
-**Other:** `Audio`
+**Children:** `Fragment` (inside `Equation`), `Cue` (inside `Captions`)
 
 > **Not supported (common LLM hallucinations):**
 > - `Circle` — use `Ellipse` with equal `size`
@@ -2582,12 +2593,12 @@ animatix gif examples/composition/19_cross_file_scenes.amx --width 640 --height 
 
 ### Composition Invariants
 
-These rules are enforced (or warned) by the composition builder:
+The composition builder uses the following rules.
 
-1. **`play` placement.** A `play` statement is only recognized at the **top
-   level of a scene body**. A `play` inside a keyframe body is ignored and
-   produces a `play-inside-keyframe` warning — move it to the scene's top
-   level (its transition fires when the scene's duration elapses).
+1. **`play` placement.** Place `play` at the top level of a scene body.
+   The builder ignores `play` inside a keyframe. A preceding sibling keyframe
+   does not schedule the transition. A transition overlaps the end of the
+   outgoing scene by its configured duration.
 2. **Config scope.** A `config` block inside a scene applies to that scene;
    a file-level `config` (before the first scene) is the file prelude. For
 **cross-file scenes** (`import "file.amx" as alias` + `play alias::Scene`),

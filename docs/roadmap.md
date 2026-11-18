@@ -153,6 +153,19 @@ before advertising parameterized canvas dimensions.
   the original pre-migration baseline still has eleven material regressions.
   See [`history/2026-11.md`](history/2026-11.md).
 
+### Workbench acceptance
+
+- Verify audible preview, seeking, and narration/caption synchronization with a
+  working audio device. Reproduce the relative-document-path failure recorded
+  during Linux review and pin a regression comparing relative and absolute
+  opens of the same scene with a relative media asset.
+- Run the workbench journeys on Windows and macOS and verify keyboard and
+  screen-reader use of the icon controls. The November Linux review exercised
+  waveform decoding, visual seeking and accessible control names.
+- Integrate audit and storyboard evidence into the workbench and carry source
+  provenance through generated and component-expanded actors. Keep the
+  inspect-and-navigate workflow source-first. See [Workbench](gui-workbench.md).
+
 ### Motion-authoring trial follow-ups (2026-11-17)
 
 These additions extend the existing delivery plan and AMX-11, rather than
@@ -226,6 +239,27 @@ production function >200 lines (tests >300), or a stale allowlist row. A split
 deletes its row and never raises one. [`ecs.md`](ecs.md) is the normative
 description of the timeline storage, not a work list.
 
+### Review workflow follow-ups
+
+- Extend AMX-11 with a seeded good/bad benchmark for existing rules and
+  reproducible human review notes tied to source, actor, time and rendered
+  frame. Use the existing audit schema and the motion-authoring repair recipe.
+  Evaluate project-specific policy loading only if the built-in profiles and
+  source markers cannot express the required tolerances.
+- The structured external critic, review dataset export and on-device critic
+  are deferred proposals. Revisit them after human review produces reusable
+  evidence with stable source and frame identities. See
+  [AI-assisted animation review](ai_agent_animation_quality.md).
+
+### Extension follow-ups
+
+The [primitive design note](primitive_abstraction.md#3-remaining-gaps-ranked-by-leverage)
+records deferred build dispatch, applicability and default ownership,
+overlapping taxonomies, shape metadata and closed draw commands. Revisit
+these boundaries when a concrete extension or performance requirement
+exercises them. Native child-strategy callbacks also need a demonstrated
+plugin use case before expanding the ABI.
+
 ### Web playback performance (active)
 
 > **Instrument warning, 2026-10-03.** `debug_bench_frames` on a *demo* page is
@@ -250,7 +284,7 @@ display-matched raster/quality work, and measured web/native gap are archived in
 | `wasm-opt` speed pass | Release builds are size-optimised (`-Oz`). The build-profile A/B says the whole wasm CPU slice is small and unmeasurable from JS, so this is unlikely to be where the gap is — but it is untested. | Not started |
 | Browser A/B of scale-animated `Filter` scopes | Re-run the browser measurement after the raster-scale work (`FilterBackend::set_raster_scale`, pixel-unit `EffectParamUnit::Pixel` parameters, ramp-width pin); see `docs/performance_evaluation.md` §The filter chain follows the raster. | Needs the browser A/B |
 | rAF-cadence sampling in automation | The controller now has a real-rAF mode (`AP_MANUAL=0`, headed) and a deterministic manual-injection mode; the policy itself is validated (`docs/performance_evaluation.md` §3.7). Remaining: measure achieved fps / long tasks on **real GPU hardware**, which no automated environment here provides. | Needs real-GPU runner |
-| Fixed per-embed frame cost | The P1 gate (2026-11-05, RTX 4060 WebGPU, `web/dev/perf-probe.html`) measured `gpu_ms` **flat across 16–27× raster area**: attention 0.75 ms fixed + ≤0.02 ms/MP (R² 0.32), plain-fill 1.34 ms fixed + 0.23 ms/MP (R² 0.11); 27× area changed `gpu_ms` by <0.1 ms. Static-layer caching + dirty rect therefore cannot help and is ruled out. The remaining lever is reducing per-embed frame/submission/present count or sharing one device/queue across embeds; measure with `debug_bench_frames` + `debug_gpu_drain`. | **Not scheduled** — gate measured fixed-cost dominated; batched-device direction unproven |
+| Fixed per-embed frame cost | The P1 gate (2026-11-05, RTX 4060 WebGPU, `web/dev/perf-probe.html`) measured `gpu_ms` **flat across 16–27× raster area**: attention 0.75 ms fixed + ≤0.02 ms/MP (R² 0.32), plain-fill 1.34 ms fixed + 0.23 ms/MP (R² 0.11); 27× area changed `gpu_ms` by <0.1 ms. This run does not support prioritizing reductions in raster area. Players already share a context and queue. Measure further reductions in per-embed render/submission/present counts with `debug_bench_frames` and `debug_gpu_drain`. | **Not scheduled** — historical run found fixed costs dominated |
 | `debug_readback` intermittently traps the wasm | The readback probe is flaky rather than wrong at a particular time, and with `panic = "abort"` a trap takes the whole page's shared engine with it: after one, later probes in that tab fail (`error` states, `Runtime.evaluate` timeouts) until the browser restarts. Evidence from the 2026-10-01 sweep (flake `.#web` Chromium, `--webgpu`): the same call alternates — `tour/scenes/syntax.amx` `debug_readback(1.95)` timed out once and returned 27 distinct colours on the repeat; `web/demos/hash/scene.amx` `debug_readback(19.5)` hung twice while 19.0/20.0/20.5 were fine; one tour sweep surfaced `RuntimeError: unreachable` with frames inside `animatix_web_bg.wasm`. Meanwhile `render_frame` at the same time is fine and the transformer page's seven scenes, the hero and the hash/sorting compositions all read back — so the shipped demos render; only the probe path dies. Affects `web/dev/multi-probe.html?readback=1` and the `svg-probe/*` harnesses, which is why they need a fresh browser per probe until this is understood. | Not started |
 
 ## Planned Features
@@ -314,7 +348,6 @@ pass"); what is left is below.
 | Item | What it is | Status |
 |---|---|---|
 | `pulse intensity` is additive | `intensity: 1.04` means 2.04× scale (peak = start × (1 + N)) — three demo diagrams were destroyed at their thesis beat before the semantics were spotted. Now documented in `docs/spec.md`; a gentler authoring story (percentage semantics or a lint for `intensity > 1`) is open. | Documented |
-| Native `FontContext::new()` does not register `BUNDLED_FONTS` into its fontdb | The premise needs correcting: the **plain fast path never needed it** — `compile_text_fast` consults `BUNDLED_FONTS` by family before the database, which is how bundled faces reach text on a machine that has no Open Sans installed at all (`fc-match "Open Sans"` → Noto Sans CJK, measured 2026-10-05). What the native context *does* miss is the database entry, so (a) `resolve_font_family`/system-fallback questions and (b) the typst world's face list still depend on `with_fonts_and_fallback` being the embed-only path. The remaining question is narrower than written and worth re-asking before anyone bundle-registers into every native context. | Opened narrower |
 | Pixel A/B has no noise floor yet | The render-either-side-and-`cmp` method this round used for content checks cannot resolve a small change: **the same binary is not byte-stable across processes.** Measured 2026-10-03 on a now-retired text-rendering probe at 1 s (source remains in Git) — three renders of one binary differ from each other by 20, 36 and 46 raw RGBA bytes (of 3 686 400), while that binary's two builds (which really do differ) are 12 and 24 bytes apart. PNG file sizes drift as well, so comparing files is noisier still, and `web/demos/transformer/scenes/pipeline.amx @ 4` came out *identical* between builds but 8 bytes apart between two runs of one build. Text/glyph scenes show it and `web/demos/matrix/scene.amx` does not, so the suspect is glyph rasterization or shaping order. Until that is pinned down: any engine A/B claim needs (a) a same-binary control and (b) a positive control proving the change is live — the track-level probe above is the shape to copy. | Not started |
 
 ## Easing pass — what else it turned up (2026-10-02)
@@ -338,50 +371,23 @@ the behaviour is *wrong* or merely *shaped badly*; what it did land is archived 
 |---|---|
 | 8 | **Nothing keeps a coupled ease pair in sync.** The hero's carriage "rides the draw tip" by repeating the `draw_in`'s start, span *and* ease. A mechanical retune of the draw silently separated the two and no test or diagnostic noticed. Either give the follower its own construct, or warn on two segments with identical span and different easing. |
 | 9 | **Curve names that promise physics.** An easing is a scalar map over progress between two values; it can only modulate travel *along* that line, so no easing can produce an arc. `bounce` was renamed `bounce_in` and the boundary is now written into `docs/spec.md`, but `elastic` still promises a spring and delivers a progress wobble. |
-| 10 | **Headless cannot see the site's primary surface.** Partly solved 2026-10-03: `AmxPlayer::debug_readback_rgba(t, cb)` hands back the frame's RGBA bytes, which a browser harness turns into a PNG through an `OffscreenCanvas` — verified end to end against `web/demos/matrix/`, capturing a real 1280×720 WebGPU frame out of headless Chromium (usage in `web/README.md`). Still open: it captures the *scene*, not the *page* (site chrome, scroll-reveal and hover furniture remain invisible), and a probe frame costs seconds, so it is a review tool rather than a CI gate. |
+| 10 | **Page-level animation review.** The current web smoke gate captures visible canvas pixels and exercises scrolling and play controls. Add targeted page-level evidence when a change affects the surrounding interface, such as hover or scroll transitions outside the canvas. |
 | 11 | **Nothing keeps the corpus on its motion vocabulary.** The site was 155-of-207 annotations on one quadratic curve, with ~880 timed statements carrying no ease at all (so: Linear). Fixed by convention plus `docs/spec.md`'s reference table, but nothing enforces it — a scene can slide back to monoculture unnoticed. A lint over "which role uses which curve" is the durable version of this pass. |
 
-## Property values inside a container are not checked at all (2026-10-03)
+## Authoring diagnostics for inline actors
 
-Found while writing the resolved-forms golden (archived in `history/2026-10.md`). The semantic walker (`crate::walk::walk_stmts`)
-recurses into statement bodies but **not** into `ActorDecl.children`, so:
-
-```
-row: Row, gap: 24 { r: Rect, size: (10, 10), opacity: "late" }   // no warning
-top: Rect, size: (10, 10), opacity: "late"                      // type-mismatch
-```
-
-Both `unknown-property` and `type-mismatch` skip every actor inside braces, which
-is most of the language's content. Fixing it means teaching `walk_stmts` (or the
-diagnostic pass) to visit `InlineItem::Labeled` declarations, and every existing
-scene then gets checked for the first time — expect a real wave of findings
-(`check_examples.sh` currently reports 19 allowed warnings; this could triple
-that) and duplicates to dedupe first. Worth doing, not a drive-by.
-
-This came out of closing the last open item of the phase-2 gallery handoff
-(closure record in `docs/history/2026-10.md`, "Phase 2 handoff — closed out";
-`BarChart` missing from the `gap` applicability row), which also produced
-`bar_chart_gap_is_applicable_to_bar_chart` in
-the `applicability_table_agrees_with_reads` module (source file
-`crates/animatix/tests/applicability_table_agrees_with_reads.rs`), now compiled
-under the consolidated `engine_contracts` target in
-`crates/animatix/tests/engine_contracts.rs`. Its generic test cannot see
-BarChart, because the chart's properties are read by the shared plot builder
-rather than by a file in `src/primitives/`.
+The AST visitor traverses inline children. The semantic property checker
+dispatches through statement nodes, so inline declarations miss those checks.
+Cover `InlineItem::Labeled` declarations in `unknown-property` and
+`type-mismatch` checks, including nested containers and component slots. Use
+equivalent inline and top-level declarations as a regression pair and review the
+affected examples for duplicate diagnostics.
 
 ## Motion-vocabulary round — what it left open (2026-10-05)
 
 The round itself is recorded in [`history/2026-10.md`](history/2026-10.md) ("The Motion-Vocabulary
-Round — Landed Work"). Four things are still owed, and none of them is a feature
-the language is missing:
+Round — Landed Work"). The following items remain:
 
-- **Continuous `font_weight` on the plain-text fast path.** The Typst path instances
-  the Open Sans `wght` axis; the fast path resolves a static face, because
-  `ttf-parser` reads `fvar`/`gvar` and never applies the deltas. Doing it means
-  either pre-instancing N static weights offline (the axis range is 300–800, so
-  `Regular`/`Medium`/`Bold` would cover what authors ask for) or moving the fast
-  path's outline extraction onto `skrifa`, which owns variation instances. Until
-  then the slim web embed steps, and `docs/spec.md` says so.
 - **Two analyzer/engine perf residuals** against the 2026-10-02 baseline:
   `analyzer_update__small` +10.4% (116.8 → 129.0 µs, tight within-run spread) and
   `property_plan_lookup_and_sample` at 9.98 ns against a stored 8.3 ns. Both are
@@ -419,11 +425,11 @@ the language is missing:
   name independently of it. Auditing those against the mapper is the follow-up — the
   fold itself is the pattern, not the last instance.
 
-## Web delivery — the two claims a real browser still owes (2026-10-06)
+## Browser rendering validation
 
-Batch 7 (`history/2026-10.md`) fixed the engine fault behind the site's page errors and
-made every delivered page verifiable headless. Two claims cannot be closed on
-this box, and the next session should not pretend the harness covers them:
+The October browser findings are recorded in [history](history/2026-10.md).
+Current smoke checks capture the visible canvas in Chromium with SwiftShader.
+The following scenarios still need targeted coverage:
 
 - **`Glass` frost pixels in the web player.** Headless Chromium cannot make a
   readable RGBA texture (`Could not find SharedImageBackingFactory … RGBA_8888 …
@@ -434,12 +440,18 @@ this box, and the next session should not pretend the harness covers them:
   renders through the same scale-aware `drain_pending_layers` the native path
   uses. The pixel behaviour of the frost rests on the native measurement
   (`(93,27,32)` frosted vs `(255,0,0)` unfrosted on a 4 px border). A machine with
-  working WebGPU in a browser can settle it: open `/tour/` §05b and read the panel
-  interior at `t=1.0` (radius 0) against `t=3.0` (radius 22) — the scene is built
-  as its own A/B — via `<amx-player>`'s `debug_readback_rgba`.
-- **Mixed capabilities on one page.** Verify on a real WebGPU browser that plain,
-  rich-text and media players share a single engine and device, and record the
-  requests and visual results for the shipped SDK.
+  working WebGPU adapter can settle it with a fixture that samples the panel
+  interior at zero and nonzero blur on a contrasting border. The archived
+  `web/tour/scenes/glass.amx` is a starting point for that comparison.
+- **Mixed capabilities on one page.** The current smoke tests exercise
+  individual shapes, text/font and SVG fixtures, and the transaction test
+  checks device sharing with two concurrent players. Mount a base-only
+  scene, rich text and SVG/media together using the shipped SDK. Record
+  capability and font requests, one shared engine/device, and painted output
+  for all three players. Include a hardware WebGPU run.
+- **Gradient comparison playback, if republished.** Exercise the parameter
+  slider and scene replay with a working WebGPU adapter. The archived
+  browser check covered controls and layout. See [comparison layout](comparison-layout.md).
 
 ## Found by the transformer review, left open on purpose (2026-10-06)
 
@@ -451,9 +463,8 @@ this box, and the next session should not pretend the harness covers them:
   unanswered: `\$` inside a `Typst` payload (`examples/gallery/sorting_theatre.amx`)
   *depends* on backslashes surviving to the markup, so "unescape every `\x` in
   the lexer" would silently change that scene. Any fix needs to say which
-  escapes are `.amx`'s and which belong to the payload — a per-property or
-  per-actor-kind rule, not a global one. `docs/spec.md` currently documents
-  neither, which is the smaller half of the problem.
+  escapes belong to `.amx` and which belong to the payload. Preserve payload
+  escapes during formatting. Include a plain-text line break and a Typst payload containing `\$` in the regression.
 - **Region-scoped baseline comparison is still open.** `animatix baseline`
   compares the whole rendered frame against an approved PNG at full resolution,
   so a beat whose entire change is a 3px line (0.26% of a 1280×720 plate) is
@@ -473,28 +484,11 @@ Measured by A/B rendering (same scene with and without one beat) and counting
 changed pixels, so each item below is a reproduced dead end rather than a
 reading of the code.
 
-- **`highlight` / `unhighlight` paint on nothing but a `Typst` actor, and the
-  per-fragment path is unreachable in practice.** `Highlight` writes
-  `track.highlight.*` for any target and the signature promises a rectangle
-  "behind equation fragments", but `examples/projects/fft_explain.amx` renders
-  byte-identical frames with its three `highlight decomp_eq.fN` beats deleted
-  (1 px of 921 600 at the peak, 0 px four frames later), and a minimal
-  `Equation { Fragment, Fragment }` scene shows the same for both `highlight` and
-  `reveal_in` on a fragment — per-fragment *actions* record, and never draw.
-  `scene_eval/` does build `HighlightLayer` commands from `frags`, so the
-  question is why the Equation branch is not the one that renders these scenes
-  (`primitives/equation.rs` has no highlight code at all, only a doc comment
-  promising it). Needs a rendered-frame test at the boundary — the existing
-  `highlight.rs` tests assert keyframes land on the track, which is exactly the
-  half that works.
-- **The raw/dotted label asymmetry in those actions is worth a look but is not a
-  demonstrated bug.** Both highlight actions validate a dotted target with
-  `ensure_target_exists` (which resolves `eq.f1` → `f1`) and then look the *raw*
-  string up in `tracks`. Routing every lookup through the resolved label changed
-  no rendered frame and no test could be written that failed without it, so the
-  change was reverted rather than shipped as a "fix" — the leaf label evidently
-  reaches the map either way. If the paint gap above gets a rendered-frame test,
-  start there and settle this at the same time.
+- **Render coverage for fragment highlighting.** The October pixel comparison
+  found no visible change for dotted fragment targets. The current engine builds
+  Equation highlight commands and tests highlight tracks. Repeat the comparison
+  with current callable syntax. Compare pixels for a minimal Equation before,
+  during and after both actions, including dotted target paths.
 - **`baseline`/`DEAD-BEAT` sampling is meaningless for a multi-scene plate.** The
   per-keyframe sweep samples `#Ns` stamps as absolute times, but in a file with
   `# Scene` sections those stamps are scene-local — `demos/hash/scene.amx` was
@@ -531,7 +525,7 @@ back down, which is what the tour and recipes scenes already wrote and why they
 never warned) cleared **27 scenes down to 0**, with no change to what the pages
 fetch.
 
-The mechanism is still a bug, and the shape of it is this: `hosts.rs` builds
+The mechanism is still a bug, and the shape of it is this: `host::prepare` builds
 every document from `ENTRY_PATH = "main.amx"` — a bare name with no directory —
 so a relative import that steps up from the entry has nothing to step up from,
 and the module ends up registered under a key whose exports the colorscheme
@@ -559,29 +553,19 @@ still need the owner's hardware, because every number came off a software raster
 
 ## Found by the epicycles rewrite, left open (2026-10-07)
 
-Each of these was reproduced by rendering a minimal scene, and each is worked
-around in `web/demos/epicycles/` rather than fixed in the engine.
+These findings came from the October rendering review. Check them against
+the current renderer before changing the authored workarounds.
 
-- **`BarChart` inside a `Graph` does not inherit the host's coordinates.**
-  `docs/primitives.md` ("Inside a Graph") shows exactly this usage; a minimal
-  chart of four bars in a `x_domain: (0, 8), y_domain: (0, 1.18)` graph draws
-  its bars hanging *below* the axis, with the k=1 bar reaching about a third of
-  the height the axis says it should. `docs/primitives.md` also claims
-  `BarChart` supports "`standalone` (pixel coordinates) and `Graph`-child (math
-  coordinates) modes" — only the first one renders. `web/demos/epicycles/spectrum.amx`
-  therefore stays standalone and loses the 1/k envelope curve that was the
-  point of nesting it.
-- **The `#Xs` stamp in front of a `play` is parsed, threaded through the
-  builder, and thrown away.** `extract_play_stmt` returns
-  `(target, transition, Some(current_time))` and `composition/build/`
-  binds it as `_play_time`. Verified: a 10 s scene ending in `#8s play B
-  [fade, 500ms]` starts B at 9.50 s, i.e. at `duration − transition`. `docs/spec.md`
-  §18 documents the opposite ("The play's time comes from the keyframe marker
-  that precedes it") for this sibling form, and no warning fires — only the
-  *nested* form (`#4s { play Next }`) gets `play-inside-keyframe`. Either honour
-  the stamp or reject it; content currently writes stamps that look like
-  schedule and are decoration, which is how a 15 s act ended up with its
-  outgoing cascade tuned to 14.4 s.
+- **Verify rendered Graph-hosted bars.** The engine now builds `BarChart`
+  paths in the parent Graph's coordinate frame. The
+  `hosted_bar_chart_spans_graph_axis` test checks the baseline and path extents.
+  Verify rendered bars against the ticks in a hosted scene, including the
+  earlier spectrum alignment case, before removing its standalone workaround.
+- **Define the contract for timed `play`.** The composition builder extracts
+  the keyframe stamp and the edge builder ignores it. A 500 ms transition from
+  a 10 s scene starts at 9.5 s, even with a preceding `#8s`. Define which
+  placement forms schedule an edge and diagnose unsupported ones, including
+  `play` inside a keyframe. Cover composition timing in the tests.
 - **`fade_in` on a stroke-only actor animates `stroke_progress`, so it fights a
   per-frame write to the same property.** An `Ellipse` with `fill_opacity: 0`
   used as an angle arc, revealed by `fade_in` and driven by
@@ -591,15 +575,11 @@ around in `web/demos/epicycles/` rather than fixed in the engine.
   wrong that the `always` block wins. The arc was removed from
   `web/demos/epicycles/complexplane.amx`; a `reveals`-style entrance that never
   touches `stroke_progress`, or a dedicated `show` action, would let it come back.
-- **Re-check the `graph.map()` half-scale note.** `web/demos/gradient/descent.amx:44-47`
-  says "`graph.map()` runs at half the px/unit of the plotted curve — double the
-  math coords to land the ball on the drawn stroke". A fresh probe (a
-  `x_domain: (-2, 2), y_domain: (-1, 1)` graph, `size: (600, 300)`, `at: (640, 360)`)
-  put `g.map(1.0, 0.5)` exactly on `(790, 285)`, which is the correct
-  150 px/unit mapping. Either the comment describes a bug that has since been
-  fixed, or it describes something specific to that scene's graph — and if the
-  former, the doubling in `descent.amx` is now placing its ball one half-scale
-  off. Needs a rendered check on that scene before either is changed.
+- **Verify mapped marker alignment in a rendered Graph.** The old half-scale
+  note and `graph.map()` call are gone from `web/demos/gradient/descent.amx`.
+  The scene now computes the ball's pixel position directly. The prior numeric
+  probe mapped `(1.0, 0.5)` to `(790, 285)` on a graph scaled at 150 px per unit.
+  Check rendered marker and curve alignment before replacing the manual mapping.
 - **`stroke_progress` overshoots by one tessellation segment, so a marker
   cannot sit on a plot's leading edge.** Measured on `web/demos/epicycles`
   §02: a `Graph` at `x_domain: (0, 4 pi)`, `size: (660, …)`, `at: (870, …)`
@@ -684,55 +664,49 @@ report differ for any scene that does not author the property explicitly:
 | `from` / `to` | `[-50,0]` / `[50,0]` | `[0,0]` / `[100,0]` |
 | `size` (Graph parent fallback) | `[500,500]` | `[50,50]` half-size |
 
-`docs/primitives.md` also documents `resolution` 64 for Heatmap against 96 for
-curves, and `docs/spec.md` documents `place: "auto"` where both tables say
-`"right"`. The base-grid *floors* disagree too: `resolution.max(2)` for Heatmap,
-`.max(8)` for ContourSet, `.max(4)` and `.max(8)` elsewhere in the same function.
-
-The structural fix is one default per property — the extractor should read the
-registry's default rather than restating a literal, the way
-`PROPERTY_DESCRIPTORS` already pins the name list. Not done here because every
-row above is a live behaviour change and several would move shipped scenes.
+The base-grid floors and default sources also vary by plot family. Pin current
+rendered behaviour first, then unify defaults where semantics agree. Use
+separate entries where a property genuinely has per-family defaults.
 
 ## Release validation still requiring live evidence
 
 The original October pipeline assumptions are recorded in
 [history](history/2026-10.md). The current release process requires an explicitly
-chosen version/tag and finalized, human-edited `docs/releases/` files named `vX.Y.Z.md` notes; automatic bump
-and commit-message enforcement are retired.
+chosen version and tag with finalized release notes named `vX.Y.Z.md` in
+[`docs/releases/`](releases/README.md).
 
 - Validate the next authorized versioned release end to end: version/tag identity,
   committed release-note selection, artifact generation and publication. Local helper
   tests do not establish that a hosted release has succeeded.
 - Verify downloaded native release artifacts on their target platforms, including
   Linux portability outside Nix. A successful build alone is not runtime evidence.
-- Compare the published site and SDK manifests with the release's source identity;
-  do not infer artifact equivalence from a stub bundle or an old Pages workflow.
-
-Also open by choice: `docs/scene_stats.md` is a design note with no roadmap row yet,
-and `.zcodeignore` is an editor-generated mirror of `.gitignore` that should not be
-tracked.
+- Compare the published site and SDK manifests with the release's source identity.
+- Reconcile the direct Pages upload workflow with the journal-backed publisher.
+  Verify the hosted workflow variables, credentials and target projects, then
+  retire or isolate the direct uploader so only the journal-backed workflow
+  can write to the canonical project. Add coverage for that production wiring.
+  See [Pages deployment](cloudflare-pages.md#current-state).
 
 ## Performance & Pipeline Optimization (Remaining Backlog)
 
-### 1. Text System Compilation & Layout Performance Overhaul
+### 1. Remaining text shaping and layout costs
 
-- **Scope**: `crates/animatix-text`, `crates/animatix/src/primitives/text.rs`
-- **Current behaviour**: Rich text and math formulas rely on Typst/FontDB compilation. In animations with spatial changes or nested inside moving containers, text shaping and layout can trigger redundant font parsing and BezPath tessellation on the CPU rendering thread.
-- **Target**:
-  1. **Shaped Glyph Run Memoization**: Decouple font shaping from per-frame evaluation; cache shaped glyph runs keyed by content and style signature `(ContentHash, FontSize, FontFamily, Weight, Style)`.
-  2. **Static/Dynamic Transform Separation**: Avoid recompiling text runs when text geometry undergoes purely spatial transformations (translation, rotation, scale, opacity); transform pre-shaped BezPath / glyph buffers directly via local transform.
-  3. **FontDB Multi-Family Fallback Path Optimization**: Memoize family lookup resolution and fallback candidate chains to avoid redundant FontDB queries on font switches.
-  4. **Incremental Split-Text Optimization & AOT Baseline Masking**: Precompute static line clip rectangles at build time so kinetic typography baseline reveals avoid per-frame line boundary traversal.
-  5. **Vello Hardware Glyph Run Pipeline**: Move from extracting CPU `kurbo::BezPath` outlines to submitting structured `GlyphRun` streams directly to Vello GPU instancing/atlas for non-morphing text.
-  6. **Typst Math & Code Pre-warming**: Cache persistent Typst standard library/document contexts for inline math formulas, and bypass Typst for standalone syntect code block highlighting directly on the fast-path grid.
-- **Verification**: Benchmark with `tools/quality/perf-bench.sh compare text_rebuild` and `scrub_text_scene_100frames`.
+The text compiler already caches compiled layouts, font data and fallback
+lookups. Eligible plain text can use Vello glyph runs. Measure cache misses,
+dynamic wrapping and reveal/morph work in representative scenes. Compare grouped
+rich-text compilation and reuse of Typst context before changing that path. For
+stable kinetic text, measure whether precomputing line clips at build time reduces
+frame cost. Use the text benchmarks described in
+[performance evaluation](performance_evaluation.md).
 
 ### 2. GPU-Accelerated Procedural Curves & Chart Strips
 
 - **Scope**: `crates/animatix/src/timeline/plot/` & `crates/animatix-render/src/instanced_line.rs`
 - **Current behaviour**: Mathematical curves (`ProceduralPlot`), parametric functions, and bar chart transitions currently resample hundreds of evaluation points and construct Kurbo/Vello vector paths on the CPU every frame, occupying the CPU rendering thread.
-- **Target**: Offload parametric curve evaluation and line-strip generation to the `InstancedLinePipeline` on GPU shaders, generating anti-aliased geometry directly on the GPU without round-tripping through Kurbo CPU tessellation.
+- **Target**: Compare GPU curve evaluation and strip generation with CPU sampling
+  on a dense animated fixture. The existing `InstancedLinePipeline` draws from
+  CPU-generated segment instances. Validate visual parity and the frame-time
+  benefit before integrating GPU evaluation into scene rendering.
 - **Verification**: Compare CPU frame time on dense curve scenes (`30_effects_catalog`, complex epicycles) before and after offload.
 
 ### 3. In-frame parallel root-subtree evaluation (deferred, trigger-gated)

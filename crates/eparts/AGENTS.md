@@ -1,10 +1,12 @@
 # Agent Guide for eparts
 
 `eparts` is a reusable egui widget + design-token library extracted from Animatix. It targets
-immediate-mode egui (pinned to one egui minor — today **0.37**). It is being grown into a general
-framework reusable by future apps, so build framework-clean, domain-free APIs.
-
-See the canonical work list at `docs/roadmap.md` for the eparts widget-adoption backlog.
+immediate-mode egui (pinned to one egui minor — today **0.37**). Keep its APIs
+framework-clean and domain-free. The framework expansion and GUI adoption tracks
+are closed; their decisions and archived items are recorded in
+[`docs/history/2026-08.md`](../../docs/history/2026-08.md). Adopt additional widgets
+opportunistically when editing their surrounding GUI areas, rather than treating
+the archived track as an open backlog.
 
 ## Module map
 

@@ -1,6 +1,6 @@
 # Animatix Property Reference
 
-> Generated property tables are derived from the syntax property specs and the engine registry.
+> Generated property tables are derived from `animatix-core` property descriptors and the engine registry; syntax property specs are derived from those descriptors.
 > The docs-only group map controls presentation order; it does not define property semantics.
 > Run `cargo run -p animatix --example property_reference -- --write` to update them;
 > the docs gate checks the generated output. For value examples and usage, see [`spec.md`](spec.md).

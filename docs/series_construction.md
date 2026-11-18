@@ -135,10 +135,9 @@ reference operator:
   plain functions, not new lowering.
 - `PropRef` in any value context (arithmetic, format, condition) is a clear
   `EvalError` — a reference is not a value.
-- Build-time validation of the referenced label/property is deferred to
-  frame-time `UndefinedVariable`-class errors initially (matching existing
-  undefined-reference behavior); a post-build validation pass over modifier
-  programs is a listed follow-up.
+- After lowering modifier programs, the builder warns when a property
+  reference names an unknown actor or a property that cannot be injected
+  into the frame environment. The query itself reads the frame-time state.
 
 Rejected alternatives, for the record:
 

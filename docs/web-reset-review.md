@@ -1,5 +1,9 @@
 # Web reset review
 
+This records the reset review checkpoint and its evidence. Counts and browser
+observations below describe that pass; they are not claims about the current
+checkout or current hosted-site acceptance.
+
 ## Delivered scope
 
 The public collection is now five focused works, six sequential lessons and four

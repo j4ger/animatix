@@ -65,6 +65,11 @@ Nix `fmt` gate passed. This is not a full workspace build or browser test.
 
 ## Showcase page integration
 
+This section records the earlier gallery implementation. The current
+[`/demos/gradient/`](https://amx.j4ger.dev/demos/gradient/) route is an
+archive entry. See the [content catalog](content-catalog.md) for current
+site sources.
+
 The existing `/demos/gradient/` URL now leads with the learning-rate experiment.
 The three supporting figures follow as a quiet reading sequence; the complete
 four-act composition is an optional disclosure. All five source URLs and the
@@ -90,9 +95,9 @@ was killed with exit 137; optimizing the splitter and removing only debug
 sections did not resolve it. The standard `wasm-release` build did, without a
 production code change. The original Wasm shrank from about 559 MiB to 65 MiB.
 
-Live animation remains unverified here: the managed browser reports no WebGPU
+Live animation remained unverified in that review. The managed browser reported no WebGPU
 adapter. Dedicated software-rendering profiles either have no adapter or fail
 shared-image presentation. The test profiles were closed afterward. Native
-scene renders are not substituted for a browser pass. Repeat the repository's
-web-smoke gate plus actual preset/slider playback on a WebGPU-capable browser
-before merging. No production deployment or push was performed.
+scene renders are not substituted for a browser pass. If an interactive
+comparison returns, verify preset and slider playback with a working WebGPU
+adapter.
