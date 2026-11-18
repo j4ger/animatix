@@ -50,7 +50,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest]
+        os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     env:
@@ -64,6 +64,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: native-video-release-dist
+          workspaces: . -> target/release-cargo
           cache-on-failure: true
       - name: Build and verify the narrated starter on the target OS
         shell: bash

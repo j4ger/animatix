@@ -122,6 +122,8 @@ jobs:
       - name: Rust cache
         if: matrix.shell == 'native'
         uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target/release-cargo
       - name: Gate
         shell: bash
         env:

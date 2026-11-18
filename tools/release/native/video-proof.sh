@@ -43,7 +43,12 @@ phase() {
 printf 'vcpkg_commit=%s\ntriplet=%s\n' "$vcpkg_rev" "$triplet" > "$output/evidence/build-inputs.txt"
 printf 'cargo_dist_lto=%s\ncargo_dist_codegen_units=%s\n' \
   "${CARGO_PROFILE_DIST_LTO:-fat}" "${CARGO_PROFILE_DIST_CODEGEN_UNITS:-1}" >> "$output/evidence/build-inputs.txt"
-vcpkg="$output/vcpkg-$vcpkg_rev"
+dependency_root="$output"
+if [ -n "${RUNNER_TEMP:-}" ]; then
+  dependency_root="$RUNNER_TEMP"
+  if [ -n "$ext" ]; then dependency_root="$(cygpath -u "$dependency_root")"; fi
+fi
+vcpkg="$dependency_root/animatix-vcpkg-$vcpkg_rev"
 if [ ! -x "$vcpkg/vcpkg$ext" ]; then
   mkdir -p "$vcpkg"
   git -C "$vcpkg" init -q
@@ -84,6 +89,9 @@ stage="$(mktemp -d "$output/package.XXXXXXXX")"
 for tool in ffmpeg ffprobe; do
   cp "$installed/tools/ffmpeg/$tool$ext" "$stage/"
 done
+if [ -z "$ext" ]; then
+  file "$stage/ffmpeg" "$stage/ffprobe"
+fi
 if [ -n "$ext" ]; then
   cp "$installed/bin/"*.dll "$stage/"
   export RUST_LOG="${RUST_LOG:-warn,wgpu_hal::dx12::instance=debug}"

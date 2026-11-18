@@ -74,6 +74,20 @@ class PackageTests(unittest.TestCase):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 self.package("macos", macho(name))
 
+    def test_macos_video_package_accepts_universal_tools_with_a_matching_slice(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            arm = macho()
+            intel = macho(cpu=0x1000007)
+            header = struct.pack(">II", 0xCAFEBABE, 2)
+            header += struct.pack(">IIIII", 0x100000C, 0, 48, len(arm), 0)
+            header += struct.pack(">IIIII", 0x1000007, 0, 48 + len(arm), len(intel), 0)
+            for name in ("animatix", "animatix-gui"):
+                (directory / name).write_bytes(arm)
+            for name in ("ffmpeg", "ffprobe"):
+                (directory / name).write_bytes(header + arm + intel)
+            self.assertEqual(api["check"]("macos", directory, video=True)["architecture"], "aarch64")
+
     def test_windows_imports_and_architecture(self):
         result = self.package("windows", pe())
         self.assertEqual(result["architecture"], "x86_64")

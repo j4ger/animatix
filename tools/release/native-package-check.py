@@ -81,9 +81,28 @@ def macho(data):
     return architecture, dependencies
 
 
+def macho_slices(data):
+    magic = data[:4]
+    if magic not in (b"\xca\xfe\xba\xbe", b"\xca\xfe\xba\xbf", b"\xbe\xba\xfe\xca", b"\xbf\xba\xfe\xca"):
+        return [macho(data)]
+    order = ">" if magic[0] == 0xCA else "<"
+    wide = 0xBF in magic
+    count, = struct.unpack_from(order + "I", data, 4)
+    layout = order + ("IIQQII" if wide else "IIIII")
+    if count == 0 or 8 + count * struct.calcsize(layout) > len(data):
+        raise ValueError("invalid universal Mach-O header")
+    slices = []
+    for index in range(count):
+        _, _, offset, size, *_ = struct.unpack_from(layout, data, 8 + index * struct.calcsize(layout))
+        if size < 32 or offset + size > len(data):
+            raise ValueError("invalid universal Mach-O slice")
+        slices.append(macho(data[offset:offset + size]))
+    return slices
+
+
 def check(platform, directory, video=False):
     binaries = []
-    architectures = set()
+    expected_architecture = None
     extension = ".exe" if platform == "windows" else ""
     programs = ("animatix", "animatix-gui", "ffmpeg", "ffprobe") if video else ("animatix", "animatix-gui")
     dlls = {}
@@ -91,8 +110,18 @@ def check(platform, directory, video=False):
         dlls = {path.name.lower(): path for path in sorted(directory.glob("*.dll"))}
     for path in [*(directory / (name + extension) for name in programs), *dlls.values()]:
         data = path.read_bytes()
-        architecture, dependencies = pe(data) if platform == "windows" else macho(data)
-        architectures.add(architecture)
+        try:
+            slices = [pe(data)] if platform == "windows" else macho_slices(data)
+        except (ValueError, struct.error) as error:
+            raise ValueError(f"{path.name}: {error}") from error
+        if expected_architecture is None:
+            if len(slices) != 1:
+                raise ValueError("expected a single architecture for the Animatix CLI")
+            expected_architecture = slices[0][0]
+        matches = [dependencies for architecture, dependencies in slices if architecture == expected_architecture]
+        if len(matches) != 1:
+            raise ValueError(f"package architectures differ at {path.name}")
+        dependencies = matches[0]
         for dependency in dependencies:
             lowered = dependency.lower()
             if (not video or platform == "macos") and any(token in lowered for token in ("libavcodec", "libavformat", "libavutil", "libswscale", "ffmpeg", "/nix/store/")):
@@ -102,10 +131,8 @@ def check(platform, directory, video=False):
             if platform == "windows":
                 if lowered not in dlls and lowered not in WINDOWS_SYSTEM_DLLS and not lowered.startswith(("api-ms-win-", "ext-ms-win-")):
                     raise ValueError(f"unbundled Windows dependency in {path.name}: {dependency}")
-        binaries.append({"file": path.name, "architecture": architecture, "dependencies": dependencies})
-    if len(architectures) != 1:
-        raise ValueError("package architectures differ")
-    return {"platform": platform, "architecture": architectures.pop(), "video": video, "binaries": binaries}
+        binaries.append({"file": path.name, "architecture": expected_architecture, "dependencies": dependencies})
+    return {"platform": platform, "architecture": expected_architecture, "video": video, "binaries": binaries}
 
 
 if __name__ == "__main__":
