@@ -475,13 +475,15 @@ mod mixed_boundary_isolation {
         } else {
             assert_eq!(count, 63);
             let report = super::mixed_group_col_fixture(count);
-            let size = |label| super::layout_size(&report.output, label);
+            let size = |label: &str| super::layout_size(&report.output, label);
             match probe {
-                "build" => {}
+                "build" => {},
                 "no_error" => assert!(report.diagnostics.iter().all(|d| !d.is_error())),
-                "no_fallback" => assert!(!report.diagnostics.iter().any(|d| {
-                    d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
-                })),
+                "no_fallback" => {
+                    assert!(!report.diagnostics.iter().any(|d| {
+                        d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
+                    }))
+                },
                 "root" => assert_eq!(size("root"), [400.0, 300.0]),
                 "last_width" => assert_eq!(size("g62")[0], 400.0),
                 "last_height" => assert_eq!(size("g62")[1], 10.0),
@@ -491,12 +493,12 @@ mod mixed_boundary_isolation {
                     for index in 1..62 {
                         assert_eq!(size(&format!("g{index}"))[0], 400.0, "g{index}");
                     }
-                }
+                },
                 "ancestor_heights" => {
                     for index in 1..62 {
                         assert_eq!(size(&format!("g{index}"))[1], 10.0, "g{index}");
                     }
-                }
+                },
                 _ => panic!("unknown isolated probe: {probe}"),
             }
         }
