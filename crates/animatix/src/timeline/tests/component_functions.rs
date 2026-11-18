@@ -196,9 +196,8 @@ b.arm.to = (20, 50) [1s]
     assert_eq!(timeline.world.resolve_path(&["a", "arm"]).as_deref(), Some("a.arm"));
     assert_eq!(timeline.world.resolve_path(&["b", "arm"]).as_deref(), Some("b.arm"));
 
-    let endpoint = |entity, time_ms| {
-        timeline.world.shape_or_default(entity).line_to.get(time_ms, [0.0; 2])
-    };
+    let endpoint =
+        |entity, time_ms| timeline.world.shape_or_default(entity).line_to.get(time_ms, [0.0; 2]);
     assert_eq!(endpoint(a, 0), [40.0, 50.0]);
     assert_eq!(endpoint(b, 0), [40.0, 50.0]);
     let a_mid = endpoint(a, 1500);

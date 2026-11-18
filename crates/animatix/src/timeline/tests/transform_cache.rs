@@ -150,10 +150,7 @@ fn group_scale_duration_reaches_children_and_grandchildren() {
     let _ = timeline.evaluate(1.5, DIMS);
     let halfway = timeline.precise_bounds_for("direct").expect("mid-animation bounds");
     let scale = halfway.width() / baseline[0].width();
-    assert!(
-        scale > 0.25 && scale < 1.0,
-        "duration must have an intermediate scale: {scale}"
-    );
+    assert!(scale > 0.25 && scale < 1.0, "duration must have an intermediate scale: {scale}");
     for (label, original) in labels.into_iter().zip(baseline) {
         assert_bounds_scaled_about_parent(
             timeline.precise_bounds_for(label).expect("mid-animation descendant bounds"),
@@ -182,7 +179,13 @@ fn group_scale_instant_changes_children_only_at_the_keyframe() {
     let labels = ["direct", "grandchild"];
     let baseline = labels.map(|label| timeline.precise_bounds_for(label).expect("initial bounds"));
 
-    for (time, scale) in [(0.5, 1.0), (0.999, 1.0), (1.0, 0.25), (2.0, 0.25), (0.5, 1.0)] {
+    for (time, scale) in [
+        (0.5, 1.0),
+        (0.999, 1.0),
+        (1.0, 0.25),
+        (2.0, 0.25),
+        (0.5, 1.0),
+    ] {
         let _ = timeline.evaluate(time, DIMS);
         for (label, original) in labels.into_iter().zip(baseline) {
             assert_bounds_scaled_about_parent(
@@ -192,4 +195,103 @@ fn group_scale_instant_changes_children_only_at_the_keyframe() {
             );
         }
     }
+}
+
+// Keep these stages separately named: the CI evidence records individual test
+// results even when the harness does not retain the assertion output.
+#[test]
+fn group_scale_diagnostic_fixture_builds() {
+    let _ = group_scale_fixture("1s");
+    let _ = group_scale_fixture("0s");
+}
+
+#[test]
+fn group_scale_diagnostic_duration_track() {
+    let timeline = group_scale_fixture("1s");
+    let parent = timeline.get_entity_id("parent").expect("parent entity");
+    let scale = &timeline.world.geometry(parent).scale;
+    assert_eq!(scale.get(0, 1.0), 1.0);
+    assert_eq!(scale.get(500, 1.0), 1.0);
+    assert!(scale.get(1500, 1.0) > 0.25 && scale.get(1500, 1.0) < 1.0);
+    assert_eq!(scale.get(2000, 1.0), 0.25);
+}
+
+#[test]
+fn group_scale_diagnostic_instant_track() {
+    let timeline = group_scale_fixture("0s");
+    let parent = timeline.get_entity_id("parent").expect("parent entity");
+    let scale = &timeline.world.geometry(parent).scale;
+    assert_eq!(scale.get(0, 1.0), 1.0);
+    assert_eq!(scale.get(999, 1.0), 1.0);
+    assert_eq!(scale.get(1000, 1.0), 0.25);
+}
+
+#[test]
+fn group_scale_diagnostic_initial_descendant_bounds() {
+    let timeline = group_scale_fixture("1s");
+    let _ = timeline.evaluate(0.0, DIMS);
+    for label in ["direct", "grandchild"] {
+        let bounds = timeline.precise_bounds_for(label).expect("initial descendant bounds");
+        assert!(bounds.width() > 0.0 && bounds.height() > 0.0);
+    }
+}
+
+#[test]
+fn group_scale_diagnostic_parent_pivot() {
+    let timeline = group_scale_fixture("1s");
+    for time_ms in [0, 500, 1500, 2000] {
+        let transform = timeline
+            .resolve_actor_world_transform("parent", time_ms, [640.0, 360.0])
+            .expect("parent transform");
+        let pivot = transform * kurbo::Point::ORIGIN;
+        assert!((pivot.x - 200.0).abs() < 1e-3);
+        assert!((pivot.y - 150.0).abs() < 1e-3);
+    }
+}
+
+fn group_scale_diagnostic_descendant_transform(label: &str) {
+    let timeline = group_scale_fixture("1s");
+    let early = timeline
+        .resolve_actor_world_transform(label, 0, [640.0, 360.0])
+        .expect("initial descendant transform");
+    let late = timeline
+        .resolve_actor_world_transform(label, 2000, [640.0, 360.0])
+        .expect("final descendant transform");
+    let expected = kurbo::Affine::translate((200.0, 150.0))
+        * kurbo::Affine::scale(0.25)
+        * kurbo::Affine::translate((-200.0, -150.0))
+        * early;
+    for (actual, expected) in late.as_coeffs().into_iter().zip(expected.as_coeffs()) {
+        assert!((actual - expected).abs() < 1e-3);
+    }
+}
+
+#[test]
+fn group_scale_diagnostic_direct_transform() {
+    group_scale_diagnostic_descendant_transform("direct");
+}
+
+#[test]
+fn group_scale_diagnostic_grandchild_transform() {
+    group_scale_diagnostic_descendant_transform("grandchild");
+}
+
+fn group_scale_diagnostic_bounds_ratio(label: &str) {
+    let timeline = group_scale_fixture("1s");
+    let _ = timeline.evaluate(0.0, DIMS);
+    let early = timeline.precise_bounds_for(label).expect("initial bounds");
+    let _ = timeline.evaluate(2.0, DIMS);
+    let late = timeline.precise_bounds_for(label).expect("final bounds");
+    assert!((late.width() / early.width() - 0.25).abs() < 1e-3);
+    assert!((late.height() / early.height() - 0.25).abs() < 1e-3);
+}
+
+#[test]
+fn group_scale_diagnostic_direct_rendered_size() {
+    group_scale_diagnostic_bounds_ratio("direct");
+}
+
+#[test]
+fn group_scale_diagnostic_grandchild_rendered_size() {
+    group_scale_diagnostic_bounds_ratio("grandchild");
 }
