@@ -584,3 +584,139 @@ fn invalid_marker_points_to_audit_guide() {
         .expect("invalid marker must produce a diagnostic");
     assert_eq!(issue.suggestion, "Fix or remove the marker; see docs/audit.md for the syntax.");
 }
+
+// Exercise the same CPU-only review as scene-budget-audit. Keep these separate
+// from synthetic rule tests so a failing CI test retains the real evidence.
+fn explain_figure_audit_report() -> crate::review::report::AuditReport {
+    use crate::review::types::{Detail, FailOn, RenderMode, ReviewOptions, SampleSpec};
+
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let options = ReviewOptions {
+        policy: Policy::Default,
+        samples: SampleSpec::Auto,
+        max_frames: 24,
+        render: RenderMode::Never,
+        detail: Detail::Full,
+        fail_on: FailOn::Error,
+        frames_dir: None,
+        times: None,
+        anchors: 10,
+        candidates: false,
+        delta: None,
+        budget: None,
+        update_budget: false,
+    };
+    let mut report = crate::review::run_review(
+        &root.join("examples/templates/explain-figure.amx"),
+        &[],
+        &crate::extensions::CliExtensions::default(),
+        &options,
+        "audit",
+        false,
+        None,
+    )
+    .expect("explain-figure must build and complete the CPU audit");
+    // The CLI gate uses this exact relative key; an absolute input path would
+    // otherwise miss existing budget entries. Never change the process cwd.
+    let budget_path = root.join("tools/quality/audit-budget.json");
+    let budget = crate::review::budget::load(&budget_path).expect("load existing audit budget");
+    report.budget = Some(
+        crate::review::budget::check(
+            &budget,
+            "examples/templates/explain-figure.amx",
+            &report.findings,
+            options.policy,
+            options.render,
+        )
+        .expect("audit budget policy and render mode must match the gate"),
+    );
+    report
+}
+
+fn explain_figure_evidence(report: &crate::review::report::AuditReport) -> serde_json::Value {
+    let json = report.to_json(crate::review::types::Detail::Full);
+    serde_json::json!({
+        "summary": json["summary"],
+        "budget": json["budget"],
+        "findings": json["findings"],
+        "note_and_plot_frames": report.frames.iter().map(|frame| {
+            serde_json::json!({
+                "time_s": frame.time_s,
+                "actors": frame.actors.iter()
+                    .filter(|actor| actor.label == "note" || actor.label == "plot")
+                    .map(|actor| serde_json::json!({
+                        "label": actor.label,
+                        "opacity": actor.opacity,
+                        "on_frame_fraction": actor.on_frame_fraction,
+                        "bounds": actor.bounds.map(|b| [b.x0, b.y0, b.x1, b.y1]),
+                    })).collect::<Vec<_>>(),
+            })
+        }).collect::<Vec<_>>(),
+    })
+}
+
+#[test]
+fn explain_figure_audit_has_zero_structural_errors() {
+    let report = explain_figure_audit_report();
+    assert_eq!(report.summary.errors, 0, "{}", explain_figure_evidence(&report));
+}
+
+#[test]
+fn explain_figure_audit_stays_within_existing_budget_by_finding_code() {
+    let report = explain_figure_audit_report();
+    assert!(
+        report.budget.as_ref().unwrap().exceeded.is_empty(),
+        "{}",
+        explain_figure_evidence(&report)
+    );
+}
+
+#[test]
+fn explain_figure_audit_has_no_text_overflow_finding() {
+    let report = explain_figure_audit_report();
+    assert!(
+        !report.findings.iter().any(|finding| finding.rule_id == "text.overflow"),
+        "{}",
+        explain_figure_evidence(&report)
+    );
+}
+
+fn explain_figure_assert_visible_actor_on_frame(label: &str, minimum: f64) {
+    let report = explain_figure_audit_report();
+    let visible: Vec<_> = report
+        .frames
+        .iter()
+        .filter(|frame| frame.time_s >= 3.0)
+        .flat_map(|frame| &frame.actors)
+        .filter(|actor| actor.label == label && actor.opacity.unwrap_or(0.0) > 0.01)
+        .collect();
+    assert!(!visible.is_empty(), "missing visible {label}: {}", explain_figure_evidence(&report));
+    assert!(
+        visible.iter().all(|actor| actor.bounds.is_some() && actor.on_frame_fraction >= minimum),
+        "{label} must be at least {minimum} on frame: {}",
+        explain_figure_evidence(&report)
+    );
+}
+
+#[test]
+fn explain_figure_note_after_entrance_is_at_least_partly_on_frame() {
+    explain_figure_assert_visible_actor_on_frame("note", f64::EPSILON);
+}
+
+#[test]
+fn explain_figure_note_after_entrance_is_at_least_98_percent_on_frame() {
+    // Same boundary as actor.clipped, not a relaxation of the audit policy.
+    explain_figure_assert_visible_actor_on_frame("note", 0.98);
+}
+
+#[test]
+fn explain_figure_note_has_no_actor_clipped_finding() {
+    let report = explain_figure_audit_report();
+    assert!(
+        !report.findings.iter().any(|finding| {
+            finding.rule_id == "actor.clipped" && finding.actor.as_deref() == Some("note")
+        }),
+        "{}",
+        explain_figure_evidence(&report)
+    );
+}

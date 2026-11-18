@@ -1,12 +1,12 @@
-//! Compound assignment paths must agree with scalar Instant Change semantics.
+//! Preserve existing delayed-step and duration-bearing assignment semantics.
 use super::*;
 
 #[test]
-fn instant_compound_assignments_hold_until_timeline_stamp() {
-    for suffix in ["", " [0s]"] {
+fn delayed_compound_assignments_hold_until_delay_expires() {
+    for suffix in [" [delay:2s]", " [0s, delay:2s]"] {
         let timeline = build_timeline(&format!(
             "r: Rect, at:(20,30), size:(100,80), opacity:1\n\
-             #2s\nr.at=(220,130){suffix}\nr.size=(200,160){suffix}\n"
+             #0s\nr.at=(220,130){suffix}\nr.size=(200,160){suffix}\n"
         ));
         let id = timeline.world.get_id("r").unwrap();
         let geometry = timeline.world.geometry(id);
@@ -43,27 +43,37 @@ fn timed_compound_assignments_still_interpolate() {
 }
 
 #[test]
-fn instant_size_assignment_preserves_undeclared_size_default() {
-    let timeline = build_timeline("r: Rect, at:(20,30), opacity:1\n#2s\nr.size=(200,160)\n");
+fn delayed_size_assignment_preserves_undeclared_size_default() {
+    let timeline = build_timeline(
+        "r: Rect, at:(20,30), opacity:1\n#0s\nr.size=(200,160) [delay:2s]\n",
+    );
     let geometry = timeline.world.geometry(timeline.world.get_id("r").unwrap());
     for time in [0, 1000, 1999, 2000, 2500, 0] {
-        let expected = if time < 2000 { DEFAULT_LAYOUT_HALF_SIZE } else { [100.0, 80.0] };
+        let expected = if time < 2000 {
+            DEFAULT_LAYOUT_HALF_SIZE
+        } else {
+            [100.0, 80.0]
+        };
         assert_eq!(geometry.size.get(time, DEFAULT_LAYOUT_HALF_SIZE), expected);
         assert_eq!(geometry.layout_size_get(time), Some(expected));
     }
 }
 
 #[test]
-fn instant_background_assignment_holds_until_timeline_stamp() {
-    for suffix in ["", " [0s]"] {
+fn delayed_background_assignment_holds_until_delay_expires() {
+    for suffix in [" [delay:2s]", " [0s, delay:2s]"] {
         let timeline = build_timeline(&format!(
             "scene.background_color=(0,0,0,1)\n\
-             #2s\nscene.background_color=(1,0,0,1){suffix}\n"
+             #0s\nscene.background_color=(1,0,0,1){suffix}\n"
         ));
         for time in [0, 1000, 1999, 2000, 2500, 0] {
             assert_eq!(
                 timeline.background_color.evaluate(time),
-                if time < 2000 { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 0.0, 0.0, 1.0] },
+                if time < 2000 {
+                    [0.0, 0.0, 0.0, 1.0]
+                } else {
+                    [1.0, 0.0, 0.0, 1.0]
+                },
             );
         }
     }

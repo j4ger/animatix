@@ -188,23 +188,26 @@ fn self_root_targets_preserve_all_descendant_segments() {
             assert_eq!(assignments.len(), 1, "{source}");
             let original = &assignments[0];
             let (target, property) = match original {
-                Stmt::Assignment { target, property, .. }
-                | Stmt::ReactiveBinding { target, property, .. } => (target, property),
+                Stmt::Assignment {
+                    target, property, ..
+                }
+                | Stmt::ReactiveBinding {
+                    target, property, ..
+                } => (target, property),
                 _ => unreachable!(),
             };
             assert_eq!(target, &parsed_target, "{source}");
             assert_eq!(property, "opacity", "{source}");
             assert_eq!(matches!(original, Stmt::ReactiveBinding { .. }), operator == ":=");
-            let rewritten = rewrite_stmt(
-                original,
-                "deck.card",
-                Some("root"),
-                &HashSet::new(),
-                &HashMap::new(),
-            );
+            let rewritten =
+                rewrite_stmt(original, "deck.card", Some("root"), &HashSet::new(), &HashMap::new());
             let (target, property) = match rewritten {
-                Stmt::Assignment { target, property, .. }
-                | Stmt::ReactiveBinding { target, property, .. } => (target, property),
+                Stmt::Assignment {
+                    target, property, ..
+                }
+                | Stmt::ReactiveBinding {
+                    target, property, ..
+                } => (target, property),
                 _ => unreachable!(),
             };
             assert_eq!(target, expected, "{source}");

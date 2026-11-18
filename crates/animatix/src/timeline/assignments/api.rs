@@ -119,10 +119,7 @@ impl Timeline {
 
         let t_start_ms = (time_ms + delay_ms) as u64;
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
-        // A future instant change needs a hold fence whether its timestamp
-        // comes from a timeline marker or an explicit delay modifier.
-        // Keep duration-bearing writes on their interpolation path.
-        let instant_delayed = t_start_ms > 0 && duration_ms == 0.0;
+        let instant_delayed = delay_ms > 0.0 && duration_ms == 0.0;
 
         if self.assign_effect_or_scene(
             &target,

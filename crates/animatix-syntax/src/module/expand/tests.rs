@@ -632,7 +632,6 @@ pub component Deck() {
             }
         }
     }
-    #1s
     for i in {0, 1} {
         self.root.cells[i].arm.opacity = 0.5 [1s]
     }
@@ -656,10 +655,13 @@ b: Deck
             );
         }
     }
+    assert!(components.contains_key("Deck"), "fixture must define Deck");
     let expanded = expand_statements(&statements, &components);
     let mut targets = Vec::new();
     crate::walk::walk_stmts(&expanded.statements, &mut |stmt| {
-        if let Stmt::Assignment { target, property, .. } = stmt
+        if let Stmt::Assignment {
+            target, property, ..
+        } = stmt
             && property == "opacity"
         {
             targets.push(target.clone());
