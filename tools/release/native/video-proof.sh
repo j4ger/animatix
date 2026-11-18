@@ -98,5 +98,6 @@ fi
 
 phase gui-test mixed cargo test --locked -p animatix-gui --lib save_and_reopen_preserve_quoted_text_and_typst_payloads
 phase rust-dist-build cargo cargo build --locked --profile dist -p animatix-cli -p animatix-gui --features video
-cp "target/dist/animatix$ext" "target/dist/animatix-gui$ext" "$stage/"
+cargo_dist="${CARGO_TARGET_DIR:-target}/dist"
+cp "$cargo_dist/animatix$ext" "$cargo_dist/animatix-gui$ext" "$stage/"
 phase narrated-export execution python3 tools/release/native/test-first-run.py "$stage" "$output/evidence"

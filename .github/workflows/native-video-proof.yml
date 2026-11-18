@@ -37,6 +37,8 @@ jobs:
       # for hosted smoke trials. Release artifacts use the Cargo.toml profile.
       CARGO_PROFILE_DIST_LTO: 'off'
       CARGO_PROFILE_DIST_CODEGEN_UNITS: '16'
+      # Cache compiler output independently of vcpkg's in-progress work tree.
+      CARGO_TARGET_DIR: target/cargo-native-video-proof
     steps:
       - uses: actions/checkout@v5
         with:
@@ -44,7 +46,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          key: native-video-proof-fast-dist
+          key: native-video-proof-isolated-dist
           cache-on-failure: true
       - name: Build and verify the narrated starter on the target OS
         shell: bash
