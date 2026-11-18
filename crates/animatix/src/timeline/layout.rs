@@ -45,7 +45,8 @@ mod grid;
 mod group;
 mod linear;
 mod positions;
-mod reflow;
+
+const MAX_NESTED_LAYOUT_DEPTH: usize = 64;
 
 pub(crate) use engine::LayoutContainerCache;
 pub use positions::LayoutPositions;

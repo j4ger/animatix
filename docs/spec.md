@@ -904,11 +904,12 @@ col: Col, gap: 8, padding: 16 {
 > **Note:** `Row` does NOT propagate width to children (it places them side-by-side). Use `Col` or `Grid` when you want text to wrap at the container width.
 
 Nested layout resolves widths from the parent down, then publishes intrinsic
-heights from the leaves up. This declaration-time pass uses an explicit work
-stack without a fixed nesting-depth limit; it is not an iterative parent/child
-size solver. Fixed axes and explicit `text_max_width` remain authoritative.
-Unbreakable content that exceeds the propagated width emits a
-`layout-size-fallback` warning; it keeps the authored overflow policy and font size.
+heights from the leaves up. This is a bounded declaration-time pass, rather
+than an iterative parent/child size solver. Fixed axes and explicit
+`text_max_width` remain authoritative. A nesting depth beyond 64 emits a
+`layout-size-fallback` warning and retains earlier descendant measurements.
+Unbreakable content that exceeds the propagated width also emits this warning;
+it keeps the authored overflow policy and font size.
 A structural `Group` passes definite authored or parent-resolved size axes to
 children that explicitly request `fill` or a percentage. It preserves child
 positions and fixed sizes; it does not arrange or implicitly stretch children.
