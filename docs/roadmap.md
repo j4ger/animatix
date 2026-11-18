@@ -25,12 +25,10 @@ evidence backlog; reproduce them against current code before assigning fixes.
 
 #### P0 — First-run project and video delivery
 
-- **Native video release validation.** Assemble the final video-enabled
-  archives and verify the packaged workbench preview on each target desktop.
-  Validate the Linux distribution on the clean runtime images. Resolve the
-  redistributable Windows DXC pair and verify the runtime dependencies, licenses
-  and corresponding source archives before promoting the packages through the
-  release workflow. [Hosted proof evidence](history/2026-11.md#首次交付与编辑可靠性2026-11-18)
+- **Desktop acceptance.** Exercise the release ZIPs on clean macOS and Windows
+  desktops with their normal graphics drivers. Confirm the Windows first-run
+  path on a machine without the developer SDK. The hosted Windows proof uses
+  an SDK DXC pair for WARP. [Hosted package evidence](history/2026-11.md#发布归档验收2026-11-18)
 - **Acceptance:** on a clean supported machine, a user installs the release,
   creates a project outside the repository, previews it, and exports a 30-second
   MP4 with audio without installing Rust. Exercise this path per supported OS.

@@ -2,20 +2,6 @@ name: Native Video Proof
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - 'codex/p0-native-proof'
-    paths:
-      - 'Cargo.*'
-      - 'rust-toolchain.toml'
-      - 'crates/**'
-      - 'examples/assets/narration.*'
-      - 'tools/release/native/video-proof.sh'
-      - 'tools/release/native/test-first-run.py'
-      - 'tools/release/native/windows_sdk_dxc.py'
-      - 'tools/release/dist-*.sh'
-      - 'tools/release/native-package-check.py'
-      - 'tools/ci/ci.sh'
 
 permissions:
   contents: read
@@ -23,7 +9,6 @@ permissions:
 jobs:
   nightly-package:
     name: Linux nightly archive validation
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
@@ -50,7 +35,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest]
+        os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     env:
@@ -62,6 +47,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
+        id: rust
       - uses: Swatinem/rust-cache@v2
         with:
           key: native-video-release-dist
@@ -72,7 +58,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: target/native-video-proof-inputs
-          key: native-proof-inputs-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.*', 'rust-toolchain.toml', 'crates/**', 'examples/assets/narration.*', 'tools/release/native/video-proof.sh') }}
+          key: native-proof-inputs-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('Cargo.*', 'rust-toolchain.toml', 'crates/**', 'examples/assets/narration.*', 'tools/release/native/video-proof.sh') }}
       - name: Build and verify the narrated starter on the target OS
         shell: bash
         run: tools/ci/ci.sh gate native-video-proof

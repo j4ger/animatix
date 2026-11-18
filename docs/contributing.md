@@ -79,7 +79,8 @@ It builds against those headers, links the macOS libraries statically, and
 stages the Windows DLLs beside both executables. Both stages carry the same
 FFmpeg tools used for muxing and inspection. They include the codec source
 archives, vcpkg recipes and licenses. The companion Linux source archive includes
-the project's source and Cargo dependencies for the same release. On GitHub's
+the project's source and Cargo dependencies for the same release. The Windows
+package statically links the Visual C++ runtime. On GitHub's
 Windows runner, the acceptance process loads a matched DXC and DXIL pair from
 the runner SDK to exercise its software adapter. The SDK DLLs remain in the
 acceptance environment. Update the FFmpeg pin as a unit and verify both packages.
@@ -404,6 +405,10 @@ The scheduled/manual nightly workflow builds a Linux video-enabled distribution
 and replaces the rolling `nightly` prerelease. Scheduled runs skip unchanged
 `main`; the workflow's force input can request a rebuild. It does not create a
 new versioned release each day.
+
+Release runs the complete Windows and macOS video acceptance as part of the
+distribution gates. The **Native Video Proof** workflow provides a manual
+rehearsal of the native archives and Linux Nightly packaging.
 
 Detailed explanations, measurements and post-mortems belong in
 [history](history/README.md); [roadmap](roadmap.md) contains unfinished work only.
