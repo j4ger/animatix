@@ -91,5 +91,8 @@ pub(super) fn finish_expansion(
             unique.push(diagnostic);
         }
     }
-    crate::diagnostics::BuildReport { output, diagnostics: unique }
+    crate::diagnostics::BuildReport {
+        output,
+        diagnostics: unique,
+    }
 }

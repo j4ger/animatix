@@ -377,16 +377,21 @@ fn group_reflow_resolves_fill_through_63_and_64_groups() {
 fn group_reflow_at_65_groups_warns_and_preserves_unresolved_descendants() {
     let report = group_depth_limit_fixture(65);
     assert!(
-        !report.diagnostics.iter().any(|d| {
-            d.severity == crate::diagnostics::DiagnosticSeverity::Error
-        }),
+        !report
+            .diagnostics
+            .iter()
+            .any(|d| { d.severity == crate::diagnostics::DiagnosticSeverity::Error }),
         "depth fallback must remain non-fatal: {:?}",
         report.diagnostics
     );
-    let depth_warning_count = report.diagnostics.iter().filter(|d| {
-        d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
-            && d.message.contains("depth")
-    }).count();
+    let depth_warning_count = report
+        .diagnostics
+        .iter()
+        .filter(|d| {
+            d.code == crate::diagnostics::DiagnosticCode::LayoutSizeFallback
+                && d.message.contains("depth")
+        })
+        .count();
     assert_eq!(depth_warning_count, 1, "one warning at the reflow boundary");
     let warning = report
         .diagnostics

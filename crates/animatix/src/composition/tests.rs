@@ -1185,26 +1185,30 @@ fn cross_file_component_limit_reports_error_and_omits_failed_scene() {
         "component Loop() { root: Loop }\n# Broken\ninstance: Loop\n",
         "play scenes::Broken",
     );
-    assert!(report.diagnostics.iter().any(|diagnostic| {
-        diagnostic.is_error() && diagnostic.message.contains("guarded depth budget")
-    }), "{:?}", report.diagnostics);
+    assert!(
+        report.diagnostics.iter().any(|diagnostic| {
+            diagnostic.is_error() && diagnostic.message.contains("guarded depth budget")
+        }),
+        "{:?}",
+        report.diagnostics
+    );
     assert!(!report.output.scenes.contains_key("scenes::Broken"));
 }
 
 #[test]
 fn build_target_keeps_imported_expansion_error_source_path() {
-    use std::path::{Path, PathBuf};
     use animatix_syntax::module::SourceAccess;
+    use std::path::{Path, PathBuf};
     let main = PathBuf::from("/virtual/main.amx");
     let library = PathBuf::from("/virtual/broken.amx");
     let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
     graph.upsert_source(
         main.clone(),
-        "import \"./broken.amx\" as broken\n# Intro\nplay broken::Demo\n".into(),
+        "import \"./broken.amx\" as broken\n# Intro\nplay broken::Demo\n",
     );
     graph.upsert_source(
         library.clone(),
-        "component Loop() { root: Loop }\n# Demo\ninstance: Loop\n".into(),
+        "component Loop() { root: Loop }\n# Demo\ninstance: Loop\n",
     );
     let program = graph.load_program(Path::new(&main)).unwrap();
     let expansion = program.expand_components_with_diagnostics();
@@ -1217,28 +1221,32 @@ fn build_target_keeps_imported_expansion_error_source_path() {
             .with_function_context(&program.function_context)
             .with_expanded(&expansion.output),
     );
-    let errors = report.diagnostics.iter().filter(|diagnostic| {
-        diagnostic.is_error() && diagnostic.message.contains("guarded depth budget")
-    }).collect::<Vec<_>>();
+    let errors = report
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| {
+            diagnostic.is_error() && diagnostic.message.contains("guarded depth budget")
+        })
+        .collect::<Vec<_>>();
     assert_eq!(errors.len(), 1, "{:?}", report.diagnostics);
     assert_eq!(errors[0].location.path.as_ref(), Some(&library));
 }
 
 #[test]
 fn composition_keeps_identical_expansion_errors_from_two_imported_files() {
-    use std::path::PathBuf;
     use animatix_syntax::module::SourceAccess;
+    use std::path::PathBuf;
     let main = PathBuf::from("/virtual/main.amx");
     let a = PathBuf::from("/virtual/a.amx");
     let b = PathBuf::from("/virtual/b.amx");
     let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
     graph.upsert_source(
         main.clone(),
-        "import \"./a.amx\" as a\nimport \"./b.amx\" as b\n# Intro\nplay a::Demo\n# Other\nplay b::Demo\n".into(),
+        "import \"./a.amx\" as a\nimport \"./b.amx\" as b\n# Intro\nplay a::Demo\n# Other\nplay b::Demo\n",
     );
     let source = "component Loop() { root: Loop }\n# Demo\ninstance: Loop\n";
-    graph.upsert_source(a.clone(), source.into());
-    graph.upsert_source(b.clone(), source.into());
+    graph.upsert_source(a.clone(), source);
+    graph.upsert_source(b.clone(), source);
     let program = graph.load_program(&main).unwrap();
     let expansion = program.expand_components_with_diagnostics();
     assert!(expansion.diagnostics.is_empty());
@@ -1250,9 +1258,13 @@ fn composition_keeps_identical_expansion_errors_from_two_imported_files() {
             .with_function_context(&program.function_context)
             .with_expanded(&expansion.output),
     );
-    let errors = report.diagnostics.iter().filter(|diagnostic| {
-        diagnostic.is_error() && diagnostic.message.contains("guarded depth budget")
-    }).collect::<Vec<_>>();
+    let errors = report
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| {
+            diagnostic.is_error() && diagnostic.message.contains("guarded depth budget")
+        })
+        .collect::<Vec<_>>();
     assert_eq!(errors.len(), 2, "{:?}", report.diagnostics);
     for path in [&a, &b] {
         assert!(errors.iter().any(|diagnostic| diagnostic.location.path.as_ref() == Some(path)));

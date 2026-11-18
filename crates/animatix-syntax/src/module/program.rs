@@ -73,10 +73,8 @@ impl LoadedProgram {
             &component_scopes,
             &mut diagnostics,
         );
-        expanded.expanded_function_context = Some(super::expand::expand_function_context(
-            &self.function_context,
-            &mut diagnostics,
-        ));
+        expanded.expanded_function_context =
+            Some(super::expand::expand_function_context(&self.function_context, &mut diagnostics));
         super::expand::finish_expansion(expanded, diagnostics)
     }
 }

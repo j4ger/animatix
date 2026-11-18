@@ -57,7 +57,10 @@ pub fn try_load_and_build(
     };
 
     if type_diagnostics.iter().any(Diagnostic::is_error) {
-        return Ok((BuildTarget::SingleScene(animatix::timeline::Timeline::new()), type_diagnostics));
+        return Ok((
+            BuildTarget::SingleScene(animatix::timeline::Timeline::new()),
+            type_diagnostics,
+        ));
     }
     let context = std::sync::Arc::new(ctx);
     let report = BuildTarget::build_with_options(

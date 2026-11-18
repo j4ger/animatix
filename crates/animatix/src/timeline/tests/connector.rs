@@ -78,8 +78,10 @@ fn nested_target_connector_stays_on_world_edges_at_multiple_depths() {
     // Identity wrappers must not change meaning; translations must apply once.
     // No font/GPU dependency: evaluate collects precise vector command bounds.
     for depth in [1, 2, 8, 16] {
-        let mut source = String::from("config { resolution:(1280,720) }
-");
+        let mut source = String::from(
+            "config { resolution:(1280,720) }
+",
+        );
         for level in 0..depth {
             source.push_str(&format!(
                 "g{level}: Group, at:(10,5), opacity:1 {{
@@ -92,14 +94,13 @@ fn nested_target_connector_stays_on_world_edges_at_multiple_depths() {
              wire: Connector, from:(leaf_a,right), to:(leaf_b,left), routing:\"straight\", arrow:false, stroke_width:2, opacity:1
 ",
         );
-        source.push_str(&"}
-".repeat(depth));
-        let report = build(&source);
-        assert!(
-            report.diagnostics.iter().all(|d| !d.is_error()),
-            "{:?}",
-            report.diagnostics
+        source.push_str(
+            &"}
+"
+            .repeat(depth),
         );
+        let report = build(&source);
+        assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
         let timeline = report.output;
         let dims = SceneDimensions {
             width: 1280,

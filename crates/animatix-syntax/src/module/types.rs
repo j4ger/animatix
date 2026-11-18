@@ -161,10 +161,8 @@ impl FunctionContext {
             &component_scopes,
             &mut diagnostics,
         );
-        expanded.expanded_function_context = Some(super::expand::expand_function_context(
-            self,
-            &mut diagnostics,
-        ));
+        expanded.expanded_function_context =
+            Some(super::expand::expand_function_context(self, &mut diagnostics));
         Ok(super::expand::finish_expansion(expanded, diagnostics))
     }
 }

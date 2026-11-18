@@ -103,7 +103,10 @@ impl Composition {
                 unique.push(diagnostic);
             }
         }
-        BuildReport { output: composition, diagnostics: unique }
+        BuildReport {
+            output: composition,
+            diagnostics: unique,
+        }
     }
 
     /// Extract the first `play` statement from a scene body.
@@ -603,7 +606,10 @@ fn expand_imported_scene(
     scene: &crate::module::SceneData,
     namespace: &Namespace,
     context: Option<&crate::module::FunctionContext>,
-) -> Result<crate::diagnostics::BuildReport<crate::module::ExpandedProgram>, crate::module::ModuleError> {
+) -> Result<
+    crate::diagnostics::BuildReport<crate::module::ExpandedProgram>,
+    crate::module::ModuleError,
+> {
     if let Some(context) = context {
         return context.expand_scene_with_diagnostics(scene);
     }

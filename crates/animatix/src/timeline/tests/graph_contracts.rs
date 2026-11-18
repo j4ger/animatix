@@ -133,8 +133,12 @@ fade_in(target: live.card.hidden, duration: 1s)
     );
     assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
     for label in [
-        "live.card", "live.card.curve", "live.card.hidden",
-        "idle.card", "idle.card.curve", "idle.card.hidden",
+        "live.card",
+        "live.card.curve",
+        "live.card.hidden",
+        "idle.card",
+        "idle.card.curve",
+        "idle.card.hidden",
     ] {
         assert!(report.output.world.get_id(label).is_some(), "missing {label}");
     }
@@ -144,10 +148,15 @@ fade_in(target: live.card.hidden, duration: 1s)
 #[test]
 fn nested_component_graph_entrance_preserves_authored_hidden_child_across_seek_and_cache() {
     let timeline = nested_graph_entrance_fixture();
-    let dimensions = crate::timeline::SceneDimensions { width: 1280, height: 720 };
+    let dimensions = crate::timeline::SceneDimensions {
+        width: 1280,
+        height: 720,
+    };
     // Repeat frames for cache hits, seek backwards after the first entrance,
     // then repeat after the explicitly hidden child gets its own entrance.
-    for time in [0.0, 1.0, 1.5, 2.0, 2.0, 0.0, 2.0, 3.0, 3.5, 4.0, 4.0, 0.0, 4.0] {
+    for time in [
+        0.0, 1.0, 1.5, 2.0, 2.0, 0.0, 2.0, 3.0, 3.5, 4.0, 4.0, 0.0, 4.0,
+    ] {
         let mut filter_backend = None;
         let program = timeline.evaluate_program_with_debug(
             time,
@@ -175,12 +184,19 @@ fn nested_component_graph_entrance_preserves_authored_hidden_child_across_seek_a
                 }
                 let bounds = program.precise_bounds.get(label).expect("visible actor bounds");
                 assert!(bounds.width() > 0.0 && bounds.height() > 0.0, "{label}: {bounds:?}");
-                assert_eq!(timeline.precise_bounds_for(label), Some(*bounds), "{label} cache bounds");
+                assert_eq!(
+                    timeline.precise_bounds_for(label),
+                    Some(*bounds),
+                    "{label} cache bounds"
+                );
             }
         }
         for label in ["idle.card", "idle.card.curve", "idle.card.hidden"] {
             assert!(
-                program.items.iter().filter(|item| item.label == label)
+                program
+                    .items
+                    .iter()
+                    .filter(|item| item.label == label)
                     .all(|item| item.opacity == 0.0 || item.commands.is_empty()),
                 "entrance leaked to the other component instance: {label} at {time}s"
             );

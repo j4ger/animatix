@@ -163,7 +163,9 @@ fn prepare_syntax(
         program = graph.load_program(&path).map_err(|error| module_error(error, &mut analysis))?;
     }
     let expansion = program.expand_components_with_diagnostics();
-    analysis.diagnostics.extend(expansion.diagnostics.iter().map(DiagnosticDto::from_diagnostic));
+    analysis
+        .diagnostics
+        .extend(expansion.diagnostics.iter().map(DiagnosticDto::from_diagnostic));
     let expanded = expansion.output;
     let function_context =
         expanded.expanded_function_context.clone().unwrap_or(program.function_context);

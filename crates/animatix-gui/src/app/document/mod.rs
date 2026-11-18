@@ -87,9 +87,8 @@ pub struct DocumentSession {
     /// Hash of the complete source graph at the last successful expansion.
     last_expansion_hash: u64,
     /// Cached statements and callable metadata for an unchanged source graph.
-    cached_expanded: Option<
-        animatix_syntax::diagnostics::BuildReport<animatix_syntax::module::ExpandedProgram>,
-    >,
+    cached_expanded:
+        Option<animatix_syntax::diagnostics::BuildReport<animatix_syntax::module::ExpandedProgram>>,
     /// Cached module graph — preserves parsed imports across rebuilds.
     cached_module_graph: Option<ModuleGraph>,
     /// Disk imports corresponding to the cached graph; entry source is editor-owned.

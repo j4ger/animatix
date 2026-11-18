@@ -330,9 +330,7 @@ pub(super) fn expand_component_instance(
             .active
             .iter()
             .map(|(_, name, instance)| format!("{name}({instance})"))
-            .chain(std::iter::once(format!(
-                "{}({instance_label})", component.definition.name
-            )))
+            .chain(std::iter::once(format!("{}({instance_label})", component.definition.name)))
             .collect::<Vec<_>>()
             .join(" -> ");
         let code = DiagnosticCode::UnknownAction;
