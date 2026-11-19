@@ -5,6 +5,10 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$root"
 profile=release
+features=()
+if [ "${ANIMATIX_WEBGL_EXPERIMENT:-0}" = 1 ]; then
+  features=(--features webgl-experiment)
+fi
 for arg in "$@"; do
   case "$arg" in --dev) profile=dev ;; *) echo "usage: build-web.sh [--dev]" >&2; exit 2 ;; esac
 done
@@ -31,7 +35,7 @@ cargo_profile=wasm-release
 if [ "$profile" = dev ]; then cargo_profile=wasm-dev; fi
 env ANIMATIX_RUNTIME_BUILD_ID="$identity" ANIMATIX_GIT_SHA="$commit" \
   RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+simd128 -C link-arg=--emit-relocs -C debuginfo=2" \
-  cargo build --locked -p animatix-web --target wasm32-unknown-unknown --profile "$cargo_profile"
+  cargo build --locked -p animatix-web --target wasm32-unknown-unknown --profile "$cargo_profile" "${features[@]}"
 original="target/wasm32-unknown-unknown/$cargo_profile/animatix_web.wasm"
 wasm-bindgen --no-demangle --target web --out-dir "$stage/bindgen" "$original"
 target/debug/animatix-web-build split "$original" "$stage/bindgen" "$stage/sdk"

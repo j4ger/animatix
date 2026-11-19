@@ -116,6 +116,20 @@ pub trait FilterBackend: Send {
     /// [`EffectParamUnit::Pixel`]: animatix_core::effect::EffectParamUnit::Pixel
     fn set_raster_scale(&mut self, _scale: f32) {}
 
+    /// Encode an inline filter as a texture draw at its current layer position.
+    /// Returning no result delegates to the classic readback path.
+    #[cfg(feature = "webgl-experiment")]
+    fn record_inline_filter(
+        &mut self,
+        _: &mut vello::Scene,
+        _: &vello::Scene,
+        _: EffectRegion,
+        _: &EffectChain,
+        _: f32,
+    ) -> Option<Result<(), String>> {
+        None
+    }
+
     /// Render `scene` (covering `dimensions`), apply `chain`, and read the result
     /// back as a [`SceneImage`]; with `region` both input and output cover only
     /// that region (the caller composites it at `region.origin`).

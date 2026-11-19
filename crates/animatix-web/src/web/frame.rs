@@ -39,13 +39,17 @@ impl AmxPlayer {
         if !self.has_document() {
             return Ok(());
         }
+        #[cfg(feature = "webgl-experiment")]
+        if self.webgl.is_some() {
+            return self.render_webgl_frame(time_s);
+        }
         with_engine(|ctx| self.render_frame_inner(ctx, time_s))
     }
 
     /// What the frame about to be drawn at `time_s` depends on, in one
     /// comparable value. See `animatix::timeline::frame_signature` for why each
     /// member belongs there.
-    fn frame_signature(
+    pub(super) fn frame_signature(
         &self,
         time_s: f64,
         surface_width: u32,

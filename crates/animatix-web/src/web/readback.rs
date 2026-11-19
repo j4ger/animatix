@@ -23,6 +23,24 @@ fn readback_impl(player: &mut AmxPlayer, time_s: f64) -> Result<ReadbackSetup, S
     if player.target.is_none() {
         return Err("no document loaded".to_string());
     }
+    #[cfg(feature = "webgl-experiment")]
+    if let Some(gpu) = &mut player.webgl {
+        let size = (
+            u16::try_from(dims.width).map_err(|e| e.to_string())?,
+            u16::try_from(dims.height).map_err(|e| e.to_string())?,
+        );
+        let view = super::webgl::draw_document(
+            gpu,
+            player.target.as_ref().ok_or("no document loaded")?,
+            dims,
+            size,
+            1.0,
+            time_s,
+            &player.runtime_inputs,
+        )?;
+        player.dedup.invalidate();
+        return Ok(copy_readback(&gpu.device, &gpu.queue, view.texture(), dims));
+    }
     with_engine(|ctx| readback_with(player, ctx, time_s, dims))
 }
 
@@ -159,8 +177,6 @@ fn readback_with(
     dims: SceneDimensions,
 ) -> Result<ReadbackSetup, String> {
     let ctx = ctx?;
-    let bytes_per_row = (dims.width * 4 + 255) & !255;
-
     // Fresh targets: the readback must not disturb the player's own
     // presentation slots.
     let mut primary: Option<OffscreenTarget> = None;
@@ -210,17 +226,27 @@ fn readback_with(
         },
     )?;
 
-    let buffer = ctx.device.create_buffer(&wgpu::BufferDescriptor {
+    Ok(copy_readback(&ctx.device, &ctx.queue, &frame.texture, dims))
+}
+
+fn copy_readback(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    texture: &wgpu::Texture,
+    dims: SceneDimensions,
+) -> ReadbackSetup {
+    let bytes_per_row = (dims.width * 4 + 255) & !255;
+    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("animatix-web readback buffer"),
         size: bytes_per_row as u64 * dims.height as u64,
         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
         mapped_at_creation: false,
     });
-    let mut encoder = ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
         label: Some("animatix-web readback copy"),
     });
     encoder.copy_texture_to_buffer(
-        frame.texture.as_image_copy(),
+        texture.as_image_copy(),
         wgpu::TexelCopyBufferInfo {
             buffer: &buffer,
             layout: wgpu::TexelCopyBufferLayout {
@@ -235,14 +261,14 @@ fn readback_with(
             depth_or_array_layers: 1,
         },
     );
-    ctx.queue.submit(std::iter::once(encoder.finish()));
+    queue.submit(std::iter::once(encoder.finish()));
 
-    Ok(ReadbackSetup {
+    ReadbackSetup {
         buffer,
         width: dims.width,
         height: dims.height,
         bytes_per_row,
-    })
+    }
 }
 
 /// Per-pixel-sample statistics over a mapped readback buffer, as JSON.

@@ -25,7 +25,7 @@ export function inputs(root = ROOT) {
 }
 
 export function buildEnvironment(environment = process.env) {
-  const relevant = /^(?:RUSTFLAGS|RUSTC|RUSTC_BOOTSTRAP|RUSTC_WRAPPER|RUSTC_WORKSPACE_WRAPPER|RUSTUP_TOOLCHAIN|CARGO_INCREMENTAL|CARGO_ENCODED_RUSTFLAGS|CARGO_BUILD_.*|CARGO_PROFILE_.*|CARGO_TARGET_.*|CC(?:_.*)?|CXX(?:_.*)?|AR(?:_.*)?|CFLAGS(?:_.*)?|CXXFLAGS(?:_.*)?|ARFLAGS(?:_.*)?|SOURCE_DATE_EPOCH)$/;
+  const relevant = /^(?:ANIMATIX_WEBGL_EXPERIMENT|RUSTFLAGS|RUSTC|RUSTC_BOOTSTRAP|RUSTC_WRAPPER|RUSTC_WORKSPACE_WRAPPER|RUSTUP_TOOLCHAIN|CARGO_INCREMENTAL|CARGO_ENCODED_RUSTFLAGS|CARGO_BUILD_.*|CARGO_PROFILE_.*|CARGO_TARGET_.*|CC(?:_.*)?|CXX(?:_.*)?|AR(?:_.*)?|CFLAGS(?:_.*)?|CXXFLAGS(?:_.*)?|ARFLAGS(?:_.*)?|SOURCE_DATE_EPOCH)$/;
   return Object.fromEntries(Object.entries(environment).filter(([key]) => relevant.test(key)).sort(([a], [b]) => a.localeCompare(b)));
 }
 

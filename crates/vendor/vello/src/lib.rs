@@ -109,6 +109,8 @@
 )]
 
 mod debug;
+#[cfg(feature = "recording")]
+pub mod recorded_draws;
 mod recording;
 mod render;
 mod scene;

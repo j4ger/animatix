@@ -188,7 +188,7 @@ impl Timeline {
             if let Some((cached_scene, cached_bounds, cached_items, cached_hit_regions)) =
                 cache.get(&cache_key)
             {
-                out.scene.encoding_mut().append(cached_scene.encoding(), &None);
+                out.scene.append(&cached_scene, None);
                 if !cached_bounds.is_empty() {
                     let mut table = self.eval_caches.precise_bounds.borrow_mut();
                     for &(slot, rect) in cached_bounds {
@@ -240,7 +240,7 @@ impl Timeline {
         } else {
             Vec::new()
         };
-        out.scene.encoding_mut().append(temp_scene.encoding(), &None);
+        out.scene.append(&temp_scene, None);
         let new_bounds: Vec<(u32, kurbo::Rect)> =
             self.eval_caches.precise_bounds.borrow().pairs_from(subtree_written_before);
         self.eval_caches

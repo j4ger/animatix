@@ -755,3 +755,22 @@ distribution scripts and are not asserted here as acceptance evidence.
 - The assembled-site smoke tests cover actual Astro pages and their canonical
   sources. `web/tools/site/site-check.py` rejects retired AMX and developer utilities
   in the release artifact.
+
+### WebGL2 experiment
+
+Build and serve the opt-in SDK in the web development shell.
+
+    ANIMATIX_WEBGL_EXPERIMENT=1 bash web/tools/build/build-web.sh --dev
+    ANIMATIX_WEBGL_EXPERIMENT=1 python3 web/tools/dev/serve-web.py 8124
+
+Open /dev/webgl-experiment.html?amx-backend=webgl2 to render with Vello GPU
+over wgpu's GL backend. The same query parameter selects this backend on a
+page using the assembled experimental SDK. To check the real embed, editing
+transaction, and composited pixels under Chromium with WebGPU disabled, run
+node web/tools/test/webgl-experiment.mjs while the server is running.
+
+The experiment covers vector fills, strokes, layers, monochrome glyph runs,
+raster images, Blur effects, and the existing transition compositor. Color
+glyphs, luminance masks, and additional effect chains report an unsupported
+operation when encountered. Device recovery, real-device coverage and
+performance, and full effect parity are tracked separately from this trial.

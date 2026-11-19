@@ -1,0 +1,10 @@
+config { resolution: (640, 360), duration: 2 }
+
+#0s
+  backdrop: Rect, at: (320, 180), size: (640, 360), color: "#101827"
+  blurred: Filter, at: (320, 180), size: (260, 160) {
+    frosting: Blur, radius: 18
+    block: Rect, at: (0, 0), size: (140, 100), color: "#5FE4CC"
+  }
+  cover: Rect, at: (320, 180), size: (20, 52), color: "#FC786C"
+#2s

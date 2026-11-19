@@ -44,6 +44,8 @@ use vello_encoding::{
 #[derive(Clone, Default)]
 pub struct Scene {
     encoding: Encoding,
+    #[cfg(feature = "recording")]
+    recording: Vec<crate::recorded_draws::Draw>,
     #[cfg(feature = "bump_estimate")]
     estimator: vello_encoding::BumpEstimator,
 }
@@ -58,6 +60,8 @@ impl Scene {
     /// Removes all content from the scene.
     pub fn reset(&mut self) {
         self.encoding.reset();
+        #[cfg(feature = "recording")]
+        self.recording.clear();
         #[cfg(feature = "bump_estimate")]
         self.estimator.reset();
     }
@@ -79,7 +83,23 @@ impl Scene {
     ///
     /// This can be used to more easily create invalid scenes, and so should be used with care.
     pub fn encoding_mut(&mut self) -> &mut Encoding {
+        #[cfg(feature = "recording")]
+        self.recording.push(crate::recorded_draws::Draw::Unsupported("raw encoding"));
         &mut self.encoding
+    }
+
+    /// Drawing operations recorded alongside the classic encoding.
+    #[cfg(feature = "recording")]
+    pub fn recorded_draws(&self) -> &[crate::recorded_draws::Draw] {
+        &self.recording
+    }
+
+    /// Record a texture handle to resolve while replaying this scene.
+    #[cfg(feature = "recording")]
+    pub fn record_texture(&mut self, id: u64, rect: Rect, opacity: f32) {
+        self.recording.push(crate::recorded_draws::Draw::Texture {
+            id, rect, opacity, transform: Affine::IDENTITY,
+        });
     }
 
     /// Pushes a new layer clipped by the specified shape and composed with
@@ -107,9 +127,12 @@ impl Scene {
         clip: &impl Shape,
     ) {
         let blend = blend.into();
+        let clip_style = clip_style.into();
+        #[cfg(feature = "recording")]
+        self.record_layer(clip_style, transform, clip, Some(blend), alpha.clamp(0.0, 1.0));
         self.push_layer_inner(
             DrawBeginClip::new(blend, alpha.clamp(0.0, 1.0)),
-            clip_style.into(),
+            clip_style,
             transform,
             clip,
         );
@@ -150,6 +173,8 @@ impl Scene {
         transform: Affine,
         clip: &impl Shape,
     ) {
+        #[cfg(feature = "recording")]
+        self.recording.push(crate::recorded_draws::Draw::Unsupported("luminance mask"));
         self.push_layer_inner(
             DrawBeginClip::luminance_mask(alpha.clamp(0.0, 1.0)),
             clip_style.into(),
@@ -183,7 +208,32 @@ impl Scene {
         transform: Affine,
         clip: &impl Shape,
     ) {
-        self.push_layer_inner(DrawBeginClip::clip(), clip_style.into(), transform, clip);
+        let clip_style = clip_style.into();
+        #[cfg(feature = "recording")]
+        self.record_layer(clip_style, transform, clip, None, 1.0);
+        self.push_layer_inner(DrawBeginClip::clip(), clip_style, transform, clip);
+    }
+
+    #[cfg(feature = "recording")]
+    fn record_layer(
+        &mut self,
+        style: StyleRef<'_>,
+        transform: Affine,
+        clip: &impl Shape,
+        blend: Option<BlendMode>,
+        alpha: f32,
+    ) {
+        use crate::recorded_draws::Draw;
+        self.recording.push(match style {
+            StyleRef::Fill(fill) => Draw::Push {
+                clip: clip.to_path(0.1),
+                fill,
+                transform,
+                blend,
+                alpha,
+            },
+            StyleRef::Stroke(_) => Draw::Unsupported("stroked layer clip"),
+        });
     }
 
     /// Helper for logic shared between [`Self::push_layer`] and [`Self::push_luminance_mask_layer`]
@@ -207,7 +257,7 @@ impl Scene {
                 #[cfg(feature = "bump_estimate")]
                 self.estimator.count_path(clip.path_elements(0.1), &t, None);
                 self.encoding.encode_shape(clip, true)
-            }
+            },
             StyleRef::Stroke(stroke) => {
                 if stroke.width == 0. {
                     // If the stroke has zero width, encode a fill style and indicate no path was
@@ -217,7 +267,7 @@ impl Scene {
                 } else {
                     self.stroke_gpu_inner(stroke, transform, clip)
                 }
-            }
+            },
         };
 
         if !encoded_result {
@@ -237,6 +287,8 @@ impl Scene {
 
     /// Pops the current layer.
     pub fn pop_layer(&mut self) {
+        #[cfg(feature = "recording")]
+        self.recording.push(crate::recorded_draws::Draw::Pop);
         self.encoding.encode_end_clip();
     }
 
@@ -276,6 +328,15 @@ impl Scene {
         radius: f64,
         std_dev: f64,
     ) {
+        #[cfg(feature = "recording")]
+        self.recording.push(crate::recorded_draws::Draw::BlurredRect {
+            clip: shape.to_path(0.1),
+            transform,
+            rect,
+            color: brush,
+            corner: radius as f32,
+            std_dev: std_dev as f32,
+        });
         let t = Transform::from_kurbo(&transform);
         self.encoding.encode_transform(t);
 
@@ -305,6 +366,15 @@ impl Scene {
         brush_transform: Option<Affine>,
         shape: &impl Shape,
     ) {
+        let brush = brush.into();
+        #[cfg(feature = "recording")]
+        self.recording.push(crate::recorded_draws::Draw::Fill {
+            rule: style,
+            path: shape.to_path(0.1),
+            transform,
+            brush: brush.to_owned(),
+            brush_transform,
+        });
         let t = Transform::from_kurbo(&transform);
         self.encoding.encode_transform(t);
         self.encoding.encode_fill_style(style);
@@ -332,6 +402,15 @@ impl Scene {
         brush_transform: Option<Affine>,
         shape: &impl Shape,
     ) {
+        let brush = brush.into();
+        #[cfg(feature = "recording")]
+        self.recording.push(crate::recorded_draws::Draw::Stroke {
+            style: style.clone(),
+            path: shape.to_path(0.01),
+            transform,
+            brush: brush.to_owned(),
+            brush_transform,
+        });
         // The setting for tolerance are a compromise. For most applications,
         // shape tolerance doesn't matter, as the input is likely Bézier paths,
         // which is exact. Note that shape tolerance is hard-coded as 0.1 in
@@ -422,12 +501,7 @@ impl Scene {
     /// Draws an image at its natural size with the given transform.
     pub fn draw_image<'b>(&mut self, image: impl Into<ImageBrushRef<'b>>, transform: Affine) {
         let brush = image.into();
-        let rect = Rect::new(
-            0.0,
-            0.0,
-            brush.image.width as f64,
-            brush.image.height as f64,
-        );
+        let rect = Rect::new(0.0, 0.0, brush.image.width as f64, brush.image.height as f64);
         self.fill(Fill::NonZero, transform, brush, None, &rect);
     }
 
@@ -444,6 +518,14 @@ impl Scene {
     pub fn append(&mut self, other: &Self, transform: Option<Affine>) {
         let t = transform.as_ref().map(Transform::from_kurbo);
         self.encoding.append(&other.encoding, &t);
+        #[cfg(feature = "recording")]
+        self.recording.extend(
+            other
+                .recording
+                .iter()
+                .cloned()
+                .map(|draw| draw.transformed(transform.unwrap_or(Affine::IDENTITY))),
+        );
         #[cfg(feature = "bump_estimate")]
         self.estimator.append(&other.estimator, t.as_ref());
     }
@@ -455,6 +537,8 @@ impl From<Encoding> for Scene {
         // removed at some point - see https://github.com/linebender/vello/issues/541
         Self {
             encoding,
+            #[cfg(feature = "recording")]
+            recording: vec![crate::recorded_draws::Draw::Unsupported("raw encoding")],
             #[cfg(feature = "bump_estimate")]
             estimator: vello_encoding::BumpEstimator::default(),
         }
@@ -606,9 +690,20 @@ impl<'a> DrawGlyphs<'a> {
         let font = skrifa::FontRef::from_index(self.run.font.data.as_ref(), font_index).unwrap();
         let bitmaps = font.bitmap_strikes();
         if font.colr().is_ok() && font.cpal().is_ok() || !bitmaps.is_empty() {
+            #[cfg(feature = "recording")]
+            self.scene
+                .recording
+                .push(crate::recorded_draws::Draw::Unsupported("color glyphs"));
             self.try_draw_colr(style.into(), glyphs);
         } else {
             // Shortcut path - no need to test each glyph for a colr outline
+            #[cfg(feature = "recording")]
+            let (style, glyphs) = {
+                let style = style.into();
+                let glyphs = glyphs.collect::<Vec<_>>();
+                self.record_glyphs(style, &glyphs);
+                (style, glyphs.into_iter())
+            };
             let outline_count = self.draw_outline_glyphs(style, glyphs);
             if outline_count == 0 {
                 self.scene
@@ -618,6 +713,31 @@ impl<'a> DrawGlyphs<'a> {
                     .truncate(self.run.normalized_coords.start);
             }
         }
+    }
+
+    #[cfg(feature = "recording")]
+    fn record_glyphs(&mut self, style: StyleRef<'_>, glyphs: &[Glyph]) {
+        use crate::recorded_draws::Draw;
+        let draw = match (style, self.brush) {
+            (StyleRef::Fill(Fill::NonZero), BrushRef::Solid(color))
+                if self.run.brush_transform.is_none() =>
+            {
+                Draw::Glyphs {
+                    font: self.run.font.clone(),
+                    size: self.run.font_size,
+                    transform: self.run.transform.to_kurbo(),
+                    glyph_transform: self.run.glyph_transform.map(|t| t.to_kurbo()),
+                    coords: self.scene.encoding.resources.normalized_coords
+                        [self.run.normalized_coords.clone()]
+                    .to_vec(),
+                    glyphs: glyphs.to_vec(),
+                    hint: self.run.hint,
+                    color: color.with_alpha(color.components[3] * self.brush_alpha),
+                }
+            },
+            _ => Draw::Unsupported("styled glyph run"),
+        };
+        self.scene.recording.push(draw);
     }
 
     fn draw_outline_glyphs(
@@ -678,12 +798,12 @@ impl<'a> DrawGlyphs<'a> {
                     Some(color) => {
                         final_glyph = Some((EmojiLikeGlyph::Colr(color), *glyph));
                         false
-                    }
+                    },
                     None => match bitmaps.glyph_for_size(Size::new(ppem), glyph_id) {
                         Some(bitmap) => {
                             final_glyph = Some((EmojiLikeGlyph::Bitmap(bitmap), *glyph));
                             false
-                        }
+                        },
                         None => true,
                     },
                 }
@@ -726,7 +846,7 @@ impl<'a> DrawGlyphs<'a> {
                                 width: bitmap.width,
                                 height: bitmap.height,
                             }
-                        }
+                        },
                         bitmap::BitmapData::Png(data) => {
                             let mut decoder = png::Decoder::new(Cursor::new(data));
                             decoder.set_transformations(
@@ -757,7 +877,7 @@ impl<'a> DrawGlyphs<'a> {
                                 width: bitmap.width,
                                 height: bitmap.height,
                             }
-                        }
+                        },
                         bitmap::BitmapData::Mask(mask) => {
                             // TODO: Is this code worth having?
                             let Some(masks) = bitmap_masks(mask.bpp) else {
@@ -789,7 +909,7 @@ impl<'a> DrawGlyphs<'a> {
                                 width: bitmap.width,
                                 height: bitmap.height,
                             }
-                        }
+                        },
                     };
                     let image = ImageBrush::new(image).multiply_alpha(self.brush_alpha);
                     // Split into multiple statements because rustfmt breaks
@@ -833,7 +953,7 @@ impl<'a> DrawGlyphs<'a> {
                         transform *= glyph_transform.to_kurbo();
                     }
                     self.scene.draw_image(image.as_ref(), transform);
-                }
+                },
                 EmojiLikeGlyph::Colr(colr) => {
                     let transform = run_transform
                         * Affine::translate(Vec2::new(glyph.x.into(), glyph.y.into()))
@@ -857,7 +977,7 @@ impl<'a> DrawGlyphs<'a> {
                         },
                     )
                     .unwrap();
-                }
+                },
             }
         }
         if outline_count == 0 {
@@ -900,7 +1020,7 @@ fn bitmap_masks(bpp: u8) -> Option<&'static [BitmapMask]> {
                 byte(7),
             ];
             Some(BPP_1_MASK)
-        }
+        },
 
         2 => {
             const BPP_2_MASK: &[BitmapMask] = {
@@ -912,15 +1032,15 @@ fn bitmap_masks(bpp: u8) -> Option<&'static [BitmapMask]> {
                 ]
             };
             Some(BPP_2_MASK)
-        }
+        },
         4 => {
             const BPP_4_MASK: &[BitmapMask] = &[m(0b0000_1111, 0), m(0b1111_0000, 4)];
             Some(BPP_4_MASK)
-        }
+        },
         8 => {
             const BPP_8_MASK: &[BitmapMask] = &[m(u8::MAX, 0)];
             Some(BPP_8_MASK)
-        }
+        },
         _ => None,
     }
 }
@@ -1082,10 +1202,8 @@ impl OutlinePen for BezPathOutline {
     }
 
     fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
-        self.0.quad_to(
-            Point::new(cx0.into(), cy0.into()),
-            Point::new(x.into(), y.into()),
-        );
+        self.0
+            .quad_to(Point::new(cx0.into(), cy0.into()), Point::new(x.into(), y.into()));
     }
 
     fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
@@ -1161,13 +1279,9 @@ fn conv_brush(
         } => Brush::Gradient(
             // TODO: This is upside-down, see
             // https://github.com/linebender/vello/pull/1221
-            Gradient::new_sweep(
-                conv_point(c0),
-                start_angle.to_radians(),
-                end_angle.to_radians(),
-            )
-            .with_extend(conv_extend(extend))
-            .with_stops(ColorStopsConverter(color_stops, cpal, foreground_brush)),
+            Gradient::new_sweep(conv_point(c0), start_angle.to_radians(), end_angle.to_radians())
+                .with_extend(conv_extend(extend))
+                .with_stops(ColorStopsConverter(color_stops, cpal, foreground_brush)),
         ),
     }
 }
@@ -1183,12 +1297,7 @@ fn color_index(cpal: &'_ Cpal<'_>, palette_index: u16) -> Option<AlphaColor<Srgb
     let actual_colors = cpal.color_records_array().unwrap().unwrap();
     // TODO: Error reporting in the `None` case
     let color = actual_colors.get(usize::from(palette_index))?;
-    Some(AlphaColor::<Srgb>::from_rgba8(
-        color.red,
-        color.green,
-        color.blue,
-        color.alpha,
-    ))
+    Some(AlphaColor::<Srgb>::from_rgba8(color.red, color.green, color.blue, color.alpha))
 }
 
 fn conv_point(point: skrifa::raw::types::Point<f32>) -> Point {

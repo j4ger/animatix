@@ -21,7 +21,8 @@ export class AmxPlayerLoad extends AmxPlayerView {
     const { generation, controller } = this._beginOperation();
     this._state = "loading";
     this._skeleton?.classList.add("loading");
-    if (!("gpu" in navigator)) {
+    const webgl = new URL(location.href).searchParams.get("amx-backend") === "webgl2";
+    if (!webgl && !("gpu" in navigator)) {
       this._state = "error";
       const msg = "This embed needs a WebGPU browser (Chrome 113+, Firefox 141+, Safari 26+).";
       console.warn(`amx-player: ${msg}`);
@@ -40,10 +41,14 @@ export class AmxPlayerLoad extends AmxPlayerView {
       if (!this._isCurrentOperation(generation)) return;
       candidate = await this._prepareDocument(runtime, source, src, this._varsObject(), controller.signal);
       if (!this._isCurrentOperation(generation)) return;
-      await runtime.initEngine();
+      if (!webgl) await runtime.initEngine();
       if (!this._isCurrentOperation(generation)) return;
       try {
-        player = await runtime.module.create_player(this._canvas);
+        if (webgl && typeof runtime.module.create_webgl_player !== "function") {
+          throw new Error("This SDK was built without the WebGL2 experiment");
+        }
+        const create = webgl ? runtime.module.create_webgl_player : runtime.module.create_player;
+        player = await create(this._canvas);
       } catch (error) {
         throw playerError(error, "capability");
       }
@@ -81,6 +86,7 @@ export class AmxPlayerLoad extends AmxPlayerView {
         this._restTime = this._duration;
         this._time = this._duration;
       }
+      if (webgl) player.render_frame(this._time);
       this._renderScene();
 
       // Timeline landmarks for the scrubber (keyframes, scene starts,

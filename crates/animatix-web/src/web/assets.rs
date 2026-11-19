@@ -247,10 +247,15 @@ impl AmxPlayer {
         let BuiltDocument { target, result } = built;
 
         if let Some(target) = target {
-            self.dims = SceneDimensions {
+            let dims = SceneDimensions {
                 width: result.width,
                 height: result.height,
             };
+            #[cfg(feature = "webgl-experiment")]
+            if self.webgl.is_some() {
+                self.validate_webgl_document(&target, dims, result.duration_s)?;
+            }
+            self.dims = dims;
             self.duration_s = result.duration_s;
             // Filter targets are sized in scene space; rebuild for new dims.
             self.filter_backend = None;

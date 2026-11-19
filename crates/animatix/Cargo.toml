@@ -16,6 +16,8 @@ name = "engine_contracts"
 path = "tests/engine_contracts.rs"
 
 [features]
+# Canvas-only experiment, without changing native filter dispatch.
+webgl-experiment = ["vello/recording"]
 # Rendering is part of the engine pipeline, not an optional feature: scene
 # evaluation constructs `vello::Scene`s and the `FilterBackend` seam uses
 # `wgpu`/`vello` types (the GPU presentation stack lives in `animatix-render`).

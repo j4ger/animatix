@@ -18,6 +18,8 @@ mod prepared;
 mod readback;
 mod resource_probe;
 mod text_probe;
+#[cfg(feature = "webgl-experiment")]
+mod webgl;
 
 pub use api::{build_id, engine_commit, engine_version};
 pub use capabilities::{activate_capabilities, encode_rgba_png, runtime_build_id};
@@ -25,6 +27,8 @@ pub use engine::{create_player, debug_gpu_drain, init_engine};
 pub use prepared::{WasmPreparedProgram, prepare_source, validate_overlay_font};
 pub use resource_probe::debug_resource_stats;
 pub use text_probe::debug_text_probe;
+#[cfg(feature = "webgl-experiment")]
+pub use webgl::create_webgl_player;
 
 use std::cell::RefCell;
 
@@ -59,6 +63,8 @@ pub struct AmxPlayer {
     canvas: HtmlCanvasElement,
     surface: wgpu::Surface<'static>,
     config: wgpu::SurfaceConfiguration,
+    #[cfg(feature = "webgl-experiment")]
+    webgl: Option<webgl::Gpu>,
     /// Filter backend for the frame's primary target. During a multi-scene
     /// transition the incoming scene gets [`Self::filter_backend_to`] so the
     /// two scene renders cannot stomp each other's intermediate textures.

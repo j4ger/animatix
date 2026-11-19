@@ -40,6 +40,8 @@ default-target = "x86_64-unknown-linux-gnu"
 targets = []
 
 [features]
+# Animatix experiment: record its encoder inputs for replay on Vello GPU.
+recording = []
 bump_estimate = ["vello_encoding/bump_estimate"]
 debug_layers = []
 default = [

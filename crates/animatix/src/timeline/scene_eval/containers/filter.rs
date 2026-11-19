@@ -75,7 +75,7 @@ impl Timeline {
             .unwrap_or_default();
 
         if chain.is_empty() {
-            out.scene.encoding_mut().append(sub_scene.encoding(), &None);
+            out.scene.append(&sub_scene, None);
             return;
         }
 
@@ -229,6 +229,22 @@ impl Timeline {
         node_label: &str,
     ) {
         if let Some(backend) = out.filter_backend.as_mut() {
+            #[cfg(feature = "webgl-experiment")]
+            if let Some(result) = backend.record_inline_filter(
+                out.scene,
+                sub_scene,
+                region.unwrap_or(EffectRegion {
+                    origin: [0.0, 0.0],
+                    size: scene_dimensions,
+                }),
+                chain,
+                global_opacity,
+            ) {
+                if let Err(error) = result {
+                    tracing::warn!("Filter '{node_label}' could not record its texture: {error}");
+                }
+                return;
+            }
             match backend.render_scene_to_image_gpu_filtered(
                 sub_scene,
                 scene_dimensions,
@@ -265,7 +281,7 @@ impl Timeline {
                             ),
                         ),
                     );
-                    out.scene.encoding_mut().append(sub_scene.encoding(), &None);
+                    out.scene.append(&sub_scene, None);
                 },
             }
         }

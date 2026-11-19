@@ -19,7 +19,10 @@ async fn ensure_engine() -> Result<(), String> {
         return Ok(());
     }
 
-    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        backends: wgpu::Backends::BROWSER_WEBGPU,
+        ..wgpu::InstanceDescriptor::new_without_display_handle()
+    });
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
@@ -178,10 +181,22 @@ pub async fn create_player(canvas: HtmlCanvasElement) -> Result<AmxPlayer, JsErr
         };
         surface.configure(&ctx.device, &config);
 
-        Ok(AmxPlayer {
+        Ok(AmxPlayer::new(canvas, surface, config))
+    })
+}
+
+impl AmxPlayer {
+    pub(super) fn new(
+        canvas: HtmlCanvasElement,
+        surface: wgpu::Surface<'static>,
+        config: wgpu::SurfaceConfiguration,
+    ) -> Self {
+        Self {
             canvas,
             surface,
             config,
+            #[cfg(feature = "webgl-experiment")]
+            webgl: None,
             filter_backend: None,
             filter_backend_to: None,
             compositor: None,
@@ -207,6 +222,6 @@ pub async fn create_player(canvas: HtmlCanvasElement) -> Result<AmxPlayer, JsErr
             render_generation: 0,
             frames_drawn: 0,
             frames_deduped: 0,
-        })
-    })
+        }
+    }
 }

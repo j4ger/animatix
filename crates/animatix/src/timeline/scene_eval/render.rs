@@ -207,7 +207,7 @@ impl Timeline {
             transform,
             &rect,
         );
-        out.scene.encoding_mut().append(scratch.encoding(), &None);
+        out.scene.append(&scratch, None);
         out.scene.pop_layer();
     }
 

@@ -8,6 +8,7 @@ rust-version.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [features]
+webgl-experiment = ["dep:vello_gpu", "dep:glifo", "wgpu/webgl", "animatix/webgl-experiment"]
 default = ["rich-text", "image-decode", "svg", "raster-encode"]
 # Optional compilation switches; the shipped SDK includes all capabilities
 # and loads their Wasm partitions on demand.
@@ -46,6 +47,9 @@ console_error_panic_hook = "0.1"
 js-sys = "0.3"
 kurbo = { workspace = true }
 serde-wasm-bindgen = "0.6"
+# Kept opt-in until real-device and production-scene comparison is complete.
+vello_gpu = { version = "=0.4.0", default-features = false, features = ["wgpu", "blurred_rounded_rect", "gradient_sweep", "text", "full_image_support"], optional = true }
+glifo = { version = "0.5.0", default-features = false, optional = true }
 # Shared vello version (see the comment on the workspace entry).
 vello = { workspace = true }
 # Pinned to the installed wasm-bindgen-cli version; a mismatch fails at
