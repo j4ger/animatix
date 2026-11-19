@@ -52,6 +52,52 @@ config { resolution: (96, 64) }
 }
 
 #[test]
+fn bounded_grain_and_vignette_match_compute_coordinates() {
+    let Some((mut reference, mut candidate)) = pair() else {
+        return;
+    };
+    let timeline = common::build_checked(
+        r##"
+config { resolution: (96, 64), duration: 1 }
+#0s
+  bg: Rect, at: (48, 32), size: (96, 64), color: "#152436"
+  filtered: Filter, at: (38, 24), bounds: (17, 11, 42, 26) {
+    grain: Grain, amount: 0.6, seed: 3, monochrome: false
+    edges: Vignette, amount: 0.8, radius: 0.15, softness: 0.25
+    fill: Rect, size: (42, 26), color: "#778899"
+  }
+  panel: Glass, at: (76, 24), size: (26, 26) {
+    glass_grain: Grain, amount: 0.6, seed: 3, monochrome: true
+    glass_edges: Vignette, amount: 0.8, radius: 0.15, softness: 0.25
+  }
+"##,
+    );
+    let mut samples = Vec::new();
+    for time in [0.0, 0.1] {
+        let old = reference.render_timeline(&timeline, time, DIMS).expect("legacy frame");
+        let new = candidate.render_timeline(&timeline, time, DIMS).expect("candidate frame");
+        for (x, y) in [
+            (19, 13),
+            (27, 18),
+            (40, 22),
+            (55, 33),
+            (66, 15),
+            (79, 23),
+            (87, 33),
+        ] {
+            let expected = pixel(&old, x, y);
+            let actual = pixel(&new, x, y);
+            assert!(
+                actual.iter().zip(expected).all(|(a, b)| a.abs_diff(b) <= 2),
+                "pixel ({x}, {y}) at {time}s: {actual:?} vs {expected:?}"
+            );
+        }
+        samples.push(pixel(&new, 40, 22));
+    }
+    assert_ne!(samples[0], samples[1], "Grain must advance with the playhead");
+}
+
+#[test]
 fn deferred_glass_panel_stays_above_later_base_draws() {
     let Some((mut reference, mut candidate)) = pair() else {
         return;

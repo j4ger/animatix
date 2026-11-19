@@ -10,6 +10,7 @@ use kurbo::{Affine, Rect};
 use vello_gpu::{ClearSettings, TargetInit};
 
 use crate::effects_gpu::{EffectsExtent, EffectsGpu};
+use crate::filter_region::quantize_region_size;
 use crate::raster_gpu::{ExternalTextures, RasterGpu};
 use composite::{Compositor, Parameters};
 
@@ -152,7 +153,13 @@ impl FrameGpu {
     ) -> Result<(), String> {
         self.validate_target(destination)?;
         self.used = 0;
-        self.paint(scene, destination, raster, color)
+        let (width, height) = dimensions(destination);
+        let scale = raster_scale(raster);
+        let canvas = SceneDimensions {
+            width: scaled_extent(width, scale.recip()),
+            height: scaled_extent(height, scale.recip()),
+        };
+        self.paint(scene, destination, raster, canvas, color)
     }
 
     /// Copy a premultiplied frame into a surface or an export target.
@@ -194,7 +201,7 @@ impl FrameGpu {
                 "Vello GPU overlay requires two independent targets of the same size".into()
             );
         }
-        let area = PixelRect::full(destination);
+        let area = PixelRect::full(destination).rect();
         self.composite(destination, source, area, area, [3.0, opacity, 0.0, 0.0]);
         Ok(())
     }
@@ -204,6 +211,7 @@ impl FrameGpu {
         scene: &Scene,
         destination: &wgpu::TextureView,
         raster: Affine,
+        canvas: SceneDimensions,
         color: peniko::Color,
     ) -> Result<(), String> {
         let draws = scene.draws();
@@ -229,7 +237,7 @@ impl FrameGpu {
                     placement: CompositePlacement::Inline,
                 } => {
                     let Some((view, area)) =
-                        self.filtered_scene(scene, *region, chain, destination, raster)?
+                        self.filtered_scene(scene, *region, chain, destination, raster, canvas)?
                     else {
                         continue;
                     };
@@ -237,7 +245,7 @@ impl FrameGpu {
                     textures.insert(id, view);
                     base.push(Draw::Texture {
                         id,
-                        rect: area.rect(),
+                        rect: area,
                         opacity: *opacity,
                         transform: Affine::IDENTITY,
                     });
@@ -261,7 +269,7 @@ impl FrameGpu {
                     ..
                 } => {
                     if let Some((view, area)) =
-                        self.filtered_scene(scene, *region, chain, destination, raster)?
+                        self.filtered_scene(scene, *region, chain, destination, raster, canvas)?
                     {
                         self.composite(destination, &view, area, area, [3.0, *opacity, 0.0, 0.0]);
                     }
@@ -270,8 +278,14 @@ impl FrameGpu {
                     self.backdrop(destination, backdrop, raster)?;
                     let area = PixelRect::full(destination);
                     let layer = self.scratch(area.width, area.height);
-                    self.paint(children, &layer, raster, peniko::Color::TRANSPARENT)?;
-                    self.composite(destination, &layer, area, area, [3.0, 1.0, 0.0, 0.0]);
+                    self.paint(children, &layer, raster, canvas, peniko::Color::TRANSPARENT)?;
+                    self.composite(
+                        destination,
+                        &layer,
+                        area.rect(),
+                        area.rect(),
+                        [3.0, 1.0, 0.0, 0.0],
+                    );
                 },
                 _ => unreachable!("only effect draws are deferred"),
             }
@@ -287,25 +301,37 @@ impl FrameGpu {
         chain: &EffectChain,
         destination: &wgpu::TextureView,
         raster: Affine,
-    ) -> Result<Option<(wgpu::TextureView, PixelRect)>, String> {
-        let area = match region {
-            Some(region) => PixelRect::rasterized(region, raster, destination),
-            None => Some(PixelRect::full(destination)),
-        };
-        let Some(area) = area else {
+        canvas: SceneDimensions,
+    ) -> Result<Option<(wgpu::TextureView, Rect)>, String> {
+        let region = region.unwrap_or(EffectRegion {
+            origin: [0.0; 2],
+            size: canvas,
+        });
+        let bounds = raster_bounds(region, raster);
+        let width = (bounds.width().round() as u32).max(1);
+        let height = (bounds.height().round() as u32).max(1);
+        let area = Rect::from_origin_size(bounds.origin(), (f64::from(width), f64::from(height)));
+        if area.intersect(PixelRect::full(destination).rect()).is_zero_area() {
             return Ok(None);
-        };
-        let result = self.scratch(area.width, area.height);
+        }
+        // Keep the sub-pixel origin for both the seed and its placement. Snapping
+        // each edge independently can also push the dispatch into a different bucket.
+        let result = self.scratch(width, height);
         let checkpoint = self.used;
-        let shifted = Affine::translate((-f64::from(area.x), -f64::from(area.y))) * raster;
+        let shifted = Affine::translate((-area.x0, -area.y0)) * raster;
         if chain.is_empty() {
-            self.paint(scene, &result, shifted, peniko::Color::TRANSPARENT)?;
+            self.paint(scene, &result, shifted, canvas, peniko::Color::TRANSPARENT)?;
             self.used = checkpoint;
             return Ok(Some((result, area)));
         }
-        let seed = self.scratch(area.width, area.height);
-        self.paint(scene, &seed, shifted, peniko::Color::TRANSPARENT)?;
-        let filtered = self.run_effects(&seed, area, chain, raster)?;
+        let (bucket_width, bucket_height) = quantize_region_size(region.size, canvas);
+        let scale = raster_scale(raster);
+        let seed = self.scratch(
+            scaled_extent(bucket_width, scale).max(width),
+            scaled_extent(bucket_height, scale).max(height),
+        );
+        self.paint(scene, &seed, shifted, canvas, peniko::Color::TRANSPARENT)?;
+        let filtered = self.run_effects(&seed, [area.x0 as f32, area.y0 as f32], chain, raster)?;
         // A later inline Filter can reuse the effect executor's scratch while
         // this result is still referenced by the main raster pass.
         self.copy(&filtered, PixelRect::full(&result), &result);
@@ -325,16 +351,43 @@ impl FrameGpu {
         let Some(clip) = PixelRect::rasterized(backdrop.clip, raster, destination) else {
             return Ok(());
         };
-        let seed = self.scratch(region.width, region.height);
-        self.copy(destination, region, &seed);
-        let filtered = self.run_effects(&seed, region, &backdrop.chain, raster)?;
+        // The backdrop starts from an already rasterized frame, so its buckets
+        // are in target pixels. Clear the padding before copying into a reused seed.
+        let full = PixelRect::full(destination);
+        let (width, height) = quantize_region_size(region.size(), full.size());
+        let dispatch = PixelRect {
+            width,
+            height,
+            ..region
+        };
+        let seed = self.scratch(width, height);
+        let mut encoder = self.encoder();
+        if (width, height) != (region.width, region.height) {
+            encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Animatix Clear Backdrop Padding"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &seed,
+                    resolve_target: None,
+                    depth_slice: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                ..Default::default()
+            });
+        }
+        encode_copy(&mut encoder, destination, region, &seed);
+        self.queue.submit([encoder.finish()]);
+        let filtered =
+            self.run_effects(&seed, [region.x as f32, region.y as f32], &backdrop.chain, raster)?;
         self.composite(
             destination,
             &filtered,
-            region,
-            clip,
+            dispatch.rect(),
+            clip.rect(),
             [
-                2.0,
+                3.0,
                 backdrop.alpha,
                 backdrop.corner_radius * raster_scale(raster),
                 0.0,
@@ -346,22 +399,23 @@ impl FrameGpu {
     fn run_effects(
         &mut self,
         seed: &wgpu::TextureView,
-        area: PixelRect,
+        origin: [f32; 2],
         chain: &EffectChain,
         raster: Affine,
     ) -> Result<wgpu::TextureView, String> {
         if chain.is_empty() {
             return Ok(seed.clone());
         }
+        let (width, height) = dimensions(seed);
         Ok(self
             .effects
             .apply(
                 seed,
                 chain,
                 EffectsExtent {
-                    width: area.width,
-                    height: area.height,
-                    origin: [area.x as f32, area.y as f32],
+                    width,
+                    height,
+                    origin,
                 },
                 raster_scale(raster),
             )?
@@ -372,8 +426,8 @@ impl FrameGpu {
         &mut self,
         destination: &wgpu::TextureView,
         source: &wgpu::TextureView,
-        source_area: PixelRect,
-        clip: PixelRect,
+        source_area: Rect,
+        clip: Rect,
         settings: [f32; 4],
     ) {
         let checkpoint = self.used;
@@ -381,16 +435,16 @@ impl FrameGpu {
         let temporary = self.scratch(width, height);
         let params = Parameters {
             clip: [
-                clip.x as f32,
-                clip.y as f32,
-                (clip.x + clip.width) as f32,
-                (clip.y + clip.height) as f32,
+                clip.x0 as f32,
+                clip.y0 as f32,
+                clip.x1 as f32,
+                clip.y1 as f32,
             ],
             source: [
-                source_area.x as f32,
-                source_area.y as f32,
-                source_area.width as f32,
-                source_area.height as f32,
+                source_area.x0 as f32,
+                source_area.y0 as f32,
+                source_area.width() as f32,
+                source_area.height() as f32,
             ],
             settings,
         };
@@ -477,13 +531,7 @@ impl PixelRect {
     }
 
     fn rasterized(region: EffectRegion, raster: Affine, view: &wgpu::TextureView) -> Option<Self> {
-        let [x, y] = region.origin.map(f64::from);
-        let rect = raster.transform_rect_bbox(Rect::new(
-            x,
-            y,
-            x + f64::from(region.size.width),
-            y + f64::from(region.size.height),
-        ));
+        let rect = raster_bounds(region, raster);
         let (width, height) = dimensions(view);
         let x = rect.x0.floor().clamp(0.0, f64::from(width)) as u32;
         let y = rect.y0.floor().clamp(0.0, f64::from(height)) as u32;
@@ -505,10 +553,25 @@ impl PixelRect {
             (self.y + self.height).into(),
         )
     }
+
+    fn size(self) -> SceneDimensions {
+        SceneDimensions {
+            width: self.width,
+            height: self.height,
+        }
+    }
 }
 
 fn dimensions(view: &wgpu::TextureView) -> (u32, u32) {
     (view.texture().width(), view.texture().height())
+}
+
+fn raster_bounds(region: EffectRegion, raster: Affine) -> Rect {
+    let [x, y] = region.origin.map(f64::from);
+    raster.transform_rect_bbox(Rect::from_origin_size(
+        (x, y),
+        (f64::from(region.size.width), f64::from(region.size.height)),
+    ))
 }
 
 fn contains_effects(draws: &[Draw]) -> bool {
@@ -520,6 +583,10 @@ fn contains_effects(draws: &[Draw]) -> bool {
 fn raster_scale(raster: Affine) -> f32 {
     let [a, b, ..] = raster.as_coeffs();
     a.hypot(b) as f32
+}
+
+fn scaled_extent(extent: u32, scale: f32) -> u32 {
+    ((extent as f32 * scale).round() as u32).max(1)
 }
 
 fn target(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureView {

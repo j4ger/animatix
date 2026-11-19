@@ -129,9 +129,8 @@ time and sums the per-stage maxima, so the result is constant per track (PF-7:
 no per-frame reallocation).
 
 **Implemented (explicit knob).** `Filter, bounds: (x, y, w, h)` restricts the
-effect to that region: the sub-scene is rendered, seeded, dispatched, and
-harvested entirely inside `bounds ∪ worst-case support` (clamped to the scene),
-and the result is composited back at the region origin.
+effect to that region. `bounds ∪ worst-case support` (clamped to the scene)
+determines the harvested area, which is composited back at the region origin.
 A valid authored region that covers the whole canvas after camera mapping,
 support padding and clipping selects the full-scene path; it does **not**
 fall back to a content-derived ROI. This distinction matters for region-relative
@@ -140,8 +139,10 @@ content-region derivation.
 
 **Region-scoped dispatch (implemented 2026-09-16).** The chain dispatches over
 the **region**, not the full canvas: the sub-scene is rendered into a
-region-sized target via a translate crop, the seed copy and every compute pass
-run at region extent, and the shaders' UV space is exactly the region. This
+translated scratch target. The seed and all effect passes use the same dispatch
+extent, rounded up to 64 scene-pixel steps and capped at the canvas size. The
+padding participates in the shader's coordinates and only the original region
+is composited back. Compute and Vello GPU use the same dispatch sizing. This
 makes the stale-texel hazard impossible by construction (dispatch == seed ==
 sampled extent — the original full-canvas dispatch existed because a
 region-cropped seed read through full-canvas UVs pulled stale texels from the

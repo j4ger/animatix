@@ -76,7 +76,8 @@ impl GpuFilterBackend {
         let mut wrapped;
         let (dispatch_dims, scene_ref, scratch) = match region {
             Some(r) => {
-                let (width, height) = Self::quantize_region_size(r.size, dimensions);
+                let (width, height) =
+                    crate::filter_region::quantize_region_size(r.size, dimensions);
                 let (width, height) = (scaled_texels(width, s), scaled_texels(height, s));
                 wrapped = animatix::scene::Scene::new();
                 let shift = kurbo::Affine::translate(kurbo::Vec2::new(

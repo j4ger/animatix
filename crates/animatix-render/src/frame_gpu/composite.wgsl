@@ -38,6 +38,9 @@ fn fs(vertex: Vertex) -> @location(0) vec4f {
         return straight(base);
     }
     let point = vertex.position.xy;
+    if any(point < params.clip.xy) || any(point >= params.clip.zw) {
+        return base;
+    }
     let half_size = (params.clip.zw - params.clip.xy) * 0.5;
     let corner = min(params.settings.z, min(half_size.x, half_size.y));
     let q = abs(point - (params.clip.xy + half_size)) - half_size + corner;
@@ -46,9 +49,6 @@ fn fs(vertex: Vertex) -> @location(0) vec4f {
     let uv = (point - params.source.xy) / params.source.zw;
     let foreground = textureSampleLevel(source_texture, linear_sampler, uv, 0.0);
     let alpha = coverage * params.settings.y;
-    if mode == 2u {
-        return mix(base, foreground, alpha);
-    }
     let overlay = foreground * alpha;
     return overlay + base * (1.0 - overlay.a);
 }

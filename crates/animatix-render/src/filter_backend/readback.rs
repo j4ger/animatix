@@ -1,14 +1,6 @@
 use super::*;
 
 impl GpuFilterBackend {
-    pub(super) fn quantize_region_size(
-        size: SceneDimensions,
-        canvas: SceneDimensions,
-    ) -> (u32, u32) {
-        let step = |v: u32, max: u32| (v.div_ceil(64).max(1) * 64).min(max.max(1));
-        (step(size.width, canvas.width), step(size.height, canvas.height))
-    }
-
     /// Get (creating on first use) the region-scoped scratch targets for a
     /// quantized size. Textures are cloned out (refcount bumps) so the cache
     /// stays owned by the backend across the mutable render call.

@@ -15,6 +15,7 @@ pub mod delivery;
 pub mod effects_gpu;
 pub mod encode;
 pub mod filter_backend;
+mod filter_region;
 #[cfg(feature = "vello-gpu")]
 pub mod frame_gpu;
 pub mod fullscreen_blit;

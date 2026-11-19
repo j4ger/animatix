@@ -204,7 +204,7 @@ impl GpuFilterBackend {
             height: size.height,
         };
         let region = backdrop.region;
-        let (w, h) = Self::quantize_region_size(region.size, canvas);
+        let (w, h) = crate::filter_region::quantize_region_size(region.size, canvas);
         let dispatch = SceneDimensions {
             width: w,
             height: h,
