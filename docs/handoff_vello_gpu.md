@@ -3,16 +3,17 @@
 Use `experiment/vello-gpu-migration` for the candidate and `204b668a` for the
 Compute baseline. The [migration archive](history/2026-11-19-vello-gpu-migration-baseline.md)
 records the development SDK, native offscreen, shader and software-browser
-results. The tested release candidate exceeds the base Wasm budgets. Use it
-for device compatibility testing and rerun the size gate before a Web default
-switch.
+results. Complete the feature and device checks first. Record package size
+for the candidate so the rollout can use measured cold-transfer costs.
 
 ## Build two immutable SDKs
 
 In separate clean checkouts, use the same pinned `.#web-build` environment.
-Save each manifest, its `build.source_commit`, and the output of the size gate.
-The base Wasm gzip budget is 1,900,000 bytes. Record every reported size before
-running the gate so a failure on the first limit still leaves the full report.
+Save each manifest, its `build.source_commit`, and the full size report.
+The existing SDK publication gate still uses a 1,900,000-byte budget for base
+Wasm gzip. A failure against that historical budget leaves the functional
+checks actionable. Set the release budget explicitly before changing the
+Web default.
 
 ```sh
 git fetch origin main experiment/vello-gpu-migration
@@ -125,7 +126,9 @@ nix develop -c python3 tools/ci/compare-snapshot-gates.py \
   --baseline 204b668a --candidate "$(git rev-parse HEAD)"
 nix develop -c env ANIMATIX_REQUIRE_GPU=1 ANIMATIX_RENDER_BACKEND=vello-gpu \
   cargo test --locked -p animatix-render --features vello-gpu \
-  --test offscreen_render -- --test-threads=1
+  --test frame_gpu --test offscreen_render -- --test-threads=1
+nix develop -c env ANIMATIX_REQUIRE_GPU=1 \
+  cargo test --locked -p animatix-render --features vello-gpu --lib effects_gpu::tests
 nix develop -c cargo build --locked --release -p animatix-cli -p animatix-gui \
   --features video,vello-gpu
 ```
@@ -134,6 +137,14 @@ Repeat the offscreen run with `ANIMATIX_RENDER_BACKEND=legacy` on the same
 hardware. Open the Glass fixture in the GUI with each backend and exercise
 play, pause, seek, preview resizing and export. Save screenshots and the
 `--perf-log` JSONL. Use the same scene for PNG and WebP exports.
+
+Compare the effects catalog and recipes at 1 s, light vocabulary at 4 s,
+and the camera and Glass fixtures at 3.5 s and 3 s, respectively. Use both
+native renderer selections on the same adapter. Run the effects catalog and
+recipes again through Chromium with forced WebGPU and forced WebGL2. These
+scenes exercise region-dependent effect coordinates, alpha and paint order.
+For discrepancies, save both frames, the sampled timestamp, and the renderer
+identity.
 
 ```sh
 out="$(mktemp -d)"
@@ -218,12 +229,9 @@ and the compressor identity.
 | Compressed fonts | 2,062,576 | 2,062,576 | 2,400,000 |
 | SDK total | 38,359,409 | 41,830,242 | 42,000,000 |
 
-The baseline passed the SDK size gate. The candidate needs to recover 2,443,036
-raw base bytes and 922,974 compressed base bytes. Check which renderer code
-lands in the base module, starting with the WebGL-only paths through wgpu and
-Naga and any reachable Compute code. Measure the actual cold transfer for
-forced WebGPU and forced WebGL2 when testing partition changes. Keep the
-existing SDK limits in the comparison.
+The baseline passed the SDK size gate. This early candidate exceeded the
+published limits by 2,443,036 raw base bytes and 922,974 compressed base bytes.
+The investigation below attributes the differences.
 
 The candidate release passed automatic WebGL2 fallback and forced WebGL2
 in Chromium 156 with SwiftShader. Both runs covered playback, edit rollback,
@@ -238,6 +246,48 @@ The fixed candidate build can be verified with
 acceptance-only Rust test and example fixes change the source fingerprint for
 a fresh build. Both host builds reported missing exact upstream license text
 for `fax`, `fax_derive`, `glidesort` and `rust-std` in their license inventories.
+
+## Functional parity follow-up
+
+The effects catalog and recipes exposed a change in the coordinate system for
+bounded effects. Both renderers now use the same padded dispatch extent for
+`Filter` and `Glass`. `Filter` keeps its fractional placement, and the backdrop
+seed clears padding before reuse. The native regression compares bounded
+`Grain` and `Vignette` on both renderers at two playhead positions.
+
+On SwiftShader, all 30 frame and offscreen tests passed. Three additional
+effect tests validated and executed the 14 built-in fragment pipelines and
+the native `Pixelate` compute shader. The CLI also loaded the demo as a native
+shared library and rendered its scene on both backends. Its mean per-pixel
+maximum RGB-channel difference was 0.008 on the 0–255 scale. PNG and WebP
+exports of the same effects catalog frame decoded to identical pixels.
+
+The native catalog's mean per-pixel maximum RGB-channel difference dropped
+from 3.32 to 0.04 on the 0–255 scale. The same measurement on the effects
+recipes dropped from 7.56 to 0.02. The software run also sampled the shape
+gallery with raster and SVG assets, masks, camera motion, layout and captions,
+cross-file compositions, transitions and a matrix shear. Fifteen of the 16
+native frame pairs had a mean difference of 0.08 or less.
+
+Chromium with SwiftShader rendered 17 frames on each of the forced candidate
+backends, including a frame with Latin and CJK text, emoji and Typst. Fifteen
+frame pairs had identical RGBA bytes. The effects catalog and Glass transition
+had a maximum difference of one channel value. The packaged SDK also passed
+the automatic fallback and forced WebGL2 presentation smokes, including edit
+rollback, context recovery and zero presentation readbacks. The cold PNG
+encoding proof and SDK integrity checks passed.
+
+The tested build ID is
+`95538f7690311e205e4dcb39d35a5d1c96b391cd3bf79d4bcb8962b4069c575a`.
+The SDK was built from the working tree before the code commit and passed
+`verify --release --current` after the commit. Rebuild from the branch checkout
+for a clean source-commit record on the hardware run. The base Wasm gzip was
+2,434,237 bytes and the complete SDK was 40,262,340 bytes.
+
+Include `32_light_vocabulary.amx` in the hardware visual comparison. The
+software comparison shows a visible difference at the sweep gradient's seam
+and a smaller color difference in its linear gradient. Save the two hardware
+frames for review along with the effect catalog and recipes.
 
 ## Release base Wasm investigation
 
@@ -290,12 +340,8 @@ and 657,810 gzip bytes. The Wasm dependency graph contains `wgpu-core` in the
 dual build and omits it in the control. These are measurements of the entire
 feature delta, including the GLES backend, validation and shader translation.
 
-Use the 1,776,169-byte WebGPU control as the reference for isolating the
-fallback in the SDK loader. A prototype should defer the WebGL renderer and
-its execution paths together. Capture the bytes fetched before first frame
-for successful WebGPU, a browser without WebGPU, and fallback after WebGPU
-initialization fails. Check the combined downloads and the SDK total against
-the existing limits. If the wgpu WebGL2 fallback remains over budget, evaluate
-the upstream `vello_gpu::WebGlRenderer` with generated GLSL for the effect and
-transition passes. Each backend should pass the Linux hardware checks before
-the default changes.
+If cold startup motivates a separate WebGL2 download, use the 1,776,169-byte
+WebGPU control as the reference. Measure the bytes fetched before the first
+frame for successful WebGPU, a browser without WebGPU, and fallback after a
+WebGPU initialization failure. The Linux hardware checks apply to both
+browser backends before changing the default.
