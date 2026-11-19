@@ -4,14 +4,18 @@ Use `experiment/vello-gpu-migration` for the candidate and `204b668a` for the
 Compute baseline. The [migration archive](history/2026-11-19-vello-gpu-migration-baseline.md)
 records the development SDK, native offscreen, shader and software-browser
 results. The [Linux acceptance record](history/2026-11-19-vello-gpu-linux-acceptance.md)
-records the pinned release SDKs and the Linux hardware run. Use the published
-size limits and the outstanding device and rollout checks below when deciding
-whether to switch defaults.
+records the pinned release SDKs and the Linux hardware run. The
+[closeout measurements](history/2026-11-19-vello-gpu-linux-acceptance.md#closeout-measurements-on-2026-11-20)
+cover the split SDK prototype, the Glass bottleneck and the hardware gradient
+review. Use the published size limits and the outstanding device and rollout
+checks below when deciding whether to switch defaults.
 
 The Linux checks found two release blockers. The dual Web SDK exceeds both
-base Wasm size budgets. Native Vello GPU export is slower than Compute on the
-matched Glass runs. The light vocabulary frames also need visual review.
-The Web SDK and Linux package rollback rehearsals passed in local preview.
+base Wasm size budgets. The split prototype fits the WebGPU budget and
+exceeds the first-frame latency limit when WebGPU initialization fails.
+Native Vello GPU export remains below the 90% of Compute throughput target
+on Glass. The Web SDK and Linux package rollback rehearsals passed in local
+preview.
 
 ## Build two immutable SDKs
 
@@ -347,8 +351,9 @@ and 657,810 gzip bytes. The Wasm dependency graph contains `wgpu-core` in the
 dual build and omits it in the control. These are measurements of the entire
 feature delta, including the GLES backend, validation and shader translation.
 
-If cold startup motivates a separate WebGL2 download, use the 1,776,169-byte
-WebGPU control as the reference. Measure the bytes fetched before the first
-frame for successful WebGPU, a browser without WebGPU, and fallback after a
-WebGPU initialization failure. The Linux hardware checks apply to both
-browser backends before changing the default.
+Use the same-source 1,774,873-byte WebGPU-only build as the cold-start
+reference. For any revised packaging, measure successful WebGPU, an
+absent API and rejected WebGPU initialization. The basic split fetched
+both base modules after rejection. Recheck first-frame time, frame
+completion p95 and device-loss recovery on hardware before switching the
+Web default.

@@ -185,3 +185,110 @@ after all three checks. The published Typst SVG 0.15.1 manifest still asks
 for Hayro 0.7.1, and published epaint 0.37.0 still asks for Vello CPU 0.2.0.
 [Typst SVG manifest](https://docs.rs/crate/typst-svg/0.15.1/source/Cargo.toml) ·
 [epaint manifest](https://docs.rs/crate/epaint/0.37.0/source/Cargo.toml)
+
+## Closeout measurements on 2026-11-20
+
+The follow-up tested source `6bbf3e64` on the same RTX 4060 Laptop GPU.
+Raw ledgers, screenshots and temporary experiment patches are under
+`target/ci/vello-gpu-followup/`.
+
+### Web cold startup
+
+Both Vello GPU SDKs used the pinned `.#web-build` shell and the same clean
+source. The WebGPU-only build passed release identity verification and the
+cold PNG capability proof. Its 4,736,540 raw and 1,774,873 gzip base bytes
+fit the published 5,400,000 and 1,900,000 byte limits. The dual SDK used
+6,431,830 raw and 2,432,901 gzip base bytes. The WebGPU-only build ID is
+`959e9e75b0bf03f0a6d091dbe6fefe1216aad413040b3c9c7fb098a06f7949bb`.
+The dual build ID is
+`89ffa890eeb260103aa8734a73bf9b81c765103a32882e50a39c6882587a9c31`.
+
+The split prototype used one embed loader and these two immutable
+manifests. It chose the dual SDK when the browser exposed no WebGPU API,
+or after the primary SDK failed to initialize WebGPU. It measured initial
+negotiation only. The dual SDK's existing device and context recovery
+results are recorded above.
+
+Each row uses five interleaved runs on the loopback server with fresh
+Chromium profiles, browser caching disabled, one production-quality
+First Move player and render scale 1. The missing-API case hid
+`navigator.gpu`. The rejected case exposed the API and rejected
+`GPU.requestAdapter()`, with the attempted calls counted. The WebGPU path
+used the non-fallback NVIDIA adapter. The WebGL2 path used NVIDIA ANGLE
+over Vulkan and disabled Chromium GPU compositing after fence failures
+with the initial browser configuration. The first run of each row
+checked the visible cyan foreground at 2.5 s. All runs counted zero
+application pixel readbacks.
+
+| Initial route | Wasm body bytes before ready | Resource transfer bytes before ready | Median ready | Median first GPU completion | Median frame completion p95 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Compute WebGPU baseline | 1,866,359 | 2,209,776 | 293.3 ms | 664.0 ms | 6.5 ms |
+| Dual, WebGPU succeeds | 2,432,901 | 2,812,279 | 313.1 ms | 437.3 ms | 4.9 ms |
+| Split, WebGPU succeeds | 1,774,873 | 2,128,442 | 317.4 ms | 436.7 ms | 4.9 ms |
+| Dual, WebGPU API absent | 2,432,901 | 2,812,279 | 404.6 ms | 420.6 ms | — |
+| Split, WebGPU API absent | 2,432,901 | 2,812,645 | 402.7 ms | 416.9 ms | — |
+| Dual, adapter request rejected | 2,432,901 | 2,812,279 | 400.8 ms | 415.3 ms | — |
+| Split, adapter request rejected | 4,207,774 | 4,856,294 | 515.5 ms | 530.2 ms | — |
+
+Transfer bytes use the browser's Resource Timing entries with completed
+responses before `amxready`. Startup GPU completion uses a device queue
+drain or a WebGL2 fence. The WebGL2 rows stopped after the startup fence.
+The steady-state WebGL2 timing and foreground cadence above apply to the
+dual SDK. The first Compute startup was an outlier at 2,087.4 ms to ready
+and 2,627.9 ms to GPU completion. It remains in the five-run median.
+
+The split prototype saved 658,028 Wasm bytes on successful WebGPU. An
+adapter failure cost 1,774,873 additional Wasm bytes and increased median
+startup GPU completion by 27.7% against the dual SDK, beyond the 10%
+limit. The prototype stays out of the release candidate.
+
+### Native Glass export
+
+The export driver used 1280×720 Glass on NVIDIA Vulkan, with 30 warmup
+frames and pipelined texture readback. Its throughput covers scene
+evaluation, raster, effects and readback. FFmpeg encode is measured in
+the separate video proof above.
+
+Three alternating 600-frame runs had a median of 364.5 fps for Compute
+and 323.3 fps for Vello GPU, or 88.7% of Compute. A second experiment
+rotated the order of Compute, the unchanged candidate and a patch that
+replaced the destination sample and scratch copy with premultiplied
+fixed-function blending. Each configuration ran 1,200 frames six times.
+
+| Renderer | Median export fps | Run range |
+| --- | ---: | ---: |
+| Compute | 658.9 | 482.4–702.2 |
+| Vello GPU | 437.1 | 374.0–507.1 |
+| Vello GPU with in-place blend | 379.3 | 306.9–504.6 |
+
+The improvement changed sign across runs. The patch was reverted. Both
+sets of runs left the candidate below the 90% of Compute throughput
+target.
+
+An instrumented candidate run sampled 360 frames, including 286 that
+painted Glass. For those frames, median CPU elapsed time in the main
+raster call was 1.484 ms and the isolated children pass took 0.516 ms.
+The backdrop seed, effects chain, backdrop composite and children
+composite took 0.044, 0.134, 0.061 and 0.070 ms respectively. A second
+instrumented run split the main raster call into scene preparation
+(0.640 ms), Vello command encoding (0.163 ms) and queue submission
+(0.187 ms). These are median CPU times from a separate run. Readback
+accounts for GPU completion. The temporary probes were removed.
+
+Reusing the Vello GPU scene and resetting it between raster calls raised
+the median from 388.3 to 394.8 fps over another six rotated 1,200-frame
+runs. Compute measured 540.9 fps in that series. The 1.7% change was
+small compared with run-to-run variation and left throughput at 73.0%
+of Compute. The reuse patch was reverted.
+
+The paired hardware crop for `32_light_vocabulary.amx` at 4 s shows the
+same shapes, stroke and text placement. The sweep arc and the bar ramp
+show the color interpolation difference described above. The crop is
+`target/ci/vello-gpu-acceptance/native-media/light-pair.png`.
+
+### Cleanup status
+
+`minimal-engine` passed again. `wasm-no-legacy` and `full-no-legacy`
+both reported remaining packages and left `Cargo.lock` byte-identical.
+The published manifest for Hayro 0.7.1 depends on Vello CPU 0.0.8.
+[Hayro manifest](https://docs.rs/crate/hayro/0.7.1/source/Cargo.toml)

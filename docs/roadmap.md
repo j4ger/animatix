@@ -589,9 +589,11 @@ chosen version and tag with finalized release notes named `vX.Y.Z.md` in
   Linux portability outside Nix. A successful build alone is not runtime evidence.
 - Compare the published site and SDK manifests with the release's source identity.
 - Complete the [Vello GPU migration handoff](handoff_vello_gpu.md). Resolve the
-  dual-backend Web SDK size overage and review Linux visual and performance
-  evidence before switching defaults. Observe a staged release before removing
-  the Compute renderer and vendor patch. The strict dependency gates still
+  Web SDK size overage and keep WebGL2 startup within the latency limit after
+  WebGPU initialization fails. Bring Vello GPU Glass export to at least 90%
+  of Compute throughput and validate the candidate on the shipped native
+  platforms. Observe a staged release before removing the Compute renderer
+  and vendor patch. The strict dependency gates still
   require resolving the transitive Vello CPU dependencies in Typst/Hayro and
   epaint.
 - Reconcile the direct Pages upload workflow with the journal-backed publisher.
