@@ -50,7 +50,7 @@ fn encode_seed_copy(
 impl GpuFilterBackend {
     pub(super) fn render_and_filter_scene_to_view(
         &mut self,
-        scene: &vello::Scene,
+        scene: &animatix::scene::Scene,
         dimensions: SceneDimensions,
         region: Option<EffectRegion>,
         chain: &EffectChain,
@@ -61,7 +61,7 @@ impl GpuFilterBackend {
 
     pub(super) fn render_and_filter_scene(
         &mut self,
-        scene: &vello::Scene,
+        scene: &animatix::scene::Scene,
         dimensions: SceneDimensions,
         region: Option<EffectRegion>,
         chain: &EffectChain,
@@ -78,7 +78,7 @@ impl GpuFilterBackend {
             Some(r) => {
                 let (width, height) = Self::quantize_region_size(r.size, dimensions);
                 let (width, height) = (scaled_texels(width, s), scaled_texels(height, s));
-                wrapped = vello::Scene::new();
+                wrapped = animatix::scene::Scene::new();
                 let shift = kurbo::Affine::translate(kurbo::Vec2::new(
                     -f64::from(r.origin[0]),
                     -f64::from(r.origin[1]),
@@ -100,7 +100,7 @@ impl GpuFilterBackend {
             None if s != 1.0 => {
                 let width = scaled_texels(dimensions.width, s);
                 let height = scaled_texels(dimensions.height, s);
-                wrapped = vello::Scene::new();
+                wrapped = animatix::scene::Scene::new();
                 wrapped.append(scene, Some(kurbo::Affine::scale(f64::from(s))));
                 (
                     SceneDimensions { width, height },
@@ -147,7 +147,7 @@ impl GpuFilterBackend {
         let t_all = timing_probe();
 
         self.core
-            .render_vello_scene_with_background(
+            .render_scene_with_background(
                 &self.device,
                 &self.queue,
                 &render_view,

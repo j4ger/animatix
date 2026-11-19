@@ -2,13 +2,13 @@
 
 use std::sync::Arc;
 
-use animatix_std::PrimitiveInfo;
+use animatix_core::builtins::PrimitiveInfo;
 
 use super::{BUILT_INS, BuiltIn, Primitive};
 
 /// Storage for a registered primitive: compiled-in built-ins keep their
 /// `&'static` identity (the [`BuiltIn`] row carries both behaviour and the
-/// `animatix-std` card), extension primitives own an `Arc` allocation plus
+/// `animatix-core::builtins` card), extension primitives own an `Arc` allocation plus
 /// the registration info.
 #[derive(Clone)]
 pub(crate) enum RegisteredPrimitive {
@@ -222,8 +222,8 @@ mod tests {
         }
     }
 
-    fn gauge_info() -> animatix_std::PrimitiveInfo {
-        animatix_std::PrimitiveInfo {
+    fn gauge_info() -> animatix_core::builtins::PrimitiveInfo {
+        animatix_core::builtins::PrimitiveInfo {
             type_name: "Gauge".into(),
             display_name: "Gauge".into(),
             category: crate::timeline::ActorCategory::Plot,
@@ -270,14 +270,14 @@ mod tests {
         assert_eq!(registry.primitives.len(), super::BUILT_INS.len());
     }
 
-    /// The engine behaviour registry and the `animatix-std` catalog must name
+    /// The engine behaviour registry and the `animatix-core::builtins` catalog must name
     /// the same built-in set — the catalog is the author-visible half of
     /// every registered behaviour. The comparison is set-based because the
     /// catalog order does not define behavior IDs; `BUILT_INS` row order does.
     #[test]
     fn registry_names_match_std_catalog() {
         let registry = PrimitiveRegistry::new();
-        let catalog_names: std::collections::HashSet<&str> = animatix_std::CATALOG
+        let catalog_names: std::collections::HashSet<&str> = animatix_core::builtins::CATALOG
             .iter()
             .filter_map(|info| info.static_type_name())
             .collect();
@@ -304,7 +304,7 @@ mod tests {
         registry
             .register(
                 Arc::new(Gauge),
-                animatix_std::PrimitiveInfo {
+                animatix_core::builtins::PrimitiveInfo {
                     type_name: "Gauge".into(),
                     display_name: "Gauge".into(),
                     category: crate::timeline::ActorCategory::Plot,

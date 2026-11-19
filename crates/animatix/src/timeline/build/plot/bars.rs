@@ -346,7 +346,7 @@ impl BarChartLayout {
             axis.move_to((geom.plot_w / 2.0, geom.baseline_y));
             axis.line_to((-geom.plot_w / 2.0, geom.baseline_y));
         };
-        let c = vello::peniko::Color::from_rgba8(
+        let c = peniko::Color::from_rgba8(
             (self.stroke_color[0] * 255.0) as u8,
             (self.stroke_color[1] * 255.0) as u8,
             (self.stroke_color[2] * 255.0) as u8,
@@ -410,7 +410,7 @@ impl BarChartLayout {
         } else {
             self.color
         };
-        let fill_c = vello::peniko::Color::from_rgba8(
+        let fill_c = peniko::Color::from_rgba8(
             (bar_c[0] * 255.0) as u8,
             (bar_c[1] * 255.0) as u8,
             (bar_c[2] * 255.0) as u8,
@@ -421,7 +421,7 @@ impl BarChartLayout {
             path: std::sync::Arc::new(bp),
             fill: Some(fill_c),
             stroke: if self.stroke_width > 0.0 {
-                let sc = vello::peniko::Color::from_rgba8(
+                let sc = peniko::Color::from_rgba8(
                     (self.stroke_color[0] * 255.0) as u8,
                     (self.stroke_color[1] * 255.0) as u8,
                     (self.stroke_color[2] * 255.0) as u8,

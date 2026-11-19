@@ -1,11 +1,8 @@
 //! Observable scene program produced by timeline evaluation.
 //!
-//! `Timeline::evaluate_program_with_debug` returns a [`SceneProgram`] instead of
-//! only an encoded Vello scene. Primitive actors become [`SceneItem`]s, while
-//! the authoritative encoded scene remains the exact render target for filters,
-//! masks, static subtrees, and scene-only paths. `evaluate_with_debug` remains
-//! as a thin scene-only wrapper over the same program, so preview,
-//! offscreen rendering, and export all consume the same frame description.
+//! Timeline evaluation returns owned, ordered scene operations. Primitive
+//! actors are also exposed as SceneItems for inspection and transition
+//! overlays, while the authoritative Scene is translated by the render backend.
 
 use std::collections::HashMap;
 
@@ -21,13 +18,12 @@ pub struct SceneProgram {
     pub dimensions: SceneDimensions,
     /// Scene background color as RGBA in 0..1.
     pub background: [f32; 4],
-    /// Authoritative encoded Vello scene for this frame.
+    /// Authoritative ordered draw operations for this frame.
     ///
-    /// Kept as the exact render target because static-subtree, filter, mask,
-    /// and scene-only render paths encode directly to Vello. The structured
-    /// `items` field is observable for tooling/testing while `scene` remains
-    /// what is actually drawn.
-    pub scene: vello::Scene,
+    /// The render backend translates this owned scene into its device-specific
+    /// representation. The structured `items` field remains observable for
+    /// tooling and transition overlays.
+    pub scene: crate::scene::Scene,
     /// Primitive draw items observed during evaluation.
     pub items: Vec<SceneItem>,
     /// Suppressed primitive items during scene transitions (FLIP overlays).
@@ -64,7 +60,7 @@ mod tests {
                 height: 10,
             },
             background: [0.0, 0.0, 0.0, 1.0],
-            scene: vello::Scene::new(),
+            scene: crate::scene::Scene::new(),
             items: vec![SceneItem {
                 label: "test".to_string(),
                 transform: kurbo::Affine::IDENTITY,
@@ -121,6 +117,6 @@ mod tests {
             &mut fb,
         );
         assert!(!program.items.is_empty(), "primitive evaluation should be observable");
-        assert!(!program.scene.encoding().is_empty());
+        assert!(!program.scene.draws().is_empty());
     }
 }

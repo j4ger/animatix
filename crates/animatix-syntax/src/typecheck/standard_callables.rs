@@ -20,7 +20,7 @@ pub(crate) struct StandardCallableSignature {
 
 static STANDARD_CALLABLE_SIGNATURES: LazyLock<HashMap<&'static str, StandardCallableSignature>> =
     LazyLock::new(|| {
-        animatix_std::callable::callables()
+        animatix_core::builtins::callable::callables()
             .iter()
             .map(|descriptor| {
                 let params = descriptor

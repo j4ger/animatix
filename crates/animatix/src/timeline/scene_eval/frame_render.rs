@@ -14,14 +14,14 @@ impl Timeline {
         state: &mut FrameEvaluation<'_>,
         filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
     ) {
-        let bg = vello::peniko::Color::new([
+        let bg = peniko::Color::new([
             state.bg_color[0],
             state.bg_color[1],
             state.bg_color[2],
             state.bg_color[3],
         ]);
         state.scene.fill(
-            vello::peniko::Fill::NonZero,
+            peniko::Fill::NonZero,
             kurbo::Affine::IDENTITY,
             bg,
             None,
@@ -188,7 +188,7 @@ impl Timeline {
             if let Some((cached_scene, cached_bounds, cached_items, cached_hit_regions)) =
                 cache.get(&cache_key)
             {
-                out.scene.encoding_mut().append(cached_scene.encoding(), &None);
+                out.scene.append(cached_scene, None);
                 if !cached_bounds.is_empty() {
                     let mut table = self.eval_caches.precise_bounds.borrow_mut();
                     for &(slot, rect) in cached_bounds {
@@ -210,7 +210,7 @@ impl Timeline {
         if hit {
             return;
         }
-        let mut temp_scene = vello::Scene::new();
+        let mut temp_scene = crate::scene::Scene::new();
         // Entries appended during this subtree's evaluation are exactly its
         // bounds (deterministic; see the old count-based skip note).
         let subtree_written_before = self.eval_caches.precise_bounds.borrow().written.len();
@@ -240,7 +240,7 @@ impl Timeline {
         } else {
             Vec::new()
         };
-        out.scene.encoding_mut().append(temp_scene.encoding(), &None);
+        out.scene.append(&temp_scene, None);
         let new_bounds: Vec<(u32, kurbo::Rect)> =
             self.eval_caches.precise_bounds.borrow().pairs_from(subtree_written_before);
         self.eval_caches

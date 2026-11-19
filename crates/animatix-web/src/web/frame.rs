@@ -2,11 +2,14 @@
 //! blit the result to the canvas surface.
 
 use animatix::composition::BuildTarget;
+use animatix::scene::Scene;
 use animatix::timeline::effects::FilterBackend;
 use animatix::timeline::frame_signature::FrameSignature;
 use animatix::timeline::{DebugRenderOptions, RuntimeInputs, SceneDimensions, Timeline};
 use animatix_render::core::RendererCore;
 use animatix_render::filter_backend::GpuFilterBackend;
+#[cfg(feature = "vello-gpu")]
+use animatix_render::frame_gpu::FrameGpu;
 use animatix_render::offscreen::{RasterFit, rasterize_scene, rasterize_scene_and_present};
 use animatix_render::transition::{
     TransitionCompositor, collect_flip_pairs, composite_flip_overlay, encode_flip_overlay,
@@ -16,9 +19,7 @@ use wasm_bindgen::prelude::*;
 use wgpu::CurrentSurfaceTexture;
 
 use super::context::with_engine;
-use super::{
-    AmxPlayer, EngineContext, FrameTarget, MAX_RENDER_SCALE, MIN_RENDER_SCALE, OffscreenTarget,
-};
+use super::{AmxPlayer, FrameTarget, MAX_RENDER_SCALE, MIN_RENDER_SCALE, OffscreenTarget};
 
 /// Raster target size for `scale`, rounded to whole pixels and clamped to
 /// `MIN_RENDER_SCALE..=MAX_RENDER_SCALE`.
@@ -39,7 +40,34 @@ impl AmxPlayer {
         if !self.has_document() {
             return Ok(());
         }
-        with_engine(|ctx| self.render_frame_inner(ctx, time_s))
+        #[cfg(feature = "vello-gpu")]
+        if let Some(webgl) = self.webgl.clone() {
+            let mut frame_gpu = webgl.frame_gpu.borrow_mut();
+            return self.render_frame_inner(
+                &webgl.device,
+                &webgl.queue,
+                None,
+                Some(&mut frame_gpu),
+                time_s,
+            );
+        }
+        with_engine(|ctx| {
+            let ctx = ctx.map_err(|error| JsError::new(&error))?;
+            if self.device_generation != ctx.generation {
+                return Err(JsError::new("WebGPU context generation changed"));
+            }
+            let mut core = ctx.core.borrow_mut();
+            #[cfg(feature = "vello-gpu")]
+            let mut frame_gpu = ctx.frame_gpu.borrow_mut();
+            self.render_frame_inner(
+                &ctx.device,
+                &ctx.queue,
+                Some(&mut core),
+                #[cfg(feature = "vello-gpu")]
+                Some(&mut frame_gpu),
+                time_s,
+            )
+        })
     }
 
     /// What the frame about to be drawn at `time_s` depends on, in one
@@ -74,16 +102,18 @@ impl AmxPlayer {
 
     fn render_frame_inner(
         &mut self,
-        ctx: Result<&EngineContext, String>,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        core: Option<&mut RendererCore>,
+        #[cfg(feature = "vello-gpu")] frame_gpu: Option<&mut FrameGpu>,
         time_s: f64,
     ) -> Result<(), JsError> {
-        let ctx = ctx.map_err(|e| JsError::new(&e))?;
         let width = self.canvas.width().max(1);
         let height = self.canvas.height().max(1);
         if self.config.width != width || self.config.height != height {
             self.config.width = width;
             self.config.height = height;
-            self.surface.configure(&ctx.device, &self.config);
+            self.surface.configure(device, &self.config);
         }
 
         // A loop rests on its finished frame for the whole `hold` window while the
@@ -106,7 +136,7 @@ impl AmxPlayer {
         // the player owns it so the lazy init has a home beside its targets.
         if blending && self.compositor.is_none() {
             self.compositor =
-                Some(TransitionCompositor::new(&ctx.device).map_err(|e| JsError::new(&e))?);
+                Some(TransitionCompositor::new(device).map_err(|e| JsError::new(&e))?);
         }
 
         let frame = match self.surface.get_current_texture() {
@@ -118,7 +148,7 @@ impl AmxPlayer {
             // reconfigure can hand us a fresh swapchain, so forget what was on
             // screen: the image the dedup is remembering may no longer exist.
             CurrentSurfaceTexture::Outdated => {
-                self.surface.configure(&ctx.device, &self.config);
+                self.surface.configure(device, &self.config);
                 self.dedup.invalidate();
                 return Ok(());
             },
@@ -128,11 +158,13 @@ impl AmxPlayer {
         };
         let surface_view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        let mut core = ctx.core.borrow_mut();
+        let mut core = core;
         let mut frame_ctx = FrameCtx {
-            core: &mut core,
-            device: &ctx.device,
-            queue: &ctx.queue,
+            core: core.as_deref_mut(),
+            device,
+            queue,
+            #[cfg(feature = "vello-gpu")]
+            frame_gpu,
             dims: self.dims,
             scale: self.render_scale,
             scratch: &mut self.scaled,
@@ -160,7 +192,7 @@ impl AmxPlayer {
         match frame_result {
             Ok(()) => {
                 drop(surface_view);
-                ctx.queue.present(frame);
+                queue.present(frame);
                 self.frames_drawn += 1;
                 // Only now: this is the frame the canvas is showing, and the
                 // signature is the claim that redrawing it would change nothing.
@@ -180,7 +212,9 @@ impl AmxPlayer {
 /// handles, renderer core, scene geometry, raster scale and the playhead. Bundling
 /// lets [`render_document`]/[`render_timeline`] take a request plus a target.
 pub(super) struct FrameCtx<'a> {
-    pub(super) core: &'a mut RendererCore,
+    pub(super) core: Option<&'a mut RendererCore>,
+    #[cfg(feature = "vello-gpu")]
+    pub(super) frame_gpu: Option<&'a mut FrameGpu>,
     pub(super) device: &'a wgpu::Device,
     pub(super) queue: &'a wgpu::Queue,
     /// Scene dimensions the timeline is evaluated against (layout resolution).
@@ -189,7 +223,7 @@ pub(super) struct FrameCtx<'a> {
     pub(super) scale: f32,
     /// Re-encode buffer for a scaled raster; keeps a scaled frame from
     /// allocating a scene per render.
-    pub(super) scratch: &'a mut vello::Scene,
+    pub(super) scratch: &'a mut Scene,
     pub(super) compositor: Option<&'a TransitionCompositor>,
     /// The document being drawn, or `None` when nothing is loaded.
     pub(super) target: Option<&'a BuildTarget>,
@@ -253,16 +287,38 @@ fn render_document_for_surface(
 ) -> Result<(), String> {
     let (frame, already_presented) = render_document_inner(ctx, targets, Some(surface))?;
     if !already_presented {
-        ctx.core.blit_texture_to_format(
-            ctx.device,
-            ctx.queue,
-            &frame.view,
-            surface.view,
-            surface.size[0],
-            surface.size[1],
-            1.0,
-            surface.format,
-        );
+        #[cfg(feature = "vello-gpu")]
+        if let Some(frame_gpu) = ctx.frame_gpu.as_deref_mut() {
+            frame_gpu.blit(&frame.view, surface.view, surface.format, false);
+        } else {
+            ctx.core
+                .as_deref_mut()
+                .ok_or_else(|| "legacy renderer is missing".to_string())?
+                .blit_texture_to_format(
+                    ctx.device,
+                    ctx.queue,
+                    &frame.view,
+                    surface.view,
+                    surface.size[0],
+                    surface.size[1],
+                    1.0,
+                    surface.format,
+                );
+        }
+        #[cfg(not(feature = "vello-gpu"))]
+        ctx.core
+            .as_deref_mut()
+            .ok_or_else(|| "legacy renderer is missing".to_string())?
+            .blit_texture_to_format(
+                ctx.device,
+                ctx.queue,
+                &frame.view,
+                surface.view,
+                surface.size[0],
+                surface.size[1],
+                1.0,
+                surface.format,
+            );
     }
     Ok(())
 }
@@ -392,29 +448,12 @@ fn render_document_inner(
             )?;
 
             if !flip_items.is_empty() {
-                let overlay = encode_flip_overlay(&flip_items, blend.progress as f32, blend.easing);
-                let scale = ctx.scale.clamp(MIN_RENDER_SCALE, MAX_RENDER_SCALE);
-                let overlay_ref: &vello::Scene = if (scale - 1.0).abs() < 1e-3 {
-                    &overlay
-                } else {
-                    // Same scaled-scene path `rasterize_scene` uses: append
-                    // under one uniform transform so geometry and the overlay
-                    // target share the raster scale.
-                    ctx.scratch.reset();
-                    ctx.scratch.append(&overlay, Some(kurbo::Affine::scale(scale as f64)));
-                    &*ctx.scratch
-                };
-                composite_flip_overlay(
-                    ctx.core,
-                    ctx.device,
-                    ctx.queue,
+                composite_web_flip_overlay(
+                    ctx,
+                    &encode_flip_overlay(&flip_items, blend.progress as f32, blend.easing),
                     &from.view,
                     &composite_target.view,
-                    SceneDimensions {
-                        width: scene.0,
-                        height: scene.1,
-                    },
-                    overlay_ref,
+                    scene,
                 )?;
             }
 
@@ -446,6 +485,43 @@ fn render_document_inner(
             Err("no document loaded".to_string())
         },
     }
+}
+
+fn composite_web_flip_overlay(
+    ctx: &mut FrameCtx<'_>,
+    overlay: &Scene,
+    from: &wgpu::TextureView,
+    composite: &wgpu::TextureView,
+    scene: (u32, u32),
+) -> Result<(), String> {
+    let scale = ctx.scale.clamp(MIN_RENDER_SCALE, MAX_RENDER_SCALE);
+    #[cfg(feature = "vello-gpu")]
+    if let Some(frame_gpu) = ctx.frame_gpu.as_deref_mut() {
+        frame_gpu.render_into(overlay, from, kurbo::Affine::scale(scale as f64))?;
+        frame_gpu.over(composite, from, 1.0)?;
+        return Ok(());
+    }
+    let overlay_ref: &Scene = if (scale - 1.0).abs() < 1e-3 {
+        overlay
+    } else {
+        ctx.scratch.reset();
+        ctx.scratch.append(overlay, Some(kurbo::Affine::scale(scale as f64)));
+        &*ctx.scratch
+    };
+    composite_flip_overlay(
+        ctx.core
+            .as_deref_mut()
+            .ok_or_else(|| "legacy renderer is missing".to_string())?,
+        ctx.device,
+        ctx.queue,
+        from,
+        composite,
+        SceneDimensions {
+            width: scene.0,
+            height: scene.1,
+        },
+        overlay_ref,
+    )
 }
 
 /// Move a reusable backend out of a side that does not need one when the
@@ -482,7 +558,13 @@ fn render_timeline(
         time_s,
         suppressed,
     } = pass;
-    if timeline.needs_filter_backend() {
+    #[cfg(feature = "vello-gpu")]
+    let frame_gpu_enabled = ctx.frame_gpu.is_some();
+    #[cfg(not(feature = "vello-gpu"))]
+    let frame_gpu_enabled = false;
+    if frame_gpu_enabled {
+        *backend = None;
+    } else if timeline.needs_filter_backend() {
         if backend.is_none() {
             *backend =
                 Some(GpuFilterBackend::new(ctx.device.clone(), ctx.queue.clone(), ctx.dims)?);
@@ -501,31 +583,84 @@ fn render_timeline(
             .min(raster_h as f32 / ctx.dims.height.max(1) as f32);
         fb.set_raster_scale(achieved);
     }
-    let mut fb: Option<&mut dyn FilterBackend> = backend.as_mut().map(|b| b as _);
     // The web player has its own raster-level `FrameDedup`, so the engine's
-    // `time_ms`-keyed frame cache only adds a full `vello::Scene` deep copy on
+    // `time_ms`-keyed frame cache only adds a full scene deep copy on
     // every animation frame. Use the clone-free presentation entry point on the
     // common single-scene path; FLIP transitions still need the suppressed
     // program and keep their existing call.
     let presentation = suppressed.is_empty();
-    let scene = if presentation {
-        timeline
-            .evaluate_for_presentation_with_inputs(time_s, ctx.dims, &mut fb, ctx.runtime_inputs)
-            .map_err(|error| error.to_string())?
+    let scene = if frame_gpu_enabled {
+        #[cfg(feature = "vello-gpu")]
+        {
+            let mut recorder = animatix_render::frame_gpu::SceneRecorder;
+            let mut fb: Option<&mut dyn FilterBackend> = Some(&mut recorder);
+            if presentation {
+                timeline
+                    .evaluate_for_presentation_with_inputs(
+                        time_s,
+                        ctx.dims,
+                        &mut fb,
+                        ctx.runtime_inputs,
+                    )
+                    .map_err(|error| error.to_string())?
+            } else {
+                timeline
+                    .evaluate_program_with_suppressed(
+                        time_s,
+                        ctx.dims,
+                        DebugRenderOptions::default(),
+                        &mut fb,
+                        suppressed,
+                    )
+                    .scene
+            }
+        }
+        #[cfg(not(feature = "vello-gpu"))]
+        unreachable!("FrameGpu is feature-gated")
     } else {
-        timeline
-            .evaluate_program_with_suppressed(
-                time_s,
-                ctx.dims,
-                DebugRenderOptions::default(),
-                &mut fb,
-                suppressed,
-            )
-            .scene
+        let mut fb: Option<&mut dyn FilterBackend> = backend.as_mut().map(|b| b as _);
+        if presentation {
+            timeline
+                .evaluate_for_presentation_with_inputs(
+                    time_s,
+                    ctx.dims,
+                    &mut fb,
+                    ctx.runtime_inputs,
+                )
+                .map_err(|error| error.to_string())?
+        } else {
+            timeline
+                .evaluate_program_with_suppressed(
+                    time_s,
+                    ctx.dims,
+                    DebugRenderOptions::default(),
+                    &mut fb,
+                    suppressed,
+                )
+                .scene
+        }
     };
-    drop(fb);
 
     let scale = ctx.scale.clamp(MIN_RENDER_SCALE, MAX_RENDER_SCALE);
+    #[cfg(feature = "vello-gpu")]
+    if let Some(frame_gpu) = ctx.frame_gpu.as_deref_mut() {
+        if let Some(surface) = surface {
+            frame_gpu.render_and_present(
+                &scene,
+                &target.view,
+                surface.view,
+                kurbo::Affine::scale(f64::from(scale)),
+                surface.format,
+            )?;
+            return Ok(true);
+        }
+        frame_gpu.render_frame_into(
+            &scene,
+            &target.view,
+            kurbo::Affine::scale(f64::from(scale)),
+        )?;
+        return Ok(false);
+    }
     let fit = if (scale - 1.0).abs() < 1e-3 {
         RasterFit::OneToOne
     } else {
@@ -544,7 +679,9 @@ fn render_timeline(
         surface.is_some() && presentation && !timeline.needs_filter_backend() && backend.is_none();
     let result = if let Some(surface) = surface.filter(|_| merged_presentation) {
         rasterize_scene_and_present(
-            &mut *ctx.core,
+            ctx.core
+                .as_deref_mut()
+                .ok_or_else(|| "legacy renderer is missing".to_string())?,
             ctx.device,
             ctx.queue,
             &target.view,
@@ -557,7 +694,9 @@ fn render_timeline(
         )
     } else {
         rasterize_scene(
-            &mut *ctx.core,
+            ctx.core
+                .as_deref_mut()
+                .ok_or_else(|| "legacy renderer is missing".to_string())?,
             ctx.device,
             ctx.queue,
             &target.view,
@@ -569,7 +708,7 @@ fn render_timeline(
         )
     };
     // Park the presentation scene back so the next frame reuses its encoding
-    // allocation instead of allocating a fresh `vello::Scene`. Transition
+    // allocation instead of allocating a fresh scene. Transition
     // frames keep their own (cloned) scene-buffer behaviour unchanged.
     if presentation {
         timeline.recycle_presentation_scene(scene);

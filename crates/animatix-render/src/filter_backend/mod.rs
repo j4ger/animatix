@@ -17,19 +17,20 @@ use std::collections::HashMap;
 
 use animatix::timeline::SceneDimensions;
 use animatix::timeline::effects::{
-    Effect, EffectChain, EffectRegion, FilterBackend, PendingBackdrop, PendingComposite,
-    PendingLayer, effect,
+    Effect, EffectChain, EffectRegion, FilterBackend, PendingBackdrop, effect,
 };
 use animatix::timeline::image::SceneImage;
 use animatix_core::effect::EffectParamSpec;
 
 use crate::core::RendererCore;
 
+mod pending;
 mod pipeline;
 mod probe;
 #[cfg(test)]
 mod tests;
 
+pub use pending::{PendingComposite, PendingLayer};
 pub(crate) use probe::{probe_ms, timing_probe};
 
 use pipeline::*;

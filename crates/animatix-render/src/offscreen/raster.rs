@@ -1,11 +1,12 @@
 //! Rasterising an evaluated scene into a target view, including filter-layer
 //! compositing.
 
+use animatix::scene::Scene;
 use animatix::timeline::SceneDimensions;
-use animatix::timeline::effects::FilterBackend;
+use animatix::timeline::effects::{EffectRegion, PendingBackdrop};
 
 use crate::core::RendererCore;
-use crate::filter_backend::GpuFilterBackend;
+use crate::filter_backend::{GpuFilterBackend, PendingComposite, PendingLayer};
 
 use super::RasterFit;
 
@@ -31,7 +32,7 @@ pub fn rasterize_scene(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     view: &wgpu::TextureView,
-    scene: &vello::Scene,
+    scene: &Scene,
     raster: SceneDimensions,
     fit: RasterFit<'_>,
     backend: Option<&mut GpuFilterBackend>,
@@ -42,11 +43,11 @@ pub fn rasterize_scene(
         RasterFit::OneToOne => scene,
         RasterFit::Scaled { scratch, .. } => {
             scratch.reset();
-            scratch.append(scene, Some(vello::kurbo::Affine::scale(scale as f64)));
+            scratch.append(scene, Some(kurbo::Affine::scale(scale as f64)));
             &*scratch
         },
     };
-    core.render_vello_scene(device, queue, view, raster.width, raster.height, encoded)
+    core.render_scene(device, queue, view, raster.width, raster.height, encoded)
         .map_err(|e| e.to_string())?;
 
     let Some(backend) = backend else {
@@ -66,7 +67,7 @@ pub fn rasterize_scene_and_present(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     render_view: &wgpu::TextureView,
-    scene: &vello::Scene,
+    scene: &Scene,
     raster: SceneDimensions,
     fit: RasterFit<'_>,
     surface_view: &wgpu::TextureView,
@@ -78,11 +79,11 @@ pub fn rasterize_scene_and_present(
         RasterFit::OneToOne => scene,
         RasterFit::Scaled { scratch, .. } => {
             scratch.reset();
-            scratch.append(scene, Some(vello::kurbo::Affine::scale(scale as f64)));
+            scratch.append(scene, Some(kurbo::Affine::scale(scale as f64)));
             &*scratch
         },
     };
-    core.render_vello_scene_and_present(
+    core.render_scene_and_present(
         device,
         queue,
         render_view,
@@ -105,13 +106,12 @@ pub fn drain_pending_layers(
     core: &RendererCore,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    backend: &mut dyn animatix::timeline::effects::FilterBackend,
-    layers: Vec<animatix::timeline::effects::PendingLayer>,
+    backend: &mut GpuFilterBackend,
+    layers: Vec<PendingLayer>,
     target: Option<&wgpu::Texture>,
     view: &wgpu::TextureView,
     scale: f32,
 ) {
-    use animatix::timeline::effects::{EffectRegion, PendingComposite, PendingLayer};
     let scale_region = |r: EffectRegion, s: f32| EffectRegion {
         origin: [r.origin[0] * s, r.origin[1] * s],
         size: SceneDimensions {
@@ -129,28 +129,26 @@ pub fn drain_pending_layers(
     }
 
     let mut batch: Vec<PreparedComposite> = Vec::new();
-    let flush_batch =
-        |batch: &mut Vec<PreparedComposite>,
-         backend: &mut dyn animatix::timeline::effects::FilterBackend| {
-            if batch.is_empty() {
-                return;
-            }
-            let items: Vec<crate::fullscreen_blit::BatchedBlitItem<'_>> = batch
-                .iter()
-                .map(|p| crate::fullscreen_blit::BatchedBlitItem {
-                    src_view: &p.composite.view,
-                    dst_origin: p.origin,
-                    dst_size: p.size,
-                    alpha: p.composite.alpha,
-                    corner_radius: p.corner_radius,
-                    src_rect: p.src_rect,
-                })
-                .collect();
-            core.blit_texture_rect_masked_batch(device, queue, view, &items);
-            for item in batch.drain(..) {
-                backend.recycle_pending_composite(item.composite);
-            }
-        };
+    let flush_batch = |batch: &mut Vec<PreparedComposite>, backend: &mut GpuFilterBackend| {
+        if batch.is_empty() {
+            return;
+        }
+        let items: Vec<crate::fullscreen_blit::BatchedBlitItem<'_>> = batch
+            .iter()
+            .map(|p| crate::fullscreen_blit::BatchedBlitItem {
+                src_view: &p.composite.view,
+                dst_origin: p.origin,
+                dst_size: p.size,
+                alpha: p.composite.alpha,
+                corner_radius: p.corner_radius,
+                src_rect: p.src_rect,
+            })
+            .collect();
+        core.blit_texture_rect_masked_batch(device, queue, view, &items);
+        for item in batch.drain(..) {
+            backend.recycle_pending_composite(item.composite);
+        }
+    };
 
     for layer in layers {
         // `s` is the factor still to apply when the composite is blitted. A
@@ -168,7 +166,7 @@ pub fn drain_pending_layers(
                     continue;
                 };
                 let backdrop = if (scale - 1.0).abs() > f32::EPSILON {
-                    animatix::timeline::effects::PendingBackdrop {
+                    PendingBackdrop {
                         region: scale_region(backdrop.region, scale),
                         clip: scale_region(backdrop.clip, scale),
                         corner_radius: backdrop.corner_radius * scale,

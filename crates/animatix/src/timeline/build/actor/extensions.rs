@@ -212,7 +212,8 @@ impl Timeline {
                 continue;
             };
             let subject = format!("{label}.{}", prop.name);
-            let default_caps = animatix_std::caps_for_type("PlotCurve").unwrap_or_default();
+            let default_caps =
+                animatix_core::builtins::caps_for_type("PlotCurve").unwrap_or_default();
             let pv_default = (schema.default_value)(&default_caps);
             let has_duration = t_end_ms > t_start_ms;
             let has_delay = t_start_ms > 0 && !has_duration;
@@ -325,7 +326,7 @@ impl Timeline {
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        if animatix_std::caps_for_type(ty).is_none() {
+        if animatix_core::builtins::caps_for_type(ty).is_none() {
             diagnostics.push(
                 Diagnostic::error(
                     DiagnosticCode::UnknownActorType,

@@ -3,8 +3,8 @@
 use std::collections::{HashMap, HashSet};
 
 use animatix::timeline::{Environment, Value, evaluate_expr, prepare_input_environment};
+use animatix_core::builtins::catalog::catalog_lookup;
 use animatix_core::features::FeatureMask;
-use animatix_std::catalog::catalog_lookup;
 use animatix_syntax::ast::{
     Expr, InlineItem, LoopPattern, Property, Stmt, TargetSegment, array_actor_label,
 };
@@ -436,7 +436,7 @@ impl Requirements<'_> {
             self.children.entry(parent.clone()).or_default().insert(label.to_string());
         }
         let Some(info) = catalog_lookup(ty) else {
-            if !animatix_std::is_effect(ty) {
+            if !animatix_core::builtins::is_effect(ty) {
                 self.analysis.required_features |= FeatureMask::UNKNOWN.bits();
                 self.analysis.diagnostics.push(error_diagnostic(
                     "unknown-actor-type",

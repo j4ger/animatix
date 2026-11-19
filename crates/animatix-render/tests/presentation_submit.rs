@@ -4,8 +4,10 @@
 //! the page's shared renderer and compare the merged path against the existing
 //! render-then-present path over every pixel.
 
+use animatix::scene::Scene as NeutralScene;
 use animatix_render::core::RendererCore;
 use animatix_render::testing::skip_if_no_gpu;
+use kurbo::{Affine, Rect};
 use std::sync::Arc;
 use vello::Scene;
 use vello::peniko::{
@@ -428,6 +430,57 @@ fn render_path_suite(force_fallback_adapter: bool) {
             "failed frame must not submit the presentation suffix"
         );
     }
+}
+
+#[test]
+fn neutral_scene_adapter_renders_and_presents_to_classic_targets() {
+    let Some((device, queue, info)) = headless_device() else {
+        skip_if_no_gpu();
+        return;
+    };
+    eprintln!(
+        "[presentation-submit-neutral] adapter={} type={:?}",
+        info.name, info.device_type
+    );
+    device.on_uncaptured_error(Arc::new(|error| {
+        panic!("uncaptured wgpu error during neutral-scene compatibility render: {error}");
+    }));
+    let mut core = RendererCore::new(&device, &queue).expect("renderer core");
+    let raster = render_target(&device, [12, 10], "neutral scene raster target");
+    let surface = surface_target(
+        &device,
+        [24, 20],
+        TextureFormat::Rgba8Unorm,
+        "neutral scene presentation target",
+    );
+    let color = [62, 148, 226, 255];
+    let mut scene = NeutralScene::new();
+    scene.fill(
+        vello::peniko::Fill::NonZero,
+        Affine::IDENTITY,
+        Color::from_rgba8(color[0], color[1], color[2], color[3]),
+        None,
+        &Rect::new(0.0, 0.0, 12.0, 10.0),
+    );
+
+    core.render_scene_and_present(
+        &device,
+        &queue,
+        &raster.view,
+        raster.size,
+        &scene,
+        &surface.view,
+        surface.size,
+        surface.format,
+    )
+    .expect("neutral scene render and present");
+
+    let pixels = readback(&device, &queue, &surface);
+    assert_color(
+        rgba_pixel(&pixels, &surface, 12, 10),
+        color,
+        "neutral scene compatibility adapter",
+    );
 }
 
 #[test]

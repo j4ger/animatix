@@ -5,7 +5,7 @@ msrv = "1.95"
 
 # Functions above clippy's default 7-argument limit are allowed up to 15. This is
 # not a temporary allowance: dropping the ceiling to 10 immediately flags
-# `animatix_std::catalog::caps` (14 arguments), whose refactor is outside the
+# `animatix_core::builtins::catalog::caps` (14 arguments), whose refactor is outside the
 # engine work this file was introduced for. Audit context lives in the history
 # archive, not the roadmap: docs/history/2026-08.md ("Audit History").
 too-many-arguments-threshold = 15

@@ -15,8 +15,8 @@ use super::spans::span_diagnostic;
 /// analyzer's unresolved-variable check) so assignment targets and bare
 /// references resolve against the same set.
 pub fn plot_runtime_params(ty: &str, props: &[crate::ast::Property]) -> Vec<String> {
-    let is_plot_host =
-        animatix_std::caps_for_type(ty).is_some_and(|caps| caps.plot_geometry || caps.plot_host);
+    let is_plot_host = animatix_core::builtins::caps_for_type(ty)
+        .is_some_and(|caps| caps.plot_geometry || caps.plot_host);
     if !is_plot_host {
         return Vec::new();
     }
@@ -36,7 +36,8 @@ pub fn plot_runtime_params(ty: &str, props: &[crate::ast::Property]) -> Vec<Stri
 
 /// True for container types whose label may be purely structural.
 fn is_structural_container_type(ty: &str) -> bool {
-    animatix_std::caps_for_type(ty).is_some_and(|caps| caps.is_container || caps.is_effect_scope())
+    animatix_core::builtins::caps_for_type(ty)
+        .is_some_and(|caps| caps.is_container || caps.is_effect_scope())
 }
 
 /// Collect semantic diagnostics for a parsed program.

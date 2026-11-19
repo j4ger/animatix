@@ -2,7 +2,7 @@
 //! [`Effect`] trait.
 //!
 //! Everything here is engine-free — no wgpu, no scene graph. Built-in
-//! implementations live in `animatix-std` (next to their WGSL); the engine
+//! implementations live in [`crate::builtins`] (next to their WGSL); the engine
 //! consumes the trait through its render pipeline, and the parser crate
 //! derives the author-visible contract from the same catalog.
 //!
@@ -214,7 +214,7 @@ pub fn uniform_size_for(params: &[EffectParamSpec]) -> u32 {
 /// The single declaration surface for a post-processing effect.
 ///
 /// Built-ins implement this on a unit struct and register the singleton in
-/// the `animatix-std` catalog; plugin effects adapt FFI-declared data to the
+/// the `animatix-core::builtins` catalog; plugin effects adapt FFI-declared data to the
 /// same trait. The renderer only ever sees `&dyn Effect`, so there is no
 /// per-effect dispatch table to keep in sync.
 pub trait Effect: Send + Sync {
@@ -231,6 +231,18 @@ pub trait Effect: Send + Sync {
 
     /// Ordered compute passes.
     fn passes(&self) -> &[EffectPassSpec];
+
+    /// Full-screen fragment shader implementing this effect for render-only
+    /// GPU backends such as WebGL2. The returned module uses the same author
+    /// uniform layout and host `EffectContext` as [`Self::passes`], with
+    /// `fullscreen_vs` and `fragment_main` entry points. Each invocation of
+    /// `fragment_main` corresponds to one pass in [`Self::passes`]; the host
+    /// supplies `pass_index` so multi-pass effects can select their axis or
+    /// operation. Compute-only extension effects inherit `None` and retain
+    /// their existing compute behavior on native and WebGPU backends.
+    fn fragment_shader(&self) -> Option<&'static str> {
+        None
+    }
 
     /// Size in bytes of the author uniform buffer, derived from the parameter
     /// layout. An effect whose WGSL uniform struct is hand-padded beyond its

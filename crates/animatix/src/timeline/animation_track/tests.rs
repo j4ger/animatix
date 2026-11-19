@@ -20,29 +20,29 @@ fn primitive_catalog_is_complete() {
             "registry metadata for {:?} has no primitive",
             meta.type_name
         );
-        let caps = animatix_std::caps_for_type(meta.type_name.as_ref())
+        let caps = animatix_core::builtins::caps_for_type(meta.type_name.as_ref())
             .unwrap_or_else(|| panic!("caps missing for {:?}", meta.type_name));
         let _ = caps; // derivation must not panic; contents are per-primitive
     }
 
     // Spot-check the derived projections for representative kinds.
-    let rect = animatix_std::caps_for_type("Rect").unwrap();
+    let rect = animatix_core::builtins::caps_for_type("Rect").unwrap();
     assert_eq!(rect.shape, Some(ShapeKind::Rect));
     assert!(rect.is_shape);
     assert!(rect.stroke_path);
 
-    let text = animatix_std::caps_for_type("Text").unwrap();
+    let text = animatix_core::builtins::caps_for_type("Text").unwrap();
     assert_eq!(text.text, Some(crate::timeline::TextKind::Text));
     assert!(text.text_paths);
 
-    let filter = animatix_std::caps_for_type("Filter").unwrap();
+    let filter = animatix_core::builtins::caps_for_type("Filter").unwrap();
     assert!(filter.is_effect_scope());
 
-    let gauge_like_group = animatix_std::caps_for_type("Group").unwrap();
+    let gauge_like_group = animatix_core::builtins::caps_for_type("Group").unwrap();
     assert!(gauge_like_group.is_group_like());
     assert!(!gauge_like_group.layout_container);
 
-    let row = animatix_std::caps_for_type("Row").unwrap();
+    let row = animatix_core::builtins::caps_for_type("Row").unwrap();
     assert!(row.layout_container);
 }
 
@@ -55,7 +55,7 @@ fn track_identity_derives_caps_from_registry() {
         let label = meta.type_name.to_string();
         let id = world.spawn(&label, meta.type_name.as_ref());
         assert_eq!(world.actor_type(id), meta.type_name.as_ref());
-        if let Some(expected) = animatix_std::caps_for_type(meta.type_name.as_ref()) {
+        if let Some(expected) = animatix_core::builtins::caps_for_type(meta.type_name.as_ref()) {
             assert_eq!(world.caps(id), expected, "caps drifted for {}", meta.type_name);
         }
     }

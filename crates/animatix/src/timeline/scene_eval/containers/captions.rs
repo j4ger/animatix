@@ -328,7 +328,7 @@ impl Timeline {
                     if alpha <= 0.0 {
                         continue;
                     }
-                    let peniko_color = vello::peniko::Color::from_rgba8(
+                    let peniko_color = peniko::Color::from_rgba8(
                         (color[0] * 255.0).clamp(0.0, 255.0) as u8,
                         (color[1] * 255.0).clamp(0.0, 255.0) as u8,
                         (color[2] * 255.0).clamp(0.0, 255.0) as u8,
@@ -347,7 +347,7 @@ impl Timeline {
                     };
 
                     out.scene.fill(
-                        vello::peniko::Fill::NonZero,
+                        peniko::Fill::NonZero,
                         glyph_transform,
                         peniko_color,
                         None,
@@ -379,14 +379,13 @@ fn draw_caption_backdrop(
         backdrop_radius as f64,
     );
     let bg_alpha = backdrop_color[3] * caption_opacity;
-    let bg_col = vello::peniko::Color::from_rgba8(
+    let bg_col = peniko::Color::from_rgba8(
         (backdrop_color[0] * 255.0).clamp(0.0, 255.0) as u8,
         (backdrop_color[1] * 255.0).clamp(0.0, 255.0) as u8,
         (backdrop_color[2] * 255.0).clamp(0.0, 255.0) as u8,
         (bg_alpha * 255.0).clamp(0.0, 255.0) as u8,
     );
-    out.scene
-        .fill(vello::peniko::Fill::NonZero, global_transform, bg_col, None, &bg_rect);
+    out.scene.fill(peniko::Fill::NonZero, global_transform, bg_col, None, &bg_rect);
 }
 
 /// Resolve one caption glyph's fill and scale for the active mode.

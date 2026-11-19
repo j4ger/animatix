@@ -87,7 +87,8 @@ pub(crate) fn invocation_stmt(
     } else {
         args.push(CallArgument::named("targets", Expr::List(targets)));
     }
-    let descriptor = animatix_std::callable::callable(&call.verb).expect("standard callable");
+    let descriptor =
+        animatix_core::builtins::callable::callable(&call.verb).expect("standard callable");
     let positional_names = descriptor
         .params
         .iter()

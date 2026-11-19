@@ -241,6 +241,55 @@ impl RendererCore {
         )
     }
 
+    /// Render the engine's neutral scene through the classic renderer while
+    /// the Vello GPU path is being rolled out.
+    ///
+    /// New code should build `animatix::scene::Scene`; this compatibility
+    /// boundary adapts its ordinary draws to Vello's classic scene. Scene
+    /// effects and external texture draws are handled by the frame compositor.
+    pub fn render_scene(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        texture_view: &wgpu::TextureView,
+        width: u32,
+        height: u32,
+        scene: &animatix::scene::Scene,
+    ) -> Result<(), RenderError> {
+        self.render_scene_with_background(
+            device,
+            queue,
+            texture_view,
+            width,
+            height,
+            scene,
+            Color::BLACK,
+        )
+    }
+
+    /// Render a neutral scene to an offscreen view with a custom background.
+    pub fn render_scene_with_background(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        texture_view: &wgpu::TextureView,
+        width: u32,
+        height: u32,
+        scene: &animatix::scene::Scene,
+        base_color: Color,
+    ) -> Result<(), RenderError> {
+        let scene = crate::legacy_scene::to_vello_scene(scene).map_err(RenderError::FrameRender)?;
+        self.render_vello_scene_with_background(
+            device,
+            queue,
+            texture_view,
+            width,
+            height,
+            &scene,
+            base_color,
+        )
+    }
+
     /// Render a Vello scene to an offscreen view and blit it to a presentation
     /// target in the same queue submission.
     ///
@@ -296,6 +345,33 @@ impl RendererCore {
                 },
             )
             .map_err(|e| RenderError::FrameRender(format!("{e:?}")))
+    }
+
+    /// Render a neutral scene and append its final presentation blit to the
+    /// same encoder/submission as the classic Vello render.
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_scene_and_present(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        render_view: &wgpu::TextureView,
+        raster_size: [u32; 2],
+        scene: &animatix::scene::Scene,
+        surface_view: &wgpu::TextureView,
+        surface_size: [u32; 2],
+        surface_format: wgpu::TextureFormat,
+    ) -> Result<(), RenderError> {
+        let scene = crate::legacy_scene::to_vello_scene(scene).map_err(RenderError::FrameRender)?;
+        self.render_vello_scene_and_present(
+            device,
+            queue,
+            render_view,
+            raster_size,
+            &scene,
+            surface_view,
+            surface_size,
+            surface_format,
+        )
     }
 
     /// Render a Vello `scene` into the provided `texture_view` with a custom background color.

@@ -16,9 +16,8 @@ name = "engine_contracts"
 path = "tests/engine_contracts.rs"
 
 [features]
-# Rendering is part of the engine pipeline, not an optional feature: scene
-# evaluation constructs `vello::Scene`s and the `FilterBackend` seam uses
-# `wgpu`/`vello` types (the GPU presentation stack lives in `animatix-render`).
+# Scene evaluation always produces renderer-independent drawing commands.
+# The GPU presentation stack lives in `animatix-render`.
 # Rich text, image decoding, and SVG asset loading are separate capabilities
 # enabled by default below and can be disabled independently.
 default = ["perf-tracing", "rich-text", "image-decode", "svg", "bundled-fonts"]
@@ -44,7 +43,6 @@ animatix-core = { path = "../animatix-core" }
 # default-features = false: rich text is opt-in via the engine's own
 # `rich-text` feature (slim playback builds compile without the Typst stack).
 animatix-text = { path = "../animatix-text", default-features = false }
-animatix-std = { path = "../animatix-std" }
 animatix-plugin-api = { path = "../animatix-plugin-api", optional = true }
 animatix-syntax = { path = "../animatix-syntax" }
 libloading = { version = "0.8", optional = true }
@@ -52,14 +50,11 @@ serde = { workspace = true, optional = true }
 fastrand = "2.4"
 image = { workspace = true, features = ["png", "gif", "jpeg", "webp"], optional = true }
 kurbo = { workspace = true }
+peniko = { workspace = true }
 roxmltree = { version = "0.20.0" }
 smallvec = "1"
 
 usvg = { version = "0.47.0", optional = true }
-# The workspace patches Vello 0.11.0 to `crates/vendor/vello` for the #1948
-# patchless-resolve atlas regression; `tests/vello_img_probe.rs` guards the A–H matrix.
-vello = { workspace = true }
-wgpu = { workspace = true, default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
 taffy = { version = "0.10", default-features = false, features = ["flexbox", "grid", "std", "taffy_tree"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
@@ -77,6 +72,10 @@ dhat = "0.3"
 pollster = { workspace = true }
 serde_json = "1"
 tempfile = "3"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+# The presentation benchmark exercises WGPU device and queue behavior.
+wgpu = { workspace = true, features = ["std", "parking_lot", "vulkan", "wgsl"] }
 
 [[example]]
 name = "property_reference"

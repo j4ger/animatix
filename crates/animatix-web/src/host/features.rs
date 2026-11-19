@@ -4,8 +4,8 @@
 //! Prepared programs evaluate reachable declarations to select on-demand blocks;
 //! unknown or extension primitives must produce preparation diagnostics.
 
+use animatix_core::builtins::catalog::catalog_lookup;
 use animatix_core::features::FeatureMask;
-use animatix_std::catalog::catalog_lookup;
 use animatix_syntax::ast::Stmt;
 use animatix_syntax::walk::{walk_inline_items, walk_stmts};
 
@@ -35,7 +35,7 @@ fn features_for_type(ty: &str) -> FeatureMask {
     }
     // Effect children inside a Filter/Glass scope are built-ins, not unknown
     // primitives; they do not require any optional capability.
-    if animatix_std::is_effect(ty) {
+    if animatix_core::builtins::is_effect(ty) {
         return FeatureMask::NONE;
     }
     FeatureMask::UNKNOWN

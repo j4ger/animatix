@@ -9,6 +9,7 @@ description = "Animatix command-line renderer and scene checker"
 default = ["plugin-loading"]
 plugin-loading = ["animatix/plugin-loading"]
 video = ["animatix-render/video", "dep:sha2"]
+vello-gpu = ["animatix-render/vello-gpu"]
 
 [dependencies]
 animatix = { path = "../animatix" }

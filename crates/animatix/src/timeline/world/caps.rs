@@ -36,7 +36,7 @@ impl World {
     pub(crate) fn apply_identity(&mut self, id: EntityId, actor_type: &str) {
         self.ensure_len();
         *self.actor_types.get_mut(id) = actor_type.to_string();
-        let caps = animatix_std::caps_for_type(actor_type).unwrap_or_default();
+        let caps = animatix_core::builtins::caps_for_type(actor_type).unwrap_or_default();
         *self.caps.get_mut(id) = caps;
         *self.behavior.get_mut(id) = crate::timeline::behavior::behavior_id_for_builtin(actor_type)
             .unwrap_or(crate::timeline::behavior::BehaviorId::UNKNOWN);
@@ -84,10 +84,10 @@ mod tests {
 
     #[test]
     fn spawn_initializes_caps_for_all_catalog_primitives() {
-        for info in animatix_std::CATALOG.iter() {
+        for info in animatix_core::builtins::CATALOG.iter() {
             let mut world = World::new();
             let id = world.spawn("test_actor", info.type_name.as_ref());
-            let expected = animatix_std::caps_from_info(info);
+            let expected = animatix_core::builtins::caps_from_info(info);
             assert_eq!(
                 world.caps(id),
                 expected,
@@ -101,7 +101,7 @@ mod tests {
     fn set_identity_updates_caps() {
         let mut world = World::new();
         let id = world.spawn("node", "Rect");
-        assert_eq!(world.caps(id), animatix_std::caps_for_type("Rect").unwrap());
+        assert_eq!(world.caps(id), animatix_core::builtins::caps_for_type("Rect").unwrap());
         assert_eq!(world.actor_type(id), "Rect");
         assert_eq!(
             world.behavior(id),
@@ -109,7 +109,7 @@ mod tests {
         );
 
         world.set_identity(id, "Text");
-        assert_eq!(world.caps(id), animatix_std::caps_for_type("Text").unwrap());
+        assert_eq!(world.caps(id), animatix_core::builtins::caps_for_type("Text").unwrap());
         assert_eq!(world.actor_type(id), "Text");
         assert_eq!(
             world.behavior(id),
@@ -121,7 +121,7 @@ mod tests {
     fn set_caps_overrides_and_set_identity_clears_override() {
         let mut world = World::new();
         let id = world.spawn("node", "Rect");
-        let rect_caps = animatix_std::caps_for_type("Rect").unwrap();
+        let rect_caps = animatix_core::builtins::caps_for_type("Rect").unwrap();
         assert_eq!(world.caps(id), rect_caps);
 
         let custom = animatix_core::caps::ActorCaps {
@@ -132,7 +132,7 @@ mod tests {
         assert_eq!(world.caps(id), custom);
 
         world.set_identity(id, "Ellipse");
-        assert_eq!(world.caps(id), animatix_std::caps_for_type("Ellipse").unwrap());
+        assert_eq!(world.caps(id), animatix_core::builtins::caps_for_type("Ellipse").unwrap());
         assert_eq!(world.actor_type(id), "Ellipse");
     }
 }

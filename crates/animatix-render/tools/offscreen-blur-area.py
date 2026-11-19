@@ -81,7 +81,7 @@ def main():
     tracked = subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT).decode().split("\0")
     # Relevant complete source trees, including dirty bytes. No credentials,
     # full environment dump, usernames or arbitrary absolute path hashes.
-    files = set(INPUTS) | {p for p in tracked if p.startswith(("crates/animatix/", "crates/animatix-core/", "crates/animatix-std/", "crates/animatix-syntax/", "crates/animatix-render/", "crates/vendor/"))}
+    files = set(INPUTS) | {p for p in tracked if p.startswith(("crates/animatix/", "crates/animatix-core/", "crates/animatix-syntax/", "crates/animatix-render/", "crates/vendor/"))}
     for path in INPUTS:
         if not (ROOT / path).is_file():
             raise RuntimeError(f"required provenance input missing: {path}")

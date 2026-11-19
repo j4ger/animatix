@@ -429,7 +429,7 @@ t: Text, text: "Hardware Stream", at: (300, 200), font_size: 32
     );
 
     // Execute into a vello Scene
-    let mut scene = vello::Scene::new();
+    let mut scene = crate::scene::Scene::new();
     cmds[0].execute(&mut scene, &kurbo::Affine::IDENTITY, 1.0);
 }
 

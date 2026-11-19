@@ -54,7 +54,7 @@ pub struct Persist;
 
 impl BuiltinAction for Persist {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::Persist.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::Persist.descriptor().clone()
     }
 
     fn execute(
@@ -133,7 +133,7 @@ pub struct Remove;
 
 impl BuiltinAction for Remove {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::Remove.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::Remove.descriptor().clone()
     }
 
     fn execute(

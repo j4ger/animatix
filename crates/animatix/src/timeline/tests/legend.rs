@@ -43,7 +43,7 @@ fn test_legend_wrapped_label_respects_max_width() {
     let ctx = EvaluateCtx {
         id: crate::timeline::EntityId::INVALID,
         label: "legend",
-        caps: animatix_std::caps_for_type("Legend").unwrap_or_default(),
+        caps: animatix_core::builtins::caps_for_type("Legend").unwrap_or_default(),
         time_ms: 0,
         local_transform: Affine::IDENTITY,
         opacity: 1.0,
@@ -186,7 +186,7 @@ fn test_legend_empty() {
     let ctx = EvaluateCtx {
         id: crate::timeline::EntityId::INVALID,
         label: "empty_legend",
-        caps: animatix_std::caps_for_type("Legend").unwrap_or_default(),
+        caps: animatix_core::builtins::caps_for_type("Legend").unwrap_or_default(),
         time_ms: 0,
         local_transform: Affine::IDENTITY,
         opacity: 1.0,
@@ -404,7 +404,7 @@ fn test_legend_render_commands_produced() {
     let ctx = EvaluateCtx {
         id: crate::timeline::EntityId::INVALID,
         label: "legend",
-        caps: animatix_std::caps_for_type("Legend").unwrap_or_default(),
+        caps: animatix_core::builtins::caps_for_type("Legend").unwrap_or_default(),
         time_ms: 0,
         local_transform: Affine::IDENTITY,
         opacity: 1.0,

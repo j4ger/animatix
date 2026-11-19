@@ -750,7 +750,7 @@ p: StubPulse, at: (100, 100), size: (50, 50)
     let mut ctx = crate::extension_context::ExtensionContext::new();
     ctx.register_primitive(
         std::sync::Arc::new(StubPrim),
-        animatix_std::PrimitiveInfo::extension(
+        animatix_core::builtins::PrimitiveInfo::extension(
             "StubPrim",
             crate::timeline::ActorCategory::Annotation,
         ),

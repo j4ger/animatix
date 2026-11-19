@@ -643,7 +643,7 @@ r.fill_gradient = radial((0.5, 0.5), 0.2, {(0%, "#ff0000"), (100%, "#0000ff")}) 
     // every stop, which is what the renderer hands to Vello.
     let brush = stroke.to_peniko(kurbo::Rect::new(100.0, 297.0, 500.0, 303.0), 1.0);
     assert_eq!(brush.stops.len(), 3);
-    assert!(matches!(brush.kind, vello::peniko::GradientKind::Sweep(_)));
+    assert!(matches!(brush.kind, peniko::GradientKind::Sweep(_)));
 }
 
 #[test]

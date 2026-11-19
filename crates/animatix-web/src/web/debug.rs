@@ -1,6 +1,7 @@
 //! Diagnostic probes for the player: SVG state and flat canvas fills.
 
 use animatix::composition::BuildTarget;
+use animatix::scene::{Draw, Scene};
 use animatix::timeline::DebugRenderOptions;
 use wasm_bindgen::prelude::*;
 use wgpu::CurrentSurfaceTexture;
@@ -103,10 +104,9 @@ impl AmxPlayer {
             DebugRenderOptions::default(),
             &mut no_filters,
         );
-        let encoding = scene.encoding();
         let vello = VelloStats {
-            draws: encoding.draw_tags.len(),
-            paths: encoding.n_paths,
+            draws: scene.draws().len(),
+            paths: scene_path_count(&scene),
         };
         serde_wasm_bindgen::to_value(&SvgStats {
             cache,
@@ -170,4 +170,18 @@ impl AmxPlayer {
         self.dedup.invalidate();
         Ok(())
     }
+}
+
+fn scene_path_count(scene: &Scene) -> u32 {
+    scene.draws().iter().fold(0_u32, |count, draw| {
+        count.saturating_add(match draw {
+            Draw::Fill { .. }
+            | Draw::Stroke { .. }
+            | Draw::Push { .. }
+            | Draw::BlurredRect { .. } => 1,
+            Draw::Filter { scene, .. } => scene_path_count(scene),
+            Draw::Glass { children, .. } => scene_path_count(children),
+            Draw::Pop | Draw::Glyphs { .. } | Draw::Texture { .. } => 0,
+        })
+    })
 }

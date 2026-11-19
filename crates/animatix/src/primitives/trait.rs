@@ -419,7 +419,7 @@ pub(crate) fn clip_bezpath_from_commands(commands: &[RenderCommand]) -> Option<k
 }
 
 /// The behaviour half of a primitive (build/evaluate/render). The metadata half
-/// lives in `animatix-std` for built-ins and in registration info for extensions,
+/// lives in `animatix-core::builtins` for built-ins and in registration info for extensions,
 /// keyed by [`Primitive::type_name`].
 pub trait Primitive: Send + Sync {
     /// Source-text type name, e.g. "Rect", "Text", "Row" — the registry key for metadata lookup.

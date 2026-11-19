@@ -1,11 +1,13 @@
 //! GPU-backed offscreen frame rendering.
 
-use animatix::timeline::effects::FilterBackend;
+use animatix::scene::Scene;
 use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
 use super::core::RendererCore;
 use super::filter_backend::GpuFilterBackend;
 use super::transition::TransitionCompositor;
+#[cfg(feature = "vello-gpu")]
+use crate::frame_gpu::FrameGpu;
 
 mod raster;
 mod renderer;
@@ -15,6 +17,8 @@ mod timeline_render;
 mod transitions;
 
 pub use raster::{drain_pending_layers, rasterize_scene, rasterize_scene_and_present};
+#[cfg(feature = "vello-gpu")]
+pub(crate) use timeline_render::render_timeline_into_frame_gpu;
 pub(crate) use timeline_render::render_timeline_into_view;
 
 /// A single frame rendered to CPU-accessible RGBA memory.
@@ -42,8 +46,17 @@ pub struct OffscreenRenderer {
     pub(super) device: wgpu::Device,
     pub(super) queue: wgpu::Queue,
     pub(super) core: RendererCore,
+    /// Opt-in sparse-strip renderer used by the native migration probes.
+    /// The legacy renderer remains the default until the platform gates pass.
+    #[cfg(feature = "vello-gpu")]
+    pub(super) frame_gpu: Option<FrameGpu>,
     pub(super) output_texture: Option<wgpu::Texture>,
     pub(super) output_view: Option<wgpu::TextureView>,
+    /// Straight-alpha copy of the premultiplied Vello GPU target for CPU export.
+    #[cfg(feature = "vello-gpu")]
+    pub(super) readback_texture_gpu: Option<wgpu::Texture>,
+    #[cfg(feature = "vello-gpu")]
+    pub(super) readback_view_gpu: Option<wgpu::TextureView>,
     /// Two rotating MAP_READ buffers for the pipelined readback: while
     /// frame N's copy is mapped/encoded, frame N+1's copy lands in the other
     /// buffer — one-frame GPU/CPU overlap without corrupting a mapped buffer.
@@ -103,6 +116,6 @@ pub enum RasterFit<'a> {
         /// Target pixels per scene pixel.
         scale: f32,
         /// Re-encode buffer, reset by the rasterizer.
-        scratch: &'a mut vello::Scene,
+        scratch: &'a mut Scene,
     },
 }

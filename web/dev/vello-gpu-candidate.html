@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Animatix Vello GPU candidate</title>
+<style>
+  body { max-width: 640px; margin: 16px auto; padding: 0 12px; background: #141821; color: #eef3fd; font: 16px system-ui; }
+  amx-player { display: block; width: 100%; }
+</style>
+<main id="stage"></main>
+<script type="module">
+  const sdk = await import("../runtime/amx-player.js");
+  const requested = new URLSearchParams(location.search).get("backend") || "auto";
+  sdk.configureRuntime({ backend: requested });
+
+  const status = window.__candidate = { requested, events: [], errors: [] };
+  const player = document.createElement("amx-player");
+  player.setAttribute("controls", "");
+  player.src = "../content/scenes/first-move.amx";
+  for (const type of ["amxready", "amxbackendlost", "amxbackendrecovered"]) {
+    player.addEventListener(type, (event) => status.events.push({
+      type,
+      backend: event.detail?.backend ?? player.backend,
+      generation: event.detail?.generation,
+    }));
+  }
+  player.addEventListener("amxerror", (event) => status.errors.push(event.detail?.message ?? "amxerror"));
+  document.querySelector("#stage").append(player);
+</script>
+</html>

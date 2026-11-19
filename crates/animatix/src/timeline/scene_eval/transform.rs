@@ -249,7 +249,7 @@ impl Timeline {
         svg_paths: &[VelloPath],
         half_size: [f32; 2],
         local_transform: &kurbo::Affine,
-        scene: &mut vello::Scene,
+        scene: &mut crate::scene::Scene,
         vector_paths: &[VelloPath],
         text_paths: &[TextPath],
         has_image: bool,
@@ -258,8 +258,8 @@ impl Timeline {
             node_local_bounds(vector_paths, text_paths, svg_paths, has_image.then_some(half_size));
 
         if let Some(bounds) = local_bounds {
-            let stroke = vello::kurbo::Stroke::new(1.25);
-            let debug_color = vello::peniko::Color::from_rgba8(255, 214, 102, 220);
+            let stroke = kurbo::Stroke::new(1.25);
+            let debug_color = peniko::Color::from_rgba8(255, 214, 102, 220);
             scene.stroke(&stroke, *local_transform, debug_color, None, &bounds);
         }
 

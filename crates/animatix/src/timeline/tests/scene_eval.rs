@@ -591,29 +591,38 @@ subs: Captions, at: (960, 900), font_size: 21, text_max_width: 640 {
     let inside = timeline.evaluate(1.0, HD);
     let after = timeline.evaluate(2.0, HD);
     assert!(
-        inside.encoding().draw_tags.len() > before.encoding().draw_tags.len(),
+        inside.draws().len() > before.draws().len(),
         "expected the caption to draw inside its [start, end) window"
     );
     assert!(
-        inside.encoding().draw_tags.len() > after.encoding().draw_tags.len(),
+        inside.draws().len() > after.draws().len(),
         "expected the caption to stop drawing after its window"
     );
 }
 
 // Blend layer bounds (scene_eval/render.rs)
 
-/// The historical unbounded blend layer is a ±1e9 `Rect`. Its clip-path
-/// coordinates are stored as f32 bit patterns in `Scene::encoding().path_data`
-/// (vello encodes clip shapes in local coordinates and carries the affine
-/// separately), so a full-surface layer is detectable without a rendered-frame
-/// readback. A tight rect never produces a coordinate near this magnitude in a
-/// normally-sized scene. Inspection stays on the encoded `vello::Scene` per
-/// AGENTS.md — engine unit tests must not depend on `animatix-render` readback.
-fn encoded_blend_clip_is_unbounded(scene: &vello::Scene) -> bool {
-    scene.encoding().path_data.iter().any(|&bits| {
-        let value = f32::from_bits(bits);
-        value.is_finite() && value.abs() >= 1.0e8
+/// The historical unbounded blend layer uses a ±1e9 clip rectangle. Check the
+/// owned clip path directly, without a rendered-frame readback.
+fn blend_clip_is_unbounded(scene: &crate::scene::Scene) -> bool {
+    use kurbo::Shape as _;
+    scene.draws().iter().any(|draw| {
+        let crate::scene::Draw::Push { clip, .. } = draw else {
+            return false;
+        };
+        let bounds = clip.bounding_box();
+        [bounds.x0, bounds.y0, bounds.x1, bounds.y1]
+            .into_iter()
+            .any(|value| value.is_finite() && value.abs() >= 1.0e8)
     })
+}
+
+fn push_count(scene: &crate::scene::Scene) -> usize {
+    scene
+        .draws()
+        .iter()
+        .filter(|draw| matches!(draw, crate::scene::Draw::Push { .. }))
+        .count()
 }
 
 /// A `blend: "screen"` child that reaches outside its parent's own bounds is
@@ -642,14 +651,10 @@ fn blend_screen_child_outside_parent_keeps_unbounded_layer() {
         "fixture child must extend beyond its parent's own bounds"
     );
     assert!(
-        encoded_blend_clip_is_unbounded(&scene),
+        blend_clip_is_unbounded(&scene),
         "child outside parent bounds must take the unbounded-layer fallback"
     );
-    assert_eq!(
-        scene.encoding().n_clips,
-        2,
-        "the blend layer (push/pop pair) must still be present"
-    );
+    assert_eq!(push_count(&scene), 1, "the blend layer must still be present");
 }
 
 /// A camera-active scene must not get a tight world-space clip: the camera
@@ -665,7 +670,7 @@ fn blend_layer_falls_back_when_camera_is_active() {
     assert!(timeline.camera_used.get(), "test setup: camera must be active");
     let scene = timeline.evaluate(0.0, HD);
     assert!(
-        encoded_blend_clip_is_unbounded(&scene),
+        blend_clip_is_unbounded(&scene),
         "camera-active blend layer must take the unbounded fallback"
     );
 }
@@ -684,7 +689,7 @@ fn blend_layer_falls_back_when_mask_or_clip_is_present() {
     );
     let scene = timeline.evaluate(0.0, HD);
     assert!(
-        encoded_blend_clip_is_unbounded(&scene),
+        blend_clip_is_unbounded(&scene),
         "mask/clip-bearing blend subtree must take the unbounded fallback"
     );
 }
@@ -704,12 +709,11 @@ fn static_blend_scene_uses_bounded_clip_with_stable_structure() {
     let first = timeline.evaluate(0.0, HD);
     let second = timeline.evaluate(1.0, HD);
     assert_eq!(
-        first.encoding().draw_tags.len(),
-        second.encoding().draw_tags.len(),
+        first.draws().len(),
+        second.draws().len(),
         "static blend encoding must be structurally stable between frames"
     );
-    assert_eq!(first.encoding().n_clips, second.encoding().n_clips);
-    assert_eq!(first.encoding().n_paths, second.encoding().n_paths);
+    assert_eq!(push_count(&first), push_count(&second));
 
     let control = build_timeline(
         r##"
@@ -717,14 +721,10 @@ fn static_blend_scene_uses_bounded_clip_with_stable_structure() {
         "##,
     )
     .evaluate(0.0, HD);
-    assert_eq!(control.encoding().n_clips, 0, "control has no blend layer");
-    assert_eq!(
-        first.encoding().n_clips,
-        2,
-        "blend scene still encodes exactly one push/pop layer pair"
-    );
+    assert_eq!(push_count(&control), 0, "control has no blend layer");
+    assert_eq!(push_count(&first), 1, "blend scene still records exactly one push layer");
     assert!(
-        !encoded_blend_clip_is_unbounded(&first),
+        !blend_clip_is_unbounded(&first),
         "well-defined static bounds must use the tight rect, not the unbounded fallback"
     );
 }

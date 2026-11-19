@@ -1173,7 +1173,8 @@ fn extension_plot_capability_enables_func_assignments() {
     let ast = parse("p: PlotExt\np.func = (x) => x [1s]");
 
     let mut registry = PrimitiveRegistry::new();
-    let mut plot_info = animatix_std::PrimitiveInfo::extension("PlotExt", ActorCategory::Plot);
+    let mut plot_info =
+        animatix_core::builtins::PrimitiveInfo::extension("PlotExt", ActorCategory::Plot);
     plot_info.capabilities.plot_geometry = true;
     plot_info.capabilities.vector_paths = true;
     registry.register(Arc::new(PlotExt), plot_info).expect("register PlotExt");

@@ -32,7 +32,7 @@ subs: Captions, at: (640, 500), transcript: captions_file
 
     let frame = report.output.evaluate(0.25, SceneDimensions::default());
     assert!(
-        !frame.encoding().draw_tags.is_empty(),
+        !frame.draws().is_empty(),
         "an active transcript segment should produce caption drawing"
     );
 }
@@ -99,7 +99,7 @@ match "chosen" {
         );
     }
     let frame = report.output.evaluate(0.25, SceneDimensions::default());
-    assert!(!frame.encoding().draw_tags.is_empty(), "active loop/match captions should draw");
+    assert!(!frame.draws().is_empty(), "active loop/match captions should draw");
 }
 
 #[test]

@@ -22,7 +22,7 @@ impl ExtensionRegistry {
     pub fn register_primitive(
         &mut self,
         primitive: Arc<dyn Primitive>,
-        info: animatix_std::PrimitiveInfo,
+        info: animatix_core::builtins::PrimitiveInfo,
     ) -> Result<(), PrimitiveRegistrationError> {
         Arc::make_mut(&mut self.primitives).register(primitive, info)
     }

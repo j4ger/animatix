@@ -251,10 +251,10 @@ fn curve_math_point(kind: PlotCurveKind, t: f64, value: &Value) -> (f64, f64) {
 }
 
 /// The plot's stroke paint for a path, or `None` when the width is 0.
-fn curve_stroke(params: &PlotCurveParams<'_>) -> Option<(vello::peniko::Color, f32)> {
+fn curve_stroke(params: &PlotCurveParams<'_>) -> Option<(peniko::Color, f32)> {
     if params.stroke_width > 0.0 {
         Some((
-            vello::peniko::Color::from_rgba8(
+            peniko::Color::from_rgba8(
                 (params.stroke_color[0] * 255.0) as u8,
                 (params.stroke_color[1] * 255.0) as u8,
                 (params.stroke_color[2] * 255.0) as u8,

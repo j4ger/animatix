@@ -1,8 +1,8 @@
-//! Native A/B driver for the web player's Vello-render plus canvas-blit path.
+//! Native A/B driver for the web player's render plus canvas-blit path.
 //!
 //! The separate arm uses the current render submit followed by a surface-format
-//! blit submit. The merged arm uses RendererCore::render_vello_scene_and_present,
-//! which records that same blit as Vello's final command-buffer suffix. Both
+//! blit submit. The merged arm uses RendererCore::render_scene_and_present,
+//! which records that same blit in the render submission. Both
 //! arms consume the same pre-evaluated real .amx scenes and render dimensions.
 //!
 //! This is a headless native analogue: it measures command encoding/submission
@@ -77,9 +77,9 @@ impl Mode {
 
     fn source_proven_submits(self) -> u32 {
         match self {
-            // Vello render_to_texture submits once; the immediate blit submits once.
+            // RendererCore::render_scene submits once; the immediate blit submits once.
             Self::Separate => 2,
-            // Vello submits once after its suffix callback has encoded the blit.
+            // RendererCore submits once after encoding the final blit.
             Self::Merged => 1,
         }
     }
@@ -87,7 +87,7 @@ impl Mode {
 
 struct FrameSample {
     time_s: f64,
-    scene: vello::Scene,
+    scene: animatix::scene::Scene,
 }
 
 struct Fixture {
@@ -176,8 +176,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         "warmup_frames_per_arm_per_round": WARMUP_FRAMES,
         "submit_count_basis": "static source call-site count; no production queue counter",
         "submit_count_evidence": {
-            "separate": "RendererCore::render_vello_scene submits Vello work, then blit_texture_to_format submits the surface blit.",
-            "merged": "RendererCore::render_vello_scene_and_present encodes the surface blit in Vello's final command buffer and submits once.",
+            "separate": "RendererCore::render_scene submits render work, then blit_texture_to_format submits the surface blit.",
+            "merged": "RendererCore::render_scene_and_present encodes the surface blit in the render submission and submits once.",
         },
         "cases": cases,
         "pixel_verification": {
@@ -431,7 +431,7 @@ fn measure_arm(
     let raster = raster_dims(fixture.dims, scale);
     let targets = create_target_pair(device, raster, present_size, present_format);
     let mut core = RendererCore::new(device, queue)?;
-    let mut scratch = vello::Scene::new();
+    let mut scratch = animatix::scene::Scene::new();
     for index in 0..WARMUP_FRAMES {
         let sample = &fixture.samples[index % fixture.samples.len()];
         draw_frame(
@@ -489,7 +489,7 @@ fn measure_arm(
 
 fn draw_frame(
     core: &mut RendererCore,
-    scratch: &mut vello::Scene,
+    scratch: &mut animatix::scene::Scene,
     sample: &FrameSample,
     scale: f32,
     raster_size: (u32, u32),
@@ -508,7 +508,7 @@ fn draw_frame(
     let output_dims = [present_size.0, present_size.1];
     match mode {
         Mode::Separate => {
-            core.render_vello_scene(
+            core.render_scene(
                 device,
                 queue,
                 &targets.render_view,
@@ -528,7 +528,7 @@ fn draw_frame(
             );
         },
         Mode::Merged => {
-            core.render_vello_scene_and_present(
+            core.render_scene_and_present(
                 device,
                 queue,
                 &targets.render_view,

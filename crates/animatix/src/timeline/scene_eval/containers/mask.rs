@@ -81,8 +81,8 @@ impl Timeline {
         // away every child of any mask not positioned at the top-left
         // corner (Mask + Image children were the visible symptom).
         out.scene.push_layer(
-            vello::peniko::Fill::NonZero,
-            vello::peniko::BlendMode::default(),
+            peniko::Fill::NonZero,
+            peniko::BlendMode::default(),
             1.0,
             global_transform,
             &clip_path,

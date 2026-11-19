@@ -49,7 +49,7 @@ mod dispatch;
 mod guards;
 mod targets;
 
-use animatix_std::callable::TimelineBuiltin as BuiltinActionKind;
+use animatix_core::builtins::callable::TimelineBuiltin as BuiltinActionKind;
 use dispatch::execute_action;
 use guards::push_unknown_action_diagnostic;
 #[cfg(test)]

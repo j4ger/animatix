@@ -3,11 +3,15 @@ use animatix::timeline::effects::FilterBackend;
 use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 use animatix_render::core::RendererCore;
 use animatix_render::filter_backend::GpuFilterBackend;
+#[cfg(feature = "vello-gpu")]
+use animatix_render::frame_gpu::{FrameGpu, SceneRecorder};
 use animatix_render::transition::TransitionCompositor;
 use kurbo::Rect;
 
 pub struct PreviewSurface {
     renderer: RendererCore,
+    #[cfg(feature = "vello-gpu")]
+    frame_gpu: Option<FrameGpu>,
     render_texture: Option<wgpu::Texture>,
     render_view: Option<wgpu::TextureView>,
     render_sample_view: Option<wgpu::TextureView>,
@@ -27,6 +31,11 @@ pub struct PreviewSurface {
     hit_regions: Vec<(String, Rect)>,
 }
 
+#[cfg(feature = "vello-gpu")]
+type CandidateFrameGpu<'a> = Option<&'a mut FrameGpu>;
+#[cfg(not(feature = "vello-gpu"))]
+type CandidateFrameGpu<'a> = ();
+
 #[derive(Clone, Copy)]
 enum SampleSource {
     Render,
@@ -35,6 +44,7 @@ enum SampleSource {
 
 fn render_scene_into_target(
     renderer: &mut RendererCore,
+    candidate: CandidateFrameGpu<'_>,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     timeline: &Timeline,
@@ -45,6 +55,26 @@ fn render_scene_into_target(
     target: &wgpu::Texture,
     target_view: &wgpu::TextureView,
 ) -> Result<Vec<(String, Rect)>, String> {
+    #[cfg(feature = "vello-gpu")]
+    if let Some(frame_gpu) = candidate {
+        *backend = None;
+        let mut recorder = SceneRecorder;
+        let mut filter_backend: Option<&mut dyn FilterBackend> = Some(&mut recorder);
+        let scene =
+            timeline.evaluate_with_debug(time_s, dimensions, debug_options, &mut filter_backend);
+        let hit_regions = timeline.hit_regions();
+        let source = frame_gpu.render(
+            &scene,
+            dimensions.width,
+            dimensions.height,
+            kurbo::Affine::IDENTITY,
+        )?;
+        frame_gpu.blit(&source, target_view, wgpu::TextureFormat::Rgba8Unorm, true);
+        return Ok(hit_regions);
+    }
+    #[cfg(not(feature = "vello-gpu"))]
+    let _ = candidate;
+
     if timeline.needs_filter_backend() {
         if backend.is_none() {
             *backend = Some(GpuFilterBackend::new(device.clone(), queue.clone(), dimensions)?);
@@ -74,8 +104,48 @@ fn render_scene_into_target(
 
 impl PreviewSurface {
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<Self, String> {
+        let requested_backend = std::env::var("ANIMATIX_RENDER_BACKEND").unwrap_or_default();
+        #[cfg(feature = "vello-gpu")]
+        return match requested_backend.as_str() {
+            "" | "legacy" => Self::new_legacy(device, queue),
+            "vello-gpu" => Self::new_frame_gpu(device, queue),
+            other => Err(format!("unsupported render backend '{other}'")),
+        };
+        #[cfg(not(feature = "vello-gpu"))]
+        {
+            if !requested_backend.is_empty() && requested_backend != "legacy" {
+                return Err(format!("unsupported render backend '{requested_backend}'"));
+            }
+            Self::new_inner(device, queue, false)
+        }
+    }
+
+    /// Create a preview using the legacy renderer regardless of environment configuration.
+    pub fn new_legacy(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<Self, String> {
+        Self::new_inner(device, queue, false)
+    }
+
+    /// Create a preview with the opt-in Vello GPU renderer for native A/B checks.
+    #[cfg(feature = "vello-gpu")]
+    pub fn new_frame_gpu(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<Self, String> {
+        Self::new_inner(device, queue, true)
+    }
+
+    fn new_inner(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        use_frame_gpu: bool,
+    ) -> Result<Self, String> {
+        #[cfg(feature = "vello-gpu")]
+        let frame_gpu = use_frame_gpu.then(|| FrameGpu::new(device, queue));
+        #[cfg(not(feature = "vello-gpu"))]
+        if use_frame_gpu {
+            return Err("Vello GPU preview requires the 'vello-gpu' feature".into());
+        }
         Ok(Self {
             renderer: RendererCore::new(device, queue).map_err(|e| e.to_string())?,
+            #[cfg(feature = "vello-gpu")]
+            frame_gpu,
             render_texture: None,
             render_view: None,
             render_sample_view: None,
@@ -150,6 +220,7 @@ impl PreviewSurface {
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8Unorm,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::STORAGE_BINDING
                 | wgpu::TextureUsages::COPY_SRC
                 | wgpu::TextureUsages::TEXTURE_BINDING,
@@ -176,6 +247,7 @@ impl PreviewSurface {
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8Unorm,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::COPY_SRC
                 | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::STORAGE_BINDING,
@@ -261,6 +333,10 @@ impl PreviewSurface {
             .ok_or_else(|| "Preview texture is not initialized".to_string())?;
         self.hit_regions = render_scene_into_target(
             &mut self.renderer,
+            #[cfg(feature = "vello-gpu")]
+            self.frame_gpu.as_mut(),
+            #[cfg(not(feature = "vello-gpu"))]
+            (),
             device,
             queue,
             timeline,
@@ -361,6 +437,10 @@ impl PreviewSurface {
                 {
                     let mut from_hit_regions = render_scene_into_target(
                         &mut self.renderer,
+                        #[cfg(feature = "vello-gpu")]
+                        self.frame_gpu.as_mut(),
+                        #[cfg(not(feature = "vello-gpu"))]
+                        (),
                         device,
                         queue,
                         &from.timeline,
@@ -375,6 +455,10 @@ impl PreviewSurface {
                     // Render to scene to render_texture_b
                     let to_hit_regions = render_scene_into_target(
                         &mut self.renderer,
+                        #[cfg(feature = "vello-gpu")]
+                        self.frame_gpu.as_mut(),
+                        #[cfg(not(feature = "vello-gpu"))]
+                        (),
                         device,
                         queue,
                         &to.timeline,

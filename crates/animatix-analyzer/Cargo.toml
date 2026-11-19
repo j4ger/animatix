@@ -7,7 +7,6 @@ description = "Shared language intelligence for Animatix DSL — completions, di
 
 [dependencies]
 animatix-core = { path = "../animatix-core" }
-animatix-std = { path = "../animatix-std" }
 animatix-syntax = { path = "../animatix-syntax" }
 chumsky = "0.12"
 toml = "0.8"

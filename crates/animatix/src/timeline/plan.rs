@@ -561,7 +561,7 @@ mod tests {
     #[test]
     fn actor_kind_plan_maps_registry_properties_by_id() {
         let mut plan = PropertyPlan::for_actor(
-            &animatix_std::caps_for_type("Rect").expect("Rect is a built-in"),
+            &animatix_core::builtins::caps_for_type("Rect").expect("Rect is a built-in"),
             "Rect",
         );
         let position = property_id("position").expect("position is registered");
@@ -577,7 +577,7 @@ mod tests {
     #[test]
     fn graph_grid_and_ticks_use_boolean_plan_slots() {
         let plan = PropertyPlan::for_actor(
-            &animatix_std::caps_for_type("Graph").expect("Graph is a built-in"),
+            &animatix_core::builtins::caps_for_type("Graph").expect("Graph is a built-in"),
             "Graph",
         );
         for name in ["grid", "ticks"] {
@@ -591,7 +591,7 @@ mod tests {
     #[test]
     fn actor_plan_skips_tagged_only_properties() {
         let plan = PropertyPlan::for_actor(
-            &animatix_std::caps_for_type("Callout").expect("Callout is a built-in"),
+            &animatix_core::builtins::caps_for_type("Callout").expect("Callout is a built-in"),
             "Callout",
         );
         for name in ["legend", "place"] {

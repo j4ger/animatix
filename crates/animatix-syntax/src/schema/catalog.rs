@@ -4,10 +4,10 @@ use super::{
 };
 
 /// Built-in primitive metadata shared by runtime, GUI, and LSP tooling, derived
-/// from the `animatix-std` catalog.
+/// from the `animatix-core::builtins` catalog.
 pub fn builtin_primitive_specs() -> Vec<PrimitiveSpec> {
     use animatix_core::caps::ActorCategory;
-    animatix_std::CATALOG
+    animatix_core::builtins::CATALOG
         .iter()
         .map(|info| PrimitiveSpec {
             type_name: info.type_name.to_string(),
@@ -29,13 +29,13 @@ pub fn builtin_primitive_specs() -> Vec<PrimitiveSpec> {
         })
         .collect()
 }
-/// Built-in effect kinds, derived from the `animatix-std` catalog. Only built-ins
+/// Built-in effect kinds, derived from the `animatix-core::builtins` catalog. Only built-ins
 /// are described here, so type/display names stay `&'static str`.
 pub fn effect_specs() -> &'static [EffectSpecDef] {
     use std::sync::OnceLock;
     static SPECS: OnceLock<Vec<EffectSpecDef>> = OnceLock::new();
     SPECS.get_or_init(|| {
-        animatix_std::EFFECTS
+        animatix_core::builtins::EFFECTS
             .iter()
             .map(|effect| EffectSpecDef {
                 type_name: effect.type_name(),
@@ -78,10 +78,13 @@ pub fn property_specs() -> Vec<PropertySpec> {
     SPECS
         .get_or_init(|| {
             let catalog: Vec<(&'static str, animatix_core::caps::ActorCaps)> =
-                animatix_std::CATALOG
+                animatix_core::builtins::CATALOG
                     .iter()
                     .filter_map(|info| {
-                        Some((info.static_type_name()?, animatix_std::caps_from_info(info)))
+                        Some((
+                            info.static_type_name()?,
+                            animatix_core::builtins::caps_from_info(info),
+                        ))
                     })
                     .collect();
             let types = raw_property_types();

@@ -35,7 +35,7 @@ Rules:
   dynamic-track machinery. Effect parameters do **not** enter the primitive
   property registry (`PROPERTY_REGISTRY` / `ActorField` / `PropertyPlan`).
 - **Effect schema has one author-visible source, period.** The effect's own
-  file in `animatix-std` declares everything: parameters (name, kind,
+  file under `animatix-core::builtins` declares everything: parameters (name, kind,
   identity), display name, WGSL passes, `pack`, and `support`. Uniform offsets
   follow the host rule (scalars 4-byte aligned, vec2 at 8, vec4 at 16,
   sequential). The parser crate derives its contract table
@@ -419,12 +419,14 @@ warning, exactly like built-ins.
 
 ## 8. Adding a built-in effect
 
-1. Create `crates/animatix-std/src/effects/<name>.rs` implementing the `Effect`
+1. Create `crates/animatix-core/src/builtins/effects/<name>.rs` implementing the `Effect`
    trait — parameters (name, kind, identity), WGSL passes, `pack`, and
    `support`. This file is the single declaration of the contract.
 2. Add the module and its `pub static <NAME>` to
-   `crates/animatix-std/src/effects/mod.rs`, then reference it from the
-   `EFFECTS` bootstrap array — that is the registration. There is no enum
+   `crates/animatix-core/src/builtins/effects/mod.rs`, then reference it from
+   `EFFECTS` in `crates/animatix-core/src/builtins/mod.rs` — that is the
+   registration. Effect dispatch and the plugin registry are in
+   `crates/animatix-core/src/builtins/registry.rs`. There is no enum
    variant to add (`EffectId` is the authored name), and no separate contract
    row: the parser crate derives `effect_specs()` from `EFFECTS`.
 3. Document it here (the identity table in §2) and in `docs/spec.md`.

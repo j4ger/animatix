@@ -94,7 +94,7 @@ pub fn suggest_callable_names(
     limit: usize,
 ) -> Vec<SpellingCandidate> {
     let mut functions = symbols.functions.clone();
-    for callable in animatix_std::callable::callables() {
+    for callable in animatix_core::builtins::callable::callables() {
         functions.insert(callable.name.clone());
         functions.insert(callable.qualified_name());
     }
@@ -298,7 +298,7 @@ fn is_keyframe_marker(trimmed: &str) -> bool {
 /// `Rect` with an explicit size renders visibly and accepts every common
 /// timeline callable as a target, which is what the author was trying to reference.
 pub fn missing_actor_statement(name: &str) -> String {
-    let rect_info = animatix_std::catalog_lookup("Rect");
+    let rect_info = animatix_core::builtins::catalog_lookup("Rect");
     let type_name = rect_info.map(|info| info.type_name.as_ref()).unwrap_or("Rect");
     let stub = rect_info.and_then(|info| info.default_stub).unwrap_or("size: (100, 100)");
     format!("{name}: {type_name}, {stub}\n")

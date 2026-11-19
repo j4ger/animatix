@@ -420,7 +420,8 @@ fn draw_in_uses_text_capability_for_extension_primitives() {
     let ast = ast.expect("parsed AST");
 
     let mut registry = crate::primitives::PrimitiveRegistry::new();
-    let mut text_ext_info = animatix_std::PrimitiveInfo::extension("TextExt", ActorCategory::Text);
+    let mut text_ext_info =
+        animatix_core::builtins::PrimitiveInfo::extension("TextExt", ActorCategory::Text);
     text_ext_info.capabilities.text_paths = true;
     text_ext_info.text = Some(animatix_core::caps::TextKind::Text);
     registry.register(Arc::new(TextExt), text_ext_info).expect("register TextExt");

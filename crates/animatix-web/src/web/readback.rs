@@ -2,12 +2,14 @@
 
 use animatix::timeline::SceneDimensions;
 use animatix_render::filter_backend::GpuFilterBackend;
+#[cfg(feature = "vello-gpu")]
+use animatix_render::frame_gpu::FrameGpu;
 use animatix_render::transition::TransitionCompositor;
 use wasm_bindgen::prelude::*;
 
 use super::context::with_engine;
 use super::frame::{FrameCtx, Targets, render_document};
-use super::{AmxPlayer, EngineContext, OffscreenTarget};
+use super::{AmxPlayer, OffscreenTarget};
 
 /// Everything the map_async callback needs to own: the mapped buffer plus
 /// the geometry to interpret its bytes.
@@ -23,7 +25,35 @@ fn readback_impl(player: &mut AmxPlayer, time_s: f64) -> Result<ReadbackSetup, S
     if player.target.is_none() {
         return Err("no document loaded".to_string());
     }
-    with_engine(|ctx| readback_with(player, ctx, time_s, dims))
+    #[cfg(feature = "vello-gpu")]
+    if let Some(webgl) = player.webgl.clone() {
+        let mut frame_gpu = webgl.frame_gpu.borrow_mut();
+        return readback_with(
+            player,
+            &webgl.device,
+            &webgl.queue,
+            None,
+            Some(&mut frame_gpu),
+            time_s,
+            dims,
+        );
+    }
+    with_engine(|ctx| {
+        let ctx = ctx?;
+        let mut core = ctx.core.borrow_mut();
+        #[cfg(feature = "vello-gpu")]
+        let mut frame_gpu = ctx.frame_gpu.borrow_mut();
+        readback_with(
+            player,
+            &ctx.device,
+            &ctx.queue,
+            Some(&mut core),
+            #[cfg(feature = "vello-gpu")]
+            Some(&mut frame_gpu),
+            time_s,
+            dims,
+        )
+    })
 }
 
 #[wasm_bindgen]
@@ -154,11 +184,13 @@ impl AmxPlayer {
 /// blended frame a viewer would see.
 fn readback_with(
     player: &mut AmxPlayer,
-    ctx: Result<&EngineContext, String>,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    mut core: Option<&mut animatix_render::core::RendererCore>,
+    #[cfg(feature = "vello-gpu")] mut frame_gpu: Option<&mut FrameGpu>,
     time_s: f64,
     dims: SceneDimensions,
 ) -> Result<ReadbackSetup, String> {
-    let ctx = ctx?;
     let bytes_per_row = (dims.width * 4 + 255) & !255;
 
     // Fresh targets: the readback must not disturb the player's own
@@ -167,7 +199,7 @@ fn readback_with(
     let mut secondary: Option<OffscreenTarget> = None;
     let mut composite: Option<OffscreenTarget> = None;
     if player.compositor.is_none() {
-        player.compositor = Some(TransitionCompositor::new(&ctx.device)?);
+        player.compositor = Some(TransitionCompositor::new(device)?);
     }
 
     let AmxPlayer {
@@ -183,16 +215,17 @@ fn readback_with(
     // next presented frame came out missing them.
     let mut filter_backend: Option<GpuFilterBackend> = None;
     let mut filter_backend_to: Option<GpuFilterBackend> = None;
-    let mut core = ctx.core.borrow_mut();
     // Readbacks always rasterize at the scene's own resolution: the pixel
     // probes compare against backdrop baselines and each other, so they must
     // not inherit whatever scale the presentation path is currently using.
-    let mut scratch = vello::Scene::new();
+    let mut scratch = animatix::scene::Scene::new();
     let frame = render_document(
         &mut FrameCtx {
-            core: &mut core,
-            device: &ctx.device,
-            queue: &ctx.queue,
+            core: core.as_deref_mut(),
+            device,
+            queue,
+            #[cfg(feature = "vello-gpu")]
+            frame_gpu: frame_gpu.as_deref_mut(),
             dims,
             scale: 1.0,
             scratch: &mut scratch,
@@ -210,13 +243,13 @@ fn readback_with(
         },
     )?;
 
-    let buffer = ctx.device.create_buffer(&wgpu::BufferDescriptor {
+    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("animatix-web readback buffer"),
         size: bytes_per_row as u64 * dims.height as u64,
         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
         mapped_at_creation: false,
     });
-    let mut encoder = ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
         label: Some("animatix-web readback copy"),
     });
     encoder.copy_texture_to_buffer(
@@ -235,7 +268,7 @@ fn readback_with(
             depth_or_array_layers: 1,
         },
     );
-    ctx.queue.submit(std::iter::once(encoder.finish()));
+    queue.submit(std::iter::once(encoder.finish()));
 
     Ok(ReadbackSetup {
         buffer,

@@ -457,6 +457,7 @@ export function writeThirdPartyLicenses(directory, options = {}) {
   const metadata = options.metadata ?? JSON.parse(run('cargo', [
     'metadata', '--locked', '--format-version', '1', '--filter-platform', 'wasm32-unknown-unknown',
     '--manifest-path', join(root, 'crates/animatix-web/Cargo.toml'),
+    ...(process.env.ANIMATIX_VELLO_GPU === '1' ? ['--features', 'vello-gpu'] : []),
   ], root));
   const artifacts = buildLicenseArtifacts(metadata, { ...options, root });
   mkdirSync(directory, { recursive: true });

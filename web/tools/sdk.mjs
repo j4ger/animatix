@@ -25,13 +25,14 @@ export function inputs(root = ROOT) {
 }
 
 export function buildEnvironment(environment = process.env) {
-  const relevant = /^(?:RUSTFLAGS|RUSTC|RUSTC_BOOTSTRAP|RUSTC_WRAPPER|RUSTC_WORKSPACE_WRAPPER|RUSTUP_TOOLCHAIN|CARGO_INCREMENTAL|CARGO_ENCODED_RUSTFLAGS|CARGO_BUILD_.*|CARGO_PROFILE_.*|CARGO_TARGET_.*|CC(?:_.*)?|CXX(?:_.*)?|AR(?:_.*)?|CFLAGS(?:_.*)?|CXXFLAGS(?:_.*)?|ARFLAGS(?:_.*)?|SOURCE_DATE_EPOCH)$/;
+  const relevant = /^(?:ANIMATIX_VELLO_GPU|RUSTFLAGS|RUSTC|RUSTC_BOOTSTRAP|RUSTC_WRAPPER|RUSTC_WORKSPACE_WRAPPER|RUSTUP_TOOLCHAIN|CARGO_INCREMENTAL|CARGO_ENCODED_RUSTFLAGS|CARGO_BUILD_.*|CARGO_PROFILE_.*|CARGO_TARGET_.*|CC(?:_.*)?|CXX(?:_.*)?|AR(?:_.*)?|CFLAGS(?:_.*)?|CXXFLAGS(?:_.*)?|ARFLAGS(?:_.*)?|SOURCE_DATE_EPOCH)$/;
   return Object.fromEntries(Object.entries(environment).filter(([key]) => relevant.test(key)).sort(([a], [b]) => a.localeCompare(b)));
 }
 
 export function identity(profile = 'release') {
   const data = {
     schema_version: 1, profile, input_digest: inputs(),
+    render_backends: process.env.ANIMATIX_VELLO_GPU === '1' ? ['webgpu', 'webgl2'] : ['webgpu'],
     source_commit: run('git', ['rev-parse', 'HEAD']),
     source_dirty: run('git', ['status', '--porcelain', '--untracked-files=normal']) !== '',
     tools: {
@@ -137,6 +138,7 @@ export async function assemble(directory, metadataPath, buildIdentity) {
     };
   }
   const manifest = { schema_version: 1, version, build_id: buildIdentity.build_id, build: buildIdentity,
+    render_backends: buildIdentity.render_backends,
     entry: versioned['animatix_web.js'], wasm: versioned['animatix_web_bg.wasm'], runtime_glue: versioned['animatix_web.js'], files, capabilities: split.capabilities,
     fonts: { faces, fallbacks: policy.fallbacks.map(file => faces.find(face => face.file === file).id) },
   };
@@ -149,6 +151,13 @@ export function verify(directory, { release = false, current = false, commit, ve
   const manifest = JSON.parse(readFileSync(join(directory, 'runtime-manifest.json')));
   if (manifest.schema_version !== 1 || !/^[0-9a-f]{64}$/.test(manifest.build_id)) throw new Error('unsupported SDK identity/schema');
   if (!manifest.build || manifest.build.build_id !== manifest.build_id) throw new Error('SDK build identity mismatch');
+  if (manifest.render_backends !== undefined || manifest.build.render_backends !== undefined) {
+    const backends = JSON.stringify(manifest.render_backends);
+    if (!['["webgpu"]', '["webgpu","webgl2"]'].includes(backends) ||
+        backends !== JSON.stringify(manifest.build.render_backends)) {
+      throw new Error('invalid SDK render backend inventory');
+    }
+  }
   if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(manifest.version)) throw new Error('invalid SDK version');
   if (version && manifest.version !== version) throw new Error('SDK version mismatch');
   if (!manifest.files || Array.isArray(manifest.files) || !manifest.capabilities || !Array.isArray(manifest.fonts?.faces) || !Array.isArray(manifest.fonts?.fallbacks)) throw new Error('incomplete SDK manifest');

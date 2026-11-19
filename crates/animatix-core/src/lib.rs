@@ -1,11 +1,10 @@
 //! Language vocabulary and effect contract types shared by every layer.
 //!
-//! This crate is the bottom of the dependency graph: the built-in catalog
-//! (`animatix-std`), the parser front-end (`animatix-syntax`), and the
-//! engine (`animatix`) all depend on it, so it must stay free of engine,
-//! renderer, and parser dependencies. Admission rule: something goes here
-//! when `animatix-std` needs it, or when it is part of the effect definition
-//! surface.
+//! This crate is the bottom of the dependency graph: the built-in catalog,
+//! parser front-end (`animatix-syntax`), and engine (`animatix`) all depend on
+//! it, so it stays free of engine, renderer, and parser dependencies. Shared
+//! language contracts live at the root; built-in catalog, callable, and
+//! effect implementations live under [`builtins`].
 //!
 //! Contents:
 //! - [`caps`]: the capability vocabulary (`ActorCategory`, `ChildProcessing`, `ShapeKind`,
@@ -17,6 +16,7 @@
 //! - [`stroke_icons`]: the bundled stroke-icon table that the engine's `icon:` property expands
 //!   into `Path` geometry.
 
+pub mod builtins;
 pub mod callable;
 pub mod caps;
 pub mod effect;

@@ -10,7 +10,7 @@ pub struct FadeOut;
 
 impl BuiltinAction for FadeOut {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::FadeOut.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::FadeOut.descriptor().clone()
     }
 
     fn execute(

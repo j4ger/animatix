@@ -1,5 +1,5 @@
 use animatix::timeline::effects::{
-    EffectId, EffectInstance, EffectParamValue, EffectParams, EffectRegion, PendingLayer,
+    EffectId, EffectInstance, EffectParamValue, EffectParams, EffectRegion,
 };
 use animatix_core::effect::EffectParamKind;
 
@@ -114,15 +114,15 @@ fn effect_chain(name: &str, values: Vec<EffectParamValue>) -> EffectChain {
     }
 }
 
-fn filled_scene(color: vello::peniko::Color, rect: kurbo::Rect) -> vello::Scene {
-    let mut scene = vello::Scene::new();
+fn filled_scene(color: vello::peniko::Color, rect: kurbo::Rect) -> animatix::scene::Scene {
+    let mut scene = animatix::scene::Scene::new();
     let path = kurbo::Shape::to_path(&rect, 1e-3);
     scene.fill(vello::peniko::Fill::NonZero, kurbo::Affine::IDENTITY, color, None, &path);
     scene
 }
 
 /// Opaque white half-plane for `x < 32`, transparent to the right.
-fn white_half_scene(height: f64) -> vello::Scene {
+fn white_half_scene(height: f64) -> animatix::scene::Scene {
     filled_scene(vello::peniko::Color::WHITE, kurbo::Rect::new(0.0, 0.0, 32.0, height))
 }
 
@@ -223,7 +223,7 @@ fn scene_pixel(image: &SceneImage, x: usize, y: usize) -> [u8; 4] {
     image.data.data.data()[start..start + 4].try_into().expect("RGBA pixel")
 }
 
-fn checker_cross_scene(dims: SceneDimensions) -> vello::Scene {
+fn checker_cross_scene(dims: SceneDimensions) -> animatix::scene::Scene {
     let width = f64::from(dims.width);
     let height = f64::from(dims.height);
     let mut scene = filled_scene(
@@ -239,7 +239,7 @@ fn checker_cross_scene(dims: SceneDimensions) -> vello::Scene {
                     vello::peniko::Color::WHITE,
                     kurbo::Rect::new(x, y, x + 6.0, y + 6.0),
                 );
-                scene.encoding_mut().append(tile.encoding(), &None);
+                scene.append(&tile, None);
             }
         }
     }
@@ -253,14 +253,14 @@ fn checker_cross_scene(dims: SceneDimensions) -> vello::Scene {
         vello::peniko::Color::WHITE,
         kurbo::Rect::new(4.0, center_y - 4.0, width - 4.0, center_y + 4.0),
     );
-    scene.encoding_mut().append(vertical.encoding(), &None);
-    scene.encoding_mut().append(horizontal.encoding(), &None);
+    scene.append(&vertical, None);
+    scene.append(&horizontal, None);
     scene
 }
 
 fn render_at(
     backend: &mut GpuFilterBackend,
-    scene: &vello::Scene,
+    scene: &animatix::scene::Scene,
     dims: SceneDimensions,
     region: Option<EffectRegion>,
     chain: &EffectChain,
@@ -272,7 +272,7 @@ fn render_at(
 
 fn render_pending_region(
     backend: &mut GpuFilterBackend,
-    scene: &vello::Scene,
+    scene: &animatix::scene::Scene,
     dims: SceneDimensions,
     region: EffectRegion,
     chain: &EffectChain,
@@ -493,7 +493,7 @@ fn separate_and_combined_submits_match_on_hardware_adapter() {
 
 fn render(
     backend: &mut GpuFilterBackend,
-    scene: &vello::Scene,
+    scene: &animatix::scene::Scene,
     dims: SceneDimensions,
     chain: &EffectChain,
 ) -> SceneImage {
@@ -515,7 +515,7 @@ fn gpu_filter_backend_empty_chain_produces_image() {
     };
     let image = backend
         .render_scene_to_image_gpu_filtered(
-            &vello::Scene::new(),
+            &animatix::scene::Scene::new(),
             DIMS,
             None,
             &EffectChain::default(),
@@ -530,7 +530,7 @@ fn gpu_filter_backend_blur_chain_produces_image() {
     let Some(mut backend) = gpu_backend(DIMS) else {
         return;
     };
-    let image = render(&mut backend, &vello::Scene::new(), DIMS, &blur_chain(5.0));
+    let image = render(&mut backend, &animatix::scene::Scene::new(), DIMS, &blur_chain(5.0));
     assert_image_size(&image, 64.0);
 }
 
@@ -541,7 +541,7 @@ fn gpu_filter_backend_color_grade_produces_image() {
         return;
     };
     let chain = color_grade_chain(1.5, 1.2, 0.5, 45.0, 0.3);
-    let image = render(&mut backend, &vello::Scene::new(), DIMS, &chain);
+    let image = render(&mut backend, &animatix::scene::Scene::new(), DIMS, &chain);
     assert_image_size(&image, 64.0);
 }
 
@@ -725,7 +725,7 @@ fn a_reduced_raster_keeps_the_blur_the_same_size_in_scene_pixels() {
         height: 32,
     };
     let mut unscaled = GpuFilterBackend::new(device, queue, small).expect("backend at 32x32");
-    let mut small_scene = vello::Scene::new();
+    let mut small_scene = animatix::scene::Scene::new();
     small_scene.append(&scene, Some(kurbo::Affine::scale(0.5)));
     let naive = render(&mut unscaled, &small_scene, small, &blur_chain(8.0));
     let naive_ramp = soft_width(naive.data.data.data(), 32, 16, 32) * 2;
@@ -911,7 +911,7 @@ fn bloom_adds_the_pre_chain_original_to_the_blur() {
         vello::peniko::Color::from_rgba8(128, 128, 128, 255),
         kurbo::Rect::new(20.0, 20.0, 44.0, 44.0),
     );
-    scene.encoding_mut().append(rect.encoding(), &None);
+    scene.append(&rect, None);
 
     let blurred = render(&mut backend, &scene, DIMS, &blur_chain(6.0));
 
@@ -961,8 +961,8 @@ fn bloom_threshold_brightens_only_bright_regions() {
         vello::peniko::Color::from_rgba8(60, 60, 60, 255),
         kurbo::Rect::new(38.0, 20.0, 58.0, 44.0),
     );
-    scene.encoding_mut().append(bright.encoding(), &None);
-    scene.encoding_mut().append(dark.encoding(), &None);
+    scene.append(&bright, None);
+    scene.append(&dark, None);
 
     let blur_bloom_chain = |threshold: f32| {
         let mut chain = blur_chain(3.0);
@@ -1127,7 +1127,7 @@ fn bloom_threshold_uses_straight_rgb_for_translucent_pixels() {
     let Some(mut backend) = gpu_backend(DIMS) else {
         return;
     };
-    let mut scene = vello::Scene::new();
+    let mut scene = animatix::scene::Scene::new();
     let white = filled_scene(
         vello::peniko::Color::from_rgba8(255, 255, 255, 64),
         kurbo::Rect::new(6.0, 20.0, 26.0, 44.0),
@@ -1136,8 +1136,8 @@ fn bloom_threshold_uses_straight_rgb_for_translucent_pixels() {
         vello::peniko::Color::from_rgba8(255, 0, 0, 64),
         kurbo::Rect::new(38.0, 20.0, 58.0, 44.0),
     );
-    scene.encoding_mut().append(white.encoding(), &None);
-    scene.encoding_mut().append(red.encoding(), &None);
+    scene.append(&white, None);
+    scene.append(&red, None);
     let chain = effect_chain(
         "Bloom",
         vec![
@@ -1419,7 +1419,7 @@ fn duotone_maps_luma_onto_the_ramp() {
         vello::peniko::Color::from_rgba8(255, 255, 255, 255),
         kurbo::Rect::new(32.0, 0.0, 64.0, 64.0),
     );
-    scene.encoding_mut().append(white.encoding(), &None);
+    scene.append(&white, None);
 
     let chain = effect_chain(
         "Duotone",
@@ -1459,7 +1459,7 @@ fn posterize_quantises_midtones() {
         vello::peniko::Color::from_rgba8(153, 153, 153, 255),
         kurbo::Rect::new(32.0, 0.0, 64.0, 64.0),
     );
-    scene.encoding_mut().append(lighter.encoding(), &None);
+    scene.append(&lighter, None);
 
     let chain = effect_chain("Posterize", vec![EffectParamValue::F32(2.0)]);
     let image = render(&mut backend, &scene, DIMS, &chain);
@@ -1486,7 +1486,7 @@ fn edge_lights_the_step_boundary() {
         vello::peniko::Color::from_rgba8(255, 255, 255, 255),
         kurbo::Rect::new(32.0, 0.0, 64.0, 64.0),
     );
-    scene.encoding_mut().append(white.encoding(), &None);
+    scene.append(&white, None);
 
     let chain = effect_chain("Edge", vec![EffectParamValue::F32(1.0), EffectParamValue::F32(0.0)]);
     let image = render(&mut backend, &scene, DIMS, &chain);

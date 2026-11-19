@@ -814,6 +814,9 @@ async function browserTests(sources, exerciseInventory, compareFrames) {
   let fixed = false;
   try { sdk.configureRuntime({ manifestUrl: '/different/runtime-manifest.json' }); } catch { fixed = true; }
   check(fixed, 'runtime location changed after first initialization');
+  let backendFixed = false;
+  try { sdk.configureRuntime({ backend: 'webgl2' }); } catch { backendFixed = true; }
+  check(backendFixed, 'renderer backend changed after runtime initialization');
   return { passed: results, frames, resource_inventory: resourceInventory, device_requests: window.__deviceRequests, adapter: adapterInfo };
 }
 

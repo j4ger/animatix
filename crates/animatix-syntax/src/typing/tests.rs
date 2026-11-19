@@ -35,7 +35,7 @@ fn color_namespace_paths_are_colors() {
 #[test]
 fn color_functions_return_colors() {
     let env = std_env();
-    for callable in animatix_std::callable::callables()
+    for callable in animatix_core::builtins::callable::callables()
         .iter()
         .filter(|callable| callable.return_type == animatix_core::callable::CallableType::Color)
     {

@@ -94,7 +94,7 @@ fn is_speech_anchor(time: &Time) -> bool {
 }
 
 fn has_transcript_property(ty: &str, props: &[Property]) -> bool {
-    animatix_std::caps_for_type(ty).is_some_and(|caps| caps.transcript)
+    animatix_core::builtins::caps_for_type(ty).is_some_and(|caps| caps.transcript)
         && props.iter().any(|prop| prop.name == "transcript")
 }
 /// A transcript's timestamps are relative to an Audio clip, or to the scene

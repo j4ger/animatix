@@ -263,13 +263,17 @@ gate_no_video() {
   # Build the default user-facing binaries, run the engine with every optional
   # feature off, and inspect the resolved feature graph: rsmpeg is pulled in
   # only by animatix-render/video, so its presence means a default build turned
-  # video on. The minimal engine must also exclude rich-text dependencies.
+  # video on. The minimal engine must also exclude rich-text and GPU renderers.
   measure_phase no-video default-binaries cargo cargo build -p animatix-cli -p animatix-gui
   measure_phase no-video minimal-engine cargo cargo check -p animatix --no-default-features
   local pkg tree
   tree=$(measure_phase no-video minimal-dependency-graph cargo cargo tree -p animatix --no-default-features -e normal --prefix none --format '{p}')
   if grep -Eq '^(typst([_-][[:alnum:]_-]+)?|syntect) v' <<<"$tree"; then
     echo "error: minimal engine dependencies include the rich-text stack" >&2
+    return 1
+  fi
+  if grep -Eq '^(wgpu([_-][[:alnum:]_-]+)?|vello|vello_gpu|vello_hybrid) v' <<<"$tree"; then
+    echo "error: minimal engine dependencies include a GPU renderer" >&2
     return 1
   fi
   for pkg in animatix-cli animatix-gui; do
@@ -429,6 +433,7 @@ gate_ci_policy_tests() {
   python3 tools/ci/test-ci-plan.py
   python3 tools/ci/test-main-baseline.py
   python3 tools/ci/test-compare-snapshot-gates.py
+  python3 tools/ci/test-dependency-gates.py
   python3 tools/release/release-tests.py
   python3 tools/ci/test-release-workflow.py
   python3 web/tools/test/test-web-smoke-gates.py
@@ -742,6 +747,7 @@ gate_wasm_check() {
   # break the site. This is the check that looks at it.
   cargo check -p animatix-web --target wasm32-unknown-unknown
   cargo check -p animatix-web --target wasm32-unknown-unknown --no-default-features
+  cargo check --locked -p animatix-web --target wasm32-unknown-unknown --features vello-gpu
   cargo clippy -p animatix --no-default-features --all-targets -- -D warnings
 }
 

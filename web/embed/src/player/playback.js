@@ -7,6 +7,7 @@ const {
   ASPECTS, parkInstance, unparkInstance,
 } = core;
 import { AmxPlayerInput } from "./input.js";
+import { dispatchPlayerError, playerError } from "./errors.js";
 export class AmxPlayerPlayback extends AmxPlayerInput {
   _triggerStepHud() {
     const stepIdx = this._pausePoints.findIndex((p) => Math.abs(p - this._time) < 0.02);
@@ -16,7 +17,111 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
     this._triggerSkipHud(text, true);
   }
 
+  /// Rebuild this player's GPU state after a page-shared device loss or a
+  /// canvas-local WebGL context loss. Prepared source/assets/fonts stay on the
+  /// element, so recovery does not refetch or replace the committed edit.
+  _handleBackendLost(detail = {}) {
+    if (this._destroyed) return;
+    if (this._state === "loading") {
+      this._pendingBackendLost = detail;
+      return;
+    }
+    if (this._state !== "ready" || !this._player || !this._loadedBundle) return;
+    if (this._backendRecoveryPromise) return this._backendRecoveryPromise;
+    const runtime = this._runtime;
+    if (!runtime?.createPlayer) return;
+    const inputs = { ...this._runtimeInputs };
+    const operation = this._cancelOperation();
+    clearTimeout(this._varsTimer);
+    this._varsTimer = null;
+    this._backendSuspended = true;
+    instances.delete(this);
+    this._backendUnregister?.();
+    this._backendUnregister = null;
+    const oldPlayer = this._player;
+    this._player = null;
+    this._freePlayer(oldPlayer);
+    this._invalidateRestFrame();
+    this.dispatchEvent(new CustomEvent("amxbackendlost", {
+      bubbles: true,
+      detail: { backend: detail.backend ?? runtime.backend?.(), reason: detail.reason ?? "device-lost", message: detail.message ?? "Graphics device lost" },
+    }));
+
+    this._backendRecoveryPromise = (async () => {
+      let candidate = null;
+      try {
+        await runtime.recoverBackend?.();
+        this._replaceCanvas({ preserveOld: true });
+        candidate = await runtime.createPlayer(this._canvas, () => this._replaceCanvas({ preserveOld: true }));
+        if (!this._isCurrentOperation(operation)) {
+          this._freePlayer(candidate);
+          return;
+        }
+        this._player = candidate;
+        this._backendUnregister = runtime.registerPlayer?.(this) ?? null;
+        const result = this._buildPrepared(candidate, this._loadedBundle);
+        const diagnostics = result?.diagnostics ?? [];
+        if (!result?.ok) throw this._buildError(diagnostics);
+        if (Object.keys(inputs).length) candidate.set_inputs(inputs);
+        this._runtimeInputs = inputs;
+        this._backendSuspended = false;
+        this._installDocument(result);
+        this._time = Math.min(this._time, this._cycle || this._duration);
+        this._restTime = Math.min(this._restTime, this._duration);
+        this._invalidateRestFrame();
+        if (!this._renderScene()) throw new Error("recovered backend did not present a frame");
+        this._discardRecoveryCanvas();
+        this._playing = this._playing || this._backendResumeRequested;
+        this._backendResumeRequested = false;
+        if (this._playing && this.isConnected) {
+          instances.add(this);
+          ensureLoop();
+        }
+        this._syncControls();
+        this.dispatchEvent(new CustomEvent("amxbackendrecovered", {
+          bubbles: true,
+          detail: { backend: runtime.backend?.(), generation: runtime.backendGeneration?.() },
+        }));
+        if (this._pendingBackendLost) {
+          const lost = this._pendingBackendLost;
+          this._pendingBackendLost = null;
+          this._handleBackendLost(lost);
+        } else if (this._pendingBackendReload) {
+          const reason = this._pendingBackendReload;
+          this._pendingBackendReload = null;
+          this._resetForReload(reason);
+        } else if (this._pendingBackendVars || this._varsWaiters.length) {
+          this._pendingBackendVars = false;
+          this._scheduleVarsRebuild();
+        }
+      } catch (error) {
+        if (candidate && !this._destroyed) this._freePlayer(candidate);
+        this._backendUnregister?.();
+        this._backendUnregister = null;
+        this._player = null;
+        if (this._destroyed) return;
+        if (!this._isCurrentOperation(operation)) {
+          this._backendSuspended = false;
+          this._discardRecoveryCanvas();
+          return;
+        }
+        this._backendSuspended = false;
+        this._discardRecoveryCanvas();
+        this.pause();
+        this._state = "error";
+        const normalized = playerError(error, "capability");
+        this._showVeil(`Graphics backend recovery failed: ${normalized.message}`, true);
+        this._settleVarsWaiters?.(normalized);
+        dispatchPlayerError(this, this.getAttribute("src"), normalized, "capability");
+      } finally {
+        this._backendRecoveryPromise = null;
+      }
+    })();
+    return this._backendRecoveryPromise;
+  }
+
   pause() {
+    this._backendResumeRequested = false;
     this._playing = false;
     // An explicit pause outranks the visibility observer: re-entering the
     // viewport must not undo what the user (or the page) just asked for.
@@ -127,6 +232,11 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
     return Math.round(this._duration * FRAME_RATE);
   }
 
+  /// Selected page-wide graphics backend (`webgpu` or `webgl2`).
+  get backend() {
+    return this._runtime?.backend?.() ?? null;
+  }
+
   /// The debug line in the same words the chip shows, for `player.debugReport()`
   /// in a console or for the `c` key.
   debugReport() {
@@ -169,7 +279,7 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
 
   /// Called by the shared loop each frame. Returns whether it played.
   advance(dt) {
-    if (!this._playing || !this._visible) return false;
+    if (!this._playing || !this._visible || this._backendSuspended) return false;
     // Scrubbing owns the playhead: the clock freezes and the inspected frame
     // is what renders (the strip's seek renders directly).
     if (this._scrubbing) return false;
@@ -495,7 +605,7 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
   }
 
   _renderScene() {
-    if (!this._player) return;
+    if (!this._player || this._backendSuspended) return false;
     // The loop's dissolve is a canvas opacity change, not a new frame: it must
     // keep running even while the held frame itself is deduplicated.
     const alpha = this._loopAlpha();
@@ -518,12 +628,13 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
     // our invalidation hooks: the held frame is redrawn at most twice a second
     // instead of staying blank forever.
     const stale = this._lastRenderWall === undefined || nowMs - this._lastRenderWall > 500;
-    if (key === this._lastRenderKey && !stale) return;
+    if (key === this._lastRenderKey && !stale) return true;
     try {
       this._player.render_frame(t);
       this._lastRenderKey = key;
       this._lastRenderWall = nowMs;
       this._renderFailures = 0;
+      return true;
     } catch (err) {
       // Never cache a failed render: the identical tick after it must retry.
       this._lastRenderKey = null;
@@ -533,6 +644,7 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
       // print at frame rate and bury everything else on the page.
       this._renderFailures += 1;
       if (this._renderFailures === 1) console.warn("amx-player: render failed", err);
+      return false;
     }
   }
 }

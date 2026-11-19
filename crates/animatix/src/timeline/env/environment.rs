@@ -544,7 +544,7 @@ impl Environment {
         self.callable_descriptors
             .get(name)
             .map(Arc::as_ref)
-            .or_else(|| animatix_std::callable::callable(name))
+            .or_else(|| animatix_core::builtins::callable::callable(name))
     }
 
     /// Copy callable bindings and signatures into a function's isolated local

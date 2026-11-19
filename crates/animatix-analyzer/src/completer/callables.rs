@@ -8,7 +8,10 @@ pub(super) fn callable_completions(
     manifest: &ExtensionManifest,
 ) -> Vec<CompletionItem> {
     let mut items = Vec::new();
-    for callable in animatix_std::callable::callables().iter().chain(manifest.callables.iter()) {
+    for callable in animatix_core::builtins::callable::callables()
+        .iter()
+        .chain(manifest.callables.iter())
+    {
         let label = if callable.namespace == "std" {
             callable.name.clone()
         } else {
@@ -153,7 +156,7 @@ pub(crate) fn callable_for(
     manifest: &ExtensionManifest,
 ) -> Option<CallableDescriptor> {
     let callee = callee.replace('.', "::");
-    if let Some(callable) = animatix_std::callable::callables().iter().find(|callable| {
+    if let Some(callable) = animatix_core::builtins::callable::callables().iter().find(|callable| {
         callable.qualified_name() == callee
             || (callee == callable.name && callable.namespace == "std")
     }) {

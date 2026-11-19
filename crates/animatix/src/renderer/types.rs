@@ -1,9 +1,9 @@
 pub use animatix_text::TextPath;
 use kurbo::BezPath;
+use peniko::color::{ColorSpaceTag, DynamicColor};
+use peniko::{Color, ColorStop, ColorStops, Extend, Gradient};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use vello::peniko::color::{ColorSpaceTag, DynamicColor};
-use vello::peniko::{Color, ColorStop, ColorStops, Extend, Gradient};
 
 /// One stop of a [`GradientSpec`] — a normalized offset and an RGBA color in
 /// 0..1.
@@ -117,14 +117,14 @@ impl GradientSpec {
                 // Half-extent of the bbox projected onto the ramp direction, so
                 // the end stops land on the box's extremes along that axis.
                 let half = (dx.abs() * w + dy.abs() * h) / 2.0;
-                vello::peniko::GradientKind::Linear(vello::peniko::LinearGradientPosition {
+                peniko::GradientKind::Linear(peniko::LinearGradientPosition {
                     start: kurbo::Point::new(cx - dx * half, cy - dy * half),
                     end: kurbo::Point::new(cx + dx * half, cy + dy * half),
                 })
             },
             GradientShape::Radial { center, radius } => {
                 let scale = w.max(h).max(1.0) as f32;
-                vello::peniko::GradientKind::Radial(vello::peniko::RadialGradientPosition::new(
+                peniko::GradientKind::Radial(peniko::RadialGradientPosition::new(
                     kurbo::Point::new(x0 + f64::from(center[0]) * w, y0 + f64::from(center[1]) * h),
                     radius * scale,
                 ))
@@ -133,7 +133,7 @@ impl GradientSpec {
                 // peniko sweeps are radians clockwise from +x in y-down space;
                 // the CSS `0deg` (up) is therefore -90°.
                 let start = (f64::from(angle) - 90.0) * deg;
-                vello::peniko::GradientKind::Sweep(vello::peniko::SweepGradientPosition {
+                peniko::GradientKind::Sweep(peniko::SweepGradientPosition {
                     center: kurbo::Point::new(
                         x0 + f64::from(center[0]) * w,
                         y0 + f64::from(center[1]) * h,

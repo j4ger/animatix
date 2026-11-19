@@ -164,6 +164,101 @@ mod readback_reuse_tests {
     }
 }
 
+#[cfg(feature = "vello-gpu")]
+mod vello_gpu_candidate_tests {
+    use super::common::solid_rect_timeline;
+    use super::*;
+
+    fn candidate_or_skip() -> Option<OffscreenRenderer> {
+        match OffscreenRenderer::new_frame_gpu() {
+            Ok(renderer) => Some(renderer),
+            Err(_) => {
+                crate::testing::skip_if_no_gpu();
+                None
+            },
+        }
+    }
+
+    #[test]
+    fn candidate_export_readback_is_straight_alpha_and_survives_resize() {
+        let Some(mut candidate) = candidate_or_skip() else {
+            return;
+        };
+        let timeline = solid_rect_timeline();
+        for dimensions in [
+            SceneDimensions {
+                width: 160,
+                height: 120,
+            },
+            SceneDimensions {
+                width: 200,
+                height: 144,
+            },
+        ] {
+            let frame =
+                candidate.render_timeline(&timeline, 0.0, dimensions).expect("candidate frame");
+            let center = px(&frame, dimensions.width as usize / 2, dimensions.height as usize / 2);
+            assert!(center[0] > 200 && center[1] < 80 && center[2] < 80, "center: {center:?}");
+            assert_eq!(center[3], 255, "opaque fill must remain opaque after unpremultiply");
+            assert_eq!(px(&frame, 0, 0), [0, 0, 0, 255], "frame backing stays opaque black");
+        }
+    }
+
+    #[test]
+    fn candidate_pipelined_readback_matches_blocking_export() {
+        let Some(mut candidate) = candidate_or_skip() else {
+            return;
+        };
+        let timeline = solid_rect_timeline();
+        let dimensions = SceneDimensions {
+            width: 200,
+            height: 160,
+        };
+        let pending_a = candidate
+            .begin_frame_with_debug(&timeline, 0.0, dimensions, DebugRenderOptions::default())
+            .expect("candidate begin A");
+        let pending_b = candidate
+            .begin_frame_with_debug(&timeline, 0.0, dimensions, DebugRenderOptions::default())
+            .expect("candidate begin B");
+        let frame_a = candidate.wait_frame(pending_a).expect("candidate wait A");
+        let frame_b = candidate.wait_frame(pending_b).expect("candidate wait B");
+        let blocking = candidate
+            .render_timeline(&timeline, 0.0, dimensions)
+            .expect("candidate blocking frame");
+        assert_eq!(frame_a.rgba.as_ref(), blocking.rgba.as_ref());
+        assert_eq!(frame_b.rgba.as_ref(), blocking.rgba.as_ref());
+    }
+
+    #[test]
+    fn candidate_records_filter_draws_without_creating_legacy_filter_backends() {
+        let Some(mut candidate) = candidate_or_skip() else {
+            return;
+        };
+        let timeline = build_checked(
+            r#"
+config { resolution: (160, 120) }
+#0s
+fx: Filter {
+  soft: Blur, radius: 6
+  box: Rect, size: (80, 80), at: (80, 60), color: (1, 0, 0, 1)
+}
+"#,
+        );
+        let frame = candidate
+            .render_timeline(
+                &timeline,
+                0.0,
+                SceneDimensions {
+                    width: 160,
+                    height: 120,
+                },
+            )
+            .expect("candidate filtered frame");
+        assert!(px(&frame, 80, 60)[0] > 0, "filtered center should contain ink");
+        assert!(candidate.filter_backend.is_none());
+    }
+}
+
 #[test]
 fn offscreen_renderer_can_be_initialized() {
     // `new()` succeeds with an adapter and errors cleanly without one; either

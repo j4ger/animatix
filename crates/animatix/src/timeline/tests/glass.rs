@@ -7,9 +7,7 @@
 
 use super::support::{build_ignoring_warnings, build_timeline};
 use crate::timeline::SceneDimensions;
-use crate::timeline::effects::{
-    EffectChain, EffectRegion, FilterBackend, PendingBackdrop, PendingLayer,
-};
+use crate::timeline::effects::{EffectChain, EffectRegion, FilterBackend, PendingBackdrop};
 use crate::timeline::image::SceneImage;
 
 #[derive(Default)]
@@ -22,7 +20,7 @@ struct SpyBackend {
 impl FilterBackend for SpyBackend {
     fn render_scene_to_image_gpu_filtered(
         &mut self,
-        _scene: &vello::Scene,
+        _scene: &crate::scene::Scene,
         _dimensions: SceneDimensions,
         _region: Option<EffectRegion>,
         _chain: &EffectChain,
@@ -38,7 +36,7 @@ impl FilterBackend for SpyBackend {
 
     fn enqueue_scene_composite(
         &mut self,
-        _scene: &vello::Scene,
+        _scene: &crate::scene::Scene,
         _dimensions: SceneDimensions,
         _origin: [f32; 2],
         _alpha: f32,
@@ -46,9 +44,24 @@ impl FilterBackend for SpyBackend {
         self.overlays += 1;
         Ok(())
     }
+}
 
-    fn take_pending_composites(&mut self) -> Vec<PendingLayer> {
-        Vec::new()
+#[derive(Default)]
+struct RecordingBackend;
+
+impl FilterBackend for RecordingBackend {
+    fn records_scene_effects(&self) -> bool {
+        true
+    }
+
+    fn render_scene_to_image_gpu_filtered(
+        &mut self,
+        _scene: &crate::scene::Scene,
+        _dimensions: SceneDimensions,
+        _region: Option<EffectRegion>,
+        _chain: &EffectChain,
+    ) -> Result<SceneImage, String> {
+        Err("scene recorder does not execute effects".to_string())
     }
 }
 
@@ -90,6 +103,109 @@ fn a_glass_scope_queues_one_backdrop_and_one_overlay() {
         card_children,
         vec!["label"],
         "the build must attach the panel's content children to the scope, or the          overlay composites an empty scene and the text disappears"
+    );
+}
+
+#[test]
+fn recorded_glass_stays_in_deferred_order_with_its_children() {
+    let timeline = build_timeline(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+#0s
+plate: Rect, size: (600, 200), at: (320, 180), color: accent.primary
+card: Glass, at: (320, 180), size: (200, 100), corner_radius: 12 {
+    frost: Blur, radius: 18
+    label: Text, text: "sharp", font_size: 20
+}
+hud: Rect, size: (80, 20), at: (60, 40), color: accent.warning
+"#,
+    );
+    let mut recorder = RecordingBackend;
+    let mut backend: Option<&mut dyn FilterBackend> = Some(&mut recorder);
+    let program = timeline.evaluate_program_with_debug(
+        0.0,
+        scene_dims(),
+        crate::timeline::DebugRenderOptions::default(),
+        &mut backend,
+    );
+
+    let draws = program.scene.draws();
+    let glass_index = draws
+        .iter()
+        .position(|draw| matches!(draw, crate::scene::Draw::Glass { .. }))
+        .expect("Glass must be represented in the scene");
+    let later_sibling = draws
+        .iter()
+        .rposition(|draw| matches!(draw, crate::scene::Draw::Fill { .. }))
+        .expect("later sibling must be represented");
+    assert!(glass_index < later_sibling, "the stream preserves the Glass walk position");
+    let crate::scene::Draw::Glass { children, backdrop } = &draws[glass_index] else {
+        unreachable!();
+    };
+    assert!(!children.draws().is_empty(), "Glass keeps its child scene with the deferred op");
+    assert_eq!(backdrop.alpha, 1.0);
+}
+
+#[test]
+fn recorded_filter_keeps_painter_order_or_marks_safe_tail_composites() {
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+#0s
+plate: Rect, size: (600, 200), at: (320, 180), color: accent.primary
+fx: Filter, at: (320, 180) {
+    soft: Blur, radius: 12
+    content: Rect, size: (200, 100), color: accent.warning
+}
+hud: Rect, size: (80, 20), at: (60, 40), color: accent.warning
+"#;
+    let timeline = build_timeline(source);
+    let mut recorder = RecordingBackend;
+    let mut backend: Option<&mut dyn FilterBackend> = Some(&mut recorder);
+    let program = timeline.evaluate_program_with_debug(
+        0.0,
+        scene_dims(),
+        crate::timeline::DebugRenderOptions::default(),
+        &mut backend,
+    );
+
+    let draws = program.scene.draws();
+    let filter_index = draws
+        .iter()
+        .position(|draw| matches!(draw, crate::scene::Draw::Filter { .. }))
+        .expect("Filter must be represented in the scene");
+    let later_sibling = draws
+        .iter()
+        .rposition(|draw| matches!(draw, crate::scene::Draw::Fill { .. }))
+        .expect("later sibling must be represented");
+    assert!(filter_index < later_sibling, "inline Filter preserves painter order");
+    assert!(matches!(
+        draws[filter_index],
+        crate::scene::Draw::Filter {
+            placement: crate::scene::CompositePlacement::Inline,
+            ..
+        }
+    ));
+
+    let tail_timeline = build_timeline(
+        &source.replace("hud: Rect, size: (80, 20), at: (60, 40), color: accent.warning", ""),
+    );
+    let mut recorder = RecordingBackend;
+    let mut backend: Option<&mut dyn FilterBackend> = Some(&mut recorder);
+    let tail_program = tail_timeline.evaluate_program_with_debug(
+        0.0,
+        scene_dims(),
+        crate::timeline::DebugRenderOptions::default(),
+        &mut backend,
+    );
+    assert!(
+        tail_program.scene.draws().iter().any(|draw| matches!(
+            draw,
+            crate::scene::Draw::Filter {
+                placement: crate::scene::CompositePlacement::AfterScene,
+                ..
+            }
+        )),
+        "a tail Filter may safely use post-scene compositing"
     );
 }
 

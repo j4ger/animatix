@@ -374,7 +374,7 @@ fn make_curve_vello_path(
         fill: None,
         stroke: if stroke_width > 0.0 {
             Some((
-                vello::peniko::Color::from_rgba8(
+                peniko::Color::from_rgba8(
                     (stroke_color[0] * 255.0) as u8,
                     (stroke_color[1] * 255.0) as u8,
                     (stroke_color[2] * 255.0) as u8,

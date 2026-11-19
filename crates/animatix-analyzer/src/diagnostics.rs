@@ -315,7 +315,7 @@ pub(crate) fn collect_callable_diagnostics(
 
 static STANDARD_CALLABLES_BY_NAME: LazyLock<HashMap<&'static str, &'static CallableDescriptor>> =
     LazyLock::new(|| {
-        animatix_std::callable::callables()
+        animatix_core::builtins::callable::callables()
             .iter()
             .map(|callable| (callable.name.as_str(), callable))
             .collect()

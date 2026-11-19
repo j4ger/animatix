@@ -193,7 +193,7 @@ fn render_verification(
 ) -> Result<Vec<Vec<u8>>, Box<dyn Error>> {
     let mut core = RendererCore::new(device, queue)?;
     let mut target_sets = HashMap::<(u32, u32, u32, u32), [TargetPair; 2]>::new();
-    let mut scratch = vello::Scene::new();
+    let mut scratch = animatix::scene::Scene::new();
     let mut outputs = Vec::with_capacity(sequence.len());
     for (index, step) in sequence.iter().enumerate() {
         let fixture = &fixtures[step.fixture];

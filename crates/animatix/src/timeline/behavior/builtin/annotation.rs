@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use vello::peniko::Color;
+use peniko::Color;
 
 use crate::primitives::build_arrow_path;
 use crate::primitives::connector::{

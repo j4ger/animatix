@@ -8,7 +8,7 @@ impl FilterBackend for GpuFilterBackend {
 
     fn render_scene_to_image_gpu_filtered(
         &mut self,
-        scene: &vello::Scene,
+        scene: &animatix::scene::Scene,
         dimensions: SceneDimensions,
         region: Option<EffectRegion>,
         chain: &EffectChain,
@@ -56,7 +56,7 @@ impl FilterBackend for GpuFilterBackend {
 
     fn render_scene_to_pending_composite(
         &mut self,
-        scene: &vello::Scene,
+        scene: &animatix::scene::Scene,
         dimensions: SceneDimensions,
         region: Option<EffectRegion>,
         chain: &EffectChain,
@@ -134,27 +134,13 @@ impl FilterBackend for GpuFilterBackend {
         Ok(())
     }
 
-    fn take_pending_composites(&mut self) -> Vec<PendingLayer> {
-        std::mem::take(&mut self.pending_composites)
-    }
-
-    fn recycle_pending_composite(&mut self, composite: PendingComposite) {
-        let size = composite.texture.size();
-        let key = (size.width, size.height);
-        let mut pool = self.pending_texture_pool.borrow_mut();
-        let list = pool.entry(key).or_default();
-        if list.len() < 8 {
-            list.push((composite.texture, composite.view));
-        }
-    }
-
     /// Queue the panel's own children as a plain composite: the scene renders
     /// into the region scratch with a transparent clear and an empty chain, then
     /// the copy is queued. It lands *after* whatever is already in the queue, so
     /// a `Glass` scope's children composite above its backdrop.
     fn enqueue_scene_composite(
         &mut self,
-        scene: &vello::Scene,
+        scene: &animatix::scene::Scene,
         dimensions: SceneDimensions,
         origin: [f32; 2],
         alpha: f32,
@@ -183,6 +169,23 @@ impl FilterBackend for GpuFilterBackend {
         self.pending_composites.push(PendingLayer::Backdrop(backdrop.clone()));
         Ok(())
     }
+}
+
+impl GpuFilterBackend {
+    /// Drain queued legacy composites in painter order.
+    pub fn take_pending_composites(&mut self) -> Vec<PendingLayer> {
+        std::mem::take(&mut self.pending_composites)
+    }
+
+    pub(crate) fn recycle_pending_composite(&mut self, composite: PendingComposite) {
+        let size = composite.texture.size();
+        let key = (size.width, size.height);
+        let mut pool = self.pending_texture_pool.borrow_mut();
+        let list = pool.entry(key).or_default();
+        if list.len() < 8 {
+            list.push((composite.texture, composite.view));
+        }
+    }
 
     /// Blur the panel's own slice of the finished frame.
     ///
@@ -190,7 +193,7 @@ impl FilterBackend for GpuFilterBackend {
     /// render: the target's contents are copied into the region scratch (which
     /// `Filter` scopes already own and reuse), run through the scope's chain, and
     /// handed back as a composite clipped to the panel's rect and corners.
-    fn run_backdrop(
+    pub(crate) fn run_backdrop(
         &mut self,
         target: &wgpu::Texture,
         backdrop: &PendingBackdrop,
@@ -212,13 +215,13 @@ impl FilterBackend for GpuFilterBackend {
         // quantized padding ring would otherwise hold the previous frame's
         // texels, and a blur reaching into them smears that garbage inward.
         self.core
-            .render_vello_scene_with_background(
+            .render_scene_with_background(
                 &self.device,
                 &self.queue,
                 &scratch.render_view,
                 w,
                 h,
-                &vello::Scene::new(),
+                &animatix::scene::Scene::new(),
                 vello::peniko::Color::TRANSPARENT,
             )
             .map_err(|e| e.to_string())?;

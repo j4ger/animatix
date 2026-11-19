@@ -312,7 +312,7 @@ impl Timeline {
             TextDeclarationKind::Counter => "Counter",
         };
         let primitive = self.primitive_registry.find(primitive_type)?;
-        let caps = animatix_std::caps_for_type(primitive_type).unwrap_or_default();
+        let caps = animatix_core::builtins::caps_for_type(primitive_type).unwrap_or_default();
         self.get_default_color(primitive, &caps, "color")
     }
 

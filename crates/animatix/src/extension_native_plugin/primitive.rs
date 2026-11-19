@@ -36,7 +36,7 @@ use crate::timeline::{Environment, ResizeMode};
 /// [`Primitive`].
 pub(crate) struct NativePrimitiveAdapter {
     pub(super) type_name: String,
-    pub(super) info: animatix_std::PrimitiveInfo,
+    pub(super) info: animatix_core::builtins::PrimitiveInfo,
     child_processing: ChildProcessing,
     declared_properties: Vec<String>,
     resize_mode: ResizeMode,
@@ -78,7 +78,7 @@ impl NativePrimitiveAdapter {
         let child_processing =
             native_child_processing(primitive.child_processing).unwrap_or_default();
         let capabilities = native_capabilities(primitive.capabilities);
-        let info = animatix_std::PrimitiveInfo {
+        let info = animatix_core::builtins::PrimitiveInfo {
             type_name: type_name.clone().into(),
             display_name: display_name.into(),
             category,
@@ -206,7 +206,9 @@ impl Primitive for NativePrimitiveAdapter {
         let time_ms = *time_ms;
         let parent_label = *parent_label;
         let track_id = timeline.world.spawn(label, self.type_name.clone());
-        timeline.world.set_caps(track_id, animatix_std::caps_from_info(&self.info));
+        timeline
+            .world
+            .set_caps(track_id, animatix_core::builtins::caps_from_info(&self.info));
         timeline.world.rebuild_property_plan(track_id);
         let Some(build) = self.build else {
             return Ok(());

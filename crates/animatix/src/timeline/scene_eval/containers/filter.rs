@@ -1,3 +1,4 @@
+use crate::scene::CompositePlacement;
 use crate::timeline::effects::{EffectChain, EffectRegion};
 use crate::timeline::{EntityId, SceneDimensions, Timeline};
 
@@ -51,7 +52,7 @@ impl Timeline {
         }
 
         // Build sub-scene with children rendered at their world positions
-        let mut sub_scene = vello::Scene::new();
+        let mut sub_scene = crate::scene::Scene::new();
         out.with_scene(&mut sub_scene, |out| {
             for &child_id in &self.world.hierarchy(node_id).children {
                 self.evaluate_node_by_id(
@@ -75,7 +76,7 @@ impl Timeline {
             .unwrap_or_default();
 
         if chain.is_empty() {
-            out.scene.encoding_mut().append(sub_scene.encoding(), &None);
+            out.scene.append(&sub_scene, None);
             return;
         }
 
@@ -88,6 +89,22 @@ impl Timeline {
                 || r.origin[1] + r.size.height as f32 <= 0.0)
         {
             // The effect scope's region of interest is entirely off-screen.
+            return;
+        }
+
+        // A scene-recording backend defers execution to the renderer. Keep the
+        // complete child program and its painter-order placement in Scene.
+        if out
+            .filter_backend
+            .as_ref()
+            .is_some_and(|backend| backend.records_scene_effects())
+        {
+            let placement = if allow_pending_composites {
+                CompositePlacement::AfterScene
+            } else {
+                CompositePlacement::Inline
+            };
+            out.scene.push_filter(sub_scene, region, chain, global_opacity, placement);
             return;
         }
 
@@ -221,7 +238,7 @@ impl Timeline {
     fn composite_filtered_scene(
         &self,
         out: &mut crate::primitives::RenderOutputs<'_, '_>,
-        sub_scene: &vello::Scene,
+        sub_scene: &crate::scene::Scene,
         scene_dimensions: SceneDimensions,
         region: Option<EffectRegion>,
         chain: &EffectChain,
@@ -245,9 +262,9 @@ impl Timeline {
                         )),
                         None => kurbo::Affine::IDENTITY,
                     };
-                    let brush = vello::peniko::ImageBrush::new(filtered.data.clone())
-                        .with_extend(vello::peniko::Extend::Pad)
-                        .with_quality(vello::peniko::ImageQuality::Medium)
+                    let brush = peniko::ImageBrush::new(filtered.data.clone())
+                        .with_extend(peniko::Extend::Pad)
+                        .with_quality(peniko::ImageQuality::Medium)
                         .with_alpha(global_opacity);
                     out.scene.draw_image(&brush, transform);
                 },
@@ -265,7 +282,7 @@ impl Timeline {
                             ),
                         ),
                     );
-                    out.scene.encoding_mut().append(sub_scene.encoding(), &None);
+                    out.scene.append(sub_scene, None);
                 },
             }
         }

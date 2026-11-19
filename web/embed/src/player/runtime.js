@@ -5,8 +5,22 @@ import { playerError } from "./errors.js";
 const state = (globalThis[Symbol.for("animatix.sdk.runtime")] ??= {
   manifestUrl: null, started: false, promise: null,
 });
+// These defaults are added rather than replacing the page-global object: a
+// page may have loaded an older embed bundle before a newer one is evaluated.
+state.backendPreference ??= "webgpu";
+state.backendConfigured ??= false;
+state.selectedBackend ??= null;
+state.backendGeneration ??= 0;
+state.backendSelection ??= null;
+state.webgpuInitPromise ??= null;
+state.webgpuInitialized ??= false;
+state.backendLost ??= false;
+state.backendLossCount ??= 0;
+state.players ??= new Set();
+state.lossBridgeInstalled ??= false;
 const manifestPromises = new Map();
 const FONT_BYTES = new Map();
+const BACKENDS = new Set(["auto", "webgpu", "webgl2"]);
 
 /** Read-only inventory of this page's bounded, decoded font cache. */
 export function debugRuntimeStats() {
@@ -29,12 +43,228 @@ function checkedFetch(url, kind = "bytes", signal) {
 }
 
 export function configureRuntime(options = {}) {
-  if (!options || typeof options !== "object" || typeof options.manifestUrl !== "string") {
-    throw new TypeError("configureRuntime expects { manifestUrl }");
+  if (!options || typeof options !== "object" || Array.isArray(options)) {
+    throw new TypeError("configureRuntime expects an options object");
   }
-  const url = new URL(options.manifestUrl, globalThis.document?.baseURI ?? import.meta.url).href;
-  if (state.started && state.manifestUrl !== url) throw new Error("runtime configuration is fixed after loading begins");
-  state.manifestUrl = url;
+  const hasManifest = Object.hasOwn(options, "manifestUrl");
+  const hasBackend = Object.hasOwn(options, "backend");
+  if (!hasManifest && !hasBackend) {
+    throw new TypeError("configureRuntime expects { manifestUrl } and/or { backend }");
+  }
+  let url = state.manifestUrl;
+  if (hasManifest) {
+    if (typeof options.manifestUrl !== "string") throw new TypeError("manifestUrl must be a string");
+    url = new URL(options.manifestUrl, globalThis.document?.baseURI ?? import.meta.url).href;
+  }
+  let backend = state.backendPreference;
+  if (hasBackend) {
+    if (typeof options.backend !== "string" || !BACKENDS.has(options.backend)) {
+      throw new TypeError("backend must be 'auto', 'webgpu' or 'webgl2'");
+    }
+    backend = options.backend;
+  }
+  if (state.started && ((hasManifest && state.manifestUrl !== url) || (hasBackend && backend !== state.backendPreference))) {
+    throw new Error("runtime configuration is fixed after loading begins");
+  }
+  if (hasManifest) state.manifestUrl = url;
+  if (hasBackend) {
+    state.backendPreference = backend;
+    state.backendConfigured = true;
+  }
+}
+
+/** The backend selected for this page after the first player was created. */
+export function runtimeBackend() {
+  return state.selectedBackend;
+}
+
+/** Shared device generation, useful for diagnosing a loss and recovery. */
+export function runtimeBackendGeneration() {
+  return state.backendGeneration;
+}
+
+function backendCandidates(preference, availableBackends) {
+  const requested = preference === "auto" ? ["webgpu", "webgl2"] : [preference];
+  return availableBackends ? requested.filter((backend) => availableBackends.includes(backend)) : requested;
+}
+
+function playerFactory(module, backend) {
+  if (typeof module.create_player_for_backend === "function") {
+    return (canvas) => module.create_player_for_backend(canvas, backend);
+  }
+  if (backend === "webgpu" && typeof module.create_player === "function") {
+    return (canvas) => module.create_player(canvas);
+  }
+  // Compatibility with the first opt-in WebGL2 trial. New SDKs use the single
+  // create_player_for_backend export so backend policy has one wasm boundary.
+  if (backend === "webgl2" && typeof module.create_webgl_player === "function") {
+    return (canvas) => module.create_webgl_player(canvas);
+  }
+  throw new Error(`This SDK does not include the ${backend} renderer`);
+}
+
+async function initializeBackend(module, backend) {
+  if (backend === "webgpu") {
+    if (typeof module.init_engine === "function") await module.init_engine();
+    else if (typeof module.create_player !== "function" && typeof module.create_player_for_backend !== "function") {
+      throw new Error("This SDK does not expose WebGPU initialization");
+    }
+  } else if (typeof module.create_player_for_backend !== "function" && typeof module.create_webgl_player !== "function") {
+    throw new Error("This SDK was built without the WebGL2 renderer");
+  }
+}
+
+function backendError(error, backend) {
+  const wrapped = error instanceof Error ? error : new Error(String(error));
+  wrapped.kind ??= "capability";
+  wrapped.backend ??= backend;
+  return wrapped;
+}
+
+function announceBackendLoss(detail) {
+  const eventGeneration = Number.isSafeInteger(detail?.generation) ? detail.generation : null;
+  if (eventGeneration !== null && eventGeneration < state.backendGeneration) return;
+  if (eventGeneration !== null) state.backendGeneration = eventGeneration;
+  if (detail?.backend && state.selectedBackend && detail.backend !== state.selectedBackend) return;
+  if (state.backendLost) return;
+  state.backendLost = true;
+  state.backendLossCount += 1;
+  const lost = {
+    backend: detail?.backend ?? state.selectedBackend,
+    generation: state.backendGeneration,
+    reason: detail?.reason ?? "device-lost",
+    message: detail?.message ?? "The graphics device was lost",
+  };
+  // WebGPU is a shared page device: every embed must rebuild together. GL
+  // devices are per canvas, so their context-lost event is routed only to its
+  // owning player by the element's canvas listener.
+  if (lost.backend === "webgpu") {
+    state.selectedBackend = null;
+    state.backendSelection = null;
+    state.webgpuInitialized = false;
+    state.webgpuInitPromise = null;
+  }
+  for (const player of [...state.players]) {
+    try { player._handleBackendLost?.(lost); }
+    catch (error) { console.error("amx-player: backend loss handler failed", error); }
+  }
+}
+
+function installBackendLossBridge() {
+  if (state.lossBridgeInstalled || typeof globalThis.addEventListener !== "function") return;
+  state.lossBridgeInstalled = true;
+  globalThis.addEventListener("animatixbackendlost", (event) => announceBackendLoss(event.detail ?? {}));
+}
+
+async function initializeBackendOnce(module, backend, pageState = state) {
+  if (backend !== "webgpu") return initializeBackend(module, backend);
+  if (pageState.webgpuInitialized) return;
+  if (!pageState.webgpuInitPromise) {
+    pageState.webgpuInitPromise = initializeBackend(module, backend)
+      .then(() => { pageState.webgpuInitialized = true; })
+      .finally(() => { pageState.webgpuInitPromise = null; });
+  }
+  return pageState.webgpuInitPromise;
+}
+
+async function createPlayerForMode(module, backend, canvas, pageState = state) {
+  // WebGPU initialization is page shared and single-flight; WebGL2 creation is
+  // canvas-specific, so its wasm factory initializes the per-canvas device.
+  await initializeBackendOnce(module, backend, pageState);
+  return playerFactory(module, backend)(canvas);
+}
+
+async function chooseBackend(module, canvas, replaceCanvas, preference, pageState, availableBackends) {
+  const candidates = backendCandidates(preference, availableBackends);
+  if (candidates.length === 0) {
+    throw new Error(`This SDK was built without the requested ${preference} renderer`);
+  }
+  let activeCanvas = canvas;
+  let lastError;
+  for (let index = 0; index < candidates.length; index += 1) {
+    const backend = candidates[index];
+    try {
+      const lossCount = pageState.backendLossCount ?? 0;
+      const player = await createPlayerForMode(module, backend, activeCanvas, pageState);
+      if (backend === "webgpu" && (pageState.backendLossCount ?? 0) !== lossCount) {
+        player?.free?.();
+        throw new Error("WebGPU device was lost during initialization");
+      }
+      pageState.selectedBackend = backend;
+      pageState.backendLost = false;
+      const wasmGeneration = Number(player?.backend_generation?.());
+      if (backend === "webgpu" && Number.isSafeInteger(wasmGeneration) && wasmGeneration > 0) {
+        pageState.backendGeneration = wasmGeneration;
+      } else {
+        pageState.backendGeneration += 1;
+      }
+      return { player, canvas: activeCanvas, backend, generation: pageState.backendGeneration, owner: replaceCanvas };
+    } catch (error) {
+      lastError = backendError(error, backend);
+      if (index + 1 < candidates.length && typeof replaceCanvas === "function") {
+        // A failed WebGPU surface creation can already have claimed the
+        // HTMLCanvasElement's context type. A fresh canvas is required before
+        // asking wgpu for a WebGL2 surface.
+        activeCanvas = replaceCanvas();
+      }
+    }
+  }
+  throw lastError ?? new Error("No supported graphics backend is available");
+}
+
+export async function createRuntimePlayer(
+  module,
+  canvas,
+  replaceCanvas,
+  preference = state.backendPreference,
+  pageState = state,
+  availableBackends = null,
+) {
+  installBackendLossBridge();
+  if (pageState.selectedBackend && !pageState.backendLost) {
+    try {
+      const lossCount = pageState.backendLossCount ?? 0;
+      const player = await createPlayerForMode(module, pageState.selectedBackend, canvas, pageState);
+      if (pageState.selectedBackend === "webgpu" && (pageState.backendLossCount ?? 0) !== lossCount) {
+        player?.free?.();
+        throw new Error("WebGPU device was lost during initialization");
+      }
+      return { player, backend: pageState.selectedBackend, generation: pageState.backendGeneration };
+    } catch (error) {
+      throw backendError(error, pageState.selectedBackend);
+    }
+  }
+
+  if (!pageState.backendSelection) {
+    pageState.backendSelection = chooseBackend(
+      module, canvas, replaceCanvas, preference, pageState, availableBackends,
+    )
+      .finally(() => { pageState.backendSelection = null; });
+  }
+  const selected = await pageState.backendSelection;
+  if (selected.canvas === canvas || selected.owner === replaceCanvas) return selected;
+  const player = await createPlayerForMode(module, selected.backend, canvas, pageState);
+  return { player, backend: selected.backend, generation: selected.generation };
+}
+
+function registerRuntimePlayer(player) {
+  state.players.add(player);
+  const canvas = player._canvas;
+  const onContextLost = (event) => {
+    event.preventDefault();
+    player._handleBackendLost?.({
+      backend: "webgl2",
+      generation: state.backendGeneration,
+      reason: "webglcontextlost",
+      message: "The WebGL2 context was lost",
+      local: true,
+    });
+  };
+  if (state.selectedBackend === "webgl2") canvas?.addEventListener?.("webglcontextlost", onContextLost);
+  return () => {
+    state.players.delete(player);
+    canvas?.removeEventListener?.("webglcontextlost", onContextLost);
+  };
 }
 
 function validateManifest(manifest) {
@@ -50,10 +280,23 @@ function validateManifest(manifest) {
   if (!manifest.files || typeof manifest.files !== "object") {
     throw playerError(new Error("runtime manifest has no files table"), "version");
   }
+  if (manifest.render_backends !== undefined) {
+    const backends = JSON.stringify(manifest.render_backends);
+    if (!['["webgpu"]', '["webgpu","webgl2"]'].includes(backends)) {
+      throw playerError(new Error("runtime manifest has an invalid render backend inventory"), "version");
+    }
+  }
   return manifest;
 }
 
 export async function loadRuntime() {
+  if (!state.backendConfigured && typeof globalThis.location?.search === "string") {
+    // Preserve the opt-in WebGL2 query used by the original trial while the
+    // supported page-level configuration is rolled out.
+    if (new URLSearchParams(globalThis.location.search).get("amx-backend") === "webgl2") {
+      state.backendPreference = "webgl2";
+    }
+  }
   state.manifestUrl ??= new URL("./runtime-manifest.json", import.meta.url).href;
   state.started = true;
   const manifestUrl = state.manifestUrl;
@@ -92,10 +335,27 @@ export async function loadRuntime() {
           `runtime build mismatch (manifest ${manifest.build_id}, wasm ${runtimeBuildId})`,
         ), "version");
       }
+      installBackendLossBridge();
       return {
         root,
         manifest,
         module,
+        backendPreference: () => state.backendPreference,
+        backend: runtimeBackend,
+        backendGeneration: runtimeBackendGeneration,
+        createPlayer: async (canvas, replaceCanvas) => {
+          const selected = await createRuntimePlayer(
+            module, canvas, replaceCanvas, state.backendPreference, state, manifest.render_backends ?? null,
+          );
+          return selected.player;
+        },
+        registerPlayer: registerRuntimePlayer,
+        recoverBackend: async () => {
+          if (!state.backendLost) return state.selectedBackend;
+          // The next createPlayer call negotiates once and shares its result
+          // among every embed recovering from this loss.
+          return null;
+        },
         ensureCapabilities: async (required) => {
           try {
             if (typeof module.ensure_capabilities !== "function") {
@@ -109,7 +369,7 @@ export async function loadRuntime() {
         },
         initEngine: async () => {
           try {
-            await module.init_engine?.();
+            await initializeBackendOnce(module, "webgpu", state);
           } catch (error) {
             throw playerError(error, "capability");
           }

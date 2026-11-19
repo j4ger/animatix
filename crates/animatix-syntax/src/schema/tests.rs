@@ -298,7 +298,7 @@ fn primitive_spec_carries_capabilities_and_category() {
 
 #[test]
 fn child_processing_kind_matches_special_containers() {
-    // Derived from the animatix-std catalog.
+    // Derived from the animatix-core::builtins catalog.
     let child_processing_of = |name: &str| {
         builtin_primitive_specs()
             .iter()

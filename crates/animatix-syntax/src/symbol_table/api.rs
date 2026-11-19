@@ -13,7 +13,7 @@ impl SymbolTable {
 
     /// Get the capability flags for an actor type (built-in or extension).
     pub fn caps_of(&self, ty: &str) -> Option<animatix_core::caps::ActorCaps> {
-        animatix_std::caps_for_type(ty)
+        animatix_core::builtins::caps_for_type(ty)
     }
 
     /// True when `ty` is a container or effect compositing scope.
@@ -23,7 +23,7 @@ impl SymbolTable {
 
     /// Retrieve author-facing documentation for this type.
     pub fn doc_of(&self, ty: &str) -> Option<&str> {
-        animatix_std::catalog_lookup(ty).and_then(|info| {
+        animatix_core::builtins::catalog_lookup(ty).and_then(|info| {
             if info.doc.is_empty() {
                 None
             } else {

@@ -834,6 +834,45 @@ fn glass_preview_keeps_backdrop_copy_valid_and_rebuilds_after_resize() {
     assert_no_validation_error(&device, resized_scope);
 }
 
+#[cfg(feature = "vello-gpu")]
+#[test]
+fn vello_gpu_preview_records_glass_without_legacy_filter_backend() {
+    let Some((device, queue)) = device_or_skip() else {
+        return;
+    };
+    let mut preview =
+        PreviewSurface::new_frame_gpu(&device, &queue).expect("Vello GPU preview surface");
+    let timeline = glass_timeline();
+    let sampling = SamplingPipeline::new(&device);
+    let validation_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
+
+    for dimensions in [
+        SceneDimensions {
+            width: 64,
+            height: 64,
+        },
+        SceneDimensions {
+            width: 96,
+            height: 80,
+        },
+    ] {
+        preview.set_dimensions(&device, dimensions);
+        preview
+            .render(&device, &queue, &timeline, 0.0, DebugRenderOptions::default())
+            .expect("Vello GPU Glass preview render");
+        let pixel = sample_pixel(
+            &device,
+            &queue,
+            &sampling,
+            preview.sample_view().expect("Vello GPU sample view"),
+        );
+        assert!(pixel[0] > 0 && pixel[1] > 0 && pixel[2] > 0, "Glass render is blank: {pixel:?}");
+        assert!(preview.filter_backend.is_none(), "candidate preview should record effects");
+    }
+
+    assert_no_validation_error(&device, validation_scope);
+}
+
 fn median_ms(mut samples: Vec<f64>) -> f64 {
     samples.sort_by(f64::total_cmp);
     samples[samples.len() / 2]

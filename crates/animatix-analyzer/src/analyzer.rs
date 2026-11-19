@@ -212,7 +212,7 @@ impl Analyzer {
         // Standard callables are always prelude-visible without a manifest;
         // keep their canonical qualified and unqualified names available to
         // completion, hover, and typo fixes from the shared descriptor table.
-        for callable in animatix_std::callable::callables() {
+        for callable in animatix_core::builtins::callable::callables() {
             table.functions.insert(callable.name.clone());
             table.functions.insert(callable.qualified_name());
         }

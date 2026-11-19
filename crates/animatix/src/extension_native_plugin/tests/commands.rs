@@ -210,10 +210,10 @@ fn native_append_highlight_produces_highlight_command() {
 fn native_append_image_uses_actor_image() {
     let mut timeline = crate::timeline::Timeline::new();
     let image = crate::timeline::image::SceneImage {
-        data: vello::peniko::ImageData {
-            data: vello::peniko::Blob::from(vec![0u8, 0, 0, 255]),
-            format: vello::peniko::ImageFormat::Rgba8,
-            alpha_type: vello::peniko::ImageAlphaType::Alpha,
+        data: peniko::ImageData {
+            data: peniko::Blob::from(vec![0u8, 0, 0, 255]),
+            format: peniko::ImageFormat::Rgba8,
+            alpha_type: peniko::ImageAlphaType::Alpha,
             width: 1,
             height: 1,
         },
@@ -264,10 +264,10 @@ fn native_append_image_uses_actor_image() {
 fn native_append_image_rejects_uncached_explicit_url() {
     let mut timeline = crate::timeline::Timeline::new();
     let image = crate::timeline::image::SceneImage {
-        data: vello::peniko::ImageData {
-            data: vello::peniko::Blob::from(vec![0u8, 0, 0, 255]),
-            format: vello::peniko::ImageFormat::Rgba8,
-            alpha_type: vello::peniko::ImageAlphaType::Alpha,
+        data: peniko::ImageData {
+            data: peniko::Blob::from(vec![0u8, 0, 0, 255]),
+            format: peniko::ImageFormat::Rgba8,
+            alpha_type: peniko::ImageAlphaType::Alpha,
             width: 1,
             height: 1,
         },
@@ -415,7 +415,7 @@ fn native_get_property_reads_extension_slot() {
     let id = ctx
         .register_property("Pulse", "glow", animatix_syntax::schema::PropertyValueKind::F32, true)
         .expect("register property");
-    let caps = animatix_std::caps_for_type("Rect").unwrap_or_default();
+    let caps = animatix_core::builtins::caps_for_type("Rect").unwrap_or_default();
     let mut plan = crate::timeline::plan::PropertyPlan::for_actor(&caps, "Rect");
     crate::timeline::property_engine::write_property_plan_slot(
         &mut plan,

@@ -39,14 +39,14 @@ impl BuiltIn {
     }
 }
 
-/// The built-in primitive catalog (the `animatix-std` identity cards).
+/// The built-in primitive catalog (the `animatix-core::builtins` identity cards).
 pub fn primitive_catalog() -> &'static [&'static PrimitiveInfo] {
-    animatix_std::CATALOG
+    animatix_core::builtins::CATALOG
 }
 
 /// Look up built-in metadata by the actor's authored type name.
 pub fn primitive_info_by_name(name: &str) -> Option<&'static PrimitiveInfo> {
-    animatix_std::catalog_lookup(name)
+    animatix_core::builtins::catalog_lookup(name)
 }
 
 /// Expose built-in primitive metadata through the shared schema model.

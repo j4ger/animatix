@@ -5,7 +5,7 @@ use image::GenericImageView;
 #[derive(Clone, Debug)]
 pub struct SceneImage {
     /// Vello image data buffer.
-    pub data: vello::peniko::ImageData,
+    pub data: peniko::ImageData,
     /// Natural width and height in pixels.
     pub natural_size: [f32; 2],
 }
@@ -16,10 +16,10 @@ fn scene_image(image: image::DynamicImage) -> SceneImage {
     let rgba = image.to_rgba8();
     let raw = rgba.into_raw();
 
-    let data = vello::peniko::ImageData {
+    let data = peniko::ImageData {
         data: raw.into(),
-        format: vello::peniko::ImageFormat::Rgba8,
-        alpha_type: vello::peniko::ImageAlphaType::Alpha,
+        format: peniko::ImageFormat::Rgba8,
+        alpha_type: peniko::ImageAlphaType::Alpha,
         width,
         height,
     };

@@ -412,7 +412,9 @@ pub(crate) fn evaluate_call_arguments(
             arg_values,
         )?;
 
-        if let Some(kind) = animatix_std::callable::TimelineBuiltin::from_name(unqualified) {
+        if let Some(kind) =
+            animatix_core::builtins::callable::TimelineBuiltin::from_name(unqualified)
+        {
             if env.is_frame_phase() {
                 return Err(EvalError::UnsupportedConstruct(format!(
                     "timeline callable '{}' cannot run while sampling a frame",
@@ -548,7 +550,7 @@ pub(crate) fn evaluate_callable_value(
             }
             if native.is_none()
                 && let Some(kind) =
-                    animatix_std::callable::TimelineBuiltin::from_name(&descriptor.name)
+                    animatix_core::builtins::callable::TimelineBuiltin::from_name(&descriptor.name)
             {
                 let values = crate::timeline::callable::bind_descriptor_arguments(
                     &descriptor.qualified_name(),
@@ -903,7 +905,7 @@ mod registered_callable_serde_tests {
     #[test]
     fn serialized_standard_callable_alias_relinks_and_keeps_named_parameters() {
         let mut env = crate::timeline::builtins::standard_environment();
-        let descriptor = animatix_std::callable::callable("std::sin")
+        let descriptor = animatix_core::builtins::callable::callable("std::sin")
             .expect("standard sin descriptor")
             .clone();
         let Value::NativeFn(native) = env.get("std::sin").expect("qualified standard callback")

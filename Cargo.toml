@@ -3,7 +3,6 @@ members = [
     "crates/animatix",
     "crates/animatix-core",
     "crates/animatix-render",
-    "crates/animatix-std",
     "crates/animatix-analyzer",
     "crates/animatix-cli",
     "crates/animatix-gui",
@@ -18,6 +17,21 @@ members = [
     "web/tools/animatix-text-parity",
     "web/tools/animatix-web-build/fixtures/split-probe",
     "crates/animatix-hybrid-bench",
+    "crates/eparts"
+]
+default-members = [
+    "crates/animatix",
+    "crates/animatix-core",
+    "crates/animatix-render",
+    "crates/animatix-analyzer",
+    "crates/animatix-cli",
+    "crates/animatix-gui",
+    "crates/animatix-lsp",
+    "crates/animatix-plugin-api",
+    "crates/animatix-plugin-tooling",
+    "crates/animatix-syntax",
+    "crates/animatix-text",
+    "crates/animatix-web",
     "crates/eparts"
 ]
 exclude = ["crates/vendor/vello", "crates/vendor/wasm-split-cli"]
@@ -47,6 +61,9 @@ egui_tiles      = { version = "0.18.0", features = ["serde"] }
 # Shared graphics dep already duplicated across animatix + animatix-gui
 wgpu            = { version = "30.0.1", default-features = false }
 vello           = { version = "0.11.0", default-features = false, features = ["wgpu"] }
+# First Sparse Strips release validated by the WebGPU/WebGL2 migration trial.
+vello_gpu       = { version = "=0.4.0", default-features = false, features = ["wgpu", "text", "full_image_support", "gradient_sweep", "blurred_rounded_rect"] }
+peniko          = "0.6.1"
 
 # Shared runtime/serialization deps used by multiple workspace crates
 bytemuck        = "1.25.0"

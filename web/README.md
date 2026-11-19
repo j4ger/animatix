@@ -755,3 +755,22 @@ distribution scripts and are not asserted here as acceptance evidence.
 - The assembled-site smoke tests cover actual Astro pages and their canonical
   sources. `web/tools/site/site-check.py` rejects retired AMX and developer utilities
   in the release artifact.
+
+### Vello GPU candidate
+
+Build the dual-backend candidate in the web build shell.
+
+```sh
+ANIMATIX_VELLO_GPU=1 bash web/tools/build/build-web.sh --dev
+python3 web/tools/dev/serve-web.py 8124
+```
+
+The runtime manifest lists the available graphics backends. Call
+`configureRuntime({ backend: 'auto' })` before any player loads to try Vello GPU
+on WebGPU with WebGL2 fallback. Set `backend` to `webgpu` or `webgl2` to force a
+backend for comparison. The candidate requires an explicit opt-in while its
+release gates are pending.
+
+For native comparison, build a CLI or GUI with `--features vello-gpu`. Set
+`ANIMATIX_RENDER_BACKEND=vello-gpu` when launching that binary to select the
+candidate renderer for preview and export.

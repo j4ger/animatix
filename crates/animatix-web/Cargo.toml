@@ -8,6 +8,7 @@ rust-version.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [features]
+vello-gpu = ["animatix-render/vello-gpu", "wgpu/webgl"]
 default = ["rich-text", "image-decode", "svg", "raster-encode"]
 # Optional compilation switches; the shipped SDK includes all capabilities
 # and loads their Wasm partitions on demand.
@@ -20,7 +21,6 @@ raster-encode = ["animatix-render/raster-encode"]
 animatix = { path = "../animatix", default-features = false }
 animatix-core = { path = "../animatix-core" }
 animatix-syntax = { path = "../animatix-syntax" }
-animatix-std = { path = "../animatix-std" }
 serde = { workspace = true }
 url = "2.5"
 sha2 = "0.10.9"

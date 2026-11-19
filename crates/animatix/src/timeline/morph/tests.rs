@@ -330,7 +330,7 @@ fn test_evaluate_paths_with_options_uses_morph_at_second_keyframe() {
 
 // Morph interpolation tests (moved from track.rs)
 
-fn sample_vello_path(color: vello::peniko::Color) -> VelloPath {
+fn sample_vello_path(color: peniko::Color) -> VelloPath {
     VelloPath {
         fill: Some(color),
         ..Default::default()
@@ -342,12 +342,8 @@ fn fade_vello_paths_at_start_returns_only_source() {
     let cases: &[(&str, f32, usize, u8)] = &[("at_start", 0.0, 1, 255), ("at_end", 1.0, 1, 255)];
 
     for &(case, t, expected_len, expected_alpha) in cases {
-        let source = vec![sample_vello_path(vello::peniko::Color::from_rgba8(
-            255, 0, 0, 255,
-        ))];
-        let target = vec![sample_vello_path(vello::peniko::Color::from_rgba8(
-            0, 255, 0, 255,
-        ))];
+        let source = vec![sample_vello_path(peniko::Color::from_rgba8(255, 0, 0, 255))];
+        let target = vec![sample_vello_path(peniko::Color::from_rgba8(0, 255, 0, 255))];
         let result = interpolate_vello_paths(
             &source,
             &target,
@@ -371,8 +367,8 @@ fn fade_vello_paths_at_start_returns_only_source() {
 fn fade_vello_paths_at_midpoint_returns_both_halved() {
     let source = vec![VelloPath {
         path: std::sync::Arc::new(BezPath::new()),
-        fill: Some(vello::peniko::Color::from_rgba8(255, 0, 0, 200)),
-        stroke: Some((vello::peniko::Color::from_rgba8(255, 255, 255, 100), 2.0)),
+        fill: Some(peniko::Color::from_rgba8(255, 0, 0, 200)),
+        stroke: Some((peniko::Color::from_rgba8(255, 255, 255, 100), 2.0)),
         line_cap: 0,
         line_join: 0,
         dash_pattern: None,
@@ -382,7 +378,7 @@ fn fade_vello_paths_at_midpoint_returns_both_halved() {
     }];
     let target = vec![VelloPath {
         path: std::sync::Arc::new(BezPath::new()),
-        fill: Some(vello::peniko::Color::from_rgba8(0, 255, 0, 128)),
+        fill: Some(peniko::Color::from_rgba8(0, 255, 0, 128)),
         stroke: None,
         line_cap: 0,
         line_join: 0,
@@ -434,9 +430,7 @@ fn fade_text_paths_at_midpoint_returns_both_halved() {
 #[test]
 fn fade_vello_paths_empty_source() {
     let source: Vec<VelloPath> = vec![];
-    let target = vec![sample_vello_path(vello::peniko::Color::from_rgba8(
-        0, 255, 0, 128,
-    ))];
+    let target = vec![sample_vello_path(peniko::Color::from_rgba8(0, 255, 0, 128))];
     let result = interpolate_vello_paths(
         &source,
         &target,
@@ -453,9 +447,7 @@ fn fade_vello_paths_empty_source() {
 
 #[test]
 fn fade_vello_paths_empty_target() {
-    let source = vec![sample_vello_path(vello::peniko::Color::from_rgba8(
-        255, 0, 0, 200,
-    ))];
+    let source = vec![sample_vello_path(peniko::Color::from_rgba8(255, 0, 0, 200))];
     let target: Vec<VelloPath> = vec![];
     let result = interpolate_vello_paths(
         &source,

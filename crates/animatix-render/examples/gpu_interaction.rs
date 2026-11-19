@@ -209,13 +209,17 @@ fn make_effect_chain(effect: &str) -> EffectChain {
     }
 }
 
-fn make_scopes(count: usize, effect: &str, roi_size: u32) -> Vec<(vello::Scene, EffectRegion)> {
+fn make_scopes(
+    count: usize,
+    effect: &str,
+    roi_size: u32,
+) -> Vec<(animatix::scene::Scene, EffectRegion)> {
     (0..count)
         .map(|index| {
             let column = index % 10;
             let row = index / 10;
             let origin = [32.0 + (column * 96) as f32, 32.0 + (row * 96) as f32];
-            let mut scene = vello::Scene::new();
+            let mut scene = animatix::scene::Scene::new();
             let rect = kurbo::Rect::new(
                 f64::from(origin[0] + roi_size as f32 * 0.125),
                 f64::from(origin[1] + roi_size as f32 * 0.125),
@@ -244,8 +248,8 @@ fn make_scopes(count: usize, effect: &str, roi_size: u32) -> Vec<(vello::Scene, 
         .collect()
 }
 
-fn make_main_scene() -> vello::Scene {
-    let mut scene = vello::Scene::new();
+fn make_main_scene() -> animatix::scene::Scene {
+    let mut scene = animatix::scene::Scene::new();
     let rect = kurbo::Rect::new(0.0, 0.0, f64::from(WIDTH), f64::from(HEIGHT));
     let path = kurbo::Shape::to_path(&rect, 1e-3);
     scene.fill(
@@ -265,8 +269,8 @@ fn encode_frame(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     dimensions: SceneDimensions,
-    main_scene: &vello::Scene,
-    scopes: &[(vello::Scene, EffectRegion)],
+    main_scene: &animatix::scene::Scene,
+    scopes: &[(animatix::scene::Scene, EffectRegion)],
     chain: &EffectChain,
     output_texture: &wgpu::Texture,
     output_view: &wgpu::TextureView,
@@ -282,7 +286,7 @@ fn encode_frame(
         )?;
     }
 
-    core.render_vello_scene_with_background(
+    core.render_scene_with_background(
         device,
         queue,
         output_view,

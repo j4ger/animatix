@@ -26,7 +26,7 @@ fn all_builtins_have_distinct_behavior_ids_names_and_caps() {
         assert_eq!(def.name.as_ref(), name);
         assert!(matches!(def.source, BehaviorSource::Family(_)));
 
-        let expected_caps = animatix_std::caps_from_info(builtin.info);
+        let expected_caps = animatix_core::builtins::caps_from_info(builtin.info);
         assert_eq!(def.caps, expected_caps, "caps mismatch for primitive '{name}'");
 
         assert_eq!(
@@ -63,12 +63,12 @@ fn every_builtin_row_builds_a_family_behavior_def() {
     );
     assert_eq!(
         registry.len(),
-        animatix_std::CATALOG.len(),
+        animatix_core::builtins::CATALOG.len(),
         "catalog primitive missing a BUILT_INS row"
     );
 
     let catalog_names: HashSet<&str> =
-        animatix_std::CATALOG.iter().map(|info| &*info.type_name).collect();
+        animatix_core::builtins::CATALOG.iter().map(|info| &*info.type_name).collect();
     let row_names: HashSet<&str> =
         BUILT_INS.iter().map(|builtin| builtin.behavior.type_name()).collect();
     assert_eq!(catalog_names, row_names, "catalog and BUILT_INS rows drifted apart");
@@ -107,7 +107,7 @@ impl Primitive for MockExtension {
 fn register_extension_assigns_ids_and_retrieves_def() {
     let mut registry = BehaviorRegistry::new();
     let ext = Arc::new(MockExtension);
-    let info = animatix_std::PrimitiveInfo::extension(
+    let info = animatix_core::builtins::PrimitiveInfo::extension(
         "MockExt",
         animatix_core::caps::ActorCategory::Shape,
     );

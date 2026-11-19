@@ -6,7 +6,7 @@ pub struct Move;
 
 impl BuiltinAction for Move {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::Move.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::Move.descriptor().clone()
     }
 
     fn execute(

@@ -513,8 +513,12 @@ pub fn collect_flip_pairs(
 /// Encode the floating FLIP overlay scene: each pair's transform is linearly
 /// interpolated with the eased progress, and the from/to commands fade out/in
 /// over it.
-pub fn encode_flip_overlay(pairs: &[FlipItem], progress: f32, easing: Easing) -> vello::Scene {
-    let mut overlay = vello::Scene::new();
+pub fn encode_flip_overlay(
+    pairs: &[FlipItem],
+    progress: f32,
+    easing: Easing,
+) -> animatix::scene::Scene {
+    let mut overlay = animatix::scene::Scene::new();
     let p_eased = animatix::easing::apply_easing(progress, easing);
     let p = p_eased as f64;
     for (from_item, to_item) in pairs {
@@ -554,16 +558,16 @@ pub fn composite_flip_overlay(
     overlay_view: &wgpu::TextureView,
     output_view: &wgpu::TextureView,
     size: SceneDimensions,
-    overlay: &vello::Scene,
+    overlay: &animatix::scene::Scene,
 ) -> Result<(), String> {
-    core.render_vello_scene_with_background(
+    core.render_scene_with_background(
         device,
         queue,
         overlay_view,
         size.width,
         size.height,
         overlay,
-        vello::peniko::Color::TRANSPARENT,
+        animatix::scene::Color::TRANSPARENT,
     )
     .map_err(|e| e.to_string())?;
     core.blit_texture(device, queue, overlay_view, output_view, size.width, size.height, 1.0);
@@ -686,7 +690,7 @@ card_large: Rect, at: (400, 300), size: (150, 150), color: (1, 0, 0, 1), shared_
         assert_ne!(pairs[0].0.transform, pairs[0].1.transform);
 
         let overlay = encode_flip_overlay(&pairs, 0.5, Easing::Linear);
-        assert!(!overlay.encoding().is_empty(), "mid-transition overlay must draw");
+        assert!(!overlay.draws().is_empty(), "mid-transition overlay must draw");
     }
 
     #[test]

@@ -618,6 +618,7 @@ export class AmxPlayerView extends AmxPlayerBase {
       this._loadedSource = text;
       this._loadedBundle = candidate;
       this._committedVars = { ...candidate.vars };
+      this._runtimeInputs = {};
       candidate = null;
       if (this._playing) {
         this._time = 0;
@@ -708,6 +709,9 @@ export class AmxPlayerView extends AmxPlayerBase {
       return Promise.reject(playerError(new TypeError("setVars expects an object of name -> number|string"), "build"));
     }
     this._vars = { ...this._varsObject(), ...obj };
+    if (this._backendSuspended) {
+      return new Promise((resolve, reject) => this._varsWaiters.push({ resolve, reject }));
+    }
     if (this._state === "loading") {
       this._resetForReload();
     } else if (this._state === "ready") {
@@ -735,6 +739,7 @@ export class AmxPlayerView extends AmxPlayerBase {
     // changes player state. Only a committed input edit invalidates held-frame
     // dedup or asks the shell to draw again.
     this._player.set_inputs(obj);
+    this._runtimeInputs = { ...obj };
     this._invalidateRestFrame();
     this._renderScene();
   }
@@ -750,6 +755,7 @@ export class AmxPlayerView extends AmxPlayerBase {
     }
 
     this._player.clear_inputs();
+    this._runtimeInputs = {};
     this._invalidateRestFrame();
     this._renderScene();
   }
@@ -804,6 +810,7 @@ export class AmxPlayerView extends AmxPlayerBase {
     const diagnostics = result?.diagnostics ?? [];
     if (!result?.ok) throw this._buildError(diagnostics);
     this._installDocument(result);
+    this._runtimeInputs = {};
     this._time = fraction * this._duration;
     this._restTime = this._time;
     this._renderScene();
@@ -838,6 +845,7 @@ export class AmxPlayerView extends AmxPlayerBase {
       this._installDocument(result);
       this._loadedBundle = candidate;
       this._committedVars = { ...candidate.vars };
+      this._runtimeInputs = {};
       candidate = null;
       this._time = frac * this._duration;
       this._restTime = this._time;
