@@ -27,6 +27,33 @@ fn pair() -> Option<(OffscreenRenderer, OffscreenRenderer)> {
 }
 
 #[test]
+fn opaque_readback_matches_straight_alpha_conversion() {
+    let Some((_, mut candidate)) = pair() else {
+        return;
+    };
+    let timeline = common::build_checked(
+        r##"
+config { resolution: (96, 64) }
+#0s
+  translucent: Rect, at: (28, 30), size: (46, 38), color: "#FF804080"
+  panel: Glass, at: (52, 32), size: (45, 38), corner_radius: 5 {
+    frost: Blur, radius: 4
+    tint: Rect, size: (43, 36), color: "#FFEEE033"
+  }
+"##,
+    );
+    let pending = candidate
+        .begin_frame_with_debug(&timeline, 0.0, DIMS, Default::default())
+        .expect("queue the frame");
+    let direct = candidate.wait_frame(pending).expect("direct readback");
+    let converted = candidate.readback_output(DIMS).expect("straight-alpha readback");
+
+    assert_ne!(pixel(&direct, 12, 23), pixel(&direct, 0, 0));
+    assert!(direct.rgba.chunks_exact(4).all(|pixel| pixel[3] == 255));
+    assert_eq!(direct.rgba, converted.rgba);
+}
+
+#[test]
 fn inline_filter_stays_below_later_sibling() {
     let Some((mut reference, mut candidate)) = pair() else {
         return;

@@ -292,3 +292,41 @@ show the color interpolation difference described above. The crop is
 both reported remaining packages and left `Cargo.lock` byte-identical.
 The published manifest for Hayro 0.7.1 depends on Vello CPU 0.0.8.
 [Hayro manifest](https://docs.rs/crate/hayro/0.7.1/source/Cargo.toml)
+
+## Native export optimization round on 2026-11-20
+
+On the same NVIDIA Vulkan device, the Glass main-scene draw probe measured
+median CPU times of 0.384 ms for fills, 0.213 ms for glyph runs and 0.083 ms
+for strokes across 360 frames. The probe was removed after the run.
+
+The upstream glyph atlas reduced median Glass throughput from 382.5 to
+176.1 fps over six alternating 960-frame runs. A pixel-aligned rectangle
+specialization measured 376.8 fps against 381.5 fps in its Glass series.
+Both experiments were reverted.
+
+Single-scene Vello GPU export clears to opaque black and composites with
+SrcOver. It now copies that RGBA8 output directly into the rotating readback
+buffer, saving a fullscreen straight-alpha conversion pass and its
+submission. Transitions and generic readback calls keep the conversion for
+premultiplied output.
+
+In 20 alternating pairs within the same Vulkan device and process, each
+sample used 30 warmup frames and 180 measured Glass frames at 1280×720.
+Median elapsed time fell from 2.227 to 2.174 ms per frame. The median
+paired throughput gain was 2.5%, with 16 of 20 pairs favoring direct
+readback. The six independent-process runs varied more and yielded
+474.0 fps before and 428.6 fps after, with Compute at 460.2 fps. These
+results leave the native default-switch acceptance check open.
+
+All eight sampled PNG frames matched byte for byte after decoding,
+including Glass, text, raster and SVG assets, and a shared-object transition.
+Both 24 fps Glass MP4 exports decoded to the same 48 video frames. The
+direct-readback regression checks an opaque output and identical pixels
+when the same texture is read through straight-alpha conversion.
+
+The quick CPU comparison covered all 85 workloads with zero material
+regressions and one inconclusive showcase compile row. Its 180-sample repeat
+passed the same impact policy.
+
+The raw timing and pixel ledgers are under
+`target/ci/vello-gpu-optimization/`.

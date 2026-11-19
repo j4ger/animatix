@@ -1,5 +1,11 @@
 use super::*;
 
+#[derive(Clone, Copy)]
+enum ReadbackAlpha {
+    Opaque,
+    MayBePremultiplied,
+}
+
 impl OffscreenRenderer {
     /// Create a new offscreen renderer with an automatically-selected GPU adapter.
     pub fn new() -> Result<Self, String> {
@@ -142,7 +148,7 @@ impl OffscreenRenderer {
         let t0 = crate::filter_backend::timing_probe();
         self.render_to_output_texture(timeline, time_s, dimensions, debug_options)?;
         let t_eval_render_ms = crate::filter_backend::probe_ms(t0);
-        let frame = self.readback_output(dimensions)?;
+        let frame = self.readback_output_with_alpha(dimensions, ReadbackAlpha::Opaque)?;
         if t0.is_some() {
             eprintln!(
                 "[frame-timing] {}x{} evaluate+render={:.2}ms readback={:.2}ms",
@@ -178,7 +184,7 @@ impl OffscreenRenderer {
         debug_options: DebugRenderOptions,
     ) -> Result<PendingFrame, String> {
         self.render_to_output_texture(timeline, time_s, dimensions, debug_options)?;
-        self.begin_readback(dimensions)
+        self.begin_readback_with_alpha(dimensions, ReadbackAlpha::Opaque)
     }
 
     /// Shared tail of `render_timeline_with_debug` / `begin_frame_with_debug`:
@@ -214,7 +220,7 @@ impl OffscreenRenderer {
     ) -> Result<(RenderedFrame, animatix::timeline::scene_program::SceneProgram), String> {
         let program =
             self.render_to_output_texture_inner(timeline, time_s, dimensions, debug_options)?;
-        let frame = self.readback_output(dimensions)?;
+        let frame = self.readback_output_with_alpha(dimensions, ReadbackAlpha::Opaque)?;
         Ok((frame, program))
     }
 
@@ -362,6 +368,14 @@ impl OffscreenRenderer {
     /// [`Self::wait_frame`] (or call [`Self::readback_output`] for the
     /// blocking one-shot).
     pub fn begin_readback(&mut self, dimensions: SceneDimensions) -> Result<PendingFrame, String> {
+        self.begin_readback_with_alpha(dimensions, ReadbackAlpha::MayBePremultiplied)
+    }
+
+    fn begin_readback_with_alpha(
+        &mut self,
+        dimensions: SceneDimensions,
+        alpha: ReadbackAlpha,
+    ) -> Result<PendingFrame, String> {
         let output_texture = self
             .output_texture
             .as_ref()
@@ -375,8 +389,12 @@ impl OffscreenRenderer {
             label: Some("Animatix Offscreen Readback Encoder"),
         });
 
+        // Single-scene frames clear to opaque black and accumulate with SrcOver.
+        // Their premultiplied colors are already valid straight-alpha pixels.
         #[cfg(feature = "vello-gpu")]
-        let output_texture = if let Some(frame_gpu) = self.frame_gpu.as_mut() {
+        let output_texture = if matches!(alpha, ReadbackAlpha::MayBePremultiplied)
+            && let Some(frame_gpu) = self.frame_gpu.as_mut()
+        {
             let source = self
                 .output_view
                 .as_ref()
@@ -392,6 +410,8 @@ impl OffscreenRenderer {
         } else {
             output_texture
         };
+        #[cfg(not(feature = "vello-gpu"))]
+        let _ = alpha;
 
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
@@ -492,6 +512,14 @@ impl OffscreenRenderer {
         &mut self,
         dimensions: SceneDimensions,
     ) -> Result<RenderedFrame, String> {
+        self.readback_output_with_alpha(dimensions, ReadbackAlpha::MayBePremultiplied)
+    }
+
+    fn readback_output_with_alpha(
+        &mut self,
+        dimensions: SceneDimensions,
+        alpha: ReadbackAlpha,
+    ) -> Result<RenderedFrame, String> {
         // Composite diagnostics: report how much of the composed output is
         // opaque when `ANIMATIX_DUMP_STAGES` is set, so a regressed composite
         // is visible in the log without re-running under a GPU capture.
@@ -506,7 +534,7 @@ impl OffscreenRenderer {
             let opaque = (0..n).step_by(step).filter(|&i| data[i * 4 + 3] > 100).count();
             eprintln!("[dump] output_view opaque={opaque}/{}", n / step);
         }
-        let pending = self.begin_readback(dimensions)?;
+        let pending = self.begin_readback_with_alpha(dimensions, alpha)?;
         self.wait_frame(pending)
     }
 
