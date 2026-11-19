@@ -238,3 +238,64 @@ The fixed candidate build can be verified with
 acceptance-only Rust test and example fixes change the source fingerprint for
 a fresh build. Both host builds reported missing exact upstream license text
 for `fax`, `fax_derive`, `glidesort` and `rust-std` in their license inventories.
+
+## Release base Wasm investigation
+
+Use source `1fcd3725` for the two new builds. They use the same Vello GPU frame
+renderer and document capabilities. Both select a concrete renderer at compile
+time, which keeps the legacy Vello Compute render, filter and blit code out of
+the Vello GPU frame path. `wgpu/webgl` is the additional backend feature in
+the dual build. The WebGPU-only build is a diagnostic control.
+
+```sh
+ANIMATIX_VELLO_GPU=1 nix develop .#web-build -c bash web/tools/build/build-web.sh
+bash tools/quality/size-report.sh
+dual_sdk="$(cd web/runtime && pwd -P)"
+
+ANIMATIX_VELLO_GPU=webgpu nix develop .#web-build -c bash web/tools/build/build-web.sh
+bash tools/quality/size-report.sh
+webgpu_sdk="$(cd web/runtime && pwd -P)"
+```
+
+The cloud comparison used native Binaryen 130 with the release `-Oz
+--strip-debug` flags and Zopfli `--i100`. Reoptimizing the previous dual
+build's original linked artifact with the same native tool gave 7,839,124
+raw bytes and 2,823,216 gzip bytes. The previous archived package used
+the Node Binaryen executable at the same version.
+
+| Build | Base bytes | Base gzip bytes |
+| --- | ---: | ---: |
+| Current budgets | 5,400,000 | 1,900,000 |
+| Previous dual candidate, same native optimizer | 7,839,124 | 2,823,216 |
+| Dual candidate with compile-time renderer selection | 6,434,514 | 2,433,979 |
+| Dual candidate with an additional `-Oz --converge` pass | 6,430,085 | 2,427,945 |
+| WebGPU-only control with compile-time renderer selection | 4,742,500 | 1,776,169 |
+
+Excluding the legacy frame path saved 1,404,610 raw bytes and 389,237 gzip
+bytes. The dual candidate remains 1,034,514 raw bytes and 533,979 gzip bytes
+over budget. The repeat optimizer pass saved 4,429 raw bytes and 6,034 gzip
+bytes. The complete dual SDK is 40,260,835 bytes against the 42,000,000-byte
+budget. It passed integrity, cold PNG encoding, WebGL2 playback, forced and
+automatic selection, context recovery, and both-backend software readback
+regressions. Its build ID is
+`9092b7d12687584eed7ab86cd1567cca4fcf81461e94993434058751fcd41db3`.
+
+The WebGPU-only control passed all SDK size limits. Its complete SDK is
+37,904,564 bytes and its build ID is
+`00bb65612a22e3bf8d8179d56c388944f464a8b2d0963f0d70ab7f45ee95730b`.
+The release control passed cold PNG encoding and BrowserWebGPU software
+readback of the inline Filter and Glass transition fixtures.
+Enabling the wgpu WebGL2 path on the same source adds 1,692,014 raw base bytes
+and 657,810 gzip bytes. The Wasm dependency graph contains `wgpu-core` in the
+dual build and omits it in the control. These are measurements of the entire
+feature delta, including the GLES backend, validation and shader translation.
+
+Use the 1,776,169-byte WebGPU control as the reference for isolating the
+fallback in the SDK loader. A prototype should defer the WebGL renderer and
+its execution paths together. Capture the bytes fetched before first frame
+for successful WebGPU, a browser without WebGPU, and fallback after WebGPU
+initialization fails. Check the combined downloads and the SDK total against
+the existing limits. If the wgpu WebGL2 fallback remains over budget, evaluate
+the upstream `vello_gpu::WebGlRenderer` with generated GLSL for the effect and
+transition passes. Each backend should pass the Linux hardware checks before
+the default changes.
