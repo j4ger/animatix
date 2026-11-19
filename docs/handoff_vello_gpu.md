@@ -35,19 +35,41 @@ CI gate against the release candidate. For the Chromium smoke, start
 `node web/tools/test/vello-gpu-webgl-smoke.mjs` and repeat with
 `WEBGL_CANDIDATE_MODE=webgl2`. Preserve the built SDK directories between tests.
 
-## Phones and tablets
+## Linux hardware GPU acceptance
 
-Use the oldest supported iOS Safari combination and a current one. On Android,
-cover Adreno and Mali with current Chrome and include a phone whose browser
-has WebGPU disabled. Record the model, GPU, OS, browser, SDK build ID, and
-`isSecureContext`. Use trusted HTTPS when the phone connects to another host.
-For Android USB testing, `adb reverse tcp:8124 tcp:8124` also lets Chrome use
-`http://localhost:8124`.
+A Linux workstation with a hardware GPU is the required graphics acceptance
+environment. Use it for browser WebGPU, browser WebGL2 and native Vulkan.
+Record the GPU model, active driver, browser version, kernel, and SDK build ID.
+Record the renderer actually selected by Chromium and the adapter used by the
+native process. A software adapter is valid for regression smoke and leaves
+the hardware row open.
 
-- Open `/dev/vello-gpu-candidate.html?backend=auto` and record the selected
-  backend from the element's `backend` property. Repeat with `backend=webgl2`
-  and, where available, `backend=webgpu`. For the automatic fallback check,
-  record how WebGPU was disabled and verify that the actual choice is WebGL2.
+Use the normal Chromium GPU configuration to verify that `backend=auto`
+selects WebGPU first. The fallback run disables browser WebGPU while keeping
+ANGLE on hardware Vulkan. Run it at the existing phone-sized viewport to
+retain the mobile layout and compositor regression assertions.
+
+```sh
+# Start the candidate server on 127.0.0.1:8124 in another terminal.
+vulkaninfo --summary
+WEBGL_CANDIDATE_GPU=1 node web/tools/test/vello-gpu-webgl-smoke.mjs
+WEBGL_CANDIDATE_GPU=1 WEBGL_CANDIDATE_MODE=webgl2 \
+  node web/tools/test/vello-gpu-webgl-smoke.mjs
+```
+
+Save the renderer and SDK IDs printed by the smoke. Record the backend from
+the player's `backend` property and the WebGPU adapter shown in Chromium GPU
+diagnostics on the normal WebGPU run. A second Linux browser is useful for
+additional compatibility evidence when available. iOS Safari, Android browsers,
+macOS Metal and Windows DX12 stay in the coverage record as hardware untested.
+For shipped Windows and macOS binaries, record the existing build and package
+smoke results from CI. Linux acceptance supports a staged Web rollout with the
+previous SDK ready for rollback. A broader hardware compatibility claim needs
+evidence from those platforms.
+
+- Open `/dev/vello-gpu-candidate.html?backend=auto` and `?backend=webgpu` on
+  ordinary hardware Chromium. Confirm visible frames on both. The hardware
+  smoke above covers automatic fallback and forced WebGL2.
 - Exercise the smoke fixtures, images and SVG, CJK and color glyphs, the effects
   catalog, shared-object transitions, edits and scrubbing. Save representative
   frames and validate visible foreground pixels and expected color/alpha.
@@ -65,16 +87,18 @@ For Android USB testing, `adb reverse tcp:8124 tcp:8124` also lets Chrome use
   the SDK directory per page load. Serve the two verified directories as
   `/baseline-sdk` and `/runtime` on the same test origin. Test in alternating
   order and retain the raw runs. The proposed first-frame and frame p95
-  regression limit is 10%. The proposed low-end WebGL2 target is sustained
-  30 fps for one player. Record 3/6-player cadence, memory and dropped frames.
+  regression limit is 10%. For the representative foreground WebGL2 scene,
+  check sustained 30 fps with one player on the available Linux GPU and record
+  3/6-player cadence, memory and dropped frames. Retain the actual GPU in the
+  report so the result describes its measured hardware class.
 
 Use `first_ready_ms` for embed startup and `startup_queue_completed_ms` for
 completion of the startup submissions. For first-frame completion latency,
 use a single player with a fresh profile. The probe loads production quality
 on both builds and rejects samples in which a player skipped drawing.
 
-On the candidate page, pause and seek to 1 s. Use the phone's remote inspector
-to lose the context, then check the new canvas, playhead and visible frame.
+On the candidate page, pause and seek to 1 s. Use Chromium DevTools to repeat
+the WebGL2 loss manually, then check the new canvas, playhead and visible frame.
 
 ```js
 const player = document.querySelector('amx-player');
@@ -91,11 +115,10 @@ canvas.getContext('webgl2').getExtension('WEBGL_lose_context').loseContext();
 
 ## Native and video
 
-Run the matrix on Linux Vulkan, macOS Metal and Windows DX12. Use the
-platform's pinned native release toolchain and record the actual adapter
-reported by the application. On Linux the default Nix shell provides FFmpeg
-8 and `bindgenHook`. On macOS and Windows, follow the native package build
-instructions and use the matching FFmpeg headers and libraries.
+Run the required native matrix on the same Linux Vulkan GPU and driver as the
+browser acceptance. Use the pinned native release toolchain and record the
+actual adapter reported by the application. The default Nix shell provides
+FFmpeg 8 and `bindgenHook`.
 
 ```sh
 nix develop -c python3 tools/ci/compare-snapshot-gates.py \

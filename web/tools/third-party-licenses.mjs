@@ -454,10 +454,14 @@ export function buildLicenseArtifacts(metadata, {
 
 export function writeThirdPartyLicenses(directory, options = {}) {
   const root = options.root ?? ROOT;
+  const renderer = process.env.ANIMATIX_VELLO_GPU;
+  const rendererFeatures = [];
+  if (renderer === '1') rendererFeatures.push('--features', 'vello-gpu');
+  if (renderer === 'webgpu') rendererFeatures.push('--features', 'vello-gpu-webgpu');
   const metadata = options.metadata ?? JSON.parse(run('cargo', [
     'metadata', '--locked', '--format-version', '1', '--filter-platform', 'wasm32-unknown-unknown',
     '--manifest-path', join(root, 'crates/animatix-web/Cargo.toml'),
-    ...(process.env.ANIMATIX_VELLO_GPU === '1' ? ['--features', 'vello-gpu'] : []),
+    ...rendererFeatures,
   ], root));
   const artifacts = buildLicenseArtifacts(metadata, { ...options, root });
   mkdirSync(directory, { recursive: true });

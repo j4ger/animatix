@@ -3,15 +3,14 @@
 use std::sync::{Arc, Mutex};
 
 use animatix::timeline::SceneDimensions;
+#[cfg(not(feature = "vello-gpu-webgpu"))]
 use animatix_render::filter_backend::GpuFilterBackend;
-#[cfg(feature = "vello-gpu")]
-use animatix_render::frame_gpu::FrameGpu;
 use animatix_render::transition::TransitionCompositor;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::{JsCast, closure::Closure};
 
 use super::context::with_engine;
-use super::frame::{FrameCtx, Targets, render_document};
+use super::frame::{FrameCtx, FrameRenderer, Targets, render_document};
 use super::{AmxPlayer, OffscreenTarget};
 
 /// Everything the map_async callback needs to own: the mapped buffer plus
@@ -57,32 +56,18 @@ fn readback_impl(player: &mut AmxPlayer, time_s: f64) -> Result<ReadbackSetup, S
             &webgl.device,
             &webgl.queue,
             Some(webgl.device.clone()),
-            None,
-            Some(&mut frame_gpu),
+            &mut frame_gpu,
             time_s,
             dims,
         );
     }
     with_engine(|ctx| {
         let ctx = ctx?;
-        #[cfg(not(feature = "vello-gpu"))]
-        let mut core = ctx.core.borrow_mut();
-        #[cfg(feature = "vello-gpu")]
-        let mut frame_gpu = ctx.frame_gpu.borrow_mut();
-        readback_with(
-            player,
-            &ctx.device,
-            &ctx.queue,
-            None,
-            #[cfg(not(feature = "vello-gpu"))]
-            Some(&mut core),
-            #[cfg(feature = "vello-gpu")]
-            None,
-            #[cfg(feature = "vello-gpu")]
-            Some(&mut frame_gpu),
-            time_s,
-            dims,
-        )
+        #[cfg(not(feature = "vello-gpu-webgpu"))]
+        let mut renderer = ctx.core.borrow_mut();
+        #[cfg(feature = "vello-gpu-webgpu")]
+        let mut renderer = ctx.frame_gpu.borrow_mut();
+        readback_with(player, &ctx.device, &ctx.queue, None, &mut renderer, time_s, dims)
     })
 }
 
@@ -301,8 +286,7 @@ fn readback_with(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     poll_device: Option<wgpu::Device>,
-    mut core: Option<&mut animatix_render::core::RendererCore>,
-    #[cfg(feature = "vello-gpu")] mut frame_gpu: Option<&mut FrameGpu>,
+    renderer: &mut FrameRenderer,
     time_s: f64,
     dims: SceneDimensions,
 ) -> Result<ReadbackSetup, String> {
@@ -328,21 +312,23 @@ fn readback_with(
     // through the player's backend pulled the composited effect regions off a
     // frame that was still in flight — the probe's pixels came out right and the
     // next presented frame came out missing them.
+    #[cfg(not(feature = "vello-gpu-webgpu"))]
     let mut filter_backend: Option<GpuFilterBackend> = None;
+    #[cfg(not(feature = "vello-gpu-webgpu"))]
     let mut filter_backend_to: Option<GpuFilterBackend> = None;
     // Readbacks always rasterize at the scene's own resolution: the pixel
     // probes compare against backdrop baselines and each other, so they must
     // not inherit whatever scale the presentation path is currently using.
+    #[cfg(not(feature = "vello-gpu-webgpu"))]
     let mut scratch = animatix::scene::Scene::new();
     let frame = render_document(
         &mut FrameCtx {
-            core: core.as_deref_mut(),
+            renderer,
             device,
             queue,
-            #[cfg(feature = "vello-gpu")]
-            frame_gpu: frame_gpu.as_deref_mut(),
             dims,
             scale: 1.0,
+            #[cfg(not(feature = "vello-gpu-webgpu"))]
             scratch: &mut scratch,
             compositor: player.compositor.as_ref(),
             target: target.as_ref(),
@@ -351,8 +337,10 @@ fn readback_with(
         },
         Targets {
             primary: &mut primary,
+            #[cfg(not(feature = "vello-gpu-webgpu"))]
             primary_backend: &mut filter_backend,
             secondary: &mut secondary,
+            #[cfg(not(feature = "vello-gpu-webgpu"))]
             secondary_backend: &mut filter_backend_to,
             composite: &mut composite,
         },

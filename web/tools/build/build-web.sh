@@ -6,9 +6,10 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$root"
 profile=release
 features=()
-if [ "${ANIMATIX_VELLO_GPU:-0}" = 1 ]; then
-  features=(--features vello-gpu)
-fi
+case "${ANIMATIX_VELLO_GPU:-0}" in
+  1) features=(--features vello-gpu) ;;
+  webgpu) features=(--features vello-gpu-webgpu) ;;
+esac
 for arg in "$@"; do
   case "$arg" in --dev) profile=dev ;; *) echo "usage: build-web.sh [--dev]" >&2; exit 2 ;; esac
 done

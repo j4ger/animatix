@@ -748,6 +748,7 @@ gate_wasm_check() {
   cargo check -p animatix-web --target wasm32-unknown-unknown
   cargo check -p animatix-web --target wasm32-unknown-unknown --no-default-features
   cargo check --locked -p animatix-web --target wasm32-unknown-unknown --features vello-gpu
+  cargo check --locked -p animatix-web --target wasm32-unknown-unknown --features vello-gpu-webgpu
   cargo clippy -p animatix --no-default-features --all-targets -- -D warnings
 }
 

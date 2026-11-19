@@ -10,6 +10,7 @@ import { inspectPng } from './web-smoke-pixels.mjs';
 
 const base = process.env.WEBGL_CANDIDATE_URL ?? 'http://127.0.0.1:8124';
 const mode = process.env.WEBGL_CANDIDATE_MODE ?? 'auto';
+const hardware = process.env.WEBGL_CANDIDATE_GPU === '1';
 assert(['auto', 'webgl2'].includes(mode), 'expected automatic or forced WebGL2 selection');
 const url = new URL('/dev/vello-gpu-candidate.html', base);
 url.searchParams.set('backend', mode);
@@ -21,8 +22,9 @@ assert(manifest.render_backends?.includes('webgl2'), 'runtime manifest does not 
 const profile = mkdtempSync(join(tmpdir(), 'amx-vello-gpu-webgl-'));
 const chrome = spawn(process.env.CHROME ?? 'chromium', [
   '--headless', '--disable-dev-shm-usage', '--no-sandbox', '--disable-crashpad-for-testing',
-  '--disable-background-networking', '--disable-webgpu', '--use-gl=angle', '--use-angle=swiftshader',
-  '--enable-unsafe-swiftshader', '--enable-features=WebAssemblyUnlimitedSyncCompilation',
+  '--disable-background-networking', '--disable-webgpu', '--use-gl=angle',
+  ...(hardware ? ['--use-angle=vulkan'] : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader']),
+  '--enable-features=WebAssemblyUnlimitedSyncCompilation',
   '--remote-debugging-port=0',
   ...(process.env.WEBGL_CHROME_SINGLE_PROCESS === '1' ? ['--single-process'] : []),
   `--user-data-dir=${profile}`, 'about:blank',
@@ -107,6 +109,15 @@ try {
     return status.ready === 1 && status.backend === 'webgl2';
   });
   assert.equal(await cdp.evaluate(`'gpu' in navigator`), false);
+  const renderer = await browser(cdp, () => {
+    const gl = document.querySelector('amx-player').shadowRoot.querySelector('canvas').getContext('webgl2');
+    const info = gl?.getExtension('WEBGL_debug_renderer_info');
+    return info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : null;
+  });
+  if (hardware) {
+    assert(renderer && !/swiftshader|llvmpipe|lavapipe|software|softpipe|cpu|swrast/i.test(renderer),
+      `expected a hardware WebGL2 renderer, found ${JSON.stringify(renderer)}`);
+  }
   const left = await frame(cdp, 0);
   const right = await frame(cdp, 2.5);
   near(left(360 / 1280, 0.5), [101, 217, 232]);
@@ -152,7 +163,7 @@ try {
     extension.loseContext();
     return true;
   });
-  assert.equal(lostCanvas, true, 'SwiftShader did not expose WEBGL_lose_context');
+  assert.equal(lostCanvas, true, 'WebGL2 did not expose WEBGL_lose_context');
   await until('WebGL2 context recovery', async () => cdp.evaluate(`
     __candidate.events.some(event => event.type === 'amxbackendrecovered') &&
     document.querySelector('amx-player')?.shadowRoot.querySelector('canvas') !== __contextLoss.canvas
@@ -175,6 +186,7 @@ try {
   near(readback.center, [252, 120, 108, 255]);
   assert.deepEqual(await cdp.evaluate('__smoke.errors'), []);
   assert.deepEqual(browserErrors, []);
+  console.log(JSON.stringify({ renderer, hardware, selection: mode, buildId: manifest.build_id }));
   console.log('Vello GPU WebGL2 candidate passed: playback, edit rollback, Glass, transition, Filter, context recovery, RGBA readback');
 } catch (error) {
   console.error(browserErrors.join('\n'));

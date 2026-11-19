@@ -252,9 +252,12 @@ impl AmxPlayer {
                 height: result.height,
             };
             self.duration_s = result.duration_s;
-            // Filter targets are sized in scene space; rebuild for new dims.
-            self.filter_backend = None;
-            self.filter_backend_to = None;
+            #[cfg(not(feature = "vello-gpu-webgpu"))]
+            {
+                // Filter targets are sized in scene space; rebuild for new dims.
+                self.filter_backend = None;
+                self.filter_backend_to = None;
+            }
             // A rebuilt document is different content at the same playhead time,
             // which the timeline epoch alone cannot see (both start at 0), so the
             // frame the canvas is holding is no longer describable by the old

@@ -8,7 +8,8 @@ rust-version.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [features]
-vello-gpu = ["animatix-render/vello-gpu", "wgpu/webgl"]
+vello-gpu = ["vello-gpu-webgpu", "wgpu/webgl"]
+vello-gpu-webgpu = ["animatix-render/vello-gpu"]
 default = ["rich-text", "image-decode", "svg", "raster-encode"]
 # Optional compilation switches; the shipped SDK includes all capabilities
 # and loads their Wasm partitions on demand.
