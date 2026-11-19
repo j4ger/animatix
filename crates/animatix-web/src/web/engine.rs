@@ -4,6 +4,7 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 use animatix::timeline::{BuildQuality, SceneDimensions};
+#[cfg(not(feature = "vello-gpu"))]
 use animatix_render::core::RendererCore;
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
@@ -95,6 +96,7 @@ async fn ensure_engine() -> Result<(), String> {
         }
     });
 
+    #[cfg(not(feature = "vello-gpu"))]
     let core =
         RendererCore::new(&device, &queue).map_err(|e| format!("renderer init failed: {e}"))?;
 
@@ -108,6 +110,7 @@ async fn ensure_engine() -> Result<(), String> {
             device,
             queue,
             generation,
+            #[cfg(not(feature = "vello-gpu"))]
             core: RefCell::new(core),
             #[cfg(feature = "vello-gpu")]
             frame_gpu: RefCell::new(frame_gpu),

@@ -56,13 +56,17 @@ impl AmxPlayer {
             if self.device_generation != ctx.generation {
                 return Err(JsError::new("WebGPU context generation changed"));
             }
+            #[cfg(not(feature = "vello-gpu"))]
             let mut core = ctx.core.borrow_mut();
             #[cfg(feature = "vello-gpu")]
             let mut frame_gpu = ctx.frame_gpu.borrow_mut();
             self.render_frame_inner(
                 &ctx.device,
                 &ctx.queue,
+                #[cfg(not(feature = "vello-gpu"))]
                 Some(&mut core),
+                #[cfg(feature = "vello-gpu")]
+                None,
                 #[cfg(feature = "vello-gpu")]
                 Some(&mut frame_gpu),
                 time_s,
@@ -329,8 +333,20 @@ fn render_document_inner(
     surface: Option<SurfaceTarget<'_>>,
 ) -> Result<(FrameTarget, bool), String> {
     let scene = raster_dims(ctx.dims, ctx.scale);
-    let from =
-        ensure_offscreen(targets.primary, ctx.device, "animatix-web offscreen target", scene);
+    let backend_usage = wgpu::TextureUsages::STORAGE_BINDING;
+    #[cfg(feature = "vello-gpu")]
+    let backend_usage = if ctx.frame_gpu.is_some() {
+        wgpu::TextureUsages::COPY_DST
+    } else {
+        backend_usage
+    };
+    let from = ensure_offscreen(
+        targets.primary,
+        ctx.device,
+        "animatix-web offscreen target",
+        scene,
+        backend_usage,
+    );
 
     match ctx.target {
         Some(BuildTarget::MultiScene(composition)) => {
@@ -402,12 +418,14 @@ fn render_document_inner(
                 ctx.device,
                 "animatix-web offscreen target (to)",
                 scene,
+                backend_usage,
             );
             let composite_target = ensure_offscreen(
                 targets.composite,
                 ctx.device,
                 "animatix-web transition target",
                 scene,
+                backend_usage,
             );
             let compositor =
                 ctx.compositor.ok_or_else(|| "transition compositor missing".to_string())?;
@@ -726,13 +744,13 @@ impl OffscreenTarget {
     }
 }
 
-/// Offscreen target usable by vello (STORAGE_BINDING), filter passes
-/// (RENDER_ATTACHMENT), texture compositors (TEXTURE_BINDING) and readback (COPY_SRC).
+/// Offscreen attachment for composition, readback, and the selected raster backend.
 fn create_offscreen(
     device: &wgpu::Device,
     label: &str,
     width: u32,
     height: u32,
+    backend_usage: wgpu::TextureUsages,
 ) -> (wgpu::Texture, wgpu::TextureView) {
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some(label),
@@ -746,7 +764,7 @@ fn create_offscreen(
         dimension: wgpu::TextureDimension::D2,
         format: wgpu::TextureFormat::Rgba8Unorm,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-            | wgpu::TextureUsages::STORAGE_BINDING
+            | backend_usage
             | wgpu::TextureUsages::COPY_SRC
             | wgpu::TextureUsages::TEXTURE_BINDING,
         view_formats: &[],
@@ -761,13 +779,16 @@ fn ensure_offscreen(
     device: &wgpu::Device,
     label: &str,
     scene: (u32, u32),
+    backend_usage: wgpu::TextureUsages,
 ) -> OffscreenTarget {
     if let Some(existing) = slot {
-        if (existing.width, existing.height) == scene {
+        if (existing.width, existing.height) == scene
+            && existing.texture.usage().contains(backend_usage)
+        {
             return existing.clone();
         }
     }
-    let (texture, view) = create_offscreen(device, label, scene.0, scene.1);
+    let (texture, view) = create_offscreen(device, label, scene.0, scene.1, backend_usage);
     let target = OffscreenTarget {
         texture: texture.clone(),
         view: view.clone(),

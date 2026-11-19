@@ -6,6 +6,7 @@ use animatix::composition::BuildTarget;
 use animatix::renderer::text::FontContext;
 use animatix::scene::Scene;
 use animatix::timeline::{BuildQuality, RuntimeInputs, SceneDimensions};
+#[cfg(not(feature = "vello-gpu"))]
 use animatix_render::core::RendererCore;
 use animatix_render::filter_backend::GpuFilterBackend;
 use animatix_render::transition::TransitionCompositor;
@@ -20,6 +21,7 @@ pub(super) struct EngineContext {
     pub(super) queue: wgpu::Queue,
     /// Loss callbacks can clear only the device generation that fired them.
     pub(super) generation: u64,
+    #[cfg(not(feature = "vello-gpu"))]
     pub(super) core: RefCell<RendererCore>,
     #[cfg(feature = "vello-gpu")]
     pub(super) frame_gpu: RefCell<animatix_render::frame_gpu::FrameGpu>,

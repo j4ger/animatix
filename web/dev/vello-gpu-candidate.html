@@ -16,7 +16,7 @@
   const status = window.__candidate = { requested, events: [], errors: [] };
   const player = document.createElement("amx-player");
   player.setAttribute("controls", "");
-  player.src = "../content/scenes/first-move.amx";
+  player.setAttribute("src", "../content/scenes/first-move.amx");
   for (const type of ["amxready", "amxbackendlost", "amxbackendrecovered"]) {
     player.addEventListener(type, (event) => status.events.push({
       type,

@@ -78,6 +78,43 @@ paths in release notes.
 This inventory is preparatory. No crate manifests or Rust imports were changed
 for the merge in this baseline pass.
 
+## Migration candidate
+
+The candidate branch uses Linebender `vello_gpu 0.4.0`. Engine evaluation emits
+owned, renderer-neutral drawing commands. WebGPU, WebGL2, and native wgpu share
+the sparse-strip renderer and the same 14 fragment WGSL effects. Native
+compute-only plugins keep their existing shader ABI. The built-in catalog and
+effect definitions now live under `animatix_core::builtins`; the workspace has
+18 members, 13 of them in the default build set.
+
+Native SwiftShader validation passed 27 offscreen renderer tests, the frame
+ordering and submit boundary tests, a CLI PNG export, and a run of the actual
+compute-only Pixelate plugin. The engine passed 1,230 unit tests. The host
+minimal-engine gate found no regular Vello or wgpu dependency.
+
+Build and run the opt-in web candidate from the repository root in the web
+build shell. The browser test checks compositor output and real context loss
+on a mobile-sized Chromium viewport with WebGPU disabled.
+
+```sh
+ANIMATIX_VELLO_GPU=1 bash web/tools/build/build-web.sh --dev
+python3 web/tools/dev/serve-web.py 8124
+```
+
+```sh
+node web/tools/test/vello-gpu-webgl-smoke.mjs
+WEBGL_CANDIDATE_MODE=webgl2 node web/tools/test/vello-gpu-webgl-smoke.mjs
+```
+
+The native candidate can be built with `--features vello-gpu` and selected with
+`ANIMATIX_RENDER_BACKEND=vello-gpu`. Production defaults and the Compute
+vendor stay in place while the candidate is evaluated. The switch and
+dependency removal require the physical iOS and Android runs, native platform
+and video export checks, and matched performance and release SDK measurements.
+This host had no saved quick benchmark baseline and could not download the
+pinned Nix environment. The remaining dependency stages are recorded in
+`tools/ci/dependency-gates.py`.
+
 ## Archive boundary
 
 Completed migration decisions and measurements belong in this dated history

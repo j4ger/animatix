@@ -22,7 +22,8 @@ const profile = mkdtempSync(join(tmpdir(), 'amx-vello-gpu-webgl-'));
 const chrome = spawn(process.env.CHROME ?? 'chromium', [
   '--headless', '--disable-dev-shm-usage', '--no-sandbox', '--disable-crashpad-for-testing',
   '--disable-background-networking', '--disable-webgpu', '--use-gl=angle', '--use-angle=swiftshader',
-  '--enable-unsafe-swiftshader', '--remote-debugging-port=0',
+  '--enable-unsafe-swiftshader', '--enable-features=WebAssemblyUnlimitedSyncCompilation',
+  '--remote-debugging-port=0',
   ...(process.env.WEBGL_CHROME_SINGLE_PROCESS === '1' ? ['--single-process'] : []),
   `--user-data-dir=${profile}`, 'about:blank',
 ], { stdio: ['ignore', 'ignore', 'pipe'] });
@@ -160,9 +161,21 @@ try {
   assert.equal(await cdp.evaluate(`document.querySelector('amx-player').time`), 1);
   near((await frame(cdp, 1))(0.5, 0.5), [252, 120, 108]);
   assert.equal(await cdp.evaluate('webglReadbacks'), 0, 'player rendering used a WebGL readback');
+  const readback = await browser(cdp, () => new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(Error('WebGL2 readback callback timed out')), 7500);
+    document.querySelector('amx-player')._player.debug_readback_rgba(1, result => {
+      clearTimeout(timeout);
+      if (typeof result === 'string') { reject(Error(result)); return; }
+      const { width, height, bytes } = result;
+      const center = (Math.floor(height / 2) * width + Math.floor(width / 2)) * 4;
+      resolve({ width, height, length: bytes.length, center: Array.from(bytes.slice(center, center + 4)) });
+    });
+  }));
+  assert.deepEqual([readback.width, readback.height, readback.length], [640, 360, 640 * 360 * 4]);
+  near(readback.center, [252, 120, 108, 255]);
   assert.deepEqual(await cdp.evaluate('__smoke.errors'), []);
   assert.deepEqual(browserErrors, []);
-  console.log('Vello GPU WebGL2 candidate passed: mobile playback, edit rollback, Glass, transition, Filter, context recovery');
+  console.log('Vello GPU WebGL2 candidate passed: playback, edit rollback, Glass, transition, Filter, context recovery, RGBA readback');
 } catch (error) {
   console.error(browserErrors.join('\n'));
   throw error;

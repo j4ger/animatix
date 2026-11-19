@@ -594,6 +594,8 @@ impl EffectsGpu {
                 if let Some(evict) = self.scratch_order.pop_front() {
                     self.scratch.remove(&evict);
                     self.bind_group_cache.clear();
+                    #[cfg(not(target_arch = "wasm32"))]
+                    self.compute_bind_group_cache.clear();
                 } else {
                     break;
                 }
