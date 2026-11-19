@@ -21,7 +21,7 @@ const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 assert(manifest.render_backends?.includes('webgl2'), 'runtime manifest does not include the opt-in WebGL2 backend');
 const profile = mkdtempSync(join(tmpdir(), 'amx-vello-gpu-webgl-'));
 const chrome = spawn(process.env.CHROME ?? 'chromium', [
-  '--headless', '--disable-dev-shm-usage', '--no-sandbox', '--disable-crashpad-for-testing',
+  '--headless', '--disable-dev-shm-usage', '--no-sandbox',
   '--disable-background-networking', '--disable-webgpu', '--use-gl=angle',
   ...(hardware ? ['--use-angle=vulkan'] : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader']),
   '--enable-features=WebAssemblyUnlimitedSyncCompilation',

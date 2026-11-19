@@ -37,6 +37,29 @@ fn restore_defaults_keeps_target_but_resets_encoding() {
 }
 
 #[test]
+fn switching_format_updates_suggested_filename_and_preserves_custom_path() {
+    let mut shell = GuiShell::load(PathBuf::from("glass.amx"), false);
+    shell.update_default_export_filename();
+    let video = PathBuf::from(&shell.export_store.export_state.output_path);
+    assert_eq!(video.extension().unwrap(), "mp4");
+
+    shell.set_export_format(ExportFormat::Image);
+    assert_eq!(
+        PathBuf::from(&shell.export_store.export_state.output_path),
+        video.with_extension("png")
+    );
+    shell.set_export_format(ExportFormat::WebP);
+    assert_eq!(
+        PathBuf::from(&shell.export_store.export_state.output_path),
+        video.with_extension("webp")
+    );
+
+    shell.export_store.export_state.output_path = "custom/frame.png".into();
+    shell.set_export_format(ExportFormat::Image);
+    assert_eq!(shell.export_store.export_state.output_path, "custom/frame.png");
+}
+
+#[test]
 fn export_submission_rechecks_source_after_dialog_opened() {
     let mut shell = GuiShell::load(PathBuf::from("missing-export-boundary.amx"), false);
     shell.document_store = crate::app::test_support::make_document_store("#0s\n");

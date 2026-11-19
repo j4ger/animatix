@@ -13,39 +13,30 @@ Animatix is a layout-first animation system with four core components:
 
 ## 0. Crate Layering
 
-The workspace is layered so that each dependency edge encodes a guarantee:
+The principal rendering and tooling dependencies point from consumers to their
+dependencies.
 
 ```
-animatix-core    language vocabulary + contract types (capability enums,
-                 Effect trait, icons, RenderError) — no heavy dependencies
-   ↑            ↑
-animatix-std    animatix-syntax (→ core + std)
-(built-ins)          ↑
-   ↑         animatix-analyzer ──> animatix-lsp
-animatix (engine) ←── animatix-text (typst compiler, `text` feature)
-   ↑
-animatix-render (GPU presentation — one-way, engine never sees it)
-   ↑                ↑
-GUI / CLI     engine examples (dev-dependency only)
+animatix-syntax → animatix-core
+animatix-text → animatix-core
+animatix → animatix-core + animatix-syntax + animatix-text
+animatix-lsp → animatix-analyzer → animatix-syntax
+GUI / CLI / Web → animatix-render → animatix
 ```
 
-- `animatix-core` — capability vocabulary, the effect trait, identity types,
-  icon glyphs, and `RenderError`. Admission rule: `animatix-std` needs it, or
-  it is part of the effect definition surface.
-- `animatix-std` — the built-in catalog: effect definitions (parameters, WGSL,
-  pack, support) and primitive identity cards. The single author-visible
-  source for built-in metadata.
+- `animatix-core` defines the capability vocabulary, effect trait, identity
+  types, icon glyphs, and `RenderError`. Its `builtins` module owns the
+  effect definitions, callable signatures, and primitive identity cards.
 - `animatix-syntax` — the language front-end: tokenizer, parser, AST, module
   system, source write-back, symbol table, semantic diagnostics, and the
-  property/type layer. Its contract tables derive from `animatix-std`.
-- `animatix-text` — the typst/fontdb text compilation service behind the
-  engine's `text` feature. It depends on `animatix-core` for `RenderError` and
-  nothing else in the workspace.
+  property/type layer. Its contract tables derive from `animatix_core::builtins`.
+- `animatix-text` provides plain text shaping and optional Typst compilation
+  through the engine's `rich-text` feature.
 - `animatix` — the engine: timeline, build, evaluation, layout, persistence,
   the plugin host, and primitive behaviour. Its `renderer` module holds only
-  frame vocabulary (`error`, `types`, `text`). It still depends on
-  Vello/wgpu — the `FilterBackend` seam is typed in `wgpu::Texture` /
-  `vello::Scene` — but contains no GPU implementation.
+  frame vocabulary (`error`, `types`, `text`). Evaluation emits a
+  renderer-neutral `Scene` containing owned `Draw` commands. The
+  `FilterBackend` seam carries engine types and no Vello or wgpu handles.
 - `animatix-render` — the GPU presentation layer: Vello/wgpu renderer core,
   the `GpuFilterBackend` that implements the engine's `FilterBackend` trait,
   offscreen frames, transition compositing, and the export encoders (including
@@ -53,8 +44,8 @@ GUI / CLI     engine examples (dev-dependency only)
   the engine only defines the `FilterBackend` seam; it never names this crate
   in `src/` (the `animatix-render` edge in the engine's manifest is a
   dev-dependency for the export-path examples).
-- The analyzer and LSP depend only on core/std/syntax, never on the engine —
-  which is why author-visible metadata lives below the engine, not in it.
+- The analyzer and LSP resolve author-visible metadata through core and syntax
+  without loading the engine.
 
 ---
 
@@ -283,6 +274,11 @@ Shipped morph modifiers: `strategy: auto|match|fade`, `path_arc`, `stretch`.
 
 ### Vello Pipeline
 
+Evaluation produces the same renderer-neutral scene for both Vello backends.
+The default Compute backend lowers it to a Vello scene. The opt-in Vello GPU
+backend rasterizes sparse strips and uses fragment pipelines for built-in
+effects on WebGPU, WebGL2, and native wgpu.
+
 ```
 evaluate(time_ms) → Vec<RenderCommand>
   ↓
@@ -336,11 +332,9 @@ the `EFFECTS` bootstrap array. Plugin effects wrap FFI-declared data
 |------|------|
 | `primitives/filter.rs` | `FilterPrimitive` — the container that owns a chain |
 | `animatix-core/src/effect.rs` | `Effect` trait, `EffectId`, parameter schema types, `identity_for` / `kind_layout` / `uniform_size_for` |
-| `animatix-std/src/lib.rs` | `EFFECTS` bootstrap array, dispatch (`effect` / `effect_for_type`), `pack_generic`, plugin registry |
-| `animatix-std/src/effects/mod.rs` | Effect modules and re-exports — one file per effect definition |
-| `animatix-std/src/effects/blur.rs` | `Blur` — separable Gaussian, two passes |
-| `animatix-std/src/effects/color_grade.rs` | `ColorGrade` — 4×4 colour matrix composed on the host |
-| `animatix-std/src/effects/chromatic_aberration.rs` | `ChromaticAberration` — sub-pixel channel split via the linear sampler |
+| `animatix-core/src/builtins/mod.rs` | `EFFECTS` bootstrap array and registry exports |
+| `animatix-core/src/builtins/registry.rs` | Effect lookup, `pack_generic`, and plugin registry |
+| `animatix-core/src/builtins/effects/` | Effect definitions, including Blur, ColorGrade, and ChromaticAberration |
 | `timeline/effects/track.rs` | `EffectChainTrack` / `EffectStage` — animatable storage (`DynTrack`-backed parameters) |
 | `timeline/effects/chain.rs` | `EffectChain`, `EffectRegion`, `PendingComposite`, `FilterBackend` |
 | `timeline/build/effect.rs` | Lowering: effect children become stages on the owning scope's chain |
@@ -752,10 +746,9 @@ Actors and effects share one identity model:
   (`ActorCategory`, `ChildProcessing`, `ShapeKind`, `TextKind`): it grows only
   when the engine learns a new *behaviour*, which is when the compiler should
   force every dispatch site to be revisited.
-- **Author-visible metadata has one single-source crate**: `animatix-std`
-  holds the built-in catalog (`CATALOG` identity cards for primitives, full
-  effect definitions with parameters and WGSL). The runtime links it for
-  behaviour; the parser crate derives its contract tables —
+- **Author-visible metadata comes from `animatix_core::builtins`**, which
+  holds `CATALOG` identity cards and full effect definitions. The runtime
+  links it for behaviour. The parser crate derives its contract tables —
   `builtin_primitive_specs()` and `effect_specs()` — from it, and
   `builtins::types()` derives from those. Plugins provide the same shapes
   through their manifest (`[[effects]]`, primitives) or the FFI, and
@@ -764,12 +757,12 @@ Actors and effects share one identity model:
 
 ### Adding a new built-in primitive
 
-Built-ins pair an `animatix-std` identity card with an engine behaviour row.
+Built-ins pair an `animatix_core::builtins` identity card with an engine behaviour row.
 Their frame evaluation goes through family function pointers; extension
 primitives use the `Primitive` adapter. The `BUILT_INS` row binds the two by
 symbol and is also the stable built-in `BehaviorId` order.
 
-1. Add the identity card to `animatix-std/src/catalog.rs` and `CATALOG`.
+1. Add the identity card to `animatix-core/src/builtins/catalog/mod.rs` and `CATALOG`.
    This owns author-visible identity, display, category, and capabilities.
 2. Implement behavior in `animatix/src/primitives/` and the relevant family
    system in `timeline/behavior/builtin/`; add a `BuiltIn::new` row with its
@@ -901,8 +894,7 @@ No changes to the GPU compositor. During a fade transition, the carried actor is
 
 ```
 crates/
-├── animatix-core/         # Shared vocabulary: capabilities, effect contract, icons, RenderError
-├── animatix-std/          # Built-in catalog: effect definitions, primitive identity cards
+├── animatix-core/         # Shared vocabulary and built-in catalog
 ├── animatix-syntax/       # Syntax layer — parser, AST, module system
 │   └── src/
 │       ├── ast/           # AST types (expr, stmt, span, types)

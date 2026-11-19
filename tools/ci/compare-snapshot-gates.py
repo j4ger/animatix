@@ -261,7 +261,9 @@ def compare(
             report["status"] = "prepared"
         else:
             for side, commit in identities.items():
-                target_dir = temp / "cargo-target" / side
+                # Example fixtures and the render smoke resolve binaries under
+                # the snapshot's target directory, as in a regular checkout.
+                target_dir = snapshots[side] / "target"
                 target_dir.mkdir(parents=True, exist_ok=True)
                 for gate in gates:
                     record = _run_gate(side, commit, snapshots[side], gate, target_dir, output_dir)

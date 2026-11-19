@@ -588,6 +588,12 @@ chosen version and tag with finalized release notes named `vX.Y.Z.md` in
 - Verify downloaded native release artifacts on their target platforms, including
   Linux portability outside Nix. A successful build alone is not runtime evidence.
 - Compare the published site and SDK manifests with the release's source identity.
+- Complete the [Vello GPU migration handoff](handoff_vello_gpu.md). Resolve the
+  dual-backend Web SDK size overage and review Linux visual and performance
+  evidence before switching defaults. Observe a staged release before removing
+  the Compute renderer and vendor patch. The strict dependency gates still
+  require resolving the transitive Vello CPU dependencies in Typst/Hayro and
+  epaint.
 - Reconcile the direct Pages upload workflow with the journal-backed publisher.
   Verify the hosted workflow variables, credentials and target projects, then
   retire or isolate the direct uploader so only the journal-backed workflow

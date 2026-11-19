@@ -78,7 +78,8 @@ STAGES = {
         name="full-no-legacy",
         scope="all workspace packages, all features, dependency kinds, and targets",
         target="all",
-        edges="all",
+        # Cargo's "all" also emits feature nodes that have no package columns.
+        edges="normal,build,dev",
         all_features=True,
         workspace=True,
         inspect_lockfile=True,

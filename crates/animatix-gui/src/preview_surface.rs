@@ -31,11 +31,6 @@ pub struct PreviewSurface {
     hit_regions: Vec<(String, Rect)>,
 }
 
-#[cfg(feature = "vello-gpu")]
-type CandidateFrameGpu<'a> = Option<&'a mut FrameGpu>;
-#[cfg(not(feature = "vello-gpu"))]
-type CandidateFrameGpu<'a> = ();
-
 #[derive(Clone, Copy)]
 enum SampleSource {
     Render,
@@ -44,7 +39,7 @@ enum SampleSource {
 
 fn render_scene_into_target(
     renderer: &mut RendererCore,
-    candidate: CandidateFrameGpu<'_>,
+    #[cfg(feature = "vello-gpu")] candidate: Option<&mut FrameGpu>,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     timeline: &Timeline,
@@ -72,9 +67,6 @@ fn render_scene_into_target(
         frame_gpu.blit(&source, target_view, wgpu::TextureFormat::Rgba8Unorm, true);
         return Ok(hit_regions);
     }
-    #[cfg(not(feature = "vello-gpu"))]
-    let _ = candidate;
-
     if timeline.needs_filter_backend() {
         if backend.is_none() {
             *backend = Some(GpuFilterBackend::new(device.clone(), queue.clone(), dimensions)?);
@@ -335,8 +327,6 @@ impl PreviewSurface {
             &mut self.renderer,
             #[cfg(feature = "vello-gpu")]
             self.frame_gpu.as_mut(),
-            #[cfg(not(feature = "vello-gpu"))]
-            (),
             device,
             queue,
             timeline,
@@ -439,8 +429,6 @@ impl PreviewSurface {
                         &mut self.renderer,
                         #[cfg(feature = "vello-gpu")]
                         self.frame_gpu.as_mut(),
-                        #[cfg(not(feature = "vello-gpu"))]
-                        (),
                         device,
                         queue,
                         &from.timeline,
@@ -457,8 +445,6 @@ impl PreviewSurface {
                         &mut self.renderer,
                         #[cfg(feature = "vello-gpu")]
                         self.frame_gpu.as_mut(),
-                        #[cfg(not(feature = "vello-gpu"))]
-                        (),
                         device,
                         queue,
                         &to.timeline,

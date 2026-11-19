@@ -35,6 +35,7 @@ class SnapshotGateTests(unittest.TestCase):
             "if [ \"${1:-}\" = --list ]; then\n"
             "  printf 'check\\tnix\\tubuntu-latest\\tnix\\tpr\\n'\n"
             "elif [ \"${1:-}\" = gate ]; then\n"
+            "  test \"$CARGO_TARGET_DIR\" = \"$(pwd -P)/target\"\n"
             "  printf 'gate %s\\n' \"${2:-}\"\n"
             "else exit 2; fi\n",
             encoding="utf-8",

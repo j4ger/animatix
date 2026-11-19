@@ -111,7 +111,9 @@ class DependencyGateTests(unittest.TestCase):
         self.assertEqual(result["lockfile_findings"], ["vello@0.1.0"])
         self.assertTrue(result["command"].count("--workspace"))
         self.assertIn("--all-features", result["command"])
-        self.assertEqual(result["command"][result["command"].index("--edges") + 1], "all")
+        self.assertEqual(
+            result["command"][result["command"].index("--edges") + 1], "normal,build,dev",
+        )
         self.assertEqual(result["command"][result["command"].index("--target") + 1], "all")
 
     def test_full_stage_detects_git_hybrid_dependency_in_graph(self):

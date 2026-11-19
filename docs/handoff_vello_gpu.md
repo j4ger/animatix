@@ -3,8 +3,15 @@
 Use `experiment/vello-gpu-migration` for the candidate and `204b668a` for the
 Compute baseline. The [migration archive](history/2026-11-19-vello-gpu-migration-baseline.md)
 records the development SDK, native offscreen, shader and software-browser
-results. Complete the feature and device checks first. Record package size
-for the candidate so the rollout can use measured cold-transfer costs.
+results. The [Linux acceptance record](history/2026-11-19-vello-gpu-linux-acceptance.md)
+records the pinned release SDKs and the Linux hardware run. Use the published
+size limits and the outstanding device and rollout checks below when deciding
+whether to switch defaults.
+
+The Linux checks found two release blockers. The dual Web SDK exceeds both
+base Wasm size budgets. Native Vello GPU export is slower than Compute on the
+matched Glass runs. The light vocabulary frames also need visual review.
+The Web SDK and Linux package rollback rehearsals passed in local preview.
 
 ## Build two immutable SDKs
 

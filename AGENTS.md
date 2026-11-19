@@ -4,15 +4,14 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 
 ## Map
 
-- `crates/animatix-core`: shared vocabulary — capability enums, effect contract types, the built-in **property descriptor table**, icon glyphs, `RenderError`; zero engine/parser deps.
-- `crates/animatix-std`: built-in catalog (effect definitions, primitive identity cards); the single source for built-in metadata.
-- `crates/animatix-syntax`: parser, AST, module system, diagnostics, formatter, property/type layer; contract tables derive from `animatix-std`.
+- `crates/animatix-core`: shared capability and effect contracts, the built-in **property descriptor table**, icon glyphs, `RenderError`, and the built-in catalog under `animatix_core::builtins`. The crate has no engine or parser dependencies.
+- `crates/animatix-syntax`: parser, AST, module system, diagnostics, formatter, and property/type layer. Contract tables derive from `animatix_core::builtins`.
 - `crates/animatix-text`: plain text shaping and optional Typst compilation behind `rich-text`. Native builds embed fonts via `bundled-fonts`, and web packages load the `web/fonts` pack.
 - `crates/animatix`: engine — timeline ECS world/stores, build/evaluate, `BehaviorDef` family systems, composition, frame vocabulary.
 - `crates/animatix-render`: GPU presentation above the engine — Vello/wgpu core, filter backend, offscreen frames, transitions, export encoders. One-way: public engine API only.
 - `crates/animatix-cli`, `crates/animatix-gui`: CLI and eframe/egui workbench (source editor, preview, read-only inspector).
 - `crates/animatix-analyzer`, `crates/animatix-lsp`: language intelligence and its LSP wrapper; update the analyzer when syntax changes.
-- `crates/animatix-web`: wasm32 playback and source preparation with `SourcesOnly` module reuse. Vello renders offscreen and presents to a WebGPU canvas. The site provides a source editor at `/playground/`. See `web/README.md` for SDK and site entry points.
+- `crates/animatix-web`: wasm32 playback and source preparation with `SourcesOnly` module reuse. The default SDK uses WebGPU, and the opt-in Vello GPU SDK can also present through WebGL2. The site provides a source editor at `/playground/`. See `web/README.md` for SDK and site entry points.
 - `crates/animatix-plugin-api`, `-demo`, `-tooling`: native plugin C ABI, example, tooling. `crates/eparts`: themed egui widgets.
 - `crates/animatix-syntax/src/token/`: the single lossless tokenizer (parser input, LSP tokens, GUI highlighting).
 - `docs`: `roadmap.md` is remaining work only, `docs/history/` is the archive (`history.md` is a pointer), `docs/ecs.md` is normative ECS + structure contract. `examples/` has supported demos; focused regression fixtures belong beside their tests. Human review and temporary experiments run through the harness.
