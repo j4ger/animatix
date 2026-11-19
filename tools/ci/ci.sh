@@ -428,6 +428,7 @@ gate_ci_policy_tests() {
   python3 tools/ci/test-joint-audit.py
   python3 tools/ci/test-ci-plan.py
   python3 tools/ci/test-main-baseline.py
+  python3 tools/ci/test-compare-snapshot-gates.py
   python3 tools/release/release-tests.py
   python3 tools/ci/test-release-workflow.py
   python3 web/tools/test/test-web-smoke-gates.py

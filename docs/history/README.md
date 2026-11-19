@@ -15,6 +15,7 @@ mixed history and open work). Split into monthly volumes on 2026-10-29; the old
 - [Test and comment pruning](test-comment-pruning.md) — duplicate execution and fixtures removed, stale comments corrected, retained case mapping.
 - [Maintenance, CI, and linker decisions](maintenance-ci.md) — measured maintenance changes, experiments, and completed decisions for November 2026.
 - [Test maintenance and isolation audit](test-maintenance-audit.md) — workspace-wide ownership inventory and fixture changes; this is not executed-coverage evidence.
+- [Vello GPU migration baseline](2026-11-19-vello-gpu-migration-baseline.md) — committed source identities, native gate snapshot harness, and the `animatix-std` → `animatix-core` merge inventory.
 
 ## Volumes
 
