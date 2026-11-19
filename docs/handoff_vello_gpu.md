@@ -3,7 +3,9 @@
 Use `experiment/vello-gpu-migration` for the candidate and `204b668a` for the
 Compute baseline. The [migration archive](history/2026-11-19-vello-gpu-migration-baseline.md)
 records the development SDK, native offscreen, shader and software-browser
-results. The release and hardware results below govern the default switch.
+results. The tested release candidate exceeds the base Wasm budgets. Use it
+for device compatibility testing and rerun the size gate before a Web default
+switch.
 
 ## Build two immutable SDKs
 
@@ -65,6 +67,11 @@ For Android USB testing, `adb reverse tcp:8124 tcp:8124` also lets Chrome use
   order and retain the raw runs. The proposed first-frame and frame p95
   regression limit is 10%. The proposed low-end WebGL2 target is sustained
   30 fps for one player. Record 3/6-player cadence, memory and dropped frames.
+
+Use `first_ready_ms` for embed startup and `startup_queue_completed_ms` for
+completion of the startup submissions. For first-frame completion latency,
+use a single player with a fresh profile. The probe loads production quality
+on both builds and rejects samples in which a player skipped drawing.
 
 On the candidate page, pause and seek to 1 s. Use the phone's remote inspector
 to lose the context, then check the new canvas, playhead and visible frame.
@@ -154,3 +161,57 @@ shell attempt timed out connecting to `cache.nixos.org`. The CPU comparison
 reported that no saved `quick` baseline was available. Carry the native,
 video and performance rows to the corresponding test devices and attach
 their logs and artifacts before changing defaults.
+
+## Cloud checks completed on 2026-11-19
+
+The Linux GUI passed `cargo check --locked -p animatix-gui --all-targets
+--features vello-gpu` after adding the matching ALSA development package in
+scratch storage. The workspace all-targets check passed after migrating the
+caption fixture to `Scene::draws()` and correcting the concrete filter backend
+used by the GPU interaction example. All 121 engine contract tests passed,
+including seven caption and speech-sync tests.
+
+The candidate CLI exported PNG and WebP through SwiftShader.
+Both files decoded to the same 1280×720 pixels and matched the sampled shape and
+background colors. SwiftShader also exercised per-canvas fences with 1, 3 and
+6 WebGL2 players and zero pixel readbacks. The SDK and supporting JavaScript
+suites passed 16 and 48 tests respectively.
+
+Both release SDKs passed integrity verification and the cold raster capability
+proof. The repository build script ran with the same host toolchain for both
+artifacts. The manifests record Rust 1.100.0, wasm-bindgen 0.2.128, Binaryen 130
+and the compressor identity.
+
+| SDK | Source | Build ID |
+| --- | --- | --- |
+| Compute baseline | `204b668a` | `1c90db7c4d23769f6c464c2fca315fa9fd625d9a42a1f1a34f3cfd7c3803c302` |
+| Vello GPU candidate | `d2d35423` | `2604023bf576067031b7d571c49173d7e6a5e2bc3871e2279dc621737eca82b6` |
+
+| SDK bytes | Baseline | Candidate | Budget |
+| --- | ---: | ---: | ---: |
+| Base Wasm | 5,365,940 | **7,843,036** | 5,400,000 |
+| Base Wasm gzip | 1,866,411 | **2,822,974** | 1,900,000 |
+| All Wasm modules | 24,696,767 | 27,152,024 | 28,000,000 |
+| Compressed fonts | 2,062,576 | 2,062,576 | 2,400,000 |
+| SDK total | 38,359,409 | 41,830,242 | 42,000,000 |
+
+The baseline passed the SDK size gate. The candidate needs to recover 2,443,036
+raw base bytes and 922,974 compressed base bytes. Check which renderer code
+lands in the base module, starting with the WebGL-only paths through wgpu and
+Naga and any reachable Compute code. Measure the actual cold transfer for
+forced WebGPU and forced WebGL2 when testing partition changes. Keep the
+existing SDK limits in the comparison.
+
+The candidate release passed automatic WebGL2 fallback and forced WebGL2
+in Chromium 156 with SwiftShader. Both runs covered playback, edit rollback,
+Glass, transitions, Filter, context recovery and RGBA readback. The production
+quality probe completed 1, 3 and 6 players with per-canvas fences, confirmed
+draws and zero pixel readbacks. The software BrowserWebGPU/WebGL2 comparison
+matched four of five frames byte for byte, including the Latin/CJK sample.
+The remaining frame had a maximum channel difference of 1 out of 255.
+
+The fixed candidate build can be verified with
+`--current --commit "$(git rev-parse d2d35423)"` from that commit. The later
+acceptance-only Rust test and example fixes change the source fingerprint for
+a fresh build. Both host builds reported missing exact upstream license text
+for `fax`, `fax_derive`, `glidesort` and `rust-std` in their license inventories.

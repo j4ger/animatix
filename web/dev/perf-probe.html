@@ -51,9 +51,9 @@
       // a headless or backgrounded tab delivers *no* rAF callbacks, and
       // `queue.submit` returns as soon as the frame is encoded — several
       // milliseconds before the GPU has drawn it. Timing `render_frame` alone
-      // therefore reports ~0.5 ms for a frame that actually costs ~4 ms. Every
-      // number here is "N frames followed by an explicit GPU drain", which is
-      // the browser-side equivalent of the native drivers' tight frame loop.
+      // therefore reports ~0.5 ms for a frame that actually costs ~4 ms.
+      // Throughput drains a batch of ticks. Queue-depth-one latency drains each
+      // tick separately, and CPU submission time is recorded independently.
       //
       //   ?scene=<url>     scene to load        (default ../demos/transformer/scenes/attention.amx)
       //   ?backend=<mode>  webgpu, webgl2, or auto (default webgpu)
@@ -65,8 +65,12 @@
       // A harness that fails silently is worse than no harness: a top-level
       // await that rejects in a module script only reaches the console, which
       // an automated driver cannot read.
-      window.addEventListener("error", (e) => { window.__perf_error = String(e.message ?? e.error); });
-      window.addEventListener("unhandledrejection", (e) => { window.__perf_error = String(e.reason?.stack ?? e.reason); });
+      const showError = (error) => {
+        window.__perf_error = String(error);
+        document.getElementById("meta").textContent = window.__perf_error;
+      };
+      window.addEventListener("error", (e) => showError(e.message ?? e.error));
+      window.addEventListener("unhandledrejection", (e) => showError(e.reason?.stack ?? e.reason));
       const scene = params.get("scene") ?? "../demos/transformer/scenes/attention.amx";
       const base = new URL(`${params.get("base") ?? "../runtime"}/`, document.baseURI);
       const requestedBackend = params.get("backend") ?? "webgpu";
@@ -85,12 +89,6 @@
       // Let each SDK initialize via its own integrity-checked player loader.
       const started = performance.now();
       const manifestUrl = new URL("runtime-manifest.json", base);
-      const manifestResponse = await fetch(manifestUrl);
-      if (!manifestResponse.ok) throw new Error(`runtime manifest HTTP ${manifestResponse.status}`);
-      const manifest = await manifestResponse.json();
-      if (requestedBackend !== "auto" && !(manifest.render_backends ?? ["webgpu"]).includes(requestedBackend)) {
-        throw new Error(`SDK does not advertise ${requestedBackend}`);
-      }
       const sdk = await import(new URL("amx-player.js", base));
       sdk.configureRuntime({ manifestUrl: manifestUrl.href, backend: requestedBackend });
 
@@ -102,6 +100,7 @@
         const el = document.createElement("amx-player");
         el.setAttribute("src", scene);
         el.setAttribute("aspect", "16:9");
+        el.setAttribute("quality", "production");
         el.setAttribute("eager", "");
         loads.push(new Promise((resolve, reject) => {
           el.addEventListener("amxready", () => resolve(performance.now()), { once: true });
@@ -128,7 +127,10 @@
       if (elements.some((el) => (el.backend ?? "webgpu") !== backend)) {
         throw new Error("players selected different backends");
       }
-      const engine = globalThis[Symbol.for(`animatix.sdk.engine.${manifest.build_id}`)];
+      if (requestedBackend !== "auto" && backend !== requestedBackend) {
+        throw new Error(`SDK selected ${backend} for ${requestedBackend}`);
+      }
+      const { manifest, module: engine } = elements[0]._runtime;
       window.__engine = engine;
       const contexts = backend === "webgl2"
         ? elements.map((el) => el._canvas.getContext("webgl2"))
@@ -136,6 +138,8 @@
       const drain = backend === "webgl2"
         ? () => drainWebGL(contexts)
         : () => engine.debug_gpu_drain();
+      await drain();
+      const startupCompletedMs = performance.now() - started;
       const scenePx = [players[0].scene_width(), players[0].scene_height()];
       const canvasCss = [elements[0]._canvas.clientWidth, elements[0]._canvas.clientHeight];
 
@@ -219,11 +223,15 @@
         const raster = players.map((p) => [p.raster_width(), p.raster_height()]);
         window.__perf_progress = `scale ${scale}: queue depth one`;
         const completedTicks = [];
+        const drawnBefore = players.map((p) => p.debug_dedup_stats().drawn);
         for (let i = 0; i < frames; i++) {
           const t0 = performance.now();
           for (const p of players) p.render_frame(i / 60);
           await drain();
           completedTicks.push(performance.now() - t0);
+        }
+        if (players.some((p, i) => p.debug_dedup_stats().drawn - drawnBefore[i] !== frames)) {
+          throw new Error("a player skipped frames during the queue-depth-one sample");
         }
         // The rest case a looping embed lives in: one frame, asked for again and
         // again. The raster dedup turns that into a signature compare, so this
@@ -288,8 +296,10 @@
         players: count,
         frames_per_sample: frames,
         reps,
+        quality: "production",
         first_ready_ms: round(firstReadyMs, 1),
         load_ms: round(loadMs, 1),
+        startup_queue_completed_ms: round(startupCompletedMs, 1),
         build_id: manifest.build_id,
         source_commit: manifest.build.source_commit,
       };

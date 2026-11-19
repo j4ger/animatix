@@ -275,15 +275,8 @@ fn encode_frame(
     output_texture: &wgpu::Texture,
     output_view: &wgpu::TextureView,
 ) -> Result<(), String> {
-    let filter_backend: &mut dyn FilterBackend = backend;
     for (scene, region) in scopes {
-        filter_backend.render_scene_to_pending_composite(
-            scene,
-            dimensions,
-            Some(*region),
-            chain,
-            1.0,
-        )?;
+        backend.render_scene_to_pending_composite(scene, dimensions, Some(*region), chain, 1.0)?;
     }
 
     core.render_scene_with_background(
@@ -297,12 +290,12 @@ fn encode_frame(
     )
     .map_err(|error| error.to_string())?;
 
-    let layers = filter_backend.take_pending_composites();
+    let layers = backend.take_pending_composites();
     drain_pending_layers(
         core,
         device,
         queue,
-        filter_backend,
+        backend,
         layers,
         Some(output_texture),
         output_view,
