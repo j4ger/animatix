@@ -80,6 +80,9 @@ for the merge in this baseline pass.
 
 ## Migration candidate
 
+The verified development SDK was built at `946d9e61` and has build ID
+`26dead885afc5d8128568c0dc986f370495365027d1bcafc3f6477e4a7ce8f79`.
+
 The candidate branch uses Linebender `vello_gpu 0.4.0`. Engine evaluation emits
 owned, renderer-neutral drawing commands. WebGPU, WebGL2, and native wgpu share
 the sparse-strip renderer and the same 14 fragment WGSL effects. Native
@@ -87,10 +90,11 @@ compute-only plugins keep their existing shader ABI. The built-in catalog and
 effect definitions now live under `animatix_core::builtins`; the workspace has
 18 members, 13 of them in the default build set.
 
-Native SwiftShader validation passed 27 offscreen renderer tests, the frame
-ordering and submit boundary tests, a CLI PNG export, and a run of the actual
-compute-only Pixelate plugin. The engine passed 1,230 unit tests. The host
-minimal-engine gate found no regular Vello or wgpu dependency.
+Native SwiftShader validation passed the same 27 offscreen renderer tests
+with both legacy and candidate rendering. The candidate also passed the
+frame ordering and submit boundary tests, a CLI PNG export, and a run of the
+actual compute-only Pixelate plugin. The engine passed 1,230 unit tests.
+The host minimal-engine gate found no regular Vello or wgpu dependency.
 
 Build and run the opt-in web candidate from the repository root in the web
 build shell. The browser test checks compositor output and real context loss
@@ -106,6 +110,22 @@ node web/tools/test/vello-gpu-webgl-smoke.mjs
 WEBGL_CANDIDATE_MODE=webgl2 node web/tools/test/vello-gpu-webgl-smoke.mjs
 ```
 
+On Chromium with SwiftShader at 393×851 and DPR 2, both automatic fallback and
+forced WebGL2 passed. The test covers playback pixels, rejected edits, Glass,
+inline Blur, a scene transition, and `WEBGL_lose_context` recovery at the same
+playhead. It recorded zero WebGL readback calls during presentation and
+verified a separate diagnostic RGBA readback after recovery.
+In a six-player viewport, forced context loss on one player preserved the
+other five canvases and playheads.
+
+An offscreen comparison of BrowserWebGPU and WebGL2 used the two test scenes
+at their authored 640×360 resolution. The inline Blur at 1 s and the Glass
+scene at 0.4 s and 2.6 s matched byte for byte. At 1.5 s, 7,875 of 921,600
+channel values differed by 1 out of 255. This comparison exercised the
+candidate on both browser backends under software graphics.
+A separate mixed Latin and Chinese glyph frame matched byte for byte. The
+development SDK's cold raster module also round-tripped an RGBA PNG in Node.
+
 The native candidate can be built with `--features vello-gpu` and selected with
 `ANIMATIX_RENDER_BACKEND=vello-gpu`. Production defaults and the Compute
 vendor stay in place while the candidate is evaluated. The switch and
@@ -114,6 +134,17 @@ and video export checks, and matched performance and release SDK measurements.
 This host had no saved quick benchmark baseline and could not download the
 pinned Nix environment. The remaining dependency stages are recorded in
 `tools/ci/dependency-gates.py`.
+
+The candidate's low-level raster adapter currently accepts RGBA8 and BGRA8
+images and source-over composition with the supported blend modes. The
+WebGL2 experiments cover pixel readback. The raw canvas-fill and page-wide
+GPU drain probes still use the shared WebGPU context.
+
+The Wasm dependency gate reports the Compute 0.11 packages and the CPU Vello
+0.0.8 packages pulled in by Typst through `typst-svg` and Hayro. The complete
+workspace graph also retains the historical hybrid benchmark and egui's
+`epaint` dependency on `vello_cpu 0.2.0`. The workspace-wide allowlist needs
+these callers accounted for when the Compute dependency and vendor are removed.
 
 ## Archive boundary
 
