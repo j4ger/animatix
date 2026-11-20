@@ -13,11 +13,11 @@
 </p>
 
 <p align="center">
-  <a href="https://amx.j4ger.dev/demos/transformer/">
-    <img src="docs/assets/transformer-overview/overview.png" width="800" alt="A Transformer architecture animated in Animatix: attention, feed-forward layers, and the next-token loop.">
+  <a href="https://amx.j4ger.dev/showcase/one-rule-many-forms/">
+    <img src="web/content/posters/one-rule-many-forms.png" width="800" alt="One rule, many forms. A field of shapes makes a ripple as their start times change.">
   </a>
   <br>
-  <sub>Made with Animatix. <a href="https://amx.j4ger.dev/demos/transformer/">View archived example →</a></sub>
+  <sub>One rule. Many forms. <a href="https://amx.j4ger.dev/showcase/one-rule-many-forms/">Play it live →</a></sub>
 </p>
 
 ## A scene in a few lines

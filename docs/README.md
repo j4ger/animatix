@@ -3,7 +3,7 @@
 ## Start here
 
 - [Language tour](https://amx.j4ger.dev/learn/) — learn through animated examples.
-- [Showcase](https://amx.j4ger.dev/showcase/) — watch finished scenes in the browser.
+- [Showcase](https://amx.j4ger.dev/showcase/) — play finished scenes live in the browser.
 - [Examples](../examples/README.md) — run and adapt `.amx` files.
 - [Desktop workbench](gui-workbench.md) — preview, review timing, and navigate to source.
 - [Build and run](contributing.md) — native tools, Nix shells, and export setup.

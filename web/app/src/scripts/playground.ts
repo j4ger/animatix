@@ -1,7 +1,7 @@
 import {fetchSource} from '../lib/requests';
 import {readableError} from '../lib/errors';
 import {presetFor,withOverride} from '../lib/overrides';
-import {loadPlayer} from './scene';
+import {loadPlayer,resetPlayer} from './scene';
 const root=document.querySelector<HTMLElement>('[data-playground]');
 if(root){
  const code=root.querySelector<HTMLTextAreaElement>('#source-code')!;
@@ -22,7 +22,7 @@ if(root){
    if(preset)text=withOverride(text,...preset);
    original=text;lastDownloaded=null;current=id;code.value=text;selector.value=id;diagnostics.textContent='';
    shell.dataset.source=`${root!.dataset.base}${id}.amx`;
-   const previous=shell.querySelector('amx-player') as (HTMLElement & {destroy():void})|null;previous?.destroy();previous?.remove();shell.querySelector<HTMLElement>('.scene-placeholder')!.hidden=false;
+   resetPlayer(shell);
    const next=new URL(location.href);next.searchParams.set('scene',id);if(!initial){next.searchParams.delete('preset');next.searchParams.delete('phase_degrees');}history.replaceState(null,'',next);
    status.textContent='Source ready. Edit, then Run. Nothing is saved automatically.';
   }catch(error){if(ticket===pending){selector.value=current;status.textContent=`Could not load source: ${readableError(error)}. Your existing text was kept.`;}}finally{if(ticket===pending)lockSource(false);}

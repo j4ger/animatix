@@ -162,6 +162,7 @@ dependencies. Rich text enters through `animatix-text/rich-text` only.
 | Syntax or highlighting | Update the lossless tokenizer in `crates/animatix-syntax/src/token/`; test syntax, analyzer, GUI and LSP together. |
 | Runtime, layout or rendering | Render representative frames and review a storyboard; run the relevant render and example gates. |
 | Demo or site scene | Review composition, clipping, cue timing and the final held frame. Use `check`, `storyboard`, `audit` and regression baselines; see [scene audit](audit.md). |
+| Site playback or fallback UI | Run `site-build` and `web-site-smoke` in their listed shells. Use `SMOKE_DEPTH=deep` for changes shared across work, lesson and technique pages. |
 | Hot path | Record `tools/quality/perf-bench.sh compare` evidence. This is a manual measurement, not a PR gate; see [performance evaluation](performance_evaluation.md). |
 | Documentation | The `doc-links` gate runs `tools/docs/check-docs.sh` for links, source paths and stale roadmap wording. The separate `doc` gate validates Rustdoc and generated property tables. |
 

@@ -876,6 +876,13 @@ encoding are activated on demand. This is one runtime with lazy capabilities,
 not separate slim/assets/full engines. Scene loading prepares imports, assets,
 fonts, and required capabilities before building the replacement document.
 
+The static Astro site creates a player on an explicit poster click or Playground
+Run. Work, lesson and technique pages retain their poster until the player emits
+`amxready` after drawing the initial frame. In automatic mode the SDK tries
+WebGPU and falls back to WebGL2. If live playback fails, the site surfaces the
+error and offers the Showcase recording where one is authored. The MP4 request
+starts after the visitor chooses it. See [Animatix Web](../web/README.md).
+
 The player shell treats a load or in-place document update as a generation-scoped
 transaction. New source, font, quality, or variable operations supersede older
 work; fetches receive an abort signal where they are operation-owned, and the

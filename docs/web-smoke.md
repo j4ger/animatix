@@ -6,15 +6,17 @@ SDK integrity, text/raster parity, or transaction tests.
 | Gate | Target | Purpose |
 | --- | --- | --- |
 | `web-smoke` | `web/dev/smoke/` with the just-built SDK | Small capability fixtures: shapes, external text/fonts, SVG, shared runtime and an explicit nested module chain. |
-| `site-smoke` | Assembled `_site/` only | Real Astro navigation, click-to-load scenes, playback/seek and playground Run. |
+| `site-smoke` | Assembled `_site/` only | Astro navigation, live poster-to-player handoff, WebGL2 and recording fallback, playback/seek and Playground Run. |
 | `web-site-smoke` | Assemble `_site/`, then run `site-smoke` | PR/main integration in the existing Web Build job, reusing its SDK. |
 
 The historical `web/` HTML gallery is not the shipped website. `site-artifact`
 removes that HTML and overlays Astro. Testing the old gallery therefore cannot
 establish that a release works. Pages with no player are valid: the homepage is
 static, compatibility pages link onward, and interactive scenes initially show a
-load button. Site tests must follow those user journeys rather than eagerly
-creating every player or invoking private loader state.
+poster. Site tests click the public **Play live** action and check that the page
+has no player or media requests before activation. They then check poster
+visibility during loading, keyboard focus on the ready player and no MP4
+requests during live playback.
 
 ## Run
 
@@ -35,9 +37,12 @@ is not browser acceptance. `SITE_BASE` must match assembly (for example
 prefix and contracts check prefixed navigation, module and scene URLs.
 The SDK suite also accepts `SITE_BASE` to exercise its relative module chain
 under a prefix; run it at both `/` and `/animatix/` after import-loader changes.
-Compatibility pages must retain their onward links. The showcase preset journey
+Compatibility pages must retain their onward links. The Showcase preset journey
 checks the enabled selector, committed public vars, Open code query, downloadable
-source and subsequent painted frame.
+source and subsequent painted frame. One separate journey disables WebGPU and
+checks that WebGL2 actually paints a Showcase scene. A second disables both
+backends, verifies the visible poster and late recording choice, starts the MP4
+with a user action and retries live playback.
 
 ## Failure evidence and retries
 
@@ -59,17 +64,18 @@ The normal contract is a small representative set, not every historical demo.
 Do not lower assertions to make software rendering green. Product-side timeout
 errors remain failures even when the harness has a larger watchdog budget.
 
-`SMOKE_DEPTH=deep` covers all five current Astro showcases and six lessons,
-plus the existing static, preset and editor recovery journeys. A catalog test
-fails when a current scene is missing from this explicit contract list. Additional
-pages check loading, public seek and nonuniform painted output; they do not yet have
-scene-specific semantic pixel oracles.
+`SMOKE_DEPTH=deep` covers all five current Showcase works, six lessons and four
+techniques, alongside the static navigation, preset, fallback and editor
+recovery journeys. A catalog test checks this explicit coverage against the
+current route metadata. The additional pages check loading, public seek and
+nonuniform painted output.
 
-PRs and pushes (including direct main commits) touching renderer, WebGPU bridge, frame/ABI types, embed loader/player, SDK
-packaging, shaders or scene fixtures automatically use deep in the existing Web
+PRs and pushes (including direct main commits) touching the renderer, graphics
+bridge, frame/ABI types, embed loader/player, shared site playback component,
+SDK packaging, shaders or scene fixtures automatically use deep in the existing Web
 Build job. Missing diff information and conservative full-matrix classifications (including
 unknown paths, Nix/Cargo settings and vendored changes) also upgrade to deep.
-This can add nine journeys for an unfamiliar low-risk path; classify it explicitly
+This can add thirteen journeys for an unfamiliar low-risk path; classify it explicitly
 in the planner once its impact is understood rather than silently skipping coverage. Other PRs/pushes and reusable release runs stay critical. The plan records matched paths and
 reason; browser timing evidence records the chosen depth. There is no extra
 build/job for escalation: the same SDK feeds SDK checks and the assembled site.
@@ -79,7 +85,7 @@ read-only contents permission, no secrets, no publication steps and a 90-minute
 job cap; a newer manual run of the same ref cancels the older one. It builds one
 SDK and runs deep site acceptance, retaining evidence for seven days. No new
 schedule is enabled: this avoids a nightly rebuild while Actions time is scarce.
-Deep adds nine page journeys; its actual hosted duration still needs measurement.
+Deep adds thirteen page journeys.
 A risky PR followed by its merge may run deep twice: without proof that the tested
 merge result is identical, skipping main acceptance would create a coverage gap.
 

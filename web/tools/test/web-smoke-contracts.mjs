@@ -14,16 +14,21 @@ export function contracts(suite, depth = 'critical') {
     { path: '/gallery.html', action: 'static', players: 0, links: ['/showcase/', '/learn/', '/archive/'] },
     { path: '/tour/', action: 'static', players: 0, links: ['/learn/', '/archive/'] },
     { path: '/learn/make-something-move/', action: 'load', players: 1, motion: true },
-    { path: '/showcase/one-rule-many-forms/', action: 'load', players: 1, preset: true },
+    { path: '/showcase/one-rule-many-forms/', action: 'load', players: 1, preset: true, recording: true },
+    { path: '/showcase/one-rule-many-forms/?check=webgl2', action: 'load', players: 1, backend: 'webgl2', recording: true },
+    { path: '/showcase/one-rule-many-forms/?check=recording', action: 'recording', players: 0, recording: true },
     { path: '/playground/?scene=first-move', action: 'edit', players: 1, motion: true },
   ];
   if (depth === 'deep') {
     const editor = pages.pop(); // Keep dirty-editor recovery last: navigation asks before discarding edits.
     for (const id of ['move-the-basis', 'make-room', 'when-waves-meet', 'words-keep-time']) {
-      pages.push({path: `/showcase/${id}/`, action: 'load', players: 1});
+      pages.push({path: `/showcase/${id}/`, action: 'load', players: 1, recording: true});
     }
     for (const id of ['compose-a-scene', 'repeat-with-intent', 'values-drive-motion', 'structure-time', 'finish-and-share']) {
       pages.push({path: `/learn/${id}/`, action: 'load', players: 1});
+    }
+    for (const id of ['focus', 'labels', 'reveal', 'stagger']) {
+      pages.push({path: `/learn/techniques/${id}/`, action: 'load', players: 1});
     }
     pages.push(editor);
   }

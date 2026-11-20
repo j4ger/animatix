@@ -403,10 +403,11 @@ def web_smoke_policy(classification, event, base):
         "web/content/scenes/", "web/dev/smoke/", "web/tools/test/web-smoke",
         "web/tools/test/web-transactions", "tools/ci/", ".github/workflows/ci.yml",
     )
+    shared_playback = {"web/app/src/components/Scene.astro", "web/app/src/scripts/scene.ts"}
     matched = [p for p in paths if p.startswith(prefixes) or p.endswith(".wgsl")
-               or p in FULL_PATHS or p.endswith("/Cargo.toml")]
+               or p in shared_playback or p in FULL_PATHS or p.endswith("/Cargo.toml")]
     return {"depth": "deep" if matched else "critical",
-            "reason": "renderer/loader/ABI/fixture risk paths" if matched else "no deep-regression risk paths",
+            "reason": "renderer/loader/ABI/playback/fixture risk paths" if matched else "no deep-regression risk paths",
             "paths": matched}
 
 
