@@ -3,7 +3,7 @@
 /// Request a fallback device for headless tests; return `None` if unavailable.
 pub(crate) async fn create_headless_device(label: &str) -> Option<(wgpu::Device, wgpu::Queue)> {
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
-    let adapter = instance
+    let Ok(adapter) = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::default(),
             compatible_surface: None,
@@ -11,9 +11,12 @@ pub(crate) async fn create_headless_device(label: &str) -> Option<(wgpu::Device,
             apply_limit_buckets: false,
         })
         .await
-        .ok()?;
+    else {
+        crate::testing::skip_if_no_gpu();
+        return None;
+    };
     let needed_limits = wgpu::Limits::default().using_resolution(adapter.limits());
-    let (device, queue) = adapter
+    let Ok((device, queue)) = adapter
         .request_device(&wgpu::DeviceDescriptor {
             label: Some(label),
             required_features: wgpu::Features::empty(),
@@ -22,6 +25,9 @@ pub(crate) async fn create_headless_device(label: &str) -> Option<(wgpu::Device,
             ..Default::default()
         })
         .await
-        .ok()?;
+    else {
+        crate::testing::skip_if_no_gpu();
+        return None;
+    };
     Some((device, queue))
 }

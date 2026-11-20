@@ -12,7 +12,7 @@ const base = process.env.WEBGL_CANDIDATE_URL ?? 'http://127.0.0.1:8124';
 const mode = process.env.WEBGL_CANDIDATE_MODE ?? 'auto';
 const hardware = process.env.WEBGL_CANDIDATE_GPU === '1';
 assert(['auto', 'webgl2'].includes(mode), 'expected automatic or forced WebGL2 selection');
-const url = new URL('/dev/vello-gpu-candidate.html', base);
+const url = new URL('dev/vello-gpu-candidate.html', base.endsWith('/') ? base : `${base}/`);
 if (mode === 'webgl2') url.searchParams.set('backend', mode);
 const sdkRoot = resolve(process.env.ANIMATIX_WEB_ROOT ?? new URL('../../../web', import.meta.url).pathname);
 const manifestPath = join(sdkRoot, 'runtime', 'runtime-manifest.json');
@@ -30,6 +30,8 @@ const chrome = spawn(process.env.CHROME ?? 'chromium', [
   `--user-data-dir=${profile}`, 'about:blank',
 ], { stdio: ['ignore', 'ignore', 'pipe'] });
 let log = '';
+let spawnError;
+chrome.on('error', error => { spawnError = error; });
 chrome.stderr.setEncoding('utf8').on('data', chunk => { log = (log + chunk).slice(-10000); });
 const browser = (cdp, fn, ...args) => cdp.evaluate(`(${fn.toString()})(...${JSON.stringify(args)})`);
 
@@ -37,6 +39,7 @@ async function connect() {
   const portFile = join(profile, 'DevToolsActivePort');
   let tabs;
   await until('Chromium CDP endpoint', async () => {
+    if (spawnError) throw spawnError;
     if (chrome.exitCode !== null) throw Error(`Chromium exited: ${log}`);
     if (!existsSync(portFile)) return false;
     const [port] = readFileSync(portFile, 'utf8').split('\n');
@@ -49,15 +52,15 @@ async function connect() {
   return cdp;
 }
 
-async function frame(cdp, time) {
-  const rect = await browser(cdp, async t => {
-    const player = document.querySelector('amx-player');
+async function frame(cdp, time, playerIndex = 0) {
+  const rect = await browser(cdp, async (t, index) => {
+    const player = document.querySelectorAll('amx-player')[index];
     player.pause();
     player.seek(t);
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     const bounds = player.shadowRoot.querySelector('canvas').getBoundingClientRect();
     return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, dpr: devicePixelRatio };
-  }, time);
+  }, time, playerIndex);
   const shot = await cdp.send('Page.captureScreenshot', { format: 'png' });
   const png = inspectPng(Buffer.from(shot.data, 'base64'));
   return (x, y) => {
@@ -109,6 +112,7 @@ try {
     return status.ready === 1 && status.backend === 'webgl2';
   });
   assert.equal(await cdp.evaluate(`'gpu' in navigator`), false);
+  assert.equal(await cdp.evaluate(`document.querySelector('amx-player')._runtime.manifest.build_id`), manifest.build_id);
   const renderer = await browser(cdp, () => {
     const gl = document.querySelector('amx-player').shadowRoot.querySelector('canvas').getContext('webgl2');
     const info = gl?.getExtension('WEBGL_debug_renderer_info');
@@ -131,7 +135,7 @@ try {
   near((await frame(cdp, 2.5))(920 / 1280, 0.5), [101, 217, 232]);
 
   await browser(cdp, async () => {
-    const source = await (await fetch('/dev/vello-gpu-glass.amx')).text();
+    const source = await (await fetch('./vello-gpu-glass.amx')).text();
     await document.querySelector('amx-player').applySource(source);
   });
   const frosted = await frame(cdp, 0.4);
@@ -146,7 +150,7 @@ try {
   near(after(0.05, 0.05), [51, 34, 72]);
 
   await browser(cdp, async () => {
-    const source = await (await fetch('/dev/vello-gpu-inline.amx')).text();
+    const source = await (await fetch('./vello-gpu-inline.amx')).text();
     await document.querySelector('amx-player').applySource(source);
   });
   const inline = await frame(cdp, 1);
@@ -154,12 +158,28 @@ try {
   const blurredEdge = inline(0.385, 0.5);
   assert(blurredEdge[1] > 55 && blurredEdge[1] < 215, `inline Blur did not soften the edge: ${blurredEdge}`);
 
+  await browser(cdp, () => {
+    const peer = document.createElement('amx-player');
+    peer.setAttribute('src', '../content/scenes/first-move.amx');
+    document.querySelector('#stage').append(peer);
+  });
+  await until('second WebGL2 player', async () => {
+    const state = await cdp.evaluate(`({
+      ready: __smoke.ready.has(document.querySelectorAll('amx-player')[1]),
+      errors: __smoke.errors,
+    })`);
+    assert.deepEqual(state.errors, []);
+    return state.ready;
+  });
+  near((await frame(cdp, 0, 1))(360 / 1280, 0.5), [101, 217, 232]);
+
   const lostCanvas = await browser(cdp, async () => {
     const canvas = document.querySelector('amx-player').shadowRoot.querySelector('canvas');
+    const peer = document.querySelectorAll('amx-player')[1];
     const gl = canvas.getContext('webgl2');
     const extension = gl?.getExtension('WEBGL_lose_context');
     if (!extension) return false;
-    window.__contextLoss = { canvas, extension };
+    window.__contextLoss = { canvas, peerCanvas: peer.shadowRoot.querySelector('canvas') };
     extension.loseContext();
     return true;
   });
@@ -171,6 +191,11 @@ try {
   assert.equal(await cdp.evaluate(`document.querySelector('amx-player').backend`), 'webgl2');
   assert.equal(await cdp.evaluate(`document.querySelector('amx-player').time`), 1);
   near((await frame(cdp, 1))(0.5, 0.5), [252, 120, 108]);
+  assert.deepEqual(await browser(cdp, () => {
+    const peer = document.querySelectorAll('amx-player')[1];
+    return [peer.backend, peer.time, peer.shadowRoot.querySelector('canvas') === __contextLoss.peerCanvas];
+  }), ['webgl2', 0, true]);
+  near((await frame(cdp, 2.5, 1))(920 / 1280, 0.5), [101, 217, 232]);
   assert.equal(await cdp.evaluate('webglReadbacks'), 0, 'player rendering used a WebGL readback');
   const readback = await browser(cdp, () => new Promise((resolve, reject) => {
     const timeout = setTimeout(() => reject(Error('WebGL2 readback callback timed out')), 7500);
@@ -187,14 +212,14 @@ try {
   assert.deepEqual(await cdp.evaluate('__smoke.errors'), []);
   assert.deepEqual(browserErrors, []);
   console.log(JSON.stringify({ renderer, hardware, selection: mode, buildId: manifest.build_id }));
-  console.log('Vello GPU WebGL2 candidate passed: playback, edit rollback, Glass, transition, Filter, context recovery, RGBA readback');
+  console.log('Vello GPU WebGL2 passed: playback, edit rollback, Glass, transition, Filter, context recovery, RGBA readback');
 } catch (error) {
   console.error(browserErrors.join('\n'));
   throw error;
 } finally {
   cdp?.close();
   await new Promise(resolve => {
-    if (chrome.exitCode !== null) return resolve();
+    if (spawnError || chrome.exitCode !== null || chrome.signalCode !== null) return resolve();
     chrome.on('exit', resolve);
     chrome.kill();
   });

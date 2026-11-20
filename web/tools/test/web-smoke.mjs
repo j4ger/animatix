@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // Distinct SDK fixtures and real assembled-site journeys. No legacy page crawl.
-import {spawn, execFileSync} from 'node:child_process';
+import {spawn, execFile, execFileSync} from 'node:child_process';
 import {existsSync,mkdtempSync,rmSync,mkdirSync,writeFileSync,appendFileSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {dirname,join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {promisify} from 'node:util';
 import net from 'node:net';
 import {Cdp,until,sleep,instrumentation,navigationCommitted} from './web-smoke-browser.mjs';
 import {contracts,siteBase,withBase} from './web-smoke-contracts.mjs';
@@ -18,6 +19,7 @@ const OUTPUT=resolve(ROOT,process.env.SMOKE_OUTPUT_DIR || `target/web-smoke/${SU
 const PREFIX=siteBase(process.env.SITE_BASE);
 const PAGES=contracts(SUITE,process.env.SMOKE_DEPTH || 'critical').map(contract=>withBase(contract,PREFIX));
 const PAGE_BUDGET=180000;
+const run=promisify(execFile);
 function freePort() {
   return new Promise((resolve,reject)=>{
     const s=net.createServer();s.on('error',reject);s.listen(0,'127.0.0.1',()=>{const port=s.address().port;s.close(()=>resolve(port));});
@@ -37,7 +39,8 @@ async function main(){
   const port=await freePort(), debugPort=await freePort(),base=`http://127.0.0.1:${port}`;
   const profile=mkdtempSync(join(tmpdir(),'amx-smoke-'));
   let cdp,server,chrome,current='startup',pageErrors=[],browserLog='',consoleLog='',networkLog='';
-  const watchdog=setTimeout(()=>{record({kind:'failure',category:'watchdog',page:current});kill(chrome);kill(server);process.exit(1);},PAGES.length*PAGE_BUDGET+60000);
+  const journeys=PAGES.length+(SUITE==='sdk'?1:0);
+  const watchdog=setTimeout(()=>{record({kind:'failure',category:'watchdog',page:current});kill(chrome);kill(server);process.exit(1);},journeys*PAGE_BUDGET+60000);
   try{
     server=spawn(process.env.PYTHON||'python3',[join(ROOT,'web/tools/dev/serve-web.py'),String(port)],{cwd:ROOT,env:{...process.env,SERVE_ROOT:WEB_ROOT,SERVE_BASE:PREFIX},detached:true,stdio:['ignore','pipe','pipe']});
     for(const stream of [server.stdout,server.stderr])stream.on('data',data=>appendFileSync(join(OUTPUT,'server.log'),data));
@@ -105,6 +108,23 @@ async function main(){
       }finally{clearTimeout(timer);}
       record({kind:'page-complete',page:current,durationMs:Date.now()-started,cache:n===0?'browser-first-journey':'browser-reused'});
       console.log(`web-smoke ${SUITE}: ${current} ok (${Date.now()-started}ms)`);
+    }
+    if(SUITE==='sdk'){
+      current='WebGL2 fallback';
+      const log=join(OUTPUT,'webgl2.log');
+      const started=Date.now();
+      try{
+        const {stdout,stderr}=await run(process.execPath,[join(ROOT,'web/tools/test/vello-gpu-webgl-smoke.mjs')],{
+          cwd:ROOT,timeout:PAGE_BUDGET,env:{...process.env,ANIMATIX_WEB_ROOT:WEB_ROOT,
+            WEBGL_CANDIDATE_URL:base+PREFIX+'/',WEBGL_CANDIDATE_MODE:'auto',WEBGL_CANDIDATE_GPU:'0'},
+        });
+        writeFileSync(log,stdout+stderr);
+        console.log(stdout.trim());
+      }catch(error){
+        writeFileSync(log,(error.stdout||'')+(error.stderr||''));
+        throw Error('WebGL2 fallback failed (see webgl2.log)',{cause:error});
+      }
+      record({kind:'page-complete',page:current,durationMs:Date.now()-started});
     }
   }catch(error){
     record({kind:'failure',page:current,message:error.message,retryable:error.exitCode===75});

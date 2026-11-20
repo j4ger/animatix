@@ -7,6 +7,65 @@ use animatix_core::effect::{EffectParamValue, EffectParams};
 use super::helpers::ALPHA_CONVERSION_WGSL;
 use super::{EffectsExtent, EffectsGpu, FORMAT, FRAGMENT_ENTRY, FULLSCREEN_VERTEX};
 
+mod harness;
+mod pixels;
+mod spatial_alpha;
+
+#[test]
+fn effect_plan_enforces_the_context_slot_limit() {
+    let Some(mut harness) = harness::EffectHarness::new() else {
+        return;
+    };
+    let effect = harness::effect_chain(
+        "Grain",
+        vec![
+            EffectParamValue::F32(0.2),
+            EffectParamValue::F32(7.0),
+            EffectParamValue::Bool(false),
+        ],
+    )
+    .instances
+    .remove(0);
+    let mut chain = EffectChain {
+        instances: vec![effect.clone(); super::MAX_CHAIN_PASSES],
+        time_ms: 0.0,
+    };
+    assert_eq!(harness.effects.plan_effect_passes(&chain, 1.0).unwrap().len(), 64);
+    chain.instances.push(effect);
+    let Err(error) = harness.effects.plan_effect_passes(&chain, 1.0) else {
+        panic!("65 effect passes must exceed the context slot limit");
+    };
+    assert!(error.contains("65") && error.contains("64"), "{error}");
+}
+
+#[test]
+fn pixel_scaling_respects_the_parameter_schema() {
+    use super::helpers::scale_pixel_parameters;
+
+    let radius =
+        EffectParamSpec::new("radius", EffectParamKind::F32, EffectParamValue::F32(0.0), 0, 4)
+            .pixel();
+    let amount =
+        EffectParamSpec::new("amount", EffectParamKind::F32, EffectParamValue::F32(0.0), 0, 4);
+    let mut scalar = 20.0f32.to_le_bytes();
+    scale_pixel_parameters(&[amount], 0.5, &mut scalar);
+    assert_eq!(f32::from_le_bytes(scalar), 20.0);
+    scale_pixel_parameters(&[radius], 0.5, &mut scalar);
+    assert_eq!(f32::from_le_bytes(scalar), 10.0);
+
+    let offset = EffectParamSpec::new(
+        "offset",
+        EffectParamKind::Vec2,
+        EffectParamValue::Vec2([0.0, 0.0]),
+        0,
+        8,
+    )
+    .pixel();
+    let mut vector = [4.0f32.to_le_bytes(), (-8.0f32).to_le_bytes()].concat();
+    scale_pixel_parameters(&[offset], 0.25, &mut vector);
+    assert_eq!(vector, [1.0f32.to_le_bytes(), (-2.0f32).to_le_bytes()].concat());
+}
+
 #[test]
 fn all_builtin_fragment_shaders_validate_and_expose_fullscreen_entries() {
     assert_eq!(EFFECTS.len(), 14);

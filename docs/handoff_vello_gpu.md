@@ -28,8 +28,9 @@ nix develop -c env ANIMATIX_REQUIRE_GPU=1 tools/ci/ci.sh gate test
 nix develop -c cargo build --locked --release -p animatix-cli -p animatix-gui --features video
 ```
 
-For browser acceptance on Linux hardware, confirm the standard embed selects
-WebGPU. Serve the SDK on port 8124 and run
+The regular `web-smoke` gate runs WebGPU and automatic WebGL2 fallback on
+Chromium with SwiftShader. For browser acceptance on Linux hardware, confirm
+the standard embed selects WebGPU. Serve the SDK on port 8124 and run
 `node web/tools/test/vello-gpu-webgl-smoke.mjs` with
 `WEBGL_CANDIDATE_GPU=1` for both automatic WebGL2 fallback and forced WebGL2
 (`WEBGL_CANDIDATE_MODE=webgl2`). Record Chromium's renderer, SDK build ID,
@@ -84,6 +85,11 @@ dependent chapters.
 The GUI played and paused Glass, sought to three seconds, retained its preview
 after a window resize, and exported both PNG and WebP at 1280 × 720. The
 workspace tests and both Wasm feature configurations passed.
+
+The portable effect tests assert shader output pixels, including spatial
+alpha, per-instance uniforms and chained effects. The image-residency,
+presentation and preview tests run through Vello GPU in the standard workspace
+test gate.
 
 The packaged SDK passed text parity, cold PNG encoding, player transactions,
 and the assembled-site smoke. Chromium on the RTX 4060 Laptop GPU used
