@@ -10,7 +10,7 @@ pub struct WipeIn;
 
 impl BuiltinAction for WipeIn {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::WipeIn.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::WipeIn.descriptor().clone()
     }
 
     fn execute(
@@ -84,7 +84,7 @@ pub struct FadeIn;
 
 impl BuiltinAction for FadeIn {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::FadeIn.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::FadeIn.descriptor().clone()
     }
 
     fn execute(

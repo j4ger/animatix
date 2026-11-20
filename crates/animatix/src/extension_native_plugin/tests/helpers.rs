@@ -30,7 +30,7 @@ pub(super) fn sample_evaluate_ctx_with_payload<'a>(
         label: "pulse",
         // These helper contexts carry no World identity; the implied type is
         // Rect.
-        caps: animatix_std::caps_for_type("Rect").unwrap_or_default(),
+        caps: animatix_core::builtins::caps_for_type("Rect").unwrap_or_default(),
         time_ms: 0,
         local_transform: kurbo::Affine::IDENTITY,
         opacity: 1.0,

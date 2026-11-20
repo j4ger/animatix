@@ -6,7 +6,7 @@ pub struct Shift;
 
 impl BuiltinAction for Shift {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::Shift.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::Shift.descriptor().clone()
     }
 
     fn execute(
@@ -129,7 +129,7 @@ pub struct Rotate;
 
 impl BuiltinAction for Rotate {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::Rotate.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::Rotate.descriptor().clone()
     }
 
     fn execute(
@@ -210,7 +210,7 @@ pub struct Scale;
 
 impl BuiltinAction for Scale {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::Scale.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::Scale.descriptor().clone()
     }
 
     fn execute(

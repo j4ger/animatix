@@ -5,8 +5,6 @@ use animatix::easing::Easing;
 use animatix::timeline::scene_program::SceneItem;
 use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
-use crate::core::RendererCore;
-
 /// GPU-based compositor for scene transition effects.
 ///
 /// Renders a fullscreen quad with a WGSL shader that blends two input textures
@@ -513,8 +511,12 @@ pub fn collect_flip_pairs(
 /// Encode the floating FLIP overlay scene: each pair's transform is linearly
 /// interpolated with the eased progress, and the from/to commands fade out/in
 /// over it.
-pub fn encode_flip_overlay(pairs: &[FlipItem], progress: f32, easing: Easing) -> vello::Scene {
-    let mut overlay = vello::Scene::new();
+pub fn encode_flip_overlay(
+    pairs: &[FlipItem],
+    progress: f32,
+    easing: Easing,
+) -> animatix::scene::Scene {
+    let mut overlay = animatix::scene::Scene::new();
     let p_eased = animatix::easing::apply_easing(progress, easing);
     let p = p_eased as f64;
     for (from_item, to_item) in pairs {
@@ -540,34 +542,6 @@ pub fn encode_flip_overlay(pairs: &[FlipItem], progress: f32, easing: Easing) ->
         }
     }
     overlay
-}
-
-/// Draw `overlay` into `overlay_view` with a transparent background, then
-/// alpha-blit it over the already-composited transition in `output_view`.
-///
-/// `overlay_view` is a scratch texture owned by the caller; on the native
-/// offscreen renderer it is scene A's texture after the blend has consumed it.
-pub fn composite_flip_overlay(
-    core: &mut RendererCore,
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    overlay_view: &wgpu::TextureView,
-    output_view: &wgpu::TextureView,
-    size: SceneDimensions,
-    overlay: &vello::Scene,
-) -> Result<(), String> {
-    core.render_vello_scene_with_background(
-        device,
-        queue,
-        overlay_view,
-        size.width,
-        size.height,
-        overlay,
-        vello::peniko::Color::TRANSPARENT,
-    )
-    .map_err(|e| e.to_string())?;
-    core.blit_texture(device, queue, overlay_view, output_view, size.width, size.height, 1.0);
-    Ok(())
 }
 
 #[cfg(test)]
@@ -686,7 +660,7 @@ card_large: Rect, at: (400, 300), size: (150, 150), color: (1, 0, 0, 1), shared_
         assert_ne!(pairs[0].0.transform, pairs[0].1.transform);
 
         let overlay = encode_flip_overlay(&pairs, 0.5, Easing::Linear);
-        assert!(!overlay.encoding().is_empty(), "mid-transition overlay must draw");
+        assert!(!overlay.draws().is_empty(), "mid-transition overlay must draw");
     }
 
     #[test]

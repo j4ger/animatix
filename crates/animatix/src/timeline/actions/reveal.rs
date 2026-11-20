@@ -204,7 +204,7 @@ fn apply_text_split_setup(
 
 impl BuiltinAction for DrawIn {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::DrawIn.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::DrawIn.descriptor().clone()
     }
 
     fn execute(
@@ -368,7 +368,9 @@ pub struct RevealIn;
 
 impl BuiltinAction for RevealIn {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::RevealIn.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::RevealIn
+            .descriptor()
+            .clone()
     }
 
     fn execute(
@@ -498,7 +500,7 @@ pub struct WipeOut;
 
 impl BuiltinAction for WipeOut {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::WipeOut.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::WipeOut.descriptor().clone()
     }
 
     fn execute(
@@ -545,7 +547,9 @@ pub struct RevealOut;
 
 impl BuiltinAction for RevealOut {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::RevealOut.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::RevealOut
+            .descriptor()
+            .clone()
     }
 
     fn execute(
@@ -589,7 +593,7 @@ pub struct DrawOut;
 
 impl BuiltinAction for DrawOut {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::DrawOut.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::DrawOut.descriptor().clone()
     }
 
     fn execute(

@@ -607,7 +607,7 @@ impl Timeline {
             diagnostics,
         );
         let duration_ms = timing.duration_ms as u64;
-        let descriptor = animatix_std::callable::callable(&action.verb);
+        let descriptor = animatix_core::builtins::callable::callable(&action.verb);
         let category = match descriptor.map(|entry| entry.category.as_str()) {
             Some("Entrance") => ActionCategory::Entrance,
             Some("Exit") => ActionCategory::Exit,

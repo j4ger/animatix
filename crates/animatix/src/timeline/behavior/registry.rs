@@ -45,7 +45,7 @@ impl BehaviorRegistry {
             behaviors.push(BehaviorDef {
                 id: BehaviorId(i as u16),
                 name: builtin.behavior.type_name().into(),
-                caps: animatix_std::caps_from_info(builtin.info),
+                caps: animatix_core::builtins::caps_from_info(builtin.info),
                 source: BehaviorSource::Family(builtin.family),
             });
         }
@@ -58,14 +58,14 @@ impl BehaviorRegistry {
     pub fn register_extension(
         &mut self,
         primitive: Arc<dyn crate::primitives::Primitive>,
-        info: animatix_std::PrimitiveInfo,
+        info: animatix_core::builtins::PrimitiveInfo,
     ) -> BehaviorId {
         let name = primitive.type_name();
         if let Some(existing) = self.find(name) {
             return existing.id;
         }
         let id = BehaviorId(self.behaviors.len() as u16);
-        let caps = animatix_std::caps_from_info(&info);
+        let caps = animatix_core::builtins::caps_from_info(&info);
         self.behaviors.push(BehaviorDef {
             id,
             name: name.into(),

@@ -579,7 +579,7 @@ fn optimized_let_chain_keeps_a_name_used_as_a_callee() {
 
     let evaluate = |expr| {
         let mut env = Environment::new();
-        let abs = animatix_std::callable::callable("abs")
+        let abs = animatix_core::builtins::callable::callable("abs")
             .expect("standard abs descriptor")
             .clone();
         env.register_callable(abs, Arc::new(|args, _| Ok(Value::Num(args[0].as_num().abs()))));

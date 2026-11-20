@@ -10,7 +10,7 @@ pub struct Shake;
 
 impl BuiltinAction for Shake {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::Shake.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::Shake.descriptor().clone()
     }
 
     fn execute(
@@ -94,7 +94,7 @@ pub struct Pulse;
 
 impl BuiltinAction for Pulse {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::Pulse.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::Pulse.descriptor().clone()
     }
 
     fn execute(
@@ -187,7 +187,7 @@ pub struct Bounce;
 
 impl BuiltinAction for Bounce {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::Bounce.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::Bounce.descriptor().clone()
     }
 
     fn execute(

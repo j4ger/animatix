@@ -209,6 +209,10 @@ export class AmxPlayerInput extends AmxPlayerLoad {
   // ── public API ──────────────────────────────────────────────────
 
   play() {
+    if (this._backendSuspended) {
+      this._backendResumeRequested = true;
+      return;
+    }
     if (this._state !== "ready") return;
     if (!this._player?.has_document()) return;
     // Starting from the finished frame (the poster position, or a play that

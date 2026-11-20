@@ -8,7 +8,7 @@ must participate in SDK input fingerprints and full CI coverage.
 
 | Dependency | Source and local changes | Removal condition |
 | --- | --- | --- |
-| [Vello 0.11.0](https://github.com/linebender/vello) | Persistent image-atlas repair and a synchronous submit-scoped encoder callback; see [patch notes and boundary tests](vello/README.animatix.md). | Upgrade only when both boundaries have upstream equivalents and the image/presentation regression tests pass. |
+| [typst-svg 0.15.1](typst-svg/README.md) | Import Hayro's PDF interpreter directly for PDF-to-SVG conversion. | Remove the patch once a compatible upstream release drops the rasterizer dependency and passes the renderer dependency and text parity gates. |
 | [wasm-split-cli 0.8.0-alpha.3](wasm-split-cli/README.md) | Pinned Dioxus source with relocation, overlapping data ownership and shared-capability fixes; the package README records the revision, patches and ABI checks. | Remove the local patch only when upstream handles these cases and passes Animatix's Web capability and graphics checks. |
 
 Directory relocation must not change dependency behavior. Update Cargo patch

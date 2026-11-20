@@ -149,7 +149,7 @@ static STATIC_EXEMPT: LazyLock<HashSet<String>> = LazyLock::new(|| {
         .into_iter()
         .map(String::from)
         .collect();
-    for callable in animatix_std::callable::callables() {
+    for callable in animatix_core::builtins::callable::callables() {
         exempt.insert(callable.name.clone());
         exempt.insert(callable.qualified_name());
     }

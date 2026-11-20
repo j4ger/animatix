@@ -141,8 +141,8 @@ impl Timeline {
             );
             let unbounded = unbounded_blend_layer_rect();
             out.scene.push_layer(
-                vello::peniko::Fill::NonZero,
-                vello::peniko::BlendMode::new(mix, vello::peniko::Compose::SrcOver),
+                peniko::Fill::NonZero,
+                peniko::BlendMode::new(mix, peniko::Compose::SrcOver),
                 1.0,
                 parent_transform,
                 &unbounded,
@@ -169,7 +169,7 @@ impl Timeline {
         // below — bounds from a previous frame are never relied upon. Rendering
         // into a scratch scene and appending is the same pattern the
         // static-subtree cache already relies on.
-        let mut scratch = vello::Scene::new();
+        let mut scratch = crate::scene::Scene::new();
         out.with_scene(&mut scratch, |swapped| {
             self.render_node_subtree(
                 node_id,
@@ -201,13 +201,13 @@ impl Timeline {
             },
         };
         out.scene.push_layer(
-            vello::peniko::Fill::NonZero,
-            vello::peniko::BlendMode::new(mix, vello::peniko::Compose::SrcOver),
+            peniko::Fill::NonZero,
+            peniko::BlendMode::new(mix, peniko::Compose::SrcOver),
             1.0,
             transform,
             &rect,
         );
-        out.scene.encoding_mut().append(scratch.encoding(), &None);
+        out.scene.append(&scratch, None);
         out.scene.pop_layer();
     }
 
@@ -384,7 +384,7 @@ impl Timeline {
 
     /// Sample the node's `blend:` track; `None` when it is absent or
     /// "normal" (the source-over default, no layer).
-    fn track_blend_mode(&self, id: EntityId, time_ms: u64) -> Option<vello::peniko::Mix> {
+    fn track_blend_mode(&self, id: EntityId, time_ms: u64) -> Option<peniko::Mix> {
         use crate::timeline::TrackAccessor;
 
         if !self.blend_used.get() {
@@ -396,21 +396,21 @@ impl Timeline {
         let mode = self.world.style(id).blend.get_or_default(time_ms);
         match mode.as_deref().unwrap_or("normal") {
             "normal" | "" => None,
-            "multiply" => Some(vello::peniko::Mix::Multiply),
-            "screen" => Some(vello::peniko::Mix::Screen),
-            "overlay" => Some(vello::peniko::Mix::Overlay),
-            "darken" => Some(vello::peniko::Mix::Darken),
-            "lighten" => Some(vello::peniko::Mix::Lighten),
-            "color-dodge" => Some(vello::peniko::Mix::ColorDodge),
-            "color-burn" => Some(vello::peniko::Mix::ColorBurn),
-            "hard-light" => Some(vello::peniko::Mix::HardLight),
-            "soft-light" => Some(vello::peniko::Mix::SoftLight),
-            "difference" => Some(vello::peniko::Mix::Difference),
-            "exclusion" => Some(vello::peniko::Mix::Exclusion),
-            "hue" => Some(vello::peniko::Mix::Hue),
-            "saturation" => Some(vello::peniko::Mix::Saturation),
-            "color" => Some(vello::peniko::Mix::Color),
-            "luminosity" => Some(vello::peniko::Mix::Luminosity),
+            "multiply" => Some(peniko::Mix::Multiply),
+            "screen" => Some(peniko::Mix::Screen),
+            "overlay" => Some(peniko::Mix::Overlay),
+            "darken" => Some(peniko::Mix::Darken),
+            "lighten" => Some(peniko::Mix::Lighten),
+            "color-dodge" => Some(peniko::Mix::ColorDodge),
+            "color-burn" => Some(peniko::Mix::ColorBurn),
+            "hard-light" => Some(peniko::Mix::HardLight),
+            "soft-light" => Some(peniko::Mix::SoftLight),
+            "difference" => Some(peniko::Mix::Difference),
+            "exclusion" => Some(peniko::Mix::Exclusion),
+            "hue" => Some(peniko::Mix::Hue),
+            "saturation" => Some(peniko::Mix::Saturation),
+            "color" => Some(peniko::Mix::Color),
+            "luminosity" => Some(peniko::Mix::Luminosity),
             other => {
                 tracing::warn!(
                     "{}: unknown blend mode '{other}' (expected a CSS mix-mode name); treating as normal",

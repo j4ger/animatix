@@ -61,8 +61,8 @@ subs: Captions, opacity: 1.0, at: (960, 900), font_size: 36.0, caption_mode: "wo
     let _scene_2 = tl.evaluate(5.0, DIMS); // inactive
 
     // Ensure scenes produced valid drawing output
-    assert!(!scene_0.encoding().is_empty());
-    assert!(!scene_1.encoding().is_empty());
+    assert!(!scene_0.draws().is_empty());
+    assert!(!scene_1.draws().is_empty());
 }
 
 #[test]

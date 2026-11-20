@@ -570,7 +570,7 @@ impl Timeline {
         props: &[Property],
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let Some(caps) = animatix_std::caps_for_type(ty) else {
+        let Some(caps) = animatix_core::builtins::caps_for_type(ty) else {
             // Extension primitives have no catalog caps; their property surface
             // is the extension registry, which `warn_unknown_declaration_
             // properties` already consults.

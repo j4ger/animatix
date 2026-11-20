@@ -129,7 +129,7 @@ static STDLIB_CONSTRUCTS: LazyLock<HashMap<&'static str, Type>> = LazyLock::new(
 /// rebuild. Re-converting each catalog parameter there allocated nested type
 /// vectors per occurrence even though catalog signatures are immutable.
 static STDLIB_FUNCTIONS: LazyLock<HashMap<&'static str, Type>> = LazyLock::new(|| {
-    animatix_std::callable::callables()
+    animatix_core::builtins::callable::callables()
         .iter()
         .map(|callable| {
             let ty = Type::Function {

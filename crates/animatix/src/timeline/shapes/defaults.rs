@@ -4,7 +4,7 @@ use super::*;
 pub fn shape_type_for_actor(ty: &str) -> Option<ShapeType> {
     // Resolve through the primitive's derived caps instead of a parallel
     // string table, so the mapping cannot drift from the primitive.
-    let caps = animatix_std::caps_for_type(ty)?;
+    let caps = animatix_core::builtins::caps_for_type(ty)?;
     if let Some(kind) = caps.shape {
         return Some(shape_kind_to_shape_type(kind));
     }
@@ -280,7 +280,7 @@ pub fn shape_fill_color(
     shape_type: ShapeType,
     color: [f32; 4],
     fill_opacity: f32,
-) -> Option<vello::peniko::Color> {
+) -> Option<peniko::Color> {
     if fill_opacity <= 0.0 {
         return None;
     }
@@ -289,7 +289,7 @@ pub fn shape_fill_color(
         return None;
     }
 
-    Some(vello::peniko::Color::from_rgba8(
+    Some(peniko::Color::from_rgba8(
         (color[0] * 255.0) as u8,
         (color[1] * 255.0) as u8,
         (color[2] * 255.0) as u8,
@@ -298,16 +298,13 @@ pub fn shape_fill_color(
 }
 
 /// Compute the stroke colour and width, returning `None` when invisible.
-pub fn shape_stroke(
-    stroke_color: [f32; 4],
-    stroke_width: f32,
-) -> Option<(vello::peniko::Color, f32)> {
+pub fn shape_stroke(stroke_color: [f32; 4], stroke_width: f32) -> Option<(peniko::Color, f32)> {
     if stroke_width <= 0.0 {
         return None;
     }
 
     Some((
-        vello::peniko::Color::from_rgba8(
+        peniko::Color::from_rgba8(
             (stroke_color[0] * 255.0) as u8,
             (stroke_color[1] * 255.0) as u8,
             (stroke_color[2] * 255.0) as u8,
@@ -335,7 +332,7 @@ pub fn build_vello_path(
     VelloPath {
         path,
         fill: if fill_opacity > 0.0 {
-            Some(vello::peniko::Color::from_rgba8(
+            Some(peniko::Color::from_rgba8(
                 (color[0] * 255.0) as u8,
                 (color[1] * 255.0) as u8,
                 (color[2] * 255.0) as u8,
@@ -347,7 +344,7 @@ pub fn build_vello_path(
         stroke: shape_stroke(stroke_color, stroke_width).or_else(|| {
             if force_stroke {
                 Some((
-                    vello::peniko::Color::from_rgba8(
+                    peniko::Color::from_rgba8(
                         (color[0] * 255.0) as u8,
                         (color[1] * 255.0) as u8,
                         (color[2] * 255.0) as u8,

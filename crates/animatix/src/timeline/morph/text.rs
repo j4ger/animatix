@@ -156,12 +156,12 @@ pub fn interpolate_vello_paths(
                     (Some(c), None) => Some(if t < 0.5 {
                         c
                     } else {
-                        vello::peniko::Color::TRANSPARENT
+                        peniko::Color::TRANSPARENT
                     }),
                     (None, Some(c)) => Some(if t >= 0.5 {
                         c
                     } else {
-                        vello::peniko::Color::TRANSPARENT
+                        peniko::Color::TRANSPARENT
                     }),
                     (None, None) => None,
                 },
@@ -176,7 +176,7 @@ pub fn interpolate_vello_paths(
                         if t < 0.5 {
                             c
                         } else {
-                            vello::peniko::Color::TRANSPARENT
+                            peniko::Color::TRANSPARENT
                         },
                         if t < 0.5 { w } else { 0.0 },
                     )),
@@ -184,7 +184,7 @@ pub fn interpolate_vello_paths(
                         if t >= 0.5 {
                             c
                         } else {
-                            vello::peniko::Color::TRANSPARENT
+                            peniko::Color::TRANSPARENT
                         },
                         if t >= 0.5 { w } else { 0.0 },
                     )),

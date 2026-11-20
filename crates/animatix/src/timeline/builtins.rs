@@ -359,7 +359,7 @@ pub(crate) fn is_standard_callable(name: &str, env: &Environment) -> bool {
 }
 
 fn register_standard_callable_contracts(env: &mut Environment) {
-    for descriptor in animatix_std::callable::callables() {
+    for descriptor in animatix_core::builtins::callable::callables() {
         if let Some(Value::NativeFn(call)) = env.get(&descriptor.name) {
             env.register_callable(descriptor.clone(), call);
         }

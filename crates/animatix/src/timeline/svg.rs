@@ -1,6 +1,6 @@
 use kurbo::{BezPath, Shape};
+use peniko::Color;
 use usvg::{Node, Options, Tree};
-use vello::peniko::Color;
 
 use super::VelloPath;
 

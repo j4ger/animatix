@@ -22,7 +22,7 @@ pub struct HighlightTracks {
         feature = "serde",
         serde(skip, default = "HighlightTracks::default_blend")
     )]
-    pub highlight_blend: vello::peniko::Mix,
+    pub highlight_blend: peniko::Mix,
 }
 
 impl Default for HighlightTracks {
@@ -32,15 +32,15 @@ impl Default for HighlightTracks {
             highlight_opacity: None,
             highlight_padding: None,
             highlight_radius: None,
-            highlight_blend: vello::peniko::Mix::Difference,
+            highlight_blend: peniko::Mix::Difference,
         }
     }
 }
 
 impl HighlightTracks {
     #[allow(dead_code)] // Used as serde `default` attribute target; not directly called.
-    fn default_blend() -> vello::peniko::Mix {
-        vello::peniko::Mix::Difference
+    fn default_blend() -> peniko::Mix {
+        peniko::Mix::Difference
     }
 }
 impl HighlightTracks {

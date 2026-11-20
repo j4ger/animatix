@@ -113,7 +113,10 @@ impl Timeline {
         if let Some(primitive) = registry.find(ty)
             && !registry.is_builtin(ty)
         {
-            let caps = registry.info_of(ty).map(animatix_std::caps_from_info).unwrap_or_default();
+            let caps = registry
+                .info_of(ty)
+                .map(animatix_core::builtins::caps_from_info)
+                .unwrap_or_default();
             return self.build_extension_actor(
                 label,
                 ty,
@@ -257,7 +260,7 @@ impl Timeline {
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Option<ActorPrep> {
-        let Some(caps) = animatix_std::caps_for_type(ty) else {
+        let Some(caps) = animatix_core::builtins::caps_for_type(ty) else {
             diagnostics.push(
                 Diagnostic::error(
                     DiagnosticCode::UnknownActorType,

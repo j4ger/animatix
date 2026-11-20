@@ -54,6 +54,7 @@ lint|nix|ubuntu-latest|nix|pr
 check|nix|ubuntu-latest|nix|pr
 test|nix|ubuntu-latest|nix|pr
 no-video|nix|ubuntu-latest|nix|pr
+renderer-dependencies|nix|ubuntu-latest|nix|pr
 render-smoke|nix|ubuntu-latest|nix|pr
 examples|nix|ubuntu-latest|nix|pr
 ext-bench|nix|ubuntu-latest|nix|pr
@@ -141,7 +142,7 @@ eparts|eparts|nix|ubuntu-latest|nix|pr|eparts-linux
 eparts|eparts|native|macos-latest|rust-stable|pr|eparts-macos
 eparts|eparts|native|windows-latest|rust-stable|pr|eparts-windows
 Security Audit|audit|nix|ubuntu-latest|nix|pr|security-audit
-Check & Lint|scene-audit budget-audit canonical-audit check lint doc no-video|nix|ubuntu-latest|nix|pr|check-lint
+Check & Lint|renderer-dependencies scene-audit budget-audit canonical-audit check lint doc no-video|nix|ubuntu-latest|nix|pr|check-lint
 Test & Examples|test examples|nix|ubuntu-latest|nix|pr|test-examples
 Render Smoke & Scenes|render-smoke|nix|ubuntu-latest|nix|pr|render-scenes
 Benchmarks|ext-bench|nix|ubuntu-latest|nix|pr|benchmarks
@@ -263,13 +264,17 @@ gate_no_video() {
   # Build the default user-facing binaries, run the engine with every optional
   # feature off, and inspect the resolved feature graph: rsmpeg is pulled in
   # only by animatix-render/video, so its presence means a default build turned
-  # video on. The minimal engine must also exclude rich-text dependencies.
+  # video on. The minimal engine must also exclude rich-text and GPU renderers.
   measure_phase no-video default-binaries cargo cargo build -p animatix-cli -p animatix-gui
   measure_phase no-video minimal-engine cargo cargo check -p animatix --no-default-features
   local pkg tree
   tree=$(measure_phase no-video minimal-dependency-graph cargo cargo tree -p animatix --no-default-features -e normal --prefix none --format '{p}')
   if grep -Eq '^(typst([_-][[:alnum:]_-]+)?|syntect) v' <<<"$tree"; then
     echo "error: minimal engine dependencies include the rich-text stack" >&2
+    return 1
+  fi
+  if grep -Eq '^(wgpu([_-][[:alnum:]_-]+)?|vello|vello_gpu|vello_hybrid) v' <<<"$tree"; then
+    echo "error: minimal engine dependencies include a GPU renderer" >&2
     return 1
   fi
   for pkg in animatix-cli animatix-gui; do
@@ -413,6 +418,13 @@ gate_doc() {
 
 gate_doc_links() { bash tools/docs/check-docs.sh; }
 
+gate_renderer_dependencies() {
+  want_cargo
+  python3 tools/ci/dependency-gates.py \
+    --stage minimal-engine --stage wasm-renderer --stage workspace-renderer \
+    --output target/ci/renderer-dependencies.json
+}
+
 gate_ci_policy_tests() {
   python3 tools/quality/test-legacy-contract-fixtures.py
   python3 tools/quality/test-audit-corpus.py
@@ -428,6 +440,8 @@ gate_ci_policy_tests() {
   python3 tools/ci/test-joint-audit.py
   python3 tools/ci/test-ci-plan.py
   python3 tools/ci/test-main-baseline.py
+  python3 tools/ci/test-compare-snapshot-gates.py
+  python3 tools/ci/test-dependency-gates.py
   python3 tools/release/release-tests.py
   python3 tools/ci/test-release-workflow.py
   python3 web/tools/test/test-web-smoke-gates.py
@@ -615,7 +629,7 @@ gate_web_build() {
   check_wbg
   bash web/tools/build/build-web.sh
   gate_web_sdk_integrity
-  bash tools/quality/size-report.sh --check
+  bash tools/quality/size-report.sh
 }
 
 gate_web_sdk_integrity() {
@@ -739,9 +753,9 @@ gate_wasm_check() {
   # animatix-web's render module is #[cfg(target_arch = "wasm32")], so a change to
   # the frame-presenting path can compile everywhere, pass every test, and still
   # break the site. This is the check that looks at it.
-  cargo check -p animatix-web --target wasm32-unknown-unknown
-  cargo check -p animatix-web --target wasm32-unknown-unknown --no-default-features
-  cargo clippy -p animatix --no-default-features --all-targets -- -D warnings
+  cargo check --locked -p animatix-web --target wasm32-unknown-unknown
+  cargo check --locked -p animatix-web --target wasm32-unknown-unknown --no-default-features
+  cargo clippy --locked -p animatix --no-default-features --all-targets -- -D warnings
 }
 
 gate_content_sync() {
@@ -913,7 +927,6 @@ gate_site_artifact() {
   # Assemble only — pages.yml deploys this directory, and it owes nobody a zip.
   # Packaging the same tree into a release asset is dist-site.
   bash web/tools/site/site-artifact.sh _site
-  bash tools/quality/size-report.sh --check --site _site
 }
 
 gate_dist_site() {

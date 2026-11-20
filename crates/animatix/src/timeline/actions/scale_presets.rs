@@ -391,7 +391,7 @@ pub struct GrowIn;
 
 impl BuiltinAction for GrowIn {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::GrowIn.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::GrowIn.descriptor().clone()
     }
 
     fn execute(
@@ -410,7 +410,9 @@ pub struct ShrinkOut;
 
 impl BuiltinAction for ShrinkOut {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::ShrinkOut.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::ShrinkOut
+            .descriptor()
+            .clone()
     }
 
     fn execute(

@@ -29,7 +29,7 @@ pub(crate) fn bench_property_interpolation(c: &mut Criterion) {
     });
 
     let mut plan = PropertyPlan::for_actor(
-        &animatix_std::caps_for_type("Rect").expect("Rect is a built-in"),
+        &animatix_core::builtins::caps_for_type("Rect").expect("Rect is a built-in"),
         "Rect",
     );
     let position = property_id("position").expect("position is registered");

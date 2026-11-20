@@ -90,7 +90,7 @@ impl Timeline {
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Result<(), RenderError> {
-        let kind = match animatix_std::caps_for_type(actor_type).and_then(|c| c.text) {
+        let kind = match animatix_core::builtins::caps_for_type(actor_type).and_then(|c| c.text) {
             Some(animatix_core::caps::TextKind::Counter) => TextDeclarationKind::Counter,
             Some(animatix_core::caps::TextKind::Text) => TextDeclarationKind::Text,
             Some(animatix_core::caps::TextKind::Math) => TextDeclarationKind::Math,

@@ -26,7 +26,7 @@ impl SymbolTable {
         let mut table = Self {
             types: crate::builtins::types().iter().cloned().collect(),
             keywords: crate::builtins::KEYWORDS.iter().map(|s| s.to_string()).collect(),
-            functions: animatix_std::callable::callables()
+            functions: animatix_core::builtins::callable::callables()
                 .iter()
                 .map(|callable| callable.name.clone())
                 .collect(),

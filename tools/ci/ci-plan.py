@@ -27,7 +27,7 @@ KNOWN_IDS = {
 }
 
 ENGINE_PACKAGES = {
-    "animatix", "animatix-core", "animatix-render", "animatix-std",
+    "animatix", "animatix-core", "animatix-render",
     "animatix-syntax", "animatix-text",
 }
 BENCHMARK_PACKAGES = {

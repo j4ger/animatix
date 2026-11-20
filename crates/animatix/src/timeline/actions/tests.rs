@@ -39,8 +39,10 @@ fn extension_layout_container_expands_for_leaf_actions() {
     let ast = ast.expect("parsed AST");
 
     let mut registry = crate::primitives::PrimitiveRegistry::new();
-    let mut flex_info =
-        animatix_std::PrimitiveInfo::extension("FlexContainer", ActorCategory::Container);
+    let mut flex_info = animatix_core::builtins::PrimitiveInfo::extension(
+        "FlexContainer",
+        ActorCategory::Container,
+    );
     flex_info.capabilities.layout_container = true;
     flex_info.capabilities.is_container = true;
     registry
@@ -103,7 +105,7 @@ fn extension_layout_container_expands_for_leaf_actions() {
 fn runtime_action_names_match_builtins_registry() {
     let mut runtime: Vec<String> =
         BuiltinActionKind::ALL.iter().map(|a| a.signature().name.clone()).collect();
-    let mut registry: Vec<String> = animatix_std::callable::callables()
+    let mut registry: Vec<String> = animatix_core::builtins::callable::callables()
         .iter()
         .filter(|signature| {
             signature.return_type == animatix_core::callable::CallableType::Timeline

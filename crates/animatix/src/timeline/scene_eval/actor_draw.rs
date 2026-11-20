@@ -23,7 +23,7 @@ impl Timeline {
         half_size: [f32; 2],
         vector_paths: &[VelloPath],
         commands: Vec<crate::primitives::RenderCommand>,
-        scene: &mut vello::Scene,
+        scene: &mut crate::scene::Scene,
         hit_regions: &mut Vec<(EntityId, kurbo::Rect)>,
         program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
     ) {

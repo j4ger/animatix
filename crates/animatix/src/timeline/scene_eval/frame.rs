@@ -17,7 +17,7 @@ pub(super) struct FrameEvaluation<'a> {
     pub(super) has_child_orders: bool,
     pub(super) bg_color: [f32; 4],
     pub(super) runtime_input_key: u64,
-    pub(super) scene: vello::Scene,
+    pub(super) scene: crate::scene::Scene,
     pub(super) hit_regions: Vec<(EntityId, kurbo::Rect)>,
     pub(super) program_items: Option<Vec<crate::timeline::scene_program::SceneItem>>,
     pub(super) overrides: crate::timeline::modifier_runtime::ir::ModifierOverrides,
@@ -27,7 +27,7 @@ pub(super) struct FrameEvaluation<'a> {
 impl Timeline {
     /// Evaluate the timeline at `time_s` and build the renderable scene at
     /// the requested dimensions.
-    pub fn evaluate(&self, time_s: f64, scene_dimensions: SceneDimensions) -> vello::Scene {
+    pub fn evaluate(&self, time_s: f64, scene_dimensions: SceneDimensions) -> crate::scene::Scene {
         let mut fb = None;
         self.evaluate_with_debug(time_s, scene_dimensions, DebugRenderOptions::default(), &mut fb)
     }
@@ -39,7 +39,7 @@ impl Timeline {
         scene_dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
         filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
-    ) -> vello::Scene {
+    ) -> crate::scene::Scene {
         if let Some(program) = self.restore_frame_cache(
             time_s,
             scene_dimensions,
@@ -74,7 +74,7 @@ impl Timeline {
             String,
             std::collections::HashMap<String, Value>,
         >,
-    ) -> vello::Scene {
+    ) -> crate::scene::Scene {
         if transient_overrides.is_empty()
             && let Some(program) = self.restore_frame_cache(
                 time_s,
@@ -100,7 +100,7 @@ impl Timeline {
         .scene
     }
 
-    /// Evaluate the timeline straight into a [`vello::Scene`] for presentation.
+    /// Evaluate the timeline straight into a [`crate::scene::Scene`] for presentation.
     ///
     /// This is the web player's hot path. Unlike [`Self::evaluate_with_debug`]
     /// it never writes `eval_caches.frame_cache` (which is keyed on `time_ms`
@@ -118,7 +118,7 @@ impl Timeline {
         time_s: f64,
         scene_dimensions: SceneDimensions,
         filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
-    ) -> vello::Scene {
+    ) -> crate::scene::Scene {
         self.evaluate_for_presentation_internal(time_s, scene_dimensions, filter_backend, None)
     }
 
@@ -131,7 +131,7 @@ impl Timeline {
         scene_dimensions: SceneDimensions,
         filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         runtime_inputs: &crate::timeline::RuntimeInputs,
-    ) -> Result<vello::Scene, crate::timeline::RuntimeInputError> {
+    ) -> Result<crate::scene::Scene, crate::timeline::RuntimeInputError> {
         self.validate_runtime_input_snapshot(runtime_inputs)?;
         Ok(self.evaluate_for_presentation_internal(
             time_s,
@@ -147,7 +147,7 @@ impl Timeline {
         time_s: f64,
         scene_dimensions: SceneDimensions,
         runtime_inputs: &crate::timeline::RuntimeInputs,
-    ) -> Result<vello::Scene, crate::timeline::RuntimeInputError> {
+    ) -> Result<crate::scene::Scene, crate::timeline::RuntimeInputError> {
         self.validate_runtime_input_snapshot(runtime_inputs)?;
         let mut filter_backend = None;
         Ok(self
@@ -170,7 +170,7 @@ impl Timeline {
         scene_dimensions: SceneDimensions,
         filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         runtime_inputs: Option<&crate::timeline::RuntimeInputs>,
-    ) -> vello::Scene {
+    ) -> crate::scene::Scene {
         let empty_overrides = std::collections::HashMap::new();
         let mut state = self.prepare_frame(
             time_s,
@@ -192,10 +192,10 @@ impl Timeline {
     ///
     /// `reset()` keeps the encoding buffer's allocation, so
     /// [`Self::evaluate_for_presentation`] picks it up from `scene_buffer` and
-    /// re-encodes in place instead of allocating a fresh `vello::Scene`. Call
+    /// re-encodes in place instead of allocating a fresh `crate::scene::Scene`. Call
     /// this after the scene has been rasterized; a caller that skips it (e.g.
     /// an early error return) simply makes the next frame allocate once.
-    pub fn recycle_presentation_scene(&self, mut scene: vello::Scene) {
+    pub fn recycle_presentation_scene(&self, mut scene: crate::scene::Scene) {
         scene.reset();
         *self.eval_caches.scene_buffer.borrow_mut() = Some(scene);
     }
@@ -717,9 +717,9 @@ impl Timeline {
     /// and moves the authoritative encoded scene out. It deliberately does NOT
     /// touch `frame_cache` and does NOT clone the scene: a frame keyed on
     /// `time_ms` (the web player's animation loop) would otherwise pay a full
-    /// `vello::Scene` deep copy every frame. The caller parks the returned
+    /// `crate::scene::Scene` deep copy every frame. The caller parks the returned
     /// scene back via `recycle_presentation_scene` for the next frame.
-    fn store_frame_presentation(&self, mut state: FrameEvaluation<'_>) -> vello::Scene {
+    fn store_frame_presentation(&self, mut state: FrameEvaluation<'_>) -> crate::scene::Scene {
         self.eval_caches.hit_regions.borrow_mut().clear();
         if let Some(env) = state.frame_env.take() {
             *self.env_pool.borrow_mut() = Some(env);

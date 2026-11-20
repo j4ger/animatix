@@ -1,7 +1,7 @@
 //! Unified primitive system for Animatix.
 //!
 //! Every actor type (shape, text, media, plot, container) is a `Primitive`.
-//! `BUILT_INS` is the bootstrap list — each row pairs an `animatix-std`
+//! `BUILT_INS` is the bootstrap list — each row pairs an `animatix-core::builtins`
 //! identity card with the behaviour implementing it and the family function
 //! pointers that drive evaluation/building; `PrimitiveRegistry` seeds
 //! built-ins through the same registration path used by extensions.
@@ -13,7 +13,7 @@
 //!        │
 //!        ├──► PrimitiveRegistry (single storage for built-ins + extensions)
 //!        ├──► BehaviorRegistry (one BehaviorDef per row, ID = row index)
-//!        └──► PrimitiveInfo cards (animatix_std::CATALOG, the metadata source)
+//!        └──► PrimitiveInfo cards (animatix_core::builtins::CATALOG, the metadata source)
 //! ```
 //!
 //! Identity is the authored type name, stored per entity in `World`
@@ -23,7 +23,7 @@
 //!
 //! ## Adding a new primitive
 //!
-//! 1. Add the identity card: a `pub const <NAME>: PrimitiveInfo` in `animatix-std/src/catalog.rs`
+//! 1. Add the identity card: a `pub const <NAME>: PrimitiveInfo` in `crates/animatix-core/src/builtins/catalog/`
 //!    (type/display/icon/category/advanced/ capabilities/child processing) and its name in the
 //!    `CATALOG` list. Tooling, the parser's contract tables, and the inspector palette all derive
 //!    from the card.
@@ -43,7 +43,7 @@
 //! 5. Document it (docs/primitives.md, docs/spec.md) and add render/hit-region coverage if it
 //!    draws.
 //!
-//! The `animatix-std` catalog is the authoritative list of built-ins.
+//! The `animatix-core::builtins` catalog is the authoritative list of built-ins.
 
 use crate::timeline::behavior::FamilyBehavior;
 use crate::timeline::behavior::builtin;
@@ -156,11 +156,11 @@ pub use impls::{primitive_catalog, primitive_info_by_name, primitive_specs};
 #[allow(deprecated)]
 pub use impls::find_primitive;
 
-/// A built-in primitive: its `animatix-std` identity card paired by symbol
+/// A built-in primitive: its `animatix-core::builtins` identity card paired by symbol
 /// with the engine behaviour that implements it, plus the family function
 /// pointers used by evaluation and custom declaration build logic.
 pub struct BuiltIn {
-    /// The identity card from the `animatix-std` catalog (metadata source).
+    /// The identity card from the `animatix-core::builtins` catalog (metadata source).
     pub info: &'static PrimitiveInfo,
     /// The compiled-in behaviour implementation.
     pub behavior: &'static dyn Primitive,
@@ -176,188 +176,233 @@ pub struct BuiltIn {
 /// appended; the order is not presentation-only.
 pub static BUILT_INS: &[BuiltIn] = &[
     // Shapes
-    BuiltIn::new(&animatix_std::catalog::RECT, &RECT, builtin::shape::evaluate_rect, None),
     BuiltIn::new(
-        &animatix_std::catalog::ELLIPSE,
+        &animatix_core::builtins::catalog::RECT,
+        &RECT,
+        builtin::shape::evaluate_rect,
+        None,
+    ),
+    BuiltIn::new(
+        &animatix_core::builtins::catalog::ELLIPSE,
         &ELLIPSE,
         builtin::shape::evaluate_ellipse,
         None,
     ),
-    BuiltIn::new(&animatix_std::catalog::LINE, &LINE, builtin::shape::evaluate_line, None),
-    BuiltIn::new(&animatix_std::catalog::ARROW, &ARROW, builtin::shape::evaluate_arrow, None),
     BuiltIn::new(
-        &animatix_std::catalog::POLYGON,
+        &animatix_core::builtins::catalog::LINE,
+        &LINE,
+        builtin::shape::evaluate_line,
+        None,
+    ),
+    BuiltIn::new(
+        &animatix_core::builtins::catalog::ARROW,
+        &ARROW,
+        builtin::shape::evaluate_arrow,
+        None,
+    ),
+    BuiltIn::new(
+        &animatix_core::builtins::catalog::POLYGON,
         &POLYGON,
         builtin::shape::evaluate_polygon,
         None,
     ),
-    BuiltIn::new(&animatix_std::catalog::PATH, &PATH, builtin::shape::evaluate_path, None),
+    BuiltIn::new(
+        &animatix_core::builtins::catalog::PATH,
+        &PATH,
+        builtin::shape::evaluate_path,
+        None,
+    ),
     // Text
     BuiltIn::new(
-        &animatix_std::catalog::TEXT,
+        &animatix_core::builtins::catalog::TEXT,
         &TEXT,
         builtin::text::evaluate_text,
         Some(builtin::text::build_extra_text_named),
     ),
     BuiltIn::new(
-        &animatix_std::catalog::CODE,
+        &animatix_core::builtins::catalog::CODE,
         &CODE,
         builtin::text::evaluate_code,
         Some(builtin::text::build_extra_text_named),
     ),
     BuiltIn::new(
-        &animatix_std::catalog::MATH,
+        &animatix_core::builtins::catalog::MATH,
         &MATH,
         builtin::text::evaluate_math,
         Some(builtin::text::build_extra_text_named),
     ),
     BuiltIn::new(
-        &animatix_std::catalog::TYPST,
+        &animatix_core::builtins::catalog::TYPST,
         &TYPST,
         builtin::text::evaluate_typst,
         Some(builtin::text::build_extra_text_named),
     ),
     // Media
     BuiltIn::new(
-        &animatix_std::catalog::IMAGE,
+        &animatix_core::builtins::catalog::IMAGE,
         &IMAGE,
         builtin::media::evaluate_image,
         Some(builtin::media::build_extra_media_named),
     ),
     #[cfg(feature = "svg")]
     BuiltIn::new(
-        &animatix_std::catalog::SVG,
+        &animatix_core::builtins::catalog::SVG,
         &SVG,
         builtin::media::evaluate_svg,
         Some(builtin::media::build_extra_media_named),
     ),
     BuiltIn::new(
-        &animatix_std::catalog::AUDIO,
+        &animatix_core::builtins::catalog::AUDIO,
         &AUDIO,
         builtin::media::evaluate_audio,
         Some(builtin::media::build_extra_media_named),
     ),
     // Plots
     BuiltIn::new(
-        &animatix_std::catalog::GRAPH,
+        &animatix_core::builtins::catalog::GRAPH,
         &GRAPH,
         builtin::plot::evaluate_plot,
         Some(builtin::plot::build_extra_plot_named),
     ),
     BuiltIn::new(
-        &animatix_std::catalog::PLOT_CURVE,
+        &animatix_core::builtins::catalog::PLOT_CURVE,
         &PLOT_CURVE,
         builtin::plot::evaluate_plot,
         Some(builtin::plot::build_extra_plot_named),
     ),
     BuiltIn::new(
-        &animatix_std::catalog::VECTOR_FIELD,
+        &animatix_core::builtins::catalog::VECTOR_FIELD,
         &VECTOR_FIELD,
         builtin::plot::evaluate_plot,
         Some(builtin::plot::build_extra_plot_named),
     ),
     BuiltIn::new(
-        &animatix_std::catalog::HEATMAP,
+        &animatix_core::builtins::catalog::HEATMAP,
         &HEATMAP,
         builtin::plot::evaluate_plot,
         Some(builtin::plot::build_extra_plot_named),
     ),
     BuiltIn::new(
-        &animatix_std::catalog::CONTOUR_SET,
+        &animatix_core::builtins::catalog::CONTOUR_SET,
         &CONTOUR_SET,
         builtin::plot::evaluate_plot,
         Some(builtin::plot::build_extra_plot_named),
     ),
     BuiltIn::new(
-        &animatix_std::catalog::NUMBER_PLANE,
+        &animatix_core::builtins::catalog::NUMBER_PLANE,
         &NUMBER_PLANE,
         builtin::plot::evaluate_plot,
         Some(builtin::plot::build_extra_plot_named),
     ),
     BuiltIn::new(
-        &animatix_std::catalog::BAR_CHART,
+        &animatix_core::builtins::catalog::BAR_CHART,
         &BAR_CHART,
         builtin::plot::evaluate_plot,
         Some(builtin::plot::build_extra_plot_named),
     ),
     // Containers
-    BuiltIn::new(&animatix_std::catalog::ROW, &ROW, builtin::container::evaluate_container, None),
-    BuiltIn::new(&animatix_std::catalog::COL, &COL, builtin::container::evaluate_container, None),
     BuiltIn::new(
-        &animatix_std::catalog::GRID,
+        &animatix_core::builtins::catalog::ROW,
+        &ROW,
+        builtin::container::evaluate_container,
+        None,
+    ),
+    BuiltIn::new(
+        &animatix_core::builtins::catalog::COL,
+        &COL,
+        builtin::container::evaluate_container,
+        None,
+    ),
+    BuiltIn::new(
+        &animatix_core::builtins::catalog::GRID,
         &GRID,
         builtin::container::evaluate_container,
         None,
     ),
     BuiltIn::new(
-        &animatix_std::catalog::STACK,
+        &animatix_core::builtins::catalog::STACK,
         &STACK,
         builtin::container::evaluate_container,
         None,
     ),
     BuiltIn::new(
-        &animatix_std::catalog::GROUP,
+        &animatix_core::builtins::catalog::GROUP,
         &GROUP,
         builtin::container::evaluate_container,
         None,
     ),
-    BuiltIn::new(&animatix_std::catalog::MASK, &MASK, builtin::effect::evaluate_effect, None),
-    BuiltIn::new(&animatix_std::catalog::FILTER, &FILTER, builtin::effect::evaluate_effect, None),
-    BuiltIn::new(&animatix_std::catalog::GLASS, &GLASS, builtin::effect::evaluate_effect, None),
     BuiltIn::new(
-        &animatix_std::catalog::EQUATION,
+        &animatix_core::builtins::catalog::MASK,
+        &MASK,
+        builtin::effect::evaluate_effect,
+        None,
+    ),
+    BuiltIn::new(
+        &animatix_core::builtins::catalog::FILTER,
+        &FILTER,
+        builtin::effect::evaluate_effect,
+        None,
+    ),
+    BuiltIn::new(
+        &animatix_core::builtins::catalog::GLASS,
+        &GLASS,
+        builtin::effect::evaluate_effect,
+        None,
+    ),
+    BuiltIn::new(
+        &animatix_core::builtins::catalog::EQUATION,
         &EQUATION,
         builtin::equation::evaluate_equation,
         None,
     ),
     // Equation / Fragment
     BuiltIn::new(
-        &animatix_std::catalog::FRAGMENT,
+        &animatix_core::builtins::catalog::FRAGMENT,
         &FRAGMENT,
         builtin::equation::evaluate_fragment,
         Some(builtin::equation::build_extra_fragment),
     ),
     // Captions container & Cue sub-item
     BuiltIn::new(
-        &animatix_std::catalog::CAPTIONS,
+        &animatix_core::builtins::catalog::CAPTIONS,
         &CAPTIONS,
         builtin::captions::evaluate_captions,
         None,
     ),
     BuiltIn::new(
-        &animatix_std::catalog::CUE,
+        &animatix_core::builtins::catalog::CUE,
         &CUE,
         builtin::captions::evaluate_cue,
         Some(builtin::captions::build_extra_cue),
     ),
     // Annotations
     BuiltIn::new(
-        &animatix_std::catalog::CALLOUT,
+        &animatix_core::builtins::catalog::CALLOUT,
         &CALLOUT,
         builtin::annotation::evaluate_callout,
         None,
     ),
     BuiltIn::new(
-        &animatix_std::catalog::LEGEND,
+        &animatix_core::builtins::catalog::LEGEND,
         &LEGEND,
         builtin::annotation::evaluate_legend,
         Some(builtin::annotation::build_extra_legend),
     ),
     BuiltIn::new(
-        &animatix_std::catalog::CONNECTOR,
+        &animatix_core::builtins::catalog::CONNECTOR,
         &CONNECTOR,
         builtin::annotation::evaluate_connector,
         None,
     ),
     BuiltIn::new(
-        &animatix_std::catalog::COUNTER,
+        &animatix_core::builtins::catalog::COUNTER,
         &COUNTER,
         builtin::text::evaluate_counter,
         Some(builtin::text::build_extra_text_named),
     ),
 ];
 
-pub use animatix_std::PrimitiveInfo;
+pub use animatix_core::builtins::PrimitiveInfo;
 
 pub(crate) use impls::{media_default_props, shape_default_props, text_default_props};
 

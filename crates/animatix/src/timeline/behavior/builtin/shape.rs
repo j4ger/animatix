@@ -88,7 +88,7 @@ pub fn render_arrow(ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
     let path = build_arrow_path(state.from, state.to, state.head_size);
     Some(vec![VelloPath {
         path: std::sync::Arc::new(path),
-        fill: Some(vello::peniko::Color::from_rgba8(
+        fill: Some(peniko::Color::from_rgba8(
             (ctx.style.stroke_color[0] * 255.0) as u8,
             (ctx.style.stroke_color[1] * 255.0) as u8,
             (ctx.style.stroke_color[2] * 255.0) as u8,
@@ -100,7 +100,7 @@ pub fn render_arrow(ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
         )
         .or_else(|| {
             Some((
-                vello::peniko::Color::from_rgba8(
+                peniko::Color::from_rgba8(
                     (ctx.style.stroke_color[0] * 255.0) as u8,
                     (ctx.style.stroke_color[1] * 255.0) as u8,
                     (ctx.style.stroke_color[2] * 255.0) as u8,

@@ -118,7 +118,7 @@ pub struct VectorShapeStyle {
 /// and a hidden white outline was visible as asymmetric edge artifacts on
 /// plain `Rect`s.
 pub fn default_stroke_width(actor_type: &str) -> f32 {
-    animatix_std::caps_for_type(actor_type)
+    animatix_core::builtins::caps_for_type(actor_type)
         .map(|caps| caps.default_stroke_width())
         .unwrap_or(0.0)
 }

@@ -83,6 +83,14 @@
 //              leaves the previous document playing.
 //   destroy()  explicitly release this element's player. DOM reparenting does
 //              not destroy it.
+//   backend    read-only selected renderer name (`webgpu` or `webgl2`), or null
+//              before the first player has initialized.
+//
+// Call configureRuntime({ backend: "webgpu" | "webgl2" | "auto" }) before
+// loading players to choose a page-wide renderer. The default is `auto`.
+// `auto` tries WebGPU first and falls back to WebGL2 when setup fails. Backend
+// changes after initialization are rejected because devices and canvas context
+// types are page-scoped.
 //
 // The SDK locates its manifest next to this module by default. Call
 // configureRuntime({ manifestUrl }) before loading to use an external host.
@@ -127,4 +135,4 @@ installDebugHud();
 
 export { AmxPlayerElement };
 
-export { configureRuntime, debugRuntimeStats } from "./player/runtime.js";
+export { configureRuntime, debugRuntimeStats, runtimeBackend } from "./player/runtime.js";

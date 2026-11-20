@@ -4,15 +4,14 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 
 ## Map
 
-- `crates/animatix-core`: shared vocabulary — capability enums, effect contract types, the built-in **property descriptor table**, icon glyphs, `RenderError`; zero engine/parser deps.
-- `crates/animatix-std`: built-in catalog (effect definitions, primitive identity cards); the single source for built-in metadata.
-- `crates/animatix-syntax`: parser, AST, module system, diagnostics, formatter, property/type layer; contract tables derive from `animatix-std`.
+- `crates/animatix-core`: shared capability and effect contracts, the built-in **property descriptor table**, icon glyphs, `RenderError`, and the built-in catalog under `animatix_core::builtins`. The crate has no engine or parser dependencies.
+- `crates/animatix-syntax`: parser, AST, module system, diagnostics, formatter, and property/type layer. Contract tables derive from `animatix_core::builtins`.
 - `crates/animatix-text`: plain text shaping and optional Typst compilation behind `rich-text`. Native builds embed fonts via `bundled-fonts`, and web packages load the `web/fonts` pack.
 - `crates/animatix`: engine — timeline ECS world/stores, build/evaluate, `BehaviorDef` family systems, composition, frame vocabulary.
 - `crates/animatix-render`: GPU presentation above the engine — Vello/wgpu core, filter backend, offscreen frames, transitions, export encoders. One-way: public engine API only.
 - `crates/animatix-cli`, `crates/animatix-gui`: CLI and eframe/egui workbench (source editor, preview, read-only inspector).
 - `crates/animatix-analyzer`, `crates/animatix-lsp`: language intelligence and its LSP wrapper; update the analyzer when syntax changes.
-- `crates/animatix-web`: wasm32 playback and source preparation with `SourcesOnly` module reuse. Vello renders offscreen and presents to a WebGPU canvas. The site provides a source editor at `/playground/`. See `web/README.md` for SDK and site entry points.
+- `crates/animatix-web`: wasm32 playback and source preparation with `SourcesOnly` module reuse. The SDK uses Vello GPU and prefers WebGPU with WebGL2 fallback. The site provides a source editor at `/playground/`. See `web/README.md` for SDK and site entry points.
 - `crates/animatix-plugin-api`, `-demo`, `-tooling`: native plugin C ABI, example, tooling. `crates/eparts`: themed egui widgets.
 - `crates/animatix-syntax/src/token/`: the single lossless tokenizer (parser input, LSP tokens, GUI highlighting).
 - `docs`: `roadmap.md` is remaining work only, `docs/history/` is the archive (`history.md` is a pointer), `docs/ecs.md` is normative ECS + structure contract. `examples/` has supported demos; focused regression fixtures belong beside their tests. Human review and temporary experiments run through the harness.
@@ -82,8 +81,8 @@ Both features forward to `animatix-render/video`; the engine has none. Native CL
 - Never commit with `cargo check --workspace` errors; document pre-existing unrelated errors in the commit message.
 - **`#[allow(unreachable_code)]` is banned.** It only appears when an early `return` made the rest dead — remove the return or delete the dead path. (A debug experiment once left the export loop unreachable; see `docs/history/2026-09.md`, "Debug scaffolding that shipped as behaviour".)
 - **Hot-path changes need a benchmark.** Per-frame render, scene-evaluation, or export-loop changes ship with `tools/quality/perf-bench.sh compare` output in the commit message. That compare is manual evidence, not a PR gate; when the 1-minute load exceeds `PERF_MAX_LOAD_RATIO × nproc` it exits 2 — fix the environment and rerun rather than loosening the threshold.
-- **Debug instrumentation is additive or it does not land.** Probes must be env-gated (`ANIMATIX_DUMP_STAGES`, `ANIMATIX_DUMP_FRAMES`, `ANIMATIX_PROBE`) and must never change what the default build renders/encodes or how many threads it uses. Gating output is not enough: `std::time::Instant::now()` traps on `wasm32-unknown-unknown`, so an unconditional timer panics the web player — use `filter_backend::timing_probe()` and treat a new `Instant::now()` in a wasm-reachable crate as a bug.
-- **Pinned dependencies carry their reason.** Every git/rev pin names what it protects against and what would lift it (see the `vello` pin), plus a boundary test where feasible (`crates/animatix-render/tests/vello_img_probe.rs`).
+- **Debug instrumentation is additive or it does not land.** Probes must be env-gated (`ANIMATIX_DUMP_FRAMES`, `ANIMATIX_PROBE`) and must never change what the default build renders/encodes or how many threads it uses. Gating output is not enough: `std::time::Instant::now()` traps on `wasm32-unknown-unknown`, so an unconditional timer panics the web player — use `probe::timing_probe()` and treat a new `Instant::now()` in a wasm-reachable crate as a bug.
+- **Pinned dependencies carry their reason.** Every git/rev pin names what it protects against and what would lift it and includes a boundary test where feasible. The Vello GPU image cache has coverage in `crates/animatix-render/tests/vello_img_probe.rs`.
 
 ### Never Silently Drop Values
 

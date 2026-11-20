@@ -13,48 +13,39 @@ Animatix is a layout-first animation system with four core components:
 
 ## 0. Crate Layering
 
-The workspace is layered so that each dependency edge encodes a guarantee:
+The principal rendering and tooling dependencies point from consumers to their
+dependencies.
 
 ```
-animatix-core    language vocabulary + contract types (capability enums,
-                 Effect trait, icons, RenderError) — no heavy dependencies
-   ↑            ↑
-animatix-std    animatix-syntax (→ core + std)
-(built-ins)          ↑
-   ↑         animatix-analyzer ──> animatix-lsp
-animatix (engine) ←── animatix-text (typst compiler, `text` feature)
-   ↑
-animatix-render (GPU presentation — one-way, engine never sees it)
-   ↑                ↑
-GUI / CLI     engine examples (dev-dependency only)
+animatix-syntax → animatix-core
+animatix-text → animatix-core
+animatix → animatix-core + animatix-syntax + animatix-text
+animatix-lsp → animatix-analyzer → animatix-syntax
+GUI / CLI / Web → animatix-render → animatix
 ```
 
-- `animatix-core` — capability vocabulary, the effect trait, identity types,
-  icon glyphs, and `RenderError`. Admission rule: `animatix-std` needs it, or
-  it is part of the effect definition surface.
-- `animatix-std` — the built-in catalog: effect definitions (parameters, WGSL,
-  pack, support) and primitive identity cards. The single author-visible
-  source for built-in metadata.
+- `animatix-core` defines the capability vocabulary, effect trait, identity
+  types, icon glyphs, and `RenderError`. Its `builtins` module owns the
+  effect definitions, callable signatures, and primitive identity cards.
 - `animatix-syntax` — the language front-end: tokenizer, parser, AST, module
   system, source write-back, symbol table, semantic diagnostics, and the
-  property/type layer. Its contract tables derive from `animatix-std`.
-- `animatix-text` — the typst/fontdb text compilation service behind the
-  engine's `text` feature. It depends on `animatix-core` for `RenderError` and
-  nothing else in the workspace.
+  property/type layer. Its contract tables derive from `animatix_core::builtins`.
+- `animatix-text` provides plain text shaping and optional Typst compilation
+  through the engine's `rich-text` feature.
 - `animatix` — the engine: timeline, build, evaluation, layout, persistence,
   the plugin host, and primitive behaviour. Its `renderer` module holds only
-  frame vocabulary (`error`, `types`, `text`). It still depends on
-  Vello/wgpu — the `FilterBackend` seam is typed in `wgpu::Texture` /
-  `vello::Scene` — but contains no GPU implementation.
+  frame vocabulary (`error`, `types`, `text`). Evaluation emits a
+  renderer-neutral `Scene` containing owned `Draw` commands. The
+  `FilterBackend` seam carries engine types and no Vello or wgpu handles.
 - `animatix-render` — the GPU presentation layer: Vello/wgpu renderer core,
-  the `GpuFilterBackend` that implements the engine's `FilterBackend` trait,
+  the scene recorder that implements the engine's `FilterBackend` trait,
   offscreen frames, transition compositing, and the export encoders (including
   FFmpeg video behind the `video` feature). The dependency is **one-way** —
   the engine only defines the `FilterBackend` seam; it never names this crate
   in `src/` (the `animatix-render` edge in the engine's manifest is a
   dev-dependency for the export-path examples).
-- The analyzer and LSP depend only on core/std/syntax, never on the engine —
-  which is why author-visible metadata lives below the engine, not in it.
+- The analyzer and LSP resolve author-visible metadata through core and syntax
+  without loading the engine.
 
 ---
 
@@ -283,14 +274,11 @@ Shipped morph modifiers: `strategy: auto|match|fade`, `path_arc`, `stretch`.
 
 ### Vello Pipeline
 
-```
-evaluate(time_ms) → Vec<RenderCommand>
-  ↓
-for cmd in commands:
-  match cmd { Fill {..}, Stroke {..}, Image {..} }
-  ↓
-vello.encode(&mut encoder) → render_pass.draw(encoder)
-```
+Evaluation produces a renderer-neutral `Scene` for Web, CLI and GUI.
+`FrameGpu` rasterizes the scene as sparse strips with Vello GPU, runs built-in
+effects through fragment pipelines, and composites the result on the GPU.
+Web playback presents through WebGPU or WebGL2. Native preview and exports
+use the available wgpu adapter.
 
 ### Export
 
@@ -336,15 +324,13 @@ the `EFFECTS` bootstrap array. Plugin effects wrap FFI-declared data
 |------|------|
 | `primitives/filter.rs` | `FilterPrimitive` — the container that owns a chain |
 | `animatix-core/src/effect.rs` | `Effect` trait, `EffectId`, parameter schema types, `identity_for` / `kind_layout` / `uniform_size_for` |
-| `animatix-std/src/lib.rs` | `EFFECTS` bootstrap array, dispatch (`effect` / `effect_for_type`), `pack_generic`, plugin registry |
-| `animatix-std/src/effects/mod.rs` | Effect modules and re-exports — one file per effect definition |
-| `animatix-std/src/effects/blur.rs` | `Blur` — separable Gaussian, two passes |
-| `animatix-std/src/effects/color_grade.rs` | `ColorGrade` — 4×4 colour matrix composed on the host |
-| `animatix-std/src/effects/chromatic_aberration.rs` | `ChromaticAberration` — sub-pixel channel split via the linear sampler |
+| `animatix-core/src/builtins/mod.rs` | `EFFECTS` bootstrap array and registry exports |
+| `animatix-core/src/builtins/registry.rs` | Effect lookup, `pack_generic`, and plugin registry |
+| `animatix-core/src/builtins/effects/` | Effect definitions, including Blur, ColorGrade, and ChromaticAberration |
 | `timeline/effects/track.rs` | `EffectChainTrack` / `EffectStage` — animatable storage (`DynTrack`-backed parameters) |
 | `timeline/effects/chain.rs` | `EffectChain`, `EffectRegion`, `PendingComposite`, `FilterBackend` |
 | `timeline/build/effect.rs` | Lowering: effect children become stages on the owning scope's chain |
-| `animatix-render/src/filter_backend/` | `GpuFilterBackend` — GPU render, ordered effect dispatch, readback / zero-readback composite |
+| `animatix-render/src/frame_gpu.rs` and `effects_gpu.rs` | Record scopes, rasterize and composite the frame, and execute effect passes on the GPU |
 | `timeline/scene_eval/` | Renders the scope's content to a sub-scene, samples the chain, derives the ROI, dispatches the backend |
 
 Adding a built-in effect is one new file plus one `EFFECTS` entry: the identity
@@ -354,83 +340,25 @@ no enum variant, and no dispatch match arm to keep in sync.
 
 #### Pipeline
 
-```
-Evaluate content children → vello::Scene (sub-scene)
-  ↓
-GpuFilterBackend::render_scene_to_image_gpu_filtered()  (or …_to_pending_composite)
-  → GPU render the sub-scene to texture A
-  → per effect, per declared pass, ping-pong A ↔ B
-    (seed, passes and harvest share one encoder/submit — see docs/effects.md §4.6)
-  → readback, or park a PendingComposite from the dynamic TexturePool for a viewport-scoped blit
-  ↓
-Composite at region origin (readback path) or batched blit with dynamic uniform offsets (zero-readback path)
-```
+- The engine samples each scope's chain and computes its region from the
+  evaluated content and effect support or from authored bounds. Identity and
+  disabled chains draw their children directly.
+- `SceneRecorder` stores the effect scope in the renderer-neutral scene.
+  `FrameGpu` rasterizes the scope into a translated, region-sized target.
+  `EffectsGpu` runs the ordered passes and samples the original input where
+  the effect declares that binding.
+- Inline Filter scopes use GPU textures in painter order. Tail Filter scopes
+  composite after the base scene. Glass samples the padded backdrop and
+  composites the clipped result before drawing its children.
+- The browser's plain and Mask-only frames share an encoder and submit for
+  scene rasterization and presentation. Effect scopes and transitions use
+  additional GPU submissions. Presentation does not copy pixels to the CPU.
+- The injected `FilterBackend` seam carries engine types. Evaluation without
+  a backend reports a render diagnostic for scopes that need it. The host
+  supports native compute effects from plugins through the existing ABI.
+- Filter child labels are scene-global. Reusing a label across scopes
+  re-parents the shared actor into the later scope (`duplicate-label` warning).
 
-**Key properties:**
-
-- **Backend admission.** `Timeline::needs_filter_backend()` checks the live
-  capability stores for Filter/Glass scopes and memoizes the answer in
-  `EvalCaches`. Timeline mutation clears the memo; cloning starts with empty
-  caches. Native offscreen rendering, GUI preview, and Web playback skip backend
-  creation for plain and Mask-only scenes. A scope still admits the backend
-  when its current effect values are disabled or identity, so a later activation
-  retains the existing initialization policy. Each transition input makes this
-  decision independently.
-- **Presentation submit.** On the Web player's plain/Mask single-timeline path,
-  Vello rendering and the canvas-format blit share one submit. A synchronous
-  Vello encoder suffix runs before submission and transient-resource recycling;
-  the presentation blit uses an immutable alpha=1 uniform. Filter/Glass scopes,
-  active transitions, and readback retain their separate tails. See the
-  [submission evidence](history/2026-11-16-presentation-submit.md).
-- **On-demand.** A stage whose `enabled` is false, or whose parameters all equal
-  their identity values, is dropped when the chain is sampled. If every stage is
-  dropped, the offscreen round-trip is skipped and the content children are
-  appended directly.
-- **Region of interest.** The processed region is the content bounds recorded
-  during sub-scene evaluation, padded by the chain's worst-case spatial support
-  and clamped to the scene — or an authored `bounds: (x, y, w, h)`. Region-scoped
-  scratch targets are sized to the region, quantized to 64-px steps, and cached
-  per quantized size, so a region that grows or shrinks between frames rarely
-  reallocates; only a whole-scene region allocates canvas-sized textures.
-- **Chain submit & Texture Pooling.** Seed copies, ordered compute passes, and
-  harvest share one `CommandEncoder` / `queue.submit()`, with independent
-  per-instance author uniforms and per-pass contexts. Separate submissions
-  remain the pixel-test reference and stage-dump path (see `docs/effects.md`
-  §4.6). Intermediate pending composites come from an internal
-  `TexturePool` recycled per-frame by the engine's `drain_pending_layers` via
-  `FilterBackend::recycle_pending_composite`.
-- **Second input (ABI v2).** Binding 5 carries the pre-chain original of the
-  scope, copied by the host before pass 0; `Bloom` is its first consumer. The
-  earlier open question about a second input texture is resolved.
-- **Batched Blit Pipeline.** Multiple pending composite layers are drawn in a single
-  batched render pass using 256-byte aligned dynamic uniform offsets (`BatchedBlitPipeline`),
-  collapsing $N$ blits into 1 GPU draw pass.
-- **Direct GPU Instanced Polyline / Curves.** Mathematical curves and polylines can be
-  drawn directly via `InstancedLinePipeline` on `RendererCore`, evaluating vertex quad
-  expansions and analytical sub-pixel SDF smoothing (`smoothstep`) with custom edge
-  feathering directly on the GPU without CPU Bezier flattening or path tessellation.
-- **Renderer-agnostic timeline.** `scene_eval` receives a
-  `&mut Option<&mut dyn FilterBackend>`. With no backend installed, the children
-  render unfiltered and a `RenderFailure` diagnostic is recorded; there is no CPU
-  fallback, because arbitrary WGSL has no host path.
-- **Nested scopes** are allowed; each level adds one offscreen round-trip.
-- **Zero-readback** requires the scope to be the last rendered element
-  (`can_post_composite_filter`); non-tail scopes take the inline readback path,
-  which composites at the region origin inside the Vello scene and preserves
-  painter order. The last-element restriction is therefore a performance gate,
-  not a correctness requirement.
-- **Filter child labels are scene-global.** Give children of each Filter scope
-  unique labels; reusing one across scopes re-parents the shared actor into the
-  later scope and leaves the earlier scope empty (`duplicate-label` warning).
-
-#### Open questions
-
-1. **HDR / wide-gamut** — the intermediate is `Rgba8Unorm`, so every pass
-   quantises to 8 bits (banding on gradients and `Levels`-style effects). Should
-   the ping-pong targets move to `Rgba16Float`?
-2. **Per-region intersection** — generalising `can_post_composite_filter` from
-   "last rendered element" to "no later sibling intersects the ROI" would let
-   mid-scene scopes use the zero-readback path too.
 
 ---
 
@@ -752,10 +680,9 @@ Actors and effects share one identity model:
   (`ActorCategory`, `ChildProcessing`, `ShapeKind`, `TextKind`): it grows only
   when the engine learns a new *behaviour*, which is when the compiler should
   force every dispatch site to be revisited.
-- **Author-visible metadata has one single-source crate**: `animatix-std`
-  holds the built-in catalog (`CATALOG` identity cards for primitives, full
-  effect definitions with parameters and WGSL). The runtime links it for
-  behaviour; the parser crate derives its contract tables —
+- **Author-visible metadata comes from `animatix_core::builtins`**, which
+  holds `CATALOG` identity cards and full effect definitions. The runtime
+  links it for behaviour. The parser crate derives its contract tables —
   `builtin_primitive_specs()` and `effect_specs()` — from it, and
   `builtins::types()` derives from those. Plugins provide the same shapes
   through their manifest (`[[effects]]`, primitives) or the FFI, and
@@ -764,12 +691,12 @@ Actors and effects share one identity model:
 
 ### Adding a new built-in primitive
 
-Built-ins pair an `animatix-std` identity card with an engine behaviour row.
+Built-ins pair an `animatix_core::builtins` identity card with an engine behaviour row.
 Their frame evaluation goes through family function pointers; extension
 primitives use the `Primitive` adapter. The `BUILT_INS` row binds the two by
 symbol and is also the stable built-in `BehaviorId` order.
 
-1. Add the identity card to `animatix-std/src/catalog.rs` and `CATALOG`.
+1. Add the identity card to `animatix-core/src/builtins/catalog/mod.rs` and `CATALOG`.
    This owns author-visible identity, display, category, and capabilities.
 2. Implement behavior in `animatix/src/primitives/` and the relevant family
    system in `timeline/behavior/builtin/`; add a `BuiltIn::new` row with its
@@ -901,8 +828,7 @@ No changes to the GPU compositor. During a fade transition, the carried actor is
 
 ```
 crates/
-├── animatix-core/         # Shared vocabulary: capabilities, effect contract, icons, RenderError
-├── animatix-std/          # Built-in catalog: effect definitions, primitive identity cards
+├── animatix-core/         # Shared vocabulary and built-in catalog
 ├── animatix-syntax/       # Syntax layer — parser, AST, module system
 │   └── src/
 │       ├── ast/           # AST types (expr, stmt, span, types)

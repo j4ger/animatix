@@ -7,24 +7,13 @@
     <!-- Self-contained QA harness: dark inline styling like multi-probe /
          svg-probe, deliberately not the site skin. -->
     <script>
-      // Classic script, before any module runs. Two jobs:
-      //
-      // 1. Capture console.error, so a wasm panic (which the panic hook logs and
-      //    then aborts on) is readable by an automated driver instead of only
-      //    appearing in a devtools console.
-      // 2. `?base=<dir>` picks which SDK directory the page measures, so two
-      //    builds can be A/B'd from one harness. Each directory contains its
-      //    own runtime manifest, avoiding same-URL cache ambiguity.
+      // Capture a Wasm panic before module initialization can log and abort.
       window.__console_errors = [];
       const origError = console.error.bind(console);
       console.error = (...args) => {
         window.__console_errors.push(args.map(String).join(" "));
         origError(...args);
       };
-      window.__probeBase = new URLSearchParams(location.search).get("base") ?? "../runtime";
-      window.__probeLoader = import("../runtime/amx-player.js").then(({ configureRuntime }) => {
-        configureRuntime({ manifestUrl: new URL(`${window.__probeBase}/runtime-manifest.json`, document.baseURI).href });
-      });
     </script>
     <style>
       body {
@@ -62,11 +51,13 @@
       // a headless or backgrounded tab delivers *no* rAF callbacks, and
       // `queue.submit` returns as soon as the frame is encoded — several
       // milliseconds before the GPU has drawn it. Timing `render_frame` alone
-      // therefore reports ~0.5 ms for a frame that actually costs ~4 ms. Every
-      // number here is "N frames followed by an explicit GPU drain", which is
-      // the browser-side equivalent of the native drivers' tight frame loop.
+      // therefore reports ~0.5 ms for a frame that actually costs ~4 ms.
+      // Throughput drains a batch of ticks. Queue-depth-one latency drains each
+      // tick separately, and CPU submission time is recorded independently.
       //
-      //   ?scene=<url>     scene to load        (default transformer/scenes/attention.amx)
+      //   ?scene=<url>     scene to load        (default ../demos/transformer/scenes/attention.amx)
+      //   ?backend=<mode>  webgpu, webgl2, or auto (default webgpu)
+      //   ?base=<dir>      SDK directory for an A/B (default ../runtime)
       //   ?players=<n>     embeds on the page   (default 1)
       //   ?frames=<n>      frames per sample    (default 60)
       //   ?scales=1,.7,.5  render scales to sweep (default 1,0.85,0.72,0.6,0.5)
@@ -74,11 +65,17 @@
       // A harness that fails silently is worse than no harness: a top-level
       // await that rejects in a module script only reaches the console, which
       // an automated driver cannot read.
-      window.addEventListener("error", (e) => { window.__perf_error = String(e.message ?? e.error); });
-      window.addEventListener("unhandledrejection", (e) => { window.__perf_error = String(e.reason?.stack ?? e.reason); });
-      const scene = params.get("scene") ?? "transformer/scenes/attention.amx";
-      const count = Math.max(1, Math.min(8, Number(params.get("players") ?? 1) || 1));
-      const frames = Math.max(10, Math.min(400, Number(params.get("frames") ?? 60) || 60));
+      const showError = (error) => {
+        window.__perf_error = String(error);
+        document.getElementById("meta").textContent = window.__perf_error;
+      };
+      window.addEventListener("error", (e) => showError(e.message ?? e.error));
+      window.addEventListener("unhandledrejection", (e) => showError(e.reason?.stack ?? e.reason));
+      const scene = params.get("scene") ?? "../demos/transformer/scenes/attention.amx";
+      const base = new URL(`${params.get("base") ?? "../runtime"}/`, document.baseURI);
+      const requestedBackend = params.get("backend") ?? "webgpu";
+      const count = Math.max(1, Math.min(8, Math.trunc(Number(params.get("players") ?? 1)) || 1));
+      const frames = Math.max(10, Math.min(400, Math.trunc(Number(params.get("frames") ?? 60)) || 60));
       // Repeat each sample and keep the fastest run. A browser frame measured
       // from a script is hostage to whatever else the machine is doing — the
       // minimum is the closest thing to "what this code costs" and is stable
@@ -89,58 +86,92 @@
         .map(Number)
         .filter((s) => s > 0 && s <= 1);
 
-      // Resolve the build-specific entry and wasm through the same manifest as
-      // the player, so the probe stays on the tested immutable SDK build.
-      await window.__probeLoader;
-      const manifestUrl = new URL(`${window.__probeBase}/runtime-manifest.json`, document.baseURI);
-      const manifestResponse = await fetch(manifestUrl);
-      if (!manifestResponse.ok) throw new Error(`runtime manifest HTTP ${manifestResponse.status}`);
-      const manifest = await manifestResponse.json();
-      const engine = await import(new URL(manifest.entry, manifestUrl).href);
-      const wasmFile = manifest.files[manifest.wasm];
-      const wasmResponse = await fetch(new URL(wasmFile.url, manifestUrl));
-      if (!wasmResponse.ok) throw new Error(`runtime wasm HTTP ${wasmResponse.status}`);
-      await engine.default({ module_or_path: wasmResponse });
-      await engine.ensure_capabilities?.(0, manifest.files);
-      await engine.init_engine();
-      // Exposed so a driver can reach the same instance without re-importing it.
-      window.__engine = engine;
-      const drain = () => engine.debug_gpu_drain();
+      // Let each SDK initialize via its own integrity-checked player loader.
+      const started = performance.now();
+      const manifestUrl = new URL("runtime-manifest.json", base);
+      const sdk = await import(new URL("amx-player.js", base));
+      sdk.configureRuntime({ manifestUrl: manifestUrl.href, backend: requestedBackend });
 
       const host = document.getElementById("players");
       host.style.setProperty("--cols", String(Math.min(3, count)));
       const elements = [];
+      const loads = [];
       for (let i = 0; i < count; i += 1) {
         const el = document.createElement("amx-player");
         el.setAttribute("src", scene);
         el.setAttribute("aspect", "16:9");
+        el.setAttribute("quality", "production");
+        el.setAttribute("eager", "");
+        loads.push(new Promise((resolve, reject) => {
+          el.addEventListener("amxready", () => resolve(performance.now()), { once: true });
+          el.addEventListener("amxerror", (event) => {
+            reject(new Error(event.detail?.message ?? "scene failed to load"));
+          }, { once: true });
+        }));
         host.appendChild(el);
         elements.push(el);
       }
 
-      // IntersectionObserver is how the embed defers loading, and it is not
-      // delivered in every automated environment — drive the load entry point
-      // directly so the probe works with or without it.
-      const started = performance.now();
-      for (const el of elements) el._maybeStartLoading();
-      const ready = await new Promise((resolve, reject) => {
-        const t0 = performance.now();
-        const poll = () => {
-          if (elements.every((el) => el._state === "ready")) return resolve(true);
-          if (elements.some((el) => el._state === "error")) return reject(new Error("scene failed to load"));
-          if (performance.now() - t0 > 60000) return reject(new Error("timed out loading the scene"));
-          setTimeout(poll, 50);
-        };
-        poll();
-      }).catch((err) => err);
-      if (ready !== true) {
-        document.getElementById("meta").textContent = `load failed: ${ready.message}`;
-        throw ready;
-      }
-      const loadMs = performance.now() - started;
+      let timeout;
+      const ready = await Promise.race([
+        Promise.all(loads),
+        new Promise((_, reject) => {
+          timeout = setTimeout(() => reject(new Error("timed out loading the scene")), 60000);
+        }),
+      ]).finally(() => clearTimeout(timeout));
+      const firstReadyMs = Math.min(...ready) - started;
+      const loadMs = Math.max(...ready) - started;
+      for (const el of elements) el.pause();
       const players = elements.map((el) => el._player);
+      const backend = elements[0].backend ?? "webgpu";
+      if (elements.some((el) => (el.backend ?? "webgpu") !== backend)) {
+        throw new Error("players selected different backends");
+      }
+      if (requestedBackend !== "auto" && backend !== requestedBackend) {
+        throw new Error(`SDK selected ${backend} for ${requestedBackend}`);
+      }
+      const { manifest, module: engine } = elements[0]._runtime;
+      window.__engine = engine;
+      const contexts = backend === "webgl2"
+        ? elements.map((el) => el._canvas.getContext("webgl2"))
+        : [];
+      const drain = backend === "webgl2"
+        ? () => drainWebGL(contexts)
+        : () => engine.debug_gpu_drain();
+      await drain();
+      const startupCompletedMs = performance.now() - started;
       const scenePx = [players[0].scene_width(), players[0].scene_height()];
       const canvasCss = [elements[0]._canvas.clientWidth, elements[0]._canvas.clientHeight];
+
+      // A GL device lives on each canvas. Fence all of them after submission
+      // and yield between zero-timeout checks so the browser can make progress.
+      async function drainWebGL(contexts) {
+        const pending = [];
+        try {
+          for (const gl of contexts) {
+            const fence = gl?.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+            if (!fence) throw new Error("WebGL2 queue fence unavailable");
+            pending.push({ gl, fence });
+            gl.flush();
+          }
+          const deadline = performance.now() + 30000;
+          while (pending.length) {
+            for (let i = pending.length - 1; i >= 0; i--) {
+              const { gl, fence } = pending[i];
+              const status = gl.clientWaitSync(fence, 0, 0);
+              if (status === gl.TIMEOUT_EXPIRED) continue;
+              if (status === gl.WAIT_FAILED) throw new Error("WebGL2 queue fence failed");
+              gl.deleteSync(fence);
+              pending.splice(i, 1);
+            }
+            if (!pending.length) break;
+            if (performance.now() >= deadline) throw new Error("WebGL2 queue fence timed out");
+            await new Promise((resolve) => setTimeout(resolve, 0));
+          }
+        } finally {
+          for (const { gl, fence } of pending) gl.deleteSync(fence);
+        }
+      }
 
       const stats = (xs) => {
         const s = [...xs].sort((a, b) => a - b);
@@ -149,6 +180,7 @@
           mean: xs.reduce((a, b) => a + b, 0) / xs.length,
           p50: at(0.5),
           p90: at(0.9),
+          p95: at(0.95),
           max: s[s.length - 1],
         };
       };
@@ -189,6 +221,18 @@
           }
         }
         const raster = players.map((p) => [p.raster_width(), p.raster_height()]);
+        window.__perf_progress = `scale ${scale}: queue depth one`;
+        const completedTicks = [];
+        const drawnBefore = players.map((p) => p.debug_dedup_stats().drawn);
+        for (let i = 0; i < frames; i++) {
+          const t0 = performance.now();
+          for (const p of players) p.render_frame(i / 60);
+          await drain();
+          completedTicks.push(performance.now() - t0);
+        }
+        if (players.some((p, i) => p.debug_dedup_stats().drawn - drawnBefore[i] !== frames)) {
+          throw new Error("a player skipped frames during the queue-depth-one sample");
+        }
         // The rest case a looping embed lives in: one frame, asked for again and
         // again. The raster dedup turns that into a signature compare, so this
         // should fall to a small fraction of `page_ms` — and if it ever equals
@@ -213,6 +257,7 @@
           cpu_ms: round(cpu.reduce((a, c) => a + c.cpu_ms, 0) / count),
           cpu_p90_ms: round(Math.max(...cpu.map((c) => c.cpu_p90_ms))),
           jitter: stats(ticks),
+          queue_depth_one_p95_ms: round(stats(completedTicks).p95),
         };
       }
 
@@ -240,7 +285,10 @@
 
       const meta = {
         scene,
-        engine_base: window.__probeBase,
+        engine_base: base.href,
+        requested_backend: requestedBackend,
+        backend,
+        queue_completion: backend === "webgl2" ? "clientWaitSync with browser timer polling" : "onSubmittedWorkDone",
         scene_px: scenePx,
         canvas_css_px: canvasCss,
         canvas_backing_px: [elements[0]._canvas.width, elements[0]._canvas.height],
@@ -248,18 +296,22 @@
         players: count,
         frames_per_sample: frames,
         reps,
+        quality: "production",
+        first_ready_ms: round(firstReadyMs, 1),
         load_ms: round(loadMs, 1),
-        build_id: engine.build_id(),
+        startup_queue_completed_ms: round(startupCompletedMs, 1),
+        build_id: manifest.build_id,
+        source_commit: manifest.build.source_commit,
       };
       const report = { ...meta, samples: rows };
       window.__perf = report;
 
       document.getElementById("meta").textContent =
         `${scene} — ${scenePx[0]}x${scenePx[1]} scene, displayed at ${canvasCss[0]}x${canvasCss[1]} CSS px ` +
-        `(dpr ${meta.device_pixel_ratio}), ${count} player${count > 1 ? "s" : ""}, build ${meta.build_id}`;
+        `(dpr ${meta.device_pixel_ratio}), ${count} player${count > 1 ? "s" : ""}, ${backend}, build ${meta.build_id}`;
       const tbody = document.querySelector("#results tbody");
       const head = document.createElement("tr");
-      head.innerHTML = "<th>scale</th><th>raster px</th><th>page ms / tick</th><th>per embed ms</th><th>cpu ms</th><th>cpu p90</th><th>tick p50</th><th>tick max</th><th>16.7 ms</th>";
+      head.innerHTML = "<th>scale</th><th>raster px</th><th>page ms / tick</th><th>per embed ms</th><th>cpu ms</th><th>cpu p90</th><th>completed tick p95</th><th>cpu tick max</th><th>16.7 ms</th>";
       tbody.appendChild(head);
       for (const r of rows) {
         const budget = r.page_ms <= 16.7;
@@ -271,7 +323,7 @@
           `<td>${r.per_embed_ms}</td>` +
           `<td>${r.cpu_ms}</td>` +
           `<td>${r.cpu_p90_ms}</td>` +
-          `<td>${round(r.jitter.p50)}</td>` +
+          `<td>${r.queue_depth_one_p95_ms}</td>` +
           `<td>${round(r.jitter.max)}</td>` +
           `<td>${budget ? "ok" : "over"}</td>`;
         tbody.appendChild(tr);

@@ -12,7 +12,7 @@
 //! Scope, stated honestly:
 //! - `Actors(&[…])` and `ShapeKinds(&[…])` rows are cross-checked — 58 + 4 of the table's rows.
 //!   A `ShapeKinds` row declares a shape capability rather than a name list, so its type list is
-//!   reconstructed from the catalog (`animatix_std::caps_for_type` / `CATALOG`): every catalog
+//!   reconstructed from the catalog (`animatix_core::builtins::caps_for_type` / `CATALOG`): every catalog
 //!   type whose `caps.shape` is one of the listed kinds. That keeps the coverage these rows had
 //!   when they were written as `Actors(&["Ellipse"])`-style name lists. The remaining
 //!   capability-shaped rows (`TextLike`, `SizedActors`, …) need an `ActorCaps` predicate
@@ -46,11 +46,11 @@ fn shape_kind_rows() -> BTreeMap<String, Vec<String>> {
     let mut rows = BTreeMap::new();
     for desc in animatix_core::property::PROPERTY_DESCRIPTORS {
         if let animatix_core::caps::Applicable::ShapeKinds(kinds) = desc.applicable {
-            let mut types: Vec<String> = animatix_std::CATALOG
+            let mut types: Vec<String> = animatix_core::builtins::CATALOG
                 .iter()
                 .filter_map(|info| {
                     let ty = info.static_type_name()?;
-                    let caps = animatix_std::caps_from_info(info);
+                    let caps = animatix_core::builtins::caps_from_info(info);
                     caps.shape.is_some_and(|shape| kinds.contains(&shape)).then(|| ty.to_string())
                 })
                 .collect();

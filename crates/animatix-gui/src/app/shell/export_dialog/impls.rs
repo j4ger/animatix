@@ -155,14 +155,8 @@ impl GuiShell {
             ui.scope_builder(egui::UiBuilder::new().max_rect(tab_rect), |ui| {
                 TabBar::new("export_format_tabs", &mut selected, &labels).show(ui);
             });
-            let previous_format = self.export_store.export_state.format;
-            if let Some(new_fmt) = formats.get(selected).copied() {
-                self.export_store.export_state.format = new_fmt;
-                if self.export_store.export_state.output_path.is_empty()
-                    && previous_format != new_fmt
-                {
-                    self.update_default_export_filename();
-                }
+            if let Some(format) = formats.get(selected).copied() {
+                self.set_export_format(format);
             }
             cursor_y += sp.base.component.pill_tab_height + sp.base.space_3;
 

@@ -263,8 +263,8 @@ fn every_built_track_identity_is_consistent() {
     let timeline = build(source).output;
 
     for (label, id) in timeline.world.tracks.iter() {
-        let expected =
-            animatix_std::caps_for_type(timeline.world.actor_type(id)).unwrap_or_default();
+        let expected = animatix_core::builtins::caps_for_type(timeline.world.actor_type(id))
+            .unwrap_or_default();
         assert_eq!(
             timeline.world.caps(id),
             expected,

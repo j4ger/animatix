@@ -537,9 +537,6 @@ fn composition_preview_switches_sample_view_across_fade_frames() {
         preview.sample_view().expect("from scene sample view"),
     );
     assert_eq!(from, [255, 0, 0, 255]);
-    assert!(preview.filter_backend.is_none(), "a plain scene must not create a backend");
-    assert!(preview.filter_backend_from.is_none());
-    assert!(preview.filter_backend_to.is_none());
 
     preview
         .render_composition(
@@ -560,15 +557,6 @@ fn composition_preview_switches_sample_view_across_fade_frames() {
         transition[0] > 0 && transition[2] > 0,
         "fade pixel should blend red and blue: {transition:?}"
     );
-    assert!(preview.filter_backend.is_none());
-    assert!(
-        preview.filter_backend_from.is_none(),
-        "plain outgoing side must stay backend-free"
-    );
-    assert!(
-        preview.filter_backend_to.is_none(),
-        "plain incoming side must stay backend-free"
-    );
 
     preview
         .render_composition(
@@ -586,14 +574,12 @@ fn composition_preview_switches_sample_view_across_fade_frames() {
         preview.sample_view().expect("to scene sample view"),
     );
     assert_eq!(to, [0, 0, 255, 255]);
-    assert!(preview.filter_backend.is_none());
-    assert!(preview.filter_backend_from.is_none());
-    assert!(preview.filter_backend_to.is_none());
+
     assert_no_validation_error(&device, validation_scope);
 }
 
 #[test]
-fn mixed_filter_transition_initializes_only_the_scoped_side() {
+fn mixed_filter_transition_preserves_both_scenes() {
     let Some((device, queue)) = device_or_skip() else {
         return;
     };
@@ -618,9 +604,7 @@ fn mixed_filter_transition_initializes_only_the_scoped_side() {
             DebugRenderOptions::default(),
         )
         .expect("plain to Filter transition");
-    assert!(preview.filter_backend.is_none());
-    assert!(preview.filter_backend_from.is_none(), "plain outgoing side must not allocate");
-    assert!(preview.filter_backend_to.is_some(), "Filter incoming side needs a backend");
+
     let transition = sample_pixel(
         &device,
         &queue,
@@ -642,25 +626,11 @@ fn mixed_filter_transition_initializes_only_the_scoped_side() {
             DebugRenderOptions::default(),
         )
         .expect("single Filter scene after transition");
-    assert!(preview.filter_backend.is_some(), "direct Filter frame needs the backend");
-    assert!(preview.filter_backend_from.is_none());
-    assert!(
-        preview.filter_backend_to.is_none(),
-        "transition slot should move back to direct"
-    );
 
     preview
-        .render(
-            &device,
-            &queue,
-            &composition.scenes["From"].timeline,
-            0.0,
-            DebugRenderOptions::default(),
-        )
+        .render(&composition.scenes["From"].timeline, 0.0, DebugRenderOptions::default())
         .expect("plain scene after Filter frame");
-    assert!(preview.filter_backend.is_none(), "plain direct frame must drop the backend");
-    assert!(preview.filter_backend_from.is_none());
-    assert!(preview.filter_backend_to.is_none());
+
     let plain_pixel = sample_pixel(
         &device,
         &queue,
@@ -683,9 +653,7 @@ fn mixed_filter_transition_initializes_only_the_scoped_side() {
             DebugRenderOptions::default(),
         )
         .expect("resized plain to Filter transition");
-    assert!(preview.filter_backend.is_none());
-    assert!(preview.filter_backend_from.is_none());
-    assert!(preview.filter_backend_to.is_some());
+
     assert_no_validation_error(&device, validation_scope);
 }
 
@@ -735,7 +703,7 @@ fn glass_timeline() -> Timeline {
 }
 
 #[test]
-fn transition_glass_layers_render_after_resize_with_matching_backends() {
+fn transition_glass_layers_render_after_resize() {
     let Some((device, queue)) = device_or_skip() else {
         return;
     };
@@ -762,7 +730,7 @@ fn transition_glass_layers_render_after_resize_with_matching_backends() {
             DebugRenderOptions::default(),
         )
         .expect("first Glass transition frame");
-    assert_eq!(preview.filter_backend_dimensions, Some(first));
+
     let sampling = SamplingPipeline::new(&device);
     let first_pixel = sample_pixel(
         &device,
@@ -777,9 +745,7 @@ fn transition_glass_layers_render_after_resize_with_matching_backends() {
         height: 80,
     };
     preview.set_dimensions(&device, resized);
-    assert_eq!(preview.filter_backend_dimensions, None);
-    assert!(preview.filter_backend_from.is_none());
-    assert!(preview.filter_backend_to.is_none());
+
     preview
         .render_composition(
             &device,
@@ -789,7 +755,7 @@ fn transition_glass_layers_render_after_resize_with_matching_backends() {
             DebugRenderOptions::default(),
         )
         .expect("resized Glass transition frame");
-    assert_eq!(preview.filter_backend_dimensions, Some(resized));
+
     let resized_pixel = sample_pixel(
         &device,
         &queue,
@@ -814,10 +780,8 @@ fn glass_preview_keeps_backdrop_copy_valid_and_rebuilds_after_resize() {
     };
     let first_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
     preview.set_dimensions(&device, first);
-    preview
-        .render(&device, &queue, &timeline, 0.0, debug)
-        .expect("Glass preview render");
-    assert_eq!(preview.filter_backend_dimensions, Some(first));
+    preview.render(&timeline, 0.0, debug).expect("Glass preview render");
+
     assert_no_validation_error(&device, first_scope);
 
     let resized = SceneDimensions {
@@ -826,12 +790,46 @@ fn glass_preview_keeps_backdrop_copy_valid_and_rebuilds_after_resize() {
     };
     let resized_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
     preview.set_dimensions(&device, resized);
-    assert_eq!(preview.filter_backend_dimensions, None, "resize invalidates filter targets");
-    preview
-        .render(&device, &queue, &timeline, 0.0, debug)
-        .expect("resized Glass preview render");
-    assert_eq!(preview.filter_backend_dimensions, Some(resized));
+
+    preview.render(&timeline, 0.0, debug).expect("resized Glass preview render");
+
     assert_no_validation_error(&device, resized_scope);
+}
+
+#[test]
+fn glass_preview_remains_visible_after_resize() {
+    let Some((device, queue)) = device_or_skip() else {
+        return;
+    };
+    let mut preview = PreviewSurface::new(&device, &queue).expect("Vello GPU preview surface");
+    let timeline = glass_timeline();
+    let sampling = SamplingPipeline::new(&device);
+    let validation_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
+
+    for dimensions in [
+        SceneDimensions {
+            width: 64,
+            height: 64,
+        },
+        SceneDimensions {
+            width: 96,
+            height: 80,
+        },
+    ] {
+        preview.set_dimensions(&device, dimensions);
+        preview
+            .render(&timeline, 0.0, DebugRenderOptions::default())
+            .expect("Vello GPU Glass preview render");
+        let pixel = sample_pixel(
+            &device,
+            &queue,
+            &sampling,
+            preview.sample_view().expect("Vello GPU sample view"),
+        );
+        assert!(pixel[0] > 0 && pixel[1] > 0 && pixel[2] > 0, "Glass render is blank: {pixel:?}");
+    }
+
+    assert_no_validation_error(&device, validation_scope);
 }
 
 fn median_ms(mut samples: Vec<f64>) -> f64 {

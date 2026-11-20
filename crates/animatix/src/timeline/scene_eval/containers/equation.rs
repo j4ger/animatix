@@ -8,7 +8,7 @@ struct FragInfo {
     hl_opacity: f32,
     hl_padding: f32,
     hl_radius: f32,
-    hl_blend: vello::peniko::Mix,
+    hl_blend: peniko::Mix,
 }
 
 /// Escape a Fragment's content for embedding in one #box() markup block.
@@ -284,7 +284,7 @@ fn equation_highlight_commands(
             if min_x.is_finite() && max_x.is_finite() {
                 let pad = frag.hl_padding as f64;
                 let hl_rect = kurbo::Rect::new(min_x - pad, min_y - pad, max_x + pad, max_y + pad);
-                let hl_color = vello::peniko::Color::from_rgba8(
+                let hl_color = peniko::Color::from_rgba8(
                     (frag.hl_color[0] * 255.0) as u8,
                     (frag.hl_color[1] * 255.0) as u8,
                     (frag.hl_color[2] * 255.0) as u8,

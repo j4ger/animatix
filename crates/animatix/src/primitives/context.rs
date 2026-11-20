@@ -150,7 +150,7 @@ pub(crate) struct RenderFrame<'a> {
 /// reborrowed unchanged when a container renders into a different scene.
 pub(crate) struct RenderOutputs<'s, 'f> {
     /// Scene receiving the draw commands.
-    pub(crate) scene: &'s mut vello::Scene,
+    pub(crate) scene: &'s mut crate::scene::Scene,
     /// Hit regions (world bounds) collected for this frame, keyed by entity id.
     pub(crate) hit_regions: &'s mut Vec<(crate::timeline::EntityId, kurbo::Rect)>,
     /// Observable scene items, when collection was requested.
@@ -164,7 +164,7 @@ impl RenderOutputs<'_, '_> {
     /// strategy renders into a shorter-lived offscreen scene, so we reborrow.
     pub(crate) fn with_scene<R>(
         &mut self,
-        scene: &mut vello::Scene,
+        scene: &mut crate::scene::Scene,
         f: impl FnOnce(&mut RenderOutputs<'_, '_>) -> R,
     ) -> R {
         let mut swapped = RenderOutputs {
@@ -180,7 +180,7 @@ impl RenderOutputs<'_, '_> {
     /// cache that renders into a scratch scene *and* collects per-subtree items.
     pub(crate) fn with_scene_and_items<R>(
         &mut self,
-        scene: &mut vello::Scene,
+        scene: &mut crate::scene::Scene,
         program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
         f: impl FnOnce(&mut RenderOutputs<'_, '_>) -> R,
     ) -> R {
@@ -224,7 +224,7 @@ pub struct RenderChildrenCtx<'a, 'b, 'c> {
     /// Whether the caller may park GPU filter composites for a later blit.
     pub allow_pending_composites: bool,
     /// Output scene for this frame.
-    pub scene: &'b mut vello::Scene,
+    pub scene: &'b mut crate::scene::Scene,
     /// Output hit regions (world bounds) for this frame, keyed by entity id.
     pub hit_regions: &'b mut Vec<(crate::timeline::EntityId, kurbo::Rect)>,
     /// Output observable scene items, when item collection was requested.
@@ -308,7 +308,7 @@ impl<'a, 'b, 'c> RenderChildrenCtx<'a, 'b, 'c> {
     }
 
     /// Render one child into a caller-provided scene (Filter uses an offscreen sub-scene).
-    pub fn render_child_into(&mut self, scene: &mut vello::Scene, child: &str) {
+    pub fn render_child_into(&mut self, scene: &mut crate::scene::Scene, child: &str) {
         if let Some(child_id) = self.timeline.world.tracks.get_id(child) {
             self.render_child_into_by_id(scene, child_id);
         } else {
@@ -334,7 +334,7 @@ impl<'a, 'b, 'c> RenderChildrenCtx<'a, 'b, 'c> {
     /// Render one child directly by its `EntityId` into a caller-provided scene.
     pub fn render_child_into_by_id(
         &mut self,
-        scene: &mut vello::Scene,
+        scene: &mut crate::scene::Scene,
         child_id: crate::timeline::EntityId,
     ) {
         let frame = self.render_frame();
@@ -377,7 +377,7 @@ impl<'a, 'b, 'c> RenderChildrenCtx<'a, 'b, 'c> {
     /// Render children directly by `EntityId` into a caller-provided scene.
     pub fn render_children_into_by_id(
         &mut self,
-        scene: &mut vello::Scene,
+        scene: &mut crate::scene::Scene,
         children_ids: &[crate::timeline::EntityId],
     ) {
         for &child_id in children_ids {
@@ -418,7 +418,7 @@ pub struct EquationFragment {
     /// Highlight corner radius.
     pub highlight_radius: f32,
     /// Highlight blend mode.
-    pub highlight_blend: vello::peniko::Mix,
+    pub highlight_blend: peniko::Mix,
 }
 
 /// Returned by [`crate::primitives::Primitive::caption_cue`]; the Captions container collects every `Some` in source order.

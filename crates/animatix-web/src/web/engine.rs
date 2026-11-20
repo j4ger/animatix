@@ -4,12 +4,45 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 use animatix::timeline::{BuildQuality, SceneDimensions};
-use animatix_render::core::RendererCore;
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
-use super::context::{CONTEXT, with_engine};
+use super::context::{CONTEXT, clear_if_generation, next_generation, with_engine};
 use super::{AmxPlayer, EngineContext};
+
+impl AmxPlayer {
+    pub(super) fn new(
+        canvas: HtmlCanvasElement,
+        surface: wgpu::Surface<'static>,
+        config: wgpu::SurfaceConfiguration,
+    ) -> Self {
+        Self {
+            canvas,
+            surface,
+            config,
+            device_generation: 0,
+            webgl: None,
+            compositor: None,
+            fonts: Vec::new(),
+            font_context: None,
+            modules: Vec::new(),
+            vars: Vec::new(),
+            runtime_inputs: animatix::timeline::RuntimeInputs::default(),
+            quality: BuildQuality::Draft,
+            offscreen: None,
+            offscreen_to: None,
+            composite: None,
+            dims: SceneDimensions::default(),
+            duration_s: 0.1,
+            target: None,
+            render_scale: 0.85,
+            dedup: animatix::timeline::frame_signature::FrameDedup::new(),
+            render_generation: 0,
+            frames_drawn: 0,
+            frames_deduped: 0,
+        }
+    }
+}
 
 /// Create the shared context if it does not exist yet. Idempotent; the JS
 /// shell additionally funnels concurrent first calls through one promise.
@@ -19,7 +52,10 @@ async fn ensure_engine() -> Result<(), String> {
         return Ok(());
     }
 
-    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        backends: wgpu::Backends::BROWSER_WEBGPU,
+        ..wgpu::InstanceDescriptor::new_without_display_handle()
+    });
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
@@ -40,32 +76,21 @@ async fn ensure_engine() -> Result<(), String> {
         })
         .await
         .map_err(|e| format!("failed to request WebGPU device: {e}"))?;
+    let generation = next_generation();
 
     // Surface wgpu's internal validation errors on the JS console — the
     // default handler logs through `log`, which has no subscriber here.
     device.on_uncaptured_error(Arc::new(move |error| {
         web_sys::console::error_1(&format!("wgpu uncaptured error: {error}").into());
     }));
-    device.set_device_lost_callback(|reason, message| {
+    device.set_device_lost_callback(move |reason, message| {
         web_sys::console::error_1(&format!("wgpu device lost: {reason:?} — {message}").into());
-        // Drop the dead context. Leaving it in the slot means every later call
-        // from every player in the page reaches the same lost device and fails
-        // the same way, so one loss permanently breaks the tab; clearing it lets
-        // the next `ensure_engine` negotiate a fresh adapter and lets a
-        // re-created `<amx-player>` animate again.
-        //
-        // Known limit: players that already exist still hold targets and
-        // sessions built on the dead device, so they keep failing until they are
-        // re-created. Rebuilding their state in place needs a generation stamp
-        // on `EngineContext` that each player can compare its own against —
-        // tracked in `docs/roadmap.md`.
-        CONTEXT.with(|cell| {
-            *cell.borrow_mut() = None;
-        });
+        if clear_if_generation(generation) {
+            dispatch_backend_lost(generation, &format!("{reason:?}"), &message);
+        }
     });
 
-    let core =
-        RendererCore::new(&device, &queue).map_err(|e| format!("renderer init failed: {e}"))?;
+    let frame_gpu = animatix_render::frame_gpu::FrameGpu::new(&device, &queue);
 
     CONTEXT.with(|cell| {
         *cell.borrow_mut() = Some(EngineContext {
@@ -73,10 +98,42 @@ async fn ensure_engine() -> Result<(), String> {
             _adapter: adapter,
             device,
             queue,
-            core: RefCell::new(core),
+            generation,
+            frame_gpu: RefCell::new(frame_gpu),
         });
     });
     Ok(())
+}
+
+/// Notify all page players after the shared WebGPU device is invalidated.
+fn dispatch_backend_lost(generation: u64, reason: &str, message: &str) {
+    use wasm_bindgen::JsCast;
+
+    let global = js_sys::global();
+    let Ok(constructor) = js_sys::Reflect::get(&global, &"CustomEvent".into())
+        .and_then(|value| value.dyn_into::<js_sys::Function>())
+    else {
+        return;
+    };
+    let detail = js_sys::Object::new();
+    let _ = js_sys::Reflect::set(&detail, &"backend".into(), &"webgpu".into());
+    let _ =
+        js_sys::Reflect::set(&detail, &"generation".into(), &JsValue::from_f64(generation as f64));
+    let _ = js_sys::Reflect::set(&detail, &"reason".into(), &reason.into());
+    let _ = js_sys::Reflect::set(&detail, &"message".into(), &message.into());
+    let init = js_sys::Object::new();
+    let _ = js_sys::Reflect::set(&init, &"detail".into(), &detail);
+    let args = js_sys::Array::new();
+    args.push(&"animatixbackendlost".into());
+    args.push(&init);
+    let Ok(event) = js_sys::Reflect::construct(&constructor, &args) else {
+        return;
+    };
+    if let Ok(dispatch) = js_sys::Reflect::get(&global, &"dispatchEvent".into())
+        .and_then(|value| value.dyn_into::<js_sys::Function>())
+    {
+        let _ = dispatch.call1(&global, &event);
+    }
 }
 
 /// Resolve once every command submitted so far has completed on the GPU.
@@ -178,35 +235,22 @@ pub async fn create_player(canvas: HtmlCanvasElement) -> Result<AmxPlayer, JsErr
         };
         surface.configure(&ctx.device, &config);
 
-        Ok(AmxPlayer {
-            canvas,
-            surface,
-            config,
-            filter_backend: None,
-            filter_backend_to: None,
-            compositor: None,
-            fonts: Vec::new(),
-            font_context: None,
-            modules: Vec::new(),
-            vars: Vec::new(),
-            runtime_inputs: animatix::timeline::RuntimeInputs::default(),
-            quality: BuildQuality::Draft,
-            offscreen: None,
-            offscreen_to: None,
-            composite: None,
-            dims: SceneDimensions::default(),
-            duration_s: 0.1,
-            target: None,
-            // Conservative pre-JS default: `_applyRenderScale()` runs later,
-            // so on HiDPI a 1.0 default would rasterize the first frames at
-            // 2x. 0.85 stays inside MIN_RENDER_SCALE..=MAX_RENDER_SCALE and
-            // keeps the pre-JS frames cheap; `set_render_scale` still wins.
-            render_scale: 0.85,
-            scaled: vello::Scene::new(),
-            dedup: animatix::timeline::frame_signature::FrameDedup::new(),
-            render_generation: 0,
-            frames_drawn: 0,
-            frames_deduped: 0,
-        })
+        let mut player = AmxPlayer::new(canvas, surface, config);
+        player.device_generation = ctx.generation;
+        Ok(player)
     })
+}
+
+/// Create a player using the requested canvas backend. The existing
+/// `create_player(canvas)` export remains the WebGPU compatibility entry point.
+#[wasm_bindgen]
+pub async fn create_player_for_backend(
+    canvas: HtmlCanvasElement,
+    backend: &str,
+) -> Result<AmxPlayer, JsError> {
+    match backend {
+        "webgpu" => create_player(canvas).await,
+        "webgl2" => super::webgl::create_webgl_player(canvas).await,
+        _ => Err(JsError::new("backend must be 'webgpu' or 'webgl2'")),
+    }
 }

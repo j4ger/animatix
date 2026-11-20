@@ -2,23 +2,19 @@
 //! blit the result to the canvas surface.
 
 use animatix::composition::BuildTarget;
+use animatix::scene::Scene;
 use animatix::timeline::effects::FilterBackend;
 use animatix::timeline::frame_signature::FrameSignature;
 use animatix::timeline::{DebugRenderOptions, RuntimeInputs, SceneDimensions, Timeline};
-use animatix_render::core::RendererCore;
-use animatix_render::filter_backend::GpuFilterBackend;
-use animatix_render::offscreen::{RasterFit, rasterize_scene, rasterize_scene_and_present};
+pub(super) use animatix_render::frame_gpu::FrameGpu as FrameRenderer;
 use animatix_render::transition::{
-    TransitionCompositor, collect_flip_pairs, composite_flip_overlay, encode_flip_overlay,
-    plan_shared_actors,
+    TransitionCompositor, collect_flip_pairs, encode_flip_overlay, plan_shared_actors,
 };
 use wasm_bindgen::prelude::*;
 use wgpu::CurrentSurfaceTexture;
 
 use super::context::with_engine;
-use super::{
-    AmxPlayer, EngineContext, FrameTarget, MAX_RENDER_SCALE, MIN_RENDER_SCALE, OffscreenTarget,
-};
+use super::{AmxPlayer, FrameTarget, MAX_RENDER_SCALE, MIN_RENDER_SCALE, OffscreenTarget};
 
 /// Raster target size for `scale`, rounded to whole pixels and clamped to
 /// `MIN_RENDER_SCALE..=MAX_RENDER_SCALE`.
@@ -39,7 +35,18 @@ impl AmxPlayer {
         if !self.has_document() {
             return Ok(());
         }
-        with_engine(|ctx| self.render_frame_inner(ctx, time_s))
+        if let Some(webgl) = self.webgl.clone() {
+            let mut frame_gpu = webgl.frame_gpu.borrow_mut();
+            return self.render_frame_inner(&webgl.device, &webgl.queue, &mut frame_gpu, time_s);
+        }
+        with_engine(|ctx| {
+            let ctx = ctx.map_err(|error| JsError::new(&error))?;
+            if self.device_generation != ctx.generation {
+                return Err(JsError::new("WebGPU context generation changed"));
+            }
+            let mut renderer = ctx.frame_gpu.borrow_mut();
+            self.render_frame_inner(&ctx.device, &ctx.queue, &mut renderer, time_s)
+        })
     }
 
     /// What the frame about to be drawn at `time_s` depends on, in one
@@ -74,16 +81,17 @@ impl AmxPlayer {
 
     fn render_frame_inner(
         &mut self,
-        ctx: Result<&EngineContext, String>,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        renderer: &mut FrameRenderer,
         time_s: f64,
     ) -> Result<(), JsError> {
-        let ctx = ctx.map_err(|e| JsError::new(&e))?;
         let width = self.canvas.width().max(1);
         let height = self.canvas.height().max(1);
         if self.config.width != width || self.config.height != height {
             self.config.width = width;
             self.config.height = height;
-            self.surface.configure(&ctx.device, &self.config);
+            self.surface.configure(device, &self.config);
         }
 
         // A loop rests on its finished frame for the whole `hold` window while the
@@ -106,7 +114,7 @@ impl AmxPlayer {
         // the player owns it so the lazy init has a home beside its targets.
         if blending && self.compositor.is_none() {
             self.compositor =
-                Some(TransitionCompositor::new(&ctx.device).map_err(|e| JsError::new(&e))?);
+                Some(TransitionCompositor::new(device).map_err(|e| JsError::new(&e))?);
         }
 
         let frame = match self.surface.get_current_texture() {
@@ -118,7 +126,7 @@ impl AmxPlayer {
             // reconfigure can hand us a fresh swapchain, so forget what was on
             // screen: the image the dedup is remembering may no longer exist.
             CurrentSurfaceTexture::Outdated => {
-                self.surface.configure(&ctx.device, &self.config);
+                self.surface.configure(device, &self.config);
                 self.dedup.invalidate();
                 return Ok(());
             },
@@ -128,14 +136,12 @@ impl AmxPlayer {
         };
         let surface_view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        let mut core = ctx.core.borrow_mut();
         let mut frame_ctx = FrameCtx {
-            core: &mut core,
-            device: &ctx.device,
-            queue: &ctx.queue,
+            renderer,
+            device,
+            queue,
             dims: self.dims,
             scale: self.render_scale,
-            scratch: &mut self.scaled,
             compositor: self.compositor.as_ref(),
             target: self.target.as_ref(),
             runtime_inputs: &self.runtime_inputs,
@@ -145,14 +151,11 @@ impl AmxPlayer {
             &mut frame_ctx,
             Targets {
                 primary: &mut self.offscreen,
-                primary_backend: &mut self.filter_backend,
                 secondary: &mut self.offscreen_to,
-                secondary_backend: &mut self.filter_backend_to,
                 composite: &mut self.composite,
             },
             SurfaceTarget {
                 view: &surface_view,
-                size: [width, height],
                 format: self.config.format,
             },
         );
@@ -160,7 +163,7 @@ impl AmxPlayer {
         match frame_result {
             Ok(()) => {
                 drop(surface_view);
-                ctx.queue.present(frame);
+                queue.present(frame);
                 self.frames_drawn += 1;
                 // Only now: this is the frame the canvas is showing, and the
                 // signature is the claim that redrawing it would change nothing.
@@ -180,16 +183,13 @@ impl AmxPlayer {
 /// handles, renderer core, scene geometry, raster scale and the playhead. Bundling
 /// lets [`render_document`]/[`render_timeline`] take a request plus a target.
 pub(super) struct FrameCtx<'a> {
-    pub(super) core: &'a mut RendererCore,
+    pub(super) renderer: &'a mut FrameRenderer,
     pub(super) device: &'a wgpu::Device,
     pub(super) queue: &'a wgpu::Queue,
     /// Scene dimensions the timeline is evaluated against (layout resolution).
     pub(super) dims: SceneDimensions,
     /// Raster scale applied to the encoded scene, `MIN_RENDER_SCALE..=MAX_RENDER_SCALE`.
     pub(super) scale: f32,
-    /// Re-encode buffer for a scaled raster; keeps a scaled frame from
-    /// allocating a scene per render.
-    pub(super) scratch: &'a mut vello::Scene,
     pub(super) compositor: Option<&'a TransitionCompositor>,
     /// The document being drawn, or `None` when nothing is loaded.
     pub(super) target: Option<&'a BuildTarget>,
@@ -205,10 +205,8 @@ pub(super) struct FrameCtx<'a> {
 pub(super) struct Targets<'a> {
     /// Outgoing/single scene.
     pub(super) primary: &'a mut Option<OffscreenTarget>,
-    pub(super) primary_backend: &'a mut Option<GpuFilterBackend>,
     /// Incoming scene of a transition.
     pub(super) secondary: &'a mut Option<OffscreenTarget>,
-    pub(super) secondary_backend: &'a mut Option<GpuFilterBackend>,
     /// The transition compositor's blended output.
     pub(super) composite: &'a mut Option<OffscreenTarget>,
 }
@@ -216,13 +214,11 @@ pub(super) struct Targets<'a> {
 #[derive(Clone, Copy)]
 struct SurfaceTarget<'a> {
     view: &'a wgpu::TextureView,
-    size: [u32; 2],
     format: wgpu::TextureFormat,
 }
 
 /// One timeline evaluated into one scene target.
 struct ScenePass<'a> {
-    backend: &'a mut Option<GpuFilterBackend>,
     target: &'a OffscreenTarget,
     timeline: &'a Timeline,
     time_s: f64,
@@ -253,16 +249,7 @@ fn render_document_for_surface(
 ) -> Result<(), String> {
     let (frame, already_presented) = render_document_inner(ctx, targets, Some(surface))?;
     if !already_presented {
-        ctx.core.blit_texture_to_format(
-            ctx.device,
-            ctx.queue,
-            &frame.view,
-            surface.view,
-            surface.size[0],
-            surface.size[1],
-            1.0,
-            surface.format,
-        );
+        ctx.renderer.blit(&frame.view, surface.view, surface.format, false);
     }
     Ok(())
 }
@@ -273,8 +260,14 @@ fn render_document_inner(
     surface: Option<SurfaceTarget<'_>>,
 ) -> Result<(FrameTarget, bool), String> {
     let scene = raster_dims(ctx.dims, ctx.scale);
-    let from =
-        ensure_offscreen(targets.primary, ctx.device, "animatix-web offscreen target", scene);
+    let backend_usage = wgpu::TextureUsages::COPY_DST;
+    let from = ensure_offscreen(
+        targets.primary,
+        ctx.device,
+        "animatix-web offscreen target",
+        scene,
+        backend_usage,
+    );
 
     match ctx.target {
         Some(BuildTarget::MultiScene(composition)) => {
@@ -287,14 +280,9 @@ fn render_document_inner(
                     .ok_or_else(|| format!("composition has no scene named '{scene_name}'"))?;
                 // Reuse a transition backend for the active scene before
                 // dropping the now-idle incoming slot.
-                if timeline.needs_filter_backend() && targets.primary_backend.is_none() {
-                    *targets.primary_backend = targets.secondary_backend.take();
-                }
-                *targets.secondary_backend = None;
                 let presented = render_timeline(
                     ctx,
                     ScenePass {
-                        backend: targets.primary_backend,
                         target: &from,
                         timeline,
                         time_s: local_time_s,
@@ -325,12 +313,6 @@ fn render_document_inner(
                 .get(&blend.to_scene)
                 .ok_or_else(|| format!("composition has no scene named '{}'", blend.to_scene))?
                 .timeline;
-            rebalance_filter_backends(
-                from_timeline.needs_filter_backend(),
-                to_timeline.needs_filter_backend(),
-                &mut *targets.primary_backend,
-                &mut *targets.secondary_backend,
-            );
             let shared = plan_shared_actors(from_timeline, blend.from_local, to_timeline, to_local);
             let flip_items = collect_flip_pairs(
                 &shared,
@@ -346,12 +328,14 @@ fn render_document_inner(
                 ctx.device,
                 "animatix-web offscreen target (to)",
                 scene,
+                backend_usage,
             );
             let composite_target = ensure_offscreen(
                 targets.composite,
                 ctx.device,
                 "animatix-web transition target",
                 scene,
+                backend_usage,
             );
             let compositor =
                 ctx.compositor.ok_or_else(|| "transition compositor missing".to_string())?;
@@ -359,7 +343,6 @@ fn render_document_inner(
             render_timeline(
                 ctx,
                 ScenePass {
-                    backend: targets.primary_backend,
                     target: &from,
                     timeline: from_timeline,
                     time_s: blend.from_local,
@@ -370,7 +353,6 @@ fn render_document_inner(
             render_timeline(
                 ctx,
                 ScenePass {
-                    backend: targets.secondary_backend,
                     target: &to,
                     timeline: to_timeline,
                     time_s: to_local,
@@ -392,29 +374,11 @@ fn render_document_inner(
             )?;
 
             if !flip_items.is_empty() {
-                let overlay = encode_flip_overlay(&flip_items, blend.progress as f32, blend.easing);
-                let scale = ctx.scale.clamp(MIN_RENDER_SCALE, MAX_RENDER_SCALE);
-                let overlay_ref: &vello::Scene = if (scale - 1.0).abs() < 1e-3 {
-                    &overlay
-                } else {
-                    // Same scaled-scene path `rasterize_scene` uses: append
-                    // under one uniform transform so geometry and the overlay
-                    // target share the raster scale.
-                    ctx.scratch.reset();
-                    ctx.scratch.append(&overlay, Some(kurbo::Affine::scale(scale as f64)));
-                    &*ctx.scratch
-                };
-                composite_flip_overlay(
-                    ctx.core,
-                    ctx.device,
-                    ctx.queue,
+                composite_web_flip_overlay(
+                    ctx,
+                    &encode_flip_overlay(&flip_items, blend.progress as f32, blend.easing),
                     &from.view,
                     &composite_target.view,
-                    SceneDimensions {
-                        width: scene.0,
-                        height: scene.1,
-                    },
-                    overlay_ref,
                 )?;
             }
 
@@ -423,14 +387,9 @@ fn render_document_inner(
         Some(BuildTarget::SingleScene(timeline)) => {
             // Reuse a transition backend for this scene before dropping the
             // now-idle incoming slot.
-            if timeline.needs_filter_backend() && targets.primary_backend.is_none() {
-                *targets.primary_backend = targets.secondary_backend.take();
-            }
-            *targets.secondary_backend = None;
             let presented = render_timeline(
                 ctx,
                 ScenePass {
-                    backend: targets.primary_backend,
                     target: &from,
                     timeline,
                     time_s: ctx.time_s,
@@ -440,73 +399,40 @@ fn render_document_inner(
             )?;
             Ok((from.frame_target(), presented))
         },
-        None => {
-            *targets.primary_backend = None;
-            *targets.secondary_backend = None;
-            Err("no document loaded".to_string())
-        },
+        None => Err("no document loaded".to_string()),
     }
 }
 
-/// Move a reusable backend out of a side that does not need one when the
-/// other transition side does and has no backend yet.
-fn rebalance_filter_backends(
-    from_needs: bool,
-    to_needs: bool,
-    from_backend: &mut Option<GpuFilterBackend>,
-    to_backend: &mut Option<GpuFilterBackend>,
-) {
-    if from_needs && !to_needs && from_backend.is_none() {
-        *from_backend = to_backend.take();
-    } else if !from_needs && to_needs && to_backend.is_none() {
-        *to_backend = from_backend.take();
+fn composite_web_flip_overlay(
+    ctx: &mut FrameCtx<'_>,
+    overlay: &Scene,
+    from: &wgpu::TextureView,
+    composite: &wgpu::TextureView,
+) -> Result<(), String> {
+    let scale = ctx.scale.clamp(MIN_RENDER_SCALE, MAX_RENDER_SCALE);
+    {
+        ctx.renderer.render_into(overlay, from, kurbo::Affine::scale(scale as f64))?;
+        ctx.renderer.over(composite, from, 1.0)
     }
 }
 
-/// Evaluate one frame of `pass.timeline`, lazily creating the GPU filter backend
-/// when the timeline contains `Filter`/`Glass` scopes. Draw it into
-/// `pass.target`, including pending zero-readback composites, via
-/// [`rasterize_scene`]. The target is sized by [`raster_dims`], not `ctx.dims`:
-/// the scene is re-encoded scaled down while the timeline evaluates at scene
-/// dimensions; filter composites are blitted into the smaller target at
-/// `origin * scale`.
+/// Evaluate the timeline for the target's raster scale and draw one frame.
 fn render_timeline(
     ctx: &mut FrameCtx<'_>,
     pass: ScenePass<'_>,
     surface: Option<SurfaceTarget<'_>>,
 ) -> Result<bool, String> {
     let ScenePass {
-        backend,
         target,
         timeline,
         time_s,
         suppressed,
     } = pass;
-    if timeline.needs_filter_backend() {
-        if backend.is_none() {
-            *backend =
-                Some(GpuFilterBackend::new(ctx.device.clone(), ctx.queue.clone(), ctx.dims)?);
-        }
-    } else {
-        // A document replacement can remove the last Filter/Glass scope while
-        // this scene slot survives. Release its targets instead of retaining a
-        // backend no longer needed by the displayed document.
-        *backend = None;
-    }
-    let (raster_w, raster_h) = raster_dims(ctx.dims, ctx.scale);
-    // Tell the chain its real raster size (derived from the integer raster, not
-    // `scale`, so chain and target cannot disagree by a rounding step).
-    if let Some(fb) = backend.as_mut() {
-        let achieved = (raster_w as f32 / ctx.dims.width.max(1) as f32)
-            .min(raster_h as f32 / ctx.dims.height.max(1) as f32);
-        fb.set_raster_scale(achieved);
-    }
-    let mut fb: Option<&mut dyn FilterBackend> = backend.as_mut().map(|b| b as _);
-    // The web player has its own raster-level `FrameDedup`, so the engine's
-    // `time_ms`-keyed frame cache only adds a full `vello::Scene` deep copy on
-    // every animation frame. Use the clone-free presentation entry point on the
-    // common single-scene path; FLIP transitions still need the suppressed
-    // program and keep their existing call.
+    let mut recorder = animatix_render::frame_gpu::SceneRecorder;
+    let mut fb: Option<&mut dyn FilterBackend> = Some(&mut recorder);
+
+    // FLIP overlays need the suppressed program. Other frames can take the
+    // clone-free presentation path because the Web player already deduplicates.
     let presentation = suppressed.is_empty();
     let scene = if presentation {
         timeline
@@ -523,58 +449,24 @@ fn render_timeline(
             )
             .scene
     };
-    drop(fb);
 
     let scale = ctx.scale.clamp(MIN_RENDER_SCALE, MAX_RENDER_SCALE);
-    let fit = if (scale - 1.0).abs() < 1e-3 {
-        RasterFit::OneToOne
-    } else {
-        RasterFit::Scaled {
-            scale,
-            scratch: &mut *ctx.scratch,
+    {
+        let transform = kurbo::Affine::scale(f64::from(scale));
+        if let Some(surface) = surface {
+            ctx.renderer.render_and_present(
+                &scene,
+                &target.view,
+                surface.view,
+                transform,
+                surface.format,
+            )?;
+            Ok(true)
+        } else {
+            ctx.renderer.render_frame_into(&scene, &target.view, transform)?;
+            Ok(false)
         }
-    };
-    // The shared rasterizer applies the scale to the encoding and drain, including
-    // the backdrop region; the drain receives the factor, not a pre-scaled region.
-    let raster = SceneDimensions {
-        width: raster_w,
-        height: raster_h,
-    };
-    let merged_presentation =
-        surface.is_some() && presentation && !timeline.needs_filter_backend() && backend.is_none();
-    let result = if let Some(surface) = surface.filter(|_| merged_presentation) {
-        rasterize_scene_and_present(
-            &mut *ctx.core,
-            ctx.device,
-            ctx.queue,
-            &target.view,
-            &scene,
-            raster,
-            fit,
-            surface.view,
-            surface.size,
-            surface.format,
-        )
-    } else {
-        rasterize_scene(
-            &mut *ctx.core,
-            ctx.device,
-            ctx.queue,
-            &target.view,
-            &scene,
-            raster,
-            fit,
-            backend.as_mut(),
-            Some(&target.texture),
-        )
-    };
-    // Park the presentation scene back so the next frame reuses its encoding
-    // allocation instead of allocating a fresh `vello::Scene`. Transition
-    // frames keep their own (cloned) scene-buffer behaviour unchanged.
-    if presentation {
-        timeline.recycle_presentation_scene(scene);
     }
-    result.map(|()| merged_presentation)
 }
 
 impl OffscreenTarget {
@@ -587,13 +479,13 @@ impl OffscreenTarget {
     }
 }
 
-/// Offscreen target usable by vello (STORAGE_BINDING), filter passes
-/// (RENDER_ATTACHMENT), texture compositors (TEXTURE_BINDING) and readback (COPY_SRC).
+/// Offscreen attachment for composition, readback, and the selected raster backend.
 fn create_offscreen(
     device: &wgpu::Device,
     label: &str,
     width: u32,
     height: u32,
+    backend_usage: wgpu::TextureUsages,
 ) -> (wgpu::Texture, wgpu::TextureView) {
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some(label),
@@ -607,7 +499,7 @@ fn create_offscreen(
         dimension: wgpu::TextureDimension::D2,
         format: wgpu::TextureFormat::Rgba8Unorm,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-            | wgpu::TextureUsages::STORAGE_BINDING
+            | backend_usage
             | wgpu::TextureUsages::COPY_SRC
             | wgpu::TextureUsages::TEXTURE_BINDING,
         view_formats: &[],
@@ -622,13 +514,16 @@ fn ensure_offscreen(
     device: &wgpu::Device,
     label: &str,
     scene: (u32, u32),
+    backend_usage: wgpu::TextureUsages,
 ) -> OffscreenTarget {
     if let Some(existing) = slot {
-        if (existing.width, existing.height) == scene {
+        if (existing.width, existing.height) == scene
+            && existing.texture.usage().contains(backend_usage)
+        {
             return existing.clone();
         }
     }
-    let (texture, view) = create_offscreen(device, label, scene.0, scene.1);
+    let (texture, view) = create_offscreen(device, label, scene.0, scene.1, backend_usage);
     let target = OffscreenTarget {
         texture: texture.clone(),
         view: view.clone(),

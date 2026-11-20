@@ -8,7 +8,7 @@ impl Timeline {
     ///
     /// The order of the two queue entries is the whole trick: the drain composites
     /// in queue order, so `backdrop` then `children` reproduces the depth the walk
-    /// had, which no single `vello::Scene` can express (the pinned vello always
+    /// had, which no single `crate::scene::Scene` can express (the pinned vello always
     /// clears its target, so the "above" half cannot simply be rendered into the
     /// main target afterwards).
     fn render_glass_children(
@@ -135,7 +135,7 @@ impl Timeline {
         )
         .unwrap_or(full);
 
-        let mut sub_scene = vello::Scene::new();
+        let mut sub_scene = crate::scene::Scene::new();
         out.with_scene(&mut sub_scene, |out| {
             for &child_id in &self.world.hierarchy(node_id).children {
                 self.evaluate_node_by_id(
@@ -166,6 +166,10 @@ impl Timeline {
             corner_radius: corner_radius as f32,
             alpha: global_opacity,
         };
+        if backend.records_scene_effects() {
+            out.scene.push_glass(backdrop, sub_scene);
+            return;
+        }
         if let Err(e) = backend.enqueue_backdrop(&backdrop) {
             tracing::warn!("Glass '{node_label}' backdrop could not be queued: {e}");
             return;

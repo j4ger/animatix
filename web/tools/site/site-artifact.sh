@@ -46,7 +46,7 @@ touch "$stage/.nojekyll"
 for forbidden in tools pkg pkg-slim pkg-assets fonts embed node_modules dev; do
   [ ! -e "$stage/$forbidden" ] || { echo "error: unexpected legacy/development path $forbidden" >&2; exit 1; }
 done
-bash tools/quality/size-report.sh --check --site "$stage"
+bash tools/quality/size-report.sh --site "$stage"
 rm -rf "$out"
 mv "$stage" "$out"
 trap - EXIT

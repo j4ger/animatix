@@ -4,51 +4,6 @@ use super::{EffectId, EffectParams};
 use crate::timeline::SceneDimensions;
 use crate::timeline::image::SceneImage;
 
-/// A GPU texture that should be composited after the main Vello scene render.
-#[derive(Clone)]
-pub struct PendingComposite {
-    /// Owns the copied filtered texture so `view` remains valid.
-    pub texture: wgpu::Texture,
-    /// Texture view sampled by the fullscreen compositor.
-    pub view: wgpu::TextureView,
-    /// Opacity to apply during compositing.
-    pub alpha: f32,
-    /// Destination top-left corner in **scene** pixels — see [`Self::texel_scale`]
-    /// for what the texture itself is measured in.
-    /// The composite covers `origin` plus the texture's size scaled back into
-    /// scene space (the full render target when the scope had no region).
-    pub origin: [f32; 2],
-    /// Texels of `texture` per scene pixel.
-    /// `1.0` = scene resolution, so the frame's raster scale still applies; a
-    /// backend told that scale via [`FilterBackend::set_raster_scale`] filtered
-    /// at it and this carries the factor, so a pre-scaled backdrop rect is not
-    /// shrunk twice by the drain.
-    pub texel_scale: f32,
-    /// Corner radius, in render-target pixels, to clip the composite to.
-    /// `0.0` composites the whole rectangle; a `Glass` panel passes its own so
-    /// the blurred backdrop keeps the panel's shape.
-    pub corner_radius: f32,
-    /// Sub-rectangle of the texture to sample, in texture pixels
-    /// `[x0, y0, x1, y1]`. A backdrop textures a *padded* region while only the
-    /// panel rect is composited; `None` samples the whole texture.
-    pub src_rect: Option<[f32; 4]>,
-    /// Destination rect to clip to, in render-target pixels `[x0, y0, x1, y1]`.
-    /// `None` composites at `origin` with the texture's own size.
-    pub clip_rect: Option<[f32; 4]>,
-}
-
-/// One layer the renderer must composite after the main scene render.
-/// Queue order is z-order: split `Glass` pieces must drain in walk order.
-#[derive(Clone)]
-pub enum PendingLayer {
-    /// A texture holding an effect chain's output over a sub-scene.
-    Composite(PendingComposite),
-    /// Blur what the render target already holds inside `region`, then composite
-    /// the result back there. The main target cannot be bound as a chain
-    /// texture, so this backdrop half is served at drain time.
-    Backdrop(PendingBackdrop),
-}
-
 /// A deferred backdrop-blur pass.
 #[derive(Clone)]
 pub struct PendingBackdrop {
@@ -103,10 +58,19 @@ pub struct EffectRegion {
     pub size: SceneDimensions,
 }
 
-/// Backend that can render a [`vello::Scene`] and apply an [`EffectChain`].
+/// Backend that can render a [`crate::scene::Scene`] and apply an [`EffectChain`].
 /// There is no CPU fallback: an unsupported chain errors and the timeline renders
 /// the children unfiltered with a diagnostic (`docs/effects.md` §5).
 pub trait FilterBackend: Send {
+    /// Whether effect scopes should be recorded into the device-neutral Scene
+    /// instead of executed while evaluating the timeline.
+    ///
+    /// New renderers use this to preserve Filter and Glass operations in painter
+    /// order. The legacy Vello adapter leaves this disabled.
+    fn records_scene_effects(&self) -> bool {
+        false
+    }
+
     /// Declare that the frame is about to be rasterized at `scale` of the
     /// scene's own resolution, so the chain can follow it.
     /// Defaults to a no-op (`1.0`); honouring it means resizing targets *and*
@@ -121,7 +85,7 @@ pub trait FilterBackend: Send {
     /// that region (the caller composites it at `region.origin`).
     fn render_scene_to_image_gpu_filtered(
         &mut self,
-        scene: &vello::Scene,
+        scene: &crate::scene::Scene,
         dimensions: SceneDimensions,
         region: Option<EffectRegion>,
         chain: &EffectChain,
@@ -131,7 +95,7 @@ pub trait FilterBackend: Send {
     /// that blits without CPU readback; `region` restricts its extent.
     fn render_scene_to_pending_composite(
         &mut self,
-        scene: &vello::Scene,
+        scene: &crate::scene::Scene,
         dimensions: SceneDimensions,
         region: Option<EffectRegion>,
         chain: &EffectChain,
@@ -153,7 +117,7 @@ pub trait FilterBackend: Send {
     /// always clears its target, so over-drawn content cannot render in place.
     fn enqueue_scene_composite(
         &mut self,
-        scene: &vello::Scene,
+        scene: &crate::scene::Scene,
         dimensions: SceneDimensions,
         origin: [f32; 2],
         alpha: f32,
@@ -161,24 +125,4 @@ pub trait FilterBackend: Send {
         let _ = (scene, dimensions, origin, alpha);
         Err("scene compositing is not supported by this backend".to_string())
     }
-
-    /// Serve one queued backdrop against `target`, the texture the main scene
-    /// has just been rendered into, and return the layer to composite.
-    fn run_backdrop(
-        &mut self,
-        target: &wgpu::Texture,
-        backdrop: &PendingBackdrop,
-    ) -> Result<PendingComposite, String> {
-        let _ = (target, backdrop);
-        Err("backdrop compositing is not supported by this backend".to_string())
-    }
-
-    /// Drain any pending layers produced by the scope paths above.
-    fn take_pending_composites(&mut self) -> Vec<PendingLayer> {
-        Vec::new()
-    }
-
-    /// Recycle a pending composite texture that has finished blitting.
-    /// Texture-pool backends reuse the allocation; the default drops it.
-    fn recycle_pending_composite(&mut self, _composite: PendingComposite) {}
 }

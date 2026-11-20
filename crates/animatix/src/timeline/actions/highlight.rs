@@ -6,16 +6,16 @@ use crate::timeline::Timeline;
 use crate::timeline::actions::BuiltinInvocation;
 use crate::timeline::property_track::TrackAccessor;
 
-/// Parse a blend mode string into a `vello::peniko::Mix` variant.
-fn parse_blend_mode(s: &str) -> vello::peniko::Mix {
+/// Parse a blend mode string into a `peniko::Mix` variant.
+fn parse_blend_mode(s: &str) -> peniko::Mix {
     match s {
-        "difference" => vello::peniko::Mix::Difference,
-        "exclusion" => vello::peniko::Mix::Exclusion,
-        "normal" => vello::peniko::Mix::Normal,
-        "multiply" => vello::peniko::Mix::Multiply,
-        "screen" => vello::peniko::Mix::Screen,
-        "overlay" => vello::peniko::Mix::Overlay,
-        _ => vello::peniko::Mix::Difference,
+        "difference" => peniko::Mix::Difference,
+        "exclusion" => peniko::Mix::Exclusion,
+        "normal" => peniko::Mix::Normal,
+        "multiply" => peniko::Mix::Multiply,
+        "screen" => peniko::Mix::Screen,
+        "overlay" => peniko::Mix::Overlay,
+        _ => peniko::Mix::Difference,
     }
 }
 
@@ -49,7 +49,9 @@ pub struct Highlight;
 
 impl BuiltinAction for Highlight {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::Highlight.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::Highlight
+            .descriptor()
+            .clone()
     }
 
     fn execute(
@@ -95,7 +97,7 @@ impl BuiltinAction for Highlight {
                     .ok()
                     .map(|v| parse_blend_mode(&v.as_str()))
             })
-            .unwrap_or(vello::peniko::Mix::Difference);
+            .unwrap_or(peniko::Mix::Difference);
 
         // Parse optional padding modifier
         let padding = action
@@ -207,7 +209,9 @@ pub struct Unhighlight;
 
 impl BuiltinAction for Unhighlight {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::Unhighlight.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::Unhighlight
+            .descriptor()
+            .clone()
     }
 
     fn execute(

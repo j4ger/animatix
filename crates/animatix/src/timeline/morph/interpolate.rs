@@ -104,15 +104,11 @@ fn curved_lerp_point(p1: Point, p2: Point, t: f64, path_arc: f64) -> Point {
     )
 }
 
-pub(super) fn lerp_color(
-    c1: vello::peniko::Color,
-    c2: vello::peniko::Color,
-    t: f32,
-) -> vello::peniko::Color {
+pub(super) fn lerp_color(c1: peniko::Color, c2: peniko::Color, t: f32) -> peniko::Color {
     let t = t.clamp(0.0, 1.0);
     let comp1 = c1.to_rgba8();
     let comp2 = c2.to_rgba8();
-    vello::peniko::Color::from_rgba8(
+    peniko::Color::from_rgba8(
         (comp1.r as f32 + (comp2.r as f32 - comp1.r as f32) * t) as u8,
         (comp1.g as f32 + (comp2.g as f32 - comp1.g as f32) * t) as u8,
         (comp1.b as f32 + (comp2.b as f32 - comp1.b as f32) * t) as u8,

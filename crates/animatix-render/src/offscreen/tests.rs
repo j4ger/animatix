@@ -164,6 +164,84 @@ mod readback_reuse_tests {
     }
 }
 
+mod frame_gpu_tests {
+    use super::common::solid_rect_timeline;
+    use super::*;
+
+    #[test]
+    fn export_readback_stays_opaque_after_resize() {
+        let Some(mut renderer) = new_renderer() else {
+            return;
+        };
+        let timeline = solid_rect_timeline();
+        for dimensions in [
+            SceneDimensions {
+                width: 160,
+                height: 120,
+            },
+            SceneDimensions {
+                width: 200,
+                height: 144,
+            },
+        ] {
+            let frame = render_frame(&mut renderer, &timeline, 0.0, dimensions);
+            assert_eq!(px(&frame, 50, 50), [255, 255, 255, 255], "white rect center");
+            let far_corner = (dimensions.width as usize - 1, dimensions.height as usize - 1);
+            assert_eq!(px(&frame, far_corner.0, far_corner.1), [0, 0, 0, 255], "black backing");
+        }
+    }
+
+    #[test]
+    fn pipelined_readback_matches_blocking_export() {
+        let Some(mut renderer) = new_renderer() else {
+            return;
+        };
+        let timeline = solid_rect_timeline();
+        let dimensions = SceneDimensions {
+            width: 200,
+            height: 160,
+        };
+        let pending_a = renderer
+            .begin_frame_with_debug(&timeline, 0.0, dimensions, DebugRenderOptions::default())
+            .expect("begin A");
+        let pending_b = renderer
+            .begin_frame_with_debug(&timeline, 0.0, dimensions, DebugRenderOptions::default())
+            .expect("begin B");
+        let frame_a = renderer.wait_frame(pending_a).expect("wait A");
+        let frame_b = renderer.wait_frame(pending_b).expect("wait B");
+        let blocking = render_frame(&mut renderer, &timeline, 0.0, dimensions);
+        assert_eq!(frame_a.rgba.as_ref(), blocking.rgba.as_ref());
+        assert_eq!(frame_b.rgba.as_ref(), blocking.rgba.as_ref());
+    }
+
+    #[test]
+    fn records_and_renders_filter_draws() {
+        let Some(mut renderer) = new_renderer() else {
+            return;
+        };
+        let timeline = build_checked(
+            r#"
+config { resolution: (160, 120) }
+#0s
+fx: Filter {
+  soft: Blur, radius: 6
+  box: Rect, size: (80, 80), color: (1, 0, 0, 1)
+}
+"#,
+        );
+        let frame = render_frame(
+            &mut renderer,
+            &timeline,
+            0.0,
+            SceneDimensions {
+                width: 160,
+                height: 120,
+            },
+        );
+        assert!(px(&frame, 80, 60)[0] > 0, "filtered center should contain ink");
+    }
+}
+
 #[test]
 fn offscreen_renderer_can_be_initialized() {
     // `new()` succeeds with an adapter and errors cleanly without one; either
@@ -189,7 +267,7 @@ fn offscreen_renderer_with_zero_dimensions_fails_gracefully() {
 }
 
 #[test]
-fn filter_backend_is_lazy_for_plain_frames_and_transition_sides() {
+fn filter_scope_renders_across_plain_frames_and_transition_sides() {
     let Some(mut renderer) = new_renderer() else {
         return;
     };
@@ -206,18 +284,11 @@ fx: Filter {
     );
 
     let plain_frame = render_frame(&mut renderer, &plain, 0.0, FRAME);
-    assert!(renderer.filter_backend.is_none(), "plain frames must not create a backend");
-    assert!(
-        renderer.filter_backend_b.is_none(),
-        "plain frames must not retain the transition slot"
-    );
 
     let filtered_frame = render_frame(&mut renderer, &filtered, 0.0, FRAME);
-    assert!(renderer.filter_backend.is_some(), "Filter scenes need the primary backend");
-    assert!(renderer.filter_backend_b.is_none(), "direct frames do not need the second slot");
 
     let plain_after_filter = render_frame(&mut renderer, &plain, 0.0, FRAME);
-    assert!(renderer.filter_backend.is_none(), "a plain frame must drop the prior backend");
+
     assert_eq!(plain_after_filter.rgba.as_ref(), plain_frame.rgba.as_ref());
 
     let to_filter = renderer
@@ -233,14 +304,7 @@ fx: Filter {
             DebugRenderOptions::default(),
         )
         .expect("plain to Filter transition");
-    assert!(
-        renderer.filter_backend.is_none(),
-        "plain outgoing side must not create a backend"
-    );
-    assert!(
-        renderer.filter_backend_b.is_some(),
-        "filtered incoming side needs its own backend"
-    );
+
     assert_eq!(to_filter.rgba.as_ref(), filtered_frame.rgba.as_ref());
 
     let from_filter = renderer
@@ -256,11 +320,7 @@ fx: Filter {
             DebugRenderOptions::default(),
         )
         .expect("Filter to plain transition");
-    assert!(renderer.filter_backend.is_some(), "filtered outgoing side needs its backend");
-    assert!(
-        renderer.filter_backend_b.is_none(),
-        "plain incoming side must not create a backend"
-    );
+
     assert_eq!(from_filter.rgba.as_ref(), filtered_frame.rgba.as_ref());
 
     let resized = SceneDimensions {
@@ -268,17 +328,9 @@ fx: Filter {
         height: 240,
     };
     let _ = render_frame(&mut renderer, &plain, 0.0, resized);
-    assert!(
-        renderer.filter_backend.is_none(),
-        "resize plus plain frame must stay backend-free"
-    );
-    assert!(renderer.filter_backend_b.is_none());
+
     let filtered_resized = render_frame(&mut renderer, &filtered, 0.0, resized);
-    assert!(
-        renderer.filter_backend.is_some(),
-        "resize must recreate the active Filter backend"
-    );
-    assert!(renderer.filter_backend_b.is_none());
+
     let resized_transition = renderer
         .render_transition(
             &plain,
@@ -292,8 +344,7 @@ fx: Filter {
             DebugRenderOptions::default(),
         )
         .expect("resized plain to Filter transition");
-    assert!(renderer.filter_backend.is_none());
-    assert!(renderer.filter_backend_b.is_some());
+
     assert_eq!(resized_transition.rgba.as_ref(), filtered_resized.rgba.as_ref());
 }
 

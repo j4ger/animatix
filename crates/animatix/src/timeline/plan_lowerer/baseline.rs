@@ -503,52 +503,53 @@ fn collect_builtin_start_fences(
     seen: &mut HashSet<FieldKey>,
     ignored_pending: &mut Vec<PendingField>,
 ) {
-    let Some(kind) = animatix_std::callable::TimelineBuiltin::from_name(&call.name) else {
+    let Some(kind) = animatix_core::builtins::callable::TimelineBuiltin::from_name(&call.name)
+    else {
         return;
     };
     let properties: &[&str] = match kind {
-        animatix_std::callable::TimelineBuiltin::FadeIn
-        | animatix_std::callable::TimelineBuiltin::FadeOut
-        | animatix_std::callable::TimelineBuiltin::Remove => &["opacity"],
-        animatix_std::callable::TimelineBuiltin::WipeIn
-        | animatix_std::callable::TimelineBuiltin::WipeOut => {
+        animatix_core::builtins::callable::TimelineBuiltin::FadeIn
+        | animatix_core::builtins::callable::TimelineBuiltin::FadeOut
+        | animatix_core::builtins::callable::TimelineBuiltin::Remove => &["opacity"],
+        animatix_core::builtins::callable::TimelineBuiltin::WipeIn
+        | animatix_core::builtins::callable::TimelineBuiltin::WipeOut => {
             &["stroke_progress", "fill_opacity", "opacity"]
         },
-        animatix_std::callable::TimelineBuiltin::DrawIn
-        | animatix_std::callable::TimelineBuiltin::DrawOut => {
+        animatix_core::builtins::callable::TimelineBuiltin::DrawIn
+        | animatix_core::builtins::callable::TimelineBuiltin::DrawOut => {
             &["stroke_progress", "fill_opacity", "opacity"]
         },
-        animatix_std::callable::TimelineBuiltin::RevealIn
-        | animatix_std::callable::TimelineBuiltin::RevealOut => &[
+        animatix_core::builtins::callable::TimelineBuiltin::RevealIn
+        | animatix_core::builtins::callable::TimelineBuiltin::RevealOut => &[
             "char_progress",
             "stroke_progress",
             "fill_opacity",
             "opacity",
         ],
-        animatix_std::callable::TimelineBuiltin::Move => {
+        animatix_core::builtins::callable::TimelineBuiltin::Move => {
             if call.args.iter().any(|(name, _)| name == "along") {
                 &["at", "rotation"]
             } else {
                 &["shift"]
             }
         },
-        animatix_std::callable::TimelineBuiltin::Shift
-        | animatix_std::callable::TimelineBuiltin::Shake
-        | animatix_std::callable::TimelineBuiltin::Bounce => &["shift"],
-        animatix_std::callable::TimelineBuiltin::Rotate => &["rotation"],
-        animatix_std::callable::TimelineBuiltin::Scale
-        | animatix_std::callable::TimelineBuiltin::Pulse
-        | animatix_std::callable::TimelineBuiltin::GrowIn
-        | animatix_std::callable::TimelineBuiltin::ShrinkOut => &["scale"],
-        animatix_std::callable::TimelineBuiltin::SettleIn
-        | animatix_std::callable::TimelineBuiltin::PopIn => &["opacity", "scale"],
-        animatix_std::callable::TimelineBuiltin::Highlight
-        | animatix_std::callable::TimelineBuiltin::Unhighlight => {
+        animatix_core::builtins::callable::TimelineBuiltin::Shift
+        | animatix_core::builtins::callable::TimelineBuiltin::Shake
+        | animatix_core::builtins::callable::TimelineBuiltin::Bounce => &["shift"],
+        animatix_core::builtins::callable::TimelineBuiltin::Rotate => &["rotation"],
+        animatix_core::builtins::callable::TimelineBuiltin::Scale
+        | animatix_core::builtins::callable::TimelineBuiltin::Pulse
+        | animatix_core::builtins::callable::TimelineBuiltin::GrowIn
+        | animatix_core::builtins::callable::TimelineBuiltin::ShrinkOut => &["scale"],
+        animatix_core::builtins::callable::TimelineBuiltin::SettleIn
+        | animatix_core::builtins::callable::TimelineBuiltin::PopIn => &["opacity", "scale"],
+        animatix_core::builtins::callable::TimelineBuiltin::Highlight
+        | animatix_core::builtins::callable::TimelineBuiltin::Unhighlight => {
             &["highlight_opacity", "highlight_padding", "highlight_radius"]
         },
-        animatix_std::callable::TimelineBuiltin::Persist
-        | animatix_std::callable::TimelineBuiltin::Swap
-        | animatix_std::callable::TimelineBuiltin::Reorder => &[],
+        animatix_core::builtins::callable::TimelineBuiltin::Persist
+        | animatix_core::builtins::callable::TimelineBuiltin::Swap
+        | animatix_core::builtins::callable::TimelineBuiltin::Reorder => &[],
     };
     if properties.is_empty() {
         return;

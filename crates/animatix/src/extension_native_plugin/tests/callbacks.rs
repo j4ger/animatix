@@ -9,7 +9,7 @@ fn native_assignment_write_keyframe_writes_extension_slot() {
     let property_ids = HashMap::from([("glow".to_string(), id)]);
     let property_kinds =
         HashMap::from([("glow".to_string(), animatix_syntax::schema::PropertyValueKind::F32)]);
-    let caps = animatix_std::caps_for_type("Rect").unwrap_or_default();
+    let caps = animatix_core::builtins::caps_for_type("Rect").unwrap_or_default();
     let mut plan = crate::timeline::plan::PropertyPlan::for_actor(&caps, "Rect");
     let mut host = NativeAssignmentHost {
         plan: &mut plan,
@@ -83,8 +83,10 @@ fn native_build_through_timeline_processes_children() {
     )
     .expect("adapter");
     let mut ctx = ExtensionContext::new();
-    let adapter_info =
-        animatix_std::PrimitiveInfo::extension(adapter.type_name.clone(), adapter.info.category);
+    let adapter_info = animatix_core::builtins::PrimitiveInfo::extension(
+        adapter.type_name.clone(),
+        adapter.info.category,
+    );
     ctx.register_primitive(Arc::new(adapter), adapter_info)
         .expect("register primitive");
     BUILD_CHILD_COUNT.store(0, std::sync::atomic::Ordering::SeqCst);
@@ -476,8 +478,10 @@ fn native_declared_builtin_properties_use_generic_writer() {
     )
     .expect("adapter");
     let mut ctx = ExtensionContext::new();
-    let adapter_info =
-        animatix_std::PrimitiveInfo::extension(adapter.type_name.clone(), adapter.info.category);
+    let adapter_info = animatix_core::builtins::PrimitiveInfo::extension(
+        adapter.type_name.clone(),
+        adapter.info.category,
+    );
     ctx.register_primitive(Arc::new(adapter), adapter_info)
         .expect("register primitive");
 
@@ -545,8 +549,10 @@ fn extension_actor_is_visible_from_declaration_time() {
     )
     .expect("adapter");
     let mut ctx = ExtensionContext::new();
-    let adapter_info =
-        animatix_std::PrimitiveInfo::extension(adapter.type_name.clone(), adapter.info.category);
+    let adapter_info = animatix_core::builtins::PrimitiveInfo::extension(
+        adapter.type_name.clone(),
+        adapter.info.category,
+    );
     ctx.register_primitive(Arc::new(adapter), adapter_info)
         .expect("register primitive");
 

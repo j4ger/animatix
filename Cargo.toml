@@ -3,7 +3,6 @@ members = [
     "crates/animatix",
     "crates/animatix-core",
     "crates/animatix-render",
-    "crates/animatix-std",
     "crates/animatix-analyzer",
     "crates/animatix-cli",
     "crates/animatix-gui",
@@ -17,10 +16,24 @@ members = [
     "web/tools/animatix-web-build",
     "web/tools/animatix-text-parity",
     "web/tools/animatix-web-build/fixtures/split-probe",
-    "crates/animatix-hybrid-bench",
     "crates/eparts"
 ]
-exclude = ["crates/vendor/vello", "crates/vendor/wasm-split-cli"]
+default-members = [
+    "crates/animatix",
+    "crates/animatix-core",
+    "crates/animatix-render",
+    "crates/animatix-analyzer",
+    "crates/animatix-cli",
+    "crates/animatix-gui",
+    "crates/animatix-lsp",
+    "crates/animatix-plugin-api",
+    "crates/animatix-plugin-tooling",
+    "crates/animatix-syntax",
+    "crates/animatix-text",
+    "crates/animatix-web",
+    "crates/eparts"
+]
+exclude = ["crates/vendor/typst-svg", "crates/vendor/wasm-split-cli"]
 resolver = "2"
 
 # One explicitly chosen version for the whole workspace. Release preparation
@@ -44,9 +57,11 @@ eframe          = { version = "0.37.0", default-features = false, features = ["d
 egui-phosphor   = { package = "egui-pop-phosphor", version = "0.15.0", default-features = false, features = ["regular"] }
 egui_tiles      = { version = "0.18.0", features = ["serde"] }
 
-# Shared graphics dep already duplicated across animatix + animatix-gui
+# Shared device types for the native and browser render drivers.
 wgpu            = { version = "30.0.1", default-features = false }
-vello           = { version = "0.11.0", default-features = false, features = ["wgpu"] }
+# First Sparse Strips release validated by the WebGPU/WebGL2 migration trial.
+vello_gpu       = { version = "=0.4.0", default-features = false, features = ["wgpu", "text", "full_image_support", "gradient_sweep", "blurred_rounded_rect"] }
+peniko          = "0.6.1"
 
 # Shared runtime/serialization deps used by multiple workspace crates
 bytemuck        = "1.25.0"
@@ -117,20 +132,10 @@ codegen-units = 1
 panic = "abort"
 strip = "symbols"
 
-# vello 0.11.0 still reproduces upstream issue #1948 (the patchless-resolve
-# variant of the persistent image-atlas bug first reported as #1558): a frame
-# with no late-bound resources (no images, gradients or glyphs) resizes the
-# persistent atlas to 1x1, and the next image frame samples a blank texture —
-# exactly our multi-scope filter pipeline. The local `src/render.rs` repair
-# keeps the existing atlas alive; remove that repair when a release includes
-# the upstream fix tracked by #1664.
-# The vendor also provides a synchronous encoder-suffix callback in `lib.rs`
-# and `wgpu_engine.rs`, joining Vello rendering and presentation before the
-# existing submit/resource-recycle boundary. Keep it until upstream provides
-# an equivalent submit-scoped API. `crates/vendor/vello/README.animatix.md` records
-# both removal conditions and the image/presentation boundary tests.
 [patch.crates-io]
-vello = { path = "crates/vendor/vello" }
+# Use the PDF interpreter directly until typst-svg ships this dependency fix.
+# crates/vendor/typst-svg/README.md records the revision and removal condition.
+typst-svg = { path = "crates/vendor/typst-svg" }
 # The alpha splitter drops function-alias relocations and overlapping data
 # ownership. Keep the tested local repairs until upstream incorporates them;
 # crates/vendor/wasm-split-cli/README.md records the revision and boundary tests.

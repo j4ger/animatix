@@ -1,21 +1,8 @@
-//! Minimal vello-level repro: does an alpha-0 image render poison later renders?
-//!
-//! This is the gate the `vello` pin's comment names, and it **asserts**: every
-//! step of the matrix must land on one of three bright-pixel counts (a
-//! full-frame image, the 20×40 rect, or nothing). It is the check to run before
-//! moving the dependency: Vello and the workspace must use compatible wgpu
-//! versions, and both local boundaries in `crates/vendor/vello/README.animatix.md`
-//! must be covered before removing the patch.
-//!
-//!History matrix (each row = a fresh Renderer + texture):
-//!  A: img(α0) → img(α1)              (bd_video shape — expected OK)
-//!  B: img(α0) → rect → img(α1)       (case_vig shape — FAILS in production)
-//!  C: rect → img(α1)                 (swap shape)
-//!  D: img(α1)                        (image-mode shape)
-use vello::peniko::{
-    Color, ImageAlphaType, ImageData as PenikoImageData, ImageFormat, ImageQuality,
-};
-use vello::{AaConfig, RenderParams, Renderer, RendererOptions, Scene};
+//! Image visibility across interleaved Vello GPU frames.
+
+use animatix::scene::Scene;
+use animatix_render::frame_gpu::FrameGpu;
+use peniko::{Color, ImageAlphaType, ImageData as PenikoImageData, ImageFormat, ImageQuality};
 use wgpu::TextureUsages;
 
 fn checker_image() -> PenikoImageData {
@@ -39,21 +26,21 @@ fn checker_image() -> PenikoImageData {
 
 fn img_scene(alpha: f32, data: &PenikoImageData) -> Scene {
     let mut scene = Scene::new();
-    let brush = vello::peniko::ImageBrush::new(data.clone())
-        .with_extend(vello::peniko::Extend::Pad)
+    let brush = peniko::ImageBrush::new(data.clone())
+        .with_extend(peniko::Extend::Pad)
         .with_quality(ImageQuality::Medium)
         .with_alpha(alpha);
-    let t = vello::kurbo::Affine::new([53.333_332, 0.0, 0.0, 30.0, 0.0, 0.0]);
+    let t = kurbo::Affine::new([53.333_332, 0.0, 0.0, 30.0, 0.0, 0.0]);
     scene.draw_image(&brush, t);
     scene
 }
 
 fn rect_scene() -> Scene {
     let mut scene = Scene::new();
-    let rect = vello::kurbo::Rect::new(440.0, 340.0, 460.0, 380.0);
+    let rect = kurbo::Rect::new(440.0, 340.0, 460.0, 380.0);
     scene.fill(
-        vello::peniko::Fill::NonZero,
-        vello::kurbo::Affine::IDENTITY,
+        peniko::Fill::NonZero,
+        kurbo::Affine::IDENTITY,
         Color::from_rgba8(255, 51, 51, 255),
         None,
         &rect,
@@ -74,7 +61,8 @@ fn make_texture(device: &wgpu::Device) -> (wgpu::Texture, wgpu::TextureView) {
         format: wgpu::TextureFormat::Rgba8Unorm,
         usage: TextureUsages::RENDER_ATTACHMENT
             | TextureUsages::COPY_SRC
-            | TextureUsages::STORAGE_BINDING
+            | TextureUsages::RENDER_ATTACHMENT
+            | TextureUsages::COPY_DST
             | TextureUsages::TEXTURE_BINDING,
         label: Some("probe target"),
         view_formats: &[],
@@ -137,7 +125,7 @@ fn readback_bright(device: &wgpu::Device, queue: &wgpu::Queue, texture: &wgpu::T
     bright
 }
 
-fn run_case(name: &str, use_cpu: bool, steps: &[(&str, f32)]) {
+fn run_case(name: &str, steps: &[(&str, f32)]) {
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
     let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
         power_preference: wgpu::PowerPreference::default(),
@@ -154,23 +142,8 @@ fn run_case(name: &str, use_cpu: bool, steps: &[(&str, f32)]) {
         ..Default::default()
     }))
     .expect("device");
-    let mut renderer = Renderer::new(
-        &device,
-        RendererOptions {
-            use_cpu,
-            pipeline_cache: None,
-            antialiasing_support: vello::AaSupport::all(),
-            num_init_threads: None,
-        },
-    )
-    .expect("renderer");
+    let mut renderer = FrameGpu::new(&device, &queue);
     let (texture, view) = make_texture(&device);
-    let params = RenderParams {
-        base_color: Color::TRANSPARENT,
-        width: 1280,
-        height: 720,
-        antialiasing_method: AaConfig::Area,
-    };
     let data = checker_image();
     for (i, (kind, alpha)) in steps.iter().enumerate() {
         let scene = match *kind {
@@ -178,25 +151,14 @@ fn run_case(name: &str, use_cpu: bool, steps: &[(&str, f32)]) {
             "rect" => rect_scene(),
             other => panic!("unknown step {other}"),
         };
-        renderer
-            .render_to_texture(&device, &queue, &scene, &view, &params)
-            .expect("render");
+        renderer.render_into(&scene, &view, kurbo::Affine::IDENTITY).expect("render");
         let bright = readback_bright(&device, &queue, &texture);
         eprintln!("[vp] {name} step {kind} alpha={alpha}: bright={bright}");
-        // The gate, not the print. Measured on the pinned rev, each step of the
-        // matrix is exactly one of three counts: a full-frame image at alpha 1
-        // covers the canvas (921_600), the 20×40 rect covers 800 px, and an
-        // image at alpha 0 covers nothing. The failure the pin exists for is the
-        // first of those collapsing to the third — the atlas evicting an image
-        // that a later non-image render had touched, so the draw produces no
-        // pixels at all. Thresholds rather than equality, so a backend whose
-        // antialiasing bleeds a little cannot fail for the wrong reason.
         match (*kind, *alpha) {
             ("img", a) if a > 0.5 => assert!(
                 bright >= 900_000,
                 "{name}: step {i} drew an image at alpha {a} and only {bright} of \
-                 921_600 canvas pixels have ink — the vanished-image symptom \
-                 `Cargo.toml` pins against"
+                 921_600 canvas pixels have ink — the vanished-image regression"
             ),
             ("img", _) => assert!(
                 bright <= 1_000,
@@ -215,25 +177,21 @@ fn run_case(name: &str, use_cpu: bool, steps: &[(&str, f32)]) {
 
 #[test]
 fn vello_image_history_matrix() {
-    let use_cpu = std::env::var_os("ANIMATIX_CPU_RENDER").is_some();
-    run_case("A img→img", use_cpu, &[("img", 0.0), ("img", 1.0)]);
-    run_case("B img→rect→img", use_cpu, &[("img", 0.0), ("rect", 1.0), ("img", 1.0)]);
-    run_case("C rect→img", use_cpu, &[("rect", 0.0), ("img", 1.0)]);
-    run_case("D img-only", use_cpu, &[("img", 1.0)]);
-    run_case("E img1→rect→img1", use_cpu, &[("img", 1.0), ("rect", 1.0), ("img", 1.0)]);
+    run_case("A img→img", &[("img", 0.0), ("img", 1.0)]);
+    run_case("B img→rect→img", &[("img", 0.0), ("rect", 1.0), ("img", 1.0)]);
+    run_case("C rect→img", &[("rect", 0.0), ("img", 1.0)]);
+    run_case("D img-only", &[("img", 1.0)]);
+    run_case("E img1→rect→img1", &[("img", 1.0), ("rect", 1.0), ("img", 1.0)]);
     run_case(
         "F img0→rect→rect→img1",
-        use_cpu,
         &[("img", 0.0), ("rect", 1.0), ("rect", 1.0), ("img", 1.0)],
     );
     run_case(
         "G img1→img1→rect→img1",
-        use_cpu,
         &[("img", 1.0), ("img", 1.0), ("rect", 1.0), ("img", 1.0)],
     );
     run_case(
         "H rect→img0→rect→img1",
-        use_cpu,
         &[("rect", 1.0), ("img", 0.0), ("rect", 1.0), ("img", 1.0)],
     );
 }

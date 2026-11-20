@@ -125,6 +125,20 @@ impl GuiShell {
         self.export_store.export_state.output_path = path.to_string_lossy().to_string();
     }
 
+    pub(super) fn set_export_format(&mut self, format: ExportFormat) {
+        let state = &self.export_store.export_state;
+        if state.format == format {
+            return;
+        }
+        let suggested_path = self.suggest_export_filename();
+        let use_suggested_path =
+            state.output_path.is_empty() || state.output_path == suggested_path.to_string_lossy();
+        self.export_store.export_state.format = format;
+        if use_suggested_path {
+            self.update_default_export_filename();
+        }
+    }
+
     fn export_source_is_ready(&mut self) -> bool {
         if self.document_store.source.document.last_rebuild_error.is_some()
             || self.document_store.showing_last_good()

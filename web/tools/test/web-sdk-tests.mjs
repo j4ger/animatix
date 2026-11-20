@@ -45,6 +45,23 @@ test('complete SDK validates against release, commit and version', t => {
   assert.equal(verify(dir, { release: true, commit: 'b'.repeat(40), version: '0.1.0' }).version, '0.1.0');
 });
 
+test('the current SDK requires both browser backends and old archives still verify', t => {
+  const { dir, manifest, save } = fixture(t);
+  verify(dir, { release: true });
+  assert.throws(() => verify(dir, { current: true }), /must contain WebGPU and WebGL2/);
+  manifest.render_backends = manifest.build.render_backends = ['webgpu'];
+  save();
+  verify(dir, { release: true });
+  assert.throws(() => verify(dir, { current: true }), /must contain WebGPU and WebGL2/);
+  manifest.render_backends = manifest.build.render_backends = ['webgpu', 'webgl2'];
+  manifest.build.input_digest = inputs();
+  save();
+  assert.deepEqual(verify(dir, { release: true, current: true }).render_backends, ['webgpu', 'webgl2']);
+  manifest.build.render_backends = ['webgpu'];
+  save();
+  assert.throws(() => verify(dir), /invalid SDK render backend inventory/);
+});
+
 test('SDK archives retain license notices and parseable dependency inventories', t => {
   const { dir, manifest, save } = fixture(t);
   delete manifest.files['THIRD-PARTY-NOTICES.txt']; save();
@@ -171,8 +188,8 @@ test('SDK identity includes relocated patched dependencies', t => {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   execFileSync('git', ['init', '--quiet', root]);
   const before = inputs(root);
-  const source = join(root, 'crates/vendor/vello/src/lib.rs');
-  mkdirSync(join(root, 'crates/vendor/vello/src'), { recursive: true });
+  const source = join(root, 'crates/vendor/wasm-split-cli/src/lib.rs');
+  mkdirSync(join(root, 'crates/vendor/wasm-split-cli/src'), { recursive: true });
   writeFileSync(source, '// patched source');
   const added = inputs(root);
   assert.notEqual(added, before);

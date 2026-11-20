@@ -91,7 +91,7 @@ fn evaluate_text_kind(
                     let pad = hl_padding as f64;
                     let hl_rect =
                         kurbo::Rect::new(min_x - pad, min_y - pad, max_x + pad, max_y + pad);
-                    let hl_color = vello::peniko::Color::from_rgba8(
+                    let hl_color = peniko::Color::from_rgba8(
                         (hl_color_arr[0] * 255.0) as u8,
                         (hl_color_arr[1] * 255.0) as u8,
                         (hl_color_arr[2] * 255.0) as u8,

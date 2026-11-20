@@ -56,7 +56,7 @@ fn text_color_override_reaches_shape_style() {
     let mut overrides = std::collections::HashMap::new();
     overrides.insert("color".to_string(), Value::Str("#ff2d55".to_string()));
     overrides.insert("stroke".to_string(), Value::Num(0.5));
-    let caps = animatix_std::caps_for_type("Line").unwrap_or_default();
+    let caps = animatix_core::builtins::caps_for_type("Line").unwrap_or_default();
     let style_tracks = crate::timeline::StyleTracks::default();
     let style = sample_shape_style(&style_tracks, caps, 0, Some(&overrides));
     let near = |a: [f32; 4], b: [f32; 4]| a.iter().zip(b).all(|(x, y)| (x - y).abs() < 1e-6);
@@ -133,23 +133,27 @@ fn find_primitive_roundtrips() {
 #[test]
 fn child_processing_capabilities_cover_special_containers() {
     assert_eq!(
-        animatix_std::catalog_lookup("Filter")
+        animatix_core::builtins::catalog_lookup("Filter")
             .expect("Filter built-in")
             .child_processing,
         ChildProcessing::Filter
     );
     assert_eq!(
-        animatix_std::catalog_lookup("Mask").expect("Mask built-in").child_processing,
+        animatix_core::builtins::catalog_lookup("Mask")
+            .expect("Mask built-in")
+            .child_processing,
         ChildProcessing::Mask
     );
     assert_eq!(
-        animatix_std::catalog_lookup("Equation")
+        animatix_core::builtins::catalog_lookup("Equation")
             .expect("Equation built-in")
             .child_processing,
         ChildProcessing::Equation
     );
     assert_eq!(
-        animatix_std::catalog_lookup("Row").expect("Row built-in").child_processing,
+        animatix_core::builtins::catalog_lookup("Row")
+            .expect("Row built-in")
+            .child_processing,
         ChildProcessing::Generic
     );
 }
@@ -173,7 +177,7 @@ fn registry_matches_primitives() {
     assert_eq!(
         catalog_names.len(),
         primitive_catalog().len(),
-        "duplicate type_name in the animatix-std catalog"
+        "duplicate type_name in the built-in catalog"
     );
     let behavior_names: std::collections::HashSet<&str> =
         BUILT_INS.iter().map(|entry| entry.behavior.type_name()).collect();
@@ -226,8 +230,8 @@ fn primitive_specs_cover_builtins_with_capabilities() {
 
 #[test]
 fn every_catalog_row_derives_caps() {
-    for info in animatix_std::CATALOG {
-        let caps = animatix_std::caps_from_info(info);
+    for info in animatix_core::builtins::CATALOG {
+        let caps = animatix_core::builtins::caps_from_info(info);
         let _ = caps; // derivation must be total over built-ins
     }
 }
@@ -277,7 +281,7 @@ fn runtime_text_content_crossfade_compiles_both_endpoints() {
         style: &style_tracks,
         text: Some(&text),
         property_plan: &property_plan,
-        caps: animatix_std::caps_for_type("Rect").unwrap_or_default(),
+        caps: animatix_core::builtins::caps_for_type("Rect").unwrap_or_default(),
         world: None,
 
         payload: None,

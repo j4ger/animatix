@@ -314,7 +314,7 @@ pub(crate) fn build_vector_field_paths(
         }
     }
 
-    let c = vello::peniko::Color::from_rgba8(
+    let c = peniko::Color::from_rgba8(
         (stroke_color[0] * 255.0) as u8,
         (stroke_color[1] * 255.0) as u8,
         (stroke_color[2] * 255.0) as u8,
@@ -411,7 +411,7 @@ pub(crate) fn build_heatmap_paths(
 
             vello_paths.push(VelloPath {
                 path: std::sync::Arc::new(bp),
-                fill: Some(vello::peniko::Color::from_rgba8(cr, cg, cb, alpha)),
+                fill: Some(peniko::Color::from_rgba8(cr, cg, cb, alpha)),
                 stroke: None,
                 line_cap: 0,
                 line_join: 0,
@@ -459,7 +459,7 @@ pub(crate) fn build_contour_set_paths(
     stroke_color: [f32; 4],
     stroke_width: f32,
 ) -> Vec<VelloPath> {
-    let c = vello::peniko::Color::from_rgba8(
+    let c = peniko::Color::from_rgba8(
         (stroke_color[0] * 255.0) as u8,
         (stroke_color[1] * 255.0) as u8,
         (stroke_color[2] * 255.0) as u8,
@@ -674,9 +674,11 @@ mod fast_field_tests {
                 [1.0, 0.0, 0.0, 0.8],
             );
             assert_eq!(paths.len(), 4);
-            assert!(paths.iter().all(|path| {
-                path.fill == Some(vello::peniko::Color::from_rgba8(255, 0, 0, 102))
-            }));
+            assert!(
+                paths
+                    .iter()
+                    .all(|path| { path.fill == Some(peniko::Color::from_rgba8(255, 0, 0, 102)) })
+            );
         }
     }
 
@@ -693,9 +695,9 @@ mod fast_field_tests {
                 [1.0, 0.0, 0.0, 1.0],
             );
             assert!(
-                paths.iter().all(|path| {
-                    path.fill == Some(vello::peniko::Color::from_rgba8(255, 0, 0, 0))
-                })
+                paths
+                    .iter()
+                    .all(|path| { path.fill == Some(peniko::Color::from_rgba8(255, 0, 0, 0)) })
             );
         }
     }
@@ -731,7 +733,7 @@ mod fast_field_tests {
             for (index, path) in paths.iter().enumerate() {
                 assert_eq!(
                     path.fill,
-                    Some(vello::peniko::Color::from_rgba8(255, 0, 0, expected_alpha[index % 3]))
+                    Some(peniko::Color::from_rgba8(255, 0, 0, expected_alpha[index % 3]))
                 );
             }
         }

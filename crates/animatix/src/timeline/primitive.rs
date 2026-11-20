@@ -33,8 +33,8 @@ impl PrimitiveFamilyDescriptor {
     ///
     /// This deliberately takes `&PrimitiveInfo` instead of looking up a static
     /// built-in so extension primitives participate in the same classification.
-    pub fn from_info(info: &animatix_std::PrimitiveInfo) -> Self {
-        let mut caps = animatix_std::caps_from_info(info);
+    pub fn from_info(info: &animatix_core::builtins::PrimitiveInfo) -> Self {
+        let mut caps = animatix_core::builtins::caps_from_info(info);
 
         // A plugin card that declares the `Container` category without any
         // container capability flag still normalizes to a recursable group
@@ -84,7 +84,7 @@ impl PrimitiveFamilyDescriptor {
 
 #[cfg(test)]
 mod tests {
-    use animatix_std::catalog_lookup;
+    use animatix_core::builtins::catalog_lookup;
 
     use super::PrimitiveFamilyDescriptor;
 
@@ -149,7 +149,7 @@ mod tests {
         // rebuilt from a coarse family classification.
         let info = catalog_lookup("Rect").expect("Rect built-in");
         let descriptor = PrimitiveFamilyDescriptor::from_info(info);
-        assert_eq!(descriptor.caps, animatix_std::caps_from_info(info));
+        assert_eq!(descriptor.caps, animatix_core::builtins::caps_from_info(info));
         assert!(descriptor.caps.vector_paths);
         assert!(descriptor.caps.is_shape);
 
@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn sloppy_container_category_gets_layout_defaults() {
-        let mut container_info = animatix_std::PrimitiveInfo::extension(
+        let mut container_info = animatix_core::builtins::PrimitiveInfo::extension(
             "SloppyContainer",
             crate::timeline::ActorCategory::Container,
         );
@@ -174,7 +174,7 @@ mod tests {
 
         // A genuinely sloppy card (Container category, no capability flags)
         // still normalizes to a recursable group container.
-        let bare_info = animatix_std::PrimitiveInfo::extension(
+        let bare_info = animatix_core::builtins::PrimitiveInfo::extension(
             "BareContainer",
             crate::timeline::ActorCategory::Container,
         );

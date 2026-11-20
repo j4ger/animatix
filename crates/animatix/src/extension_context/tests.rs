@@ -47,7 +47,7 @@ impl Primitive for Gauge {
         // text slots; override caps while keeping the extension's own actor type.
         ctx.timeline
             .world
-            .set_caps(track_id, animatix_std::caps_for_type("Text").unwrap_or_default());
+            .set_caps(track_id, animatix_core::builtins::caps_for_type("Text").unwrap_or_default());
         ctx.timeline.world.rebuild_property_plan(track_id);
         Ok(())
     }
@@ -102,7 +102,7 @@ fn context_registers_capabilities() {
     let mut ctx = ExtensionContext::new();
     ctx.register_primitive(
         Arc::new(Marker),
-        animatix_std::PrimitiveInfo {
+        animatix_core::builtins::PrimitiveInfo {
             type_name: "Marker".into(),
             display_name: "Marker".into(),
             category: ActorCategory::Annotation,
@@ -217,7 +217,7 @@ fn context_can_dispose_registered_capabilities() {
     let mut ctx = ExtensionContext::new();
     ctx.register_primitive(
         Arc::new(Marker),
-        animatix_std::PrimitiveInfo {
+        animatix_core::builtins::PrimitiveInfo {
             type_name: "Marker".into(),
             display_name: "Marker".into(),
             category: ActorCategory::Annotation,
@@ -375,7 +375,7 @@ fn build_with_context_writes_extension_properties() {
     let mut ctx = ExtensionContext::new();
     ctx.register_primitive(
         Arc::new(Gauge),
-        animatix_std::PrimitiveInfo {
+        animatix_core::builtins::PrimitiveInfo {
             type_name: "Gauge".into(),
             display_name: "Gauge".into(),
             category: ActorCategory::Plot,
@@ -491,7 +491,7 @@ fn extension_property_survives_carry_bag_serde() {
     let mut ctx = ExtensionContext::new();
     ctx.register_primitive(
         Arc::new(Gauge),
-        animatix_std::PrimitiveInfo {
+        animatix_core::builtins::PrimitiveInfo {
             type_name: "Gauge".into(),
             display_name: "Gauge".into(),
             category: ActorCategory::Plot,
@@ -578,7 +578,7 @@ fn build_with_context_registers_extension_behavior_for_render_dispatch() {
     let mut ctx = ExtensionContext::new();
     ctx.register_primitive(
         Arc::new(Gauge),
-        animatix_std::PrimitiveInfo::extension("Gauge", ActorCategory::Plot),
+        animatix_core::builtins::PrimitiveInfo::extension("Gauge", ActorCategory::Plot),
     )
     .expect("register Gauge");
 

@@ -4,7 +4,7 @@
 //!
 //! `build/` lowers the AST into a `Timeline` once; `scene_eval/` samples tracks
 //! per frame, runs `always` modifiers, resolves anchors, and emits a
-//! `vello::Scene`. The compile target is the post-expansion program, not the raw
+//! `crate::scene::Scene`. The compile target is the post-expansion program, not the raw
 //! parser AST.
 /// Timeline action processing (hover, click, etc.).
 pub mod actions;
@@ -182,7 +182,7 @@ pub use animation_track::{
     DEFAULT_WHITE, GeometryTracks, PlacementMode, PositionBinding, ResizeMode, SceneAnchor,
     ShapeTracks, StyleTracks, TextTracks,
 };
-pub use animatix_std::{caps_for_type, caps_from_info};
+pub use animatix_core::builtins::{caps_for_type, caps_from_info};
 pub use dispatch::{TrackFieldMut, TrackFieldRef};
 pub use property_track::{Easing, Interpolate, PropertyTrack, TrackAccessor};
 use timing::{
@@ -210,7 +210,7 @@ use crate::timeline::modifier_runtime::ir::ModifierIrProgram;
 /// regions. Keyed by `collect_items`, so a scene-only entry is never reused by a
 /// program call that must report items.
 type StaticSubtreeEntry = (
-    vello::Scene,
+    crate::scene::Scene,
     // Bounds captured for this subtree as `(bounds_slot, rect)` pairs.
     Vec<(u32, kurbo::Rect)>,
     Vec<crate::timeline::scene_program::SceneItem>,
@@ -412,7 +412,7 @@ pub(crate) struct EvalCaches {
             StaticSubtreeEntry,
         >,
     >,
-    scene_buffer: std::cell::RefCell<Option<vello::Scene>>,
+    scene_buffer: std::cell::RefCell<Option<crate::scene::Scene>>,
     /// Per-frame hit regions by entity id; [`Timeline::hit_regions`] materializes the label view.
     hit_regions: std::cell::RefCell<Vec<(EntityId, kurbo::Rect)>>,
     overrides_buffer: std::cell::RefCell<crate::timeline::modifier_runtime::ir::ModifierOverrides>,

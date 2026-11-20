@@ -354,7 +354,7 @@ replace values authored inside a returned plan.
 **Standard timeline functions.** Single-target operations accept exactly one
 of `target: Actor` or `targets: List<Actor>`. `swap` takes `a` and `b`; `reorder`
 takes `target` and `order`. The canonical signatures are declared by
-`animatix_std::callable::callables()` and power parsing-time validation,
+`animatix_core::builtins::callable::callables()` and power parsing-time validation,
 completion, hover, plugin manifests, and runtime binding.
 
 ```animatix

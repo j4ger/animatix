@@ -21,32 +21,27 @@ export class AmxPlayerLoad extends AmxPlayerView {
     const { generation, controller } = this._beginOperation();
     this._state = "loading";
     this._skeleton?.classList.add("loading");
-    if (!("gpu" in navigator)) {
-      this._state = "error";
-      const msg = "This embed needs a WebGPU browser (Chrome 113+, Firefox 141+, Safari 26+).";
-      console.warn(`amx-player: ${msg}`);
-      this._showVeil(msg, true);
-      const error = playerError(new Error("WebGPU is not supported by this browser"), "capability");
-      dispatchPlayerError(this, src, error);
-      this._settleVarsWaiters?.(error);
-      if (generation === this._operationGeneration) this._operationController = null;
-      return;
-    }
     let player = null;
     let candidate = null;
     try {
       const runtime = await loadRuntime();
+      if (runtime.backendPreference() === "webgpu" && !("gpu" in navigator)) {
+        throw playerError(new Error("WebGPU is not supported by this browser"), "capability");
+      }
       const source = await fetchSource(src, controller.signal);
       if (!this._isCurrentOperation(generation)) return;
       candidate = await this._prepareDocument(runtime, source, src, this._varsObject(), controller.signal);
       if (!this._isCurrentOperation(generation)) return;
-      await runtime.initEngine();
-      if (!this._isCurrentOperation(generation)) return;
       try {
-        player = await runtime.module.create_player(this._canvas);
+        player = await runtime.createPlayer(this._canvas, () => this._replaceCanvas());
       } catch (error) {
         throw playerError(error, "capability");
       }
+      if (!this._isCurrentOperation(generation)) return;
+      this._runtime = runtime;
+      this._player = player;
+      this._backendUnregister?.();
+      this._backendUnregister = runtime.registerPlayer?.(this) ?? null;
       const result = this._buildPrepared(player, candidate);
       const diags = result.diagnostics ?? [];
       const errors = diags.filter((d) => d.severity === "error");
@@ -58,8 +53,6 @@ export class AmxPlayerLoad extends AmxPlayerView {
         throw error;
       }
       if (!this._isCurrentOperation(generation)) return;
-      this._runtime = runtime;
-      this._player = player;
       this._loadedSource = source;
       this._loadedBundle = candidate;
       this._committedVars = { ...candidate.vars };
@@ -152,6 +145,11 @@ export class AmxPlayerLoad extends AmxPlayerView {
       // flight is not in the document that just built; apply it now rather
       // than dropping it. A no-op when the player already has this exact set.
       this._syncVars();
+      if (this._pendingBackendLost) {
+        const lost = this._pendingBackendLost;
+        this._pendingBackendLost = null;
+        this._handleBackendLost(lost);
+      }
       if (this._shouldAutoplay()) {
         this._loop = this.hasAttribute("loop");
         this.play();
@@ -161,7 +159,11 @@ export class AmxPlayerLoad extends AmxPlayerView {
       this.dispatchEvent(new CustomEvent("amxready", { bubbles: true }));
     } catch (err) {
       if (!this._isCurrentOperation(generation) || err?.name === "AbortError") return;
-      if (this._player === player) this._player = null;
+      if (this._player === player) {
+        this._backendUnregister?.();
+        this._backendUnregister = null;
+        this._player = null;
+      }
       if (candidate && this._loadedBundle === candidate) {
         this._loadedBundle = null;
         this._loadedSource = null;

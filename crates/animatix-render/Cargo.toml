@@ -20,22 +20,25 @@ animatix = { path = "../animatix", default-features = false }
 animatix-core = { path = "../animatix-core" }
 animatix-syntax = { path = "../animatix-syntax" }
 kurbo = { workspace = true }
+peniko = { workspace = true }
+glifo = { version = "0.5.0", default-features = false }
+vello_gpu = { workspace = true }
 bytemuck = { workspace = true }
 image = { workspace = true, features = ["png", "gif", "jpeg", "webp"], optional = true }
 pollster = { workspace = true }
 tracing = { workspace = true }
-wgpu = { workspace = true, default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
-# The local Vello repairs the #1948 atlas regression and exposes a synchronous
-# render-tail submission hook. vello_img_probe.rs and presentation_submit.rs
-# guard these boundaries; removal conditions are in crates/vendor/vello/README.animatix.md.
-vello = { workspace = true }
+wgpu = { workspace = true, features = ["std", "parking_lot", "wgsl"] }
 rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg8", "link_system_ffmpeg"], optional = true }
 
 tempfile = { version = "3", optional = true }
 
 [dev-dependencies]
 animatix = { path = "../animatix", features = ["image-decode"] }
+naga = { version = "30.0.1", features = ["wgsl-in", "glsl-out"] }
 tempfile = "3"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+wgpu = { workspace = true, features = ["vulkan"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 wgpu = { workspace = true, features = ["metal"] }

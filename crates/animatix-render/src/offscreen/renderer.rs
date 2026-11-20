@@ -1,5 +1,11 @@
 use super::*;
 
+#[derive(Clone, Copy)]
+enum ReadbackAlpha {
+    Opaque,
+    MayBePremultiplied,
+}
+
 impl OffscreenRenderer {
     /// Create a new offscreen renderer with an automatically-selected GPU adapter.
     pub fn new() -> Result<Self, String> {
@@ -41,15 +47,14 @@ impl OffscreenRenderer {
             core,
             output_texture: None,
             output_view: None,
+            readback_texture_gpu: None,
+            readback_view_gpu: None,
             readback_buffers: [None, None],
             texture_a: None,
             view_a: None,
             texture_b: None,
             view_b: None,
             compositor: None,
-            filter_backend: None,
-            filter_backend_b: None,
-            filter_backend_dimensions: None,
             dimensions: SceneDimensions {
                 width: 0,
                 height: 0,
@@ -95,17 +100,17 @@ impl OffscreenRenderer {
         debug_options: DebugRenderOptions,
     ) -> Result<RenderedFrame, String> {
         // TEMPORARY perf probe (env-gated): evaluate vs render vs readback.
-        let t0 = crate::filter_backend::timing_probe();
+        let t0 = crate::probe::timing_probe();
         self.render_to_output_texture(timeline, time_s, dimensions, debug_options)?;
-        let t_eval_render_ms = crate::filter_backend::probe_ms(t0);
-        let frame = self.readback_output(dimensions)?;
+        let t_eval_render_ms = crate::probe::probe_ms(t0);
+        let frame = self.readback_output_with_alpha(dimensions, ReadbackAlpha::Opaque)?;
         if t0.is_some() {
             eprintln!(
                 "[frame-timing] {}x{} evaluate+render={:.2}ms readback={:.2}ms",
                 dimensions.width,
                 dimensions.height,
                 t_eval_render_ms,
-                crate::filter_backend::probe_ms(t0) - t_eval_render_ms,
+                crate::probe::probe_ms(t0) - t_eval_render_ms,
             );
         }
         Ok(frame)
@@ -134,12 +139,11 @@ impl OffscreenRenderer {
         debug_options: DebugRenderOptions,
     ) -> Result<PendingFrame, String> {
         self.render_to_output_texture(timeline, time_s, dimensions, debug_options)?;
-        self.begin_readback(dimensions)
+        self.begin_readback_with_alpha(dimensions, ReadbackAlpha::Opaque)
     }
 
     /// Shared tail of `render_timeline_with_debug` / `begin_frame_with_debug`:
-    /// evaluate, render the scene, and blit pending filter composites onto
-    /// the output texture. Leaves the GPU work queued (no readback).
+    /// evaluate and render the scene to the output texture without reading it back.
     fn render_to_output_texture(
         &mut self,
         timeline: &Timeline,
@@ -170,14 +174,13 @@ impl OffscreenRenderer {
     ) -> Result<(RenderedFrame, animatix::timeline::scene_program::SceneProgram), String> {
         let program =
             self.render_to_output_texture_inner(timeline, time_s, dimensions, debug_options)?;
-        let frame = self.readback_output(dimensions)?;
+        let frame = self.readback_output_with_alpha(dimensions, ReadbackAlpha::Opaque)?;
         Ok((frame, program))
     }
 
     /// Shared tail of [`Self::render_to_output_texture`] and
-    /// [`Self::render_timeline_observable`]. Always evaluates the observable
-    /// program: the zero-readback path needs its scene and its pending-filter
-    /// composites, so both callers use the same evaluation.
+    /// [`Self::render_timeline_observable`]. Render the scene from the same
+    /// evaluation that produced the observable program.
     fn render_to_output_texture_inner(
         &mut self,
         timeline: &Timeline,
@@ -191,41 +194,13 @@ impl OffscreenRenderer {
 
         self.ensure_targets(dimensions);
 
-        // Reuse cached backends only at the current dimensions. A direct frame
-        // does not need the transition's second slot.
-        if self.filter_backend_dimensions != Some(dimensions) {
-            self.filter_backend = None;
-            self.filter_backend_b = None;
-            self.filter_backend_dimensions = Some(dimensions);
-        }
-        let needs_filter_backend = timeline.needs_filter_backend();
-        if needs_filter_backend {
-            if self.filter_backend.is_none() {
-                self.filter_backend = self.filter_backend_b.take();
-            }
-            if self.filter_backend.is_none() {
-                self.filter_backend = Some(GpuFilterBackend::new(
-                    self.device.clone(),
-                    self.queue.clone(),
-                    dimensions,
-                )?);
-            }
-        } else {
-            self.filter_backend = None;
-        }
-        self.filter_backend_b = None;
-        let mut fb: Option<&mut dyn animatix::timeline::effects::FilterBackend> =
-            self.filter_backend.as_mut().map(|backend| backend as _);
-        let t_eval = crate::filter_backend::timing_probe();
-        // Always take the zero-readback (pending) evaluate path: scopes record
-        // GPU composites that are blitted after the main render (below), so
-        // per-scope GPU->CPU readback stalls never enter the frame.
+        let t_eval = crate::probe::timing_probe();
+        let mut recorder = crate::frame_gpu::SceneRecorder;
+        let mut backend: Option<&mut dyn animatix::timeline::effects::FilterBackend> =
+            Some(&mut recorder);
         let program =
-            timeline.evaluate_program_with_debug(time_s, dimensions, debug_options, &mut fb);
-        // The scene is borrowed out of `program`; the borrow ends before the
-        // program is returned to the observable caller.
-        let scene: &vello::Scene = &program.scene;
-        let probe_eval_ms = crate::filter_backend::probe_ms(t_eval);
+            timeline.evaluate_program_with_debug(time_s, dimensions, debug_options, &mut backend);
+        let probe_eval_ms = crate::probe::probe_ms(t_eval);
 
         let output_view = self
             .output_view
@@ -233,43 +208,16 @@ impl OffscreenRenderer {
             .ok_or_else(|| "Missing offscreen output view".to_string())?;
 
         self.core
-            .render_vello_scene(
-                &self.device,
-                &self.queue,
-                output_view,
-                dimensions.width,
-                dimensions.height,
-                scene,
-            )
-            .map_err(|e| e.to_string())?;
+            .frame
+            .render_frame_into(&program.scene, output_view, kurbo::Affine::IDENTITY)?;
         if t_eval.is_some() {
             eprintln!(
                 "[frame-phases] evaluate={:.2}ms main_render={:.2}ms",
                 probe_eval_ms,
-                crate::filter_backend::probe_ms(t_eval) - probe_eval_ms,
+                crate::probe::probe_ms(t_eval) - probe_eval_ms,
             );
         }
 
-        // Blit pending zero-readback filter composites on top of the rendered scene
-        let pending = self
-            .filter_backend
-            .as_mut()
-            .map(|fb| fb.take_pending_composites())
-            .unwrap_or_default();
-
-        if let Some(backend) = self.filter_backend.as_mut() {
-            let output_texture = self.output_texture.as_ref();
-            drain_pending_layers(
-                &self.core,
-                &self.device,
-                &self.queue,
-                backend,
-                pending,
-                output_texture,
-                output_view,
-                1.0,
-            );
-        }
         Ok(program)
     }
 
@@ -278,6 +226,14 @@ impl OffscreenRenderer {
     /// [`Self::wait_frame`] (or call [`Self::readback_output`] for the
     /// blocking one-shot).
     pub fn begin_readback(&mut self, dimensions: SceneDimensions) -> Result<PendingFrame, String> {
+        self.begin_readback_with_alpha(dimensions, ReadbackAlpha::MayBePremultiplied)
+    }
+
+    fn begin_readback_with_alpha(
+        &mut self,
+        dimensions: SceneDimensions,
+        alpha: ReadbackAlpha,
+    ) -> Result<PendingFrame, String> {
         let output_texture = self
             .output_texture
             .as_ref()
@@ -290,6 +246,25 @@ impl OffscreenRenderer {
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Animatix Offscreen Readback Encoder"),
         });
+
+        // Single-scene frames clear to opaque black and accumulate with SrcOver.
+        // Their premultiplied colors are already valid straight-alpha pixels.
+        let output_texture = if matches!(alpha, ReadbackAlpha::MayBePremultiplied) {
+            let source = self
+                .output_view
+                .as_ref()
+                .ok_or_else(|| "Missing offscreen output view".to_string())?;
+            let target = self
+                .readback_view_gpu
+                .as_ref()
+                .ok_or_else(|| "Missing straight-alpha readback view".to_string())?;
+            self.core.frame.blit(source, target, wgpu::TextureFormat::Rgba8Unorm, true);
+            self.readback_texture_gpu
+                .as_ref()
+                .ok_or_else(|| "Missing straight-alpha readback texture".to_string())?
+        } else {
+            output_texture
+        };
 
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
@@ -390,21 +365,15 @@ impl OffscreenRenderer {
         &mut self,
         dimensions: SceneDimensions,
     ) -> Result<RenderedFrame, String> {
-        // Composite diagnostics: report how much of the composed output is
-        // opaque when `ANIMATIX_DUMP_STAGES` is set, so a regressed composite
-        // is visible in the log without re-running under a GPU capture.
-        if std::env::var_os("ANIMATIX_DUMP_STAGES").is_some()
-            && let Some(output_texture) = self.output_texture.as_ref()
-            && let Some(fb) = self.filter_backend.as_mut()
-        {
-            let img = fb.debug_readback_texture(output_texture, wgpu::Origin3d::ZERO, dimensions);
-            let data = img.data.data.data();
-            let n = data.len() / 4;
-            let step = (n / 300).max(1);
-            let opaque = (0..n).step_by(step).filter(|&i| data[i * 4 + 3] > 100).count();
-            eprintln!("[dump] output_view opaque={opaque}/{}", n / step);
-        }
-        let pending = self.begin_readback(dimensions)?;
+        self.readback_output_with_alpha(dimensions, ReadbackAlpha::MayBePremultiplied)
+    }
+
+    fn readback_output_with_alpha(
+        &mut self,
+        dimensions: SceneDimensions,
+        alpha: ReadbackAlpha,
+    ) -> Result<RenderedFrame, String> {
+        let pending = self.begin_readback_with_alpha(dimensions, alpha)?;
         self.wait_frame(pending)
     }
 
@@ -432,14 +401,39 @@ impl OffscreenRenderer {
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8Unorm,
             usage: wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::RENDER_ATTACHMENT
-                | wgpu::TextureUsages::STORAGE_BINDING,
+                | wgpu::TextureUsages::TEXTURE_BINDING,
             label: Some("Animatix Offscreen Output Texture"),
             view_formats: &[],
         });
         let output_view = output_texture.create_view(&wgpu::TextureViewDescriptor::default());
         self.output_texture = Some(output_texture);
         self.output_view = Some(output_view);
+
+        {
+            let readback_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+                size: wgpu::Extent3d {
+                    width: dimensions.width,
+                    height: dimensions.height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::COPY_SRC
+                    | wgpu::TextureUsages::COPY_DST
+                    | wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                label: Some("Animatix Straight Alpha Readback Texture"),
+                view_formats: &[],
+            });
+            let readback_view_gpu =
+                readback_texture.create_view(&wgpu::TextureViewDescriptor::default());
+            self.readback_texture_gpu = Some(readback_texture);
+            self.readback_view_gpu = Some(readback_view_gpu);
+        }
 
         // Two rotating MAP_READ buffers — frame N's pixels are read
         // (mapped) from slot A while frame N+1's copy lands in slot B.
@@ -464,9 +458,9 @@ impl OffscreenRenderer {
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8Unorm,
             usage: wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::RENDER_ATTACHMENT
-                | wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::STORAGE_BINDING,
+                | wgpu::TextureUsages::TEXTURE_BINDING,
             label: Some("Animatix Offscreen Texture A"),
             view_formats: &[],
         });
@@ -486,9 +480,9 @@ impl OffscreenRenderer {
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8Unorm,
             usage: wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::RENDER_ATTACHMENT
-                | wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::STORAGE_BINDING,
+                | wgpu::TextureUsages::TEXTURE_BINDING,
             label: Some("Animatix Offscreen Texture B"),
             view_formats: &[],
         });

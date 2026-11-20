@@ -42,18 +42,18 @@ pub(crate) unsafe fn read_c_string_len(ptr: *const c_char, len: usize) -> Option
 }
 
 /// Map a `NativeHighlightCommand.blend` / equation-fragment blend code.
-pub(crate) fn native_blend_from_code(code: u32) -> vello::peniko::Mix {
+pub(crate) fn native_blend_from_code(code: u32) -> peniko::Mix {
     match code {
-        1 => vello::peniko::Mix::Multiply,
-        2 => vello::peniko::Mix::Difference,
-        3 => vello::peniko::Mix::Screen,
-        _ => vello::peniko::Mix::Normal,
+        1 => peniko::Mix::Multiply,
+        2 => peniko::Mix::Difference,
+        3 => peniko::Mix::Screen,
+        _ => peniko::Mix::Normal,
     }
 }
 
-pub(crate) fn native_color([r, g, b, a]: [f64; 4]) -> vello::peniko::Color {
+pub(crate) fn native_color([r, g, b, a]: [f64; 4]) -> peniko::Color {
     let clamp = |component: f64| (component.clamp(0.0, 1.0) * 255.0).round() as u8;
-    vello::peniko::Color::from_rgba8(clamp(r), clamp(g), clamp(b), clamp(a))
+    peniko::Color::from_rgba8(clamp(r), clamp(g), clamp(b), clamp(a))
 }
 
 pub(crate) fn native_path_to_vello(

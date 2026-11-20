@@ -11,11 +11,15 @@
 pub mod core;
 #[cfg(all(feature = "raster-encode", not(target_arch = "wasm32")))]
 pub mod delivery;
+pub mod effects_gpu;
 pub mod encode;
-pub mod filter_backend;
+mod filter_region;
+pub mod frame_gpu;
 pub mod fullscreen_blit;
 pub mod instanced_line;
 pub mod offscreen;
+mod probe;
+pub mod raster_gpu;
 #[cfg(feature = "video")]
 pub mod render_pipeline;
 #[cfg(test)]

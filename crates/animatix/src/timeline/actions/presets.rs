@@ -131,7 +131,9 @@ pub struct SettleIn;
 
 impl BuiltinAction for SettleIn {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::SettleIn.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::SettleIn
+            .descriptor()
+            .clone()
     }
 
     fn execute(
@@ -150,7 +152,7 @@ pub struct PopIn;
 
 impl BuiltinAction for PopIn {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::PopIn.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::PopIn.descriptor().clone()
     }
 
     fn execute(

@@ -11,7 +11,7 @@ pub struct Reorder;
 
 impl BuiltinAction for Swap {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::Swap.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::Swap.descriptor().clone()
     }
 
     fn execute(
@@ -180,7 +180,7 @@ impl BuiltinAction for Swap {
 
 impl BuiltinAction for Reorder {
     fn signature(&self) -> CallableDescriptor {
-        animatix_std::callable::TimelineBuiltin::Reorder.descriptor().clone()
+        animatix_core::builtins::callable::TimelineBuiltin::Reorder.descriptor().clone()
     }
 
     fn execute(

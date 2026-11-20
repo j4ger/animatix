@@ -10,7 +10,7 @@ use super::*;
 /// instead of constructing a `Vec<Box<dyn BuiltinAction>>` for every lookup.
 /// `ALL` preserves the historical registry order used by
 /// [`super::get_action_signatures`].
-use animatix_std::callable::TimelineBuiltin as BuiltinActionKind;
+use animatix_core::builtins::callable::TimelineBuiltin as BuiltinActionKind;
 
 impl BuiltinAction for BuiltinActionKind {
     fn signature(&self) -> CallableDescriptor {

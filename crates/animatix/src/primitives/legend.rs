@@ -295,7 +295,7 @@ pub fn evaluate_legend(
     }
 
     use kurbo::{Rect, Shape};
-    use vello::peniko::Color;
+    use peniko::Color;
 
     let mut commands = Vec::new();
     let title =

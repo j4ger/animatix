@@ -103,7 +103,7 @@ pub(crate) fn build_graph_axis_paths(
             path: std::sync::Arc::new(axis_path),
             fill: None,
             stroke: Some((
-                vello::peniko::Color::from_rgba8(
+                peniko::Color::from_rgba8(
                     (axis_color[0] * 255.0) as u8,
                     (axis_color[1] * 255.0) as u8,
                     (axis_color[2] * 255.0) as u8,
@@ -145,7 +145,7 @@ pub(crate) fn build_graph_axis_paths(
                 path: std::sync::Arc::new(grid_path),
                 fill: None,
                 stroke: Some((
-                    vello::peniko::Color::from_rgba8(
+                    peniko::Color::from_rgba8(
                         (axis_color[0] * 255.0) as u8,
                         (axis_color[1] * 255.0) as u8,
                         (axis_color[2] * 255.0) as u8,
@@ -191,7 +191,7 @@ pub(crate) fn build_graph_axis_paths(
                 path: std::sync::Arc::new(tick_path),
                 fill: None,
                 stroke: Some((
-                    vello::peniko::Color::from_rgba8(
+                    peniko::Color::from_rgba8(
                         (axis_color[0] * 255.0) as u8,
                         (axis_color[1] * 255.0) as u8,
                         (axis_color[2] * 255.0) as u8,
@@ -240,13 +240,13 @@ pub(crate) fn build_number_plane_paths(
     let step_x = x_step.max(0.001);
     let step_y = y_step.max(0.001);
 
-    let axis_c = vello::peniko::Color::from_rgba8(
+    let axis_c = peniko::Color::from_rgba8(
         (axis_color[0] * 255.0) as u8,
         (axis_color[1] * 255.0) as u8,
         (axis_color[2] * 255.0) as u8,
         (axis_color[3] * 255.0) as u8,
     );
-    let grid_c = vello::peniko::Color::from_rgba8(
+    let grid_c = peniko::Color::from_rgba8(
         (axis_color[0] * 255.0) as u8,
         (axis_color[1] * 255.0) as u8,
         (axis_color[2] * 255.0) as u8,

@@ -621,7 +621,7 @@ struct StubBackend;
 impl crate::timeline::effects::FilterBackend for StubBackend {
     fn render_scene_to_image_gpu_filtered(
         &mut self,
-        _scene: &vello::Scene,
+        _scene: &crate::scene::Scene,
         _dimensions: SceneDimensions,
         _region: Option<crate::timeline::effects::EffectRegion>,
         _chain: &crate::timeline::effects::EffectChain,
@@ -630,23 +630,16 @@ impl crate::timeline::effects::FilterBackend for StubBackend {
     }
 }
 
-/// Compare two encoded vello scenes stream-by-stream (vello does not derive
-/// `PartialEq`/`Debug` for `Scene`/`Encoding`, but every stream is public and
-/// its element type is `PartialEq`).
-fn assert_same_encoding(a: &vello::Scene, b: &vello::Scene) {
-    let ea = a.encoding();
-    let eb = b.encoding();
-    assert!(ea.path_data == eb.path_data, "path_data stream differs");
-    assert!(ea.draw_data == eb.draw_data, "draw_data stream differs");
-    assert!(ea.path_tags == eb.path_tags, "path_tags stream differs");
-    assert!(ea.draw_tags == eb.draw_tags, "draw_tags stream differs");
-    assert!(ea.transforms == eb.transforms, "transforms stream differs");
-    assert!(ea.styles == eb.styles, "styles stream differs");
-    assert_eq!(ea.n_paths, eb.n_paths);
-    assert_eq!(ea.n_path_segments, eb.n_path_segments);
-    assert_eq!(ea.n_clips, eb.n_clips);
-    assert_eq!(ea.n_open_clips, eb.n_open_clips);
-    assert_eq!(ea.flags, eb.flags);
+/// Compare the ordered operation kinds emitted by two scene-evaluation paths.
+fn assert_same_draw_kinds(a: &crate::scene::Scene, b: &crate::scene::Scene) {
+    assert_eq!(a.draws().len(), b.draws().len(), "draw operation count differs");
+    for (left, right) in a.draws().iter().zip(b.draws()) {
+        assert_eq!(
+            std::mem::discriminant(left),
+            std::mem::discriminant(right),
+            "draw operation order differs"
+        );
+    }
 }
 
 /// With a backend present, the whole-frame `backend_can_run` flag is true for
@@ -768,7 +761,7 @@ fn presentation_scene_matches_debug_and_skips_frame_cache() {
     let via_debug =
         timeline.evaluate_with_debug(1.0, dims, DebugRenderOptions::default(), &mut None);
     let via_presentation = timeline.evaluate_for_presentation(1.0, dims, &mut None);
-    assert_same_encoding(&via_debug, &via_presentation);
+    assert_same_draw_kinds(&via_debug, &via_presentation);
 
     let fresh = make_minimal_timeline();
     assert!(

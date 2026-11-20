@@ -78,6 +78,14 @@ export class AmxPlayerBase extends HTMLElement {
     this._operationController = null;
     this._destroyed = false;
     this._varsWaiters = [];
+    this._runtimeInputs = {};
+    this._backendUnregister = null;
+    this._backendRecoveryPromise = null;
+    this._backendSuspended = false;
+    this._recoveryOldCanvas = null;
+    this._pendingBackendReload = null;
+    this._pendingBackendVars = false;
+    this._backendResumeRequested = false;
     this._loadWantedAt = 0; // set when the scheduler queues this player; see pumpLoads
     this._hudFlash = null;
     this._hudSkip = null;
@@ -198,6 +206,7 @@ export class AmxPlayerBase extends HTMLElement {
       // source, fonts, fetched imports and assets all stay registered.
       this._varsFromAttribute();
       if (this._state === "loading") this._resetForReload();
+      else if (this._backendSuspended) this._pendingBackendVars = true;
       else {
         if (this._state === "ready") this._cancelOperation();
         this._scheduleVarsRebuild(true);
@@ -235,6 +244,41 @@ export class AmxPlayerBase extends HTMLElement {
     }
   }
 
+  /// Replace a canvas after its context type has been selected. WebGPU and
+  /// WebGL2 cannot take turns owning one HTMLCanvasElement; auto fallback and
+  /// device recovery therefore create a fresh canvas while keeping the same
+  /// element-level player API.
+  _replaceCanvas({ preserveOld = false } = {}) {
+    const old = this._canvas;
+    const canvas = document.createElement("canvas");
+    canvas.width = old?.width || 1;
+    canvas.height = old?.height || 1;
+    canvas.hidden = old?.hidden ?? false;
+    canvas.tabIndex = old?.tabIndex ?? -1;
+    if (old) {
+      canvas.className = old.className;
+      canvas.style.cssText = old.style.cssText;
+      if (old.parentNode) {
+        if (preserveOld) {
+          old.style.pointerEvents = "none";
+          old.after(canvas);
+          if (this._recoveryOldCanvas && this._recoveryOldCanvas !== old) old.remove();
+          else this._recoveryOldCanvas = old;
+        } else {
+          old.replaceWith(canvas);
+        }
+      }
+    }
+    this._canvas = canvas;
+    if (this._controls) this._setupGestures?.();
+    return canvas;
+  }
+
+  _discardRecoveryCanvas() {
+    this._recoveryOldCanvas?.remove?.();
+    this._recoveryOldCanvas = null;
+  }
+
   /// Explicitly destroy this player. A DOM detach is not destruction because
   /// live editors reparent players while keeping their wasm state.
   destroy() {
@@ -243,6 +287,8 @@ export class AmxPlayerBase extends HTMLElement {
     this._cancelOperation();
     this.disconnectedCallback();
     core.forgetInstance(this);
+    this._backendUnregister?.();
+    this._backendUnregister = null;
     this.pause?.();
     this._freePlayer();
     this._player = null;
@@ -255,6 +301,10 @@ export class AmxPlayerBase extends HTMLElement {
   }
 
   _resetForReload(reason) {
+    if (this._backendSuspended) {
+      this._pendingBackendReload = reason || this._pendingBackendReload || "src";
+      return;
+    }
     if (this._state === "ready" && this._player) {
       this._reloadFromAttributes(reason).catch((error) => {
         dispatchPlayerError(this, this.getAttribute("src"), error, "resource");
@@ -262,6 +312,9 @@ export class AmxPlayerBase extends HTMLElement {
       return;
     }
     this._cancelOperation();
+    this._backendUnregister?.();
+    this._backendUnregister = null;
+    this._pendingBackendReload = null;
     this._freePlayer();
     this._loadedBundle?.prepared?.free?.();
     this._state = "idle";
