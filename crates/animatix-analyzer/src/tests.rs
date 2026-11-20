@@ -346,7 +346,7 @@ fn workspace_resolves_cross_file_symbols() {
     let mut workspace = Workspace::new();
 
     let lib_source = r#"
-let accent = rgb(255, 0, 0)
+let accent = rgb(1, 0, 0)
 btn: Button {
     text: "Click"
 }
@@ -374,7 +374,7 @@ fn analyzer_with_workspace_provides_cross_file_completions() {
     let mut workspace = Workspace::new();
 
     let lib_source = r#"
-let shared_color = rgb(0, 255, 0)
+let shared_color = rgb(0, 1, 0)
 "#;
     let main_source = r#"
 import "lib.amx"
@@ -414,7 +414,7 @@ fn workspace_resolves_aliased_imports_to_namespaces() {
     let mut workspace = Workspace::new();
 
     let lib_source = r#"
-pub let accent = rgb(255, 0, 0)
+pub let accent = rgb(1, 0, 0)
 pub component Button(text: Str = "Click") {}
 "#;
     let main_source = r#"
@@ -484,7 +484,7 @@ fn workspace_resolves_nested_namespace_depth() {
     let mut workspace = Workspace::new();
 
     let inner_source = r#"
-pub let accent = rgb(255, 0, 0)
+pub let accent = rgb(1, 0, 0)
 pub component InnerButton {
     frame: Rect
 }

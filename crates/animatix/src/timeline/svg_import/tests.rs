@@ -16,13 +16,15 @@ fn write_test_svg(source: &str) -> (TestTempDir, std::path::PathBuf) {
 
 #[test]
 fn test_parse_color_family() {
-    let rgb = || Expr::call("rgb", vec![Expr::Num(255.0), Expr::Num(0.0), Expr::Num(0.0)]);
+    let red = Some(Expr::Color([255, 0, 0, 255]));
     let cases: Vec<(&str, Option<Expr>)> = vec![
-        ("#ff0000", Some(rgb())),
-        ("#f00", Some(rgb())),
+        ("#ff0000", red.clone()),
+        ("#f00", red.clone()),
+        ("#010101", Some(Expr::Color([1, 1, 1, 255]))),
+        ("rgb(1, 1, 1)", Some(Expr::Color([1, 1, 1, 255]))),
         ("red", Some(Expr::Ident("red".into()))),
         ("none", None),
-        ("rgb(255, 0, 0)", Some(rgb())),
+        ("rgb(255, 0, 0)", red.clone()),
     ];
     for (input, expected) in cases {
         assert_eq!(parse_svg_color(input, None), expected, "color {input}");
@@ -227,17 +229,7 @@ fn test_import_with_transform() {
 
         // stroke_color
         let stroke_prop = props.iter().find(|p| p.name == "stroke_color").unwrap();
-        assert_eq!(
-            stroke_prop.value,
-            Expr::call(
-                "rgb",
-                vec![
-                    Expr::Num(0x33 as f64),
-                    Expr::Num(0x33 as f64),
-                    Expr::Num(0x33 as f64)
-                ]
-            )
-        );
+        assert_eq!(stroke_prop.value, Expr::Color([0x33, 0x33, 0x33, 255]));
 
         // stroke_width
         let sw_prop = props.iter().find(|p| p.name == "stroke_width").unwrap();

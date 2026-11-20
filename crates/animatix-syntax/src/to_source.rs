@@ -136,8 +136,8 @@ reveal(actor: backdrop, duration: 800ms)
 
     #[test]
     fn serialize_color_rgb() {
-        let expr = Expr::call("rgb", vec![Expr::Num(255.0), Expr::Num(128.0), Expr::Num(0.0)]);
-        assert_eq!(expr.to_source(), "rgb(255, 128, 0)");
+        let expr = Expr::call("rgb", vec![Expr::Num(1.0), Expr::Num(0.5), Expr::Num(0.0)]);
+        assert_eq!(expr.to_source(), "rgb(1, 0.5, 0)");
     }
 
     #[test]

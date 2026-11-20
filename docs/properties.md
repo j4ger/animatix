@@ -133,7 +133,7 @@ arc: Path, commands: {…}, stroke_width: 10, fill_opacity: 0.0,
 - `sweep(angle, stops)` — rotates around an optional `center`, starting at
   `angle`.
 - A stop is either a color (`hex_color("ff2d55")`, `(1.0, 0.18, 0.33)`, `accent.primary`,
-  `rgb(255, 45, 85)`) or an `(offset, color)` pair, where `offset` is `0..1` or a
+  `rgb(0.9, 0.2, 0.4)`) or an `(offset, color)` pair, where `offset` is `0..1` or a
   percentage. Stops without an offset are spread evenly.
 
 The two shared settings apply to whichever ramps an actor carries:

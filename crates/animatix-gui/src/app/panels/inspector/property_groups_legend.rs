@@ -33,6 +33,7 @@ pub(super) fn color_display(color: [f32; 4]) -> String {
     if a >= 0.999 {
         format!("#{r:02x}{g:02x}{b:02x}")
     } else {
-        format!("rgba({r},{g},{b},{a:.2})")
+        let [r, g, b, a] = color;
+        format!("rgba({r:.3},{g:.3},{b:.3},{a:.2})")
     }
 }

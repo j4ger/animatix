@@ -692,44 +692,36 @@ fn register_named_color_constants(env: &mut Environment) {
     }
 }
 
-/// RGB color constructors: `rgb(r, g, b)` and `rgba(r, g, b, a)`, accepting
-/// either 0–1 or 0–255 channel values.
+/// RGB and alpha use a single, normalized scale. Do not infer units from
+/// values that can vary from frame to frame.
 fn register_rgb_constructors(env: &mut Environment) {
-    env.set(
-        "rgb",
-        Value::NativeFn(Arc::new(|args, _env| {
-            expect_arg_count("rgb", args, 3)?;
-            match (&args[0], &args[1], &args[2]) {
-                (Value::Num(r), Value::Num(g), Value::Num(b)) => {
-                    let divisor = if *r > 1.0 || *g > 1.0 || *b > 1.0 {
-                        255.0
-                    } else {
-                        1.0
+    for (name, arity) in [("rgb", 3), ("rgba", 4)] {
+        env.set(
+            name,
+            Value::NativeFn(Arc::new(move |args, _env| {
+                expect_arg_count(name, args, arity)?;
+                let mut color = [1.0; 4];
+                for (channel, (out, value)) in
+                    ["r", "g", "b", "a"].into_iter().zip(color.iter_mut().zip(args))
+                {
+                    let Value::Num(value) = value else {
+                        return Err(EvalError::TypeMismatch(format!(
+                            "{name} expects a number for channel {channel}"
+                        )));
                     };
-                    Ok(Value::Color([*r / divisor, *g / divisor, *b / divisor, 1.0]))
-                },
-                _ => Err(EvalError::TypeMismatch("rgb expects 3 numbers".to_string())),
-            }
-        })),
-    );
-
-    env.set(
-        "rgba",
-        Value::NativeFn(Arc::new(|args, _env| {
-            expect_arg_count("rgba", args, 4)?;
-            match (&args[0], &args[1], &args[2], &args[3]) {
-                (Value::Num(r), Value::Num(g), Value::Num(b), Value::Num(a)) => {
-                    let divisor = if *r > 1.0 || *g > 1.0 || *b > 1.0 {
-                        255.0
-                    } else {
-                        1.0
-                    };
-                    Ok(Value::Color([*r / divisor, *g / divisor, *b / divisor, *a]))
-                },
-                _ => Err(EvalError::TypeMismatch("rgba expects 4 numbers".to_string())),
-            }
-        })),
-    );
+                    if !(0.0..=1.0).contains(value) {
+                        return Err(EvalError::ColorChannelOutOfRange {
+                            constructor: name,
+                            channel,
+                            value: *value,
+                        });
+                    }
+                    *out = *value;
+                }
+                Ok(Value::Color(color))
+            })),
+        );
+    }
 }
 
 /// Vector constructors: `vec2`, `vec3`, `vec4`.

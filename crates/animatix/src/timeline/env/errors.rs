@@ -12,6 +12,15 @@ impl fmt::Display for EvalError {
             EvalError::StringInColor => {
                 write!(f, "Expected a color value, got Str. Use hex_color(...) for fixed colors.")
             },
+            EvalError::ColorChannelOutOfRange {
+                constructor,
+                channel,
+                value,
+            } => write!(
+                f,
+                "{constructor} channel {channel} must be between 0 and 1, got {value}. \
+                 For byte channels, divide by 255 or use hex_color(...) for fixed colors."
+            ),
             EvalError::NotCallable(n) => write!(f, "Not callable: {}", n),
             EvalError::UnsupportedMethod(name) => {
                 write!(f, "Unsupported runtime method call: {}", name)

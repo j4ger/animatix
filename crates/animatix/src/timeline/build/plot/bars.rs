@@ -739,7 +739,7 @@ fn resolve_bar_colors(
     // Single color (no list) → uniform color
     match resolve_color_in_env(&prop.value, env) {
         Ok(Some(col)) => (false, vec![col]),
-        Err(error @ EvalError::StringInColor) => {
+        Err(error @ (EvalError::StringInColor | EvalError::ColorChannelOutOfRange { .. })) => {
             diagnostics.push(
                 Diagnostic::error(
                     DiagnosticCode::TypeMismatch,

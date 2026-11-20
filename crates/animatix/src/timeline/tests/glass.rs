@@ -333,7 +333,7 @@ plain: Glass, at: (320, 180), size: (200, 100) {
 fn a_glass_scope_names_the_surface_properties_it_cannot_use() {
     let source = r#"
 config { colorscheme: "editorial-dark", resolution: (320, 200) }
-c: Glass, at: (160, 100), size: (120, 60), color: rgb(255, 0, 0), fill_opacity: 0.5, stroke_width: 3 {
+c: Glass, at: (160, 100), size: (120, 60), color: rgb(1, 0, 0), fill_opacity: 0.5, stroke_width: 3 {
     f: Blur, radius: 10
 }
 "#;
@@ -356,7 +356,7 @@ c: Glass, at: (160, 100), size: (120, 60), color: rgb(255, 0, 0), fill_opacity: 
     // And the property it *does* consume stays quiet: `corner_radius` is the
     // frost's clip, not a paint.
     let rounded = source
-        .replace("color: rgb(255, 0, 0), fill_opacity: 0.5, stroke_width: 3", "corner_radius: 12");
+        .replace("color: rgb(1, 0, 0), fill_opacity: 0.5, stroke_width: 3", "corner_radius: 12");
     let rrep = build_ignoring_warnings(&rounded);
     assert!(
         rrep.1

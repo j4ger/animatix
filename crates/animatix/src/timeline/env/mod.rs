@@ -23,6 +23,15 @@ pub enum EvalError {
     TypeMismatch(String),
     /// A string was used where a color value is required.
     StringInColor,
+    /// A numeric color-constructor channel is outside the normalized range.
+    ColorChannelOutOfRange {
+        /// Name of the color constructor.
+        constructor: &'static str,
+        /// Channel name: r, g, b, or a.
+        channel: &'static str,
+        /// Supplied numeric channel value.
+        value: f64,
+    },
     /// Attempted to call a non-function value.
     NotCallable(String),
     /// Method name is not supported on the target type.

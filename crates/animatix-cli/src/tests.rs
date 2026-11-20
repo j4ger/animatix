@@ -46,6 +46,36 @@ fn check_and_lint_json_share_one_diagnostic_shape() {
 }
 
 #[test]
+fn rgb_out_of_range_is_reported_for_actor_colors() {
+    use animatix::timeline::{BuildOptions, Timeline};
+    use animatix_syntax::module::ModuleGraph;
+
+    let source = r#"
+#0s
+  wrong_rgb: Rect, color: rgb(2, 2, 2)
+  wrong_alpha: Rect, color: rgba(1, 0, 0, 128)
+"#;
+    let mut graph = ModuleGraph::new();
+    let program = graph
+        .load_program_with_source(Path::new("invalid-rgb.amx"), Some(source))
+        .unwrap();
+    let expanded = program.expand_components().unwrap();
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
+    for message in [
+        "rgb channel r must be between 0 and 1",
+        "rgba channel a must be between 0 and 1",
+    ] {
+        assert!(report.diagnostics.iter().any(|d| d.is_error() && d.message.contains(message)));
+    }
+}
+
+#[test]
 fn hex_color_lowers_to_a_constant_and_mixes_with_frame_time_rgb() {
     use animatix::timeline::modifier_runtime::ir::{
         CompiledExpr, ModifierOverrides, compile_expr, lower_modifier_ir,
@@ -66,7 +96,7 @@ let ink = hex_color("fff1d6")
 shape: Rect, size: (20, 12), color: ink, opacity: 1
 #0s
   always {
-    shape.stroke = lerp_color(hex_color("00a1ff80"), rgb(255, 255 * t, 0), t)
+    shape.stroke = lerp_color(hex_color("00a1ff80"), rgb(1, t, 0), t)
   }
 "#;
     let mut graph = ModuleGraph::new();

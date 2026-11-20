@@ -110,7 +110,7 @@ label: Text, text: "#ff2d55"
   rect.stroke = hex_color("ff2d55")
   always {
     rect.stroke = ink
-    rect.color = rgb(100 + 50 * sin(t), 0, 0)
+    rect.color = rgb(0.4 + 0.2 * sin(t), 0, 0)
   }
 "##;
     let diagnostics = typecheck_source(source);

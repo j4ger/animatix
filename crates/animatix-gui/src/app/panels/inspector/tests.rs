@@ -98,7 +98,7 @@ fn display_preserves_zero_false_and_empty_values() {
     assert_eq!(read_only::display_value(&PropertyKind::Text(String::new())), "\"\"");
     assert_eq!(
         read_only::display_value(&PropertyKind::Color([1.0, 0.0, 0.0, 0.0])),
-        "rgba(255,0,0,0.00)"
+        "rgba(1.000,0.000,0.000,0.00)"
     );
 }
 

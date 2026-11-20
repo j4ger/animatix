@@ -344,9 +344,41 @@ fn brace_list_preserves_elements_through_ir() {
 }
 
 #[test]
+fn rgb_and_rgba_use_only_normalized_channels() {
+    let mut env = Environment::new();
+    load_standard_library(&mut env);
+    for byte_channel in [0.99, 1.0, 1.01, 2.0, 255.0] {
+        let level = byte_channel / 255.0;
+        for (name, alpha, args) in [
+            ("rgb", 1.0, vec![num(level); 3]),
+            ("rgba", 0.5, vec![num(level), num(level), num(level), num(0.5)]),
+        ] {
+            let expr = Expr::call(name, args);
+            let expected = Value::Color([level, level, level, alpha]);
+            assert_eq!(evaluate_expr(&expr, &env).unwrap(), expected);
+            assert_eq!(evaluate_modifier_via_ir(compile_expr(&expr).unwrap(), &mut env), expected);
+        }
+    }
+
+    for (name, channel, args) in [
+        ("rgb", "r", vec![num(1.01), num(1.0), num(1.0)]),
+        ("rgb", "g", vec![num(0.0), num(-0.01), num(0.0)]),
+        ("rgb", "b", vec![num(0.0), num(0.0), num(f64::NAN)]),
+        ("rgba", "a", vec![num(0.0), num(0.0), num(0.0), num(128.0)]),
+    ] {
+        let error = evaluate_expr(&Expr::call(name, args), &env).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains(&format!("{name} channel {channel} must be between 0 and 1"))
+        );
+    }
+}
+
+#[test]
 fn ir_matches_ast_for_environment_functions() {
     let cases: Vec<Expr> = vec![
-        Expr::call("rgb".to_string(), vec![num(255.0), num(0.0), num(128.0)]),
+        Expr::call("rgb".to_string(), vec![num(1.0), num(0.0), num(0.5)]),
         Expr::call("rgba".to_string(), vec![num(1.0), num(0.5), num(0.0), num(0.25)]),
         Expr::call("vec2".to_string(), vec![num(3.0), num(4.0)]),
         Expr::call("hsv".to_string(), vec![num(120.0), num(1.0), num(1.0)]),
@@ -881,10 +913,8 @@ fn letchain_ir_matches_ast() {
 
 #[test]
 fn noise_family_and_oklab_lerp_agree_between_ir_and_ast() {
-    let color = |r: f64, g: f64, b: f64| {
-        // `rgb()` scales by 1/255, so pass 0–1 fractions through as byte values.
-        Expr::call("rgb".to_string(), vec![num(r * 255.0), num(g * 255.0), num(b * 255.0)])
-    };
+    let color =
+        |r: f64, g: f64, b: f64| Expr::call("rgb".to_string(), vec![num(r), num(g), num(b)]);
     let cases = vec![
         Expr::call("noise".to_string(), vec![num(1.5)]),
         Expr::call("noise2".to_string(), vec![num(1.5), num(-2.0)]),
@@ -934,7 +964,7 @@ fn noise_family_and_oklab_lerp_agree_between_ir_and_ast() {
 
     // OKLab lerp: achromatic mixes stay achromatic and between; a saturated
     // midpoint stays in gamut (the raw sRGB lerp of red→green is muddy olive).
-    let white = Expr::call("rgb".to_string(), vec![num(255.0); 3]);
+    let white = Expr::call("rgb".to_string(), vec![num(1.0); 3]);
     let black = Expr::call("rgb".to_string(), vec![num(0.0); 3]);
     let gray = eval(&Expr::call("lerp_color_oklab".to_string(), vec![white, black, num(0.5)]));
     let Value::Color(gray) = gray else {
@@ -995,7 +1025,7 @@ fn noise_family_and_oklab_lerp_agree_between_ir_and_ast() {
 fn color_builtins_accept_typed_colors_and_reject_strings() {
     let mut env = Environment::new();
     load_standard_library(&mut env);
-    let green = Expr::call("rgb".to_string(), vec![num(0.0), num(255.0), num(0.0)]);
+    let green = Expr::call("rgb".to_string(), vec![num(0.0), num(1.0), num(0.0)]);
 
     for name in ["lerp_color", "lerp_color_oklab"] {
         let lerp = |ink| {

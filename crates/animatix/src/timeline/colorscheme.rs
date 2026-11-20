@@ -255,7 +255,9 @@ impl ResolvedColorscheme {
         for prop in properties {
             let mut parse = |value: &Expr| match resolve_color_in_env(value, &env) {
                 Ok(Some(color)) => Some(color),
-                Err(error @ EvalError::StringInColor) => {
+                Err(
+                    error @ (EvalError::StringInColor | EvalError::ColorChannelOutOfRange { .. }),
+                ) => {
                     diagnostics.push(
                         Diagnostic::error(
                             DiagnosticCode::TypeMismatch,

@@ -48,15 +48,7 @@ pub(crate) fn parse_svg_color(value: &str, current_color: Option<&Expr>) -> Opti
             let r = nums[0] as u8;
             let g = nums[1] as u8;
             let b = nums[2] as u8;
-            // Return as rgb(r, g, b) call expression for Animatix to resolve
-            return Some(Expr::call(
-                "rgb",
-                vec![
-                    Expr::Num(r as f64),
-                    Expr::Num(g as f64),
-                    Expr::Num(b as f64),
-                ],
-            ));
+            return Some(Expr::Color([r, g, b, 255]));
         }
     }
 
@@ -78,11 +70,8 @@ pub(crate) fn parse_hex_color(hex: &str) -> Option<Expr> {
         return None;
     }?;
 
-    let r = ((rgb >> 16) & 0xFF) as f64;
-    let g = ((rgb >> 8) & 0xFF) as f64;
-    let b = (rgb & 0xFF) as f64;
-
-    Some(Expr::call("rgb", vec![Expr::Num(r), Expr::Num(g), Expr::Num(b)]))
+    let [_, r, g, b] = rgb.to_be_bytes();
+    Some(Expr::Color([r, g, b, 255]))
 }
 
 /// Convert a `<use>` element by resolving its href and cloning the referenced element.

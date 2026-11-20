@@ -458,14 +458,7 @@ pub(crate) fn parse_svg_color_with_gradients(
                 g,
                 b
             );
-            return Some(Expr::call(
-                "rgb",
-                vec![
-                    Expr::Num(r as f64),
-                    Expr::Num(g as f64),
-                    Expr::Num(b as f64),
-                ],
-            ));
+            return Some(Expr::Color([r, g, b, 255]));
         }
         // Unknown or unresolvable gradient reference — return None (transparent)
         return None;

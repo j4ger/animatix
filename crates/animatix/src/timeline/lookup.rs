@@ -156,6 +156,17 @@ pub(crate) fn evaluate_expr_with_lookup_diagnostic(
             push_unknown_lookup_path_diagnostic(diagnostics, subject, &lookup_key, suggestion);
             None
         },
+        Err(error @ EvalError::ColorChannelOutOfRange { .. }) => {
+            diagnostics.push(
+                Diagnostic::error(
+                    DiagnosticCode::TypeMismatch,
+                    DiagnosticPhase::Build,
+                    error.to_string(),
+                )
+                .with_subject(subject),
+            );
+            None
+        },
         Err(_) => None,
     }
 }
@@ -172,7 +183,7 @@ pub(crate) fn parse_color_in_env_with_lookup_diagnostic(
     match resolve_color_in_env(expr, env) {
         Ok(Some(color)) => Some(color),
         Ok(None) => Some(fallback),
-        Err(error @ EvalError::StringInColor) => {
+        Err(error @ (EvalError::StringInColor | EvalError::ColorChannelOutOfRange { .. })) => {
             diagnostics.push(
                 Diagnostic::error(
                     DiagnosticCode::TypeMismatch,

@@ -274,8 +274,12 @@ Six digits imply full opacity. The compiler reports invalid digits, lengths,
 and computed arguments before frame evaluation. `hex_color` is a reserved
 constructor keyword. Use its parenthesized form wherever a `Color` value goes.
 
-**Computed colors.** `rgb(255, 45, 85)` and `rgba(255, 45, 85, 0.5)` also
-produce `Color` values and accept expressions such as `sin(t)`.
+**Computed colors.** `rgb(1, 0.2, 0.35)` and `rgba(1, 0.2, 0.35, 0.5)`
+produce `Color` values and accept expressions such as `sin(t)`. All channels,
+including alpha, must be in `0..1` (inclusive). No scale is inferred from channel
+values. Divide computed byte channels by `255` before passing them, or use
+`hex_color("ff2d55")` for a fixed byte color. Out-of-range inputs are evaluation
+errors; clamp expressions explicitly if they can overshoot.
 
 ```amx
 let ink = hex_color("fff1d6")
@@ -283,7 +287,7 @@ packet: Rect, size: (80, 48), color: ink, opacity: 1
 
 #0s
   always {
-    packet.color = lerp_color(ink, rgb(255, 160 + 60 * sin(t), 214), 0.5)
+    packet.color = lerp_color(ink, rgb(1, (160 + 60 * sin(t)) / 255, 214 / 255), 0.5)
   }
 ```
 

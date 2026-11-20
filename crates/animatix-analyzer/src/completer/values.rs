@@ -143,8 +143,10 @@ fn simple_type_completions(ty: &TypeAnnotation) -> Vec<CompletionItem> {
                 label: "rgb(...)".to_string(),
                 kind: CompletionKind::Snippet,
                 detail: Some("Color".to_string()),
-                documentation: Some("RGB color: rgb(r, g, b)".to_string()),
-                insert_text: Some("rgb(${1:255}, ${2:255}, ${3:255})".to_string()),
+                documentation: Some(
+                    "RGB color with channels from 0 to 1: rgb(r, g, b)".to_string(),
+                ),
+                insert_text: Some("rgb(${1:1}, ${2:1}, ${3:1})".to_string()),
             });
         },
         TypeAnnotation::Str => {
