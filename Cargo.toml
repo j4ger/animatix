@@ -33,7 +33,7 @@ default-members = [
     "crates/animatix-web",
     "crates/eparts"
 ]
-exclude = ["crates/vendor/wasm-split-cli"]
+exclude = ["crates/vendor/typst-svg", "crates/vendor/wasm-split-cli"]
 resolver = "2"
 
 # One explicitly chosen version for the whole workspace. Release preparation
@@ -133,6 +133,9 @@ panic = "abort"
 strip = "symbols"
 
 [patch.crates-io]
+# Use the PDF interpreter directly until typst-svg ships this dependency fix.
+# crates/vendor/typst-svg/README.md records the revision and removal condition.
+typst-svg = { path = "crates/vendor/typst-svg" }
 # The alpha splitter drops function-alias relocations and overlapping data
 # ownership. Keep the tested local repairs until upstream incorporates them;
 # crates/vendor/wasm-split-cli/README.md records the revision and boundary tests.

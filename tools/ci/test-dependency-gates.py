@@ -44,11 +44,10 @@ def make_renderer_repo(extra_parent=False):
         if extra_parent:
             lock.write('dependencies = ["vello_cpu"]\n')
         for name, version, dependencies in [
-            ("hayro", "0.7.1", '["vello_cpu"]'),
-            ("vello_cpu", "0.0.8", '["vello_common 0.0.8", "glifo"]'),
-            ("vello_common", "0.0.8", "[]"),
-            ("glifo", "0.1.1", '["vello_common 0.0.9"]'),
-            ("vello_common", "0.0.9", "[]"),
+            ("epaint", "0.37.0", '["vello_cpu"]'),
+            ("vello_cpu", "0.2.0", '["vello_common", "glifo"]'),
+            ("glifo", "0.3.0", '["vello_common"]'),
+            ("vello_common", "0.2.0", "[]"),
         ]:
             lock.write(f'\n[[package]]\nname = "{name}"\nversion = "{version}"\n')
             lock.write(f'source = "{GATES.CRATES_IO}"\ndependencies = {dependencies}\n')
@@ -188,40 +187,40 @@ class DependencyGateTests(unittest.TestCase):
     def test_workspace_renderer_approves_current_cpu_paths_without_changing_strict_audit(self):
         temporary, repo = make_renderer_repo()
         self.addCleanup(temporary.cleanup)
-        rows = tree("animatix-web", ("vello_gpu", "0.4.0"), ("vello_cpu", "0.0.8"))
+        rows = tree("animatix-web", ("vello_gpu", "0.4.0"), ("vello_cpu", "0.2.0"))
         result = subprocess.CompletedProcess(["cargo"], 0, rows, "")
         with patch.object(GATES.subprocess, "run", return_value=result):
             approved = GATES.run_stage("workspace-renderer", repo)
             strict = GATES.run_stage("full-no-legacy", repo)
         self.assertEqual(approved["status"], "passed")
         self.assertEqual(strict["status"], "failed")
-        self.assertEqual(strict["graph_findings"], ["vello_cpu@0.0.8"])
+        self.assertEqual(strict["graph_findings"], ["vello_cpu@0.2.0"])
         self.assertEqual(approved["reviewed_cpu_packages"], strict["lockfile_findings"])
 
     def test_reviewed_cpu_version_cannot_gain_a_first_party_parent(self):
         temporary, repo = make_renderer_repo(extra_parent=True)
         self.addCleanup(temporary.cleanup)
-        rows = tree("animatix-web", ("vello_cpu", "0.0.8"))
+        rows = tree("animatix-web", ("vello_cpu", "0.2.0"))
         result = subprocess.CompletedProcess(["cargo"], 0, rows, "")
         with patch.object(GATES.subprocess, "run", return_value=result):
             graph = GATES.run_stage("workspace-renderer", repo)
         self.assertEqual(graph["status"], "failed")
-        self.assertEqual(graph["findings"], ["vello_cpu@0.0.8"])
+        self.assertEqual(graph["findings"], ["vello_cpu@0.2.0"])
 
-    def test_workspace_renderer_rejects_a_lock_only_cpu_package_in_the_graph(self):
-        temporary, repo = make_renderer_repo()
+    def test_workspace_renderer_rejects_old_cpu_package_even_if_only_in_lockfile(self):
+        temporary, repo = make_repo({"animatix-web": "0.1.0", "vello_common": "0.0.9"})
         self.addCleanup(temporary.cleanup)
-        rows = tree("animatix-web", ("vello_common", "0.0.9"), ("vello", "0.11.0"))
-        result = subprocess.CompletedProcess(["cargo"], 0, rows, "")
+        result = subprocess.CompletedProcess(["cargo"], 0, tree("animatix-web"), "")
         with patch.object(GATES.subprocess, "run", return_value=result):
             graph = GATES.run_stage("workspace-renderer", repo)
         self.assertEqual(graph["status"], "failed")
-        self.assertEqual(graph["findings"], ["vello@0.11.0", "vello_common@0.0.9"])
+        self.assertEqual(graph["graph_findings"], [])
+        self.assertEqual(graph["lockfile_findings"], ["vello_common@0.0.9"])
 
     def test_wasm_renderer_requires_both_backends_and_excludes_native_features(self):
         temporary, repo = make_renderer_repo()
         self.addCleanup(temporary.cleanup)
-        rows = tree("animatix-web", ("vello_gpu", "0.4.0"), ("vello_cpu", "0.0.8"))
+        rows = tree("animatix-web", ("vello_gpu", "0.4.0"))
         for features, findings in [
             ("webgpu,webgl", []),
             ("vulkan,webgpu", ["Wasm wgpu enables native backend: vulkan", "Wasm wgpu feature missing: webgl"]),
@@ -232,6 +231,17 @@ class DependencyGateTests(unittest.TestCase):
                 with patch.object(GATES.subprocess, "run", return_value=result):
                     graph = GATES.run_stage("wasm-renderer", repo)
                 self.assertEqual(graph["findings"], findings)
+
+    def test_wasm_renderer_rejects_cpu_packages_even_with_both_browser_backends(self):
+        temporary, repo = make_renderer_repo()
+        self.addCleanup(temporary.cleanup)
+        rows = tree("animatix-web", ("vello_gpu", "0.4.0"),
+                    ("vello_cpu", "0.0.8"), ("vello_cpu", "0.2.0"))
+        result = subprocess.CompletedProcess(["cargo"], 0, rows + "wgpu v30.0.1\twebgpu,webgl\n", "")
+        with patch.object(GATES.subprocess, "run", return_value=result):
+            graph = GATES.run_stage("wasm-renderer", repo)
+        self.assertEqual(graph["status"], "failed")
+        self.assertEqual(graph["findings"], ["vello_cpu@0.0.8", "vello_cpu@0.2.0"])
 
     def test_locked_graph_must_leave_lockfile_byte_identical(self):
         temporary, repo = make_repo(["animatix", "animatix-core"])

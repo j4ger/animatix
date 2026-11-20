@@ -55,29 +55,26 @@ The workspace renderer uses `vello_gpu` 0.4.0. The Compute crate and its
 shader package, the local Vello vendor directory and the Hybrid benchmark
 have been removed. The regular CI checks run `renderer-dependencies` against
 the locked workspace and Wasm graphs. The Wasm graph requires both browser
-backends and excludes native wgpu backends. CI checks the immediate parents
-of the documented upstream CPU dependencies and rejects new parents and
-unknown Vello packages. The strict audit still reports the third-party edges.
+backends and excludes native wgpu backends and legacy Vello packages. The
+workspace check allows the reviewed epaint dependencies and checks their
+immediate parents. The strict workspace audit reports these dependencies.
 
 ```sh
 nix develop -c tools/ci/ci.sh gate renderer-dependencies
 nix develop -c python3 tools/ci/dependency-gates.py --stage wasm-no-legacy --stage full-no-legacy
-nix develop -c cargo tree --locked --workspace --all-features --target all -i vello_cpu@0.0.8
 nix develop -c cargo tree --locked --workspace --all-features --target all -i vello_cpu@0.2.0
 ```
 
-The strict Wasm and workspace checks also report third-party Vello packages.
-Typst 0.15.1 brings Hayro's CPU PDF rasterizer into the rich-text dependency
-graph through its HTML/SVG stack. The paged realizer also imports the HTML
-crate directly. On native GUI builds epaint 0.37.0 uses `vello_cpu` for its
-font atlas. Removing those edges requires upstream changes or maintained forks
-of dependencies that provide rich text and GUI chrome.
+The [local Typst SVG patch](../crates/vendor/typst-svg/README.md) uses Hayro's
+PDF interpreter directly and removes the PDF rasterizer from the rich-text
+dependency graph. On native GUI builds epaint 0.37.0 uses `vello_cpu` for its
+font atlas.
 
-| Check | Result after switching defaults |
+| Check | Result with the Typst SVG patch |
 | --- | --- |
 | `minimal-engine` | Pass. The engine without optional features has no graphics device dependencies. |
-| `wasm-no-legacy` | Reports `vello_cpu` and `vello_common` 0.0.8 through Typst and Hayro. |
-| `full-no-legacy` | Also reports the epaint stack at 0.2.0 and a lockfile-only `vello_common` 0.0.9 entry. |
+| `wasm-no-legacy` | Pass. The shipped Web SDK keeps rich text and has no legacy Vello packages in its graph. |
+| `full-no-legacy` | Reports the desktop epaint stack at 0.2.0. |
 
 ## Linux migration verification
 

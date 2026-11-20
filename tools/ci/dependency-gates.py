@@ -5,8 +5,8 @@ The checks use `cargo tree --locked` with explicit package/edge/target scopes.
 The minimal-engine and wasm checks report on their resolved package graph;
 they do not fail just because another workspace target still has an old package
 in Cargo.lock. The workspace checks cover every package, feature, dependency
-kind, and target, then also check the lockfile. CI permits the documented
-third-party CPU edges. The strict no-legacy checks still report them.
+kind, and target, then also check the lockfile. Workspace CI permits the
+documented epaint CPU edges. The strict workspace audit still reports them.
 
 Examples:
 
@@ -44,13 +44,9 @@ NEW_VELLO_GPU_STACK = {
 }
 CRATES_IO = "registry+https://github.com/rust-lang/crates.io-index"
 REVIEWED_CPU_PARENTS = {
-    "vello_cpu@0.0.8": {"hayro@0.7.1"},
-    "vello_common@0.0.8": {"vello_cpu@0.0.8"},
-    "vello_common@0.0.9": {"glifo@0.1.1"},
     "vello_cpu@0.2.0": {"epaint@0.37.0"},
     "vello_common@0.2.0": {"vello_cpu@0.2.0", "glifo@0.3.0"},
 }
-LOCK_ONLY_CPU_PACKAGES = {"vello_common@0.0.9"}
 NATIVE_WGPU_FEATURES = {"dx12", "gles", "metal", "vulkan", "vulkan-portability"}
 
 
@@ -102,7 +98,6 @@ STAGES = {
 STAGES["wasm-renderer"] = replace(
     STAGES["wasm-no-legacy"],
     name="wasm-renderer",
-    reviewed_cpu_packages=frozenset({"vello_cpu@0.0.8", "vello_common@0.0.8"}),
     require_browser_backends=True,
 )
 STAGES["workspace-renderer"] = replace(
@@ -268,10 +263,9 @@ def run_stage(
     packages = parse_tree_output(result.stdout)
     lock = lockfile_packages(lockfile) if stage.inspect_lockfile or stage.reviewed_cpu_packages else []
     approved = reviewed_cpu_packages(stage, lock)
-    graph_approved = approved - LOCK_ONLY_CPU_PACKAGES
     graph_findings = sorted({
         _package_key(row) for row in packages if _is_forbidden(stage, row)
-    } - graph_approved)
+    } - approved)
     lock_findings: list[str] = []
     if stage.inspect_lockfile:
         lock_findings = sorted({
