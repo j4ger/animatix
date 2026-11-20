@@ -51,6 +51,19 @@ fn known_callable_completes_actor_arguments() {
 }
 
 #[test]
+fn color_property_offers_hex_color_constructor() {
+    let items = value_for_property(
+        &Some("color".to_string()),
+        Some("Rect"),
+        &SymbolTable::build_from_ast(&[]),
+    );
+    assert!(items.iter().any(|item| {
+        item.label == "hex_color(...)"
+            && item.insert_text.as_deref() == Some(r#"hex_color("${1:fff1d6}")"#)
+    }));
+}
+
+#[test]
 fn top_level_completions_include_all_builtin_kinds() {
     let source = "";
     let symbols = SymbolTable::build_from_ast(&[]);

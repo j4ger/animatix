@@ -211,6 +211,7 @@ pub fn walk_expr<'ast, V: AstVisitor<'ast> + ?Sized>(visitor: &mut V, expr: &'as
         Expr::Num(_)
         | Expr::Percent(_)
         | Expr::Str(_)
+        | Expr::Color(_)
         | Expr::Bool(_)
         | Expr::Null
         | Expr::Duration(_)
@@ -630,6 +631,7 @@ pub fn walk_fold_expr<F: AstFolder + ?Sized>(folder: &mut F, expr: Expr) -> Expr
         Expr::Num(_)
         | Expr::Percent(_)
         | Expr::Str(_)
+        | Expr::Color(_)
         | Expr::Bool(_)
         | Expr::Null
         | Expr::Duration(_)

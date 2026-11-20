@@ -197,6 +197,7 @@ pub(super) fn rewrite_expr(
         Expr::Unit => Expr::Unit,
         Expr::Percent(value) => Expr::Percent(*value),
         Expr::Str(value) => Expr::Str(value.clone()),
+        Expr::Color(value) => Expr::Color(*value),
         Expr::Bool(value) => Expr::Bool(*value),
         Expr::Null => Expr::Null,
     }

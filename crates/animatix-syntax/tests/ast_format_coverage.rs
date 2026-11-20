@@ -603,6 +603,7 @@ fn probes_expr() -> Vec<(&'static str, Expr, &'static str)> {
         ("Num", Expr::Num(42.5), ""),
         ("Percent", Expr::Percent(37.0), ""),
         ("Str", Expr::Str("hello there".into()), ""),
+        ("Color", Expr::Color([0, 161, 255, 128]), ""),
         ("Bool", Expr::Bool(true), ""),
         ("Null", Expr::Null, ""),
         ("Duration", Expr::Duration(0.3), ""),

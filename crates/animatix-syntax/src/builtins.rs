@@ -25,6 +25,7 @@ pub const KEYWORDS: &[&str] = &[
     "else",
     "match",
     "play",
+    "hex_color",
 ];
 
 /// Reserved words that are lexed as keywords but rejected as identifiers.
@@ -86,6 +87,9 @@ pub fn keyword_documentation(name: &str) -> &'static str {
         "component" => "Define a reusable component.",
         "sequence" => "Run actions in sequence.",
         "stagger" => "Stagger actions with delay.",
+        "hex_color" => {
+            "Construct a Color from six or eight quoted hexadecimal digits, such as `hex_color(\"fff1d6\")`."
+        },
         _ => "Keyword.",
     }
 }

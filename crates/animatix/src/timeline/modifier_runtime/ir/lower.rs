@@ -187,6 +187,9 @@ pub fn compile_expr(expr: &Expr) -> Result<CompiledExpr, IrLowerError> {
         Expr::Num(n) => Ok(CompiledExpr::Const(Value::Num(*n))),
         Expr::Percent(n) => Ok(CompiledExpr::Const(Value::Num(*n / 100.0))),
         Expr::Str(s) => Ok(CompiledExpr::Const(Value::Str(s.clone()))),
+        Expr::Color(rgba) => Ok(CompiledExpr::Const(Value::Color(
+            rgba.map(|channel| f64::from(channel) / 255.0),
+        ))),
         Expr::Bool(b) => Ok(CompiledExpr::Const(Value::Bool(*b))),
         Expr::Null => Ok(CompiledExpr::Const(Value::Null)),
         Expr::Ident(name) => Ok(CompiledExpr::LoadEnv(name.clone())),

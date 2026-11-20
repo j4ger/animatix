@@ -468,9 +468,11 @@ two visitor methods, lowering parity) are silent if missed:
 3. **IR lowering** — `crates/animatix/src/timeline/modifier_runtime/ir/lower.rs`
    (`compile_expr`).
 4. **IR types** — `.../ir/types.rs`: a `CompiledExpr` variant plus **both**
-   visitors: `collect_prop_refs` and `references_ident`.
+   visitors for a new IR variant: `collect_prop_refs` and `references_ident`.
+   A literal such as `hex_color("fff1d6")` can lower to an existing
+   `CompiledExpr::Const`.
 5. **IR evaluation** — `.../ir/eval.rs` (`evaluate_compiled_expr`) and
-   `.../ir/display.rs` (debug rendering).
+   `.../ir/display.rs` (debug rendering) for new IR variants.
 6. **Unified build-time evaluation** — `crates/animatix/src/timeline/utils/`
    (`evaluate_expr_inner`) automatically delegates to `compile_expr` and
    `evaluate_compiled_expr`, sharing the same IR VM.

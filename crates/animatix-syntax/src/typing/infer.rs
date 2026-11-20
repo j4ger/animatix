@@ -91,6 +91,7 @@ pub fn infer_expr_type(expr: &Expr, env: &TypeEnv) -> Type {
         Expr::Duration(_) => Type::Duration,
         Expr::Unit => Type::Unit,
         Expr::Str(_) => Type::Str,
+        Expr::Color(_) => Type::Color,
         Expr::Bool(_) => Type::Bool,
         Expr::Null => Type::Any,
         Expr::Ident(name) => env

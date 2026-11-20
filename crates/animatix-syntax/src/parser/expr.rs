@@ -78,6 +78,7 @@ fn atom_parsers<'src>(
     let num = number().map(Expr::Num);
     let percent = percent().map(Expr::Percent);
     let str_val = common::string_literal();
+    let hex_color = hex_color_parser(expr.clone());
     let bool_val = bool_lit().map(Expr::Bool);
     let null_val = null().to(Expr::Null);
 
@@ -186,6 +187,7 @@ fn atom_parsers<'src>(
         duration,
         num,
         str_val,
+        hex_color,
         bool_val,
         null_val,
         timeline,
@@ -197,6 +199,56 @@ fn atom_parsers<'src>(
         variable_ident.map(Expr::Ident),
     ))
     .boxed()
+}
+
+fn hex_color_parser<'src>(expr: ExprParser<'src>) -> ExprParser<'src> {
+    keyword("hex_color")
+        .ignore_then(call_arguments(expr).delimited_by(lparen(), rparen()))
+        .validate(|args, extra, emitter| {
+            let span = args.first().and_then(|arg| arg.byte_span).unwrap_or_else(|| extra.span());
+            let result = match args.as_slice() {
+                [
+                    CallArgument {
+                        name: None,
+                        value: Expr::Str(digits),
+                        ..
+                    },
+                ] => parse_hex_color(digits),
+                _ => Err("hex_color requires one quoted hex literal".into()),
+            };
+            match result {
+                Ok(rgba) => Expr::Color(rgba),
+                Err(message) => {
+                    // Keep the diagnostic at the argument through parser recovery.
+                    emitter.emit(Rich::custom(span, message));
+                    Expr::Null
+                },
+            }
+        })
+        .boxed()
+}
+
+fn parse_hex_color(digits: &str) -> Result<[u8; 4], String> {
+    if let Some(digits) = digits.strip_prefix('#') {
+        let mut message = "Omit the leading '#' in hex_color.".to_string();
+        if matches!(digits.len(), 6 | 8) && digits.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            message.push_str(&format!(r#" Write hex_color("{digits}")."#));
+        }
+        return Err(message);
+    }
+    if !matches!(digits.len(), 6 | 8) {
+        return Err("hex_color requires RRGGBB or RRGGBBAA".into());
+    }
+    if let Some(invalid) = digits.chars().find(|digit| !digit.is_ascii_hexdigit()) {
+        return Err(format!("Invalid hexadecimal digit {invalid:?} in hex_color"));
+    }
+    let value = u32::from_str_radix(digits, 16).map_err(|error| error.to_string())?;
+    let rgba = if digits.len() == 6 {
+        (value << 8) | 0xff
+    } else {
+        value
+    };
+    Ok(rgba.to_be_bytes())
 }
 
 fn plan_body_parser<'src>(

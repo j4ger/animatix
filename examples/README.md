@@ -56,7 +56,7 @@ declare the imports they need; the runtime does not inject them.
 | File | Description |
 |------|-------------|
 | `layout/02_layout.amx` | Containers: Row, Col, Grid, Stack |
-| `layout/11_colors.amx` | Color system, semantic tokens, `auto`, Colorscheme |
+| `layout/11_colors.amx` | Scheme tokens, `auto`, fixed `hex_color()` and computed `rgba()` |
 | `layout/12_reorder.amx` | Reorder: `swap`, `reorder`, dynamic layout |
 | `layout/13_paths.amx` | Paths: bezier curves, morphing, affine transforms |
 | `layout/27_layout_text.amx` | Percentage sizing, constraints, typography, wrapping |

@@ -217,6 +217,8 @@ pub fn format_expr(expr: &Expr) -> String {
             let escaped = escape_string_quotes(s);
             format!("\"{}\"", escaped)
         },
+        Expr::Color([r, g, b, 255]) => format!("hex_color(\"{r:02x}{g:02x}{b:02x}\")"),
+        Expr::Color([r, g, b, a]) => format!("hex_color(\"{r:02x}{g:02x}{b:02x}{a:02x}\")"),
         Expr::Bool(true) => "true".into(),
         Expr::Bool(false) => "false".into(),
         Expr::Null => "null".into(),

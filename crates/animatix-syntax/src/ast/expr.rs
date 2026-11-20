@@ -80,6 +80,9 @@ pub enum Expr {
     Duration(f64),
     /// Unit value, produced by functions with no value result.
     Unit,
+    /// Compile-time RGBA color in byte order, written `hex_color("rrggbb")`
+    /// or `hex_color("rrggbbaa")`.
+    Color([u8; 4]),
 }
 
 /// The contents and component-method scope of a reusable timeline expression.

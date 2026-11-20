@@ -12,7 +12,7 @@ Use these rules when generating `.amx` files:
 - Declare actors as `label: Type, prop: value`; animate later with keyframes (`#1s`) and assignments (`label.prop = value [800ms, ease: ease_out]`).
 - Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Typst`, `Code`, `Math`, `Svg`, `Image`, `Audio`, `Equation`, `Fragment`, `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Glass`, `Mask`, `Callout`, `Legend`, `Connector`, `Counter`, `Captions`, `Cue`.
 - Avoid common hallucinations: `Circle` (use `Ellipse`), `Triangle` (use `Polygon`), `Chart`/`Diagram` (use `Graph`/`PlotCurve`), and any 3D primitives.
-- Colors are RGBA tuples `(r, g, b, a)`, hex strings (`"#ff2d55"`, `"#f55"`, `"#5e5ce600"` with alpha), scheme tokens (`accent.primary`, `text.primary`, etc.), `auto`, or named colors (`RED`/`red`, `GREEN`/`green`, `BLUE`/`blue`, `BLACK`/`black`, `WHITE`/`white`, `YELLOW`/`yellow`, `ORANGE`/`orange`).
+- For a fixed custom color use `hex_color("ff2d55")`, or `hex_color("ff2d5580")` with alpha. Use `rgb(...)` or `rgba(...)` to compute a color from expressions. Prefer scheme tokens such as `accent.primary` when following a palette.
 - Timeline operations are ordinary function calls with parentheses: `fade_in(target: title, duration: 1s, ease: ease_out)`. Positional arguments come before named arguments; animation targets are explicit `target:` or `targets:` parameters. `duration`, `delay`, and `ease` are ordinary parameters. Do not add a call-site `[ ... ]` suffix.
 - Use `sequence { ... }` to order plan statements and `stagger [150ms] { ... }` to offset them. A `#{ ... }` expression builds a local plan; actor declarations inside it belong to each plan mount.
 - Identifiers use `snake_case`; hyphens remain available inside strings such as colorscheme names, display text, and paths. Parameter types use `name: Type`, and defaults use `name: Type = value`.
@@ -82,6 +82,7 @@ containing backslashes is a known limitation tracked in the roadmap.
 | Symbol | Use | Example |
 |--------|-----|---------|
 | `let` | Variable/actor declaration | `let x = 0` |
+| `hex_color` | Compile-time RGB or RGBA color | `hex_color("fff1d6")` |
 | `:` | Actor binding + scene placement | `label: Text, text: "OK"` |
 | `#` | Keyframe (`#0s`, `#+1s`, `#2b`, `#voice@marker`, `#voice["word"]`) or scene declaration (`# SceneName`) | `#2.5s`, `#+1s`, `#voice@intro`, `# Intro` |
 | `///` | Standalone narration paragraph and implicit timing | `/// Look at the card.` |
@@ -266,12 +267,31 @@ Colorscheme v1 surface:
 - `color: auto` for deterministic automatic colorscheme assignment
 - Primitive-type defaults when no explicit color/stroke provided
 
-**Color literals.** Anywhere a color is accepted: an RGBA tuple of 0..1 numbers
-(`(1.0, 0.18, 0.33, 1.0)`), a 3- or 4-tuple without alpha, an `rgb(255, 45, 85)` /
-`rgba(255, 45, 85, 0.5)` call, a named color (`red`, `WHITE`), or a CSS-style hex
-string in 3, 4, 6, or 8 digits (`"#f55"`, `"#ff2d55"`, `"#ff2d5580"`). An
-unresolvable color string falls back to the default gray and warns with
-`unknown-color-reference`.
+**Fixed colors.** `hex_color("ff2d55")` produces a `Color` constant. The
+constructor takes one quoted literal with six RGB digits or eight RGBA digits,
+with alpha last. Digits may be uppercase or lowercase. Omit the leading `#`.
+Six digits imply full opacity. The compiler reports invalid digits, lengths,
+and computed arguments before frame evaluation. `hex_color` is a reserved
+constructor keyword. Use its parenthesized form wherever a `Color` value goes.
+
+**Computed colors.** `rgb(255, 45, 85)` and `rgba(255, 45, 85, 0.5)` also
+produce `Color` values and accept expressions such as `sin(t)`.
+
+```amx
+let ink = hex_color("fff1d6")
+packet: Rect, size: (80, 48), color: ink, opacity: 1
+
+#0s
+  always {
+    packet.color = lerp_color(ink, rgb(255, 160 + 60 * sin(t), 214), 0.5)
+  }
+```
+
+Scheme tokens and named colors such as `red` and `WHITE` are also `Color`
+values. Color properties accept normalized RGB and RGBA tuples and CSS-style
+hex strings (`"#f55"`, `"#ff2d55"`, `"#5e5ce600"`) for compatibility. A quoted
+color string has type `Str` in expressions. An unresolvable property color
+string falls back to the default gray and warns with `unknown-color-reference`.
 
 **Built-in schemes.** Six ship with the engine; a scene can also declare its own.
 Each resolves the same twelve keys (`scene.background`, `text.primary` /
@@ -1953,7 +1973,7 @@ name or forms a cycle is still usable as the gradual `Any` type, but produces a
 | `Vec2` | 2D vector | `(100, 200)`, `(50%, 75%)` |
 | `Vec3` | 3D vector | `(1, 2, 3)`, `(0.5, 0.2, 0.8)` |
 | `Vec4` | 4D vector | `(0.5, 0.2, 0.8, 1.0)` |
-| `Color` | RGBA color | `rgb(0.38, 0.78, 1.0)` |
+| `Color` | RGBA color | `hex_color("61c7ff")`, `rgb(0.38, 0.78, 1.0)` |
 | `Actor` | Actor reference | `btn`, `self` |
 | `Scene` | Scene reference | `scene` |
 | `List<T>` | Homogeneous list of type `T` | `{1, 2, 3}` (inferred as `List<Num>`) |
@@ -2004,6 +2024,7 @@ When no explicit type annotation is given, the type checker infers the type of c
 | Integer literal | `Num` | `42`, `0`, `-5` |
 | Float literal | `Num` | `3.14`, `-0.5` |
 | String literal | `Str` | `"hello"` |
+| Hexadecimal color literal | `Color` | `hex_color("61c7ff")`, `hex_color("61c7ff80")` |
 | Boolean literal | `Bool` | `true`, `false` |
 | Comparison or logical operation | `Bool` | `x > 0`, `!flag`, `a && b` |
 | Tuple `(a, b)` | `Vec2` | `(100, 200)`, `(50%, 75%)` |

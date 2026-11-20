@@ -116,7 +116,7 @@ value is a call naming the ramp shape, its geometry, and its stops:
 
 ```amx
 bar: Rect, size: (400, 70),
-  fill_gradient: linear(90, {"#ff2d55", "#ff9f0a"})
+  fill_gradient: linear(90, {hex_color("ff2d55"), hex_color("ff9f0a")})
 heading: Text, text: "Delightful", font_size: 48, font_weight: "bold",
   fill_gradient: linear(135, {"#ffd60a", "#f5b942"})
 spot: Ellipse, size: (300, 300),
@@ -133,7 +133,7 @@ arc: Path, commands: {…}, stroke_width: 10, fill_opacity: 0.0,
   `radial(stops)` is centered with radius `0.5`.
 - `sweep(angle, stops)` — rotates around an optional `center`, starting at
   `angle`.
-- A stop is either a color (`"#ff2d55"`, `(1.0, 0.18, 0.33)`, `accent.primary`,
+- A stop is either a color (`hex_color("ff2d55")`, `(1.0, 0.18, 0.33)`, `accent.primary`,
   `rgb(255, 45, 85)`) or an `(offset, color)` pair, where `offset` is `0..1` or a
   percentage. Stops without an offset are spread evenly.
 

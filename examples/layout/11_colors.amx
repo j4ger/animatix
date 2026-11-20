@@ -1,5 +1,4 @@
-// 11 — Color System: Semantic Tokens, Auto, Constants, Colorscheme Extends
-// Scheme tokens, color: auto, built-in constants, Colorscheme with extends.
+// 11 — Color System: Scheme Tokens, Auto, Hex Colors, Dynamic RGB
 import "../lib/theme.amx"
 
 import "../lib/theme.amx" as theme
@@ -8,7 +7,7 @@ config { colorscheme: "forest", resolution: (1280, 720) }
 
 heading: Text, text: "Color System", font_size: 40, color: text.primary, anchor: scene.top, offset: (0, 50)
 
-subtitle: Text, text: "scheme tokens + auto + built-ins + extends", font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 100)
+subtitle: Text, text: "scheme tokens + auto + fixed and computed colors", font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 100)
 
 pub let forest = Colorscheme { extends: "editorial-dark", auto: ((0.35, 0.82, 0.55, 1), (0.55, 0.75, 0.4, 1), (0.3, 0.72, 0.55, 1), (0.8, 0.7, 0.35, 1), (0.9, 0.5, 0.5, 1)) }
 
@@ -32,8 +31,8 @@ pub let forest = Colorscheme { extends: "editorial-dark", auto: ((0.35, 0.82, 0.
   c0: Rect, size: (50, 50), color: red
   c1: Rect, size: (50, 50), color: green
   c2: Rect, size: (50, 50), color: blue
-  c3: Rect, size: (50, 50), color: white
-  c4: Rect, size: (50, 50), color: black
+  c3: Rect, size: (50, 50), color: hex_color("fff1d6")
+  c4: Rect, size: (50, 50), color: hex_color("356780cc")
     }
 
 #0.5s
@@ -66,4 +65,7 @@ pub let forest = Colorscheme { extends: "editorial-dark", auto: ((0.35, 0.82, 0.
       fade_in(target: c2, duration: 0.3s)
       fade_in(target: c3, duration: 0.3s)
       fade_in(target: c4, duration: 0.3s)
+    }
+  always {
+      c4.color = rgba(0.21, 0.40 + 0.15 * sin(t * 2), 0.50, 0.8)
     }

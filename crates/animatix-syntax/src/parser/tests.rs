@@ -89,6 +89,47 @@ fn parse_err(src: &str) -> bool {
     !errors.is_empty()
 }
 
+#[test]
+fn hex_color_is_a_typed_literal_with_rgb_and_rgba_byte_order() {
+    let source = r#"
+let ink = hex_color("FfF1d6")
+let translucent = hex_color("00a1ff80")
+let text = "fff1d6"
+"#;
+    let ast = parse_ok(source);
+    for (stmt, expected) in ast.iter().zip([
+        Expr::Color([255, 241, 214, 255]),
+        Expr::Color([0, 161, 255, 128]),
+        Expr::Str("fff1d6".into()),
+    ]) {
+        let Stmt::LetDecl { value, .. } = stmt else {
+            panic!("expected a let declaration");
+        };
+        assert_eq!(*value, expected);
+    }
+    assert_eq!(ast.len(), 3);
+}
+
+#[test]
+fn hex_color_rejects_invalid_literals_and_expressions_inside_always() {
+    for (argument, expected) in [
+        (r##""#fff1d6""##, r#"Write hex_color("fff1d6")."#),
+        (r#""fff1dg""#, "Invalid hexadecimal digit 'g'"),
+        (r#""abc""#, "requires RRGGBB or RRGGBBAA"),
+        (r#""+ff1d6""#, "Invalid hexadecimal digit '+'"),
+        ("palette", "requires one quoted hex literal"),
+        (r#""fff" + "1d6""#, "requires one quoted hex literal"),
+    ] {
+        let source = format!("always {{\n  box.color = hex_color({argument})\n}}");
+        let (_, errors) = parse_source(&source);
+        assert!(
+            errors.iter().any(|error| error.message.contains(expected)
+                && source.get(error.span.clone()) == Some(argument)),
+            "expected an error on {argument:?}, got {errors:?}",
+        );
+    }
+}
+
 fn actor_parts(stmt: Stmt) -> (String, String, Vec<InlineItem>) {
     match stmt {
         Stmt::ActorDecl {

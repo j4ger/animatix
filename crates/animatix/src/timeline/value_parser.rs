@@ -727,6 +727,13 @@ fn union_type_name(types: &[ValueType]) -> String {
 /// property expression (functions, closures, actor references and plans).
 pub fn value_to_expr(value: &crate::timeline::Value) -> Option<Expr> {
     use crate::timeline::Value;
+    if let Value::Color(rgba) = value {
+        let bytes = rgba.map(|channel| (channel * 255.0).round() as u8);
+        if bytes.map(|byte| f64::from(byte) / 255.0) == *rgba {
+            // Retain Color when a hexadecimal constant is captured into a plan.
+            return Some(Expr::Color(bytes));
+        }
+    }
     match value {
         // References do not round-trip to source expressions.
         Value::PropRef { .. } => None,
@@ -814,8 +821,12 @@ mod tests {
         );
         assert_eq!(
             value_to_expr(&Value::Color([0.2, 0.4, 0.6, 1.0])),
+            Some(Expr::Color([51, 102, 153, 255]))
+        );
+        assert_eq!(
+            value_to_expr(&Value::Color([0.1, 0.4, 0.6, 1.0])),
             Some(Expr::Tuple(vec![
-                Expr::Num(0.2),
+                Expr::Num(0.1),
                 Expr::Num(0.4),
                 Expr::Num(0.6),
                 Expr::Num(1.0)

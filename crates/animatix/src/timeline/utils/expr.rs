@@ -134,6 +134,10 @@ fn hash_expr_recursive<V: Hasher>(expr: &Expr, hasher: &mut V) -> Option<()> {
             2u8.hash(hasher);
             s.hash(hasher);
         },
+        Expr::Color(rgba) => {
+            22u8.hash(hasher);
+            rgba.hash(hasher);
+        },
         Expr::Bool(b) => {
             3u8.hash(hasher);
             b.hash(hasher);
@@ -255,6 +259,7 @@ fn expr_is_trivial(expr: &Expr) -> bool {
         Expr::Num(_)
         | Expr::Percent(_)
         | Expr::Str(_)
+        | Expr::Color(_)
         | Expr::Bool(_)
         | Expr::Null
         | Expr::Ident(_) => true,

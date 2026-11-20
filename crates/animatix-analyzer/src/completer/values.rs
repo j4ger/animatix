@@ -138,6 +138,7 @@ fn simple_type_completions(ty: &TypeAnnotation) -> Vec<CompletionItem> {
                     insert_text: None,
                 }
             }));
+            items.push(hex_color_completion());
             items.push(CompletionItem {
                 label: "rgb(...)".to_string(),
                 kind: CompletionKind::Snippet,
@@ -178,6 +179,7 @@ fn union_type_completions(types: &[TypeAnnotation]) -> Vec<CompletionItem> {
             TypeAnnotation::Bool
             | TypeAnnotation::Str
             | TypeAnnotation::Num
+            | TypeAnnotation::Color
             | TypeAnnotation::Vec3
             | TypeAnnotation::Tuple(_) => items.extend(simple_type_completions(ty)),
             _ => {},
@@ -191,6 +193,9 @@ fn union_type_completions(types: &[TypeAnnotation]) -> Vec<CompletionItem> {
 fn completions_for_property_name(name: &str) -> Vec<CompletionItem> {
     let mut items = Vec::new();
     match name {
+        "color" | "stroke" | "background_color" | "highlight_color" | "label_color" => {
+            items.push(hex_color_completion());
+        },
         "overflow" => {
             items.extend(["visible", "clip", "ellipsis"].iter().map(|v| CompletionItem {
                 label: v.to_string(),
@@ -253,4 +258,16 @@ fn completions_for_property_name(name: &str) -> Vec<CompletionItem> {
         _ => {},
     }
     items
+}
+
+fn hex_color_completion() -> CompletionItem {
+    CompletionItem {
+        label: "hex_color(...)".to_string(),
+        kind: CompletionKind::Snippet,
+        detail: Some("Color".to_string()),
+        documentation: Some(
+            animatix_syntax::builtins::keyword_documentation("hex_color").to_string(),
+        ),
+        insert_text: Some("hex_color(\"${1:fff1d6}\")".to_string()),
+    }
 }

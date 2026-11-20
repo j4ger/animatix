@@ -46,6 +46,66 @@ fn check_and_lint_json_share_one_diagnostic_shape() {
 }
 
 #[test]
+fn hex_color_lowers_to_a_constant_and_mixes_with_frame_time_rgb() {
+    use animatix::timeline::modifier_runtime::ir::{
+        CompiledExpr, ModifierOverrides, compile_expr, lower_modifier_ir,
+    };
+    use animatix::timeline::{SceneDimensions, Timeline, Value};
+    use animatix_syntax::ast::Expr;
+    use animatix_syntax::module::ModuleGraph;
+
+    let bytes = [0, 161, 255, 128];
+    let rgba = bytes.map(|channel| f64::from(channel) / 255.0);
+    assert!(matches!(
+        compile_expr(&Expr::Color(bytes)).unwrap(),
+        CompiledExpr::Const(Value::Color(actual)) if actual == rgba
+    ));
+
+    let source = r#"
+let ink = hex_color("fff1d6")
+shape: Rect, size: (20, 12), color: ink, opacity: 1
+#0s
+  always {
+    shape.stroke = lerp_color(hex_color("00a1ff80"), rgb(255, 255 * t, 0), t)
+  }
+"#;
+    let mut graph = ModuleGraph::new();
+    let mut program = graph
+        .load_program_with_source(Path::new("hex-color.amx"), Some(source))
+        .unwrap();
+    let diagnostics = program.typecheck();
+    assert!(diagnostics.iter().all(|d| !d.is_error()), "{diagnostics:?}");
+    let expanded = program.expand_components().unwrap();
+    let report = Timeline::build_with_options(
+        &expanded.statements,
+        &program.namespaces,
+        animatix::timeline::BuildOptions::default()
+            .with_function_context(&program.function_context)
+            .with_expanded(&expanded),
+    );
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    let timeline = report.output;
+    let program = lower_modifier_ir(&expanded.statements).unwrap();
+    for (time_ms, expected) in [(0, rgba), (1000, [1.0, 1.0, 0.0, 1.0])] {
+        let mut overrides = ModifierOverrides::default();
+        let mut env = timeline.build_frame_env(time_ms, SceneDimensions::default(), &overrides);
+        timeline
+            .apply_modifier_program(
+                &program,
+                time_ms,
+                SceneDimensions::default(),
+                &mut env,
+                &mut overrides,
+            )
+            .unwrap();
+        assert!(
+            matches!(&overrides["shape"]["stroke"], Value::Color(actual) if *actual == expected),
+            "{overrides:?}"
+        );
+    }
+}
+
+#[test]
 fn module_parse_errors_become_structured_diagnostics() {
     // A module that fails to parse must produce one diagnostic per parse
     // error, tagged with the stable parse-error code — not a bare tracing

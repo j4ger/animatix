@@ -82,6 +82,7 @@ fn collect_expr_roots(expr: &Expr, scan: &mut ReferenceScan) {
         | Expr::QualifiedPath(_)
         | Expr::Percent(_)
         | Expr::Str(_)
+        | Expr::Color(_)
         | Expr::Bool(_)
         | Expr::Null => {},
         Expr::Ident(name) => {

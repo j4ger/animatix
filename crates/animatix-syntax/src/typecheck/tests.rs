@@ -84,6 +84,21 @@ fn typecheck_source(source: &str) -> Vec<crate::diagnostics::Diagnostic> {
 }
 
 #[test]
+fn hex_color_is_color_but_quoted_digits_are_str() {
+    let source = r#"
+fn same(ink: Color) -> Color { return ink }
+let ink = hex_color("fff1d6")
+let accepted = same(ink)
+let rejected = same("fff1d6")
+"#;
+    let diagnostics = typecheck_source(source);
+    let errors = diagnostics.iter().filter(|error| error.is_error()).collect::<Vec<_>>();
+    assert_eq!(errors.len(), 1, "{diagnostics:?}");
+    assert_eq!(errors[0].code, DiagnosticCode::TypeMismatch);
+    assert!(errors[0].message.contains("expects Color, got Str"), "{errors:?}");
+}
+
+#[test]
 fn typecheck_accepts_valid_props() {
     let env = make_env();
     let stmts = vec![actor_with_props(

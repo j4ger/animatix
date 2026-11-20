@@ -179,6 +179,7 @@ fn scan_runtime_input_expr(
             Expr::Num(_)
             | Expr::Percent(_)
             | Expr::Str(_)
+            | Expr::Color(_)
             | Expr::Bool(_)
             | Expr::Null
             | Expr::Duration(_)

@@ -8,6 +8,7 @@ pub(super) fn expr_summary(expr: &Expr) -> String {
         Expr::Num(n) => format!("number {}", n),
         Expr::Percent(p) => format!("percent {}%", p),
         Expr::Str(s) => format!("string {:?}", s),
+        Expr::Color(_) => format!("color literal `{}`", crate::format_core::format_expr(expr)),
         Expr::Bool(b) => format!("boolean {}", b),
         Expr::Null => "null".to_string(),
         Expr::List(items) => format!("list of {} items", items.len()),
