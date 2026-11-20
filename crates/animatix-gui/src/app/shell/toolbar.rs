@@ -6,7 +6,7 @@ use eparts::widget::UiExt;
 use crate::app::commands::{ActionQueue, Command, ShellAction, ViewAction};
 use crate::app::components::button::Button;
 use crate::app::components::text_tooltip;
-use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH, spatial};
+use crate::app::design_tokens::spatial::{STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::interaction::keyboard::{KeyboardAction, tooltip_with_shortcut};
 use crate::app::{GuiShell, LayoutPreset, WorkspaceTab};
@@ -25,7 +25,7 @@ impl GuiShell {
                 let show_export_text = width >= 520.0;
                 let height = sp.toolbar.height;
                 let right_width = if show_export_text { 246.0 } else { 195.0 };
-                let preset_width = if wide { 290.0 } else { 0.0 };
+                let preset_width = if wide { 332.0 } else { 0.0 };
                 let (row, _) =
                     ui.allocate_exact_size(Vec2::new(width, height), egui::Sense::hover());
                 let document_right = if wide {
@@ -232,24 +232,23 @@ impl GuiShell {
     }
 
     fn toolbar_presets(&mut self, ui: &mut egui::Ui, commands: &mut ActionQueue) {
-        let theme = eparts::theme(ui);
-        let sp = spatial(ui);
-        egui::Frame::new()
-            .fill(theme.palette.surface.base)
-            .stroke(Stroke::new(STROKE_WIDTH, theme.palette.border.subtle))
-            .corner_radius(egui::CornerRadius::same(RADIUS_M as u8))
-            .inner_margin(egui::Margin::same(sp.base.space_2 as i8))
-            .show(ui, |ui| {
-                for preset in LayoutPreset::ALL {
-                    let button = Button::ghost(preset.label())
-                        .with_icon(preset.icon())
-                        .active(self.ui_store.view.layout_preset == preset)
-                        .with_tooltip(preset.description());
-                    if ui.add(button).clicked() {
-                        commands.push_back(ShellAction::View(ViewAction::ApplyLayout(preset)));
-                    }
-                }
-            });
+        let presets = LayoutPreset::ALL;
+        let labels = presets.map(LayoutPreset::label);
+        let icons = presets.map(LayoutPreset::icon);
+        let tips = presets.map(LayoutPreset::description);
+        let mut active = presets
+            .iter()
+            .position(|&p| p == self.ui_store.view.layout_preset)
+            .expect("the toolbar includes every layout preset");
+        if eparts::TabBar::new(ui.scope_id().with("layouts"), &mut active, &labels)
+            .with_icons(&icons)
+            .with_tooltips(&tips)
+            .height(34.0)
+            .show(ui)
+            .clicked()
+        {
+            commands.push_back(ShellAction::View(ViewAction::ApplyLayout(presets[active])));
+        }
     }
 
     fn toolbar_controls(

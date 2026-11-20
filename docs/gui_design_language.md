@@ -105,6 +105,14 @@ share the bottom region. Focus hides the surrounding panels. The compact sidebar
 rail stays available for opening drawers. Presets adjust the existing `egui_tiles`
 layout.
 
+Use a recessed rounded track for workspace modes, sidebar views and source
+projections. The selected segment has a raised face and a subtle shadow. Use
+flat, underlined choices for secondary sidebar navigation. Dock tabs carry a
+leading icon and a short selection mark. Keep the entire row height clickable
+and preserve tab dragging. Small menus and modal windows use distinct shadow
+depths and progressively larger corner radii. A rounded matte frames the preview
+while the rendered scene and its ruler coordinates retain their rectangular bounds.
+
 Put canvas controls above the stage and playback below it so the built scene
 remains unobstructed. The preview grid is opt-in. Keep the timeline zoom and
 marker controls on the same row when space permits. The footer carries preview

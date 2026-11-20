@@ -19,13 +19,30 @@ pub(crate) fn theme(choice: AppThemeChoice, system_is_dark: Option<bool>) -> The
         palette.text.muted = Color32::from_rgb(89, 99, 117);
     }
 
+    // Recess the switcher track and lift the selected face into the light.
+    let tabs = &mut theme.components.tab;
+    tabs.inactive.bg = palette.surface.base;
+    tabs.inactive.fg = palette.text.muted;
+    tabs.active.bg = if dark {
+        Color32::from_rgb(52, 62, 84)
+    } else {
+        Color32::WHITE
+    };
+    tabs.active.indicator = if dark {
+        Color32::from_rgb(167, 184, 255)
+    } else {
+        Color32::from_rgb(63, 79, 174)
+    };
+    tabs.active.fg = palette.text.primary;
+    tabs.hover.bg = palette.surface.hover;
+
     let primary = &mut theme.components.button.primary;
     primary.normal.fg = palette.text.on_accent;
     primary.hover.fg = palette.text.on_accent;
     primary.active.fg = Color32::WHITE;
     primary.selected.fg = Color32::WHITE;
 
-    // A selected layout uses the accent underline and a high-contrast label.
+    // Keep selected ghost actions legible on the panel.
     let ghost = &mut theme.components.button.ghost;
     ghost.active.fg = palette.text.primary;
     ghost.selected.fg = palette.text.primary;

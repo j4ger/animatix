@@ -137,35 +137,36 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
         );
         ui.add_space(sp.base.space_2);
 
-        ui.horizontal_wrapped(|ui| {
-            for (view, label) in SourceView::ALL {
-                if ui
-                    .add(
-                        eparts::Button::ghost(label)
-                            .with_size(eparts::Size::Sm)
-                            .active(ctx.editor.source_view() == view),
-                    )
-                    .clicked()
-                {
-                    ctx.editor.set_source_view(view);
+        let views = SourceView::ALL;
+        let mut active = views
+            .iter()
+            .position(|&(view, _)| view == ctx.editor.source_view())
+            .expect("all source projections have a tab");
+        let labels = views.map(|(_, label)| label);
+        use egui_phosphor::regular as icons;
+        if eparts::TabBar::new(ui.scope_id().with("source_views"), &mut active, &labels)
+            .with_icons(&[icons::FILE_TEXT, icons::TEXT_ALIGN_LEFT, icons::CODE])
+            .show(ui)
+            .changed()
+        {
+            ctx.editor.set_source_view(views[active].0);
+        }
+        ui.add_space(sp.base.space_2);
+        if ctx.editor.source_view() == SourceView::Full
+            && let Some((scene, marker)) = ctx.editor.cursor_narration_marker()
+            && ui
+                .add(eparts::Button::ghost("Show phrase").with_size(eparts::Size::Sm))
+                .clicked()
+        {
+            ctx.commands.push_back(
+                Command::RevealNarration {
+                    epoch: ctx.source_epoch,
+                    scene,
+                    marker,
                 }
-            }
-            if ctx.editor.source_view() == SourceView::Full
-                && let Some((scene, marker)) = ctx.editor.cursor_narration_marker()
-                && ui
-                    .add(eparts::Button::ghost("Show phrase").with_size(eparts::Size::Sm))
-                    .clicked()
-            {
-                ctx.commands.push_back(
-                    Command::RevealNarration {
-                        epoch: ctx.source_epoch,
-                        scene,
-                        marker,
-                    }
-                    .into(),
-                );
-            }
-        });
+                .into(),
+            );
+        }
 
         ctx.editor.set_diagnostics(ctx.diagnostics);
         let changed = match ctx.editor.source_view() {

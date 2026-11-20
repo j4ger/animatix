@@ -185,12 +185,18 @@ fn section_switcher<T: PartialEq + Copy + Send + Sync + 'static>(
     default: T,
 ) -> T {
     let current: T = ui.data_mut(|d| d.get_temp(id).unwrap_or(default));
-    if let Some(new) = layout::pill_tab_bar(ui, current, entries) {
-        ui.data_mut(|d| d.insert_temp(id, new));
-        new
-    } else {
-        current
+    let labels: Vec<_> = entries.iter().map(|entry| entry.2).collect();
+    let icons: Vec<_> = entries.iter().map(|entry| entry.1).collect();
+    let mut index = entries.iter().position(|entry| entry.0 == current).unwrap_or(0);
+    if eparts::TabBar::new(id, &mut index, &labels)
+        .with_icons(&icons)
+        .underlined()
+        .show(ui)
+        .changed()
+    {
+        ui.data_mut(|d| d.insert_temp(id, entries[index].0));
     }
+    entries[index].0
 }
 
 fn render_sidebar_tab_bar(ui: &mut egui::Ui, active_tab: &mut SidebarTab) {

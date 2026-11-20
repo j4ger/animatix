@@ -43,47 +43,50 @@ pub(crate) fn preview_panel_ui(
             });
     }
 
-    let margin = if in_presentation {
-        0
+    // Frame the editor matte independently of the rendered image and its rulers.
+    let stage = if in_presentation {
+        egui::Frame::new()
     } else {
-        sp.base.space_5 as i8
+        egui::Frame::new()
+            .outer_margin(egui::Margin::symmetric(sp.base.space_4 as i8, sp.base.space_2 as i8))
+            .inner_margin(egui::Margin::same(sp.base.space_4 as i8))
+            .corner_radius(crate::app::design_tokens::spatial::RADIUS_L)
+            .stroke(egui::Stroke::new(STROKE_WIDTH, theme.palette.border.subtle))
+            .shadow(theme.elevation_raised())
     };
-    egui::Frame::new()
-        .fill(theme.palette.surface.base)
-        .inner_margin(egui::Margin::same(margin))
-        .show(ui, |ui| {
-            ui.vertical(|ui| {
-                let ruler_size = if in_presentation { 0.0 } else { RULER_SIZE };
+    stage.fill(theme.palette.surface.base).show(ui, |ui| {
+        ui.vertical(|ui| {
+            let ruler_size = if in_presentation { 0.0 } else { RULER_SIZE };
 
-                apply_fit_zoom_request(ctx);
-                let (preview_rect, response) = allocate_canvas(ctx, ui, ruler_size);
-                draw_canvas_background(ui, &theme, preview_rect, in_presentation);
+            apply_fit_zoom_request(ctx);
+            let (preview_rect, response) = allocate_canvas(ctx, ui, ruler_size);
+            draw_canvas_background(ui, &theme, preview_rect, in_presentation);
 
-                if !in_presentation {
-                    draw_rulers(ctx, ui, preview_rect, &theme);
-                    draw_existing_guides(ctx, ui, preview_rect, &theme);
-                }
+            if !in_presentation {
+                draw_rulers(ctx, ui, preview_rect, &theme);
+                draw_existing_guides(ctx, ui, preview_rect, &theme);
+            }
 
-                handle_scroll_zoom(ctx, ui, preview_rect, &response);
-                handle_middle_click_pan(ctx, ui, preview_rect);
-                clear_frame_snap_state(ctx);
+            handle_scroll_zoom(ctx, ui, preview_rect, &response);
+            handle_middle_click_pan(ctx, ui, preview_rect);
+            clear_frame_snap_state(ctx);
 
-                let is_dragging = ctx.selection.marquee_start.is_some();
-                if !in_presentation {
-                    handle_canvas_interaction(ctx, ui, preview_rect, &response, is_dragging);
-                }
+            let is_dragging = ctx.selection.marquee_start.is_some();
+            if !in_presentation {
+                handle_canvas_interaction(ctx, ui, preview_rect, &response, is_dragging);
+            }
 
-                ctx.render_preview_content(ui, preview_rect);
+            ctx.render_preview_content(ui, preview_rect);
 
-                if in_presentation {
-                    handle_presentation_input(ctx, ui, preview_rect, &response);
-                    return;
-                }
+            if in_presentation {
+                handle_presentation_input(ctx, ui, preview_rect, &response);
+                return;
+            }
 
-                draw_preview_overlays(ctx, ui, preview_rect, &theme, is_dragging);
-                handle_file_drop(ctx, ui, preview_rect, &response);
-            });
+            draw_preview_overlays(ctx, ui, preview_rect, &theme, is_dragging);
+            handle_file_drop(ctx, ui, preview_rect, &response);
         });
+    });
 }
 
 fn apply_fit_zoom_request(ctx: &mut PreviewContext<'_>) {

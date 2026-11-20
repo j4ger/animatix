@@ -49,7 +49,7 @@ pub mod toggle {
 }
 
 pub mod component {
-    pub const PILL_TAB_HEIGHT: f32 = 26.0;
+    pub const PILL_TAB_HEIGHT: f32 = 30.0;
     pub const PILL_TAB_GAP: f32 = 2.0;
     pub const TOAST_WIDTH: f32 = 280.0;
     pub const TOAST_HEIGHT: f32 = 40.0;

@@ -5,7 +5,7 @@ use egui_tiles::{Behavior, SimplificationOptions, TileId, UiResponse};
 
 use crate::app::WorkspaceTab;
 use crate::app::commands::ActionQueue;
-use crate::app::design_tokens::spatial::STROKE_WIDTH;
+use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::interaction::keyboard::ShortcutRegistry;
 use crate::app::panels::{curves_panel, editor, inspector, preview_panel, sidebar, timeline_panel};
@@ -250,57 +250,114 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
     }
 
     fn tab_bar_height(&self, _style: &egui::Style) -> f32 {
-        34.0
+        38.0
     }
 
     fn tab_bar_color(&self, visuals: &Visuals) -> Color32 {
         visuals.panel_fill
     }
 
-    fn tab_bg_color(
-        &self,
-        visuals: &Visuals,
-        _tiles: &egui_tiles::Tiles<WorkspaceTab>,
-        _tile_id: TileId,
+    // Dock tabs keep the tile's native interaction ID and drag response. Their
+    // visual inset provides breathing room without reducing the drop or click target.
+    fn tab_ui(
+        &mut self,
+        tiles: &mut egui_tiles::Tiles<WorkspaceTab>,
+        ui: &mut egui::Ui,
+        id: egui::Id,
+        tile_id: TileId,
         state: &egui_tiles::TabState,
-    ) -> Color32 {
-        if state.active {
-            visuals.widgets.active.bg_fill
+    ) -> egui::Response {
+        use egui_phosphor::regular as icons;
+        let theme = eparts::theme(ui);
+        let sp = spatial(ui).base;
+        let title = self.tab_title_for_tile(tiles, tile_id);
+        let icon = match tiles.get(tile_id) {
+            Some(egui_tiles::Tile::Pane(tab)) => match tab {
+                WorkspaceTab::Sidebar => icons::FOLDER,
+                WorkspaceTab::Code => icons::CODE,
+                WorkspaceTab::Preview => icons::CORNERS_OUT,
+                WorkspaceTab::Inspector => icons::FADERS_HORIZONTAL,
+                WorkspaceTab::Timeline => icons::FILM_STRIP,
+                WorkspaceTab::Curves => icons::BEZIER_CURVE,
+            },
+            _ => icons::STACK,
+        };
+        let label = ui.painter().layout_no_wrap(
+            title.text().to_owned(),
+            TextRole::BodyMedium.font_id(),
+            Color32::PLACEHOLDER,
+        );
+        let icon_w = sp.component.icon_slot_width;
+        let width = sp.space_5 * 2.0 + icon_w + sp.space_3 + label.size().x;
+        let (_, hit) = ui.allocate_space(egui::vec2(width, ui.available_height()));
+        let draggable = self.is_tile_draggable(tiles, tile_id);
+        let response = ui.interact(
+            hit,
+            id,
+            if draggable {
+                egui::Sense::click_and_drag()
+            } else {
+                egui::Sense::click()
+            },
+        );
+        let response = if draggable {
+            response.on_hover_cursor(self.tab_hover_cursor_icon())
         } else {
-            Color32::TRANSPARENT
+            response
+        };
+        response.widget_info(|| {
+            egui::WidgetInfo::selected(egui::Role::Tab, ui.is_enabled(), state.active, title.text())
+        });
+        if ui.is_rect_visible(hit) && !state.is_being_dragged {
+            let face = hit.shrink2(egui::vec2(sp.space_1, sp.space_2));
+            let slots = theme.components.tab;
+            let slot = if state.active {
+                slots.active
+            } else if response.hovered() {
+                slots.hover
+            } else {
+                slots.inactive
+            };
+            if state.active || response.hovered() {
+                ui.painter().rect_filled(face, RADIUS_M, slot.bg);
+            }
+            if response.has_focus() {
+                ui.painter().rect_stroke(
+                    face,
+                    RADIUS_M,
+                    Stroke::new(STROKE_WIDTH, theme.focus_ring()),
+                    egui::StrokeKind::Inside,
+                );
+            }
+            let left = hit.left() + sp.space_5;
+            let icon_center = egui::pos2(left + icon_w * 0.5, hit.center().y);
+            ui.painter().text(
+                icon_center,
+                egui::Align2::CENTER_CENTER,
+                icon,
+                TextRole::Title.font_id(),
+                if state.active {
+                    slot.indicator
+                } else {
+                    slot.fg
+                },
+            );
+            let text_pos =
+                egui::pos2(left + icon_w + sp.space_3, hit.center().y - label.size().y * 0.5);
+            ui.painter().galley_with_override_text_color(text_pos, label, slot.fg);
+            if state.active {
+                let mark = egui::Rect::from_center_size(
+                    egui::pos2(face.center().x, hit.bottom() - 1.5),
+                    egui::vec2(sp.space_7, 2.0),
+                );
+                ui.painter().rect_filled(mark, 1.0, slot.indicator);
+            }
         }
+        self.on_tab_button(tiles, tile_id, response)
     }
 
-    fn tab_outline_stroke(
-        &self,
-        visuals: &Visuals,
-        _tiles: &egui_tiles::Tiles<WorkspaceTab>,
-        _tile_id: TileId,
-        state: &egui_tiles::TabState,
-    ) -> Stroke {
-        if state.active {
-            self.tab_bar_hline_stroke(visuals)
-        } else {
-            Stroke::NONE
-        }
-    }
-
-    fn tab_bar_hline_stroke(&self, visuals: &Visuals) -> Stroke {
-        Stroke::new(STROKE_WIDTH, visuals.widgets.noninteractive.bg_stroke.color)
-    }
-
-    fn tab_text_color(
-        &self,
-        visuals: &Visuals,
-        _tiles: &egui_tiles::Tiles<WorkspaceTab>,
-        _tile_id: TileId,
-        state: &egui_tiles::TabState,
-    ) -> Color32 {
-        if state.active {
-            visuals.widgets.active.text_color()
-        } else {
-            visuals.widgets.noninteractive.text_color()
-        }
+    fn tab_bar_hline_stroke(&self, _visuals: &Visuals) -> Stroke {
+        Stroke::NONE
     }
 
     fn resize_stroke(&self, style: &egui::Style, resize_state: egui_tiles::ResizeState) -> Stroke {

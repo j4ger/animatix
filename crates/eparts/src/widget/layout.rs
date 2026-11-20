@@ -205,79 +205,12 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
     active_tab: T,
     tabs: &[(T, &'static str, &'static str)],
 ) -> Option<T> {
-    let t = theme(ui);
-    let s = spatial(ui);
-    let available = ui.available_width();
-    let tab_h = s.component.pill_tab_height;
-    let gap = s.component.pill_tab_gap;
-    let tab_w = (available - gap * (tabs.len().saturating_sub(1)) as f32) / tabs.len() as f32;
-
-    let bar_rect = ui.allocate_exact_size(Vec2::new(available, tab_h), egui::Sense::hover()).0;
-    ui.painter().rect_filled(bar_rect, RADIUS_M, t.palette.surface.widget);
-
-    let mut clicked_tab = None;
-
-    for (idx, (tab, icon, label)) in tabs.iter().enumerate() {
-        let is_active = active_tab == *tab;
-        let x = bar_rect.min.x + idx as f32 * (tab_w + gap);
-        let tab_rect =
-            egui::Rect::from_min_size(egui::pos2(x, bar_rect.min.y), Vec2::new(tab_w, tab_h));
-
-        let response =
-            ui.interact(tab_rect, ui.scope_id().with(("pill_tab", idx)), egui::Sense::click());
-
-        // Draw pill background
-        let pill = tab_rect.shrink2(Vec2::new(2.0, 2.0));
-        if is_active {
-            ui.painter().rect_filled(pill, RADIUS_M, t.palette.surface.surface);
-            ui.painter().rect_stroke(
-                pill,
-                RADIUS_M,
-                Stroke::new(STROKE_WIDTH, t.palette.border.strong),
-                egui::StrokeKind::Inside,
-            );
-        } else if response.hovered() {
-            ui.painter().rect_filled(pill, RADIUS_M, t.palette.surface.hover);
-        }
-
-        let text_color = if is_active {
-            t.palette.text.primary
-        } else if response.hovered() {
-            t.palette.text.secondary
-        } else {
-            t.palette.text.muted
-        };
-        let font_id = TextRole::BodyS.font_id();
-        let with_icon = format!("{}  {}", icon, label);
-        let galley_full =
-            ui.painter().layout_no_wrap(with_icon.clone(), font_id.clone(), text_color);
-        let galley_label =
-            ui.painter().layout_no_wrap(label.to_string(), font_id.clone(), text_color);
-        // Degrade label-first: when space is tight the label is the informative
-        // part, so drop the icon before dropping the text.
-        let display_text = if galley_full.size().x + s.space_5 <= tab_w {
-            with_icon
-        } else if galley_label.size().x + s.space_2 <= tab_w {
-            label.to_string()
-        } else {
-            icon.to_string()
-        };
-        ui.painter().text(
-            tab_rect.center(),
-            egui::Align2::CENTER_CENTER,
-            display_text,
-            font_id,
-            text_color,
-        );
-        // Tooltip keeps the label reachable even in the icon-only fallback.
-        let response = response.on_hover_text(*label);
-
-        if response.clicked() {
-            clicked_tab = Some(*tab);
-        }
-    }
-
-    clicked_tab
+    let mut selected = tabs.iter().position(|entry| entry.0 == active_tab).unwrap_or(usize::MAX);
+    let labels: Vec<_> = tabs.iter().map(|entry| entry.2).collect();
+    let icons: Vec<_> = tabs.iter().map(|entry| entry.1).collect();
+    let id = ui.next_auto_id();
+    let response = crate::TabBar::new(id, &mut selected, &labels).with_icons(&icons).show(ui);
+    response.clicked().then(|| tabs[selected].0)
 }
 
 // Separator  (F1)

@@ -106,12 +106,21 @@ impl NarrationTakes {
         }
         let mut open = self.open;
         let mut action = None;
+        let sp = eparts::tokens::spatial::spatial_from_ctx(ctx);
         egui::Window::new("Narration Takes")
             .id(egui::Id::unique("narration_takes"))
             .open(&mut open)
             .default_width(640.0)
+            .default_height((ctx.content_rect().height() * 0.7).min(640.0))
+            .pivot(egui::Align2::CENTER_CENTER)
+            .default_pos(ctx.content_rect().center())
+            .frame(
+                egui::Frame::window(&ctx.global_style())
+                    .inner_margin(egui::Margin::same(sp.space_6 as i8)),
+            )
             .vscroll(true)
             .show(ctx, |ui| {
+                ui.spacing_mut().item_spacing.y = sp.space_3;
                 self.status_ui(ui, &mut action);
                 if self.target.is_none() {
                     return;
@@ -218,7 +227,18 @@ impl NarrationTakes {
         };
         if let Some(index) = self.selected_index(target) {
             ui.add_space(4.0);
-            ui.add(egui::Label::new(&target.paragraphs[index].text).wrap().selectable(true));
+            let theme = eparts::theme(ui);
+            let sp = eparts::spatial(ui);
+            egui::Frame::new()
+                .fill(theme.palette.surface.base)
+                .corner_radius(eparts::tokens::spatial::RADIUS_L)
+                .inner_margin(egui::Margin::symmetric(sp.space_5 as i8, sp.space_4 as i8))
+                .show(ui, |ui| {
+                    ui.set_min_width(ui.available_width());
+                    let text = RichText::new(&target.paragraphs[index].text)
+                        .size(eparts::tokens::typography::TextRole::Subheading.size());
+                    ui.add(egui::Label::new(text).wrap().selectable(true));
+                });
         }
     }
 
@@ -309,10 +329,21 @@ impl NarrationTakes {
             });
             return;
         }
-        ui.horizontal_wrapped(|ui| {
-            ui.selectable_value(&mut self.inputs.mode, InputMode::Synthesize, "Generate a take");
-            ui.selectable_value(&mut self.inputs.mode, InputMode::Import, "Record or import audio");
-        });
+        let mut mode = usize::from(self.inputs.mode == InputMode::Import);
+        if eparts::TabBar::new(
+            ui.scope_id().with("take_input"),
+            &mut mode,
+            &["Generate a take", "Record or import audio"],
+        )
+        .with_icons(&[
+            egui_phosphor::regular::SPARKLE,
+            egui_phosphor::regular::MICROPHONE,
+        ])
+        .show(ui)
+        .changed()
+        {
+            self.inputs.mode = [InputMode::Synthesize, InputMode::Import][mode];
+        }
         let operation = match self.inputs.mode {
             InputMode::Synthesize => self.inputs.synthesis_ui(ui, paragraph),
             InputMode::Import => {
