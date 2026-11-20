@@ -30,7 +30,7 @@ impl Default for PreviewOverlay {
     fn default() -> Self {
         Self {
             show_scene_bounds: true,
-            show_grid: true,
+            show_grid: false,
             show_guides: true,
             show_actor_labels: false,
             show_hover_highlight: true,

@@ -4,6 +4,7 @@
 use crate::app::components::button::Button;
 use crate::app::components::{anim, layout, text_tooltip};
 use crate::app::design_tokens::motion;
+use crate::app::design_tokens::typography::TextRole;
 use crate::app::panels::{COMPACT_RAIL_WIDTH, CompactDrawer, SIDEBAR_TABS, SidebarTab};
 
 use super::{
@@ -25,8 +26,14 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
         let mut active_tab = *ctx.sidebar_tab;
         let prev_tab = *ctx.sidebar_tab;
 
-        render_sidebar_tab_bar(ui, &mut active_tab);
+        ui.add_space(sp.base.space_2);
+        ui.horizontal(|ui| {
+            ui.add_space(sp.base.space_2);
+            ui.label(egui::RichText::new("Workspace").font(TextRole::Title.font_id()));
+        });
         ui.add_space(sp.base.space_3);
+        render_sidebar_tab_bar(ui, &mut active_tab);
+        ui.add_space(sp.base.space_4);
 
         // Slide-in animation on tab switch
         let content_offset_id = ui.scope_id().with("sidebar_slide");

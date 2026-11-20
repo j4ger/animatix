@@ -457,6 +457,7 @@ fn rebuild_succeeded_with_diff(
     removed_active_scene: Option<String>,
 ) -> Vec<Effect> {
     document_store.publish_rebuild_result(true);
+    document_store.source.media_changed = false;
     let mut status = if document_store.source.document.diagnostics.is_empty() {
         format!(
             "Built timeline • {:.2}s total duration",

@@ -76,9 +76,11 @@ class Sentence:
         return {"text": self.text, "voice": self.voice, "rate": self.rate}
 
 
-def read_chapter(path):
+def read_chapter(path, allow_empty=False):
     source = read_json(path)
-    if not isinstance(source, dict) or not isinstance(source.get("sentences"), list) or not source["sentences"]:
+    if not isinstance(source, dict) or not isinstance(source.get("sentences"), list):
+        raise ValueError("chapter requires a 'sentences' array")
+    if not allow_empty and not source["sentences"]:
         raise ValueError("chapter requires a nonempty 'sentences' array")
     sentences = []
     ids = set()
@@ -133,11 +135,11 @@ def write_wav(path, clips):
             output.writeframesraw(bytes(pause_frames * FORMAT[1]))
 
 
-def normalize_audio(path):
+def normalize_audio(path, destination=None):
     try:
         return read_pcm(path)
     except (wave.Error, EOFError, ValueError):
-        normalized = path.with_name("normalized.wav")
+        normalized = destination if destination is not None else path.with_name("normalized.wav")
         subprocess.run([
             "ffmpeg", "-nostdin", "-v", "error", "-xerror", "-y", "-i", str(path),
             "-map", "0:a:0", "-ac", "1", "-ar", str(SAMPLE_RATE), "-c:a", "pcm_s16le",
@@ -280,6 +282,13 @@ def resolve_marker(name, target, words):
     raise ValueError(f"marker '{name}' did not match a spoken word")
 
 
+def speech_segment(sentence, take, offset=0, index=0):
+    words = [{**word, "start": round(offset / SAMPLE_RATE + word["start"], 6),
+              "end": round(offset / SAMPLE_RATE + word["end"], 6)} for word in take.words]
+    return {"id": index, "start": words[0]["start"], "end": max(word["end"] for word in words),
+            "text": sentence.text, "words": words}
+
+
 def assemble(sentences, takes, audio):
     offset = 0
     segments = []
@@ -288,12 +297,10 @@ def assemble(sentences, takes, audio):
     for index, sentence in enumerate(sentences):
         take = takes[sentence.id]
         pause = round(sentence.pause * SAMPLE_RATE)
-        words = [{**word, "start": round(offset / SAMPLE_RATE + word["start"], 6),
-                  "end": round(offset / SAMPLE_RATE + word["end"], 6)} for word in take.words]
-        segments.append({"id": index, "start": words[0]["start"], "end": max(w["end"] for w in words),
-                         "text": sentence.text, "words": words})
+        segment = speech_segment(sentence, take, offset, index)
+        segments.append(segment)
         for name, target in sentence.markers.items():
-            markers[name] = resolve_marker(name, target, words)
+            markers[name] = resolve_marker(name, target, segment["words"])
         clips.append((take.pcm, pause))
         offset += len(take.pcm) // FORMAT[1] + pause
     write_wav(audio, clips)

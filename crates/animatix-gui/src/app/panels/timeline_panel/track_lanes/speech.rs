@@ -1,4 +1,5 @@
 //! Transcript review. Identical Audio/Captions transcripts share a row.
+use super::super::narration::SpeechDetail;
 use super::*;
 #[derive(Debug, PartialEq)]
 struct Cue {
@@ -12,7 +13,7 @@ struct TranscriptRow {
     markers: Vec<(String, f64)>,
 }
 
-fn rows(timeline: Option<&Timeline>) -> Vec<TranscriptRow> {
+fn rows(timeline: Option<&Timeline>, detail: SpeechDetail) -> Vec<TranscriptRow> {
     let mut result: Vec<TranscriptRow> = Vec::new();
     if let Some(timeline) = timeline {
         for (id, transcript) in timeline.transcripts_iter() {
@@ -26,7 +27,7 @@ fn rows(timeline: Option<&Timeline>) -> Vec<TranscriptRow> {
                 .segments
                 .iter()
                 .flat_map(|segment| {
-                    if segment.words.is_empty() {
+                    if segment.words.is_empty() || matches!(detail, SpeechDetail::Paragraphs) {
                         vec![Cue {
                             text: segment.text.clone(),
                             start: segment.start_s,
@@ -47,7 +48,13 @@ fn rows(timeline: Option<&Timeline>) -> Vec<TranscriptRow> {
                 .filter_map(|mut cue| {
                     cue.start += start_s;
                     cue.end = (cue.end + start_s).min(end_s);
-                    (cue.end > cue.start).then_some(cue)
+                    let visible = match detail {
+                        SpeechDetail::Selected(interval) => {
+                            interval.is_some_and(|(start, end)| cue.end > start && cue.start < end)
+                        },
+                        _ => true,
+                    };
+                    (visible && cue.end > cue.start).then_some(cue)
                 })
                 .collect::<Vec<_>>();
             let mut markers: Vec<_> = transcript
@@ -75,13 +82,14 @@ fn rows(timeline: Option<&Timeline>) -> Vec<TranscriptRow> {
     result
 }
 
-pub(crate) fn speech_row_count(timeline: Option<&Timeline>) -> usize {
-    rows(timeline).len()
+pub(crate) fn speech_row_count(timeline: Option<&Timeline>, detail: SpeechDetail) -> usize {
+    rows(timeline, detail).len()
 }
 
 pub(crate) fn render_speech_track(
     ui: &mut egui::Ui,
     timeline: Option<&Timeline>,
+    detail: SpeechDetail,
     top: f32,
     bottom: f32,
     scroll_rect: Rect,
@@ -93,7 +101,7 @@ pub(crate) fn render_speech_track(
     theme: eparts::Theme,
     _sp: &Spatial,
 ) {
-    let rows = rows(timeline);
+    let rows = rows(timeline, detail);
     let row_height = (bottom - top) / rows.len().max(1) as f32;
     for (index, row) in rows.iter().enumerate() {
         let label = &row.label;

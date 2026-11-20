@@ -233,13 +233,3 @@ pub(super) fn handle_file_drop(
         }
     }
 }
-
-pub(super) fn show_selection_editors(
-    ctx: &mut PreviewContext<'_>,
-    ui: &mut egui::Ui,
-    preview_rect: egui::Rect,
-    _is_dragging: bool,
-) {
-    // Preview has no inline editors or drag-to-place path.
-    preview_floating_hud_ui(ctx, ui, preview_rect);
-}

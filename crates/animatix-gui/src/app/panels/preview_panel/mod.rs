@@ -5,8 +5,7 @@ use eparts::widget::UiExt;
 
 use crate::app::commands::Command;
 use crate::app::components::button::{Button, toolbar_separator};
-use crate::app::components::text_tooltip;
-use crate::app::design_tokens::spatial::{RADIUS_L, STROKE_WIDTH, preview as preview_spatial};
+use crate::app::design_tokens::spatial::{STROKE_WIDTH, preview as preview_spatial};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::panels::{RULER_SIZE, nice_tick_interval};
 pub(crate) use crate::app::preview::context::PreviewContext;

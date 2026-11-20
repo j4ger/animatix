@@ -8,6 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::ops::Range;
 
 /// Error encountered while parsing a transcript.
 #[derive(Debug, thiserror::Error)]
@@ -65,6 +66,10 @@ pub struct SpeechTranscript {
     /// Subtitle / speech segments in chronological order.
     #[serde(default)]
     pub segments: Vec<TranscriptSegment>,
+    /// Segment index ranges of adopted narration takes, keyed by paragraph ID.
+    /// A present map identifies all voiced paragraphs of a managed chapter.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub narration_takes: Option<HashMap<String, Range<usize>>>,
 }
 
 impl SpeechTranscript {
@@ -142,6 +147,8 @@ struct RawTranscriptJson {
     segments: Option<Vec<RawSegmentJson>>,
     #[serde(default)]
     cues: Option<Vec<RawSegmentJson>>,
+    #[serde(default)]
+    narration_takes: Option<HashMap<String, Range<usize>>>,
 }
 
 #[derive(Deserialize)]
@@ -182,6 +189,7 @@ pub fn parse_transcript_json(json_str: &str) -> Result<SpeechTranscript, Transcr
         duration: raw.duration.unwrap_or(0.0),
         markers: raw.markers.unwrap_or_default(),
         segments: Vec::new(),
+        narration_takes: raw.narration_takes,
     };
 
     let segments_source = raw.segments.or(raw.cues).unwrap_or_default();
@@ -299,6 +307,7 @@ fn parse_timed_subtitles(
         duration,
         markers: HashMap::new(),
         segments,
+        narration_takes: None,
     })
 }
 

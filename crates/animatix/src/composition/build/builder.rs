@@ -147,6 +147,12 @@ impl Composition {
         }
         for stmt in body {
             match stmt {
+                Stmt::Keyframe {
+                    time: crate::ast::Time::SpeechMarker { marker, .. },
+                    body,
+                    ..
+                } if body.is_empty() && animatix_syntax::narration::is_implicit_anchor(marker) => {
+                },
                 Stmt::Keyframe { time, span, .. }
                 | Stmt::RelativeKeyframe {
                     offset: time, span, ..

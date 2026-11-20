@@ -33,5 +33,6 @@ pub use eparts::tokens::primitive;
 pub use eparts::tokens::{motion, typography, util};
 pub mod semantic;
 pub mod spatial;
+pub(crate) mod workbench;
 
 pub use util::{lerp_color, multiply_alpha};

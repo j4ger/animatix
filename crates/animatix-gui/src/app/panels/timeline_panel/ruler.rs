@@ -2,13 +2,12 @@
 
 use std::hash::Hash;
 
-use egui::{Align2, FontId, Pos2, Rect, Sense, Stroke, Vec2};
+use egui::{Align2, Pos2, Rect, Sense, Stroke, Vec2};
 
 use super::TimelineCoords;
 use crate::app::PreviewPaneState;
 use crate::app::commands::{ActionQueue, Command};
 use crate::app::components::button::Button;
-use crate::app::components::text_tooltip;
 use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH, Spatial};
 use crate::app::design_tokens::typography::TextRole;
 
@@ -32,56 +31,39 @@ pub(crate) fn bar_interaction(
 }
 
 /// Timeline-local controls: zoom. Playback transport is global (`shell::transport`).
-pub(crate) fn render_timeline_zoom_bar(
+pub(crate) fn render_timeline_zoom_bar(ui: &mut egui::Ui, preview: &mut PreviewPaneState) {
+    use egui_phosphor::regular as icons;
+    let out = (icons::MINUS, 0.8, "Zoom out (Ctrl+wheel)");
+    let zoom_in = (icons::PLUS, 1.25, "Zoom in (Ctrl+wheel)");
+    let (first, last) = if ui.layout().main_dir() == egui::Direction::RightToLeft {
+        (zoom_in, out)
+    } else {
+        (out, zoom_in)
+    };
+
+    zoom_step(ui, preview, first);
+    let zoom_text = format!("{:.0}%", preview.timeline_zoom * 100.0);
+    if ui
+        .add(Button::secondary(zoom_text).with_tooltip("Reset timeline zoom"))
+        .clicked()
+    {
+        preview.timeline_zoom = 1.0;
+        preview.timeline_scroll_offset = 0.0;
+    }
+    zoom_step(ui, preview, last);
+}
+
+fn zoom_step(
     ui: &mut egui::Ui,
-    strip_rect: egui::Rect,
     preview: &mut PreviewPaneState,
+    (icon, factor, tooltip): (&'static str, f32, &'static str),
 ) {
-    let theme = eparts::theme(ui);
-    let sp = crate::app::design_tokens::spatial::spatial(ui);
-    ui.scope_builder(egui::UiBuilder::new().max_rect(strip_rect), |ui| {
-        ui.painter().rect_filled(strip_rect, 0.0, theme.palette.surface.base);
-        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-            ui.add_space(sp.base.space_2);
-            let zoom_text = format!("{:.0}%", preview.timeline_zoom * 100.0);
-            let zoom_btn = ui.add(Button::ghost(zoom_text).with_size(eparts::Size::Sm));
-            text_tooltip(ui, zoom_btn.id.with("reset_zoom_tip"), &zoom_btn, "Reset timeline zoom");
-            if zoom_btn.clicked() {
-                preview.timeline_zoom = 1.0;
-                preview.timeline_scroll_offset = 0.0;
-            }
-            if ui
-                .add(
-                    Button::ghost("")
-                        .with_icon(egui_phosphor::regular::MINUS)
-                        .with_size(eparts::Size::Sm)
-                        .with_tooltip("Zoom out (Ctrl+wheel)"),
-                )
-                .clicked()
-            {
-                let new_zoom = (preview.timeline_zoom * 0.8).max(0.25);
-                if new_zoom <= 1.0 {
-                    preview.timeline_scroll_offset = 0.0;
-                }
-                preview.timeline_zoom = new_zoom;
-            }
-            if ui
-                .add(
-                    Button::ghost("")
-                        .with_icon(egui_phosphor::regular::PLUS)
-                        .with_size(eparts::Size::Sm)
-                        .with_tooltip("Zoom in (Ctrl+wheel)"),
-                )
-                .clicked()
-            {
-                let new_zoom = (preview.timeline_zoom * 1.25).min(8.0);
-                if new_zoom <= 1.0 {
-                    preview.timeline_scroll_offset = 0.0;
-                }
-                preview.timeline_zoom = new_zoom;
-            }
-        });
-    });
+    if ui.add(Button::icon(icon).with_tooltip(tooltip)).clicked() {
+        preview.timeline_zoom = (preview.timeline_zoom * factor).clamp(0.25, 8.0);
+        if preview.timeline_zoom <= 1.0 {
+            preview.timeline_scroll_offset = 0.0;
+        }
+    }
 }
 
 /// Render the time scale ruler ticks and time labels.
@@ -111,6 +93,14 @@ pub(crate) fn render_ruler(
         theme.palette.surface.base,
     );
 
+    painter.text(
+        Pos2::new(scroll_rect.left() + sp.base.space_4, (ruler_top + ruler_bot) * 0.5),
+        Align2::LEFT_CENTER,
+        "Tracks",
+        TextRole::BodyMedium.font_id(),
+        theme.palette.text.secondary,
+    );
+
     let tick_step = if coords.visible_s <= 2.0 {
         0.25
     } else if coords.visible_s <= 5.0 {
@@ -131,14 +121,17 @@ pub(crate) fn render_ruler(
                 Stroke::new(STROKE_WIDTH, theme.palette.border.default),
             );
             painter.text(
-                Pos2::new(x, ruler_top + sp.timeline.ruler_height * 0.35),
-                Align2::CENTER_CENTER,
+                Pos2::new(
+                    (x + 4.0).max(coords.bar_origin_x + 8.0),
+                    ruler_top + sp.timeline.ruler_height * 0.35,
+                ),
+                Align2::LEFT_CENTER,
                 if tick_step >= 1.0 {
                     format!("{:.0}s", t)
                 } else {
                     format!("{:.1}s", t)
                 },
-                FontId::monospace(10.0), // 10px mono: no TextRole
+                TextRole::Mono.font_id(),
                 theme.palette.text.muted,
             );
         }
@@ -170,8 +163,8 @@ pub(crate) fn render_range_slider(
     painter.text(
         Pos2::new(scroll_rect.left() + sp.base.space_2, (rs_top + rs_bot) / 2.0),
         Align2::LEFT_CENTER,
-        "Region",
-        TextRole::Micro.font_id(),
+        "Loop",
+        TextRole::BodyS.font_id(),
         theme.palette.text.muted,
     );
 
@@ -242,8 +235,8 @@ pub(crate) fn render_range_slider(
         painter.text(
             mid,
             Align2::CENTER_CENTER,
-            "Enable loop to set region",
-            FontId::monospace(10.0), // 10px mono: no TextRole
+            "Enable a loop to adjust its range",
+            TextRole::BodyS.font_id(),
             theme.palette.text.muted,
         );
     }
@@ -261,9 +254,12 @@ pub(crate) fn render_playhead(
     if playhead_x >= coords.bar_origin_x
         && playhead_x <= coords.bar_origin_x + coords.bar_width + 2.0
     {
+        let tab =
+            Rect::from_center_size(Pos2::new(playhead_x, ruler_top + 3.0), Vec2::new(7.0, 6.0));
+        painter.rect_filled(tab, 2.0, theme.palette.status.warning);
         painter.line_segment(
             [
-                Pos2::new(playhead_x, ruler_top),
+                Pos2::new(playhead_x, tab.bottom()),
                 Pos2::new(playhead_x, content_bottom),
             ],
             Stroke::new(1.5, theme.palette.status.warning),

@@ -62,7 +62,7 @@ pub fn spatial_from_ctx(ctx: &egui::Context) -> Spatial {
 /// Toolbar chrome dimensions.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ToolbarSpatial {
-    /// Total height of the toolbar strip (28 px base).
+    /// Total height of the toolbar strip (52 px base).
     pub height: f32,
 }
 
@@ -84,7 +84,7 @@ pub struct TimelineSpatial {
     pub ruler_height: f32,
     /// Height of the loop-range overlay strip (20 px base).
     pub range_height: f32,
-    /// Height of the playback-position strip (28 px base).
+    /// Height of the playback-position strip (52 px base).
     pub playback_strip_height: f32,
     /// Width of the track-name label column (120 px base).
     pub label_col_width: f32,
@@ -180,7 +180,7 @@ pub mod preview {
 
 pub mod toolbar {
     /// Total height of the toolbar strip (scaling chrome).
-    pub const HEIGHT: f32 = 28.0;
+    pub const HEIGHT: f32 = 52.0;
 }
 
 pub mod timeline {
@@ -325,7 +325,7 @@ mod tests {
     #[test]
     fn default_density_is_byte_identical_to_base_consts() {
         let s = Spatial::for_density(Density::Default);
-        assert_eq!(s.toolbar.height, 28.0);
+        assert_eq!(s.toolbar.height, 52.0);
         assert_eq!(s.timeline.track_row_height, 28.0);
         assert_eq!(s.timeline.ruler_height, 22.0);
         assert_eq!(s.timeline.range_height, 20.0);

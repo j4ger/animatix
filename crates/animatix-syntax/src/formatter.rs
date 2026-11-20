@@ -89,14 +89,15 @@ impl Formatter {
         }
 
         let separator = "\n".repeat(1 + self.config.blank_lines_between_top_level);
-        let mut result: Vec<String> = stmts
+        let result: Vec<String> = stmts
             .iter()
             .map(|s| format_core::format_stmt_raw(s, 0, self.config.indent_size))
+            .filter(|text| !text.is_empty())
             .collect();
 
-        // Remove empty lines at the start
-        let first_non_empty = result.iter().position(|s| !s.is_empty()).unwrap_or(result.len());
-        result.drain(..first_non_empty);
+        if result.is_empty() {
+            return String::new();
+        }
 
         let mut output = result.join(&separator);
 
@@ -165,6 +166,8 @@ struct SourceComment {
     code_before: usize,
     /// True when the comment shares a line with preceding code.
     trailing: bool,
+    /// True when adjacent narration comments belong to separate paragraphs.
+    narration_break: bool,
     /// Leading whitespace of the comment's source line, used as a fallback
     /// when the AST serializer emits a line without indentation (for example
     /// container inline children).
@@ -197,16 +200,32 @@ fn reinsert_comments(
 
     let mut comments = Vec::new();
     let mut code_before = 0usize;
+    let mut previous_narration = None;
     for token in source_tokens {
         match &token.kind {
             TokenKind::Comment(text) => {
                 let line_start = source[..token.span.start].rfind('\n').map(|i| i + 1).unwrap_or(0);
                 let trailing =
                     source[line_start..token.span.start].chars().any(|ch| !ch.is_whitespace());
+                let narration = !trailing
+                    && text.starts_with('/')
+                    && !text.starts_with("//")
+                    && !text[1..].trim().is_empty();
+                let narration_break = narration
+                    && previous_narration.is_some_and(|(end, code)| {
+                        code == code_before
+                            && source[end..token.span.start]
+                                .bytes()
+                                .filter(|byte| *byte == b'\n')
+                                .count()
+                                > 1
+                    });
+                previous_narration = narration.then_some((token.span.end, code_before));
                 comments.push(SourceComment {
                     text: text.clone(),
                     code_before,
                     trailing,
+                    narration_break,
                     source_indent: leading_indent(source, line_start).to_string(),
                 });
             },
@@ -235,7 +254,10 @@ fn reinsert_comments(
                 indent_size,
             )
         };
-        if let Some(edit) = edit {
+        if let Some(mut edit) = edit {
+            if comment.narration_break {
+                edit.text.insert(0, '\n');
+            }
             edits.push(edit);
         }
     }
@@ -487,6 +509,17 @@ fn leading_indent(text: &str, line_start: usize) -> &str {
 struct CommentScrubber;
 
 impl AstFolder for CommentScrubber {
+    fn fold_stmt(&mut self, mut stmt: Stmt) -> Stmt {
+        if let Stmt::Keyframe {
+            time: crate::ast::Time::SpeechMarker { marker, .. },
+            ..
+        } = &mut stmt
+        {
+            crate::narration::strip_implicit_anchor_text(marker);
+        }
+        crate::visit::walk_fold_stmt(self, stmt)
+    }
+
     fn fold_property(&mut self, prop: Property) -> Property {
         Property {
             name: prop.name,

@@ -148,7 +148,11 @@ impl RebuildWorker {
             source_hash: SourceHash(hash),
             file_path: source.file_path().to_path_buf(),
             source_text: source.text().to_string(),
-            asset_cache: source.document.asset_cache(),
+            asset_cache: if source.media_changed {
+                None
+            } else {
+                source.document.asset_cache()
+            },
             extension_context: source.document.extension_context.clone(),
             extension_manifest: source.document.extension_manifest.clone(),
             workspace_root: source.document.workspace_root.clone(),

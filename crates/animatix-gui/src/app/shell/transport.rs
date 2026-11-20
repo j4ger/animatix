@@ -1,205 +1,242 @@
-//! Global playback transport.
-//!
-//! Playback is global state, so the transport lives in the top toolbar rather
-//! than inside the timeline panel: switching the bottom band to another tab
-//! (or collapsing it) must not take play/pause away. Timeline-local controls
-//! (zoom) stay in the timeline panel.
+//! Playback controls stay with the preview across Timeline, Curves and Focus layouts.
 
-use egui::Vec2;
+use egui::{Align, Layout, Rect, RichText, Vec2};
+use egui_phosphor::regular as icons;
 use eparts::widget::UiExt;
 
 use crate::app::PreviewPaneState;
 use crate::app::commands::{ActionQueue, Command};
-use crate::app::components::button::{self, Button, toolbar_separator};
+use crate::app::components::button::{Button, play_pause_icon};
+use crate::app::design_tokens::spatial::spatial;
 use crate::app::design_tokens::typography::TextRole;
+use crate::app::interaction::keyboard::{KeyboardAction, ShortcutRegistry, tooltip_with_shortcut};
 
-/// Render the transport controls into an existing horizontal layout.
 pub(crate) fn transport_ui(
     ui: &mut egui::Ui,
     preview: &mut PreviewPaneState,
     commands: &mut ActionQueue,
+    shortcuts: &ShortcutRegistry,
 ) {
-    let theme = eparts::theme(ui);
-    let sp = crate::app::design_tokens::spatial::spatial(ui);
+    let sp = spatial(ui);
+    let width = ui.available_width();
+    let full = width >= 480.0;
+    let controls_width = if full { 240.0 } else { 128.0 };
     ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_1, 0.0);
 
-    // Go to start
-    if ui
-        .add(
-            Button::ghost("")
-                .with_icon(egui_phosphor::regular::SKIP_BACK)
-                .with_tooltip("Go to start"),
+    let (row, _) =
+        ui.allocate_exact_size(Vec2::new(width, ui.available_height()), egui::Sense::hover());
+    let scope = |rect, layout| egui::UiBuilder::new().max_rect(rect).layout(layout);
+    let centered = Layout::left_to_right(Align::Center);
+    let core = Rect::from_center_size(row.center(), Vec2::new(controls_width, row.height()));
+
+    ui.scope_builder(scope(row.with_max_x(core.left()), centered), |ui| {
+        ui.label(
+            RichText::new(preview.playback.timecode_string()).font(TextRole::MonoDigits.font_id()),
         )
-        .clicked()
-    {
-        commands.push_back(Command::ScrubTo(0.0).into());
+        .on_hover_text(format!(
+            "{:.3}s of {:.3}s",
+            preview.playback.current_time_s(),
+            preview.playback.duration_s,
+        ));
+    });
+    ui.scope_builder(scope(core, centered), |ui| {
+        player_buttons(ui, preview, commands, shortcuts, full);
+    });
+    ui.scope_builder(
+        scope(row.with_min_x(core.right()), Layout::right_to_left(Align::Center)),
+        |ui| playback_options(ui, preview, commands, shortcuts, full),
+    );
+}
+
+fn player_buttons(
+    ui: &mut egui::Ui,
+    preview: &PreviewPaneState,
+    commands: &mut ActionQueue,
+    shortcuts: &ShortcutRegistry,
+    full: bool,
+) {
+    use KeyboardAction as Key;
+
+    if full {
+        action(
+            ui,
+            commands,
+            shortcuts,
+            icons::SKIP_BACK,
+            "Go to start",
+            None,
+            Command::ScrubTo(0.0),
+        );
+    }
+    action(
+        ui,
+        commands,
+        shortcuts,
+        icons::CARET_LEFT,
+        "Previous keyframe",
+        Some(Key::PrevKeyframe),
+        Command::PrevKeyframe,
+    );
+    if full {
+        action(
+            ui,
+            commands,
+            shortcuts,
+            icons::CARET_DOUBLE_LEFT,
+            "Step back one frame",
+            Some(Key::FrameStepBackward),
+            Command::FrameStepBackward,
+        );
     }
 
-    // Previous keyframe
-    if ui
-        .add(
-            Button::ghost("")
-                .with_icon(egui_phosphor::regular::CARET_LEFT)
-                .with_tooltip("Previous keyframe (,)"),
-        )
-        .clicked()
-    {
-        commands.push_back(Command::PrevKeyframe.into());
-    }
-
-    // Play / Pause
-    if ui
-        .add(Button::icon(button::play_pause_icon(preview.playback.is_playing)).with_tooltip(
-            if preview.playback.is_playing {
-                "Pause (Space)"
-            } else {
-                "Play (Space)"
-            },
-        ))
-        .clicked()
-    {
+    let playing = preview.playback.is_playing;
+    let verb = if playing { "Pause" } else { "Play" };
+    let tooltip = tooltip_with_shortcut(shortcuts, verb, &Key::TogglePlayback, ui.ctx());
+    let play = Button::primary(verb).with_icon(play_pause_icon(playing)).with_tooltip(tooltip);
+    if ui.add(play).clicked() {
         commands.push_back(Command::TogglePlayback.into());
     }
 
-    // Next keyframe
-    if ui
-        .add(
-            Button::ghost("")
-                .with_icon(egui_phosphor::regular::CARET_RIGHT)
-                .with_tooltip("Next keyframe (.)"),
-        )
-        .clicked()
-    {
-        commands.push_back(Command::NextKeyframe.into());
+    if full {
+        action(
+            ui,
+            commands,
+            shortcuts,
+            icons::CARET_DOUBLE_RIGHT,
+            "Step forward one frame",
+            Some(Key::FrameStepForward),
+            Command::FrameStepForward,
+        );
     }
-
-    // Frame step back / forward
-    if ui
-        .add(
-            Button::icon(egui_phosphor::regular::CARET_DOUBLE_LEFT)
-                .with_tooltip("Step back one frame (Shift+,)"),
-        )
-        .clicked()
-    {
-        commands.push_back(Command::FrameStepBackward.into());
-    }
-    if ui
-        .add(
-            Button::icon(egui_phosphor::regular::CARET_DOUBLE_RIGHT)
-                .with_tooltip("Step forward one frame (Shift+.)"),
-        )
-        .clicked()
-    {
-        commands.push_back(Command::FrameStepForward.into());
-    }
-
-    // Go to end
-    if ui
-        .add(
-            Button::ghost("")
-                .with_icon(egui_phosphor::regular::SKIP_FORWARD)
-                .with_tooltip("Go to end"),
-        )
-        .clicked()
-    {
-        commands.push_back(Command::ScrubTo(preview.playback.duration_s).into());
-    }
-
-    toolbar_separator(ui);
-
-    // Speed
-    const SPEEDS: [(f32, &str); 4] = [(0.5, "0.5x"), (1.0, "1x"), (2.0, "2x"), (4.0, "4x")];
-    let si = SPEEDS
-        .iter()
-        .position(|(v, _)| (*v - preview.playback.playback_speed).abs() < f32::EPSILON)
-        .unwrap_or(1);
-    ui.menu_button(
-        egui::RichText::new(SPEEDS[si].1)
-            .font(TextRole::MonoDigits.font_id())
-            .size(TextRole::BodyS.size())
-            .color(theme.palette.text.secondary),
-        |ui| {
-            for (speed, label) in &SPEEDS {
-                let is_active = (*speed - preview.playback.playback_speed).abs() < f32::EPSILON;
-                if ui.stable_selectable_label(is_active, *label).clicked() {
-                    preview.playback.playback_speed = *speed;
-                    ui.close();
-                }
-            }
-        },
+    action(
+        ui,
+        commands,
+        shortcuts,
+        icons::CARET_RIGHT,
+        "Next keyframe",
+        Some(Key::NextKeyframe),
+        Command::NextKeyframe,
     );
+    if full {
+        action(
+            ui,
+            commands,
+            shortcuts,
+            icons::SKIP_FORWARD,
+            "Go to end",
+            None,
+            Command::ScrubTo(preview.playback.duration_s),
+        );
+    }
+}
 
-    // Loop
+fn playback_options(
+    ui: &mut egui::Ui,
+    preview: &mut PreviewPaneState,
+    commands: &mut ActionQueue,
+    shortcuts: &ShortcutRegistry,
+    full: bool,
+) {
+    let theme = eparts::theme(ui);
+    let speed = format!("{}×", preview.playback.playback_speed);
+    let trigger = ui.add(
+        Button::secondary(speed)
+            .with_icon(icons::CARET_DOWN)
+            .with_tooltip("Playback settings"),
+    );
+    egui::Popup::menu(&trigger).show(|ui| settings_menu(ui, preview, commands, shortcuts, full));
+
     let loop_active =
         preview.playback.loop_start_s.is_some() && preview.playback.loop_end_s.is_some();
     if ui
         .add(
-            Button::ghost("")
-                .with_icon(egui_phosphor::regular::REPEAT)
-                .with_tooltip("Toggle loop playback")
-                .active(loop_active),
+            Button::icon(icons::REPEAT)
+                .active(loop_active)
+                .with_tooltip("Toggle loop playback"),
         )
         .clicked()
     {
-        if loop_active {
-            preview.playback.loop_start_s = None;
-            preview.playback.loop_end_s = None;
-        } else {
-            preview.playback.loop_start_s = Some(0.0);
-            preview.playback.loop_end_s = Some(preview.playback.duration_s);
+        preview.playback.loop_start_s = (!loop_active).then_some(0.0);
+        preview.playback.loop_end_s = (!loop_active).then_some(preview.playback.duration_s);
+    }
+
+    if ui.available_width() > 65.0 {
+        ui.label(
+            RichText::new(format!("{:.0} fps", preview.playback.fps))
+                .font(TextRole::Mono.font_id())
+                .color(theme.palette.text.secondary),
+        );
+    }
+}
+
+fn action(
+    ui: &mut egui::Ui,
+    commands: &mut ActionQueue,
+    shortcuts: &ShortcutRegistry,
+    icon: &'static str,
+    label: &'static str,
+    key: Option<KeyboardAction>,
+    command: Command,
+) {
+    let tooltip = key
+        .as_ref()
+        .map(|key| tooltip_with_shortcut(shortcuts, label, key, ui.ctx()))
+        .unwrap_or_else(|| label.to_owned());
+    if ui.add(Button::icon(icon).with_tooltip(tooltip)).clicked() {
+        commands.push_back(command.into());
+    }
+}
+
+fn settings_menu(
+    ui: &mut egui::Ui,
+    preview: &mut PreviewPaneState,
+    commands: &mut ActionQueue,
+    shortcuts: &ShortcutRegistry,
+    full: bool,
+) {
+    ui.label(RichText::new("Playback speed").font(TextRole::BodyMedium.font_id()));
+    for (speed, label) in [(0.5_f32, "0.5×"), (1.0, "1×"), (2.0, "2×"), (4.0, "4×")] {
+        let selected = (speed - preview.playback.playback_speed).abs() < f32::EPSILON;
+        if ui.stable_selectable_label(selected, label).clicked() {
+            preview.playback.playback_speed = speed;
+            ui.close();
         }
     }
 
-    // Ping-pong
-    let ping_pong_active = preview.playback.ping_pong;
+    ui.separator();
+    let mut ping_pong = preview.playback.ping_pong;
     if ui
-        .add(
-            Button::ghost("")
-                .with_icon(egui_phosphor::regular::ARROWS_LEFT_RIGHT)
-                .with_tooltip("Toggle ping-pong playback (bounce at boundaries)")
-                .active(ping_pong_active),
-        )
+        .add(eparts::Checkbox::new(&mut ping_pong).label("Ping-pong playback"))
         .clicked()
     {
-        preview.playback.ping_pong = !preview.playback.ping_pong;
-        if !preview.playback.ping_pong {
+        preview.playback.ping_pong = ping_pong;
+        if !ping_pong {
             preview.playback.ping_pong_direction = 1;
         }
     }
-
-    // Presentation mode
-    let pres_active = preview.playback.presentation_mode;
-    if ui
-        .add(
-            Button::ghost("")
-                .with_icon(egui_phosphor::regular::PROJECTOR_SCREEN)
-                .with_tooltip("Presentation Mode (F5)")
-                .active(pres_active),
-        )
-        .clicked()
-    {
+    let presentation_tip = tooltip_with_shortcut(
+        shortcuts,
+        "Presentation mode",
+        &KeyboardAction::TogglePresentationMode,
+        ui.ctx(),
+    );
+    if ui.button("Presentation mode").on_hover_text(presentation_tip).clicked() {
         commands.push_back(Command::TogglePresentationMode.into());
+        ui.close();
     }
 
-    // Timecode + duration + fps badge capsule
-    let current_tc = preview.playback.timecode_string();
-    let fps_val = preview.playback.fps;
-    let tc_text = format!("{current_tc}  {fps_val:.0}fps");
-
-    egui::Frame::new()
-        .fill(theme.palette.surface.surface)
-        .corner_radius(egui::CornerRadius::same(crate::app::design_tokens::spatial::RADIUS_S as u8))
-        .stroke(egui::Stroke::new(1.0, theme.palette.border.subtle))
-        .inner_margin(egui::Margin::symmetric(8, 3))
-        .show(ui, |ui| {
-            ui.add(
-                egui::Label::new(
-                    egui::RichText::new(tc_text)
-                        .font(TextRole::MonoDigits.font_id())
-                        .size(TextRole::MonoDigits.size())
-                        .color(theme.palette.text.primary),
-                )
-                .selectable(false),
-            );
-        });
+    if !full {
+        ui.separator();
+        for (label, command) in [
+            ("Go to start", Command::ScrubTo(0.0)),
+            ("Step back one frame", Command::FrameStepBackward),
+            ("Step forward one frame", Command::FrameStepForward),
+            ("Go to end", Command::ScrubTo(preview.playback.duration_s)),
+        ] {
+            if ui.button(label).clicked() {
+                commands.push_back(command.into());
+                ui.close();
+            }
+        }
+    }
 }

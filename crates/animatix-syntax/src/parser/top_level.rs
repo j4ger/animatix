@@ -68,6 +68,7 @@ pub(crate) fn parser<'src>(
         .labelled("scene declaration")
         .as_context();
 
+    let keyframe_source = source.clone();
     let keyframe = hash()
         .ignore_then(plus().or_not())
         .then(time)
@@ -81,7 +82,7 @@ pub(crate) fn parser<'src>(
                 common::StrInput<'src>,
                 common::ParserExtra<'src>,
             >| {
-                let span = common::source_span(&source, extra.span());
+                let span = common::source_span(&keyframe_source, extra.span());
                 if is_relative.is_some() {
                     Stmt::RelativeKeyframe {
                         offset: t,
@@ -98,6 +99,19 @@ pub(crate) fn parser<'src>(
             },
         )
         .labelled("keyframe");
+
+    let narration = select! { TokenKind::Comment(marker) => marker }
+        .map_with(move |marker, extra| (marker, common::source_span(&source, extra.span())))
+        .then(common::scoped(stmt.clone().repeated().collect::<Vec<_>>()))
+        .map(|((marker, span), body)| Stmt::Keyframe {
+            time: Time::SpeechMarker {
+                track: crate::narration::TRACK.into(),
+                marker,
+                offset_ms: 0,
+            },
+            body,
+            span,
+        });
 
     let step_marker = hash()
         .ignore_then(select! {
@@ -117,7 +131,7 @@ pub(crate) fn parser<'src>(
     // one malformed statement does not blind the analyzer to everything after
     // it.
     let statement_start = select! {
-        TokenKind::Hash => (),
+        TokenKind::Hash | TokenKind::Comment(_) => (),
         TokenKind::Keyword(k) if k == "config" || k == "play" => (),
         TokenKind::Ident(_) => (),
         TokenKind::LBrace => (),
@@ -127,6 +141,7 @@ pub(crate) fn parser<'src>(
     choice((
         step_marker,
         keyframe,
+        narration,
         scene_decl,
         play_stmt,
         config_stmt,
@@ -147,8 +162,35 @@ pub(crate) fn parser<'src>(
     .recover_with(skip_then_retry_until(any().ignored(), statement_start))
     .repeated()
     .collect::<Vec<_>>()
-    .map(group_scenes)
+    .map(|flat| group_scenes(prefer_explicit_keyframes(flat)))
     .boxed()
+}
+
+fn prefer_explicit_keyframes(flat: Vec<Stmt>) -> Vec<Stmt> {
+    let mut result = Vec::with_capacity(flat.len());
+    for mut statement in flat {
+        if let Stmt::Keyframe {
+            time: Time::SpeechMarker { marker, .. },
+            body,
+            ..
+        } = &mut statement
+            && crate::narration::is_implicit_anchor(marker)
+            && let Some(previous) = result.last_mut()
+        {
+            let previous_body = match previous {
+                Stmt::Keyframe { time, body, .. } if !matches!(&*time, Time::SpeechMarker { marker, .. } if crate::narration::is_implicit_anchor(marker)) => {
+                    Some(body)
+                },
+                Stmt::RelativeKeyframe { body, .. } => Some(body),
+                _ => None,
+            };
+            if let Some(previous_body) = previous_body.filter(|body| body.is_empty()) {
+                std::mem::swap(previous_body, body);
+            }
+        }
+        result.push(statement);
+    }
+    result
 }
 
 /// After parsing, group flat statements into scenes.

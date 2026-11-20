@@ -13,6 +13,7 @@ pub struct WorkspaceStore {
     pub file_tree: Vec<FileTreeEntry>,
     pub persistence_path: PathBuf,
     pub hot_reloader: Option<HotReloader>,
+    pub(crate) media_watch: crate::app::document::media_watch::MediaWatch,
     pub hot_reload_error: Option<String>,
     pub last_reload_time: Option<Instant>,
 }
@@ -32,6 +33,7 @@ impl WorkspaceStore {
             file_tree,
             persistence_path,
             hot_reloader,
+            media_watch: Default::default(),
             hot_reload_error,
             last_reload_time: None,
         }

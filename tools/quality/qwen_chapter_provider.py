@@ -131,6 +131,28 @@ def ffmpeg_audio(audio, in_format, in_rate, out_format, out_rate, filters=()):
     return process.stdout
 
 
+def recognize_pcm(text, pcm, options, lexicon, language="auto"):
+    try:
+        import numpy as np
+        import sherpa_onnx
+    except ImportError as error:
+        raise ValueError("install numpy and sherpa-onnx in the alignment environment") from error
+
+    if not options.asr_model.is_file() or not options.asr_tokens.is_file():
+        raise ValueError("--asr-model and --asr-tokens must be local files")
+    recognition_audio = ffmpeg_audio(pcm, "s16le", SAMPLE_RATE, "f32le", ASR_RATE)
+    recognizer = sherpa_onnx.OfflineRecognizer.from_sense_voice(
+        tokens=str(options.asr_tokens), model=str(options.asr_model), language=language,
+        num_threads=options.threads, use_itn=False,
+    )
+    stream = recognizer.create_stream()
+    stream.accept_waveform(ASR_RATE, np.frombuffer(recognition_audio, dtype="<f4"))
+    recognizer.decode_stream(stream)
+    result = stream.result
+    duration = len(pcm) / 2 / SAMPLE_RATE
+    return match_words(text, result.tokens, result.timestamps, duration, lexicon)
+
+
 def synthesize_and_recognize(request, options, lexicon):
     os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
@@ -138,7 +160,6 @@ def synthesize_and_recognize(request, options, lexicon):
     try:
         import numpy as np
         from qwen_tts import Qwen3TTSModel
-        import sherpa_onnx
         import torch
     except ImportError as error:
         raise ValueError("install qwen-tts, PyTorch, and sherpa-onnx in the provider's environment") from error
@@ -164,17 +185,7 @@ def synthesize_and_recognize(request, options, lexicon):
                        tempo_filters(request["rate"]))
     if not pcm or len(pcm) % 2:
         raise ValueError("the tempo-adjusted take contains no complete PCM samples")
-    recognition_audio = ffmpeg_audio(pcm, "s16le", SAMPLE_RATE, "f32le", ASR_RATE)
-    recognizer = sherpa_onnx.OfflineRecognizer.from_sense_voice(
-        tokens=str(options.asr_tokens), model=str(options.asr_model), language="zh",
-        num_threads=options.threads, use_itn=False,
-    )
-    stream = recognizer.create_stream()
-    stream.accept_waveform(ASR_RATE, np.frombuffer(recognition_audio, dtype="<f4"))
-    recognizer.decode_stream(stream)
-    result = stream.result
-    duration = len(pcm) / 2 / SAMPLE_RATE
-    words = match_words(text, result.tokens, result.timestamps, duration, lexicon)
+    words = recognize_pcm(text, pcm, options, lexicon, language="zh")
     write_wav(Path(request["audio"]), [(pcm, 0)])
     Path(request["words"]).write_bytes(json_bytes(words))
 

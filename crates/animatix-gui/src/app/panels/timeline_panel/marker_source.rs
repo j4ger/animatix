@@ -36,11 +36,29 @@ pub(super) fn locate(source: &str, markers: &mut [TimingMarker]) {
     for marker in markers.iter_mut() {
         marker.line = None;
     }
+    let paragraphs = animatix_syntax::narration::paragraphs(source);
+    let mut authored = Vec::new();
+    for marker in markers {
+        if let Some((_, name)) = marker.expression.split_once('@')
+            && animatix_syntax::narration::is_implicit_anchor(name)
+        {
+            let key =
+                animatix_syntax::narration::decode_anchor(name).expect("validated implicit marker");
+            if let Some(paragraph) =
+                paragraphs.iter().find(|p| p.scene == marker.scene && key.matches_paragraph(p))
+            {
+                marker.line =
+                    Some(source[..paragraph.span.start].bytes().filter(|b| *b == b'\n').count());
+            }
+        } else {
+            authored.push(marker);
+        }
+    }
     let tokens: Vec<_> = tokenize(source)
         .into_iter()
         .filter(|token| !matches!(token.kind, TokenKind::Comment(_)))
         .collect();
-    let expected: Vec<Vec<_>> = markers
+    let expected: Vec<Vec<_>> = authored
         .iter()
         .map(|marker| tokenize(&marker.expression).into_iter().map(|token| token.kind).collect())
         .collect();
@@ -69,7 +87,7 @@ pub(super) fn locate(source: &str, markers: &mut [TimingMarker]) {
     if found.len() == expected.len()
         && found.iter().zip(&expected).all(|((actual, _), expected)| *actual == expected)
     {
-        for (marker, (_, line)) in markers.iter_mut().zip(found) {
+        for (marker, (_, line)) in authored.into_iter().zip(found) {
             marker.line = Some(line);
         }
     }

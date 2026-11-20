@@ -58,11 +58,11 @@ impl GuiShell {
     }
 
     /// Force-clear any active error state (parse or render).
-    pub(crate) fn clear_any_error(&mut self, status: String) {
+    pub(crate) fn clear_any_error(&mut self) {
         self.document_store.history.render_diagnostics.clear();
         self.document_store.history.runtime_diagnostics.clear();
         self.preview_store.preview.error = None;
-        self.preview_store.preview.status = status;
+        self.preview_store.preview.status.clear();
     }
 
     pub(crate) fn save_persistence(&self) {

@@ -53,6 +53,31 @@ impl DocumentSession {
     }
 }
 
+impl DocumentSession {
+    pub(crate) fn narration_asset_paths(&self) -> std::collections::BTreeSet<std::path::PathBuf> {
+        let mut paths: std::collections::BTreeSet<_> = self
+            .all_audio_segments()
+            .into_iter()
+            .map(|segment| std::path::PathBuf::from(segment.source))
+            .collect();
+        let timelines = self.timeline.iter().chain(
+            self.composition
+                .iter()
+                .flat_map(|composition| composition.scenes.values().map(|scene| &scene.timeline)),
+        );
+        for timeline in timelines {
+            paths.extend(timeline.asset_cache_arc().transcripts().map(|(name, _)| name.into()));
+        }
+        paths
+            .retain(|path| !path.as_os_str().is_empty() && !path.to_string_lossy().contains("://"));
+        paths
+    }
+
+    pub(crate) fn invalidate_media_identity(&mut self) {
+        self.waveform_identity = fresh_waveform_identity();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -119,6 +144,19 @@ a.volume = 0.75"
         let segments = document.all_audio_segments();
         assert_eq!(segments[0].start_time_s, 2.0);
         assert_eq!(segments[0].duration_s, Some(3.0));
+    }
+
+    #[test]
+    fn opening_a_relative_document_resolves_audio_and_transcript_once() {
+        let file = std::path::Path::new("../../examples/animation/41_speech_sync_captions.amx");
+        let doc = DocumentSession::load(file.to_owned()).unwrap();
+        let paths = doc.narration_asset_paths();
+        assert!(paths.iter().any(|path| path.ends_with("narration.mp3") && path.is_file()));
+        assert!(
+            paths
+                .iter()
+                .any(|path| path.ends_with("narration.speech.json") && path.is_file())
+        );
     }
 
     #[test]

@@ -519,10 +519,9 @@ pub fn format_component_def(def: &ComponentDef, depth: usize, indent_size: usize
 pub fn format_stmts_raw(stmts: &[Stmt], depth: usize, indent_size: usize) -> String {
     stmts
         .iter()
-        .map(|s| {
-            let raw = format_stmt_raw(s, 0, indent_size);
-            indent(&raw, depth, indent_size)
-        })
+        .map(|s| format_stmt_raw(s, 0, indent_size))
+        .filter(|raw| !raw.is_empty())
+        .map(|raw| indent(&raw, depth, indent_size))
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -690,6 +689,16 @@ fn format_actor_decl(
 
 /// Serialize an absolute keyframe header and its body.
 fn format_keyframe(time: &Time, body: &[Stmt], depth: usize, indent_size: usize) -> String {
+    if let Time::SpeechMarker { marker, .. } = time
+        && crate::narration::is_implicit_anchor(marker)
+    {
+        let statements = format_stmts_raw(body, depth, indent_size);
+        return match crate::narration::implicit_anchor_text(marker) {
+            Some(text) if statements.is_empty() => format!("/// {text}\n\n"),
+            Some(text) => format!("/// {text}\n{statements}"),
+            None => statements,
+        };
+    }
     let body_str = format_stmts_raw(body, depth + 1, indent_size);
     format!("#{}\n{}", format_time(time), body_str)
 }

@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use egui::{Color32, Response, Role, Sense, Vec2, WidgetInfo};
 
 use crate::tokens::spatial::{RADIUS_S, ROW_M, SPACE_3, STROKE_WIDTH};
@@ -41,7 +43,7 @@ pub struct Button {
     size: Size,
     icon: Option<&'static str>,
     label: Option<String>,
-    tooltip: &'static str,
+    tooltip: Cow<'static, str>,
     disabled: bool,
     active: bool,
     align: ButtonAlign,
@@ -58,7 +60,7 @@ impl Button {
             size: Size::Md,
             icon: None,
             label: None,
-            tooltip: "",
+            tooltip: Cow::Borrowed(""),
             disabled: false,
             active: false,
             align: ButtonAlign::Center,
@@ -121,8 +123,8 @@ impl Button {
     }
 
     /// Set the tooltip.
-    pub fn with_tooltip(mut self, tip: &'static str) -> Self {
-        self.tooltip = tip;
+    pub fn with_tooltip(mut self, tip: impl Into<Cow<'static, str>>) -> Self {
+        self.tooltip = tip.into();
         self
     }
 
@@ -251,7 +253,6 @@ struct Content {
 /// is unused because it is square.
 fn content_metrics(
     ui: &egui::Ui,
-    t: theme::Theme,
     label: Option<&str>,
     icon_width: f32,
     pad_x: f32,
@@ -263,11 +264,8 @@ fn content_metrics(
         0.0
     };
     let label_galley = label.map(|l| {
-        ui.painter().layout_no_wrap(
-            l.to_string(),
-            TextRole::BodyS.font_id(),
-            t.palette.text.primary,
-        )
+        ui.painter()
+            .layout_no_wrap(l.to_string(), TextRole::BodyS.font_id(), Color32::PLACEHOLDER)
     });
     let label_width = label_galley.as_ref().map_or(0.0, |g| g.size().x);
     let width = if icon_width > 0.0 {
@@ -330,7 +328,7 @@ impl egui::Widget for Button {
         let t = theme::theme(ui);
 
         let label: Option<&str> = effective_label(self.label.as_deref());
-        let accessible_label = match (label, self.tooltip) {
+        let accessible_label = match (label, self.tooltip.as_ref()) {
             (Some(l), _) => l.to_string(),
             (None, tip) if !tip.is_empty() => tip.to_string(),
             _ => "Button".to_string(),
@@ -343,7 +341,7 @@ impl egui::Widget for Button {
                 .size()
                 .x
         });
-        let content = content_metrics(ui, t, label, icon_width, self.size.pad_x_for(d), row_height);
+        let content = content_metrics(ui, label, icon_width, self.size.pad_x_for(d), row_height);
 
         // Icon is square; labelled variants allocate measured content plus padding.
         let icon_only = matches!(self.variant, ButtonVariant::Icon);
@@ -462,7 +460,7 @@ impl egui::Widget for Button {
             t.focus_ring(),
         );
 
-        let response = finish_response(ui, response, self.tooltip);
+        let response = finish_response(ui, response, &self.tooltip);
         if response.hovered()
             && let Some(cb) = self.on_hover.take()
         {
@@ -532,7 +530,7 @@ mod tests {
     fn button_builder_options_roundtrip() {
         let b = Button::ghost("Action")
             .with_icon("★")
-            .with_tooltip("Hint")
+            .with_tooltip("Hint".to_owned())
             .active(true)
             .disabled(true)
             .icon_color(Color32::RED)

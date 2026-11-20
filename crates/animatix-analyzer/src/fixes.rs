@@ -235,20 +235,22 @@ pub fn statement_removal_range(source: &str, decl_byte: usize) -> Option<(usize,
 ///
 /// Declarations must precede their uses, and uses live in keyframes
 /// (`#0s …`) and `always` blocks — so insert before the first top-level
-/// keyframe marker, else before the first top-level `always`, else at the end
+/// keyframe marker or narration paragraph, else before the first top-level `always`, else at the end
 /// of the file. Returns `source.lines().count()` for the append case.
 pub fn declaration_insertion_line(source: &str) -> usize {
     let mut brace_depth: i64 = 0;
     let mut paren_depth: i64 = 0;
     let mut in_string = false;
     let mut escape = false;
-    let first_keyframe: Option<usize> = None;
+    let first_narration_line = animatix_syntax::narration::paragraphs(source)
+        .first()
+        .map(|p| source[..p.span.start].bytes().filter(|byte| *byte == b'\n').count());
     let mut first_always: Option<usize> = None;
 
     for (index, line) in source.lines().enumerate() {
         let trimmed = line.trim_start();
         if brace_depth == 0 && paren_depth == 0 {
-            if first_keyframe.is_none() && is_keyframe_marker(trimmed) {
+            if first_narration_line == Some(index) || is_keyframe_marker(trimmed) {
                 return index;
             }
             if first_always.is_none() && trimmed.starts_with("always") {
@@ -279,18 +281,21 @@ pub fn declaration_insertion_line(source: &str) -> usize {
         }
     }
 
-    first_keyframe.or(first_always).unwrap_or(source.lines().count())
+    first_always.unwrap_or(source.lines().count())
 }
 
-/// True when a trimmed line starts an absolute or relative keyframe
-/// (`#0s`, `# 0.5s`, `#+1s`), as opposed to a scene marker (`# Intro`).
+/// True when a trimmed line starts a keyframe and therefore changes timing.
 fn is_keyframe_marker(trimmed: &str) -> bool {
     let Some(rest) = trimmed.strip_prefix('#') else {
         return false;
     };
     let rest = rest.strip_prefix('+').unwrap_or(rest);
     let rest = rest.trim_start();
-    rest.chars().next().is_some_and(|c| c.is_ascii_digit())
+    if rest.starts_with(|c: char| c.is_ascii_digit() || c == '(') {
+        return true;
+    }
+    let after_label = rest.trim_start_matches(|c: char| c.is_ascii_alphanumeric() || c == '_');
+    after_label.len() < rest.len() && after_label.trim_start().starts_with(['@', '['])
 }
 
 /// The statement text to insert when declaring a missing actor named `name`.
@@ -425,6 +430,14 @@ mod tests {
     #[test]
     fn insertion_line_lands_before_first_keyframe() {
         let source = "a: Text, text: \"x\"\n#0s\nfade_in(target: a, duration: 1s)\n";
+        assert_eq!(declaration_insertion_line(source), 1);
+    }
+
+    #[test]
+    fn insertion_line_lands_before_first_narration_paragraph() {
+        let source = "# Intro\n/// Spoken text.\nfade_in(target: missing)\n";
+        assert_eq!(declaration_insertion_line(source), 1);
+        let source = "# Intro\n#narration@first\n/// Spoken text.\nfade_in(target: missing)\n";
         assert_eq!(declaration_insertion_line(source), 1);
     }
 

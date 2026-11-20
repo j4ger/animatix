@@ -302,6 +302,7 @@ fn import_stmt_parser<'src>() -> StmtParser<'src> {
 }
 
 fn assignment_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
+    let source = ctx.source.clone();
     ctx.target
         .clone()
         .then_ignore(assign())
@@ -311,7 +312,7 @@ fn assignment_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
             },
         ))
         .then(ctx.modifiers.clone())
-        .try_map(|((path, (value, value_span)), mut modifiers), span| {
+        .try_map(move |((path, (value, value_span)), mut modifiers), span| {
             if path.is_empty() {
                 Err(Rich::custom(
                     span,
@@ -332,7 +333,7 @@ fn assignment_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
                     modifiers,
                     easing,
                     value_span: Some(value_span),
-                    span: None,
+                    span: common::source_span(&source, span),
                 })
             } else {
                 let property = match path.last() {
@@ -359,7 +360,7 @@ fn assignment_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
                     modifiers,
                     easing,
                     value_span: Some(value_span),
-                    span: None,
+                    span: common::source_span(&source, span),
                 })
             }
         })

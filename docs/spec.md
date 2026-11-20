@@ -84,6 +84,7 @@ containing backslashes is a known limitation tracked in the roadmap.
 | `let` | Variable/actor declaration | `let x = 0` |
 | `:` | Actor binding + scene placement | `label: Text, text: "OK"` |
 | `#` | Keyframe (`#0s`, `#+1s`, `#2b`, `#voice@marker`, `#voice["word"]`) or scene declaration (`# SceneName`) | `#2.5s`, `#+1s`, `#voice@intro`, `# Intro` |
+| `///` | Standalone narration paragraph and implicit timing | `/// Look at the card.` |
 | `play` | Scene transition envelope | `play Diagram [fade, 300ms]` |
 | `{ }` | Container children, arrays, block scopes | `Row { Item1, Item2 }` |
 | `@` | Slot marker / slot fill prefix | `@slot` (definition), `@header { ... }` (fill) |
@@ -219,6 +220,39 @@ card: Rect, at: (960, 540), size: (400, 300)
 #voice@outro + 500ms:
     fade_out(target: card, duration: 400ms)
 ```
+
+Standalone `///` lines form a narration paragraph at scene level. Consecutive
+lines form one paragraph and a blank line separates paragraphs. Statements
+following a paragraph share its spoken start until the next paragraph or
+keyframe. An explicit time header attached to the actions controls their timing.
+Declare the scene's `Audio` track with a transcript before the narrated actions.
+Animatix looks for `narration`, then `voice`, then the only audio track with a
+transcript. Without a voice take, paragraph-timed actions preview at scene start.
+
+```animatix
+narration: Audio, source: "lesson.wav", transcript: "lesson.speech.json"
+card: Rect, opacity: 0
+
+/// First, look at the card.
+fade_in(target: card, duration: 300ms)
+
+/// Now notice the change in its color.
+#8s
+card.color = accent.primary [200ms]
+```
+
+The workbench can insert `#narration@…` markers to bind an action
+to the start or end of a paragraph or of a selected phrase within it. These
+markers use the same narration audio track selection as paragraph timing.
+They resolve from the transcript's segment and word timings. A repeated
+phrase uses the selected occurrence within its paragraph. For Chinese, a
+phrase boundary within a timed token uses that token's start or end. If a
+paragraph edit changes the text used to identify it, choose a suggested match
+or select the phrase again to rebind it. New phrase bindings can suggest matches
+based on the phrase and its surrounding text.
+Managed transcripts identify their voiced paragraphs, so a partial take keeps
+repeated paragraphs distinct. Unresolved explicit bindings warn in the draft
+preview and fail a production build.
 
 The timeline maintains a hierarchical `scene_graph`; transforms/opacities cascade via depth-first search.
 

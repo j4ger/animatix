@@ -95,7 +95,8 @@ impl eframe::App for AnimatixApp {
             let signature = (choice, self.system_is_dark);
             if self.applied_theme_signature != Some(signature) {
                 let dark = choice.is_dark(self.system_is_dark);
-                let theme = choice.resolve(self.system_is_dark);
+                let theme =
+                    crate::app::design_tokens::workbench::theme(choice, self.system_is_dark);
                 eparts::set_theme(ui.ctx(), theme);
                 install_theme(ui.ctx(), &theme, dark);
                 self.applied_theme_signature = Some(signature);
@@ -126,6 +127,9 @@ impl eframe::App for AnimatixApp {
 
         // Sync audio with playback state
         if let Some(audio_engine) = &mut self.audio_engine {
+            let media_identity =
+                self.shell.document_store.source.document.audio_waveform_revision(0);
+            audio_engine.set_document_media(media_identity);
             let playing = self.shell.preview_store.preview.playback.is_playing;
             let segments = self.shell.document_store.source.document.all_audio_segments();
             let time_s = self.shell.preview_store.preview.playback.current_time_s();
@@ -153,6 +157,10 @@ impl eframe::App for AnimatixApp {
         self.shell.window_size = size;
         self.shell.window_maximized = maximized;
 
+        if self.shell.workspace_store.media_watch.active() {
+            ui.ctx()
+                .request_repaint_after(crate::app::document::media_watch::CHECK_INTERVAL);
+        }
         // Request repaint if needed
         if self.shell.is_playing()
             || self.shell.preview_store.preview_dirty

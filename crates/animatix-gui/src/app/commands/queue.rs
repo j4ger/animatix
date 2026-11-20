@@ -70,6 +70,7 @@ impl Command {
             // ── Editor sync modes ────────────────────────────────────
             Self::ToggleEditorSync => "Toggle editor sync".to_string(),
             Self::EditorChanged => "Editor changed".to_string(),
+            Self::ApplySourcePatch(patch) => patch.label().to_string(),
 
             // ── Undo / Redo ──────────────────────────────────────────
             Self::Undo => "Undo".to_string(),
@@ -77,6 +78,9 @@ impl Command {
 
             // ── Navigation ───────────────────────────────────────────
             Self::ScrollToLine(line, column) => format!("Scroll to {line}:{column}"),
+            Self::OpenParagraphTakes { .. } => "Open voice takes for paragraph".into(),
+            Self::RevealNarration { .. } => "Show narration phrase".to_string(),
+            Self::ReviewNarrationCue { .. } => "Review narration cue".to_string(),
 
             // ── Viewport ─────────────────────────────────────────────
             Self::ZoomToSelection => "Zoom to selection".to_string(),

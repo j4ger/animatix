@@ -6,10 +6,12 @@
 
 use std::collections::HashMap;
 
+use animatix_syntax::narration::{self, AnchorKey};
 use animatix_text::transcript::SpeechTranscript;
 
 use crate::ast::{InlineItem, Property, Stmt, Time};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use crate::timeline::BuildQuality;
 use crate::timeline::assets::AssetCache;
 
 /// Whether this AST contains both a transcript declaration and a speech-anchored
@@ -42,7 +44,9 @@ pub(super) fn needs_speech_transcript_prepass(ast: &[Stmt]) -> bool {
 
         fn visit_stmt(&mut self, stmt: &'ast Stmt) {
             match stmt {
-                Stmt::Keyframe { time, .. } => self.has_anchor |= is_speech_anchor(time),
+                Stmt::Keyframe { time, body, .. } => {
+                    self.has_anchor |= is_speech_anchor(time) && !is_script_only(time, body);
+                },
                 Stmt::RelativeKeyframe { offset, .. } => {
                     self.has_anchor |= is_speech_anchor(offset);
                 },
@@ -93,6 +97,11 @@ fn is_speech_anchor(time: &Time) -> bool {
     matches!(time, Time::SpeechMarker { .. } | Time::SpeechWord { .. })
 }
 
+fn is_script_only(time: &Time, body: &[Stmt]) -> bool {
+    body.is_empty()
+        && matches!(time, Time::SpeechMarker { marker, .. } if narration::is_implicit_anchor(marker))
+}
+
 fn has_transcript_property(ty: &str, props: &[Property]) -> bool {
     animatix_core::builtins::caps_for_type(ty).is_some_and(|caps| caps.transcript)
         && props.iter().any(|prop| prop.name == "transcript")
@@ -102,6 +111,7 @@ fn has_transcript_property(ty: &str, props: &[Property]) -> bool {
 pub(super) struct SpeechTrack {
     transcript: SpeechTranscript,
     start_ms: Option<f64>,
+    audio: bool,
 }
 
 struct SpeechScan<'a> {
@@ -109,6 +119,7 @@ struct SpeechScan<'a> {
     tracks: &'a mut HashMap<String, SpeechTrack>,
     overridden: &'a std::collections::HashSet<String>,
     beat_ms: f64,
+    paragraphs: Vec<AnchorKey>,
 }
 
 pub(super) fn collect_transcripts_from_ast(
@@ -124,6 +135,7 @@ pub(super) fn collect_transcripts_from_ast(
         tracks,
         overridden,
         beat_ms,
+        paragraphs: source_paragraph_keys(ast),
     }
     .walk(ast, env, Some(0.0));
 }
@@ -163,8 +175,9 @@ impl SpeechScan<'_> {
                     } else {
                         Some(0.0)
                     };
-                    self.load(label, props, env, start_ms);
+                    self.load(label, props, env, start_ms, ty == "Audio");
                 },
+                Stmt::Keyframe { time, body, .. } if is_script_only(time, body) => {},
                 Stmt::Keyframe { time, body, .. } => {
                     time_ms = self.timestamp(time, env);
                     self.walk(body, env, time_ms);
@@ -217,7 +230,12 @@ impl SpeechScan<'_> {
             },
             Time::SpeechMarker { .. } | Time::SpeechWord { .. } => {
                 let mut errors = Vec::new();
-                let Time::Milliseconds(ms) = lower_time(time, self.tracks, &mut errors) else {
+                let context = SpeechLowering {
+                    tracks: self.tracks,
+                    paragraphs: &self.paragraphs,
+                    quality: BuildQuality::Draft,
+                };
+                let Time::Milliseconds(ms) = lower_time(time, &context, None, &mut errors) else {
                     return None;
                 };
                 errors.is_empty().then_some(ms as f64)
@@ -232,6 +250,7 @@ impl SpeechScan<'_> {
         props: &[Property],
         env: &crate::timeline::Environment,
         start_ms: Option<f64>,
+        audio: bool,
     ) {
         for prop in props.iter().filter(|prop| prop.name == "transcript") {
             match crate::timeline::evaluate_expr(&prop.value, env) {
@@ -244,6 +263,7 @@ impl SpeechScan<'_> {
                             SpeechTrack {
                                 transcript,
                                 start_ms,
+                                audio,
                             },
                         );
                     }
@@ -344,16 +364,70 @@ fn transcript_warning(label: &str, message: String) -> Diagnostic {
 pub(super) fn lower_speech_keyframes(
     ast: &[Stmt],
     transcripts: &HashMap<String, SpeechTrack>,
+    quality: BuildQuality,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<Stmt> {
-    ast.iter().map(|stmt| lower_stmt(stmt, transcripts, diagnostics)).collect()
+    let paragraphs = source_paragraph_keys(ast);
+    let context = SpeechLowering {
+        tracks: transcripts,
+        paragraphs: &paragraphs,
+        quality,
+    };
+    lower_speech_block(ast, &context, diagnostics)
+}
+
+fn source_paragraph_keys(ast: &[Stmt]) -> Vec<AnchorKey> {
+    ast.iter()
+        .filter_map(|stmt| {
+            let Stmt::Keyframe {
+                time: Time::SpeechMarker { marker, .. },
+                ..
+            } = stmt
+            else {
+                return None;
+            };
+            narration::is_implicit_anchor(marker)
+                .then(|| narration::decode_anchor(marker))
+                .flatten()
+        })
+        .collect()
+}
+
+struct SpeechLowering<'a> {
+    tracks: &'a HashMap<String, SpeechTrack>,
+    paragraphs: &'a [AnchorKey],
+    quality: BuildQuality,
+}
+
+fn lower_speech_block(
+    ast: &[Stmt],
+    context: &SpeechLowering<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Vec<Stmt> {
+    ast.iter()
+        .filter(
+            |stmt| !matches!(stmt, Stmt::Keyframe { time, body, .. } if is_script_only(time, body)),
+        )
+        .map(|stmt| lower_stmt(stmt, context, diagnostics))
+        .collect()
 }
 
 fn lower_time(
     time: &Time,
-    transcripts: &HashMap<String, SpeechTrack>,
+    context: &SpeechLowering<'_>,
+    span: Option<crate::ast::Span>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Time {
+    if let Time::SpeechMarker {
+        track,
+        marker,
+        offset_ms,
+    } = time
+        && let Some(key) = narration::decode_anchor(marker)
+    {
+        return lower_narration_time(track, marker, *offset_ms, &key, context, span, diagnostics);
+    }
+    let transcripts = context.tracks;
     let (label, description, offset_ms, position) = match time {
         Time::SpeechMarker {
             track,
@@ -404,29 +478,98 @@ fn lower_time(
     };
     diagnostics.push(
         Diagnostic::error(DiagnosticCode::InvalidConfigValue, DiagnosticPhase::Build, error)
-            .with_subject(label),
+            .with_subject(label)
+            .with_ast_span(span),
+    );
+    Time::Milliseconds(0)
+}
+
+fn implicit_narration_track(tracks: &HashMap<String, SpeechTrack>) -> Option<&SpeechTrack> {
+    for label in [narration::TRACK, "voice"] {
+        if let Some(track) = tracks.get(label).filter(|track| track.audio) {
+            return Some(track);
+        }
+    }
+    let mut audio = tracks.values().filter(|track| track.audio);
+    let track = audio.next()?;
+    audio.next().is_none().then_some(track)
+}
+
+fn lower_narration_time(
+    label: &str,
+    marker: &str,
+    offset_ms: i64,
+    key: &AnchorKey,
+    context: &SpeechLowering<'_>,
+    span: Option<crate::ast::Span>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Time {
+    let implicit = narration::is_implicit_anchor(marker);
+    let track = if implicit || label == narration::TRACK {
+        implicit_narration_track(context.tracks)
+    } else {
+        context.tracks.get(label).filter(|track| track.audio)
+    };
+    if implicit && track.is_none() && !context.tracks.values().any(|track| track.audio) {
+        // The script is previewable before its first voice take.
+        return Time::Milliseconds(0);
+    }
+    let error = if !context.paragraphs.iter().any(|paragraph| key.same_paragraph(paragraph)) {
+        "Narration binding refers to a changed or missing paragraph. Select the paragraph or phrase again."
+    } else if let Some(track) = track {
+        if let Some(start) = track.start_ms {
+            if let Some(position) = crate::narration::resolve_anchor(&track.transcript, key) {
+                return Time::Milliseconds(
+                    (start + position * 1000.0 + offset_ms as f64).round().max(0.0) as u64,
+                );
+            }
+            "Narration timing was not found in the transcript. Update the voice take for this paragraph."
+        } else {
+            "The narration audio needs a fixed start time before its transcript can time this action."
+        }
+    } else if implicit
+        || label == narration::TRACK && context.tracks.values().any(|track| track.audio)
+    {
+        "Multiple audio transcripts are available. Name the narration audio track 'narration' to resolve paragraph timing."
+    } else {
+        "Add a narration audio track with a transcript to resolve this binding."
+    };
+    let diagnostic = if !implicit && context.quality == BuildQuality::Production {
+        Diagnostic::error
+    } else {
+        Diagnostic::warning
+    };
+    let code = if implicit {
+        DiagnosticCode::InvalidConfigValue
+    } else {
+        DiagnosticCode::NarrationBindingUnresolved
+    };
+    diagnostics.push(
+        diagnostic(code, DiagnosticPhase::Build, error)
+            .with_subject(label)
+            .with_ast_span(span),
     );
     Time::Milliseconds(0)
 }
 
 fn lower_stmt(
     stmt: &Stmt,
-    transcripts: &HashMap<String, SpeechTrack>,
+    context: &SpeechLowering<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Stmt {
     match stmt {
         Stmt::Keyframe { time, body, span } => Stmt::Keyframe {
-            time: lower_time(time, transcripts, diagnostics),
-            body: lower_speech_keyframes(body, transcripts, diagnostics),
+            time: lower_time(time, context, *span, diagnostics),
+            body: lower_speech_block(body, context, diagnostics),
             span: *span,
         },
         Stmt::RelativeKeyframe { offset, body, span } => Stmt::RelativeKeyframe {
-            offset: lower_time(offset, transcripts, diagnostics),
-            body: lower_speech_keyframes(body, transcripts, diagnostics),
+            offset: lower_time(offset, context, *span, diagnostics),
+            body: lower_speech_block(body, context, diagnostics),
             span: *span,
         },
         Stmt::Sequence { body, span } => Stmt::Sequence {
-            body: lower_speech_keyframes(body, transcripts, diagnostics),
+            body: lower_speech_block(body, context, diagnostics),
             span: *span,
         },
         Stmt::Stagger {
@@ -435,7 +578,7 @@ fn lower_stmt(
             span,
         } => Stmt::Stagger {
             modifiers: modifiers.clone(),
-            body: lower_speech_keyframes(body, transcripts, diagnostics),
+            body: lower_speech_block(body, context, diagnostics),
             span: *span,
         },
         other => other.clone(),

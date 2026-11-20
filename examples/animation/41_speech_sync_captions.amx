@@ -38,7 +38,7 @@ subs: Captions, at: (640, 580), source: "voice", caption_mode: "karaoke", active
   fade_in(target: bg, duration: 0.4s)
   fade_in(target: title, duration: 0.4s)
 
-// Speech-Synchronized Cue Points
+/// Welcome to Animatix.
 #voice@intro
   fade_in(target: card_intro, duration: 0.4s)
   fade_in(target: subs, duration: 0.4s)
@@ -46,14 +46,14 @@ subs: Captions, at: (640, 580), source: "voice", caption_mode: "karaoke", active
 #voice["Animatix"]
   title.color = accent.primary [0.3s]
 
-// "The layout-first animation DSL for technical storytelling."
+/// The layout-first animation DSL for technical storytelling.
 #voice@feature
   fade_in(target: card_feature, duration: 0.4s)
 
 #voice["DSL"]
   card_feature.card_bg.stroke = accent.primary [0.2s]
 
-// "Watch captions synchronize perfectly with every spoken word."
+/// Watch captions synchronize perfectly with every spoken word.
 #voice@captions
   fade_in(target: card_captions, duration: 0.4s)
 

@@ -57,6 +57,7 @@ pub enum Command {
     // ── Editor sync modes ─────────────────────────────────────────────
     ToggleEditorSync,
     EditorChanged,
+    ApplySourcePatch(crate::editor::source_patch::SourcePatch),
 
     // ── Undo / Redo ───────────────────────────────────────────────────
     Undo,
@@ -64,6 +65,22 @@ pub enum Command {
 
     // ── Navigation ────────────────────────────────────────────────────
     ScrollToLine(usize, usize),
+    OpenParagraphTakes {
+        epoch: crate::app::document::version::SourceEpoch,
+        scene: Option<String>,
+        paragraph: String,
+    },
+    RevealNarration {
+        epoch: crate::app::document::version::SourceEpoch,
+        scene: Option<String>,
+        marker: String,
+    },
+    ReviewNarrationCue {
+        epoch: crate::app::document::version::SourceEpoch,
+        scene: Option<String>,
+        line: usize,
+        marker: String,
+    },
 
     // ── Viewport ──────────────────────────────────────────────────────
     ZoomToSelection,

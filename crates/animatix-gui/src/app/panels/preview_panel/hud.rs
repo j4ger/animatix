@@ -120,120 +120,88 @@ pub(super) fn presentation_hud_ui(
     });
 }
 
-/// Floating Tool Island HUD: an elevated pill hovering over the preview canvas (design doc §12.2).
-pub(super) fn preview_floating_hud_ui(
-    ctx: &mut PreviewContext<'_>,
-    ui: &mut egui::Ui,
-    canvas_rect: egui::Rect,
-) {
+/// Preview controls sit beside the viewport instead of over the artwork.
+pub(super) fn preview_header_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
+    use crate::app::design_tokens::spatial::spatial;
     use egui_phosphor::regular as icons;
 
     let theme = eparts::theme(ui);
-    let hud_width = 280.0_f32.min(canvas_rect.width() - 24.0);
-    let hud_height = 36.0;
+    let sp = spatial(ui);
+    let max_scene_width = (ui.available_width() - 260.0).clamp(0.0, 220.0);
+    ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
+    ui.label(RichText::new("Preview").font(TextRole::Title.font_id()));
 
-    if hud_width < 120.0 {
-        return; // Don't render HUD if viewport is too narrow
+    if let Some(composition) = ctx.composition
+        && composition.declaration_order.len() > 1
+    {
+        let active = ctx.active_scene.unwrap_or("Scenes");
+        let open_scenes = |ui: &mut egui::Ui| {
+            for name in &composition.declaration_order {
+                if ui.stable_selectable_label(name == active, name).clicked() {
+                    ctx.commands.push_back(Command::SelectScene(name.clone()).into());
+                    ui.close();
+                }
+            }
+        };
+        if max_scene_width >= 44.0 {
+            let label = format!("{active}  {}", icons::CARET_DOWN);
+            let title = RichText::new(label).font(TextRole::BodyS.font_id());
+            let button = ui
+                .allocate_ui_with_layout(
+                    Vec2::new(max_scene_width, sp.base.row_m),
+                    egui::Layout::left_to_right(egui::Align::Center),
+                    |ui| ui.add(egui::Button::new(title).truncate().frame(false)),
+                )
+                .inner;
+            egui::Popup::menu(&button).show(open_scenes);
+            button.on_hover_text("Switch scene");
+        } else {
+            crate::app::components::icon_menu(ui, icons::FILM_STRIP, "Switch scene", open_scenes);
+        }
     }
 
-    let hud_rect = egui::Rect::from_center_size(
-        egui::pos2(canvas_rect.center().x, canvas_rect.min.y + 24.0),
-        egui::vec2(hud_width, hud_height),
-    );
-
-    // 1. Elevated shadow
-    ui.painter()
-        .add(theme.elevation.overlay.as_shape(hud_rect, egui::CornerRadius::same(18)));
-
-    // 2. Obsidian glassmorphic pill background
-    ui.painter().rect_filled(hud_rect, 18.0, theme.palette.overlay.floating_hud_bg);
-
-    // 3. Dual-tone border: outer subtle + top rim highlight
-    ui.painter().rect_stroke(
-        hud_rect,
-        18.0,
-        egui::Stroke::new(1.0, theme.palette.border.subtle),
-        egui::StrokeKind::Inside,
-    );
-    let top_rim = egui::Rect::from_min_max(
-        egui::pos2(hud_rect.min.x + 18.0, hud_rect.min.y),
-        egui::pos2(hud_rect.max.x - 18.0, hud_rect.min.y + 1.0),
-    );
-    ui.painter().rect_filled(top_rim, 0.5, theme.palette.border.rim_highlight);
-
-    // 4. Interactive contents inside the floating capsule
-    let inner_rect = hud_rect.shrink2(egui::vec2(8.0, 2.0));
-    ui.scope_builder(egui::UiBuilder::new().max_rect(inner_rect), |ui| {
-        ui.horizontal_centered(|ui| {
-            ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
-
-            ui.label(egui::RichText::new("Review").small().color(theme.palette.text.secondary));
-            toolbar_separator(ui);
-
-            // View toggles
-            let grid = ctx.preview.overlay.show_grid;
-            let grid_resp = ui.add(Button::ghost("").with_icon(icons::GRID_FOUR).active(grid));
-            text_tooltip(ui, grid_resp.id.with("grid_tip"), &grid_resp, "Toggle grid");
-            if grid_resp.clicked() {
-                ctx.preview.overlay.show_grid = !grid;
+    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        let zoom = ctx.preview.viewport.preview_zoom;
+        let zoom_label = format!("{:.0}%", zoom * 100.0);
+        let response = ui.add(
+            Button::secondary(zoom_label)
+                .with_icon(icons::CARET_DOWN)
+                .with_tooltip("Preview zoom"),
+        );
+        egui::Popup::menu(&response).show(|ui| {
+            if ui.button("Fit").clicked() {
+                ctx.preview.fit_zoom_requested = true;
+                ui.close();
             }
-
-            let guides = ctx.preview.overlay.show_guides;
-            let guides_resp = ui.add(Button::ghost("").with_icon(icons::RULER).active(guides));
-            text_tooltip(ui, guides_resp.id.with("guides_tip"), &guides_resp, "Toggle guides");
-            if guides_resp.clicked() {
-                ctx.preview.overlay.show_guides = !guides;
+            for (scale, name) in [(1.0_f32, "100%"), (1.5, "150%"), (2.0, "200%")] {
+                if ui.stable_selectable_label((zoom - scale).abs() < 0.05, name).clicked() {
+                    ctx.preview.viewport.preview_zoom = scale;
+                    ctx.preview.viewport.preview_pan = Vec2::new(
+                        ctx.scene_dimensions.width as f32 / 2.0,
+                        ctx.scene_dimensions.height as f32 / 2.0,
+                    );
+                    ui.close();
+                }
             }
-
-            let labels = ctx.preview.overlay.show_actor_labels;
-            let labels_resp = ui.add(Button::ghost("").with_icon(icons::TEXT_T).active(labels));
-            text_tooltip(
-                ui,
-                labels_resp.id.with("labels_tip"),
-                &labels_resp,
-                "Toggle actor labels",
-            );
-            if labels_resp.clicked() {
-                ctx.preview.overlay.show_actor_labels = !labels;
-            }
-
-            toolbar_separator(ui);
-
-            // Zoom menu
-            let zoom = ctx.preview.viewport.preview_zoom;
-            let zoom_label = if (zoom - 1.0).abs() < 0.05 {
-                "100%"
-            } else if (zoom - 1.5).abs() < 0.05 {
-                "150%"
-            } else if (zoom - 2.0).abs() < 0.05 {
-                "200%"
-            } else {
-                "Fit"
-            };
-            ui.menu_button(
-                RichText::new(zoom_label)
-                    .size(TextRole::Caption.size())
-                    .color(theme.palette.text.secondary),
-                |ui| {
-                    ui.set_min_width(80.0);
-                    if ui.stable_selectable_label(false, "Fit").clicked() {
-                        ctx.preview.fit_zoom_requested = true;
-                        ui.close();
-                    }
-                    for (z, name) in [(1.0_f32, "100%"), (1.5, "150%"), (2.0, "200%")] {
-                        if ui.stable_selectable_label((zoom - z).abs() < 0.05, name).clicked() {
-                            ctx.preview.viewport.preview_zoom = z;
-                            ctx.preview.viewport.preview_pan = Vec2::new(
-                                ctx.scene_dimensions.width as f32 / 2.0,
-                                ctx.scene_dimensions.height as f32 / 2.0,
-                            );
-                            ui.close();
-                        }
-                    }
-                },
-            );
         });
+
+        for (value, icon, tooltip) in [
+            (&mut ctx.preview.overlay.show_actor_labels, icons::TEXT_T, "Toggle actor labels"),
+            (&mut ctx.preview.overlay.show_guides, icons::RULER, "Toggle guides"),
+            (&mut ctx.preview.overlay.show_grid, icons::GRID_FOUR, "Toggle grid"),
+        ] {
+            if ui.add(Button::icon(icon).active(*value).with_tooltip(tooltip)).clicked() {
+                *value = !*value;
+            }
+        }
+
+        let dims = ctx.scene_dimensions;
+        if ui.available_width() >= 80.0 {
+            ui.label(
+                RichText::new(format!("{} × {}", dims.width, dims.height))
+                    .font(TextRole::Mono.font_id())
+                    .color(theme.palette.text.secondary),
+            );
+        }
     });
 }
-
-// ─── Free functions for the preview canvas ─────────────────────────────────

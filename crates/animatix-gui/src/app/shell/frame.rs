@@ -136,16 +136,12 @@ impl GuiShell {
         // in runtime.rs::handle_keyboard_shortcuts. Only shell-local
         // modal Escapes remain inline below.
 
-        // Compact toolbar — hidden during onboarding so no grid/zoom controls clutter
-        // the welcome screen.
+        // The document and workspace controls belong to the open workbench.
         if !self.ui_store.view.welcome_open {
             egui::Panel::top("toolbar")
+                .frame(egui::Frame::NONE)
                 .resizable(false)
                 .show(ui, |ui| self.toolbar_ui(ui, &mut commands));
-        }
-
-        if !self.ui_store.view.welcome_open {
-            self.workbench_status_ui(ui);
         }
 
         let diagnostics = self.document_store.combined_diagnostics();
@@ -155,8 +151,7 @@ impl GuiShell {
             self.diagnostics_panel_ui(ui, &diagnostics);
         }
 
-        // Status bar — thin bar at the bottom showing preview status and scene dimensions
-        // Filled by the diagnostics chip below; the peek overlay anchors to it.
+        // The diagnostics button in the footer anchors its peek overlay.
         let diagnostics_chip_rect = self.status_bar_ui(ui, &diagnostics, &theme);
 
         if self.ui_store.view.diagnostics_peek_open {
@@ -168,10 +163,9 @@ impl GuiShell {
             }
         }
 
-        // Central workspace — edge-to-edge tiles, no outer margin
-        // When welcome screen is open, show it instead of the workspace.
+        // Keep the dock’s panel background continuous across resized tiles.
         let workspace_rect = egui::CentralPanel::default()
-            .frame(egui::Frame::new().inner_margin(egui::Margin::ZERO))
+            .frame(egui::Frame::new().fill(theme.palette.surface.panel))
             .show(ui, |ui| {
                 if self.ui_store.view.welcome_open {
                     let mut welcome_cmds = ActionQueue::default();
@@ -205,6 +199,8 @@ impl GuiShell {
             self.compact_detail_drawer_ui(ui, workspace_rect, &mut drawer_cmds);
             self.handle_actions(drawer_cmds);
         }
+
+        self.narration_takes_ui(ui.ctx());
 
         // Settings modal overlay (rendered on top of everything)
         if self.ui_store.view.settings_open {
@@ -301,133 +297,118 @@ impl GuiShell {
             });
     }
 
-    /// Status bar showing preview status, diagnostics chip and scene dimensions.
-    ///
-    /// Returns the diagnostics chip rect so the peek overlay can anchor to it.
+    /// Return the diagnostics button rect to anchor the peek overlay.
     fn status_bar_ui(
         &mut self,
         ui: &mut egui::Ui,
         diagnostics: &[Diagnostic],
         theme: &eparts::Theme,
     ) -> Option<egui::Rect> {
-        let mut diagnostics_chip_rect: Option<egui::Rect> = None;
-
+        let sp = crate::app::design_tokens::spatial::spatial(ui);
         egui::Panel::bottom("status_bar")
             .frame(
                 egui::Frame::new()
                     .fill(theme.palette.surface.panel)
-                    .inner_margin(egui::Margin::symmetric(8, 2)),
+                    .inner_margin(egui::Margin::symmetric(sp.base.space_5 as i8, 0)),
             )
-            .resizable(false)
-            .min_size(20.0)
+            .exact_size(sp.base.row_l + sp.base.space_1)
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
+                ui.horizontal_centered(|ui| {
+                    if !self.ui_store.view.welcome_open {
+                        self.workbench_status_ui(ui);
+                    }
+                    let errors =
+                        diagnostics.iter().filter(|diagnostic| diagnostic.is_error()).count();
+                    let warnings = diagnostics.len() - errors;
                     let status = &self.preview_store.preview.status;
-                    if !status.is_empty() {
+                    let compact = ui.available_width() < 310.0;
+                    if !status.is_empty() && !compact {
+                        ui.separator();
                         let is_error =
                             self.preview_store.preview.status_severity == StatusSeverity::Error;
-                        if is_error {
-                            // Red accent pill + warning icon for errors
-                            let (bg_rect, _) = ui
-                                .allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::hover());
-                            ui.painter().rect_filled(
-                                bg_rect,
-                                RADIUS_S,
-                                theme.palette.status.diagnostic_error.linear_multiply(0.3),
-                            );
-                            ui.painter().text(
-                                egui::pos2(bg_rect.center().x, bg_rect.center().y),
-                                egui::Align2::CENTER_CENTER,
-                                egui_phosphor::regular::WARNING,
-                                TextRole::Micro.font_id(),
-                                theme.palette.status.diagnostic_error,
-                            );
-                            ui.add_space(SPACE_2);
-                        }
                         let color = if is_error {
-                            theme.palette.status.diagnostic_error
+                            theme.palette.text.primary
                         } else {
-                            theme.palette.text.muted
+                            theme.palette.text.secondary
                         };
-                        let label = ui.label(
+                        let label = egui::Label::new(
                             egui::RichText::new(status.as_str())
-                                .size(TextRole::Micro.size())
+                                .font(TextRole::BodyS.font_id())
                                 .color(color),
-                        );
-                        if is_error && self.preview_store.preview.error.is_some() {
-                            text_tooltip(
-                                ui,
-                                ui.scope_id().with("status_error_tooltip"),
-                                &label,
-                                self.preview_store.preview.error.as_deref().unwrap_or(""),
+                        )
+                        .truncate();
+                        let width = (ui.available_width() - 170.0).max(0.0);
+                        if width > 0.0 {
+                            ui.allocate_ui_with_layout(
+                                egui::vec2(width, 0.0),
+                                egui::Layout::left_to_right(egui::Align::Center),
+                                |ui| {
+                                    ui.add(label).on_hover_text(
+                                        self.preview_store
+                                            .preview
+                                            .error
+                                            .as_deref()
+                                            .unwrap_or(status),
+                                    )
+                                },
                             );
                         }
                     }
-                    // Right side: diagnostics count + scene dimensions
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let dims = &self.document_store.source.document.scene_dimensions;
-                        ui.label(
-                            egui::RichText::new(format!("{}×{}", dims.width, dims.height))
-                                .size(TextRole::Micro.size())
-                                .color(theme.palette.text.muted),
-                        );
+                        self.status_diagnostics_ui(ui, errors, warnings, theme, compact)
+                    })
+                    .inner
+                })
+                .inner
+            })
+            .inner
+    }
 
-                        // Diagnostics chip: always-visible error/warning counts that
-                        // toggle the panel, so an open issue is never invisible.
-                        let errors = diagnostics.iter().filter(|d| d.is_error()).count();
-                        let warnings = diagnostics.len() - errors;
-                        let (chip_icon, chip_color, chip_label) = if errors > 0 {
-                            (
-                                egui_phosphor::regular::X_CIRCLE,
-                                theme.palette.status.error,
-                                format!("{errors} error(s)"),
-                            )
-                        } else if warnings > 0 {
-                            (
-                                egui_phosphor::regular::WARNING,
-                                theme.palette.status.warning,
-                                format!("{warnings} warning(s)"),
-                            )
-                        } else {
-                            (
-                                egui_phosphor::regular::CHECK_CIRCLE,
-                                theme.palette.status.success,
-                                "No problems".to_string(),
-                            )
-                        };
-                        let chip = ui.add(
-                            Button::ghost("")
-                                .with_icon(chip_icon)
-                                .icon_color(chip_color)
-                                .hover_icon_color(chip_color)
-                                .active(
-                                    self.ui_store.view.diagnostics_panel_visible
-                                        || self.ui_store.view.diagnostics_peek_open,
-                                ),
-                        );
-                        text_tooltip(
-                            ui,
-                            chip.id.with("diag_chip_tip"),
-                            &chip,
-                            &format!(
-                                "{chip_label} — click to peek, double-click to pin the \
-                                 diagnostics panel"
-                            ),
-                        );
-                        diagnostics_chip_rect = Some(chip.rect);
-                        if chip.double_clicked() {
-                            self.ui_store.view.diagnostics_peek_open = false;
-                            self.ui_store.view.diagnostics_panel_visible =
-                                !self.ui_store.view.diagnostics_panel_visible;
-                        } else if chip.clicked() {
-                            self.ui_store.view.diagnostics_peek_open =
-                                !self.ui_store.view.diagnostics_peek_open;
-                        }
-                    });
-                });
-            });
+    fn status_diagnostics_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        errors: usize,
+        warnings: usize,
+        theme: &eparts::Theme,
+        compact: bool,
+    ) -> Option<egui::Rect> {
+        use egui_phosphor::regular as icons;
 
-        diagnostics_chip_rect
+        let (icon, color) = if errors > 0 {
+            (icons::X_CIRCLE, theme.palette.status.error)
+        } else if warnings > 0 {
+            (icons::WARNING, theme.palette.status.warning)
+        } else {
+            (icons::CHECK_CIRCLE, theme.palette.status.success)
+        };
+        let label = if errors + warnings == 0 {
+            "No diagnostics".to_owned()
+        } else {
+            format!("{errors} errors · {warnings} warnings")
+        };
+        let button = if compact {
+            Button::icon(icon)
+        } else {
+            Button::ghost(&label).with_icon(icon)
+        };
+        let chip = ui.add(
+            button
+                .icon_color(color)
+                .hover_icon_color(color)
+                .with_tooltip(format!("{label} · click to peek, double-click to pin"))
+                .active(
+                    self.ui_store.view.diagnostics_panel_visible
+                        || self.ui_store.view.diagnostics_peek_open,
+                ),
+        );
+        if chip.double_clicked() {
+            self.ui_store.view.diagnostics_peek_open = false;
+            self.ui_store.view.diagnostics_panel_visible =
+                !self.ui_store.view.diagnostics_panel_visible;
+        } else if chip.clicked() {
+            self.ui_store.view.diagnostics_peek_open = !self.ui_store.view.diagnostics_peek_open;
+        }
+        Some(chip.rect)
     }
 
     pub(crate) fn workspace_ui(
@@ -505,6 +486,7 @@ impl GuiShell {
             preview_store: &mut self.preview_store,
             commands,
             preview_texture_id,
+            shortcut_registry: &self.shortcut_registry,
             collapsed_actors: &mut self.ui_store.view.collapsed_actors,
             expanded_properties: &mut self.ui_store.view.expanded_properties,
             selected_actors: &mut self.ui_store.selection.selected_actors,

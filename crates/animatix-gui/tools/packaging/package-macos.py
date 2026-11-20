@@ -34,6 +34,7 @@ def package(binary: Path, destination: Path, version: str):
         "CFBundleVersion": match[1],
         "LSApplicationCategoryType": "public.app-category.graphics-design",
         "NSHighResolutionCapable": True,
+        "NSMicrophoneUsageDescription": "Animatix uses the microphone when you record narration.",
     }
     with (contents / "Info.plist").open("wb") as output:
         plistlib.dump(info, output, sort_keys=True)

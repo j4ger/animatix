@@ -3,9 +3,28 @@ use crate::app::*;
 
 impl GuiShell {
     pub(crate) fn check_hot_reload(&mut self, app_time: Instant) {
+        let source = &mut self.document_store.source;
+        let revision = source.document.audio_waveform_revision(self.document_store.generation.0);
+        if self
+            .workspace_store
+            .media_watch
+            .changed(app_time, revision, || source.document.narration_asset_paths())
+        {
+            source.media_changed = true;
+            source.document.invalidate_media_identity();
+            self.preview_store.in_flight_rebuild = None;
+            self.preview_store.pending_rebuild_at = Some(app_time);
+        }
         if let Some(ref mut reloader) = self.workspace_store.hot_reloader {
             match reloader.update(app_time) {
                 ReloadStatus::ShouldReload { path: _ } => {
+                    // A successful local save also generates a filesystem event. Preserve
+                    // the editor selection and the current build when disk already matches.
+                    if std::fs::read_to_string(self.document_store.source.file_path())
+                        .is_ok_and(|disk| disk == self.document_store.source.text())
+                    {
+                        return;
+                    }
                     // LiveDocument: editor is the source of truth. If the editor
                     // has unsaved changes, route through the unsaved-changes dialog so
                     // the user can Save (which overwrites the on-disk edit) or Discard
@@ -24,6 +43,8 @@ impl GuiShell {
                         self.preview_store.preview.error = Some(err.to_string());
                         self.preview_store.preview.set_status_error("Hot reload failed");
                     } else {
+                        self.document_store.source.source_epoch =
+                            self.document_store.source.epoch().next();
                         self.document_store.source.invalidate_cache();
                         self.document_store.source.editor.set_document(
                             &self.document_store.source.document.file_path,
@@ -170,6 +191,7 @@ impl GuiShell {
             preview_store: PreviewStore::new(preview),
             ui_store,
             export_store: ExportStore::new(),
+            narration_takes: crate::app::narration_takes::NarrationTakes::default(),
             rebuild_worker: RebuildWorker::start(),
             load_worker: crate::app::document::load_worker::LoadWorker::start(),
             pending_open: None,

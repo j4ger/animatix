@@ -19,6 +19,7 @@ pub mod highlight;
 /// Icon glyph constants for UI primitives.
 pub use animatix_core::icon_glyphs;
 pub mod module;
+pub mod narration;
 pub mod occurrence;
 pub mod parser;
 /// Shared actor/property schema for runtime, analyzer, LSP, and GUI.

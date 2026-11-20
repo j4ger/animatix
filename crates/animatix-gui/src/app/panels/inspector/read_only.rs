@@ -10,16 +10,6 @@ use egui::{RichText, ScrollArea};
 pub(crate) fn inspector_panel_ui(ctx: &mut InspectorContext<'_>, ui: &mut egui::Ui) {
     panel_frame().show(ui, |ui| {
         let theme = eparts::theme(ui);
-        ui.horizontal(|ui| {
-            ui.heading("Inspect");
-            ui.label(RichText::new("READ ONLY").small().color(theme.palette.text.muted));
-        });
-        ui.label(
-            RichText::new("Observe here. Change the source.")
-                .small()
-                .color(theme.palette.text.secondary),
-        );
-        ui.separator();
         if !ctx.source_current {
             ui.label(
                 RichText::new("Last built scene · source is out of date")
@@ -70,11 +60,8 @@ fn scene_summary(ctx: &InspectorContext<'_>, timeline: &Timeline, ui: &mut egui:
             format!("{} scenes · {:.3} s", composition.scenes.len(), composition.global_duration_s),
         );
     }
-    ui.add_space(16.0);
-    ui.label("Select an object in the preview or outline.");
-    ui.small(
-        "Selection never moves or modifies an object. Use the timeline to inspect another moment.",
-    );
+    ui.add_space(crate::app::design_tokens::spatial::SPACE_5);
+    ui.label("Select an object in the preview or outline to inspect its properties.");
 }
 
 fn selection_summary(ctx: &mut InspectorContext<'_>, ui: &mut egui::Ui) {

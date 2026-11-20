@@ -235,6 +235,7 @@ pub fn handle_scroll_to_line(
     column: usize,
 ) -> Vec<Effect> {
     document_store.source.editor.focus_diagnostic(line, column);
+    document_store.source.editor.set_highlighted_line(Some(line));
     vec![]
 }
 

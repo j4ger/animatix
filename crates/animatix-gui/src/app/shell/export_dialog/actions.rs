@@ -150,6 +150,17 @@ impl GuiShell {
             );
             return false;
         }
+        let document = &self.document_store.source.document;
+        if let Some(diagnostic) = document.diagnostics.iter().find(|diagnostic| {
+            diagnostic.code
+                == animatix_syntax::diagnostics::DiagnosticCode::NarrationBindingUnresolved
+        }) {
+            self.export_store.export_status = ExportStatus::Failed(format!(
+                "Resolve the narration binding before exporting. {}",
+                diagnostic.message,
+            ));
+            return false;
+        }
         true
     }
 

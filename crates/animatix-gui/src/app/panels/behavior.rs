@@ -1,12 +1,13 @@
 use std::collections::HashSet;
 
-use egui::{Color32, Rect, Stroke, Visuals};
+use egui::{Color32, RichText, Stroke, Visuals};
 use egui_tiles::{Behavior, SimplificationOptions, TileId, UiResponse};
 
 use crate::app::WorkspaceTab;
 use crate::app::commands::ActionQueue;
 use crate::app::design_tokens::spatial::STROKE_WIDTH;
-use crate::app::design_tokens::spatial::timeline::RULER_HEIGHT as TIMELINE_RULER_HEIGHT;
+use crate::app::design_tokens::typography::TextRole;
+use crate::app::interaction::keyboard::ShortcutRegistry;
 use crate::app::panels::{curves_panel, editor, inspector, preview_panel, sidebar, timeline_panel};
 use crate::app::preview::selection;
 use crate::app::stores::{DocumentStore, PreviewStore, WorkspaceStore};
@@ -17,6 +18,7 @@ pub(crate) struct WorkspaceBehavior<'a> {
     pub(crate) preview_store: &'a mut PreviewStore,
     pub(crate) commands: &'a mut ActionQueue,
     pub(crate) preview_texture_id: Option<egui::TextureId>,
+    pub(crate) shortcut_registry: &'a ShortcutRegistry,
     pub(crate) collapsed_actors: &'a mut HashSet<String>,
     pub(crate) expanded_properties: &'a mut HashSet<String>,
     pub(crate) selected_actors: &'a mut HashSet<String>,
@@ -66,6 +68,8 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                 // Inspector.
                 let diagnostics = self.document_store.combined_diagnostics();
                 let mut ctx = editor::EditorContext {
+                    source_epoch: self.document_store.source.epoch(),
+                    active_scene: self.document_store.source.document.active_scene.as_deref(),
                     editor: &mut self.document_store.source.editor,
                     diagnostics: &diagnostics,
                     source_dirty: &mut self.document_store.source.document.source_text,
@@ -99,7 +103,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     source_text: source_current
                         .then_some(self.document_store.source.document.source_text.as_str()),
                 };
-                preview_panel::preview_panel_ui(&mut ctx, ui);
+                preview_panel::preview_panel_ui(&mut ctx, ui, self.shortcut_registry);
             },
             WorkspaceTab::Inspector => {
                 let active_tl = self.document_store.source.document.active_timeline();
@@ -149,6 +153,8 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     .document
                     .audio_waveform_revision(self.document_store.generation.0);
                 let mut ctx = timeline_panel::TimelineContext {
+                    diagnostics: &self.document_store.source.document.diagnostics,
+                    source_epoch: self.document_store.source.epoch(),
                     source_text: &self.document_store.source.document.source_text,
                     source_current: !self.preview_store.has_pending_rebuild()
                         && !self.preview_store.rebuild_in_progress
@@ -209,14 +215,15 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
     }
 
     fn tab_title_for_pane(&mut self, pane: &WorkspaceTab) -> egui::WidgetText {
-        match pane {
-            WorkspaceTab::Sidebar => "Sidebar".into(),
-            WorkspaceTab::Code => "Code".into(),
-            WorkspaceTab::Preview => "Preview".into(),
-            WorkspaceTab::Inspector => "Inspector".into(),
-            WorkspaceTab::Timeline => "Timeline".into(),
-            WorkspaceTab::Curves => "Curves".into(),
-        }
+        let title = match pane {
+            WorkspaceTab::Sidebar => "Project",
+            WorkspaceTab::Code => "Code",
+            WorkspaceTab::Preview => "Preview",
+            WorkspaceTab::Inspector => "Inspector",
+            WorkspaceTab::Timeline => "Timeline",
+            WorkspaceTab::Curves => "Curves",
+        };
+        RichText::new(title).font(TextRole::BodyMedium.font_id()).into()
     }
 
     fn simplification_options(&self) -> SimplificationOptions {
@@ -226,10 +233,8 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
         }
     }
 
-    // ─── Modern Minimal Tile Styling ───────────────────────────────────────
-
     fn gap_width(&self, _style: &egui::Style) -> f32 {
-        1.0
+        3.0
     }
 
     /// Pixel floor for every tile: panes never collapse into unusable slivers
@@ -245,11 +250,11 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
     }
 
     fn tab_bar_height(&self, _style: &egui::Style) -> f32 {
-        TIMELINE_RULER_HEIGHT
+        34.0
     }
 
     fn tab_bar_color(&self, visuals: &Visuals) -> Color32 {
-        visuals.extreme_bg_color
+        visuals.panel_fill
     }
 
     fn tab_bg_color(
@@ -260,7 +265,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
         state: &egui_tiles::TabState,
     ) -> Color32 {
         if state.active {
-            visuals.panel_fill
+            visuals.widgets.active.bg_fill
         } else {
             Color32::TRANSPARENT
         }
@@ -274,7 +279,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
         state: &egui_tiles::TabState,
     ) -> Stroke {
         if state.active {
-            Stroke::new(STROKE_WIDTH, visuals.widgets.noninteractive.bg_stroke.color)
+            self.tab_bar_hline_stroke(visuals)
         } else {
             Stroke::NONE
         }
@@ -315,21 +320,5 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
 
     fn drag_preview_color(&self, visuals: &Visuals) -> Color32 {
         visuals.selection.bg_fill
-    }
-
-    fn paint_on_top_of_tile(
-        &self,
-        painter: &egui::Painter,
-        style: &egui::Style,
-        _tile_id: TileId,
-        rect: Rect,
-    ) {
-        // Subtle 1px border around each tile for definition (sharp 0.0 radius for rectangular dock tiles)
-        painter.rect_stroke(
-            rect,
-            0.0,
-            Stroke::new(STROKE_WIDTH, style.visuals.widgets.noninteractive.bg_stroke.color),
-            egui::StrokeKind::Inside,
-        );
     }
 }

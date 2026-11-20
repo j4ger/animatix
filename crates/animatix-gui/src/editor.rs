@@ -17,6 +17,8 @@ use crate::highlighting::{FindHighlight, HighlightCache, HighlightDiagnostic, hi
 mod completion;
 mod diagnostics;
 mod find_match;
+pub(crate) mod narration;
+pub(crate) mod source_patch;
 #[cfg(test)]
 mod tests;
 
@@ -40,6 +42,8 @@ pub struct EditorBuffer {
     pub(super) find_highlights: Vec<FindHighlight>,
     highlight_cache: Option<HighlightCache>,
     instance_id: u64,
+    source_revision: u64,
+    narration: narration::NarrationEditor,
     state_generation: u64,
     text_edit_id: Id,
     retired_state_ids: Vec<(Id, Option<Id>)>,
@@ -67,6 +71,8 @@ impl EditorBuffer {
             find_highlights: Vec::new(),
             highlight_cache: None,
             instance_id,
+            source_revision: 0,
+            narration: narration::NarrationEditor::default(),
             state_generation: 0,
             text_edit_id,
             retired_state_ids: Vec::new(),
@@ -78,6 +84,7 @@ impl EditorBuffer {
     /// previously open file.
     pub fn set_document(&mut self, path: &Path, text: String) {
         self.retire_widget_state();
+        self.source_revision = self.source_revision.wrapping_add(1);
         self.document_path = path.to_path_buf();
         self.text = text;
         self.analyzer = analyzer_for_path(path, &self.text);
@@ -90,6 +97,7 @@ impl EditorBuffer {
     /// native undo and IME composition state.
     pub fn replace_text(&mut self, text: String) {
         self.retire_widget_state();
+        self.source_revision = self.source_revision.wrapping_add(1);
         self.text = text;
         self.analyzer.update(&self.text);
         self.reset_ephemeral_state();
@@ -108,6 +116,10 @@ impl EditorBuffer {
         &self.document_path
     }
 
+    pub(crate) fn source_identity(&self) -> (u64, u64) {
+        (self.instance_id, self.source_revision)
+    }
+
     pub fn scroll_to_line(&mut self, line: usize) {
         self.pending_scroll_to_line = Some(line);
     }
@@ -115,6 +127,7 @@ impl EditorBuffer {
     /// Focus the source location and move the caret to the end of its token.
     /// Line and column are zero-based Unicode-scalar positions.
     pub fn focus_diagnostic(&mut self, line: usize, column: usize) {
+        self.set_source_view(narration::SourceView::Full);
         let index = animatix_syntax::token::LineIndex::new(&self.text);
         let start_byte = index.line_col_to_byte(line, column);
         let mut caret = self.text[..start_byte].chars().count();
@@ -310,6 +323,7 @@ impl EditorBuffer {
     }
 
     pub(super) fn after_source_replaced(&mut self) {
+        self.source_revision = self.source_revision.wrapping_add(1);
         self.analyzer.update(&self.text);
         self.highlight_cache = None;
         self.completion_anchor = None;
@@ -418,6 +432,7 @@ impl EditorBuffer {
     }
 
     fn reset_ephemeral_state(&mut self) {
+        self.narration.reset_widgets();
         self.completion.hide();
         self.completion_anchor = None;
         self.completion_auto_armed = None;

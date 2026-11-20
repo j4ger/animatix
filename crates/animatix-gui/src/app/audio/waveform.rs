@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 
-use rodio::Source;
+use super::decode::blocks;
 
 const BASE_FRAMES: usize = 256;
 const MAX_BINS: usize = 32_768;
@@ -41,47 +41,11 @@ pub(crate) struct Waveform {
 }
 
 impl Waveform {
+    #[cfg(test)]
     fn from_samples(samples: impl Iterator<Item = f32>, rate: u32, channels: u16) -> Self {
-        if rate == 0 || channels == 0 {
-            return Self {
-                levels: Vec::new(),
-                bin_seconds: 1.0,
-                duration_s: 0.0,
-            };
-        }
-        let mut bins = Vec::new();
-        let mut frames_per_bin = BASE_FRAMES;
-        let mut samples_per_bin = frames_per_bin * channels as usize;
-        let mut peak = Peak::default();
-        let mut pending = 0usize;
-        let mut total = 0u64;
-        for sample in samples {
-            peak.include(sample);
-            pending += 1;
-            total += 1;
-            if pending == samples_per_bin {
-                bins.push(peak);
-                peak = Peak::default();
-                pending = 0;
-                if bins.len() == MAX_BINS {
-                    bins = reduce(&bins);
-                    frames_per_bin *= 2;
-                    samples_per_bin = frames_per_bin * channels as usize;
-                }
-            }
-        }
-        if pending > 0 {
-            bins.push(peak);
-        }
-        let mut levels = vec![bins];
-        while levels.last().is_some_and(|level| level.len() > 1) {
-            levels.push(reduce(levels.last().unwrap()));
-        }
-        Self {
-            levels,
-            bin_seconds: frames_per_bin as f64 / rate as f64,
-            duration_s: total as f64 / (rate as f64 * channels as f64),
-        }
+        let mut builder = WaveformBuilder::new(rate, channels);
+        builder.extend(samples);
+        builder.finish()
     }
 
     pub fn columns(&self, start_s: f64, end_s: f64, columns: usize) -> Vec<Peak> {
@@ -119,6 +83,67 @@ impl Waveform {
     }
 }
 
+struct WaveformBuilder {
+    bins: Vec<Peak>,
+    frames_per_bin: usize,
+    peak: Peak,
+    pending: usize,
+    total: u64,
+    rate: u32,
+    channels: u16,
+}
+
+impl WaveformBuilder {
+    fn new(rate: u32, channels: u16) -> Self {
+        Self {
+            bins: Vec::new(),
+            frames_per_bin: BASE_FRAMES,
+            peak: Peak::default(),
+            pending: 0,
+            total: 0,
+            rate,
+            channels,
+        }
+    }
+
+    fn extend(&mut self, samples: impl IntoIterator<Item = f32>) {
+        let channels = self.channels as usize;
+        if self.rate == 0 || channels == 0 {
+            return;
+        }
+        let mut samples_per_bin = self.frames_per_bin * channels;
+        for sample in samples {
+            self.peak.include(sample);
+            self.pending += 1;
+            self.total += 1;
+            if self.pending == samples_per_bin {
+                self.bins.push(std::mem::take(&mut self.peak));
+                self.pending = 0;
+                if self.bins.len() == MAX_BINS {
+                    self.bins = reduce(&self.bins);
+                    self.frames_per_bin *= 2;
+                    samples_per_bin = self.frames_per_bin * channels;
+                }
+            }
+        }
+    }
+
+    fn finish(mut self) -> Waveform {
+        if self.pending > 0 {
+            self.bins.push(self.peak);
+        }
+        let mut levels = vec![self.bins];
+        while let Some(level) = levels.last().filter(|level| level.len() > 1) {
+            levels.push(reduce(level));
+        }
+        Waveform {
+            levels,
+            bin_seconds: self.frames_per_bin as f64 / self.rate.max(1) as f64,
+            duration_s: self.total as f64 / (self.rate.max(1) as f64 * self.channels.max(1) as f64),
+        }
+    }
+}
+
 fn reduce(bins: &[Peak]) -> Vec<Peak> {
     bins.chunks(2)
         .map(|pair| pair.get(1).map_or(pair[0], |other| pair[0].merge(*other)))
@@ -126,11 +151,15 @@ fn reduce(bins: &[Peak]) -> Vec<Peak> {
 }
 
 fn decode(path: &str) -> Result<Waveform, String> {
-    let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
-    let decoder = rodio::Decoder::new(file).map_err(|e| e.to_string())?;
-    let rate = decoder.sample_rate();
-    let channels = decoder.channels();
-    Ok(Waveform::from_samples(decoder.convert_samples::<f32>(), rate, channels))
+    let mut builder = None;
+    let format = blocks(path, |format, samples| {
+        builder
+            .get_or_insert_with(|| WaveformBuilder::new(format.sample_rate, format.channels))
+            .extend(samples.iter().copied());
+    })?;
+    Ok(builder
+        .unwrap_or_else(|| WaveformBuilder::new(format.sample_rate, format.channels))
+        .finish())
 }
 
 enum Entry {

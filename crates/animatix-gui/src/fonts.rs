@@ -62,6 +62,17 @@ pub fn install_fonts(ctx: &egui::Context) {
     // 3. Register Phosphor icons and system fallback glyphs
     egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
     add_system_fallbacks(&mut fonts, system_fallbacks());
+    // Keep script text readable on Linux installations without system CJK fonts.
+    const CJK_FALLBACK: &str = "NotoSansSC-Common";
+    fonts.font_data.insert(
+        CJK_FALLBACK.to_owned(),
+        Arc::new(FontData::from_static(include_bytes!(
+            "../../animatix-text/assets/fonts/NotoSansSC-Common.ttf"
+        ))),
+    );
+    for family in [FontFamily::Proportional, FontFamily::Monospace] {
+        fonts.families.entry(family).or_default().push(CJK_FALLBACK.to_owned());
+    }
 
     // 4. Inherit fallbacks for named families
     let prop_fallbacks: Vec<String> = fonts

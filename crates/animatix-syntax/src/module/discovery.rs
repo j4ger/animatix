@@ -5,6 +5,7 @@ use std::path::Path;
 
 use super::{ComponentDef, Stmt};
 use crate::visit::{AstFolder, walk_fold_stmt};
+use crate::{ast::Time, narration::is_implicit_anchor};
 
 pub(super) fn collect_imports(statements: &[Stmt]) -> Vec<(String, Option<String>)> {
     let mut imports = Vec::new();
@@ -49,6 +50,12 @@ impl AstFolder for ImportStripper {
 
 /// An import-only body leaves nothing behind for these container variants.
 fn drops_when_empty(stmt: &Stmt) -> bool {
+    // A standalone narration paragraph supplies the source identity for
+    // bindings that put their actions under a separate authored keyframe.
+    if matches!(stmt, Stmt::Keyframe { time: Time::SpeechMarker { marker, .. }, .. } if is_implicit_anchor(marker))
+    {
+        return false;
+    }
     matches!(
         stmt,
         Stmt::Keyframe { body, .. }

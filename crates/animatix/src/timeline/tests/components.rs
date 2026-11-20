@@ -12,6 +12,7 @@ fn sample_transcript() -> SpeechTranscript {
         duration: 2.0,
         markers: std::collections::HashMap::from([("intro".to_string(), 0.25)]),
         segments: Vec::new(),
+        narration_takes: None,
     }
 }
 

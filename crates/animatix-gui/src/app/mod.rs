@@ -10,6 +10,7 @@ pub(crate) mod handlers;
 pub(crate) mod icons;
 pub(crate) mod interaction;
 mod layout_preset;
+mod narration_takes;
 pub(crate) mod panels;
 mod perf_log;
 mod persistence;
@@ -46,8 +47,8 @@ use serde::{Deserialize, Serialize};
 use crate::app::commands::{ActionQueue, Command, CommandQueue, CommandSender};
 use crate::app::components::button::Button;
 use crate::app::components::toast::Toast;
-use crate::app::components::{Alert, AlertLevel, text_tooltip};
-use crate::app::design_tokens::spatial::{RADIUS_S, SPACE_2, SPACE_4};
+use crate::app::components::{Alert, AlertLevel};
+use crate::app::design_tokens::spatial::{SPACE_2, SPACE_4};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::document::load_worker::{LoadToken, LoadWorker};
 use crate::app::document::plugins::DocumentPluginManager;
@@ -182,6 +183,7 @@ struct GuiShell {
     preview_store: PreviewStore,
     ui_store: UiStore,
     export_store: ExportStore,
+    narration_takes: narration_takes::NarrationTakes,
     rebuild_worker: RebuildWorker,
     load_worker: LoadWorker,
     pending_open: Option<LoadToken>,

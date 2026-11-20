@@ -140,7 +140,9 @@ impl DocumentStore {
             });
         if success {
             // Skip re-publishing if current is already Clean with the same hash
-            if let Some(ref current) = self.current
+            if !self.source.media_changed
+                && let Some(ref current) = self.current
+                && current.source_epoch == self.source.epoch()
                 && current.source_hash == crate::app::document::version::SourceHash(hash)
                 && matches!(current.status, crate::app::document::snapshot::SnapshotStatus::Clean)
             {

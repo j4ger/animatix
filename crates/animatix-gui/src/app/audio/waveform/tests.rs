@@ -101,3 +101,39 @@ fn cache_sticky_failures_do_not_spawn_workers_each_frame() {
     assert!(matches!(cache.get("missing.wav", 4, &context), WaveformState::Failed(_)));
     assert_eq!(cache.0.lock().unwrap().active_workers.load(Ordering::Relaxed), 0);
 }
+
+#[test]
+fn partial_frame_bins_are_preserved_across_decoder_blocks() {
+    let mut stream = WaveformBuilder::new(256, 2);
+    stream.extend([0.2, -0.4, 0.75]);
+    stream.extend([-0.8, 1.0, -1.0]);
+    let waveform = stream.finish();
+    assert_eq!(waveform.duration_s, 3.0 / 256.0);
+    assert_eq!(
+        waveform.columns(0.0, 1.0, 1),
+        vec![Peak {
+            min: -1.0,
+            max: 1.0
+        }]
+    );
+}
+
+#[test]
+#[ignore = "manual native media smoke; requires ANIMATIX_AUDIO_SMOKE_FILE"]
+fn seekable_audio_asset_builds_a_waveform_and_preview_pcm() {
+    let file = std::env::var("ANIMATIX_AUDIO_SMOKE_FILE").expect("path to seekable local audio");
+    let waveform = decode(&file).expect("waveform decode");
+    let preview = crate::app::audio::decode_audio(&file).expect("preview decode");
+    let pcm_seconds =
+        preview.samples.len() as f64 / f64::from(preview.channels) / f64::from(preview.sample_rate);
+    assert!(pcm_seconds > 0.0);
+    assert_eq!(waveform.duration_s, pcm_seconds);
+    assert!(waveform.columns(0.0, pcm_seconds, 100).iter().any(|peak| peak.max > 0.01));
+    if let Ok(expected_frames) = std::env::var("ANIMATIX_AUDIO_EXPECTED_FRAMES") {
+        assert_eq!(
+            preview.samples.len() / usize::from(preview.channels),
+            expected_frames.parse::<usize>().unwrap(),
+            "Unexpected PCM duration {pcm_seconds:.6}s",
+        );
+    }
+}

@@ -1,25 +1,5 @@
 use super::*;
 
-pub(super) fn live_preview_status(
-    preview: &PreviewPaneState,
-    active_scene: Option<&str>,
-) -> String {
-    if let Some(scene) = active_scene {
-        format!(
-            "{} \u{2022} t = {:.2}s / {:.2}s",
-            scene,
-            preview.playback.current_time_s(),
-            preview.playback.duration_s
-        )
-    } else {
-        format!(
-            "Live preview \u{2022} t = {:.2}s / {:.2}s",
-            preview.playback.current_time_s(),
-            preview.playback.duration_s
-        )
-    }
-}
-
 pub(crate) fn install_theme(ctx: &egui::Context, theme: &eparts::Theme, dark: bool) {
     let sp = spatial_from_ctx(ctx);
     let mut style = (*ctx.global_style()).clone();
@@ -32,6 +12,7 @@ pub(crate) fn install_theme(ctx: &egui::Context, theme: &eparts::Theme, dark: bo
 
     // Map the eparts Theme onto egui Visuals so stock widgets match the palette.
     style.visuals = theme.to_visuals(dark);
+    style.visuals.hyperlink_color = theme.palette.accent.primary;
 
     // Disable selectable labels globally (we handle selection manually)
     style.interaction.selectable_labels = false;

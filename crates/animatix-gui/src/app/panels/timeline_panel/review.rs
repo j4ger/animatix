@@ -6,8 +6,9 @@ use super::{
 use crate::app::PreviewPaneState;
 use crate::app::commands::{ActionQueue, Command};
 use crate::app::components::button::Button;
+use crate::app::design_tokens::typography::TextRole;
 use animatix::composition::Composition;
-use egui::{Align2, FontId, Pos2, Rect, Sense, Stroke};
+use egui::{Align2, Pos2, Rect, Sense, Stroke};
 
 pub(crate) fn toolbar(
     ui: &mut egui::Ui,
@@ -18,9 +19,7 @@ pub(crate) fn toolbar(
 ) -> bool {
     let debug_id = id.with("review_debug_tracks");
     let mut debug = ui.data(|d| d.get_temp::<bool>(debug_id)).unwrap_or(false);
-    ui.horizontal_wrapped(|ui| {
-        ui.strong("Timing review");
-        ui.weak("Global seconds · read-only");
+    ui.horizontal(|ui| {
         markers::marker_menu(ui, markers, commands);
         let current = preview.playback.current_time_s();
         for (icon, label, forward) in [
@@ -75,10 +74,14 @@ pub(crate) fn toolbar(
         }
         if ui
             .add(
-                Button::ghost("")
-                    .with_icon(egui_phosphor::regular::WAVEFORM)
-                    .with_tooltip("Show evaluated property tracks · read-only, not authored timing")
-                    .active(debug),
+                Button::ghost(if ui.available_width() >= 165.0 {
+                    "Properties"
+                } else {
+                    ""
+                })
+                .with_icon(egui_phosphor::regular::WAVEFORM)
+                .with_tooltip("Show evaluated property tracks · read-only, not authored timing")
+                .active(debug),
             )
             .clicked()
         {
@@ -122,7 +125,7 @@ pub(crate) fn scene_track(
         Pos2::new(rect.left() + 8.0, (top + bottom) * 0.5),
         Align2::LEFT_CENTER,
         "Scenes",
-        FontId::proportional(11.0),
+        TextRole::BodyS.font_id(),
         theme.palette.text.secondary,
     );
     let bar =
@@ -156,7 +159,7 @@ pub(crate) fn scene_track(
                 visible.center(),
                 Align2::CENTER_CENTER,
                 name,
-                FontId::proportional(11.0),
+                TextRole::BodyS.font_id(),
                 theme.palette.text.primary,
             );
         }

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::timeline::assets::AssetCache;
-use crate::timeline::{BuildOptions, SceneDimensions, Timeline};
+use crate::timeline::{BuildOptions, BuildQuality, SceneDimensions, Timeline};
 
 const VTT: &str = "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\n字幕缓存可用\n";
 
@@ -234,4 +234,109 @@ fn filesystem_transcript_cache_invalidates_changed_file_content() {
     cache.invalidate_changed_assets();
     assert_eq!(cache.transcripts().count(), 0, "changed file content must invalidate cache");
     assert_eq!(cache.load_transcript_text("captions.vtt").unwrap().as_ref(), VTT);
+}
+
+const NARRATION: &str = r#"{"duration":8,"segments":[
+    {"start":1,"end":2,"text":"猫看猫。","words":[{"word":"猫","start":1,"end":1.2},{"word":"看猫","start":1.4,"end":2}]},
+    {"start":3,"end":5,"text":"猫看猫。","words":[{"word":"猫看","start":3,"end":3.5},{"word":"猫。","start":4,"end":5}]}
+]}"#;
+
+fn narration_timeline(
+    source: &str,
+    quality: BuildQuality,
+) -> crate::timeline::BuildReport<Timeline> {
+    let mut cache = AssetCache::new();
+    cache.insert_transcript_text("memory://voice.json", NARRATION);
+    Timeline::build_with_options(
+        &parse(source),
+        &Default::default(),
+        BuildOptions::default().with_asset_cache(Arc::new(cache)).with_quality(quality),
+    )
+}
+
+#[test]
+fn narration_paragraphs_and_explicit_phrase_edges_use_scene_audio_time() {
+    use animatix_syntax::narration::{AnchorEdge, NarrationAnchor, encode_anchor};
+
+    let marker = encode_anchor(&NarrationAnchor {
+        paragraph: "猫看猫。".into(),
+        paragraph_occurrence: 2,
+        phrase: Some("猫".into()),
+        phrase_occurrence: 2,
+        edge: AnchorEdge::End,
+    })
+    .expect("valid phrase");
+    let report = narration_timeline(
+        &format!(
+            r#"
+voice: Audio, source: "voice.wav", transcript: "memory://voice.json" [delay: 500ms]
+card: Rect, opacity: 0
+/// 猫看猫。
+card.opacity = 0.25
+/// 猫看猫。
+#narration@{marker}
+card.opacity = 0.5
+#8s
+card.opacity = 1
+"#
+        ),
+        BuildQuality::Production,
+    );
+
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    let card = report.output.get_entity_id("card").expect("card actor");
+    let times = report
+        .output
+        .world()
+        .property_keyframe_times(card, crate::timeline::ActorField::Opacity);
+    assert!(times.contains(&1500), "{times:?}");
+    assert!(times.contains(&5500), "{times:?}");
+    assert!(times.contains(&8000), "{times:?}");
+    assert!(!times.contains(&3500), "{times:?}");
+}
+
+#[test]
+fn draft_narration_and_stale_phrase_bindings_preview() {
+    use crate::diagnostics::DiagnosticCode::NarrationBindingUnresolved;
+    use animatix_syntax::narration::{AnchorEdge, NarrationAnchor, encode_anchor};
+
+    let marker = encode_anchor(&NarrationAnchor {
+        paragraph: "猫看猫。".into(),
+        paragraph_occurrence: 1,
+        phrase: Some("猫".into()),
+        phrase_occurrence: 2,
+        edge: AnchorEdge::Start,
+    })
+    .expect("valid phrase");
+    let bare_draft = narration_timeline(
+        "card: Rect, opacity: 0\n/// 猫看猫。\ncard.opacity = 1",
+        BuildQuality::Draft,
+    );
+    assert!(
+        bare_draft.diagnostics.iter().all(|d| !d.is_error()),
+        "{:?}",
+        bare_draft.diagnostics
+    );
+    let source = format!(
+        "narration: Audio, source: \"voice.wav\", transcript: \"memory://voice.json\"\ncard: Rect, opacity: 0\n/// 猫看狗。\n#narration@{marker}\ncard.opacity = 1"
+    );
+    let report = narration_timeline(&source, BuildQuality::Draft);
+
+    assert!(report.diagnostics.iter().any(|d| d.code == NarrationBindingUnresolved
+        && d.message.contains("changed or missing paragraph")
+        && d.location.line == Some(4)));
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    let card = report.output.get_entity_id("card").expect("card actor");
+    let times = report
+        .output
+        .world()
+        .property_keyframe_times(card, crate::timeline::ActorField::Opacity);
+    assert_eq!(times, [0]);
+    let production = narration_timeline(&source, BuildQuality::Production);
+    assert!(
+        production
+            .diagnostics
+            .iter()
+            .any(|d| d.is_error() && d.code == NarrationBindingUnresolved)
+    );
 }

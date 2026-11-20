@@ -6,13 +6,17 @@ use egui::Vec2;
 use crate::app::commands::{ActionQueue, Command};
 use crate::app::design_tokens::spatial::{STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;
+use crate::app::document::version::SourceEpoch;
 use crate::app::panels::panel_frame;
 use crate::editor::EditorBuffer;
+use crate::editor::narration::SourceView;
 
 pub(crate) struct EditorContext<'a> {
     pub editor: &'a mut EditorBuffer,
     pub diagnostics: &'a [Diagnostic],
     pub source_dirty: &'a mut String,
+    pub source_epoch: SourceEpoch,
+    pub active_scene: Option<&'a str>,
     pub commands: &'a mut ActionQueue,
 }
 
@@ -32,10 +36,14 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
                     .color(theme.palette.accent.primary),
             );
             ui.label(
-                egui::RichText::new("Editor")
-                    .size(TextRole::Body.size())
-                    .strong()
-                    .color(theme.palette.text.primary),
+                egui::RichText::new(if ctx.editor.source_view() == SourceView::Script {
+                    "Narration"
+                } else {
+                    "Editor"
+                })
+                .size(TextRole::Body.size())
+                .strong()
+                .color(theme.palette.text.primary),
             );
 
             // Diagnostics status pill
@@ -103,7 +111,8 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
                 ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
 
                 if ui
-                    .add(
+                    .add_enabled(
+                        ctx.editor.source_view() == SourceView::Full,
                         eparts::Button::icon(egui_phosphor::regular::MAGIC_WAND)
                             .with_size(eparts::Size::Sm)
                             .with_tooltip("Format source code"),
@@ -128,9 +137,49 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
         );
         ui.add_space(sp.base.space_2);
 
+        ui.horizontal_wrapped(|ui| {
+            for (view, label) in SourceView::ALL {
+                if ui
+                    .add(
+                        eparts::Button::ghost(label)
+                            .with_size(eparts::Size::Sm)
+                            .active(ctx.editor.source_view() == view),
+                    )
+                    .clicked()
+                {
+                    ctx.editor.set_source_view(view);
+                }
+            }
+            if ctx.editor.source_view() == SourceView::Full
+                && let Some((scene, marker)) = ctx.editor.cursor_narration_marker()
+                && ui
+                    .add(eparts::Button::ghost("Show phrase").with_size(eparts::Size::Sm))
+                    .clicked()
+            {
+                ctx.commands.push_back(
+                    Command::RevealNarration {
+                        epoch: ctx.source_epoch,
+                        scene,
+                        marker,
+                    }
+                    .into(),
+                );
+            }
+        });
+
         ctx.editor.set_diagnostics(ctx.diagnostics);
-        let response = ctx.editor.show(ui);
-        if response.changed() || ctx.editor.text() != ctx.source_dirty.as_str() {
+        let changed = match ctx.editor.source_view() {
+            SourceView::Full => ctx.editor.show(ui).changed(),
+            SourceView::Script => {
+                ctx.editor.show_script(ui, ctx.source_epoch, ctx.active_scene, ctx.commands);
+                false
+            },
+            SourceView::Code => {
+                ctx.editor.show_code_projection(ui);
+                false
+            },
+        };
+        if changed || ctx.editor.text() != ctx.source_dirty.as_str() {
             *ctx.source_dirty = ctx.editor.text().to_string();
             ctx.commands.push_back(Command::EditorChanged.into());
         }

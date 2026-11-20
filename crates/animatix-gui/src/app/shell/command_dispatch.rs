@@ -1,6 +1,8 @@
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use super::*;
+use crate::app::components::toast::Toast;
 
 impl GuiShell {
     pub(crate) fn handle_command(&mut self, command: Command) -> Vec<Effect> {
@@ -23,10 +25,38 @@ impl GuiShell {
             Command::TogglePresentationMode => self.command_toggle_presentation_mode(),
             Command::ToggleEditorSync => self.command_toggle_editor_sync(),
             Command::EditorChanged => self.command_editor_changed(),
+            Command::ApplySourcePatch(ref patch) => {
+                self.command_apply_source_patch(&command, patch)
+            },
             Command::SelectScene(scene) => self.command_select_scene(scene),
             Command::Undo => self.command_undo(),
             Command::Redo => self.command_redo(),
             Command::ScrollToLine(line, column) => self.command_scroll_to_line(line, column),
+            Command::OpenParagraphTakes {
+                epoch,
+                ref scene,
+                ref paragraph,
+            } => {
+                if epoch == self.document_store.source.epoch() {
+                    self.narration_takes.open_paragraph(
+                        &self.document_store.source,
+                        scene.clone(),
+                        paragraph,
+                    );
+                }
+                vec![]
+            },
+            Command::RevealNarration {
+                epoch,
+                scene,
+                marker,
+            } => self.command_reveal_narration(epoch, scene.as_deref(), &marker),
+            Command::ReviewNarrationCue {
+                epoch,
+                scene,
+                line,
+                marker,
+            } => self.command_review_narration_cue(epoch, scene.as_deref(), line, &marker),
             Command::ZoomToSelection => self.command_zoom_to_selection(),
             Command::ZoomToAll => self.command_zoom_to_all(),
             // Find/replace applies its edit directly in the modal handler.
@@ -217,6 +247,28 @@ impl GuiShell {
         )
     }
 
+    fn command_apply_source_patch(
+        &mut self,
+        command: &Command,
+        patch: &crate::editor::source_patch::SourcePatch,
+    ) -> Vec<Effect> {
+        let Some(text) = patch.apply(&self.document_store.source) else {
+            return vec![Effect::Toast(Toast::warning(
+                "Source changed. Open the edit again to use the current revision.",
+            ))];
+        };
+        let snapshot = self.ui_store.snapshot_with_preview(&self.preview_store);
+        self.document_store.snapshot(command.clone(), snapshot.clone());
+        self.document_store.replace_text_with_ui(text, snapshot);
+        self.preview_store.pending_rebuild_at =
+            Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
+        self.preview_store.preview.error = None;
+        vec![Effect::Status(format!(
+            "{} • rebuild scheduled",
+            patch.label()
+        ))]
+    }
+
     fn command_select_scene(&mut self, scene: String) -> Vec<Effect> {
         self.ui_store.selection.selection.clear_tapped_place();
         self.ui_store.selection.selected_keyframes.clear();
@@ -237,6 +289,11 @@ impl GuiShell {
     }
 
     fn command_scroll_to_line(&mut self, line: usize, column: usize) -> Vec<Effect> {
+        self.reveal_source_editor();
+        ui::handle_scroll_to_line(&mut self.document_store, line, column)
+    }
+
+    fn reveal_source_editor(&mut self) {
         // Source navigation must reveal the editor, not focus a hidden pane.
         let detail_visible = if self.ui_store.view.compact {
             self.ui_store.view.compact_drawer == Some(crate::app::panels::CompactDrawer::Detail)
@@ -249,7 +306,81 @@ impl GuiShell {
         {
             ui::handle_show_code(&mut self.ui_store);
         }
-        ui::handle_scroll_to_line(&mut self.document_store, line, column)
+    }
+
+    fn command_reveal_narration(
+        &mut self,
+        epoch: crate::app::document::version::SourceEpoch,
+        scene: Option<&str>,
+        marker: &str,
+    ) -> Vec<Effect> {
+        let source = &mut self.document_store.source;
+        if source.epoch() != epoch || source.editor.text() != source.text() {
+            return vec![Effect::Toast(Toast::warning(
+                "Source changed. Refresh the narration cue.",
+            ))];
+        }
+        if source.editor.reveal_narration(scene, marker) {
+            let effects = crate::app::handlers::ui::handle_apply_layout(
+                &mut self.ui_store,
+                crate::app::LayoutPreset::Code,
+            );
+            self.reveal_source_editor();
+            effects
+        } else {
+            vec![Effect::Toast(Toast::warning(
+                "This narration phrase has no current source match.",
+            ))]
+        }
+    }
+
+    fn command_review_narration_cue(
+        &mut self,
+        epoch: crate::app::document::version::SourceEpoch,
+        scene: Option<&str>,
+        line: usize,
+        marker: &str,
+    ) -> Vec<Effect> {
+        let source = &self.document_store.source;
+        let document = &source.document;
+        if source.epoch() != epoch
+            || source.editor.text() != source.text()
+            || self.preview_store.has_pending_rebuild()
+            || document.last_rebuild_error.is_some()
+        {
+            return vec![Effect::Toast(Toast::warning(
+                "Rebuild the current source to review this cue.",
+            ))];
+        }
+        let resolve = |statements: &[animatix_syntax::ast::Stmt]| {
+            crate::app::panels::timeline_panel::review_markers(
+                statements,
+                document.timeline.as_ref(),
+                document.composition.as_ref(),
+                &document.diagnostics,
+            )
+            .iter()
+            .find(|target| {
+                target.scene.as_deref() == scene
+                    && target
+                        .expression
+                        .split_once('@')
+                        .is_some_and(|(_, tail)| tail.split_whitespace().next() == Some(marker))
+                    && (target.line == Some(line)
+                        || animatix_syntax::narration::is_implicit_anchor(marker))
+            })
+            .and_then(|target| target.time_s)
+        };
+        let time = document.raw_statements.as_deref().and_then(resolve);
+        let mut effects = ui::handle_show_timeline(&mut self.ui_store);
+        if let Some(time) = time {
+            effects.extend(self.command_scrub_to(time).into_iter().filter(|effect| {
+                !matches!(effect, Effect::EditorScroll(_) | Effect::EditorHighlight(_))
+            }));
+        } else {
+            effects.push(Effect::Toast(Toast::warning("This narration cue is unresolved.")));
+        }
+        effects
     }
 
     fn command_zoom_to_selection(&mut self) -> Vec<Effect> {

@@ -51,6 +51,8 @@ pub enum DiagnosticCode {
     AlwaysWriteNotAnimatable,
     /// A configuration value is invalid.
     InvalidConfigValue,
+    /// An explicit paragraph or phrase binding has no usable speech timing.
+    NarrationBindingUnresolved,
     /// Two modifier keys conflict with each other.
     ConflictingModifierKey,
     /// The referenced action is unknown.

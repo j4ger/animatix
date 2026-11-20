@@ -3,31 +3,29 @@
 //! Uses `rodio` for audio output. Decodes audio segments into PCM buffers
 //! and plays them synchronized with the timeline playback controller.
 
+mod decode;
+mod ffmpeg;
 pub(crate) mod waveform;
+
+pub(super) use ffmpeg::packaged_executable as packaged_ffmpeg;
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 
 use animatix::timeline::AudioSegment;
 use rodio::buffer::SamplesBuffer;
-use rodio::{OutputStream, OutputStreamHandle, Sink, Source};
+use rodio::{OutputStream, OutputStreamHandle, Sink};
 
 const MAX_CACHED_AUDIO: usize = 8;
 
 fn decode_audio(path: &str) -> Result<DecodedAudio, String> {
-    let file = std::fs::File::open(path)
-        .map_err(|e| format!("Failed to open audio file '{path}': {e}"))?;
-    let decoder =
-        rodio::Decoder::new(file).map_err(|e| format!("Failed to decode audio '{path}': {e}"))?;
-
-    let sample_rate = decoder.sample_rate();
-    let channels = decoder.channels();
-    let total_duration = decoder
-        .total_duration()
-        .map(|d: std::time::Duration| d.as_secs_f64())
-        .unwrap_or(0.0);
-
-    let samples: Vec<f32> = decoder.convert_samples::<f32>().collect();
+    let mut samples = Vec::new();
+    let format = decode::blocks(path, |_, block| samples.extend_from_slice(block))?;
+    let decode::AudioFormat {
+        sample_rate,
+        channels,
+        duration_s: total_duration,
+    } = format;
     let duration_s = if sample_rate > 0 && channels > 0 {
         samples.len() as f64 / (sample_rate as f64 * channels as f64)
     } else {
@@ -60,6 +58,7 @@ struct DecodedAudio {
 /// On seek, stops all active sinks and restarts from the new position.
 /// During smooth playback, starts new segments as they become active.
 pub struct AudioEngine {
+    document_media: Option<u64>,
     _stream: OutputStream,
     stream_handle: OutputStreamHandle,
     /// Bounded LRU cache of decoded audio files (keyed by source path).
@@ -91,6 +90,7 @@ impl AudioEngine {
         let (_stream, stream_handle) =
             OutputStream::try_default().map_err(|e| format!("Failed to open audio output: {e}"))?;
         Ok(Self {
+            document_media: None,
             _stream,
             stream_handle,
             cache: HashMap::new(),
@@ -100,6 +100,17 @@ impl AudioEngine {
             last_playing: false,
             last_sync_time_s: 0.0,
         })
+    }
+
+    pub(crate) fn set_document_media(&mut self, identity: u64) {
+        if self.document_media != Some(identity) {
+            self.stop_all();
+            self.cache.clear();
+            self.cache_order.clear();
+            self.pending.clear();
+            self.last_playing = false;
+            self.document_media = Some(identity);
+        }
     }
 
     /// Queue an audio file for background decoding. Returns true if it is already usable.

@@ -25,9 +25,11 @@ mod content;
 pub mod keyframes;
 mod marker_source;
 mod markers;
+mod narration;
 mod review;
 pub mod ruler;
 pub mod track_lanes;
 pub mod track_tree;
 
 pub(crate) use content::{TimelineContext, TimelineCoords, render_timeline_content};
+pub(crate) use markers::review_markers;

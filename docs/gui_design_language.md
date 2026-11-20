@@ -98,10 +98,17 @@ an unlabeled icon alone.
 | Outline, assets and library | Browse and inspect; no implicit insertion or reordering |
 | Curves | Inspect derived tracks; no property or keyframe writes |
 
-The visible presets are **Write**, **Review**, **Inspect** and **Focus**.
-Inspector and Code share the detail region; Timeline and Curves share the bottom
-region. Focus hides surrounding panels. The docking implementation uses
-`egui_tiles`; presets adjust the existing layout rather than discard it.
+The header gives **Write**, **Review**, **Inspect** and **Focus** equal
+placement. Compact windows put these presets in a layout menu that shows the
+active mode. Inspector and Code share the detail region, and Timeline and Curves
+share the bottom region. Focus hides the surrounding panels. The compact sidebar
+rail stays available for opening drawers. Presets adjust the existing `egui_tiles`
+layout.
+
+Put canvas controls above the stage and playback below it so the built scene
+remains unobstructed. The preview grid is opt-in. Keep the timeline zoom and
+marker controls on the same row when space permits. The footer carries preview
+build status and a diagnostic count with a click-to-peek button.
 
 Region allocation uses `clamp(ratio × available, min, max)`, with a tile-size
 floor so panels cannot collapse into slivers. User-resized dimensions should

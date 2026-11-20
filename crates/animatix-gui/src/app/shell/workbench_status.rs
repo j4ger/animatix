@@ -2,51 +2,28 @@
 use crate::app::GuiShell;
 
 impl GuiShell {
-    pub(crate) fn workbench_status_ui(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn workbench_status_ui(&self, ui: &mut egui::Ui) {
         let theme = eparts::theme(ui);
-        let pending = self.preview_store.pending_rebuild_at.is_some()
+        let pending = self.preview_store.has_pending_rebuild()
+            || self.preview_store.rebuild_in_progress
             || self.preview_store.in_flight_rebuild.is_some();
         let failed = self.document_store.source.document.last_rebuild_error.is_some();
         let stale = self.document_store.snapshot_is_stale();
         let generation = self.document_store.last_good_snapshot().map(|s| s.generation.0);
         let (label, detail, warning) = preview_provenance(pending, failed, stale, generation);
-        egui::Panel::top("workbench_source_status")
-            .resizable(false)
-            .frame(
-                egui::Frame::new()
-                    .fill(theme.palette.surface.panel)
-                    .inner_margin(egui::Margin::symmetric(12, 5)),
-            )
-            .show(ui, |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    ui.label(
-                        egui::RichText::new("CODE-FIRST WORKBENCH")
-                            .small()
-                            .color(theme.palette.text.secondary),
-                    );
-                    ui.separator();
-                    let color = if warning {
-                        theme.palette.status.warning
-                    } else {
-                        theme.palette.status.success
-                    };
-                    ui.label(egui::RichText::new(label).small().color(color)).on_hover_text(detail);
-                    if self.document_store.source.is_dirty() {
-                        ui.label(
-                            egui::RichText::new("Unsaved source")
-                                .small()
-                                .color(theme.palette.status.warning),
-                        );
-                    }
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(
-                            egui::RichText::new("Select · inspect · edit in code")
-                                .small()
-                                .color(theme.palette.text.muted),
-                        );
-                    });
-                });
-            });
+        let color = if warning {
+            theme.palette.status.warning
+        } else {
+            theme.palette.status.success
+        };
+        let (indicator, _) = ui.allocate_exact_size(egui::Vec2::splat(6.0), egui::Sense::hover());
+        ui.painter().circle_filled(indicator.center(), 3.0, color);
+        ui.label(
+            egui::RichText::new(label)
+                .font(crate::app::design_tokens::typography::TextRole::BodyS.font_id())
+                .color(theme.palette.text.primary),
+        )
+        .on_hover_text(detail);
     }
 }
 
@@ -68,7 +45,7 @@ fn preview_provenance(
     } else if failed {
         (
             format!("Build failed · {build}"),
-            "Fix the source diagnostics. The preview is not the current source.",
+            "The preview shows the last successful build. See diagnostics for the source error.",
             true,
         )
     } else if stale {
@@ -82,7 +59,7 @@ fn preview_provenance(
     } else {
         (
             format!("Preview current · {build}"),
-            "The preview matches the latest successful source build. This is not an audit result.",
+            "The preview matches the latest successful source build.",
             false,
         )
     }

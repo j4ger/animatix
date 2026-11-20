@@ -30,6 +30,37 @@ pub fn spanned(tokens: &[Token]) -> Vec<SpannedToken> {
         .collect()
 }
 
+/// Keep a grammar-visible token at the start of each narration paragraph.
+/// The public token stream still classifies its lines as comments.
+pub(super) fn spanned_with_source(source: &str, tokens: &[Token]) -> Vec<SpannedToken> {
+    if !source.contains("///") {
+        return spanned(tokens);
+    }
+    let mut paragraphs = crate::narration::paragraphs_with_tokens(source, tokens)
+        .into_iter()
+        .filter_map(|paragraph| {
+            let marker = crate::narration::implicit_anchor(&paragraph)?;
+            Some((
+                TokenKind::Comment(marker),
+                ByteSpan {
+                    start: paragraph.span.start,
+                    end: paragraph.span.end,
+                },
+            ))
+        })
+        .peekable();
+    let mut spanned = Vec::with_capacity(tokens.len());
+    for token in tokens {
+        while paragraphs.peek().is_some_and(|(_, span)| span.start <= token.span.start) {
+            spanned.extend(paragraphs.next());
+        }
+        if !matches!(token.kind, TokenKind::Comment(_)) {
+            spanned.push((token.kind.clone(), token.span));
+        }
+    }
+    spanned
+}
+
 /// Build a token-slice parser input from spanned tokens.
 pub fn as_input(spanned: &[SpannedToken]) -> TokInput<'_> {
     use chumsky::input::Input as _;

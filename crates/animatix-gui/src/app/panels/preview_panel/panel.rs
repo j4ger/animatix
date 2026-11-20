@@ -10,14 +10,49 @@ use interaction::*;
 use overlays::*;
 use rulers::*;
 
-pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
+pub(crate) fn preview_panel_ui(
+    ctx: &mut PreviewContext<'_>,
+    ui: &mut egui::Ui,
+    shortcuts: &crate::app::interaction::keyboard::ShortcutRegistry,
+) {
     let theme = eparts::theme(ui);
+    let in_presentation = ctx.preview.playback.presentation_mode;
+    let sp = crate::app::design_tokens::spatial::spatial(ui);
+
+    if !in_presentation {
+        let bar_frame = egui::Frame::new()
+            .fill(theme.palette.surface.panel)
+            .inner_margin(egui::Margin::symmetric(sp.base.space_5 as i8, 0));
+        let height = sp.base.row_l + sp.base.space_5;
+        egui::Panel::top("preview_header")
+            .exact_size(height)
+            .frame(bar_frame)
+            .show(ui, |ui| ui.horizontal_centered(|ui| super::hud::preview_header_ui(ctx, ui)));
+        egui::Panel::bottom("preview_transport")
+            .exact_size(height)
+            .frame(bar_frame)
+            .show(ui, |ui| {
+                ui.horizontal_centered(|ui| {
+                    crate::app::shell::transport::transport_ui(
+                        ui,
+                        ctx.preview,
+                        ctx.commands,
+                        shortcuts,
+                    );
+                });
+            });
+    }
+
+    let margin = if in_presentation {
+        0
+    } else {
+        sp.base.space_5 as i8
+    };
     egui::Frame::new()
-        .fill(egui::Color32::TRANSPARENT)
-        .inner_margin(egui::Margin::ZERO)
+        .fill(theme.palette.surface.base)
+        .inner_margin(egui::Margin::same(margin))
         .show(ui, |ui| {
             ui.vertical(|ui| {
-                let in_presentation = ctx.preview.playback.presentation_mode;
                 let ruler_size = if in_presentation { 0.0 } else { RULER_SIZE };
 
                 apply_fit_zoom_request(ctx);
@@ -47,7 +82,6 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
 
                 draw_preview_overlays(ctx, ui, preview_rect, &theme, is_dragging);
                 handle_file_drop(ctx, ui, preview_rect, &response);
-                show_selection_editors(ctx, ui, preview_rect, is_dragging);
             });
         });
 }
@@ -95,13 +129,15 @@ fn draw_canvas_background(
     in_presentation: bool,
 ) {
     if !in_presentation {
+        let shadow = theme.elevation.raised;
+        ui.painter().add(shadow.as_shape(preview_rect, egui::CornerRadius::ZERO));
         ui.painter().rect_stroke(
             preview_rect,
-            RADIUS_L,
+            0.0,
             egui::Stroke::new(STROKE_WIDTH, theme.palette.border.default),
             egui::StrokeKind::Outside,
         );
-        ui.painter().rect_filled(preview_rect, RADIUS_L, theme.palette.surface.base);
+        ui.painter().rect_filled(preview_rect, 0.0, theme.palette.surface.base);
     } else {
         ui.painter().rect_filled(preview_rect, 0.0, theme.palette.surface.base);
     }

@@ -16,6 +16,7 @@ pub struct SourceStore {
 
     // ── Source version tracking ──
     pub source_epoch: SourceEpoch,
+    pub(crate) media_changed: bool,
 
     // ── Cached hot-path allocations ──
     /// Cached per-actor world-space hit regions (actor_label, bounds rect).
@@ -32,6 +33,7 @@ impl SourceStore {
             document,
             editor,
             source_epoch: SourceEpoch::initial(),
+            media_changed: false,
             cached_hit_regions: Vec::new(),
             cached_actor_bounds: HashMap::new(),
             cache_valid: false,

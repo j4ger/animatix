@@ -90,6 +90,40 @@ outro: Text, text: "Outro"
     }
 
     #[test]
+    fn narration_patch_is_one_undoable_source_edit_and_cannot_be_replayed() {
+        use crate::editor::source_patch::SourcePatch;
+
+        let mut shell = shell();
+        let source = "// 原始注释\r\n#1s:\r\nbox: Rect\r\n";
+        shell.document_store = crate::app::test_support::make_document_store(source);
+        let start = source.find("#1s").unwrap();
+        let store = &shell.document_store.source;
+        let patch = SourcePatch::new(
+            &store.editor,
+            store.epoch(),
+            start..start + 3,
+            "#narration@marker".into(),
+            "Bind narration timing",
+        )
+        .unwrap();
+
+        shell.handle_action(Command::ApplySourcePatch(patch.clone()).into());
+        let updated = source.replace("#1s", "#narration@marker");
+        assert_eq!(shell.document_store.source.editor.text(), updated);
+        assert_eq!(shell.document_store.source.text(), updated);
+        assert_eq!(shell.document_store.history.undo_stack.len(), 1);
+        assert!(shell.preview_store.has_pending_rebuild());
+
+        shell.handle_action(Command::Undo.into());
+        assert_eq!(shell.document_store.source.text(), source);
+        shell.handle_action(Command::ApplySourcePatch(patch).into());
+        assert_eq!(shell.document_store.source.text(), source);
+        assert!(shell.document_store.history.undo_stack.is_empty());
+        shell.handle_action(Command::Redo.into());
+        assert_eq!(shell.document_store.source.text(), updated);
+    }
+
+    #[test]
     fn source_navigation_reveals_code_without_toggling_it_closed() {
         let mut shell = shell();
         shell.ui_store.view.compact = false;

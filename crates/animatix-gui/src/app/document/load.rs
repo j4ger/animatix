@@ -31,6 +31,7 @@ impl DocumentSession {
     /// Test-only: the GUI loads through [`RebuildWorker`](super::rebuild::RebuildWorker) instead.
     #[cfg(test)]
     pub fn load(file_path: PathBuf) -> Result<Self, GuiError> {
+        let file_path = std::path::absolute(&file_path).unwrap_or(file_path);
         let source_text = fs::read_to_string(&file_path).map_err(|err| GuiError::Io {
             path: file_path.clone(),
             source: err,
@@ -53,6 +54,7 @@ impl DocumentSession {
         extension_manifest: ExtensionManifest,
         workspace_root: Option<PathBuf>,
     ) -> Result<Self, GuiError> {
+        let file_path = std::path::absolute(&file_path).unwrap_or(file_path);
         let source_text = fs::read_to_string(&file_path).map_err(|err| GuiError::Io {
             path: file_path.clone(),
             source: err,

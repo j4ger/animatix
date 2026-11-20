@@ -117,6 +117,7 @@ class PlatformIconTests(unittest.TestCase):
             info = plistlib.loads(zipped.read(prefix + "Info.plist"))
             self.assertEqual(info["CFBundleVersion"], "0.1.0")
             self.assertEqual(info["CFBundleIconFile"], "Animatix.icns")
+            self.assertIn("record narration", info["NSMicrophoneUsageDescription"])
             self.assertEqual(zipped.read(prefix + "MacOS/animatix-gui"), binary)
             self.assertEqual(zipped.read(prefix + "Resources/Animatix.icns"), icns())
             self.assertTrue(zipped.getinfo(prefix + "MacOS/animatix-gui").external_attr >> 16 & 0o111)

@@ -430,6 +430,7 @@ gate_ci_policy_tests() {
   python3 tools/quality/test-audit-corpus.py
   python3 tools/quality/test-speech-sync.py
   python3 tools/quality/test-speech-chapter.py
+  python3 tools/quality/test-narration-takes.py
   python3 tools/quality/test-qwen-chapter-provider.py
   python3 tools/content/test-chapter-export.py
   python3 tools/ci/test-ci-control.py

@@ -329,6 +329,7 @@ fn carry_bag_preserves_auto_color_and_transcript() {
         duration: 1.5,
         markers: std::collections::HashMap::from([("intro".to_string(), 0.5)]),
         segments: Vec::new(),
+        narration_takes: None,
     };
     assert!(
         source.set_transcript("narrator", transcript.clone()),

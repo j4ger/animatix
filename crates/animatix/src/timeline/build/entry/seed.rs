@@ -198,7 +198,12 @@ pub(super) fn seed_environment(
     }
 
     // Pre-pass: lower any speech-anchored keyframe times in the AST
-    let ast = super::speech::lower_speech_keyframes(ast, &transcripts, diagnostics);
+    let ast = super::speech::lower_speech_keyframes(
+        ast,
+        &transcripts,
+        timeline.build_quality,
+        diagnostics,
+    );
 
     SeededBuild { ast }
 }

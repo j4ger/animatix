@@ -28,7 +28,7 @@ impl AnimatixApp {
         let shell = GuiShell::load(initial_path, show_welcome);
 
         let choice = shell.ui_store.view.app_theme;
-        let theme = choice.resolve(system_is_dark);
+        let theme = crate::app::design_tokens::workbench::theme(choice, system_is_dark);
         eparts::set_theme(&cc.egui_ctx, theme);
         install_theme(&cc.egui_ctx, &theme, choice.is_dark(system_is_dark));
 
@@ -435,10 +435,7 @@ impl AnimatixApp {
             self.shell.document_store.source.cached_hit_regions = fresh_hit_regions;
             self.shell.ui_store.selection.hit_regions =
                 self.shell.document_store.source.cached_hit_regions.clone();
-            self.shell.clear_any_error(live_preview_status(
-                &self.shell.preview_store.preview,
-                self.shell.document_store.source.document.active_scene.as_deref(),
-            ));
+            self.shell.clear_any_error();
 
             // Record render time
             let render_elapsed = render_start.elapsed().as_secs_f64() * 1000.0;
@@ -454,10 +451,7 @@ impl AnimatixApp {
                     renderer.register_native_texture(device, sample_view, wgpu::FilterMode::Linear);
                 self.preview_texture_id = Some(texture_id);
             }
-            self.shell.clear_any_error(live_preview_status(
-                &self.shell.preview_store.preview,
-                self.shell.document_store.source.document.active_scene.as_deref(),
-            ));
+            self.shell.clear_any_error();
         }
 
         Ok(())

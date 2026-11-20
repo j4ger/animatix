@@ -29,6 +29,7 @@ impl fmt::Display for DiagnosticCode {
                 write!(f, "always-write-not-animatable")
             },
             DiagnosticCode::InvalidConfigValue => write!(f, "invalid-config-value"),
+            DiagnosticCode::NarrationBindingUnresolved => write!(f, "narration-binding-unresolved"),
             DiagnosticCode::ConflictingModifierKey => write!(f, "conflicting-modifier-key"),
             DiagnosticCode::UnknownAction => write!(f, "unknown-action"),
             DiagnosticCode::UnknownColorscheme => write!(f, "unknown-colorscheme"),

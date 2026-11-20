@@ -26,6 +26,27 @@ pub(crate) fn collect_markers(
     result
 }
 
+pub(crate) fn review_markers(
+    statements: &[Stmt],
+    timeline: Option<&Timeline>,
+    composition: Option<&Composition>,
+    diagnostics: &[animatix_syntax::diagnostics::Diagnostic],
+) -> Vec<TimingMarker> {
+    use animatix_syntax::diagnostics::DiagnosticCode;
+    let mut markers = collect_markers(statements, timeline, composition);
+    for problem in diagnostics
+        .iter()
+        .filter(|d| d.code == DiagnosticCode::NarrationBindingUnresolved)
+    {
+        if let Some(line) = problem.location.line {
+            for marker in markers.iter_mut().filter(|m| m.line == line.checked_sub(1)) {
+                marker.time_s = None;
+            }
+        }
+    }
+    markers
+}
+
 fn collect_scope(
     statements: &[Stmt],
     timeline: Option<&Timeline>,
@@ -48,10 +69,16 @@ fn collect_scope(
                 body,
                 span,
             } => {
+                if let Time::SpeechMarker { marker, .. } = time
+                    && animatix_syntax::narration::is_implicit_anchor(marker)
+                    && body.is_empty()
+                {
+                    continue;
+                }
                 let relative = matches!(statement, Stmt::RelativeKeyframe { .. });
                 let compiled =
                     span.and_then(|span| timeline?.marker_time(span)).map(|ms| ms / 1000.0);
-                let value = resolve_time(time, timeline);
+                let value = resolve_time(time);
                 let local = compiled.or_else(|| {
                     if relative {
                         previous.zip(value).map(|(a, b)| a + b)
@@ -76,7 +103,7 @@ fn collect_scope(
     }
 }
 
-fn resolve_time(time: &Time, timeline: Option<&Timeline>) -> Option<f64> {
+fn resolve_time(time: &Time) -> Option<f64> {
     let value = match time {
         Time::Seconds(s) => *s,
         Time::Milliseconds(ms) => *ms as f64 / 1000.0,
@@ -84,27 +111,9 @@ fn resolve_time(time: &Time, timeline: Option<&Timeline>) -> Option<f64> {
         Time::Beats(_) | Time::Expression(_) => return None,
         // Expressions execute in their lexical build environment. Re-evaluating
         // them against the final environment could place a marker incorrectly.
-        Time::SpeechMarker {
-            track,
-            marker,
-            offset_ms,
-        } => timeline?.transcript(track)?.find_marker(marker)? + *offset_ms as f64 / 1000.0,
-        Time::SpeechWord {
-            track,
-            word,
-            occurrence,
-            offset_ms,
-        } => {
-            timeline?.transcript(track)?.find_word(word, *occurrence)?.0
-                + *offset_ms as f64 / 1000.0
-        },
-    };
-    // Speech anchors are lowered to nonnegative integer milliseconds by the engine.
-    // Numeric relative offsets remain signed until composed with the prior marker.
-    let value = if matches!(time, Time::SpeechMarker { .. } | Time::SpeechWord { .. }) {
-        (value * 1000.0).round().max(0.0) / 1000.0
-    } else {
-        value
+        // The compiler owns clip offsets, lexical scope and paragraph alignment.
+        // With no compiled span we can still offer source navigation.
+        Time::SpeechMarker { .. } | Time::SpeechWord { .. } => return None,
     };
     value.is_finite().then_some(value)
 }
@@ -225,26 +234,25 @@ pub(crate) fn render_markers(
 }
 
 pub(crate) fn marker_menu(ui: &mut egui::Ui, markers: &[TimingMarker], commands: &mut ActionQueue) {
-    let _ = crate::app::components::icon_menu(
-        ui,
-        egui_phosphor::regular::DIAMOND,
-        &format!("Source markers · {} authored anchors", markers.len()),
-        |ui| {
-            ui.label("Direct scene/top-level # markers · source order");
-            ui.weak("Generated loop/component timing is not expanded here.");
-            for marker in markers {
-                if ui.button(marker_label(marker)).clicked() {
-                    navigate(marker, commands);
-                    ui.close();
-                }
+    use crate::app::components::button::Button;
+    use egui_phosphor::regular::DIAMOND;
+
+    let button = if ui.available_width() >= 360.0 {
+        Button::ghost("Markers").with_icon(DIAMOND)
+    } else {
+        Button::icon(DIAMOND)
+    };
+    let response = ui
+        .add(button.with_tooltip(format!("Source markers · {} authored anchors", markers.len(),)));
+    egui::Popup::menu(&response).show(|ui| {
+        ui.label("Authored # markers in source order");
+        for marker in markers {
+            if ui.button(marker_label(marker)).clicked() {
+                navigate(marker, commands);
+                ui.close();
             }
-            if markers.iter().any(|m| m.time_s.is_none()) {
-                ui.label(
-                    "Unresolved timing is never guessed (beat / missing speech or scene anchor).",
-                );
-            }
-        },
-    );
+        }
+    });
 }
 
 #[cfg(test)]

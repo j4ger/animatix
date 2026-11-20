@@ -35,7 +35,7 @@ mod metrics {
 }
 
 /// Vertical chrome outside the dock area: toolbar + status bar.
-const VERTICAL_CHROME: f32 = 28.0 + 22.0;
+const VERTICAL_CHROME: f32 = crate::app::design_tokens::spatial::toolbar::HEIGHT + 30.0;
 
 /// Narrowest the sidebar may be squeezed before the preview starts giving ground.
 const RAIL_MIN: f32 = 48.0;

@@ -35,7 +35,7 @@ pub struct ParsedSource {
 pub(super) fn parse_impl(source: &str) -> ParsedSource {
     let warnings = Rc::new(RefCell::new(Vec::new()));
     let (tokens, token_issues) = crate::token::tokenize_with_issues(source);
-    let spanned = token_parser::spanned(&tokens);
+    let spanned = token_parser::spanned_with_source(source, &tokens);
     let input = token_parser::as_input(&spanned);
     let ((ast, errors), occurrences) = crate::occurrence::with_occurrences(|| {
         super::api::parser_with_source(source, Rc::clone(&warnings))
