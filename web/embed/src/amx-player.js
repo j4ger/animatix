@@ -87,7 +87,7 @@
 //              before the first player has initialized.
 //
 // Call configureRuntime({ backend: "webgpu" | "webgl2" | "auto" }) before
-// loading players to choose a page-wide renderer. The default remains `webgpu`.
+// loading players to choose a page-wide renderer. The default is `auto`.
 // `auto` tries WebGPU first and falls back to WebGL2 when setup fails. Backend
 // changes after initialization are rejected because devices and canvas context
 // types are page-scoped.

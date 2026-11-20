@@ -3,8 +3,6 @@
 use std::sync::{Arc, Mutex};
 
 use animatix::timeline::SceneDimensions;
-#[cfg(not(feature = "vello-gpu-webgpu"))]
-use animatix_render::filter_backend::GpuFilterBackend;
 use animatix_render::transition::TransitionCompositor;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::{JsCast, closure::Closure};
@@ -48,7 +46,6 @@ fn readback_impl(player: &mut AmxPlayer, time_s: f64) -> Result<ReadbackSetup, S
     if player.target.is_none() {
         return Err("no document loaded".to_string());
     }
-    #[cfg(feature = "vello-gpu")]
     if let Some(webgl) = player.webgl.clone() {
         let mut frame_gpu = webgl.frame_gpu.borrow_mut();
         return readback_with(
@@ -63,9 +60,6 @@ fn readback_impl(player: &mut AmxPlayer, time_s: f64) -> Result<ReadbackSetup, S
     }
     with_engine(|ctx| {
         let ctx = ctx?;
-        #[cfg(not(feature = "vello-gpu-webgpu"))]
-        let mut renderer = ctx.core.borrow_mut();
-        #[cfg(feature = "vello-gpu-webgpu")]
         let mut renderer = ctx.frame_gpu.borrow_mut();
         readback_with(player, &ctx.device, &ctx.queue, None, &mut renderer, time_s, dims)
     })
@@ -312,15 +306,9 @@ fn readback_with(
     // through the player's backend pulled the composited effect regions off a
     // frame that was still in flight — the probe's pixels came out right and the
     // next presented frame came out missing them.
-    #[cfg(not(feature = "vello-gpu-webgpu"))]
-    let mut filter_backend: Option<GpuFilterBackend> = None;
-    #[cfg(not(feature = "vello-gpu-webgpu"))]
-    let mut filter_backend_to: Option<GpuFilterBackend> = None;
     // Readbacks always rasterize at the scene's own resolution: the pixel
     // probes compare against backdrop baselines and each other, so they must
     // not inherit whatever scale the presentation path is currently using.
-    #[cfg(not(feature = "vello-gpu-webgpu"))]
-    let mut scratch = animatix::scene::Scene::new();
     let frame = render_document(
         &mut FrameCtx {
             renderer,
@@ -328,8 +316,6 @@ fn readback_with(
             queue,
             dims,
             scale: 1.0,
-            #[cfg(not(feature = "vello-gpu-webgpu"))]
-            scratch: &mut scratch,
             compositor: player.compositor.as_ref(),
             target: target.as_ref(),
             runtime_inputs: &*runtime_inputs,
@@ -337,11 +323,7 @@ fn readback_with(
         },
         Targets {
             primary: &mut primary,
-            #[cfg(not(feature = "vello-gpu-webgpu"))]
-            primary_backend: &mut filter_backend,
             secondary: &mut secondary,
-            #[cfg(not(feature = "vello-gpu-webgpu"))]
-            secondary_backend: &mut filter_backend_to,
             composite: &mut composite,
         },
     )?;

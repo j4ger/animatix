@@ -1,14 +1,7 @@
-//! Fullscreen texture blit for zero-readback filter compositing.
-//!
-//! Vello's `Scene::draw_image` requires CPU-owned `peniko::ImageData`.
-//! This module provides a custom render pass that draws a `wgpu::TextureView`
-//! directly onto another render target, avoiding the CPU round-trip.
-//!
-//! Used by `GpuFilterBackend` to composite GPU-filtered sub-scenes back into
-//! the main scene without readback.
+//! Fullscreen, clipped and batched copies between GPU texture views.
 
 use std::borrow::Cow;
-use std::cell::{OnceCell, RefCell};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use wgpu::util::DeviceExt;
 
@@ -114,11 +107,9 @@ pub struct FullscreenBlitPipeline {
     pub sampler: wgpu::Sampler,
     /// Mutable uniform for general blits whose parameters can change per draw.
     alpha_buffer: wgpu::Buffer,
-    /// Immutable alpha=1 uniform, created on first use by the Core presentation path.
-    opaque_alpha1_buffer: OnceCell<wgpu::Buffer>,
-    /// Cached bind groups keyed by source view and parameter-buffer kind.
+    /// Cached bind groups keyed by source view.
     /// A single bound keeps old/new source views from growing without limit.
-    bind_group_cache: RefCell<HashMap<(wgpu::TextureView, bool), wgpu::BindGroup>>,
+    bind_group_cache: RefCell<HashMap<wgpu::TextureView, wgpu::BindGroup>>,
 }
 
 impl FullscreenBlitPipeline {
@@ -233,7 +224,6 @@ impl FullscreenBlitPipeline {
             bind_group_layout,
             sampler,
             alpha_buffer,
-            opaque_alpha1_buffer: OnceCell::new(),
             bind_group_cache: RefCell::new(HashMap::new()),
         }
     }
@@ -263,29 +253,6 @@ impl FullscreenBlitPipeline {
             None,
             alpha,
         );
-    }
-
-    /// Encode an opaque full-screen blit with an immutable alpha=1 uniform.
-    ///
-    /// Use only for the Core presentation suffix that is submitted immediately
-    /// after this method returns. General external encoders must keep using the
-    /// staged parameter snapshot APIs below.
-    pub(crate) fn blit_opaque_with_encoder(
-        &self,
-        device: &wgpu::Device,
-        encoder: &mut wgpu::CommandEncoder,
-        src_view: &wgpu::TextureView,
-        dst_view: &wgpu::TextureView,
-    ) {
-        self.opaque_alpha1_buffer.get_or_init(|| {
-            let params = Self::params(1.0, None, None);
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Animatix Opaque Fullscreen Blit Uniform"),
-                contents: bytemuck::cast_slice(&params),
-                usage: wgpu::BufferUsages::UNIFORM,
-            })
-        });
-        self.encode_blit_variant(device, encoder, src_view, dst_view, [0.0, 0.0], None, true);
     }
 
     /// Pack the 48-byte fragment params.
@@ -353,9 +320,8 @@ impl FullscreenBlitPipeline {
         &self,
         device: &wgpu::Device,
         src_view: &wgpu::TextureView,
-        opaque_alpha1: bool,
     ) -> wgpu::BindGroup {
-        let key = (src_view.clone(), opaque_alpha1);
+        let key = src_view.clone();
         let mut cache = self.bind_group_cache.borrow_mut();
         if let Some(bg) = cache.get(&key) {
             bg.clone()
@@ -363,13 +329,6 @@ impl FullscreenBlitPipeline {
             if cache.len() >= 64 {
                 cache.clear();
             }
-            let params_buffer = if opaque_alpha1 {
-                self.opaque_alpha1_buffer
-                    .get()
-                    .expect("opaque alpha=1 uniform is initialized before binding")
-            } else {
-                &self.alpha_buffer
-            };
             let bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("Animatix Fullscreen Blit Bind Group"),
                 layout: &self.bind_group_layout,
@@ -385,7 +344,7 @@ impl FullscreenBlitPipeline {
                     wgpu::BindGroupEntry {
                         binding: 2,
                         resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: params_buffer,
+                            buffer: &self.alpha_buffer,
                             offset: 0,
                             size: Some(
                                 std::num::NonZeroU64::new(BLIT_PARAMS_SIZE).expect("nonzero"),
@@ -430,20 +389,7 @@ impl FullscreenBlitPipeline {
         dst_origin: [f32; 2],
         dst_size: Option<[u32; 2]>,
     ) {
-        self.encode_blit_variant(device, encoder, src_view, dst_view, dst_origin, dst_size, false);
-    }
-
-    fn encode_blit_variant(
-        &self,
-        device: &wgpu::Device,
-        encoder: &mut wgpu::CommandEncoder,
-        src_view: &wgpu::TextureView,
-        dst_view: &wgpu::TextureView,
-        dst_origin: [f32; 2],
-        dst_size: Option<[u32; 2]>,
-        opaque_alpha1: bool,
-    ) {
-        let bind_group = self.get_or_create_bind_group(device, src_view, opaque_alpha1);
+        let bind_group = self.get_or_create_bind_group(device, src_view);
 
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -545,7 +491,7 @@ impl FullscreenBlitPipeline {
 
         pass.set_pipeline(&self.pipeline);
         for (i, item) in chunk[..count].iter().enumerate() {
-            let bind_group = self.get_or_create_bind_group(device, item.src_view, false);
+            let bind_group = self.get_or_create_bind_group(device, item.src_view);
             let dynamic_offset = (i as u32) * (BATCH_BLIT_STRIDE as u32);
             pass.set_viewport(
                 item.dst_origin[0],
@@ -630,7 +576,3 @@ impl FullscreenBlitPipeline {
         queue.submit(std::iter::once(encoder.finish()));
     }
 }
-
-#[cfg(test)]
-#[path = "fullscreen_blit_tests.rs"]
-mod tests;

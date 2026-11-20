@@ -1,13 +1,13 @@
 # Animatix Web
 
-A static Astro site around the existing WebGPU `.amx` player. The website has
+A static Astro site around the `.amx` player. The website has
 three paths: **Showcase**, **Learn**, and a small **Playground**. No backend,
 accounts or client-side UI framework are required.
 
 The new scenes live in `content/scenes/`. Lessons embed their exact source;
 Playground edits and downloads that source. Nothing is saved automatically.
-Showcase recordings let visitors without WebGPU watch the default versions;
-interactive playback and edited-code previews still require WebGPU. Words Keep
+Showcase recordings are available without a graphics API. Interactive playback
+and edited previews use WebGPU or WebGL2. Words Keep
 Time is currently a silent edition, not an audio-sync demonstration.
 
 ## Source map
@@ -250,8 +250,8 @@ chunks and font faces are fetched only when required.
 Deploy the assembled `_site/`, not the repository's raw `web/` directory.
 `web/tools/site/site-artifact.sh` validates the SDK manifest and overlays the Astro
 output while excluding development sources. Release packaging uses the same
-assembler. Browser playback requires WebGPU; font faces are fetched from the
-SDK manifest and gzip uses the native `DecompressionStream` API.
+assembler. Browser playback uses WebGPU or WebGL2. Font faces are fetched from the SDK
+manifest and gzip uses the native `DecompressionStream` API.
 
 ### Hosting and publication
 
@@ -290,7 +290,8 @@ entry and scene files.
 Behavior:
 
 - **Lazy** — nothing is fetched until the element nears the viewport
-  (IntersectionObserver, 200px margin); the page shares one SDK runtime and one WebGPU device across its embeds.
+  (IntersectionObserver, 200px margin). The page shares one SDK runtime and,
+  on WebGPU, one device across its embeds. WebGL2 uses one context per canvas.
 - **No build-time poster** — the skeleton (aspect-ratio placeholder with a
   shimmer) is replaced by the scene's *finished* frame, not its first one.
   This provides a complete composition for readers who do not play the scene
@@ -568,13 +569,10 @@ cd web/tools && npm install && npm run build:embed
   scenes import and resolve them relative to each source URL.
 - **Build** — the engine's font-context-aware entry points build a `Timeline`
   or multi-scene `Composition` exactly like the GUI does (`Draft` quality).
-- **Render** — per frame: `timeline.evaluate_with_debug` produces a
-  [`vello::Scene`] (with the GPU `GpuFilterBackend`, same as the export
-  path). Vello renders through a compute pipeline that needs
-  `STORAGE_BINDING` on its target — browser canvas contexts don't reliably
-  expose that — so the scene is rendered into an offscreen texture at scene
-  resolution and `RendererCore::blit_texture` composites it onto the canvas
-  surface (the same shape as the GUI's `PreviewSurface`).
+- **Render** — evaluation produces a renderer-neutral scene. The shared
+  `FrameGpu` rasterizes it with Vello GPU and runs built-in effects through
+  fragment pipelines. The browser presents the result to its canvas through
+  WebGPU or WebGL2. Ordinary frames present without a CPU pixel readback.
 
 ### Capabilities and limitations
 
@@ -619,10 +617,8 @@ cd web/tools && npm install && npm run build:embed
 
 ### Differences from the desktop renderer
 
-The render stack is the desktop's — same engine crates, same vello/wgpu
-`RendererCore`, same `GpuFilterBackend` per filter target (including the
-zero-readback pending-composite blit), same `TransitionCompositor` for
-multi-scene blends. What differs is the platform around it:
+The browser and desktop share scene evaluation, `FrameGpu` and the
+`TransitionCompositor`. Platform capabilities differ.
 
 | | Desktop (CLI / GUI) | Web SDK |
 |---|---|---|
@@ -724,21 +720,6 @@ distribution scripts and are not asserted here as acceptance evidence.
   copying pixels the way `debug_readback` does. `set_render_scale(s)` /
   `render_scale()` / `raster_width()` / `raster_height()` are the raster scale
   the numbers are taken at.
-- `web/dev/hybrid-vs-compute.html` — differential probe: the same synthetic
-  vector scene rendered by the classic vello compute renderer (WebGPU,
-  offscreen+blit) and by `vello_hybrid` (WebGL2, direct to canvas), from one
-  wasm module (`crates/animatix-hybrid-bench`). Build it with
-  `crates/animatix-hybrid-bench/tools/build-hybrid-bench.sh --dev` into `web/dev/pkg-hybrid-bench/`
-  (gitignored), open the page with `web/tools/dev/serve-web.py`, and press Run; it
-  reports per-frame `submit`/`gpu`/`clear` milliseconds and publishes
-  `window.__bench`. The headless end-to-end check is
-  `nix develop .#web-ci -c node crates/animatix-hybrid-bench/tools/hybrid-bench-smoke.mjs` (software
-  SwiftShader; proves the wiring, not performance). For real numbers run a
-  headed browser on the GPU: `HB_HEADED=1 HB_UNSAFE_WEBGPU=1 CHROME=/path/to/chromium
-  node crates/animatix-hybrid-bench/tools/hybrid-bench-smoke.mjs`. On hybrid-GPU laptops Chrome gives
-  WebGPU the discrete GPU but WebGL2 the integrated one, so the two backends are
-  not always on the same GPU — the page reports which adapter each got. Dev-only:
-  it measures raw renderer throughput, not effects, transitions or text shaping.
 
 > Two probe traps have burned this pipeline before (see `docs/history/2026-09.md`,
 > "The wasm-SVG item that never was"): a scene screenshot catches whatever
@@ -756,21 +737,17 @@ distribution scripts and are not asserted here as acceptance evidence.
   sources. `web/tools/site/site-check.py` rejects retired AMX and developer utilities
   in the release artifact.
 
-### Vello GPU candidate
+### Graphics backends
 
-Build the dual-backend candidate in the web build shell.
+Build the standard dual-backend SDK in the web build shell.
 
 ```sh
-ANIMATIX_VELLO_GPU=1 bash web/tools/build/build-web.sh --dev
+nix develop .#web-build -c bash web/tools/build/build-web.sh --dev
 python3 web/tools/dev/serve-web.py 8124
 ```
 
-The runtime manifest lists the available graphics backends. Call
-`configureRuntime({ backend: 'auto' })` before any player loads to try Vello GPU
-on WebGPU with WebGL2 fallback. Set `backend` to `webgpu` or `webgl2` to force a
-backend for comparison. The candidate requires an explicit opt-in while its
-release gates are pending.
-
-For native comparison, build a CLI or GUI with `--features vello-gpu`. Set
-`ANIMATIX_RENDER_BACKEND=vello-gpu` when launching that binary to select the
-candidate renderer for preview and export.
+The runtime manifest lists the available graphics backends.
+The player defaults to `auto`, trying WebGPU before falling back to WebGL2.
+Call `configureRuntime({ backend: 'webgpu' })` or
+`configureRuntime({ backend: 'webgl2' })` before the first player loads
+to force a specific backend.

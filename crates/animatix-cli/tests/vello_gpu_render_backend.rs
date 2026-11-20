@@ -1,5 +1,3 @@
-#![cfg(feature = "vello-gpu")]
-
 use std::process::Command;
 
 use animatix_render::offscreen::OffscreenRenderer;
@@ -7,8 +5,8 @@ use animatix_render::offscreen::OffscreenRenderer;
 mod common;
 
 #[test]
-fn image_command_can_opt_into_vello_gpu_in_a_child_process() {
-    if OffscreenRenderer::new_frame_gpu().is_err() {
+fn image_command_renders_with_vello_gpu_by_default() {
+    if OffscreenRenderer::new().is_err() {
         animatix_render::testing::skip_if_no_gpu();
         return;
     }
@@ -23,7 +21,6 @@ fn image_command_can_opt_into_vello_gpu_in_a_child_process() {
         .arg(input)
         .args(["--time", "0", "-o"])
         .arg(&output)
-        .env("ANIMATIX_RENDER_BACKEND", "vello-gpu")
         .output()
         .expect("run candidate image export");
     assert!(

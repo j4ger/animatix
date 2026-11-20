@@ -19,7 +19,6 @@ mod readback;
 mod resource_probe;
 mod state;
 mod text_probe;
-#[cfg(feature = "vello-gpu")]
 mod webgl;
 
 pub use api::{build_id, engine_commit, engine_version};
@@ -36,7 +35,6 @@ use wasm_bindgen::prelude::*;
 impl AmxPlayer {
     /// Backend name for the player bound to this canvas.
     pub fn backend(&self) -> String {
-        #[cfg(feature = "vello-gpu")]
         if self.webgl.is_some() {
             return "webgl2".to_string();
         }

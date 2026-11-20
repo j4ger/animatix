@@ -7,7 +7,7 @@ const state = (globalThis[Symbol.for("animatix.sdk.runtime")] ??= {
 });
 // These defaults are added rather than replacing the page-global object: a
 // page may have loaded an older embed bundle before a newer one is evaluated.
-state.backendPreference ??= "webgpu";
+state.backendPreference ??= "auto";
 state.backendConfigured ??= false;
 state.selectedBackend ??= null;
 state.backendGeneration ??= 0;

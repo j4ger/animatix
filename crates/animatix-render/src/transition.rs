@@ -5,8 +5,6 @@ use animatix::easing::Easing;
 use animatix::timeline::scene_program::SceneItem;
 use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
-use crate::core::RendererCore;
-
 /// GPU-based compositor for scene transition effects.
 ///
 /// Renders a fullscreen quad with a WGSL shader that blends two input textures
@@ -544,34 +542,6 @@ pub fn encode_flip_overlay(
         }
     }
     overlay
-}
-
-/// Draw `overlay` into `overlay_view` with a transparent background, then
-/// alpha-blit it over the already-composited transition in `output_view`.
-///
-/// `overlay_view` is a scratch texture owned by the caller; on the native
-/// offscreen renderer it is scene A's texture after the blend has consumed it.
-pub fn composite_flip_overlay(
-    core: &mut RendererCore,
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    overlay_view: &wgpu::TextureView,
-    output_view: &wgpu::TextureView,
-    size: SceneDimensions,
-    overlay: &animatix::scene::Scene,
-) -> Result<(), String> {
-    core.render_scene_with_background(
-        device,
-        queue,
-        overlay_view,
-        size.width,
-        size.height,
-        overlay,
-        animatix::scene::Color::TRANSPARENT,
-    )
-    .map_err(|e| e.to_string())?;
-    core.blit_texture(device, queue, overlay_view, output_view, size.width, size.height, 1.0);
-    Ok(())
 }
 
 #[cfg(test)]

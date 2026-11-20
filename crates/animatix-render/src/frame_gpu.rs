@@ -144,7 +144,7 @@ impl FrameGpu {
         Ok(())
     }
 
-    fn render_with_clear(
+    pub(crate) fn render_with_clear(
         &mut self,
         scene: &Scene,
         destination: &wgpu::TextureView,

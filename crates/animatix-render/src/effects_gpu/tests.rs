@@ -255,7 +255,7 @@ fn native_compute_plugin_runs_the_demo_pixelate_shader() {
     let output = result.expect("native compute-only effect should execute");
     assert!(error.is_none(), "Pixelate pipeline validation failed: {error:?}");
     assert!(output.view.texture().usage().contains(wgpu::TextureUsages::COPY_SRC));
-    let output_pixels = readback_rgba(&device, &queue, &output.view.texture(), width, height);
+    let output_pixels = readback_rgba(&device, &queue, output.view.texture(), width, height);
     let first = pixel(&output_pixels, width, 0, 0);
     let same_cell = pixel(&output_pixels, width, 3, 3);
     let source = pixel(&pixels, width, 0, 0);

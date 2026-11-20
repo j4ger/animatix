@@ -549,17 +549,7 @@ test("module failures and cancellation do not partially install sources", async 
   await assert.rejects(fetchMissingModules(["late.amx"], "https://site.test/main.amx", modules, controller.signal), { name: "AbortError" });
 });
 
-test("runtime backend selection is opt-in and validates the supported modes", () => {
-  assert.equal(runtimeBackend(), null);
-  assert.equal(runtimeBackendGeneration(), 0);
-  assert.throws(() => configureRuntime({ backend: "webgl" }), /backend must be 'auto', 'webgpu' or 'webgl2'/);
-  assert.throws(() => configureRuntime({}), /manifestUrl.*backend/);
-  assert.doesNotThrow(() => configureRuntime({ backend: "auto" }));
-  assert.doesNotThrow(() => configureRuntime({ backend: "webgpu" }));
-  assert.doesNotThrow(() => configureRuntime({ manifestUrl: "/sdk/runtime-manifest.json" }));
-});
-
-test("auto backend fallback replaces a canvas after WebGPU setup fails", async () => {
+test("default backend fallback replaces a canvas after WebGPU setup fails", async () => {
   const state = { selectedBackend: null, backendLost: false, backendGeneration: 0, backendSelection: null };
   const originalCanvas = { id: "webgpu" };
   const replacementCanvas = { id: "webgl2" };
@@ -568,11 +558,21 @@ test("auto backend fallback replaces a canvas after WebGPU setup fails", async (
     async init_engine() { calls.push("webgpu:init"); throw new Error("adapter unavailable"); },
     async create_webgl_player(canvas) { calls.push(`webgl:create:${canvas.id}`); return { canvas }; },
   };
-  const result = await createRuntimePlayer(module, originalCanvas, () => replacementCanvas, "auto", state);
+  const result = await createRuntimePlayer(module, originalCanvas, () => replacementCanvas, undefined, state);
   assert.equal(result.backend, "webgl2");
   assert.equal(result.player.canvas, replacementCanvas);
   assert.equal(result.generation, 1);
   assert.deepEqual(calls, ["webgpu:init", "webgl:create:webgl2"]);
+});
+
+test("explicit runtime configuration validates the supported modes", () => {
+  assert.equal(runtimeBackend(), null);
+  assert.equal(runtimeBackendGeneration(), 0);
+  assert.throws(() => configureRuntime({ backend: "webgl" }), /backend must be 'auto', 'webgpu' or 'webgl2'/);
+  assert.throws(() => configureRuntime({}), /manifestUrl.*backend/);
+  assert.doesNotThrow(() => configureRuntime({ backend: "auto" }));
+  assert.doesNotThrow(() => configureRuntime({ backend: "webgpu" }));
+  assert.doesNotThrow(() => configureRuntime({ manifestUrl: "/sdk/runtime-manifest.json" }));
 });
 
 test("explicit backend selection never falls back to another backend", async () => {

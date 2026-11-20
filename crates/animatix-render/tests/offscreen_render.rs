@@ -10,6 +10,8 @@ use animatix::timeline::{BuildQuality, DebugRenderOptions, SceneDimensions, Time
 use animatix_render::offscreen::{OffscreenRenderer, RenderedFrame};
 
 mod common;
+#[path = "offscreen_render/frame_gpu_contract.rs"]
+mod frame_gpu_contract;
 
 #[path = "offscreen_render/filter_region_contract.rs"]
 mod filter_region_contract;

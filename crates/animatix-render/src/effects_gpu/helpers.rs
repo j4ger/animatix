@@ -150,8 +150,7 @@ pub(super) fn create_alpha_pipelines(
     (layout, make_pipeline("to_straight"), make_pipeline("to_premultiplied"))
 }
 
-pub(super) const ALPHA_CONVERSION_WGSL: &str = concat!(
-    r#"
+pub(super) const ALPHA_CONVERSION_WGSL: &str = r#"
 struct FullscreenVertex {
     @builtin(position) position: vec4<f32>,
 }
@@ -180,8 +179,7 @@ fn to_premultiplied(@builtin(position) position: vec4<f32>) -> @location(0) vec4
     let color = textureLoad(src, vec2<i32>(position.xy), 0);
     return vec4<f32>(color.rgb * color.a, color.a);
 }
-"#
-);
+"#;
 
 pub(super) fn encode_fullscreen_pass(
     encoder: &mut wgpu::CommandEncoder,

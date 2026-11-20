@@ -463,7 +463,7 @@ fn upload_image(
         ));
     }
     if image.format == ImageFormat::Bgra8 || image.alpha_type == ImageAlphaType::Alpha {
-        for pixel in bytes.chunks_exact_mut(4) {
+        for pixel in bytes.as_chunks_mut::<4>().0 {
             if image.format == ImageFormat::Bgra8 {
                 pixel.swap(0, 2);
             }

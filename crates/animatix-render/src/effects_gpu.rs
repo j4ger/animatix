@@ -137,6 +137,14 @@ struct EffectContextUniform {
 
 const CONTEXT_SIZE: u64 = std::mem::size_of::<EffectContextUniform>() as u64;
 
+struct PlannedEffect {
+    effect_type: Box<str>,
+    pass_count: usize,
+    author_slot: usize,
+    uniforms: Vec<u8>,
+    kind: EffectPassKind,
+}
+
 struct PlannedPass {
     effect_type: Box<str>,
     pass_index: u32,
@@ -360,7 +368,7 @@ impl EffectsGpu {
         } else {
             1.0
         };
-        let mut instances: Vec<(Box<str>, usize, usize, Vec<u8>, EffectPassKind)> = Vec::new();
+        let mut instances = Vec::new();
         let mut slots_by_type: HashMap<Box<str>, usize> = HashMap::new();
         let mut total_passes = 0usize;
         for instance in chain.instances.iter().filter(|instance| instance.enabled) {
@@ -397,7 +405,13 @@ impl EffectsGpu {
             let mut uniforms = vec![0u8; descriptor.author_uniform_size().max(16) as usize];
             descriptor.pack(&instance.params, &mut uniforms);
             scale_pixel_parameters(descriptor.params(), scale, &mut uniforms);
-            instances.push((descriptor.type_name().into(), passes.len(), slot, uniforms, kind));
+            instances.push(PlannedEffect {
+                effect_type: descriptor.type_name().into(),
+                pass_count: passes.len(),
+                author_slot: slot,
+                uniforms,
+                kind,
+            });
         }
         if total_passes > MAX_CHAIN_PASSES {
             return Err(format!(
@@ -423,7 +437,14 @@ impl EffectsGpu {
         }
 
         let mut plan = Vec::with_capacity(total_passes);
-        for (effect_type, pass_count, author_slot, uniforms, kind) in instances {
+        for PlannedEffect {
+            effect_type,
+            pass_count,
+            author_slot,
+            uniforms,
+            kind,
+        } in instances
+        {
             #[cfg(not(target_arch = "wasm32"))]
             if let EffectPassKind::Compute = kind {
                 let pipeline = self

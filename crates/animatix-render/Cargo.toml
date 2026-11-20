@@ -7,7 +7,6 @@ rust-version.workspace = true
 [features]
 default = ["raster-encode"]
 video = ["dep:rsmpeg", "dep:tempfile"]
-vello-gpu = ["dep:vello_gpu", "dep:glifo"]
 # Single-frame PNG/WebP raster export. Off in the slim web profile (no
 # export path is reachable there).
 raster-encode = ["dep:image"]
@@ -22,17 +21,13 @@ animatix-core = { path = "../animatix-core" }
 animatix-syntax = { path = "../animatix-syntax" }
 kurbo = { workspace = true }
 peniko = { workspace = true }
-glifo = { version = "0.5.0", default-features = false, optional = true }
-vello_gpu = { workspace = true, optional = true }
+glifo = { version = "0.5.0", default-features = false }
+vello_gpu = { workspace = true }
 bytemuck = { workspace = true }
 image = { workspace = true, features = ["png", "gif", "jpeg", "webp"], optional = true }
 pollster = { workspace = true }
 tracing = { workspace = true }
 wgpu = { workspace = true, default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
-# The local Vello repairs the #1948 atlas regression and exposes a synchronous
-# render-tail submission hook. vello_img_probe.rs and presentation_submit.rs
-# guard these boundaries; removal conditions are in crates/vendor/vello/README.animatix.md.
-vello = { workspace = true }
 rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg8", "link_system_ffmpeg"], optional = true }
 
 tempfile = { version = "3", optional = true }

@@ -38,7 +38,7 @@ GUI / CLI / Web → animatix-render → animatix
   renderer-neutral `Scene` containing owned `Draw` commands. The
   `FilterBackend` seam carries engine types and no Vello or wgpu handles.
 - `animatix-render` — the GPU presentation layer: Vello/wgpu renderer core,
-  the `GpuFilterBackend` that implements the engine's `FilterBackend` trait,
+  the scene recorder that implements the engine's `FilterBackend` trait,
   offscreen frames, transition compositing, and the export encoders (including
   FFmpeg video behind the `video` feature). The dependency is **one-way** —
   the engine only defines the `FilterBackend` seam; it never names this crate
@@ -274,19 +274,11 @@ Shipped morph modifiers: `strategy: auto|match|fade`, `path_arc`, `stretch`.
 
 ### Vello Pipeline
 
-Evaluation produces the same renderer-neutral scene for both Vello backends.
-The default Compute backend lowers it to a Vello scene. The opt-in Vello GPU
-backend rasterizes sparse strips and uses fragment pipelines for built-in
-effects on WebGPU, WebGL2, and native wgpu.
-
-```
-evaluate(time_ms) → Vec<RenderCommand>
-  ↓
-for cmd in commands:
-  match cmd { Fill {..}, Stroke {..}, Image {..} }
-  ↓
-vello.encode(&mut encoder) → render_pass.draw(encoder)
-```
+Evaluation produces a renderer-neutral `Scene` for Web, CLI and GUI.
+`FrameGpu` rasterizes the scene as sparse strips with Vello GPU, runs built-in
+effects through fragment pipelines, and composites the result on the GPU.
+Web playback presents through WebGPU or WebGL2. Native preview and exports
+use the available wgpu adapter.
 
 ### Export
 
@@ -338,7 +330,7 @@ the `EFFECTS` bootstrap array. Plugin effects wrap FFI-declared data
 | `timeline/effects/track.rs` | `EffectChainTrack` / `EffectStage` — animatable storage (`DynTrack`-backed parameters) |
 | `timeline/effects/chain.rs` | `EffectChain`, `EffectRegion`, `PendingComposite`, `FilterBackend` |
 | `timeline/build/effect.rs` | Lowering: effect children become stages on the owning scope's chain |
-| `animatix-render/src/filter_backend/` | `GpuFilterBackend` — GPU render, ordered effect dispatch, readback / zero-readback composite |
+| `animatix-render/src/frame_gpu.rs` and `effects_gpu.rs` | Record scopes, rasterize and composite the frame, and execute effect passes on the GPU |
 | `timeline/scene_eval/` | Renders the scope's content to a sub-scene, samples the chain, derives the ROI, dispatches the backend |
 
 Adding a built-in effect is one new file plus one `EFFECTS` entry: the identity
@@ -348,83 +340,25 @@ no enum variant, and no dispatch match arm to keep in sync.
 
 #### Pipeline
 
-```
-Evaluate content children → vello::Scene (sub-scene)
-  ↓
-GpuFilterBackend::render_scene_to_image_gpu_filtered()  (or …_to_pending_composite)
-  → GPU render the sub-scene to texture A
-  → per effect, per declared pass, ping-pong A ↔ B
-    (seed, passes and harvest share one encoder/submit — see docs/effects.md §4.6)
-  → readback, or park a PendingComposite from the dynamic TexturePool for a viewport-scoped blit
-  ↓
-Composite at region origin (readback path) or batched blit with dynamic uniform offsets (zero-readback path)
-```
+- The engine samples each scope's chain and computes its region from the
+  evaluated content and effect support or from authored bounds. Identity and
+  disabled chains draw their children directly.
+- `SceneRecorder` stores the effect scope in the renderer-neutral scene.
+  `FrameGpu` rasterizes the scope into a translated, region-sized target.
+  `EffectsGpu` runs the ordered passes and samples the original input where
+  the effect declares that binding.
+- Inline Filter scopes use GPU textures in painter order. Tail Filter scopes
+  composite after the base scene. Glass samples the padded backdrop and
+  composites the clipped result before drawing its children.
+- The browser's plain and Mask-only frames share an encoder and submit for
+  scene rasterization and presentation. Effect scopes and transitions use
+  additional GPU submissions. Presentation does not copy pixels to the CPU.
+- The injected `FilterBackend` seam carries engine types. Evaluation without
+  a backend reports a render diagnostic for scopes that need it. The host
+  supports native compute effects from plugins through the existing ABI.
+- Filter child labels are scene-global. Reusing a label across scopes
+  re-parents the shared actor into the later scope (`duplicate-label` warning).
 
-**Key properties:**
-
-- **Backend admission.** `Timeline::needs_filter_backend()` checks the live
-  capability stores for Filter/Glass scopes and memoizes the answer in
-  `EvalCaches`. Timeline mutation clears the memo; cloning starts with empty
-  caches. Native offscreen rendering, GUI preview, and Web playback skip backend
-  creation for plain and Mask-only scenes. A scope still admits the backend
-  when its current effect values are disabled or identity, so a later activation
-  retains the existing initialization policy. Each transition input makes this
-  decision independently.
-- **Presentation submit.** On the Web player's plain/Mask single-timeline path,
-  Vello rendering and the canvas-format blit share one submit. A synchronous
-  Vello encoder suffix runs before submission and transient-resource recycling;
-  the presentation blit uses an immutable alpha=1 uniform. Filter/Glass scopes,
-  active transitions, and readback retain their separate tails. See the
-  [submission evidence](history/2026-11-16-presentation-submit.md).
-- **On-demand.** A stage whose `enabled` is false, or whose parameters all equal
-  their identity values, is dropped when the chain is sampled. If every stage is
-  dropped, the offscreen round-trip is skipped and the content children are
-  appended directly.
-- **Region of interest.** The processed region is the content bounds recorded
-  during sub-scene evaluation, padded by the chain's worst-case spatial support
-  and clamped to the scene — or an authored `bounds: (x, y, w, h)`. Region-scoped
-  scratch targets are sized to the region, quantized to 64-px steps, and cached
-  per quantized size, so a region that grows or shrinks between frames rarely
-  reallocates; only a whole-scene region allocates canvas-sized textures.
-- **Chain submit & Texture Pooling.** Seed copies, ordered compute passes, and
-  harvest share one `CommandEncoder` / `queue.submit()`, with independent
-  per-instance author uniforms and per-pass contexts. Separate submissions
-  remain the pixel-test reference and stage-dump path (see `docs/effects.md`
-  §4.6). Intermediate pending composites come from an internal
-  `TexturePool` recycled per-frame by the engine's `drain_pending_layers` via
-  `FilterBackend::recycle_pending_composite`.
-- **Second input (ABI v2).** Binding 5 carries the pre-chain original of the
-  scope, copied by the host before pass 0; `Bloom` is its first consumer. The
-  earlier open question about a second input texture is resolved.
-- **Batched Blit Pipeline.** Multiple pending composite layers are drawn in a single
-  batched render pass using 256-byte aligned dynamic uniform offsets (`BatchedBlitPipeline`),
-  collapsing $N$ blits into 1 GPU draw pass.
-- **Direct GPU Instanced Polyline / Curves.** Mathematical curves and polylines can be
-  drawn directly via `InstancedLinePipeline` on `RendererCore`, evaluating vertex quad
-  expansions and analytical sub-pixel SDF smoothing (`smoothstep`) with custom edge
-  feathering directly on the GPU without CPU Bezier flattening or path tessellation.
-- **Renderer-agnostic timeline.** `scene_eval` receives a
-  `&mut Option<&mut dyn FilterBackend>`. With no backend installed, the children
-  render unfiltered and a `RenderFailure` diagnostic is recorded; there is no CPU
-  fallback, because arbitrary WGSL has no host path.
-- **Nested scopes** are allowed; each level adds one offscreen round-trip.
-- **Zero-readback** requires the scope to be the last rendered element
-  (`can_post_composite_filter`); non-tail scopes take the inline readback path,
-  which composites at the region origin inside the Vello scene and preserves
-  painter order. The last-element restriction is therefore a performance gate,
-  not a correctness requirement.
-- **Filter child labels are scene-global.** Give children of each Filter scope
-  unique labels; reusing one across scopes re-parents the shared actor into the
-  later scope and leaves the earlier scope empty (`duplicate-label` warning).
-
-#### Open questions
-
-1. **HDR / wide-gamut** — the intermediate is `Rgba8Unorm`, so every pass
-   quantises to 8 bits (banding on gradients and `Levels`-style effects). Should
-   the ping-pong targets move to `Rgba16Float`?
-2. **Per-region intersection** — generalising `can_post_composite_filter` from
-   "last rendered element" to "no later sibling intersects the ROI" would let
-   mid-scene scopes use the zero-readback path too.
 
 ---
 

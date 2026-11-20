@@ -142,11 +142,7 @@ the **region**, not the full canvas: the sub-scene is rendered into a
 translated scratch target. The seed and all effect passes use the same dispatch
 extent, rounded up to 64 scene-pixel steps and capped at the canvas size. The
 padding participates in the shader's coordinates and only the original region
-is composited back. Compute and Vello GPU use the same dispatch sizing. This
-makes the stale-texel hazard impossible by construction (dispatch == seed ==
-sampled extent — the original full-canvas dispatch existed because a
-region-cropped seed read through full-canvas UVs pulled stale texels from the
-previous scope's render; found by the effects-wave1 dogfood). Cost of a scope
+is composited back. The seed, ping-pong textures and shader extent match for each chain. Cost of a scope
 now scales with its region instead of the canvas. Scratch targets are
 quantized to 64-px steps and cached per size, so animated regions never
 reallocate in steady state (PF-7 intent preserved; effects whose semantics
@@ -171,13 +167,9 @@ Two constraints:
   cached per size, so animated regions stay in steady state. Only a region that
   covers the whole scene allocates canvas-sized textures; the PF-7/PF-9 budget
   is preserved.
-- **Composite ordering.** A zero-readback rect-scoped composite is applied after
-  the full scene render, so it would overwrite anything drawn later inside its
-  rect; only tail Filter scopes use that fast path. Non-tail scopes use the
-  inline readback path, which draws the filtered region back into the Vello
-  scene in declaration order and therefore preserves painter order. Generalising
-  the zero-readback precondition to "no later sibling intersects the ROI" is an
-  optional performance improvement, not a correctness requirement.
+- **Composite ordering.** Inline Filter scopes enter the scene as GPU textures
+  at their declaration position. Tail scopes composite after the base scene.
+  Both paths keep pixel data on the device.
 
 > **Effect-scope child labels are scene-global.** Give every child of every
 > Filter or Glass scope a unique label (`img_blur`, `img_grade`, …). Reusing a
@@ -187,8 +179,10 @@ Two constraints:
 
 ## 4. GPU pass contract
 
-An effect declares an ordered list of compute passes. Each pass shares one
-binding layout.
+Built-in effects run as ordered full-screen fragment passes on every renderer
+target. The WGSL compute bindings and dispatch dimensions below describe the
+native plugin ABI. Both paths apply effects to straight-alpha RGBA and keep
+premultiplied textures at the frame-compositing boundary.
 
 ### 4.1 Textures
 
@@ -285,25 +279,13 @@ horizontal, 1 = vertical).
 
 ### 4.6 Synchronisation
 
-The seed and pre-chain-original copies, each effect's separate compute passes,
-and an optional pending-composite harvest copy share one command encoder and
-one `queue.submit`. Ping-pong order and effect declaration order are unchanged.
-Each effect instance has an independent author-uniform slot; each pass has an
-independent context slot. Queue writes therefore cannot overwrite parameters
-needed by an earlier dispatch in the same submission.
+A chain encodes its alpha conversion, original-input copy when required,
+ordered effect passes and final premultiplication in one command encoder.
+Each effect instance and pass has its own uniform slot, so later parameters
+cannot overwrite values used by earlier passes.
 
-The historical probe 009 changed both submission boundaries and parameter
-snapshots: its horizontal/vertical passes wrote the same direction uniform
-before submitting. It did not isolate texture visibility from parameter
-overwriting. The current separate-versus-combined pixel matrix covers Blur,
-Blur+ColorGrade+Bloom, repeated effects, changing parameters, multiple ROI sizes,
-and pending-composite harvests. Full images match on AMD RADV and llvmpipe;
-see [the GPU interaction report](history/2026-11-15-gpu-interactions.md).
-
-`ANIMATIX_DUMP_STAGES` retains separate seed/pass/harvest submissions because
-its synchronous intermediate readbacks must observe the seed before later
-passes overwrite it. The separate policy also remains available to unit tests
-as an independent reference path.
+The [GPU interaction report](history/2026-11-15-gpu-interactions.md) records the
+separate-versus-combined submission experiments for the retired Compute renderer.
 
 A chain may dispatch at most 64 effect passes (the per-pass context-buffer slot
 count, `MAX_CHAIN_PASSES`). A larger plan is rejected with a render error before
@@ -311,43 +293,20 @@ any pass is submitted; it is never truncated.
 
 ### 4.7 The backdrop seed (`Glass`)
 
-Every pass contract above assumes the chain's seed is the scope's *own* content:
-the sub-scene rendered into the backend's targets, optionally re-read at binding 5
-as it looked before the chain. A backdrop blur needs the opposite seed — the
-pixels the frame already put under the scope's rect — and no binding can carry
-them, because during evaluation the main target has not been rendered yet.
-
-So the split happens *after* the frame. `ChildProcessingKind::Glass` records two
-layers in declaration order (`FilterBackend::enqueue_backdrop`, then
-`enqueue_scene_composite` for the scope's children), and the renderer's
-`drain_pending_layers` runs them once the main scene is on the output texture:
-
-1. `run_backdrop(target, backdrop)` clears a region-sized scratch, copies the
-   scope's **padded** region out of the finished target into it, and hands that
-   copy to the ordinary chain machinery (`run_chain_passes`) — the chain itself
-   does not know its seed came from outside the scope.
-2. The result is blitted back through `take_pending_composites`, clipped to the
-   panel's rect and rounded by the blit shader's signed-distance `coverage`, and
-   sampling only the panel's window of the padded texture (`src_rect`) — which is
-   why the padding exists: the blur reads real pixels at the edges instead of the
-   region border.
-3. The children's composite follows immediately, so they sit above the frost.
-
-Consequences worth naming: the frost therefore contains *everything* under the
-rect regardless of paint order (the only way to be above it is to be a child of
-the scope), a `Glass` scope paints no surface of its own for exactly that reason,
-and each scope costs one region copy plus one chain run plus two composites. The
-backdrop copy and clear still have their own submit boundaries; the chain's
-seed, compute passes and harvest share one submission, per §4.6.
+Glass starts from the rendered backdrop. Once the base scene is on the GPU
+target, `FrameGpu` copies the scope's padded bounds into a cleared scratch
+texture and applies the same effect chain as Filter. It samples the panel's
+window within the padded result and clips the composite to the rounded panel.
+The glass children composite immediately above the panel. Each additional
+Glass scope samples the result of the earlier backdrop composites.
 
 ## 5. Failure policy
 
 - **No GPU backend:** effects are skipped, the content children render
   unfiltered, and a `RenderFailure` diagnostic is pushed. Uniform for built-ins
   and plugins — there is no CPU fallback.
-- **Pipeline creation/validation failure:** report a diagnostic identifying the
-  effect and the wgpu error; skip that effect (the rest of the chain still runs
-  where independently valid).
+- **Pipeline creation/validation failure:** surface a render error from the GPU
+  backend.
 - **Unsupported parameter value:** log a warning and treat the parameter as its
   identity value; never drop silently.
 - Arbitrary WGSL has no CPU path, so an effect is defined by its GPU
@@ -358,8 +317,7 @@ seed, compute passes and harvest share one submission, per §4.6.
 - Chain order equals declaration order; pass order equals the descriptor's pass
   list. Neither is ever reordered for optimisation without a documented,
   deterministic rule.
-- Compute pipelines are cached on `(shader source, entry point, layout)`. The
-  cache is per-device and lives with the backend. Dimension changes recreate
+- Effect pipelines are cached by effect identity on each renderer device. Dimension changes recreate
   targets but must not recreate pipelines whose key is unchanged.
 - Bind groups are cached by the input/output/original texture views and author
   uniform buffer/size. Dynamic offsets select each instance's parameters and

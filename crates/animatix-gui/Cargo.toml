@@ -10,7 +10,6 @@ default = ["plugin-loading"]
 # Enables the bounded widget-screenshot binary. Never enable in shipped binaries.
 dev-screenshots = ["dep:image"]
 video = ["animatix-render/video"]
-vello-gpu = ["animatix-render/vello-gpu"]
 plugin-loading = ["animatix/plugin-loading"]
 # Enables eparts JSON theme loading, registries, and live directory watching.
 theme-json = ["eparts/theme-json"]

@@ -4,13 +4,7 @@ use std::cell::RefCell;
 
 use animatix::composition::BuildTarget;
 use animatix::renderer::text::FontContext;
-#[cfg(not(feature = "vello-gpu-webgpu"))]
-use animatix::scene::Scene;
 use animatix::timeline::{BuildQuality, RuntimeInputs, SceneDimensions};
-#[cfg(not(feature = "vello-gpu-webgpu"))]
-use animatix_render::core::RendererCore;
-#[cfg(not(feature = "vello-gpu-webgpu"))]
-use animatix_render::filter_backend::GpuFilterBackend;
 use animatix_render::transition::TransitionCompositor;
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
@@ -23,9 +17,6 @@ pub(super) struct EngineContext {
     pub(super) queue: wgpu::Queue,
     /// Loss callbacks can clear only the device generation that fired them.
     pub(super) generation: u64,
-    #[cfg(not(feature = "vello-gpu-webgpu"))]
-    pub(super) core: RefCell<RendererCore>,
-    #[cfg(feature = "vello-gpu-webgpu")]
     pub(super) frame_gpu: RefCell<animatix_render::frame_gpu::FrameGpu>,
 }
 
@@ -36,12 +27,7 @@ pub struct AmxPlayer {
     pub(super) surface: wgpu::Surface<'static>,
     pub(super) config: wgpu::SurfaceConfiguration,
     pub(super) device_generation: u64,
-    #[cfg(feature = "vello-gpu")]
     pub(super) webgl: Option<std::rc::Rc<super::webgl::Gpu>>,
-    #[cfg(not(feature = "vello-gpu-webgpu"))]
-    pub(super) filter_backend: Option<GpuFilterBackend>,
-    #[cfg(not(feature = "vello-gpu-webgpu"))]
-    pub(super) filter_backend_to: Option<GpuFilterBackend>,
     pub(super) offscreen: Option<OffscreenTarget>,
     pub(super) offscreen_to: Option<OffscreenTarget>,
     pub(super) composite: Option<OffscreenTarget>,
@@ -56,8 +42,6 @@ pub struct AmxPlayer {
     pub(super) duration_s: f64,
     pub(super) target: Option<BuildTarget>,
     pub(super) render_scale: f32,
-    #[cfg(not(feature = "vello-gpu-webgpu"))]
-    pub(super) scaled: Scene,
     pub(super) dedup: animatix::timeline::frame_signature::FrameDedup,
     pub(super) render_generation: u64,
     pub(super) frames_drawn: u64,

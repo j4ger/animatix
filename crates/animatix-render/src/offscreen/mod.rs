@@ -1,25 +1,17 @@
 //! GPU-backed offscreen frame rendering.
 
-use animatix::scene::Scene;
 use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
 use super::core::RendererCore;
-use super::filter_backend::GpuFilterBackend;
 use super::transition::TransitionCompositor;
-#[cfg(feature = "vello-gpu")]
-use crate::frame_gpu::FrameGpu;
 
-mod raster;
 mod renderer;
 #[cfg(test)]
 mod tests;
 mod timeline_render;
 mod transitions;
 
-pub use raster::{drain_pending_layers, rasterize_scene, rasterize_scene_and_present};
-#[cfg(feature = "vello-gpu")]
-pub(crate) use timeline_render::render_timeline_into_frame_gpu;
-pub(crate) use timeline_render::render_timeline_into_view;
+use timeline_render::render_timeline_into_frame_gpu;
 
 /// A single frame rendered to CPU-accessible RGBA memory.
 ///
@@ -46,16 +38,10 @@ pub struct OffscreenRenderer {
     pub(super) device: wgpu::Device,
     pub(super) queue: wgpu::Queue,
     pub(super) core: RendererCore,
-    /// Opt-in sparse-strip renderer used by the native migration probes.
-    /// The legacy renderer remains the default until the platform gates pass.
-    #[cfg(feature = "vello-gpu")]
-    pub(super) frame_gpu: Option<FrameGpu>,
     pub(super) output_texture: Option<wgpu::Texture>,
     pub(super) output_view: Option<wgpu::TextureView>,
     /// Straight-alpha copy of the premultiplied Vello GPU target for CPU export.
-    #[cfg(feature = "vello-gpu")]
     pub(super) readback_texture_gpu: Option<wgpu::Texture>,
-    #[cfg(feature = "vello-gpu")]
     pub(super) readback_view_gpu: Option<wgpu::TextureView>,
     /// Two rotating MAP_READ buffers for the pipelined readback: while
     /// frame N's copy is mapped/encoded, frame N+1's copy lands in the other
@@ -66,15 +52,6 @@ pub struct OffscreenRenderer {
     pub(super) texture_b: Option<wgpu::Texture>,
     pub(super) view_b: Option<wgpu::TextureView>,
     pub(super) compositor: Option<TransitionCompositor>,
-    /// Cached GPU filter backend — recreated only when dimensions change.
-    /// Serves the single-scene path and a transition's outgoing scene; the
-    /// incoming scene gets [`Self::filter_backend_b`] so the two evaluations
-    /// cannot stomp each other's pass state.
-    pub(super) filter_backend: Option<GpuFilterBackend>,
-    /// Second backend for a transition's incoming scene. Lazily created like
-    /// [`Self::filter_backend`]; both reset together on a dimension change.
-    pub(super) filter_backend_b: Option<GpuFilterBackend>,
-    pub(super) filter_backend_dimensions: Option<SceneDimensions>,
     pub(super) dimensions: SceneDimensions,
     pub(super) bytes_per_row: u32,
     /// Recycled CPU readback buffer: parked between frames and
@@ -97,25 +74,4 @@ pub struct PendingFrame {
     submission: wgpu::SubmissionIndex,
     dims: SceneDimensions,
     bytes_per_row: u32,
-}
-
-/// How a scene is mapped onto its raster target.
-///
-/// Vello draws a scene 1:1 — `RenderParams` carries no transform in the pinned
-/// revision — so a target smaller than the scene is produced by re-encoding the
-/// scene with an affine scale. `append` is the only place that transform can be
-/// applied, and it costs one O(paths) copy against a per-frame fill-rate cost
-/// that is several times larger (see `docs/performance_evaluation.md`, "Web
-/// playback").
-pub enum RasterFit<'a> {
-    /// Scene units are target pixels: draw the scene exactly as encoded.
-    OneToOne,
-    /// Re-encode the scene at `scale` into `scratch` (reused across frames) and
-    /// draw that.
-    Scaled {
-        /// Target pixels per scene pixel.
-        scale: f32,
-        /// Re-encode buffer, reset by the rasterizer.
-        scratch: &'a mut Scene,
-    },
 }

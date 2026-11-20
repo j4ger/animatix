@@ -4,15 +4,12 @@
 //! the page's shared renderer and compare the merged path against the existing
 //! render-then-present path over every pixel.
 
-use animatix::scene::Scene as NeutralScene;
+use animatix::scene::Scene;
 use animatix_render::core::RendererCore;
 use animatix_render::testing::skip_if_no_gpu;
 use kurbo::{Affine, Rect};
+use peniko::{Color, ImageAlphaType, ImageData as PenikoImageData, ImageFormat, ImageQuality};
 use std::sync::Arc;
-use vello::Scene;
-use vello::peniko::{
-    Color, ImageAlphaType, ImageData as PenikoImageData, ImageFormat, ImageQuality,
-};
 use wgpu::{AdapterInfo, Texture, TextureFormat, TextureUsages, TextureView};
 
 struct Target {
@@ -86,7 +83,10 @@ fn render_target(device: &wgpu::Device, size: [u32; 2], label: &str) -> Target {
         device,
         size,
         TextureFormat::Rgba8Unorm,
-        TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING,
+        TextureUsages::RENDER_ATTACHMENT
+            | TextureUsages::TEXTURE_BINDING
+            | TextureUsages::COPY_SRC
+            | TextureUsages::COPY_DST,
         label,
     )
 }
@@ -109,11 +109,11 @@ fn surface_target(
 fn solid_scene(size: [u32; 2], color: [u8; 4]) -> Scene {
     let mut scene = Scene::new();
     scene.fill(
-        vello::peniko::Fill::NonZero,
-        vello::kurbo::Affine::IDENTITY,
+        peniko::Fill::NonZero,
+        kurbo::Affine::IDENTITY,
         Color::from_rgba8(color[0], color[1], color[2], color[3]),
         None,
-        &vello::kurbo::Rect::new(0.0, 0.0, size[0] as f64, size[1] as f64),
+        &kurbo::Rect::new(0.0, 0.0, size[0] as f64, size[1] as f64),
     );
     scene
 }
@@ -158,14 +158,14 @@ fn solid_image() -> PenikoImageData {
 }
 
 fn image_scene(alpha: f32, size: [u32; 2], image: &PenikoImageData) -> Scene {
-    let brush = vello::peniko::ImageBrush::new(image.clone())
-        .with_extend(vello::peniko::Extend::Pad)
+    let brush = peniko::ImageBrush::new(image.clone())
+        .with_extend(peniko::Extend::Pad)
         .with_quality(ImageQuality::Medium)
         .with_alpha(alpha);
     let mut scene = Scene::new();
     scene.draw_image(
         &brush,
-        vello::kurbo::Affine::scale_non_uniform(
+        kurbo::Affine::scale_non_uniform(
             size[0] as f64 / image.width as f64,
             size[1] as f64 / image.height as f64,
         ),
@@ -175,29 +175,29 @@ fn image_scene(alpha: f32, size: [u32; 2], image: &PenikoImageData) -> Scene {
 
 fn mixed_scene(size: [u32; 2], image: &PenikoImageData) -> Scene {
     let mut scene = solid_scene(size, [15, 26, 48, 255]);
-    let brush = vello::peniko::ImageBrush::new(image.clone())
-        .with_extend(vello::peniko::Extend::Pad)
+    let brush = peniko::ImageBrush::new(image.clone())
+        .with_extend(peniko::Extend::Pad)
         .with_quality(ImageQuality::Medium)
         .with_alpha(0.73);
     let image_width = (size[0] as f64 * 0.58).max(1.0);
     let image_height = (size[1] as f64 * 0.72).max(1.0);
     scene.draw_image(
         &brush,
-        vello::kurbo::Affine::translate((size[0] as f64 * 0.11, size[1] as f64 * 0.07))
-            * vello::kurbo::Affine::scale_non_uniform(
+        kurbo::Affine::translate((size[0] as f64 * 0.11, size[1] as f64 * 0.07))
+            * kurbo::Affine::scale_non_uniform(
                 image_width / image.width as f64,
                 image_height / image.height as f64,
             ),
     );
-    let overlay = vello::kurbo::Rect::new(
+    let overlay = kurbo::Rect::new(
         size[0] as f64 * 0.37,
         size[1] as f64 * 0.31,
         size[0] as f64 * 0.89,
         size[1] as f64 * 0.84,
     );
     scene.fill(
-        vello::peniko::Fill::NonZero,
-        vello::kurbo::Affine::IDENTITY,
+        peniko::Fill::NonZero,
+        kurbo::Affine::IDENTITY,
         Color::from_rgba8(244, 116, 28, 139),
         None,
         &overlay,
@@ -213,7 +213,7 @@ fn present(
     scene: &Scene,
     surface: &Target,
 ) -> Result<(), animatix_core::error::RenderError> {
-    core.render_vello_scene_and_present(
+    core.render_scene_and_present(
         device,
         queue,
         &raster.view,
@@ -413,7 +413,7 @@ fn render_path_suite(force_fallback_adapter: bool) {
     clear_surface(&device, &queue, &surface_a, [0.13, 0.27, 0.61, 1.0]);
     let before_error = readback(&device, &queue, &surface_a);
     for (raster_size, surface_size) in [([0, 16], surface_a.size), (source_a.size, [0, 24])] {
-        let error = core.render_vello_scene_and_present(
+        let error = core.render_scene_and_present(
             &device,
             &queue,
             &source_a.view,
@@ -433,7 +433,7 @@ fn render_path_suite(force_fallback_adapter: bool) {
 }
 
 #[test]
-fn neutral_scene_adapter_renders_and_presents_to_classic_targets() {
+fn neutral_scene_renders_and_presents() {
     let Some((device, queue, info)) = headless_device() else {
         skip_if_no_gpu();
         return;
@@ -454,9 +454,9 @@ fn neutral_scene_adapter_renders_and_presents_to_classic_targets() {
         "neutral scene presentation target",
     );
     let color = [62, 148, 226, 255];
-    let mut scene = NeutralScene::new();
+    let mut scene = Scene::new();
     scene.fill(
-        vello::peniko::Fill::NonZero,
+        peniko::Fill::NonZero,
         Affine::IDENTITY,
         Color::from_rgba8(color[0], color[1], color[2], color[3]),
         None,
@@ -492,7 +492,7 @@ fn merged_present_keeps_shared_renderer_targets_images_formats_and_resize_ordere
 }
 
 #[test]
-fn merged_present_matches_legacy_full_image_for_rgba_bgra_and_resized_targets() {
+fn merged_present_matches_separate_full_image_for_rgba_bgra_and_resized_targets() {
     let force_fallback_adapter = std::env::var_os("ANIMATIX_TEST_FORCE_FALLBACK_GPU").is_some();
     let Some((device, queue, info)) = headless_device() else {
         skip_if_no_gpu();
@@ -503,7 +503,7 @@ fn merged_present_matches_legacy_full_image_for_rgba_bgra_and_resized_targets() 
         info.name, info.device_type
     );
     device.on_uncaptured_error(Arc::new(|error| {
-        panic!("uncaptured wgpu error during legacy/merged parity: {error}");
+        panic!("uncaptured wgpu error during separate/merged parity: {error}");
     }));
     let mut core = RendererCore::new(&device, &queue).expect("renderer core");
     let image = test_image();
@@ -512,37 +512,37 @@ fn merged_present_matches_legacy_full_image_for_rgba_bgra_and_resized_targets() 
         (0, [32, 24], [32, 24], TextureFormat::Rgba8Unorm),
         (1, [24, 16], [48, 32], TextureFormat::Bgra8Unorm),
     ] {
-        let legacy_source = render_target(&device, raster_size, "legacy comparison source");
+        let separate_source = render_target(&device, raster_size, "separate comparison source");
         let merged_source = render_target(&device, raster_size, "merged comparison source");
-        let legacy_surface =
-            surface_target(&device, surface_size, format, "legacy comparison surface");
+        let separate_surface =
+            surface_target(&device, surface_size, format, "separate comparison surface");
         let merged_surface =
             surface_target(&device, surface_size, format, "merged comparison surface");
         let scene = mixed_scene(raster_size, &image);
         let background = [0.14, 0.19, 0.31, 1.0];
-        clear_surface(&device, &queue, &legacy_surface, background);
+        clear_surface(&device, &queue, &separate_surface, background);
         clear_surface(&device, &queue, &merged_surface, background);
 
-        core.render_vello_scene(
+        core.render_scene(
             &device,
             &queue,
-            &legacy_source.view,
+            &separate_source.view,
             raster_size[0],
             raster_size[1],
             &scene,
         )
-        .expect("legacy Vello render");
+        .expect("separate Vello render");
         core.blit_texture_to_format(
             &device,
             &queue,
-            &legacy_source.view,
-            &legacy_surface.view,
+            &separate_source.view,
+            &separate_surface.view,
             surface_size[0],
             surface_size[1],
             1.0,
             format,
         );
-        core.render_vello_scene_and_present(
+        core.render_scene_and_present(
             &device,
             &queue,
             &merged_source.view,
@@ -554,11 +554,11 @@ fn merged_present_matches_legacy_full_image_for_rgba_bgra_and_resized_targets() 
         )
         .expect("merged Vello render and present");
 
-        let legacy_pixels = readback(&device, &queue, &legacy_surface);
+        let separate_pixels = readback(&device, &queue, &separate_surface);
         let merged_pixels = readback(&device, &queue, &merged_surface);
         assert_eq!(
-            merged_pixels, legacy_pixels,
-            "full readback changed between legacy and merged path for case {index}, format {format:?}, raster {raster_size:?}, surface {surface_size:?}"
+            merged_pixels, separate_pixels,
+            "full readback changed between separate and merged path for case {index}, format {format:?}, raster {raster_size:?}, surface {surface_size:?}"
         );
     }
 }

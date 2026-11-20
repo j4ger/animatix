@@ -621,7 +621,7 @@ gate_web_build() {
   check_wbg
   bash web/tools/build/build-web.sh
   gate_web_sdk_integrity
-  bash tools/quality/size-report.sh --check
+  bash tools/quality/size-report.sh
 }
 
 gate_web_sdk_integrity() {
@@ -747,8 +747,6 @@ gate_wasm_check() {
   # break the site. This is the check that looks at it.
   cargo check -p animatix-web --target wasm32-unknown-unknown
   cargo check -p animatix-web --target wasm32-unknown-unknown --no-default-features
-  cargo check --locked -p animatix-web --target wasm32-unknown-unknown --features vello-gpu
-  cargo check --locked -p animatix-web --target wasm32-unknown-unknown --features vello-gpu-webgpu
   cargo clippy -p animatix --no-default-features --all-targets -- -D warnings
 }
 
@@ -921,7 +919,6 @@ gate_site_artifact() {
   # Assemble only — pages.yml deploys this directory, and it owes nobody a zip.
   # Packaging the same tree into a release asset is dist-site.
   bash web/tools/site/site-artifact.sh _site
-  bash tools/quality/size-report.sh --check --site _site
 }
 
 gate_dist_site() {

@@ -9,45 +9,7 @@ enum ReadbackAlpha {
 impl OffscreenRenderer {
     /// Create a new offscreen renderer with an automatically-selected GPU adapter.
     pub fn new() -> Result<Self, String> {
-        #[cfg(feature = "vello-gpu")]
-        if std::env::var("ANIMATIX_RENDER_BACKEND").as_deref() == Ok("vello-gpu") {
-            return Self::new_frame_gpu();
-        }
-
-        if let Ok(backend) = std::env::var("ANIMATIX_RENDER_BACKEND")
-            && !backend.is_empty()
-            && backend != "legacy"
-        {
-            return Err(format!(
-                "unsupported render backend '{backend}'; supported values are 'legacy'{}",
-                if cfg!(feature = "vello-gpu") {
-                    " and 'vello-gpu'"
-                } else {
-                    ""
-                }
-            ));
-        }
-
-        Self::new_legacy()
-    }
-
-    /// Create a renderer using the legacy Vello backend regardless of the
-    /// `ANIMATIX_RENDER_BACKEND` opt-in setting.
-    pub fn new_legacy() -> Result<Self, String> {
         pollster::block_on(Self::new_async())
-    }
-
-    /// Create an offscreen renderer using the opt-in Vello GPU backend.
-    ///
-    /// The regular constructor remains on the legacy backend until the native
-    /// platform render gates pass. This constructor exists for side-by-side
-    /// probes and export-path validation.
-    #[cfg(feature = "vello-gpu")]
-    pub fn new_frame_gpu() -> Result<Self, String> {
-        let mut renderer = Self::new_legacy()?;
-        renderer.frame_gpu =
-            Some(crate::frame_gpu::FrameGpu::new(&renderer.device, &renderer.queue));
-        Ok(renderer)
     }
 
     async fn new_async() -> Result<Self, String> {
@@ -83,13 +45,9 @@ impl OffscreenRenderer {
             device,
             queue,
             core,
-            #[cfg(feature = "vello-gpu")]
-            frame_gpu: None,
             output_texture: None,
             output_view: None,
-            #[cfg(feature = "vello-gpu")]
             readback_texture_gpu: None,
-            #[cfg(feature = "vello-gpu")]
             readback_view_gpu: None,
             readback_buffers: [None, None],
             texture_a: None,
@@ -97,9 +55,6 @@ impl OffscreenRenderer {
             texture_b: None,
             view_b: None,
             compositor: None,
-            filter_backend: None,
-            filter_backend_b: None,
-            filter_backend_dimensions: None,
             dimensions: SceneDimensions {
                 width: 0,
                 height: 0,
@@ -145,9 +100,9 @@ impl OffscreenRenderer {
         debug_options: DebugRenderOptions,
     ) -> Result<RenderedFrame, String> {
         // TEMPORARY perf probe (env-gated): evaluate vs render vs readback.
-        let t0 = crate::filter_backend::timing_probe();
+        let t0 = crate::probe::timing_probe();
         self.render_to_output_texture(timeline, time_s, dimensions, debug_options)?;
-        let t_eval_render_ms = crate::filter_backend::probe_ms(t0);
+        let t_eval_render_ms = crate::probe::probe_ms(t0);
         let frame = self.readback_output_with_alpha(dimensions, ReadbackAlpha::Opaque)?;
         if t0.is_some() {
             eprintln!(
@@ -155,7 +110,7 @@ impl OffscreenRenderer {
                 dimensions.width,
                 dimensions.height,
                 t_eval_render_ms,
-                crate::filter_backend::probe_ms(t0) - t_eval_render_ms,
+                crate::probe::probe_ms(t0) - t_eval_render_ms,
             );
         }
         Ok(frame)
@@ -188,8 +143,7 @@ impl OffscreenRenderer {
     }
 
     /// Shared tail of `render_timeline_with_debug` / `begin_frame_with_debug`:
-    /// evaluate, render the scene, and blit pending filter composites onto
-    /// the output texture. Leaves the GPU work queued (no readback).
+    /// evaluate and render the scene to the output texture without reading it back.
     fn render_to_output_texture(
         &mut self,
         timeline: &Timeline,
@@ -225,9 +179,8 @@ impl OffscreenRenderer {
     }
 
     /// Shared tail of [`Self::render_to_output_texture`] and
-    /// [`Self::render_timeline_observable`]. Always evaluates the observable
-    /// program: the zero-readback path needs its scene and its pending-filter
-    /// composites, so both callers use the same evaluation.
+    /// [`Self::render_timeline_observable`]. Render the scene from the same
+    /// evaluation that produced the observable program.
     fn render_to_output_texture_inner(
         &mut self,
         timeline: &Timeline,
@@ -241,125 +194,30 @@ impl OffscreenRenderer {
 
         self.ensure_targets(dimensions);
 
-        // Reuse cached backends only at the current dimensions. A direct frame
-        // does not need the transition's second slot.
-        if self.filter_backend_dimensions != Some(dimensions) {
-            self.filter_backend = None;
-            self.filter_backend_b = None;
-            self.filter_backend_dimensions = Some(dimensions);
-        }
-        let use_frame_gpu = {
-            #[cfg(feature = "vello-gpu")]
-            {
-                self.frame_gpu.is_some()
-            }
-            #[cfg(not(feature = "vello-gpu"))]
-            {
-                false
-            }
-        };
-        let needs_filter_backend = timeline.needs_filter_backend();
-        if use_frame_gpu {
-            self.filter_backend = None;
-            self.filter_backend_b = None;
-        } else if needs_filter_backend {
-            if self.filter_backend.is_none() {
-                self.filter_backend = self.filter_backend_b.take();
-            }
-            if self.filter_backend.is_none() {
-                self.filter_backend = Some(GpuFilterBackend::new(
-                    self.device.clone(),
-                    self.queue.clone(),
-                    dimensions,
-                )?);
-            }
-        } else {
-            self.filter_backend = None;
-        }
-        self.filter_backend_b = None;
-        let t_eval = crate::filter_backend::timing_probe();
-        // Always take the zero-readback (pending) evaluate path: scopes record
-        // GPU composites that are blitted after the main render (below), so
-        // per-scope GPU->CPU readback stalls never enter the frame.
-        let program = if use_frame_gpu {
-            #[cfg(feature = "vello-gpu")]
-            {
-                let mut recorder = crate::frame_gpu::SceneRecorder;
-                let mut fb: Option<&mut dyn animatix::timeline::effects::FilterBackend> =
-                    Some(&mut recorder);
-                timeline.evaluate_program_with_debug(time_s, dimensions, debug_options, &mut fb)
-            }
-            #[cfg(not(feature = "vello-gpu"))]
-            unreachable!("frame-gpu path is feature-gated")
-        } else {
-            let mut fb: Option<&mut dyn animatix::timeline::effects::FilterBackend> =
-                self.filter_backend.as_mut().map(|backend| backend as _);
-            timeline.evaluate_program_with_debug(time_s, dimensions, debug_options, &mut fb)
-        };
-        // The scene is borrowed out of `program`; the borrow ends before the
-        // program is returned to the observable caller.
-        let scene: &animatix::scene::Scene = &program.scene;
-        let probe_eval_ms = crate::filter_backend::probe_ms(t_eval);
+        let t_eval = crate::probe::timing_probe();
+        let mut recorder = crate::frame_gpu::SceneRecorder;
+        let mut backend: Option<&mut dyn animatix::timeline::effects::FilterBackend> =
+            Some(&mut recorder);
+        let program =
+            timeline.evaluate_program_with_debug(time_s, dimensions, debug_options, &mut backend);
+        let probe_eval_ms = crate::probe::probe_ms(t_eval);
 
         let output_view = self
             .output_view
             .as_ref()
             .ok_or_else(|| "Missing offscreen output view".to_string())?;
 
-        #[cfg(feature = "vello-gpu")]
-        if let Some(frame_gpu) = self.frame_gpu.as_mut() {
-            frame_gpu.render_frame_into(scene, output_view, kurbo::Affine::IDENTITY)?;
-        } else {
-            self.core
-                .render_scene(
-                    &self.device,
-                    &self.queue,
-                    output_view,
-                    dimensions.width,
-                    dimensions.height,
-                    scene,
-                )
-                .map_err(|e| e.to_string())?;
-        }
-        #[cfg(not(feature = "vello-gpu"))]
         self.core
-            .render_scene(
-                &self.device,
-                &self.queue,
-                output_view,
-                dimensions.width,
-                dimensions.height,
-                scene,
-            )
-            .map_err(|e| e.to_string())?;
+            .frame
+            .render_frame_into(&program.scene, output_view, kurbo::Affine::IDENTITY)?;
         if t_eval.is_some() {
             eprintln!(
                 "[frame-phases] evaluate={:.2}ms main_render={:.2}ms",
                 probe_eval_ms,
-                crate::filter_backend::probe_ms(t_eval) - probe_eval_ms,
+                crate::probe::probe_ms(t_eval) - probe_eval_ms,
             );
         }
 
-        // Blit pending zero-readback filter composites on top of the rendered scene
-        let pending = self
-            .filter_backend
-            .as_mut()
-            .map(|fb| fb.take_pending_composites())
-            .unwrap_or_default();
-
-        if let Some(backend) = self.filter_backend.as_mut() {
-            let output_texture = self.output_texture.as_ref();
-            drain_pending_layers(
-                &self.core,
-                &self.device,
-                &self.queue,
-                backend,
-                pending,
-                output_texture,
-                output_view,
-                1.0,
-            );
-        }
         Ok(program)
     }
 
@@ -391,10 +249,7 @@ impl OffscreenRenderer {
 
         // Single-scene frames clear to opaque black and accumulate with SrcOver.
         // Their premultiplied colors are already valid straight-alpha pixels.
-        #[cfg(feature = "vello-gpu")]
-        let output_texture = if matches!(alpha, ReadbackAlpha::MayBePremultiplied)
-            && let Some(frame_gpu) = self.frame_gpu.as_mut()
-        {
+        let output_texture = if matches!(alpha, ReadbackAlpha::MayBePremultiplied) {
             let source = self
                 .output_view
                 .as_ref()
@@ -403,15 +258,13 @@ impl OffscreenRenderer {
                 .readback_view_gpu
                 .as_ref()
                 .ok_or_else(|| "Missing straight-alpha readback view".to_string())?;
-            frame_gpu.blit(source, target, wgpu::TextureFormat::Rgba8Unorm, true);
+            self.core.frame.blit(source, target, wgpu::TextureFormat::Rgba8Unorm, true);
             self.readback_texture_gpu
                 .as_ref()
                 .ok_or_else(|| "Missing straight-alpha readback texture".to_string())?
         } else {
             output_texture
         };
-        #[cfg(not(feature = "vello-gpu"))]
-        let _ = alpha;
 
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
@@ -520,20 +373,6 @@ impl OffscreenRenderer {
         dimensions: SceneDimensions,
         alpha: ReadbackAlpha,
     ) -> Result<RenderedFrame, String> {
-        // Composite diagnostics: report how much of the composed output is
-        // opaque when `ANIMATIX_DUMP_STAGES` is set, so a regressed composite
-        // is visible in the log without re-running under a GPU capture.
-        if std::env::var_os("ANIMATIX_DUMP_STAGES").is_some()
-            && let Some(output_texture) = self.output_texture.as_ref()
-            && let Some(fb) = self.filter_backend.as_mut()
-        {
-            let img = fb.debug_readback_texture(output_texture, wgpu::Origin3d::ZERO, dimensions);
-            let data = img.data.data.data();
-            let n = data.len() / 4;
-            let step = (n / 300).max(1);
-            let opaque = (0..n).step_by(step).filter(|&i| data[i * 4 + 3] > 100).count();
-            eprintln!("[dump] output_view opaque={opaque}/{}", n / step);
-        }
         let pending = self.begin_readback_with_alpha(dimensions, alpha)?;
         self.wait_frame(pending)
     }
@@ -564,8 +403,7 @@ impl OffscreenRenderer {
             usage: wgpu::TextureUsages::COPY_SRC
                 | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::RENDER_ATTACHMENT
-                | wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::STORAGE_BINDING,
+                | wgpu::TextureUsages::TEXTURE_BINDING,
             label: Some("Animatix Offscreen Output Texture"),
             view_formats: &[],
         });
@@ -573,7 +411,6 @@ impl OffscreenRenderer {
         self.output_texture = Some(output_texture);
         self.output_view = Some(output_view);
 
-        #[cfg(feature = "vello-gpu")]
         {
             let readback_texture = self.device.create_texture(&wgpu::TextureDescriptor {
                 size: wgpu::Extent3d {
@@ -623,8 +460,7 @@ impl OffscreenRenderer {
             usage: wgpu::TextureUsages::COPY_SRC
                 | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::RENDER_ATTACHMENT
-                | wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::STORAGE_BINDING,
+                | wgpu::TextureUsages::TEXTURE_BINDING,
             label: Some("Animatix Offscreen Texture A"),
             view_formats: &[],
         });
@@ -646,8 +482,7 @@ impl OffscreenRenderer {
             usage: wgpu::TextureUsages::COPY_SRC
                 | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::RENDER_ATTACHMENT
-                | wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::STORAGE_BINDING,
+                | wgpu::TextureUsages::TEXTURE_BINDING,
             label: Some("Animatix Offscreen Texture B"),
             view_formats: &[],
         });

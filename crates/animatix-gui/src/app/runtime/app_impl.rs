@@ -347,8 +347,6 @@ impl AnimatixApp {
                     },
                     crate::app::document::snapshot::BuildTargetSnapshot::Timeline(t) => {
                         self.preview_surface.render(
-                            device,
-                            queue,
                             t,
                             self.shell.preview_store.preview.playback.current_time_s(),
                             debug,
@@ -370,8 +368,6 @@ impl AnimatixApp {
                 self.shell.document_store.source.document.active_timeline()
             {
                 self.preview_surface.render(
-                    device,
-                    queue,
                     timeline,
                     self.shell.preview_store.preview.playback.current_time_s(),
                     debug,

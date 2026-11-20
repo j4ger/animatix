@@ -4,8 +4,6 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 use animatix::timeline::{BuildQuality, SceneDimensions};
-#[cfg(not(feature = "vello-gpu-webgpu"))]
-use animatix_render::core::RendererCore;
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
@@ -23,12 +21,7 @@ impl AmxPlayer {
             surface,
             config,
             device_generation: 0,
-            #[cfg(feature = "vello-gpu")]
             webgl: None,
-            #[cfg(not(feature = "vello-gpu-webgpu"))]
-            filter_backend: None,
-            #[cfg(not(feature = "vello-gpu-webgpu"))]
-            filter_backend_to: None,
             compositor: None,
             fonts: Vec::new(),
             font_context: None,
@@ -43,8 +36,6 @@ impl AmxPlayer {
             duration_s: 0.1,
             target: None,
             render_scale: 0.85,
-            #[cfg(not(feature = "vello-gpu-webgpu"))]
-            scaled: animatix::scene::Scene::new(),
             dedup: animatix::timeline::frame_signature::FrameDedup::new(),
             render_generation: 0,
             frames_drawn: 0,
@@ -99,11 +90,6 @@ async fn ensure_engine() -> Result<(), String> {
         }
     });
 
-    #[cfg(not(feature = "vello-gpu-webgpu"))]
-    let core =
-        RendererCore::new(&device, &queue).map_err(|e| format!("renderer init failed: {e}"))?;
-
-    #[cfg(feature = "vello-gpu-webgpu")]
     let frame_gpu = animatix_render::frame_gpu::FrameGpu::new(&device, &queue);
 
     CONTEXT.with(|cell| {
@@ -113,9 +99,6 @@ async fn ensure_engine() -> Result<(), String> {
             device,
             queue,
             generation,
-            #[cfg(not(feature = "vello-gpu-webgpu"))]
-            core: RefCell::new(core),
-            #[cfg(feature = "vello-gpu-webgpu")]
             frame_gpu: RefCell::new(frame_gpu),
         });
     });
@@ -267,17 +250,7 @@ pub async fn create_player_for_backend(
 ) -> Result<AmxPlayer, JsError> {
     match backend {
         "webgpu" => create_player(canvas).await,
-        "webgl2" => {
-            #[cfg(feature = "vello-gpu")]
-            {
-                super::webgl::create_webgl_player(canvas).await
-            }
-            #[cfg(not(feature = "vello-gpu"))]
-            {
-                let _ = canvas;
-                Err(JsError::new("This SDK was built without the WebGL2 renderer"))
-            }
-        },
+        "webgl2" => super::webgl::create_webgl_player(canvas).await,
         _ => Err(JsError::new("backend must be 'webgpu' or 'webgl2'")),
     }
 }

@@ -568,7 +568,8 @@ fn create_target_pair(
         dimension: wgpu::TextureDimension::D2,
         format: wgpu::TextureFormat::Rgba8Unorm,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-            | wgpu::TextureUsages::STORAGE_BINDING
+            | wgpu::TextureUsages::COPY_SRC
+            | wgpu::TextureUsages::COPY_DST
             | wgpu::TextureUsages::TEXTURE_BINDING,
         view_formats: &[],
     });

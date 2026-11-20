@@ -1,31 +1,12 @@
+use animatix::scene::{Color, Scene};
 use animatix_core::error::RenderError;
-use vello::peniko::Color;
-use vello::{AaConfig, AaSupport, RenderParams, Renderer, RendererOptions, Scene};
 
 use super::fullscreen_blit::FullscreenBlitPipeline;
+use crate::frame_gpu::FrameGpu;
 
-/// Thin wrapper around a Vello [`Renderer`] that handles scene-to-texture rendering.
-///
-/// # Dependency invariant: one renderer, many renders per frame
-///
-/// A core reuses its [`Renderer`] across scenes and targets. Filter backends
-/// own another core reused across their sub-scenes. Each relies on an
-/// assumption Vello does not state anywhere — that `render_to_texture` leaves
-/// no cross-call state which changes what a *later* render draws.
-///
-/// Upstream issue #1948 (the patchless-resolve variant of #1558) broke that
-/// assumption: an image-free render could discard the persistent image atlas,
-/// so the next image render drew nothing. The workspace uses Vello 0.11.0 with
-/// a local patch in the root `Cargo.toml` that keeps the atlas alive across
-/// image-free renders. `tests/vello_img_probe.rs` asserts the A–H boundary
-/// sequence; the remaining upstream fix and patch removal condition are tracked
-/// in `docs/roadmap.md`.
-///
-/// The presentation path appends one blit before Vello's submit and resource
-/// recycling. It never returns an encoder or defers work across renderer calls.
+/// Vello GPU frame rendering and shared line and blit pipelines.
 pub struct RendererCore {
-    /// The underlying Vello renderer instance.
-    pub renderer: Renderer,
+    pub(crate) frame: FrameGpu,
     /// Fullscreen blit pipeline for zero-readback texture compositing, typed
     /// for `Rgba8Unorm` — the format of every internal target (offscreen
     /// frames, filter scratch, GUI preview).
@@ -33,28 +14,14 @@ pub struct RendererCore {
     /// Hardware line strip pipeline for fast vector paths / curves without CPU triangulation.
     pub line_pipeline: Option<crate::instanced_line::InstancedLinePipeline>,
     /// Blit pipelines typed for other target formats, compiled on demand.
-    /// The one consumer is the web player presenting to a browser canvas
-    /// surface: the surface's format comes from the browser's backend
-    /// (Firefox's wgpu orders `Bgra8Unorm` first), and WebGPU requires the
-    /// pipeline's color-target format to match the attachment exactly.
+    /// The pipeline's color target must match the attachment's format.
     blit_variants:
         std::cell::RefCell<std::collections::HashMap<wgpu::TextureFormat, FullscreenBlitPipeline>>,
 }
 
 impl RendererCore {
     /// Create a new core renderer backed by the given WGPU device.
-    pub fn new(device: &wgpu::Device, _queue: &wgpu::Queue) -> Result<Self, RenderError> {
-        let renderer = Renderer::new(
-            device,
-            RendererOptions {
-                use_cpu: false,
-                pipeline_cache: None,
-                antialiasing_support: AaSupport::all(),
-                num_init_threads: None,
-            },
-        )
-        .map_err(|e| RenderError::VelloInit(format!("{e:?}")))?;
-
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<Self, RenderError> {
         let blit = FullscreenBlitPipeline::new(device, wgpu::TextureFormat::Rgba8Unorm);
         let line_pipeline = crate::instanced_line::InstancedLinePipeline::new(
             device,
@@ -62,7 +29,7 @@ impl RendererCore {
         );
 
         Ok(Self {
-            renderer,
+            frame: FrameGpu::new(device, queue),
             blit: Some(blit),
             line_pipeline: Some(line_pipeline),
             blit_variants: std::cell::RefCell::new(std::collections::HashMap::new()),
@@ -71,9 +38,7 @@ impl RendererCore {
 
     /// Blit a `src_view` directly into `dst_view` without CPU readback.
     ///
-    /// Both views must be RGBA8Unorm.  This is the zero-readback path used
-    /// by `GpuFilterBackend` to composite filtered sub-scenes back into the
-    /// main render target.
+    /// Both views must be RGBA8Unorm.
     pub fn blit_texture(
         &self,
         device: &wgpu::Device,
@@ -220,182 +185,64 @@ impl RendererCore {
         blit.blit(device, queue, src_view, dst_view, width, height, alpha);
     }
 
-    /// Render a Vello `scene` into the provided `texture_view` at the given size.
-    pub fn render_vello_scene(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        texture_view: &wgpu::TextureView,
-        width: u32,
-        height: u32,
-        scene: &Scene,
-    ) -> Result<(), RenderError> {
-        self.render_vello_scene_with_background(
-            device,
-            queue,
-            texture_view,
-            width,
-            height,
-            scene,
-            Color::BLACK,
-        )
-    }
-
-    /// Render the engine's neutral scene through the classic renderer while
-    /// the Vello GPU path is being rolled out.
-    ///
-    /// New code should build `animatix::scene::Scene`; this compatibility
-    /// boundary adapts its ordinary draws to Vello's classic scene. Scene
-    /// effects and external texture draws are handled by the frame compositor.
+    /// Render an evaluated scene into an RGBA8 attachment.
     pub fn render_scene(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        texture_view: &wgpu::TextureView,
+        view: &wgpu::TextureView,
         width: u32,
         height: u32,
-        scene: &animatix::scene::Scene,
+        scene: &Scene,
     ) -> Result<(), RenderError> {
-        self.render_scene_with_background(
-            device,
-            queue,
-            texture_view,
-            width,
-            height,
-            scene,
-            Color::BLACK,
-        )
+        self.render_scene_with_background(device, queue, view, width, height, scene, Color::BLACK)
     }
 
-    /// Render a neutral scene to an offscreen view with a custom background.
+    /// Render an evaluated scene over a custom clear color.
+    #[allow(clippy::too_many_arguments)]
     pub fn render_scene_with_background(
         &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        texture_view: &wgpu::TextureView,
+        _device: &wgpu::Device,
+        _queue: &wgpu::Queue,
+        view: &wgpu::TextureView,
         width: u32,
         height: u32,
-        scene: &animatix::scene::Scene,
-        base_color: Color,
-    ) -> Result<(), RenderError> {
-        let scene = crate::legacy_scene::to_vello_scene(scene).map_err(RenderError::FrameRender)?;
-        self.render_vello_scene_with_background(
-            device,
-            queue,
-            texture_view,
-            width,
-            height,
-            &scene,
-            base_color,
-        )
-    }
-
-    /// Render a Vello scene to an offscreen view and blit it to a presentation
-    /// target in the same queue submission.
-    ///
-    /// `render_view` must be an `Rgba8Unorm` Vello target with storage and
-    /// texture-binding usage. `surface_view` must match `surface_format` and be
-    /// a render attachment. This is intended for a final, unfiltered single
-    /// scene; callers with later compositing work must use the ordinary render
-    /// path and present after that work.
-    #[allow(clippy::too_many_arguments)]
-    pub fn render_vello_scene_and_present(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        render_view: &wgpu::TextureView,
-        raster_size: [u32; 2],
         scene: &Scene,
-        surface_view: &wgpu::TextureView,
-        surface_size: [u32; 2],
-        surface_format: wgpu::TextureFormat,
+        color: Color,
     ) -> Result<(), RenderError> {
-        if raster_size.contains(&0) || surface_size.contains(&0) {
+        if view.texture().width() != width || view.texture().height() != height {
             return Err(RenderError::FrameRender(
-                "Render and presentation dimensions must be non-zero".to_string(),
+                "Scene dimensions do not match the target".into(),
             ));
         }
-
-        let _stage = animatix::perf::ScopedStage::new(animatix::perf::stage::RASTERIZE);
-        let render_params = RenderParams {
-            base_color: Color::BLACK,
-            width: raster_size[0],
-            height: raster_size[1],
-            antialiasing_method: AaConfig::Area,
-        };
-        let mut variants = self.blit_variants.borrow_mut();
-        let blit = if surface_format == wgpu::TextureFormat::Rgba8Unorm {
-            self.blit.as_ref().ok_or_else(|| {
-                RenderError::FrameRender("Rgba8Unorm presentation pipeline is unavailable".into())
-            })?
-        } else {
-            variants
-                .entry(surface_format)
-                .or_insert_with(|| FullscreenBlitPipeline::new(device, surface_format))
-        };
-        self.renderer
-            .render_to_texture_with_callback(
-                device,
-                queue,
-                scene,
-                render_view,
-                &render_params,
-                |encoder| {
-                    blit.blit_opaque_with_encoder(device, encoder, render_view, surface_view);
-                },
-            )
-            .map_err(|e| RenderError::FrameRender(format!("{e:?}")))
+        self.frame
+            .render_with_clear(scene, view, kurbo::Affine::IDENTITY, color)
+            .map_err(RenderError::FrameRender)
     }
 
-    /// Render a neutral scene and append its final presentation blit to the
-    /// same encoder/submission as the classic Vello render.
+    /// Render and present using one submission when the frame has no effects.
     #[allow(clippy::too_many_arguments)]
     pub fn render_scene_and_present(
         &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        render_view: &wgpu::TextureView,
+        _device: &wgpu::Device,
+        _queue: &wgpu::Queue,
+        view: &wgpu::TextureView,
         raster_size: [u32; 2],
-        scene: &animatix::scene::Scene,
-        surface_view: &wgpu::TextureView,
-        surface_size: [u32; 2],
-        surface_format: wgpu::TextureFormat,
-    ) -> Result<(), RenderError> {
-        let scene = crate::legacy_scene::to_vello_scene(scene).map_err(RenderError::FrameRender)?;
-        self.render_vello_scene_and_present(
-            device,
-            queue,
-            render_view,
-            raster_size,
-            &scene,
-            surface_view,
-            surface_size,
-            surface_format,
-        )
-    }
-
-    /// Render a Vello `scene` into the provided `texture_view` with a custom background color.
-    pub fn render_vello_scene_with_background(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        texture_view: &wgpu::TextureView,
-        width: u32,
-        height: u32,
         scene: &Scene,
-        base_color: Color,
+        surface: &wgpu::TextureView,
+        surface_size: [u32; 2],
+        format: wgpu::TextureFormat,
     ) -> Result<(), RenderError> {
-        let _stage = animatix::perf::ScopedStage::new(animatix::perf::stage::RASTERIZE);
-        let render_params = RenderParams {
-            base_color,
-            width,
-            height,
-            antialiasing_method: AaConfig::Area,
-        };
-
-        self.renderer
-            .render_to_texture(device, queue, scene, texture_view, &render_params)
-            .map_err(|e| RenderError::FrameRender(format!("{e:?}")))
+        if raster_size != [view.texture().width(), view.texture().height()]
+            || surface_size != [surface.texture().width(), surface.texture().height()]
+        {
+            return Err(RenderError::FrameRender(
+                "Presentation dimensions do not match the target".into(),
+            ));
+        }
+        self.frame
+            .render_and_present(scene, view, surface, kurbo::Affine::IDENTITY, format)
+            .map_err(RenderError::FrameRender)
     }
 }
 

@@ -1,11 +1,9 @@
 //! Frame-level contracts for the candidate renderer.
 
-#![cfg(feature = "vello-gpu")]
-
 use animatix::timeline::SceneDimensions;
 use animatix_render::offscreen::{OffscreenRenderer, RenderedFrame};
 
-mod common;
+use super::common;
 
 const DIMS: SceneDimensions = SceneDimensions {
     width: 96,
@@ -17,18 +15,19 @@ fn pixel(frame: &RenderedFrame, x: usize, y: usize) -> [u8; 4] {
     frame.rgba[offset..offset + 4].try_into().unwrap()
 }
 
-fn pair() -> Option<(OffscreenRenderer, OffscreenRenderer)> {
-    let Ok(reference) = OffscreenRenderer::new_legacy() else {
-        animatix_render::testing::skip_if_no_gpu();
-        return None;
-    };
-    let candidate = OffscreenRenderer::new_frame_gpu().expect("candidate adapter");
-    Some((reference, candidate))
+fn renderer_or_skip() -> Option<OffscreenRenderer> {
+    match OffscreenRenderer::new() {
+        Ok(renderer) => Some(renderer),
+        Err(_) => {
+            animatix_render::testing::skip_if_no_gpu();
+            None
+        },
+    }
 }
 
 #[test]
 fn opaque_readback_matches_straight_alpha_conversion() {
-    let Some((_, mut candidate)) = pair() else {
+    let Some(mut candidate) = renderer_or_skip() else {
         return;
     };
     let timeline = common::build_checked(
@@ -49,13 +48,13 @@ config { resolution: (96, 64) }
     let converted = candidate.readback_output(DIMS).expect("straight-alpha readback");
 
     assert_ne!(pixel(&direct, 12, 23), pixel(&direct, 0, 0));
-    assert!(direct.rgba.chunks_exact(4).all(|pixel| pixel[3] == 255));
+    assert!(direct.rgba.as_chunks::<4>().0.iter().all(|pixel| pixel[3] == 255));
     assert_eq!(direct.rgba, converted.rgba);
 }
 
 #[test]
 fn inline_filter_stays_below_later_sibling() {
-    let Some((mut reference, mut candidate)) = pair() else {
+    let Some(mut candidate) = renderer_or_skip() else {
         return;
     };
     let timeline = common::build_checked(
@@ -70,17 +69,15 @@ config { resolution: (96, 64) }
   front: Rect, at: (48, 32), size: (10, 10), color: "#FC786C"
 "##,
     );
-    let old = reference.render_timeline(&timeline, 0.0, DIMS).expect("legacy frame");
     let new = candidate.render_timeline(&timeline, 0.0, DIMS).expect("candidate frame");
-    assert_eq!(pixel(&old, 48, 32), [252, 120, 108, 255]);
-    assert_eq!(pixel(&new, 48, 32), pixel(&old, 48, 32));
+    assert_eq!(pixel(&new, 48, 32), [252, 120, 108, 255]);
     let edge = pixel(&new, 28, 32);
     assert!(edge[1] > 55 && edge[1] < 220, "filter edge {edge:?}");
 }
 
 #[test]
 fn bounded_grain_and_vignette_match_compute_coordinates() {
-    let Some((mut reference, mut candidate)) = pair() else {
+    let Some(mut candidate) = renderer_or_skip() else {
         return;
     };
     let timeline = common::build_checked(
@@ -99,20 +96,40 @@ config { resolution: (96, 64), duration: 1 }
   }
 "##,
     );
+    // Sampled with Compute on the same fixture before removing the backend.
+    let coordinates = [
+        (19, 13),
+        (27, 18),
+        (40, 22),
+        (55, 33),
+        (66, 15),
+        (79, 23),
+        (87, 33),
+    ];
+    let reference = [
+        [
+            [21, 14, 36, 255],
+            [10, 22, 26, 255],
+            [24, 19, 52, 255],
+            [128, 99, 162, 255],
+            [12, 15, 18, 255],
+            [4, 7, 11, 255],
+            [79, 93, 109, 255],
+        ],
+        [
+            [9, 26, 24, 255],
+            [34, 38, 38, 255],
+            [43, 35, 39, 255],
+            [118, 89, 194, 255],
+            [16, 19, 22, 255],
+            [1, 4, 8, 255],
+            [0, 0, 0, 255],
+        ],
+    ];
     let mut samples = Vec::new();
-    for time in [0.0, 0.1] {
-        let old = reference.render_timeline(&timeline, time, DIMS).expect("legacy frame");
+    for (time, expected_pixels) in [0.0, 0.1].into_iter().zip(reference) {
         let new = candidate.render_timeline(&timeline, time, DIMS).expect("candidate frame");
-        for (x, y) in [
-            (19, 13),
-            (27, 18),
-            (40, 22),
-            (55, 33),
-            (66, 15),
-            (79, 23),
-            (87, 33),
-        ] {
-            let expected = pixel(&old, x, y);
+        for ((x, y), expected) in coordinates.into_iter().zip(expected_pixels) {
             let actual = pixel(&new, x, y);
             assert!(
                 actual.iter().zip(expected).all(|(a, b)| a.abs_diff(b) <= 2),
@@ -126,7 +143,7 @@ config { resolution: (96, 64), duration: 1 }
 
 #[test]
 fn deferred_glass_panel_stays_above_later_base_draws() {
-    let Some((mut reference, mut candidate)) = pair() else {
+    let Some(mut candidate) = renderer_or_skip() else {
         return;
     };
     let timeline = common::build_checked(
@@ -141,9 +158,7 @@ config { resolution: (96, 64) }
   later: Rect, at: (48, 32), size: (30, 30), color: "#A8E676"
 "##,
     );
-    let old = reference.render_timeline(&timeline, 0.0, DIMS).expect("legacy frame");
     let new = candidate.render_timeline(&timeline, 0.0, DIMS).expect("candidate frame");
-    assert_eq!(pixel(&old, 48, 32), [252, 120, 108, 255]);
-    assert_eq!(pixel(&new, 48, 32), pixel(&old, 48, 32));
-    assert_eq!(pixel(&new, 82, 32), pixel(&old, 82, 32));
+    assert_eq!(pixel(&new, 48, 32), [252, 120, 108, 255]);
+    assert_eq!(pixel(&new, 82, 32), [21, 36, 54, 255]);
 }

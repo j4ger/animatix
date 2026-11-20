@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Opt-in candidate check: WebGL2 on mobile-sized Chromium, with WebGPU removed.
+// WebGL2 on mobile-sized Chromium with WebGPU disabled.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -13,12 +13,12 @@ const mode = process.env.WEBGL_CANDIDATE_MODE ?? 'auto';
 const hardware = process.env.WEBGL_CANDIDATE_GPU === '1';
 assert(['auto', 'webgl2'].includes(mode), 'expected automatic or forced WebGL2 selection');
 const url = new URL('/dev/vello-gpu-candidate.html', base);
-url.searchParams.set('backend', mode);
+if (mode === 'webgl2') url.searchParams.set('backend', mode);
 const sdkRoot = resolve(process.env.ANIMATIX_WEB_ROOT ?? new URL('../../../web', import.meta.url).pathname);
 const manifestPath = join(sdkRoot, 'runtime', 'runtime-manifest.json');
 assert(existsSync(manifestPath), `SDK missing in ${sdkRoot}; build/restore the candidate SDK first`);
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-assert(manifest.render_backends?.includes('webgl2'), 'runtime manifest does not include the opt-in WebGL2 backend');
+assert(manifest.render_backends?.includes('webgl2'), 'runtime manifest does not include WebGL2');
 const profile = mkdtempSync(join(tmpdir(), 'amx-vello-gpu-webgl-'));
 const chrome = spawn(process.env.CHROME ?? 'chromium', [
   '--headless', '--disable-dev-shm-usage', '--no-sandbox',

@@ -14,11 +14,8 @@ use std::time::Instant;
 use animatix::timeline::SceneDimensions;
 use animatix::timeline::effects::{
     EffectChain, EffectId, EffectInstance, EffectParamValue, EffectParams, EffectRegion,
-    FilterBackend,
 };
-use animatix_render::core::RendererCore;
-use animatix_render::filter_backend::GpuFilterBackend;
-use animatix_render::offscreen::drain_pending_layers;
+use animatix_render::frame_gpu::FrameGpu;
 
 const WIDTH: u32 = 1280;
 const HEIGHT: u32 = 720;
@@ -92,10 +89,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         ..Default::default()
     }))?;
 
-    let dimensions = SceneDimensions {
-        width: WIDTH,
-        height: HEIGHT,
-    };
     let output_texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("Animatix GPU Interaction Output"),
         size: wgpu::Extent3d {
@@ -108,61 +101,48 @@ fn main() -> Result<(), Box<dyn Error>> {
         dimension: wgpu::TextureDimension::D2,
         format: wgpu::TextureFormat::Rgba8Unorm,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-            | wgpu::TextureUsages::STORAGE_BINDING
+            | wgpu::TextureUsages::COPY_DST
             | wgpu::TextureUsages::TEXTURE_BINDING
             | wgpu::TextureUsages::COPY_SRC,
         view_formats: &[],
     });
     let output_view = output_texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let mut core = RendererCore::new(&device, &queue).map_err(boxed_message)?;
+    let mut renderer = FrameGpu::new(&device, &queue);
 
     let main_scene = make_main_scene();
     let chain = make_effect_chain(&effect);
     let mut measurements = Vec::with_capacity(2);
     let scope_counts: &[usize] = if roi_size == 512 { &[1] } else { &[1, 8] };
     for &scopes in scope_counts {
-        let scopes = make_scopes(scopes, &effect, roi_size);
-        let mut backend = GpuFilterBackend::new(device.clone(), queue.clone(), dimensions)
-            .map_err(boxed_message)?;
+        let mut scene = main_scene.clone();
+        for (content, region) in make_scopes(scopes, &effect, roi_size) {
+            scene.push_filter(
+                content,
+                Some(region),
+                chain.clone(),
+                1.0,
+                animatix::scene::CompositePlacement::AfterScene,
+            );
+        }
 
         for _ in 0..WARMUP_FRAMES {
-            encode_frame(
-                &mut core,
-                &mut backend,
-                &device,
-                &queue,
-                dimensions,
-                &main_scene,
-                &scopes,
-                &chain,
-                &output_texture,
-                &output_view,
-            )
-            .map_err(boxed_message)?;
+            renderer
+                .render_frame_into(&scene, &output_view, kurbo::Affine::IDENTITY)
+                .map_err(boxed_message)?;
             wait_for_submitted_work(&device, &queue)?;
         }
 
         let mut measurement = Measurement {
-            scopes: scopes.len(),
+            scopes,
             encode_cpu_ms: Vec::with_capacity(frames),
             sync_wait_ms: Vec::with_capacity(frames),
             total_ms: Vec::with_capacity(frames),
         };
         for _ in 0..frames {
             let frame_start = Instant::now();
-            encode_frame(
-                &mut core,
-                &mut backend,
-                &device,
-                &queue,
-                dimensions,
-                &main_scene,
-                &scopes,
-                &chain,
-                &output_texture,
-                &output_view,
-            )
-            .map_err(boxed_message)?;
+            renderer
+                .render_frame_into(&scene, &output_view, kurbo::Affine::IDENTITY)
+                .map_err(boxed_message)?;
             let encoded_at = Instant::now();
             wait_for_submitted_work(&device, &queue)?;
             let completed_at = Instant::now();
@@ -228,9 +208,9 @@ fn make_scopes(
             );
             let path = kurbo::Shape::to_path(&rect, 1e-3);
             scene.fill(
-                vello::peniko::Fill::NonZero,
+                peniko::Fill::NonZero,
                 kurbo::Affine::IDENTITY,
-                vello::peniko::Color::from_rgba8(80, 180, 255, source_alpha(effect)),
+                peniko::Color::from_rgba8(80, 180, 255, source_alpha(effect)),
                 None,
                 &path,
             );
@@ -253,55 +233,13 @@ fn make_main_scene() -> animatix::scene::Scene {
     let rect = kurbo::Rect::new(0.0, 0.0, f64::from(WIDTH), f64::from(HEIGHT));
     let path = kurbo::Shape::to_path(&rect, 1e-3);
     scene.fill(
-        vello::peniko::Fill::NonZero,
+        peniko::Fill::NonZero,
         kurbo::Affine::IDENTITY,
-        vello::peniko::Color::from_rgba8(14, 18, 28, 255),
+        peniko::Color::from_rgba8(14, 18, 28, 255),
         None,
         &path,
     );
     scene
-}
-
-#[allow(clippy::too_many_arguments)]
-fn encode_frame(
-    core: &mut RendererCore,
-    backend: &mut GpuFilterBackend,
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    dimensions: SceneDimensions,
-    main_scene: &animatix::scene::Scene,
-    scopes: &[(animatix::scene::Scene, EffectRegion)],
-    chain: &EffectChain,
-    output_texture: &wgpu::Texture,
-    output_view: &wgpu::TextureView,
-) -> Result<(), String> {
-    for (scene, region) in scopes {
-        backend.render_scene_to_pending_composite(scene, dimensions, Some(*region), chain, 1.0)?;
-    }
-
-    core.render_scene_with_background(
-        device,
-        queue,
-        output_view,
-        dimensions.width,
-        dimensions.height,
-        main_scene,
-        vello::peniko::Color::TRANSPARENT,
-    )
-    .map_err(|error| error.to_string())?;
-
-    let layers = backend.take_pending_composites();
-    drain_pending_layers(
-        core,
-        device,
-        queue,
-        backend,
-        layers,
-        Some(output_texture),
-        output_view,
-        1.0,
-    );
-    Ok(())
 }
 
 fn wait_for_submitted_work(

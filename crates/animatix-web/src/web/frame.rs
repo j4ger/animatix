@@ -6,16 +6,7 @@ use animatix::scene::Scene;
 use animatix::timeline::effects::FilterBackend;
 use animatix::timeline::frame_signature::FrameSignature;
 use animatix::timeline::{DebugRenderOptions, RuntimeInputs, SceneDimensions, Timeline};
-#[cfg(not(feature = "vello-gpu-webgpu"))]
-pub(super) use animatix_render::core::RendererCore as FrameRenderer;
-#[cfg(not(feature = "vello-gpu-webgpu"))]
-use animatix_render::filter_backend::GpuFilterBackend;
-#[cfg(feature = "vello-gpu-webgpu")]
 pub(super) use animatix_render::frame_gpu::FrameGpu as FrameRenderer;
-#[cfg(not(feature = "vello-gpu-webgpu"))]
-use animatix_render::offscreen::{RasterFit, rasterize_scene, rasterize_scene_and_present};
-#[cfg(not(feature = "vello-gpu-webgpu"))]
-use animatix_render::transition::composite_flip_overlay;
 use animatix_render::transition::{
     TransitionCompositor, collect_flip_pairs, encode_flip_overlay, plan_shared_actors,
 };
@@ -44,7 +35,6 @@ impl AmxPlayer {
         if !self.has_document() {
             return Ok(());
         }
-        #[cfg(feature = "vello-gpu")]
         if let Some(webgl) = self.webgl.clone() {
             let mut frame_gpu = webgl.frame_gpu.borrow_mut();
             return self.render_frame_inner(&webgl.device, &webgl.queue, &mut frame_gpu, time_s);
@@ -54,9 +44,6 @@ impl AmxPlayer {
             if self.device_generation != ctx.generation {
                 return Err(JsError::new("WebGPU context generation changed"));
             }
-            #[cfg(not(feature = "vello-gpu-webgpu"))]
-            let mut renderer = ctx.core.borrow_mut();
-            #[cfg(feature = "vello-gpu-webgpu")]
             let mut renderer = ctx.frame_gpu.borrow_mut();
             self.render_frame_inner(&ctx.device, &ctx.queue, &mut renderer, time_s)
         })
@@ -155,8 +142,6 @@ impl AmxPlayer {
             queue,
             dims: self.dims,
             scale: self.render_scale,
-            #[cfg(not(feature = "vello-gpu-webgpu"))]
-            scratch: &mut self.scaled,
             compositor: self.compositor.as_ref(),
             target: self.target.as_ref(),
             runtime_inputs: &self.runtime_inputs,
@@ -166,17 +151,11 @@ impl AmxPlayer {
             &mut frame_ctx,
             Targets {
                 primary: &mut self.offscreen,
-                #[cfg(not(feature = "vello-gpu-webgpu"))]
-                primary_backend: &mut self.filter_backend,
                 secondary: &mut self.offscreen_to,
-                #[cfg(not(feature = "vello-gpu-webgpu"))]
-                secondary_backend: &mut self.filter_backend_to,
                 composite: &mut self.composite,
             },
             SurfaceTarget {
                 view: &surface_view,
-                #[cfg(not(feature = "vello-gpu-webgpu"))]
-                size: [width, height],
                 format: self.config.format,
             },
         );
@@ -211,10 +190,6 @@ pub(super) struct FrameCtx<'a> {
     pub(super) dims: SceneDimensions,
     /// Raster scale applied to the encoded scene, `MIN_RENDER_SCALE..=MAX_RENDER_SCALE`.
     pub(super) scale: f32,
-    /// Re-encode buffer for a scaled raster; keeps a scaled frame from
-    /// allocating a scene per render.
-    #[cfg(not(feature = "vello-gpu-webgpu"))]
-    pub(super) scratch: &'a mut Scene,
     pub(super) compositor: Option<&'a TransitionCompositor>,
     /// The document being drawn, or `None` when nothing is loaded.
     pub(super) target: Option<&'a BuildTarget>,
@@ -230,12 +205,8 @@ pub(super) struct FrameCtx<'a> {
 pub(super) struct Targets<'a> {
     /// Outgoing/single scene.
     pub(super) primary: &'a mut Option<OffscreenTarget>,
-    #[cfg(not(feature = "vello-gpu-webgpu"))]
-    pub(super) primary_backend: &'a mut Option<GpuFilterBackend>,
     /// Incoming scene of a transition.
     pub(super) secondary: &'a mut Option<OffscreenTarget>,
-    #[cfg(not(feature = "vello-gpu-webgpu"))]
-    pub(super) secondary_backend: &'a mut Option<GpuFilterBackend>,
     /// The transition compositor's blended output.
     pub(super) composite: &'a mut Option<OffscreenTarget>,
 }
@@ -243,15 +214,11 @@ pub(super) struct Targets<'a> {
 #[derive(Clone, Copy)]
 struct SurfaceTarget<'a> {
     view: &'a wgpu::TextureView,
-    #[cfg(not(feature = "vello-gpu-webgpu"))]
-    size: [u32; 2],
     format: wgpu::TextureFormat,
 }
 
 /// One timeline evaluated into one scene target.
 struct ScenePass<'a> {
-    #[cfg(not(feature = "vello-gpu-webgpu"))]
-    backend: &'a mut Option<GpuFilterBackend>,
     target: &'a OffscreenTarget,
     timeline: &'a Timeline,
     time_s: f64,
@@ -282,19 +249,7 @@ fn render_document_for_surface(
 ) -> Result<(), String> {
     let (frame, already_presented) = render_document_inner(ctx, targets, Some(surface))?;
     if !already_presented {
-        #[cfg(feature = "vello-gpu-webgpu")]
         ctx.renderer.blit(&frame.view, surface.view, surface.format, false);
-        #[cfg(not(feature = "vello-gpu-webgpu"))]
-        ctx.renderer.blit_texture_to_format(
-            ctx.device,
-            ctx.queue,
-            &frame.view,
-            surface.view,
-            surface.size[0],
-            surface.size[1],
-            1.0,
-            surface.format,
-        );
     }
     Ok(())
 }
@@ -305,9 +260,6 @@ fn render_document_inner(
     surface: Option<SurfaceTarget<'_>>,
 ) -> Result<(FrameTarget, bool), String> {
     let scene = raster_dims(ctx.dims, ctx.scale);
-    #[cfg(not(feature = "vello-gpu-webgpu"))]
-    let backend_usage = wgpu::TextureUsages::STORAGE_BINDING;
-    #[cfg(feature = "vello-gpu-webgpu")]
     let backend_usage = wgpu::TextureUsages::COPY_DST;
     let from = ensure_offscreen(
         targets.primary,
@@ -328,18 +280,9 @@ fn render_document_inner(
                     .ok_or_else(|| format!("composition has no scene named '{scene_name}'"))?;
                 // Reuse a transition backend for the active scene before
                 // dropping the now-idle incoming slot.
-                #[cfg(not(feature = "vello-gpu-webgpu"))]
-                {
-                    if timeline.needs_filter_backend() && targets.primary_backend.is_none() {
-                        *targets.primary_backend = targets.secondary_backend.take();
-                    }
-                    *targets.secondary_backend = None;
-                }
                 let presented = render_timeline(
                     ctx,
                     ScenePass {
-                        #[cfg(not(feature = "vello-gpu-webgpu"))]
-                        backend: targets.primary_backend,
                         target: &from,
                         timeline,
                         time_s: local_time_s,
@@ -370,13 +313,6 @@ fn render_document_inner(
                 .get(&blend.to_scene)
                 .ok_or_else(|| format!("composition has no scene named '{}'", blend.to_scene))?
                 .timeline;
-            #[cfg(not(feature = "vello-gpu-webgpu"))]
-            rebalance_filter_backends(
-                from_timeline.needs_filter_backend(),
-                to_timeline.needs_filter_backend(),
-                &mut *targets.primary_backend,
-                &mut *targets.secondary_backend,
-            );
             let shared = plan_shared_actors(from_timeline, blend.from_local, to_timeline, to_local);
             let flip_items = collect_flip_pairs(
                 &shared,
@@ -407,8 +343,6 @@ fn render_document_inner(
             render_timeline(
                 ctx,
                 ScenePass {
-                    #[cfg(not(feature = "vello-gpu-webgpu"))]
-                    backend: targets.primary_backend,
                     target: &from,
                     timeline: from_timeline,
                     time_s: blend.from_local,
@@ -419,8 +353,6 @@ fn render_document_inner(
             render_timeline(
                 ctx,
                 ScenePass {
-                    #[cfg(not(feature = "vello-gpu-webgpu"))]
-                    backend: targets.secondary_backend,
                     target: &to,
                     timeline: to_timeline,
                     time_s: to_local,
@@ -447,8 +379,6 @@ fn render_document_inner(
                     &encode_flip_overlay(&flip_items, blend.progress as f32, blend.easing),
                     &from.view,
                     &composite_target.view,
-                    #[cfg(not(feature = "vello-gpu-webgpu"))]
-                    scene,
                 )?;
             }
 
@@ -457,18 +387,9 @@ fn render_document_inner(
         Some(BuildTarget::SingleScene(timeline)) => {
             // Reuse a transition backend for this scene before dropping the
             // now-idle incoming slot.
-            #[cfg(not(feature = "vello-gpu-webgpu"))]
-            {
-                if timeline.needs_filter_backend() && targets.primary_backend.is_none() {
-                    *targets.primary_backend = targets.secondary_backend.take();
-                }
-                *targets.secondary_backend = None;
-            }
             let presented = render_timeline(
                 ctx,
                 ScenePass {
-                    #[cfg(not(feature = "vello-gpu-webgpu"))]
-                    backend: targets.primary_backend,
                     target: &from,
                     timeline,
                     time_s: ctx.time_s,
@@ -478,14 +399,7 @@ fn render_document_inner(
             )?;
             Ok((from.frame_target(), presented))
         },
-        None => {
-            #[cfg(not(feature = "vello-gpu-webgpu"))]
-            {
-                *targets.primary_backend = None;
-                *targets.secondary_backend = None;
-            }
-            Err("no document loaded".to_string())
-        },
+        None => Err("no document loaded".to_string()),
     }
 }
 
@@ -494,51 +408,11 @@ fn composite_web_flip_overlay(
     overlay: &Scene,
     from: &wgpu::TextureView,
     composite: &wgpu::TextureView,
-    #[cfg(not(feature = "vello-gpu-webgpu"))] scene: (u32, u32),
 ) -> Result<(), String> {
     let scale = ctx.scale.clamp(MIN_RENDER_SCALE, MAX_RENDER_SCALE);
-    #[cfg(feature = "vello-gpu-webgpu")]
     {
         ctx.renderer.render_into(overlay, from, kurbo::Affine::scale(scale as f64))?;
         ctx.renderer.over(composite, from, 1.0)
-    }
-    #[cfg(not(feature = "vello-gpu-webgpu"))]
-    {
-        let overlay_ref: &Scene = if (scale - 1.0).abs() < 1e-3 {
-            overlay
-        } else {
-            ctx.scratch.reset();
-            ctx.scratch.append(overlay, Some(kurbo::Affine::scale(scale as f64)));
-            &*ctx.scratch
-        };
-        composite_flip_overlay(
-            ctx.renderer,
-            ctx.device,
-            ctx.queue,
-            from,
-            composite,
-            SceneDimensions {
-                width: scene.0,
-                height: scene.1,
-            },
-            overlay_ref,
-        )
-    }
-}
-
-/// Move a reusable backend out of a side that does not need one when the
-/// other transition side does and has no backend yet.
-#[cfg(not(feature = "vello-gpu-webgpu"))]
-fn rebalance_filter_backends(
-    from_needs: bool,
-    to_needs: bool,
-    from_backend: &mut Option<GpuFilterBackend>,
-    to_backend: &mut Option<GpuFilterBackend>,
-) {
-    if from_needs && !to_needs && from_backend.is_none() {
-        *from_backend = to_backend.take();
-    } else if !from_needs && to_needs && to_backend.is_none() {
-        *to_backend = from_backend.take();
     }
 }
 
@@ -549,36 +423,12 @@ fn render_timeline(
     surface: Option<SurfaceTarget<'_>>,
 ) -> Result<bool, String> {
     let ScenePass {
-        #[cfg(not(feature = "vello-gpu-webgpu"))]
-        backend,
         target,
         timeline,
         time_s,
         suppressed,
     } = pass;
-    #[cfg(not(feature = "vello-gpu-webgpu"))]
-    let (raster_w, raster_h) = raster_dims(ctx.dims, ctx.scale);
-    #[cfg(not(feature = "vello-gpu-webgpu"))]
-    let mut fb: Option<&mut dyn FilterBackend> = {
-        if timeline.needs_filter_backend() {
-            if backend.is_none() {
-                *backend =
-                    Some(GpuFilterBackend::new(ctx.device.clone(), ctx.queue.clone(), ctx.dims)?);
-            }
-        } else {
-            // A newly installed document may no longer need the effect targets.
-            *backend = None;
-        }
-        backend.as_mut().map(|fb| {
-            let achieved = (raster_w as f32 / ctx.dims.width.max(1) as f32)
-                .min(raster_h as f32 / ctx.dims.height.max(1) as f32);
-            fb.set_raster_scale(achieved);
-            fb as &mut dyn FilterBackend
-        })
-    };
-    #[cfg(feature = "vello-gpu-webgpu")]
     let mut recorder = animatix_render::frame_gpu::SceneRecorder;
-    #[cfg(feature = "vello-gpu-webgpu")]
     let mut fb: Option<&mut dyn FilterBackend> = Some(&mut recorder);
 
     // FLIP overlays need the suppressed program. Other frames can take the
@@ -601,7 +451,6 @@ fn render_timeline(
     };
 
     let scale = ctx.scale.clamp(MIN_RENDER_SCALE, MAX_RENDER_SCALE);
-    #[cfg(feature = "vello-gpu-webgpu")]
     {
         let transform = kurbo::Affine::scale(f64::from(scale));
         if let Some(surface) = surface {
@@ -617,55 +466,6 @@ fn render_timeline(
             ctx.renderer.render_frame_into(&scene, &target.view, transform)?;
             Ok(false)
         }
-    }
-    #[cfg(not(feature = "vello-gpu-webgpu"))]
-    {
-        let fit = if (scale - 1.0).abs() < 1e-3 {
-            RasterFit::OneToOne
-        } else {
-            RasterFit::Scaled {
-                scale,
-                scratch: &mut *ctx.scratch,
-            }
-        };
-        let raster = SceneDimensions {
-            width: raster_w,
-            height: raster_h,
-        };
-        let merged_presentation = surface.is_some()
-            && presentation
-            && !timeline.needs_filter_backend()
-            && backend.is_none();
-        let result = if let Some(surface) = surface.filter(|_| merged_presentation) {
-            rasterize_scene_and_present(
-                ctx.renderer,
-                ctx.device,
-                ctx.queue,
-                &target.view,
-                &scene,
-                raster,
-                fit,
-                surface.view,
-                surface.size,
-                surface.format,
-            )
-        } else {
-            rasterize_scene(
-                ctx.renderer,
-                ctx.device,
-                ctx.queue,
-                &target.view,
-                &scene,
-                raster,
-                fit,
-                backend.as_mut(),
-                Some(&target.texture),
-            )
-        };
-        if presentation {
-            timeline.recycle_presentation_scene(scene);
-        }
-        result.map(|()| merged_presentation)
     }
 }
 
