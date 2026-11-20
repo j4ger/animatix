@@ -3,9 +3,9 @@
 //! Layering mirrors the GUI: parse/typecheck/expand via [`animatix_syntax`]'s
 //! module system in `SourcesOnly` mode (no disk), build a `Timeline` or
 //! `Composition` through the engine's font-context-aware build entry points,
-//! and present each frame by rendering the evaluated `vello::Scene` straight
-//! into a WebGPU canvas surface. Video/native-plugin/export paths are not
-//! reachable from the web target.
+//! and rasterize the evaluated `animatix::scene::Scene` with Vello GPU.
+//! Presentation uses a WebGPU or WebGL2 canvas surface. Native video export
+//! and plugins are unavailable on the web target.
 //!
 //! The `asset_urls`, `host` and `dto` modules compile on every target so the
 //! parse→build pipeline is covered by ordinary `cargo test` runs; only the

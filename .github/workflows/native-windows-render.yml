@@ -1,13 +1,7 @@
 name: Native Windows Render Diagnostics
 
 on:
-  push:
-    branches:
-      - 'codex/p0-native-proof'
-    paths:
-      - '.github/workflows/native-windows-render.yml'
-      - 'tools/release/native/windows-render-diagnostics.py'
-      - 'tools/release/native/windows_sdk_dxc.py'
+  workflow_dispatch:
 
 permissions:
   contents: read

@@ -40,7 +40,8 @@ tracing-subscriber = { version = "0.3.19", features = ["fmt", "env-filter"] }
 notify = { version = "7.0.0", default-features = false, features = ["macos_fsevent"] }
 rfd = "0.15"
 rodio = "0.20"
-wgpu = { workspace = true, default-features = true }
+# eframe's wgpu feature selects the desktop backend defaults.
+wgpu = { workspace = true }
 tempfile = "3"
 
 [[bin]]

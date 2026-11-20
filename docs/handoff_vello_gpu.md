@@ -43,6 +43,8 @@ check the decoded video and audio streams. Check the GUI on the same release
 package for playback, seeking, preview resize and export. Retain package and
 browser acceptance results for macOS Metal, Windows DX12, iOS Safari and
 Android alongside the Linux results.
+The Native Windows Render Diagnostics workflow can also be dispatched on its
+own to exercise the CLI without FFmpeg.
 After publishing an authorized release, observe first-frame and recovery
 failures and restore the previous immutable package on a reproducible blank
 frame or loss of state.
@@ -51,10 +53,15 @@ frame or loss of state.
 
 The workspace renderer uses `vello_gpu` 0.4.0. The Compute crate and its
 shader package, the local Vello vendor directory and the Hybrid benchmark
-have been removed. Run the locked audit with the following commands.
+have been removed. The regular CI checks run `renderer-dependencies` against
+the locked workspace and Wasm graphs. The Wasm graph requires both browser
+backends and excludes native wgpu backends. CI checks the immediate parents
+of the documented upstream CPU dependencies and rejects new parents and
+unknown Vello packages. The strict audit still reports the third-party edges.
 
 ```sh
-nix develop -c python3 tools/ci/dependency-gates.py
+nix develop -c tools/ci/ci.sh gate renderer-dependencies
+nix develop -c python3 tools/ci/dependency-gates.py --stage wasm-no-legacy --stage full-no-legacy
 nix develop -c cargo tree --locked --workspace --all-features --target all -i vello_cpu@0.0.8
 nix develop -c cargo tree --locked --workspace --all-features --target all -i vello_cpu@0.2.0
 ```

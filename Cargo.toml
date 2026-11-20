@@ -57,7 +57,7 @@ eframe          = { version = "0.37.0", default-features = false, features = ["d
 egui-phosphor   = { package = "egui-pop-phosphor", version = "0.15.0", default-features = false, features = ["regular"] }
 egui_tiles      = { version = "0.18.0", features = ["serde"] }
 
-# Shared graphics dep already duplicated across animatix + animatix-gui
+# Shared device types for the native and browser render drivers.
 wgpu            = { version = "30.0.1", default-features = false }
 # First Sparse Strips release validated by the WebGPU/WebGL2 migration trial.
 vello_gpu       = { version = "=0.4.0", default-features = false, features = ["wgpu", "text", "full_image_support", "gradient_sweep", "blurred_rounded_rect"] }

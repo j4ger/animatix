@@ -27,7 +27,7 @@ bytemuck = { workspace = true }
 image = { workspace = true, features = ["png", "gif", "jpeg", "webp"], optional = true }
 pollster = { workspace = true }
 tracing = { workspace = true }
-wgpu = { workspace = true, default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
+wgpu = { workspace = true, features = ["std", "parking_lot", "wgsl"] }
 rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg8", "link_system_ffmpeg"], optional = true }
 
 tempfile = { version = "3", optional = true }
@@ -36,6 +36,9 @@ tempfile = { version = "3", optional = true }
 animatix = { path = "../animatix", features = ["image-decode"] }
 naga = { version = "30.0.1", features = ["wgsl-in", "glsl-out"] }
 tempfile = "3"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+wgpu = { workspace = true, features = ["vulkan"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 wgpu = { workspace = true, features = ["metal"] }

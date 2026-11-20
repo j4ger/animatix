@@ -54,6 +54,7 @@ lint|nix|ubuntu-latest|nix|pr
 check|nix|ubuntu-latest|nix|pr
 test|nix|ubuntu-latest|nix|pr
 no-video|nix|ubuntu-latest|nix|pr
+renderer-dependencies|nix|ubuntu-latest|nix|pr
 render-smoke|nix|ubuntu-latest|nix|pr
 examples|nix|ubuntu-latest|nix|pr
 ext-bench|nix|ubuntu-latest|nix|pr
@@ -141,7 +142,7 @@ eparts|eparts|nix|ubuntu-latest|nix|pr|eparts-linux
 eparts|eparts|native|macos-latest|rust-stable|pr|eparts-macos
 eparts|eparts|native|windows-latest|rust-stable|pr|eparts-windows
 Security Audit|audit|nix|ubuntu-latest|nix|pr|security-audit
-Check & Lint|scene-audit budget-audit canonical-audit check lint doc no-video|nix|ubuntu-latest|nix|pr|check-lint
+Check & Lint|renderer-dependencies scene-audit budget-audit canonical-audit check lint doc no-video|nix|ubuntu-latest|nix|pr|check-lint
 Test & Examples|test examples|nix|ubuntu-latest|nix|pr|test-examples
 Render Smoke & Scenes|render-smoke|nix|ubuntu-latest|nix|pr|render-scenes
 Benchmarks|ext-bench|nix|ubuntu-latest|nix|pr|benchmarks
@@ -416,6 +417,13 @@ gate_doc() {
 }
 
 gate_doc_links() { bash tools/docs/check-docs.sh; }
+
+gate_renderer_dependencies() {
+  want_cargo
+  python3 tools/ci/dependency-gates.py \
+    --stage minimal-engine --stage wasm-renderer --stage workspace-renderer \
+    --output target/ci/renderer-dependencies.json
+}
 
 gate_ci_policy_tests() {
   python3 tools/quality/test-legacy-contract-fixtures.py
@@ -745,9 +753,9 @@ gate_wasm_check() {
   # animatix-web's render module is #[cfg(target_arch = "wasm32")], so a change to
   # the frame-presenting path can compile everywhere, pass every test, and still
   # break the site. This is the check that looks at it.
-  cargo check -p animatix-web --target wasm32-unknown-unknown
-  cargo check -p animatix-web --target wasm32-unknown-unknown --no-default-features
-  cargo clippy -p animatix --no-default-features --all-targets -- -D warnings
+  cargo check --locked -p animatix-web --target wasm32-unknown-unknown
+  cargo check --locked -p animatix-web --target wasm32-unknown-unknown --no-default-features
+  cargo clippy --locked -p animatix --no-default-features --all-targets -- -D warnings
 }
 
 gate_content_sync() {

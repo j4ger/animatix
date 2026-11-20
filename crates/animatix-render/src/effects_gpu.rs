@@ -8,8 +8,8 @@
 //!
 //! Inputs and outputs use premultiplied RGBA8, as produced by Vello GPU. The
 //! effect ABI remains straight-alpha, so the executor unpremultiplies once at
-//! chain entry and premultiplies once at exit. Each effect pass then observes
-//! the same pixels and binding semantics as the existing compute backend.
+//! chain entry and premultiplies once at exit. Each pass observes the existing
+//! straight-alpha effect ABI.
 
 use std::collections::{HashMap, VecDeque};
 
