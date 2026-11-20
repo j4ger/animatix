@@ -32,7 +32,6 @@ impl AnimatixApp {
         eparts::set_theme(&cc.egui_ctx, theme);
         install_theme(&cc.egui_ctx, &theme, choice.is_dark(system_is_dark));
 
-        let reduce_motion = shell.ui_store.view.reduce_motion;
         let initial_density = shell.ui_store.view.density;
 
         #[cfg(feature = "theme-json")]
@@ -87,7 +86,7 @@ impl AnimatixApp {
             system_is_dark,
             last_theme_probe: Some(std::time::Instant::now()),
             applied_theme_signature: Some((choice, system_is_dark)),
-            applied_motion_preference: Some(reduce_motion),
+            applied_motion_preference: None,
             applied_density: Some(initial_density),
             #[cfg(feature = "theme-json")]
             theme_registry,
@@ -169,6 +168,11 @@ impl AnimatixApp {
 
     pub(super) fn handle_keyboard_shortcuts(&mut self, ctx: &egui::Context) {
         use crate::app::interaction::keyboard::{FocusContext, KeyboardAction};
+        // The dialog is drawn after global shortcuts. Leave its dismissal
+        // key in the event queue so it can run its own exit and focus restore.
+        if self.shell.modal_open() && ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
+            return;
+        }
         let focus = FocusContext {
             text_edit_focused: ctx.text_edit_focused(),
             inline_edit_active: false,

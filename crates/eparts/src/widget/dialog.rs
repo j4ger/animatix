@@ -13,9 +13,7 @@ use crate::tokens::theme::theme;
 use crate::tokens::typography::TextRole;
 use crate::widget::anim;
 use crate::widget::button::Button;
-use crate::widget::overlay::{
-    OverlayLayer, escape_pressed, is_topmost, push_overlay, remove_overlay,
-};
+use crate::widget::overlay::{OverlayLayer, escape_pressed, push_overlay, remove_overlay};
 
 /// Context passed to the dialog body on each frame.
 pub struct DialogCtx {
@@ -112,7 +110,15 @@ pub fn modal(
     // brand-new id straight to the target.
     let first_frame = !ctx.data(|d| d.get_temp::<bool>(opened_id).unwrap_or(false));
     if first_frame && !is_closing {
-        ctx.animate_value_with_time(anim_id, 0.0, 0.0);
+        anim::animate_toward_eased(
+            ctx,
+            anim_id,
+            0.0,
+            motion::Transition {
+                duration: motion::INSTANT,
+                ..motion::MODAL
+            },
+        );
         ctx.data_mut(|d| d.insert_temp(opened_id, true));
     }
 
@@ -134,19 +140,8 @@ pub fn modal(
         motion::MODAL
     };
     let anim_target = if is_closing { 0.0 } else { 1.0 };
-    let raw_progress = anim::animate_toward(ctx, anim_id, anim_target, transition);
-
-    let progress = if is_closing {
-        let close_t = 1.0 - raw_progress;
-        // STANDARD's symmetric round-trip avoids DECELERATE's long phantom tail.
-        1.0 - transition.easing.sample(close_t)
-    } else {
-        transition.easing.sample(raw_progress)
-    };
-
-    let bg = t.palette.overlay.backdrop;
-    let alpha = (bg.a() as f32 * progress).round() as u8;
-    let backdrop_color = egui::Color32::from_rgba_premultiplied(bg.r(), bg.g(), bg.b(), alpha);
+    let progress = anim::animate_toward_eased(ctx, anim_id, anim_target, transition);
+    let backdrop_color = t.palette.overlay.backdrop.gamma_multiply(progress);
     ui.painter().rect_filled(screen_rect, 0.0, backdrop_color);
 
     // Close on backdrop click (gated until the dialog is visually established)
@@ -154,18 +149,10 @@ pub fn modal(
     let backdrop = ui.interact(screen_rect, backdrop_id, egui::Sense::click());
     let backdrop_clicked = backdrop.clicked() && progress > 0.05;
 
-    let border_color = egui::Color32::from_rgba_premultiplied(
-        t.palette.border.default.r(),
-        t.palette.border.default.g(),
-        t.palette.border.default.b(),
-        (t.palette.border.default.a() as f32 * progress).round() as u8,
-    );
-    let window_bg = egui::Color32::from_rgba_premultiplied(
-        t.palette.surface.base.r(),
-        t.palette.surface.base.g(),
-        t.palette.surface.base.b(),
-        (t.palette.surface.base.a() as f32 * progress).round() as u8,
-    );
+    let border_color = t.palette.border.default.gamma_multiply(progress);
+    let window_bg = t.palette.surface.base.gamma_multiply(progress);
+    let mut shadow = t.elevation_overlay();
+    shadow.color = shadow.color.gamma_multiply(progress);
 
     let slide_offset = dialog_token::SLIDE_PX * (1.0 - progress);
 
@@ -183,6 +170,7 @@ pub fn modal(
     let screen_margin = density(ui).scale(spatial::dialog::SCREEN_MARGIN);
 
     let window = egui::Window::new(spec.id)
+        .fade_in(false)
         .anchor(
             Align2::CENTER_CENTER,
             [spec.anchor_offset[0], spec.anchor_offset[1] + slide_offset],
@@ -202,7 +190,7 @@ pub fn modal(
                 .stroke(Stroke::new(STROKE_WIDTH, border_color))
                 .corner_radius(RADIUS_XL)
                 .inner_margin(Margin::same(inner_margin as i8))
-                .shadow(t.elevation_overlay()),
+                .shadow(shadow),
         );
 
     let window = if spec.resizable {
@@ -228,20 +216,14 @@ pub fn modal(
 
     // Escape only fires for the topmost overlay, so a dialog and popover open
     // together don't both dismiss on one press.
-    let escape_dismissed = is_topmost(ctx, dialog_id) && escape_pressed(ctx, dialog_id);
+    let escape_dismissed = escape_pressed(ctx, dialog_id);
     let close_requested = escape_dismissed || backdrop_clicked || body_close;
 
     if close_requested && !is_closing {
         ctx.data_mut(|d| d.insert_temp(closing_id, true));
-    }
-
-    if progress > 0.01 && progress < 0.99 {
         ctx.request_repaint();
     }
-
-    // Hide when the raw animation value reaches zero, not the eased progress, so
-    // the dialog disappears exactly when the animation completes.
-    let fully_closed = is_closing && raw_progress <= 0.0;
+    let fully_closed = is_closing && progress <= 0.0;
     if fully_closed {
         // Deregister once fully hidden (mirrors Popover::finish_close).
         remove_overlay(ctx, dialog_id);
@@ -343,6 +325,37 @@ mod tests {
         push_overlay(&ctx, popover_id, OverlayLayer::Popover);
         assert!(!is_topmost(&ctx, dialog_id), "popover must outrank a dialog for Escape");
         assert!(is_topmost(&ctx, popover_id));
+    }
+
+    #[test]
+    fn escape_during_entry_completes_the_exit_and_removes_the_overlay() {
+        let ctx = egui::Context::default();
+        let id = "interrupted_dialog";
+        let frame = |time, escape| {
+            let mut input = egui::RawInput {
+                time: Some(time),
+                ..Default::default()
+            };
+            if escape {
+                input.events.push(egui::Event::Key {
+                    key: egui::Key::Escape,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                });
+            }
+            let mut open = true;
+            let _ = crate::run_ui(&ctx, input, |ui| {
+                open = modal(ui, &DialogSpec::new(id, [200., 160.]), |_, _| false);
+            });
+            open
+        };
+        assert!(frame(0.0, false));
+        assert!(frame(0.04, true));
+        assert!(frame(0.05, false));
+        assert!(!frame(0.16, false));
+        assert!(!crate::widget::overlay::is_topmost(&ctx, egui::Id::unique(id)));
     }
 
     /// Escape while a Popover is topmost must not be consumed by the dialog.

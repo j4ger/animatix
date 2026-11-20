@@ -119,15 +119,15 @@ pub const PANEL: Transition = Transition {
     easing: STANDARD,
 };
 pub const MODAL: Transition = Transition {
-    duration: SLOW,
+    duration: NORMAL,
     easing: DECELERATE,
 };
 
 /// Exit transition for dialogs — shorter and stiffer than entrance,
-/// using STANDARD (symmetric ease-in-out) at NORMAL (0.20s) so the
+/// using STANDARD (symmetric ease-in-out) at FAST (0.10s) so the
 /// animation ends cleanly with no perceptible front-loaded stall.
 pub const MODAL_EXIT: Transition = Transition {
-    duration: NORMAL,
+    duration: FAST,
     easing: STANDARD,
 };
 

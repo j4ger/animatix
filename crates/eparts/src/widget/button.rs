@@ -358,8 +358,9 @@ impl egui::Widget for Button {
         let (rect, response) = ui.allocate_exact_size(size, sense);
 
         let pressed = response.is_pointer_button_down_on();
-        let slot = state_slot(
-            self.variant.slots(&t.components.button),
+        let slots = self.variant.slots(&t.components.button);
+        let mut slot = *state_slot(
+            slots,
             self.variant,
             self.loading,
             self.disabled,
@@ -367,6 +368,16 @@ impl egui::Widget for Button {
             pressed,
             response.hovered(),
         );
+        let hover = crate::widget::anim::animate_bool_eased(
+            ui.ctx(),
+            response.id.with("hover"),
+            response.hovered(),
+            crate::tokens::motion::HOVER,
+        );
+        if !pressed && !self.active && !self.disabled && !self.loading {
+            slot.bg = crate::tokens::util::lerp_color(slots.normal.bg, slots.hover.bg, hover);
+            slot.fg = crate::tokens::util::lerp_color(slots.normal.fg, slots.hover.fg, hover);
+        }
         let painter = ui.painter().with_clip_rect(rect);
 
         // Ghost/icon rest on a transparent slot and fill only when the state has a

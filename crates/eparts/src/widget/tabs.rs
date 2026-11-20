@@ -1,9 +1,11 @@
 use egui::{Id, Rect, Response, Sense, Vec2};
 
 use crate::spatial;
+use crate::tokens::motion::{HOVER, PANEL};
 use crate::tokens::spatial::{RADIUS_L, RADIUS_M, STROKE_WIDTH};
 use crate::tokens::typography::TextRole;
 use crate::widget::IntoWidgetId;
+use crate::widget::anim::{animate_bool_eased, animate_toward_eased};
 use crate::widget::traits::finish_response;
 
 /// A stateful pill-style tab bar.
@@ -132,15 +134,69 @@ impl<'a> TabBar<'a> {
         let inner = bar_rect.shrink2(egui::vec2(inset, 0.0));
         let tab_w = ((inner.width() - gap * (self.tabs.len() - 1) as f32) / self.tabs.len() as f32)
             .max(0.0);
-        for (idx, &label) in self.tabs.iter().enumerate() {
-            let x = inner.left() + idx as f32 * (tab_w + gap);
-            let rect = Rect::from_min_size(egui::pos2(x, inner.top()), Vec2::new(tab_w, tab_h));
-            let response = ui.interact(rect, self.id.with(("tab", idx)), Sense::click());
+        let slots = &t.components.tab;
+        let rect_at = |index: f32| {
+            Rect::from_min_size(
+                egui::pos2(inner.left() + index * (tab_w + gap), inner.top()),
+                Vec2::new(tab_w, tab_h),
+            )
+        };
+        let face_at = |index: f32| rect_at(index).shrink2(egui::vec2(0.0, inset * 1.5));
+        let mut responses = Vec::with_capacity(self.tabs.len());
+        for idx in 0..self.tabs.len() {
+            let response =
+                ui.interact(rect_at(idx as f32), self.id.with(("tab", idx)), Sense::click());
+            if response.clicked() {
+                bar_response = bar_response.union(response.clone());
+                if *self.selected_index != idx {
+                    *self.selected_index = idx;
+                    bar_response.mark_changed();
+                }
+            }
+            responses.push(response);
+        }
+        for (idx, response) in responses.iter().enumerate() {
+            let hovered =
+                animate_bool_eased(ui.ctx(), response.id.with("hover"), response.hovered(), HOVER);
+            if hovered > 0.0 {
+                ui.painter().rect_filled(
+                    face_at(idx as f32),
+                    RADIUS_M,
+                    slots.hover.bg.gamma_multiply(hovered),
+                );
+            }
+        }
+        if *self.selected_index < self.tabs.len() {
+            let position = animate_toward_eased(
+                ui.ctx(),
+                self.id.with(("indicator", self.tabs.len())),
+                *self.selected_index as f32,
+                PANEL,
+            );
+            let face = face_at(position);
+            if self.underlined {
+                let mark = Rect::from_center_size(
+                    egui::pos2(face.center().x, face.bottom()),
+                    egui::vec2(face.width().min(20.0), 2.0),
+                );
+                ui.painter().rect_filled(mark, 1.0, slots.active.indicator);
+            } else {
+                ui.painter().add(t.elevation_raised().as_shape(face, RADIUS_M));
+                ui.painter().rect(
+                    face,
+                    RADIUS_M,
+                    slots.active.bg,
+                    egui::Stroke::new(STROKE_WIDTH, t.palette.border.subtle),
+                    egui::StrokeKind::Inside,
+                );
+            }
+        }
+        for (idx, response) in responses.into_iter().enumerate() {
+            let label = self.tabs[idx];
             let active = *self.selected_index == idx;
             response.widget_info(|| {
                 egui::WidgetInfo::selected(egui::Role::Tab, ui.is_enabled(), active, label)
             });
-            let slots = &t.components.tab;
             let slot = if active {
                 slots.active
             } else if response.hovered() {
@@ -148,26 +204,7 @@ impl<'a> TabBar<'a> {
             } else {
                 slots.inactive
             };
-            let face = rect.shrink2(egui::vec2(0.0, inset * 1.5));
-            if active && !self.underlined {
-                ui.painter().add(t.elevation_raised().as_shape(face, RADIUS_M));
-                ui.painter().rect(
-                    face,
-                    RADIUS_M,
-                    slot.bg,
-                    egui::Stroke::new(STROKE_WIDTH, t.palette.border.subtle),
-                    egui::StrokeKind::Inside,
-                );
-            } else if response.hovered() {
-                ui.painter().rect_filled(face, RADIUS_M, slots.hover.bg);
-            }
-            if active && self.underlined {
-                let mark = Rect::from_center_size(
-                    egui::pos2(face.center().x, face.bottom()),
-                    egui::vec2(face.width().min(20.0), 2.0),
-                );
-                ui.painter().rect_filled(mark, 1.0, slot.indicator);
-            }
+            let face = face_at(idx as f32);
             if response.has_focus() {
                 ui.painter().rect_stroke(
                     face,
@@ -202,13 +239,6 @@ impl<'a> TabBar<'a> {
             if show_text {
                 let pos = egui::Align2::CENTER_CENTER.anchor_size(center, text.size()).min;
                 painter.galley(pos, text, slot.fg);
-            }
-            if response.clicked() {
-                bar_response = bar_response.union(response.clone());
-                if !active {
-                    *self.selected_index = idx;
-                    bar_response.mark_changed();
-                }
             }
             finish_response(ui, response, self.tooltips.get(idx).copied().unwrap_or(label));
         }

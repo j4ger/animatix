@@ -318,8 +318,25 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
             } else {
                 slots.inactive
             };
-            if state.active || response.hovered() {
-                ui.painter().rect_filled(face, RADIUS_M, slot.bg);
+            let hover = crate::app::components::anim::animate_bool_eased(
+                ui.ctx(),
+                id.with("hover"),
+                response.hovered(),
+                eparts::tokens::motion::HOVER,
+            );
+            let selected = crate::app::components::anim::animate_bool_eased(
+                ui.ctx(),
+                id.with("selection"),
+                state.active,
+                eparts::tokens::motion::HOVER,
+            );
+            if hover > 0.0 || selected > 0.0 {
+                let fill = eparts::tokens::util::lerp_color(
+                    slots.hover.bg.gamma_multiply(hover),
+                    slots.active.bg,
+                    selected,
+                );
+                ui.painter().rect_filled(face, RADIUS_M, fill);
             }
             if response.has_focus() {
                 ui.painter().rect_stroke(
@@ -345,12 +362,16 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
             let text_pos =
                 egui::pos2(left + icon_w + sp.space_3, hit.center().y - label.size().y * 0.5);
             ui.painter().galley_with_override_text_color(text_pos, label, slot.fg);
-            if state.active {
+            if selected > 0.0 {
                 let mark = egui::Rect::from_center_size(
                     egui::pos2(face.center().x, hit.bottom() - 1.5),
-                    egui::vec2(sp.space_7, 2.0),
+                    egui::vec2(sp.space_7 * selected, 2.0),
                 );
-                ui.painter().rect_filled(mark, 1.0, slot.indicator);
+                ui.painter().rect_filled(
+                    mark,
+                    1.0,
+                    slots.active.indicator.gamma_multiply(selected),
+                );
             }
         }
         self.on_tab_button(tiles, tile_id, response)

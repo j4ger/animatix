@@ -2,8 +2,7 @@
 //! dispatch, and the merged-tab section switcher.
 
 use crate::app::components::button::Button;
-use crate::app::components::{anim, layout, text_tooltip};
-use crate::app::design_tokens::motion;
+use crate::app::components::{layout, text_tooltip};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::panels::{COMPACT_RAIL_WIDTH, CompactDrawer, SIDEBAR_TABS, SidebarTab};
 
@@ -35,10 +34,7 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
         render_sidebar_tab_bar(ui, &mut active_tab);
         ui.add_space(sp.base.space_4);
 
-        // Slide-in animation on tab switch
-        let content_offset_id = ui.scope_id().with("sidebar_slide");
         if prev_tab != active_tab {
-            ui.ctx().animate_value_with_time(content_offset_id, 6.0, 0.0);
             // Clear the file-tree / layer filters when leaving their tabs.
             if active_tab != SidebarTab::Project {
                 ui.data_mut(|d| d.remove::<String>(egui::Id::unique(EXPLORER_FILTER_ID)));
@@ -47,16 +43,10 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                 ui.data_mut(|d| d.remove::<String>(egui::Id::unique(LAYERS_FILTER_ID)));
             }
         }
-        let offset = anim::animate_toward(ui.ctx(), content_offset_id, 0.0, motion::PANEL);
-        if offset > 0.01 {
-            ui.ctx().request_repaint_after(std::time::Duration::from_millis(16));
-        }
-
         ui.allocate_ui_with_layout(
             ui.available_size(),
             egui::Layout::top_down(egui::Align::Min),
             |ui| {
-                ui.add_space(offset);
                 sidebar_tab_content_ui(ctx, ui, active_tab);
             },
         );

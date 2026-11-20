@@ -111,6 +111,10 @@ impl eframe::App for AnimatixApp {
                     eparts::MotionPreference::Full
                 };
                 eparts::set_motion_preference(ui.ctx(), pref);
+                ui.ctx().global_style_mut(|style| {
+                    style.animation_time =
+                        eparts::resolve_duration(pref, eparts::tokens::motion::PANEL);
+                });
                 self.applied_motion_preference = Some(reduce);
             }
 

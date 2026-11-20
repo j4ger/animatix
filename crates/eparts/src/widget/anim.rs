@@ -1,9 +1,4 @@
 //! Animation helpers using design token durations and easing.
-//!
-//! "Easing is metadata" — cubic-bezier curves are now sampled manually via
-//! `CubicBezier::sample()` (Newton-Raphson + binary search).
-//! `animate_toward_eased()` applies the sampled curve on top of egui's linear
-//! time interpolation, giving real non-linear animation.
 
 use egui::{Color32, Context, Id};
 
@@ -25,16 +20,10 @@ impl Lerp for f32 {
     }
 }
 
-impl Lerp for egui::Color32 {
+impl Lerp for Color32 {
     fn lerp(self, other: Self, t: f32) -> Self {
         let t = t.clamp(0.0, 1.0);
-        // Interpolate in linear-ish premultiplied space via egui's blend.
-        Color32::from_rgba_unmultiplied(
-            (self.r() as f32).lerp(other.r() as f32, t).round() as u8,
-            (self.g() as f32).lerp(other.g() as f32, t).round() as u8,
-            (self.b() as f32).lerp(other.b() as f32, t).round() as u8,
-            (self.a() as f32).lerp(other.a() as f32, t).round() as u8,
-        )
+        crate::tokens::util::lerp_color(self, other, t)
     }
 }
 
@@ -59,9 +48,6 @@ impl Lerp for egui::Vec2 {
 pub fn animate_toward(ctx: &Context, id: Id, target: f32, transition: Transition) -> f32 {
     let pref = motion_preference_from_ctx(ctx);
     let duration = resolve_duration(pref, transition);
-    if duration == INSTANT {
-        return target;
-    }
     ctx.animate_value_with_time(id, target, duration)
 }
 
@@ -86,19 +72,59 @@ pub fn animate_lerp<T: Lerp>(
     from.lerp(to, t)
 }
 
-/// Animates a boolean-state value (0.0 or 1.0 target) with easing.
-/// Returns the eased progress in [0, 1].
-/// Uses `animate_toward` for linear time progress, then applies the
-/// transition's cubic-bezier easing via `CubicBezier::sample()`.
-pub fn animate_toward_eased(ctx: &Context, id: Id, target: f32, transition: Transition) -> f32 {
-    let pref = motion_preference_from_ctx(ctx);
-    let duration = resolve_duration(pref, transition);
-    if duration == INSTANT {
-        return target;
+#[derive(Clone, Copy)]
+struct EasedValue {
+    from: f32,
+    target: f32,
+    started: f64,
+    transition: Transition,
+}
+
+impl EasedValue {
+    fn sample(self, now: f64) -> f32 {
+        let elapsed = (now - self.started) as f32;
+        if self.from == self.target || elapsed >= self.transition.duration {
+            return self.target;
+        }
+        let progress = self.transition.easing.sample(elapsed / self.transition.duration);
+        self.from + (self.target - self.from) * progress
     }
-    let linear = animate_toward(ctx, id, target, transition);
-    // linear is in [0, 1] because target is either 0 or 1 and initial value is the opposite
-    transition.easing.sample(linear.clamp(0.0, 1.0))
+}
+
+/// Animate a scalar in its own coordinate space. A reversal starts from the
+/// currently visible value, even when the next transition has a different curve.
+pub fn animate_toward_eased(ctx: &Context, id: Id, target: f32, transition: Transition) -> f32 {
+    let duration = resolve_duration(motion_preference_from_ctx(ctx), transition);
+    let now = ctx.input(|i| i.time);
+    let (value, moving) = ctx.data_mut(|d| {
+        let state = d.get_temp_mut_or(
+            id,
+            EasedValue {
+                from: target,
+                target,
+                started: now,
+                transition,
+            },
+        );
+        if duration == INSTANT {
+            state.from = target;
+            state.target = target;
+        } else if state.target != target {
+            *state = EasedValue {
+                from: state.sample(now),
+                target,
+                started: now,
+                transition,
+            };
+        }
+        let moving =
+            state.from != target && now - state.started < f64::from(state.transition.duration);
+        (state.sample(now), moving)
+    });
+    if moving {
+        ctx.request_repaint();
+    }
+    value
 }
 
 #[cfg(test)]
@@ -165,6 +191,40 @@ mod tests {
             },
         );
         assert_eq!(result, 42.0);
+    }
+
+    #[test]
+    fn eased_indicator_retargets_from_its_visible_position_and_reduced_motion_settles() {
+        use crate::tokens::motion::{HOVER, MotionPreference, PANEL, set_motion_preference};
+        let ctx = Context::default();
+        let id = Id::unique("indicator");
+        let frame = |time, target, transition| {
+            let mut value = 0.0;
+            let _ = crate::run_ui(
+                &ctx,
+                egui::RawInput {
+                    time: Some(time),
+                    ..Default::default()
+                },
+                |_| {
+                    value = animate_toward_eased(&ctx, id, target, transition);
+                },
+            );
+            value
+        };
+        assert_eq!(frame(0.0, 1.0, PANEL), 1.0);
+        assert_eq!(frame(0.1, 3.0, PANEL), 1.0);
+        let midpoint = frame(0.2, 3.0, PANEL);
+        assert!(midpoint > 1.0 && midpoint < 3.0);
+        assert_eq!(frame(0.2, 0.0, HOVER), midpoint);
+        let returning = frame(0.23, 0.0, HOVER);
+        assert!(returning > 0.0 && returning < midpoint);
+        set_motion_preference(&ctx, MotionPreference::Reduced);
+        assert_eq!(frame(0.24, 2.0, HOVER), 2.0);
+        set_motion_preference(&ctx, MotionPreference::Full);
+        assert_eq!(frame(0.25, 2.0, HOVER), 2.0);
+        assert_eq!(frame(0.26, 0.0, HOVER), 2.0);
+        assert_eq!(frame(0.37, 0.0, HOVER), 0.0);
     }
 
     #[test]

@@ -162,7 +162,11 @@ introduce a separate timing truth, or reserialize the entire AST for a small edi
 Use the shared [`anim` helpers](../crates/eparts/src/widget/anim.rs), not scattered
 `animate_value_with_time` calls. Use tokenized durations/easing: ordinary panel
 transitions use `NORMAL`/`STANDARD`; durations longer than `SLOW` need an explicit
-reason. Selection and playhead scrubbing update immediately, with no animation lag.
+reason. Selection changes and playhead scrubbing take effect immediately. The segmented
+control moves its highlight to the new tab over 200 ms. Its position follows tab
+geometry during resizes. Hover fades and dock-tab marks settle over 100 ms.
+Content stays in place while switching sidebar views. Dialogs enter over 200 ms
+and dismiss over 100 ms, including when dismissed partway through entry.
 
 Respect `MotionPreference::Reduced`: non-essential transitions resolve to
 `INSTANT`. The existing helpers apply this preference; do not bypass it with a
