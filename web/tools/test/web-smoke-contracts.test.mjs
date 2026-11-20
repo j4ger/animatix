@@ -34,6 +34,8 @@ test('project base prefixes contracts and links, never silently tests root',asyn
 test('compatibility pages require destinations and showcase checks presets',()=>{
  for(const path of ['/gallery.html','/tour/'])assert.ok(contracts('site').find(c=>c.path===path).links.length>=2);
  assert.equal(contracts('site').find(c=>c.path.startsWith('/showcase/')).preset,true);
+ assert.ok(contracts('site').some(c=>c.backend==='webgl2'&&c.action==='load'));
+ assert.ok(contracts('site').some(c=>c.action==='recording'&&c.recording));
 });
 test('navigation retries only destroyed execution contexts within a deadline',async()=>{
  const {navigationCommitted}=await import('./web-smoke-browser.mjs');let calls=0;
@@ -43,13 +45,15 @@ test('navigation retries only destroyed execution contexts within a deadline',as
  await assert.rejects(navigationCommitted({evaluate:async()=>{throw Error('Execution context was destroyed.');}},'https://example.test',10),/Timed out/);
 });
 
-test('deep explicitly covers every current Astro work and lesson exactly once',()=>{
+test('deep covers each current work, lesson and technique alongside the fallback journeys',()=>{
  const content=readFileSync(new URL('../../app/src/lib/content.ts',import.meta.url),'utf8');
+ const techniques=readFileSync(new URL('../../app/src/lib/techniques.ts',import.meta.url),'utf8');
  const works=content.split('export const works = [')[1].split('];')[0];
  const lessons=content.split('export const lessons = [')[1].split('];')[0];
  const ids=section=>[...section.matchAll(/\bid: '([^']+)'/g)].map(m=>m[1]);
- const expected=[...ids(works).map(id=>`/showcase/${id}/`),...ids(lessons).map(id=>`/learn/${id}/`)];
- const actual=contracts('site','deep').filter(c=>c.action==='load').map(c=>c.path);
+ const expected=[...ids(works).map(id=>`/showcase/${id}/`),...ids(lessons).map(id=>`/learn/${id}/`),
+  ...ids(techniques).map(id=>`/learn/techniques/${id}/`)];
+ const actual=contracts('site','deep').filter(c=>c.action==='load'&&!c.backend).map(c=>c.path);
  assert.deepEqual(actual.sort(),expected.sort());
  assert.equal(new Set(actual).size,actual.length);
  assert.equal(contracts('site','deep').at(-1).action,'edit');

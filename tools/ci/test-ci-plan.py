@@ -133,7 +133,8 @@ class PlannerTests(unittest.TestCase):
 
     def test_deep_risk_selection_and_normal_budget(self):
         for path in ("crates/animatix-render/src/frame.rs", "web/embed/src/runtime/loader.js",
-                     "crates/animatix-core/src/property.rs", "shaders/new.wgsl", "Cargo.lock"):
+                     "crates/animatix-core/src/property.rs", "shaders/new.wgsl", "Cargo.lock",
+                     "web/app/src/components/Scene.astro", "web/app/src/scripts/scene.ts"):
             with self.subTest(path=path):
                 _, plan = self.plan([path])
                 self.assertEqual(plan["web_smoke"]["depth"], "deep")

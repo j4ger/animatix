@@ -1,22 +1,130 @@
 ---
-import {url,works} from '../lib/content';
-const {id, title, source = `${id}.amx`, editor = false, compact = false} = Astro.props;
-const recorded=works.some(work=>work.id===id)&&!editor;
+import {url} from '../lib/content';
+
+interface Props {
+  id: string;
+  title: string;
+  posterAlt?: string;
+  recording?: boolean;
+  editor?: boolean;
+}
+
+const {id, title, posterAlt = '', recording = false, editor = false} = Astro.props;
+const poster = url(`content/posters/${id}.png`);
 ---
-<div class="scene-shell" data-scene-shell data-module={url('runtime/amx-player.js')} data-source={url(`content/scenes/${source}`)} data-title={title}>
- <div class:list={["scene-placeholder", {"compact-placeholder": compact && !recorded && !editor}]}><span class="eyebrow">AMX / {editor ? 'YOUR SOURCE' : id}</span><h2>{title}</h2><p>{editor?'Press Run to build the source in the editor.':recorded?'Play a recording, or load the interactive AMX scene.':'Load the interactive AMX scene in your browser.'}<br/>Interactive playback requires WebGPU or WebGL2. Nothing plays automatically.</p><div class="actions"><button class="button primary load-scene" hidden={editor}>Load interactive →</button>{recorded&&<button class="button watch-recording">Watch recording →</button>}</div></div>
- <div class="scene-mount"></div>
- {recorded&&<div class="recording-panel" hidden><video controls playsinline preload="none" width="1280" height="720" poster={url(`content/posters/${id}.png`)} data-recording={url(`content/previews/${id}.mp4`)} aria-label={`${title} — recorded default version`}></video><div class="recording-caption"><p>Recorded default version. Parameters and edited code require interactive playback.</p><div class="recording-actions"><button class="button pause-recording">Pause recording</button><button class="button restart-recording">Restart recording</button><button class="button load-scene">Try interactive →</button></div></div></div>}
- <p class="scene-status" role="status" aria-live="polite"></p>
+<div class="scene-shell" data-scene-shell data-module={url('runtime/amx-player.js')}
+     data-source={url(`content/scenes/${id}.amx`)} data-title={title}>
+  <div class="scene-surface">
+    <div class:list={['scene-placeholder', { 'editor-placeholder': editor }]}>
+      {editor ? <p>Run your source to open the preview.</p> :
+        <div class="scene-poster">
+          <img src={poster} alt={posterAlt} width="1280" height="720" decoding="async"/>
+          <button class="load-scene" type="button" aria-label={`Play live: ${title}`}>
+            <span class="button primary"><span aria-hidden="true">▶</span> Play live</span>
+          </button>
+        </div>}
+    </div>
+    <div class="scene-mount" role="region" aria-label={`${title} playback`} tabindex="-1"></div>
+  </div>
+  {recording && <div class="recording-panel" hidden>
+    <video controls playsinline preload="none" width="1280" height="720" poster={poster}
+           data-recording={url(`content/previews/${id}.mp4`)} aria-label={`${title} — recording`}
+           tabindex="0"></video>
+    <div class="recording-caption">
+      <p>Recording of the original settings.</p>
+      <button class="button load-scene" type="button">Try live playback again</button>
+    </div>
+  </div>}
+  <p class="scene-status" role="status" aria-live="polite"></p>
+  {recording && <div class="scene-fallback" hidden>
+    <button class="button watch-recording" type="button">Play recording</button>
+  </div>}
 </div>
 <script src="../scripts/scene.ts"></script>
 
 <style>
- /* Only the unloaded explanatory panel is compact. The live mount and all
-    recorded/editor surfaces retain their own aspect ratio and dimensions. */
- .scene-placeholder.compact-placeholder {
-   aspect-ratio: auto;
-   min-height: 0;
-   padding: clamp(20px, 3vw, 32px);
- }
+  .scene-surface {
+    position: relative;
+  }
+
+  .editor-placeholder {
+    display: grid;
+    min-height: 180px;
+    aspect-ratio: 16 / 9;
+    place-items: center;
+    padding: 20px;
+    text-align: center;
+  }
+
+  .editor-placeholder p {
+    margin: 0;
+  }
+
+  .scene-poster {
+    position: relative;
+    background: #0d1520;
+  }
+
+  .scene-poster img,
+  .recording-panel video {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    background: #0d1520;
+  }
+
+  .scene-poster button {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: clamp(12px, 3vw, 28px);
+    border: 0;
+    background: linear-gradient(transparent 60%, #0d1520a6);
+    outline-offset: -5px;
+  }
+
+  .scene-poster button:disabled {
+    opacity: 1;
+  }
+
+  .scene-poster .button {
+    gap: 10px;
+    box-shadow: 0 2px 16px #0d1520b3;
+  }
+
+  .scene-poster button:not(:disabled):hover .button {
+    background: #e4ffca;
+  }
+
+  .scene-surface[aria-busy="true"] .scene-mount {
+    position: absolute;
+    inset: 0;
+    visibility: hidden;
+  }
+
+  .scene-mount:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+
+  .scene-fallback {
+    padding: 0 22px 18px;
+  }
+
+  .recording-caption {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px 20px;
+    flex-wrap: wrap;
+    padding: 14px 20px;
+  }
+
+  .recording-caption p {
+    font-size: 13px;
+    margin: 0;
+  }
 </style>

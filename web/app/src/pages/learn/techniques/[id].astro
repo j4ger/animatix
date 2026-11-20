@@ -1,7 +1,6 @@
 ---
 import Page from '../../../layouts/Page.astro';
 import Scene from '../../../components/Scene.astro';
-import Poster from '../../../components/Poster.astro';
 import {url} from '../../../lib/content';
 import {techniques} from '../../../lib/techniques';
 export function getStaticPaths(){return techniques.map(technique=>({params:{id:technique.id},props:{technique}}));}
@@ -21,11 +20,7 @@ const source=sources[`../../../../../content/scenes/${technique.file}.amx`];
     <p class="eyebrow">Technique / {technique.duration} seconds</p>
     <h1>{technique.title}.</h1><p class="lead">{technique.goal}</p>
   </section>
-  <figure class="technique-preview">
-    <Poster kind={technique.file} title={descriptions[technique.id]}/>
-    <figcaption class="small muted">Native-rendered resting frame. Load the interactive scene below to see the timing.</figcaption>
-  </figure>
-  <Scene compact id={technique.file} title={technique.title}/>
+  <Scene id={technique.file} title={technique.title} posterAlt={descriptions[technique.id]}/>
   <div class="work-detail">
     <div>
       <p class="eyebrow">What to notice</p><p>{technique.explanation}</p>
@@ -39,8 +34,3 @@ const source=sources[`../../../../../content/scenes/${technique.file}.amx`];
     </div>
   </div>
 </Page>
-
-<style>
-  .technique-preview { margin: 0 0 2rem; }
-  figcaption { margin-top: .75rem; max-width: 70ch; }
-</style>

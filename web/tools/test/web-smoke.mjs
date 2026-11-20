@@ -90,7 +90,7 @@ async function main(){
       const checkErrors=async()=>{
         const errors=await cdp.evaluate(`window.__smoke?.errors||[]`);
         const status=await cdp.evaluate(`document.querySelector('.scene-status')?.textContent||''`);
-        if(errors.length||pageErrors.length||/Could not load|Playback unavailable/.test(status))throw Error([...errors,...pageErrors,status].filter(Boolean).join('\n'));
+        if(errors.length||pageErrors.length||/Could not load|Live playback unavailable/.test(status))throw Error([...errors,...pageErrors,status].filter(Boolean).join('\n'));
         if(/Error while parsing WGSL|GPU validation error/.test(browserLog))throw Error('GPU validation failed (see chromium.log)');
       };
       const capture=async(index,name)=>{

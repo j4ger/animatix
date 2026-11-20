@@ -6,6 +6,8 @@ Every source is self-contained. Page titles and long explanations belong in the 
 
 | Source | Duration | Build-time controls | Visual argument |
 |---|---:|---|---|
+| `scenes/move-the-basis.amx` | 24 s | none | A horizontal shear changes shape and direction while preserving area against a fixed reference. |
+| `scenes/make-room.amx` | 24 s | none | Stable insertion sort preserves the order of equal keys while shifting a sorted prefix. |
 | `scenes/one-rule-many-forms.amx` | 20 s | `preset=0` or `1` | One shape → 48 copies → distance controls delay → changing the distance rule changes the choreography. Not a benchmark. |
 | `scenes/when-waves-meet.amx` | 28 s | `phase_degrees=0`, `90`, `180` | Reveal A and B, add their heights at one x position, reveal the full sum, then change the phase. |
 | `scenes/words-keep-time.amx` | 20 s | none | “We can change this.” Emphasize WE, CAN, CHANGE to shift agency, possibility and action; finish with a three-row comparison. Silent edition, not voiceover sync. |
@@ -45,9 +47,18 @@ The complete sentence is readable from the first frame. WE is emphasized at 2 s 
 
 Lessons are intentionally minimal, not duplicated work scenes. Lesson 06 can demonstrate `animatix image finish.amx --time 5 -o poster.png`. Video requires a CLI built with the `video` feature.
 
-## Recorded fallback and provenance
+## Live playback and recorded fallback
 
-`previews/<work-id>.mp4` is the recorded **authored-default** edition, not live WASM. All recordings are silent H.264/yuv420p, 1280×720, 24 fps, with MP4 fast-start and normalized frame timestamps. The three frame counts are 480/672/480 and durations 20/28/20 s. The UI must identify recorded playback and must not suggest live parameter/code changes affect it. Poster timestamps and source/artifact hashes live in `preview-manifest.json`.
+The 15 current works, lessons and techniques use their published AMX sources.
+Choose **Play live** on the poster to start the engine. The poster remains
+visible during load or after an error. Showcase works also offer **Play
+recording** after a live playback failure. Recordings always show the authored
+default settings.
+
+`preview-manifest.json` binds each work to its source, poster and optional
+recording. All five recordings are silent H.264/yuv420p, 1280×720 at 24 fps,
+with MP4 fast-start and normalized frame timestamps. The manifest carries each
+duration, poster timestamp and artifact hash.
 
 Render at the authored resolution: the current CLI's smaller `--width/--height` video options cropped this scene instead of scaling. The initial low-resolution attempt was rejected after viewing encoded frames. Current delivered recordings have no crop or resize.
 

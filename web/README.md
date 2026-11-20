@@ -4,18 +4,23 @@ A static Astro site around the `.amx` player. The website has
 three paths: **Showcase**, **Learn**, and a small **Playground**. No backend,
 accounts or client-side UI framework are required.
 
-The new scenes live in `content/scenes/`. Lessons embed their exact source;
-Playground edits and downloads that source. Nothing is saved automatically.
-Showcase recordings are available without a graphics API. Interactive playback
-and edited previews use WebGPU or WebGL2. Words Keep
-Time is currently a silent edition, not an audio-sync demonstration.
+The canonical scenes live in `content/scenes/`. The five Showcase works, six
+lessons and four techniques use the same **Play live** poster. The poster stays
+visible while the `.amx` source and SDK load. Playback tries WebGPU first and
+falls back to WebGL2 automatically.
+
+A Showcase work offers its recording if live playback fails. The video is
+fetched only when the visitor chooses **Play recording**. Lessons and techniques
+keep their poster and source available after an error. The homepage and catalog
+use static covers. Playground builds and previews edited source when the visitor
+presses **Run**. Edits stay in the tab until downloaded.
 
 ## Source map
 
 | Location | Purpose |
 |---|---|
 | `web/app/` | Astro pages, shared layout, small TypeScript interactions, npm lock |
-| `web/content/scenes/` | Canonical new works and six lesson sources |
+| `web/content/scenes/` | Five works, six lessons, four techniques and the hero source |
 | `web/content/posters/`, `previews/`, `preview-manifest.json` | Native-rendered media and source/media integrity records |
 | `web/embed/src/` | Existing `<amx-player>` web component |
 | `web/runtime/` | Generated SDK and manifest; copied unchanged into distributions |
@@ -57,8 +62,8 @@ and document intact; after `destroy()`, create a new element to mount again.
 
 Loading and attribute-driven rebuild failures emit a bubbling `amxerror` event
 with `detail: { src, kind, message, error, diagnostics? }`. `kind` is one of
-`resource` (source, import, font or media fetch), `capability` (WebGPU or a
-required runtime capability), `version` (manifest, Wasm integrity or runtime
+`resource` (source, import, font or media fetch), `capability` (graphics backend
+or required runtime capability), `version` (manifest, Wasm integrity or runtime
 identity mismatch), or `build` (source analysis or document build). `error` is
 an `Error` carrying the same `kind`; `diagnostics` is present when the build
 produced diagnostics. Superseded or destroyed operations reject with
@@ -135,11 +140,11 @@ Nix pins Node24 via `flake.lock`; npm pins Astro and transitive dependencies via
 ### Verification and inspection tools
 
 ```bash
-# Inspect all <amx-player> instances on a page and save canvas frames:
-python3 web/tools/dev/web-inspect.py --url http://127.0.0.1:8124/demos/transformer/ --output-dir /tmp/shots
+# Exercise the live-playback entry, WebGL2 fallback and recording recovery:
+tools/ci/ci.sh gate web-site-smoke
 
 # Extract and render keyframes from an .amx scene and generate a contact sheet:
-tools/quality/render-keyframes.sh web/scenes/hero.amx /tmp/hero_frames
+tools/quality/render-keyframes.sh web/content/scenes/hero.amx /tmp/hero_frames
 tools/quality/contact-sheet.sh /tmp/hero_frames /tmp/hero_sheet.png
 ```
 
@@ -158,10 +163,11 @@ not duplicate its version in setup commands.
 
 `tools/ci/ci.sh gate web-smoke` (in `nix develop .#web-ci`, after
 `web-build`) exercises small SDK capability fixtures. `web-site-smoke` assembles
-the real Astro distribution and follows its critical user journeys; `site-smoke`
-tests an already assembled `_site/`. The historical HTML under `web/` is not
-release-site coverage. See [browser smoke contracts](../docs/web-smoke.md) for
-assertions, failure evidence and the restricted startup-retry policy.
+the real Astro distribution and follows its critical user journeys.
+`site-smoke` tests an already assembled `_site/`. Set `SMOKE_DEPTH=deep` to
+exercise all 15 current demonstration pages. See [browser smoke
+contracts](../docs/web-smoke.md) for assertions, failure evidence and the
+startup-retry policy.
 
 The web build uses the pinned `zopfli` 1.0.3 tool only to create the base
 Wasm's gzip representation. Brotli and gzip capability/font assets have their
@@ -306,7 +312,8 @@ Behavior:
   `hold` (seconds, default 0.7), `title` (a11y label, shown while loading),
   `aspect` (`16:9`/`4:3`/`1:1`/`9:16`, auto-detected from the scene
   afterwards), `quality` (below), `data-vars` (build-time
-  overrides, below), `sealed` and `fit` (page-driven mode, below),
+  overrides, below), `eager` (start loading when the element connects, even
+  offscreen), `sealed` and `fit` (page-driven mode, below),
   `no-veil` (suppress the generic loading veil so a page can paint its own
   `.poster-plate` under the player; error veils still show),
   `debug-frame` (frame readout, below).

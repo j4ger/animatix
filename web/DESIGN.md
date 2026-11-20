@@ -41,7 +41,13 @@ and an offline storyboard.
   paths and data. Keep hierarchy stronger than decorative chrome.
 - Give major players room. Pair a full-width or asymmetric stage with concise
   explanatory text; avoid wrapping every paragraph in another card.
-- A poster must be understandable before hover. Hover starts motion, not visibility.
+- Use a readable authored frame as the poster. In the Showcase and Learn,
+  clicking the poster starts live playback. Keep it visible until the first
+  engine frame is ready. Keep catalog covers static so browsing opens no GPU
+  contexts.
+- Offer the Showcase recording after live playback fails. Identify it as the
+  authored-default recording and fetch the MP4 when the visitor chooses it.
+  Keep the AMX source and Playground links available during recovery.
 - Provide scrubbing where timing matters. Parameter sliders should expose a small
   number of meaningful build-time variables with authored defaults.
 
@@ -54,8 +60,9 @@ for promise, cancellation and error behavior.
 
 Current work and lesson metadata lives in `web/app/src/lib/content.ts`; technique
 metadata lives in `techniques.ts`. Canonical published AMX and media live under
-`web/content/`. Astro builds the pages; change those sources rather than the
-the retired HTML generator or its historical work manifest.
+`web/content/`. Update the Astro templates and their content metadata when
+changing a public demonstration. Archive entries retain their separate source
+links.
 
 Keep developer probes under `web/dev/`, outside showcase navigation. Shared modules at `examples/lib/` are source dependencies for examples and
 regression tests, not built-in engine content or a requirement for new work.

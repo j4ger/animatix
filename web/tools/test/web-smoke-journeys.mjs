@@ -8,8 +8,13 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
   await until('page complete', () => cdp.evaluate(`document.readyState==='complete'`));
   if (!await cdp.evaluate(`!!document.querySelector('body')`)) throw new Error('Missing document body');
   if (contract.action !== 'fixture') {
-    const cold = await cdp.evaluate(`({players:${players}.length, wasm:performance.getEntriesByType('resource').filter(x=>/\\.wasm(?:[?#]|$)/.test(x.name)).length})`);
-    if (cold.players || cold.wasm) throw new Error('Public page eagerly initialized the runtime before user interaction');
+    const cold = await cdp.evaluate(`({
+      players: ${players}.length,
+      requests: performance.getEntriesByType('resource').filter(entry =>
+        ['.wasm', '.wasm.gz', '.mp4', '/runtime/amx-player.js'].some(suffix =>
+          new URL(entry.name).pathname.endsWith(suffix))).length,
+    })`);
+    if (cold.players || cold.requests) throw new Error('Public page loaded the runtime or a recording before user interaction');
   }
   if (contract.action === 'static') {
     for (const path of contract.links || []) {
@@ -20,9 +25,14 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
     return;
   }
   record({kind:'action',action:contract.action,pageTimeMs:await cdp.evaluate('performance.now()')});
-  if (contract.action === 'load') {
-    await cdp.evaluate(`(()=>{const b=document.querySelector('.load-scene');if(!b||b.hidden)throw Error('Missing Load interactive button');b.scrollIntoView({block:'center'});b.click();})()`);
+  if (contract.backend === 'webgl2' || contract.action === 'recording') {
+    await cdp.evaluate(`Object.defineProperty(navigator, 'gpu', {value: undefined}); true`);
   }
+  if (contract.action === 'recording') {
+    await recordingJourney(cdp, record);
+    return;
+  }
+  if (contract.action === 'load') await startPoster(cdp, Boolean(contract.recording));
   if (contract.action === 'edit') {
     await until('source ready', () => cdp.evaluate(`document.querySelector('#editor-status')?.textContent.startsWith('Source ready.')`));
     await cdp.evaluate(`(()=>{const code=document.querySelector('#source-code');if(!code.value.includes('#65D9E8'))throw Error('Unexpected first-move source');code.value=code.value.replace('#65D9E8','#F46EA0');code.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#run').click();})()`);
@@ -44,8 +54,17 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
       });
     }
     await diagnose('before-pause');
-    const info = await cdp.evaluate(`(()=>{const p=${players}[${index}];p.pause();return {src:p.getAttribute('src'),duration:p.duration,report:p.debugReport?.()};})()`);
+    const info = await cdp.evaluate(`(()=>{const p=${players}[${index}];p.pause();return {src:p.getAttribute('src'),duration:p.duration,backend:p.backend,report:p.debugReport?.()};})()`);
     if (!(info.duration > 0)) throw new Error('Invalid public duration');
+    if (contract.backend && info.backend !== contract.backend) throw Error(`Expected ${contract.backend}, got ${info.backend}`);
+    if (contract.action === 'load') {
+      await until('poster replaced by the ready player', () => cdp.evaluate(`
+        document.querySelector('.scene-placeholder').hidden &&
+        !document.querySelector('.scene-surface').hasAttribute('aria-busy') &&
+        (document.querySelector('.scene-fallback')?.hidden ?? true) &&
+        document.activeElement === document.querySelector('.scene-mount')
+      `));
+    }
     const samples = contract.motion ? [0, 2.1] : [info.duration * 0.65];
     for (const time of samples) {
       await diagnose(`before-seek-${time}`);
@@ -78,6 +97,7 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
     assertPaint(await capture(0,'retained'), {color:'#F46EA0',x:920/1280,y:0.5,tolerance:0.08});
   }
   const resources = await cdp.evaluate(`performance.getEntriesByType('resource').map(x=>({name:new URL(x.name).pathname,startMs:x.startTime,durationMs:x.duration,bytes:x.transferSize}))`);
+  if (resources.some(x=>x.name.endsWith('.mp4'))) throw Error('Live playback fetched a recording');
   const fonts = resources.filter(x=>/\/fonts\/.*\.gz$/.test(x.name));
   if (contract.fonts !== undefined && Boolean(fonts.length) !== contract.fonts) throw new Error(`Font contract violated: expected ${contract.fonts}, requests ${fonts.length}`);
   const events = await cdp.evaluate(`__smoke.events`);
@@ -85,7 +105,69 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
   await checkErrors();
 }
 
+async function startPoster(cdp, hasRecording) {
+  await until('rendered poster image', () => cdp.evaluate(`document.querySelector('.scene-poster img')?.naturalWidth === 1280`));
+  await cdp.evaluate(`(() => {
+    const poster = document.querySelector('.scene-placeholder');
+    const action = poster.querySelector('.load-scene');
+    const fallback = document.querySelector('.scene-fallback');
+    if (poster.hidden || !action.getClientRects().length) throw Error('Missing visible Play live poster');
+    if (Boolean(fallback) !== ${hasRecording} || (fallback && !fallback.hidden)) {
+      throw Error('Unexpected recording action on an unopened scene');
+    }
+    action.scrollIntoView({block:'center', behavior:'instant'});
+    action.focus();
+    action.click();
+    if (poster.hidden || document.querySelector('.scene-surface').getAttribute('aria-busy') !== 'true') {
+      throw Error('Poster must stay visible while live playback starts');
+    }
+  })()`);
+}
+
+async function recordingJourney(cdp, record) {
+  await cdp.evaluate(`(() => {
+    const getContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function(kind, ...args) {
+      return kind === 'webgl2' ? null : getContext.call(this, kind, ...args);
+    };
+  })()`);
+  await startPoster(cdp, true);
+  async function failedWithPoster() {
+    await until('graphics failure and recording choice', () => cdp.evaluate(`
+      document.querySelector('.scene-status').textContent.includes('could not start WebGPU or WebGL2') &&
+      !document.querySelector('.scene-placeholder').hidden &&
+      !document.querySelector('.scene-fallback').hidden &&
+      !document.querySelector('amx-player') &&
+      document.querySelector('[data-controls] select').disabled
+    `));
+  }
+  await failedWithPoster();
+  const point = await cdp.evaluate(`(() => {
+    const video = document.querySelector('video');
+    if (video.hasAttribute('src') || performance.getEntriesByType('resource').some(entry =>
+      new URL(entry.name).pathname.endsWith('.mp4'))) throw Error('Recording fetched before the user chose it');
+    const button = document.querySelector('.watch-recording');
+    if (document.activeElement !== button) throw Error('Recording choice did not receive keyboard focus');
+    button.scrollIntoView({block:'center', behavior:'instant'});
+    const box = button.getBoundingClientRect();
+    return {x: box.x + box.width / 2, y: box.y + box.height / 2};
+  })()`);
+  for (const type of ['mousePressed', 'mouseReleased']) {
+    await cdp.send('Input.dispatchMouseEvent', {type, ...point, button:'left', clickCount:1});
+  }
+  await until('recording playback', () => cdp.evaluate(`document.querySelector('video').currentTime > 0.1`));
+  await cdp.evaluate(`document.querySelector('.recording-panel .load-scene').click()`);
+  await failedWithPoster();
+  if (!await cdp.evaluate(`document.querySelector('.recording-panel').hidden && document.querySelector('video').paused`)) {
+    throw Error('Retry must pause the recording and return to the poster');
+  }
+  record({kind:'recording-fallback', liveRetry:true});
+}
+
 async function presetJourney(cdp, capture, checkErrors, record) {
+  if (await cdp.evaluate(`document.querySelector('[data-controls] [role=status]').textContent.trim()`)) {
+    throw new Error('Enabled presets still display a startup instruction');
+  }
   await cdp.evaluate(`(()=>{const input=document.querySelector('[data-controls] select');if(!input||input.disabled)throw Error('Preset control did not enable after load');input.value='1';input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await until('preset applied', async()=>{
     await checkErrors();
