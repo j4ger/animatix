@@ -1,10 +1,10 @@
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6 }
 
 #0s
-  background: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
+  background: Rect, at: (640, 360), size: (1280, 720), color: hex_color("0d1520")
   // A value is computed from absolute scene time. Scrubbing never accumulates drift.
-  ring: Ellipse, at: (640, 360), size: (300, 300), fill_opacity: 0, stroke: "#344455", stroke_width: 2
-  point: Ellipse, at: (790, 360), size: (48, 48), color: "#65D9E8"
+  ring: Ellipse, at: (640, 360), size: (300, 300), fill_opacity: 0, stroke: hex_color("344455"), stroke_width: 2
+  point: Ellipse, at: (790, 360), size: (48, 48), color: hex_color("65d9e8")
   always {
       let angle = ((2 * pi) * t) / 6
       point.at = (640 + 150 * cos(angle), 360 - 150 * sin(angle))

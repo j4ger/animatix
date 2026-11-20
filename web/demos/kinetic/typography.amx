@@ -43,14 +43,14 @@ chip_tilt: Readout, label: "PLANE TILT", value: format("{:.0}°", tilt), at: (11
 // Children are placed in plane-local coordinates; text_anchor pins the left
 // edge at scene x=96 (the editorial column the head's rule starts on).
 plane: Group, at: (640, 400), rotate_y: tilt * 0.0174532925, rotate_x: 0 - tilt * 0.02443461, opacity: 1 {
-bloom: Ellipse, size: (980, 340), at: (-180, -48), blend: "screen", opacity: 0, fill_gradient: radial((0.5, 0.5), 0.6, {(0%, "#ff705240"), (45%, "#ff705214"), (100%, "#ff705200")})
+bloom: Ellipse, size: (980, 340), at: (-180, -48), blend: "screen", opacity: 0, fill_gradient: radial((0.5, 0.5), 0.6, {(0%, hex_color("ff705240")), (45%, hex_color("ff705214")), (100%, hex_color("ff705200"))})
   // The two baseline rules are on the lit stage at t=0 — the empty masks the
   // words are about to lift through (house-style §1: the subject's silhouette
   // is ink at frame 0). They brighten as their line lands.
 base1: Rect, size: (540, 3), color: accent.primary, at: (-274, -56), opacity: 0.3
-base2: Rect, size: (500, 3), color: "#f5b942", at: (-294, 88), opacity: 0.3
+base2: Rect, size: (500, 3), color: hex_color("f5b942"), at: (-294, 88), opacity: 0.3
 l1: Text, text: "MOTION IS", font_size: 96, font_weight: "bold", color: text.primary, text_align: "left", text_anchor: "left", at: (-544, -120), opacity: 0
-l2: Text, text: "MEANING.", font_size: 96, font_weight: "bold", fill_gradient: linear(90, {accent.primary, "#f5b942"}), text_align: "left", text_anchor: "left", at: (-544, 24), opacity: 0
+l2: Text, text: "MEANING.", font_size: 96, font_weight: "bold", fill_gradient: linear(90, {accent.primary, hex_color("f5b942")}), text_align: "left", text_anchor: "left", at: (-544, 24), opacity: 0
 l3: Text, text: "not decoration — baseline-masked, staggered, sprung.", font_size: 26, color: text.secondary, text_align: "left", text_anchor: "left", text_max_width: 880, at: (-544, 152), opacity: 0
 l4: Text, text: "— THE KINETIC MANIFESTO", font_size: 18, font_weight: 600, font_family: "mono", color: text.muted, letter_spacing: 3, text_anchor: "left", at: (-544, 200), opacity: 0
 }

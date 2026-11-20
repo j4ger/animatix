@@ -124,8 +124,22 @@ impl<'a> TypeEnv<'a> {
             Stmt::Return {
                 value: Some(expr), ..
             } => self.check_expr_calls(expr, diagnostics),
-            Stmt::Assignment { value, .. } | Stmt::ReactiveBinding { value, .. } => {
+            Stmt::Assignment {
+                target,
+                property,
+                value,
+                value_span,
+                ..
+            }
+            | Stmt::ReactiveBinding {
+                target,
+                property,
+                value,
+                value_span,
+                ..
+            } => {
                 self.check_expr_calls(value, diagnostics);
+                self.check_color_assignment(target, property, value, *value_span, diagnostics);
             },
             Stmt::ComponentDef(def, _span) => {
                 self.check_component_def(def, diagnostics);
@@ -182,6 +196,8 @@ impl<'a> TypeEnv<'a> {
         // Check if this actor decl instantiates a component
         if let Some(entry) = self.components.get(ty) {
             self.check_component_props(ty, &entry.definition, props, diagnostics);
+        } else {
+            self.check_primitive_color_props(ty, props, diagnostics);
         }
         // Recurse into children
         for child in children {
@@ -609,6 +625,8 @@ impl<'a> TypeEnv<'a> {
             } => {
                 if let Some(entry) = self.components.get(ty) {
                     self.check_component_props(ty, &entry.definition, props, diagnostics);
+                } else {
+                    self.check_primitive_color_props(ty, props, diagnostics);
                 }
                 for child in children {
                     self.check_inline_item(child, diagnostics);
@@ -631,6 +649,8 @@ impl<'a> TypeEnv<'a> {
                 }
                 if let Some(entry) = self.components.get(ty) {
                     self.check_component_props(ty, &entry.definition, props, diagnostics);
+                } else {
+                    self.check_primitive_color_props(ty, props, diagnostics);
                 }
                 for child in children {
                     self.check_inline_item(child, diagnostics);

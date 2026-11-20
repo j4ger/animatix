@@ -4,20 +4,20 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 4 }
 
 component DiagramNode(title: Str, color: Color) {
   body: Rect, size: (210, 112), corner_radius: 18, color: color
-  marker: Ellipse, size: (18, 18), at: (78, 0), color: "#ffffff"
-  heading: Text, text: title, font_size: 28, color: "#ffffff", at: (-24, 0)
+  marker: Ellipse, size: (18, 18), at: (78, 0), color: hex_color("ffffff")
+  heading: Text, text: title, font_size: 28, color: hex_color("ffffff"), at: (-24, 0)
 }
 
 #0s
   backdrop: Group, at: (0, 0) {
-  plate: Rect, size: (1280, 720), at: (640, 360), color: "#101923"
-  edge: Connector, from: (source.marker, right), to: (moving.marker, left), routing: "straight", arrow: true, stroke: "#8aa8c2", stroke_width: 4
+  plate: Rect, size: (1280, 720), at: (640, 360), color: hex_color("101923")
+  edge: Connector, from: (source.marker, right), to: (moving.marker, left), routing: "straight", arrow: true, stroke: hex_color("8aa8c2"), stroke_width: 4
     }
   source: DiagramNode, title: "source", color: rgb(0.19, 0.36, 0.47), at: (320, 380)
   moving: DiagramNode, title: "moving node", color: rgb(0.4, 0.32, 0.6), at: (700, 380)
   // Root-level annotations paint above both component subtrees and keep resolving
   // their endpoints from the nested marker's current world-space bounds.
-  note: Callout, from: (930, 180), target: moving.marker, place: top, standoff: 14, label: "follows the component", label_at: (0, -20), stroke: "#ffd166", color: "#ffd166"
+  note: Callout, from: (930, 180), target: moving.marker, place: top, standoff: 14, label: "follows the component", label_at: (0, -20), stroke: hex_color("ffd166"), color: hex_color("ffd166")
 
 #1s
   moving.at = (900, 380) [1.2s, ease: ease_in_out]

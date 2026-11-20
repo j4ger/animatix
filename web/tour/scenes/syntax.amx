@@ -16,15 +16,15 @@ title: Text, text: "Actors & keyframes", font_size: 34, color: text.primary, anc
 // The light layer: one screen-blend pool under the cast. Its ramp fades to a
 // transparent stop, which is what lets it ride to full opacity and still read
 // as light instead of as a grey ellipse.
-wash: Ellipse, size: (760, 760), at: (560, 400), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94224"), (50%, "#f5b9420e"), (100%, "#f5b94200")}), blend: "screen"
+wash: Ellipse, size: (760, 760), at: (560, 400), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("f5b94224")), (50%, hex_color("f5b9420e")), (100%, hex_color("f5b94200"))}), blend: "screen"
 
 // A ramp, not a flat fill — and the #2.9s beat re-keys the RAMP (same kind,
 // same stop count), which is what makes the recolour beat visible at all:
 // `fill_gradient` overrides the solid fill, so a plain `color:` assignment
 // here would animate a value nothing reads.
-box: Rect, size: (240, 240), at: (420, 390), corner_radius: 18, fill_gradient: linear(135, {"#f5b942", "#ff8666"})
+box: Rect, size: (240, 240), at: (420, 390), corner_radius: 18, fill_gradient: linear(135, {hex_color("f5b942"), hex_color("ff8666")})
 
-dot: Ellipse, size: (40, 40), at: (930, 560), fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffb3b3"), (45%, "#ff5c5c"), (100%, "#b3123a")})
+dot: Ellipse, size: (40, 40), at: (930, 560), fill_gradient: radial((0.34, 0.28), 0.66, {(0%, hex_color("ffb3b3")), (45%, hex_color("ff5c5c")), (100%, hex_color("b3123a"))})
 
 // ── the timeline rail ───────────────────────────────────────────────
 // x = 200 + (t / 7.2) * 880, so the five ticks sit at their own beat times.
@@ -61,7 +61,7 @@ head: Rect, size: (2, 56), at: (200, 620), color: accent.primary, opacity: 0
 
 #2.9s
   box.size = (340, 130) [0.7s, ease: ease_out]
-  box.fill_gradient = linear(135, {"#ece7db", "#b9b3a6"}) [0.7s, ease: ease_out]
+  box.fill_gradient = linear(135, {hex_color("ece7db"), hex_color("b9b3a6")}) [0.7s, ease: ease_out]
   pop_in(target: tick[2], duration: 0.28s)
 
 // The dot beat starts right as the recolor settles — no dead gap.

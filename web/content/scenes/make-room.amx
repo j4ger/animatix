@@ -6,44 +6,44 @@
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 24 }
 
 #0s
-  background: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
-  kicker: Text, text: "INSERTION SORT / MAKE ROOM FOR ONE MORE", at: (640, 58), font_size: 16, color: "#90A4B8"
-  title: Text, text: "A place for every number.", at: (640, 112), font_size: 42, font_weight: "bold", color: "#F3F5F7"
-  caption: Text, text: "Start with one sorted item. Insert the next.", at: (640, 630), font_size: 24, color: "#ADBCCA"
-  reference: Line, from: (115, 455), to: (885, 455), stroke: "#304658", stroke_width: 2
-  prefix: Rect, at: (180, 458), size: (110, 5), color: "#65D9E8"
-  legend: Text, text: "TEAL UNDERLINE = SORTED PREFIX", at: (500, 515), font_size: 16, color: "#65D9E8"
-  identity_note: Text, text: "2a and 2b have equal values. Letters track their original order.", at: (500, 558), font_size: 17, color: "#90A4B8"
-  separator: Line, from: (940, 235), to: (940, 550), stroke: "#304658", stroke_width: 1
-  clabel: Text, text: "KEY COMPARISONS", at: (1080, 265), font_size: 16, color: "#90A4B8"
-  comparisons: Text, text: "0", at: (1080, 315), font_size: 44, color: "#F3F5F7"
-  slabel: Text, text: "RIGHTWARD SHIFTS", at: (1080, 405), font_size: 16, color: "#90A4B8"
-  shifts: Text, text: "0", at: (1080, 455), font_size: 44, color: "#F4D47B"
-  count_note: Text, text: "Key placement excluded", at: (1080, 507), font_size: 16, color: "#90A4B8"
-  four: Rect, at: (180, 380), size: (110, 110), color: "#24394C", corner_radius: 14
-  four_label: Text, text: "4", at: (180, 380), font_size: 40, font_weight: "bold", color: "#F3F5F7"
-  two_a: Rect, at: (340, 380), size: (110, 110), color: "#24394C", corner_radius: 14
-  two_a_label: Text, text: "2a", at: (340, 380), font_size: 40, font_weight: "bold", color: "#F3F5F7"
-  five: Rect, at: (500, 380), size: (110, 110), color: "#24394C", corner_radius: 14
-  five_label: Text, text: "5", at: (500, 380), font_size: 40, font_weight: "bold", color: "#F3F5F7"
-  two_b: Rect, at: (660, 380), size: (110, 110), color: "#24394C", corner_radius: 14
-  two_b_label: Text, text: "2b", at: (660, 380), font_size: 40, font_weight: "bold", color: "#F3F5F7"
-  three: Rect, at: (820, 380), size: (110, 110), color: "#24394C", corner_radius: 14
-  three_label: Text, text: "3", at: (820, 380), font_size: 40, font_weight: "bold", color: "#F3F5F7"
+  background: Rect, at: (640, 360), size: (1280, 720), color: hex_color("0d1520")
+  kicker: Text, text: "INSERTION SORT / MAKE ROOM FOR ONE MORE", at: (640, 58), font_size: 16, color: hex_color("90a4b8")
+  title: Text, text: "A place for every number.", at: (640, 112), font_size: 42, font_weight: "bold", color: hex_color("f3f5f7")
+  caption: Text, text: "Start with one sorted item. Insert the next.", at: (640, 630), font_size: 24, color: hex_color("adbcca")
+  reference: Line, from: (115, 455), to: (885, 455), stroke: hex_color("304658"), stroke_width: 2
+  prefix: Rect, at: (180, 458), size: (110, 5), color: hex_color("65d9e8")
+  legend: Text, text: "TEAL UNDERLINE = SORTED PREFIX", at: (500, 515), font_size: 16, color: hex_color("65d9e8")
+  identity_note: Text, text: "2a and 2b have equal values. Letters track their original order.", at: (500, 558), font_size: 17, color: hex_color("90a4b8")
+  separator: Line, from: (940, 235), to: (940, 550), stroke: hex_color("304658"), stroke_width: 1
+  clabel: Text, text: "KEY COMPARISONS", at: (1080, 265), font_size: 16, color: hex_color("90a4b8")
+  comparisons: Text, text: "0", at: (1080, 315), font_size: 44, color: hex_color("f3f5f7")
+  slabel: Text, text: "RIGHTWARD SHIFTS", at: (1080, 405), font_size: 16, color: hex_color("90a4b8")
+  shifts: Text, text: "0", at: (1080, 455), font_size: 44, color: hex_color("f4d47b")
+  count_note: Text, text: "Key placement excluded", at: (1080, 507), font_size: 16, color: hex_color("90a4b8")
+  four: Rect, at: (180, 380), size: (110, 110), color: hex_color("24394c"), corner_radius: 14
+  four_label: Text, text: "4", at: (180, 380), font_size: 40, font_weight: "bold", color: hex_color("f3f5f7")
+  two_a: Rect, at: (340, 380), size: (110, 110), color: hex_color("24394c"), corner_radius: 14
+  two_a_label: Text, text: "2a", at: (340, 380), font_size: 40, font_weight: "bold", color: hex_color("f3f5f7")
+  five: Rect, at: (500, 380), size: (110, 110), color: hex_color("24394c"), corner_radius: 14
+  five_label: Text, text: "5", at: (500, 380), font_size: 40, font_weight: "bold", color: hex_color("f3f5f7")
+  two_b: Rect, at: (660, 380), size: (110, 110), color: hex_color("24394c"), corner_radius: 14
+  two_b_label: Text, text: "2b", at: (660, 380), font_size: 40, font_weight: "bold", color: hex_color("f3f5f7")
+  three: Rect, at: (820, 380), size: (110, 110), color: hex_color("24394c"), corner_radius: 14
+  three_label: Text, text: "3", at: (820, 380), font_size: 40, font_weight: "bold", color: hex_color("f3f5f7")
 
 #3s
   two_a.at = (340, 245) [0.4s, ease: ease_in_out]
   two_a_label.at = (340, 245) [0.4s, ease: ease_in_out]
-  two_a.color = "#A77D35"[0.3s]
+  two_a.color = hex_color("a77d35")[0.3s]
 
 #3.8s
   comparisons.text = "1"
-  four.color = "#45667C"[0.2s]
+  four.color = hex_color("45667c")[0.2s]
 
 #4.15s
   four.at = (340, 380) [0.4s, ease: ease_in_out]
   four_label.at = (340, 380) [0.4s, ease: ease_in_out]
-  four.color = "#24394C"[0.4s]
+  four.color = hex_color("24394c")[0.4s]
   shifts.text = "1"
 
 #4.85s
@@ -53,21 +53,21 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 24 }
 #5.25s
   two_a.at = (180, 380) [0.4s, ease: ease_in_out]
   two_a_label.at = (180, 380) [0.4s, ease: ease_in_out]
-  two_a.color = "#24394C"[0.4s]
+  two_a.color = hex_color("24394c")[0.4s]
   prefix.at = (260, 458)[0.4s]
   prefix.size = (270, 5)[0.4s]
 
 #6.45s
   five.at = (500, 245) [0.4s, ease: ease_in_out]
   five_label.at = (500, 245) [0.4s, ease: ease_in_out]
-  five.color = "#A77D35"[0.3s]
+  five.color = hex_color("a77d35")[0.3s]
 
 #7.25s
   comparisons.text = "2"
-  four.color = "#45667C"[0.2s]
+  four.color = hex_color("45667c")[0.2s]
 
 #7.9s
-  four.color = "#24394C"[0.2s]
+  four.color = hex_color("24394c")[0.2s]
 
 #7.9s
   five.at = (500, 245) [0.35s, ease: ease_in_out]
@@ -76,41 +76,41 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 24 }
 #8.3s
   five.at = (500, 380) [0.4s, ease: ease_in_out]
   five_label.at = (500, 380) [0.4s, ease: ease_in_out]
-  five.color = "#24394C"[0.4s]
+  five.color = hex_color("24394c")[0.4s]
   prefix.at = (340, 458)[0.4s]
   prefix.size = (430, 5)[0.4s]
 
 #9.5s
   two_b.at = (660, 245) [0.4s, ease: ease_in_out]
   two_b_label.at = (660, 245) [0.4s, ease: ease_in_out]
-  two_b.color = "#A77D35"[0.3s]
+  two_b.color = hex_color("a77d35")[0.3s]
 
 #10.3s
   comparisons.text = "3"
-  five.color = "#45667C"[0.2s]
+  five.color = hex_color("45667c")[0.2s]
 
 #10.65s
   five.at = (660, 380) [0.4s, ease: ease_in_out]
   five_label.at = (660, 380) [0.4s, ease: ease_in_out]
-  five.color = "#24394C"[0.4s]
+  five.color = hex_color("24394c")[0.4s]
   shifts.text = "2"
 
 #11.35s
   comparisons.text = "4"
-  four.color = "#45667C"[0.2s]
+  four.color = hex_color("45667c")[0.2s]
 
 #11.7s
   four.at = (500, 380) [0.4s, ease: ease_in_out]
   four_label.at = (500, 380) [0.4s, ease: ease_in_out]
-  four.color = "#24394C"[0.4s]
+  four.color = hex_color("24394c")[0.4s]
   shifts.text = "3"
 
 #12.4s
   comparisons.text = "5"
-  two_a.color = "#45667C"[0.2s]
+  two_a.color = hex_color("45667c")[0.2s]
 
 #13.05s
-  two_a.color = "#24394C"[0.2s]
+  two_a.color = hex_color("24394c")[0.2s]
 
 #13.05s
   two_b.at = (340, 245) [0.35s, ease: ease_in_out]
@@ -119,41 +119,41 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 24 }
 #13.45s
   two_b.at = (340, 380) [0.4s, ease: ease_in_out]
   two_b_label.at = (340, 380) [0.4s, ease: ease_in_out]
-  two_b.color = "#24394C"[0.4s]
+  two_b.color = hex_color("24394c")[0.4s]
   prefix.at = (420, 458)[0.4s]
   prefix.size = (590, 5)[0.4s]
 
 #14.65s
   three.at = (820, 245) [0.4s, ease: ease_in_out]
   three_label.at = (820, 245) [0.4s, ease: ease_in_out]
-  three.color = "#A77D35"[0.3s]
+  three.color = hex_color("a77d35")[0.3s]
 
 #15.45s
   comparisons.text = "6"
-  five.color = "#45667C"[0.2s]
+  five.color = hex_color("45667c")[0.2s]
 
 #15.8s
   five.at = (820, 380) [0.4s, ease: ease_in_out]
   five_label.at = (820, 380) [0.4s, ease: ease_in_out]
-  five.color = "#24394C"[0.4s]
+  five.color = hex_color("24394c")[0.4s]
   shifts.text = "4"
 
 #16.5s
   comparisons.text = "7"
-  four.color = "#45667C"[0.2s]
+  four.color = hex_color("45667c")[0.2s]
 
 #16.85s
   four.at = (660, 380) [0.4s, ease: ease_in_out]
   four_label.at = (660, 380) [0.4s, ease: ease_in_out]
-  four.color = "#24394C"[0.4s]
+  four.color = hex_color("24394c")[0.4s]
   shifts.text = "5"
 
 #17.55s
   comparisons.text = "8"
-  two_b.color = "#45667C"[0.2s]
+  two_b.color = hex_color("45667c")[0.2s]
 
 #18.2s
-  two_b.color = "#24394C"[0.2s]
+  two_b.color = hex_color("24394c")[0.2s]
 
 #18.2s
   three.at = (500, 245) [0.35s, ease: ease_in_out]
@@ -162,13 +162,13 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 24 }
 #18.6s
   three.at = (500, 380) [0.4s, ease: ease_in_out]
   three_label.at = (500, 380) [0.4s, ease: ease_in_out]
-  three.color = "#24394C"[0.4s]
+  three.color = hex_color("24394c")[0.4s]
   prefix.at = (500, 458)[0.4s]
   prefix.size = (750, 5)[0.4s]
 
 #19.8s
-  two_a.color = "#235650"[0.5s]
-  two_b.color = "#235650"[0.5s]
+  two_a.color = hex_color("235650")[0.5s]
+  two_b.color = hex_color("235650")[0.5s]
 
 // Fade through clear space: do not stack old/new caption glyphs.
 #2.88s

@@ -1,11 +1,11 @@
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 5 }
 
 #0s
-  background: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
+  background: Rect, at: (640, 360), size: (1280, 720), color: hex_color("0d1520")
   // A silent complete composition: explicit resolution, duration and held ending.
-  plate: Rect, at: (640, 360), size: (440, 220), corner_radius: 28, color: "#172536"
-  mark: Ellipse, at: (640, 325), size: (54, 54), color: "#65D9E8", opacity: 0
-  label: Text, text: "Made to move.", at: (640, 395), font_size: 36, color: "#F3F5F7", opacity: 0
+  plate: Rect, at: (640, 360), size: (440, 220), corner_radius: 28, color: hex_color("172536")
+  mark: Ellipse, at: (640, 325), size: (54, 54), color: hex_color("65d9e8"), opacity: 0
+  label: Text, text: "Made to move.", at: (640, 395), font_size: 36, color: hex_color("f3f5f7"), opacity: 0
 
 #0.5s
   fade_in(target: mark, duration: 0.7s)

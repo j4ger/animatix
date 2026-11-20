@@ -710,7 +710,7 @@ fn resolve_bar_colors(
 ) -> (bool, Vec<[f32; 4]>) {
     let (auto, colors) = current;
     let is_auto = match &prop.value {
-        Expr::Ident(s) | Expr::Str(s) => s == "auto",
+        Expr::Ident(s) => s == "auto",
         _ => false,
     };
     if is_auto {
@@ -739,6 +739,17 @@ fn resolve_bar_colors(
     // Single color (no list) → uniform color
     match resolve_color_in_env(&prop.value, env) {
         Ok(Some(col)) => (false, vec![col]),
+        Err(error @ EvalError::StringInColor) => {
+            diagnostics.push(
+                Diagnostic::error(
+                    DiagnosticCode::TypeMismatch,
+                    DiagnosticPhase::Build,
+                    error.to_string(),
+                )
+                .with_subject(subject),
+            );
+            (auto, colors)
+        },
         Ok(None) => {
             // expression didn't resolve to a color — fall back to auto
             diagnostics.push(

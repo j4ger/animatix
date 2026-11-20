@@ -9,47 +9,47 @@ let phase_degrees = 0
 
 let phase = (phase_degrees * pi) / 180
 
-let cyan = "#65D9E8"
+let cyan = hex_color("65d9e8")
 
-let coral = "#FF947D"
+let coral = hex_color("ff947d")
 
-let gold = "#F4D47B"
+let gold = hex_color("f4d47b")
 
 #0s
-  back: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
+  back: Rect, at: (640, 360), size: (1280, 720), color: hex_color("0d1520")
   // Three horizontal lanes, with 52 px reserved for the signal labels.
   a_label: Text, text: "A", font_size: 24, at: (80, 180), color: cyan, opacity: 0
   b_label: Text, text: "B", font_size: 24, at: (80, 330), color: coral, opacity: 0
   sum_label: Text, text: "A + B", font_size: 22, at: (80, 520), color: gold, opacity: 0
-  plot_a: Graph, at: (510, 180), size: (740, 96), x_domain: (0, 4 * pi), y_domain: (-1.2, 1.2), stroke: "#344455", grid: false, ticks: false, tick_labels: "none", opacity: 0 {
+  plot_a: Graph, at: (510, 180), size: (740, 96), x_domain: (0, 4 * pi), y_domain: (-1.2, 1.2), stroke: hex_color("344455"), grid: false, ticks: false, tick_labels: "none", opacity: 0 {
   wave_a: PlotCurve, kind: "cartesian", func: (x) => sin(x), stroke: cyan, stroke_width: 4
     }
-  plot_b: Graph, at: (510, 330), size: (740, 96), x_domain: (0, 4 * pi), y_domain: (-1.2, 1.2), stroke: "#344455", grid: false, ticks: false, tick_labels: "none", opacity: 0 {
+  plot_b: Graph, at: (510, 330), size: (740, 96), x_domain: (0, 4 * pi), y_domain: (-1.2, 1.2), stroke: hex_color("344455"), grid: false, ticks: false, tick_labels: "none", opacity: 0 {
   wave_b: PlotCurve, kind: "cartesian", func: (x) => sin(x + phase), stroke: coral, stroke_width: 4
     }
-  plot_sum: Graph, at: (510, 520), size: (740, 176), x_domain: (0, 4 * pi), y_domain: (-2.2, 2.2), stroke: "#344455", grid: false, ticks: false, tick_labels: "none", opacity: 0 {
+  plot_sum: Graph, at: (510, 520), size: (740, 176), x_domain: (0, 4 * pi), y_domain: (-2.2, 2.2), stroke: hex_color("344455"), grid: false, ticks: false, tick_labels: "none", opacity: 0 {
   wave_sum: PlotCurve, kind: "cartesian", func: (x) => sin(x) + sin(x + phase), stroke: gold, stroke_width: 5
     }
-  separator: Line, from: (940, 210), to: (940, 624), stroke: "#344455", stroke_width: 1, opacity: 0
-  phase_label: Text, text: "RELATIVE PHASE", font_size: 16, at: (1080, 220), color: "#90A4B8", opacity: 0
-  orbit: Ellipse, at: (1080, 326), size: (116, 116), fill_opacity: 0, stroke: "#344455", stroke_width: 2, opacity: 0
+  separator: Line, from: (940, 210), to: (940, 624), stroke: hex_color("344455"), stroke_width: 1, opacity: 0
+  phase_label: Text, text: "RELATIVE PHASE", font_size: 16, at: (1080, 220), color: hex_color("90a4b8"), opacity: 0
+  orbit: Ellipse, at: (1080, 326), size: (116, 116), fill_opacity: 0, stroke: hex_color("344455"), stroke_width: 2, opacity: 0
   fixed: Ellipse, at: (1138, 326), size: (12, 12), color: cyan, opacity: 0
   hand: Line, from: (1080, 326), to: (1138, 326), stroke: coral, stroke_width: 2, opacity: 0
   moving: Ellipse, at: (1138, 326), size: (12, 12), color: coral, opacity: 0
-  phase_value: Text, text: "0°", font_size: 30, at: (1080, 420), color: "#F3F5F7", opacity: 0
+  phase_value: Text, text: "0°", font_size: 30, at: (1080, 420), color: hex_color("f3f5f7"), opacity: 0
   state_r: Text, text: "REINFORCEMENT", font_size: 20, font_weight: "bold", at: (1080, 502), color: gold, opacity: 0
   state_c: Text, text: "CANCELLATION", font_size: 20, font_weight: "bold", at: (1080, 502), color: gold, opacity: 0
   state_s: Text, text: "SUPERPOSITION", font_size: 20, font_weight: "bold", at: (1080, 502), color: gold, opacity: 0
-  explanation: Text, text: "Twice the amplitude", font_size: 18, at: (1080, 540), color: "#ADBCCA", opacity: 0
+  explanation: Text, text: "Twice the amplitude", font_size: 18, at: (1080, 540), color: hex_color("adbcca"), opacity: 0
   // First see the inputs; then add one pair of heights before revealing the result.
-  point_guide: Line, from: (232.5, 110), to: (232.5, 610), stroke: "#516177", stroke_width: 1, dash_pattern: {5, 7}, opacity: 0
+  point_guide: Line, from: (232.5, 110), to: (232.5, 610), stroke: hex_color("516177"), stroke_width: 1, dash_pattern: {5, 7}, opacity: 0
   point_a: Ellipse, at: (232.5, 140), size: (13, 13), color: cyan, opacity: 0
   point_b: Ellipse, at: (232.5, 290), size: (13, 13), color: coral, opacity: 0
-  point_baseline: Line, from: (140, 520), to: (880, 520), stroke: "#344455", stroke_width: 1, opacity: 0
+  point_baseline: Line, from: (140, 520), to: (880, 520), stroke: hex_color("344455"), stroke_width: 1, opacity: 0
   point_sum: Ellipse, at: (232.5, 440), size: (16, 16), color: gold, opacity: 0
-  point_title: Text, text: "AT ONE POSITION", font_size: 18, at: (1080, 280), color: "#90A4B8", opacity: 0
+  point_title: Text, text: "AT ONE POSITION", font_size: 18, at: (1080, 280), color: hex_color("90a4b8"), opacity: 0
   point_math: Text, text: "1 + 1 = 2", font_size: 28, at: (1080, 330), color: gold, opacity: 0
-  point_hint: Text, text: "Add the heights.", font_size: 20, at: (1080, 380), color: "#ADBCCA", opacity: 0
+  point_hint: Text, text: "Add the heights.", font_size: 20, at: (1080, 380), color: hex_color("adbcca"), opacity: 0
 
 #0.2s
   fade_in(target: a_label, duration: 0.5s)

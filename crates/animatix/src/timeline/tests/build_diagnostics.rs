@@ -1,6 +1,35 @@
 use super::*;
 
 #[test]
+fn color_inputs_reject_strings_during_build() {
+    use animatix_syntax::diagnostics::DiagnosticCode;
+
+    for (source, subject) in [
+        (
+            r##"swatch: Rect, fill_gradient: linear(90, {"#f55", hex_color("5e5ce6")})"##,
+            "swatch.fill_gradient",
+        ),
+        (r##"chart: BarChart, data: {("A", 1)}, bar_colors: "#f55""##, "chart.bar_colors"),
+        (
+            r##"let palette = Colorscheme { scene.background: "#f55" }"##,
+            "palette.scene.background",
+        ),
+    ] {
+        let report = support::build(source);
+        assert!(
+            report.diagnostics.iter().any(|d| {
+                d.is_error()
+                    && d.code == DiagnosticCode::TypeMismatch
+                    && d.location.subject.as_deref() == Some(subject)
+                    && d.message.contains("hex_color(...)")
+            }),
+            "{source}: {:?}",
+            report.diagnostics,
+        );
+    }
+}
+
+#[test]
 fn always_overrides_keyframes_warnings() {
     let cases = [
         (

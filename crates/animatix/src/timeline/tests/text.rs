@@ -9,7 +9,7 @@ use crate::timeline::TrackAccessor;
 fn test_text_fill_gradient_build() {
     let source = r##"
 #0s
-heading: Text, text: "Delightful", fill_gradient: linear(135, {"#ff0000", "#0000ff"}), at: (100, 100)
+heading: Text, text: "Delightful", fill_gradient: linear(135, {hex_color("ff0000"), hex_color("0000ff")}), at: (100, 100)
 "##;
     let timeline = build_output(source);
     assert!(!timeline.world.tracks.is_empty());

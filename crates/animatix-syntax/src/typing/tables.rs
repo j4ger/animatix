@@ -7,8 +7,7 @@ use super::*;
 /// `schema::property_specs`). Resolving per actor type is the point: a property
 /// that exists on some other actor is not a property of this one, so
 /// `rect.code` or `rect.standoff` must not type-check. It also keeps the type
-/// the table declares — `color` and `stroke` are `Union[Color, Str]`, not a bare
-/// `Color`.
+/// the table declares, such as `Color` for `color` and `stroke`.
 pub fn property_type(actor_type: &str, property: &str) -> Option<Type> {
     known_property_types()
         .get(&(actor_type.to_string(), property.to_string()))

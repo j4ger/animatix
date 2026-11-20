@@ -581,16 +581,6 @@ fn color_value(value: PropertyValue) -> Option<[f32; 4]> {
     match value {
         PropertyValue::Vec4(v) => Some(v),
         PropertyValue::Color(v) => Some(v),
-        // A color written as text (`stroke = "#ff2d55"`) is as valid as one
-        // written as a tuple: hex and named colors resolve everywhere a color is
-        // accepted, including frame-time overrides.
-        PropertyValue::String(text) => match crate::timeline::utils::color_from_text(&text) {
-            Some(color) => Some(color),
-            None => {
-                tracing::warn!("write_vec4: '{text}' is not a color; the assignment is dropped");
-                None
-            },
-        },
         other => {
             tracing::warn!(
                 "write_vec4: expected a color, got {other:?}; the assignment is dropped"

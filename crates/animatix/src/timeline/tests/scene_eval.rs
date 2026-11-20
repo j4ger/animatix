@@ -490,7 +490,7 @@ fn hierarchy_preserves_authored_order() {
 fn transient_property_overrides_bypass_cache_and_override_evaluation() {
     let timeline = build_timeline(
         r##"
-        r: Rect, size: (100, 100), color: "#ff0000", opacity: 0.5
+        r: Rect, size: (100, 100), color: hex_color("ff0000"), opacity: 0.5
     "##,
     );
 
@@ -542,7 +542,7 @@ fn captions_cue_start_end_and_active_color_reach_the_primitive() {
     let timeline = build_timeline(
         r##"
 subs: Captions, at: (960, 900), font_size: 21, text_max_width: 640 {
-    cue: Cue, text: "Hello captions", start: 0.5, end: 1.5, active_color: "#ff8800"
+    cue: Cue, text: "Hello captions", start: 0.5, end: 1.5, active_color: hex_color("ff8800")
 }
 "##,
     );
@@ -633,8 +633,8 @@ fn push_count(scene: &crate::scene::Scene) -> usize {
 fn blend_screen_child_outside_parent_keeps_unbounded_layer() {
     let timeline = build_timeline(
         r##"
-        outer: Rect, size: (100, 100), color: "#ff0000", blend: "screen", at: (400, 300), opacity: 1 {
-            inner: Rect, size: (400, 400), color: "#0000ff", at: (300, 300), opacity: 1
+        outer: Rect, size: (100, 100), color: hex_color("ff0000"), blend: "screen", at: (400, 300), opacity: 1 {
+            inner: Rect, size: (400, 400), color: hex_color("0000ff"), at: (300, 300), opacity: 1
         }
         "##,
     );
@@ -663,7 +663,7 @@ fn blend_screen_child_outside_parent_keeps_unbounded_layer() {
 fn blend_layer_falls_back_when_camera_is_active() {
     let timeline = build_timeline(
         r##"
-        glow: Rect, size: (200, 200), color: "#ff8800", blend: "screen", at: (400, 300), opacity: 1
+        glow: Rect, size: (200, 200), color: hex_color("ff8800"), blend: "screen", at: (400, 300), opacity: 1
         always { camera.at = (4.0, 4.0) }
         "##,
     );
@@ -683,7 +683,7 @@ fn blend_layer_falls_back_when_mask_or_clip_is_present() {
         r##"
         plane: Mask, size: (300, 300), at: (400, 300), opacity: 1 {
             clip_shape: Rect, size: (300, 300), opacity: 1
-            glow: Rect, size: (200, 200), color: "#ff8800", blend: "screen", opacity: 1
+            glow: Rect, size: (200, 200), color: hex_color("ff8800"), blend: "screen", opacity: 1
         }
         "##,
     );
@@ -703,7 +703,7 @@ fn blend_layer_falls_back_when_mask_or_clip_is_present() {
 fn static_blend_scene_uses_bounded_clip_with_stable_structure() {
     let timeline = build_timeline(
         r##"
-        glow: Rect, size: (200, 200), color: "#ff8800", blend: "screen", at: (400, 300), opacity: 1
+        glow: Rect, size: (200, 200), color: hex_color("ff8800"), blend: "screen", at: (400, 300), opacity: 1
         "##,
     );
     let first = timeline.evaluate(0.0, HD);
@@ -717,7 +717,7 @@ fn static_blend_scene_uses_bounded_clip_with_stable_structure() {
 
     let control = build_timeline(
         r##"
-        glow: Rect, size: (200, 200), color: "#ff8800", at: (400, 300), opacity: 1
+        glow: Rect, size: (200, 200), color: hex_color("ff8800"), at: (400, 300), opacity: 1
         "##,
     )
     .evaluate(0.0, HD);

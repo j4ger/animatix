@@ -20,17 +20,17 @@ let y0 = 1.6
 
 let initial_loss = 2 * x0 ^ 2 + y0 ^ 2
 
-let cyan = "#65D9E8"
+let cyan = hex_color("65d9e8")
 
-let coral = "#FF947D"
+let coral = hex_color("ff947d")
 
-let gold = "#F4D47B"
+let gold = hex_color("f4d47b")
 
 #0s
-  background: Rect, size: (1280, 720), at: (640, 360), color: "#0D1520"
-  kicker: Text, text: "GRADIENT DESCENT / 04", font_size: 16, color: "#90A4B8", text_anchor: "left", at: (64, 44)
-  title: Text, text: "How fast does loss fall?", font_size: 46, font_weight: "bold", color: "#F3F5F7", text_anchor: "left", at: (64, 94)
-  subtitle: Text, text: "Same starting point. Different learning rates.", font_size: 22, color: "#ADBCCA", text_anchor: "left", at: (64, 146)
+  background: Rect, size: (1280, 720), at: (640, 360), color: hex_color("0d1520")
+  kicker: Text, text: "GRADIENT DESCENT / 04", font_size: 16, color: hex_color("90a4b8"), text_anchor: "left", at: (64, 44)
+  title: Text, text: "How fast does loss fall?", font_size: 46, font_weight: "bold", color: hex_color("f3f5f7"), text_anchor: "left", at: (64, 94)
+  subtitle: Text, text: "Same starting point. Different learning rates.", font_size: 22, color: hex_color("adbcca"), text_anchor: "left", at: (64, 146)
   legend_left_dot: Ellipse, size: (10, 10), color: cyan, at: (72, 206)
   legend_left: Text, text: "0.02 · smaller steps", font_size: 19, color: cyan, text_anchor: "left", at: (90, 206)
   legend_mid_dot: Ellipse, size: (10, 10), color: gold, at: (328, 206)
@@ -38,26 +38,26 @@ let gold = "#F4D47B"
   legend_right_dot: Ellipse, size: (10, 10), color: coral, at: (612, 206)
   legend_right: Text, text: "0.35 · larger steps", font_size: 19, color: coral, text_anchor: "left", at: (630, 206)
   // Main figure: one common axis, no optical competition between tall ellipses.
-  axis_title: Text, text: "Loss remaining", font_size: 16, color: "#90A4B8", text_anchor: "left", at: (64, 266)
-  y100: Text, text: "100%", font_size: 16, color: "#90A4B8", text_anchor: "right", at: (97, 310)
-  y50: Text, text: "50%", font_size: 16, color: "#90A4B8", text_anchor: "right", at: (97, 430)
-  y0: Text, text: "0", font_size: 16, color: "#90A4B8", text_anchor: "right", at: (97, 550)
+  axis_title: Text, text: "Loss remaining", font_size: 16, color: hex_color("90a4b8"), text_anchor: "left", at: (64, 266)
+  y100: Text, text: "100%", font_size: 16, color: hex_color("90a4b8"), text_anchor: "right", at: (97, 310)
+  y50: Text, text: "50%", font_size: 16, color: hex_color("90a4b8"), text_anchor: "right", at: (97, 430)
+  y0: Text, text: "0", font_size: 16, color: hex_color("90a4b8"), text_anchor: "right", at: (97, 550)
   for y, i in {310, 430, 550} {
-      guide[i]: Line, from: (112, y), to: (864, y), stroke: "#344455", stroke_width: 1
+      guide[i]: Line, from: (112, y), to: (864, y), stroke: hex_color("344455"), stroke_width: 1
     }
-  x0_label: Text, text: "0", font_size: 16, color: "#90A4B8", at: (112, 578)
-  xmid_label: Text, text: format("{:.0}", steps / 2), font_size: 16, color: "#90A4B8", at: (488, 578)
-  xend_label: Text, text: format("{:.0}", steps), font_size: 16, color: "#90A4B8", at: (864, 578)
-  x_title: Text, text: "Updates", font_size: 16, color: "#90A4B8", at: (488, 615)
-  separator: Line, from: (920, 248), to: (920, 620), stroke: "#344455", stroke_width: 1
-  rate_label: Text, text: "Your learning rate", font_size: 16, color: "#90A4B8", text_anchor: "left", at: (968, 272)
+  x0_label: Text, text: "0", font_size: 16, color: hex_color("90a4b8"), at: (112, 578)
+  xmid_label: Text, text: format("{:.0}", steps / 2), font_size: 16, color: hex_color("90a4b8"), at: (488, 578)
+  xend_label: Text, text: format("{:.0}", steps), font_size: 16, color: hex_color("90a4b8"), at: (864, 578)
+  x_title: Text, text: "Updates", font_size: 16, color: hex_color("90a4b8"), at: (488, 615)
+  separator: Line, from: (920, 248), to: (920, 620), stroke: hex_color("344455"), stroke_width: 1
+  rate_label: Text, text: "Your learning rate", font_size: 16, color: hex_color("90a4b8"), text_anchor: "left", at: (968, 272)
   rate_value: Text, text: format("{:.2}", lr), font_size: 52, color: gold, text_anchor: "left", at: (968, 323)
-  step_value: Text, text: "Before the first update,", font_size: 19, color: "#ADBCCA", text_anchor: "left", at: (968, 400)
+  step_value: Text, text: "Before the first update,", font_size: 19, color: hex_color("adbcca"), text_anchor: "left", at: (968, 400)
   loss_value: Text, text: "100% remains", font_size: 28, color: gold, text_anchor: "left", at: (968, 437)
-  state: Text, text: if lr >= 0.5 { "Stuck in a loop" } else { if lr > 0.25 { "Overshoot, then settle" } else { "Closing in" } }, font_size: 21, font_weight: "bold", color: "#F3F5F7", text_anchor: "left", at: (968, 518)
-  explain_a: Text, text: if lr >= 0.5 { "x keeps changing sides." } else { if lr > 0.25 { "x changes sides," } else { "Both coordinates move" } }, font_size: 18, color: "#ADBCCA", text_anchor: "left", at: (968, 556)
-  explain_b: Text, text: if lr >= 0.5 { "Its distance never shrinks." } else { if lr > 0.25 { "but loss keeps falling." } else { "toward the minimum." } }, font_size: 18, color: "#ADBCCA", text_anchor: "left", at: (968, 584)
-  comparison_note: Text, opacity: 1, text: if lr == r_right { "L(x, y) = 2x² + y²   ·   Gold and coral share the same rate." } else { if lr == r_left { "L(x, y) = 2x² + y²   ·   Gold and cyan share the same rate." } else { "L(x, y) = 2x² + y²   ·   Each dot is one update." } }, font_size: 18, color: "#90A4B8", text_anchor: "left", at: (64, 678)
+  state: Text, text: if lr >= 0.5 { "Stuck in a loop" } else { if lr > 0.25 { "Overshoot, then settle" } else { "Closing in" } }, font_size: 21, font_weight: "bold", color: hex_color("f3f5f7"), text_anchor: "left", at: (968, 518)
+  explain_a: Text, text: if lr >= 0.5 { "x keeps changing sides." } else { if lr > 0.25 { "x changes sides," } else { "Both coordinates move" } }, font_size: 18, color: hex_color("adbcca"), text_anchor: "left", at: (968, 556)
+  explain_b: Text, text: if lr >= 0.5 { "Its distance never shrinks." } else { if lr > 0.25 { "but loss keeps falling." } else { "toward the minimum." } }, font_size: 18, color: hex_color("adbcca"), text_anchor: "left", at: (968, 584)
+  comparison_note: Text, opacity: 1, text: if lr == r_right { "L(x, y) = 2x² + y²   ·   Gold and coral share the same rate." } else { if lr == r_left { "L(x, y) = 2x² + y²   ·   Gold and cyan share the same rate." } else { "L(x, y) = 2x² + y²   ·   Each dot is one update." } }, font_size: 18, color: hex_color("90a4b8"), text_anchor: "left", at: (64, 678)
   let lx = x0
   let ly = y0
   for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} {

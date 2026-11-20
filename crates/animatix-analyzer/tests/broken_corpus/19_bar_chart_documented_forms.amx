@@ -15,7 +15,7 @@ chart: BarChart, size: (400, 240),
   bar_width: "auto",
   gap: "auto",
   max_value: "auto",
-  bar_colors: "auto",
+  bar_colors: auto,
   show_axis: "false",
   show_labels: "true"
 

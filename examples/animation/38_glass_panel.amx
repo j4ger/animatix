@@ -31,7 +31,7 @@ d6: Ellipse, size: (34, 34), at: (280, 60), color: text.primary
 
 card: Glass, at: (640, 360), size: (560, 240), corner_radius: 24 {
 frost: Blur, radius: 0
-surface: Rect, size: (560, 240), corner_radius: 24, color: "#ffffff1a", stroke: "#ffffff40", stroke_width: 1.5
+surface: Rect, size: (560, 240), corner_radius: 24, color: hex_color("ffffff1a"), stroke: hex_color("ffffff40"), stroke_width: 1.5
 heading: Text, text: "Backdrop blur", font_size: 40, at: (-180, -34), color: text.primary
 body: Text, text: "sharp text over a frosted plate", font_size: 20, at: (-150, 30), color: text.secondary
 }
@@ -50,7 +50,7 @@ body: Text, text: "sharp text over a frosted plate", font_size: 20, at: (-150, 3
 
 #1.2s
   frost.radius = 18 [0.9s, ease: ease_in_out]
-  surface.color = "#ffffff0f" [0.9s, ease: ease_in_out]
+  surface.color = hex_color("ffffff0f") [0.9s, ease: ease_in_out]
 
 #4s
   frost.radius = 6 [0.9s, ease: ease_in_out]

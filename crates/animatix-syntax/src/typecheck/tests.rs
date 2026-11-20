@@ -99,6 +99,34 @@ let rejected = same("fff1d6")
 }
 
 #[test]
+fn color_properties_reject_strings_in_declarations_and_frame_statements() {
+    let source = r##"
+let ink = "#ff2d55"
+rect: Rect, color: ink
+label: Text, text: "#ff2d55"
+
+#0s
+  scene.background_color = "#000000"
+  rect.stroke = hex_color("ff2d55")
+  always {
+    rect.stroke = ink
+    rect.color = rgb(100 + 50 * sin(t), 0, 0)
+  }
+"##;
+    let diagnostics = typecheck_source(source);
+    let subjects = diagnostics
+        .iter()
+        .filter(|d| d.is_error())
+        .map(|d| {
+            assert_eq!(d.code, DiagnosticCode::TypeMismatch);
+            assert!(d.message.contains("got Str"), "{d:?}");
+            d.location.subject.as_deref().unwrap()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(subjects, ["color", "background_color", "stroke"]);
+}
+
+#[test]
 fn typecheck_accepts_valid_props() {
     let env = make_env();
     let stmts = vec![actor_with_props(

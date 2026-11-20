@@ -22,6 +22,5 @@ pub(crate) use expr::{
 #[allow(unused_imports)]
 pub(crate) use expr::invoke_closure_value;
 pub use value::{
-    color_from_text, parse_color, parse_color_in_env, resolve_color_in_env, time_to_ms,
-    time_to_ms_at_beat,
+    parse_color, parse_color_in_env, resolve_color_in_env, time_to_ms, time_to_ms_at_beat,
 };

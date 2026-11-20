@@ -450,20 +450,20 @@ const FADE_COMPOSITION: &str = r##"
 # From
 config { colorscheme: "editorial-dark", resolution: (64, 64), duration: 2.0 }
 #0s
-red: Rect, size: (2000, 2000), at: (32, 32), color: "#ff0000"
+red: Rect, size: (2000, 2000), at: (32, 32), color: hex_color("ff0000")
 play To [fade, 500ms]
 
 # To
 config { colorscheme: "editorial-dark", resolution: (64, 64), duration: 2.0 }
 #0s
-blue: Rect, size: (2000, 2000), at: (32, 32), color: "#0000ff"
+blue: Rect, size: (2000, 2000), at: (32, 32), color: hex_color("0000ff")
 "##;
 
 const MIXED_FILTER_COMPOSITION: &str = r##"
 # From
 config { colorscheme: "editorial-dark", resolution: (64, 64), duration: 2.0 }
 #0s
-red: Rect, size: (2000, 2000), at: (32, 32), color: "#ff0000"
+red: Rect, size: (2000, 2000), at: (32, 32), color: hex_color("ff0000")
 play To [fade, 500ms]
 
 # To
@@ -471,7 +471,7 @@ config { colorscheme: "editorial-dark", resolution: (64, 64), duration: 2.0 }
 #0s
 fx: Filter {
     soft: Blur, radius: 3
-    blue: Rect, size: (2000, 2000), color: "#0000ff"
+    blue: Rect, size: (2000, 2000), color: hex_color("0000ff")
 }
 "##;
 
@@ -660,10 +660,10 @@ fn mixed_filter_transition_preserves_both_scenes() {
 const GLASS_SCENE: &str = r##"
 config { colorscheme: "editorial-dark", resolution: (64, 64), duration: 2.0 }
 #0s
-plate: Rect, size: (60, 60), at: (32, 32), color: "#304050"
+plate: Rect, size: (60, 60), at: (32, 32), color: hex_color("304050")
 card: Glass, at: (32, 32), size: (28, 22), corner_radius: 4 {
     frost: Blur, radius: 3
-    surface: Rect, size: (28, 22), color: "#ffffff1a"
+    surface: Rect, size: (28, 22), color: hex_color("ffffff1a")
 }
 "##;
 
@@ -671,20 +671,20 @@ const TRANSITION_GLASS_COMPOSITION: &str = r##"
 # From
 config { colorscheme: "editorial-dark", resolution: (64, 64), duration: 2.0 }
 #0s
-backdrop: Rect, size: (2000, 2000), at: (32, 32), color: "#ff0000"
+backdrop: Rect, size: (2000, 2000), at: (32, 32), color: hex_color("ff0000")
 card: Glass, at: (32, 32), size: (64, 64), corner_radius: 0 {
     frost: Blur, radius: 6
-    surface: Rect, size: (64, 64), color: "#ffffff"
+    surface: Rect, size: (64, 64), color: hex_color("ffffff")
 }
 play To [fade, 500ms]
 
 # To
 config { colorscheme: "editorial-dark", resolution: (64, 64), duration: 2.0 }
 #0s
-backdrop: Rect, size: (2000, 2000), at: (32, 32), color: "#0000ff"
+backdrop: Rect, size: (2000, 2000), at: (32, 32), color: hex_color("0000ff")
 card: Glass, at: (32, 32), size: (64, 64), corner_radius: 0 {
     frost: Blur, radius: 6
-    surface: Rect, size: (64, 64), color: "#ffffff"
+    surface: Rect, size: (64, 64), color: hex_color("ffffff")
 }
 "##;
 

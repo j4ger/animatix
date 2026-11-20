@@ -18,19 +18,19 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 7.5 }
 
 title: Text, text: "Plots are actors too", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 56)
 
-wash: Ellipse, size: (700, 700), at: (450, 400), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b9421a"), (55%, "#8ab4f60a"), (100%, "#8ab4f600")}), blend: "screen"
+wash: Ellipse, size: (700, 700), at: (450, 400), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("f5b9421a")), (55%, hex_color("8ab4f60a")), (100%, hex_color("8ab4f600"))}), blend: "screen"
 
 main: Graph, x_domain: (-6, 6), y_domain: (-3, 3), size: (640, 420), stroke: stroke.default, at: (450, 400) {
-sine: PlotCurve, kind: "cartesian", func: (x) => sin(x), color: accent.primary, stroke_width: 3, stroke_progress: 0, stroke_gradient: linear(0, {(0%, "#f5b942"), (60%, "#ffd60a"), (100%, "#8ab4f6")})
+sine: PlotCurve, kind: "cartesian", func: (x) => sin(x), color: accent.primary, stroke_width: 3, stroke_progress: 0, stroke_gradient: linear(0, {(0%, hex_color("f5b942")), (60%, hex_color("ffd60a")), (100%, hex_color("8ab4f6"))})
   // Same geometry, same trim, 18px and 22% alpha: the bloom.
-sine_glow: PlotCurve, kind: "cartesian", func: (x) => sin(x), color: "#ffd60a38", stroke_width: 18, stroke_progress: 0, blend: "screen"
+sine_glow: PlotCurve, kind: "cartesian", func: (x) => sin(x), color: hex_color("ffd60a38"), stroke_width: 18, stroke_progress: 0, blend: "screen"
 }
 
 field: VectorField, func: (x, y) => (cos(x) * cos(y), -sin(x) * sin(y)), density: 9, color: accent.success, x_domain: (-2, 2), y_domain: (-2, 2), at: (1050, 390), size: (300, 300)
 
 // The field's own light, so the right half of the plate is not empty when it
 // arrives.
-field_wash: Ellipse, size: (460, 460), at: (1050, 390), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#8fc7a320"), (60%, "#8fc7a309"), (100%, "#8fc7a300")}), blend: "screen"
+field_wash: Ellipse, size: (460, 460), at: (1050, 390), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("8fc7a320")), (60%, hex_color("8fc7a309")), (100%, hex_color("8fc7a300"))}), blend: "screen"
 
 cap1: Text, text: "stroke_progress traces the curve", font_size: 22, color: text.secondary, anchor: scene.bottom, offset: (-270, -40)
 

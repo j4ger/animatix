@@ -287,11 +287,12 @@ packet: Rect, size: (80, 48), color: ink, opacity: 1
   }
 ```
 
-Scheme tokens and named colors such as `red` and `WHITE` are also `Color`
-values. Color properties accept normalized RGB and RGBA tuples and CSS-style
-hex strings (`"#f55"`, `"#ff2d55"`, `"#5e5ce600"`) for compatibility. A quoted
-color string has type `Str` in expressions. An unresolvable property color
-string falls back to the default gray and warns with `unknown-color-reference`.
+Use `Color` values for color properties, gradient stops, and color
+interpolation. Scheme tokens such as `accent.primary` and bare names such as
+`red` and `WHITE` also produce `Color` values. Color properties accept
+normalized RGB and RGBA tuples. A standalone quoted hex value has type `Str`
+and causes a type error where a color is expected. When migrating a scene,
+replace `"#f55"` with `hex_color("ff5555")`.
 
 **Built-in schemes.** Six ship with the engine; a scene can also declare its own.
 Each resolves the same twelve keys (`scene.background`, `text.primary` /
@@ -340,14 +341,13 @@ panel: Rect, size: (200, 100)       // color: surface.primary
 badge: Ellipse, size: (40, 40), color: auto
 ```
 
-**RGBA format:** `(r, g, b, a)` where each component is a **0–1 float**.
+For an RGBA tuple `(r, g, b, a)`, each component ranges from 0 to 1.
+
 ```animatix
-// Correct
-red: Rect, color: (1.0, 0.0, 0.0, 1.0)
-// Also correct — hex is resolved like any other color literal
-red: Rect, color: "#ff0000"
-// 8-digit hex carries alpha: fully transparent indigo
-veil: Rect, color: "#5e5ce600"
+tuple_red: Rect, color: (1.0, 0.0, 0.0, 1.0)
+hex_red: Rect, color: hex_color("ff0000")
+// Fully transparent indigo
+veil: Rect, color: hex_color("5e5ce600")
 ```
 
 **Colorscheme tokens** (available when a colorscheme is active):
@@ -1211,7 +1211,7 @@ stripes: Group, …          // content behind the panel, moving
 card: Glass, at: (640, 360), size: (560, 240), corner_radius: 24 {
     frost: Blur, radius: 0     // the backdrop chain, declared like a Filter's
     surface: Rect, size: (560, 240), corner_radius: 24,
-        color: "#ffffff1a", stroke: "#ffffff40", stroke_width: 1.5
+        color: hex_color("ffffff1a"), stroke: hex_color("ffffff40"), stroke_width: 1.5
     heading: Text, text: "Backdrop blur", font_size: 40, at: (-180, -34)
 }
 
@@ -1497,7 +1497,7 @@ which are pure:
 
 ```animatix
 for i in {0, 1, 2, 3, 4, 5, 6, 7} {
-  spark[i]: Ellipse, size: (7, 7), at: (640, 380), color: "#ffd60a", opacity: 1.0
+  spark[i]: Ellipse, size: (7, 7), at: (640, 380), color: hex_color("ffd60a"), opacity: 1.0
 }
 
 always {
@@ -1508,7 +1508,7 @@ always {
     spark[i].at = (640.0 + cos(dir) * reach,
                    380.0 + sin(dir) * reach + 260.0 * age * age)
     spark[i].opacity = clamp(1.0 - age / 2.4, 0.0, 1.0)
-    spark[i].color = lerp_color_oklab("#ffe9c7", "#ff2d55", age / 2.4)
+    spark[i].color = lerp_color_oklab(hex_color("ffe9c7"), hex_color("ff2d55"), age / 2.4)
   }
 }
 ```
@@ -1537,7 +1537,7 @@ into a lit one: a `radial` gradient fading to a transparent stop, `blend:
 
 ```animatix
 glow: Ellipse, size: (420, 420), at: (640, 360),
-  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#5e5ce6"), (100%, "#5e5ce600")}),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("5e5ce6")), (100%, hex_color("5e5ce600"))}),
   blend: "screen"
 wire: Path, commands: {move_to(200, 500), line_to(1080, 500)},
   stroke: accent.primary, stroke_width: 2, fill_opacity: 0.0,

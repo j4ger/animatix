@@ -39,21 +39,21 @@ config { colorscheme: "ink", resolution: (1600, 900), duration: 13 }
 // House-style §1: the washes and the grid carry an authored opacity instead of
 // fading in, so frame 0 is already a lit room — the first-frame ink floor in
 // web/tools/site/site-rest-check.py measures exactly this.
-wash_key: Ellipse, size: (1160, 1160), at: (800, 300), opacity: 1, fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94226"), (45%, "#f5b94210"), (100%, "#f5b94200")}), blend: "screen"
+wash_key: Ellipse, size: (1160, 1160), at: (800, 300), opacity: 1, fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("f5b94226")), (45%, hex_color("f5b94210")), (100%, hex_color("f5b94200"))}), blend: "screen"
 
-wash_fill: Ellipse, size: (920, 920), at: (280, 770), opacity: 1, fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#8ab4f61f"), (55%, "#8ab4f60a"), (100%, "#8ab4f600")}), blend: "screen"
+wash_fill: Ellipse, size: (920, 920), at: (280, 770), opacity: 1, fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("8ab4f61f")), (55%, hex_color("8ab4f60a")), (100%, hex_color("8ab4f600"))}), blend: "screen"
 
 // ── the instrument frame ────────────────────────────────────────────
 // Four corner brackets framing the safe area — the viewfinder motif the
 // site chrome carries too (the ruler diamond, the keyframe stamps). Each
 // traces on a warm→coral ramp so the frame has a light direction.
-bracket_tl: Path, commands: {move_to(46, 0), line_to(0, 0), line_to(0, 46)}, stroke_width: 3, fill_opacity: 0, stroke_gradient: linear(135, {"#f5b942", "#ff8666"}), anchor: scene.center, offset: (-620, -330)
+bracket_tl: Path, commands: {move_to(46, 0), line_to(0, 0), line_to(0, 46)}, stroke_width: 3, fill_opacity: 0, stroke_gradient: linear(135, {hex_color("f5b942"), hex_color("ff8666")}), anchor: scene.center, offset: (-620, -330)
 
-bracket_tr: Path, commands: {move_to(-46, 0), line_to(0, 0), line_to(0, 46)}, stroke_width: 3, fill_opacity: 0, stroke_gradient: linear(45, {"#ff8666", "#f5b942"}), anchor: scene.center, offset: (620, -330)
+bracket_tr: Path, commands: {move_to(-46, 0), line_to(0, 0), line_to(0, 46)}, stroke_width: 3, fill_opacity: 0, stroke_gradient: linear(45, {hex_color("ff8666"), hex_color("f5b942")}), anchor: scene.center, offset: (620, -330)
 
-bracket_bl: Path, commands: {move_to(0, -46), line_to(0, 0), line_to(46, 0)}, stroke_width: 3, fill_opacity: 0, stroke_gradient: linear(225, {"#f5b942", "#ff8666"}), anchor: scene.center, offset: (-620, 330)
+bracket_bl: Path, commands: {move_to(0, -46), line_to(0, 0), line_to(46, 0)}, stroke_width: 3, fill_opacity: 0, stroke_gradient: linear(225, {hex_color("f5b942"), hex_color("ff8666")}), anchor: scene.center, offset: (-620, 330)
 
-bracket_br: Path, commands: {move_to(0, -46), line_to(0, 0), line_to(-46, 0)}, stroke_width: 3, fill_opacity: 0, stroke_gradient: linear(315, {"#ff8666", "#f5b942"}), anchor: scene.center, offset: (620, 330)
+bracket_br: Path, commands: {move_to(0, -46), line_to(0, 0), line_to(-46, 0)}, stroke_width: 3, fill_opacity: 0, stroke_gradient: linear(315, {hex_color("ff8666"), hex_color("f5b942")}), anchor: scene.center, offset: (620, 330)
 
 // ── the layout grid: flashes in, then recedes behind the type ───────
 grid: NumberPlane, x_domain: (-8, 8), y_domain: (-4.5, 4.5), x_range: (-8, 8, 1), y_range: (-4.5, 4.5, 1), size: (1440, 780), stroke: stroke.default, opacity: 0.15, anchor: scene.center
@@ -64,11 +64,11 @@ wordmark: Text, text: "Animatix", font_size: 168, color: text.primary, anchor: s
 // The rule draws in as a warm→coral ramp; a wide low-alpha copy of the same
 // geometry, screen-blended, is its bloom. Both are trimmed by their own
 // `draw-in`, so the light arrives with the stroke instead of ahead of it.
-underline: Path, commands: {move_to(-230, 0), line_to(230, 0)}, stroke_width: 6, fill_opacity: 0, stroke_gradient: linear(90, {"#f5b942", "#ff8666"}), anchor: scene.center, offset: (0, -22)
+underline: Path, commands: {move_to(-230, 0), line_to(230, 0)}, stroke_width: 6, fill_opacity: 0, stroke_gradient: linear(90, {hex_color("f5b942"), hex_color("ff8666")}), anchor: scene.center, offset: (0, -22)
 
-underline_bloom: Path, commands: {move_to(-230, 0), line_to(230, 0)}, stroke_width: 20, fill_opacity: 0, stroke_gradient: linear(90, {"#f5b94242", "#ff866642"}), blend: "screen", anchor: scene.center, offset: (0, -22)
+underline_bloom: Path, commands: {move_to(-230, 0), line_to(230, 0)}, stroke_width: 20, fill_opacity: 0, stroke_gradient: linear(90, {hex_color("f5b94242"), hex_color("ff866642")}), blend: "screen", anchor: scene.center, offset: (0, -22)
 
-carriage: Rect, size: (12, 26), corner_radius: 3, at: (570, 428), fill_gradient: linear(0, {"#ffd60a", "#ff8666"})
+carriage: Rect, size: (12, 26), corner_radius: 3, at: (570, 428), fill_gradient: linear(0, {hex_color("ffd60a"), hex_color("ff8666")})
 
 tagline: Text, text: "a declarative animation language", font_size: 38, color: text.secondary, anchor: scene.center, offset: (0, 38)
 
@@ -88,12 +88,12 @@ di: Polygon, points: {(0, -49), (49, 0), (0, 49), (-49, 0)}, color: accent.warni
 
 // The bench they land on: a warm pool that drifts on seeded noise. Its `at`
 // is noise-driven and never keyframed, so the two owners cannot fight.
-trio_glow: Ellipse, size: (480, 480), at: (800, 640), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b9421f"), (55%, "#ff86660d"), (100%, "#ff866600")}), blend: "screen"
+trio_glow: Ellipse, size: (480, 480), at: (800, 640), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("f5b9421f")), (55%, hex_color("ff86660d")), (100%, hex_color("ff866600"))}), blend: "screen"
 
 // ── the closing ball ────────────────────────────────────────────────
 // A lit sphere, not a disc: the radial ramp puts the highlight up-left and
 // the terminator down-right, which is what sells the hop as physical.
-ball: Ellipse, size: (30, 30), at: (240, 726), fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffb3b3"), (45%, "#ff5c5c"), (100%, "#b3123a")})
+ball: Ellipse, size: (30, 30), at: (240, 726), fill_gradient: radial((0.34, 0.28), 0.66, {(0%, hex_color("ffb3b3")), (45%, hex_color("ff5c5c")), (100%, hex_color("b3123a"))})
 
 // The footer rail: a live edge for the lower third and the ground the ball
 // hops on. Marching ants start when the ball does.
@@ -104,7 +104,7 @@ rail: Path, commands: {move_to(240, 748), line_to(1360, 748)}, stroke: accent.in
 // dead seconds reads as a stalled render; this is the element that says the
 // clock is running even when nothing else moves. The ramp fades both ends to
 // transparent so it enters and leaves the plate without a hard edge.
-sweep: Rect, size: (3, 780), at: (80, 450), opacity: 0, fill_gradient: linear(0, {"#f5b94200", "#f5b942", "#f5b94200"}), blend: "screen"
+sweep: Rect, size: (3, 780), at: (80, 450), opacity: 0, fill_gradient: linear(0, {hex_color("f5b94200"), hex_color("f5b942"), hex_color("f5b94200")}), blend: "screen"
 
 // ── timeline ────────────────────────────────────────────────────────
 // The room is lit at frame 0: washes and grid carry authored opacity, so the

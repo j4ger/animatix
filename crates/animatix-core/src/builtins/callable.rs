@@ -275,7 +275,7 @@ fn timeline_catalog() -> Vec<CallableDescriptor> {
             "Effects",
             "Add a highlight behind content.",
             vec![
-                opt("color", T::Union(vec![T::Color, T::Str])),
+                opt("color", T::Color),
                 opt(
                     "blend",
                     T::Enum(
@@ -548,8 +548,8 @@ fn construction_catalog() -> Vec<CallableDescriptor> {
         out.push(descriptor(
             name,
             vec![
-                param("from", T::Union(vec![T::Color, T::Vec3, T::Str])),
-                param("to", T::Union(vec![T::Color, T::Vec3, T::Str])),
+                param("from", T::Union(vec![T::Color, T::Vec3])),
+                param("to", T::Union(vec![T::Color, T::Vec3])),
                 param("t", T::Num),
             ],
             T::Color,

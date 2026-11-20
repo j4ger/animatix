@@ -4,7 +4,7 @@
     {
       "id": "one-rule-many-forms",
       "source": "scenes/one-rule-many-forms.amx",
-      "source_sha256": "e0203ef0a2de2e07d543cd25d0c4693e4400f644d83a7c43929f69fb5972b878",
+      "source_sha256": "c6b34cf6494584d3a6f9e94aed273a3e8408e217539310b89951ca4b7e657348",
       "poster": "posters/one-rule-many-forms.png",
       "poster_time_seconds": 6.5,
       "poster_sha256": "fc7fb47c0fa7335d7d16cf78f39697b8b8ffbcf0d805b1680aa2d9db495199d7",
@@ -21,7 +21,7 @@
     {
       "id": "when-waves-meet",
       "source": "scenes/when-waves-meet.amx",
-      "source_sha256": "fdcb589236cf21106ed409a98b1a8532ff04f8331882e20100142bf22f350c37",
+      "source_sha256": "87593286b2b7849d85147c520a2f2c05f21c8c5da47148add288d8be0966dc39",
       "poster": "posters/when-waves-meet.png",
       "poster_time_seconds": 15,
       "poster_sha256": "e684d3271d96e72f1178c5af0a7524a54e7083b6a432d7000c2e7b53ef50cd8a",
@@ -38,7 +38,7 @@
     {
       "id": "words-keep-time",
       "source": "scenes/words-keep-time.amx",
-      "source_sha256": "27a245cb0762f3862be35c954e795b500f765a96e99fa596b46141f5b0102429",
+      "source_sha256": "a162f9da14f0852a99d92c011639996bac645113cbf34118e3bb2c20c57052be",
       "poster": "posters/words-keep-time.png",
       "poster_time_seconds": 20,
       "poster_sha256": "324fd27551cff8a912a4d08f515031033b8876a7b87faf8fa73d4ae55aaf54fb",
@@ -65,7 +65,7 @@
       "audio": false,
       "parameters": "authored defaults",
       "renderer": "native CLI video at authored 1280x720; FFmpeg 24fps timestamp normalization to exact duration, no crop or resize",
-      "source_sha256": "0e96e52be7041ae057ec20ccb1611a06e36ae9384be5c478a4d9a4ff477143e0",
+      "source_sha256": "6d5a8421a43ceef23375790ad7b254dbb3f1cd19eb60fb2cd1e2f47b3f595cf4",
       "poster_sha256": "d33bb95d533c046436fb8bd56768d3ac54fc11db82cfeb4960412ffecdbcc037",
       "recording_sha256": "8837b232549daa563021fca13885efd615c01aa2f9e564e61acf38add1a281e6"
     },
@@ -82,7 +82,7 @@
       "audio": false,
       "parameters": "authored defaults",
       "renderer": "native CLI video at authored 1280x720; FFmpeg 24fps timestamp normalization to exact duration, no crop or resize",
-      "source_sha256": "93972ea0fcba6c6ad6aff580caf25c86373679c10b619ed098ecaa65db9bf662",
+      "source_sha256": "9a20a4670f5705b183dde77f3078c8d1a2a08d39cfbdfa158c2c33fc8bb40584",
       "poster_sha256": "a71f2e15d75d48667417856a172bed43277663d4b0a4b41ac2b1aece6aa537c4",
       "recording_sha256": "79b818eccc62f24e789c36c3d4462f47f783ba8052be6de2d32796defe43415f"
     }
@@ -96,7 +96,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "beaec9b884887e236ac177ecac1ff11652e99e852b5b0b87c56ca5c68b4b7ac0",
+      "source_sha256": "5de85450e7e209654561094ebee28906e5236c1dd3e054243cee1da55399a358",
       "poster_sha256": "51f5daac789c9f66d132aca75e0122d114f8ee8b6172395ebec293d131fbebfc"
     },
     {
@@ -107,7 +107,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "633cf1de9768aee473ef11f0302fee4f4f69a475859bd85631e64bccd82ad91c",
+      "source_sha256": "dcb6a6e872d3e8b14f39257d928d006293a029972591e55384c8617cad8c2585",
       "poster_sha256": "5ecb1d72ce6085350e0392621b31f17f8379fa50c4cf7b8c90c4c4db606005bb"
     },
     {
@@ -118,7 +118,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "7dd83b976105e665317a94302a16c41b1188c8c9180b6c5afc273de1527847ab",
+      "source_sha256": "538b97807d4fe40d2a8dff5b93c634f89aac75ce66fbe8b688e160d0585bc3ff",
       "poster_sha256": "9602db90151485d29380cb169d64afe1b5d38187b68a9264427386fa77448656"
     },
     {
@@ -129,7 +129,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "2bc9227688177f3ef43736369ef8726a1bc4f66c06e4ebd2ddaf955c7a427b56",
+      "source_sha256": "93899949f3734d4fd38dd69e0bdd65c64a08b537761ac3e5d64667fd20908252",
       "poster_sha256": "a4aec7820849fe82909ec9a3c56e682c6024471b3154943a51f448b84c07fb5b"
     },
     {
@@ -140,7 +140,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "2774af8cba851242459ac5fa962d282c42143eb68e4c1d52e4ec57277c63af2d",
+      "source_sha256": "dc5353f8238297459c779b249d8e458a27e80d808fad332dba4c757dfe6d45d0",
       "poster_sha256": "36692dfefca385ed6eff0403c6ca6981bb3aa8d3b0a203c650332b424bdf977e"
     },
     {
@@ -151,7 +151,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "1232ddd662180b2a5fbf0159620df5f547e8f1aaccbc38b07cf609e348912edb",
+      "source_sha256": "b1bfebea81a5dd1a03ee437b94395b2ae47765ed173a541dee427f95b79c29d2",
       "poster_sha256": "631306346a7f3fcd4dba09c8ade51084861c188ffcdf118caf81004c151ac8ca"
     },
     {
@@ -162,7 +162,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "c56b050a790e517409b55404fdfe439c3881aa101d3ee7f214952a46d7015b78",
+      "source_sha256": "83df46585fa47b85b9d895d7cebd4de9c01f909d86070726016f77f88b6b4d6b",
       "poster_sha256": "ed2ab28deb196d1d2ef6571d4a90b48df75570a22b99111c89afd225a1393ba0"
     },
     {
@@ -173,7 +173,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "7fdee6712e33511dd5a0b05565aa59ac77d6b93e03fca4aee55856c714af1501",
+      "source_sha256": "23bda3c20a52cad02076177e2cec30b88257491aafa004255418ee72a648df20",
       "poster_sha256": "71c757302066dd03aba285154d57c0b351bbc393f32c562aff3334cbd4eb19f6"
     },
     {
@@ -184,7 +184,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "d87c0ded0f459c43f32da0277a275ef8e1fcff50c25095fec6dfcc372ab60cbf",
+      "source_sha256": "832527f025bec3329c290dd31a2f223e28a3affc23ae6c56e6060b748db6feef",
       "poster_sha256": "0e7550cbf618728859f1e3af23cd334d1d6fa8a48736a6126403e347a342d043"
     },
     {
@@ -195,7 +195,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "172c7e47f9c32709fa520d49b7f60ddde19e0da8e95a6e9b664daa4cfca62ff4",
+      "source_sha256": "a9a41cebefcff8b19a80c5be592554c3e4c4df00785b93e5cecbdf50e61d7e08",
       "poster_sha256": "577fcaa718783559554641e6a72581889ea22b26d7ec25833918f53f06d13e9f"
     }
   ]

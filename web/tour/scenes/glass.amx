@@ -42,7 +42,7 @@ card: Glass, at: (640, 360), size: (520, 250), corner_radius: 26 {
 frost: Blur, radius: 0
     // The card's surface, composited above the blur: a translucent panel with a
     // hairline border — the two pixels that make it read as glass.
-surface: Rect, size: (520, 250), corner_radius: 26, color: "#ffffff1f", stroke: "#ffffff59", stroke_width: 1.5
+surface: Rect, size: (520, 250), corner_radius: 26, color: hex_color("ffffff1f"), stroke: hex_color("ffffff59"), stroke_width: 1.5
     // Centred inside the 520x250 panel: at (-150, -28) the 46px title ran from
     // x=325 to x=655 and hung 55px outside the card's own left edge at 380.
 heading: Text, text: "Backdrop blur", font_size: 46, font_weight: 700, color: text.primary, at: (0, -28)

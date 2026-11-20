@@ -22,11 +22,11 @@ plate: Rect, size: (2600, 470), at: (640, 400), color: surface.primary, corner_r
 rail: Path, commands: {move_to(60, 400), line_to(1220, 400)}, stroke: accent.info, stroke_width: 2, fill_opacity: 0, opacity: 1, dash_pattern: {10, 7}
 
 // Three stations, each lit by a radial wash behind it.
-washA: Ellipse, size: (520, 520), at: (240, 370), opacity: 1, blend: "screen", fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#ff9f0a33"), (60%, "#ff9f0a10"), (100%, "#ff9f0a00")})
+washA: Ellipse, size: (520, 520), at: (240, 370), opacity: 1, blend: "screen", fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("ff9f0a33")), (60%, hex_color("ff9f0a10")), (100%, hex_color("ff9f0a00"))})
 
-washB: Ellipse, size: (520, 520), at: (640, 370), opacity: 1, blend: "screen", fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#30d15833"), (60%, "#30d15810"), (100%, "#30d15800")})
+washB: Ellipse, size: (520, 520), at: (640, 370), opacity: 1, blend: "screen", fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("30d15833")), (60%, hex_color("30d15810")), (100%, hex_color("30d15800"))})
 
-washC: Ellipse, size: (520, 520), at: (1040, 370), opacity: 1, blend: "screen", fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#5e5ce633"), (60%, "#5e5ce610"), (100%, "#5e5ce600")})
+washC: Ellipse, size: (520, 520), at: (1040, 370), opacity: 1, blend: "screen", fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("5e5ce633")), (60%, hex_color("5e5ce610")), (100%, hex_color("5e5ce600"))})
 
 cardA: Rect, size: (220, 150), at: (240, 330), color: accent.warning, corner_radius: 14
 

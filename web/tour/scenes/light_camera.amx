@@ -14,17 +14,17 @@ import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 8.6 }
 
-key: Ellipse, size: (760, 760), at: (470, 300), blend: "screen", opacity: 0, fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94233"), (55%, "#f5b9420f"), (100%, "#f5b94200")})
+key: Ellipse, size: (760, 760), at: (470, 300), blend: "screen", opacity: 0, fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("f5b94233")), (55%, hex_color("f5b9420f")), (100%, hex_color("f5b94200"))})
 
-fill: Ellipse, size: (620, 620), at: (860, 470), blend: "screen", opacity: 0, fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#64d2ff2b"), (55%, "#64d2ff0c"), (100%, "#64d2ff00")})
+fill: Ellipse, size: (620, 620), at: (860, 470), blend: "screen", opacity: 0, fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("64d2ff2b")), (55%, hex_color("64d2ff0c")), (100%, hex_color("64d2ff00"))})
 
 stage: Filter, anchor: scene.center {
 soft: Blur, radius: 0
 glow: Bloom, intensity: 0
 art: Group, anchor: scene.center {
-plate: Rect, size: (560, 300), corner_radius: 24, fill_gradient: linear(135, {"#1b2534", "#0b1017"}), stroke: stroke.default, stroke_width: 2
-bulb: Ellipse, size: (84, 84), at: (-160, -20), color: "#ffe9c7"
-chip: Rect, size: (210, 26), at: (60, -40), corner_radius: 13, fill_gradient: linear(90, {"#ff8666", "#8ab4f6"})
+plate: Rect, size: (560, 300), corner_radius: 24, fill_gradient: linear(135, {hex_color("1b2534"), hex_color("0b1017")}), stroke: stroke.default, stroke_width: 2
+bulb: Ellipse, size: (84, 84), at: (-160, -20), color: hex_color("ffe9c7")
+chip: Rect, size: (210, 26), at: (60, -40), corner_radius: 13, fill_gradient: linear(90, {hex_color("ff8666"), hex_color("8ab4f6")})
 rail: Path, commands: {move_to(-220, 86), line_to(220, 86)}, stroke: accent.info, stroke_width: 2, fill_opacity: 0, dash_pattern: {12, 8}
 cap: Text, text: "lit, not flat", font_size: 26, color: text.primary, at: (0, -108)
   }

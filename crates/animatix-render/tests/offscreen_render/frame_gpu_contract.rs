@@ -34,10 +34,10 @@ fn opaque_readback_matches_straight_alpha_conversion() {
         r##"
 config { resolution: (96, 64) }
 #0s
-  translucent: Rect, at: (28, 30), size: (46, 38), color: "#FF804080"
+  translucent: Rect, at: (28, 30), size: (46, 38), color: hex_color("ff804080")
   panel: Glass, at: (52, 32), size: (45, 38), corner_radius: 5 {
     frost: Blur, radius: 4
-    tint: Rect, size: (43, 36), color: "#FFEEE033"
+    tint: Rect, size: (43, 36), color: hex_color("ffeee033")
   }
 "##,
     );
@@ -61,12 +61,12 @@ fn inline_filter_stays_below_later_sibling() {
         r##"
 config { resolution: (96, 64) }
 #0s
-  bg: Rect, at: (48, 32), size: (96, 64), color: "#152436"
+  bg: Rect, at: (48, 32), size: (96, 64), color: hex_color("152436")
   filtered: Filter, at: (48, 32) {
     soft: Blur, radius: 4
-    fill: Rect, size: (40, 28), color: "#A8E676"
+    fill: Rect, size: (40, 28), color: hex_color("a8e676")
   }
-  front: Rect, at: (48, 32), size: (10, 10), color: "#FC786C"
+  front: Rect, at: (48, 32), size: (10, 10), color: hex_color("fc786c")
 "##,
     );
     let new = candidate.render_timeline(&timeline, 0.0, DIMS).expect("candidate frame");
@@ -84,11 +84,11 @@ fn bounded_grain_and_vignette_match_compute_coordinates() {
         r##"
 config { resolution: (96, 64), duration: 1 }
 #0s
-  bg: Rect, at: (48, 32), size: (96, 64), color: "#152436"
+  bg: Rect, at: (48, 32), size: (96, 64), color: hex_color("152436")
   filtered: Filter, at: (38, 24), bounds: (17, 11, 42, 26) {
     grain: Grain, amount: 0.6, seed: 3, monochrome: false
     edges: Vignette, amount: 0.8, radius: 0.15, softness: 0.25
-    fill: Rect, size: (42, 26), color: "#778899"
+    fill: Rect, size: (42, 26), color: hex_color("778899")
   }
   panel: Glass, at: (76, 24), size: (26, 26) {
     glass_grain: Grain, amount: 0.6, seed: 3, monochrome: true
@@ -150,12 +150,12 @@ fn deferred_glass_panel_stays_above_later_base_draws() {
         r##"
 config { resolution: (96, 64) }
 #0s
-  bg: Rect, at: (48, 32), size: (96, 64), color: "#152436"
+  bg: Rect, at: (48, 32), size: (96, 64), color: hex_color("152436")
   panel: Glass, at: (48, 32), size: (60, 48), corner_radius: 6 {
     frost: Blur, radius: 4
-    badge: Rect, size: (12, 12), color: "#FC786C"
+    badge: Rect, size: (12, 12), color: hex_color("fc786c")
   }
-  later: Rect, at: (48, 32), size: (30, 30), color: "#A8E676"
+  later: Rect, at: (48, 32), size: (30, 30), color: hex_color("a8e676")
 "##,
     );
     let new = candidate.render_timeline(&timeline, 0.0, DIMS).expect("candidate frame");

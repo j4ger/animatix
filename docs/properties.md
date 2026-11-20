@@ -38,7 +38,7 @@ representation separately and do not narrow the type-checker contract.
 | Property | Type | Runtime kind | Animated | Assignable | Applies to |
 |----------|------|--------------|----------|------------|------------|
 | `title` | `Str` | `String` | ✓ | ✓ | `Legend` |
-| `label_color` | `Color \| Str` | `Color` | ✓ | ✓ | `Legend` |
+| `label_color` | `Color` | `Color` | ✓ | ✓ | `Legend` |
 | `swatch_size` | `Num` | `F32` | ✓ | ✓ | `Legend` |
 <!-- generated-property-table:legend-primitive:end -->
 
@@ -78,10 +78,10 @@ Text) and `gap` (under Containers).
 <!-- generated-property-table:style:start -->
 | Property | Type | Runtime kind | Animated | Assignable | Applies to |
 |----------|------|--------------|----------|------------|------------|
-| `color` | `Color \| Str` | `Color` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+| `color` | `Color` | `Color` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
 | `opacity` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
 | `fill_opacity` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Arrow`, `Polygon`, `Path` |
-| `stroke` | `Color \| Str` | `Color` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
+| `stroke` | `Color` | `Color` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
 | `stroke_width` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
 | `stroke_progress` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
 | `dash_pattern` | `List<Num>` | `F32List` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
@@ -104,10 +104,9 @@ the actor's whole subtree against what is behind it. "All stroke paths" includes
 the plot actors — a `PlotCurve` accepts `dash_pattern` and the gradients just
 like a `Path` does, and the ramp survives a `stroke_progress` trace.
 
-These properties also accept their text form inside a frame-time override:
-`always { r.stroke = "#ff2d55" }` reads the same as `always { r.stroke =
-(1.0, 0.18, 0.33, 1.0) }`. A `size` written there is authored in full width and
-height, like the declaration is, not in the half-extents the shape state stores.
+Inside a frame-time override, use a color value such as
+`always { r.stroke = hex_color("ff2d55") }`. A `size` override uses the full
+width and height, just like a declaration.
 
 ### Gradients
 
@@ -118,11 +117,11 @@ value is a call naming the ramp shape, its geometry, and its stops:
 bar: Rect, size: (400, 70),
   fill_gradient: linear(90, {hex_color("ff2d55"), hex_color("ff9f0a")})
 heading: Text, text: "Delightful", font_size: 48, font_weight: "bold",
-  fill_gradient: linear(135, {"#ffd60a", "#f5b942"})
+  fill_gradient: linear(135, {hex_color("ffd60a"), hex_color("f5b942")})
 spot: Ellipse, size: (300, 300),
-  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#5e5ce6"), (100%, "#5e5ce600")})
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("5e5ce6")), (100%, hex_color("5e5ce600"))})
 arc: Path, commands: {…}, stroke_width: 10, fill_opacity: 0.0,
-  stroke_gradient: sweep(0, {"#30d158", "#ffd60a", "#ff2d55", "#30d158"})
+  stroke_gradient: sweep(0, {hex_color("30d158"), hex_color("ffd60a"), hex_color("ff2d55"), hex_color("30d158")})
 ```
 
 - `linear(angle, stops)` — `angle` in degrees, CSS convention (`0` points up,
@@ -266,7 +265,7 @@ maps to a named scheme colour, resolved at build like any other `color`).
 <!-- generated-property-table:equation-and-fragment-highlights:start -->
 | Property | Type | Runtime kind | Animated | Assignable | Applies to |
 |----------|------|--------------|----------|------------|------------|
-| `highlight_color` | `Color \| Str` | `Color` | ✓ | — | `Typst`, `Equation`, `Fragment` |
+| `highlight_color` | `Color` | `Color` | ✓ | — | `Typst`, `Equation`, `Fragment` |
 | `highlight_opacity` | `Num` | `F32` | ✓ | — | `Typst`, `Equation`, `Fragment` |
 | `highlight_padding` | `Num` | `F32` | ✓ | — | `Typst`, `Equation`, `Fragment` |
 | `highlight_radius` | `Num` | `F32` | ✓ | — | `Typst`, `Equation`, `Fragment` |
@@ -372,7 +371,7 @@ width.
 <!-- generated-property-table:scene:start -->
 | Property | Type | Runtime kind | Animated | Assignable | Applies to |
 |----------|------|--------------|----------|------------|------------|
-| `background_color` | `Color \| Str` | `Color` | ✓ | ✓ | — |
+| `background_color` | `Color` | `Color` | ✓ | ✓ | — |
 | `camera_follow` | `Any` | `BuildTimeOnly` | — | — | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
 | `parallax` | `Num` | `F32` | — | — | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
 | `shared_id` | `Str` | `String` | — | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |

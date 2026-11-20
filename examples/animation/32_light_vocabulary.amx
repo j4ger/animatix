@@ -10,17 +10,17 @@ head: ActHead, kicker: "VISUAL · LIGHT", title: "Light vocabulary", sub: "Compo
 
 caption: Caption, text: "Elements combine to form a light-based composition.", tag: "32_light_vocabulary"
 
-wash: Ellipse, size: (900, 900), at: (420, 300), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#5e5ce6"), (60%, "#5e5ce633"), (100%, "#5e5ce600")}), blend: "screen"
+wash: Ellipse, size: (900, 900), at: (420, 300), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("5e5ce6")), (60%, hex_color("5e5ce633")), (100%, hex_color("5e5ce600"))}), blend: "screen"
 
-bar: Rect, size: (760, 88), at: (640, 220), corner_radius: 22, fill_gradient: linear(120, {"#ff2d55", "#ff9f0a"})
+bar: Rect, size: (760, 88), at: (640, 220), corner_radius: 22, fill_gradient: linear(120, {hex_color("ff2d55"), hex_color("ff9f0a")})
 
-arc: Path, commands: {move_to(320, 520), curve_to(480, 380, 800, 380, 960, 520)}, stroke_width: 10, fill_opacity: 0, stroke_gradient: sweep(0, {"#30d158", "#ffd60a", "#ff2d55", "#30d158"}), gradient_extend: "reflect"
+arc: Path, commands: {move_to(320, 520), curve_to(480, 380, 800, 380, 960, 520)}, stroke_width: 10, fill_opacity: 0, stroke_gradient: sweep(0, {hex_color("30d158"), hex_color("ffd60a"), hex_color("ff2d55"), hex_color("30d158")}), gradient_extend: "reflect"
 
 wire: Path, commands: {move_to(240, 620), line_to(1040, 620)}, stroke: accent.info, stroke_width: 2, fill_opacity: 0, dash_pattern: {10, 7}
 
 title: Text, text: "made of light", at: (640, 220), font_size: 54
 
-mote: Ellipse, size: (14, 14), at: (640, 400), color: lerp_color_oklab("#30d158", "#ff2d55", 0.5)
+mote: Ellipse, size: (14, 14), at: (640, 400), color: lerp_color_oklab(hex_color("30d158"), hex_color("ff2d55"), 0.5)
 
 #0s
   fade_in(target: floor, duration: 0.6s)

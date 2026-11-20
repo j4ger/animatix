@@ -78,7 +78,7 @@ impl BuiltinAction for Highlight {
                     diagnostics.push(crate::diagnostics::Diagnostic::error(
                         crate::diagnostics::DiagnosticCode::InvalidModifierValue,
                         crate::diagnostics::DiagnosticPhase::Build,
-                        "highlight color must be a valid color value or color string",
+                        "highlight color must be a Color value",
                     ));
                     return;
                 },

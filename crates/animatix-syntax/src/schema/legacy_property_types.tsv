@@ -4,14 +4,14 @@
 1	anchor	Any
 2	ascent	Num
 3	at	Vec2
-4	background_color	Color | Str
+4	background_color	Color
 5	bar_colors	Any
 6	bar_width	Num | Str
 7	baseline	Num
 8	bounds	Vec4
 9	char_progress	Num
 10	code	Str
-11	color	Color | Str
+11	color	Color
 12	cols	Num
 13	commands	Any
 14	data	Any
@@ -29,14 +29,14 @@
 26	grid	Bool
 27	head_size	Num
 28	height	Num
-29	highlight_color	Color | Str
+29	highlight_color	Color
 30	highlight_opacity	Num
 31	highlight_padding	Num
 32	highlight_radius	Num
 33	kind	Str
 34	label	Str
 35	label_at	Vec2
-36	label_color	Color | Str
+36	label_color	Color
 37	legend	Bool | Str
 38	letter_spacing	Num
 39	levels	Any
@@ -68,7 +68,7 @@
 65	solo	Bool
 66	source	Str
 67	standoff	Num
-68	stroke	Color | Str
+68	stroke	Color
 69	stroke_progress	Num
 70	stroke_width	Num
 71	swatch_size	Num

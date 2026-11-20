@@ -2,9 +2,9 @@ config { resolution: (640, 360), duration: 2 }
 
 // Inline filter sample
 #0s
-  bg: Rect, at: (320, 180), size: (640, 360), color: "#101827"
+  bg: Rect, at: (320, 180), size: (640, 360), color: hex_color("101827")
   blur: Filter, at: (320, 180) {
     soften: Blur, radius: 14
-    bar: Rect, at: (0, 0), size: (260, 180), color: "#FC786C"
+    bar: Rect, at: (0, 0), size: (260, 180), color: hex_color("fc786c")
   }
 #2s

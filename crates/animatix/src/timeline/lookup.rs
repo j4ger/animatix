@@ -172,6 +172,17 @@ pub(crate) fn parse_color_in_env_with_lookup_diagnostic(
     match resolve_color_in_env(expr, env) {
         Ok(Some(color)) => Some(color),
         Ok(None) => Some(fallback),
+        Err(error @ EvalError::StringInColor) => {
+            diagnostics.push(
+                Diagnostic::error(
+                    DiagnosticCode::TypeMismatch,
+                    DiagnosticPhase::Build,
+                    error.to_string(),
+                )
+                .with_subject(subject),
+            );
+            None
+        },
         Err(EvalError::UndefinedVariable(lookup_key)) => {
             let candidate_keys = env.all_keys();
             let suggestion =

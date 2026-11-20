@@ -27,7 +27,7 @@ title: Text, text: "stagger · sequence · easing", font_size: 30, color: text.p
 // One screen-blend pool behind the row: the plate stops being a black field
 // with stickers on it. The ramp fades to transparent at its own edge, so a
 // square box leaves no visible seam.
-wash: Ellipse, size: (900, 900), at: (640, 380), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b9421e"), (50%, "#8ab4f60c"), (100%, "#8ab4f600")}), blend: "screen"
+wash: Ellipse, size: (900, 900), at: (640, 380), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("f5b9421e")), (50%, hex_color("8ab4f60c")), (100%, hex_color("8ab4f600"))}), blend: "screen"
 
 row: Row, anchor: scene.center, gap: 64, align: "center", offset: (0, -40) {
 for color, i in {accent.primary, text.primary, accent.warning, accent.success, accent.info} {
@@ -54,7 +54,7 @@ rail_bot: Path, commands: {move_to(212, 610), line_to(1068, 610)}, stroke: strok
 
 racers: Group {
 for x, i in {272, 456, 640, 824, 1008} {
-drop[i]: Ellipse, size: (24, 24), at: (x, 505), fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffffff"), (45%, "#ece7db"), (100%, "#7d786f")})
+drop[i]: Ellipse, size: (24, 24), at: (x, 505), fill_gradient: radial((0.34, 0.28), 0.66, {(0%, hex_color("ffffff")), (45%, hex_color("ece7db")), (100%, hex_color("7d786f"))})
   }
 }
 

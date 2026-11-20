@@ -926,7 +926,7 @@ pub component Card(title: Str = "Card") {
 }
 
 #0s
-scene.background_color = "#1a1a2e"
+scene.background_color = hex_color("1a1a2e")
 
 card_a: Card, title: "Design", anchor: scene.center, offset: (-120, 0) {
   @content {
@@ -975,7 +975,7 @@ pub component Card(title: Str = "Card") {
 }
 
 #0s
-scene.background_color = "#1a1a2e"
+scene.background_color = hex_color("1a1a2e")
 
 card_a: Card, title: "Design", anchor: scene.center, offset: (-120, 0)
 
@@ -1000,7 +1000,7 @@ fn load_program_comments_in_always_block() {
 config { colorscheme: "editorial-dark", resolution: (800, 500) }
 
 #0s
-scene.background_color = "#1a1a2e"
+scene.background_color = hex_color("1a1a2e")
 
 box: Rect, size: (100, 100), color: accent.primary, anchor: scene.center
 

@@ -16,7 +16,6 @@ pub(crate) fn override_color(overrides: &HashMap<String, Value>, key: &str) -> O
         Some(Value::Color(c) | Value::Vec4(c)) => {
             Some([c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32])
         },
-        Some(Value::Str(text)) => crate::timeline::utils::color_from_text(text),
         Some(other) => {
             tracing::debug!("`{key}` override is not a color: {other:?}; keeping keyframed value");
             None

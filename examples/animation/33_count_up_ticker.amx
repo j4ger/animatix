@@ -14,7 +14,7 @@ label: Text, text: "ships this quarter", at: (640, 467), font_size: 26
 
 kpi: Text, text: "0%", at: (640, 333), font_size: 132
 
-rule: Rect, size: (320, 4), at: (640, 416), corner_radius: 2, fill_gradient: linear(90, {"#ff2d55", "#ff9f0a"})
+rule: Rect, size: (320, 4), at: (640, 416), corner_radius: 2, fill_gradient: linear(90, {hex_color("ff2d55"), hex_color("ff9f0a")})
 
 always {
   let p = clamp((t - 0.4) / 1.8, 0, 1)

@@ -15,8 +15,8 @@ use std::collections::BTreeMap;
 
 use crate::ast::{Expr, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
-use crate::timeline::env::{Environment, Value};
-use crate::timeline::utils::parse_color;
+use crate::timeline::env::{Environment, EvalError, Value};
+use crate::timeline::utils::resolve_color_in_env;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// Built-in colorscheme presets.
@@ -251,34 +251,39 @@ impl ResolvedColorscheme {
         let mut colors = BTreeMap::new();
         let mut auto_cycle = Vec::new();
 
+        let env = Environment::new();
         for prop in properties {
+            let mut parse = |value: &Expr| match resolve_color_in_env(value, &env) {
+                Ok(Some(color)) => Some(color),
+                Err(error @ EvalError::StringInColor) => {
+                    diagnostics.push(
+                        Diagnostic::error(
+                            DiagnosticCode::TypeMismatch,
+                            DiagnosticPhase::Build,
+                            error.to_string(),
+                        )
+                        .with_subject(format!("{name}.{}", prop.name)),
+                    );
+                    None
+                },
+                _ => {
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::InvalidColorschemeData,
+                            DiagnosticPhase::Build,
+                            format!("Colorscheme '{name}' property '{}' has invalid color value; skipping.", prop.name),
+                        )
+                        .with_subject(&prop.name),
+                    );
+                    None
+                },
+            };
             if prop.name == "auto" {
                 if let Expr::Tuple(items) = &prop.value {
-                    for item in items {
-                        let color = parse_color(item);
-                        if color != [0.0, 0.0, 0.0, 1.0] || matches!(item, Expr::Tuple(_)) {
-                            auto_cycle.push(color);
-                        }
-                    }
+                    auto_cycle.extend(items.iter().filter_map(parse));
                 }
-                continue;
-            }
-
-            let color = parse_color(&prop.value);
-            if color != [0.0, 0.0, 0.0, 1.0] || matches!(&prop.value, Expr::Tuple(_)) {
+            } else if let Some(color) = parse(&prop.value) {
                 colors.insert(prop.name.clone(), color);
-            } else {
-                diagnostics.push(
-                    Diagnostic::warning(
-                        DiagnosticCode::InvalidColorschemeData,
-                        DiagnosticPhase::Build,
-                        format!(
-                            "Colorscheme '{}' property '{}' has invalid color value; skipping.",
-                            name, prop.name
-                        ),
-                    )
-                    .with_subject(&prop.name),
-                );
             }
         }
 

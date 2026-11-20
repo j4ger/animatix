@@ -220,19 +220,12 @@ pub(crate) fn srgb_from_oklab(lab: [f64; 4]) -> [f64; 4] {
 }
 
 /// Load standard mathematical and utility functions into the environment.
-/// Read a color argument, accepting the same forms a `color:` property does.
-///
-/// A hex or named color string is a `Value::Str` at call time, so without this
-/// `lerp_color_oklab("#30d158", "#ff2d55", t)` fails even though the identical
-/// string works in a declaration.
+/// Read typed color and numeric vector arguments for interpolation.
 fn color_arg(name: &str, value: &Value) -> Result<[f64; 4], EvalError> {
     match value {
         Value::Color(c) => Ok(*c),
         Value::Vec4(c) => Ok(*c),
         Value::Vec3(c) => Ok([c[0], c[1], c[2], 1.0]),
-        Value::Str(text) => crate::timeline::utils::color_from_text(text)
-            .map(|c| c.map(f64::from))
-            .ok_or_else(|| EvalError::TypeMismatch(format!("{name}: '{text}' is not a color"))),
         other => Err(EvalError::TypeMismatch(format!("{name} expects a color, got {other:?}"))),
     }
 }
@@ -473,22 +466,8 @@ fn register_interpolation_fns(env: &mut Environment) {
         "lerp_color",
         Value::NativeFn(Arc::new(|args, _env| {
             expect_arg_count("lerp_color", args, 3)?;
-            let start = match &args[0] {
-                Value::Color(c) => *c,
-                _ => {
-                    return Err(EvalError::TypeMismatch(
-                        "lerp_color expects start as Color".to_string(),
-                    ));
-                },
-            };
-            let end = match &args[1] {
-                Value::Color(c) => *c,
-                _ => {
-                    return Err(EvalError::TypeMismatch(
-                        "lerp_color expects end as Color".to_string(),
-                    ));
-                },
-            };
+            let start = color_arg("lerp_color", &args[0])?;
+            let end = color_arg("lerp_color", &args[1])?;
             let t = expect_num("lerp_color", &args[2])?;
             Ok(Value::Color([
                 start[0] + (end[0] - start[0]) * t,

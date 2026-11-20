@@ -1,9 +1,9 @@
 // Rich text + image capability workload for the browser runtime A/B harness.
 config { resolution: (1280, 720), duration: 2 }
 
-title: Text, text: "Rich text and media", font_size: 42, color: "#f2f4f8", anchor: scene.center, offset: (0, -245), opacity: 1
+title: Text, text: "Rich text and media", font_size: 42, color: hex_color("f2f4f8"), anchor: scene.center, offset: (0, -245), opacity: 1
 
-eq: Equation, font_size: 48, color: "#f3c76a", anchor: scene.center, offset: (0, -105), opacity: 1 {
+eq: Equation, font_size: 48, color: hex_color("f3c76a"), anchor: scene.center, offset: (0, -105), opacity: 1 {
 lhs: Fragment, text: "E"
 eq_sign: Fragment, text: " = "
 mass: Fragment, text: "m"

@@ -21,6 +21,8 @@ pub enum EvalError {
     UndefinedVariable(String),
     /// Value type does not match the expected type for an operation.
     TypeMismatch(String),
+    /// A string was used where a color value is required.
+    StringInColor,
     /// Attempted to call a non-function value.
     NotCallable(String),
     /// Method name is not supported on the target type.

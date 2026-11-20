@@ -261,7 +261,7 @@ impl TypeEnv {
     }
 
     /// Resolve an actor/component property by name.
-    pub(super) fn lookup_property(&self, receiver: &Type, name: &str) -> Option<Type> {
+    pub(crate) fn lookup_property(&self, receiver: &Type, name: &str) -> Option<Type> {
         match receiver {
             Type::Actor(actor_ty) => property_type(actor_ty, name),
             Type::Component(component) => {

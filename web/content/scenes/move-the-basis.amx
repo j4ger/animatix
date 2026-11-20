@@ -7,39 +7,39 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 24 }
 let k = 0
 
 #0s
-  background: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
-  kicker: Text, text: "LINEAR TRANSFORMS / ONE RULE FOR EVERY POINT", at: (640, 58), font_size: 16, color: "#90A4B8"
-  title: Text, text: "Move the basis. Move the world.", at: (640, 112), font_size: 40, font_weight: "bold", color: "#F3F5F7"
-  reference_x: Line, from: (100, 410), to: (720, 410), stroke: "#526273", stroke_width: 2
-  reference_y: Line, from: (400, 200), to: (400, 600), stroke: "#526273", stroke_width: 2
-  x_name: Text, text: "x", at: (737, 410), font_size: 20, color: "#90A4B8"
-  y_name: Text, text: "y", at: (400, 184), font_size: 20, color: "#90A4B8"
-  origin: Ellipse, at: (400, 410), size: (9, 9), color: "#F3F5F7"
-  vertical_0: Line, from: (260, 550), to: (260, 270), stroke: "#304658", stroke_width: 1, opacity: 0
-  horizontal_0: Line, from: (260, 550), to: (540, 550), stroke: "#304658", stroke_width: 1, opacity: 0
-  vertical_1: Line, from: (330, 550), to: (330, 270), stroke: "#304658", stroke_width: 1, opacity: 0
-  horizontal_1: Line, from: (260, 480), to: (540, 480), stroke: "#304658", stroke_width: 1, opacity: 0
-  vertical_2: Line, from: (400, 550), to: (400, 270), stroke: "#304658", stroke_width: 1, opacity: 0
-  horizontal_2: Line, from: (260, 410), to: (540, 410), stroke: "#304658", stroke_width: 1, opacity: 0
-  vertical_3: Line, from: (470, 550), to: (470, 270), stroke: "#304658", stroke_width: 1, opacity: 0
-  horizontal_3: Line, from: (260, 340), to: (540, 340), stroke: "#304658", stroke_width: 1, opacity: 0
-  vertical_4: Line, from: (540, 550), to: (540, 270), stroke: "#304658", stroke_width: 1, opacity: 0
-  horizontal_4: Line, from: (260, 270), to: (540, 270), stroke: "#304658", stroke_width: 1, opacity: 0
+  background: Rect, at: (640, 360), size: (1280, 720), color: hex_color("0d1520")
+  kicker: Text, text: "LINEAR TRANSFORMS / ONE RULE FOR EVERY POINT", at: (640, 58), font_size: 16, color: hex_color("90a4b8")
+  title: Text, text: "Move the basis. Move the world.", at: (640, 112), font_size: 40, font_weight: "bold", color: hex_color("f3f5f7")
+  reference_x: Line, from: (100, 410), to: (720, 410), stroke: hex_color("526273"), stroke_width: 2
+  reference_y: Line, from: (400, 200), to: (400, 600), stroke: hex_color("526273"), stroke_width: 2
+  x_name: Text, text: "x", at: (737, 410), font_size: 20, color: hex_color("90a4b8")
+  y_name: Text, text: "y", at: (400, 184), font_size: 20, color: hex_color("90a4b8")
+  origin: Ellipse, at: (400, 410), size: (9, 9), color: hex_color("f3f5f7")
+  vertical_0: Line, from: (260, 550), to: (260, 270), stroke: hex_color("304658"), stroke_width: 1, opacity: 0
+  horizontal_0: Line, from: (260, 550), to: (540, 550), stroke: hex_color("304658"), stroke_width: 1, opacity: 0
+  vertical_1: Line, from: (330, 550), to: (330, 270), stroke: hex_color("304658"), stroke_width: 1, opacity: 0
+  horizontal_1: Line, from: (260, 480), to: (540, 480), stroke: hex_color("304658"), stroke_width: 1, opacity: 0
+  vertical_2: Line, from: (400, 550), to: (400, 270), stroke: hex_color("304658"), stroke_width: 1, opacity: 0
+  horizontal_2: Line, from: (260, 410), to: (540, 410), stroke: hex_color("304658"), stroke_width: 1, opacity: 0
+  vertical_3: Line, from: (470, 550), to: (470, 270), stroke: hex_color("304658"), stroke_width: 1, opacity: 0
+  horizontal_3: Line, from: (260, 340), to: (540, 340), stroke: hex_color("304658"), stroke_width: 1, opacity: 0
+  vertical_4: Line, from: (540, 550), to: (540, 270), stroke: hex_color("304658"), stroke_width: 1, opacity: 0
+  horizontal_4: Line, from: (260, 270), to: (540, 270), stroke: hex_color("304658"), stroke_width: 1, opacity: 0
 
 #0s
-  unit_top: Line, from: (400, 340), to: (470, 340), stroke: "#65D9E8", stroke_width: 3, opacity: 0
-  unit_right: Line, from: (470, 410), to: (470, 340), stroke: "#65D9E8", stroke_width: 3, opacity: 0
-  basis_x: Arrow, from: (400, 410), to: (470, 410), stroke: "#65D9E8", stroke_width: 4
-  basis_y: Arrow, from: (400, 410), to: (400, 340), stroke: "#F4D47B", stroke_width: 4
-  sample: Ellipse, at: (470, 340), size: (14, 14), color: "#FF947D", opacity: 0
-  split: Line, from: (800, 220), to: (800, 590), stroke: "#304658", stroke_width: 1
-  rule: Text, text: "x becomes x + k·y", at: (1020, 270), font_size: 27, font_weight: "bold", color: "#F3F5F7"
-  rule_y: Text, text: "y stays y", at: (1020, 310), font_size: 24, color: "#ADBCCA"
-  amount: Text, text: "k = 0.00", at: (1020, 380), font_size: 40, color: "#F4D47B"
-  base_x: Text, text: "e1 = (1, 0)", at: (1020, 455), font_size: 24, color: "#65D9E8"
-  base_y: Text, text: "e2 = (0.00, 1)", at: (1020, 495), font_size: 24, color: "#F4D47B"
-  area: Text, text: "AREA = 1", at: (1020, 565), font_size: 20, color: "#65D9E8", opacity: 0
-  caption: Text, text: "Two basis vectors describe the original space.", at: (640, 650), font_size: 24, color: "#ADBCCA"
+  unit_top: Line, from: (400, 340), to: (470, 340), stroke: hex_color("65d9e8"), stroke_width: 3, opacity: 0
+  unit_right: Line, from: (470, 410), to: (470, 340), stroke: hex_color("65d9e8"), stroke_width: 3, opacity: 0
+  basis_x: Arrow, from: (400, 410), to: (470, 410), stroke: hex_color("65d9e8"), stroke_width: 4
+  basis_y: Arrow, from: (400, 410), to: (400, 340), stroke: hex_color("f4d47b"), stroke_width: 4
+  sample: Ellipse, at: (470, 340), size: (14, 14), color: hex_color("ff947d"), opacity: 0
+  split: Line, from: (800, 220), to: (800, 590), stroke: hex_color("304658"), stroke_width: 1
+  rule: Text, text: "x becomes x + k·y", at: (1020, 270), font_size: 27, font_weight: "bold", color: hex_color("f3f5f7")
+  rule_y: Text, text: "y stays y", at: (1020, 310), font_size: 24, color: hex_color("adbcca")
+  amount: Text, text: "k = 0.00", at: (1020, 380), font_size: 40, color: hex_color("f4d47b")
+  base_x: Text, text: "e1 = (1, 0)", at: (1020, 455), font_size: 24, color: hex_color("65d9e8")
+  base_y: Text, text: "e2 = (0.00, 1)", at: (1020, 495), font_size: 24, color: hex_color("f4d47b")
+  area: Text, text: "AREA = 1", at: (1020, 565), font_size: 20, color: hex_color("65d9e8"), opacity: 0
+  caption: Text, text: "Two basis vectors describe the original space.", at: (640, 650), font_size: 24, color: hex_color("adbcca")
 
 #3s
 

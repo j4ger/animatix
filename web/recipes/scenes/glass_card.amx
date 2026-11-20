@@ -23,7 +23,7 @@ card: Glass, at: (320, 180), size: (190, 78), corner_radius: 16 {
 frost: Blur, radius: 0
     // The card's surface is a child, not the scope's own fill: the frost copies
     // the finished frame, so a border painted on the scope is inside the blur.
-surface: Rect, size: (190, 78), corner_radius: 16, color: "#ffffff1f", stroke: "#ffffff33", stroke_width: 1
+surface: Rect, size: (190, 78), corner_radius: 16, color: hex_color("ffffff1f"), stroke: hex_color("ffffff33"), stroke_width: 1
 num: Text, text: "1,284", font_size: 30, at: (-70, -12), color: text.primary
 cap: Text, text: "requests / sec", font_size: 11, at: (-84, 20), color: text.secondary
 }

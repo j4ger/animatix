@@ -10,9 +10,9 @@ slow_label: Text, text: "A · stretched beat", font_size: 20, color: accent.info
 
 fast_label: Text, text: "B · clipped beat", font_size: 20, color: accent.warning, at: (210, 426)
 
-rail_a: Rect, at: (380, 300), size: (520, 3), color: "#344455"
+rail_a: Rect, at: (380, 300), size: (520, 3), color: hex_color("344455")
 
-rail_b: Rect, at: (380, 480), size: (520, 3), color: "#344455"
+rail_b: Rect, at: (380, 480), size: (520, 3), color: hex_color("344455")
 
 needle: Ellipse, at: (140, 300), size: (28, 28), color: accent.info
 

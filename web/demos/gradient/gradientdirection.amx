@@ -59,7 +59,7 @@ axis_y_label: Text, text: "y", font_size: 16, font_family: "mono", color: text.m
 // ── the ball and the two directions ────────────────────────────────
 // Start point (3.6, 1.8) sits on the rim; the gradient there is (14.4, 3.6),
 // so the uphill arrow climbs right and the downhill arrow falls left.
-ball: Ellipse, size: (22, 22), at: (768, 301), opacity: 0, fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffffff"), (45%, "#f4efe2"), (100%, "#6e6a62")})
+ball: Ellipse, size: (22, 22), at: (768, 301), opacity: 0, fill_gradient: radial((0.34, 0.28), 0.66, {(0%, hex_color("ffffff")), (45%, hex_color("f4efe2")), (100%, hex_color("6e6a62"))})
 
 ball_glow: Ellipse, size: (100, 100), at: (768, 301), blend: "screen", opacity: 0, fill_gradient: radial((0.5, 0.5), 0.5, {(0%, accent.primary * 0.55), (58%, accent.primary * 0.14), (100%, (0, 0, 0, 0))})
 
@@ -94,7 +94,7 @@ basin_glow: Ellipse, size: (210, 210), at: (480, 445), blend: "screen", opacity:
 
 basin_ring: Ellipse, size: (54, 54), stroke: accent.success, stroke_width: 2, opacity: 0.85, at: (480, 445)
 
-basin_core: Ellipse, size: (12, 12), at: (480, 445), opacity: 1, fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#eafff0"), (45%, "#45d488"), (100%, "#0d5c2e")})
+basin_core: Ellipse, size: (12, 12), at: (480, 445), opacity: 1, fill_gradient: radial((0.34, 0.28), 0.66, {(0%, hex_color("eafff0")), (45%, hex_color("45d488")), (100%, hex_color("0d5c2e"))})
 
 basin_label: Text, text: "GLOBAL MINIMUM · L = 0", font_size: 16, font_family: "mono", color: accent.success, at: (480, 612), opacity: 0.8
 

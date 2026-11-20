@@ -35,7 +35,7 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
   if (contract.action === 'load') await startPoster(cdp, Boolean(contract.recording));
   if (contract.action === 'edit') {
     await until('source ready', () => cdp.evaluate(`document.querySelector('#editor-status')?.textContent.startsWith('Source ready.')`));
-    await cdp.evaluate(`(()=>{const code=document.querySelector('#source-code');if(!code.value.includes('#65D9E8'))throw Error('Unexpected first-move source');code.value=code.value.replace('#65D9E8','#F46EA0');code.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#run').click();})()`);
+    await cdp.evaluate(`(()=>{const code=document.querySelector('#source-code');if(!code.value.includes('hex_color("65d9e8")'))throw Error('Unexpected first-move source');code.value=code.value.replace('hex_color("65d9e8")','hex_color("f46ea0")');code.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#run').click();})()`);
   }
   await until('expected players', async () => {
     await checkErrors();

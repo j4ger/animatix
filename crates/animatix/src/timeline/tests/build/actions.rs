@@ -562,16 +562,16 @@ fn gradient_paints_are_parsed_stamped_and_interpolated() {
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 
 r: Rect, size: (200, 120), at: (320, 180), color: accent.primary,
-  fill_gradient: linear(135, {"#ff0000", "#00ff00"}),
+  fill_gradient: linear(135, {hex_color("ff0000"), hex_color("00ff00")}),
   gradient_extend: "reflect"
 s: Path, commands: {move_to(100, 300), line_to(500, 300)},
   stroke: accent.warning, stroke_width: 6, fill_opacity: 0.0,
-  stroke_gradient: sweep(45, {"#ffffff", "#888888", "#000000"})
+  stroke_gradient: sweep(45, {hex_color("ffffff"), hex_color("888888"), hex_color("000000")})
 
 #0s
-r.fill_gradient = radial((0.5, 0.5), 0.6, {(0%, "#ff0000"), (100%, "#0000ff")})
+r.fill_gradient = radial((0.5, 0.5), 0.6, {(0%, hex_color("ff0000")), (100%, hex_color("0000ff"))})
 #1s
-r.fill_gradient = radial((0.5, 0.5), 0.2, {(0%, "#ff0000"), (100%, "#0000ff")}) [1s]
+r.fill_gradient = radial((0.5, 0.5), 0.2, {(0%, hex_color("ff0000")), (100%, hex_color("0000ff"))}) [1s]
     "##;
     let timeline = build_clean(source);
 
@@ -1259,7 +1259,7 @@ fn unary_minus_on_imported_module_path_resolves_in_graph_domain() {
 #[test]
 fn gradients_use_named_arguments_and_function_return_values() {
     let source = r##"
-fn paint(angle: Num) { linear(stops: {"#ff0000", "#0000ff"}, angle: angle) }
+fn paint(angle: Num) { linear(stops: {hex_color("ff0000"), hex_color("0000ff")}, angle: angle) }
 let fill = paint(75)
 #0s
 r: Rect, size: (100, 60), fill_gradient: fill

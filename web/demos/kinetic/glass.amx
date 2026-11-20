@@ -50,18 +50,18 @@ chip_tilt: Readout, label: "PLANE TILT", value: "10°", at: (1140, 440), opacity
 // Wide, saturated, high-frequency: 46 px bars on a 68 px pitch, with thin sky
 // needles threaded between them. Everything here is moving (see `always`), so the
 // frosted window always has fresh detail to destroy.
-field_glow: Ellipse, size: (1500, 520), at: (540, 430), blend: "screen", opacity: 0.34, fill_gradient: radial((0.5, 0.5), 0.6, {(0%, "#ff6f4a30"), (55%, "#ff6f4a10"), (100%, "#ff6f4a00")}), legend: false
+field_glow: Ellipse, size: (1500, 520), at: (540, 430), blend: "screen", opacity: 0.34, fill_gradient: radial((0.5, 0.5), 0.6, {(0%, hex_color("ff6f4a30")), (55%, hex_color("ff6f4a10")), (100%, hex_color("ff6f4a00"))}), legend: false
 
 for (x, cy, h), i in {(100, 430, 290), (166, 415, 180), (232, 450, 330), (298, 420, 220), (364, 440, 300), (430, 410, 160), (496, 435, 260), (562, 418, 200), (628, 448, 320), (694, 412, 170), (760, 438, 280), (826, 408, 150), (892, 430, 250), (958, 422, 230)} {
-  bars[i]: Rect, size: (46, h), corner_radius: 8, at: (x, cy), opacity: 1, fill_gradient: linear(180, {accent.primary, "#f5b942"})
+  bars[i]: Rect, size: (46, h), corner_radius: 8, at: (x, cy), opacity: 1, fill_gradient: linear(180, {accent.primary, hex_color("f5b942")})
 }
 
 for (x, cy, h), i in {(133, 430, 140), (199, 415, 210), (265, 440, 120), (331, 420, 180), (397, 435, 230), (463, 410, 130), (529, 435, 190), (595, 418, 160), (661, 442, 220), (727, 415, 140), (793, 432, 200), (859, 408, 130), (925, 428, 185)} {
-  needles[i]: Rect, size: (8, h), corner_radius: 4, at: (x, cy), opacity: 0.85, fill_gradient: linear(180, {accent.info, "#7c5cff"})
+  needles[i]: Rect, size: (8, h), corner_radius: 4, at: (x, cy), opacity: 0.85, fill_gradient: linear(180, {accent.info, hex_color("7c5cff")})
 }
 
 // The payoff flare, behind the panel so the frost gets to soften it too.
-bloom: Ellipse, size: (980, 430), at: (540, 440), blend: "screen", opacity: 0, fill_gradient: radial((0.5, 0.5), 0.55, {(0%, "#ff70524a"), (55%, "#ff705214"), (100%, "#ff705200")}), legend: false
+bloom: Ellipse, size: (980, 430), at: (540, 440), blend: "screen", opacity: 0, fill_gradient: radial((0.5, 0.5), 0.55, {(0%, hex_color("ff70524a")), (55%, hex_color("ff705214")), (100%, hex_color("ff705200"))}), legend: false
 
 // ── the panel ───────────────────────────────────────────────────────
 // One Glass scope: the only frosted region in the scene. Its surface is a child
@@ -73,7 +73,7 @@ bloom: Ellipse, size: (980, 430), at: (540, 440), blend: "screen", opacity: 0, f
 // grey wedge. The surface turns the overshoot into a clear glass rim instead.
 glass: Glass, at: (540, 440), size: (700, 200), corner_radius: 30, rotate_y: tilt * 0.0174532925, rotate_x: 0 - tilt * 0.027925268, opacity: 1 {
 soft: Blur, radius: frost
-surface: Rect, size: (760, 250), corner_radius: 30, color: "#ffffff14", stroke: "#ffffff45", stroke_width: 1.5, shadow: (0, 26, 56, 0), shadow_color: (0, 0, 0, 0.45), opacity: 1
+surface: Rect, size: (760, 250), corner_radius: 30, color: hex_color("ffffff14"), stroke: hex_color("ffffff45"), stroke_width: 1.5, shadow: (0, 26, 56, 0), shadow_color: (0, 0, 0, 0.45), opacity: 1
 tag: Text, text: "GLASS SCOPE · LIVE BACKDROP BLUR", font_size: 18, font_family: "mono", font_weight: 600, color: accent.primary, at: (0, -58), opacity: 1
 display: Text, text: "Frosted depth", font_size: 76, font_weight: "bold", color: text.primary, at: (0, 6), opacity: 1
 desc: Text, text: "The field behind it dissolves; the type on it does not.", font_size: 22, color: text.secondary, text_align: "center", text_max_width: 640, at: (0, 78), opacity: 1

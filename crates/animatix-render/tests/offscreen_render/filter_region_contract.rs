@@ -26,7 +26,7 @@ fn growing_filter_auto_region_matches_explicit_region_across_seeks() {
 config {{ resolution: (400,200), duration: 3 }}
 scope: Filter, at: (200,100), opacity: 1{bounds} {{
  fx: Blur, radius: 4
- box: Rect, size: (60,40), color: "#ff0000", opacity: 1
+ box: Rect, size: (60,40), color: hex_color("ff0000"), opacity: 1
 }}
 {}
 always {{ box.size = (60 + 180 * clamp(t,0,1),40) }}
@@ -34,7 +34,7 @@ always {{ box.size = (60 + 180 * clamp(t,0,1),40) }}
                     if tail {
                         ""
                     } else {
-                        "marker: Rect, size:(10,10), at:(15,15), color:\"#00ff00\", opacity:1"
+                        "marker: Rect, size:(10,10), at:(15,15), color:hex_color(\"00ff00\"), opacity:1"
                     }
                 )
             };
@@ -70,7 +70,7 @@ fn full_canvas_filter_bounds_preserve_vignette_coordinate_extent() {
 config {{ resolution: (400,200) }}
 scope: Filter, at: (200,100), opacity: 1{bounds} {{
  fx: Vignette, amount: 1, radius: 0.1, softness: 0.5
- box: Rect, size: (120,60), color: "#ffffff", opacity: 1
+ box: Rect, size: (120,60), color: hex_color("ffffff"), opacity: 1
 }}
 {}
 "##,
@@ -112,8 +112,8 @@ fn filtered_shadow_region_matches_fresh_explicit_reference_after_memo_hits() {
 config {{ resolution: (400,240), duration: 3 }}
 scope: Filter, at:(200,120), opacity:1{bounds} {{
  fx: Blur, radius: 2
- box: Rect, size:(100,60), color:"#ff0000", opacity:1,
-  shadow:(30,8,12,2), shadow_color:"#00ff00"
+ box: Rect, size:(100,60), color:hex_color("ff0000"), opacity:1,
+  shadow:(30,8,12,2), shadow_color:hex_color("00ff00")
 }}
 {}
 always {{ box.at = (20 * t,0) }}
@@ -154,8 +154,8 @@ fn reactive_shadow_matches_keyframed_pixels_across_seeks() {
 config { resolution: (400,240), duration: 3 }
 scope: Filter, at:(200,120), opacity:1 {
   fx: Blur, radius: 2
-  box: Rect, size:(100,60), color:"#ff0000", opacity:1,
-    shadow:(0,0,0,0), shadow_color:"#00ff00"
+  box: Rect, size:(100,60), color:hex_color("ff0000"), opacity:1,
+    shadow:(0,0,0,0), shadow_color:hex_color("00ff00")
 }
 "##;
     let keyframed = build(&format!("{source}\n#0s\nbox.shadow = (60,0,12,2) [1s, ease: linear]"));
@@ -184,16 +184,16 @@ fn reactive_text_color_and_callout_content_match_static_output() {
         format!(
             r#"config {{ resolution: (400, 240), duration: 2 }}
 #0s
-heading: Text, text: "Heading", font_size: 32, at: (120, 70), color: "{color}"
+heading: Text, text: "Heading", font_size: 32, at: (120, 70), color: hex_color("{color}")
 note: Callout, from: (-40, 0), to: (40, 0), at: (270, 145), label_at: (-10, 38), label: "{label}"
 "#
         )
     };
-    let initial = source("#ffffff", "Beginning");
+    let initial = source("ffffff", "Beginning");
     let reactive = build(&format!(
-        "{initial}\nalways {{ heading.color = \"#00ff00\"\n note.label = \"Changed\" }}"
+        "{initial}\nalways {{ heading.color = hex_color(\"00ff00\")\n note.label = \"Changed\" }}"
     ));
-    let expected_timeline = build(&source("#00ff00", "Changed"));
+    let expected_timeline = build(&source("00ff00", "Changed"));
     let baseline = build(&initial);
     let actual = renderer.render_timeline(&reactive, 0.5, dims).unwrap();
     let expected = renderer.render_timeline(&expected_timeline, 0.5, dims).unwrap();
@@ -215,9 +215,9 @@ fn same_type_fade_morph_draws_both_endpoint_silhouettes() {
         r##"
 config { resolution: (160, 120), duration: 3 }
 #0s
-shape: Rect, at: (80, 60), size: (120, 40), color: "#ff0000"
+shape: Rect, at: (80, 60), size: (120, 40), color: hex_color("ff0000")
 #1s
-shape: Rect, at: (80, 60), size: (40, 100), color: "#0000ff" [1s, strategy: fade, ease: linear]
+shape: Rect, at: (80, 60), size: (40, 100), color: hex_color("0000ff") [1s, strategy: fade, ease: linear]
 "##,
     );
     for (time, red, blue) in [

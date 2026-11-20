@@ -9,7 +9,7 @@ fn component_instance_with_explicit_zero_opacity_lifts_on_fade_in() {
     const SRC: &str = r##"
 pub component BoxItem(title: Str) {
   box: Stack, size: (100, 50) {
-    bg: Rect, size: (100, 50), color: "#ff0000"
+    bg: Rect, size: (100, 50), color: hex_color("ff0000")
     txt: Text, text: title, font_size: 16
   }
 }

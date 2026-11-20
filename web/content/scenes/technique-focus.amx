@@ -2,25 +2,25 @@
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7 }
 
 #0s
-  background: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
-  heading: Text, text: "Keep the context. Change the focus.", at: (640, 130), font_size: 38, color: "#F3F5F7"
-  a: Rect, at: (400, 350), size: (150, 150), corner_radius: 28, color: "#65D9E8"
-  b: Rect, at: (640, 350), size: (150, 150), corner_radius: 28, color: "#65D9E8"
-  c: Rect, at: (880, 350), size: (150, 150), corner_radius: 28, color: "#65D9E8"
-  marker: Rect, at: (640, 455), size: (48, 4), color: "#F4D47B", opacity: 0
-  caption: Text, text: "The arrangement does not have to move.", at: (640, 550), font_size: 26, color: "#ADBCCA"
+  background: Rect, at: (640, 360), size: (1280, 720), color: hex_color("0d1520")
+  heading: Text, text: "Keep the context. Change the focus.", at: (640, 130), font_size: 38, color: hex_color("f3f5f7")
+  a: Rect, at: (400, 350), size: (150, 150), corner_radius: 28, color: hex_color("65d9e8")
+  b: Rect, at: (640, 350), size: (150, 150), corner_radius: 28, color: hex_color("65d9e8")
+  c: Rect, at: (880, 350), size: (150, 150), corner_radius: 28, color: hex_color("65d9e8")
+  marker: Rect, at: (640, 455), size: (48, 4), color: hex_color("f4d47b"), opacity: 0
+  caption: Text, text: "The arrangement does not have to move.", at: (640, 550), font_size: 26, color: hex_color("adbcca")
 
 #1.5s
   a.opacity = 0.25[0.5s]
   c.opacity = 0.25[0.5s]
-  b.color = "#F4D47B"[0.5s]
+  b.color = hex_color("f4d47b")[0.5s]
   fade_in(target: marker, duration: 0.5s)
 
 #4s
   b.opacity = 0.25[0.5s]
-  b.color = "#65D9E8"[0.5s]
+  b.color = hex_color("65d9e8")[0.5s]
   c.opacity = 1[0.5s]
-  c.color = "#F4D47B"[0.5s]
+  c.color = hex_color("f4d47b")[0.5s]
   marker.at = (880, 455) [0.5s, ease: ease_in_out]
 
 #7s

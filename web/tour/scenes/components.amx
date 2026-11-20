@@ -23,7 +23,7 @@ capI: Text, text: "import ../lib/components.amx", font_size: 22, color: text.sec
 
 capX: Text, text: "one definition, three instances", font_size: 22, color: text.secondary, anchor: scene.bottom, offset: (0, -48), opacity: 0
 
-wash: Ellipse, size: (760, 760), at: (640, 360), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b9421c"), (55%, "#8ab4f60b"), (100%, "#8ab4f600")}), blend: "screen"
+wash: Ellipse, size: (760, 760), at: (640, 360), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("f5b9421c")), (55%, hex_color("8ab4f60b")), (100%, hex_color("8ab4f600"))}), blend: "screen"
 
 // The shared frame: two dashed rules the three instances sit between.
 rail_a: Path, commands: {move_to(250, 236), line_to(1030, 236)}, stroke: stroke.default, stroke_width: 2, fill_opacity: 0, dash_pattern: {9, 7}

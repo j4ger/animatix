@@ -216,7 +216,7 @@ config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
 g: Graph, x_domain: (-1, 1), y_domain: (-1, 1), at: (320, 180) {
   c: PlotCurve, kind: "cartesian", func: (x) => x, stroke: red, dash_pattern: {10, 7},
-    stroke_gradient: linear(0, {(0%, "#ff0000"), (100%, "#0000ff")})
+    stroke_gradient: linear(0, {(0%, hex_color("ff0000")), (100%, hex_color("0000ff"))})
 }
 "##,
     );

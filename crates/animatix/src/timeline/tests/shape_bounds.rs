@@ -35,7 +35,7 @@ fn shape_bounds_follow_geometry_and_style_across_seek_orders() {
         for extra in [
             "",
             ", dash_pattern: {8, 4}",
-            ", fill_gradient: linear(90, {\"#ff0000\", \"#0000ff\"})",
+            ", fill_gradient: linear(90, {hex_color(\"ff0000\"), hex_color(\"0000ff\")})",
         ] {
             for order in [
                 [0., 0.5, 1., 0.5, 0., 1., 1.],
@@ -44,7 +44,7 @@ fn shape_bounds_follow_geometry_and_style_across_seek_orders() {
                 let timeline = super::support::build_timeline(&format!(
                     r##"
 config {{ resolution: (400,200), duration: 3 }}
-box: {shape}, size: (60,40), at: (200,100), opacity: 1, stroke: "#ffffff", stroke_width: 2{extra}
+box: {shape}, size: (60,40), at: (200,100), opacity: 1, stroke: hex_color("ffffff"), stroke_width: 2{extra}
 always {{
  box.size = (60 + 180 * clamp(t,0,1),40)
  box.stroke_width = 2 + 4 * clamp(t,0,1)
@@ -91,7 +91,7 @@ fn shape_bounds_include_final_trim_and_shadow_without_polluting_memo() {
                 r##"
 config {{ resolution: (400,200), duration: 3 }}
 box: {actor}, at: (200,100), opacity: 1, fill_opacity: 0,
- stroke: "#ffffff", stroke_width: 6, {decoration}
+ stroke: hex_color("ffffff"), stroke_width: 6, {decoration}
 always {{ box.at = (200 + t,100) }}
 "##
             ));
@@ -129,7 +129,7 @@ fn trimmed_path_bounds_cover_only_the_revealed_segment() {
         r##"
 config { resolution:(400,200), duration:3 }
 box: Path, commands:{move_to(0,0), line_to(200,0)}, at:(100,100),
- fill_opacity:0, stroke:"#ffffff", stroke_width:6, opacity:1
+ fill_opacity:0, stroke:hex_color("ffffff"), stroke_width:6, opacity:1
 always { box.stroke_progress = t / 2 }
 "##,
     );
@@ -189,7 +189,7 @@ fn reactive_dashes_use_sampled_pattern_and_offset() {
     let timeline = super::support::build_timeline(
         r##"
 config { resolution:(400,200), duration:3 }
-box: Rect, size:(100,60), at:(200,100), opacity:1, stroke:"#ffffff", stroke_width:4
+box: Rect, size:(100,60), at:(200,100), opacity:1, stroke:hex_color("ffffff"), stroke_width:4
 always {
   box.dash_pattern = {4 + t, 3}
   box.dash_offset = 10 * t

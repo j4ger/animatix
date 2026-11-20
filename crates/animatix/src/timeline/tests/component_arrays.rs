@@ -14,7 +14,7 @@ component Matrix() {
   board: Grid, cols: 2, opacity: 1 {
     for value, i in {"a", "b"} {
       cells[i]: Stack, opacity: 1 {
-        bounds: Rect, size: (40, 40), color: "#FFCC66"
+        bounds: Rect, size: (40, 40), color: hex_color("ffcc66")
         digit: Text, text: value, color: bounds.color
         legacy[i]: Rect, size: (10, 10)
         for suffix, j in {"1", "2"} {

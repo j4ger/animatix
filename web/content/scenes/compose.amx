@@ -1,13 +1,13 @@
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 4 }
 
 #0s
-  background: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
+  background: Rect, at: (640, 360), size: (1280, 720), color: hex_color("0d1520")
   // Row owns alignment; Group applies one transform to the composition.
   cluster: Group, opacity: 1, at: (640, 360) {
   row: Row, opacity: 1, gap: 28, align: "center" {
-  circle: Ellipse, opacity: 1, size: (100, 100), color: "#65D9E8"
-  square: Rect, opacity: 1, size: (100, 100), corner_radius: 20, color: "#ABA4FA"
-  small: Rect, opacity: 1, size: (64, 64), corner_radius: 14, color: "#F4D47B"
+  circle: Ellipse, opacity: 1, size: (100, 100), color: hex_color("65d9e8")
+  square: Rect, opacity: 1, size: (100, 100), corner_radius: 20, color: hex_color("aba4fa")
+  small: Rect, opacity: 1, size: (64, 64), corner_radius: 14, color: hex_color("f4d47b")
       }
     }
 

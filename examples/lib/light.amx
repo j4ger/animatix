@@ -20,14 +20,14 @@
 // Put one behind the subject of every plate; this is the difference between a
 // black field with a shape on it and a lit stage.
 pub component KeyLight(radius: Num = 340) {
-  halo: Ellipse, size: (radius * 2, radius * 2), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#ff9f0a40"), (45%, "#ff9f0a18"), (100%, "#ff9f0a00")}), blend: "screen", opacity: 1
+  halo: Ellipse, size: (radius * 2, radius * 2), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("ff9f0a40")), (45%, hex_color("ff9f0a18")), (100%, hex_color("ff9f0a00"))}), blend: "screen", opacity: 1
 }
 
 // ── CoolLight ───────────────────────────────────────────────────────────────
 // The fill side of a two-point light. Warm key plus cool fill is the pairing
 // the corpus never used: every shipped plate had one flat accent.
 pub component CoolLight(radius: Num = 260) {
-  fill: Ellipse, size: (radius * 2, radius * 2), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#5e5ce638"), (50%, "#64d2ff14"), (100%, "#64d2ff00")}), blend: "screen", opacity: 1
+  fill: Ellipse, size: (radius * 2, radius * 2), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("5e5ce638")), (50%, hex_color("64d2ff14")), (100%, hex_color("64d2ff00"))}), blend: "screen", opacity: 1
 }
 
 // ── MarchingRail ────────────────────────────────────────────────────────────

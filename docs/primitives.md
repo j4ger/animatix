@@ -543,7 +543,7 @@ modes.
 - `size`: Tuple `(width, height)` — chart visual bounds
 - `bar_width`: Number or `"auto"` — per-bar width (default auto-distributes)
 - `gap`: Number or `"auto"` — spacing between bars (default auto)
-- `bar_colors`: `"auto"`, one color, or a brace list of colors — per-bar fill colors; colors may be RGBA tuples or scheme tokens such as `accent.danger`, `accent.success`, and `accent.warning`
+- `bar_colors`: bare `auto`, one color, or a brace list of colors — per-bar fill colors. Use values such as `hex_color("ff2d55")`, RGBA tuples, or scheme tokens such as `accent.danger`.
 - `show_axis`: Bool or string `"true"` | `"false"` — show baseline axis (default `"true"`)
 - `show_labels`: Bool or string `"true"` | `"false"` — show bar labels (default `"true"`)
 - `direction`: `"vertical"` | `"horizontal"` — bar orientation (default `"vertical"`, horizontal reserved)
@@ -791,7 +791,7 @@ The backdrop chain is declared as effect children exactly like a `Filter`'s (`fr
 ```animatix
 card: Glass, at: (640, 360), size: (560, 240), corner_radius: 24 {
   frost: Blur, radius: 0
-  surface: Rect, size: (560, 240), corner_radius: 24, color: "#ffffff1a", stroke: "#ffffff40", stroke_width: 1.5
+  surface: Rect, size: (560, 240), corner_radius: 24, color: hex_color("ffffff1a"), stroke: hex_color("ffffff40"), stroke_width: 1.5
   heading: Text, text: "Backdrop blur", font_size: 40, at: (-180, -34)
 }
 

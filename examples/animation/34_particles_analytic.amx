@@ -10,16 +10,16 @@ head: ActHead, kicker: "VISUAL · PARTICLES", title: "Analytic particles", sub: 
 
 caption: Caption, text: "Particles are driven by seeded noise and fbm.", tag: "34_particles_analytic"
 
-glow: Ellipse, size: (620, 620), at: (640, 380), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#ff9f0a55"), (55%, "#ff2d5522"), (100%, "#ff2d5500")}), blend: "screen"
+glow: Ellipse, size: (620, 620), at: (640, 380), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("ff9f0a55")), (55%, hex_color("ff2d5522")), (100%, hex_color("ff2d5500"))}), blend: "screen"
 
-origin: Ellipse, size: (14, 14), at: (640, 380), color: "#ffe9c7"
+origin: Ellipse, size: (14, 14), at: (640, 380), color: hex_color("ffe9c7")
 
 for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17} {
-  spark[i]: Ellipse, size: (14, 14), at: (640, 380), color: "#ffd60a", opacity: 1
+  spark[i]: Ellipse, size: (14, 14), at: (640, 380), color: hex_color("ffd60a"), opacity: 1
 }
 
 for j in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
-  mote[j]: Ellipse, size: (4, 4), at: (640, 360), color: "#64d2ff", opacity: 1
+  mote[j]: Ellipse, size: (4, 4), at: (640, 360), color: hex_color("64d2ff"), opacity: 1
 }
 
 #0s
@@ -36,7 +36,7 @@ for j in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
             let reach = speed * age
             spark[i].at = (640 + cos(dir) * reach, (380 + sin(dir) * reach) + (260 * age) * age)
             spark[i].size = (14 * (1 - age / 2.8), 14 * (1 - age / 2.8))
-            spark[i].color = lerp_color_oklab("#ffe9c7", "#ff2d55", age / 2.4)
+            spark[i].color = lerp_color_oklab(hex_color("ffe9c7"), hex_color("ff2d55"), age / 2.4)
             spark[i].opacity = clamp(1 - age / 2.4, 0, 1)
           }
       let period = 6

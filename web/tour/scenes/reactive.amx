@@ -35,7 +35,7 @@ capB: Text, text: "is_animating(&ring.at) flips the readout", font_size: 22, col
 
 // The plate light travels with the reticle — the scene reads as a lens, not
 // as stickers on black.
-glow: Ellipse, size: (520, 520), anchor: scene.center, opacity: 0, fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94226"), (55%, "#f5b9420c"), (100%, "#f5b94200")}), blend: "screen"
+glow: Ellipse, size: (520, 520), anchor: scene.center, opacity: 0, fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("f5b94226")), (55%, hex_color("f5b9420c")), (100%, hex_color("f5b94200"))}), blend: "screen"
 
 ring: Ellipse, size: (220, 220), stroke: accent.primary, stroke_width: 4, fill_opacity: 0, anchor: scene.center
 
@@ -47,7 +47,7 @@ cross_h: Rect, size: (360, 3), color: text.primary, anchor: scene.center
 
 cross_v: Rect, size: (3, 360), color: text.primary, anchor: scene.center
 
-dot: Ellipse, size: (18, 18), anchor: scene.center, fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffffff"), (45%, "#ece7db"), (100%, "#7d786f")})
+dot: Ellipse, size: (18, 18), anchor: scene.center, fill_gradient: radial((0.34, 0.28), 0.66, {(0%, hex_color("ffffff")), (45%, hex_color("ece7db")), (100%, hex_color("7d786f"))})
 
 #0s
   lock.dash_offset = 0

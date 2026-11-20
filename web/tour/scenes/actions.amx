@@ -18,22 +18,22 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 9.6 }
 title: Text, text: "shift · rotate · scale · always", font_size: 30, color: text.primary, anchor: scene.top, offset: (0, 56)
 
 // Screen-blend pool behind the stage so the plate has a floor to stand on.
-wash: Ellipse, size: (820, 820), at: (640, 380), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b9421c"), (55%, "#8ab4f60b"), (100%, "#8ab4f600")}), blend: "screen"
+wash: Ellipse, size: (820, 820), at: (640, 380), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("f5b9421c")), (55%, hex_color("8ab4f60b")), (100%, hex_color("8ab4f600"))}), blend: "screen"
 
 // A two-stop ramp, keyed by the recolour beats. The actor deliberately has no
 // `color:` assignments any more: `fill_gradient` overrides the solid fill, so
 // a colour track here would animate a value nothing reads.
-actor: Rect, size: (160, 160), at: (640, 360), corner_radius: 20, fill_gradient: linear(135, {"#ffd60a", "#f5b942"})
+actor: Rect, size: (160, 160), at: (640, 360), corner_radius: 20, fill_gradient: linear(135, {hex_color("ffd60a"), hex_color("f5b942")})
 
 // explicit opacity: the always block below owns `at`/`size` from frame 0,
 // so no entrance action (and no keyframe conflict) applies. Authored 0 is
 // the hidden-by-default seed; the #0.5s entrances lift it — without them
 // the satellite hard-pops on every loop entry.
-pulse: Rect, size: (60, 60), opacity: 0, corner_radius: 30, fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#d8f0dc"), (45%, "#8fc7a3"), (100%, "#2f7a4d")})
+pulse: Rect, size: (60, 60), opacity: 0, corner_radius: 30, fill_gradient: radial((0.34, 0.28), 0.66, {(0%, hex_color("d8f0dc")), (45%, hex_color("8fc7a3")), (100%, hex_color("2f7a4d"))})
 
 // The satellite's own light: a wider, transparent-edged screen-blend pool
 // that the `always` block parks under it.
-halo: Ellipse, size: (190, 190), opacity: 0, fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#8fc7a338"), (60%, "#8fc7a312"), (100%, "#8fc7a300")}), blend: "screen"
+halo: Ellipse, size: (190, 190), opacity: 0, fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("8fc7a338")), (60%, hex_color("8fc7a312")), (100%, hex_color("8fc7a300"))}), blend: "screen"
 
 orbit: Ellipse, size: (840, 400), at: (640, 360), stroke: accent.info, stroke_width: 2, fill_opacity: 0, dash_pattern: {8, 10}
 
@@ -65,14 +65,14 @@ sat_label: Text, text: "always { }", font_size: 26, color: text.secondary, opaci
   scale(target: actor, by: 1.4, duration: 0.8s, ease: ease_in_out)
 
 #4.5s
-  actor.fill_gradient = linear(135, {"#ff9f0a", "#ff5c5c"}) [0.6s, ease: ease_in_out]
+  actor.fill_gradient = linear(135, {hex_color("ff9f0a"), hex_color("ff5c5c")}) [0.6s, ease: ease_in_out]
 
 #5.5s
   scale(target: actor, by: 0.714, duration: 0.8s, ease: ease_in_out)
 
 // Back to the brand lead: coral was a one-beat accent, not a new owner.
 #6.4s
-  actor.fill_gradient = linear(135, {"#ffd60a", "#f5b942"}) [0.6s, ease: ease_in_out]
+  actor.fill_gradient = linear(135, {hex_color("ffd60a"), hex_color("f5b942")}) [0.6s, ease: ease_in_out]
 
 #6.5s
   rotate(target: actor, by: deg(-90), duration: 0.8s, ease: ease_in_out)

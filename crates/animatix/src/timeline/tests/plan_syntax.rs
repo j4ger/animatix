@@ -449,7 +449,7 @@ row: Row, opacity: 1 {
 }
 reorder(row, order: {b, a})
 highlight(a, color: white, blend: normal)
-highlight(b, color: "#ff0000", blend: difference)
+highlight(b, color: hex_color("ff0000"), blend: difference)
 "##,
     );
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);

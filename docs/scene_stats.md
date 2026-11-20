@@ -284,7 +284,7 @@ config { resolution: (1280, 720), duration: 12 }
 plate: Rect, size: fill, color: scene.background, anchor: scene.center, opacity: 1, legend: false
 
 wash: Ellipse, size: (900, 900), opacity: 0.18, blend: "screen", legend: false,
-  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94233"), (100%, "#f5b94200")})
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("f5b94233")), (100%, hex_color("f5b94200"))})
 
 always {
   let e   = curve_smooth(scene.stats.motion, t, 0.7)
@@ -294,7 +294,7 @@ always {
   wash.at       = (fx, fy)
   wash.size     = (600 + 600 * sx, 600 + 600 * sx)
   wash.opacity  = clamp(0.06 + 0.5 * e, 0.02, 0.45)
-  plate.color   = lerp_color("#0d0f14", "#141821", clamp(1.5 * e, 0, 1))
+  plate.color   = lerp_color(hex_color("0d0f14"), hex_color("141821"), clamp(1.5 * e, 0, 1))
 }
 ```
 

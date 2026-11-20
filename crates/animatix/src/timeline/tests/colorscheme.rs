@@ -5,7 +5,7 @@ fn test_colorscheme_primitive_declaration() {
     let timeline = build(
         r#"
 let test_scheme = Colorscheme {
-    scene.background: (0.1, 0.2, 0.3),
+    scene.background: hex_color("000000"),
     text.primary: (0.9, 0.95, 1.0),
 }
 config { colorscheme: "test_scheme" }
@@ -14,7 +14,7 @@ config { colorscheme: "test_scheme" }
     .output;
 
     assert_eq!(timeline.colorscheme.name, "test_scheme");
-    assert_eq!(timeline.colorscheme.color("scene.background"), Some([0.1, 0.2, 0.3, 1.0]));
+    assert_eq!(timeline.colorscheme.color("scene.background"), Some([0.0, 0.0, 0.0, 1.0]));
     assert_eq!(timeline.colorscheme.color("text.primary"), Some([0.9, 0.95, 1.0, 1.0]));
 }
 

@@ -992,56 +992,22 @@ fn noise_family_and_oklab_lerp_agree_between_ir_and_ast() {
 }
 
 #[test]
-fn color_builtins_accept_color_strings() {
-    // `lerp_color_oklab("#30d158", "#ff2d55", t)` is the natural way to write a
-    // frame-time color ramp once hex resolved in declarations — and it failed
-    // until the builtin accepted `Value::Str` as well as `Value::Color`.
-    let lerp = |a: Expr, b: Expr| {
-        let mut env = Environment::new();
-        load_standard_library(&mut env);
-        evaluate_expr(&Expr::call("lerp_color_oklab".to_string(), vec![a, b, num(0.5)]), &env)
-            .expect("lerp_color_oklab should evaluate")
-    };
-    let rgb = |r: f64, g: f64, b: f64| {
-        Expr::call("rgb".to_string(), vec![num(r * 255.0), num(g * 255.0), num(b * 255.0)])
-    };
-
-    let from_strings = lerp(Expr::Str("#ff0000".to_string()), Expr::Str("#00ff00".to_string()));
-    let from_calls = lerp(rgb(1.0, 0.0, 0.0), rgb(0.0, 1.0, 0.0));
-    assert_eq!(
-        from_strings, from_calls,
-        "a hex stop and an rgb() stop must mean the same color"
-    );
-    let Value::Color([r, g, b, a]) = from_strings else {
-        panic!("expected a Color, got {from_strings:?}")
-    };
-    assert_eq!(a, 1.0);
-    // The point of the OKLab ramp: the midpoint of red→green stays bright
-    // instead of dipping toward dark olive the way a channel-wise sRGB mix does
-    // (which would land both channels at exactly 0.5).
-    assert!(r > 0.5 && g > 0.5, "midpoint must stay bright, got ({r}, {g}, {b})");
-    assert!(b < 0.3, "mid blue channel should stay low: {b}");
-
-    // Named colors and an unresolvable string behave as documented.
-    let named = lerp(Expr::Str("red".to_string()), Expr::Str("red".to_string()));
-    let Value::Color([r, g, b, _]) = named else {
-        panic!("expected a Color")
-    };
-    assert!(r > 0.9 && g < 0.1 && b < 0.1, "`red` should resolve: {named:?}");
+fn color_builtins_accept_typed_colors_and_reject_strings() {
     let mut env = Environment::new();
     load_standard_library(&mut env);
-    let bad = evaluate_expr(
-        &Expr::call(
-            "lerp_color_oklab".to_string(),
-            vec![
-                Expr::Str("not-a-color".to_string()),
-                Expr::Str("#00ff00".to_string()),
-                num(0.5),
-            ],
-        ),
-        &env,
-    );
-    assert!(bad.is_err(), "an unresolvable color string must error, not silently gray");
+    let green = Expr::call("rgb".to_string(), vec![num(0.0), num(255.0), num(0.0)]);
+
+    for name in ["lerp_color", "lerp_color_oklab"] {
+        let lerp = |ink| {
+            evaluate_expr(&Expr::call(name.to_string(), vec![ink, green.clone(), num(0.5)]), &env)
+        };
+        let from_hex = lerp(Expr::Color([255, 0, 0, 255])).unwrap();
+        assert!(matches!(from_hex, Value::Color(_)));
+        assert_eq!(from_hex, lerp(Expr::Ident("red".to_string())).unwrap());
+        for text in ["#ff0000", "red"] {
+            assert!(lerp(Expr::Str(text.to_string())).is_err(), "{name} accepted {text}");
+        }
+    }
 }
 
 #[test]

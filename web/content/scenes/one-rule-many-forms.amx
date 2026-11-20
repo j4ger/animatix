@@ -5,13 +5,13 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 20 }
 let preset = 0
 
 #0s
-  background: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
-  seed: Rect, at: (640, 360), size: (64, 64), corner_radius: 15, color: "#65D9E8"
-  step: Text, text: "01 / ONE SHAPE", at: (640, 54), font_size: 22, color: "#F3F5F7"
-  rule: Text, text: "Define it once.", at: (640, 666), font_size: 22, color: "#90A4B8"
+  background: Rect, at: (640, 360), size: (1280, 720), color: hex_color("0d1520")
+  seed: Rect, at: (640, 360), size: (64, 64), corner_radius: 15, color: hex_color("65d9e8")
+  step: Text, text: "01 / ONE SHAPE", at: (640, 54), font_size: 22, color: hex_color("f3f5f7")
+  rule: Text, text: "Define it once.", at: (640, 666), font_size: 22, color: hex_color("90a4b8")
   field: Grid, opacity: 1, cols: 8, gap: 26, anchor: scene.center {
   for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} {
-  tile[i]: Rect, opacity: 1, size: (64, 64), corner_radius: 15, color: lerp_color_oklab("#65D9E8", "#ABA4FA", i / 47)
+  tile[i]: Rect, opacity: 1, size: (64, 64), corner_radius: 15, color: lerp_color_oklab(hex_color("65d9e8"), hex_color("aba4fa"), i / 47)
       }
     }
 

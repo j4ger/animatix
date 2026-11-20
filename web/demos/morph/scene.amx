@@ -48,12 +48,12 @@ chip_morph: Readout, label: "MORPH", value: "round → star", at: (1140, 176), o
 
 // ── the shared stage ────────────────────────────────────────────────
 // ONE plate, ONE bench line, three stations. Nothing here is a card.
-plate: Rect, size: (1100, 410), at: (640, 442), corner_radius: 30, fill_gradient: linear(180, {surface.primary, "#0a0e1c"}), stroke: stroke.default, stroke_width: 1.2, opacity: 1, legend: false
+plate: Rect, size: (1100, 410), at: (640, 442), corner_radius: 30, fill_gradient: linear(180, {surface.primary, hex_color("0a0e1c")}), stroke: stroke.default, stroke_width: 1.2, opacity: 1, legend: false
 
-plate_glow: Ellipse, size: (980, 340), at: (640, 430), blend: "screen", opacity: 0.3, fill_gradient: radial((0.5, 0.5), 0.6, {(0%, "#a855f726"), (60%, "#a855f70a"), (100%, "#a855f700")}), legend: false
+plate_glow: Ellipse, size: (980, 340), at: (640, 430), blend: "screen", opacity: 0.3, fill_gradient: radial((0.5, 0.5), 0.6, {(0%, hex_color("a855f726")), (60%, hex_color("a855f70a")), (100%, hex_color("a855f700"))}), legend: false
 
 // The payoff flare: over the board, under the shapes, so it never washes them.
-bloom: Ellipse, size: (1080, 420), at: (640, 430), blend: "screen", opacity: 0, fill_gradient: radial((0.5, 0.5), 0.6, {(0%, "#a855f74a"), (55%, "#a855f714"), (100%, "#a855f700")}), legend: false
+bloom: Ellipse, size: (1080, 420), at: (640, 430), blend: "screen", opacity: 0, fill_gradient: radial((0.5, 0.5), 0.6, {(0%, hex_color("a855f74a")), (55%, hex_color("a855f714")), (100%, hex_color("a855f700"))}), legend: false
 
 bench: Line, from: (-520, 0), to: (520, 0), stroke: stroke.default, stroke_width: 1, at: (640, 562), opacity: 1
 
@@ -67,12 +67,12 @@ tick_c: Rect, size: (2, 12), color: stroke.default, at: (880, 562), opacity: 1
 // 16-point star, radius 130 / 62. Both ends of every morph are 16-point
 // polygons so the span is a true hybrid (see the header note).
 for i in {0, 1, 2} {
-  shapes[i]: Polygon, points: {(0, -130), (23.7, -57.3), (91.9, -91.9), (57.3, -23.7), (130, 0), (57.3, 23.7), (91.9, 91.9), (23.7, 57.3), (0, 130), (-23.7, 57.3), (-91.9, 91.9), (-57.3, 23.7), (-130, 0), (-57.3, -23.7), (-91.9, -91.9), (-23.7, -57.3)}, fill_gradient: linear(160, {accent.primary, "#b794f6"}), at: (400 + i * 240, 398), opacity: 1
+  shapes[i]: Polygon, points: {(0, -130), (23.7, -57.3), (91.9, -91.9), (57.3, -23.7), (130, 0), (57.3, 23.7), (91.9, 91.9), (23.7, 57.3), (0, 130), (-23.7, 57.3), (-91.9, 91.9), (-57.3, 23.7), (-130, 0), (-57.3, -23.7), (-91.9, -91.9), (-23.7, -57.3)}, fill_gradient: linear(160, {accent.primary, hex_color("b794f6")}), at: (400 + i * 240, 398), opacity: 1
 }
 
-shapes__1.fill_gradient = linear(160, {accent.info, "#7c5cff"})
+shapes__1.fill_gradient = linear(160, {accent.info, hex_color("7c5cff")})
 
-shapes__2.fill_gradient = linear(160, {accent.success, "#4fd1c5"})
+shapes__2.fill_gradient = linear(160, {accent.success, hex_color("4fd1c5")})
 
 // Station labels: strategy above, its character below. `path_arc` is rewritten
 // from `arc` in `always`, so the label follows the slider.
@@ -116,9 +116,9 @@ desc_c: Text, text: "bounds-normalised", font_size: 16, color: text.muted, at: (
 #2.2s
   fade_out(target: cap1, duration: 0.24s, ease: ease_in)
   fade_in(target: cap2, duration: 0.28s, delay: 0.2s, ease: expo_out)
-  shapes[0]: Polygon, points: {(0, -118), (45.2, -109), (83.4, -83.4), (109, -45.2), (118, 0), (109, 45.2), (83.4, 83.4), (45.2, 109), (0, 118), (-45.2, 109), (-83.4, 83.4), (-109, 45.2), (-118, 0), (-109, -45.2), (-83.4, -83.4), (-45.2, -109)}, fill_gradient: linear(160, {accent.primary, "#b794f6"}), at: (400, 398) [1.8s, strategy: match]
-  shapes[1]: Polygon, points: {(0, -118), (45.2, -109), (83.4, -83.4), (109, -45.2), (118, 0), (109, 45.2), (83.4, 83.4), (45.2, 109), (0, 118), (-45.2, 109), (-83.4, 83.4), (-109, 45.2), (-118, 0), (-109, -45.2), (-83.4, -83.4), (-45.2, -109)}, fill_gradient: linear(160, {accent.info, "#7c5cff"}), at: (640, 398) [1.8s, path_arc: 0.35]
-  shapes[2]: Polygon, points: {(0, -118), (45.2, -109), (83.4, -83.4), (109, -45.2), (118, 0), (109, 45.2), (83.4, 83.4), (45.2, 109), (0, 118), (-45.2, 109), (-83.4, 83.4), (-109, 45.2), (-118, 0), (-109, -45.2), (-83.4, -83.4), (-45.2, -109)}, fill_gradient: linear(160, {accent.success, "#4fd1c5"}), at: (880, 398) [1.8s, stretch: true]
+  shapes[0]: Polygon, points: {(0, -118), (45.2, -109), (83.4, -83.4), (109, -45.2), (118, 0), (109, 45.2), (83.4, 83.4), (45.2, 109), (0, 118), (-45.2, 109), (-83.4, 83.4), (-109, 45.2), (-118, 0), (-109, -45.2), (-83.4, -83.4), (-45.2, -109)}, fill_gradient: linear(160, {accent.primary, hex_color("b794f6")}), at: (400, 398) [1.8s, strategy: match]
+  shapes[1]: Polygon, points: {(0, -118), (45.2, -109), (83.4, -83.4), (109, -45.2), (118, 0), (109, 45.2), (83.4, 83.4), (45.2, 109), (0, 118), (-45.2, 109), (-83.4, 83.4), (-109, 45.2), (-118, 0), (-109, -45.2), (-83.4, -83.4), (-45.2, -109)}, fill_gradient: linear(160, {accent.info, hex_color("7c5cff")}), at: (640, 398) [1.8s, path_arc: 0.35]
+  shapes[2]: Polygon, points: {(0, -118), (45.2, -109), (83.4, -83.4), (109, -45.2), (118, 0), (109, 45.2), (83.4, 83.4), (45.2, 109), (0, 118), (-45.2, 109), (-83.4, 83.4), (-109, 45.2), (-118, 0), (-109, -45.2), (-83.4, -83.4), (-45.2, -109)}, fill_gradient: linear(160, {accent.success, hex_color("4fd1c5")}), at: (880, 398) [1.8s, stretch: true]
 
 #4.4s
   fade_in(target: chip_arc, duration: 0.42s, ease: expo_out)
@@ -126,9 +126,9 @@ desc_c: Text, text: "bounds-normalised", font_size: 16, color: text.muted, at: (
 
 // The return trip: ring -> star, same three strategies.
 #5.8s
-  shapes[0]: Polygon, points: {(0, -130), (23.7, -57.3), (91.9, -91.9), (57.3, -23.7), (130, 0), (57.3, 23.7), (91.9, 91.9), (23.7, 57.3), (0, 130), (-23.7, 57.3), (-91.9, 91.9), (-57.3, 23.7), (-130, 0), (-57.3, -23.7), (-91.9, -91.9), (-23.7, -57.3)}, fill_gradient: linear(160, {accent.primary, "#b794f6"}), at: (400, 398) [1.6s, strategy: match]
-  shapes[1]: Polygon, points: {(0, -130), (23.7, -57.3), (91.9, -91.9), (57.3, -23.7), (130, 0), (57.3, 23.7), (91.9, 91.9), (23.7, 57.3), (0, 130), (-23.7, 57.3), (-91.9, 91.9), (-57.3, 23.7), (-130, 0), (-57.3, -23.7), (-91.9, -91.9), (-23.7, -57.3)}, fill_gradient: linear(160, {accent.info, "#7c5cff"}), at: (640, 398) [1.6s, path_arc: 0.35]
-  shapes[2]: Polygon, points: {(0, -130), (23.7, -57.3), (91.9, -91.9), (57.3, -23.7), (130, 0), (57.3, 23.7), (91.9, 91.9), (23.7, 57.3), (0, 130), (-23.7, 57.3), (-91.9, 91.9), (-57.3, 23.7), (-130, 0), (-57.3, -23.7), (-91.9, -91.9), (-23.7, -57.3)}, fill_gradient: linear(160, {accent.success, "#4fd1c5"}), at: (880, 398) [1.6s, stretch: true]
+  shapes[0]: Polygon, points: {(0, -130), (23.7, -57.3), (91.9, -91.9), (57.3, -23.7), (130, 0), (57.3, 23.7), (91.9, 91.9), (23.7, 57.3), (0, 130), (-23.7, 57.3), (-91.9, 91.9), (-57.3, 23.7), (-130, 0), (-57.3, -23.7), (-91.9, -91.9), (-23.7, -57.3)}, fill_gradient: linear(160, {accent.primary, hex_color("b794f6")}), at: (400, 398) [1.6s, strategy: match]
+  shapes[1]: Polygon, points: {(0, -130), (23.7, -57.3), (91.9, -91.9), (57.3, -23.7), (130, 0), (57.3, 23.7), (91.9, 91.9), (23.7, 57.3), (0, 130), (-23.7, 57.3), (-91.9, 91.9), (-57.3, 23.7), (-130, 0), (-57.3, -23.7), (-91.9, -91.9), (-23.7, -57.3)}, fill_gradient: linear(160, {accent.info, hex_color("7c5cff")}), at: (640, 398) [1.6s, path_arc: 0.35]
+  shapes[2]: Polygon, points: {(0, -130), (23.7, -57.3), (91.9, -91.9), (57.3, -23.7), (130, 0), (57.3, 23.7), (91.9, 91.9), (23.7, 57.3), (0, 130), (-23.7, 57.3), (-91.9, 91.9), (-57.3, 23.7), (-130, 0), (-57.3, -23.7), (-91.9, -91.9), (-23.7, -57.3)}, fill_gradient: linear(160, {accent.success, hex_color("4fd1c5")}), at: (880, 398) [1.6s, stretch: true]
 
 // ── Act III · the payoff ────────────────────────────────────────────
 // The three roads land on the same three stars; a bloom flare and a camera

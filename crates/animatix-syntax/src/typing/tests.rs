@@ -99,12 +99,7 @@ fn actor_property_paths_infer() {
     let mut env = std_env();
     env.declare_actor("box", "Rect");
     let path = Expr::Path(vec!["box".to_string(), "color".to_string()]);
-    // `color` is declared `Union[Color, Str]` (a colour or a named/gradient
-    // string) by the descriptor table, so a bare `Color` is a subtype of the
-    // property's type rather than the whole of it.
-    let expected = Type::Union(vec![Type::Color, Type::Str]);
-    assert_eq!(infer_expr_type(&path, &env), expected);
-    assert!(is_subtype(&Type::Color, &expected));
+    assert_eq!(infer_expr_type(&path, &env), Type::Color);
 }
 
 #[test]
@@ -112,7 +107,7 @@ fn property_type_is_resolved_per_actor_type() {
     // The table is per `(actor_type, property)`: a property that exists on
     // some other actor is not a property of this one.
     assert_eq!(property_type("Rect", "transform"), Some(transform_type()));
-    assert_eq!(property_type("Rect", "color"), Some(Type::Union(vec![Type::Color, Type::Str])));
+    assert_eq!(property_type("Rect", "color"), Some(Type::Color));
     assert_eq!(property_type("Code", "code"), Some(Type::Str));
     assert_eq!(property_type("Rect", "code"), None);
     assert_eq!(property_type("Rect", "standoff"), None);

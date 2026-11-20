@@ -12,10 +12,10 @@ stage: Filter, anchor: scene.center {
 soft: Blur, radius: 0
 glow: Bloom, intensity: 0
 art: Group, anchor: scene.center {
-plate: Rect, size: (420, 240), color: "#0b1017", corner_radius: 18
-bulb: Ellipse, size: (54, 54), at: (-120, 0), color: "#ffe9c7"
-bulb2: Ellipse, size: (38, 38), at: (0, 30), color: "#ffd60a"
-bulb3: Ellipse, size: (26, 26), at: (120, -26), color: "#ff9f0a"
+plate: Rect, size: (420, 240), color: hex_color("0b1017"), corner_radius: 18
+bulb: Ellipse, size: (54, 54), at: (-120, 0), color: hex_color("ffe9c7")
+bulb2: Ellipse, size: (38, 38), at: (0, 30), color: hex_color("ffd60a")
+bulb3: Ellipse, size: (26, 26), at: (120, -26), color: hex_color("ff9f0a")
 rule: Path, commands: {move_to(-170, 80), line_to(170, 80)}, stroke: accent.info, stroke_width: 2, fill_opacity: 0, dash_pattern: {10, 7}
   }
 }

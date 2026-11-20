@@ -2,14 +2,14 @@
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7 }
 
 #0s
-  background: Rect, at: (640, 360), size: (1280, 720), color: "#0D1520"
-  heading: Text, text: "One entrance. A shared rhythm.", at: (640, 130), font_size: 40, color: "#F3F5F7"
-  a: Ellipse, at: (340, 350), size: (80, 80), color: "#65D9E8", opacity: 0
-  b: Ellipse, at: (490, 350), size: (80, 80), color: "#65D9E8", opacity: 0
-  c: Ellipse, at: (640, 350), size: (80, 80), color: "#65D9E8", opacity: 0
-  d: Ellipse, at: (790, 350), size: (80, 80), color: "#65D9E8", opacity: 0
-  e: Ellipse, at: (940, 350), size: (80, 80), color: "#65D9E8", opacity: 0
-  caption: Text, text: "Each starts 300 ms after the last.", at: (640, 525), font_size: 26, color: "#ADBCCA"
+  background: Rect, at: (640, 360), size: (1280, 720), color: hex_color("0d1520")
+  heading: Text, text: "One entrance. A shared rhythm.", at: (640, 130), font_size: 40, color: hex_color("f3f5f7")
+  a: Ellipse, at: (340, 350), size: (80, 80), color: hex_color("65d9e8"), opacity: 0
+  b: Ellipse, at: (490, 350), size: (80, 80), color: hex_color("65d9e8"), opacity: 0
+  c: Ellipse, at: (640, 350), size: (80, 80), color: hex_color("65d9e8"), opacity: 0
+  d: Ellipse, at: (790, 350), size: (80, 80), color: hex_color("65d9e8"), opacity: 0
+  e: Ellipse, at: (940, 350), size: (80, 80), color: hex_color("65d9e8"), opacity: 0
+  caption: Text, text: "Each starts 300 ms after the last.", at: (640, 525), font_size: 26, color: hex_color("adbcca")
 
 #1s
   stagger [0.3s] {

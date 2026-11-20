@@ -49,13 +49,10 @@ fn half_size_falls_back_to_the_track_without_usable_overrides() {
 }
 
 #[test]
-fn text_color_override_reaches_shape_style() {
-    // `always { l.stroke = "#30d158" }` arrives in the frame override map as a
-    // `Value::Str`. Hex text has to land the same way a tuple does, and a
-    // non-color under a color key has to leave the keyframed value alone.
+fn typed_color_override_reaches_shape_style_and_strings_are_ignored() {
     let mut overrides = std::collections::HashMap::new();
-    overrides.insert("color".to_string(), Value::Str("#ff2d55".to_string()));
-    overrides.insert("stroke".to_string(), Value::Num(0.5));
+    overrides.insert("color".to_string(), Value::Color([1.0, 45.0 / 255.0, 85.0 / 255.0, 1.0]));
+    overrides.insert("stroke".to_string(), Value::Str("#30d158".to_string()));
     let caps = animatix_core::builtins::caps_for_type("Line").unwrap_or_default();
     let style_tracks = crate::timeline::StyleTracks::default();
     let style = sample_shape_style(&style_tracks, caps, 0, Some(&overrides));

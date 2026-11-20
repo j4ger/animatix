@@ -9,6 +9,9 @@ impl fmt::Display for EvalError {
         match self {
             EvalError::UndefinedVariable(v) => write!(f, "Undefined variable: {}", v),
             EvalError::TypeMismatch(e) => write!(f, "Type mismatch: {}", e),
+            EvalError::StringInColor => {
+                write!(f, "Expected a color value, got Str. Use hex_color(...) for fixed colors.")
+            },
             EvalError::NotCallable(n) => write!(f, "Not callable: {}", n),
             EvalError::UnsupportedMethod(name) => {
                 write!(f, "Unsupported runtime method call: {}", name)

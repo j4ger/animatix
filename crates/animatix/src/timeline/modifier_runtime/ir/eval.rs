@@ -439,9 +439,9 @@ fn evaluate_argument(
     if let CompiledExpr::LoadEnv(symbol) = expression
         && expected.is_some_and(argument_accepts_color)
         && env.get_path(symbol).is_none()
-        && let Some(color) = crate::timeline::utils::color_from_text(symbol)
+        && let Some(color) = animatix_syntax::typing::named_color_rgba(symbol)
     {
-        return Ok(Value::Color(color.map(f64::from)));
+        return Ok(Value::Color(color));
     }
     match (expected, expression) {
         (Some(T::Actor), CompiledExpr::LoadEnv(label)) => {

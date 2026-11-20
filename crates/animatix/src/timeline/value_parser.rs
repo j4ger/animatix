@@ -624,7 +624,7 @@ fn parse_gradient(
             Diagnostic::warning(
                 DiagnosticCode::InvalidPropertyValue,
                 DiagnosticPhase::Build,
-                "gradient stops must be a list, e.g. {\"#ff2d55\", \"#5e5ce6\"}".to_string(),
+                "gradient stops must be a list, e.g. {hex_color(\"ff2d55\"), hex_color(\"5e5ce6\")}".to_string(),
             )
             .with_subject(subject),
         );
