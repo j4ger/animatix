@@ -70,6 +70,8 @@ pub struct BuildOptions<'a> {
     /// Per-scene component method registries from component expansion.
     pub scene_methods:
         Option<&'a std::collections::HashMap<String, crate::module::InstanceFnRegistry>>,
+    /// Scene-independent modifier IR from the prior successful build.
+    pub modifier_ir_caches: &'a [Arc<crate::timeline::modifier_runtime::ir::ModifierIrCache>],
 }
 
 impl<'a> BuildOptions<'a> {

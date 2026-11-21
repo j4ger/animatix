@@ -172,6 +172,12 @@ impl Timeline {
         // keyframe) that key must be removed so the environment is
         // indistinguishable from a fresh build.
         for (name, track) in &self.variable_tracks {
+            if self.env.numeric_closures.as_ref().is_some_and(|plans| plans.contains_key(name)) {
+                // The immutable closure track's value is shared in the base.
+                // Remove any shadow left by the previous frame's modifiers.
+                env.overrides.remove(name);
+                continue;
+            }
             match track.evaluate(time_ms) {
                 Some(value) => env.set(name, value),
                 None => {

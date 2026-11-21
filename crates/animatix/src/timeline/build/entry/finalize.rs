@@ -22,6 +22,14 @@ pub(super) fn finalize_assets_legend(timeline: &mut Timeline, diagnostics: &mut 
     // copying all entries.
     let mut frozen_base = timeline.env.base.as_deref().cloned().unwrap_or_default();
     frozen_base.extend(std::mem::take(&mut timeline.env.overrides));
+    if !timeline.modifier_programs.is_empty() {
+        timeline.env.numeric_closures =
+            crate::timeline::modifier_runtime::ir::numeric_closure::compile_frozen(
+                &timeline.env,
+                &mut frozen_base,
+                &timeline.variable_tracks,
+            );
+    }
     timeline.env_base = std::sync::Arc::new(frozen_base);
     // Restore env with the frozen base layer
     timeline.env.base = Some(std::sync::Arc::clone(&timeline.env_base));
@@ -127,6 +135,10 @@ pub(super) fn finalize_assets_legend(timeline: &mut Timeline, diagnostics: &mut 
     // that bypassed `World::spawn` (carry injection, direct inserts).
     timeline.world.finish_hierarchy();
     bind_actor_points(timeline, diagnostics);
+    if let Some(source) = timeline.modifier_programs.first().cloned() {
+        timeline.prepared_modifiers =
+            crate::timeline::modifier_runtime::ir::prepared::prepare(timeline, source);
+    }
     timeline.resolve_audio_volume_envelopes();
 }
 

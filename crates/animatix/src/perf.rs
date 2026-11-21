@@ -51,6 +51,10 @@ pub mod stage {
     pub const LAYOUT: &str = "layout";
     /// Modifier IR execution per frame.
     pub const MODIFIER_EXEC: &str = "modifier_exec";
+    /// Lower and optimize modifier source on a rebuild cache miss.
+    pub const MODIFIER_LOWER: &str = "modifier_lower";
+    /// Specialize reusable modifier IR against the current scene.
+    pub const MODIFIER_PREPARE: &str = "modifier_prepare";
     /// Reserved for a future collect-then-encode split. Encoding is currently
     /// interleaved with sampling inside node evaluation; a per-node stage was
     /// measured and rejected for its overhead, so this stays in the shared

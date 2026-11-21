@@ -47,7 +47,7 @@ pub(crate) struct ModifierGeometry<'a> {
     pub dimensions: crate::timeline::SceneDimensions,
 }
 
-fn evaluate(
+pub(super) fn evaluate(
     expr: &CompiledExpr,
     env: &Environment,
     geometry: Option<ModifierGeometry<'_>>,
@@ -130,41 +130,17 @@ pub(crate) fn execute_stmt(
         } => {
             let value = evaluate(value, frame_env, geometry, overrides)?;
             let index_value = evaluate(index, frame_env, geometry, overrides)?;
-            let n = match index_value {
-                Value::Num(n) if n >= 0.0 && n == n.floor() => n as usize,
-                Value::Num(n) => {
-                    tracing::warn!(
-                        "Array index for '{}' must be a non-negative integer, got {}",
-                        base,
-                        n
-                    );
-                    return Ok(());
-                },
-                other => {
-                    tracing::warn!(
-                        "Array index for '{}' must evaluate to a number, got {:?}",
-                        base,
-                        other
-                    );
-                    return Ok(());
-                },
-            };
-            OVERRIDE_LABEL.with_borrow_mut(|label_buf| {
-                label_buf.clear();
-                use std::fmt::Write;
-                for (position, segment) in base.split('.').enumerate() {
-                    if position > 0 {
-                        label_buf.push('.');
-                    }
-                    if position == *index_position {
-                        let _ = write!(label_buf, "{segment}__{n}");
-                    } else {
-                        label_buf.push_str(segment);
-                    }
-                }
-                record_override(overrides, label_buf.as_str(), property, &value);
-                apply_override_incremental(frame_env, label_buf.as_str(), property, value);
-            });
+            if let Some(index) = modifier_index(base, index_value) {
+                write_indexed_override(
+                    frame_env,
+                    overrides,
+                    base,
+                    *index_position,
+                    index,
+                    property,
+                    value,
+                );
+            }
         },
         ModifierIrStmt::Let { name, value } => {
             let value = evaluate(value, frame_env, geometry, overrides)?;
@@ -192,39 +168,86 @@ pub(crate) fn execute_stmt(
             body,
         } => {
             let iterable = evaluate(iterable, frame_env, geometry, overrides)?;
-            let items: Vec<Value> = match iterable {
-                Value::List(list) => list.to_vec(),
-                Value::Vec2(v) => v.into_iter().map(Value::Num).collect(),
-                Value::Vec3(v) => v.into_iter().map(Value::Num).collect(),
-                Value::Vec4(v) => v.into_iter().map(Value::Num).collect(),
-                other => vec![other],
-            };
-
-            let scope =
-                crate::timeline::env::LoopScope::capture(frame_env, var, index_var.as_deref());
-            let result: Result<(), EvalError> = (|| {
-                for (idx, item) in items.into_iter().enumerate() {
-                    if idx >= 100_000 {
-                        return Err(EvalError::TypeMismatch(
-                            "for-loop exceeded 100,000 iterations".to_string(),
-                        ));
-                    }
-                    bind_loop_var(frame_env, var, item);
-                    if let Some(index_var) = index_var {
-                        frame_env.set(index_var, Value::Num(idx as f64));
-                    }
-                    for stmt in body {
-                        execute_stmt(stmt, frame_env, overrides, geometry)?;
-                    }
+            execute_loop(frame_env, var, index_var.as_deref(), iterable, |env, _| {
+                for stmt in body {
+                    execute_stmt(stmt, env, overrides, geometry)?;
                 }
                 Ok(())
-            })();
-            scope.restore(frame_env);
-            result?;
+            })?;
         },
         ModifierIrStmt::Noop => {},
     }
     Ok(())
+}
+
+pub(super) fn modifier_index(base: &str, index: Value) -> Option<usize> {
+    match index {
+        Value::Num(n) if n >= 0.0 && n == n.floor() => Some(n as usize),
+        Value::Num(n) => {
+            tracing::warn!("Array index for '{base}' must be a non-negative integer, got {n}");
+            None
+        },
+        other => {
+            tracing::warn!("Array index for '{base}' must evaluate to a number, got {other:?}");
+            None
+        },
+    }
+}
+
+pub(super) fn write_indexed_override(
+    env: &mut Environment,
+    overrides: &mut ModifierOverrides,
+    base: &str,
+    index_position: usize,
+    index: usize,
+    property: &str,
+    value: Value,
+) {
+    OVERRIDE_LABEL.with_borrow_mut(|label_buf| {
+        label_buf.clear();
+        use std::fmt::Write;
+        for (position, segment) in base.split('.').enumerate() {
+            if position > 0 {
+                label_buf.push('.');
+            }
+            if position == index_position {
+                let _ = write!(label_buf, "{segment}__{index}");
+            } else {
+                label_buf.push_str(segment);
+            }
+        }
+        record_override(overrides, label_buf, property, &value);
+        apply_override_incremental(env, label_buf, property, value);
+    });
+}
+
+pub(super) fn execute_loop(
+    env: &mut Environment,
+    pattern: &LoopPattern,
+    index_var: Option<&str>,
+    iterable: Value,
+    mut body: impl FnMut(&mut Environment, usize) -> Result<(), EvalError>,
+) -> Result<(), EvalError> {
+    let scope = crate::timeline::env::LoopScope::capture(env, pattern, index_var);
+    let mut step = |(index, value)| {
+        if index >= 100_000 {
+            return Err(EvalError::TypeMismatch("for-loop exceeded 100,000 iterations".into()));
+        }
+        bind_loop_var(env, pattern, value);
+        if let Some(name) = index_var {
+            env.set(name, Value::Num(index as f64));
+        }
+        body(env, index)
+    };
+    let result = match iterable {
+        Value::List(list) => list.iter().cloned().enumerate().try_for_each(&mut step),
+        Value::Vec2(v) => v.into_iter().map(Value::Num).enumerate().try_for_each(&mut step),
+        Value::Vec3(v) => v.into_iter().map(Value::Num).enumerate().try_for_each(&mut step),
+        Value::Vec4(v) => v.into_iter().map(Value::Num).enumerate().try_for_each(&mut step),
+        other => step((0, other)),
+    };
+    scope.restore(env);
+    result
 }
 
 /// Bind a loop pattern to a value in the frame environment.

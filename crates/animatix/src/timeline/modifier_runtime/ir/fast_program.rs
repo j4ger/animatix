@@ -254,9 +254,18 @@ pub(crate) fn execute_fast_with_geometry(
     overrides: &mut ModifierOverrides,
     geometry: Option<super::ModifierGeometry<'_>>,
 ) -> Result<(), EvalError> {
-    let mut slots: Vec<f64> = Vec::with_capacity(8);
+    execute_fast_statements(&program.statements, frame_env, overrides, geometry)
+}
 
-    for stmt in &program.statements {
+pub(super) fn execute_fast_statements(
+    statements: &[FastStmt],
+    frame_env: &mut Environment,
+    overrides: &mut ModifierOverrides,
+    geometry: Option<super::ModifierGeometry<'_>>,
+) -> Result<(), EvalError> {
+    let mut slots = smallvec::SmallVec::<[f64; 8]>::new();
+
+    for stmt in statements {
         match stmt {
             FastStmt::FastAssign(assign) => {
                 slots.clear();

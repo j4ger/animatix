@@ -100,6 +100,9 @@ pub(crate) fn evaluate_with_points(
             eval_call_builtin(builtin.clone(), args, env, points)
         },
         CompiledExpr::CallNamed(name, args) => {
+            if let Some(result) = super::numeric_closure::try_named_call(env, name, args, points) {
+                return result;
+            }
             let arg_values = evaluate_named_call_arguments(name, args, env, points)?;
             crate::timeline::utils::evaluate_call_arguments(name, arg_values, env, points)
         },

@@ -1,8 +1,12 @@
+mod cache;
 mod display;
 mod eval;
 mod exec;
 pub mod fast_program;
 mod fast_scalar;
+pub(crate) mod numeric_closure;
+pub(crate) mod prepared;
+pub use cache::ModifierIrCache;
 mod lower;
 pub mod opt;
 mod types;

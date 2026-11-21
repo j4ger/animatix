@@ -13,6 +13,9 @@ use super::DocumentSession;
 use super::load::diagnostics_from_module_error;
 use crate::error::GuiError;
 
+pub(crate) type ModifierIrCache =
+    std::sync::Arc<animatix::timeline::modifier_runtime::ir::ModifierIrCache>;
+
 impl DocumentSession {
     /// Apply document/workspace base directories to every active asset cache.
     fn apply_asset_base_dirs(&mut self) {
@@ -31,10 +34,29 @@ impl DocumentSession {
         self.rebuild_with_asset_cache(asset_cache)
     }
 
+    pub(crate) fn modifier_ir_caches(&self) -> Vec<ModifierIrCache> {
+        if let Some(timeline) = &self.timeline {
+            return timeline.modifier_ir_cache().into_iter().collect();
+        }
+        self.composition
+            .iter()
+            .flat_map(|composition| composition.scenes.values())
+            .filter_map(|scene| scene.timeline.modifier_ir_cache())
+            .collect()
+    }
+
     /// Rebuild using an asset cache carried from a previous build.
     pub fn rebuild_with_asset_cache(
         &mut self,
         asset_cache: Option<std::sync::Arc<animatix::timeline::assets::AssetCache>>,
+    ) -> Result<(), GuiError> {
+        self.rebuild_with_caches(asset_cache, &self.modifier_ir_caches())
+    }
+
+    pub(crate) fn rebuild_with_caches(
+        &mut self,
+        asset_cache: Option<std::sync::Arc<animatix::timeline::assets::AssetCache>>,
+        modifier_ir_caches: &[ModifierIrCache],
     ) -> Result<(), GuiError> {
         // Skip rebuild if source text hasn't changed since last successful build.
         // A failure marker forces a retry even when the timeline survived, so
@@ -104,6 +126,7 @@ impl DocumentSession {
                 quality: Some(animatix::timeline::BuildQuality::Draft),
                 function_context: Some(&result.function_context),
                 asset_cache,
+                modifier_ir_caches,
                 extensions: Some(std::sync::Arc::clone(&self.extension_context)),
                 ..Default::default()
             }
@@ -143,32 +166,9 @@ impl DocumentSession {
             })
             .unwrap_or_default();
 
-        // Preserve lowered modifier IR across rebuilds when unchanged. Compare
-        // the modifier hash to avoid re-lowering when only non-modifier parts
-        // of the source changed.
-        let old_modifier_data: Option<(u64, Vec<_>)> = self
-            .timeline
-            .as_ref()
-            .map(|t| (t.modifier_hash, t.modifier_programs.clone()))
-            .or_else(|| {
-                self.composition.as_ref().and_then(|c| {
-                    c.scenes.values().next().map(|s| {
-                        let t = &s.timeline;
-                        (t.modifier_hash, t.modifier_programs.clone())
-                    })
-                })
-            });
-
         match report.output {
             BuildTarget::SingleScene(mut timeline) => {
                 timeline.plot_path_cache = old_plot_cache;
-                // Reuse lowered modifier programs if modifier AST is unchanged.
-                if let Some((old_hash, old_ir)) = &old_modifier_data
-                    && timeline.modifier_hash == *old_hash
-                    && !old_ir.is_empty()
-                {
-                    timeline.modifier_programs = old_ir.clone();
-                }
                 self.timeline = Some(timeline);
                 self.composition = None;
                 self.active_scene = None;
@@ -181,19 +181,8 @@ impl DocumentSession {
                 {
                     self.active_scene = composition.declaration_order.first().cloned();
                 }
-                // Reusing modifier IR is only safe when the old data belongs to
-                // the same scene. Multi-scene files do not carry a per-scene
-                // cache here, so re-lower each scene conservatively.
-                let scene_count = composition.scenes.len();
                 for scene in composition.scenes.values_mut() {
                     scene.timeline.plot_path_cache.clone_from(&old_plot_cache);
-                    if scene_count == 1
-                        && let Some((old_hash, old_ir)) = &old_modifier_data
-                        && scene.timeline.modifier_hash == *old_hash
-                        && !old_ir.is_empty()
-                    {
-                        scene.timeline.modifier_programs = old_ir.clone();
-                    }
                 }
                 self.timeline = None;
                 self.composition = Some(composition);
@@ -235,20 +224,6 @@ impl DocumentSession {
             })
             .unwrap_or_default();
 
-        // Preserve lowered modifier IR across rebuilds when unchanged.
-        let old_modifier_data: Option<(u64, Vec<_>)> = self
-            .timeline
-            .as_ref()
-            .map(|t| (t.modifier_hash, t.modifier_programs.clone()))
-            .or_else(|| {
-                self.composition.as_ref().and_then(|c| {
-                    c.scenes.values().next().map(|s| {
-                        let t = &s.timeline;
-                        (t.modifier_hash, t.modifier_programs.clone())
-                    })
-                })
-            });
-
         self.last_rebuild_error = None;
         self.raw_statements = Some(output.raw_statements);
         self.expanded_statements = Some(output.expanded_statements);
@@ -266,12 +241,6 @@ impl DocumentSession {
         // Apply caches and active_scene depending on single- vs multi-scene.
         if let Some(mut timeline) = output.timeline {
             timeline.plot_path_cache = old_plot_cache;
-            if let Some((old_hash, old_ir)) = &old_modifier_data
-                && timeline.modifier_hash == *old_hash
-                && !old_ir.is_empty()
-            {
-                timeline.modifier_programs = old_ir.clone();
-            }
             self.timeline = Some(timeline);
             self.composition = None;
             self.active_scene = None;
@@ -283,18 +252,8 @@ impl DocumentSession {
             {
                 self.active_scene = composition.declaration_order.first().cloned();
             }
-            // Multi-scene output re-lowers modifier programs unless this
-            // composition has a single scene with a matching hash.
-            let scene_count = composition.scenes.len();
             for scene in composition.scenes.values_mut() {
                 scene.timeline.plot_path_cache.clone_from(&old_plot_cache);
-                if scene_count == 1
-                    && let Some((old_hash, old_ir)) = &old_modifier_data
-                    && scene.timeline.modifier_hash == *old_hash
-                    && !old_ir.is_empty()
-                {
-                    scene.timeline.modifier_programs = old_ir.clone();
-                }
             }
             self.timeline = None;
             self.composition = Some(composition);

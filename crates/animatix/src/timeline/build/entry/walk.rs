@@ -174,33 +174,24 @@ fn walk_statements_inner(
 
 /// Lower the collected `always` bodies into IR for frame-time interpretation.
 ///
-/// Also snapshots a hash of the modifier AST (for cross-rebuild IR reuse),
-/// records which targets the programs write, and validates `&label.prop`
+/// Reuses scene-independent lowered IR when possible, records which targets
+/// the programs write, and validates `&label.prop`
 /// references against the declared tracks. Runs after the statement walk
 /// because it consumes `timeline.modifiers`.
-pub(super) fn lower_modifiers(timeline: &mut Timeline, diagnostics: &mut Vec<Diagnostic>) {
-    // Compute modifier hash for cross-rebuild IR caching.
-    //
-    // We hash the Debug representation because the AST types cannot derive
-    // `Hash` (several variants hold `f64`/`f32`, which do not implement
-    // `Hash`). This is safe in practice: the hash is only compared within a
-    // single process/session and is never persisted, Debug output is a
-    // faithful rendering of every field, and a changed hash merely causes an
-    // unnecessary re-lower rather than incorrect cache reuse.
-    {
-        use std::hash::{Hash, Hasher};
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        for stmt in &timeline.modifiers {
-            format!("{:?}", stmt).hash(&mut hasher);
-        }
-        timeline.modifier_hash = hasher.finish();
-    }
-
+pub(super) fn lower_modifiers(
+    timeline: &mut Timeline,
+    cached: &[std::sync::Arc<crate::timeline::modifier_runtime::ir::ModifierIrCache>],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     // Skip lowering when no modifiers exist to avoid empty programs.
     if !timeline.modifiers.is_empty() {
-        match crate::timeline::modifier_runtime::ir::lower_modifier_body(&timeline.modifiers) {
-            Ok(program) => {
-                timeline.modifier_programs.push(program);
+        match crate::timeline::modifier_runtime::ir::ModifierIrCache::lower(
+            &timeline.modifiers,
+            cached,
+        ) {
+            Ok(entry) => {
+                timeline.modifier_programs.push(std::sync::Arc::clone(&entry.program));
+                timeline.modifier_ir_cache = Some(entry);
             },
             Err(e) => {
                 diagnostics.push(Diagnostic::warning(

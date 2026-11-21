@@ -1,6 +1,13 @@
 use crate::timeline::*;
 
 impl Timeline {
+    /// Return the reusable modifier IR from this build, if it had modifiers.
+    pub fn modifier_ir_cache(
+        &self,
+    ) -> Option<std::sync::Arc<crate::timeline::modifier_runtime::ir::ModifierIrCache>> {
+        self.modifier_ir_cache.clone()
+    }
+
     /// Create a new empty timeline with a fresh font context.
     pub fn new() -> Self {
         Self::new_with_font_context(std::sync::Arc::new(crate::renderer::text::FontContext::new()))
@@ -28,6 +35,7 @@ impl Timeline {
             modifiers: Vec::new(),
             frame_written_vars: std::collections::HashSet::new(),
             modifier_programs: Vec::new(),
+            prepared_modifiers: None,
             modifier_written_targets: std::collections::HashSet::new(),
             colorscheme: BuiltInColorscheme::DefaultDark.resolved(),
             external_colorschemes: std::collections::HashMap::new(),
@@ -67,7 +75,7 @@ impl Timeline {
             action_events: Vec::new(),
             resolved_markers: Vec::new(),
             plot_path_cache: std::collections::HashMap::new(),
-            modifier_hash: 0,
+            modifier_ir_cache: None,
         }
     }
 

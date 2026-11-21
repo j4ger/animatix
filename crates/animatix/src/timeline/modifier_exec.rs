@@ -23,6 +23,11 @@ impl Timeline {
             time_ms,
             dimensions: scene_dimensions,
         };
+        if let Some(prepared) = &self.prepared_modifiers
+            && prepared.matches(program, frame_env)
+        {
+            return prepared.execute(frame_env, overrides, geometry);
+        }
         execute_with_geometry(program, frame_env, overrides, Some(geometry))
     }
 }

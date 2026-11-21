@@ -25,6 +25,9 @@ pub struct Environment {
     /// base. Keeps the ~90-entry stdlib map out of every
     /// [`Timeline::build_frame_env`] copy.
     pub(crate) base: Option<Arc<EnvMap>>,
+    /// Numeric plans for stable lexical closures in the frozen scene base.
+    pub(crate) numeric_closures:
+        crate::timeline::modifier_runtime::ir::numeric_closure::NumericClosures,
     /// Read-only view of scene actor references available to isolated user
     /// function environments. Lookups filter this base to ActorRef values, so
     /// module functions can resolve authored scene actors without inheriting
@@ -83,6 +86,7 @@ impl Clone for Environment {
             overrides: self.overrides.clone(),
             runtime_inputs: self.runtime_inputs.clone(),
             base: self.base.clone(),
+            numeric_closures: self.numeric_closures.clone(),
             actor_ref_base: self.actor_ref_base.clone(),
             callable_descriptors: Arc::clone(&self.callable_descriptors),
             evaluation_phase: self.evaluation_phase,
@@ -120,6 +124,7 @@ impl Environment {
             overrides: EnvMap::default(),
             runtime_inputs: None,
             base: None,
+            numeric_closures: None,
             actor_ref_base: None,
             callable_descriptors: Arc::new(std::collections::HashMap::new()),
             evaluation_phase: EvaluationPhase::Build,
@@ -147,6 +152,7 @@ impl Environment {
             overrides: HashMap::with_capacity_and_hasher(capacity, Default::default()),
             runtime_inputs: None,
             base: None,
+            numeric_closures: None,
             actor_ref_base: None,
             callable_descriptors: Arc::new(std::collections::HashMap::new()),
             evaluation_phase: EvaluationPhase::Build,
@@ -174,6 +180,7 @@ impl Environment {
             overrides: EnvMap::default(),
             runtime_inputs: None,
             base: Some(base),
+            numeric_closures: None,
             actor_ref_base: None,
             callable_descriptors: Arc::new(std::collections::HashMap::new()),
             evaluation_phase: EvaluationPhase::Build,
@@ -336,6 +343,7 @@ impl Environment {
     /// shared value base. This borrows immutable tables without copying their
     /// values into the pooled frame override map.
     pub(crate) fn inherit_frame_metadata_from(&mut self, source: &Environment) {
+        self.numeric_closures.clone_from(&source.numeric_closures);
         self.callable_descriptors = Arc::clone(&source.callable_descriptors);
         self.host_globals = Arc::clone(&source.host_globals);
         self.component_method_tables = Arc::clone(&source.component_method_tables);

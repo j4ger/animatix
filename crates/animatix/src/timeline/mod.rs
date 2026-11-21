@@ -256,7 +256,9 @@ pub struct Timeline {
     /// resample per frame so the frame value shadows its build-time capture.
     pub(crate) frame_written_vars: std::collections::HashSet<String>,
     /// Lowered modifier IR programs. Populated during build.
-    pub modifier_programs: Vec<ModifierIrProgram>,
+    pub modifier_programs: Vec<Arc<ModifierIrProgram>>,
+    /// Derived modifier execution plan for this scene's resolved actor paths.
+    pub(crate) prepared_modifiers: Option<Arc<modifier_runtime::ir::prepared::PreparedModifiers>>,
     /// Actor targets written by modifier programs (e.g. `"circle0"` or array prefix `"ring"`).
     pub(crate) modifier_written_targets: std::collections::HashSet<String>,
     colorscheme: ResolvedColorscheme,
@@ -349,8 +351,8 @@ pub struct Timeline {
     /// Survives across rebuilds when the GUI copies it from the old timeline.
     pub plot_path_cache:
         std::collections::HashMap<u64, Vec<crate::timeline::vello_path::VelloPath>>,
-    /// Hash of the build-time modifier AST; skips IR re-lowering when modifiers haven't changed.
-    pub modifier_hash: u64,
+    /// Scene-independent modifier IR eligible for reuse in an editor rebuild.
+    pub(crate) modifier_ir_cache: Option<Arc<modifier_runtime::ir::ModifierIrCache>>,
 }
 
 /// Cache entry for frame evaluation results.

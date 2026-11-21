@@ -29,6 +29,8 @@ pub struct RebuildRequest {
     /// Asset cache carried from the previous successful build. `None` on the
     /// first build or when the previous build had no renderable timeline.
     pub asset_cache: Option<std::sync::Arc<animatix::timeline::assets::AssetCache>>,
+    /// Scene-independent modifier IR from the last accepted rebuild.
+    pub modifier_ir_caches: Vec<super::session_rebuild::ModifierIrCache>,
     /// Shared document extension context; the worker never reloads plugins.
     pub extension_context: std::sync::Arc<animatix::extension_context::ExtensionContext>,
     /// Analyzer manifest for the shared extension context.
@@ -153,6 +155,7 @@ impl RebuildWorker {
             } else {
                 source.document.asset_cache()
             },
+            modifier_ir_caches: source.document.modifier_ir_caches(),
             extension_context: source.document.extension_context.clone(),
             extension_manifest: source.document.extension_manifest.clone(),
             workspace_root: source.document.workspace_root.clone(),
@@ -225,7 +228,8 @@ impl RebuildWorker {
             }
 
             let asset_cache = request.asset_cache.clone();
-            let rebuild_result = session.rebuild_with_asset_cache(asset_cache);
+            let rebuild_result =
+                session.rebuild_with_caches(asset_cache, &request.modifier_ir_caches);
 
             // Check cancellation after rebuild (don't send stale data)
             if request.cancellation.is_cancelled() {
@@ -356,6 +360,7 @@ mod tests {
                 file_path: std::path::PathBuf::from("test.amx"),
                 source_text: "#0s\n".to_string(),
                 asset_cache: None,
+                modifier_ir_caches: Vec::new(),
                 extension_context: std::sync::Arc::new(
                     animatix::extension_context::ExtensionContext::new(),
                 ),
@@ -393,5 +398,28 @@ mod tests {
 
         // Drop the worker — this should not deadlock
         drop(worker);
+    }
+
+    #[test]
+    fn background_rebuild_reuses_unchanged_modifier_ir() {
+        let source = "#0s\nmarker: Rect\nalways { marker.rotation = sin(t) }\n";
+        let mut doc = DocumentSession::from_source(PathBuf::from("test.amx"), source.into())
+            .expect("create session");
+        doc.rebuild().expect("initial build");
+        let cached = doc.timeline.as_ref().unwrap().modifier_ir_cache().unwrap();
+        doc.source_text = format!("// shifted source coordinates\n{source}");
+
+        let editor = EditorBuffer::new(&doc.file_path, doc.source_text.clone());
+        let source = SourceStore::new(doc, editor);
+        let mut worker = RebuildWorker::start();
+        let token = worker.submit(&source).expect("submit edited source");
+        let response = worker
+            .response_rx
+            .recv_timeout(std::time::Duration::from_secs(30))
+            .expect("receive edited build");
+        assert_eq!(response.token, token);
+        let output = response.result.unwrap_or_else(|failure| panic!("{}", failure.error));
+        let rebuilt = output.timeline.unwrap().modifier_ir_cache().unwrap();
+        assert!(std::sync::Arc::ptr_eq(&cached, &rebuilt));
     }
 }

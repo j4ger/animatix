@@ -50,7 +50,7 @@ impl Timeline {
         super::validate::validate_runtime_input_values(&mut timeline, &mut diagnostics);
 
         // 4. Lower `always` bodies to IR and validate their property references.
-        super::walk::lower_modifiers(&mut timeline, &mut diagnostics);
+        super::walk::lower_modifiers(&mut timeline, options.modifier_ir_caches, &mut diagnostics);
 
         // 5. Post-walk validation: reveals, duration/loop seam, registrations.
         super::validate::validate_reveals(&timeline, &mut diagnostics);

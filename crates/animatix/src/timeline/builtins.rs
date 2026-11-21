@@ -331,23 +331,21 @@ fn standard_library_base() -> &'static StandardLibraryBase {
 /// The identity check borrows both maps; it does not allocate an environment
 /// or a qualified-name string on the frame path.
 pub(crate) fn is_standard_callable(name: &str, env: &Environment) -> bool {
-    let standard = standard_library_base();
     let canonical = name.strip_prefix("std::").unwrap_or(name);
     if !env.let_scopes.borrow().is_empty() {
         // Scoped bindings can shadow the standard name. `get_ref` deliberately
         // cannot borrow values held in the interior-mutability scope stack.
-        return match (env.get(name), standard.values.get(canonical)) {
-            (Some(Value::NativeFn(actual)), Some(Value::NativeFn(expected))) => {
-                Arc::ptr_eq(&actual, expected)
-            },
-            _ => false,
-        };
+        return is_standard_binding(canonical, env.get(name).as_ref());
     }
-    match (env.get_ref(name), standard.values.get(canonical)) {
+    is_standard_binding(canonical, env.get_ref(name))
+}
+
+pub(crate) fn is_standard_binding(name: &str, binding: Option<&Value>) -> bool {
+    match (binding, standard_library_base().values.get(name)) {
         (Some(Value::NativeFn(actual)), Some(Value::NativeFn(expected))) => {
             Arc::ptr_eq(actual, expected)
         },
-        _ => false,
+        _ => false, // An absent or shadowing binding uses normal call resolution.
     }
 }
 
