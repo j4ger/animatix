@@ -18,11 +18,10 @@ it does **not** claim that every old source has been rewritten or corrected.
 
 ## Former public collection
 
-All nine IDs are explicitly accounted for in `web/app/src/lib/legacy-works.ts`.
-Compatibility pages explain the decision and offer a current route. Historical
-AMX and assets remain available for imports/tests, but old HTML/JS/CSS are not
-silently distributed as a competing public site. Source links identify a fixed
-historical revision and warn that the old examples are not reference lessons.
+At this checkpoint, compatibility pages covered all nine IDs and offered routes
+to current material. They linked to fixed source revisions for the archived
+scenes. The later site redesign retired those pages. Historical AMX and assets
+remain available for imports and tests.
 
 This deliberately retires broad Transformer/topology/hash explanations rather
 than pretending that a superficial visual refresh fixes their semantic gaps.

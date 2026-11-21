@@ -1,7 +1,8 @@
 # Content catalog: organize by purpose, publish by target
 
-`web` is a delivery target, not a second category of content. Keep necessary test inputs distinct from published content. Public URLs now resolve to current content or
-explicit archive notices; see `web-content-disposition.md`.
+`web` is a delivery target. Keep necessary test inputs distinct from published
+content. `web-content-disposition.md` records the disposition of the former
+public collection. Retired showcase URLs use the site's 404 page.
 
 ## Two public doors
 
@@ -13,9 +14,8 @@ explicit archive notices; see `web-content-disposition.md`.
 Recipes are a problem-oriented view of examples; templates are starting points.
 Gallery, home highlights, and embedded figures are views of the same works, not
 independent copies. Current showcase and lesson metadata lives in
-`web/app/src/lib/content.ts`; techniques live in
-`web/app/src/lib/techniques.ts`. Legacy URL decisions live in
-`web/app/src/lib/legacy-works.ts`; the former work manifest is retired.
+`web/app/src/lib/content.ts`. Techniques live in
+`web/app/src/lib/techniques.ts`.
 
 Internally, keep **fixtures** (regression cases), **benchmarks** (fixed workloads),
 **experiments** (unreviewed exploration), **library modules**, and **brand assets**
