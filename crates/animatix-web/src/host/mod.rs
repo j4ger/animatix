@@ -8,6 +8,7 @@
 
 mod build;
 mod features;
+mod highlight;
 mod identity;
 mod markers;
 mod prepare;
@@ -26,6 +27,7 @@ pub use build::{
     build_document_with_vars, build_prepared,
 };
 pub use features::required_features;
+pub use highlight::highlight_source;
 pub use identity::{BUILD_ID, ENTRY_PATH};
 pub use prepare::{
     AnalysisDto, AssetRequirement, FontRequirements, PreparedProgram, prepare_document,

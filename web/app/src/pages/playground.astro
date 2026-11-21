@@ -26,7 +26,10 @@ const choices = [
       <div class="editor-toolbar"><label for="scene-choice">{t('Source', '场景')}</label><select id="scene-choice">{choices.map(x => <option value={x.id}>{x.title}</option>)}</select><button id="open-source" class="button">{t('Open', '打开')}</button></div>
       <p id="editor-status" role="status" aria-live="polite">{labels.loadingSource}</p>
       <label class="sr-only" for="source-code">{labels.amxSource}</label>
-      <textarea id="source-code" class="source-wrap" wrap="soft" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+      <div class="playground-source source-highlight">
+        <div class="source-guide source-wrap" aria-hidden="true"></div>
+        <textarea id="source-code" class="source-wrap" wrap="soft" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+      </div>
       <div class="editor-actions"><button id="reset" class="button">{labels.reset}</button><button disabled id="download" class="button">{t('Download .amx', '下载 .amx')} ↓</button></div>
       <div id="diagnostics"></div>
     </section>

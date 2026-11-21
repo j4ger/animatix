@@ -1,6 +1,8 @@
 ---
 import Page from '../layouts/Page.astro';
-import InsertionFilm from '../components/InsertionFilm.astro';
+import EditableScene from '../components/EditableScene.astro';
+import insertionSource from '../../../content/scenes/insertion-sort.amx?raw';
+import {insertionId} from '../lib/insertion-steps';
 import FeaturedExamples from '../components/FeaturedExamples.astro';
 import InstallPanel from '../components/InstallPanel.astro';
 import {pageLanguage} from '../lib/language';
@@ -14,12 +16,16 @@ const {t, examples} = ui(language);
     <div class="product-intro">
       <h1 id="product-title">
         {language === 'en'
-          ? <><span>A language for</span> <em>animated</em> <span>explainers.</span></>
-          : <><span>用代码写</span><em>解释性动画</em></>}
+          ? <><span>Make animated</span> <em>explainers</em> <span>in code</span></>
+          : <><span>用代码写</span><em>讲解动画</em></>}
       </h1>
-      <p><span>{t('Write scenes in AMX.', '用 AMX 编写场景。')}</span><span>{t('Preview online. Render video locally.', '在线预览，在本地渲染视频。')}</span></p>
+      <p>
+        <span>{t('Script what happens at each key moment.', '像写剧本一样，写下每个关键时刻的画面。')}</span>
+        <span>{t('Set the duration and easing. Animatix fills in the frames.', '你定时长和缓动，Animatix 补齐中间的动作。')}</span>
+      </p>
     </div>
-    <InsertionFilm/>
+    <EditableScene id={insertionId} source={insertionSource} title={t('Insertion sort', '插入排序')} autoplay
+      posterAlt={t('Where does 3 fit? A green 3 hovers by the sorted row of 2, 4 and 5.', '绿色的 3 悬在已经排好序的 2、4、5 上方。')}/>
   </section>
   <section id="examples" class="project-section" aria-labelledby="examples-title">
     <h2 id="examples-title">{examples}</h2>

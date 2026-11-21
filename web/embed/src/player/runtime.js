@@ -83,6 +83,12 @@ export function runtimeBackendGeneration() {
   return state.backendGeneration;
 }
 
+/** Return AMX syntax roles as [start, end, role] UTF-16 ranges. */
+export async function highlightSource(source) {
+  const { module } = await loadRuntime();
+  return module.highlight_source(source);
+}
+
 function backendCandidates(preference, availableBackends) {
   const requested = preference === "auto" ? ["webgpu", "webgl2"] : [preference];
   return availableBackends ? requested.filter((backend) => availableBackends.includes(backend)) : requested;

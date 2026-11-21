@@ -1,15 +1,10 @@
 import {beforeLanguageSwitch} from '../lib/editor-transfer';
-import {browserLanguage, languagePreference, themePreference} from '../lib/language';
+import {languagePreference, themePreference} from '../lib/language';
 
 const root = document.querySelector<HTMLElement>('[data-site-preferences]');
 if (root) {
   const menus = [...root.querySelectorAll('details')];
   const themes = [...root.querySelectorAll<HTMLButtonElement>('[data-theme-choice]')];
-  const automaticLanguage = root.querySelector<HTMLButtonElement>('[data-language="auto"]')!;
-
-  function preference(key: string) {
-    try { return localStorage.getItem(key); } catch { return null; }
-  }
 
   function remember(key: string, value: string) {
     try {
@@ -32,7 +27,6 @@ if (root) {
   }
 
   selectTheme(document.documentElement.dataset.theme ?? 'auto');
-  automaticLanguage.setAttribute('aria-pressed', String(!preference(languagePreference)));
 
   root.addEventListener('click', event => {
     const target = (event.target as Element).closest<HTMLElement>('[data-theme-choice], [data-language]');
@@ -45,11 +39,10 @@ if (root) {
       close(menu);
       return;
     }
-    if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    if (!(target instanceof HTMLAnchorElement) || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
     const language = target.dataset.language!;
-    const nextLanguage = language === 'auto' ? browserLanguage(navigator.languages ?? [navigator.language]) : language;
-    const next = new URL(nextLanguage === 'zh' ? root.dataset.zh! : root.dataset.en!, location.origin);
+    const next = new URL(target.href);
     next.search = location.search;
     next.hash = location.hash;
     if (next.href !== location.href && !beforeLanguageSwitch()) {
@@ -57,7 +50,6 @@ if (root) {
       return;
     }
     remember(languagePreference, language);
-    automaticLanguage.setAttribute('aria-pressed', String(language === 'auto'));
     close(menu);
     if (next.href !== location.href) location.assign(next.href);
   });

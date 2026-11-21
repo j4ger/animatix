@@ -12,14 +12,6 @@ export function choose<T>(language: Language, english: T, chinese: T): T {
   return language === 'zh' ? chinese : english;
 }
 
-export function browserLanguage(preferences: readonly string[]): Language {
-  for (const preference of preferences) {
-    const code = preference.toLowerCase().split('-')[0];
-    if (code === 'zh' || code === 'en') return code;
-  }
-  return 'en';
-}
-
 export function sitePagePath(pathname: string, base: string) {
   const route = base && pathname.startsWith(base + '/') ? pathname.slice(base.length) : pathname;
   return route.replace(/^\/zh(?=\/|$)/, '').replace(/^\//, '');

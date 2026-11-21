@@ -13,11 +13,13 @@ const {automaticHome = ''} = Astro.props;
     } catch {
       // The default preferences also work with storage disabled.
     }
-    if (automaticHome && language !== 'en') {
-      const preferences = navigator.languages ?? [navigator.language];
-      const firstSupported = preferences.map(tag => tag.toLowerCase().split('-')[0])
-        .find(code => code === 'en' || code === 'zh');
-      if (language === 'zh' || firstSupported === 'zh') {
+    if (automaticHome) {
+      if (language !== 'en' && language !== 'zh') {
+        const preferences = navigator.languages ?? [navigator.language];
+        language = preferences.map(tag => tag.toLowerCase().split('-')[0])
+          .find(code => code === 'en' || code === 'zh');
+      }
+      if (language === 'zh') {
         location.replace(automaticHome + location.search + location.hash);
       }
     }

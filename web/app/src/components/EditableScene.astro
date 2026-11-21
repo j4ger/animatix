@@ -1,0 +1,46 @@
+---
+import Scene from './Scene.astro';
+import Timeline from './Timeline.astro';
+import {url} from '../lib/content';
+import {pageLanguage} from '../lib/language';
+import {ui} from '../lib/ui';
+const labels = ui(pageLanguage(Astro.currentLocale));
+const {t} = labels;
+interface Props {
+  id: string;
+  title: string;
+  source: string;
+  posterAlt?: string;
+  autoplay?: boolean;
+  recording?: boolean;
+  duration?: number;
+}
+const {id, title, source, posterAlt = '', autoplay = false, recording = false, duration} = Astro.props;
+const sourcePanel = `${id}-source`;
+const sourceStatus = `${id}-source-status`;
+---
+<figure class="sample" id={id} data-sample data-autoplay={autoplay || undefined}>
+  <figcaption><span class="file-icon" aria-hidden="true"></span><span>{id}.amx</span><slot name="actions"/></figcaption>
+  <div class="sample-preview">
+    <Scene inline {id} {title} {posterAlt} {recording}/>
+    <div class="sample-controls amx-transport">
+      <button type="button" class="sample-play" disabled><i aria-hidden="true"></i><span>{labels.play}</span></button>
+      <Timeline label={t('Scene time in seconds', '场景时间（秒）')} max={duration}/>
+      <output class="sample-clock amx-time" aria-hidden="true">0.00s</output>
+      <button type="button" class="inspect" aria-expanded="false" aria-controls={sourcePanel}><b aria-hidden="true">&lt;/&gt;</b> <span>{labels.viewSource}</span></button>
+    </div>
+    <slot name="presets"/>
+  </div>
+  <div class="source-panel" id={sourcePanel} role="region" aria-label={labels.amxSource} tabindex="-1" hidden>
+    <div class="source-editor source-highlight">
+      <div class="source-guide source-wrap" aria-hidden="true"></div>
+      <textarea class="source-wrap" aria-label={labels.amxSource} aria-describedby={sourceStatus} wrap="soft" spellcheck="false" autocomplete="off" autocapitalize="off">{source}</textarea>
+    </div>
+    <div class="source-footer">
+      <p id={sourceStatus} class="source-status" role="status"></p>
+      <button class="reset-source" type="button" aria-label={t('Reset source', '重置源码')} disabled>{labels.reset}</button>
+    </div>
+  </div>
+  <noscript><a href={url(`content/scenes/${id}.amx`)}>{t(`View ${id}.amx`, `查看 ${id}.amx`)} →</a></noscript>
+</figure>
+<script src="../scripts/editable-scene.ts"></script>

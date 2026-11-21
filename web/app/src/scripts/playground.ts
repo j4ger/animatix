@@ -1,10 +1,11 @@
 import {fetchSource} from '../lib/requests';
 import {readableError} from '../lib/errors';
 import {overridesFor, parameterNames, withOverride} from '../lib/overrides';
-import {loadPlayer, resetPlayer} from './scene';
+import {loadPlayer, loadPlayerModule, resetPlayer} from './scene';
 import {insertionId, insertionSteps} from '../lib/insertion-steps';
 import {draftSelection, takeEditorTransfer, transferEditor} from '../lib/editor-transfer';
 import {currentUi} from '../lib/ui';
+import {bindSourceHighlight} from '../lib/source-highlight';
 
 const root = document.querySelector<HTMLElement>('[data-playground]');
 if (root) installPlayground(root);
@@ -17,6 +18,8 @@ function installPlayground(root: HTMLElement) {
   const status = root.querySelector<HTMLElement>('#editor-status')!;
   const diagnostics = root.querySelector<HTMLElement>('#diagnostics')!;
   const shell = root.querySelector<HTMLElement>('[data-scene-shell]')!;
+  const guide = root.querySelector<HTMLElement>('.source-guide')!;
+  const highlight = bindSourceHighlight(code, guide, () => loadPlayerModule(shell.dataset.module!));
   const open = root.querySelector<HTMLButtonElement>('#open-source')!;
   const reset = root.querySelector<HTMLButtonElement>('#reset')!;
   const download = root.querySelector<HTMLButtonElement>('#download')!;
@@ -106,6 +109,8 @@ function installPlayground(root: HTMLElement) {
         code.setSelectionRange(...draft.selection);
         code.scrollTop = draft.scroll;
       }
+      highlight.render();
+      highlight.setVisible(true);
       next.searchParams.set('scene', id);
       if (!initial) [...parameterNames, 'step', 't'].forEach(name => next.searchParams.delete(name));
       history.replaceState(null, '', next);
@@ -210,6 +215,7 @@ function installPlayground(root: HTMLElement) {
   reset.addEventListener('click', () => {
     if (hasUnsaved() && !confirm(t('Restore the original source?', '要恢复原始源码吗？'))) return;
     code.value = original;
+    highlight.render();
     queueBuild(0);
   });
   retry.addEventListener('click', () => {
@@ -220,6 +226,7 @@ function installPlayground(root: HTMLElement) {
     if (player && !player.isConnected) retry.hidden = false;
   });
   code.addEventListener('input', event => {
+    highlight.render();
     if (!(event as InputEvent).isComposing) queueBuild();
   });
   code.addEventListener('compositionstart', cancelQueuedBuild);

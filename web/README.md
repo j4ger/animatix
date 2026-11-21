@@ -7,17 +7,19 @@ accounts or client-side UI framework are required.
 The header groups the GitHub link with the language and theme controls. On
 narrow screens, the main navigation sits below the wordmark and these controls.
 English uses the existing URLs and Simplified Chinese lives under `/zh/`. The
-default home entry uses the browser's language preference. Explicit language choices are remembered
-and deep links use the language in their URL. Switching languages keeps the
+home entry uses the browser's language preference until a visitor chooses
+English or 简体中文 in the menu. That choice is remembered, and deep links use
+the language in their URL. Switching languages keeps the
 current AMX draft and playhead. The default color theme follows the operating
 system, with light and dark overrides. Themes apply to the website and playback
 controls. The scene source, artwork, and recordings use their authored text and
 colors.
 
-The canonical scenes live in `content/scenes/`. The five Showcase works, six
-lessons and four techniques use the same **Play live** poster. The poster stays
-visible while the `.amx` source and SDK load. Playback tries WebGPU first and
-falls back to WebGL2 automatically.
+The canonical scenes live in `content/scenes/`. Lessons and techniques open
+with a **Play live** poster. Showcase pages use the homepage's editable
+player and load the engine when the visitor chooses **Play** or **View source**.
+The poster stays visible during loading. Playback tries WebGPU first and falls
+back to WebGL2 automatically.
 
 A Showcase work offers its recording if live playback fails. The video is
 fetched only when the visitor chooses **Play recording**. Lessons and techniques
@@ -35,11 +37,15 @@ authored keyframes and move when a source edit successfully rebuilds the scene.
 The homepage also lists the examples and links to GitHub Releases from the
 Linux, macOS, and Windows tabs. Quickstart has separate GUI and CLI paths.
 **View source** pauses the scene and opens its complete, editable AMX file beside
-the preview. Marked keyframe timestamps link the source to playback. The editor
+the preview. Definitions and keyframes are shown as cells in one text buffer.
+Seeking on the timeline scrolls to the corresponding timestamp cell. The editor
 rebuilds after a short pause in typing and keeps the current playhead position.
 Build errors leave the previous scene available. **Reset** restores the original
-file. Playground loads the selected scene immediately and updates after a pause
-in typing. Both editors wrap long lines visually and preserve the source text.
+file. Showcase presets update the editable source, and **Download AMX** saves
+the current draft. Playground loads the selected scene immediately and updates
+after a pause in typing. The editors wrap long lines visually and preserve the
+source text. They highlight AMX keywords, literals, identifier roles and keyframes using
+the SDK's tokenizer and parser, independently of live preview builds.
 Use **Download .amx** to save the current draft.
 
 The noise cancellation example at `/journey/` presents a 16-second captioned explainer about

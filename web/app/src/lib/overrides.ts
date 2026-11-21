@@ -7,10 +7,19 @@ const sceneParameters: Record<string, Record<string, readonly number[]>> = {
 
 export const parameterNames = Object.values(sceneParameters).flatMap(Object.keys);
 
+function defaultPattern(name: string) {
+  return new RegExp('^let ' + name + ' = ([^\\r\\n]+)', 'm');
+}
+
+export function numericDefault(source: string, name: string) {
+  const value = defaultPattern(name).exec(source)?.[1].split('//')[0].trim();
+  return value ? Number(value) : NaN;
+}
+
 /** Change a declared numeric default in the canonical, editable AMX. */
 export function withOverride(source: string, name: string, value: number): string {
   if (!parameterNames.includes(name) || !Number.isFinite(value)) throw Error('Unsupported scene preset');
-  const pattern = new RegExp('^let ' + name + ' = [^\\r\\n]+', 'm');
+  const pattern = defaultPattern(name);
   if (!pattern.test(source)) throw Error(`Source has no ${name} default`);
   return source.replace(pattern, `let ${name} = ${value}`);
 }

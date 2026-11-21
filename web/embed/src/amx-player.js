@@ -135,4 +135,4 @@ installDebugHud();
 
 export { AmxPlayerElement };
 
-export { configureRuntime, debugRuntimeStats, runtimeBackend } from "./player/runtime.js";
+export { configureRuntime, debugRuntimeStats, highlightSource, runtimeBackend } from "./player/runtime.js";

@@ -28,3 +28,10 @@ pub fn engine_version() -> String {
 pub fn engine_commit() -> String {
     option_env!("ANIMATIX_GIT_SHA").unwrap_or("").to_string()
 }
+
+/// Classify draft AMX text as UTF-16 ranges without building a scene.
+#[wasm_bindgen]
+pub fn highlight_source(source: &str) -> Result<JsValue, JsError> {
+    serde_wasm_bindgen::to_value(&crate::host::highlight_source(source))
+        .map_err(|error| JsError::new(&error.to_string()))
+}
