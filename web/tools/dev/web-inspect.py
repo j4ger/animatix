@@ -12,7 +12,7 @@ Uses `web/tools/dev/agent-browser.sh` over Chrome DevTools Protocol (CDP) to:
 Usage:
   web/tools/dev/web-inspect.py --url http://127.0.0.1:8124/
   web/tools/dev/web-inspect.py --url http://127.0.0.1:8124/dev/multi-probe.html --output-dir /tmp/shots
-  web/tools/dev/web-inspect.py --check --url http://127.0.0.1:8124/gallery.html
+  web/tools/dev/web-inspect.py --check --url http://127.0.0.1:8124/examples/
 """
 import argparse
 import base64

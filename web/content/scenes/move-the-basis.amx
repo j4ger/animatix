@@ -5,9 +5,22 @@
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 24 }
 
 let k = 0
+let unit = 70
+let project = (x, y, shear) => (400 + unit * (x + shear * y), 410 - unit * y)
+let motion = (time, start) => ease_in_out(clamp((time - start) / 4, 0, 1))
 
 #0s
-  background: Rect, at: (640, 360), size: (1280, 720), color: hex_color("0d1520")
+  // Blueprint corners sit outside the coordinate system.
+  background: Rect, at: (640, 360), size: (1280, 720),
+    fill_gradient: linear(128, {hex_color("123746"), hex_color("101c29")})
+  for i in {0, 1, 2, 3} {
+    let x = if i % 2 == 0 { 42 } else { 1238 }
+    let y = if i < 2 { 42 } else { 678 }
+    let dx = if i % 2 == 0 { 28 } else { -28 }
+    let dy = if i < 2 { 28 } else { -28 }
+    corner_x[i]: Line, from: (x, y), to: (x + dx, y), stroke: hex_color("447082"), stroke_width: 2
+    corner_y[i]: Line, from: (x, y), to: (x, y + dy), stroke: hex_color("447082"), stroke_width: 2
+  }
   kicker: Text, text: "LINEAR TRANSFORMS / ONE RULE FOR EVERY POINT", at: (640, 58), font_size: 16, color: hex_color("90a4b8")
   title: Text, text: "Move the basis. Move the world.", at: (640, 112), font_size: 40, font_weight: "bold", color: hex_color("f3f5f7")
   reference_x: Line, from: (100, 410), to: (720, 410), stroke: hex_color("526273"), stroke_width: 2
@@ -15,18 +28,15 @@ let k = 0
   x_name: Text, text: "x", at: (737, 410), font_size: 20, color: hex_color("90a4b8")
   y_name: Text, text: "y", at: (400, 184), font_size: 20, color: hex_color("90a4b8")
   origin: Ellipse, at: (400, 410), size: (9, 9), color: hex_color("f3f5f7")
-  vertical_0: Line, from: (260, 550), to: (260, 270), stroke: hex_color("304658"), stroke_width: 1, opacity: 0
-  horizontal_0: Line, from: (260, 550), to: (540, 550), stroke: hex_color("304658"), stroke_width: 1, opacity: 0
-  vertical_1: Line, from: (330, 550), to: (330, 270), stroke: hex_color("304658"), stroke_width: 1, opacity: 0
-  horizontal_1: Line, from: (260, 480), to: (540, 480), stroke: hex_color("304658"), stroke_width: 1, opacity: 0
-  vertical_2: Line, from: (400, 550), to: (400, 270), stroke: hex_color("304658"), stroke_width: 1, opacity: 0
-  horizontal_2: Line, from: (260, 410), to: (540, 410), stroke: hex_color("304658"), stroke_width: 1, opacity: 0
-  vertical_3: Line, from: (470, 550), to: (470, 270), stroke: hex_color("304658"), stroke_width: 1, opacity: 0
-  horizontal_3: Line, from: (260, 340), to: (540, 340), stroke: hex_color("304658"), stroke_width: 1, opacity: 0
-  vertical_4: Line, from: (540, 550), to: (540, 270), stroke: hex_color("304658"), stroke_width: 1, opacity: 0
-  horizontal_4: Line, from: (260, 270), to: (540, 270), stroke: hex_color("304658"), stroke_width: 1, opacity: 0
+  lattice: Group, at: project(0, 0, 0), opacity: 0 {
+    for n, i in {-2, -1, 0, 1, 2} {
+      vertical[i]: Line, from: (n * unit, 2 * unit), to: (n * unit, -2 * unit),
+        stroke: hex_color("304658"), stroke_width: 1
+      horizontal[i]: Line, from: (-2 * unit, -n * unit), to: (2 * unit, -n * unit),
+        stroke: hex_color("304658"), stroke_width: 1
+    }
+  }
 
-#0s
   unit_top: Line, from: (400, 340), to: (470, 340), stroke: hex_color("65d9e8"), stroke_width: 3, opacity: 0
   unit_right: Line, from: (470, 410), to: (470, 340), stroke: hex_color("65d9e8"), stroke_width: 3, opacity: 0
   basis_x: Arrow, from: (400, 410), to: (470, 410), stroke: hex_color("65d9e8"), stroke_width: 4
@@ -41,78 +51,28 @@ let k = 0
   area: Text, text: "AREA = 1", at: (1020, 565), font_size: 20, color: hex_color("65d9e8"), opacity: 0
   caption: Text, text: "Two basis vectors describe the original space.", at: (640, 650), font_size: 24, color: hex_color("adbcca")
 
-#3s
+  always {
+    k = motion(t, 3) - 1.6 * motion(t, 10) + 1.6 * motion(t, 17)
 
+    // Screen y grows downward, so the screen-space shear has the opposite sign.
+    lattice.transform = (1, 0, -k, 1, 0, 0)
+    basis_y.to = project(0, 1, k)
+    sample.at = project(1, 1, k)
+    unit_top.from = basis_y.to
+    unit_top.to = sample.at
+    unit_right.to = sample.at
+    amount.text = format("k = {:.2}", k)
+    base_y.text = format("e2 = ({:.2}, 1)", k)
+  }
 
 #8s
-  fade_in(target: vertical_0, duration: 0.6s)
-  fade_in(target: horizontal_0, duration: 0.6s)
-  fade_in(target: vertical_1, duration: 0.6s)
-  fade_in(target: horizontal_1, duration: 0.6s)
-  fade_in(target: vertical_2, duration: 0.6s)
-  fade_in(target: horizontal_2, duration: 0.6s)
-  fade_in(target: vertical_3, duration: 0.6s)
-  fade_in(target: horizontal_3, duration: 0.6s)
-  fade_in(target: vertical_4, duration: 0.6s)
-  fade_in(target: horizontal_4, duration: 0.6s)
+  fade_in(target: lattice, duration: 0.6s)
   fade_in(target: sample, duration: 0.6s)
 
 #14s
   fade_in(target: unit_top, duration: 0.6s)
   fade_in(target: unit_right, duration: 0.6s)
   fade_in(target: area, duration: 0.6s)
-
-#19s
-  always {
-      if t < 3 {
-            k = 0
-          }
-      if t >= 3 && t < 7 {
-            k = ease_in_out((t - 3) / 4)
-          }
-      if t >= 7 && t < 10 {
-            k = 1
-          }
-      if t >= 10 && t < 14 {
-            k = 1 - 1.6 * ease_in_out((t - 10) / 4)
-          }
-      if t >= 14 && t < 17 {
-            k = -0.6
-          }
-      if t >= 17 && t < 21 {
-            k = -0.6 + 1.6 * ease_in_out((t - 17) / 4)
-          }
-      if t >= 21 {
-            k = 1
-          }
-      vertical_0.from = (400 + 70 * (-2 - 2 * k), 550)
-      vertical_0.to = (400 + 70 * (-2 + 2 * k), 270)
-      horizontal_0.from = (400 + 70 * (-2 + k * -2), 550)
-      horizontal_0.to = (400 + 70 * (2 + k * -2), 550)
-      vertical_1.from = (400 + 70 * (-1 - 2 * k), 550)
-      vertical_1.to = (400 + 70 * (-1 + 2 * k), 270)
-      horizontal_1.from = (400 + 70 * (-2 + k * -1), 480)
-      horizontal_1.to = (400 + 70 * (2 + k * -1), 480)
-      vertical_2.from = (400 + 70 * (0 - 2 * k), 550)
-      vertical_2.to = (400 + 70 * (0 + 2 * k), 270)
-      horizontal_2.from = (400 + 70 * (-2 + k * 0), 410)
-      horizontal_2.to = (400 + 70 * (2 + k * 0), 410)
-      vertical_3.from = (400 + 70 * (1 - 2 * k), 550)
-      vertical_3.to = (400 + 70 * (1 + 2 * k), 270)
-      horizontal_3.from = (400 + 70 * (-2 + k * 1), 340)
-      horizontal_3.to = (400 + 70 * (2 + k * 1), 340)
-      vertical_4.from = (400 + 70 * (2 - 2 * k), 550)
-      vertical_4.to = (400 + 70 * (2 + 2 * k), 270)
-      horizontal_4.from = (400 + 70 * (-2 + k * 2), 270)
-      horizontal_4.to = (400 + 70 * (2 + k * 2), 270)
-      basis_y.to = (400 + 70 * k, 340)
-      sample.at = (400 + 70 * (1 + k), 340)
-      unit_top.from = (400 + 70 * k, 340)
-      unit_top.to = (470 + 70 * k, 340)
-      unit_right.to = (470 + 70 * k, 340)
-      amount.text = format("k = {:.2}", k)
-      base_y.text = format("e2 = ({:.2}, 1)", k)
-    }
 
 // Fade through clear space: do not stack old/new caption glyphs.
 #2.88s

@@ -3,6 +3,9 @@ import Page from '../../layouts/Page.astro';import Scene from '../../components/
 export function getStaticPaths(){return works.map(work=>({params:{id:work.id},props:{work}}));}
 const {work}=Astro.props;
 ---
-<Page title={work.title}><section class="work-heading"><a class="text-link" href={url('showcase/')}>← All works</a><div class="card-meta"><span>{work.category}</span><span>{work.duration} seconds / 2D</span></div><h1>{work.title}</h1><p class="lead">{work.question}</p></section><Scene id={work.id} title={work.title} recording/>
+<Page title={work.title}><section class="work-heading"><a class="text-link" href={url('#examples')}>← All works</a><div class="card-meta"><span>{work.category}</span><span>{work.duration} seconds / 2D</span></div><h1>{work.title}</h1><p class="lead">{work.question}</p></section>
+<div class="work-stage" style={`--work-color: ${work.color}`}>
+  <Scene id={work.id} title={work.title} recording/>
+</div>
 {work.controls && <div class="controls" data-controls><label>{work.controls==='preset'?'Starting rule':'Initial phase'}{work.controls==='preset'?<select disabled name="preset"><option value="0">Ripple</option><option value="1">Cascade</option></select>:<select disabled name="phase_degrees"><option value="0">0° · In phase</option><option value="90">90° · Quarter cycle</option><option value="180">180° · Half cycle</option></select>}</label><p role="status" aria-live="polite">Start live playback, then choose a setting.</p></div>}
 <div class="work-detail"><div><p class="eyebrow">The idea</p><h2>{work.insight}</h2></div><div><p>{work.description}</p><p class="small muted">{work.note}</p><div class="actions"><a data-open-code class="button primary" href={url(`playground/?scene=${work.id}`)}>Open the code →</a><a data-source-download class="button" href={url(`content/scenes/${work.id}.amx`)} download={`${work.id}.amx`}>Download AMX ↓</a></div></div></div></Page>

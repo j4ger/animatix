@@ -9,9 +9,9 @@ test('SDK fixtures have explicit fonts, count and motion contracts',()=>{
  assert.equal(cases.find(c=>c.name==='text').fonts,true);
  assert.deepEqual(cases.find(c=>c.name==='imports').modules,['palette.amx','tokens.amx']);
 });
-test('real site has static, load and edit user journeys, not legacy gallery players',()=>{
- const cases=contracts('site');assert.equal(cases.find(c=>c.path==='/').players,0);
- assert.equal(cases.find(c=>c.path==='/gallery.html').action,'static');
+test('real site covers the homepage preview, static docs and scene editing',()=>{
+ const cases=contracts('site');assert.equal(cases.find(c=>c.path==='/').action,'preview');
+ assert.equal(cases.find(c=>c.path==='/docs/').action,'static');
  assert.ok(cases.some(c=>c.action==='edit'));assert.ok(cases.some(c=>c.motion&&c.action==='load'));
  assert.ok(contracts('site','deep').length>cases.length);
 });
@@ -28,11 +28,11 @@ test('project base prefixes contracts and links, never silently tests root',asyn
  const {siteBase,withBase}=await import('./web-smoke-contracts.mjs');
  assert.equal(siteBase('/animatix/'),'/animatix');assert.equal(siteBase('/'),'');
  const home=withBase(contracts('site')[0],siteBase('/animatix/'));
- assert.equal(home.path,'/animatix/');assert.deepEqual(home.links,['/animatix/showcase/','/animatix/learn/','/animatix/playground/']);
+ assert.equal(home.path,'/animatix/');assert.deepEqual(home.links,['/animatix/#examples','/animatix/docs/','/animatix/playground/']);
  for(const base of ['https://example.com','../x','/a//b','/%2e','/a?b'])assert.throws(()=>siteBase(base));
 });
-test('compatibility pages require destinations and showcase checks presets',()=>{
- for(const path of ['/gallery.html','/tour/'])assert.ok(contracts('site').find(c=>c.path===path).links.length>=2);
+test('documentation has direct destinations and showcase checks presets',()=>{
+ for(const path of ['/docs/','/docs/quickstart/'])assert.ok(contracts('site').find(c=>c.path===path).links.length>=2);
  assert.equal(contracts('site').find(c=>c.path.startsWith('/showcase/')).preset,true);
  assert.ok(contracts('site').some(c=>c.backend==='webgl2'&&c.action==='load'));
  assert.ok(contracts('site').some(c=>c.action==='recording'&&c.recording));

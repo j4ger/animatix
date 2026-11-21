@@ -10,9 +10,9 @@ export function contracts(suite, depth = 'critical') {
   }));
   if (suite !== 'site') throw new Error(`Unknown smoke suite: ${suite}`);
   const pages = [
-    { path: '/', action: 'static', players: 0, links: ['/showcase/', '/learn/', '/playground/'] },
-    { path: '/gallery.html', action: 'static', players: 0, links: ['/showcase/', '/learn/', '/archive/'] },
-    { path: '/tour/', action: 'static', players: 0, links: ['/learn/', '/archive/'] },
+    { path: '/', action: 'preview', players: 1, links: ['/#examples', '/docs/', '/playground/'] },
+    { path: '/docs/', action: 'static', players: 0, links: ['/docs/quickstart/', '/learn/', '/docs/reference/'] },
+    { path: '/docs/quickstart/', action: 'static', players: 0, links: ['/docs/', '/playground/'] },
     { path: '/learn/make-something-move/', action: 'load', players: 1, motion: true },
     { path: '/showcase/one-rule-many-forms/', action: 'load', players: 1, preset: true, recording: true },
     { path: '/showcase/one-rule-many-forms/?check=webgl2', action: 'load', players: 1, backend: 'webgl2', recording: true },

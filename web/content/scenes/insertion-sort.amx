@@ -1,0 +1,56 @@
+// Insert 3 into the sorted row [2, 4, 5].
+config { resolution: (960, 540), duration: 12.5 }
+
+let ink = hex_color("222820")
+let slots = {150, 370, 590, 810}
+let row_y = 352
+let compare_y = 196
+let card_size = (172, 116)
+let corner = 12
+
+pub component Card(value: Str, face: Color = hex_color("f7f4e8")) {
+  edge: Rect, at: (0, 5), size: card_size, corner_radius: corner, color: ink
+  front: Rect, size: card_size, corner_radius: corner,
+    color: face, stroke: ink, stroke_width: 3
+  digit: Text, text: value, font_size: 76, color: ink
+}
+
+#0s
+  paper: Rect, at: (480, 270), size: (960, 540),
+    fill_gradient: radial((0.25, 0.22), 0.9, {hex_color("f4ebd5"), hex_color("dddbc8")})
+  caption: Text, at: (480, 91), font_size: 36, color: ink,
+    text: "Where does 3 fit?"
+  for x, i in slots {
+    slot[i]: Line, from: (x - 80, row_y + 81), to: (x + 80, row_y + 81),
+      stroke: hex_color("9c9f8e"), stroke_width: 3
+  }
+  two: Card, value: "2", at: (slots[0], row_y)
+  four: Card, value: "4", at: (slots[1], row_y)
+  five: Card, value: "5", at: (slots[2], row_y)
+  key: Card, value: "3", at: (slots[3], 225), face: hex_color("d0f37d")
+
+#0.7s
+  key.at = (slots[3], compare_y) [1s, ease: ease_out]
+
+#2.2s
+  caption.text = "Compare 3 with 5."
+  key.at = (slots[2], compare_y) [1.1s, ease: ease_in_out]
+
+#3.7s
+  caption.text = "5 is larger. Move it right."
+  five.at = (slots[3], row_y) [1.25s, ease: cubic_bezier(0.36, 0, 0.24, 1)]
+
+#5.4s
+  caption.text = "Now compare 3 with 4."
+  key.at = (slots[1], compare_y) [1.1s, ease: ease_in_out]
+
+#6.95s
+  caption.text = "4 is larger too. Move it right."
+  four.at = (slots[2], row_y) [1.25s, ease: cubic_bezier(0.36, 0, 0.24, 1)]
+
+#8.7s
+  caption.text = "3 is larger than 2. Fill the gap."
+  key.at = (slots[1], row_y) [1.5s, ease: cubic_bezier(0.42, 0, 0.2, 1)]
+
+#10.65s
+  caption.text = "The row is sorted."

@@ -4,53 +4,53 @@
     {
       "id": "one-rule-many-forms",
       "source": "scenes/one-rule-many-forms.amx",
-      "source_sha256": "c6b34cf6494584d3a6f9e94aed273a3e8408e217539310b89951ca4b7e657348",
+      "source_sha256": "dfbbe1829927caafbf8d4cbdc2b0b6c6d4dd26ee7c810350d322a8cae6a5e39c",
       "poster": "posters/one-rule-many-forms.png",
       "poster_time_seconds": 6.5,
-      "poster_sha256": "fc7fb47c0fa7335d7d16cf78f39697b8b8ffbcf0d805b1680aa2d9db495199d7",
+      "poster_sha256": "25904d5137178f0bcda17b1bd216f243874786ab6013a399fc7f857ff62fa277",
       "recording": "previews/one-rule-many-forms.mp4",
-      "recording_sha256": "b0b69d787fe68c871b7a9e8d8051d91356c2d240ef1ff20fd43210c0a67e2918",
+      "recording_sha256": "a57b3dd45cc260bde87dd1a4098952b890377c4227101244539cf4056b0b96f4",
       "duration_seconds": 20.0,
       "width": 1280,
       "height": 720,
       "fps": "24/1",
       "audio": false,
       "parameters": "authored defaults",
-      "renderer": "native CLI video at authored 1280x720; FFmpeg 24fps timestamp normalization to exact duration, no crop or resize"
+      "renderer": "native CLI video at authored 1280x720; H.264 24 fps, fast-start MP4"
     },
     {
       "id": "when-waves-meet",
       "source": "scenes/when-waves-meet.amx",
-      "source_sha256": "87593286b2b7849d85147c520a2f2c05f21c8c5da47148add288d8be0966dc39",
+      "source_sha256": "cc9741da39d3bf5557a081127560204f0ffcd518197d44d4fe5e7b26d059cbed",
       "poster": "posters/when-waves-meet.png",
       "poster_time_seconds": 15,
-      "poster_sha256": "e684d3271d96e72f1178c5af0a7524a54e7083b6a432d7000c2e7b53ef50cd8a",
+      "poster_sha256": "3ff5b70a71f18c3b6f564586e264727115fed978ccf29485cef71e60ca13331c",
       "recording": "previews/when-waves-meet.mp4",
-      "recording_sha256": "56b91cf358ddca5d3e2c7db149b8442964bb82f5a708e280226f08fafa422a7a",
+      "recording_sha256": "5264dc9efe200098d1cb0fdcdf1c5af80999ccf8dba7abeb7f50ab05b350ba4f",
       "duration_seconds": 28.0,
       "width": 1280,
       "height": 720,
       "fps": "24/1",
       "audio": false,
       "parameters": "authored defaults",
-      "renderer": "native CLI video at authored 1280x720; FFmpeg 24fps timestamp normalization to exact duration, no crop or resize"
+      "renderer": "native CLI video at authored 1280x720; H.264 24 fps, fast-start MP4"
     },
     {
       "id": "words-keep-time",
       "source": "scenes/words-keep-time.amx",
-      "source_sha256": "a162f9da14f0852a99d92c011639996bac645113cbf34118e3bb2c20c57052be",
+      "source_sha256": "f0714359d18252eae4195af9d82d618644f2039bb706cf767384587e10121a9c",
       "poster": "posters/words-keep-time.png",
       "poster_time_seconds": 20,
-      "poster_sha256": "324fd27551cff8a912a4d08f515031033b8876a7b87faf8fa73d4ae55aaf54fb",
+      "poster_sha256": "73fd9e664e617425c7d3e52cf579d3485f0c95de18f5f390e5981769f0456111",
       "recording": "previews/words-keep-time.mp4",
-      "recording_sha256": "cfd61e0f907ecda58b61e678fc869bde183cad325255f2ae57c90d3d3987bd98",
+      "recording_sha256": "20034bee75d34ae1e52c81f4e00e2156193d0218187b7bea97a3e74f462d62ac",
       "duration_seconds": 20.0,
       "width": 1280,
       "height": 720,
       "fps": "24/1",
       "audio": false,
       "parameters": "authored defaults",
-      "renderer": "native CLI video at authored 1280x720; FFmpeg 24fps timestamp normalization to exact duration, no crop or resize"
+      "renderer": "native CLI video at authored 1280x720; H.264 24 fps, fast-start MP4"
     },
     {
       "id": "move-the-basis",
@@ -64,10 +64,10 @@
       "fps": "24/1",
       "audio": false,
       "parameters": "authored defaults",
-      "renderer": "native CLI video at authored 1280x720; FFmpeg 24fps timestamp normalization to exact duration, no crop or resize",
-      "source_sha256": "6d5a8421a43ceef23375790ad7b254dbb3f1cd19eb60fb2cd1e2f47b3f595cf4",
-      "poster_sha256": "d33bb95d533c046436fb8bd56768d3ac54fc11db82cfeb4960412ffecdbcc037",
-      "recording_sha256": "8837b232549daa563021fca13885efd615c01aa2f9e564e61acf38add1a281e6"
+      "renderer": "native CLI video at authored 1280x720; H.264 24 fps, fast-start MP4",
+      "source_sha256": "69c63353d52efdb412023908215b5f5ab2956ab5a5c989c06a4c07d76dde00a4",
+      "poster_sha256": "ada688fe522c11bcb6648e4910d9c2d3c2cb3e72c705000432f80822c6dc755d",
+      "recording_sha256": "d8b1761ba2cd335f54b7fa910794102d02c7707ce19ea6e006a3281885a8b216"
     },
     {
       "id": "make-room",
@@ -81,10 +81,10 @@
       "fps": "24/1",
       "audio": false,
       "parameters": "authored defaults",
-      "renderer": "native CLI video at authored 1280x720; FFmpeg 24fps timestamp normalization to exact duration, no crop or resize",
-      "source_sha256": "9a20a4670f5705b183dde77f3078c8d1a2a08d39cfbdfa158c2c33fc8bb40584",
-      "poster_sha256": "a71f2e15d75d48667417856a172bed43277663d4b0a4b41ac2b1aece6aa537c4",
-      "recording_sha256": "79b818eccc62f24e789c36c3d4462f47f783ba8052be6de2d32796defe43415f"
+      "renderer": "native CLI video at authored 1280x720; H.264 24 fps, fast-start MP4",
+      "source_sha256": "cb80fd0903758889217e4907c623481d242eb121593ebfaffae0fa38016fa4de",
+      "poster_sha256": "92596fc781cb0c7218df79bb1ed03feaa702ecd9dfd202a8d6b1f5760fb35719",
+      "recording_sha256": "fe342b857a3738dc42cba078875b3b14d6b590569d8dac481a7c17905236cc9a"
     }
   ],
   "stills": [

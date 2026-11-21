@@ -1,0 +1,31 @@
+---
+import Scene from './Scene.astro';
+import source from '../../../content/scenes/insertion-sort.amx?raw';
+import {insertionId} from '../lib/insertion-steps';
+import {url} from '../lib/content';
+---
+<figure class="sample" id="insertion-sort" data-sample>
+  <figcaption><span class="file-icon" aria-hidden="true"></span><span>insertion-sort.amx</span></figcaption>
+  <div class="sample-preview">
+    <Scene inline id={insertionId} title="Insertion sort" posterAlt="Where does 3 fit? A green 3 hovers by the sorted row of 2, 4 and 5."/>
+    <div class="sample-controls">
+      <button type="button" class="sample-play" disabled><i aria-hidden="true"></i><span>Play</span></button>
+      <input class="sample-time" type="range" aria-label="Scene time in seconds" min="0" max="1" step="any" value="0" disabled/>
+      <output class="sample-clock" aria-hidden="true">0.00s</output>
+      <button type="button" class="inspect" aria-expanded="false" aria-controls="move-source"><b aria-hidden="true">&lt;/&gt;</b> <span>View source</span></button>
+    </div>
+  </div>
+  <div class="source-panel" id="move-source" hidden>
+    <div class="source-toolbar">
+      <div class="source-cues" role="group" aria-label="Keyframe timestamps"></div>
+      <button class="reset-source" type="button" aria-label="Reset source" disabled>Reset</button>
+    </div>
+    <div class="source-editor">
+      <div class="source-guide source-wrap" aria-hidden="true"></div>
+      <textarea class="source-wrap" aria-label="AMX source" aria-describedby="source-status" wrap="soft" spellcheck="false" autocomplete="off" autocapitalize="off">{source}</textarea>
+    </div>
+    <p id="source-status" class="source-status" role="status"></p>
+  </div>
+  <noscript><a href={url('content/scenes/insertion-sort.amx')}>View insertion-sort.amx →</a></noscript>
+</figure>
+<script src="../scripts/insertion-film.ts"></script>

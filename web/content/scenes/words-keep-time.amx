@@ -1,89 +1,60 @@
-// A silent study of emphasis, not a claim of voiceover synchronization.
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 20 }
+// Turn a maintenance announcement into a notice people can scan.
+config { resolution: (1280, 720), duration: 20 }
+
+let ink = hex_color("fff2eb")
+let muted = hex_color("dabdce")
+let peach = hex_color("ffcb9a")
+let rail = hex_color("79566e")
+let impact = "The editor will be read-only"
+let window = "Sunday, 02:00–02:20 UTC"
+let available = "Reading and exports"
+let panel_size = (548, 352)
+
+pub component NoticeField(label: Str, value: Str, tone: Color) {
+  field: Col, size: (432, auto), gap: 8, align: "start" {
+    name: Text, text: label, font_size: 17, font_weight: "bold", letter_spacing: 1.8, color: tone
+    detail: Text, text: value, font_size: 29, color: ink
+  }
+}
 
 #0s
-  background: Rect, at: (640, 360), size: (1280, 720), color: hex_color("0d1520")
-  kicker: Text, text: "SAME SENTENCE / DIFFERENT EMPHASIS", at: (640, 90), font_size: 20, color: hex_color("90a4b8")
-  we: Text, text: "We", at: (310, 320), font_size: 72, font_weight: "bold", color: hex_color("f3f5f7")
-  can: Text, text: "can", at: (465, 320), font_size: 72, font_weight: "bold", color: hex_color("f3f5f7")
-  change: Text, text: "change", at: (715, 320), font_size: 72, font_weight: "bold", color: hex_color("f3f5f7")
-  this: Text, text: "this.", at: (980, 320), font_size: 72, font_weight: "bold", color: hex_color("f3f5f7")
-  meaning: Text, text: "Read it once.", at: (640, 465), font_size: 30, color: hex_color("adbcca")
-  underline: Rect, at: (310, 380), size: (106, 4), color: hex_color("65d9e8"), opacity: 0
+  ground: Rect, size: (1280, 720), anchor: scene.center,
+    fill_gradient: linear(150, {hex_color("45263a"), hex_color("211827")})
+  heading: Text, text: "Scheduled maintenance", at: (50%, 14%), font_size: 48,
+    font_weight: "bold", color: ink
+  original: Stack, at: (50%, 49%), align: "center" {
+    page: Rect, size: panel_size, corner_radius: 20, color: hex_color("2d2030"),
+      stroke: rail, stroke_width: 2
+    copy: Col, size: (432, auto), gap: 18, align: "start" {
+      label: Text, text: "ORIGINAL NOTICE", font_size: 17, letter_spacing: 1.8, color: muted
+      body: Text, text: format("{} on {}. {} stay available.", impact, window, available), font_size: 29,
+        text_max_width: 432, line_height: 1.3, color: ink
+    }
+  }
+  notice: Stack, at: (74%, 49%), align: "center" {
+    sheet: Rect, size: panel_size, corner_radius: 20, opacity: 0,
+      color: hex_color("412d3c"), stroke: rail, stroke_width: 2
+    entries: Col, align: "start", gap: 23 {
+      changed: NoticeField, label: "WHAT CHANGES", value: "Read-only editor", tone: peach, opacity: 0
+      time: NoticeField, label: "WHEN", value: window, tone: muted, opacity: 0
+      usable: NoticeField, label: "STILL AVAILABLE", value: available, tone: muted, opacity: 0
+    }
+  }
+  caption: Text, at: (50%, 86%), text: "Can I edit during maintenance?", font_size: 28, color: ink
 
-#2s
-  we.color = hex_color("65d9e8")[0.4s]
-  fade_in(target: underline, duration: 0.4s)
-  meaning.text = "Who will act?"[0.4s]
+#4s
+  original.at = (26%, 49%) [650ms, ease: ease_in_out]
+  caption.text = "Lead with what changes."
+  fade_in(target: notice.sheet, duration: 500ms, delay: 400ms)
+  fade_in(target: notice.entries.changed, duration: 500ms, delay: 550ms)
 
-#6s
-  we.color = hex_color("f3f5f7")[0.4s]
-  can.color = hex_color("aba4fa")[0.4s]
-  underline.at = (465, 380) [0.5s, ease: ease_in_out]
-  underline.size = (130, 4)[0.5s]
-  underline.color = hex_color("aba4fa")[0.4s]
-  meaning.text = "Is it possible?"[0.4s]
+#8s
+  caption.text = "Put the time window on its own line."
+  fade_in(target: notice.entries.time, duration: 500ms)
 
-#10s
-  can.color = hex_color("f3f5f7")[0.4s]
-  change.color = hex_color("f4d47b")[0.4s]
-  underline.at = (715, 380) [0.5s, ease: ease_in_out]
-  underline.size = (250, 4)[0.5s]
-  underline.color = hex_color("f4d47b")[0.4s]
-  meaning.text = "What will we do?"[0.4s]
+#12s
+  caption.text = "Say what still works."
+  fade_in(target: notice.entries.usable, duration: 500ms)
 
-#14.5s
-  fade_out(target: we, duration: 0.4s)
-  fade_out(target: can, duration: 0.4s)
-  fade_out(target: change, duration: 0.4s)
-  fade_out(target: this, duration: 0.4s)
-  fade_out(target: meaning, duration: 0.4s)
-  fade_out(target: underline, duration: 0.4s)
-
-#0s
-  label_0: Text, text: "WHO", at: (185, 250), font_size: 16, color: hex_color("65d9e8"), opacity: 0
-  word_0_0: Text, text: "We", at: (370, 250), font_size: 52, font_weight: "bold", color: hex_color("65d9e8"), opacity: 0
-  word_0_1: Text, text: "can", at: (505, 250), font_size: 52, font_weight: "bold", color: hex_color("adbcca"), opacity: 0
-  word_0_2: Text, text: "change", at: (710, 250), font_size: 52, font_weight: "bold", color: hex_color("adbcca"), opacity: 0
-  word_0_3: Text, text: "this.", at: (930, 250), font_size: 52, font_weight: "bold", color: hex_color("adbcca"), opacity: 0
-
-#15s
-  fade_in(target: label_0, duration: 0.6s)
-  fade_in(target: word_0_0, duration: 0.6s)
-  fade_in(target: word_0_1, duration: 0.6s)
-  fade_in(target: word_0_2, duration: 0.6s)
-  fade_in(target: word_0_3, duration: 0.6s)
-
-#0s
-  label_1: Text, text: "POSSIBILITY", at: (185, 360), font_size: 16, color: hex_color("aba4fa"), opacity: 0
-  word_1_0: Text, text: "We", at: (370, 360), font_size: 52, font_weight: "bold", color: hex_color("adbcca"), opacity: 0
-  word_1_1: Text, text: "can", at: (505, 360), font_size: 52, font_weight: "bold", color: hex_color("aba4fa"), opacity: 0
-  word_1_2: Text, text: "change", at: (710, 360), font_size: 52, font_weight: "bold", color: hex_color("adbcca"), opacity: 0
-  word_1_3: Text, text: "this.", at: (930, 360), font_size: 52, font_weight: "bold", color: hex_color("adbcca"), opacity: 0
-
-#15s
-  fade_in(target: label_1, duration: 0.6s)
-  fade_in(target: word_1_0, duration: 0.6s)
-  fade_in(target: word_1_1, duration: 0.6s)
-  fade_in(target: word_1_2, duration: 0.6s)
-  fade_in(target: word_1_3, duration: 0.6s)
-
-#0s
-  label_2: Text, text: "ACTION", at: (185, 470), font_size: 16, color: hex_color("f4d47b"), opacity: 0
-  word_2_0: Text, text: "We", at: (370, 470), font_size: 52, font_weight: "bold", color: hex_color("adbcca"), opacity: 0
-  word_2_1: Text, text: "can", at: (505, 470), font_size: 52, font_weight: "bold", color: hex_color("adbcca"), opacity: 0
-  word_2_2: Text, text: "change", at: (710, 470), font_size: 52, font_weight: "bold", color: hex_color("f4d47b"), opacity: 0
-  word_2_3: Text, text: "this.", at: (930, 470), font_size: 52, font_weight: "bold", color: hex_color("adbcca"), opacity: 0
-
-#15s
-  fade_in(target: label_2, duration: 0.6s)
-  fade_in(target: word_2_0, duration: 0.6s)
-  fade_in(target: word_2_1, duration: 0.6s)
-  fade_in(target: word_2_2, duration: 0.6s)
-  fade_in(target: word_2_3, duration: 0.6s)
-
-#0s
-  closing: Text, text: "Timing changes what we hear, even in silence.", at: (640, 620), font_size: 24, color: hex_color("adbcca"), opacity: 0
-
-#15.5s
-  fade_in(target: closing, duration: 0.6s)
+#16s
+  caption.text = "Three answers at a glance."

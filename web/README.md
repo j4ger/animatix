@@ -1,7 +1,7 @@
 # Animatix Web
 
 A static Astro site around the `.amx` player. The website has
-three paths: **Showcase**, **Learn**, and a small **Playground**. No backend,
+three primary paths: **Examples**, **Docs**, and **Playground**. No backend,
 accounts or client-side UI framework are required.
 
 The canonical scenes live in `content/scenes/`. The five Showcase works, six
@@ -11,20 +11,40 @@ falls back to WebGL2 automatically.
 
 A Showcase work offers its recording if live playback fails. The video is
 fetched only when the visitor chooses **Play recording**. Lessons and techniques
-keep their poster and source available after an error. The homepage and catalog
-use static covers. Playground builds and previews edited source when the visitor
-presses **Run**. Edits stay in the tab until downloaded.
+keep their poster and source available after an error. The Examples catalog uses
+native scene stills that carry each work’s authored backdrop into its card.
+The homepage opens with 3 beside the sorted row and plays one live insertion
+from `insertion-sort.amx` before holding the result.
+Reduced-motion visitors can start playback manually.
+The homepage also lists the examples and links to GitHub Releases from the
+Linux, macOS, and Windows tabs. Quickstart has separate GUI and CLI paths.
+**View source** pauses the scene and opens its complete, editable AMX file beside
+the preview. Marked keyframe timestamps link the source to playback. The editor
+rebuilds after a short pause in typing and keeps the current playhead position.
+Build errors leave the previous scene available. **Reset** restores the original
+file. Playground loads the selected scene immediately and updates after a pause
+in typing. Both editors wrap long lines visually and preserve the source text.
+Use **Download .amx** to save the current draft.
+
+The noise cancellation example at `/journey/` presents a 16-second captioned explainer about
+active noise cancellation on a train. One live AMX scene plots a low tone, the
+headphones’ opposing wave, and their sum at the ear on the same pressure scale.
+Scrolling forward or backward seeks through the film. Reduced-motion mode
+selects a still for each passage. Visitors can also play the film independently,
+scrub its timeline, or open `quiet-carriage.amx` in Playground to compare the
+authored result with a speaker at half strength. A native opening
+frame covers initial loading and the player offers a retry after an error.
 
 ## Source map
 
 | Location | Purpose |
 |---|---|
 | `web/app/` | Astro pages, shared layout, small TypeScript interactions, npm lock |
-| `web/content/scenes/` | Five works, six lessons, four techniques and the hero source |
+| `web/content/scenes/` | Current works, lessons, techniques, hero and journey sources |
+| `web/content/journey/` | Native opening artwork for the homepage demo |
 | `web/content/posters/`, `previews/`, `preview-manifest.json` | Native-rendered media and source/media integrity records |
 | `web/embed/src/` | Existing `<amx-player>` web component |
 | `web/runtime/` | Generated SDK and manifest; copied unchanged into distributions |
-| `web/app/src/lib/legacy-works.ts` | Historical work IDs and Astro compatibility-page decisions |
 | `web/dev/` | Developer probes, outside the showcase |
 
 The SDK is loaded from its external module URL, not bundled by Astro/Vite.
@@ -119,8 +139,8 @@ python3 web/tools/dev/serve-web.py 8124 _site
 ```
 
 `site-artifact.sh` builds Astro and verifies the SDK against the current inputs,
-commit and package version before assembly. Astro preserves old navigation URLs as archive/redirect pages. Assembly copies
-only current content and real SDK files, never legacy sources or builder symlinks. Use
+commit and package version before assembly. Assembly copies the current Astro
+pages, their content, and real SDK files. Use
 `SITE_BASE=/animatix/ bash web/tools/site/site-artifact.sh _site-pages` for a project-path
 build, served beneath `/animatix/` rather than the host root.
 

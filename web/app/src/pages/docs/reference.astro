@@ -1,0 +1,8 @@
+---
+import Page from '../../layouts/Page.astro';
+import {url,github} from '../../lib/content';
+const topics = [['Language syntax', 'spec.md'], ['Primitives', 'primitives.md'], ['Properties', 'properties.md'], ['Effects', 'effects.md'], ['Narration', 'narration.md'], ['Native tools and video export', 'contributing.md']];
+---
+<Page title="Reference"><div class="docs-layout guide"><a class="backlink" href={url('docs/')}>← Docs</a><h1>Reference</h1><div class="link-list">
+  {topics.map(([title, path]) => <a href={github+'/blob/main/docs/'+path}>{title}<span>GitHub ↗</span></a>)}
+</div></div></Page>

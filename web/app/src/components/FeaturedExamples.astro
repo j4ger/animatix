@@ -1,0 +1,33 @@
+---
+import {url, works} from '../lib/content';
+
+const titles: Record<string, string> = {
+  'move-the-basis': 'Matrix shear',
+  'make-room': 'Stable insertion sort',
+  'when-waves-meet': 'Wave interference',
+  'one-rule-many-forms': 'Staggered motion',
+  'words-keep-time': 'Maintenance notice',
+};
+---
+<div class="examples-gallery">
+  <a class="example-feature" href={url('journey/')} style="--example-color: #cce893">
+    <img src={url('content/journey/noise-waves.webp')} width="960" height="560" loading="lazy" decoding="async" alt=""/>
+    <div class="example-feature-body">
+      <div>
+        <p class="example-meta">Physics</p>
+        <h3>How do headphones cancel noise?</h3>
+      </div>
+      <span class="example-arrow" aria-hidden="true">→</span>
+    </div>
+  </a>
+  <ul class="example-list">
+    {works.map(work => <li><a href={url('showcase/' + work.id + '/')} style={`--example-color: ${work.color}`}>
+      <img src={url('content/posters/' + work.id + '.png')} width="1280" height="720" loading="lazy" decoding="async" alt=""/>
+      <div>
+        <h3>{titles[work.id] ?? work.title}</h3>
+        <p class="example-meta">{work.category}</p>
+      </div>
+      <span class="example-arrow" aria-hidden="true">→</span>
+    </a></li>)}
+  </ul>
+</div>

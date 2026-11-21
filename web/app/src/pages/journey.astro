@@ -1,0 +1,83 @@
+---
+import { url, github } from '../lib/content';
+import '../styles/journey.css';
+
+const editor = url('playground/?scene=quiet-carriage');
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="theme-color" content="#f7f4ec"/>
+  <meta name="description" content="How do headphones cancel noise? Follow a train rumble into an ear cup in a short animated explainer made with Animatix."/>
+  <link rel="icon" href={url('logo.svg')} type="image/svg+xml"/>
+  <title>How do headphones cancel noise? · Animatix</title>
+</head>
+<body>
+  <a class="skip" href="#story">Skip to the explainer</a>
+  <header class="masthead" id="choreography">
+    <a class="wordmark" href={url('')} aria-label="Animatix home">animatix<span>.</span></a>
+    <span class="descriptor">A language for animated explainers</span>
+    <nav aria-label="Main navigation">
+      <a href={url('#examples')}>Examples</a>
+      <a href={url('docs/')}>Docs</a>
+      <a href={editor}>Playground <span aria-hidden="true">↗</span></a>
+      <a href={github}>GitHub ↗</a>
+    </nav>
+  </header>
+  <main id="story">
+    <div class="journey" data-module={url('runtime/amx-player.js')} data-source={url('content/scenes/quiet-carriage.amx')}>
+      <figure class="film" aria-labelledby="film-name">
+        <figcaption><span id="film-name">Inside the ear cup</span><span>Sound pressure over time</span></figcaption>
+        <div class="screen">
+          <img class="opening-frame" src={url('content/journey/quiet-carriage.webp')} width="960" height="560" alt="The orange train rumble and green sound at the ear initially have identical waves."/>
+          <div class="engine-stage"></div>
+        </div>
+        <div class="transport">
+          <button type="button" class="play" disabled><i aria-hidden="true"></i><span>Play film</span></button>
+          <input class="timeline" type="range" min="0" max="16" step="0.05" value="0" aria-label="Film time in seconds" disabled/>
+          <span class="timecode"><output>0:00</output> / 0:16</span>
+        </div>
+        <div class="feedback">
+          <span role="status">Loading the film…</span>
+          <button type="button" class="retry" hidden>Retry live film</button>
+        </div>
+      </figure>
+
+      <div class="story-copy">
+        <section id="train" aria-labelledby="question" data-cue="0">
+          <div class="passage">
+            <p class="eyebrow"><span class="swatch rumble"></span>On the train</p>
+            <h1 id="question">How do headphones <em>cancel noise?</em></h1>
+            <p class="narration">You take a window seat. The carriage hums. Follow one low note as the headphones switch on. At first, the green line at your ear follows the train’s rumble.</p>
+            <a class="turn" href="#speaker">Switch on the headphones <span aria-hidden="true">↓</span></a>
+          </div>
+        </section>
+        <section id="speaker" aria-labelledby="speaker-title" data-cue="8">
+          <div class="passage">
+            <p class="eyebrow"><span class="swatch speaker"></span>Inside the headphones</p>
+            <h2 id="speaker-title">One wave meets <em>its opposite.</em></h2>
+            <p class="narration">A microphone picks up the rumble. The speaker makes its own wave, timed so that a peak in the train’s sound meets a trough at your ear.</p>
+            <a class="turn" href="#ear">See what reaches your ear <span aria-hidden="true">↓</span></a>
+          </div>
+        </section>
+        <section id="ear" aria-labelledby="ear-title" data-cue="16">
+          <div class="passage">
+            <p class="eyebrow"><span class="swatch ear"></span>At your ear</p>
+            <h2 id="ear-title">The train keeps moving. <em>The hum fades.</em></h2>
+            <p class="narration">The green line is the sum of the two waves. When they’re equal and opposite, it goes flat. This one note cancels inside the ear cup. Outside, the carriage is just as loud.</p>
+            <a class="turn" href={editor}>Open the film’s source <span aria-hidden="true">↗</span></a>
+          </div>
+        </section>
+      </div>
+    </div>
+    <aside class="endnote" aria-label="Try the same film with a weaker speaker">
+      <p>What if the speaker pushes only half as hard?</p>
+      <a href={editor + '&speaker_level=0.5'}>Try half strength in Playground <span aria-hidden="true">↗</span></a>
+    </aside>
+  </main>
+  <noscript><p class="noscript">The text tells the full story. Enable JavaScript to play the film.</p></noscript>
+  <script src="../scripts/journey.ts"></script>
+</body>
+</html>

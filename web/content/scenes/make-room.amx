@@ -5,13 +5,47 @@
 // This is an explanation of one input, not a benchmark or adjustable simulation.
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 24 }
 
+let width = 110
+let spacing = 160
+let row_y = 380
+let lifted_y = 245
+let underline_y = 458
+let slot = (i, y) => (180 + i * spacing, y)
+let neutral = hex_color("24394c")
+let comparing = hex_color("45667c")
+let active = hex_color("a77d35")
+
+pub component NumberCard(value: Str) {
+  tile: Rect, size: (width, width), color: neutral, corner_radius: 14
+  digit: Text, text: value, font_size: 40, font_weight: "bold", color: hex_color("f3f5f7")
+}
+
+fn grow_prefix(line: Actor, count: Num) {
+  return #{
+    line.at = slot((count - 1) / 2, underline_y) [400ms]
+    line.size = (width + (count - 1) * spacing, 5) [400ms]
+  }
+}
+
+fn explain(label: Actor, cue: Duration, message: Str) {
+  return #{ #(cue - 120ms)
+    fade_out(target: label, duration: 120ms)
+  #(cue)
+    label.text = message
+    fade_in(target: label, duration: 120ms)
+  }
+}
+
 #0s
-  background: Rect, at: (640, 360), size: (1280, 720), color: hex_color("0d1520")
+  background: Rect, at: (640, 360), size: (1280, 720),
+    fill_gradient: radial((0.30, 0.38), 0.86, {hex_color("412c22"), hex_color("1e1818")})
+  counter_panel: Rect, at: (1080, 390), size: (242, 324), corner_radius: 18,
+    color: hex_color("211a1a"), stroke: hex_color("644735"), stroke_width: 2
   kicker: Text, text: "INSERTION SORT / MAKE ROOM FOR ONE MORE", at: (640, 58), font_size: 16, color: hex_color("90a4b8")
   title: Text, text: "A place for every number.", at: (640, 112), font_size: 42, font_weight: "bold", color: hex_color("f3f5f7")
   caption: Text, text: "Start with one sorted item. Insert the next.", at: (640, 630), font_size: 24, color: hex_color("adbcca")
   reference: Line, from: (115, 455), to: (885, 455), stroke: hex_color("304658"), stroke_width: 2
-  prefix: Rect, at: (180, 458), size: (110, 5), color: hex_color("65d9e8")
+  prefix: Rect, at: slot(0, underline_y), size: (width, 5), color: hex_color("65d9e8")
   legend: Text, text: "TEAL UNDERLINE = SORTED PREFIX", at: (500, 515), font_size: 16, color: hex_color("65d9e8")
   identity_note: Text, text: "2a and 2b have equal values. Letters track their original order.", at: (500, 558), font_size: 17, color: hex_color("90a4b8")
   separator: Line, from: (940, 235), to: (940, 550), stroke: hex_color("304658"), stroke_width: 1
@@ -20,272 +54,144 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 24 }
   slabel: Text, text: "RIGHTWARD SHIFTS", at: (1080, 405), font_size: 16, color: hex_color("90a4b8")
   shifts: Text, text: "0", at: (1080, 455), font_size: 44, color: hex_color("f4d47b")
   count_note: Text, text: "Key placement excluded", at: (1080, 507), font_size: 16, color: hex_color("90a4b8")
-  four: Rect, at: (180, 380), size: (110, 110), color: hex_color("24394c"), corner_radius: 14
-  four_label: Text, text: "4", at: (180, 380), font_size: 40, font_weight: "bold", color: hex_color("f3f5f7")
-  two_a: Rect, at: (340, 380), size: (110, 110), color: hex_color("24394c"), corner_radius: 14
-  two_a_label: Text, text: "2a", at: (340, 380), font_size: 40, font_weight: "bold", color: hex_color("f3f5f7")
-  five: Rect, at: (500, 380), size: (110, 110), color: hex_color("24394c"), corner_radius: 14
-  five_label: Text, text: "5", at: (500, 380), font_size: 40, font_weight: "bold", color: hex_color("f3f5f7")
-  two_b: Rect, at: (660, 380), size: (110, 110), color: hex_color("24394c"), corner_radius: 14
-  two_b_label: Text, text: "2b", at: (660, 380), font_size: 40, font_weight: "bold", color: hex_color("f3f5f7")
-  three: Rect, at: (820, 380), size: (110, 110), color: hex_color("24394c"), corner_radius: 14
-  three_label: Text, text: "3", at: (820, 380), font_size: 40, font_weight: "bold", color: hex_color("f3f5f7")
+  four: NumberCard, value: "4", at: slot(0, row_y)
+  two_a: NumberCard, value: "2a", at: slot(1, row_y)
+  five: NumberCard, value: "5", at: slot(2, row_y)
+  two_b: NumberCard, value: "2b", at: slot(3, row_y)
+  three: NumberCard, value: "3", at: slot(4, row_y)
 
 #3s
-  two_a.at = (340, 245) [0.4s, ease: ease_in_out]
-  two_a_label.at = (340, 245) [0.4s, ease: ease_in_out]
-  two_a.color = hex_color("a77d35")[0.3s]
+  two_a.at = slot(1, lifted_y) [400ms, ease: ease_in_out]
+  two_a.tile.color = active [0.3s]
 
 #3.8s
   comparisons.text = "1"
-  four.color = hex_color("45667c")[0.2s]
+  four.tile.color = comparing [0.2s]
 
 #4.15s
-  four.at = (340, 380) [0.4s, ease: ease_in_out]
-  four_label.at = (340, 380) [0.4s, ease: ease_in_out]
-  four.color = hex_color("24394c")[0.4s]
+  four.at = slot(1, row_y) [400ms, ease: ease_in_out]
+  four.tile.color = neutral [0.4s]
   shifts.text = "1"
 
 #4.85s
-  two_a.at = (180, 245) [0.35s, ease: ease_in_out]
-  two_a_label.at = (180, 245) [0.35s, ease: ease_in_out]
+  two_a.at = slot(0, lifted_y) [350ms, ease: ease_in_out]
 
 #5.25s
-  two_a.at = (180, 380) [0.4s, ease: ease_in_out]
-  two_a_label.at = (180, 380) [0.4s, ease: ease_in_out]
-  two_a.color = hex_color("24394c")[0.4s]
-  prefix.at = (260, 458)[0.4s]
-  prefix.size = (270, 5)[0.4s]
+  two_a.at = slot(0, row_y) [400ms, ease: ease_in_out]
+  two_a.tile.color = neutral [0.4s]
+  grow_prefix(prefix, 2)
 
 #6.45s
-  five.at = (500, 245) [0.4s, ease: ease_in_out]
-  five_label.at = (500, 245) [0.4s, ease: ease_in_out]
-  five.color = hex_color("a77d35")[0.3s]
+  five.at = slot(2, lifted_y) [400ms, ease: ease_in_out]
+  five.tile.color = active [0.3s]
 
 #7.25s
   comparisons.text = "2"
-  four.color = hex_color("45667c")[0.2s]
+  four.tile.color = comparing [0.2s]
 
 #7.9s
-  four.color = hex_color("24394c")[0.2s]
-
-#7.9s
-  five.at = (500, 245) [0.35s, ease: ease_in_out]
-  five_label.at = (500, 245) [0.35s, ease: ease_in_out]
+  four.tile.color = neutral [200ms]
 
 #8.3s
-  five.at = (500, 380) [0.4s, ease: ease_in_out]
-  five_label.at = (500, 380) [0.4s, ease: ease_in_out]
-  five.color = hex_color("24394c")[0.4s]
-  prefix.at = (340, 458)[0.4s]
-  prefix.size = (430, 5)[0.4s]
+  five.at = slot(2, row_y) [400ms, ease: ease_in_out]
+  five.tile.color = neutral [0.4s]
+  grow_prefix(prefix, 3)
 
 #9.5s
-  two_b.at = (660, 245) [0.4s, ease: ease_in_out]
-  two_b_label.at = (660, 245) [0.4s, ease: ease_in_out]
-  two_b.color = hex_color("a77d35")[0.3s]
+  two_b.at = slot(3, lifted_y) [400ms, ease: ease_in_out]
+  two_b.tile.color = active [0.3s]
 
 #10.3s
   comparisons.text = "3"
-  five.color = hex_color("45667c")[0.2s]
+  five.tile.color = comparing [0.2s]
 
 #10.65s
-  five.at = (660, 380) [0.4s, ease: ease_in_out]
-  five_label.at = (660, 380) [0.4s, ease: ease_in_out]
-  five.color = hex_color("24394c")[0.4s]
+  five.at = slot(3, row_y) [400ms, ease: ease_in_out]
+  five.tile.color = neutral [0.4s]
   shifts.text = "2"
 
 #11.35s
   comparisons.text = "4"
-  four.color = hex_color("45667c")[0.2s]
+  four.tile.color = comparing [0.2s]
 
 #11.7s
-  four.at = (500, 380) [0.4s, ease: ease_in_out]
-  four_label.at = (500, 380) [0.4s, ease: ease_in_out]
-  four.color = hex_color("24394c")[0.4s]
+  four.at = slot(2, row_y) [400ms, ease: ease_in_out]
+  four.tile.color = neutral [0.4s]
   shifts.text = "3"
 
 #12.4s
   comparisons.text = "5"
-  two_a.color = hex_color("45667c")[0.2s]
+  two_a.tile.color = comparing [0.2s]
 
 #13.05s
-  two_a.color = hex_color("24394c")[0.2s]
-
-#13.05s
-  two_b.at = (340, 245) [0.35s, ease: ease_in_out]
-  two_b_label.at = (340, 245) [0.35s, ease: ease_in_out]
+  two_a.tile.color = neutral [0.2s]
+  two_b.at = slot(1, lifted_y) [350ms, ease: ease_in_out]
 
 #13.45s
-  two_b.at = (340, 380) [0.4s, ease: ease_in_out]
-  two_b_label.at = (340, 380) [0.4s, ease: ease_in_out]
-  two_b.color = hex_color("24394c")[0.4s]
-  prefix.at = (420, 458)[0.4s]
-  prefix.size = (590, 5)[0.4s]
+  two_b.at = slot(1, row_y) [400ms, ease: ease_in_out]
+  two_b.tile.color = neutral [0.4s]
+  grow_prefix(prefix, 4)
 
 #14.65s
-  three.at = (820, 245) [0.4s, ease: ease_in_out]
-  three_label.at = (820, 245) [0.4s, ease: ease_in_out]
-  three.color = hex_color("a77d35")[0.3s]
+  three.at = slot(4, lifted_y) [400ms, ease: ease_in_out]
+  three.tile.color = active [0.3s]
 
 #15.45s
   comparisons.text = "6"
-  five.color = hex_color("45667c")[0.2s]
+  five.tile.color = comparing [0.2s]
 
 #15.8s
-  five.at = (820, 380) [0.4s, ease: ease_in_out]
-  five_label.at = (820, 380) [0.4s, ease: ease_in_out]
-  five.color = hex_color("24394c")[0.4s]
+  five.at = slot(4, row_y) [400ms, ease: ease_in_out]
+  five.tile.color = neutral [0.4s]
   shifts.text = "4"
 
 #16.5s
   comparisons.text = "7"
-  four.color = hex_color("45667c")[0.2s]
+  four.tile.color = comparing [0.2s]
 
 #16.85s
-  four.at = (660, 380) [0.4s, ease: ease_in_out]
-  four_label.at = (660, 380) [0.4s, ease: ease_in_out]
-  four.color = hex_color("24394c")[0.4s]
+  four.at = slot(3, row_y) [400ms, ease: ease_in_out]
+  four.tile.color = neutral [0.4s]
   shifts.text = "5"
 
 #17.55s
   comparisons.text = "8"
-  two_b.color = hex_color("45667c")[0.2s]
+  two_b.tile.color = comparing [0.2s]
 
 #18.2s
-  two_b.color = hex_color("24394c")[0.2s]
-
-#18.2s
-  three.at = (500, 245) [0.35s, ease: ease_in_out]
-  three_label.at = (500, 245) [0.35s, ease: ease_in_out]
+  two_b.tile.color = neutral [0.2s]
+  three.at = slot(2, lifted_y) [350ms, ease: ease_in_out]
 
 #18.6s
-  three.at = (500, 380) [0.4s, ease: ease_in_out]
-  three_label.at = (500, 380) [0.4s, ease: ease_in_out]
-  three.color = hex_color("24394c")[0.4s]
-  prefix.at = (500, 458)[0.4s]
-  prefix.size = (750, 5)[0.4s]
+  three.at = slot(2, row_y) [400ms, ease: ease_in_out]
+  three.tile.color = neutral [0.4s]
+  grow_prefix(prefix, 5)
 
 #19.8s
-  two_a.color = hex_color("235650")[0.5s]
-  two_b.color = hex_color("235650")[0.5s]
+  two_a.tile.color = hex_color("235650")[0.5s]
+  two_b.tile.color = hex_color("235650")[0.5s]
 
-// Fade through clear space: do not stack old/new caption glyphs.
-#2.88s
-  fade_out(target: caption, duration: 0.12s)
-
-#3s
-  caption.text = "Lift 2a. Compare it with the sorted prefix."
-  fade_in(target: caption, duration: 0.12s)
-
-#4.03s
-  fade_out(target: caption, duration: 0.12s)
-
-#4.15s
-  caption.text = "4 is larger. Shift it right."
-  fade_in(target: caption, duration: 0.12s)
-
-#5.13s
-  fade_out(target: caption, duration: 0.12s)
-
-#5.25s
-  caption.text = "Insert 2a. The sorted prefix grows."
-  fade_in(target: caption, duration: 0.12s)
-
-#6.33s
-  fade_out(target: caption, duration: 0.12s)
-
-#6.45s
-  caption.text = "Lift 5. Compare it with the sorted prefix."
-  fade_in(target: caption, duration: 0.12s)
-
-#7.13s
-  fade_out(target: caption, duration: 0.12s)
-
-#7.25s
-  caption.text = "4 is smaller. The key belongs after it."
-  fade_in(target: caption, duration: 0.12s)
-
-#8.18s
-  fade_out(target: caption, duration: 0.12s)
-
-#8.3s
-  caption.text = "Insert 5. The sorted prefix grows."
-  fade_in(target: caption, duration: 0.12s)
-
-#9.38s
-  fade_out(target: caption, duration: 0.12s)
-
-#9.5s
-  caption.text = "Lift 2b. Compare it with the sorted prefix."
-  fade_in(target: caption, duration: 0.12s)
-
-#10.53s
-  fade_out(target: caption, duration: 0.12s)
-
-#10.65s
-  caption.text = "5 is larger. Shift it right."
-  fade_in(target: caption, duration: 0.12s)
-
-#11.58s
-  fade_out(target: caption, duration: 0.12s)
-
-#11.7s
-  caption.text = "4 is larger. Shift it right."
-  fade_in(target: caption, duration: 0.12s)
-
-#12.28s
-  fade_out(target: caption, duration: 0.12s)
-
-#12.4s
-  caption.text = "Equal keys stay in their original order."
-  fade_in(target: caption, duration: 0.12s)
-
-#13.33s
-  fade_out(target: caption, duration: 0.12s)
-
-#13.45s
-  caption.text = "Insert 2b. The sorted prefix grows."
-  fade_in(target: caption, duration: 0.12s)
-
-#14.53s
-  fade_out(target: caption, duration: 0.12s)
-
-#14.65s
-  caption.text = "Lift 3. Compare it with the sorted prefix."
-  fade_in(target: caption, duration: 0.12s)
-
-#15.68s
-  fade_out(target: caption, duration: 0.12s)
-
-#15.8s
-  caption.text = "5 is larger. Shift it right."
-  fade_in(target: caption, duration: 0.12s)
-
-#16.73s
-  fade_out(target: caption, duration: 0.12s)
-
-#16.85s
-  caption.text = "4 is larger. Shift it right."
-  fade_in(target: caption, duration: 0.12s)
-
-#17.43s
-  fade_out(target: caption, duration: 0.12s)
-
-#17.55s
-  caption.text = "2b is smaller. The key belongs after it."
-  fade_in(target: caption, duration: 0.12s)
-
-#18.48s
-  fade_out(target: caption, duration: 0.12s)
-
-#18.6s
-  caption.text = "Insert 3. The sorted prefix grows."
-  fade_in(target: caption, duration: 0.12s)
-
-#19.68s
-  fade_out(target: caption, duration: 0.12s)
-
-#19.8s
-  caption.text = "Sorted. The two equal keys still read 2a, then 2b."
-  fade_in(target: caption, duration: 0.12s)
+// Give each subtitle the same transition without storing its lead-in time.
+#0s
+  let subtitles = {
+    {3s, "Lift 2a. Compare it with the sorted prefix."},
+    {4.15s, "4 is larger. Shift it right."},
+    {5.25s, "Insert 2a. The sorted prefix grows."},
+    {6.45s, "Lift 5. Compare it with the sorted prefix."},
+    {7.25s, "4 is smaller. The key belongs after it."},
+    {8.3s, "Insert 5. The sorted prefix grows."},
+    {9.5s, "Lift 2b. Compare it with the sorted prefix."},
+    {10.65s, "5 is larger. Shift it right."},
+    {11.7s, "4 is larger. Shift it right."},
+    {12.4s, "Equal keys stay in their original order."},
+    {13.45s, "Insert 2b. The sorted prefix grows."},
+    {14.65s, "Lift 3. Compare it with the sorted prefix."},
+    {15.8s, "5 is larger. Shift it right."},
+    {16.85s, "4 is larger. Shift it right."},
+    {17.55s, "2b is smaller. The key belongs after it."},
+    {18.6s, "Insert 3. The sorted prefix grows."},
+    {19.8s, "Sorted. The two equal keys still read 2a, then 2b."}
+  }
+  for beat in subtitles {
+    explain(caption, beat[0], beat[1])
+  }

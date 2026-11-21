@@ -4,11 +4,7 @@ The current website is curated, not a directory listing of all AMX files. A
 legacy file remaining in Git is not an endorsement of its explanation or every
 parameter setting.
 
-`web/app/src/lib/legacy-works.ts` records the disposition of all nine entries in
-the former [retired work manifest](https://github.com/j4ger/animatix/blob/530b5f8843d31a77b19540ff8f42daf662fddfff/web/works.json). Astro generates their `/demos/<id>/` compatibility
-pages and `/archive/` from that list. Those pages explain where the work went;
-they do not automatically load the old player. `/demos/` points to the current
-collection, learning route and archive instead of reproducing the old catalog.
+This record covers the nine entries in the [retired work manifest](https://github.com/j4ger/animatix/blob/530b5f8843d31a77b19540ff8f42daf662fddfff/web/works.json). The public site retired the archive and compatibility pages.
 
 | Earlier work | Disposition | Reason |
 | --- | --- | --- |
@@ -37,16 +33,9 @@ current lesson merely because its source compiles.
 
 ## Preservation contract
 
-- Preserve source files and module paths in the repository while tests or imports rely on them. The new public site does not distribute retired demo assets; archive pages link to the published historical source.
+- Preserve source files and module paths in the repository while tests or imports rely on them.
 - Keep old source files and their existing test semantics separate from new
   curated source. Do not rewrite a fixture solely to match a new poster.
-- Do not render the old interactive HTML beneath a new archive heading.
 - New internal links use the site's base-aware URL helper. Historical source links pin the published baseline, rather than suggesting an unpushed experimental revision is online.
 - New replacement links must resolve in the built site before publication.
-- The archive is explicit retirement, not a claim that all nine works were
-  individually remade. Current work and learning pages are the public product.
-
-`legacy-works.test.mjs` checks the frozen nine-ID URL contract, immutable historical source links and the
-absence of old player embeds. The assembled-site checks must also verify the
-generated compatibility pages, rather than accepting copied legacy HTML as a
-substitute.
+- The assembled-site checks reject retired pages and demo source assets.

@@ -1,0 +1,61 @@
+config { resolution: (960, 600), duration: 4.5, runtime_inputs: {"beat", "diagonal", "stress", "onion_skin"} }
+let beat = 0.12
+let diagonal = 0
+let stress = 0
+let onion_skin = 0
+
+let words = {"We", "can", "change", "this."}
+let centres = {250, 574, 346, 714}
+let widths = {161, 181, 351, 201}
+let tile_path = (i, progress) => {
+  let word = floor(i / 12)
+  let grid = (95 + (i % 8) * 110, 74 + floor(i / 8) * 90)
+  let line = (centres[word] + (i % 12 - 5.5) * widths[word] / 12, 249 + 213 * floor(word / 2))
+  lerp_vec2(grid, line, progress)
+}
+
+#0s
+  ground: Rect, at: (480, 300), size: (960, 600)
+  always {
+    ground.color = lerp_color_oklab(hex_color("191816"), hex_color("f5eedf"), clamp((t - 1.72) / 0.74, 0, 1))
+  }
+
+  // Reveal the sentence, with the chosen word set in italic.
+  for text, i in words {
+    let pos = (centres[i], 176 + 213 * floor(i / 2))
+    word[i]: Text, at: pos, text: text, font_size: 125, color: hex_color("302b23")
+    accent[i]: Text, at: pos, text: text, font_size: 125, font_style: "italic", color: hex_color("ad3a27")
+    always {
+      let ink = clamp((t - 2.34 - 8 * beat) / 0.35, 0, 1)
+      word[i].opacity = if i == stress { 0 } else { ink }
+      accent[i].opacity = if i == stress { ink } else { 0 }
+    }
+  }
+
+  // Sample one tile's path seven times for the light table.
+  for j in {0, 1, 2, 3, 4, 5, 6} {
+    ghost[j]: Rect, size: (22, 18), corner_radius: 2, fill_opacity: 0, stroke: hex_color("78897e"), stroke_width: 2
+    always {
+      ghost[j].at = tile_path(stress * 12 + 7, smoothstep(0, 6, j))
+      ghost[j].opacity = onion_skin * 0.55
+    }
+  }
+
+  // Each tile pulses in place, then joins one of four underlines.
+  for row in {0, 1, 2, 3, 4, 5} {
+    for col in {0, 1, 2, 3, 4, 5, 6, 7} {
+      tile[row * 8 + col]: Rect, corner_radius: 4
+      always {
+        let i = row * 8 + col
+        let order = if diagonal == 1 { (row + col) * 2 / 3 } else { hypot(col - 3.5, row - 2.5) * 1.85 }
+        let age = t - order * beat
+        let pulse = exp(-pow((age - 0.16) / 0.27, 2))
+        let fold = smoothstep(1.72, 2.49, age)
+        tile[i].at = tile_path(i, fold)
+        tile[i].size = lerp_vec2((62 + 12 * pulse, 43 + 27 * pulse), (widths[floor(i / 12)] / 12 - 1, 28), fold)
+        tile[i].rotation = (0.1 + 1.2 * pulse) * (1 - fold)
+        let clay = lerp_color_oklab(hex_color("b44d32"), hex_color("ffa875"), pulse)
+        tile[i].color = lerp_color_oklab(clay, hex_color("af4834"), fold)
+      }
+    }
+  }

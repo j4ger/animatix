@@ -1,0 +1,12 @@
+config { resolution: (960, 600), duration: 1.72 }
+
+#0s
+  scene.background_color = hex_color("191816")
+  for row in {0, 1, 2, 3, 4, 5} {
+    for col in {0, 1, 2, 3, 4, 5, 6, 7} {
+      let i = row * 8 + col
+      let delay = hypot(col - 3.5, row - 2.5) * 220ms
+      tile[i]: Rect, at: (95 + 110 * col, 74 + 90 * row), size: (62, 43), corner_radius: 4, color: hex_color("fb794e")
+      pulse(target: tile[i], delay: delay, duration: 500ms, intensity: 0.48)
+    }
+  }

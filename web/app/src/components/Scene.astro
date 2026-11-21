@@ -7,21 +7,22 @@ interface Props {
   posterAlt?: string;
   recording?: boolean;
   editor?: boolean;
+  inline?: boolean;
 }
 
-const {id, title, posterAlt = '', recording = false, editor = false} = Astro.props;
+const {id, title, posterAlt = '', recording = false, editor = false, inline = false} = Astro.props;
 const poster = url(`content/posters/${id}.png`);
 ---
-<div class="scene-shell" data-scene-shell data-module={url('runtime/amx-player.js')}
+<div class="scene-shell" data-scene-shell data-inline={inline || undefined} data-module={url('runtime/amx-player.js')}
      data-source={url(`content/scenes/${id}.amx`)} data-title={title}>
   <div class="scene-surface">
     <div class:list={['scene-placeholder', { 'editor-placeholder': editor }]}>
-      {editor ? <p>Run your source to open the preview.</p> :
+      {editor ? <p>Waiting for the scene…</p> :
         <div class="scene-poster">
           <img src={poster} alt={posterAlt} width="1280" height="720" decoding="async"/>
-          <button class="load-scene" type="button" aria-label={`Play live: ${title}`}>
+          {!inline && <button class="load-scene" type="button" aria-label={`Play live: ${title}`}>
             <span class="button primary"><span aria-hidden="true">▶</span> Play live</span>
-          </button>
+          </button>}
         </div>}
     </div>
     <div class="scene-mount" role="region" aria-label={`${title} playback`} tabindex="-1"></div>

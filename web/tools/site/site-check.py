@@ -132,8 +132,11 @@ def main():
             if not target.is_file():
                 errors.append(f'{page.relative_to(output)}: missing target: {raw}')
     if args.assembled:
-        # Archive HTML routes belong to Astro, but retired sources and developer
-        # utilities must not hitch a ride in the public artifact.
+        # Keep retired pages and regression sources out of the public artifact.
+        for retired in ('archive', 'demos', 'tour', 'recipes', 'gallery.html'):
+            route = output / retired
+            if route.is_file() or any(route.rglob('*.html')):
+                errors.append(f'retired page in site artifact: {retired}')
         for retired in ('demos', 'tour', 'recipes', 'scenes'):
             for scene in (output / retired).rglob('*.amx'):
                 errors.append(f'retired source in site artifact: {scene.relative_to(output)}')

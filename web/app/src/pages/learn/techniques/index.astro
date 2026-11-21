@@ -3,19 +3,6 @@ import Page from '../../../layouts/Page.astro';
 import {url} from '../../../lib/content';
 import {techniques} from '../../../lib/techniques';
 ---
-<Page title="Animation techniques">
-  <section class="page-intro">
-    <a class="text-link" href={url('learn/')}>← Learning route</a>
-    <p class="eyebrow">Techniques / small reusable ideas</p>
-    <h1>Give motion<br/><em>a purpose.</em></h1>
-    <p class="lead">Four focused studies. One intention each.<br/>Read the complete source, then make it your own.</p>
-  </section>
-  <div class="lessons">
-    {techniques.map((technique, i) => <a href={url(`learn/techniques/${technique.id}/`)}>
-      <span class="lesson-number">0{i+1}</span>
-      <div><h2>{technique.title}</h2><p>{technique.goal}</p></div>
-      <span aria-hidden="true">→</span>
-    </a>)}
-  </div>
-  <section class="note"><h2>Intent first. API second.</h2><p>These are short working patterns, not finished showcase films. Each keeps its final composition visible and avoids unrelated effects.</p></section>
+<Page title="Animation techniques"><section class="guide"><a class="backlink" href={url('docs/')}>← Docs</a><h1>Animation techniques</h1></section>
+  <div class="link-list">{techniques.map(t => <a href={url('learn/techniques/'+t.id+'/')}>{t.title}<span>→</span></a>)}</div>
 </Page>

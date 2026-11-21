@@ -7,7 +7,21 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 28 }
 
 let phase_degrees = 0
 
-let phase = (phase_degrees * pi) / 180
+let initial = phase_degrees * pi / 180
+let phase = initial
+let advance = (time, start, seconds) => pi * ease_in_out(clamp((time - start) / seconds, 0, 1))
+let domain = (0, 4 * pi)
+let lane_x = 510
+let lane_w = 740
+let lane_a = 180
+let lane_b = 330
+let lane_sum = 520
+let unit_y = 40
+let sample_angle = pi / 2
+let sample_x = lane_x - lane_w / 2 + lane_w * sample_angle / domain[1]
+let dial_center = (1080, 326)
+let dial_radius = 58
+let grid = hex_color("344455")
 
 let cyan = hex_color("65d9e8")
 
@@ -16,40 +30,68 @@ let coral = hex_color("ff947d")
 let gold = hex_color("f4d47b")
 
 #0s
-  back: Rect, at: (640, 360), size: (1280, 720), color: hex_color("0d1520")
+  back: Rect, at: (640, 360), size: (1280, 720),
+    fill_gradient: linear(115, {hex_color("221f38"), hex_color("2c222e"), hex_color("392627")})
+  phase_glow: Ellipse, at: dial_center, size: (320, 320),
+    fill_gradient: radial((0.5, 0.5), 0.5, {hex_color("ff947d24"), hex_color("ff947d00")})
   // Three horizontal lanes, with 52 px reserved for the signal labels.
-  a_label: Text, text: "A", font_size: 24, at: (80, 180), color: cyan, opacity: 0
-  b_label: Text, text: "B", font_size: 24, at: (80, 330), color: coral, opacity: 0
-  sum_label: Text, text: "A + B", font_size: 22, at: (80, 520), color: gold, opacity: 0
-  plot_a: Graph, at: (510, 180), size: (740, 96), x_domain: (0, 4 * pi), y_domain: (-1.2, 1.2), stroke: hex_color("344455"), grid: false, ticks: false, tick_labels: "none", opacity: 0 {
+  a_label: Text, text: "A", font_size: 24, at: (80, lane_a), color: cyan, opacity: 0
+  b_label: Text, text: "B", font_size: 24, at: (80, lane_b), color: coral, opacity: 0
+  sum_label: Text, text: "A + B", font_size: 22, at: (80, lane_sum), color: gold, opacity: 0
+  plot_a: Graph, at: (lane_x, lane_a), size: (lane_w, 2 * 1.2 * unit_y), x_domain: domain, y_domain: (-1.2, 1.2), stroke: grid, grid: false, ticks: false, tick_labels: "none", opacity: 0 {
   wave_a: PlotCurve, kind: "cartesian", func: (x) => sin(x), stroke: cyan, stroke_width: 4
     }
-  plot_b: Graph, at: (510, 330), size: (740, 96), x_domain: (0, 4 * pi), y_domain: (-1.2, 1.2), stroke: hex_color("344455"), grid: false, ticks: false, tick_labels: "none", opacity: 0 {
+  plot_b: Graph, at: (lane_x, lane_b), size: (lane_w, 2 * 1.2 * unit_y), x_domain: domain, y_domain: (-1.2, 1.2), stroke: grid, grid: false, ticks: false, tick_labels: "none", opacity: 0 {
   wave_b: PlotCurve, kind: "cartesian", func: (x) => sin(x + phase), stroke: coral, stroke_width: 4
     }
-  plot_sum: Graph, at: (510, 520), size: (740, 176), x_domain: (0, 4 * pi), y_domain: (-2.2, 2.2), stroke: hex_color("344455"), grid: false, ticks: false, tick_labels: "none", opacity: 0 {
+  plot_sum: Graph, at: (lane_x, lane_sum), size: (lane_w, 2 * 2.2 * unit_y), x_domain: domain, y_domain: (-2.2, 2.2), stroke: grid, grid: false, ticks: false, tick_labels: "none", opacity: 0 {
   wave_sum: PlotCurve, kind: "cartesian", func: (x) => sin(x) + sin(x + phase), stroke: gold, stroke_width: 5
     }
-  separator: Line, from: (940, 210), to: (940, 624), stroke: hex_color("344455"), stroke_width: 1, opacity: 0
+  separator: Line, from: (940, 210), to: (940, 624), stroke: grid, stroke_width: 1, opacity: 0
   phase_label: Text, text: "RELATIVE PHASE", font_size: 16, at: (1080, 220), color: hex_color("90a4b8"), opacity: 0
-  orbit: Ellipse, at: (1080, 326), size: (116, 116), fill_opacity: 0, stroke: hex_color("344455"), stroke_width: 2, opacity: 0
-  fixed: Ellipse, at: (1138, 326), size: (12, 12), color: cyan, opacity: 0
-  hand: Line, from: (1080, 326), to: (1138, 326), stroke: coral, stroke_width: 2, opacity: 0
-  moving: Ellipse, at: (1138, 326), size: (12, 12), color: coral, opacity: 0
+  dial: Group, at: dial_center, opacity: 0 {
+    orbit: Ellipse, size: (2 * dial_radius, 2 * dial_radius), fill_opacity: 0, stroke: grid, stroke_width: 2
+    fixed: Ellipse, at: (dial_radius, 0), size: (12, 12), color: cyan
+  }
+  needle: Group, at: dial_center, opacity: 0 {
+    hand: Line, from: (0, 0), to: (dial_radius, 0), stroke: coral, stroke_width: 2
+    moving: Ellipse, at: (dial_radius, 0), size: (12, 12), color: coral
+  }
   phase_value: Text, text: "0°", font_size: 30, at: (1080, 420), color: hex_color("f3f5f7"), opacity: 0
   state_r: Text, text: "REINFORCEMENT", font_size: 20, font_weight: "bold", at: (1080, 502), color: gold, opacity: 0
   state_c: Text, text: "CANCELLATION", font_size: 20, font_weight: "bold", at: (1080, 502), color: gold, opacity: 0
   state_s: Text, text: "SUPERPOSITION", font_size: 20, font_weight: "bold", at: (1080, 502), color: gold, opacity: 0
   explanation: Text, text: "Twice the amplitude", font_size: 18, at: (1080, 540), color: hex_color("adbcca"), opacity: 0
   // First see the inputs; then add one pair of heights before revealing the result.
-  point_guide: Line, from: (232.5, 110), to: (232.5, 610), stroke: hex_color("516177"), stroke_width: 1, dash_pattern: {5, 7}, opacity: 0
-  point_a: Ellipse, at: (232.5, 140), size: (13, 13), color: cyan, opacity: 0
-  point_b: Ellipse, at: (232.5, 290), size: (13, 13), color: coral, opacity: 0
-  point_baseline: Line, from: (140, 520), to: (880, 520), stroke: hex_color("344455"), stroke_width: 1, opacity: 0
-  point_sum: Ellipse, at: (232.5, 440), size: (16, 16), color: gold, opacity: 0
+  point_guide: Line, from: (sample_x, 110), to: (sample_x, 610), stroke: hex_color("516177"), stroke_width: 1, dash_pattern: {5, 7}, opacity: 0
+  point_a: Ellipse, at: (sample_x, 140), size: (13, 13), color: cyan, opacity: 0
+  point_b: Ellipse, at: (sample_x, 290), size: (13, 13), color: coral, opacity: 0
+  point_baseline: Line, from: (lane_x - lane_w / 2, lane_sum), to: (lane_x + lane_w / 2, lane_sum), stroke: grid, stroke_width: 1, opacity: 0
+  point_sum: Ellipse, at: (sample_x, 440), size: (16, 16), color: gold, opacity: 0
   point_title: Text, text: "AT ONE POSITION", font_size: 18, at: (1080, 280), color: hex_color("90a4b8"), opacity: 0
   point_math: Text, text: "1 + 1 = 2", font_size: 28, at: (1080, 330), color: gold, opacity: 0
   point_hint: Text, text: "Add the heights.", font_size: 20, at: (1080, 380), color: hex_color("adbcca"), opacity: 0
+
+  // Values are analytic at any seek time. No hidden accumulated simulation.
+  always {
+    phase = initial + advance(t, 12, 6) + advance(t, 21, 5)
+    let b = sin(sample_angle + phase)
+    point_b.at = (sample_x, lane_b - unit_y * b)
+    point_sum.at = (sample_x, lane_sum - unit_y * (1 + b))
+    point_math.text = format("1 + ({:.1}) = {:.1}", b, 1 + b)
+    needle.rotation = -phase
+    phase_value.text = format("{:.0}°", (phase * 180) / pi)
+    let amplitude = 2 * abs(cos(phase / 2))
+    explanation.text = format("amplitude: {:.2}", amplitude)
+    // Continuous phase-derived blends work for any initial-phase preset and seek.
+    // Fade through a brief clear gap instead of stacking different glyph strings.
+    let show = clamp((t - 11) / 0.5, 0, 1)
+    let r = ease_in_out(clamp((amplitude - 1.94) / 0.05, 0, 1))
+    let c = 1 - ease_in_out(clamp((amplitude - 0.01) / 0.1, 0, 1))
+    state_r.opacity = show * clamp(2 * r - 1, 0, 1)
+    state_c.opacity = show * clamp(2 * c - 1, 0, 1)
+    state_s.opacity = show * clamp(2 * ((1 - r) - c) - 1, 0, 1)
+  }
 
 #0.2s
   fade_in(target: a_label, duration: 0.5s)
@@ -60,73 +102,18 @@ let gold = hex_color("f4d47b")
   fade_in(target: plot_b, duration: 0.7s)
 
 #5.5s
-  fade_in(target: point_guide, duration: 0.5s)
-  fade_in(target: point_a, duration: 0.5s)
-  fade_in(target: point_b, duration: 0.5s)
-  fade_in(target: point_title, duration: 0.5s)
-  fade_in(target: point_math, duration: 0.5s)
-  fade_in(target: point_hint, duration: 0.5s)
+  fade_in(targets: {point_guide, point_a, point_b, point_title, point_math, point_hint}, duration: 0.5s)
 
 #6.5s
-  fade_in(target: sum_label, duration: 0.5s)
-  fade_in(target: point_sum, duration: 0.5s)
-  fade_in(target: point_baseline, duration: 0.5s)
+  fade_in(targets: {sum_label, point_sum, point_baseline}, duration: 0.5s)
 
 #8.5s
   fade_in(target: plot_sum, duration: 1s)
 
 #10.5s
-  fade_out(target: point_guide, duration: 0.5s)
-  fade_out(target: point_a, duration: 0.5s)
-  fade_out(target: point_b, duration: 0.5s)
-  fade_out(target: point_sum, duration: 0.5s)
-  fade_out(target: point_baseline, duration: 0.5s)
-  fade_out(target: point_title, duration: 0.5s)
-  fade_out(target: point_math, duration: 0.5s)
-  fade_out(target: point_hint, duration: 0.5s)
+  fade_out(targets: {point_guide, point_a, point_b, point_sum, point_baseline, point_title, point_math, point_hint}, duration: 0.5s)
 
 #11s
-  fade_in(target: separator, duration: 0.5s)
-  fade_in(target: phase_label, duration: 0.5s)
-  fade_in(target: orbit, duration: 0.5s)
-  fade_in(target: fixed, duration: 0.5s)
-  fade_in(target: hand, duration: 0.5s)
-  fade_in(target: moving, duration: 0.5s)
-  fade_in(target: phase_value, duration: 0.5s)
+  fade_in(targets: {separator, phase_label, dial, needle, phase_value}, duration: 0.5s)
   // Semantic label alpha is analytic below, including its panel entrance.
   fade_in(target: explanation, duration: 0.5s)
-  // Values are analytic at any seek time. No hidden accumulated simulation.
-  always {
-      let initial = (phase_degrees * pi) / 180
-      if t < 12 {
-            phase = initial
-          }
-      if t >= 12 && t < 18 {
-            phase = initial + pi * ease_in_out((t - 12) / 6)
-          }
-      if t >= 18 && t < 21 {
-            phase = initial + pi
-          }
-      if t >= 21 && t < 26 {
-            phase = (initial + pi) + pi * ease_in_out((t - 21) / 5)
-          }
-      if t >= 26 {
-            phase = initial + 2 * pi
-          }
-      point_b.at = (232.5, 330 - 40 * sin(pi / 2 + phase))
-      point_sum.at = (232.5, 520 - 40 * (1 + sin(pi / 2 + phase)))
-      point_math.text = format("1 + ({:.1}) = {:.1}", sin(pi / 2 + phase), 1 + sin(pi / 2 + phase))
-      moving.at = (1080 + 58 * cos(phase), 326 - 58 * sin(phase))
-      hand.to = moving.at
-      phase_value.text = format("{:.0}°", (phase * 180) / pi)
-      let amplitude = 2 * abs(cos(phase / 2))
-      explanation.text = format("amplitude: {:.2}", amplitude)
-      // Continuous phase-derived blends work for any initial-phase preset and seek.
-      // Fade through a brief clear gap instead of stacking different glyph strings.
-      let show = clamp((t - 11) / 0.5, 0, 1)
-      let r = ease_in_out(clamp((amplitude - 1.94) / 0.05, 0, 1))
-      let c = 1 - ease_in_out(clamp((amplitude - 0.01) / 0.1, 0, 1))
-      state_r.opacity = show * clamp(2 * r - 1, 0, 1)
-      state_c.opacity = show * clamp(2 * c - 1, 0, 1)
-      state_s.opacity = show * clamp(2 * ((1 - r) - c) - 1, 0, 1)
-    }

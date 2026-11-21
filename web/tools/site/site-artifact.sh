@@ -31,8 +31,7 @@ for entry in "${entries[@]}"; do
   [ -e "web/$entry" ] || { echo "error: missing runtime content web/$entry" >&2; exit 1; }
   cp -R "web/$entry" "$stage/$entry"
 done
-# Historical sources are available through pinned archive links, not deployed.
-# New site supplies every public page, including compatibility routes.
+# Astro supplies every public page.
 cp -R web/app/dist/. "$stage/"
 # The build's public runtime is a symlink into target/. Distributions contain
 # real files; they must never retain a link to the builder's private directory.

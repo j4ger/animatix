@@ -1,6 +1,6 @@
 # Scene contracts and verification
 
-Every source is self-contained. Page titles and long explanations belong in the DOM; the canvas carries only labels needed to understand its visual argument. Logical resolution: 1280×720. Background: `#0D1520`.
+Every source is self-contained. Page titles and long explanations belong in the DOM; the canvas carries only labels needed to understand its visual argument. The Showcase works use 1280×720 stages. Each work has its own backdrop and uses low-contrast decoration behind the instructional graphics.
 
 ## Works
 
@@ -10,7 +10,7 @@ Every source is self-contained. Page titles and long explanations belong in the 
 | `scenes/make-room.amx` | 24 s | none | Stable insertion sort preserves the order of equal keys while shifting a sorted prefix. |
 | `scenes/one-rule-many-forms.amx` | 20 s | `preset=0` or `1` | One shape → 48 copies → distance controls delay → changing the distance rule changes the choreography. Not a benchmark. |
 | `scenes/when-waves-meet.amx` | 28 s | `phase_degrees=0`, `90`, `180` | Reveal A and B, add their heights at one x position, reveal the full sum, then change the phase. |
-| `scenes/words-keep-time.amx` | 20 s | none | “We can change this.” Emphasize WE, CAN, CHANGE to shift agency, possibility and action; finish with a three-row comparison. Silent edition, not voiceover sync. |
+| `scenes/words-keep-time.amx` | 20 s | none | Turn a maintenance announcement into a notice with distinct fields for impact, timing and what still works. |
 
 ### One Rule
 
@@ -29,9 +29,9 @@ A enters at 0.2 s, B at 2.5 s. Single-point addition appears at 5.5–8.5 s; the
 - Semantic labels are static glyphs with analytic phase/amplitude-dependent opacity. They fade through a brief clear gap, never superimposing two competing labels. This works for initial-phase presets and arbitrary seeking without accumulated transition state.
 - Initial phase 180° starts cancelled, reinforces midway and ends cancelled. No caption hardcodes the default narrative.
 
-### Words
+### Maintenance notice
 
-The complete sentence is readable from the first frame. WE is emphasized at 2 s (“Who will act?”), CAN at 6 s (“Is it possible?”), CHANGE at 10 s (“What will we do?”). Underline position and color follow the emphasis, while the explanation changes through a timed text assignment. From 15 s, three labeled rows compare the exact same wording with different emphasis. There is no audio asset, waveform or claim of listening synchronization.
+The original announcement is visible from the first frame. At 4 s it moves left and the impact appears on the right. The time window and available features follow at 8 and 12 s. The final comparison holds from 16 to 20 s. A `Stack` aligns the original card and its text, while a `Col` places three instances of `NoticeField` without separate row coordinates. The time window is authored once.
 
 ## Hero and lessons
 
@@ -57,7 +57,7 @@ default settings.
 
 `preview-manifest.json` binds each work to its source, poster and optional
 recording. All five recordings are silent H.264/yuv420p, 1280×720 at 24 fps,
-with MP4 fast-start and normalized frame timestamps. The manifest carries each
+with MP4 fast-start and verified frame counts. The manifest carries each
 duration, poster timestamp and artifact hash.
 
 Render at the authored resolution: the current CLI's smaller `--width/--height` video options cropped this scene instead of scaling. The initial low-resolution attempt was rejected after viewing encoded frames. Current delivered recordings have no crop or resize.
@@ -71,7 +71,7 @@ The three refined works passed native CLI check, including One Rule preset 1 and
 Actual rendered samples inspected:
 - One Rule: default recording sampled at 1 fps; preset 1 storyboard at 0/3/6.5/12/17/20 s. Both switch the actual delay metric, then settle.
 - Waves: phases 0°/90°/180°, each at 7/13.5/17.5/19/21.5/28 s. Curves, phase, resultant amplitude and semantic state agree. An earlier crossfade that superimposed labels was rejected and replaced by fade-through.
-- Words: storyboard at 0/3/7/11/15.5/20 s, then final encoded recording sampled at 1 fps. The full sentence stays readable before the closing comparison.
+- The earlier Words study was reviewed at 0/3/7/11/15.5/20 s. Maintenance notice replaces that study at the same URL.
 
 All three complete recordings were exported and their encoded frames sampled at 1 fps for visual inspection. ffprobe confirms 1280×720, 24 fps, exact 480/672/480 frames and 20/28/20 s. Posters are native full-resolution frames at 6.5/15/20 s; manifest hashes identify the final sources, posters and recordings. This is complete export plus sampled visual review, not a claim of watching every frame in real time. Native QA does not establish browser WebGPU playback or audio acceptance.
 
@@ -87,7 +87,7 @@ The repository has a narration example, word-level JSON, an Edge-TTS helper, and
   zero, positive and negative shear on one fixed scale.
 - `make-room.amx` (24 s): stable insertion sort on `[4, 2a, 5, 2b, 3]`. Counters
   count eight key comparisons and five rightward moves, excluding key placement.
-  Explicit keyframe events expose each decision. This is not runtime performance.
+  Explicit keyframe events expose each decision. `NumberCard` moves the face and digit together, slot positions and prefix widths share one spacing value, and a timeline function schedules subtitle transitions from their authored cue times.
 - `technique-reveal/focus/stagger/labels.amx`: four short, single-intent sources
   linked from Learn. Unlike works, techniques do not need a separate story arc.
 

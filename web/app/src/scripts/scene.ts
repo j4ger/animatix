@@ -3,6 +3,8 @@ import {withOverride} from '../lib/overrides';
 import {fetchSource, withTimeout} from '../lib/requests';
 
 type Player = HTMLElement & {
+  readonly time: number;
+  readonly duration: number;
   play(): void;
   pause(): void;
   seek(time: number): void;
@@ -72,8 +74,12 @@ async function createPlayer(shell: HTMLElement): Promise<Player> {
     player.setAttribute('src', shell.dataset.source!);
     player.setAttribute('title', shell.dataset.title || 'Animation preview');
     player.setAttribute('aspect', '16:9');
-    player.setAttribute('controls', '');
-    // This player exists only after an explicit Play or Run, even on a narrow viewport.
+    if (shell.hasAttribute('data-inline')) {
+      player.setAttribute('sealed', '');
+      player.setAttribute('no-veil', '');
+    } else {
+      player.setAttribute('controls', '');
+    }
     player.setAttribute('eager', '');
     const preset = document.querySelector<HTMLSelectElement>('[data-controls] select[data-applied-value]');
     if (preset) player.setAttribute('data-vars', JSON.stringify({[preset.name]: Number(preset.dataset.appliedValue)}));

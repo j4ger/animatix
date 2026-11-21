@@ -1,2 +1,0 @@
-import {base} from '../../lib/content';
-export function GET(){return new Response(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Earlier visual study · Animatix</title><body><main><h1>An earlier visual study</h1><p>This experimental demo is no longer part of the curated collection.</p><a href="${base}/showcase/one-rule-many-forms/">Explore One rule. Many forms.</a> · <a href="${base}/archive/">Read the archive decisions</a></main></body></html>`,{headers:{'Content-Type':'text/html; charset=utf-8'}});}

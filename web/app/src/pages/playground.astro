@@ -1,7 +1,28 @@
 ---
-import Page from '../layouts/Page.astro';import Scene from '../components/Scene.astro';import {techniques} from '../lib/techniques';
+import Page from '../layouts/Page.astro';
+import Scene from '../components/Scene.astro';
+import {techniques} from '../lib/techniques';
 import {works,lessons,url} from '../lib/content';
-const choices=[...lessons.map(x=>({id:x.file,title:x.title})),...works,...techniques.map(x=>({id:x.file,title:x.title}))];
+const choices = [
+  {id: 'insertion-sort', title: 'Insertion sort'},
+  {id: 'quiet-carriage', title: 'Noise cancellation'},
+  ...lessons.map(x => ({id: x.file, title: x.title})), ...works,
+  ...techniques.map(x => ({id: x.file, title: x.title})),
+  {id: 'first-beat', title: 'First beat · wave only'}, {id: 'give-it-a-beat', title: 'Give it a beat.'},
+];
 ---
-<Page title="Playground" wide><div class="play-heading"><div><p class="eyebrow">Playground / a small working space</p><h1>Change a rule.<br/><em>See what moves.</em></h1></div><p>Edits stay in this tab only. Download to keep them.<br/>Your code never changes until you ask it to.</p></div><div class="playground" data-playground data-base={url('content/scenes/')}><section class="editor-pane"><div class="editor-toolbar"><label for="scene-choice">Source</label><select id="scene-choice">{choices.map(x=><option value={x.id}>{x.title}</option>)}</select><button id="open-source" class="button">Open</button></div><label class="sr-only" for="source-code">AMX source code</label><textarea id="source-code" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="editor-status"></textarea><div class="editor-actions"><button id="run" class="button primary">Run <kbd>⌘/Ctrl ↵</kbd></button><button id="reset" class="button">Reset</button><button disabled id="download" class="button">Download ↓</button></div><p id="editor-status" role="status" aria-live="polite">Loading source…</p><div id="diagnostics"></div></section><section class="preview-pane" aria-label="Animation preview"><Scene editor id="first-move" title="Your scene"/><p class="small muted">Preview uses WebGPU or WebGL2. Editing and downloads are always available. The last successful scene remains when a build fails.</p></section></div></Page>
+<Page title="Playground" wide>
+  <div class="play-heading"><h1>Playground</h1><p>Download your .amx file to keep your edits.</p></div>
+  <div class="playground" data-playground data-base={url('content/scenes/')}>
+    <section class="editor-pane" aria-label="Source editor">
+      <div class="editor-toolbar"><label for="scene-choice">Source</label><select id="scene-choice">{choices.map(x=><option value={x.id}>{x.title}</option>)}</select><button id="open-source" class="button">Open</button></div>
+      <p id="editor-status" role="status" aria-live="polite">Loading source…</p>
+      <label class="sr-only" for="source-code">AMX source code</label>
+      <textarea id="source-code" class="source-wrap" wrap="soft" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="editor-status"></textarea>
+      <div class="editor-actions"><button id="reset" class="button">Reset</button><button disabled id="download" class="button">Download .amx ↓</button></div>
+      <div id="diagnostics"></div>
+    </section>
+    <section class="preview-pane" aria-label="Animation preview"><Scene editor id="first-move" title="Your scene"/><button class="button retry-preview" type="button" hidden>Retry preview</button></section>
+  </div>
+</Page>
 <script src="../scripts/playground.ts"></script>

@@ -1,0 +1,27 @@
+---
+import Page from '../../layouts/Page.astro';
+import {url} from '../../lib/content';
+---
+<Page title="Docs">
+  <div class="docs-layout">
+    <h1>Docs</h1>
+    <a class="docs-quickstart" href={url('docs/quickstart/')}>
+      <div><h2>Quickstart</h2><p>Preview an AMX scene in your browser, then render it to video locally.</p></div>
+      <span aria-hidden="true">→</span>
+    </a>
+    <div class="docs-links">
+      <a href={url('learn/')}>
+        <h2>Tutorials <span aria-hidden="true">→</span></h2>
+        <p>Learn layout, timing, and motion in six lessons.</p>
+      </a>
+      <a href={url('learn/techniques/')}>
+        <h2>Techniques <span aria-hidden="true">→</span></h2>
+        <p>Reuse patterns for reveals, emphasis, and labels.</p>
+      </a>
+      <a href={url('docs/reference/')}>
+        <h2>Reference <span aria-hidden="true">→</span></h2>
+        <p>Look up AMX syntax, primitives, and properties.</p>
+      </a>
+    </div>
+  </div>
+</Page>

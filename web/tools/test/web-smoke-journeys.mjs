@@ -7,7 +7,7 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
   };
   await until('page complete', () => cdp.evaluate(`document.readyState==='complete'`));
   if (!await cdp.evaluate(`!!document.querySelector('body')`)) throw new Error('Missing document body');
-  if (contract.action !== 'fixture') {
+  if (['static', 'load', 'recording'].includes(contract.action)) {
     const cold = await cdp.evaluate(`({
       players: ${players}.length,
       requests: performance.getEntriesByType('resource').filter(entry =>
@@ -16,11 +16,14 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
     })`);
     if (cold.players || cold.requests) throw new Error('Public page loaded the runtime or a recording before user interaction');
   }
+  for (const path of contract.links || []) {
+    const found = await cdp.evaluate(`Array.from(document.querySelectorAll('a[href]')).some(a => {
+      const destination = new URL(a.href);
+      return destination.pathname + destination.hash === ${JSON.stringify(path)};
+    })`);
+    if (!found) throw new Error(`Missing navigation link ${path}`);
+  }
   if (contract.action === 'static') {
-    for (const path of contract.links || []) {
-      const found = await cdp.evaluate(`Array.from(document.querySelectorAll('a[href]')).some(a=>new URL(a.href).pathname===${JSON.stringify(path)})`);
-      if (!found) throw new Error(`Missing navigation link ${path}`);
-    }
     await checkErrors();
     return;
   }
@@ -33,10 +36,6 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
     return;
   }
   if (contract.action === 'load') await startPoster(cdp, Boolean(contract.recording));
-  if (contract.action === 'edit') {
-    await until('source ready', () => cdp.evaluate(`document.querySelector('#editor-status')?.textContent.startsWith('Source ready.')`));
-    await cdp.evaluate(`(()=>{const code=document.querySelector('#source-code');if(!code.value.includes('hex_color("65d9e8")'))throw Error('Unexpected first-move source');code.value=code.value.replace('hex_color("65d9e8")','hex_color("f46ea0")');code.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#run').click();})()`);
-  }
   await until('expected players', async () => {
     await checkErrors();
     return cdp.evaluate(`${players}.length===${contract.players}`);
@@ -48,9 +47,16 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
       return cdp.evaluate(`__smoke.ready.has(${players}[${index}])`);
     });
     if (contract.action === 'edit') {
-      await until('editor build', async () => {
+      await cdp.evaluate(`(() => {
+        const code = document.querySelector('#source-code');
+        const source = code.value.replace('hex_color("65d9e8")', 'hex_color("f46ea0")').replace('duration: 3', 'duration: 4');
+        if (source === code.value) throw Error('Unexpected first-move source');
+        code.value = source;
+        code.dispatchEvent(new Event('input', {bubbles: true}));
+      })()`);
+      await until('live editor build', async () => {
         await checkErrors();
-        return cdp.evaluate(`document.querySelector('#editor-status').textContent.startsWith('Built.')`);
+        return cdp.evaluate(`${players}[${index}].duration === 4`);
       });
     }
     await diagnose('before-pause');
@@ -89,7 +95,7 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
   }
   if (contract.preset) await presetJourney(cdp, capture, checkErrors, record);
   if (contract.action === 'edit') {
-    await cdp.evaluate(`(()=>{const code=document.querySelector('#source-code');code.value+='\\nthis is deliberately invalid ???';window.__submitted=code.value;document.querySelector('#run').click();})()`);
+    await cdp.evaluate(`(()=>{const code=document.querySelector('#source-code');code.value+='\\nthis is deliberately invalid ???';window.__submitted=code.value;code.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     await until('visible build diagnostic', () => cdp.evaluate(`document.querySelector('#editor-status').textContent.startsWith('Not built:')`));
     if (!await cdp.evaluate(`document.querySelector('#source-code').value===window.__submitted`)) throw new Error('Failed build changed source');
     // A failed edit must retain the last successful scene, not merely its DOM.
