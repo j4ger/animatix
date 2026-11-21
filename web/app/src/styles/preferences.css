@@ -1,0 +1,70 @@
+.header-links, .site-preferences { display: flex; align-items: center; }
+.header-links { gap: clamp(10px, 2vw, 28px); }
+.site-preferences { gap: 5px; color: var(--ink); }
+.site-preferences details { position: relative; }
+.site-preferences summary {
+  list-style: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--raised);
+  cursor: pointer;
+  font: 650 .69rem/1 system-ui, sans-serif;
+}
+.site-preferences summary::-webkit-details-marker { display: none; }
+.site-preferences summary:hover, .site-preferences details[open] summary { border-color: var(--edge); color: var(--accent); }
+.theme-symbol {
+  width: 13px;
+  height: 13px;
+  border: 1.4px solid currentColor;
+  border-radius: 50%;
+  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
+}
+.preference-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 7px);
+  right: 0;
+  display: grid;
+  min-width: 132px;
+  padding: 4px;
+  gap: 1px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 8px 24px var(--shadow);
+}
+.site-preferences details:not([open]) .preference-menu { display: none; }
+.preference-menu :is(a, button) {
+  display: block;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 4px;
+  text-align: left;
+  white-space: nowrap;
+  font: .8rem/1.45 system-ui, sans-serif;
+  color: var(--ink);
+  background: transparent;
+}
+.preference-menu :is(a, button):hover { background: var(--raised); text-decoration: none; }
+.preference-menu [aria-pressed=true], .preference-menu [aria-current=true] { color: var(--accent); font-weight: 650; }
+
+@media (max-width: 680px) {
+  .header-links { gap: 8px; }
+  .header-links .github, .masthead nav a[href^="https://github.com"] { display: none; }
+  .site-preferences { gap: 4px; }
+  .site-preferences summary { width: 29px; height: 29px; }
+}
+@media (max-width: 420px) {
+  .project-page .header { column-gap: 8px; row-gap: 9px; flex-wrap: wrap; }
+  .header-links { display: contents; }
+  .header-links nav { order: 1; flex-basis: 100%; justify-content: flex-start; gap: 17px; }
+  .masthead { flex-wrap: wrap; }
+  .masthead nav { order: 1; flex-basis: 100%; margin: 0 0 7px; }
+  .masthead .site-preferences { margin-left: auto; }
+}

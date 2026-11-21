@@ -1,0 +1,33 @@
+---
+import {base, pageUrl} from '../lib/content';
+import {pageLanguage, sitePagePath} from '../lib/language';
+import {ui} from '../lib/ui';
+
+const language = pageLanguage(Astro.currentLocale);
+const {t} = ui(language);
+const path = Astro.props.homeLinks ? '' : sitePagePath(Astro.url.pathname, base);
+---
+<div class="site-preferences" data-site-preferences data-en={pageUrl('en', path)} data-zh={pageUrl('zh', path)}
+     data-transfer-error={t('Could not keep the editor draft. Download it before switching language.', '无法保留草稿，请先下载源码再切换语言。')}>
+  <details>
+    <summary aria-label={t('Language', '语言')} title={t('Language', '语言')}>
+      <span aria-hidden="true">{language === 'en' ? 'EN' : '中'}</span>
+    </summary>
+    <div class="preference-menu" role="group" aria-label={t('Language', '语言')}>
+      <button type="button" data-language="auto" aria-pressed="false">{t('Browser default', '跟随浏览器')}</button>
+      <a href={pageUrl('en', path)} data-language="en" lang="en" aria-current={language === 'en' ? 'true' : undefined}>English</a>
+      <a href={pageUrl('zh', path)} data-language="zh" lang="zh-Hans" aria-current={language === 'zh' ? 'true' : undefined}>简体中文</a>
+    </div>
+  </details>
+  <details>
+    <summary aria-label={t('Color theme', '颜色主题')} title={t('Color theme', '颜色主题')}>
+      <span aria-hidden="true" class="theme-symbol"></span>
+    </summary>
+    <div class="preference-menu" role="group" aria-label={t('Color theme', '颜色主题')}>
+      <button type="button" data-theme-choice="auto" aria-pressed="true">{t('System', '跟随系统')}</button>
+      <button type="button" data-theme-choice="light" aria-pressed="false">{t('Light', '浅色')}</button>
+      <button type="button" data-theme-choice="dark" aria-pressed="false">{t('Dark', '深色')}</button>
+    </div>
+  </details>
+</div>
+<script src="../scripts/preferences.ts"></script>

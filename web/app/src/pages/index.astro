@@ -3,17 +3,26 @@ import Page from '../layouts/Page.astro';
 import InsertionFilm from '../components/InsertionFilm.astro';
 import FeaturedExamples from '../components/FeaturedExamples.astro';
 import InstallPanel from '../components/InstallPanel.astro';
+import {pageLanguage} from '../lib/language';
+import {ui} from '../lib/ui';
+
+const language = pageLanguage(Astro.currentLocale);
+const {t, examples} = ui(language);
 ---
-<Page>
+<Page home>
   <section class="project-hero" aria-labelledby="product-title">
     <div class="product-intro">
-      <h1 id="product-title"><span>A language for</span> <em>animated</em> <span>explainers.</span></h1>
-      <p><span>Write scenes in AMX.</span><span>Preview online. Render video locally.</span></p>
+      <h1 id="product-title">
+        {language === 'en'
+          ? <><span>A language for</span> <em>animated</em> <span>explainers.</span></>
+          : <><span>用代码写</span><em>解释性动画</em></>}
+      </h1>
+      <p><span>{t('Write scenes in AMX.', '用 AMX 编写场景。')}</span><span>{t('Preview online. Render video locally.', '在线预览，在本地渲染视频。')}</span></p>
     </div>
     <InsertionFilm/>
   </section>
   <section id="examples" class="project-section" aria-labelledby="examples-title">
-    <h2 id="examples-title">Examples</h2>
+    <h2 id="examples-title">{examples}</h2>
     <FeaturedExamples/>
   </section>
   <InstallPanel/>

@@ -4,6 +4,15 @@ A static Astro site around the `.amx` player. The website has
 three primary paths: **Examples**, **Docs**, and **Playground**. No backend,
 accounts or client-side UI framework are required.
 
+The header offers a language and a color theme control. English uses the
+existing URLs and Simplified Chinese lives under `/zh/`. The default home entry
+uses the browser's language preference. Explicit language choices are remembered
+and deep links use the language in their URL. Switching languages keeps the
+current AMX draft and playhead. The default color theme follows the operating
+system, with light and dark overrides. Themes apply to the website and playback
+controls. The scene source, artwork, and recordings use their authored text and
+colors.
+
 The canonical scenes live in `content/scenes/`. The five Showcase works, six
 lessons and four techniques use the same **Play live** poster. The poster stays
 visible while the `.amx` source and SDK load. Playback tries WebGPU first and

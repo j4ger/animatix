@@ -1,5 +1,8 @@
 import {readableError} from '../lib/errors';
 import {withTimeout} from '../lib/requests';
+import {currentUi} from '../lib/ui';
+
+const {t} = currentUi();
 
 type LivePlayer = HTMLElement & {
   readonly time: number;
@@ -36,7 +39,7 @@ function showTime(time: number) {
   seconds = time;
   slider.value = String(time);
   timecode.value = '0:' + String(Math.floor(time)).padStart(2, '0');
-  playLabel.textContent = playing ? 'Pause film' : time >= Number(slider.max) ? 'Replay film' : 'Play film';
+  playLabel.textContent = playing ? t('Pause film', '暂停动画') : time >= Number(slider.max) ? t('Replay film', '重播动画') : t('Play film', '播放动画');
   play.toggleAttribute('data-playing', playing);
 }
 
@@ -127,27 +130,28 @@ function unavailable(error: unknown) {
   mount.replaceChildren();
   opening.hidden = false;
   play.disabled = slider.disabled = true;
-  status.textContent = 'Showing the opening frame. ' + readableError(error);
+  status.textContent = t('Showing the opening frame.', '正在显示开场静帧。') + ' ' + readableError(error);
   retry.hidden = false;
 }
 
 async function startEngine() {
   retry.hidden = true;
-  status.textContent = 'Loading the film…';
+  status.textContent = t('Loading the film…', '正在加载动画…');
   const listeners = new AbortController();
   let player: LivePlayer | undefined;
   try {
     await withTimeout(import(/* @vite-ignore */ story.dataset.module!), 20000, 'The player could not load.');
     player = document.createElement('amx-player') as LivePlayer;
     player.setAttribute('src', story.dataset.source!);
-    player.setAttribute('title', 'How do headphones cancel noise?');
+    player.setAttribute('title', story.dataset.title!);
+    player.lang = document.documentElement.lang;
     for (const flag of ['sealed', 'eager', 'no-veil']) player.setAttribute(flag, '');
     const ready = new Promise<void>((resolve, reject) => {
       player!.addEventListener('amxready', () => resolve(), {once: true, signal: listeners.signal});
       player!.addEventListener('amxerror', e => reject((e as CustomEvent).detail.error), {once: true, signal: listeners.signal});
     });
     mount.replaceChildren(player);
-    await withTimeout(ready, 60000, 'The live film took too long to load.');
+    await withTimeout(ready, 60000, t('The live film took too long to load.', '动画加载超时。'));
     engine = player;
     engine.addEventListener('amxerror', e => unavailable((e as CustomEvent).detail.error));
     engine.seek(seconds);

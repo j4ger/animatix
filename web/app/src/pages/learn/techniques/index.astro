@@ -1,8 +1,15 @@
 ---
 import Page from '../../../layouts/Page.astro';
-import {url} from '../../../lib/content';
+import {pageUrl} from '../../../lib/content';
 import {techniques} from '../../../lib/techniques';
+import {techniqueCopy} from '../../../lib/catalog-zh';
+import {pageLanguage} from '../../../lib/language';
+import {ui} from '../../../lib/ui';
+const language = pageLanguage(Astro.currentLocale);
+const {t, docs} = ui(language);
+const title = t('Animation techniques', '动画技法');
 ---
-<Page title="Animation techniques"><section class="guide"><a class="backlink" href={url('docs/')}>← Docs</a><h1>Animation techniques</h1></section>
-  <div class="link-list">{techniques.map(t => <a href={url('learn/techniques/'+t.id+'/')}>{t.title}<span>→</span></a>)}</div>
+<Page title={title}>
+  <section class="guide"><a class="backlink" href={pageUrl(language, 'docs/')}>← {docs}</a><h1>{title}</h1></section>
+  <div class="link-list">{techniques.map(entry => <a href={pageUrl(language, 'learn/techniques/' + entry.id + '/')}>{t(entry.title, techniqueCopy[entry.id].title)}<span aria-hidden="true">→</span></a>)}</div>
 </Page>

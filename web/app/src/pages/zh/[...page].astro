@@ -1,0 +1,41 @@
+---
+import Home from '../index.astro';
+import Docs from '../docs/index.astro';
+import Quickstart from '../docs/quickstart.astro';
+import Reference from '../docs/reference.astro';
+import Playground from '../playground.astro';
+import Journey from '../journey.astro';
+import Tutorials from '../learn/index.astro';
+import Techniques from '../learn/techniques/index.astro';
+import Lesson from '../learn/[id].astro';
+import Technique from '../learn/techniques/[id].astro';
+import Showcase from '../showcase/[id].astro';
+import {works, lessons} from '../../lib/content';
+import {techniques} from '../../lib/techniques';
+
+export function getStaticPaths() {
+  const pages = [
+    [undefined, 'home'], ['docs', 'docs'], ['docs/quickstart', 'quickstart'],
+    ['docs/reference', 'reference'], ['playground', 'playground'], ['journey', 'journey'],
+    ['learn', 'tutorials'], ['learn/techniques', 'techniques'],
+  ] as const;
+  return [
+    ...pages.map(([page, kind]) => ({params: {page}, props: {kind}})),
+    ...works.map(work => ({params: {page: 'showcase/' + work.id}, props: {kind: 'work' as const, work}})),
+    ...lessons.map((lesson, i) => ({params: {page: 'learn/' + lesson.id}, props: {kind: 'lesson' as const, lesson, i}})),
+    ...techniques.map(technique => ({params: {page: 'learn/techniques/' + technique.id}, props: {kind: 'technique' as const, technique}})),
+  ];
+}
+const entry = Astro.props;
+---
+{entry.kind === 'home' && <Home/>}
+{entry.kind === 'docs' && <Docs/>}
+{entry.kind === 'quickstart' && <Quickstart/>}
+{entry.kind === 'reference' && <Reference/>}
+{entry.kind === 'playground' && <Playground/>}
+{entry.kind === 'journey' && <Journey/>}
+{entry.kind === 'tutorials' && <Tutorials/>}
+{entry.kind === 'techniques' && <Techniques/>}
+{entry.kind === 'work' && <Showcase work={entry.work}/>}
+{entry.kind === 'lesson' && <Lesson lesson={entry.lesson} i={entry.i}/>}
+{entry.kind === 'technique' && <Technique technique={entry.technique}/>}

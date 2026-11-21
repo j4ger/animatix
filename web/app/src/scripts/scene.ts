@@ -1,6 +1,9 @@
 import {readableError} from '../lib/errors';
 import {withOverride} from '../lib/overrides';
 import {fetchSource, withTimeout} from '../lib/requests';
+import {currentUi} from '../lib/ui';
+
+const {t} = currentUi();
 
 type Player = HTMLElement & {
   readonly time: number;
@@ -42,12 +45,12 @@ function setPresetsEnabled(enabled: boolean) {
 function showPlaybackFailure(shell: HTMLElement, error: unknown) {
   const fallback = shell.querySelector<HTMLElement>('.scene-fallback');
   if (fallback) fallback.hidden = false;
-  shell.querySelector('.scene-status')!.textContent = `Live playback unavailable. ${readableError(error)}`;
+  shell.querySelector('.scene-status')!.textContent = t('Live playback unavailable.', '实时播放暂不可用。') + ' ' + readableError(error);
   setPresetsEnabled(false);
 }
 
 function playbackError(event: Event): Error {
-  return new Error((event as CustomEvent).detail?.message || 'The runtime could not open this scene.');
+  return new Error((event as CustomEvent).detail?.message || t('The runtime could not open this scene.', '运行时无法打开这个场景。'));
 }
 
 async function createPlayer(shell: HTMLElement): Promise<Player> {
@@ -60,19 +63,20 @@ async function createPlayer(shell: HTMLElement): Promise<Player> {
   const listeners = new AbortController();
   let player: Player | undefined;
   surface.setAttribute('aria-busy', 'true');
-  status.textContent = 'Loading live playback…';
+  status.textContent = t('Loading live playback…', '正在加载实时预览…');
   try {
     const module = shell.dataset.module!;
     if (!imports.has(module)) {
-      const imported = withTimeout(import(/* @vite-ignore */ module), 15000, 'Player loading timed out.');
+      const imported = withTimeout(import(/* @vite-ignore */ module), 15000, t('Player loading timed out.', '播放器加载超时。'));
       imports.set(module, imported.catch(error => { imports.delete(module); throw error; }));
     }
     await imports.get(module);
-    await withTimeout(customElements.whenDefined('amx-player'), 15000, 'Player registration timed out.');
+    await withTimeout(customElements.whenDefined('amx-player'), 15000, t('Player registration timed out.', '播放器注册超时。'));
 
     player = document.createElement('amx-player') as Player;
     player.setAttribute('src', shell.dataset.source!);
-    player.setAttribute('title', shell.dataset.title || 'Animation preview');
+    player.setAttribute('title', shell.dataset.title || t('Animation preview', '动画预览'));
+    player.lang = document.documentElement.lang;
     player.setAttribute('aspect', '16:9');
     if (shell.hasAttribute('data-inline')) {
       player.setAttribute('sealed', '');
@@ -89,7 +93,7 @@ async function createPlayer(shell: HTMLElement): Promise<Player> {
       player!.addEventListener('amxerror', event => reject(playbackError(event)), options);
     });
     mount.append(player);
-    await withTimeout(ready, 60000, 'Live playback took too long to start.');
+    await withTimeout(ready, 60000, t('Live playback took too long to start.', '实时播放启动超时。'));
 
     shell.querySelector<HTMLElement>('.scene-placeholder')!.hidden = true;
     status.textContent = '';
@@ -159,13 +163,13 @@ for (const shell of document.querySelectorAll<HTMLElement>('[data-scene-shell]')
       recording.hidden = false;
       video.focus({preventScroll: true});
       video.play().catch(() => {
-        if (!recording.hidden && !video.error) status.textContent = 'Press play in the video controls to start the recording.';
+        if (!recording.hidden && !video.error) status.textContent = t('Press play in the video controls to start the recording.', '点击视频控件上的播放按钮即可观看。');
       });
     });
     video.addEventListener('error', () => {
       if (recording.hidden) return;
       video.removeAttribute('src');
-      status.textContent = 'The recording could not load. Try live playback again or download the scene source.';
+      status.textContent = t('The recording could not load. Try live playback again or download the scene source.', '无法加载录制视频。可以重试实时播放，或下载场景源码。');
     });
     new IntersectionObserver(([entry]) => {
       if (!entry.isIntersecting) video.pause();
@@ -181,12 +185,12 @@ for (const form of document.querySelectorAll<HTMLElement>('[data-controls]')) {
     const shell = document.querySelector<HTMLElement>('[data-scene-shell]')!;
     const player = shell.querySelector<Player>('amx-player');
     if (!player) {
-      status.textContent = 'Start live playback before applying a setting.';
+      status.textContent = t('Start live playback before applying a setting.', '请先开始实时播放，再应用设置。');
       return;
     }
     const hadFocus = document.activeElement === input;
     const value = Number(input.value);
-    status.textContent = 'Applying…';
+    status.textContent = t('Applying…', '正在应用…');
     try {
       input.disabled = true;
       const configured = withOverride(await fetchSource(shell.dataset.source!), input.name, value);
@@ -206,10 +210,10 @@ for (const form of document.querySelectorAll<HTMLElement>('[data-controls]')) {
       }
       committed = input.value;
       input.dataset.appliedValue = committed;
-      status.textContent = `Applied ${input.name}: ${value}. Playing from the start. Code and download use this preset.`;
+      status.textContent = t(`Applied ${input.name}: ${value}. Playing from the start. Code and download use this preset.`, '已应用设置并从头播放，源码和下载文件均使用当前设置。');
     } catch (error) {
       input.value = committed;
-      status.textContent = `Not applied: ${readableError(error)}`;
+      status.textContent = t('Not applied:', '无法应用设置：') + ' ' + readableError(error);
     } finally {
       input.disabled = !player.isConnected;
       if (hadFocus && !input.disabled) input.focus();

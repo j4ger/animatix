@@ -1,27 +1,27 @@
 ---
 import Page from '../../layouts/Page.astro';
-import {url} from '../../lib/content';
+import {pageUrl} from '../../lib/content';
+import {pageLanguage} from '../../lib/language';
+import {ui} from '../../lib/ui';
+const language = pageLanguage(Astro.currentLocale);
+const {t, docs, quickstart, tutorials, techniques, reference} = ui(language);
+const sections = [
+  {path: 'learn/', title: tutorials, description: t('Learn layout, timing, and motion in six lessons.', '通过六节课掌握布局、时间与运动。')},
+  {path: 'learn/techniques/', title: techniques, description: t('Reuse patterns for reveals, emphasis, and labels.', '复用逐步呈现、强调和标注的写法。')},
+  {path: 'docs/reference/', title: reference, description: t('Look up AMX syntax, primitives, and properties.', '查阅 AMX 语法、图元与属性。')},
+];
 ---
-<Page title="Docs">
+<Page title={docs}>
   <div class="docs-layout">
-    <h1>Docs</h1>
-    <a class="docs-quickstart" href={url('docs/quickstart/')}>
-      <div><h2>Quickstart</h2><p>Preview an AMX scene in your browser, then render it to video locally.</p></div>
+    <h1>{docs}</h1>
+    <a class="docs-quickstart" href={pageUrl(language, 'docs/quickstart/')}>
+      <div><h2>{quickstart}</h2><p>{t('Preview an AMX scene in your browser, then render it to video locally.', '在浏览器中预览 AMX 场景，再在本地渲染成视频。')}</p></div>
       <span aria-hidden="true">→</span>
     </a>
     <div class="docs-links">
-      <a href={url('learn/')}>
-        <h2>Tutorials <span aria-hidden="true">→</span></h2>
-        <p>Learn layout, timing, and motion in six lessons.</p>
-      </a>
-      <a href={url('learn/techniques/')}>
-        <h2>Techniques <span aria-hidden="true">→</span></h2>
-        <p>Reuse patterns for reveals, emphasis, and labels.</p>
-      </a>
-      <a href={url('docs/reference/')}>
-        <h2>Reference <span aria-hidden="true">→</span></h2>
-        <p>Look up AMX syntax, primitives, and properties.</p>
-      </a>
+      {sections.map(section => <a href={pageUrl(language, section.path)}>
+        <h2>{section.title} <span aria-hidden="true">→</span></h2><p>{section.description}</p>
+      </a>)}
     </div>
   </div>
 </Page>

@@ -1,29 +1,38 @@
 ---
 import Page from '../../layouts/Page.astro';
-import {url, github} from '../../lib/content';
+import {url, pageUrl, github} from '../../lib/content';
+import {pageLanguage} from '../../lib/language';
+import {ui} from '../../lib/ui';
+const language = pageLanguage(Astro.currentLocale);
+const {t, docs, quickstart} = ui(language);
+const install = pageUrl(language, '#install');
+const edit = pageUrl(language, 'playground/?scene=insertion-sort&step=four');
+const download = url('content/scenes/insertion-sort.amx');
 ---
-<Page title="Quickstart">
+<Page title={quickstart}>
   <article class="docs-layout quickstart">
-    <a class="backlink" href={url('docs/')}>← Docs</a>
-    <h1>Quickstart</h1>
-    <p id="local">Download a build from <a href={url('#install')}>Install Animatix</a> and extract it. Save <a href={url('content/scenes/insertion-sort.amx')} download>insertion-sort.amx</a> to that folder, or <a href={url('playground/?scene=insertion-sort&step=four')}>edit it in your browser</a>.</p>
+    <a class="backlink" href={pageUrl(language, 'docs/')}>← {docs}</a>
+    <h1>{quickstart}</h1>
+    <p id="local">{language === 'en'
+      ? <>Download a build from <a href={install}>Install Animatix</a> and extract it. Save <a href={download} download>insertion-sort.amx</a> to that folder, or <a href={edit}>edit it in your browser</a>.</>
+      : <>从<a href={install}>安装 Animatix</a>下载并解压。将 <a href={download} download>insertion-sort.amx</a> 保存到解压目录，也可以<a href={edit}>在浏览器中编辑</a>。</>}</p>
     <section id="gui" aria-labelledby="gui-title">
-      <h2 id="gui-title">GUI</h2>
+      <h2 id="gui-title">{t('GUI', '图形界面')}</h2>
       <ol>
-        <li>Launch <code>animatix-gui</code>. Open the <code>.amx</code> file from the filename menu.</li>
-        <li>Choose <strong>Write</strong> to change the source. Change the <code>1.25s</code> on the <code>four.at</code> line to <code>1.6s</code> to slow the move.</li>
-        <li>Choose <strong>Review</strong> and scrub to <code>7.6s</code> to see the move in progress. Save the file when you’re done.</li>
+        <li>{language === 'en' ? <>Launch <code>animatix-gui</code>. Open the <code>.amx</code> file from the filename menu.</> : <>启动 <code>animatix-gui</code>，从文件名菜单打开 <code>.amx</code> 文件。</>}</li>
+        <li>{language === 'en' ? <>Choose <strong>Write</strong> to change the source. Change the <code>1.25s</code> on the <code>four.at</code> line to <code>1.6s</code> to slow the move.</> : <>选择 <strong>Write</strong> 进入编辑。把 <code>four.at</code> 那一行的 <code>1.25s</code> 改为 <code>1.6s</code>，让卡片移动得更慢。</>}</li>
+        <li>{language === 'en' ? <>Choose <strong>Review</strong> and scrub to <code>7.6s</code> to see the move in progress. Save the file when you’re done.</> : <>选择 <strong>Review</strong>，拖到 <code>7.6s</code> 查看移动中的画面。修改完成后保存文件。</>}</li>
       </ol>
-      <a class="text-link" href={github + '/blob/main/docs/gui-workbench.md'}>Workbench guide ↗</a>
+      <a class="text-link" href={github + '/blob/main/docs/gui-workbench.md'}>{t('Workbench guide ↗', '工作台指南（英文）↗')}</a>
     </section>
     <section id="cli" aria-labelledby="cli-title">
-      <h2 id="cli-title">CLI</h2>
-      <p>From the extracted folder, validate the scene and render a still.</p>
+      <h2 id="cli-title">{t('CLI', '命令行')}</h2>
+      <p>{t('From the extracted folder, validate the scene and render a still.', '在解压目录中运行以下命令，检查场景并渲染一张静图。')}</p>
       <pre><code>{`./bin/animatix check insertion-sort.amx
 ./bin/animatix image insertion-sort.amx --time 7.6 --output frame.png`}</code></pre>
-      <p>Use a video-enabled build to render the full scene to MP4.</p>
+      <p>{t('Use a video-enabled build to render the full scene to MP4.', '使用支持视频导出的构建，将完整场景渲染为 MP4。')}</p>
       <pre><code>./bin/animatix video insertion-sort.amx --output insertion-sort.mp4</code></pre>
-      <p class="quickstart-note">On macOS, use <code>./animatix</code>. On Windows, use <code>{String.raw`.\animatix.exe`}</code>.</p>
+      <p class="quickstart-note">{language === 'en' ? <>On macOS, use <code>./animatix</code>. On Windows, use <code>{String.raw`.\animatix.exe`}</code>.</> : <>macOS 使用 <code>./animatix</code>，Windows 使用 <code>{String.raw`.\animatix.exe`}</code>。</>}</p>
     </section>
   </article>
 </Page>

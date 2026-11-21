@@ -1,31 +1,36 @@
 ---
-import {url, works} from '../lib/content';
+import {url, pageUrl, works} from '../lib/content';
+import {workCopy} from '../lib/catalog-zh';
+import {pageLanguage} from '../lib/language';
+import {ui} from '../lib/ui';
+const language = pageLanguage(Astro.currentLocale);
+const {t} = ui(language);
 
 const titles: Record<string, string> = {
-  'move-the-basis': 'Matrix shear',
-  'make-room': 'Stable insertion sort',
-  'when-waves-meet': 'Wave interference',
-  'one-rule-many-forms': 'Staggered motion',
-  'words-keep-time': 'Maintenance notice',
+  'move-the-basis': t('Matrix shear', '矩阵剪切'),
+  'make-room': t('Stable insertion sort', '稳定插入排序'),
+  'when-waves-meet': t('Wave interference', '波的干涉'),
+  'one-rule-many-forms': t('Staggered motion', '错峰运动'),
+  'words-keep-time': t('Maintenance notice', '维护通知'),
 };
 ---
 <div class="examples-gallery">
-  <a class="example-feature" href={url('journey/')} style="--example-color: #cce893">
+  <a class="example-feature" href={pageUrl(language, 'journey/')} style="--example-color: #cce893">
     <img src={url('content/journey/noise-waves.webp')} width="960" height="560" loading="lazy" decoding="async" alt=""/>
     <div class="example-feature-body">
       <div>
-        <p class="example-meta">Physics</p>
-        <h3>How do headphones cancel noise?</h3>
+        <p class="example-meta">{t('Physics', '物理')}</p>
+        <h3>{t('How do headphones cancel noise?', '降噪耳机是怎么消掉噪声的？')}</h3>
       </div>
       <span class="example-arrow" aria-hidden="true">→</span>
     </div>
   </a>
   <ul class="example-list">
-    {works.map(work => <li><a href={url('showcase/' + work.id + '/')} style={`--example-color: ${work.color}`}>
+    {works.map(work => <li><a href={pageUrl(language, 'showcase/' + work.id + '/')} style={`--example-color: ${work.color}`}>
       <img src={url('content/posters/' + work.id + '.png')} width="1280" height="720" loading="lazy" decoding="async" alt=""/>
       <div>
         <h3>{titles[work.id] ?? work.title}</h3>
-        <p class="example-meta">{work.category}</p>
+        <p class="example-meta">{t(work.category, workCopy[work.id].category)}</p>
       </div>
       <span class="example-arrow" aria-hidden="true">→</span>
     </a></li>)}

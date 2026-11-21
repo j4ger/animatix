@@ -152,21 +152,22 @@ export class AmxPlayerView extends AmxPlayerBase {
       .strip {
         position: relative; height: 44px;
         display: flex; align-items: center;
-        border-top: 1px solid rgba(255,255,255,.07);
+        border-top: 1px solid var(--amx-player-line, rgba(255,255,255,.07));
+        background: var(--amx-player-surface, #0a0f17);
         cursor: pointer; touch-action: none;
         user-select: none; -webkit-user-select: none;
         padding: 0 4px; gap: 2px;
       }
-      .strip:focus-visible { outline: 2px solid #f5b942; outline-offset: -2px; }
+      .strip:focus-visible { outline: 2px solid var(--amx-player-accent, #f5b942); outline-offset: -2px; }
       .strip-btn {
         width: 36px; height: 36px; flex: none;
         border: none; border-radius: 8px; background: none;
-        color: #c7cfd9; cursor: pointer; padding: 0;
+        color: var(--amx-player-muted, #c7cfd9); cursor: pointer; padding: 0;
         display: flex; align-items: center; justify-content: center;
         transition: background 0.15s, color 0.15s;
       }
-      .strip-btn:hover { background: rgba(255,255,255,.14); color: #e8edf4; }
-      .strip-btn:focus-visible { outline: 2px solid #f5b942; }
+      .strip-btn:hover { background: var(--amx-player-highlight, rgba(255,255,255,.14)); color: var(--amx-player-ink, #e8edf4); }
+      .strip-btn:focus-visible { outline: 2px solid var(--amx-player-accent, #f5b942); }
       .strip-btn svg { width: 18px; height: 18px; display: block; }
       .track {
         position: relative; flex: 1; height: 100%;
@@ -175,13 +176,13 @@ export class AmxPlayerView extends AmxPlayerBase {
       }
       .track-bar {
         position: absolute; left: 0; right: 0; height: 4px;
-        background: rgba(255,255,255,0.14); border-radius: 2px;
+        background: var(--amx-player-track, rgba(255,255,255,0.14)); border-radius: 2px;
         overflow: visible; transition: height 0.15s;
       }
       .strip:hover .track-bar, .strip.scrubbing .track-bar { height: 6px; }
       .fill {
         position: absolute; left: 0; top: 0; bottom: 0; width: 100%;
-        background: #f5b942; border-radius: 2px;
+        background: var(--amx-player-accent, #f5b942); border-radius: 2px;
         transform-origin: left; transform: scaleX(0);
         pointer-events: none;
       }
@@ -189,11 +190,11 @@ export class AmxPlayerView extends AmxPlayerBase {
       .strip .tick {
         position: absolute; top: -3px; bottom: -3px; width: 2px;
         transform: translateX(-50%);
-        background: rgba(255,255,255,.32);
+        background: var(--amx-player-track, rgba(255,255,255,.32));
         pointer-events: none; transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
       }
       .strip .tick.snapped {
-        background: #f5b942; transform: translateX(-50%) scaleY(1.3);
+        background: var(--amx-player-accent, #f5b942); transform: translateX(-50%) scaleY(1.3);
         box-shadow: 0 0 6px rgba(245,185,66,0.6);
       }
       .strip .diamond {
@@ -203,7 +204,7 @@ export class AmxPlayerView extends AmxPlayerBase {
         pointer-events: none; transition: transform 0.15s, box-shadow 0.15s;
       }
       .strip .diamond.snapped {
-        background: #f5b942; transform: translate(-50%, -50%) rotate(45deg) scale(1.3);
+        background: var(--amx-player-accent, #f5b942); transform: translate(-50%, -50%) rotate(45deg) scale(1.3);
         box-shadow: 0 0 8px rgba(245,185,66,0.8);
       }
       .strip .step {
@@ -213,7 +214,7 @@ export class AmxPlayerView extends AmxPlayerBase {
         pointer-events: none; transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
       }
       .strip .step.snapped {
-        background: #f5b942; transform: translateX(-50%) scaleY(1.3);
+        background: var(--amx-player-accent, #f5b942); transform: translateX(-50%) scaleY(1.3);
         box-shadow: 0 0 8px rgba(52,211,153,0.8);
       }
       .stage.blackout canvas {
@@ -228,12 +229,12 @@ export class AmxPlayerView extends AmxPlayerBase {
       .cursor {
         position: absolute; top: 0; bottom: 0; width: 2px; left: 0;
         transform: translateX(-50%);
-        background: #f5b942; pointer-events: none;
+        background: var(--amx-player-accent, #f5b942); pointer-events: none;
       }
       .cursor-handle {
         position: absolute; top: 50%; left: 50%; width: 10px; height: 10px;
         transform: translate(-50%, -50%) scale(0);
-        background: #f5b942; border-radius: 50%;
+        background: var(--amx-player-accent, #f5b942); border-radius: 50%;
         box-shadow: 0 1px 4px rgba(0,0,0,0.5);
         transition: transform 0.15s ease-out; pointer-events: none;
       }
@@ -243,9 +244,9 @@ export class AmxPlayerView extends AmxPlayerBase {
       .scrub-pill {
         position: absolute; bottom: 100%; left: 0;
         transform: translate(-50%, -8px);
-        background: rgba(10,15,23,0.92); border: 1px solid rgba(255,255,255,0.18);
+        background: var(--amx-player-surface, rgba(10,15,23,0.92)); border: 1px solid var(--amx-player-line, rgba(255,255,255,0.18));
         box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-        color: #e8edf4; font: 11px/1.3 ui-monospace, monospace;
+        color: var(--amx-player-ink, #e8edf4); font: 11px/1.3 ui-monospace, monospace;
         padding: 3px 8px; border-radius: 6px; white-space: nowrap;
         pointer-events: none; opacity: 0; transition: opacity 0.15s;
         z-index: 10;
@@ -253,21 +254,21 @@ export class AmxPlayerView extends AmxPlayerBase {
       .scrub-pill.show { opacity: 1; }
       .chip {
         flex: none;
-        color: #c7cfd9; font: 12px ui-monospace, monospace; white-space: nowrap;
+        color: var(--amx-player-muted, #c7cfd9); font: 12px ui-monospace, monospace; white-space: nowrap;
         font-variant-numeric: tabular-nums;
-        background: rgba(5,8,12,.55); border-radius: 6px; padding: 3px 8px;
+        background: var(--amx-player-highlight, rgba(5,8,12,.55)); border-radius: 6px; padding: 3px 8px;
         pointer-events: none;
       }
       .chip.dbg { color: #8ab4f8; background: rgba(5,8,12,.8); }
       .speed {
         flex: none; width: 44px; height: 36px;
         border: none; border-radius: 8px; background: none;
-        color: #c7cfd9; cursor: pointer; padding: 0;
+        color: var(--amx-player-muted, #c7cfd9); cursor: pointer; padding: 0;
         font: 12px ui-monospace, monospace;
         display: flex; align-items: center; justify-content: center;
       }
-      .speed:hover { background: rgba(255,255,255,.14); color: #e8edf4; }
-      .speed:focus-visible { outline: 2px solid #f5b942; }
+      .speed:hover { background: var(--amx-player-highlight, rgba(255,255,255,.14)); color: var(--amx-player-ink, #e8edf4); }
+      .speed:focus-visible { outline: 2px solid var(--amx-player-accent, #f5b942); }
       @media (pointer: coarse) {
         .strip { height: 52px; padding: 0 6px; gap: 4px; }
         .strip-btn { width: 44px; height: 44px; }
@@ -318,7 +319,7 @@ export class AmxPlayerView extends AmxPlayerBase {
 
     this._playbtn = document.createElement("button");
     this._playbtn.className = "playbtn";
-    this._playbtn.setAttribute("aria-label", "Play");
+    this._playbtn.setAttribute("aria-label", /^zh(?:-|$)/i.test(this.lang) ? "播放" : "Play");
     this._playbtn.innerHTML = ICONS.playBig;
     this._playbtn.addEventListener("click", () => this.play());
 
@@ -341,7 +342,7 @@ export class AmxPlayerView extends AmxPlayerBase {
       const retry = document.createElement("button");
       retry.type = "button";
       retry.className = "retry-btn";
-      retry.textContent = "Retry";
+      retry.textContent = /^zh(?:-|$)/i.test(this.lang) ? "重试" : "Retry";
       retry.addEventListener("click", () => this._resetForReload());
       this._veil.appendChild(retry);
     }

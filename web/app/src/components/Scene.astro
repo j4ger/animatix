@@ -1,5 +1,9 @@
 ---
 import {url} from '../lib/content';
+import {pageLanguage} from '../lib/language';
+import {ui} from '../lib/ui';
+const labels = ui(pageLanguage(Astro.currentLocale));
+const {t} = labels;
 
 interface Props {
   id: string;
@@ -17,28 +21,28 @@ const poster = url(`content/posters/${id}.png`);
      data-source={url(`content/scenes/${id}.amx`)} data-title={title}>
   <div class="scene-surface">
     <div class:list={['scene-placeholder', { 'editor-placeholder': editor }]}>
-      {editor ? <p>Waiting for the scene…</p> :
+      {editor ? <p>{labels.waitingForScene}</p> :
         <div class="scene-poster">
           <img src={poster} alt={posterAlt} width="1280" height="720" decoding="async"/>
-          {!inline && <button class="load-scene" type="button" aria-label={`Play live: ${title}`}>
-            <span class="button primary"><span aria-hidden="true">▶</span> Play live</span>
+          {!inline && <button class="load-scene" type="button" aria-label={`${labels.playLive}: ${title}`}>
+            <span class="button primary"><span aria-hidden="true">▶</span> {labels.playLive}</span>
           </button>}
         </div>}
     </div>
-    <div class="scene-mount" role="region" aria-label={`${title} playback`} tabindex="-1"></div>
+    <div class="scene-mount" role="region" aria-label={labels.playback(title)} tabindex="-1"></div>
   </div>
   {recording && <div class="recording-panel" hidden>
     <video controls playsinline preload="none" width="1280" height="720" poster={poster}
-           data-recording={url(`content/previews/${id}.mp4`)} aria-label={`${title} — recording`}
+           data-recording={url(`content/previews/${id}.mp4`)} aria-label={t(`${title} — recording`, `${title}录制视频`)}
            tabindex="0"></video>
     <div class="recording-caption">
-      <p>Recording of the original settings.</p>
-      <button class="button load-scene" type="button">Try live playback again</button>
+      <p>{t('Recording of the original settings.', '按原始设置录制。')}</p>
+      <button class="button load-scene" type="button">{t('Try live playback again', '重试实时播放')}</button>
     </div>
   </div>}
   <p class="scene-status" role="status" aria-live="polite"></p>
   {recording && <div class="scene-fallback" hidden>
-    <button class="button watch-recording" type="button">Play recording</button>
+    <button class="button watch-recording" type="button">{t('Play recording', '播放录制视频')}</button>
   </div>}
 </div>
 <script src="../scripts/scene.ts"></script>
@@ -97,7 +101,7 @@ const poster = url(`content/posters/${id}.png`);
   }
 
   .scene-poster button:not(:disabled):hover .button {
-    background: #e4ffca;
+    background: color-mix(in srgb, var(--accent) 90%, var(--on-accent));
   }
 
   .scene-surface[aria-busy="true"] .scene-mount {

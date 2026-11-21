@@ -3,11 +3,15 @@ import {readableError} from '../lib/errors';
 import {overridesFor, parameterNames, withOverride} from '../lib/overrides';
 import {loadPlayer, resetPlayer} from './scene';
 import {insertionId, insertionSteps} from '../lib/insertion-steps';
+import {draftSelection, takeEditorTransfer, transferEditor} from '../lib/editor-transfer';
+import {currentUi} from '../lib/ui';
 
 const root = document.querySelector<HTMLElement>('[data-playground]');
 if (root) installPlayground(root);
 
 function installPlayground(root: HTMLElement) {
+  const labels = currentUi();
+  const {t} = labels;
   const code = root.querySelector<HTMLTextAreaElement>('#source-code')!;
   const selector = root.querySelector<HTMLSelectElement>('#scene-choice')!;
   const status = root.querySelector<HTMLElement>('#editor-status')!;
@@ -19,12 +23,15 @@ function installPlayground(root: HTMLElement) {
   const retry = root.querySelector<HTMLButtonElement>('.retry-preview')!;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const ids = Array.from(selector.options, option => option.value);
+  const transferred = takeEditorTransfer('playground');
   let current = '';
   let canonical = '';
   let original = '';
   let compiled = '';
   let lastDownloaded: string | null = null;
   let startTime: number | undefined;
+  let previousPreview: string | undefined;
+  let leavingForLanguage = false;
   let player: Awaited<ReturnType<typeof loadPlayer>> | undefined;
   let sourceLoading = false;
   let building = false;
@@ -73,7 +80,7 @@ function installPlayground(root: HTMLElement) {
   async function openSource(id: string, initial = false) {
     sourceLoading = true;
     updateControls();
-    status.textContent = 'Loading source…';
+    status.textContent = labels.loadingSource;
     try {
       const next = new URL(location.href);
       const path = `${root.dataset.base}${id}.amx`;
@@ -84,14 +91,21 @@ function installPlayground(root: HTMLElement) {
         (text, [name, value]) => withOverride(text, name, value), source,
       ) : source;
       current = id;
-      code.value = original;
+      const draft = initial && transferred?.scene === id ? transferred : undefined;
+      code.value = draft?.source ?? original;
+      compiled = canonical;
+      previousPreview = draft?.compiled;
       selector.value = id;
-      lastDownloaded = null;
+      lastDownloaded = draft?.savedCopy ?? null;
       diagnostics.replaceChildren();
       resetPlayer(shell);
       shell.dataset.source = path;
       player = undefined;
-      startTime = initial && id === insertionId ? linkedPosition(next.searchParams, original) : undefined;
+      startTime = draft ? draft.time : initial && id === insertionId ? linkedPosition(next.searchParams, original) : undefined;
+      if (draft) {
+        code.setSelectionRange(...draft.selection);
+        code.scrollTop = draft.scroll;
+      }
       next.searchParams.set('scene', id);
       if (!initial) [...parameterNames, 'step', 't'].forEach(name => next.searchParams.delete(name));
       history.replaceState(null, '', next);
@@ -99,7 +113,7 @@ function installPlayground(root: HTMLElement) {
       pending = true;
     } catch (error) {
       selector.value = current || id;
-      status.textContent = `Could not load source. ${readableError(error)}`;
+      status.textContent = t('Could not load source.', '无法加载源码。') + ' ' + readableError(error);
       if (!current) retry.hidden = false;
     } finally {
       sourceLoading = false;
@@ -109,13 +123,13 @@ function installPlayground(root: HTMLElement) {
   }
 
   function showDiagnostics(error: unknown) {
-    status.textContent = `Not built: ${readableError(error)}`;
+    status.textContent = t('Not built:', '编译失败：') + ' ' + readableError(error);
     for (const item of (error as {diagnostics?: {line?: number; message?: string; code?: string}[]}).diagnostics ?? []) {
       if (!item.line) continue;
       const button = document.createElement('button');
       button.className = 'diagnostic';
       button.type = 'button';
-      button.textContent = `Line ${item.line} · ${item.message ?? item.code ?? ''}`;
+      button.textContent = `${labels.line(item.line)} · ${item.message ?? item.code ?? ''}`;
       button.addEventListener('click', () => {
         code.focus({preventScroll: true});
         setSelection(item.line!);
@@ -135,7 +149,12 @@ function installPlayground(root: HTMLElement) {
       if (!player?.isConnected) {
         player = await loadPlayer(shell);
         compiled = canonical;
-        player.seek(startTime ?? 0);
+        if (previousPreview !== undefined && previousPreview !== compiled) {
+          await player.applySource(previousPreview);
+          compiled = previousPreview;
+        }
+        previousPreview = undefined;
+        player.seek(Math.min(startTime ?? 0, player.duration));
         if (startTime === undefined && !reducedMotion.matches) player.play();
         retry.hidden = true;
       }
@@ -182,14 +201,14 @@ function installPlayground(root: HTMLElement) {
 
   const hasUnsaved = () => code.value !== original && code.value !== lastDownloaded;
   open.addEventListener('click', () => {
-    if (hasUnsaved() && !confirm('Replace your unsaved edits with another source?')) {
+    if (hasUnsaved() && !confirm(t('Replace your unsaved edits with another source?', '要用另一个场景替换尚未保存的修改吗？'))) {
       selector.value = current;
       return;
     }
     void openSource(selector.value);
   });
   reset.addEventListener('click', () => {
-    if (hasUnsaved() && !confirm('Restore the original source?')) return;
+    if (hasUnsaved() && !confirm(t('Restore the original source?', '要恢复原始源码吗？'))) return;
     code.value = original;
     queueBuild(0);
   });
@@ -221,12 +240,17 @@ function installPlayground(root: HTMLElement) {
     const destination = new URL(link.href);
     if (destination.origin === location.origin && destination.pathname === location.pathname &&
         destination.search === location.search && destination.hash) return;
-    if (!confirm('Leave this page? Download your source first to keep your edits.')) event.preventDefault();
+    if (!confirm(t('Leave this page? Download your source first to keep your edits.', '要离开这个页面吗？下载源码可以保留修改。'))) event.preventDefault();
     else lastDownloaded = code.value;
   });
   window.addEventListener('beforeunload', event => {
-    if (hasUnsaved()) event.preventDefault();
+    if (!leavingForLanguage && hasUnsaved()) event.preventDefault();
   });
+  window.addEventListener('pageshow', event => { if (event.persisted) leavingForLanguage = false; });
+  transferEditor('playground', () => current ? {
+    scene: current, source: code.value, compiled, time: player?.time ?? startTime,
+    selection: draftSelection(code), scroll: code.scrollTop, savedCopy: lastDownloaded,
+  } : transferred, () => { leavingForLanguage = true; });
 
   const requested = new URLSearchParams(location.search).get('scene') ?? '';
   void openSource(ids.includes(requested) ? requested : 'first-move', true);

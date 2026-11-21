@@ -1,8 +1,19 @@
 ---
 import Page from '../../layouts/Page.astro';
-import {url,github} from '../../lib/content';
-const topics = [['Language syntax', 'spec.md'], ['Primitives', 'primitives.md'], ['Properties', 'properties.md'], ['Effects', 'effects.md'], ['Narration', 'narration.md'], ['Native tools and video export', 'contributing.md']];
+import {pageUrl,github} from '../../lib/content';
+import {pageLanguage} from '../../lib/language';
+import {ui} from '../../lib/ui';
+const language = pageLanguage(Astro.currentLocale);
+const {t, docs, reference} = ui(language);
+const topics = [
+  [t('Language syntax', '语言语法'), 'spec.md'],
+  [t('Primitives', '图元'), 'primitives.md'],
+  [t('Properties', '属性'), 'properties.md'],
+  [t('Effects', '效果'), 'effects.md'],
+  [t('Narration', '旁白'), 'narration.md'],
+  [t('Native tools and video export', '本地工具与视频导出'), 'contributing.md'],
+];
 ---
-<Page title="Reference"><div class="docs-layout guide"><a class="backlink" href={url('docs/')}>← Docs</a><h1>Reference</h1><div class="link-list">
-  {topics.map(([title, path]) => <a href={github+'/blob/main/docs/'+path}>{title}<span>GitHub ↗</span></a>)}
+<Page title={reference}><div class="docs-layout guide"><a class="backlink" href={pageUrl(language, 'docs/')}>← {docs}</a><h1>{reference}</h1><div class="link-list">
+  {topics.map(([title, path]) => <a href={github+'/blob/main/docs/'+path}>{title}<span>{t('GitHub ↗', 'GitHub · 英文 ↗')}</span></a>)}
 </div></div></Page>

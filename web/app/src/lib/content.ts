@@ -1,5 +1,8 @@
+import {localizedPath, type Language} from './language';
+
 export const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 export const url = (path: string) => `${base}/${path.replace(/^\//, '')}`;
+export const pageUrl = (language: Language, path = '') => localizedPath(base, language, path);
 export const github = 'https://github.com/j4ger/animatix';
 export const works = [
   { id: 'move-the-basis', title: 'Move the basis.', question: 'What changes when every point follows the same rule?', category: 'Mathematics', duration: 24, color: '#74ded5', description: 'A horizontal shear moves a lattice, two basis vectors and one sample point together. Fixed grey axes let you compare the original space with the transformed one.', insight: 'The matrix moves the basis. Every other point follows.', controls: '', note: 'The determinant is one, so area stays fixed. Lengths and angles do not. Both axes use the same scale.' },

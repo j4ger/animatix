@@ -9,6 +9,11 @@ const {
 import { AmxPlayerView } from "./view.js";
 import { loadRuntime, fetchSource } from "./runtime.js";
 import { dispatchPlayerError, playerError } from "./errors.js";
+const CONTROL_LABELS = {
+  en: { playback: "Playback controls", play: "Play", pause: "Pause", replay: "Replay", timeline: "Timeline", speed: "Playback speed" },
+  zh: { playback: "播放控制", play: "播放", pause: "暂停", replay: "重播", timeline: "时间轴", speed: "播放速度" },
+};
+
 export class AmxPlayerLoad extends AmxPlayerView {
   _maybeStartLoading() {
     if (this._destroyed || !this.getAttribute("src") || this._state !== "idle") return;
@@ -183,16 +188,17 @@ export class AmxPlayerLoad extends AmxPlayerView {
   }
 
   _buildControls() {
+    const labels = CONTROL_LABELS[/^zh(?:-|$)/i.test(this.lang) ? "zh" : "en"];
     const strip = document.createElement("div");
     strip.className = "strip";
     strip.tabIndex = 0;
     strip.setAttribute("role", "region");
-    strip.setAttribute("aria-label", "Playback controls");
+    strip.setAttribute("aria-label", labels.playback);
 
     const playToggle = document.createElement("button");
     playToggle.type = "button";
     playToggle.className = "strip-btn play-toggle";
-    playToggle.setAttribute("aria-label", "Play");
+    playToggle.setAttribute("aria-label", labels.play);
     playToggle.innerHTML = ICONS.play;
     playToggle.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -202,7 +208,7 @@ export class AmxPlayerLoad extends AmxPlayerView {
     const track = document.createElement("div");
     track.className = "track";
     track.setAttribute("role", "slider");
-    track.setAttribute("aria-label", "Timeline");
+    track.setAttribute("aria-label", labels.timeline);
     track.setAttribute("aria-valuemin", "0");
     track.setAttribute("aria-valuemax", String(this._duration));
 
@@ -238,14 +244,14 @@ export class AmxPlayerLoad extends AmxPlayerView {
     speed.type = "button";
     speed.className = "speed";
     speed.textContent = "1\u00d7";
-    speed.setAttribute("aria-label", "Playback speed 1\u00d7");
+    speed.setAttribute("aria-label", `${labels.speed} 1×`);
     speed.addEventListener("pointerdown", (e) => e.stopPropagation());
     speed.addEventListener("click", (e) => {
       e.stopPropagation();
       const RATES = [1, 1.5, 2, 0.5];
       this._rate = RATES[(RATES.indexOf(this._rate) + 1) % RATES.length];
       speed.textContent = `${this._rate}\u00d7`;
-      speed.setAttribute("aria-label", `Playback speed ${this._rate}\u00d7`);
+      speed.setAttribute("aria-label", `${labels.speed} ${this._rate}×`);
     });
 
     strip.append(playToggle, track, chip, speed);
@@ -365,7 +371,7 @@ export class AmxPlayerLoad extends AmxPlayerView {
 
     strip.addEventListener("keydown", (e) => this._handleKeyDown(e));
 
-    this._controls = { strip, playToggle, track, fill, cursor, scrubPill, chip, speed };
+    this._controls = { strip, playToggle, track, fill, cursor, scrubPill, chip, speed, labels };
     this._syncControls();
   }
 
@@ -446,13 +452,13 @@ export class AmxPlayerLoad extends AmxPlayerView {
     let label;
     if (this._playing) {
       icon = ICONS.pause;
-      label = "Pause";
+      label = c.labels.pause;
     } else if (this._time >= this._duration && !this._looping()) {
       icon = ICONS.replay;
-      label = "Replay";
+      label = c.labels.replay;
     } else {
       icon = ICONS.play;
-      label = "Play";
+      label = c.labels.play;
     }
     if (icon !== s.icon) {
       c.playToggle.innerHTML = icon;

@@ -1,7 +1,13 @@
 ---
 import Page from '../../layouts/Page.astro';
-import {lessons,url} from '../../lib/content';
+import {lessons, pageUrl} from '../../lib/content';
+import {lessonCopy} from '../../lib/catalog-zh';
+import {pageLanguage} from '../../lib/language';
+import {ui} from '../../lib/ui';
+const language = pageLanguage(Astro.currentLocale);
+const {t, docs, tutorials} = ui(language);
 ---
-<Page title="Tutorials"><section class="guide"><a class="backlink" href={url('docs/')}>← Docs</a><h1>Tutorials</h1></section>
-  <div class="lessons">{lessons.map((lesson,i)=><a href={url('learn/'+lesson.id+'/')}><span class="lesson-number">{i+1}</span><div><h2>{lesson.title}</h2><p>{lesson.goal}</p></div><span>→</span></a>)}</div>
+<Page title={tutorials}><section class="guide"><a class="backlink" href={pageUrl(language, 'docs/')}>← {docs}</a><h1>{tutorials}</h1></section>
+  <div class="lessons">{lessons.map((lesson, i) => <a href={pageUrl(language, 'learn/' + lesson.id + '/')}>
+    <span class="lesson-number">{i + 1}</span><div><h2>{t(lesson.title, lessonCopy[lesson.id].title)}</h2><p>{t(lesson.goal, lessonCopy[lesson.id].goal)}</p></div><span aria-hidden="true">→</span></a>)}</div>
 </Page>

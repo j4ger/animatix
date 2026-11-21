@@ -1,9 +1,4 @@
 :root {
-  --paper: #f7f4ec;
-  --ink: #1f2b29;
-  --muted: #49554e;
-  --rule: #c8c9bb;
-  --accent: #97502b;
   --pad: clamp(20px, 5vw, 90px);
   --mono: 'IBM Plex Mono', ui-monospace, monospace;
   font: 100%/1.5 'Inter', system-ui, sans-serif;
@@ -57,7 +52,7 @@ figcaption span + span, .timecode { font: .75rem/1.4 var(--mono); color: var(--m
 .play i { width: 11px; height: 12px; background: currentColor; clip-path: polygon(0 0, 100% 50%, 0 100%); }
 .play[data-playing] i { clip-path: polygon(0 0, 30% 0, 30% 100%, 0 100%, 0 0, 70% 0, 100% 0, 100% 100%, 70% 100%, 70% 0); }
 button:disabled { opacity: .55; cursor: default; }
-.timeline { flex: 1; min-width: 0; height: 24px; accent-color: #475e50; cursor: pointer; }
+.timeline { flex: 1; min-width: 0; height: 24px; accent-color: var(--accent); cursor: pointer; }
 .timecode { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .feedback { color: var(--muted); font-size: .82rem; }
 .feedback:not(:empty) { padding-top: 3px; }

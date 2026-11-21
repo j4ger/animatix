@@ -1,0 +1,72 @@
+:root {
+  color-scheme: light dark;
+  --bg: light-dark(#f6f5ef, #10130f);
+  --surface: light-dark(#eeeee5, #1b201a);
+  --panel: light-dark(#fcfcf6, #161a15);
+  --raised: light-dark(#f2f2e8, #20251f);
+  --ink: light-dark(#23281e, #f2f2e9);
+  --muted: light-dark(#535e4c, #acb4a7);
+  --line: light-dark(#cbd0c1, #363d32);
+  --edge: light-dark(#a1aa95, #52594c);
+  --accent: light-dark(#395e17, #d0f37d);
+  --on-accent: light-dark(#f9fbf4, #172013);
+  --accent-soft: light-dark(#e1e9d3, #293525);
+  --track: light-dark(#a1aa95, #505749);
+  --error-text: light-dark(#8b2d20, #ffb6a6);
+  --error-surface: light-dark(#f8e5e0, #352221);
+  --shadow: light-dark(#24302120, #0004);
+  background-color: var(--bg);
+  color: var(--ink);
+}
+:root[data-theme=light] { color-scheme: light; }
+:root[data-theme=dark] { color-scheme: dark; }
+body { background-color: var(--bg); }
+
+:root.journey-page {
+  --bg: light-dark(#f7f4ec, #141715);
+  --paper: var(--bg);
+  --ink: light-dark(#1f2b29, #f0f0e8);
+  --muted: light-dark(#49554e, #afb9ac);
+  --line: light-dark(#c8c9bb, #3d4942);
+  --rule: var(--line);
+  --accent: light-dark(#97502b, #efaf86);
+}
+
+::selection { color: var(--ink); background: var(--accent-soft); }
+.project-page .button { border-color: var(--edge); }
+.project-page .button:hover { border-color: var(--accent); }
+.project-page .button.primary, .project-page .skip {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+:where(.project-page) :is(.editor-pane, .lesson-code, .scene-shell, select, textarea) {
+  background: var(--panel);
+  border-color: var(--line);
+  color: var(--ink);
+}
+.project-page .source-editor textarea { background: transparent; }
+.project-page .editor-pane .diagnostic { color: var(--error-text); background: var(--error-surface); }
+.project-page :is(.muted, .lesson-number) { color: var(--muted); }
+
+amx-player {
+  --amx-player-surface: var(--panel);
+  --amx-player-ink: var(--ink);
+  --amx-player-muted: var(--muted);
+  --amx-player-line: var(--line);
+  --amx-player-track: var(--track);
+  --amx-player-accent: var(--accent);
+  --amx-player-highlight: var(--accent-soft);
+}
+
+:root:lang(zh) { font-family: system-ui, 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; }
+:lang(zh) .product-intro h1 {
+  font-family: inherit;
+  font-size: clamp(2.1rem, 13cqi, 5.2rem);
+  font-weight: 700;
+  letter-spacing: -.02em;
+  line-height: 1.14;
+}
+:lang(zh) .product-intro h1 em { font-family: inherit; font-size: 1em; font-style: normal; font-weight: inherit; }
+.journey-page:lang(zh) :is(h1, h2) { font-family: inherit; font-weight: 720; font-size: clamp(2.55rem, 5vw, 5.6rem); letter-spacing: -.02em; line-height: 1.14; }
+.journey-page:lang(zh) :is(h1, h2) em { font-style: normal; }

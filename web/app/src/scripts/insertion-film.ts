@@ -1,6 +1,10 @@
 import {loadPlayer, resetPlayer} from './scene';
 import {readableError} from '../lib/errors';
 import {sourceCues} from '../lib/insertion-steps';
+import {draftSelection, takeEditorTransfer, transferEditor} from '../lib/editor-transfer';
+import {currentUi} from '../lib/ui';
+
+const labels = currentUi();
 
 for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
   const shell = sample.querySelector<HTMLElement>('[data-scene-shell]')!;
@@ -17,6 +21,8 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
   const status = panel.querySelector<HTMLElement>('.source-status')!;
   const media = matchMedia('(prefers-reduced-motion: reduce)');
   const original = editor.value;
+  const transferred = takeEditorTransfer('home');
+  let previousPreview = transferred?.compiled;
   let compiled = original;
   let cueButtons: HTMLButtonElement[] = [];
   let guideLines: HTMLDivElement[] = [];
@@ -25,7 +31,7 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
   let player: Awaited<ReturnType<typeof loadPlayer>> | undefined;
   let frame = 0;
   let playing = false;
-  let seconds = 0;
+  let seconds = transferred?.time ?? 0;
   let problem = false;
   let busy = false;
   let buildTimer: number | undefined;
@@ -73,7 +79,7 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
       const button = document.createElement('button');
       button.type = 'button';
       button.textContent = '#' + cue.label;
-      button.title = `Line ${cue.line}`;
+      button.title = labels.line(cue.line);
       button.addEventListener('click', () => {
         if (player && !busy && editor.value === compiled) seek(cue.time);
         const beginning = lines.slice(0, cue.line - 1).join('\n').length + (cue.line > 1 ? 1 : 0);
@@ -95,7 +101,7 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
     slider.style.setProperty('--progress', (duration ? 100 * seconds / duration : 0) + '%');
     clock.value = seconds.toFixed(2) + 's';
     controls.toggleAttribute('data-playing', playing);
-    controlText.textContent = problem ? 'Retry' : playing ? 'Pause' : seconds >= duration ? 'Replay' : 'Play';
+    controlText.textContent = problem ? labels.retry : playing ? labels.pause : seconds >= duration ? labels.replay : labels.play;
     if (!panel.hidden) markCurrentCue();
   }
 
@@ -134,11 +140,12 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
     tick();
   }
 
-  function setPanel(open: boolean) {
+  function setPanel(open: boolean, interactive = true) {
     panel.hidden = !open;
     sample.toggleAttribute('data-source-open', open);
     inspect.setAttribute('aria-expanded', String(open));
-    inspect.querySelector('span')!.textContent = open ? 'Hide source' : 'View source';
+    inspect.querySelector('span')!.textContent = open ? labels.hideSource : labels.viewSource;
+    if (!interactive) return;
     if (open) {
       sizeGuide();
       seek(player?.time ?? seconds);
@@ -166,9 +173,14 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
     updateControls();
     try {
       player = await loadPlayer(shell);
+      if (previousPreview !== undefined && previousPreview !== original) {
+        await player.applySource(previousPreview);
+        compiled = previousPreview;
+      }
+      previousPreview = undefined;
       slider.max = String(player.duration);
       seek(seconds);
-      if (panel.hidden && !media.matches) play();
+      if (!transferred && panel.hidden && !media.matches) play();
       if (buildTimer === undefined) buildPending = editor.value !== compiled;
     } catch (error) {
       fail(error);
@@ -256,6 +268,16 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
     if (player) fail((event as CustomEvent).detail.error);
   });
 
+  if (transferred) {
+    editor.value = transferred.source;
+    setPanel(!!transferred.sourceOpen, false);
+    editor.setSelectionRange(...transferred.selection);
+    editor.scrollTop = transferred.scroll;
+  }
+  transferEditor('home', () => ({
+    scene: 'insertion-sort', source: editor.value, compiled, time: player?.time ?? seconds,
+    selection: draftSelection(editor), scroll: editor.scrollTop, sourceOpen: !panel.hidden,
+  }));
   updateSourceCues();
   void start();
 }
