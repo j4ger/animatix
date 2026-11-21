@@ -44,6 +44,10 @@ pub struct TextTracks {
     /// Pre-built text paths for rendering.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub text_paths: Option<PropertyTrack<Vec<TextPath>>>,
+    /// Lazily prepared outline alignment for the currently sampled text segment.
+    #[doc(hidden)]
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub morph_alignment: morph::AlignmentCache,
     /// Character reveal progress (0-1) for typewriter effect.
     pub char_progress: Option<PropertyTrack<f32>>,
     /// Font ascent in scene units (points), used for baseline alignment.
@@ -104,16 +108,22 @@ impl TextTracks {
                 return (Vec::new(), None);
             }
         }
-        let default_paths = PropertyTrack::new(Vec::new());
-        let paths_track = self.text_paths.as_ref().unwrap_or(&default_paths);
-        let default_morph = PropertyTrack::new(morph::MorphOptions::default());
-        let morph_track = style.morph_options.as_ref().unwrap_or(&default_morph);
-        let mut paths = morph::evaluate_paths_with_options(
-            paths_track,
-            morph_track,
-            time_ms,
-            morph::interpolate_text_paths,
-        );
+        let mut paths = self.text_paths.as_ref().map_or_else(Vec::new, |track| {
+            morph::sample_track(
+                track,
+                style.morph_options.as_ref(),
+                time_ms,
+                |source, target, t, options| {
+                    morph::sample_text_paths(
+                        source,
+                        target,
+                        t,
+                        options,
+                        Some(&self.morph_alignment),
+                    )
+                },
+            )
+        });
 
         let clip = apply_split_text_animation(&mut paths, self, time_ms);
         (paths, clip)

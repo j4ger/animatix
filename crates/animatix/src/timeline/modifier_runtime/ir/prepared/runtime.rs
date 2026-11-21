@@ -13,6 +13,7 @@ impl PreparedModifiers {
     pub(crate) fn matches(&self, source: &ModifierIrProgram, env: &Environment) -> bool {
         std::ptr::eq(self.source.as_ref(), source)
             && env.let_scopes.borrow().is_empty()
+            && self.locals.matches(env)
             && self.guards.iter().all(|(name, expected)| {
                 env.get_ref(name).is_some_and(|actual| fold::same_value(expected, actual))
             })
@@ -24,7 +25,12 @@ impl PreparedModifiers {
         overrides: &mut ModifierOverrides,
         geometry: ModifierGeometry<'_>,
     ) -> Result<(), EvalError> {
-        execute(&self.statements, env, overrides, geometry)
+        env.modifier_locals.resize_with(self.locals.names.len(), || None);
+        let result = execute(&self.statements, env, overrides, geometry);
+        // Publish even on error: the ordinary VM leaves successful earlier
+        // writes visible to later programs and to plots in this frame.
+        self.locals.publish(env);
+        result
     }
 }
 
@@ -37,6 +43,15 @@ fn execute(
     for statement in statements {
         match statement {
             Statement::Generic(stmt) => execute_stmt(stmt, env, overrides, Some(geometry))?,
+            Statement::StoreLocal(index, expr) => {
+                let value = evaluate(expr, env, Some(geometry), overrides)?;
+                env.modifier_locals[*index] = Some(value);
+            },
+            Statement::Unrolled(bodies) => {
+                for body in bodies {
+                    execute(body, env, overrides, geometry)?;
+                }
+            },
             Statement::Fast(stmt) => {
                 execute_fast_statements(
                     std::slice::from_ref(stmt.as_ref()),

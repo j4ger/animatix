@@ -137,6 +137,10 @@ pub enum CompiledExpr {
         /// Which anchor point (top, right, center, etc.).
         anchor: crate::timeline::ActorPoint,
     },
+    /// Read a slot in a scene-bound modifier plan, falling back to the frame binding.
+    #[doc(hidden)]
+    #[cfg_attr(feature = "serde", serde(skip))]
+    ModifierLocal(usize, String),
 }
 
 impl CompiledExpr {
@@ -144,7 +148,8 @@ impl CompiledExpr {
     /// this expression, as `(label, prop)` pairs.
     pub fn collect_prop_refs(&self, out: &mut Vec<(String, String)>) {
         match self {
-            CompiledExpr::Const(_) | CompiledExpr::LoadEnv(_) => {},
+            CompiledExpr::Const(_) | CompiledExpr::LoadEnv(_) | CompiledExpr::ModifierLocal(..) => {
+            },
             CompiledExpr::Field(base, _) => base.collect_prop_refs(out),
             CompiledExpr::PropRef { label, prop } => out.push((label.clone(), prop.clone())),
             CompiledExpr::MakeList(items) => {
@@ -215,7 +220,7 @@ impl CompiledExpr {
     /// Returns `true` if this compiled expression references the given identifier.
     pub fn references_ident(&self, name: &str) -> bool {
         match self {
-            CompiledExpr::LoadEnv(id) => id == name,
+            CompiledExpr::LoadEnv(id) | CompiledExpr::ModifierLocal(_, id) => id == name,
             CompiledExpr::Field(base, _) => base.references_ident(name),
             CompiledExpr::MakeVec(items) => items.iter().any(|item| item.references_ident(name)),
             CompiledExpr::MakeList(items) => items.iter().any(|item| item.references_ident(name)),

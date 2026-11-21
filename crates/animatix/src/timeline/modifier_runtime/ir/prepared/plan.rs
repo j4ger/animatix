@@ -15,7 +15,14 @@ pub(crate) fn prepare(
     timeline: &Timeline,
     source: Arc<ModifierIrProgram>,
 ) -> Option<Arc<PreparedModifiers>> {
-    if !source.statements.iter().any(needs_preparation) {
+    let needs_scene_binding = source.statements.iter().any(needs_preparation);
+    // A short straight-line program already gets direct scalar/vector
+    // assignment and avoids a second run-time plan.
+    if !needs_scene_binding
+        && (source.fast.as_ref().is_some_and(|fast| {
+            fast.statements.iter().any(|stmt| matches!(stmt, FastStmt::FastAssign(_)))
+        }) || !source.statements.iter().any(|stmt| matches!(stmt, ModifierIrStmt::Let { .. })))
+    {
         return None;
     }
     let _stage = crate::perf::ScopedStage::new(crate::perf::stage::MODIFIER_PREPARE);
@@ -23,12 +30,18 @@ pub(crate) fn prepare(
     collect_names(&source.statements, &mut shadowed);
     let mut planner = Planner {
         timeline,
-        folder: Folder::new(timeline, shadowed),
+        folder: Folder::new(timeline, shadowed.clone()),
         paths: HashMap::new(),
         remaining: MAX_PLANNED_STATEMENTS,
     };
     let mut statements = planner.statements(&source.statements, &mut HashMap::new())?;
-    if let Some(fast) = &source.fast {
+    let locals = super::slots::compile(timeline, &mut statements, &shadowed);
+    if !needs_scene_binding && locals.is_none() {
+        return None;
+    }
+    if locals.is_none()
+        && let Some(fast) = &source.fast
+    {
         for (prepared, original) in statements.iter_mut().zip(&fast.statements) {
             if matches!(original, FastStmt::FastAssign(_)) {
                 *prepared = Statement::Fast(Box::new(original.clone()));
@@ -39,6 +52,7 @@ pub(crate) fn prepare(
         source,
         guards: planner.folder.guards.into_iter().collect(),
         statements,
+        locals: locals.unwrap_or_default(),
     }))
 }
 

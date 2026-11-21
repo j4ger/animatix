@@ -8,7 +8,7 @@ use crate::renderer::types::VelloPath;
 use crate::timeline::Easing;
 use crate::timeline::actor_points::track::{PointValue, write_point};
 use crate::timeline::kurbo_shapes::KurboShape;
-use crate::timeline::morph::MorphOptions;
+use crate::timeline::morph;
 use crate::timeline::property_track::PropertyTrack;
 use crate::timeline::shapes::ShapeType;
 
@@ -37,6 +37,9 @@ pub struct ShapeTracks {
     /// Pre-built vector paths for shape rendering.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub vector_paths: Option<PropertyTrack<Vec<VelloPath>>>,
+    /// Lazily prepared outline alignment for the currently sampled shape segment.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub(crate) morph_alignment: morph::AlignmentCache,
     /// Memoized shape→path conversion for the render path: the key is the
     /// sampled `KurboShape` (self-validating — any geometry change misses and
     /// rebuilds; the fixed default tolerance is part of the conversion), the
@@ -238,7 +241,7 @@ impl ShapeTracks {
                 return computed;
             }
         }
-        Arc::new(self.evaluate_vector_paths_value(style, time_ms))
+        Arc::new(self.sample_vector_paths(style, time_ms, Some(&self.morph_alignment)))
     }
 
     /// Unmemoized single evaluation of the vector-path track.
@@ -251,17 +254,25 @@ impl ShapeTracks {
         style: &StyleTracks,
         time_ms: u64,
     ) -> Vec<VelloPath> {
-        let Some(paths_track) = self.vector_paths.as_ref() else {
-            return Vec::new();
-        };
-        let default_morph = PropertyTrack::new(MorphOptions::default());
-        let morph_track = style.morph_options.as_ref().unwrap_or(&default_morph);
-        crate::timeline::morph::evaluate_paths_with_options(
-            paths_track,
-            morph_track,
-            time_ms,
-            crate::timeline::morph::interpolate_vello_paths,
-        )
+        self.sample_vector_paths(style, time_ms, None)
+    }
+
+    fn sample_vector_paths(
+        &self,
+        style: &StyleTracks,
+        time_ms: u64,
+        alignment: Option<&morph::AlignmentCache>,
+    ) -> Vec<VelloPath> {
+        self.vector_paths.as_ref().map_or_else(Vec::new, |track| {
+            morph::sample_track(
+                track,
+                style.morph_options.as_ref(),
+                time_ms,
+                |source, target, t, options| {
+                    morph::sample_vello_paths(source, target, t, options, alignment)
+                },
+            )
+        })
     }
 
     /// Memoized `KurboShape → BezPath` conversion for the render path.

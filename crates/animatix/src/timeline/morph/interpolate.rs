@@ -16,57 +16,78 @@ pub fn morph_paths_with_options(
     t: f64,
     options: MorphOptions,
 ) -> BezPath {
-    let (source_path, target_path, output_bounds) = if options.stretch {
-        let source_bounds = path_bounds(source);
-        let target_bounds = path_bounds(target);
-        let normalized_source = normalize_path_to_unit_bounds(source, source_bounds);
-        let normalized_target = normalize_path_to_unit_bounds(target, target_bounds);
-        let blended_bounds = interpolate_bounds(source_bounds, target_bounds, t);
-        (normalized_source, normalized_target, Some(blended_bounds))
-    } else {
-        (source.clone(), target.clone(), None)
-    };
+    AlignedPath::new(source, target, options).sample(t, options.path_arc)
+}
 
-    let mut result = BezPath::new();
+/// Endpoint geometry shared by every sample in an interpolation segment.
+#[derive(Debug)]
+pub(super) struct AlignedPath {
+    source: BezPath,
+    target: BezPath,
+    bounds: Option<(PathBounds, PathBounds)>,
+}
 
-    let (aligned_src, aligned_tgt) =
-        align_subpaths_with_strategy(&source_path, &target_path, options.strategy);
-
-    for (s, tr) in aligned_src.elements().iter().zip(aligned_tgt.elements().iter()) {
-        match (s, tr) {
-            (PathEl::MoveTo(p1), PathEl::MoveTo(p2)) => {
-                result.push(PathEl::MoveTo(curved_lerp_point(*p1, *p2, t, options.path_arc)));
-            },
-            (PathEl::LineTo(p1), PathEl::LineTo(p2)) => {
-                result.push(PathEl::LineTo(curved_lerp_point(*p1, *p2, t, options.path_arc)));
-            },
-            (PathEl::QuadTo(p1a, p1b), PathEl::QuadTo(p2a, p2b)) => {
-                result.push(PathEl::QuadTo(
-                    curved_lerp_point(*p1a, *p2a, t, options.path_arc),
-                    curved_lerp_point(*p1b, *p2b, t, options.path_arc),
-                ));
-            },
-            (PathEl::CurveTo(p1a, p1b, p1c), PathEl::CurveTo(p2a, p2b, p2c)) => {
-                result.push(PathEl::CurveTo(
-                    curved_lerp_point(*p1a, *p2a, t, options.path_arc),
-                    curved_lerp_point(*p1b, *p2b, t, options.path_arc),
-                    curved_lerp_point(*p1c, *p2c, t, options.path_arc),
-                ));
-            },
-            (PathEl::ClosePath, PathEl::ClosePath) => {
-                result.push(PathEl::ClosePath);
-            },
-            _ => {
-                // If they are not the same type, fallback to target (should not happen if aligned
-                // properly)
-                result.push(*tr);
-            },
+impl AlignedPath {
+    pub(super) fn new(source: &BezPath, target: &BezPath, options: MorphOptions) -> Self {
+        let (source, target, bounds) = if options.stretch {
+            let source_bounds = path_bounds(source);
+            let target_bounds = path_bounds(target);
+            let source = normalize_path_to_unit_bounds(source, source_bounds);
+            let target = normalize_path_to_unit_bounds(target, target_bounds);
+            let (source, target) = align_subpaths_with_strategy(&source, &target, options.strategy);
+            (source, target, Some((source_bounds, target_bounds)))
+        } else {
+            let (source, target) = align_subpaths_with_strategy(source, target, options.strategy);
+            (source, target, None)
+        };
+        Self {
+            source,
+            target,
+            bounds,
         }
     }
 
-    match output_bounds {
-        Some(bounds) => denormalize_path_from_unit_bounds(&result, bounds),
-        None => result,
+    pub(super) fn sample(&self, t: f64, path_arc: f64) -> BezPath {
+        let mut result = BezPath::new();
+        for (s, tr) in self.source.elements().iter().zip(self.target.elements()) {
+            match (s, tr) {
+                (PathEl::MoveTo(p1), PathEl::MoveTo(p2)) => {
+                    result.push(PathEl::MoveTo(curved_lerp_point(*p1, *p2, t, path_arc)));
+                },
+                (PathEl::LineTo(p1), PathEl::LineTo(p2)) => {
+                    result.push(PathEl::LineTo(curved_lerp_point(*p1, *p2, t, path_arc)));
+                },
+                (PathEl::QuadTo(p1a, p1b), PathEl::QuadTo(p2a, p2b)) => {
+                    result.push(PathEl::QuadTo(
+                        curved_lerp_point(*p1a, *p2a, t, path_arc),
+                        curved_lerp_point(*p1b, *p2b, t, path_arc),
+                    ));
+                },
+                (PathEl::CurveTo(p1a, p1b, p1c), PathEl::CurveTo(p2a, p2b, p2c)) => {
+                    result.push(PathEl::CurveTo(
+                        curved_lerp_point(*p1a, *p2a, t, path_arc),
+                        curved_lerp_point(*p1b, *p2b, t, path_arc),
+                        curved_lerp_point(*p1c, *p2c, t, path_arc),
+                    ));
+                },
+                (PathEl::ClosePath, PathEl::ClosePath) => {
+                    result.push(PathEl::ClosePath);
+                },
+                _ => {
+                    // If they are not the same type, fallback to target (should not happen if aligned
+                    // properly)
+                    result.push(*tr);
+                },
+            }
+        }
+
+        match self.bounds {
+            Some((source, target)) => {
+                let bounds = interpolate_bounds(source, target, t);
+                denormalize_path_from_unit_bounds(&result, bounds)
+            },
+            None => result,
+        }
     }
 }
 
@@ -139,13 +160,21 @@ pub fn evaluate_paths_with_options<T: Interpolate>(
     time_ms: u64,
     interpolate: fn(&T, &T, f32, MorphOptions) -> T,
 ) -> T {
+    sample_track(paths, Some(morph_options), time_ms, interpolate)
+}
+
+pub(in crate::timeline) fn sample_track<T: Interpolate>(
+    paths: &PropertyTrack<T>,
+    morph_options: Option<&PropertyTrack<MorphOptions>>,
+    time_ms: u64,
+    interpolate: impl FnOnce(&T, &T, f32, MorphOptions) -> T,
+) -> T {
     if let Some((found_time, prev_val, found_val, progress, found_easing)) =
         paths.interpolation_segment(time_ms)
     {
         let eased_progress = apply_easing(progress, *found_easing);
         let options = morph_options
-            .keyframes
-            .get(&found_time)
+            .and_then(|track| track.keyframes.get(&found_time))
             .map(|(value, _)| *value)
             .unwrap_or_default();
         interpolate(prev_val, found_val, eased_progress, options)

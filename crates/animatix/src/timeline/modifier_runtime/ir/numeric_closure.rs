@@ -137,23 +137,13 @@ pub(crate) fn try_named_call(
     args: &[(Option<String>, CompiledExpr)],
     points: Option<super::PointLookup<'_>>,
 ) -> Option<Result<Value, crate::timeline::EvalError>> {
-    let plan = env.numeric_closures.as_ref()?.get(name)?;
-    if !env.let_scopes.borrow().is_empty()
-        || env.bindings.iter().any(Option::is_some)
-        || !plan.is_applicable(env)
-    {
+    if args.iter().any(|(name, _)| name.is_some()) {
         return None;
     }
-    let frozen = env.base.as_ref()?.get(name)?;
-    if !std::ptr::eq(frozen, env.get_ref(name)?) {
-        return None;
-    }
+    let (plan, frozen) = named_plan(env, name, args.len())?;
     let Value::Closure(params, body, captures) = frozen else {
         return None;
     };
-    if args.len() != params.len() || args.iter().any(|(name, _)| name.is_some()) {
-        return None;
-    }
     Some((|| {
         let values: SmallVec<[Value; 4]> = args
             .iter()
@@ -172,6 +162,31 @@ pub(crate) fn try_named_call(
             points,
         )
     })())
+}
+
+pub(super) fn named_plan<'a>(
+    env: &'a Environment,
+    name: &str,
+    arity: usize,
+) -> Option<(&'a NumericClosure, &'a Value)> {
+    let plan = env.numeric_closures.as_ref()?.get(name)?;
+    if !env.let_scopes.borrow().is_empty()
+        || env.bindings.iter().any(Option::is_some)
+        || !plan.is_applicable(env)
+    {
+        return None;
+    }
+    let frozen = env.base.as_ref()?.get(name)?;
+    if !std::ptr::eq(frozen, env.get_ref(name)?) {
+        return None;
+    }
+    let Value::Closure(params, _, _) = frozen else {
+        return None;
+    };
+    if arity != params.len() {
+        return None;
+    }
+    Some((plan, frozen))
 }
 
 fn check_numeric(expr: &CompiledExpr, intrinsic: &mut impl FnMut(&'static str) -> bool) -> bool {

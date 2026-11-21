@@ -3,6 +3,7 @@
 mod fold;
 mod plan;
 mod runtime;
+mod slots;
 #[cfg(test)]
 mod tests;
 
@@ -19,10 +20,13 @@ pub(crate) struct PreparedModifiers {
     pub(crate) source: Arc<ModifierIrProgram>,
     guards: Vec<(String, Value)>,
     statements: Vec<Statement>,
+    locals: slots::Locals,
 }
 
 enum Statement {
     Generic(ModifierIrStmt),
+    StoreLocal(usize, CompiledExpr),
+    Unrolled(Vec<Vec<Statement>>),
     Fast(Box<FastStmt>),
     Branch {
         condition: CompiledExpr,

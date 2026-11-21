@@ -266,7 +266,7 @@ Re-declaring an actor at a later keyframe triggers automatic path interpolation.
 3. **Segment alignment** — equalize segment count by splitting longest Beziers
 4. **Interpolation** — lerp points with optional arc curvature and bounds normalization
 
-Shipped morph modifiers: `strategy: auto|match|fade`, `path_arc`, `stretch`.
+Shipped morph modifiers: `strategy: auto|match|fade`, `path_arc`, `stretch`. Text and vector-path tracks lazily retain one aligned endpoint pair per actor. Each sample checks the endpoint outlines and alignment options, then interpolates for the current progress. Edits to either outline refresh the memo, and snapshots start with an empty memo.
 
 ---
 
@@ -740,6 +740,7 @@ Targeted `Callout` actors (those with a `target` property) need to compute the a
 - `Timeline` implements `TargetResolver`, which exposes the target's world-space bounding box. It prefers the bounds derived from render commands for a target already evaluated on the current frame. Otherwise it transforms the declared size through `actor_world_affine` or falls back to the sampled position and size when the transform is unavailable.
 - Named actor points use the target's layout geometry. After the hierarchy is finalized, the build folds referenced points whose actors and ancestors have static tracks and absolute positioning. The memo is keyed by entity and point kind. Edits clear it, and subsequent reads can repopulate it. Viewport bindings, dynamic layout, camera projection, and frame overrides use live sampling.
 - Modifier lowering produces scene-independent IR. The editor supplies it before the next lowering pass when rebuilding a document. Each build then prepares fixed loops and indexed assignments for the current actor hierarchy. Preparation propagates proven constants within ordered statements and uses bounded expansion for short constant lists. At evaluation time, guards check the folded environment values. Indexed writes continue through the frame override API, so subsequent statements observe them immediately.
+- Prepared modifier programs can use local slots when all accesses are visible to the compiler and calls are guarded pure math or frozen numeric closures. Intermediate writes stay in the slots, and the last successful value of each binding is published to the frame environment for later programs and procedural plots. Fixed-loop iterator bindings can be omitted when all their remaining uses have folded away.
 - Numeric closures in the frozen scene environment can compile to scalar expressions with argument and capture slots. The evaluator verifies the named binding and calls the specialization for numeric positional arguments. Other bindings and argument types use the general closure evaluator.
 - A missing target name is diagnosed at build time (`CalloutTargetNotFound`) so the error surfaces in the editor rather than producing per-frame render log spam.
 

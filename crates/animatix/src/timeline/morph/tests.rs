@@ -496,3 +496,79 @@ fn match_closed_shapes_morph_without_collapsing() {
         mid.elements().len()
     );
 }
+
+#[test]
+fn cached_text_alignment_matches_uncached_sampling_after_seeks_and_endpoint_edits() {
+    use kurbo::Shape as _;
+
+    let rect = kurbo::Rect::new(1.0, 2.0, 30.0, 40.0).to_path(0.1);
+    let ellipse = kurbo::Ellipse::new(Point::new(23.0, 34.0), (43.0, 16.0), 0.2).to_path(0.1);
+    let source = vec![TextPath::new(rect, [15, 40, 200, 255], 1.0)];
+    let mut target = vec![TextPath::new(ellipse, [70, 63, 55, 255], 1.0)];
+    let cache = AlignmentCache::default();
+    for strategy in [
+        MorphStrategy::Auto,
+        MorphStrategy::Match,
+        MorphStrategy::Fade,
+        MorphStrategy::Nearest,
+    ] {
+        let options = MorphOptions {
+            strategy,
+            stretch: true,
+            path_arc: 0.75,
+        };
+        for progress in [0.25, 0.90, 0.50, 0.0, 1.0, 0.25] {
+            let cached = sample_text_paths(&source, &target, progress, options, Some(&cache));
+            let plain = interpolate_text_paths(&source, &target, progress, options);
+            assert_eq!(cached.len(), plain.len());
+            for (cached, plain) in cached.iter().zip(plain) {
+                assert_eq!(cached.path, plain.path);
+                assert_eq!(cached.bounds, plain.bounds);
+                assert_eq!(cached.opacity, plain.opacity);
+                assert_eq!(cached.color, plain.color);
+            }
+        }
+        target[0].translate((5.0, -3.0));
+    }
+
+    let options = MorphOptions::default();
+    let first = sample_text_paths(&source, &target, 0.75, options, Some(&cache));
+    target[0].translate((30.0, -15.0));
+    target[0].color = [1, 2, 3, 255];
+    let edited = sample_text_paths(&source, &target, 0.75, options, Some(&cache));
+    assert_ne!(first[0].path, edited[0].path);
+    assert_eq!(edited[0].path, interpolate_text_paths(&source, &target, 0.75, options)[0].path);
+    assert_eq!(edited[0].color, target[0].color);
+}
+
+#[test]
+fn vector_track_alignment_resamples_after_outlining_the_same_keyframe_again() {
+    use crate::timeline::animation_track::{ShapeTracks, StyleTracks};
+    use kurbo::Shape as _;
+    use std::sync::Arc;
+
+    let outline = |x| VelloPath {
+        path: Arc::new(kurbo::Rect::new(x, 1.0, x + 25.0, 30.0).to_path(0.1)),
+        ..VelloPath::default()
+    };
+    let mut track = PropertyTrack::new(Vec::new());
+    track.add_keyframe(0, vec![outline(0.0)], Easing::Linear);
+    track.add_keyframe(1000, vec![outline(100.0)], Easing::Linear);
+    let mut shape = ShapeTracks {
+        vector_paths: Some(track),
+        ..Default::default()
+    };
+    let style = StyleTracks::default();
+    let first = shape.evaluate_vector_paths(&style, 750);
+    let backwards = shape.evaluate_vector_paths(&style, 250);
+    assert_ne!(first[0].path, backwards[0].path);
+
+    shape
+        .vector_paths
+        .as_mut()
+        .unwrap()
+        .add_keyframe(1000, vec![outline(200.0)], Easing::Linear);
+    let edited = shape.evaluate_vector_paths(&style, 750);
+    assert_ne!(first[0].path, edited[0].path);
+    assert_eq!(edited[0].path, shape.evaluate_vector_paths_value(&style, 750)[0].path);
+}

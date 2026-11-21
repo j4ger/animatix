@@ -36,6 +36,7 @@ pub fn count_expr_nodes(expr: &CompiledExpr) -> usize {
     match expr {
         CompiledExpr::Const(_)
         | CompiledExpr::LoadEnv(_)
+        | CompiledExpr::ModifierLocal(..)
         | CompiledExpr::PropRef { .. }
         | CompiledExpr::Timeline(_)
         | CompiledExpr::SequencePlan(_)
@@ -207,7 +208,7 @@ fn all_builtin_shadow_names() -> HashSet<String> {
 /// Check if an expression references an identifier, respecting lexical shadowing.
 fn expr_references_ident(expr: &CompiledExpr, name: &str) -> bool {
     match expr {
-        CompiledExpr::LoadEnv(id) => id == name,
+        CompiledExpr::LoadEnv(id) | CompiledExpr::ModifierLocal(_, id) => id == name,
         CompiledExpr::MakeVec(items) | CompiledExpr::MakeList(items) => {
             items.iter().any(|item| expr_references_ident(item, name))
         },
@@ -464,7 +465,8 @@ fn optimize_expr_scoped(
                 .collect();
             CompiledExpr::Construct(name, fields_opt)
         },
-        CompiledExpr::PropRef { .. }
+        CompiledExpr::ModifierLocal(..)
+        | CompiledExpr::PropRef { .. }
         | CompiledExpr::Timeline(_)
         | CompiledExpr::SequencePlan(_)
         | CompiledExpr::StaggerPlan(..)

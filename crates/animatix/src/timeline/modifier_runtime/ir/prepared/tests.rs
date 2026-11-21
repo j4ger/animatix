@@ -171,3 +171,108 @@ fn rebuild_reuses_unbound_ir_and_binds_new_scene_entities() {
     );
     assert!(!Arc::ptr_eq(&cache[0], &changed.modifier_ir_cache().unwrap()));
 }
+
+#[test]
+fn modifier_slots_keep_loop_carried_values_and_publish_successful_writes_on_error() {
+    let timeline = build(
+        r#"
+let wave = (x) => abs(x - 0.5)
+#0s
+  tiles[0]: Rect
+  tiles[1]: Rect
+  always {
+    let accumulated = 0
+    for i in {0, 1} {
+      let amount = i + 2
+      accumulated = accumulated + amount
+      let displacement = wave(t) + accumulated
+      tiles[i].scale = clamp(displacement, 0, 10)
+    }
+    let bad = -true
+  }
+"#,
+        Default::default(),
+    );
+    let plan = timeline.prepared_modifiers.as_ref().unwrap();
+    assert_eq!(plan.locals.names, ["accumulated", "amount", "bad", "displacement"]);
+    assert!(matches!(plan.statements[1], Statement::Unrolled(_)));
+    let dims = SceneDimensions::default();
+    let program = &timeline.modifier_programs[0];
+    let mut env = timeline.build_frame_env(250, dims, &Default::default());
+    assert!(plan.matches(program, &env));
+    let mut generic_env = env.clone();
+    let mut prepared = ModifierOverrides::new();
+    let mut generic = ModifierOverrides::new();
+    let geometry = ModifierGeometry {
+        timeline: &timeline,
+        time_ms: 250,
+        dimensions: dims,
+    };
+    let expected = super::super::exec::execute_with_geometry(
+        program,
+        &mut generic_env,
+        &mut generic,
+        Some(geometry),
+    )
+    .unwrap_err();
+    let actual = timeline
+        .apply_modifier_program(program, 250, dims, &mut env, &mut prepared)
+        .unwrap_err();
+    assert_eq!(actual.to_string(), expected.to_string());
+    assert_eq!(prepared, generic);
+    assert_eq!(prepared["tiles__1"]["scale"], Value::Num(5.25));
+    for name in &plan.locals.names {
+        assert_eq!(env.get(name), generic_env.get(name));
+    }
+    assert_eq!(env.get("i"), generic_env.get("i"));
+    assert!(env.modifier_locals.iter().all(Option::is_none));
+
+    let shadow = Value::NativeFn(Arc::new(|_, env| Ok(env.get("accumulated").unwrap())));
+    env.set("wave", shadow);
+    assert!(!plan.matches(program, &env));
+}
+
+#[test]
+fn opaque_modifier_calls_keep_environment_visible() {
+    let timeline = build(
+        r#"
+#0s
+  tiles[0]: Rect
+  always {
+    let visible_value = t + 1
+    tiles[0].scale = inspect()
+  }
+"#,
+        Default::default(),
+    );
+    assert!(
+        timeline
+            .prepared_modifiers
+            .as_ref()
+            .is_none_or(|plan| plan.locals.names.is_empty())
+    );
+    let inspect = Value::NativeFn(Arc::new(|_, env| Ok(env.get("visible_value").unwrap())));
+    let values = run_both(&timeline, 500, Some(("inspect", inspect)));
+    assert_eq!(values["tiles__0"]["scale"], Value::Num(1.5));
+}
+
+#[test]
+fn scalar_assignments_keep_the_straight_line_fast_path() {
+    let timeline = build(
+        r#"
+#0s
+  marker: Rect
+  always {
+    let angle = t + 1
+    marker.at = (100 + cos(angle), 75 + sin(angle))
+  }
+"#,
+        Default::default(),
+    );
+    assert!(timeline.prepared_modifiers.is_none());
+    let values = run_both(&timeline, 1000, None);
+    assert_eq!(
+        values["marker"]["at"],
+        Value::Vec2([100.0 + 2.0_f64.cos(), 75.0 + 2.0_f64.sin()])
+    );
+}

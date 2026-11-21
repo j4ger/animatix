@@ -54,6 +54,7 @@ impl MorphOptions {
 }
 
 mod align;
+mod alignment_cache;
 mod geometry;
 mod interpolate;
 #[cfg(test)]
@@ -66,3 +67,8 @@ pub use align::{
 };
 pub use interpolate::{evaluate_paths_with_options, morph_paths, morph_paths_with_options};
 pub use text::{interpolate_text_paths, interpolate_vello_paths};
+
+#[doc(hidden)]
+pub use alignment_cache::AlignmentCache;
+pub(super) use interpolate::sample_track;
+pub(super) use text::{sample_text_paths, sample_vello_paths};

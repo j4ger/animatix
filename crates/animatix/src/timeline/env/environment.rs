@@ -16,6 +16,8 @@ fn fresh_env_instance() -> u32 {
 /// large stdlib maps on every frame.
 pub struct Environment {
     pub(crate) overrides: EnvMap,
+    /// Reusable operand storage for the active prepared modifier program.
+    pub(crate) modifier_locals: Vec<Option<Value>>,
     /// Read-only numeric input layer. It sits above global mutable overrides
     /// and tracks, while lexical let scopes and function/sample bindings still
     /// shadow it normally. Frame writers therefore cannot mask an external
@@ -84,6 +86,7 @@ impl Clone for Environment {
     fn clone(&self) -> Self {
         Self {
             overrides: self.overrides.clone(),
+            modifier_locals: Vec::new(),
             runtime_inputs: self.runtime_inputs.clone(),
             base: self.base.clone(),
             numeric_closures: self.numeric_closures.clone(),
@@ -122,6 +125,7 @@ impl Environment {
     pub fn new() -> Self {
         Environment {
             overrides: EnvMap::default(),
+            modifier_locals: Vec::new(),
             runtime_inputs: None,
             base: None,
             numeric_closures: None,
@@ -150,6 +154,7 @@ impl Environment {
     pub fn with_capacity(capacity: usize) -> Self {
         Environment {
             overrides: HashMap::with_capacity_and_hasher(capacity, Default::default()),
+            modifier_locals: Vec::new(),
             runtime_inputs: None,
             base: None,
             numeric_closures: None,
@@ -178,6 +183,7 @@ impl Environment {
     pub fn with_base(base: Arc<EnvMap>) -> Self {
         Environment {
             overrides: EnvMap::default(),
+            modifier_locals: Vec::new(),
             runtime_inputs: None,
             base: Some(base),
             numeric_closures: None,

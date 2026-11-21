@@ -25,6 +25,12 @@ pub(crate) fn evaluate_with_points(
         CompiledExpr::Const(Value::Num(n)) => Ok(Value::Num(*n)),
         CompiledExpr::Const(value) => Ok(value.clone()),
         CompiledExpr::LoadEnv(name) => load_env(name, env),
+        CompiledExpr::ModifierLocal(slot, name) => {
+            match env.modifier_locals.get(*slot).and_then(Option::as_ref) {
+                Some(value) => Ok(value.clone()),
+                None => load_env(name, env),
+            }
+        },
         CompiledExpr::Field(base, field) => {
             let base = evaluate_with_points(base, env, points)?;
             match base {
@@ -616,7 +622,17 @@ fn eval_call_builtin(
         .iter()
         .map(|arg| evaluate_with_points(arg, env, points))
         .collect::<Result<_, _>>()?;
-    let name = match builtin {
+    let name = builtin_name(&builtin);
+    if args.iter().any(|value| !matches!(value, Value::Num(_)))
+        || env.get(name).is_some() && !crate::timeline::builtins::is_standard_callable(name, env)
+    {
+        return crate::timeline::utils::evaluate_call_value(name, args.into_vec(), env);
+    }
+    crate::timeline::eval_shared::eval_builtin_fn(name, &args)
+}
+
+pub(super) fn builtin_name(builtin: &BuiltinFn) -> &'static str {
+    match builtin {
         BuiltinFn::Sin => "sin",
         BuiltinFn::Cos => "cos",
         BuiltinFn::Lerp => "lerp",
@@ -648,13 +664,7 @@ fn eval_call_builtin(
         BuiltinFn::CurveAt => "curve_at",
         BuiltinFn::CurveSmooth => "curve_smooth",
         BuiltinFn::SeededRand => "seeded_rand",
-    };
-    if args.iter().any(|value| !matches!(value, Value::Num(_)))
-        || env.get(name).is_some() && !crate::timeline::builtins::is_standard_callable(name, env)
-    {
-        return crate::timeline::utils::evaluate_call_value(name, args.into_vec(), env);
     }
-    crate::timeline::eval_shared::eval_builtin_fn(name, &args)
 }
 
 fn eval_index(

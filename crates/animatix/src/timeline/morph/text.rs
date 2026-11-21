@@ -1,5 +1,6 @@
 //! Text/Vello path sequence interpolation.
 
+use super::alignment_cache::{AlignmentCache, with_alignment};
 use super::interpolate::lerp_color;
 use super::*;
 
@@ -9,6 +10,16 @@ pub fn interpolate_text_paths(
     target: &Vec<TextPath>,
     t: f32,
     options: MorphOptions,
+) -> Vec<TextPath> {
+    sample_text_paths(source, target, t, options, None)
+}
+
+pub(in crate::timeline) fn sample_text_paths(
+    source: &Vec<TextPath>,
+    target: &Vec<TextPath>,
+    t: f32,
+    options: MorphOptions,
+    cache: Option<&AlignmentCache>,
 ) -> Vec<TextPath> {
     if options.strategy == MorphStrategy::Fade {
         if t <= 0.0 {
@@ -47,42 +58,53 @@ pub fn interpolate_text_paths(
         return result;
     }
 
-    let source_paths: Vec<_> = source.iter().map(|path| path.path.clone()).collect();
-    let target_paths: Vec<_> = target.iter().map(|path| path.path.clone()).collect();
-    let aligned_lists =
-        align_path_lists_with_strategy(&source_paths, &target_paths, options.strategy);
-    aligned_lists
-        .into_iter()
-        .enumerate()
-        .map(|(index, (source_path, target_path))| {
-            use kurbo::Shape as _;
-            let ref_path = if t < 0.5 {
-                source.get(index)
-            } else {
-                target.get(index)
-            };
-            let morphed = morph_paths_with_options(&source_path, &target_path, t as f64, options);
-            let b = morphed.bounding_box();
-            TextPath {
-                path: morphed,
-                color: if t < 0.5 {
-                    source.get(index).map(|path| path.color).unwrap_or_else(|| {
-                        target.get(index).map(|path| path.color).unwrap_or_else(|| [0, 0, 0, 255])
-                    })
-                } else {
-                    target.get(index).map(|path| path.color).unwrap_or_else(|| {
-                        source.get(index).map(|path| path.color).unwrap_or_else(|| [0, 0, 0, 255])
-                    })
-                },
-                opacity: 1.0,
-                line_idx: ref_path.map(|p| p.line_idx).unwrap_or(0),
-                word_idx: ref_path.map(|p| p.word_idx).unwrap_or(0),
-                char_idx: ref_path.map(|p| p.char_idx).unwrap_or(index as u16),
-                glyph_center: ref_path.map(|p| p.glyph_center).unwrap_or([0.0, 0.0]),
-                bounds: b,
-            }
-        })
-        .collect()
+    with_alignment(
+        cache,
+        source,
+        target,
+        |path| &path.path,
+        options,
+        |paths| {
+            paths
+                .iter()
+                .enumerate()
+                .map(|(index, aligned)| {
+                    use kurbo::Shape as _;
+                    let ref_path = if t < 0.5 {
+                        source.get(index)
+                    } else {
+                        target.get(index)
+                    };
+                    let morphed = aligned.sample(t as f64, options.path_arc);
+                    let b = morphed.bounding_box();
+                    TextPath {
+                        path: morphed,
+                        color: if t < 0.5 {
+                            source.get(index).map(|path| path.color).unwrap_or_else(|| {
+                                target
+                                    .get(index)
+                                    .map(|path| path.color)
+                                    .unwrap_or_else(|| [0, 0, 0, 255])
+                            })
+                        } else {
+                            target.get(index).map(|path| path.color).unwrap_or_else(|| {
+                                source
+                                    .get(index)
+                                    .map(|path| path.color)
+                                    .unwrap_or_else(|| [0, 0, 0, 255])
+                            })
+                        },
+                        opacity: 1.0,
+                        line_idx: ref_path.map(|p| p.line_idx).unwrap_or(0),
+                        word_idx: ref_path.map(|p| p.word_idx).unwrap_or(0),
+                        char_idx: ref_path.map(|p| p.char_idx).unwrap_or(index as u16),
+                        glyph_center: ref_path.map(|p| p.glyph_center).unwrap_or([0.0, 0.0]),
+                        bounds: b,
+                    }
+                })
+                .collect()
+        },
+    )
 }
 
 /// Interpolate between two `Vec<VelloPath>` using morph options.
@@ -91,6 +113,16 @@ pub fn interpolate_vello_paths(
     target: &Vec<VelloPath>,
     t: f32,
     options: MorphOptions,
+) -> Vec<VelloPath> {
+    sample_vello_paths(source, target, t, options, None)
+}
+
+pub(in crate::timeline) fn sample_vello_paths(
+    source: &Vec<VelloPath>,
+    target: &Vec<VelloPath>,
+    t: f32,
+    options: MorphOptions,
+    cache: Option<&AlignmentCache>,
 ) -> Vec<VelloPath> {
     if options.strategy == MorphStrategy::Fade {
         if t <= 0.0 {
@@ -131,72 +163,72 @@ pub fn interpolate_vello_paths(
         return result;
     }
 
-    let source_paths: Vec<_> = source.iter().map(|path| path.path.as_ref().clone()).collect();
-    let target_paths: Vec<_> = target.iter().map(|path| path.path.as_ref().clone()).collect();
-    let aligned_lists =
-        align_path_lists_with_strategy(&source_paths, &target_paths, options.strategy);
-    aligned_lists
-        .into_iter()
-        .enumerate()
-        .map(|(index, (source_path, target_path))| {
-            let source_element = source.get(index);
-            let target_element = target.get(index);
-            VelloPath {
-                path: std::sync::Arc::new(morph_paths_with_options(
-                    &source_path,
-                    &target_path,
-                    t as f64,
-                    options,
-                )),
-                fill: match (
-                    source_element.and_then(|e| e.fill),
-                    target_element.and_then(|e| e.fill),
-                ) {
-                    (Some(c1), Some(c2)) => Some(lerp_color(c1, c2, t)),
-                    (Some(c), None) => Some(if t < 0.5 {
-                        c
-                    } else {
-                        peniko::Color::TRANSPARENT
-                    }),
-                    (None, Some(c)) => Some(if t >= 0.5 {
-                        c
-                    } else {
-                        peniko::Color::TRANSPARENT
-                    }),
-                    (None, None) => None,
-                },
-                stroke: match (
-                    source_element.and_then(|e| e.stroke),
-                    target_element.and_then(|e| e.stroke),
-                ) {
-                    (Some((c1, w1)), Some((c2, w2))) => {
-                        Some((lerp_color(c1, c2, t), w1 + (w2 - w1) * t))
-                    },
-                    (Some((c, w)), None) => Some((
-                        if t < 0.5 {
-                            c
-                        } else {
-                            peniko::Color::TRANSPARENT
+    with_alignment(
+        cache,
+        source,
+        target,
+        |path| path.path.as_ref(),
+        options,
+        |paths| {
+            paths
+                .iter()
+                .enumerate()
+                .map(|(index, aligned)| {
+                    let source_element = source.get(index);
+                    let target_element = target.get(index);
+                    VelloPath {
+                        path: std::sync::Arc::new(aligned.sample(t as f64, options.path_arc)),
+                        fill: match (
+                            source_element.and_then(|e| e.fill),
+                            target_element.and_then(|e| e.fill),
+                        ) {
+                            (Some(c1), Some(c2)) => Some(lerp_color(c1, c2, t)),
+                            (Some(c), None) => Some(if t < 0.5 {
+                                c
+                            } else {
+                                peniko::Color::TRANSPARENT
+                            }),
+                            (None, Some(c)) => Some(if t >= 0.5 {
+                                c
+                            } else {
+                                peniko::Color::TRANSPARENT
+                            }),
+                            (None, None) => None,
                         },
-                        if t < 0.5 { w } else { 0.0 },
-                    )),
-                    (None, Some((c, w))) => Some((
-                        if t >= 0.5 {
-                            c
-                        } else {
-                            peniko::Color::TRANSPARENT
+                        stroke: match (
+                            source_element.and_then(|e| e.stroke),
+                            target_element.and_then(|e| e.stroke),
+                        ) {
+                            (Some((c1, w1)), Some((c2, w2))) => {
+                                Some((lerp_color(c1, c2, t), w1 + (w2 - w1) * t))
+                            },
+                            (Some((c, w)), None) => Some((
+                                if t < 0.5 {
+                                    c
+                                } else {
+                                    peniko::Color::TRANSPARENT
+                                },
+                                if t < 0.5 { w } else { 0.0 },
+                            )),
+                            (None, Some((c, w))) => Some((
+                                if t >= 0.5 {
+                                    c
+                                } else {
+                                    peniko::Color::TRANSPARENT
+                                },
+                                if t >= 0.5 { w } else { 0.0 },
+                            )),
+                            (None, None) => None,
                         },
-                        if t >= 0.5 { w } else { 0.0 },
-                    )),
-                    (None, None) => None,
-                },
-                line_cap: source_element.map(|e| e.line_cap).unwrap_or(0),
-                line_join: source_element.map(|e| e.line_join).unwrap_or(0),
-                dash_pattern: None,
-                dash_offset: 0.0,
-                fill_gradient: None,
-                stroke_gradient: None,
-            }
-        })
-        .collect()
+                        line_cap: source_element.map(|e| e.line_cap).unwrap_or(0),
+                        line_join: source_element.map(|e| e.line_join).unwrap_or(0),
+                        dash_pattern: None,
+                        dash_offset: 0.0,
+                        fill_gradient: None,
+                        stroke_gradient: None,
+                    }
+                })
+                .collect()
+        },
+    )
 }

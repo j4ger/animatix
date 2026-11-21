@@ -109,6 +109,7 @@ impl fmt::Display for DisplayCompiledExpr<'_> {
         match self.0 {
             CompiledExpr::Const(value) => write!(f, "const({value:?})"),
             CompiledExpr::LoadEnv(name) => write!(f, "load({name})"),
+            CompiledExpr::ModifierLocal(slot, name) => write!(f, "local({slot}, {name})"),
             CompiledExpr::Field(base, name) => {
                 write!(f, "{}.{}", DisplayCompiledExpr(base), name)
             },

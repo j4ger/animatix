@@ -5,7 +5,7 @@
 
 use super::exec::{execute_stmt, record_override};
 use super::fast_scalar::{FastScalarExpr, compile_fast_scalar, compile_fast_vec2};
-use super::types::{BuiltinFn, CompiledExpr, ModifierIrStmt, ModifierOverrides};
+use super::types::{CompiledExpr, ModifierIrStmt, ModifierOverrides};
 use crate::timeline::frame_env::apply_override_incremental;
 use crate::timeline::{Environment, EvalError, Value};
 
@@ -120,46 +120,11 @@ pub fn compile_fast_stmt(stmt: &ModifierIrStmt) -> FastStmt {
 }
 
 fn unqualified_builtin_names(expression: &CompiledExpr) -> Vec<String> {
-    fn builtin_name(builtin: &BuiltinFn) -> &'static str {
-        match builtin {
-            BuiltinFn::Sin => "sin",
-            BuiltinFn::Cos => "cos",
-            BuiltinFn::Lerp => "lerp",
-            BuiltinFn::Format => "format",
-            BuiltinFn::Tan => "tan",
-            BuiltinFn::Sqrt => "sqrt",
-            BuiltinFn::Exp => "exp",
-            BuiltinFn::Log => "ln",
-            BuiltinFn::Atan2 => "atan2",
-            BuiltinFn::Clamp => "clamp",
-            BuiltinFn::Abs => "abs",
-            BuiltinFn::Min => "min",
-            BuiltinFn::Max => "max",
-            BuiltinFn::Floor => "floor",
-            BuiltinFn::Ceil => "ceil",
-            BuiltinFn::Deg => "deg",
-            BuiltinFn::Rad => "rad",
-            BuiltinFn::ListSwap => "list_swap",
-            BuiltinFn::ListSet => "list_set",
-            BuiltinFn::Signum => "signum",
-            BuiltinFn::Fract => "fract",
-            BuiltinFn::Hypot => "hypot",
-            BuiltinFn::Pow => "pow",
-            BuiltinFn::Rem => "rem",
-            BuiltinFn::Step => "step",
-            BuiltinFn::Round => "round",
-            BuiltinFn::Factorial => "factorial",
-            BuiltinFn::SumList => "sum",
-            BuiltinFn::CurveAt => "curve_at",
-            BuiltinFn::CurveSmooth => "curve_smooth",
-            BuiltinFn::SeededRand => "seeded_rand",
-        }
-    }
-
     fn walk(expression: &CompiledExpr, names: &mut Vec<String>) {
         match expression {
             CompiledExpr::Const(_)
             | CompiledExpr::LoadEnv(_)
+            | CompiledExpr::ModifierLocal(..)
             | CompiledExpr::Timeline(_)
             | CompiledExpr::SequencePlan(_)
             | CompiledExpr::StaggerPlan(..)
@@ -183,7 +148,7 @@ fn unqualified_builtin_names(expression: &CompiledExpr) -> Vec<String> {
                 walk(else_expr, names);
             },
             CompiledExpr::CallBuiltin(builtin, args) => {
-                names.push(builtin_name(builtin).to_string());
+                names.push(super::eval::builtin_name(builtin).to_string());
                 for arg in args {
                     walk(arg, names);
                 }
@@ -333,6 +298,7 @@ pub(super) fn execute_fast_statements(
 
 #[cfg(test)]
 mod tests {
+    use super::super::types::BuiltinFn;
     use super::*;
     use crate::ast::BinaryOp;
 
