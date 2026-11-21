@@ -1,5 +1,6 @@
 ---
 import Scene from './Scene.astro';
+import SourceEditor from './SourceEditor.astro';
 import Timeline from './Timeline.astro';
 import {url} from '../lib/content';
 import {pageLanguage} from '../lib/language';
@@ -32,10 +33,7 @@ const sourceStatus = `${id}-source-status`;
     <slot name="presets"/>
   </div>
   <div class="source-panel" id={sourcePanel} role="region" aria-label={labels.amxSource} tabindex="-1" hidden>
-    <div class="source-editor source-highlight">
-      <div class="source-guide source-wrap" aria-hidden="true"></div>
-      <textarea class="source-wrap" aria-label={labels.amxSource} aria-describedby={sourceStatus} wrap="soft" spellcheck="false" autocomplete="off" autocapitalize="off">{source}</textarea>
-    </div>
+    <SourceEditor id={`${sourcePanel}-code`} describedBy={sourceStatus} {source}/>
     <div class="source-footer">
       <p id={sourceStatus} class="source-status" role="status"></p>
       <button class="reset-source" type="button" aria-label={t('Reset source', '重置源码')} disabled>{labels.reset}</button>

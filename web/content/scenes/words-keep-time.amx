@@ -1,60 +1,44 @@
-// Turn a maintenance announcement into a notice people can scan.
-config { resolution: (1280, 720), duration: 20 }
+// A maintenance notice, split into three answers and revealed in reading order.
+config { colorscheme: "paper", resolution: (1280, 720), duration: 20 }
 
-let ink = hex_color("fff2eb")
-let muted = hex_color("dabdce")
-let peach = hex_color("ffcb9a")
-let rail = hex_color("79566e")
 let impact = "The editor will be read-only"
 let window = "Sunday, 02:00–02:20 UTC"
 let available = "Reading and exports"
-let panel_size = (548, 352)
+let panel_size = (520, 340)
+let column_offset = panel_size[0] / 2 + 22
 
-pub component NoticeField(label: Str, value: Str, tone: Color) {
-  field: Col, size: (432, auto), gap: 8, align: "start" {
-    name: Text, text: label, font_size: 17, font_weight: "bold", letter_spacing: 1.8, color: tone
-    detail: Text, text: value, font_size: 29, color: ink
+pub component NoticeField(label: Str, value: Str) {
+  field: Col, size: (440, auto), gap: 8, align: "start" {
+    name: Text, text: label, font_size: 18, font_weight: "bold", color: accent.primary
+    detail: Text, text: value, font_size: 26
   }
 }
 
 #0s
-  ground: Rect, size: (1280, 720), anchor: scene.center,
-    fill_gradient: linear(150, {hex_color("45263a"), hex_color("211827")})
-  heading: Text, text: "Scheduled maintenance", at: (50%, 14%), font_size: 48,
-    font_weight: "bold", color: ink
-  original: Stack, at: (50%, 49%), align: "center" {
-    page: Rect, size: panel_size, corner_radius: 20, color: hex_color("2d2030"),
-      stroke: rail, stroke_width: 2
-    copy: Col, size: (432, auto), gap: 18, align: "start" {
-      label: Text, text: "ORIGINAL NOTICE", font_size: 17, letter_spacing: 1.8, color: muted
-      body: Text, text: format("{} on {}. {} stay available.", impact, window, available), font_size: 29,
-        text_max_width: 432, line_height: 1.3, color: ink
-    }
+  ground: Rect, anchor: scene.center, size: (scene_width, scene_height),
+    fill_gradient: linear(150, {surface.primary, scene.background})
+  heading: Text, anchor: scene.top, offset: (0, 101), text: "Scheduled maintenance",
+    font_size: 46, font_weight: "bold"
+  original: Stack, anchor: scene.center, align: "center" {
+    page: Rect, size: panel_size, corner_radius: 18, color: surface.primary, stroke: stroke.default
+    copy: Text, text: format("{} on {}. {} stay available.", impact, window, available),
+      font_size: 29, text_max_width: 428, line_height: 1.35
   }
-  notice: Stack, at: (74%, 49%), align: "center" {
-    sheet: Rect, size: panel_size, corner_radius: 20, opacity: 0,
-      color: hex_color("412d3c"), stroke: rail, stroke_width: 2
+  notice: Stack, anchor: scene.center, offset: (column_offset, 0), align: "center" {
+    sheet: Rect, size: panel_size, corner_radius: 18, color: surface.secondary, opacity: 0
     entries: Col, align: "start", gap: 23 {
-      changed: NoticeField, label: "WHAT CHANGES", value: "Read-only editor", tone: peach, opacity: 0
-      time: NoticeField, label: "WHEN", value: window, tone: muted, opacity: 0
-      usable: NoticeField, label: "STILL AVAILABLE", value: available, tone: muted, opacity: 0
+      changed: NoticeField, label: "What changes", value: impact, opacity: 0
+      time: NoticeField, label: "When", value: window, opacity: 0
+      usable: NoticeField, label: "Still available", value: available, opacity: 0
     }
   }
-  caption: Text, at: (50%, 86%), text: "Can I edit during maintenance?", font_size: 28, color: ink
 
 #4s
-  original.at = (26%, 49%) [650ms, ease: ease_in_out]
-  caption.text = "Lead with what changes."
-  fade_in(target: notice.sheet, duration: 500ms, delay: 400ms)
-  fade_in(target: notice.entries.changed, duration: 500ms, delay: 550ms)
+  original.offset = (0 - column_offset, 0) [650ms, ease: ease_in_out]
+  fade_in(targets: {notice.sheet, notice.entries.changed}, duration: 500ms, delay: 400ms)
 
 #8s
-  caption.text = "Put the time window on its own line."
   fade_in(target: notice.entries.time, duration: 500ms)
 
 #12s
-  caption.text = "Say what still works."
   fade_in(target: notice.entries.usable, duration: 500ms)
-
-#16s
-  caption.text = "Three answers at a glance."

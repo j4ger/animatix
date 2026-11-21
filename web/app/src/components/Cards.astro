@@ -1,5 +1,0 @@
----
-import {works,url} from '../lib/content';
-import Poster from './Poster.astro';
----
-<div class="cards">{works.map((work,i)=><a class="work-card" href={url(`showcase/${work.id}/`)}><Poster kind={work.id} title={`${work.title} — native-rendered scene frame`}/><div class="card-meta"><span>0{i+1} / {work.category}</span><span>{work.duration}s</span></div><h3>{work.title}</h3><p>{work.question}</p></a>)}</div>

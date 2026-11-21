@@ -5,7 +5,7 @@ import {loadPlayer, loadPlayerModule, resetPlayer} from './scene';
 import {insertionId, insertionSteps} from '../lib/insertion-steps';
 import {draftSelection, takeEditorTransfer, transferEditor} from '../lib/editor-transfer';
 import {currentUi} from '../lib/ui';
-import {bindSourceHighlight} from '../lib/source-highlight';
+import {bindSourceEditor} from '../lib/source-highlight';
 
 const root = document.querySelector<HTMLElement>('[data-playground]');
 if (root) installPlayground(root);
@@ -18,9 +18,7 @@ function installPlayground(root: HTMLElement) {
   const status = root.querySelector<HTMLElement>('#editor-status')!;
   const diagnostics = root.querySelector<HTMLElement>('#diagnostics')!;
   const shell = root.querySelector<HTMLElement>('[data-scene-shell]')!;
-  const guide = root.querySelector<HTMLElement>('.source-guide')!;
-  const highlight = bindSourceHighlight(code, guide, () => loadPlayerModule(shell.dataset.module!));
-  const open = root.querySelector<HTMLButtonElement>('#open-source')!;
+  const highlight = bindSourceEditor(code, () => loadPlayerModule(shell.dataset.module!));
   const reset = root.querySelector<HTMLButtonElement>('#reset')!;
   const download = root.querySelector<HTMLButtonElement>('#download')!;
   const retry = root.querySelector<HTMLButtonElement>('.retry-preview')!;
@@ -42,7 +40,7 @@ function installPlayground(root: HTMLElement) {
   let timer: number | undefined;
 
   function updateControls() {
-    selector.disabled = open.disabled = sourceLoading || building;
+    selector.disabled = sourceLoading || building;
     code.readOnly = sourceLoading;
     download.disabled = sourceLoading || !current;
     reset.disabled = sourceLoading || !current || code.value === original;
@@ -81,6 +79,7 @@ function installPlayground(root: HTMLElement) {
   }
 
   async function openSource(id: string, initial = false) {
+    selector.value = id;
     sourceLoading = true;
     updateControls();
     status.textContent = labels.loadingSource;
@@ -96,9 +95,9 @@ function installPlayground(root: HTMLElement) {
       current = id;
       const draft = initial && transferred?.scene === id ? transferred : undefined;
       code.value = draft?.source ?? original;
+      code.scrollTop = 0;
       compiled = canonical;
       previousPreview = draft?.compiled;
-      selector.value = id;
       lastDownloaded = draft?.savedCopy ?? null;
       diagnostics.replaceChildren();
       resetPlayer(shell);
@@ -205,12 +204,14 @@ function installPlayground(root: HTMLElement) {
   }
 
   const hasUnsaved = () => code.value !== original && code.value !== lastDownloaded;
-  open.addEventListener('click', () => {
+  selector.addEventListener('change', () => {
+    const next = selector.value;
+    if (next === current) return;
     if (hasUnsaved() && !confirm(t('Replace your unsaved edits with another source?', '要用另一个场景替换尚未保存的修改吗？'))) {
       selector.value = current;
       return;
     }
-    void openSource(selector.value);
+    void openSource(next);
   });
   reset.addEventListener('click', () => {
     if (hasUnsaved() && !confirm(t('Restore the original source?', '要恢复原始源码吗？'))) return;

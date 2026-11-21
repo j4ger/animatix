@@ -1,8 +1,8 @@
 ---
 import {url, pageUrl} from '../lib/content';
-import {htmlLanguage, pageLanguage} from '../lib/language';
+import {pageLanguage} from '../lib/language';
 import {ui} from '../lib/ui';
-import PreferenceHead from '../components/PreferenceHead.astro';
+import SiteDocument from '../layouts/SiteDocument.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import Timeline from '../components/Timeline.astro';
 import '../styles/journey.css';
@@ -13,21 +13,10 @@ const language = pageLanguage(Astro.currentLocale);
 const labels = ui(language);
 const {t} = labels;
 const title = t('How do headphones cancel noise?', '降噪耳机是怎么消掉噪声的？');
+const description = t('How do headphones cancel noise? Follow a train rumble into an ear cup in a short animated explainer made with Animatix.', '从列车上的低沉轰鸣开始，看看主动降噪耳机如何改变到达耳朵的声音。');
 const editor = pageUrl(language, 'playground/?scene=quiet-carriage');
 ---
-<!doctype html>
-<html lang={htmlLanguage(language)} class="journey-page">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <PreferenceHead/>
-  <link rel="alternate" hreflang="en" href={pageUrl('en', 'journey/')}/>
-  <link rel="alternate" hreflang="zh-Hans" href={pageUrl('zh', 'journey/')}/>
-  <meta name="description" content={t('How do headphones cancel noise? Follow a train rumble into an ear cup in a short animated explainer made with Animatix.', '从列车上的低沉轰鸣开始，看看主动降噪耳机如何改变到达耳朵的声音。')}/>
-  <link rel="icon" href={url('logo.svg')} type="image/svg+xml"/>
-  <title>{title} · Animatix</title>
-</head>
-<body>
+<SiteDocument {title} {description} htmlClass="journey-page">
   <a class="skip" href="#story">{t("Skip to the explainer", "跳到正文")}</a>
   <SiteHeader id="choreography" playgroundUrl={editor}/>
   <main id="story">
@@ -35,7 +24,7 @@ const editor = pageUrl(language, 'playground/?scene=quiet-carriage');
       <figure class="film" aria-labelledby="film-name">
         <figcaption><span id="film-name">{t("Inside the ear cup", "耳罩内")}</span><span>{t("Sound pressure over time", "声压随时间变化")}</span></figcaption>
         <div class="screen">
-          <img class="opening-frame" src={url('content/journey/quiet-carriage.webp')} width="960" height="560" alt={t("The orange train rumble and green sound at the ear initially have identical waves.", "开头的橙色列车轰鸣和绿色耳边声压具有相同波形。")}/>
+          <img class="opening-frame" src={url('content/journey/quiet-carriage.webp')} width="960" height="560" alt={t("The gold train rumble and green sound at the ear initially have identical waves.", "开头的金色列车轰鸣和绿色耳边声压具有相同波形。")}/>
           <div class="engine-stage"></div>
         </div>
         <div class="transport amx-transport">
@@ -83,5 +72,4 @@ const editor = pageUrl(language, 'playground/?scene=quiet-carriage');
   </main>
   <noscript><p class="noscript">{t("The text tells the full story. Enable JavaScript to play the film.", "可直接阅读下方讲解。启用 JavaScript 后即可播放动画。")}</p></noscript>
   <script src="../scripts/journey.ts"></script>
-</body>
-</html>
+</SiteDocument>

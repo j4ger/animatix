@@ -13,26 +13,29 @@ const titles: Record<string, string> = {
   'one-rule-many-forms': t('Staggered motion', '错峰运动'),
   'words-keep-time': t('Maintenance notice', '维护通知'),
 };
+const examples = [
+  {
+    path: 'journey/', poster: 'journey/noise-waves.webp', width: 960, height: 560,
+    title: t('How do headphones cancel noise?', '降噪耳机是怎么消掉噪声的？'),
+    category: t('Physics', '物理'), color: '#cce893',
+  },
+  ...works.map(work => ({
+    path: `showcase/${work.id}/`, poster: `posters/${work.id}.png`, width: 1280, height: 720,
+    title: titles[work.id] ?? work.title, category: t(work.category, workCopy[work.id].category), color: work.color,
+  })),
+];
 ---
-<div class="examples-gallery">
-  <a class="example-feature" href={pageUrl(language, 'journey/')} style="--example-color: #cce893">
-    <img src={url('content/journey/noise-waves.webp')} width="960" height="560" loading="lazy" decoding="async" alt=""/>
-    <div class="example-feature-body">
-      <div>
-        <h3>{t('How do headphones cancel noise?', '降噪耳机是怎么消掉噪声的？')}</h3>
-        <p class="example-meta">{t('Physics', '物理')}</p>
+<ul class="examples-gallery" role="list">
+  {examples.map((example, index) => <li class:list={{'example-lead': index === 0}}>
+    <a class="example-card" href={pageUrl(language, example.path)} style={`--example-color: ${example.color}`}>
+      <img src={url(`content/${example.poster}`)} width={example.width} height={example.height} loading="lazy" decoding="async" alt=""/>
+      <div class="example-card-body">
+        <div>
+          <h3>{example.title}</h3>
+          <p class="example-meta">{example.category}</p>
+        </div>
+        <span class="example-arrow" aria-hidden="true">→</span>
       </div>
-      <span class="example-arrow" aria-hidden="true">→</span>
-    </div>
-  </a>
-  <ul class="example-list">
-    {works.map(work => <li><a href={pageUrl(language, 'showcase/' + work.id + '/')} style={`--example-color: ${work.color}`}>
-      <img src={url('content/posters/' + work.id + '.png')} width="1280" height="720" loading="lazy" decoding="async" alt=""/>
-      <div>
-        <h3>{titles[work.id] ?? work.title}</h3>
-        <p class="example-meta">{t(work.category, workCopy[work.id].category)}</p>
-      </div>
-      <span class="example-arrow" aria-hidden="true">→</span>
-    </a></li>)}
-  </ul>
-</div>
+    </a>
+  </li>)}
+</ul>

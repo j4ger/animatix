@@ -1,5 +1,8 @@
+import {sourceCells} from './source-cells';
+
 export type HighlightRange = readonly [start: number, end: number, role: string];
 export type SourceHighlighter = (source: string) => Promise<readonly HighlightRange[]>;
+export type SourceKeyframe = {line: number; element: HTMLElement};
 
 function colorLines(rows: HTMLElement[], lines: string[], ranges: readonly HighlightRange[]) {
   let start = 0;
@@ -29,13 +32,31 @@ function colorLines(rows: HTMLElement[], lines: string[], ranges: readonly Highl
   }
 }
 
-export function bindSourceHighlight(
+function decorateCells(mirror: HTMLElement, rows: HTMLElement[], lines: string[], ranges: readonly HighlightRange[]) {
+  const keyframes: SourceKeyframe[] = [];
+  const content = document.createDocumentFragment();
+  for (const {start, end, next, keyframe} of sourceCells(lines, ranges)) {
+    const element = document.createElement('div');
+    element.className = 'source-cell';
+    if (keyframe) {
+      rows[start].classList.add('keyframe-line');
+      keyframes.push({line: start + 1, element});
+    }
+    for (let line = start; line < end; line++) element.append(rows[line]);
+    content.append(element);
+    for (let line = end; line < next; line++) content.append(rows[line]);
+  }
+  mirror.replaceChildren(content);
+  return keyframes;
+}
+
+export function bindSourceEditor(
   editor: HTMLTextAreaElement,
-  mirror: HTMLElement,
   load: () => Promise<{highlightSource?: SourceHighlighter}>,
-  decorate?: (rows: readonly HTMLDivElement[], lines: readonly string[], ranges: readonly HighlightRange[]) => void,
+  onKeyframes?: (keyframes: SourceKeyframe[]) => void,
 ) {
   const frame = editor.parentElement!;
+  const mirror = frame.querySelector<HTMLElement>('.source-guide')!;
   let rows: HTMLDivElement[] = [];
   let lines: string[] = [];
   let revision = 0;
@@ -61,7 +82,8 @@ export function bindSourceHighlight(
       void load().then(sdk => sdk.highlightSource?.(source)).then(ranges => {
         if (!ranges || !enabled || composing || source !== editor.value || requested !== revision) return;
         colorLines(rows, lines, ranges);
-        decorate?.(rows, lines, ranges);
+        const keyframes = decorateCells(mirror, rows, lines, ranges);
+        onKeyframes?.(keyframes);
         frame.setAttribute('data-highlighted', '');
       }).catch(() => {
         // A missing or offline SDK leaves the editable native text visible.
@@ -90,14 +112,16 @@ export function bindSourceHighlight(
       enabled = visible;
       if (visible) schedule();
     },
-    render(sourceLines = editor.value.split('\n')) {
+    render() {
       revision++;
-      lines = sourceLines;
+      lines = editor.value.split('\n');
+      frame.style.setProperty('--source-line-digits', String(String(lines.length).length));
       frame.removeAttribute('data-highlighted');
       const content = document.createDocumentFragment();
-      rows = lines.map(text => {
+      rows = lines.map((text, index) => {
         const row = document.createElement('div');
         row.className = 'source-guide-line';
+        row.dataset.line = String(index + 1);
         const span = document.createElement('span');
         span.className = 'source-line-text';
         span.textContent = text;
@@ -108,7 +132,6 @@ export function bindSourceHighlight(
       mirror.replaceChildren(content);
       sync();
       schedule();
-      return rows;
     },
   };
 }

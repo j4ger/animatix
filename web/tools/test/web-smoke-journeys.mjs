@@ -51,11 +51,15 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
         const code = document.querySelector('#source-code');
         const source = code.value
           .replace('hex_color("65d9e8")', 'hex_color("f46ea0")')
-          .replace('duration: 3', 'duration: 4').replace('#0.5s', '#0.25s');
+          .replace('duration: 3', 'duration: 4').replace('#0.5s', '#0.25s')
+          .replace('#3s', '#1.9s\\n\\n#3s');
         if (source === code.value) throw Error('Unexpected first-move source');
         code.value = source;
         code.dispatchEvent(new Event('input', {bubbles: true}));
       })()`);
+      await until('new timestamp split a cell', () => cdp.evaluate(`
+        Array.from(document.querySelectorAll('.source-cell .keyframe-line')).some(line => line.textContent === '#1.9s')
+      `));
       await until('live editor build and updated timeline', async () => {
         await checkErrors();
         return cdp.evaluate(`(() => {
@@ -118,7 +122,16 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
   if (contract.preset) await presetJourney(cdp, capture, checkErrors, record);
   if (contract.editSource) await inlineEditorJourney(cdp, checkErrors);
   if (contract.action === 'edit') {
-    await cdp.evaluate(`(()=>{const code=document.querySelector('#source-code');code.value+='\\nthis is deliberately invalid ???';window.__submitted=code.value;code.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await cdp.evaluate(`(() => {
+      const code = document.querySelector('#source-code');
+      code.value = code.value.replace('#1.9s\\n\\n', '') + '\\nthis is deliberately invalid ???';
+      window.__submitted = code.value;
+      code.dispatchEvent(new Event('input', {bubbles: true}));
+    })()`);
+    await until('removed timestamp merged its cell', () => cdp.evaluate(`
+      document.querySelector('.playground .source-editor[data-highlighted]') &&
+      Array.from(document.querySelectorAll('.source-cell .keyframe-line')).map(line => line.textContent).join(',') === '#0s,#0.25s,#3s'
+    `));
     await until('visible build diagnostic', () => cdp.evaluate(`document.querySelector('#editor-status').textContent.startsWith('Not built:')`));
     if (!await cdp.evaluate(`document.querySelector('#source-code').value===window.__submitted`)) throw new Error('Failed build changed source');
     // A failed edit must retain the last successful scene, not merely its DOM.
@@ -132,6 +145,7 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
       }
     })()`);
     assertPaint(await capture(0,'retained'), {color:'#F46EA0',x:920/1280,y:0.5,tolerance:0.08});
+    await playgroundSwitchJourney(cdp);
   }
   const resources = await cdp.evaluate(`performance.getEntriesByType('resource').map(x=>({name:new URL(x.name).pathname,startMs:x.startTime,durationMs:x.duration,bytes:x.transferSize}))`);
   if (resources.some(x=>x.name.endsWith('.mp4'))) throw Error('Live playback fetched a recording');
@@ -140,6 +154,44 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
   const events = await cdp.evaluate(`__smoke.events`);
   record({kind:'resources',resources,events});
   await checkErrors();
+}
+
+async function playgroundSwitchJourney(cdp) {
+  const choose = (id, accept, expectedPrompts) => cdp.evaluate(`(() => {
+    const selector = document.querySelector('#scene-choice');
+    const confirm = window.confirm;
+    let prompts = 0;
+    window.confirm = () => { prompts++; return ${accept}; };
+    try {
+      selector.value = ${JSON.stringify(id)};
+      selector.dispatchEvent(new Event('change', {bubbles: true}));
+      if (prompts !== ${expectedPrompts}) throw Error('Unexpected scene switch confirmation count: ' + prompts);
+    } finally {
+      window.confirm = confirm;
+    }
+  })()`);
+  const loaded = id => until(`selected ${id} without an Open button`, () => cdp.evaluate(`(() => {
+    const id = ${JSON.stringify(id)};
+    const selector = document.querySelector('#scene-choice');
+    const player = document.querySelector('amx-player');
+    return selector.value === id && !selector.disabled &&
+      new URLSearchParams(location.search).get('scene') === id &&
+      player?.getAttribute('src').endsWith('/' + id + '.amx') && __smoke.ready.has(player);
+  })()`));
+
+  await cdp.evaluate(`window.__previewBeforeSwitch = document.querySelector('amx-player')`);
+  await choose('compose', false, 1);
+  if (!await cdp.evaluate(`
+    document.querySelector('#scene-choice').value === 'first-move' &&
+    document.querySelector('#source-code').value === window.__submitted &&
+    document.querySelector('amx-player') === window.__previewBeforeSwitch &&
+    new URLSearchParams(location.search).get('scene') === 'first-move'
+  `)) throw Error('Cancelling scene selection must retain the source, selection and preview');
+
+  await choose('compose', true, 1);
+  await loaded('compose');
+  await choose('first-move', true, 0);
+  await loaded('first-move');
 }
 
 async function startPoster(cdp, {editable, recording}) {

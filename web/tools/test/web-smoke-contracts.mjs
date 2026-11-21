@@ -10,7 +10,7 @@ export function contracts(suite, depth = 'critical') {
   }));
   if (suite !== 'site') throw new Error(`Unknown smoke suite: ${suite}`);
   const pages = [
-    { path: '/', action: 'preview', players: 1, links: ['/#examples', '/docs/', '/playground/'] },
+    { path: '/', action: 'preview', players: 1, links: ['/journey/', '/showcase/move-the-basis/', '/docs/', '/playground/'] },
     { path: '/docs/', action: 'static', players: 0, links: ['/docs/quickstart/', '/learn/', '/docs/reference/'] },
     { path: '/docs/quickstart/', action: 'static', players: 0, links: ['/docs/', '/playground/'] },
     { path: '/learn/make-something-move/', action: 'load', players: 1, motion: true },

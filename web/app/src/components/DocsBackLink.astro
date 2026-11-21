@@ -1,0 +1,9 @@
+---
+import {pageUrl} from '../lib/content';
+import {pageLanguage} from '../lib/language';
+import {ui} from '../lib/ui';
+
+const language = pageLanguage(Astro.currentLocale);
+const {docs} = ui(language);
+---
+<a class="backlink" href={pageUrl(language, 'docs/')}>← {docs}</a>

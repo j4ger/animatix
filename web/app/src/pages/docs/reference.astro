@@ -1,10 +1,11 @@
 ---
 import Page from '../../layouts/Page.astro';
-import {pageUrl,github} from '../../lib/content';
+import DocsBackLink from '../../components/DocsBackLink.astro';
+import {github} from '../../lib/content';
 import {pageLanguage} from '../../lib/language';
 import {ui} from '../../lib/ui';
 const language = pageLanguage(Astro.currentLocale);
-const {t, docs, reference} = ui(language);
+const {t, reference} = ui(language);
 const topics = [
   [t('Language syntax', '语言语法'), 'spec.md'],
   [t('Primitives', '图元'), 'primitives.md'],
@@ -14,6 +15,6 @@ const topics = [
   [t('Native tools and video export', '本地工具与视频导出'), 'contributing.md'],
 ];
 ---
-<Page title={reference}><div class="docs-layout guide"><a class="backlink" href={pageUrl(language, 'docs/')}>← {docs}</a><h1>{reference}</h1><div class="link-list">
+<Page title={reference}><div class="docs-layout guide"><DocsBackLink/><h1>{reference}</h1><div class="link-list">
   {topics.map(([title, path]) => <a href={github+'/blob/main/docs/'+path}>{title}<span>{t('GitHub ↗', 'GitHub · 英文 ↗')}</span></a>)}
 </div></div></Page>

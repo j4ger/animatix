@@ -1,11 +1,11 @@
 ---
 import Page from '../layouts/Page.astro';
 import EditableScene from '../components/EditableScene.astro';
-import insertionSource from '../../../content/scenes/insertion-sort.amx?raw';
 import {insertionId} from '../lib/insertion-steps';
 import FeaturedExamples from '../components/FeaturedExamples.astro';
 import InstallPanel from '../components/InstallPanel.astro';
 import {pageLanguage} from '../lib/language';
+import {sceneSource} from '../lib/scene-source';
 import {ui} from '../lib/ui';
 
 const language = pageLanguage(Astro.currentLocale);
@@ -24,8 +24,8 @@ const {t, examples} = ui(language);
         <span>{t('Set the duration and easing. Animatix fills in the frames.', '你定时长和缓动，Animatix 补齐中间的动作。')}</span>
       </p>
     </div>
-    <EditableScene id={insertionId} source={insertionSource} title={t('Insertion sort', '插入排序')} autoplay
-      posterAlt={t('Where does 3 fit? A green 3 hovers by the sorted row of 2, 4 and 5.', '绿色的 3 悬在已经排好序的 2、4、5 上方。')}/>
+    <EditableScene id={insertionId} source={sceneSource(insertionId)} title={t('Insertion sort', '插入排序')} autoplay
+      posterAlt={t('Where does 3 fit? The 3 hovers beside the sorted row of 2, 4 and 5.', '数字 3 悬在已经排好序的 2、4、5 旁边。')}/>
   </section>
   <section id="examples" class="project-section" aria-labelledby="examples-title">
     <h2 id="examples-title">{examples}</h2>

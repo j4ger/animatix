@@ -1,0 +1,17 @@
+---
+import {pageLanguage} from '../lib/language';
+import {ui} from '../lib/ui';
+
+interface Props {
+  id: string;
+  describedBy: string;
+  source?: string;
+}
+
+const {id, describedBy, source = ''} = Astro.props;
+const {amxSource} = ui(pageLanguage(Astro.currentLocale));
+---
+<div class="source-editor source-highlight">
+  <div class="source-guide source-wrap" aria-hidden="true"></div>
+  <textarea {id} class="source-wrap" aria-label={amxSource} aria-describedby={describedBy} wrap="soft" spellcheck="false" autocomplete="off" autocapitalize="off">{source}</textarea>
+</div>

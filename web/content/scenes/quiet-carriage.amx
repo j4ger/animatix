@@ -1,53 +1,51 @@
-// An idealised low train tone, measured at a single point inside the ear cup.
-config { resolution: (960, 560), duration: 16 }
+// One low train tone plus the headphones' opposing pressure wave.
+config { colorscheme: "editorial-dark", resolution: (960, 560), duration: 16 }
 
-let rumble = hex_color("ffb387")
-let speaker = hex_color("b5bdff")
-let ear = hex_color("d3ef9b")
-let grid = hex_color("354345")
+let speaker_level = 1
 let phase = 0
 let gain = 0
-let speaker_level = 1
-let noise = (x, angle) => sin(x - angle)
-let plot_width = 864
-let plot_height = 154
-let signal_domain = (0, 15)
-let pressure_range = (-1.2, 1.2)
+let wave = (x, angle) => sin(x - angle)
+let plot_size = (864, 146)
+let domain = (0, 15)
+let pressure = (-1.2, 1.2)
+
+pub component WaveLabel(label: Str, ink: Color) {
+  tag: Row, align: "center", gap: 10 {
+    dot: Ellipse, size: (13, 13), color: ink
+    name: Text, text: label, font_size: 26
+  }
+}
 
 #0s
-  backdrop: Rect, at: (480, 280), size: (960, 560),
-    fill_gradient: radial((0.84, 0.12), 0.9, {hex_color("29424b"), hex_color("142526")})
+  backdrop: Rect, anchor: scene.center, size: (scene_width, scene_height),
+    fill_gradient: radial((0.76, 0.2), 0.9, {surface.secondary, scene.background})
+  signals: Col, anchor: scene.center, offset: (0, -36), gap: 10, align: "start" {
+    legend: Row, gap: 32, align: "center" {
+      train: WaveLabel, label: "Train rumble", ink: accent.warning
+      headphones: WaveLabel, label: "Headphones", ink: accent.info, opacity: 0
+    }
+    outside: Graph, size: plot_size, x_domain: domain, y_domain: pressure,
+      stroke: text.muted, ticks: false, tick_labels: "none" {
+      rumble: PlotCurve, func: (x) => wave(x, phase), stroke: accent.warning, stroke_width: 5
+      opposing: PlotCurve, func: (x) => -gain * wave(x, phase), stroke: accent.info, stroke_width: 5, opacity: 0
+    }
+    result: WaveLabel, label: "At your ear", ink: accent.success
+    inside: Graph, size: plot_size, x_domain: domain, y_domain: pressure,
+      stroke: text.muted, ticks: false, tick_labels: "none" {
+      heard: PlotCurve, func: (x) => (1 - gain) * wave(x, phase), stroke: accent.success, stroke_width: 5
+    }
+  }
+  caption: Text, anchor: scene.bottom, offset: (0, -46),
+    text: "A low rumble reaches your ear.", font_size: 30
+
   always {
     phase = 0.85 * t
     gain = speaker_level * smoothstep(4, 12, t)
   }
 
-  // Both traces use the same time and pressure scales.
-  for i in {0, 1, 2, 3, 4, 5, 6, 7, 8} {
-    guide[i]: Line, from: (48 + i * 108, 89), to: (48 + i * 108, 442), stroke: grid, stroke_width: 1
-  }
-  outside: Graph, at: (480, 179), size: (plot_width, plot_height),
-    x_domain: signal_domain, y_domain: pressure_range, grid: false, ticks: false, tick_labels: "none", stroke: grid {
-    train_wave: PlotCurve, func: (x) => noise(x, phase), stroke: rumble, stroke_width: 6
-    speaker_wave: PlotCurve, func: (x) => -gain * noise(x, phase), stroke: speaker, stroke_width: 5, opacity: 0
-  }
-  inside: Graph, at: (480, 367), size: (plot_width, plot_height),
-    x_domain: signal_domain, y_domain: pressure_range, grid: false, ticks: false, tick_labels: "none", stroke: grid {
-    heard: PlotCurve, func: (x) => (1 - gain) * noise(x, phase), stroke: ear, stroke_width: 6
-  }
-
-  train_dot: Ellipse, at: (57, 54), size: (16, 16), color: rumble
-  train_label: Text, at: (165, 54), text: "Train rumble", font_size: 29, color: rumble
-  speaker_dot: Ellipse, at: (362, 54), size: (16, 16), color: speaker, opacity: 0
-  speaker_label: Text, at: (484, 54), text: "Headphones", font_size: 29, color: speaker, opacity: 0
-  ear_dot: Ellipse, at: (57, 286), size: (16, 16), color: ear
-  ear_label: Text, at: (154, 286), text: "At your ear", font_size: 29, color: ear
-  divider: Line, from: (48, 465), to: (912, 465), stroke: grid, stroke_width: 2
-  caption: Text, at: (480, 508), text: "A low rumble reaches your ear.", font_size: 35, color: hex_color("f6f2e6")
-
 #4s
   caption.text = "The speaker pushes when the rumble pulls."
-  fade_in(targets: {speaker_wave, speaker_dot, speaker_label}, duration: 500ms)
+  fade_in(targets: {signals.outside.opposing, signals.legend.headphones}, duration: 500ms)
 
 #10s
   caption.text = "The two pressures add at your ear."

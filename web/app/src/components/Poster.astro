@@ -1,5 +1,0 @@
----
-import {url} from '../lib/content';
-const {kind = 'one-rule-many-forms', title = ''} = Astro.props;
----
-<div class="poster"><img src={url(`content/posters/${kind}.png`)} width="1280" height="720" loading="lazy" decoding="async" alt={title}/></div>

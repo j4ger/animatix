@@ -4,6 +4,7 @@ import EditableScene from '../../components/EditableScene.astro';
 import {works, url, pageUrl} from '../../lib/content';
 import {workCopy} from '../../lib/catalog-zh';
 import {pageLanguage} from '../../lib/language';
+import {sceneSource} from '../../lib/scene-source';
 import {ui} from '../../lib/ui';
 
 export function getStaticPaths() {
@@ -14,11 +15,10 @@ const labels = ui(language);
 const {t} = labels;
 const original: typeof works[number] = Astro.props.work;
 const work = language === 'zh' ? {...original, ...workCopy[original.id]} : original;
-const sources = import.meta.glob<string>('../../../../content/scenes/*.amx', {query: '?raw', import: 'default', eager: true});
-const source = sources[`../../../../content/scenes/${work.id}.amx`];
+const source = sceneSource(work.id);
 const experiments: Record<string, [string, string, string]> = {
-  'move-the-basis': ['let motion = (time, start)', 'Change the divisor from 4 to 2. The shear takes half as long.', '把除数从 4 改成 2，剪切动作就会快一倍。'],
-  'make-room': ['let lifted_y = 245', 'Change 245 to 210 to lift each card higher during a comparison.', '把 245 改成 210，看看待插入的卡片抬得更高时，比较过程有什么变化。'],
+  'move-the-basis': ['#3s · plane.e2.to', 'Change 4s to 2s. The other shapes still follow the moving vector.', '把 4s 改成 2s。看看其他图形怎样继续跟着基向量运动。'],
+  'make-room': ['let lifted_y = row_y - 135', 'Change 135 to 170 to lift each card higher during a comparison.', '把 135 改成 170，让待插入的卡片在比较时抬得更高。'],
   'one-rule-many-forms': ['let radial_delay = 0.28', 'Change 0.28 to 0.14 and watch the ripple move through the grid faster.', '把 0.28 改成 0.14，看看涟漪怎样更快地穿过方阵。'],
   'when-waves-meet': ['let phase_degrees = 0', 'Change 0 to 180 and see what the two waves add up to at the start.', '把 0 改成 180，看看两道波一开始叠加成什么样。'],
   'words-keep-time': ['let available = "Reading and exports"', 'Change the list of available features, then watch where it appears in the notice.', '改一下维护期间可用的功能，再看这句话在通知里的哪个位置出现。'],

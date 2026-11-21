@@ -1,17 +1,18 @@
 ---
 import Page from '../../layouts/Page.astro';
+import DocsBackLink from '../../components/DocsBackLink.astro';
 import {url, pageUrl, github} from '../../lib/content';
 import {pageLanguage} from '../../lib/language';
 import {ui} from '../../lib/ui';
 const language = pageLanguage(Astro.currentLocale);
-const {t, docs, quickstart} = ui(language);
+const {t, quickstart} = ui(language);
 const install = pageUrl(language, '#install');
 const edit = pageUrl(language, 'playground/?scene=insertion-sort&step=four');
 const download = url('content/scenes/insertion-sort.amx');
 ---
 <Page title={quickstart}>
   <article class="docs-layout quickstart">
-    <a class="backlink" href={pageUrl(language, 'docs/')}>← {docs}</a>
+    <DocsBackLink/>
     <h1>{quickstart}</h1>
     <p id="local">{language === 'en'
       ? <>Download a build from <a href={install}>Install Animatix</a> and extract it. Save <a href={download} download>insertion-sort.amx</a> to that folder, or <a href={edit}>edit it in your browser</a>.</>

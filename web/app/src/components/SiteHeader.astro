@@ -22,7 +22,6 @@ const {id, homeLinks, playgroundUrl = pageUrl(language, 'playground/')} = Astro.
     <span>animatix<b>.</b></span>
   </a>
   <nav class="site-nav" aria-label={t('Main navigation', '主导航')}>
-    <a href={pageUrl(language, '#examples')} aria-current={route === 'journey/' || route.startsWith('showcase/') ? 'location' : undefined}>{labels.examples}</a>
     <a href={pageUrl(language, 'docs/')} aria-current={route.startsWith('docs/') || route.startsWith('learn/') ? 'page' : undefined}>{labels.docs}</a>
     <a href={playgroundUrl} aria-current={route.startsWith('playground/') ? 'page' : undefined}>{labels.playground}</a>
   </nav>
@@ -41,10 +40,10 @@ const {id, homeLinks, playgroundUrl = pageUrl(language, 'playground/')} = Astro.
   .site-header {
     --header-control-size: 34px;
     display: grid;
-    grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+    grid-template-columns: minmax(max-content, 1fr) max-content max-content;
     grid-template-areas: 'brand nav tools';
     align-items: center;
-    gap: 12px clamp(12px, 2.2vw, 30px);
+    gap: 12px clamp(12px, 1.8vw, 24px);
     height: auto;
     min-height: 72px;
     padding-block: 12px;
@@ -89,6 +88,8 @@ const {id, homeLinks, playgroundUrl = pageUrl(language, 'playground/')} = Astro.
     display: flex;
     align-items: center;
     gap: 10px;
+    padding-inline-start: clamp(12px, 1.4vw, 20px);
+    border-inline-start: 1px solid var(--line);
   }
   .repo-link {
     display: inline-flex;
@@ -122,8 +123,9 @@ const {id, homeLinks, playgroundUrl = pageUrl(language, 'playground/')} = Astro.
     }
     .site-brand { gap: 6px; font-size: 1.32rem; }
     .site-brand img { width: 26px; height: 26px; }
-    .site-nav { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: .86rem; }
+    .site-nav { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; font-size: .86rem; }
     .site-nav a { min-height: 42px; }
+    .site-tools { padding-inline-start: 0; border-inline-start: 0; }
   }
   @media (max-width: 360px) {
     .site-header { --header-control-size: 36px; column-gap: 8px; }

@@ -4,8 +4,7 @@ import {sourceCues} from '../lib/insertion-steps';
 import {draftSelection, takeEditorTransfer, transferEditor} from '../lib/editor-transfer';
 import {currentUi} from '../lib/ui';
 import {bindTimeline} from '../lib/timeline';
-import {bindSourceHighlight, type HighlightRange} from '../lib/source-highlight';
-import {sourceCells} from '../lib/source-cells';
+import {bindSourceEditor, type SourceKeyframe} from '../lib/source-highlight';
 import {numericDefault, withOverride} from '../lib/overrides';
 
 const labels = currentUi();
@@ -19,10 +18,9 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
   const clock = sample.querySelector<HTMLOutputElement>('.sample-clock')!;
   const inspect = sample.querySelector<HTMLButtonElement>('.inspect')!;
   const panel = sample.querySelector<HTMLElement>('.source-panel')!;
-  const editorFrame = panel.querySelector<HTMLElement>('.source-editor')!;
-  const editor = editorFrame.querySelector('textarea')!;
+  const editor = panel.querySelector('textarea')!;
   const guide = panel.querySelector<HTMLElement>('.source-guide')!;
-  const highlight = bindSourceHighlight(editor, guide, () => loadPlayerModule(shell.dataset.module!), decorateCells);
+  const highlight = bindSourceEditor(editor, () => loadPlayerModule(shell.dataset.module!), updateKeyframes);
   const reset = panel.querySelector<HTMLButtonElement>('.reset-source')!;
   const status = panel.querySelector<HTMLElement>('.source-status')!;
   const preset = sample.querySelector<HTMLSelectElement>('[data-scene-preset]');
@@ -55,22 +53,12 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
     activeCell?.setAttribute('data-current', '');
   }
 
-  function decorateCells(rows: readonly HTMLDivElement[], lines: readonly string[], ranges: readonly HighlightRange[]) {
-    const times = new Map(sourceCues(editor.value).map(cue => [cue.line - 1, cue.time]));
-    const content = document.createDocumentFragment();
-    timedCells = [];
-    for (const {start, end, next, keyframe} of sourceCells(lines, ranges)) {
-      const element = document.createElement('div');
-      element.className = 'source-cell';
-      if (keyframe) rows[start].classList.add('keyframe-line');
-      for (let line = start; line < end; line++) element.append(rows[line]);
-      content.append(element);
-      for (let line = end; line < next; line++) content.append(rows[line]);
-      const time = times.get(start);
-      if (keyframe && time !== undefined) timedCells.push({element, time});
-    }
-    guide.replaceChildren(content);
-    timedCells.sort((a, b) => a.time - b.time);
+  function updateKeyframes(keyframes: SourceKeyframe[]) {
+    const times = new Map(sourceCues(editor.value).map(cue => [cue.line, cue.time]));
+    timedCells = keyframes.flatMap(({line, element}) => {
+      const time = times.get(line);
+      return time === undefined ? [] : [{element, time}];
+    }).sort((a, b) => a.time - b.time);
     activeCell = undefined;
     markCurrentCell();
   }
@@ -78,9 +66,7 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
   function renderSource() {
     timedCells = [];
     activeCell = undefined;
-    const lines = editor.value.split('\n');
-    editorFrame.style.setProperty('--source-line-digits', String(String(lines.length).length));
-    highlight.render(lines).forEach((row, index) => { row.dataset.line = String(index + 1); });
+    highlight.render();
     if (download) {
       if (download.href.startsWith('blob:')) URL.revokeObjectURL(download.href);
       download.href = editor.value === original ? originalDownload! : URL.createObjectURL(new Blob([editor.value], {type: 'text/plain'}));

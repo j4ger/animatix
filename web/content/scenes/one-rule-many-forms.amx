@@ -1,57 +1,48 @@
-// One rule, many forms. preset: 0 = ripple; 1 = diagonal cascade.
-// A fixed Grid owns spacing; only scale/rotation/opacity animate inside each slot.
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 20 }
+// The same grid pulses with radial or diagonal delays.
+config { colorscheme: "vivid", resolution: (1280, 720), duration: 20 }
 
 let preset = 0
-let x_slots = {0, 1, 2, 3, 4, 5, 6, 7}
-let y_slots = {0, 1, 2, 3, 4, 5}
-let columns = x_slots.length()
-let rows = y_slots.length()
+let xs = {0, 1, 2, 3, 4, 5, 6, 7}
+let ys = {0, 1, 2, 3, 4, 5}
+let columns = xs.length()
+let rows = ys.length()
 let count = columns * rows
 let cell = (64, 64)
-let cyan = hex_color("65d9e8")
-let lilac = hex_color("aba4fa")
 let radial_delay = 0.28
 let cascade_delay = 0.14
-let radial_rule = format("delay = distance from center × {:.2} s", radial_delay)
-let cascade_rule = format("delay = (column + row) × {:.2} s", cascade_delay)
-let pulse_at = (time, centre) => exp(0 - ((time - centre) / 0.65) ^ 2)
+let radial_rule = "Delay by distance from the center"
+let cascade_rule = "Delay by row + column"
+let pulse_at = (time, center) => exp(0 - ((time - center) / 0.65) ^ 2)
 
 #0s
-  background: Rect, anchor: scene.center, size: (1280, 720),
-    fill_gradient: radial((0.5, 0.5), 0.65, {hex_color("2f3468"), hex_color("171529")})
-  for diameter, i in {164, 308, 452, 596} {
-    ring[i]: Ellipse, at: (640, 360), size: (diameter, diameter), fill_opacity: 0,
-      stroke: hex_color("aeb9ff"), stroke_width: 2, opacity: 0.15
-  }
-  seed: Rect, at: (640, 360), size: cell, corner_radius: 15, color: cyan
-  step: Text, text: "01 / ONE SHAPE", at: (640, 54), font_size: 22, color: hex_color("f3f5f7")
-  rule: Text, text: "Define it once.", at: (640, 666), font_size: 22, color: hex_color("90a4b8")
-  field: Grid, cols: columns, gap: 26, anchor: scene.center {
-    for y in y_slots {
-      for x in x_slots {
-        tile[y * columns + x]: Rect, size: cell, corner_radius: 15,
-          color: lerp_color_oklab(cyan, lilac, (y * columns + x) / (count - 1))
+  backdrop: Rect, anchor: scene.center, size: (scene_width, scene_height),
+    fill_gradient: radial((0.5, 0.5), 0.68, {surface.secondary, scene.background})
+  seed: Rect, anchor: scene.center, size: cell, corner_radius: 14, color: accent.primary
+  field: Grid, cols: columns, gap: 24, anchor: scene.center {
+    for y in ys {
+      for x in xs {
+        tile[y * columns + x]: Rect, size: cell, corner_radius: 14, opacity: 0,
+          color: lerp_color_oklab(accent.primary, accent.info, (y * columns + x) / (count - 1))
       }
     }
   }
+  rule: Text, anchor: scene.bottom, offset: (0, -58), text: format("One shape becomes {}.", count), font_size: 28
 
   always {
-    for row in y_slots {
-      for column in x_slots {
-        let i = row * columns + column
-        let dx = column - (columns - 1) / 2
-        let dy = row - (rows - 1) / 2
+    for y in ys {
+      for x in xs {
+        let i = y * columns + x
+        let dx = x - (columns - 1) / 2
+        let dy = y - (rows - 1) / 2
         let radial = sqrt(dx ^ 2 + dy ^ 2) * radial_delay
-        let cascade = (column + row) * cascade_delay
-        let first = if preset == 1 { cascade } else { radial }
-        let next = if preset == 1 { radial } else { cascade }
-        let pulse = pulse_at(t, 5.5 + first) + pulse_at(t, 11 + next) + pulse_at(t, 16 + next)
+        let diagonal = (x + y) * cascade_delay
+        let first = if preset == 1 { diagonal } else { radial }
+        let second = if preset == 1 { radial } else { diagonal }
+        let pulse = pulse_at(t, 5.5 + first) + pulse_at(t, 11 + second) + pulse_at(t, 16 + second)
         let reveal = clamp((t - 2 - i * 0.025) / 0.5, 0, 1)
-
         tile[i].scale = 0.45 + 0.37 * reveal + 0.32 * pulse
         tile[i].rotation = 0.45 * pulse
-        tile[i].opacity = reveal * (0.5 + 0.5 * pulse)
+        tile[i].opacity = reveal * (0.65 + 0.35 * pulse)
       }
     }
   }
@@ -59,18 +50,8 @@ let pulse_at = (time, centre) => exp(0 - ((time - centre) / 0.65) ^ 2)
 #1.7s
   fade_out(target: seed, duration: 0.4s)
 
-#2s
-  step.text = "02 / MAKE COPIES"
-  rule.text = format("{} actors. One definition.", count)
-
 #4.5s
-  step.text = "03 / DELAY BY DISTANCE"
   rule.text = if preset == 1 { cascade_rule } else { radial_rule }
 
 #10s
-  step.text = "04 / CHANGE THE RULE"
-  rule.text = format("Now: {}", if preset == 1 { radial_rule } else { cascade_rule })
-
-#19s
-  step.text = "SAME SHAPES. DIFFERENT TIMING."
-  rule.text = "The rule changes. The array does not."
+  rule.text = if preset == 1 { radial_rule } else { cascade_rule }

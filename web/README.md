@@ -1,11 +1,13 @@
 # Animatix Web
 
-A static Astro site around the `.amx` player. The website has
-three primary paths: **Examples**, **Docs**, and **Playground**. No backend,
-accounts or client-side UI framework are required.
+A static Astro site around the `.amx` player. The homepage features an editable
+demo and an examples gallery. **Docs** and **Playground** are in the main
+navigation. No backend, accounts or client-side UI framework are required.
 
-The header groups the GitHub link with the language and theme controls. On
-narrow screens, the main navigation sits below the wordmark and these controls.
+The header groups the navigation and the GitHub, language and theme controls
+on the right. On narrow screens, the navigation sits below the wordmark and
+the controls. Showcase pages link back to the homepage gallery from their
+breadcrumbs.
 English uses the existing URLs and Simplified Chinese lives under `/zh/`. The
 home entry uses the browser's language preference until a visitor chooses
 English or 简体中文 in the menu. That choice is remembered, and deep links use
@@ -38,13 +40,15 @@ The homepage also lists the examples and links to GitHub Releases from the
 Linux, macOS, and Windows tabs. Quickstart has separate GUI and CLI paths.
 **View source** pauses the scene and opens its complete, editable AMX file beside
 the preview. Definitions and keyframes are shown as cells in one text buffer.
-Seeking on the timeline scrolls to the corresponding timestamp cell. The editor
-rebuilds after a short pause in typing and keeps the current playhead position.
+In these inline previews, seeking on the timeline scrolls to the corresponding
+timestamp cell. The editor rebuilds after a short pause in typing and keeps
+the current playhead position.
 Build errors leave the previous scene available. **Reset** restores the original
 file. Showcase presets update the editable source, and **Download AMX** saves
-the current draft. Playground loads the selected scene immediately and updates
-after a pause in typing. The editors wrap long lines visually and preserve the
-source text. They highlight AMX keywords, literals, identifier roles and keyframes using
+the current draft. Playground shares the cell editor and opens a scene when it
+is selected. Switching scenes asks for confirmation when the draft has unsaved
+edits. The editors wrap long lines visually and preserve the source text.
+They highlight AMX keywords, literals, identifier roles and keyframes using
 the SDK's tokenizer and parser, independently of live preview builds.
 Use **Download .amx** to save the current draft.
 

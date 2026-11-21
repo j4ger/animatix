@@ -1,6 +1,7 @@
 ---
 import Page from '../layouts/Page.astro';
 import Scene from '../components/Scene.astro';
+import SourceEditor from '../components/SourceEditor.astro';
 import {techniques} from '../lib/techniques';
 import {works, lessons, url} from '../lib/content';
 import {workCopy, lessonCopy, techniqueCopy} from '../lib/catalog-zh';
@@ -20,16 +21,12 @@ const choices = [
 ];
 ---
 <Page title={playground} wide>
-  <div class="play-heading"><h1>{playground}</h1><p>{t('Download your .amx file to keep your edits.', '下载 .amx 文件以保存修改。')}</p></div>
+  <h1 class="play-heading">{playground}</h1>
   <div class="playground" data-playground data-base={url('content/scenes/')}>
     <section class="editor-pane" aria-label={t('Source editor', '源码编辑器')}>
-      <div class="editor-toolbar"><label for="scene-choice">{t('Source', '场景')}</label><select id="scene-choice">{choices.map(x => <option value={x.id}>{x.title}</option>)}</select><button id="open-source" class="button">{t('Open', '打开')}</button></div>
+      <div class="editor-toolbar"><label for="scene-choice">{t('Source', '场景')}</label><select id="scene-choice">{choices.map(x => <option value={x.id}>{x.title}</option>)}</select></div>
       <p id="editor-status" role="status" aria-live="polite">{labels.loadingSource}</p>
-      <label class="sr-only" for="source-code">{labels.amxSource}</label>
-      <div class="playground-source source-highlight">
-        <div class="source-guide source-wrap" aria-hidden="true"></div>
-        <textarea id="source-code" class="source-wrap" wrap="soft" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
-      </div>
+      <SourceEditor id="source-code" describedBy="editor-status"/>
       <div class="editor-actions"><button id="reset" class="button">{labels.reset}</button><button disabled id="download" class="button">{t('Download .amx', '下载 .amx')} ↓</button></div>
       <div id="diagnostics"></div>
     </section>

@@ -1,6 +1,6 @@
 # Scene contracts and verification
 
-Every source is self-contained. Page titles and long explanations belong in the DOM; the canvas carries only labels needed to understand its visual argument. The Showcase works use 1280×720 stages. Each work has its own backdrop and uses low-contrast decoration behind the instructional graphics.
+Every source is self-contained. Page titles and long explanations belong in the DOM; the canvas carries the labels and captions needed to follow the animation. The Showcase works use 1280×720 stages. The scenes use built-in colorschemes for text, surfaces, accents and backdrop gradients. Layout containers group the legends, readouts and notice fields. Computed positions keep related marks on a common scale.
 
 ## Works
 
@@ -16,22 +16,21 @@ Every source is self-contained. Page titles and long explanations belong in the 
 
 The seed holds until 1.7 s. Array reveal starts at 2 s, with a 25 ms per-index offset. The first pulse starts at 5.5 s plus distance delay. At 10 s only the delay metric changes; pulses at 11 and 16 s demonstrate it. The final state holds at 19–20 s.
 
-Preset 0 starts radial and switches to diagonal; preset 1 reverses that order. The formulas displayed on canvas are the formulas actually used. `Grid` owns fixed spacing while scale, rotation and opacity vary inside the slots. The Gaussian envelope explicitly uses `exp(0 - x^2)` because the DSL's unary-minus precedence made an earlier `exp(-x^2)` version overflow. The defective version was caught by actual rendering and is not delivered.
+Preset 0 starts radial and switches to diagonal; preset 1 reverses that order. A caption names the current delay rule. `Grid` owns fixed spacing while scale, rotation and opacity vary inside the slots. The Gaussian envelope uses `exp(0 - x^2)` to make the sign of the squared term explicit.
 
 ### Waves
 
-A enters at 0.2 s, B at 2.5 s. Single-point addition appears at 5.5–8.5 s; the complete sum enters at 8.5 s. The phase panel replaces that annotation at 11 s. Initial phase holds until 12 s, moves by +180° at 12–18 s, holds until 21 s, moves to +360° at 21–26 s, then holds through 28 s.
+A enters at 0.2 s, B at 2.5 s. Single-point addition appears at 5.5 s; the complete sum enters at 8.5 s. The phase and amplitude values replace the addition at 11 s. Initial phase holds until 12 s, moves by +180° at 12–18 s, holds until 21 s, moves to +360° at 21–26 s, then holds through 28 s.
 
 - A(x)=sin(x); B(x)=sin(x+phase); the output is exactly A(x)+B(x).
-- All plots use 40 px per amplitude unit; the output has extra vertical headroom.
-- Phase, amplitude, sample-point values, curves and dial derive from the same analytic phase. Amplitude is `2*abs(cos(phase/2))`.
+- All three plots use the same domain and range. The `Col` supplies their spacing, and the sample points use 40 px per amplitude unit.
+- Phase, amplitude, sample-point values and curves derive from the same analytic phase. Amplitude is `2*abs(cos(phase/2))`.
 - Continuous numeric strings update immediately, without repeatedly starting a whole-string morph.
-- Semantic labels are static glyphs with analytic phase/amplitude-dependent opacity. They fade through a brief clear gap, never superimposing two competing labels. This works for initial-phase presets and arbitrary seeking without accumulated transition state.
 - Initial phase 180° starts cancelled, reinforces midway and ends cancelled. No caption hardcodes the default narrative.
 
 ### Maintenance notice
 
-The original announcement is visible from the first frame. At 4 s it moves left and the impact appears on the right. The time window and available features follow at 8 and 12 s. The final comparison holds from 16 to 20 s. A `Stack` aligns the original card and its text, while a `Col` places three instances of `NoticeField` without separate row coordinates. The time window is authored once.
+The original announcement is visible from the first frame. At 4 s it moves left and the impact appears on the right. The time window and available features follow at 8 and 12 s. Both panels hold through 20 s. A `Stack` aligns the original card and its text. A `Col` places three instances of `NoticeField`. Both panels use the same three strings.
 
 ## Hero and lessons
 
@@ -49,11 +48,10 @@ Lessons are intentionally minimal, not duplicated work scenes. Lesson 06 can dem
 
 ## Live playback and recorded fallback
 
-The 15 current works, lessons and techniques use their published AMX sources.
-Choose **Play live** on the poster to start the engine. The poster remains
-visible during load or after an error. Showcase works also offer **Play
-recording** after a live playback failure. Recordings always show the authored
-default settings.
+The works, lessons and techniques use their published AMX sources. Showcase
+works start the engine from **Play** or **View source** below the picture.
+Lessons and techniques start from **Play live** on their posters. A Showcase
+work offers its recording of the authored defaults after a live playback failure.
 
 `preview-manifest.json` binds each work to its source, poster and optional
 recording. All five recordings are silent H.264/yuv420p, 1280×720 at 24 fps,
@@ -62,7 +60,7 @@ duration, poster timestamp and artifact hash.
 
 Render at the authored resolution: the current CLI's smaller `--width/--height` video options cropped this scene instead of scaling. The initial low-resolution attempt was rejected after viewing encoded frames. Current delivered recordings have no crop or resize.
 
-## Acceptance record
+## Earlier acceptance record
 
 The unchanged hero and six lessons previously passed native CLI check and actually viewed storyboards. Hero 0/7 s full-resolution PNGs were pixel-identical. Lesson samples: first-move 0/0.5/1.25/2/3; compose 0/1/1.5/3/4; repeat 0/1/2/3/5; values 0/1.5/3/4.5/6; timing 0/1.5/2.5/3.5/6; finish 0/1/1.5/2.5/5.
 
@@ -81,13 +79,18 @@ The repository has a narration example, word-level JSON, an Edge-TTS helper, and
 
 ## Completion-pass stories
 
-- `move-the-basis.amx` (24 s): a horizontal shear with one shared amount and a
-  fixed grey reference. The unit area is preserved; lengths and angles change.
+- `move-the-basis.amx` (24 s): the keyframes animate the second basis vector.
+  The grid, sample point, parallelogram and readout derive from its endpoint.
+  A `Counter` rolls the two decimal places as the shear changes.
+  The unit area is preserved; lengths and angles change.
   No public parameter is advertised: the authored tour deliberately compares
   zero, positive and negative shear on one fixed scale.
 - `make-room.amx` (24 s): stable insertion sort on `[4, 2a, 5, 2b, 3]`. Counters
   count eight key comparisons and five rightward moves, excluding key placement.
-  Explicit keyframe events expose each decision. `NumberCard` moves the face and digit together, slot positions and prefix widths share one spacing value, and a timeline function schedules subtitle transitions from their authored cue times.
+  Each `Counter` rolls once alongside its comparison highlight or card shift.
+  Explicit keyframe events pair each decision with its caption. `NumberCard`
+  moves the face and digit together, the slot and prefix share one spacing
+  value, and a `Col` lays out the counters.
 - `technique-reveal/focus/stagger/labels.amx`: four short, single-intent sources
   linked from Learn. Unlike works, techniques do not need a separate story arc.
 

@@ -1,104 +1,68 @@
-// A horizontal shear: (x, y) -> (x + k*y, y).
-// Fixed grey axes are a reference. Teal/gold arrows and the lattice transform.
-// Determinant is 1: area is preserved, but lengths and angles need not be.
-// Every animated endpoint uses the same k; x and y use 70 px per unit.
+// Shear maps (x, y) to (x + k*y, y). The reference axes stay fixed.
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 24 }
 
-let k = 0
-let unit = 70
-let project = (x, y, shear) => (400 + unit * (x + shear * y), 410 - unit * y)
-let motion = (time, start) => ease_in_out(clamp((time - start) / 4, 0, 1))
+let unit = 85
+let project = (x, y, shear) => (unit * (x + shear * y), 0 - unit * y)
 
 #0s
-  // Blueprint corners sit outside the coordinate system.
-  background: Rect, at: (640, 360), size: (1280, 720),
-    fill_gradient: linear(128, {hex_color("123746"), hex_color("101c29")})
-  for i in {0, 1, 2, 3} {
-    let x = if i % 2 == 0 { 42 } else { 1238 }
-    let y = if i < 2 { 42 } else { 678 }
-    let dx = if i % 2 == 0 { 28 } else { -28 }
-    let dy = if i < 2 { 28 } else { -28 }
-    corner_x[i]: Line, from: (x, y), to: (x + dx, y), stroke: hex_color("447082"), stroke_width: 2
-    corner_y[i]: Line, from: (x, y), to: (x, y + dy), stroke: hex_color("447082"), stroke_width: 2
-  }
-  kicker: Text, text: "LINEAR TRANSFORMS / ONE RULE FOR EVERY POINT", at: (640, 58), font_size: 16, color: hex_color("90a4b8")
-  title: Text, text: "Move the basis. Move the world.", at: (640, 112), font_size: 40, font_weight: "bold", color: hex_color("f3f5f7")
-  reference_x: Line, from: (100, 410), to: (720, 410), stroke: hex_color("526273"), stroke_width: 2
-  reference_y: Line, from: (400, 200), to: (400, 600), stroke: hex_color("526273"), stroke_width: 2
-  x_name: Text, text: "x", at: (737, 410), font_size: 20, color: hex_color("90a4b8")
-  y_name: Text, text: "y", at: (400, 184), font_size: 20, color: hex_color("90a4b8")
-  origin: Ellipse, at: (400, 410), size: (9, 9), color: hex_color("f3f5f7")
-  lattice: Group, at: project(0, 0, 0), opacity: 0 {
-    for n, i in {-2, -1, 0, 1, 2} {
-      vertical[i]: Line, from: (n * unit, 2 * unit), to: (n * unit, -2 * unit),
-        stroke: hex_color("304658"), stroke_width: 1
-      horizontal[i]: Line, from: (-2 * unit, -n * unit), to: (2 * unit, -n * unit),
-        stroke: hex_color("304658"), stroke_width: 1
+  backdrop: Rect, anchor: scene.center, size: (scene_width, scene_height),
+    fill_gradient: radial((0.25, 0.28), 0.9, {surface.secondary, scene.background})
+  plane: Group, at: (35%, 53%) {
+    lattice: Group, opacity: 0 {
+      for n, i in {-2, -1, 0, 1, 2} {
+        vertical[i]: Line, from: project(n, -2, 0), to: project(n, 2, 0), opacity: 0.26
+        horizontal[i]: Line, from: project(-2, n, 0), to: project(2, n, 0), opacity: 0.26
+      }
     }
+    x_axis: Line, from: project(-3.4, 0, 0), to: project(3.4, 0, 0), opacity: 0.55
+    y_axis: Line, from: project(0, -2.6, 0), to: project(0, 2.6, 0), opacity: 0.55
+    x_label: Text, at: project(3.6, 0, 0), text: "x", color: text.secondary
+    y_label: Text, at: project(0, 2.85, 0), text: "y", color: text.secondary
+    e1: Arrow, from: (0, 0), to: project(1, 0, 0), stroke: accent.primary, stroke_width: 4
+    e2: Arrow, from: (0, 0), to: project(0, 1, 0), stroke: accent.warning, stroke_width: 4
+    top_edge: Line, from: project(0, 1, 0), to: project(1, 1, 0), stroke: accent.primary, stroke_width: 3, opacity: 0
+    right_edge: Line, from: project(1, 0, 0), to: project(1, 1, 0), stroke: accent.primary, stroke_width: 3, opacity: 0
+    point: Ellipse, size: (14, 14), color: accent.danger, opacity: 0
   }
-
-  unit_top: Line, from: (400, 340), to: (470, 340), stroke: hex_color("65d9e8"), stroke_width: 3, opacity: 0
-  unit_right: Line, from: (470, 410), to: (470, 340), stroke: hex_color("65d9e8"), stroke_width: 3, opacity: 0
-  basis_x: Arrow, from: (400, 410), to: (470, 410), stroke: hex_color("65d9e8"), stroke_width: 4
-  basis_y: Arrow, from: (400, 410), to: (400, 340), stroke: hex_color("f4d47b"), stroke_width: 4
-  sample: Ellipse, at: (470, 340), size: (14, 14), color: hex_color("ff947d"), opacity: 0
-  split: Line, from: (800, 220), to: (800, 590), stroke: hex_color("304658"), stroke_width: 1
-  rule: Text, text: "x becomes x + k·y", at: (1020, 270), font_size: 27, font_weight: "bold", color: hex_color("f3f5f7")
-  rule_y: Text, text: "y stays y", at: (1020, 310), font_size: 24, color: hex_color("adbcca")
-  amount: Text, text: "k = 0.00", at: (1020, 380), font_size: 40, color: hex_color("f4d47b")
-  base_x: Text, text: "e1 = (1, 0)", at: (1020, 455), font_size: 24, color: hex_color("65d9e8")
-  base_y: Text, text: "e2 = (0.00, 1)", at: (1020, 495), font_size: 24, color: hex_color("f4d47b")
-  area: Text, text: "AREA = 1", at: (1020, 565), font_size: 20, color: hex_color("65d9e8"), opacity: 0
-  caption: Text, text: "Two basis vectors describe the original space.", at: (640, 650), font_size: 24, color: hex_color("adbcca")
+  readout: Col, at: (81%, 52%), align: "start", gap: 14 {
+    equation: Text, text: "(x, y) → (x + ky, y)", font_size: 31
+    shear: Row, align: "center", gap: 8 {
+      symbol: Text, text: "k =", font_size: 38, color: text.secondary
+      amount: Counter, value: 0, decimals: 2, font_size: 38, color: accent.warning
+    }
+    area: Text, text: "Area = 1", font_size: 24, color: text.secondary, opacity: 0
+  }
+  caption: Text, anchor: scene.bottom, offset: (0, -68),
+    text: "Two basis vectors describe the original space.", font_size: 26
 
   always {
-    k = motion(t, 3) - 1.6 * motion(t, 10) + 1.6 * motion(t, 17)
-
-    // Screen y grows downward, so the screen-space shear has the opposite sign.
+    let tip = e2.to
+    let k = tip[0] / unit
     lattice.transform = (1, 0, -k, 1, 0, 0)
-    basis_y.to = project(0, 1, k)
-    sample.at = project(1, 1, k)
-    unit_top.from = basis_y.to
-    unit_top.to = sample.at
-    unit_right.to = sample.at
-    amount.text = format("k = {:.2}", k)
-    base_y.text = format("e2 = ({:.2}, 1)", k)
+    point.at = project(1, 1, k)
+    top_edge.from = project(0, 1, k)
+    top_edge.to = project(1, 1, k)
+    right_edge.to = project(1, 1, k)
+    amount.value = k
   }
-
-#8s
-  fade_in(target: lattice, duration: 0.6s)
-  fade_in(target: sample, duration: 0.6s)
-
-#14s
-  fade_in(target: unit_top, duration: 0.6s)
-  fade_in(target: unit_right, duration: 0.6s)
-  fade_in(target: area, duration: 0.6s)
-
-// Fade through clear space: do not stack old/new caption glyphs.
-#2.88s
-  fade_out(target: caption, duration: 0.12s)
 
 #3s
   caption.text = "Slide the second basis vector sideways."
-  fade_in(target: caption, duration: 0.12s)
-
-#7.88s
-  fade_out(target: caption, duration: 0.12s)
+  plane.e2.to = project(0, 1, 1) [4s, ease: ease_in_out]
 
 #8s
-  caption.text = "Apply that same rule to every point."
-  fade_in(target: caption, duration: 0.12s)
+  caption.text = "Apply the same rule to the grid."
+  fade_in(targets: {plane.lattice, plane.point}, duration: 0.6s)
 
-#13.88s
-  fade_out(target: caption, duration: 0.12s)
+#10s
+  plane.e2.to = project(0, 1, -0.6) [4s, ease: ease_in_out]
 
 #14s
-  caption.text = "The unit square becomes a parallelogram. Its area stays 1."
-  fade_in(target: caption, duration: 0.12s)
+  caption.text = "The unit square becomes a parallelogram."
+  fade_in(targets: {plane.top_edge, plane.right_edge, readout.area}, duration: 0.6s)
 
-#18.88s
-  fade_out(target: caption, duration: 0.12s)
+#17s
+  plane.e2.to = project(0, 1, 1) [4s, ease: ease_in_out]
 
 #19s
-  caption.text = "Area is preserved. Lengths and angles are not."
-  fade_in(target: caption, duration: 0.12s)
+  caption.text = "Area stays fixed. Lengths and angles change."

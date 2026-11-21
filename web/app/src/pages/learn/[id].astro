@@ -1,7 +1,7 @@
 ---
 import Page from '../../layouts/Page.astro';
-import Scene from '../../components/Scene.astro';
-import {lessons, url, pageUrl} from '../../lib/content';
+import LearningScene from '../../components/LearningScene.astro';
+import {lessons, pageUrl} from '../../lib/content';
 import {lessonCopy} from '../../lib/catalog-zh';
 import {pageLanguage} from '../../lib/language';
 import {ui} from '../../lib/ui';
@@ -9,34 +9,16 @@ export function getStaticPaths() {
   return lessons.map((lesson, i) => ({params: {id: lesson.id}, props: {lesson, i}}));
 }
 const language = pageLanguage(Astro.currentLocale);
-const labels = ui(language);
-const {t} = labels;
+const {t} = ui(language);
 const {i} = Astro.props;
 const original: typeof lessons[number] = Astro.props.lesson;
 const lesson = language === 'zh' ? {...original, ...lessonCopy[original.id]} : original;
 const titleOf = (entry: typeof lessons[number]) => t(entry.title, lessonCopy[entry.id].title);
-const sources = import.meta.glob<string>('../../../../content/scenes/*.amx', {query: '?raw', import: 'default', eager: true});
-const source = sources[`../../../../content/scenes/${lesson.file}.amx`];
 ---
 <Page title={lesson.title}>
-  <section class="work-heading">
-    <a class="text-link" href={pageUrl(language, 'learn/')}>← {t('Learning route', '全部教程')}</a>
-    <p class="eyebrow">{t(`Lesson 0${i + 1} / 06`, `第 ${i + 1} 课 / 共 6 课`)}</p>
-    <h1>{lesson.title}{t('.', '')}</h1><p class="lead">{lesson.goal}</p>
-  </section>
-  <Scene id={lesson.file} title={lesson.title} posterAlt={t(`Rendered still from ${lesson.title}`, `「${lesson.title}」的静帧`)}/>
-  <div class="work-detail">
-    <div>
-      <p class="eyebrow">{t('What to notice', '观察要点')}</p><p>{lesson.explanation}</p>
-      <p class="eyebrow">{t('Try a change', '动手试试')}</p><h2>{lesson.exercise}</h2>
-      <a class="button primary" href={pageUrl(language, `playground/?scene=${lesson.file}`)}>{labels.editScene} →</a>
-    </div>
-    <div>
-      <p class="eyebrow">{t('Complete source', '完整源码')} · {lesson.file}.amx</p>
-      <pre class="lesson-code"><code>{source}</code></pre>
-      <a class="text-link" href={url(`content/scenes/${lesson.file}.amx`)} download>{labels.downloadSource} ↓</a>
-    </div>
-  </div>
+  <LearningScene entry={lesson} backPath="learn/" backLabel={t('Learning route', '全部教程')}
+    eyebrow={t(`Lesson 0${i + 1} / 06`, `第 ${i + 1} 课 / 共 6 课`)}
+    posterAlt={t(`Rendered still from ${lesson.title}`, `「${lesson.title}」的静帧`)}/>
   <div class="lesson-nav">
     {i > 0 && <a href={pageUrl(language, `learn/${lessons[i - 1].id}/`)}>← {titleOf(lessons[i - 1])}</a>}
     {i < lessons.length - 1 && <a href={pageUrl(language, `learn/${lessons[i + 1].id}/`)}>{titleOf(lessons[i + 1])} →</a>}

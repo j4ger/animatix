@@ -1,0 +1,36 @@
+---
+import PreferenceHead from '../components/PreferenceHead.astro';
+import {base, pageUrl, url} from '../lib/content';
+import {htmlLanguage, pageLanguage, sitePagePath} from '../lib/language';
+
+interface Props {
+  title: string;
+  description: string;
+  htmlClass?: string;
+  bodyClass?: string;
+  home?: boolean;
+  homeLinks?: boolean;
+}
+
+const {title, description, htmlClass, bodyClass, home = false, homeLinks = false} = Astro.props;
+const language = pageLanguage(Astro.currentLocale);
+const route = sitePagePath(Astro.url.pathname, base);
+---
+<!doctype html>
+<html lang={htmlLanguage(language)} class={htmlClass}>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <PreferenceHead automaticHome={home && language === 'en' ? pageUrl('zh') : ''}/>
+  <meta name="description" content={description}/>
+  {!homeLinks && <>
+    <link rel="alternate" hreflang="en" href={pageUrl('en', route)}/>
+    <link rel="alternate" hreflang="zh-Hans" href={pageUrl('zh', route)}/>
+  </>}
+  <link rel="icon" href={url('logo.svg')} type="image/svg+xml"/>
+  <title>{title} · Animatix</title>
+</head>
+<body class={bodyClass}>
+  <slot/>
+</body>
+</html>

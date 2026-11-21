@@ -1,13 +1,14 @@
 ---
 import Page from '../../layouts/Page.astro';
+import DocsBackLink from '../../components/DocsBackLink.astro';
 import {lessons, pageUrl} from '../../lib/content';
 import {lessonCopy} from '../../lib/catalog-zh';
 import {pageLanguage} from '../../lib/language';
 import {ui} from '../../lib/ui';
 const language = pageLanguage(Astro.currentLocale);
-const {t, docs, tutorials} = ui(language);
+const {t, tutorials} = ui(language);
 ---
-<Page title={tutorials}><section class="guide"><a class="backlink" href={pageUrl(language, 'docs/')}>← {docs}</a><h1>{tutorials}</h1></section>
+<Page title={tutorials}><section class="guide"><DocsBackLink/><h1>{tutorials}</h1></section>
   <div class="lessons">{lessons.map((lesson, i) => <a href={pageUrl(language, 'learn/' + lesson.id + '/')}>
     <span class="lesson-number">{i + 1}</span><div><h2>{t(lesson.title, lessonCopy[lesson.id].title)}</h2><p>{t(lesson.goal, lessonCopy[lesson.id].goal)}</p></div><span aria-hidden="true">→</span></a>)}</div>
 </Page>

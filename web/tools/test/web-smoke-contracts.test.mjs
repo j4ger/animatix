@@ -28,12 +28,12 @@ test('project base prefixes contracts and links, never silently tests root',asyn
  const {siteBase,withBase}=await import('./web-smoke-contracts.mjs');
  assert.equal(siteBase('/animatix/'),'/animatix');assert.equal(siteBase('/'),'');
  const home=withBase(contracts('site')[0],siteBase('/animatix/'));
- assert.equal(home.path,'/animatix/');assert.deepEqual(home.links,['/animatix/#examples','/animatix/docs/','/animatix/playground/']);
+ assert.equal(home.path,'/animatix/');assert.deepEqual(home.links,['/animatix/journey/','/animatix/showcase/move-the-basis/','/animatix/docs/','/animatix/playground/']);
  for(const base of ['https://example.com','../x','/a//b','/%2e','/a?b'])assert.throws(()=>siteBase(base));
 });
 test('documentation has direct destinations and showcase checks presets',()=>{
  for(const path of ['/docs/','/docs/quickstart/'])assert.ok(contracts('site').find(c=>c.path===path).links.length>=2);
- assert.equal(contracts('site').find(c=>c.path.startsWith('/showcase/')).preset,true);
+ assert.equal(contracts('site').find(c=>c.path==='/showcase/one-rule-many-forms/').preset,true);
  assert.ok(contracts('site').some(c=>c.backend==='webgl2'&&c.action==='load'));
  assert.ok(contracts('site').some(c=>c.action==='recording'&&c.recording));
 });
