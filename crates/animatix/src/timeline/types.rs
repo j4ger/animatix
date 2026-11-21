@@ -346,6 +346,11 @@ pub fn collect_all_keyframe_times(
             times.insert(t);
         }
     }
+    if let Some(shape) = world.shape(id) {
+        for track in [&shape.from_anchor, &shape.to_anchor].into_iter().flatten() {
+            times.extend(track.keyframes().keys().copied());
+        }
+    }
 
     times.into_iter().map(|ms| ms as f64 / 1000.0).collect()
 }

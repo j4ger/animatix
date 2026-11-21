@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::ast::{BinaryOp, LoopPattern, UnaryOp};
 use crate::timeline::Value;
-use crate::timeline::animation_track::SceneAnchor;
 
 /// Built-in mathematical and utility functions available in modifier expressions.
 #[derive(Clone, Debug, PartialEq)]
@@ -136,7 +135,7 @@ pub enum CompiledExpr {
         /// Actor label whose anchor point to resolve.
         actor: String,
         /// Which anchor point (top, right, center, etc.).
-        anchor: SceneAnchor,
+        anchor: crate::timeline::ActorPoint,
     },
 }
 

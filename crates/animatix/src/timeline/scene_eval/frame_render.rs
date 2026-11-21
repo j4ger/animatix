@@ -75,7 +75,6 @@ impl Timeline {
             } else {
                 kurbo::Affine::IDENTITY
             };
-            let camera_exempt = self.camera_used.get() && self.camera_exempt_present.get();
             // The whole-frame cache stays on the conservative `backend_can_run`
             // gate (see its doc). The *static-subtree* cache is per root, so a
             // backend only vetoes roots whose subtree actually contains an
@@ -95,30 +94,8 @@ impl Timeline {
                 // entirely — the HUD that must not move while the scene pushes
                 // in. Only roots are consulted: the camera is applied here, once,
                 // and a nested actor inherits its container's transform, so an
-                // opt-out deeper in the tree would have nothing to undo (and is
-                // reported at build). Short-circuited on `camera_exempt` so a
-                // scene that never uses the flag does no track lookup per root.
-                let root_affine = if camera_exempt {
-                    let root_meta = self.world.meta(root_id);
-                    if !root_meta.camera_follow || root_meta.parallax == 0.0 {
-                        kurbo::Affine::IDENTITY
-                    } else if (root_meta.parallax - 1.0).abs() < f32::EPSILON {
-                        camera_affine
-                    } else {
-                        let p = root_meta.parallax as f64;
-                        let cam = camera_affine.as_coeffs();
-                        kurbo::Affine::new([
-                            1.0 + p * (cam[0] - 1.0),
-                            p * cam[1],
-                            p * cam[2],
-                            1.0 + p * (cam[3] - 1.0),
-                            p * cam[4],
-                            p * cam[5],
-                        ])
-                    }
-                } else {
-                    camera_affine
-                };
+                // opt-out deeper in the tree is reported at build time.
+                let root_affine = self.root_camera_affine(root_id, camera_affine);
                 // Static subtree cache — fully-static subtrees are evaluated once
                 // and their vello encoding reused. Dimensions and item collection
                 // are part of the key; hit regions are captured once and restored.

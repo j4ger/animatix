@@ -5,7 +5,7 @@ use crate::primitives::{
     resolve_half_size,
 };
 use crate::renderer::error::RenderError;
-use crate::timeline::callout_geometry::bounds_anchor_point;
+use crate::timeline::actor_points::track::{PointValue, sample_point};
 use crate::timeline::kurbo_shapes::KurboShape;
 use crate::timeline::shapes::{
     ArrowState, EllipseState, LineState, PathState, PolygonState, RectState,
@@ -219,6 +219,23 @@ pub fn evaluate_ellipse(
     evaluate_shape_render(render_ellipse, "Ellipse", ctx, &VectorShapeState::Ellipse(state))
 }
 
+fn line_endpoint(
+    ctx: &EvaluateCtx<'_>,
+    track: Option<&crate::timeline::PropertyTrack<PointValue>>,
+    fallback: [f32; 2],
+) -> [f32; 2] {
+    let Some(track) = track else { return fallback };
+    let determinant = ctx.local_transform.determinant();
+    if determinant == 0.0 || !determinant.is_finite() {
+        return fallback;
+    }
+    let sample =
+        sample_point(track, ctx.time_ms, Some(ctx.scene_dimensions), fallback, &|id, point| {
+            ctx.target_resolver?.actor_point(id, point)
+        });
+    sample.texture_uv(ctx.local_transform.inverse(), [1, 1])
+}
+
 /// Evaluate draw commands for a `Line` actor.
 pub fn evaluate_line(
     ctx: &EvaluateCtx,
@@ -228,20 +245,8 @@ pub fn evaluate_line(
     let mut line_from = shape.line_from.get(ctx.time_ms, [-50.0, 0.0]);
     let mut line_to = shape.line_to.get(ctx.time_ms, [50.0, 0.0]);
 
-    if let Some((actor, anchor)) = shape.from_anchor.as_ref()
-        && let Some(resolver) = ctx.target_resolver
-        && let Some((centre, half)) =
-            resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions)
-    {
-        line_from = bounds_anchor_point(*anchor, centre, half);
-    }
-    if let Some((actor, anchor)) = shape.to_anchor.as_ref()
-        && let Some(resolver) = ctx.target_resolver
-        && let Some((centre, half)) =
-            resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions)
-    {
-        line_to = bounds_anchor_point(*anchor, centre, half);
-    }
+    line_from = line_endpoint(ctx, shape.from_anchor.as_deref(), line_from);
+    line_to = line_endpoint(ctx, shape.to_anchor.as_deref(), line_to);
 
     if let Some(overrides) = ctx.overrides {
         if let Some(Value::Vec2(from)) = overrides.get("from") {
@@ -271,20 +276,8 @@ pub fn evaluate_arrow(
     let mut line_to = shape.line_to.get(ctx.time_ms, [50.0, 0.0]);
     let mut head_size = shape.head_size.get(ctx.time_ms, 10.0);
 
-    if let Some((actor, anchor)) = shape.from_anchor.as_ref()
-        && let Some(resolver) = ctx.target_resolver
-        && let Some((centre, half)) =
-            resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions)
-    {
-        line_from = bounds_anchor_point(*anchor, centre, half);
-    }
-    if let Some((actor, anchor)) = shape.to_anchor.as_ref()
-        && let Some(resolver) = ctx.target_resolver
-        && let Some((centre, half)) =
-            resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions)
-    {
-        line_to = bounds_anchor_point(*anchor, centre, half);
-    }
+    line_from = line_endpoint(ctx, shape.from_anchor.as_deref(), line_from);
+    line_to = line_endpoint(ctx, shape.to_anchor.as_deref(), line_to);
 
     if let Some(overrides) = ctx.overrides {
         if let Some(Value::Vec2(from)) = overrides.get("from") {

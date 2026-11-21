@@ -29,6 +29,7 @@ fn effect_plan_enforces_the_context_slot_limit() {
     let mut chain = EffectChain {
         instances: vec![effect.clone(); super::MAX_CHAIN_PASSES],
         time_ms: 0.0,
+        ..Default::default()
     };
     assert_eq!(harness.effects.plan_effect_passes(&chain, 1.0).unwrap().len(), 64);
     chain.instances.push(effect);
@@ -186,6 +187,7 @@ fn all_builtin_fragment_pipelines_execute_on_a_headless_device() {
                 params,
             }],
             time_ms: 250.0,
+            ..Default::default()
         };
         let validation_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
         let output = executor
@@ -296,6 +298,7 @@ fn native_compute_plugin_runs_the_demo_pixelate_shader() {
             },
         }],
         time_ms: 0.0,
+        ..Default::default()
     };
     let input_view = input.create_view(&wgpu::TextureViewDescriptor::default());
     let mut executor = EffectsGpu::new(device.clone(), queue.clone());

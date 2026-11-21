@@ -60,6 +60,24 @@ impl Timeline {
             self.assign_offset(&plan, value, diagnostics);
             return;
         }
+        if matches!(
+            plan.caps.shape,
+            Some(crate::timeline::ShapeKind::Line | crate::timeline::ShapeKind::Arrow)
+        ) && let Some(id) = self.world.get_id(&plan.target_key)
+            && self.write_line_endpoint(
+                id,
+                property,
+                value,
+                &plan.eval_env,
+                plan.t_start_ms,
+                plan.t_end_ms,
+                plan.easing,
+                diagnostics,
+                &plan.subject,
+            )
+        {
+            return;
+        }
         if self.assign_primitive(&plan, property, value, diagnostics) {
             return;
         }

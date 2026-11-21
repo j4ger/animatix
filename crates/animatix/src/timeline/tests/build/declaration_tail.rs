@@ -92,42 +92,27 @@ fn size_keyword_warns_once_and_keeps_keyword_semantics() {
     );
 }
 
-/// Pre-spawn anchor refs only write to a track that already exists. A first
-/// declaration has no track before `begin_actor_decl` spawns one, so it must
-/// not create the side channel just to carry the ref; a re-declaration does
-/// write it.
 #[test]
-fn line_anchor_refs_are_pre_spawn_and_need_an_existing_track() {
+fn line_anchor_refs_bind_on_the_first_declaration() {
     let timeline = build_clean(
         r#"
-        a: Rect, size: (40, 40), at: (100, 100)
-        first: Line, from: a.top, to: a.bottom
-        "#,
-    );
-    let first_id = timeline.world.tracks.get_id("first").expect("first id");
-    let shape = timeline.world.shape.get(first_id).expect("first shape");
-    assert!(
-        shape.from_anchor.is_none() && shape.to_anchor.is_none(),
-        "a first declaration has no pre-spawn track to write anchor refs to"
-    );
-    let timeline = build_clean(
-        r#"
-        a: Rect, size: (40, 40), at: (100, 100)
-        link: Line, from: (0, 0), to: (100, 0)
-        #1s
         link: Line, from: a.top, to: a.bottom
+        a: Rect, size: (40, 40), at: (100, 100), opacity: 1
         "#,
     );
-    let link_id = timeline.world.tracks.get_id("link").expect("link id");
-    let shape = timeline.world.shape.get(link_id).expect("link shape");
-    assert_eq!(
-        shape.from_anchor,
-        Some(("a".to_string(), SceneAnchor::Top)),
-        "a re-declaration writes the pre-spawn anchor side channel"
-    );
-    assert_eq!(
-        shape.to_anchor,
-        Some(("a".to_string(), SceneAnchor::Bottom)),
-        "a re-declaration writes the pre-spawn anchor side channel"
-    );
+    let link = timeline.world.get_id("link").expect("link");
+    let actor = timeline.world.get_id("a").expect("target");
+    let shape = timeline.world.shape(link).expect("shape");
+    for (track, anchor) in [
+        (&shape.from_anchor, SceneAnchor::Top),
+        (&shape.to_anchor, SceneAnchor::Bottom),
+    ] {
+        let track = track.as_ref().expect("point track");
+        assert!(matches!(
+            track.evaluate(0),
+            crate::timeline::actor_points::track::PointValue::Actor {
+                id: Some(id), point: crate::timeline::ActorPoint::Bounds(point), ..
+            } if id == actor && point == anchor
+        ));
+    }
 }

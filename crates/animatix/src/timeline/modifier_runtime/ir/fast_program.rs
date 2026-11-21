@@ -245,6 +245,15 @@ pub fn execute_fast_modifier_ir(
     frame_env: &mut Environment,
     overrides: &mut ModifierOverrides,
 ) -> Result<(), EvalError> {
+    execute_fast_with_geometry(program, frame_env, overrides, None)
+}
+
+pub(crate) fn execute_fast_with_geometry(
+    program: &FastModifierProgram,
+    frame_env: &mut Environment,
+    overrides: &mut ModifierOverrides,
+    geometry: Option<super::ModifierGeometry<'_>>,
+) -> Result<(), EvalError> {
     let mut slots: Vec<f64> = Vec::with_capacity(8);
 
     for stmt in &program.statements {
@@ -269,7 +278,7 @@ pub fn execute_fast_modifier_ir(
                 }
 
                 if fallback_generic {
-                    execute_stmt(&assign.generic, frame_env, overrides)?;
+                    execute_stmt(&assign.generic, frame_env, overrides, geometry)?;
                     continue;
                 }
 
@@ -305,7 +314,7 @@ pub fn execute_fast_modifier_ir(
                 apply_override_incremental(frame_env, &assign.target_key, &assign.property, value);
             },
             FastStmt::Generic(generic_stmt) => {
-                execute_stmt(generic_stmt, frame_env, overrides)?;
+                execute_stmt(generic_stmt, frame_env, overrides, geometry)?;
             },
         }
     }
@@ -340,7 +349,7 @@ mod tests {
         );
         generic.set("t", Value::Num(2.0));
         let mut fast = generic.clone();
-        execute_stmt(&statement, &mut generic, &mut ModifierOverrides::default()).unwrap();
+        execute_stmt(&statement, &mut generic, &mut ModifierOverrides::default(), None).unwrap();
         let program = FastModifierProgram::compile(&[statement]);
         execute_fast_modifier_ir(&program, &mut fast, &mut ModifierOverrides::default()).unwrap();
         assert_eq!(fast.get_path("state.enabled"), Some(Value::Bool(true)));

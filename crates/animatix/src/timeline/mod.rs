@@ -89,8 +89,10 @@ pub use property_registry::{
     ValueType, allowed_property_indices, lookup_property, property_id, property_name,
     property_schema_by_id,
 };
+pub(crate) mod actor_points;
 /// Plot-host coordinate frame access surface.
 mod coordinate_frame;
+pub use actor_points::ActorPoint;
 /// Frame environment construction ([`Timeline::build_frame_env`]) and modifier execution.
 mod frame_env;
 mod index;
@@ -404,6 +406,11 @@ pub(crate) struct EvalCaches {
     /// Bumped by `invalidate_frame_cache`; exported as `Timeline::content_epoch` for frame signatures.
     content_epoch: std::cell::Cell<u64>,
     transform_cache: std::cell::RefCell<Vec<Option<scene_eval::TransformCacheEntry>>>,
+    /// Absolute actor points folded after build or on first use. A missing value
+    /// in a populated entry marks a point whose geometry must be sampled.
+    fixed_actor_points: std::cell::RefCell<
+        std::collections::HashMap<(EntityId, ActorPoint), Option<actor_points::FixedActorPoint>>,
+    >,
     /// Memoized transform/subtree classification; cleared by `invalidate_frame_cache`.
     static_flags: std::cell::RefCell<Vec<EntityStaticFlags>>,
     static_subtree_cache: std::cell::RefCell<

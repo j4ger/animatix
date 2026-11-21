@@ -407,11 +407,13 @@ impl FrameGpu {
             return Ok(seed.clone());
         }
         let (width, height) = dimensions(seed);
+        let shifted = Affine::translate((-f64::from(origin[0]), -f64::from(origin[1]))) * raster;
+        let chain = chain.normalized_points(shifted, [width, height]);
         Ok(self
             .effects
             .apply(
                 seed,
-                chain,
+                &chain,
                 EffectsExtent {
                     width,
                     height,

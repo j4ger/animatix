@@ -4,7 +4,7 @@
 //! build time and interpreted per frame here. This module is a thin wrapper
 //! around [`modifier_runtime::ir::execute_modifier_ir`].
 
-use super::modifier_runtime::ir::{ModifierIrProgram, execute_modifier_ir};
+use super::modifier_runtime::ir::{ModifierGeometry, ModifierIrProgram, execute_with_geometry};
 use super::{EvalError, SceneDimensions, Timeline, Value};
 
 impl Timeline {
@@ -12,12 +12,17 @@ impl Timeline {
     pub fn apply_modifier_program(
         &self,
         program: &ModifierIrProgram,
-        _time_ms: u64,
-        _scene_dimensions: SceneDimensions,
+        time_ms: u64,
+        scene_dimensions: SceneDimensions,
         frame_env: &mut super::Environment,
         overrides: &mut std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> Result<(), EvalError> {
         let _stage = crate::perf::ScopedStage::new(crate::perf::stage::MODIFIER_EXEC);
-        execute_modifier_ir(program, frame_env, overrides)
+        let geometry = ModifierGeometry {
+            timeline: self,
+            time_ms,
+            dimensions: scene_dimensions,
+        };
+        execute_with_geometry(program, frame_env, overrides, Some(geometry))
     }
 }

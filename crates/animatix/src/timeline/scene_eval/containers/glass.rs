@@ -51,7 +51,11 @@ impl Timeline {
         let chain = self
             .world
             .effects(node_id)
-            .map(|effects| effects.build_chain(time_ms))
+            .map(|effects| {
+                effects.build_chain_with_points(time_ms, Some(scene_dimensions), |id, point| {
+                    self.actor_point(id, point, frame, true)
+                })
+            })
             .unwrap_or_default();
         let has_backend = out.filter_backend.is_some();
         if chain.is_empty() || !has_backend {
@@ -159,7 +163,7 @@ impl Timeline {
         let Some(backend) = out.filter_backend.as_mut() else {
             return;
         };
-        let backdrop = crate::timeline::effects::PendingBackdrop {
+        let mut backdrop = crate::timeline::effects::PendingBackdrop {
             region,
             clip,
             chain,
@@ -169,6 +173,11 @@ impl Timeline {
         if backend.records_scene_effects() {
             out.scene.push_glass(backdrop, sub_scene);
             return;
+        }
+        if let std::borrow::Cow::Owned(chain) =
+            backdrop.chain.normalized_region(Some(region), scene_dimensions)
+        {
+            backdrop.chain = chain;
         }
         if let Err(e) = backend.enqueue_backdrop(&backdrop) {
             tracing::warn!("Glass '{node_label}' backdrop could not be queued: {e}");

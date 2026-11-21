@@ -1035,6 +1035,10 @@ camera.at = (60, -20) [800ms]
 camera.zoom = 1.0 [700ms]
 ```
 
+`camera.focus = card [800ms, padding: 40]` samples the actor's transformed
+layout bounds at the start of the cue and generates pan and zoom keyframes
+for the configured viewport. A later cue can reframe a moving actor.
+
 These are ordinary timed assignments, so everything that works on an actor
 property works here: `[delay:]`, `ease:`, re-assignment in a later keyframe —
 and `always`, which is how a handheld shake is written:
@@ -1177,7 +1181,7 @@ nothing (the pass and the offscreen round-trip are skipped).
 | `ColorGrade` | `brightness` (1.0), `contrast` (1.0), `saturate` (1.0), `hue_rotate` (0), `sepia` (0) | Colour matrix, composed sepia → hue → saturate → contrast → brightness |
 | `ChromaticAberration` | `offset` (default 0) | Radial RGB channel separation in px; single pass through the linear sampler |
 | `Sharpen` | `amount` (0), `radius` (0, px) | Unsharp mask: adds the pixel−local-average residual back at `amount` strength; box kernel of `radius` scene pixels |
-| `Vignette` | `amount` (0), `radius` (0.9), `softness` (0.6), `color` (black) | Darkens toward the edges; `radius`/`softness` are fractions of the half minimum dimension (start / spread) |
+| `Vignette` | `amount` (0), `radius` (0.9), `softness` (0.6), `color` (black), `center` ((0.5, 0.5)) | Darkens outward from an actor point or normalized texture coordinate. `radius` and `softness` are the start and spread of the falloff, in fractions of the shorter side. |
 | `MotionBlur` | `length` (0, px), `angle` (0, degrees) | Directional smear sampled through the linear sampler; 0° = right, counter-clockwise |
 | `Grain` | `amount` (0), `seed` (0), `monochrome` (false) | Film-grain noise driven by the timeline clock, so it animates without a keyframe |
 | `Levels` | `in_black` (0), `in_white` (1), `gamma` (1), `out_black` (0), `out_white` (1) | Black/white point remap + gamma per channel; the grading complement to `ColorGrade` |
@@ -1191,6 +1195,25 @@ Chain order is declaration order; the chain is fixed at build time (effects
 cannot appear or disappear over time). An effect declared outside a `Filter`
 scope is a build diagnostic. Nested `Filter` scopes are allowed; each level adds
 one offscreen pass. The GPU pass contract is specified in `docs/effects.md`.
+
+Use an actor point to keep the clear area on moving content:
+
+```animatix
+config { resolution: (960, 540), duration: 2 }
+
+#0s
+  plate: Filter, at: (0, 0), bounds: (0, 0, 960, 540) {
+    shade: Vignette, amount: 0.8, radius: 0.15, softness: 0.3, center: card_a.center
+    card_a: Rect, anchor: scene.center, offset: (-220, 0), size: (200, 120), color: accent.primary
+    card_b: Rect, anchor: scene.center, offset: (220, 0), size: (200, 120), color: accent.secondary
+  }
+#1s
+  plate.shade.center = card_b.center [600ms, ease: ease_in_out]
+```
+
+A named point is sampled each frame. During a transition both endpoints can
+move. A numeric pair such as `(0.72, 0.4)` remains relative to the filter texture,
+with the axes running right and down. A transition can mix these two forms.
 
 **Region of interest.** An optional `bounds: (x, y, w, h)` (scene pixels)
 restricts the processed region — the sub-scene renders, seeds, dispatches, and
@@ -1399,12 +1422,14 @@ scene.left         scene.center    scene.right
 scene.bottom_left  scene.bottom    scene.bottom_right
 ```
 
-**Actor anchor points** (available as `Vec2`):
-Every actor exposes world-space bounding-box anchor points using the scene
-vocabulary: `label.top_left`, `label.top`, `label.top_right`, `label.left`,
-`label.center`, `label.right`, `label.bottom_left`, `label.bottom`,
-`label.bottom_right`. They resolve lazily from the frame environment, so they
-follow layout, transforms, keyframes, and `always` overrides.
+**Actor points** are read-only members. The nine names in the scene grid select
+points on the actor's transformed layout bounds. `label.origin` reads the
+transformed local origin. `label.centroid` reads the area centroid of a
+rectangle, ellipse, or simple polygon with explicit points. Other and degenerate
+shapes use the bounds center. A point can refer to a nested actor, indexed actor, or
+`Actor` parameter. A point read in `always` is a scene-space `Vec2`. An endpoint
+on a line, arrow, connector, or vignette follows the point across frames and
+resolves against the same geometry with the target's camera transform applied.
 
 ```animatix
 always {
@@ -2411,6 +2436,11 @@ right.frame.size = (40, 40)
 
 **Seeded property paths:** `node.at`, `node.size`, `node.color`, `scene.background_color`, `node.at.x`, `node.at.y`, `node.color.r/g/b/a`.
 
+Use `object.member` to read a value, `object.method(args)` for an operation on
+a receiver, and `function(args)` for a standard calculation, constructor or
+timeline operation. Examples include `card.center`, `text.trim()`,
+`graph.map(x, y)`, `abs(x)`, `radial(...)` and `fade_in(target: card)`.
+
 **Unresolved rhs paths** report build diagnostics; host property keeps its default/fallback value.
 
 ### Index Access
@@ -2512,19 +2542,22 @@ Methods dispatch on the receiver's type:
 ```animatix
 let text = "hello,world"
 let parts = text.split(",")     // List["hello", "world"]
-let n = text.length()           // 13
+let n = text.length             // 11 UTF-8 bytes
 
 let items = {1, 2, 3}
-let len = items.length()        // 3
+let len = items.length          // 3
 let second = items.get(1)       // 2
 
 let x = -42.5
-let y = x.abs()                 // 42.5
+let y = abs(x)                  // 42.5
 ```
 
-**String methods:** `length()`, `split(delim)`, `contains(substr)`, `trim()`, `starts_with(prefix)`, `ends_with(suffix)`
-**List methods:** `length()`, `get(index)`, `contains(item)`
-**Number methods:** `abs()`, `floor()`, `ceil()`, `round()`
+Use `length` for a string's UTF-8 byte count or a list's element count. Use the
+standard functions `abs(x)`, `floor(x)`, `ceil(x)` and `round(x)` for arithmetic.
+Existing calls to `length()` and the numeric methods remain valid.
+
+**String methods:** `split(delim)`, `contains(substr)`, `trim()`, `starts_with(prefix)`, `ends_with(suffix)`
+**List methods:** `get(index)`, `contains(item)`
 
 ### Object Construction
 
@@ -2994,7 +3027,7 @@ author-facing semantics that are now part of the language.
 | 1 — Channels & high-ROI | Text gradient fills; feathered wipes and push transitions; spatial/radial stagger; camera parallax | `fill_gradient`, `gradient_extend`, `gradient_space` on text-like actors; `play ... [wipe-* \| push-*, duration]`; `stagger [each: 40ms, from: center \| top-left \| (x, y), metric: euclidean \| manhattan]`; `parallax: F32` |
 | 2 — Topology & typography | Post-layout orthogonal connectors; split-text reveals; pre-baked rolling counters; standard card/boundary components | `Connector` (`routing: elbow \| l-bend \| straight`); `reveal_in ... [by: char \| word \| line, stagger: ...]`; `Counter`; `CardNode` / `BoundaryBox` in `examples/lib/ui.amx` |
 | 3 — Materials & 2.5D | Native analytic Gaussian shadows; 2.5D perspective tilt; closed-loop idle micro-motion | `shadow` (`(offset_x, offset_y, blur, spread)`), `shadow_color`; `rotate_x`, `rotate_y`, `perspective`; `idle: "float" \| "breath"` |
-| 4 — Camera & continuity | Target-tracking camera; shared-element FLIP overlay; spring handoff with initial velocity; interactive step pauses | `camera.focus` / `camera.focus_on = "actor"` with `[padding: N]`; `shared_id: "key"` (a FLIP overlay, not a transition id); `spring_v0(damping, frequency, v0)`; `#step N` |
+| 4 — Camera & continuity | Camera framing; shared-element FLIP overlay; spring handoff with initial velocity; interactive step pauses | `camera.focus = actor [padding: N]`; `shared_id: "key"` selects elements for a FLIP overlay; `spring_v0(damping, frequency, v0)`; `#step N` |
 
 Semantics that are easy to miss:
 

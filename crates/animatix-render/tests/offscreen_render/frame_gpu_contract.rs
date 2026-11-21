@@ -142,6 +142,67 @@ config { resolution: (96, 64), duration: 1 }
 }
 
 #[test]
+fn vignette_clear_area_follows_animated_center() {
+    let Some(mut renderer) = renderer_or_skip() else {
+        return;
+    };
+    let timeline = common::build_checked(
+        r##"
+config { resolution: (96, 64), duration: 2 }
+#0s
+  plate: Filter, at: (48, 32), bounds: (0, 0, 96, 64) {
+    shade: Vignette, amount: 1, radius: 0.1, softness: 0.2, center: (0.25, 0.25)
+    fill: Rect, size: (96, 64), color: hex_color("ffffff")
+  }
+#0.5s
+  plate.shade.center = (0.75, 0.75) [1s, ease: linear]
+"##,
+    );
+    let positions = [(24, 16), (48, 32), (72, 48)];
+    for (focus, time) in [0.0, 1.0, 1.5].into_iter().enumerate() {
+        let frame = renderer.render_timeline(&timeline, time, DIMS).expect("vignette frame");
+        for (index, (x, y)) in positions.into_iter().enumerate() {
+            let expected = if index == focus {
+                [255; 4]
+            } else {
+                [0, 0, 0, 255]
+            };
+            assert_eq!(pixel(&frame, x, y), expected, "pixel ({x}, {y}) at {time}s");
+        }
+    }
+}
+
+#[test]
+fn vignette_follows_later_actor_points_inside_a_padded_crop() {
+    let Some(mut renderer) = renderer_or_skip() else {
+        return;
+    };
+    let timeline = common::build_checked(
+        r##"
+config { resolution: (96, 64), duration: 2 }
+#0s
+  plate: Filter, at: (48, 32), bounds: (8, 8, 80, 48) {
+    shade: Vignette, amount: 1, radius: 0.08, softness: 0.12, center: cards[0].center
+    fill: Rect, size: (96, 64), color: hex_color("ffffff")
+  }
+  for i in {0, 1} {
+    cards[i]: Rect, at: (24 + 48 * i, 32), size: (4, 4), opacity: 0
+  }
+#0.5s
+  plate.shade.center = cards[1].origin [1s, ease: linear]
+"##,
+    );
+    let positions = [24, 48, 72];
+    for (focus, time) in [0.0, 1.0, 1.5].into_iter().enumerate() {
+        let frame = renderer.render_timeline(&timeline, time, DIMS).expect("vignette frame");
+        for (index, x) in positions.into_iter().enumerate() {
+            let light = if index == focus { 255 } else { 0 };
+            assert_eq!(pixel(&frame, x, 32), [light, light, light, 255], "pixel {x} at {time}s");
+        }
+    }
+}
+
+#[test]
 fn deferred_glass_panel_stays_above_later_base_draws() {
     let Some(mut candidate) = renderer_or_skip() else {
         return;

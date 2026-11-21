@@ -6,9 +6,9 @@
 //! is also used by the plot sampling path, so there is a single expression
 //! executor for frame-time code.
 
-use super::evaluate_compiled_expr;
-use super::fast_program::execute_fast_modifier_ir;
+use super::fast_program::execute_fast_with_geometry;
 use super::types::{ModifierIrProgram, ModifierIrStmt, ModifierOverrides};
+use super::{CompiledExpr, evaluate_with_points};
 use crate::ast::LoopPattern;
 use crate::timeline::frame_env::apply_override_incremental;
 use crate::timeline::{Environment, EvalError, Value};
@@ -40,17 +40,53 @@ pub(crate) fn record_override(
     }
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct ModifierGeometry<'a> {
+    pub timeline: &'a crate::timeline::Timeline,
+    pub time_ms: u64,
+    pub dimensions: crate::timeline::SceneDimensions,
+}
+
+fn evaluate(
+    expr: &CompiledExpr,
+    env: &Environment,
+    geometry: Option<ModifierGeometry<'_>>,
+    overrides: &ModifierOverrides,
+) -> Result<Value, EvalError> {
+    let Some(geometry) = geometry else {
+        return evaluate_with_points(expr, env, None);
+    };
+    let frame = crate::timeline::Timeline::point_query_frame(
+        geometry.time_ms,
+        geometry.dimensions,
+        overrides,
+    );
+    let read = |actor: &crate::timeline::plan_value::ActorRef, point| {
+        geometry.timeline.actor_point(actor.entity_id()?, point, &frame, false)
+    };
+    evaluate_with_points(expr, env, Some(&read))
+}
+
 /// Execute a lowered modifier IR program against a frame environment.
 pub fn execute_modifier_ir(
     program: &ModifierIrProgram,
     frame_env: &mut Environment,
     overrides: &mut ModifierOverrides,
 ) -> Result<(), EvalError> {
+    execute_with_geometry(program, frame_env, overrides, None)
+}
+
+pub(crate) fn execute_with_geometry(
+    program: &ModifierIrProgram,
+    frame_env: &mut Environment,
+    overrides: &mut ModifierOverrides,
+    geometry: Option<ModifierGeometry<'_>>,
+) -> Result<(), EvalError> {
     if let Some(ref fast) = program.fast {
-        return execute_fast_modifier_ir(fast, frame_env, overrides);
+        return execute_fast_with_geometry(fast, frame_env, overrides, geometry);
     }
     for stmt in &program.statements {
-        execute_stmt(stmt, frame_env, overrides)?;
+        execute_stmt(stmt, frame_env, overrides, geometry)?;
     }
     Ok(())
 }
@@ -59,6 +95,7 @@ pub(crate) fn execute_stmt(
     stmt: &ModifierIrStmt,
     frame_env: &mut Environment,
     overrides: &mut ModifierOverrides,
+    geometry: Option<ModifierGeometry<'_>>,
 ) -> Result<(), EvalError> {
     match stmt {
         ModifierIrStmt::Assign {
@@ -67,7 +104,7 @@ pub(crate) fn execute_stmt(
             value,
             ..
         } => {
-            let value = evaluate_compiled_expr(value, frame_env)?;
+            let value = evaluate(value, frame_env, geometry, overrides)?;
             // Frame-local object field writes take priority over actor/property
             // overrides. `set_object_path`/`set_object_field` return false when
             // the target is not an object, in which case we fall through to the
@@ -91,8 +128,8 @@ pub(crate) fn execute_stmt(
             property,
             value,
         } => {
-            let value = evaluate_compiled_expr(value, frame_env)?;
-            let index_value = evaluate_compiled_expr(index, frame_env)?;
+            let value = evaluate(value, frame_env, geometry, overrides)?;
+            let index_value = evaluate(index, frame_env, geometry, overrides)?;
             let n = match index_value {
                 Value::Num(n) if n >= 0.0 && n == n.floor() => n as usize,
                 Value::Num(n) => {
@@ -130,7 +167,7 @@ pub(crate) fn execute_stmt(
             });
         },
         ModifierIrStmt::Let { name, value } => {
-            let value = evaluate_compiled_expr(value, frame_env)?;
+            let value = evaluate(value, frame_env, geometry, overrides)?;
             frame_env.set(name, value);
         },
         ModifierIrStmt::If {
@@ -138,14 +175,14 @@ pub(crate) fn execute_stmt(
             then_branch,
             else_branch,
         } => {
-            let condition = evaluate_compiled_expr(condition, frame_env)?;
+            let condition = evaluate(condition, frame_env, geometry, overrides)?;
             let branch = if condition.is_truthy() {
                 then_branch
             } else {
                 else_branch
             };
             for stmt in branch {
-                execute_stmt(stmt, frame_env, overrides)?;
+                execute_stmt(stmt, frame_env, overrides, geometry)?;
             }
         },
         ModifierIrStmt::For {
@@ -154,7 +191,7 @@ pub(crate) fn execute_stmt(
             iterable,
             body,
         } => {
-            let iterable = evaluate_compiled_expr(iterable, frame_env)?;
+            let iterable = evaluate(iterable, frame_env, geometry, overrides)?;
             let items: Vec<Value> = match iterable {
                 Value::List(list) => list.to_vec(),
                 Value::Vec2(v) => v.into_iter().map(Value::Num).collect(),
@@ -177,7 +214,7 @@ pub(crate) fn execute_stmt(
                         frame_env.set(index_var, Value::Num(idx as f64));
                     }
                     for stmt in body {
-                        execute_stmt(stmt, frame_env, overrides)?;
+                        execute_stmt(stmt, frame_env, overrides, geometry)?;
                     }
                 }
                 Ok(())

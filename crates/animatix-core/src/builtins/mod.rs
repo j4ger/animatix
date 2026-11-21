@@ -19,6 +19,7 @@
 pub mod callable;
 pub mod catalog;
 pub mod effects;
+pub mod members;
 
 pub use catalog::{CATALOG, PrimitiveInfo, caps_for_type, caps_from_info, catalog_lookup};
 pub use effects::{

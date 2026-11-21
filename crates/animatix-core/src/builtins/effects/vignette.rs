@@ -7,11 +7,13 @@ use crate::effect::{
     Effect, EffectParamKind, EffectParamSpec, EffectParamValue, EffectParams, EffectPassSpec,
 };
 
+const DEFAULT_CENTER: [f32; 2] = [0.5, 0.5];
+
 /// `Vignette` parameters.
 ///
-/// `radius`/`softness` are fractions of the half *minimum* dimension, so the
-/// falloff is aspect-independent: `radius` is where darkening starts and
-/// `softness` is how far it spreads inward from there.
+/// `center` is a pair of fractions of the effect texture's width and height,
+/// measured from the top left. `radius` and `softness` are fractions of the
+/// shorter side: `radius` starts the falloff and `softness` extends it outward.
 pub const VIGNETTE_PARAMS: &[EffectParamSpec] = &[
     EffectParamSpec::new("amount", EffectParamKind::F32, EffectParamValue::F32(0.0), 0, 4),
     EffectParamSpec::new("radius", EffectParamKind::F32, EffectParamValue::F32(0.9), 4, 4),
@@ -24,6 +26,13 @@ pub const VIGNETTE_PARAMS: &[EffectParamSpec] = &[
         16,
         16,
     ),
+    EffectParamSpec::new(
+        "center",
+        EffectParamKind::Vec2,
+        EffectParamValue::Vec2(DEFAULT_CENTER),
+        32,
+        8,
+    ),
 ];
 
 pub(crate) const VIGNETTE_WGSL: &str = concat!(
@@ -35,6 +44,7 @@ struct VignetteParams {
     softness: f32,
     _pad0: f32,
     color: vec4<f32>,
+    center: vec2<f32>,
 }
 
 @group(0) @binding(0) var src: texture_2d<f32>;
@@ -54,9 +64,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     let texel = textureLoad(src, vec2<i32>(coord), 0);
 
-    // Aspect-corrected distance from the center, 0 at the center and 1 at the
-    // middle of the nearest edge.
-    let p = (vec2<f32>(coord) - vec2<f32>(size) * 0.5) / min(f32(size.x), f32(size.y));
+    let center = vec2<f32>(size) * params.center;
+    let p = (vec2<f32>(coord) - center) / min(f32(size.x), f32(size.y));
     let dist = length(p);
 
     let inner = max(params.radius, 0.0);
@@ -108,6 +117,12 @@ impl Effect for Vignette {
                 out[at..at + 4].copy_from_slice(&channel.to_le_bytes());
             }
         }
+        let center = match params.values.get(4) {
+            Some(EffectParamValue::Vec2(center)) => *center,
+            _ => DEFAULT_CENTER, // Older packed callers may omit the new parameter.
+        };
+        out[32..36].copy_from_slice(&center[0].to_le_bytes());
+        out[36..40].copy_from_slice(&center[1].to_le_bytes());
     }
 
     /// Reads only the pixel itself.

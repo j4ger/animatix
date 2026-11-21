@@ -561,10 +561,9 @@ impl Timeline {
         let primitive_dispatch = self.evaluate_behavior_commands(
             node_id,
             node_label,
-            time_ms,
+            frame,
             local_transform,
             opacity,
-            scene_dimensions,
             node_overrides,
             &vector_paths,
         );

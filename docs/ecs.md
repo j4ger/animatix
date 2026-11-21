@@ -164,7 +164,7 @@ Rules:
 | `RootSet` | `Vec<EntityId>` (insertion order) | resource |
 | `GeometryTracks` | position/size/layout_size/rotation/scale/transform/placement/callout/connector/volume | every entity (`RequiredStore<GeometryTracks>`) |
 | `StyleTracks` | color/opacity/stroke/fill/gradient/blend/morph_options | every entity (`RequiredStore<StyleTracks>`) |
-| `ShapeTracks` | shape type, from/to, arc, points, commands, vector paths | optional (`ComponentStore<ShapeTracks>`; falls back to `default_shape`) |
+| `ShapeTracks` | shape type, from/to and named endpoint tracks, arc, points, commands, vector paths | optional (`ComponentStore<ShapeTracks>`; falls back to `default_shape`) |
 | `TextTracks` | text content, typography, paths, metrics, split reveal | optional (`ComponentStore<TextTracks>`; falls back to `default_text`) |
 | `HighlightTracks` | equation highlight color/opacity/padding/radius/blend | optional (`ComponentStore<HighlightTracks>`; falls back to `default_highlight`) |
 | `PropertyPlan` | extension/registry property slots | every entity (`RequiredStore<PropertyPlan>`) |
@@ -182,7 +182,7 @@ Rules:
 | `ChildOrderComponent` | `PropertyTrack<Vec<EntityId>>` | optional (`ComponentStore<ChildOrderComponent>`) |
 | `TranscriptComponent` | speech transcript | optional (`ComponentStore<TranscriptComponent>`) |
 | `LegendTracks` | legend entries | optional (`ComponentStore<LegendTracks>`) |
-| `EffectChainTrack` | effect stages for Filter/Mask/Glass scopes | optional (`ComponentStore<EffectChainTrack>`) |
+| `EffectChainTrack` | effect stages and named Vignette center tracks for Filter/Glass scopes | optional (`ComponentStore<EffectChainTrack>`) |
 | `ActorCaps` (overrides) | explicit capability overrides for extension primitives | optional (`ComponentStore<ActorCaps>`, `caps_overrides`) |
 
 `caps` is stored as `RequiredStore<ActorCaps>` initialized at `spawn`/`set_identity`

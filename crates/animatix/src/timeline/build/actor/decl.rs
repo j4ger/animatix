@@ -173,8 +173,6 @@ impl Timeline {
             vector_shape,
         );
 
-        self.apply_pre_spawn_line_anchor_refs(label, &caps, props);
-
         let vello_paths = self.generate_actor_paths(
             label,
             ty,
@@ -205,6 +203,14 @@ impl Timeline {
 
         let frame = self.begin_actor_decl(label, ty, props, decl_span);
         let track_id = frame.track_id;
+        self.bind_declared_line_endpoints(
+            track_id,
+            props,
+            &eval_env,
+            (t_start_ms, t_end_ms, easing),
+            diagnostics,
+            label,
+        );
         self.apply_spawned_declaration_props(
             track_id,
             &caps,
@@ -254,41 +260,6 @@ impl Timeline {
         self.write_extension_properties_for_decl(label, ty, props, modifiers, time_ms, diagnostics);
 
         self.finalize_actor_container(label, ty, props, time_ms, parent_label, diagnostics);
-    }
-
-    /// Record `from:`/`to:` actor-anchor refs (`pen.center`) in the track's
-    /// shape side channel for frame-time resolution.
-    pub(super) fn apply_pre_spawn_line_anchor_refs(
-        &mut self,
-        label: &str,
-        caps: &ActorCaps,
-        props: &[Property],
-    ) {
-        if !matches!(caps.shape, Some(ShapeKind::Line | ShapeKind::Arrow)) {
-            return;
-        }
-        let Some(id) = self.world.get_id(label) else {
-            return;
-        };
-        let shape = self.world.ensure_shape(id);
-        for prop in props {
-            if prop.name != "from" && prop.name != "to" {
-                continue;
-            }
-            let Some((mut actor, anchor)) =
-                crate::timeline::lookup::actor_anchor_reference(&prop.value)
-            else {
-                continue;
-            };
-            if let Some(Value::ActorRef(reference)) = self.env.get_path(&actor) {
-                actor = reference.label().to_string();
-            }
-            if prop.name == "from" {
-                shape.from_anchor = Some((actor, anchor));
-            } else {
-                shape.to_anchor = Some((actor, anchor));
-            }
-        }
     }
 
     fn validate_decl_morph_options(

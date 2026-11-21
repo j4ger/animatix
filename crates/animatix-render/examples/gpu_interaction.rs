@@ -186,6 +186,7 @@ fn make_effect_chain(effect: &str) -> EffectChain {
             params: EffectParams { values },
         }],
         time_ms: 0.0,
+        ..Default::default()
     }
 }
 

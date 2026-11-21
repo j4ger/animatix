@@ -70,6 +70,7 @@ pub(crate) fn evaluate_user_fn_named(
     function_context: Option<&Arc<crate::module::FunctionContext>>,
     definition_path: Option<&Path>,
     component_scope: Option<&Arc<crate::timeline::env::ComponentMethodScope>>,
+    points: Option<crate::timeline::modifier_runtime::ir::PointLookup<'_>>,
 ) -> Result<Value, EvalError> {
     let _depth = UserFnDepthGuard::enter(name)?;
     let mut local = if let (Some(context), Some(path)) = (function_context, definition_path) {
@@ -125,7 +126,7 @@ pub(crate) fn evaluate_user_fn_named(
             let mut value = if let Some(value) = bound[index].take() {
                 value
             } else if let Some(default) = &param.default {
-                utils::evaluate_expr(default, &local)?
+                utils::evaluate_expr_with_points(default, &local, points)?
             } else {
                 return Err(EvalError::TypeMismatch(format!(
                     "function '{name}' is missing argument for parameter '{}'",
@@ -152,7 +153,7 @@ pub(crate) fn evaluate_user_fn_named(
             local.set_let_binding("self", Value::ActorRef(actor.clone()));
         }
 
-        match exec_block(body, &mut local)? {
+        match exec_block(body, &mut local, points)? {
             Flow::Return(value) => Ok(value),
             Flow::Continue => Ok(Value::Unit),
         }
@@ -719,15 +720,23 @@ impl ComponentMethodTargetFolder {
 }
 
 /// Execute a statement block, propagating `return` unwinds.
-fn exec_block(stmts: &[Stmt], env: &mut Environment) -> Result<Flow, EvalError> {
-    exec_block_scoped(stmts, env)
+fn exec_block(
+    stmts: &[Stmt],
+    env: &mut Environment,
+    points: Option<crate::timeline::modifier_runtime::ir::PointLookup<'_>>,
+) -> Result<Flow, EvalError> {
+    exec_block_scoped(stmts, env, points)
 }
 
-fn exec_block_scoped(stmts: &[Stmt], env: &mut Environment) -> Result<Flow, EvalError> {
+fn exec_block_scoped(
+    stmts: &[Stmt],
+    env: &mut Environment,
+    points: Option<crate::timeline::modifier_runtime::ir::PointLookup<'_>>,
+) -> Result<Flow, EvalError> {
     for stmt in stmts {
         match stmt {
             Stmt::LetDecl { name, value, .. } => {
-                let value = utils::evaluate_expr(value, env)?;
+                let value = utils::evaluate_expr_with_points(value, env, points)?;
                 if name == "t" {
                     env.set_authored_t_binding(true);
                 }
@@ -739,11 +748,11 @@ fn exec_block_scoped(stmts: &[Stmt], env: &mut Environment) -> Result<Flow, Eval
                 else_branch,
                 ..
             } => {
-                let truthy = utils::evaluate_expr(condition, env)?.is_truthy();
+                let truthy = utils::evaluate_expr_with_points(condition, env, points)?.is_truthy();
                 let flow = if truthy {
-                    exec_block(then_branch, env)?
+                    exec_block(then_branch, env, points)?
                 } else if let Some(else_branch) = else_branch {
-                    exec_block(else_branch, env)?
+                    exec_block(else_branch, env, points)?
                 } else {
                     Flow::Continue
                 };
@@ -754,10 +763,10 @@ fn exec_block_scoped(stmts: &[Stmt], env: &mut Environment) -> Result<Flow, Eval
             Stmt::Match {
                 scrutinee, arms, ..
             } => {
-                let value = utils::evaluate_expr(scrutinee, env)?;
+                let value = utils::evaluate_expr_with_points(scrutinee, env, points)?;
                 for (pat, arm_body) in arms {
                     if pattern_matches(pat, &value) {
-                        if let Flow::Return(value) = exec_block(arm_body, env)? {
+                        if let Flow::Return(value) = exec_block(arm_body, env, points)? {
                             return Ok(Flow::Return(value));
                         }
                         break;
@@ -781,7 +790,7 @@ fn exec_block_scoped(stmts: &[Stmt], env: &mut Environment) -> Result<Flow, Eval
                     if var_mentions_t(var) || index_var.as_ref().is_some_and(|name| name == "t") {
                         env.set_authored_t_binding(true);
                     }
-                    let result = exec_block(body, env);
+                    let result = exec_block(body, env, points);
                     env.pop_let_scope();
                     env.set_authored_t_binding(authored_t);
                     if let Flow::Return(value) = result? {
@@ -791,13 +800,13 @@ fn exec_block_scoped(stmts: &[Stmt], env: &mut Environment) -> Result<Flow, Eval
             },
             Stmt::Return { value, .. } => {
                 let value = match value {
-                    Some(expr) => utils::evaluate_expr(expr, env)?,
+                    Some(expr) => utils::evaluate_expr_with_points(expr, env, points)?,
                     None => Value::Unit,
                 };
                 return Ok(Flow::Return(value));
             },
             Stmt::Expr(expr, ..) => {
-                let value = utils::evaluate_expr(expr, env)?;
+                let value = utils::evaluate_expr_with_points(expr, env, points)?;
                 if !matches!(value, Value::Unit) {
                     return Err(EvalError::UnsupportedConstruct(format!(
                         "function expression statements must return Unit; bind or return {value:?}"
@@ -810,7 +819,7 @@ fn exec_block_scoped(stmts: &[Stmt], env: &mut Environment) -> Result<Flow, Eval
                 ..
             } => {
                 let mut nested = env.clone();
-                if let Flow::Return(value) = exec_block(body, &mut nested)? {
+                if let Flow::Return(value) = exec_block(body, &mut nested, points)? {
                     return Ok(Flow::Return(value));
                 }
             },

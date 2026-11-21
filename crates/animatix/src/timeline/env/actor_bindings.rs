@@ -6,7 +6,7 @@ type ActorArrays = HashMap<String, Vec<(usize, String)>>;
 struct ActorSymbols {
     identities: ActorRefs,
     arrays: ActorArrays,
-    children: HashMap<String, Vec<String>>,
+    children: HashMap<String, Vec<(String, String)>>,
 }
 
 fn parse_array_member(segment: &str) -> Option<(&str, usize)> {
@@ -20,7 +20,7 @@ fn parse_array_member(segment: &str) -> Option<(&str, usize)> {
 fn collect_actor_symbols(world: &crate::timeline::world::World) -> ActorSymbols {
     let mut identities = HashMap::new();
     let mut arrays: ActorArrays = HashMap::new();
-    let mut children: HashMap<String, Vec<String>> = HashMap::new();
+    let mut children = HashMap::<String, Vec<(String, String)>>::new();
     for (label, entity_id) in world.tracks.iter() {
         let reference = world
             .plan_ownership(entity_id)
@@ -32,11 +32,22 @@ fn collect_actor_symbols(world: &crate::timeline::world::World) -> ActorSymbols 
             label.to_string(),
             reference.with_world_identity(entity_id, world.method_table_id(entity_id)),
         );
+        if let Some(parent) = world.hierarchy(entity_id).parent.and_then(|id| world.label(id)) {
+            let member = label.rsplit('.').next().unwrap_or(label);
+            if parse_array_member(member).is_none() {
+                children
+                    .entry(parent.to_owned())
+                    .or_default()
+                    .push((member.to_owned(), label.to_owned()));
+            }
+        }
         let parts = label.split('.').collect::<Vec<_>>();
         for index in 0..parts.len() {
             if index > 0 {
                 let parent = parts[..index].join(".");
-                children.entry(parent).or_default().push(parts[index].to_string());
+                let part = crate::ast::is_array_member_label(parts[index]).unwrap_or(parts[index]);
+                let child = format!("{parent}.{part}");
+                children.entry(parent).or_default().push((part.to_owned(), child));
             }
             if let Some((base, array_index)) = parse_array_member(parts[index]) {
                 let root = if index == 0 {
@@ -79,11 +90,9 @@ fn resolve_actor_symbol(
     }
     if let Some(reference) = symbols.identities.get(label) {
         let mut members = HashMap::new();
-        for segment in symbols.children.get(label).into_iter().flatten() {
-            let member = crate::ast::is_array_member_label(segment).unwrap_or(segment);
-            let child_label = format!("{label}.{member}");
-            if let Some(child) = resolve_actor_symbol(&child_label, symbols, memo) {
-                members.insert(member.to_string(), child);
+        for (member, child_label) in symbols.children.get(label).into_iter().flatten() {
+            if let Some(child) = resolve_actor_symbol(child_label, symbols, memo) {
+                members.insert(member.clone(), child);
             }
         }
         let resolved = reference.with_children(members);
@@ -213,8 +222,12 @@ fn bind_method_scope(value: &Value, scope: &Arc<super::ComponentMethodScope>) ->
 impl Environment {
     /// Freeze build-resolved actor handles into the shared environment values.
     /// Mutable state remains exclusively in World component stores.
-    pub(crate) fn bind_world_actor_refs(&mut self, world: &crate::timeline::world::World) {
-        if self.component_method_tables.is_empty() {
+    pub(crate) fn bind_world_actor_refs(
+        &mut self,
+        world: &crate::timeline::world::World,
+        frame_queries: bool,
+    ) {
+        if self.component_method_tables.is_empty() && !frame_queries {
             return;
         }
         let symbols = collect_actor_symbols(world);

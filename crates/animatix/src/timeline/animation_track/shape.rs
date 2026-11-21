@@ -3,9 +3,10 @@ use std::sync::Arc;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::geometry::SceneAnchor;
 use super::style::StyleTracks;
 use crate::renderer::types::VelloPath;
+use crate::timeline::Easing;
+use crate::timeline::actor_points::track::{PointValue, write_point};
 use crate::timeline::kurbo_shapes::KurboShape;
 use crate::timeline::morph::MorphOptions;
 use crate::timeline::property_track::PropertyTrack;
@@ -53,6 +54,9 @@ pub struct ShapeTracks {
     /// Mutation counter matched with the memo; see [`Self::vector_paths_memo`].
     #[cfg_attr(feature = "serde", serde(skip))]
     pub vector_paths_epoch: std::cell::Cell<u64>,
+    /// Local polygon centroid for a single, unchanged geometry keyframe.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub(crate) polygon_centroid_memo: std::cell::Cell<Option<(u64, Option<kurbo::Point>)>>,
     /// Memoized "does this track's `shape_type` value ever change" verdict,
     /// guarding the per-frame primitive switch in
     /// `Self::render_type_name` (cross-type morphs): a constant
@@ -62,18 +66,49 @@ pub struct ShapeTracks {
     #[cfg_attr(feature = "serde", serde(skip))]
     pub shape_type_switches: std::cell::Cell<Option<bool>>,
 
-    // ── Actor-anchor refs for `from`/`to` (G6) ──
-    /// When set, `line_from` / `from` is resolved each frame from this
-    /// actor's world-space anchor point instead of the PropertyTrack.
-    /// `(actor_label, anchor)`.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    pub from_anchor: Option<(String, SceneAnchor)>,
-    /// Same as `from_anchor` but for the `to` / `line_to` endpoint.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    pub to_anchor: Option<(String, SceneAnchor)>,
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub(crate) from_anchor: Option<Box<PropertyTrack<PointValue>>>,
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub(crate) to_anchor: Option<Box<PropertyTrack<PointValue>>>,
 }
 
 impl ShapeTracks {
+    pub(crate) fn write_endpoint(
+        &mut self,
+        from: bool,
+        value: PointValue,
+        start: u64,
+        end: u64,
+        easing: Easing,
+    ) {
+        let (binding, numeric, fallback) = if from {
+            (&mut self.from_anchor, self.line_from.as_ref(), [-50.0, 0.0])
+        } else {
+            (&mut self.to_anchor, self.line_to.as_ref(), [50.0, 0.0])
+        };
+        let track = binding.get_or_insert_with(|| {
+            let mut track = PropertyTrack::new(PointValue::Literal(fallback));
+            if let Some(numeric) = numeric {
+                track.default_value = PointValue::Literal(numeric.default_value);
+                for key in numeric.keyframes.as_slice() {
+                    track.add_keyframe(
+                        key.time_ms,
+                        PointValue::Literal(key.payload.0),
+                        key.payload.1,
+                    );
+                }
+            }
+            Box::new(track)
+        });
+        write_point(track, value, start, end, easing);
+    }
+
     /// The primitive type name that renders at `time_ms`.
     ///
     /// Normally the entity's actor type, but a same-label re-declaration that
@@ -263,6 +298,8 @@ impl ShapeTracks {
             shape_type,
             line_from,
             line_to,
+            from_anchor,
+            to_anchor,
             head_size,
             arc_angles,
             corner_radius,
@@ -279,16 +316,18 @@ impl ShapeTracks {
                 false $(|| self.$field.as_ref().is_some_and(|t| !t.is_effectively_static()))*
             };
         }
-        any_animated!(
-            shape_type,
-            line_from,
-            line_to,
-            head_size,
-            arc_angles,
-            corner_radius,
-            points,
-            commands,
-            vector_paths,
-        )
+        self.from_anchor.is_some()
+            || self.to_anchor.is_some()
+            || any_animated!(
+                shape_type,
+                line_from,
+                line_to,
+                head_size,
+                arc_angles,
+                corner_radius,
+                points,
+                commands,
+                vector_paths,
+            )
     }
 }

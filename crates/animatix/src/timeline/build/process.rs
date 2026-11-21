@@ -352,7 +352,10 @@ impl Timeline {
         }
         // Anchor-point refs (`n0.right`) are frame-time-resolved and cannot be
         // used in build-time `let` constants (transforms/bounds not resolved at build).
-        if let Some((actor, anchor)) = crate::timeline::lookup::actor_anchor_reference(value) {
+        let eval_env = self.build_eval_env(time_ms as u64);
+        if let Some((actor, anchor)) =
+            crate::timeline::lookup::actor_point_reference(value, &eval_env)
+        {
             let msg = format!(
                 "'{}' references '{actor}.{}' which is a frame-time anchor-point property; \
                  cannot resolve at build time. Use in 'always' or assignment instead.",
@@ -367,7 +370,6 @@ impl Timeline {
             // Fall through to evaluate (will likely fail or produce (0,0)),
             // which gives the user a second diagnostic for the eval failure.
         }
-        let eval_env = self.build_eval_env(time_ms as u64);
         match evaluate_expr(value, &eval_env) {
             Ok(val) => {
                 if let Some(locals) = self.block_scope.last_mut() {

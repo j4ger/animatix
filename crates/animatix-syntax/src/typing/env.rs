@@ -222,15 +222,7 @@ impl TypeEnv {
         if parts.len() == 1 {
             return Some(base);
         }
-        match base {
-            Type::Actor(actor_ty) => {
-                self.lookup_type_path(Type::Actor(actor_ty), first, &parts[1..])
-            },
-            Type::Component(component) => {
-                self.lookup_type_path(Type::Component(component), first, &parts[1..])
-            },
-            _ => None,
-        }
+        self.lookup_type_path(base, first, &parts[1..])
     }
 
     pub(super) fn lookup_type_path(
@@ -244,7 +236,7 @@ impl TypeEnv {
         };
         match receiver {
             Type::Actor(actor_ty) => {
-                let ty = property_type(&actor_ty, first)?;
+                let ty = self.lookup_property(&Type::Actor(actor_ty), first)?;
                 self.lookup_type_path(ty, first, &parts[1..])
             },
             Type::Component(component) => {
@@ -253,8 +245,13 @@ impl TypeEnv {
                     .params
                     .get(first)
                     .cloned()
-                    .or_else(|| self.arrays.get(&format!("{base_name}.{first}")).cloned())?;
+                    .or_else(|| self.arrays.get(&format!("{base_name}.{first}")).cloned())
+                    .or_else(|| actor_point_member(first))?;
                 self.lookup_type_path(ty, first, &parts[1..])
+            },
+            Type::List(_) | Type::Str if first == "length" && parts.len() == 1 => Some(Type::Num),
+            Type::Vec2 if matches!(first.as_str(), "x" | "y") && parts.len() == 1 => {
+                Some(Type::Num)
             },
             _ => None,
         }
@@ -263,11 +260,14 @@ impl TypeEnv {
     /// Resolve an actor/component property by name.
     pub(crate) fn lookup_property(&self, receiver: &Type, name: &str) -> Option<Type> {
         match receiver {
-            Type::Actor(actor_ty) => property_type(actor_ty, name),
+            Type::Actor(actor_ty) => {
+                property_type(actor_ty, name).or_else(|| actor_point_member(name))
+            },
             Type::Component(component) => {
                 let sig = self.components.get(component)?;
-                sig.params.get(name).cloned()
+                sig.params.get(name).cloned().or_else(|| actor_point_member(name))
             },
+            Type::List(_) | Type::Str if name == "length" => Some(Type::Num),
             _ => None,
         }
     }
@@ -318,4 +318,10 @@ pub(crate) fn transform_type() -> Type {
             Type::Num,
         ]),
     ])
+}
+
+fn actor_point_member(name: &str) -> Option<Type> {
+    use animatix_core::builtins::members::{ACTOR_GEOMETRY_MEMBERS, BOX_POINT_MEMBERS};
+    (BOX_POINT_MEMBERS.contains(&name) || ACTOR_GEOMETRY_MEMBERS.contains(&name))
+        .then_some(Type::Vec2)
 }

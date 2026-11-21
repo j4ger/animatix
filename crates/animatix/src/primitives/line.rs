@@ -73,7 +73,8 @@ impl Primitive for LinePrimitive {
         };
         match name {
             "from" => {
-                if crate::timeline::lookup::actor_anchor_reference(value).is_some() {
+                if crate::timeline::actor_points::track::PointValue::reference(value, env).is_some()
+                {
                     return true;
                 }
                 if let Some(parsed) =
@@ -84,7 +85,8 @@ impl Primitive for LinePrimitive {
                 true
             },
             "to" => {
-                if crate::timeline::lookup::actor_anchor_reference(value).is_some() {
+                if crate::timeline::actor_points::track::PointValue::reference(value, env).is_some()
+                {
                     return true;
                 }
                 if let Some(parsed) =

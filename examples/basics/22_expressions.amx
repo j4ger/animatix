@@ -16,7 +16,7 @@ let padded = "  animatix DSL  "
 
 let name = padded.trim()
 
-let name_len = name.length()
+let name_len = name.length
 
 title: Text, text: "Expressions", font_size: 42, color: accent.primary, anchor: scene.center, offset: (0, -200)
 
@@ -30,7 +30,7 @@ m1: Text, text: name, font_size: 18, color: text.primary, anchor: scene.center, 
 
 m2: Rect, size: (name_len * 14, 20), color: accent.success, anchor: scene.center, offset: (0, 240)
 
-m3: Text, text: "padded.trim() = label; .length() = 12 → bar width", font_size: 14, color: text.muted, anchor: scene.center, offset: (0, 260)
+m3: Text, text: "padded.trim() = label; .length = 12 → bar width", font_size: 14, color: text.muted, anchor: scene.center, offset: (0, 260)
 
 #0s
   fade_in(target: floor, duration: 0.6s)

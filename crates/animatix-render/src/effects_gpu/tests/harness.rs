@@ -131,6 +131,7 @@ pub(super) fn effect_chain(name: &str, values: Vec<EffectParamValue>) -> EffectC
             params: EffectParams { values },
         }],
         time_ms: 0.0,
+        ..Default::default()
     }
 }
 

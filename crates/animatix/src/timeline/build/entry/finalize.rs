@@ -13,7 +13,9 @@ use super::*;
 /// collected before idle tracks could add generated actors, and hierarchy links
 /// are resolved last so carry-injected tracks join the tree.
 pub(super) fn finalize_assets_legend(timeline: &mut Timeline, diagnostics: &mut Vec<Diagnostic>) {
-    timeline.env.bind_world_actor_refs(&timeline.world);
+    timeline
+        .env
+        .bind_world_actor_refs(&timeline.world, !timeline.modifier_programs.is_empty());
     actor_captures::rebind_plot_actor_captures(timeline);
     // Freeze the base environment into an Arc for cheap sharing: after build
     // the env is stable, so build_frame_env references this Arc instead of
@@ -124,5 +126,115 @@ pub(super) fn finalize_assets_legend(timeline: &mut Timeline, diagnostics: &mut 
     // Resolve any hierarchy link whose child track was created by a path
     // that bypassed `World::spawn` (carry injection, direct inserts).
     timeline.world.finish_hierarchy();
+    bind_actor_points(timeline, diagnostics);
     timeline.resolve_audio_volume_envelopes();
+}
+
+fn bind_actor_points(timeline: &mut Timeline, diagnostics: &mut Vec<Diagnostic>) {
+    use crate::timeline::actor_points::track::bind_track;
+    let world = &mut timeline.world;
+    let tracks = &world.tracks;
+    let hierarchy = &world.hierarchy;
+    let find_label = |label: &str| {
+        if let Some(id) = tracks.get_id(label) {
+            return Some(id);
+        }
+        let (root, rest) = label.split_once('.')?;
+        rest.split('.').try_fold(tracks.get_id(root)?, |parent, name| {
+            hierarchy.get(parent).children.iter().copied().find(|id| {
+                tracks
+                    .get_label(*id)
+                    .is_some_and(|label| label.rsplit('.').next() == Some(name))
+            })
+        })
+    };
+    let mut point_refs = std::collections::HashSet::new();
+    let mut find = |label: &str, point| {
+        let id = find_label(label)?;
+        point_refs.insert((id, point));
+        Some(id)
+    };
+    for (scope, id) in tracks.iter() {
+        let geometry = world.geometry.get_mut(id);
+        for track in
+            [&mut geometry.connector_from, &mut geometry.connector_to].into_iter().flatten()
+        {
+            bind_connector_point(&mut track.default_value, &mut find);
+            for key in track.keyframes.as_mut_slice() {
+                bind_connector_point(&mut key.payload.0, &mut find);
+            }
+        }
+        if let Some(shape) = world.shape.get_mut(id) {
+            for (name, track) in [
+                ("from", &mut shape.from_anchor),
+                ("to", &mut shape.to_anchor),
+            ] {
+                if let Some(track) = track {
+                    bind_track(track, &mut |label, point| {
+                        find(label, point).or_else(|| {
+                            diagnostics.push(
+                                Diagnostic::error(
+                                    DiagnosticCode::UnknownTargetPath,
+                                    DiagnosticPhase::Build,
+                                    format!("Point refers to unknown actor '{label}'"),
+                                )
+                                .with_subject(format!("{scope}.{name}")),
+                            );
+                            None
+                        })
+                    });
+                }
+            }
+        }
+        let Some(effects) = world.effects.get_mut(id) else {
+            continue;
+        };
+        for stage in &mut effects.stages {
+            let Some(center) = &mut stage.center else {
+                continue;
+            };
+            let mut missing = std::collections::BTreeSet::new();
+            let mut resolve = |label: &str, point| {
+                let id = find(label, point);
+                if id.is_none() {
+                    missing.insert(label.to_owned());
+                }
+                id
+            };
+            bind_track(center, &mut resolve);
+            for label in missing {
+                diagnostics.push(
+                    Diagnostic::error(
+                        DiagnosticCode::UnknownTargetPath,
+                        DiagnosticPhase::Build,
+                        format!("Vignette center refers to unknown actor '{label}'"),
+                    )
+                    .with_subject(format!("{scope}.{}.center", stage.label)),
+                );
+            }
+        }
+    }
+    timeline.prime_actor_points(point_refs);
+}
+
+fn bind_connector_point(
+    endpoint: &mut crate::timeline::ConnectorEndpoint,
+    find: &mut impl FnMut(&str, crate::timeline::ActorPoint) -> Option<crate::timeline::EntityId>,
+) {
+    use crate::timeline::{ActorPoint, ConnectorEndpoint};
+    match endpoint {
+        ConnectorEndpoint::Target {
+            actor,
+            anchor: Some(anchor),
+        } => {
+            let point = ActorPoint::Bounds(*anchor);
+            *endpoint = ConnectorEndpoint::BoundActor {
+                id: find(actor, point),
+                actor: std::mem::take(actor),
+                point,
+            };
+        },
+        ConnectorEndpoint::BoundActor { actor, id, point } => *id = find(actor, *point),
+        _ => {},
+    }
 }

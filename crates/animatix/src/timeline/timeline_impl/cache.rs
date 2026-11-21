@@ -378,6 +378,7 @@ impl Timeline {
                 matches!(
                     endpoint,
                     crate::timeline::ConnectorEndpoint::Target { actor, .. }
+                        | crate::timeline::ConnectorEndpoint::BoundActor { actor, .. }
                         if actor != label
                 )
             })
@@ -385,6 +386,7 @@ impl Timeline {
                 matches!(
                     endpoint,
                     crate::timeline::ConnectorEndpoint::Target { actor, .. }
+                        | crate::timeline::ConnectorEndpoint::BoundActor { actor, .. }
                         if actor != label
                 )
             })
@@ -424,6 +426,7 @@ impl EvalCaches {
             *self.scene_buffer.borrow_mut() = Some(entry.program.scene);
         }
         self.transform_cache.borrow_mut().clear();
+        self.fixed_actor_points.borrow_mut().clear();
         self.static_flags.borrow_mut().clear();
         self.static_subtree_cache.borrow_mut().clear();
         // Hit regions describe the last evaluated frame; an edit makes them stale.

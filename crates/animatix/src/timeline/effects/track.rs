@@ -13,8 +13,10 @@ use serde::{Deserialize, Serialize};
 use super::{
     EffectChain, EffectId, EffectInstance, EffectParamKind, EffectParamValue, EffectParams, effect,
 };
+use crate::timeline::actor_points::track::{DEFAULT_CENTER, PointValue, sample_point, write_point};
 use crate::timeline::plan::{DynTrack, PropertyKind};
 use crate::timeline::property_engine::PropertyValue;
+use crate::timeline::{EntityId, PropertyTrack, actor_points::ActorPoint};
 
 /// An ordered effect chain owned by a compositing scope's track.
 #[derive(Clone, Debug, Default)]
@@ -36,6 +38,11 @@ pub struct EffectStage {
     pub params: BTreeMap<String, DynTrack>,
     /// Implicit `enabled` flag; an absent track means `true`.
     pub enabled: DynTrack,
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub(crate) center: Option<Box<PropertyTrack<PointValue>>>,
 }
 
 impl EffectStage {
@@ -45,7 +52,44 @@ impl EffectStage {
             label,
             kind,
             params: BTreeMap::new(),
+            center: None,
             enabled: DynTrack::empty(PropertyKind::Bool),
+        }
+    }
+
+    pub(crate) fn write_center(
+        &mut self,
+        value: PointValue,
+        start: u64,
+        end: u64,
+        easing: crate::easing::Easing,
+    ) {
+        if let PointValue::Literal(uv) = value
+            && self.center.is_none()
+        {
+            let track = self.param_track_mut("center", EffectParamKind::Vec2);
+            if start != end {
+                let initial = track.sample(start).unwrap_or(PropertyValue::Vec2([0.5, 0.5]));
+                track.add_keyframe_eased(start, initial, crate::easing::Easing::Linear);
+            }
+            track.add_keyframe_eased(end, PropertyValue::Vec2(uv), easing);
+            return;
+        }
+        if self.center.is_none() {
+            let mut center = PropertyTrack::new(DEFAULT_CENTER);
+            if let Some(previous) = self.params.remove("center") {
+                for time in previous.keyframe_times() {
+                    if let Some(PropertyValue::Vec2(uv)) = previous.sample(time) {
+                        let easing =
+                            previous.keyframe_easing(time).unwrap_or(crate::easing::Easing::Linear);
+                        center.add_keyframe(time, PointValue::Literal(uv), easing);
+                    }
+                }
+            }
+            self.center = Some(Box::new(center));
+        }
+        if let Some(track) = &mut self.center {
+            write_point(track, value, start, end, easing);
         }
     }
 
@@ -81,6 +125,12 @@ impl EffectChainTrack {
             .flat_map(|stage| stage.params.values())
             .flat_map(|track| track.keyframe_times())
             .chain(self.stages.iter().flat_map(|stage| stage.enabled.keyframe_times()))
+            .chain(
+                self.stages
+                    .iter()
+                    .filter_map(|stage| stage.center.as_ref())
+                    .flat_map(|track| track.keyframes.as_slice().iter().map(|key| key.time_ms)),
+            )
             .collect();
         times.sort_unstable();
         times.dedup();
@@ -97,6 +147,7 @@ impl EffectChainTrack {
                     .values()
                     .filter_map(|track| track.max_keyframe_time())
                     .chain(stage.enabled.max_keyframe_time())
+                    .chain(stage.center.as_ref().and_then(|track| track.last_keyframe_time()))
             })
             .max()
     }
@@ -105,6 +156,7 @@ impl EffectChainTrack {
     pub fn has_any_keyframes(&self) -> bool {
         self.stages.iter().any(|stage| {
             stage.enabled.has_any_keyframes()
+                || stage.center.is_some()
                 || stage.params.values().any(|track| track.has_any_keyframes())
         })
     }
@@ -158,6 +210,13 @@ impl EffectChainTrack {
             tracing::warn!("effect stage '{stage_label}' has no registered descriptor");
             return false;
         };
+        if stage.kind.as_str() == "Vignette" && param == "center" {
+            let PropertyValue::Vec2(uv) = value else {
+                return false;
+            };
+            stage.write_center(PointValue::Literal(uv), t_start_ms, t_end_ms, easing);
+            return true;
+        }
         let (track, default) = if param == "enabled" {
             (&mut stage.enabled, PropertyValue::Bool(true))
         } else {
@@ -188,6 +247,12 @@ impl EffectChainTrack {
                 _ => PropertyValue::Bool(true),
             });
         }
+        if param == "center"
+            && let Some(track) = &stage.center
+        {
+            let sample = sample_point(track, time_ms, None, [0.5, 0.5], &|_, _| None);
+            return Some(PropertyValue::Vec2(sample.uv.map(|axis| axis as f32)));
+        }
         let effect = effect(&stage.kind)?;
         let spec = effect.params().iter().find(|spec| spec.name == param)?;
         Some(
@@ -201,7 +266,19 @@ impl EffectChainTrack {
 
     /// Sample the chain at `time_ms`, dropping disabled and identity stages.
     pub fn build_chain(&self, time_ms: u64) -> EffectChain {
-        let mut instances = Vec::new();
+        self.build_chain_with_points(time_ms, None, |_, _| None)
+    }
+
+    pub(crate) fn build_chain_with_points(
+        &self,
+        time_ms: u64,
+        dims: Option<crate::timeline::SceneDimensions>,
+        resolve: impl Fn(EntityId, ActorPoint) -> Option<kurbo::Point>,
+    ) -> EffectChain {
+        let mut chain = EffectChain {
+            time_ms: time_ms as f32,
+            ..Default::default()
+        };
         for stage in &self.stages {
             let Some(effect) = effect(&stage.kind) else {
                 tracing::warn!(
@@ -217,20 +294,34 @@ impl EffectChainTrack {
             if !enabled {
                 continue;
             }
-            let params = sample_params(effect.as_effect(), stage, time_ms);
-            if effect.is_identity(&params) {
+            let mut params = sample_params(effect.as_effect(), stage, time_ms);
+            let mut point = None;
+            if stage.center.is_some() && params.f32_at(0) <= 0.0 {
+                // A bound center makes no visual contribution at zero amount.
                 continue;
             }
-            instances.push(EffectInstance {
+            if let Some(track) = &stage.center
+                && let Some(parameter) =
+                    effect.params().iter().position(|param| param.name == "center")
+            {
+                let center = sample_point(track, time_ms, dims, [0.5, 0.5], &resolve);
+                params.values[parameter] =
+                    EffectParamValue::Vec2(center.uv.map(|axis| axis as f32));
+                if center.weight > 0.0 {
+                    point = Some((chain.instances.len(), parameter, center));
+                }
+            }
+            if point.is_none() && effect.is_identity(&params) {
+                continue;
+            }
+            chain.point_centers.extend(point);
+            chain.instances.push(EffectInstance {
                 id: stage.kind.clone(),
                 enabled: true,
                 params,
             });
         }
-        EffectChain {
-            instances,
-            time_ms: time_ms as f32,
-        }
+        chain
     }
 }
 

@@ -509,7 +509,7 @@ fn delightful_kinetic_connectors_reference_existing_actor_anchors() {
             (to_endpoint, to, SceneAnchor::Left),
         ] {
             assert!(
-                matches!(endpoint, ConnectorEndpoint::Target { actor, anchor: Some(actual) }
+                matches!(endpoint, ConnectorEndpoint::BoundActor { actor, id: Some(_), point: crate::timeline::ActorPoint::Bounds(actual) }
                     if actor == target && actual == anchor),
                 "{wire}: wrong target anchor"
             );
@@ -575,8 +575,10 @@ fn kinetic_probe_endpoint(wire: &str, from: bool, target: &str) {
     } else {
         SceneAnchor::Left
     };
-    assert!(matches!(endpoint, ConnectorEndpoint::Target { actor, anchor: Some(actual) }
-            if actor == target && actual == anchor));
+    assert!(
+        matches!(endpoint, ConnectorEndpoint::BoundActor { actor, id: Some(_), point: crate::timeline::ActorPoint::Bounds(actual) }
+            if actor == target && actual == anchor)
+    );
 }
 
 fn kinetic_probe_frames(times: &[f64], bounds: bool) {

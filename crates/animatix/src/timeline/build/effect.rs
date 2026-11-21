@@ -67,6 +67,18 @@ impl Timeline {
         for prop in props {
             let subject = format!("{}.{}", label, prop.name);
 
+            if effect.type_name() == "Vignette" && prop.name == "center" {
+                if let Some(center) = crate::timeline::actor_points::track::PointValue::parse(
+                    &prop.value,
+                    &eval_env,
+                    diagnostics,
+                    &subject,
+                ) {
+                    stage.write_center(center, t_start_ms, t_end_ms, easing);
+                }
+                continue;
+            }
+
             if prop.name == "enabled" {
                 match crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic(
                     &prop.value,

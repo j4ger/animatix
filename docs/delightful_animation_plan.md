@@ -203,7 +203,7 @@ flowchart TD
 
 #### 5.1 目标追踪运镜与视差分层 (Target-Tracking Camera & Parallax) [Tier 1]
 *   **连续视差因子 (Parallax)**：将 `camera_follow: bool` 升级为连续浮点数 `parallax: f32`（默认 1.0），根节点变换设为 `lerp(Affine::IDENTITY, camera_affine, parallax)`。
-*   **目标聚焦 (`camera.focus_on(card, padding: 40)`)**：构建期查询目标包围盒，自动反解并为 `camera.pan` 和 `camera.zoom` 合成关键帧。
+*   **目标聚焦 (`camera.focus = card [padding: 40]`)**。构建时读取目标的布局包围盒和画布尺寸，生成平移和缩放关键帧。
 
 #### 5.2 声明式环境微动 (`idle: float / breath`) [Tier 2]
 *   **实现**：构建期在 `motion_offset` 和 `scale` 轨道上自动铺设采样好的无缝闭合正弦关键帧，运行时零解释器开销。

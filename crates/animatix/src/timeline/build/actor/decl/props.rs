@@ -701,7 +701,11 @@ impl Timeline {
                 }
                 if matches!(caps.shape, Some(ShapeKind::Line | ShapeKind::Arrow))
                     && (prop.name == "from" || prop.name == "to")
-                    && crate::timeline::lookup::actor_anchor_reference(&prop.value).is_some()
+                    && crate::timeline::actor_points::track::PointValue::reference(
+                        &prop.value,
+                        eval_env,
+                    )
+                    .is_some()
                 {
                     continue;
                 }

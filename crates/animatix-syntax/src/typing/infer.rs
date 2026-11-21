@@ -106,13 +106,7 @@ pub fn infer_expr_type(expr: &Expr, env: &TypeEnv) -> Type {
             .unwrap_or(Type::Any),
         Expr::Field(receiver, field) => {
             let receiver_ty = infer_expr_type(receiver, env);
-            env.lookup_property(&receiver_ty, field).unwrap_or_else(|| {
-                if matches!(receiver_ty, Type::List(_)) && field == "length" {
-                    Type::Num
-                } else {
-                    Type::Any
-                }
-            })
+            env.lookup_property(&receiver_ty, field).unwrap_or(Type::Any)
         },
         Expr::Index(base, _) => match infer_expr_type(base, env) {
             Type::List(element) => *element,
@@ -193,13 +187,10 @@ pub fn infer_expr_type(expr: &Expr, env: &TypeEnv) -> Type {
             }
             if let Expr::Field(receiver, name) = callee.as_ref() {
                 let receiver_ty = infer_expr_type(receiver, env);
-                if args.is_empty() {
-                    if let Some(ty) = env.lookup_property(&receiver_ty, name) {
-                        return ty;
-                    }
-                    if matches!(receiver_ty, Type::List(_)) && name == "length" {
-                        return Type::Num;
-                    }
+                if args.is_empty()
+                    && let Some(ty) = env.lookup_property(&receiver_ty, name)
+                {
+                    return ty;
                 }
                 return match (name.as_str(), receiver_ty) {
                     ("get", Type::List(element)) => *element,

@@ -89,6 +89,7 @@ Built-in identity values:
 | `Vignette` | `radius` | `0.9` |
 | `Vignette` | `softness` | `0.6` |
 | `Vignette` | `color` | `(0, 0, 0, 1)` |
+| `Vignette` | `center` | `(0.5, 0.5)` |
 | `MotionBlur` | `length` | `0` |
 | `MotionBlur` | `angle` | `0` |
 | `Grain` | `amount` | `0` |
@@ -117,7 +118,14 @@ angles. Exactly seven are lengths in **scene pixels**:
 `LensDistortion.amount`. All seven scale with the render resolution the same
 way actor geometry does; the remaining length-like parameters are fractions of
 a local reference (for example `Vignette.radius` and `Vignette.softness` are
-fractions of the half minimum dimension).
+fractions of the shorter texture side).
+
+`Vignette.center` accepts an actor point such as `card.center` or a normalized
+effect-texture coordinate pair. Named points follow the actor and use the
+actual crop and render scale for their coordinate conversion. For pairs, `(0, 0)` is the
+top left and `(1, 1)` is the bottom right. Within a smaller scope the coordinates
+include dispatch padding and quantization (§3). For scene-relative framing,
+use a `Filter` whose bounds cover the entire canvas.
 
 ## 3. Spatial support and ROI
 

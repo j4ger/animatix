@@ -2,57 +2,38 @@ use super::types::{BuiltinFn, CompiledExpr};
 use crate::ast::UnaryOp;
 use crate::timeline::callout_geometry::env_anchor_point;
 use crate::timeline::env::CapturedEnv;
-use crate::timeline::{Environment, EvalError, Value};
+use crate::timeline::{ActorPoint, Environment, EvalError, Value};
 use smallvec::SmallVec;
+
+pub(crate) type PointLookup<'a> =
+    &'a dyn Fn(&crate::timeline::plan_value::ActorRef, ActorPoint) -> Option<kurbo::Point>;
 
 /// Evaluate a compiled expression against the given environment.
 pub(crate) fn evaluate_compiled_expr(
     expr: &CompiledExpr,
     env: &Environment,
 ) -> Result<Value, EvalError> {
+    evaluate_with_points(expr, env, None)
+}
+
+pub(crate) fn evaluate_with_points(
+    expr: &CompiledExpr,
+    env: &Environment,
+    points: Option<PointLookup<'_>>,
+) -> Result<Value, EvalError> {
     match expr {
         CompiledExpr::Const(Value::Num(n)) => Ok(Value::Num(*n)),
         CompiledExpr::Const(value) => Ok(value.clone()),
-        CompiledExpr::LoadEnv(name) => {
-            if name == crate::timeline::env::FRAME_TIME_IDENT {
-                env.frame_time_seconds
-                    .map(Value::Num)
-                    .ok_or_else(|| EvalError::UndefinedVariable(name.clone()))
-            } else if let Some(value) = env.get_path(name) {
-                Ok(wrap_registered_callable(name, value, env))
-            } else if let Some((root, suffix)) = name.split_once('.')
-                && let Some(Value::ActorRef(actor)) = env.get_path(root)
-            {
-                let actor = if env.is_frame_phase() {
-                    suffix.split('.').try_fold(actor, |actor, field| {
-                        actor.child_resolved(field).ok_or_else(|| {
-                            EvalError::UnsupportedConstruct(format!(
-                                "actor member '{field}' was not resolved during build"
-                            ))
-                        })
-                    })?
-                } else {
-                    suffix.split('.').fold(actor, |actor, field| actor.child(field))
-                };
-                Ok(Value::ActorRef(actor))
-            } else if !env.is_frame_phase() && env.has_component_methods(name) {
-                Ok(Value::ActorRef(crate::timeline::plan_value::ActorRef::caller(name.as_str())))
-            } else if let Some(descriptor) = env.callable_descriptor(name) {
-                Ok(Value::RegisteredFn {
-                    name: descriptor.qualified_name(),
-                    descriptor: std::sync::Arc::new(descriptor.clone()),
-                    native: None,
-                })
-            } else if let Some(easing) = crate::easing::parse_easing_name(name) {
-                Ok(Value::Easing(easing))
-            } else {
-                Err(EvalError::UndefinedVariable(name.clone()))
-            }
-        },
+        CompiledExpr::LoadEnv(name) => load_env(name, env),
         CompiledExpr::Field(base, field) => {
-            let base = evaluate_compiled_expr(base, env)?;
+            let base = evaluate_with_points(base, env, points)?;
             match base {
                 Value::ActorRef(actor) => {
+                    if let Some(point) = ActorPoint::named(field)
+                        && let Some(position) = points.and_then(|read| read(&actor, point))
+                    {
+                        return Ok(Value::Vec2([position.x, position.y]));
+                    }
                     if env.is_frame_phase() {
                         actor.child_resolved(field).map(Value::ActorRef).ok_or_else(|| {
                             EvalError::UnsupportedConstruct(format!(
@@ -64,16 +45,16 @@ pub(crate) fn evaluate_compiled_expr(
                         Ok(env.get_path(child.label()).unwrap_or(Value::ActorRef(child)))
                     }
                 },
-                value => value.get_field(field).cloned().ok_or_else(|| {
+                value => value.read_field(field).ok_or_else(|| {
                     EvalError::TypeMismatch(format!("value has no field '{field}'"))
                 }),
             }
         },
-        CompiledExpr::MakeVec(items) => eval_make_vec(items, env),
+        CompiledExpr::MakeVec(items) => eval_make_vec(items, env, points),
         CompiledExpr::MakeList(items) => {
             let values = items
                 .iter()
-                .map(|item| evaluate_compiled_expr(item, env))
+                .map(|item| evaluate_with_points(item, env, points))
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(Value::List(values.into()))
         },
@@ -86,7 +67,7 @@ pub(crate) fn evaluate_compiled_expr(
                     "& expects a two-segment path: &actor.prop".to_string(),
                 ));
             }
-            let value = evaluate_compiled_expr(expr, env)?;
+            let value = evaluate_with_points(expr, env, points)?;
             match (op, value) {
                 (UnaryOp::Neg, Value::Num(number)) => Ok(Value::Num(-number)),
                 (UnaryOp::Neg, Value::Duration(seconds)) => Ok(Value::Duration(-seconds)),
@@ -98,36 +79,38 @@ pub(crate) fn evaluate_compiled_expr(
             }
         },
         CompiledExpr::Binary(left, op, right) => {
-            let left = evaluate_compiled_expr(left, env)?;
+            let left = evaluate_with_points(left, env, points)?;
             match op {
                 crate::ast::BinaryOp::And if !left.is_truthy() => return Ok(Value::Bool(false)),
                 crate::ast::BinaryOp::Or if left.is_truthy() => return Ok(Value::Bool(true)),
                 _ => {},
             }
-            let right = evaluate_compiled_expr(right, env)?;
+            let right = evaluate_with_points(right, env, points)?;
             crate::timeline::eval_shared::eval_binary_op(left, op, right)
         },
         CompiledExpr::Select(condition, then_expr, else_expr) => {
-            let cond = evaluate_compiled_expr(condition, env)?;
+            let cond = evaluate_with_points(condition, env, points)?;
             if cond.is_truthy() {
-                evaluate_compiled_expr(then_expr, env)
+                evaluate_with_points(then_expr, env, points)
             } else {
-                evaluate_compiled_expr(else_expr, env)
+                evaluate_with_points(else_expr, env, points)
             }
         },
-        CompiledExpr::CallBuiltin(builtin, args) => eval_call_builtin(builtin.clone(), args, env),
+        CompiledExpr::CallBuiltin(builtin, args) => {
+            eval_call_builtin(builtin.clone(), args, env, points)
+        },
         CompiledExpr::CallNamed(name, args) => {
-            let arg_values = evaluate_named_call_arguments(name, args, env)?;
-            crate::timeline::utils::evaluate_call_arguments(name, arg_values, env)
+            let arg_values = evaluate_named_call_arguments(name, args, env, points)?;
+            crate::timeline::utils::evaluate_call_arguments(name, arg_values, env, points)
         },
         CompiledExpr::CallMember(receiver, name, args) => {
-            let receiver = evaluate_compiled_expr(receiver, env)?;
-            evaluate_member_call(receiver, name, args, env)
+            let receiver = evaluate_with_points(receiver, env, points)?;
+            evaluate_member_call(receiver, name, args, env, points)
         },
         CompiledExpr::CallValue(callee, args) => {
-            let callee = evaluate_compiled_expr(callee, env)?;
-            let arg_values = evaluate_value_call_arguments(&callee, args, env)?;
-            crate::timeline::utils::evaluate_callable_value(callee, arg_values, "<call>", env)
+            let callee = evaluate_with_points(callee, env, points)?;
+            let arg_values = evaluate_value_call_arguments(&callee, args, env, points)?;
+            crate::timeline::utils::call_with_points(callee, arg_values, "<call>", env, points)
         },
         CompiledExpr::Timeline(plan_body) => {
             if env.is_frame_phase() {
@@ -183,7 +166,7 @@ pub(crate) fn evaluate_compiled_expr(
                 ),
             )))
         },
-        CompiledExpr::Index(container, index) => eval_index(container, index, env),
+        CompiledExpr::Index(container, index) => eval_index(container, index, env, points),
         CompiledExpr::Closure(params, body) => {
             Ok(Value::Closure(params.clone(), body.clone(), CapturedEnv::snapshot(env)))
         },
@@ -191,27 +174,86 @@ pub(crate) fn evaluate_compiled_expr(
             label: label.clone(),
             prop: prop.clone(),
         }),
-        CompiledExpr::LetChain(bindings, tail) => eval_let_chain(bindings, tail, env),
-        CompiledExpr::Construct(name, fields) => eval_construct(name, fields, env),
+        CompiledExpr::LetChain(bindings, tail) => eval_let_chain(bindings, tail, env, points),
+        CompiledExpr::Construct(name, fields) => eval_construct(name, fields, env, points),
         CompiledExpr::AnchorLookup { actor, anchor } => {
-            if let Some(point) = env_anchor_point(env, actor, *anchor) {
-                Ok(Value::Vec2(point))
-            } else {
-                let name = format!("{actor}.{}", anchor.as_str());
-                env.get_path(&name).ok_or(EvalError::UndefinedVariable(name))
-            }
+            eval_actor_point(actor, *anchor, env, points)
         },
     }
+}
+
+fn load_env(name: &str, env: &Environment) -> Result<Value, EvalError> {
+    if name == crate::timeline::env::FRAME_TIME_IDENT {
+        env.frame_time_seconds
+            .map(Value::Num)
+            .ok_or_else(|| EvalError::UndefinedVariable(name.to_owned()))
+    } else if let Some(value) = env.get_path(name) {
+        Ok(wrap_registered_callable(name, value, env))
+    } else if let Some((root, suffix)) = name.split_once('.')
+        && let Some(Value::ActorRef(actor)) = env.get_path(root)
+    {
+        let actor = if env.is_frame_phase() {
+            suffix.split('.').try_fold(actor, |actor, field| {
+                actor.child_resolved(field).ok_or_else(|| {
+                    EvalError::UnsupportedConstruct(format!(
+                        "actor member '{field}' was not resolved during build"
+                    ))
+                })
+            })?
+        } else {
+            suffix.split('.').fold(actor, |actor, field| actor.child(field))
+        };
+        Ok(Value::ActorRef(actor))
+    } else if !env.is_frame_phase() && env.has_component_methods(name) {
+        Ok(Value::ActorRef(crate::timeline::plan_value::ActorRef::caller(name)))
+    } else if let Some(descriptor) = env.callable_descriptor(name) {
+        Ok(Value::RegisteredFn {
+            name: descriptor.qualified_name(),
+            descriptor: std::sync::Arc::new(descriptor.clone()),
+            native: None,
+        })
+    } else if let Some(easing) = crate::easing::parse_easing_name(name) {
+        Ok(Value::Easing(easing))
+    } else {
+        Err(EvalError::UndefinedVariable(name.to_owned()))
+    }
+}
+
+fn eval_actor_point(
+    actor: &str,
+    anchor: ActorPoint,
+    env: &Environment,
+    points: Option<PointLookup<'_>>,
+) -> Result<Value, EvalError> {
+    if let Some(read) = points
+        && let Ok(Value::ActorRef(reference)) = load_env(actor, env)
+        && let Some(position) = read(&reference, anchor)
+    {
+        return Ok(Value::Vec2([position.x, position.y]));
+    }
+    let name = format!("{actor}.{}", anchor.as_str());
+    if let Some(value) = env.get_path(&name) {
+        return Ok(value);
+    }
+    if let ActorPoint::Bounds(bounds) = anchor
+        && let Some(point) = env_anchor_point(env, actor, bounds)
+    {
+        return Ok(Value::Vec2(point));
+    }
+    Err(EvalError::UndefinedVariable(name))
 }
 
 fn eval_construct(
     name: &str,
     fields: &[(String, CompiledExpr)],
     env: &Environment,
+    points: Option<PointLookup<'_>>,
 ) -> Result<Value, EvalError> {
     let fields = fields
         .iter()
-        .map(|(name, expr)| evaluate_compiled_expr(expr, env).map(|value| (name.clone(), value)))
+        .map(|(name, expr)| {
+            evaluate_with_points(expr, env, points).map(|value| (name.clone(), value))
+        })
         .collect::<Result<_, _>>()?;
     Ok(Value::Object(name.to_string(), fields))
 }
@@ -234,14 +276,16 @@ fn evaluate_named_call_arguments(
     name: &str,
     arguments: &[(Option<String>, CompiledExpr)],
     env: &Environment,
+    points: Option<PointLookup<'_>>,
 ) -> Result<Vec<(Option<String>, Value)>, EvalError> {
-    evaluate_named_call_arguments_with_offset(name, arguments, env, 0)
+    evaluate_named_call_arguments_with_offset(name, arguments, env, points, 0)
 }
 
 fn evaluate_named_call_arguments_with_offset(
     name: &str,
     arguments: &[(Option<String>, CompiledExpr)],
     env: &Environment,
+    points: Option<PointLookup<'_>>,
     positional_offset: usize,
 ) -> Result<Vec<(Option<String>, Value)>, EvalError> {
     let unqualified = name.strip_prefix("std::").unwrap_or(name);
@@ -264,7 +308,13 @@ fn evaluate_named_call_arguments_with_offset(
                 )
             })
             .collect::<Vec<_>>();
-        return evaluate_arguments_with_params_offset(arguments, &params, env, positional_offset);
+        return evaluate_arguments_with_params_offset(
+            arguments,
+            &params,
+            env,
+            points,
+            positional_offset,
+        );
     }
     let descriptor = env.callable_descriptor(name).or_else(|| env.callable_descriptor(unqualified));
     let params: Vec<(String, Option<animatix_core::callable::CallableType>, bool)> = descriptor
@@ -276,7 +326,7 @@ fn evaluate_named_call_arguments_with_offset(
                 .collect()
         })
         .unwrap_or_default();
-    evaluate_arguments_with_params_offset(arguments, &params, env, positional_offset)
+    evaluate_arguments_with_params_offset(arguments, &params, env, points, positional_offset)
 }
 
 fn evaluate_member_call(
@@ -284,6 +334,7 @@ fn evaluate_member_call(
     name: &str,
     arguments: &[(Option<String>, CompiledExpr)],
     env: &Environment,
+    points: Option<PointLookup<'_>>,
 ) -> Result<Value, EvalError> {
     if let Value::ActorRef(actor) = &receiver {
         if let Some(method) = env.component_method_for_actor(actor, name) {
@@ -297,18 +348,19 @@ fn evaluate_member_call(
             } else {
                 crate::timeline::fn_eval::bind_component_method_receiver(method, actor)
             };
-            let values = evaluate_value_call_arguments(&method, arguments, env)?;
-            return crate::timeline::utils::evaluate_callable_value(method, values, name, env);
+            let values = evaluate_value_call_arguments(&method, arguments, env, points)?;
+            return crate::timeline::utils::call_with_points(method, values, name, env, points);
         }
 
         if callable_has_actor_receiver(name, env) {
-            let mut values = evaluate_named_call_arguments_with_offset(name, arguments, env, 1)?;
+            let mut values =
+                evaluate_named_call_arguments_with_offset(name, arguments, env, points, 1)?;
             values.insert(0, (None, Value::ActorRef(actor.clone())));
-            return crate::timeline::utils::evaluate_call_arguments(name, values, env);
+            return crate::timeline::utils::evaluate_call_arguments(name, values, env, points);
         }
     }
 
-    let values = evaluate_named_call_arguments("<method>", arguments, env)?;
+    let values = evaluate_named_call_arguments("<method>", arguments, env, points)?;
     crate::timeline::utils::evaluate_method_arguments(receiver, name, values, env)
 }
 
@@ -366,6 +418,7 @@ fn evaluate_value_call_arguments(
     callee: &Value,
     arguments: &[(Option<String>, CompiledExpr)],
     env: &Environment,
+    points: Option<PointLookup<'_>>,
 ) -> Result<Vec<(Option<String>, Value)>, EvalError> {
     if let Value::UserFn { params, .. } = callee {
         let params = params
@@ -381,16 +434,16 @@ fn evaluate_value_call_arguments(
                 )
             })
             .collect::<Vec<_>>();
-        evaluate_arguments_with_params(arguments, &params, env)
+        evaluate_arguments_with_params(arguments, &params, env, points)
     } else if let Value::RegisteredFn { descriptor, .. } = callee {
         let params = descriptor
             .params
             .iter()
             .map(|param| (param.name.clone(), Some(param.ty.clone()), param.variadic))
             .collect::<Vec<_>>();
-        evaluate_arguments_with_params(arguments, &params, env)
+        evaluate_arguments_with_params(arguments, &params, env, points)
     } else {
-        evaluate_arguments_with_params(arguments, &[], env)
+        evaluate_arguments_with_params(arguments, &[], env, points)
     }
 }
 
@@ -398,14 +451,16 @@ fn evaluate_arguments_with_params(
     arguments: &[(Option<String>, CompiledExpr)],
     params: &[(String, Option<animatix_core::callable::CallableType>, bool)],
     env: &Environment,
+    points: Option<PointLookup<'_>>,
 ) -> Result<Vec<(Option<String>, Value)>, EvalError> {
-    evaluate_arguments_with_params_offset(arguments, params, env, 0)
+    evaluate_arguments_with_params_offset(arguments, params, env, points, 0)
 }
 
 fn evaluate_arguments_with_params_offset(
     arguments: &[(Option<String>, CompiledExpr)],
     params: &[(String, Option<animatix_core::callable::CallableType>, bool)],
     env: &Environment,
+    points: Option<PointLookup<'_>>,
     positional_offset: usize,
 ) -> Result<Vec<(Option<String>, Value)>, EvalError> {
     let mut positional_index = positional_offset;
@@ -424,7 +479,7 @@ fn evaluate_arguments_with_params_offset(
             let expected = param_index
                 .and_then(|index| params.get(index))
                 .and_then(|(_, ty, _)| ty.as_ref());
-            let value = evaluate_argument(expression, expected, env)?;
+            let value = evaluate_argument(expression, expected, env, points)?;
             Ok((name.clone(), value))
         })
         .collect()
@@ -434,6 +489,7 @@ fn evaluate_argument(
     expression: &CompiledExpr,
     expected: Option<&animatix_core::callable::CallableType>,
     env: &Environment,
+    points: Option<PointLookup<'_>>,
 ) -> Result<Value, EvalError> {
     use animatix_core::callable::CallableType as T;
     if let CompiledExpr::LoadEnv(symbol) = expression
@@ -452,7 +508,7 @@ fn evaluate_argument(
         {
             let items = items
                 .iter()
-                .map(|item| evaluate_argument(item, Some(inner), env))
+                .map(|item| evaluate_argument(item, Some(inner), env, points))
                 .collect::<Result<Vec<_>, _>>()?;
             return Ok(Value::List(items.into()));
         },
@@ -476,7 +532,7 @@ fn evaluate_argument(
         },
         _ => {},
     }
-    evaluate_compiled_expr(expression, env)
+    evaluate_with_points(expression, env, points)
 }
 
 fn argument_accepts_color(ty: &animatix_core::callable::CallableType) -> bool {
@@ -489,20 +545,24 @@ fn argument_accepts_color(ty: &animatix_core::callable::CallableType) -> bool {
 }
 
 fn actor_reference_value(label: &str, env: &Environment) -> Result<Value, EvalError> {
-    match env.get_path(label) {
-        Some(Value::ActorRef(reference)) => Ok(Value::ActorRef(reference)),
-        Some(value) => Err(EvalError::TypeMismatch(format!(
+    match load_env(label, env) {
+        Ok(Value::ActorRef(reference)) => Ok(Value::ActorRef(reference)),
+        Ok(value) => Err(EvalError::TypeMismatch(format!(
             "actor parameter expects an actor reference, got {value:?} for '{label}'"
         ))),
-        None => Ok(Value::ActorRef(crate::timeline::plan_value::ActorRef::caller(label))),
+        Err(_) => Ok(Value::ActorRef(crate::timeline::plan_value::ActorRef::caller(label))),
     }
 }
 
-fn eval_make_vec(items: &[CompiledExpr], env: &Environment) -> Result<Value, EvalError> {
+fn eval_make_vec(
+    items: &[CompiledExpr],
+    env: &Environment,
+    points: Option<PointLookup<'_>>,
+) -> Result<Value, EvalError> {
     match items.len() {
         2 => {
-            let v0 = evaluate_compiled_expr(&items[0], env)?;
-            let v1 = evaluate_compiled_expr(&items[1], env)?;
+            let v0 = evaluate_with_points(&items[0], env, points)?;
+            let v1 = evaluate_with_points(&items[1], env, points)?;
             if matches!((&v0, &v1), (Value::Num(_), Value::Num(_))) {
                 Ok(Value::Vec2([v0.as_num(), v1.as_num()]))
             } else {
@@ -510,9 +570,9 @@ fn eval_make_vec(items: &[CompiledExpr], env: &Environment) -> Result<Value, Eva
             }
         },
         3 => {
-            let v0 = evaluate_compiled_expr(&items[0], env)?;
-            let v1 = evaluate_compiled_expr(&items[1], env)?;
-            let v2 = evaluate_compiled_expr(&items[2], env)?;
+            let v0 = evaluate_with_points(&items[0], env, points)?;
+            let v1 = evaluate_with_points(&items[1], env, points)?;
+            let v2 = evaluate_with_points(&items[2], env, points)?;
             if matches!((&v0, &v1, &v2), (Value::Num(_), Value::Num(_), Value::Num(_))) {
                 Ok(Value::Vec3([v0.as_num(), v1.as_num(), v2.as_num()]))
             } else {
@@ -520,10 +580,10 @@ fn eval_make_vec(items: &[CompiledExpr], env: &Environment) -> Result<Value, Eva
             }
         },
         4 => {
-            let v0 = evaluate_compiled_expr(&items[0], env)?;
-            let v1 = evaluate_compiled_expr(&items[1], env)?;
-            let v2 = evaluate_compiled_expr(&items[2], env)?;
-            let v3 = evaluate_compiled_expr(&items[3], env)?;
+            let v0 = evaluate_with_points(&items[0], env, points)?;
+            let v1 = evaluate_with_points(&items[1], env, points)?;
+            let v2 = evaluate_with_points(&items[2], env, points)?;
+            let v3 = evaluate_with_points(&items[3], env, points)?;
             if matches!(
                 (&v0, &v1, &v2, &v3),
                 (Value::Num(_), Value::Num(_), Value::Num(_), Value::Num(_))
@@ -536,7 +596,7 @@ fn eval_make_vec(items: &[CompiledExpr], env: &Environment) -> Result<Value, Eva
         _ => {
             let values = items
                 .iter()
-                .map(|item| evaluate_compiled_expr(item, env))
+                .map(|item| evaluate_with_points(item, env, points))
                 .collect::<Result<Vec<_>, _>>()?;
             make_vec_value(values)
         },
@@ -547,10 +607,11 @@ fn eval_call_builtin(
     builtin: BuiltinFn,
     args: &[CompiledExpr],
     env: &Environment,
+    points: Option<PointLookup<'_>>,
 ) -> Result<Value, EvalError> {
     let args: SmallVec<[Value; 4]> = args
         .iter()
-        .map(|arg| evaluate_compiled_expr(arg, env))
+        .map(|arg| evaluate_with_points(arg, env, points))
         .collect::<Result<_, _>>()?;
     let name = match builtin {
         BuiltinFn::Sin => "sin",
@@ -597,13 +658,14 @@ fn eval_index(
     container: &CompiledExpr,
     index: &CompiledExpr,
     env: &Environment,
+    points: Option<PointLookup<'_>>,
 ) -> Result<Value, EvalError> {
-    let index_val = evaluate_compiled_expr(index, env)?;
+    let index_val = evaluate_with_points(index, env, points)?;
     let container_val = match container {
         CompiledExpr::LoadEnv(name) if env.get_path(name).is_none() => {
             Value::ActorRef(crate::timeline::plan_value::ActorRef::caller(name.as_str()))
         },
-        _ => evaluate_compiled_expr(container, env)?,
+        _ => evaluate_with_points(container, env, points)?,
     };
     let raw_index = match index_val {
         Value::Num(value) => value,
@@ -678,6 +740,7 @@ fn eval_let_chain(
     bindings: &[(String, CompiledExpr)],
     tail: &CompiledExpr,
     env: &Environment,
+    points: Option<PointLookup<'_>>,
 ) -> Result<Value, EvalError> {
     // Bindings evaluate in order; each becomes a let-scope entry so
     // later bindings and the tail see it. Scoped lookup lives in
@@ -686,7 +749,7 @@ fn eval_let_chain(
     let mut pushed = 0;
     let mut result = Ok(Value::Num(0.0));
     for (name, value) in bindings {
-        match evaluate_compiled_expr(value, env) {
+        match evaluate_with_points(value, env, points) {
             Ok(v) => {
                 env.push_let_scope([(name.clone(), v)]);
                 pushed += 1;
@@ -698,7 +761,7 @@ fn eval_let_chain(
         }
     }
     if result.is_ok() {
-        result = evaluate_compiled_expr(tail, env);
+        result = evaluate_with_points(tail, env, points);
     }
     for _ in 0..pushed {
         env.pop_let_scope();

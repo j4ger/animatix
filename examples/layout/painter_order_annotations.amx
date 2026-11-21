@@ -11,7 +11,7 @@ component DiagramNode(title: Str, color: Color) {
 #0s
   backdrop: Group, at: (0, 0) {
   plate: Rect, size: (1280, 720), at: (640, 360), color: hex_color("101923")
-  edge: Connector, from: (source.marker, right), to: (moving.marker, left), routing: "straight", arrow: true, stroke: hex_color("8aa8c2"), stroke_width: 4
+  edge: Connector, from: source.marker.right, to: moving.marker.left, routing: "straight", arrow: true, stroke: hex_color("8aa8c2"), stroke_width: 4
     }
   source: DiagramNode, title: "source", color: rgb(0.19, 0.36, 0.47), at: (320, 380)
   moving: DiagramNode, title: "moving node", color: rgb(0.4, 0.32, 0.6), at: (700, 380)

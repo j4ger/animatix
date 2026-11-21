@@ -32,6 +32,21 @@ pub(super) fn write_effect_stage_param(
         tracing::warn!("effect stage '{scope_label}.{stage_label}' has no registered descriptor");
         return;
     };
+    if kind.as_str() == "Vignette" && property == "center" {
+        let center = crate::timeline::actor_points::track::PointValue::parse(
+            value,
+            eval_env,
+            diagnostics,
+            subject,
+        );
+        if let Some(center) = center
+            && let Some(scope_id) = timeline.world.get_id(scope_label)
+            && let Some(stage) = timeline.world.ensure_effects(scope_id).stage_mut(stage_label)
+        {
+            stage.write_center(center, t_start_ms, t_end_ms, easing);
+        }
+        return;
+    }
     let (is_enabled, param_kind, identity) = if property == "enabled" {
         (true, EffectParamKind::Bool, PropertyValue::Bool(true))
     } else if let Some(spec) = effect.params().iter().find(|param| param.name == property) {

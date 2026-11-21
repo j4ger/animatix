@@ -39,9 +39,47 @@ pub struct EffectChain {
     pub instances: Vec<EffectInstance>,
     /// Timeline time in milliseconds, supplied to shaders as `time_ms`.
     pub time_ms: f32,
+    /// Scene-relative overrides, indexed by active instance and uniform parameter.
+    pub point_centers: Vec<(usize, usize, super::PointSample)>,
 }
 
 impl EffectChain {
+    pub(crate) fn transform_points(&mut self, transform: kurbo::Affine) {
+        for (_, _, point) in &mut self.point_centers {
+            point.transform_scene(transform);
+        }
+    }
+
+    pub(crate) fn normalized_region(
+        &self,
+        region: Option<EffectRegion>,
+        canvas: SceneDimensions,
+    ) -> std::borrow::Cow<'_, Self> {
+        let region = region.unwrap_or(EffectRegion {
+            origin: [0.0; 2],
+            size: canvas,
+        });
+        self.normalized_points(
+            kurbo::Affine::translate((-f64::from(region.origin[0]), -f64::from(region.origin[1]))),
+            [region.size.width.max(1), region.size.height.max(1)],
+        )
+    }
+    /// Convert named actor points to texture coordinates once per effect instance.
+    pub fn normalized_points(
+        &self,
+        shifted: kurbo::Affine,
+        size: [u32; 2],
+    ) -> std::borrow::Cow<'_, Self> {
+        if self.point_centers.is_empty() {
+            return std::borrow::Cow::Borrowed(self);
+        }
+        let mut chain = self.clone();
+        for (stage, parameter, center) in chain.point_centers.drain(..) {
+            chain.instances[stage].params.values[parameter] =
+                super::EffectParamValue::Vec2(center.texture_uv(shifted, size));
+        }
+        std::borrow::Cow::Owned(chain)
+    }
     /// `true` when no effect will run (empty or every instance disabled).
     pub fn is_empty(&self) -> bool {
         self.instances.iter().all(|instance| !instance.enabled)

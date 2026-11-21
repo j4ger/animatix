@@ -1,7 +1,7 @@
 use super::types::{BuiltinFn, CompiledExpr, IrLowerError, ModifierIrProgram, ModifierIrStmt};
 use crate::ast::{BinaryOp, Expr, MatchPattern, Stmt, TargetSegment};
+use crate::timeline::ActorPoint;
 use crate::timeline::Value;
-use crate::timeline::animation_track::SceneAnchor;
 
 /// Convenience wrapper that unwraps `Always`
 /// statements and lowers their bodies. Kept for test compatibility.
@@ -181,6 +181,30 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<Vec<ModifierIrStmt>, IrLowerError>
     }
 }
 
+fn compile_static_path(parts: &[String]) -> CompiledExpr {
+    let point_read = |parts: &[String]| {
+        let (field, actor) = parts.split_last()?;
+        if actor.is_empty() || actor[0] == "scene" {
+            return None;
+        }
+        let anchor = ActorPoint::named(field)?;
+        Some(CompiledExpr::AnchorLookup {
+            actor: actor.join("."),
+            anchor,
+        })
+    };
+    if let Some(read) = point_read(parts) {
+        return read;
+    }
+    if let Some((field, receiver)) = parts.split_last()
+        && matches!(field.as_str(), "x" | "y")
+        && let Some(read) = point_read(receiver)
+    {
+        return CompiledExpr::Field(Box::new(read), field.clone());
+    }
+    CompiledExpr::LoadEnv(parts.join("."))
+}
+
 /// Compile an AST expression into modifier IR.
 pub fn compile_expr(expr: &Expr) -> Result<CompiledExpr, IrLowerError> {
     match expr {
@@ -193,36 +217,12 @@ pub fn compile_expr(expr: &Expr) -> Result<CompiledExpr, IrLowerError> {
         Expr::Bool(b) => Ok(CompiledExpr::Const(Value::Bool(*b))),
         Expr::Null => Ok(CompiledExpr::Const(Value::Null)),
         Expr::Ident(name) => Ok(CompiledExpr::LoadEnv(name.clone())),
-        Expr::Path(parts) => {
-            // Lazy anchor-point resolution: `actor.right` style paths are
-            // resolved from the frame env at evaluation time, not eagerly
-            // injected. Exclude `scene.*` (preserves existing scene anchor
-            // injection path) and non-2-part paths.
-            if parts.len() == 2
-                && parts[0] != "scene"
-                && let Some(anchor) = SceneAnchor::from_str(&parts[1])
-            {
-                return Ok(CompiledExpr::AnchorLookup {
-                    actor: parts[0].clone(),
-                    anchor,
-                });
-            }
-            Ok(CompiledExpr::LoadEnv(parts.join(".")))
-        },
+        Expr::Path(parts) => Ok(compile_static_path(parts)),
         Expr::QualifiedPath(parts) => Ok(CompiledExpr::LoadEnv(parts.join("::"))),
         Expr::Field(receiver, field) => {
             if let Some(mut parts) = static_access_parts(receiver) {
                 parts.push(field.clone());
-                if parts.len() == 2
-                    && parts[0] != "scene"
-                    && let Some(anchor) = SceneAnchor::from_str(&parts[1])
-                {
-                    return Ok(CompiledExpr::AnchorLookup {
-                        actor: parts[0].clone(),
-                        anchor,
-                    });
-                }
-                Ok(CompiledExpr::LoadEnv(parts.join(".")))
+                Ok(compile_static_path(&parts))
             } else {
                 Ok(CompiledExpr::Field(Box::new(compile_expr(receiver)?), field.clone()))
             }

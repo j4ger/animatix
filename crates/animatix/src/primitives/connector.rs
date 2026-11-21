@@ -15,12 +15,19 @@ use crate::timeline::{
 pub fn parse_connector_endpoint(expr: &Expr, env: &Environment) -> Option<ConnectorEndpoint> {
     // Preserve a verified actor anchor before numeric evaluation snapshots its
     // current position. Ordinary object fields and scene coordinates stay numeric.
-    if let Some((actor, anchor)) = crate::timeline::lookup::actor_anchor_reference(expr)
-        && let Some(Value::ActorRef(reference)) = env.get_path(&actor)
-    {
-        return Some(ConnectorEndpoint::Target {
-            actor: reference.label().to_string(),
-            anchor: Some(anchor),
+    if let Some((actor, point)) = crate::timeline::lookup::actor_point_reference(expr, env) {
+        return Some(match point {
+            crate::timeline::ActorPoint::Bounds(anchor) => ConnectorEndpoint::Target {
+                actor,
+                anchor: Some(anchor),
+            },
+            crate::timeline::ActorPoint::Origin | crate::timeline::ActorPoint::Centroid => {
+                ConnectorEndpoint::BoundActor {
+                    actor,
+                    point,
+                    id: None,
+                }
+            },
         });
     }
     match crate::timeline::evaluate_expr(expr, env) {
@@ -32,12 +39,6 @@ pub fn parse_connector_endpoint(expr: &Expr, env: &Environment) -> Option<Connec
             });
         },
         _ => {}, // Authored anchor metadata and symbolic targets resolve below.
-    }
-    if let Some((actor, anchor)) = crate::timeline::lookup::actor_anchor_reference(expr) {
-        return Some(ConnectorEndpoint::Target {
-            actor,
-            anchor: Some(anchor),
-        });
     }
     match expr {
         Expr::Tuple(items) if items.len() == 2 => {
@@ -112,7 +113,25 @@ pub fn resolve_connector_endpoint(
             }
             ([0.0, 0.0], [1.0, 0.0])
         },
+        ConnectorEndpoint::BoundActor { id, point, .. } => {
+            bound_connector_point(target_resolver, *id, *point).unwrap_or(([0.0, 0.0], [1.0, 0.0]))
+        },
     }
+}
+
+fn bound_connector_point(
+    resolver: Option<&dyn TargetResolver>,
+    id: Option<crate::timeline::EntityId>,
+    point: crate::timeline::ActorPoint,
+) -> Option<([f32; 2], [f32; 2])> {
+    let p = resolver?.actor_point(id?, point)?;
+    let normal = match point {
+        crate::timeline::ActorPoint::Bounds(anchor) => {
+            resolve_connector_anchor([0.0; 2], [0.0; 2], Some(anchor), None).1
+        },
+        crate::timeline::ActorPoint::Origin | crate::timeline::ActorPoint::Centroid => [0.0; 2],
+    };
+    Some(([p.x as f32, p.y as f32], normal))
 }
 
 /// Select an anchor using already-resolved world bounds.
@@ -190,10 +209,6 @@ pub(crate) fn resolve_connector_endpoint_local(
     }
     // Missing target bounds do not denote the world's origin. Omit the
     // connector rather than inventing a dangling endpoint at a transformed zero.
-    let ConnectorEndpoint::Target { actor, anchor } = endpoint else {
-        return None;
-    };
-    let (center, half_size) = target_resolver?.target_bounds(actor, time_ms, scene_dimensions)?;
     // A collapsed target connector has no invertible local coordinate frame.
     // Skip its geometry for this frame instead of emitting NaN path commands.
     let determinant = world_from_local.determinant();
@@ -205,7 +220,17 @@ pub(crate) fn resolve_connector_endpoint_local(
         let point = world_from_local * kurbo::Point::new(point[0] as f64, point[1] as f64);
         [point.x as f32, point.y as f32]
     });
-    let (point, normal) = resolve_connector_anchor(center, half_size, *anchor, other_world);
+    let (point, normal) = match endpoint {
+        ConnectorEndpoint::Target { actor, anchor } => {
+            let (center, half_size) =
+                target_resolver?.target_bounds(actor, time_ms, scene_dimensions)?;
+            resolve_connector_anchor(center, half_size, *anchor, other_world)
+        },
+        ConnectorEndpoint::BoundActor { id, point, .. } => {
+            bound_connector_point(target_resolver, *id, *point)?
+        },
+        ConnectorEndpoint::Point(_) => return None,
+    };
     let point = local_from_world * kurbo::Point::new(point[0] as f64, point[1] as f64);
     let [a, b, c, d, _, _] = local_from_world.as_coeffs();
     let direction = kurbo::Vec2::new(

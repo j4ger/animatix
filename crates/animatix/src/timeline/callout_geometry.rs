@@ -20,6 +20,31 @@ pub trait TargetResolver {
         time_ms: u64,
         scene_dimensions: SceneDimensions,
     ) -> Option<([f32; 2], [f32; 2])>;
+
+    /// Read a named point from the actor's current transformed layout box.
+    fn actor_point(&self, _id: super::EntityId, _point: super::ActorPoint) -> Option<kurbo::Point> {
+        None
+    }
+}
+
+pub(crate) struct FrameTargetResolver<'a, 'f> {
+    pub timeline: &'a Timeline,
+    pub frame: &'a crate::primitives::RenderFrame<'f>,
+}
+
+impl TargetResolver for FrameTargetResolver<'_, '_> {
+    fn target_bounds(
+        &self,
+        name: &str,
+        time_ms: u64,
+        scene_dimensions: SceneDimensions,
+    ) -> Option<([f32; 2], [f32; 2])> {
+        self.timeline.target_bounds(name, time_ms, scene_dimensions)
+    }
+
+    fn actor_point(&self, id: super::EntityId, point: super::ActorPoint) -> Option<kurbo::Point> {
+        self.timeline.actor_point(id, point, self.frame, true)
+    }
 }
 
 impl TargetResolver for Timeline {

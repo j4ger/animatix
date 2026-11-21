@@ -783,7 +783,7 @@ impl Environment {
             }
         }
         for field in rest.split('.') {
-            current = current.get_field(field)?.clone();
+            current = current.read_field(field)?;
         }
         Some(current)
     }

@@ -117,7 +117,7 @@ impl Interpolate for PlacementMode {
 }
 
 /// Anchor point on a 3×3 scene grid.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum SceneAnchor {
     /// Top-left corner.
@@ -358,6 +358,16 @@ pub enum ConnectorEndpoint {
         actor: String,
         /// Anchor side on the target actor.
         anchor: Option<SceneAnchor>,
+    },
+    /// A named actor geometry point, bound before frame evaluation.
+    BoundActor {
+        /// Source identity used when rebuilding or carrying the scene.
+        actor: String,
+        /// Geometry member to read.
+        point: crate::timeline::ActorPoint,
+        /// Entity identity in the current scene.
+        #[cfg_attr(feature = "serde", serde(skip))]
+        id: Option<crate::timeline::EntityId>,
     },
 }
 

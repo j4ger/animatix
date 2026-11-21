@@ -1,6 +1,10 @@
 //! Expression evaluation: the evaluation cache, expression hashing, and the
 //! call/closure/method dispatch used by the IR VM.
 
+mod registered;
+use registered::resolve_registered_callback;
+
+use crate::timeline::modifier_runtime::ir::PointLookup;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -276,18 +280,26 @@ fn expr_is_trivial(expr: &Expr) -> bool {
 /// (see `EnvStamp`) — so equal stamps guarantee equal contents without hashing
 /// every override entry.
 pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError> {
+    evaluate_expr_with_points(expr, env, None)
+}
+
+pub(crate) fn evaluate_expr_with_points(
+    expr: &Expr,
+    env: &Environment,
+    points: Option<PointLookup<'_>>,
+) -> Result<Value, EvalError> {
     // Fast path: trivial expressions and disabled caches (e.g., inside tight
     // plot sampling loops) evaluate directly — a cache round-trip would cost
     // more than the evaluation itself.
-    if !EVAL_CACHE_ENABLED.get() || expr_is_trivial(expr) {
-        return evaluate_expr_inner(expr, env);
+    if points.is_some() || !EVAL_CACHE_ENABLED.get() || expr_is_trivial(expr) {
+        return evaluate_expr_inner(expr, env, points);
     }
 
     // The let-scope epoch is part of the identity: the same env instance can
     // produce different values for the same expression under different
     // active LetChain scopes.
     let Some(hash) = expr_hash(expr) else {
-        return evaluate_expr_uncached(expr, env);
+        return evaluate_expr_uncached(expr, env, points);
     };
     let cache_key = (hash, env.stamp(), env.let_epoch());
 
@@ -300,7 +312,7 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
     }
 
     // Evaluate and cache
-    let result = evaluate_expr_with_hash(expr, env, hash)?;
+    let result = evaluate_expr_with_hash(expr, env, hash, points)?;
     EVAL_CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();
         if cache.len() >= EVAL_CACHE_LIMIT {
@@ -312,14 +324,23 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
 }
 
 /// Inner evaluation function delegating to compiled IR VM.
-fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalError> {
+fn evaluate_expr_inner(
+    expr: &Expr,
+    env: &Environment,
+    points: Option<PointLookup<'_>>,
+) -> Result<Value, EvalError> {
     let Some(hash) = expr_hash(expr) else {
-        return evaluate_expr_uncached(expr, env);
+        return evaluate_expr_uncached(expr, env, points);
     };
-    evaluate_expr_with_hash(expr, env, hash)
+    evaluate_expr_with_hash(expr, env, hash, points)
 }
 
-fn evaluate_expr_with_hash(expr: &Expr, env: &Environment, hash: u64) -> Result<Value, EvalError> {
+fn evaluate_expr_with_hash(
+    expr: &Expr,
+    env: &Environment,
+    hash: u64,
+    points: Option<PointLookup<'_>>,
+) -> Result<Value, EvalError> {
     let key = (hash, expr as *const Expr as usize);
     let hit = COMPILED_EXPR_CACHE.with(|cache| cache.borrow().get(&key).cloned());
     let compiled = match hit {
@@ -336,12 +357,16 @@ fn evaluate_expr_with_hash(expr: &Expr, env: &Environment, hash: u64) -> Result<
             compiled
         },
     };
-    crate::timeline::modifier_runtime::ir::evaluate_compiled_expr(&compiled, env)
+    crate::timeline::modifier_runtime::ir::evaluate_with_points(&compiled, env, points)
 }
 
-fn evaluate_expr_uncached(expr: &Expr, env: &Environment) -> Result<Value, EvalError> {
+fn evaluate_expr_uncached(
+    expr: &Expr,
+    env: &Environment,
+    points: Option<PointLookup<'_>>,
+) -> Result<Value, EvalError> {
     let compiled = crate::timeline::modifier_runtime::ir::compile_expr(expr)?;
-    crate::timeline::modifier_runtime::ir::evaluate_compiled_expr(&compiled, env)
+    crate::timeline::modifier_runtime::ir::evaluate_with_points(&compiled, env, points)
 }
 
 /// Invoke a named function with already-evaluated arguments.
@@ -353,7 +378,12 @@ pub(crate) fn evaluate_call_value(
     arg_values: Vec<Value>,
     env: &Environment,
 ) -> Result<Value, EvalError> {
-    evaluate_call_arguments(func, arg_values.into_iter().map(|value| (None, value)).collect(), env)
+    evaluate_call_arguments(
+        func,
+        arg_values.into_iter().map(|value| (None, value)).collect(),
+        env,
+        None,
+    )
 }
 
 /// Invoke a named callable with values that retain positional/named identity.
@@ -361,6 +391,7 @@ pub(crate) fn evaluate_call_arguments(
     func: &str,
     arg_values: Vec<(Option<String>, Value)>,
     env: &Environment,
+    points: Option<PointLookup<'_>>,
 ) -> Result<Value, EvalError> {
     let unqualified = func.strip_prefix("std::").unwrap_or(func);
     let function = if func.starts_with("std::") {
@@ -370,7 +401,7 @@ pub(crate) fn evaluate_call_arguments(
     };
 
     if let Some(function @ (Value::RegisteredFn { .. } | Value::Closure(..))) = function.as_ref() {
-        return evaluate_callable_value(function.clone(), arg_values, func, env);
+        return call_with_points(function.clone(), arg_values, func, env, points);
     }
 
     if let Some(Value::UserFn {
@@ -393,6 +424,7 @@ pub(crate) fn evaluate_call_arguments(
             function_context.as_ref(),
             definition_path.as_deref(),
             component_scope.as_ref(),
+            points,
         );
     }
 
@@ -507,7 +539,7 @@ pub(crate) fn evaluate_call_arguments(
         }
         if let Some(Value::Closure(params, body, captures)) = function.as_ref() {
             let values = args;
-            return invoke_closure_value(params, body, captures, values, func, env);
+            return invoke_closure_value(params, body, captures, values, func, env, points);
         }
         return Err(EvalError::UndefinedVariable(func.to_string()));
     }
@@ -519,11 +551,12 @@ pub(crate) fn evaluate_call_arguments(
     }
     let args: Vec<Value> = arg_values.into_iter().map(|(_, value)| value).collect();
     if let Some(value) = function {
-        return evaluate_callable_value(
+        return call_with_points(
             value,
             args.into_iter().map(|v| (None, v)).collect(),
             func,
             env,
+            points,
         );
     }
 
@@ -538,6 +571,16 @@ pub(crate) fn evaluate_callable_value(
     arguments: Vec<(Option<String>, Value)>,
     name: &str,
     env: &Environment,
+) -> Result<Value, EvalError> {
+    call_with_points(function, arguments, name, env, None)
+}
+
+pub(crate) fn call_with_points(
+    function: Value,
+    arguments: Vec<(Option<String>, Value)>,
+    name: &str,
+    env: &Environment,
+    points: Option<PointLookup<'_>>,
 ) -> Result<Value, EvalError> {
     match function {
         Value::RegisteredFn {
@@ -618,6 +661,7 @@ pub(crate) fn evaluate_callable_value(
             function_context.as_ref(),
             definition_path.as_deref(),
             component_scope.as_ref(),
+            points,
         ),
         Value::Closure(params, body, captures) => {
             if arguments.iter().any(|(arg_name, _)| arg_name.is_some()) {
@@ -626,43 +670,9 @@ pub(crate) fn evaluate_callable_value(
                 )));
             }
             let values = arguments.into_iter().map(|(_, value)| value).collect();
-            invoke_closure_value(&params, &body, &captures, values, name, env)
+            invoke_closure_value(&params, &body, &captures, values, name, env, points)
         },
         _ => Err(EvalError::NotCallable(name.to_string())),
-    }
-}
-
-#[allow(clippy::type_complexity)]
-fn resolve_registered_callback(
-    name: &str,
-    descriptor: &animatix_core::callable::CallableDescriptor,
-    env: &Environment,
-) -> Result<Arc<dyn Fn(&[Value], &Environment) -> Result<Value, EvalError> + Send + Sync>, EvalError>
-{
-    let qualified_name = descriptor.qualified_name();
-    let installed = env.callable_descriptor(&qualified_name).ok_or_else(|| {
-        EvalError::NotCallable(format!(
-            "registered callable '{qualified_name}' is not installed in this environment"
-        ))
-    })?;
-    if installed != descriptor {
-        return Err(EvalError::TypeMismatch(format!(
-            "registered callable '{qualified_name}' has a different contract in this environment"
-        )));
-    }
-
-    match env.get(&qualified_name) {
-        Some(Value::NativeFn(callback)) => Ok(callback),
-        Some(Value::RegisteredFn {
-            name: installed_name,
-            descriptor: installed_descriptor,
-            native: Some(callback),
-        }) if installed_name == qualified_name && installed_descriptor.as_ref() == descriptor => {
-            Ok(callback)
-        },
-        _ => Err(EvalError::NotCallable(format!(
-            "registered callable '{name}' has no host callback in this environment"
-        ))),
     }
 }
 
@@ -713,6 +723,7 @@ pub(crate) fn invoke_closure_value(
     arg_values: Vec<Value>,
     func_name: &str,
     env: &Environment,
+    points: Option<PointLookup<'_>>,
 ) -> Result<Value, EvalError> {
     if arg_values.len() != params.len() {
         return Err(EvalError::TypeMismatch(format!(
@@ -759,7 +770,7 @@ pub(crate) fn invoke_closure_value(
         child_env.set(param, val);
     }
 
-    crate::timeline::modifier_runtime::ir::evaluate_compiled_expr(body, &child_env)
+    crate::timeline::modifier_runtime::ir::evaluate_with_points(body, &child_env, points)
 }
 
 /// Evaluate a method call on a receiver value.

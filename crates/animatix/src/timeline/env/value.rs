@@ -302,6 +302,17 @@ impl Value {
         }
     }
 
+    /// Read a stored field or a computed standard-library member.
+    pub(crate) fn read_field(&self, name: &str) -> Option<Value> {
+        match (self, name) {
+            (Self::List(items), "length") => Some(Self::Num(items.len() as f64)),
+            (Self::Str(text), "length") => Some(Self::Num(text.len() as f64)),
+            (Self::Vec2([x, _]), "x") => Some(Self::Num(*x)),
+            (Self::Vec2([_, y]), "y") => Some(Self::Num(*y)),
+            _ => self.get_field(name).cloned(),
+        }
+    }
+
     /// Set a field value on an Object, returning a new Object (immutable).
     /// If this value is not an Object, creates a new Object with the given field.
     pub fn with_field(&self, name: &str, value: Value) -> Value {

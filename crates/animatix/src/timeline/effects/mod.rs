@@ -9,8 +9,10 @@
 //! `docs/effects.md`; the authoring checklist lives in `animatix-core::builtins`.
 
 mod chain;
+
 mod track;
 
+pub use super::actor_points::track::PointSample;
 pub use animatix_core::builtins::effects::compose_color_matrix;
 pub use animatix_core::builtins::{
     BLUR, CHROMATIC_ABERRATION, COLOR_GRADE, EFFECTS, PluginEffectData, PluginEffectInfo, effect,

@@ -432,12 +432,14 @@ impl Draw {
             | Self::BlurredRect { transform, .. }
             | Self::Glyphs { transform, .. }
             | Self::Texture { transform, .. } => *transform = outer * *transform,
-            Self::Filter { scene, .. } => {
+            Self::Filter { scene, chain, .. } => {
+                chain.transform_points(outer);
                 let mut transformed = Scene::new();
                 transformed.append(scene, Some(outer));
                 **scene = transformed;
             },
-            Self::Glass { children, .. } => {
+            Self::Glass { children, backdrop } => {
+                backdrop.chain.transform_points(outer);
                 let mut transformed = Scene::new();
                 transformed.append(children, Some(outer));
                 **children = transformed;

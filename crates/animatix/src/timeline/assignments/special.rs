@@ -200,17 +200,15 @@ impl Timeline {
             .is_some_and(|segment| segment.label_str() == crate::timeline::camera::CAMERA_TARGET)
         {
             if crate::timeline::camera::is_focus(property) {
-                let target_label = match value {
-                    crate::ast::Expr::Ident(s) | crate::ast::Expr::Str(s) => Some(s.clone()),
-                    _ => match evaluate_expr_with_lookup_diagnostic(
-                        value,
-                        eval_env,
-                        diagnostics,
-                        assignment_subject,
-                    ) {
-                        Some(Value::Str(s)) => Some(s),
-                        _ => None,
-                    },
+                let target_label = match evaluate_expr_with_lookup_diagnostic(
+                    value,
+                    eval_env,
+                    diagnostics,
+                    assignment_subject,
+                ) {
+                    Some(Value::ActorRef(actor)) => Some(actor.label().to_owned()),
+                    Some(Value::Str(s)) => Some(s),
+                    _ => crate::timeline::lookup::parse_actor_ref_literal(value),
                 };
                 let Some(label) = target_label else {
                     diagnostics.push(
@@ -238,14 +236,24 @@ impl Timeline {
                     })
                     .unwrap_or(40.0);
 
-                if let Some(id) = self.world.get_id(&label) {
-                    let geometry = self.world.geometry.get(id);
-                    let pos = geometry.position.get(t_start_ms, [0.0, 0.0]);
-                    let half_size = geometry.size.get(t_start_ms, [50.0, 50.0]);
-                    let w = (half_size[0] * 2.0).max(1.0);
-                    let h = (half_size[1] * 2.0).max(1.0);
-                    let view_w = 1920.0_f32;
-                    let view_h = 1080.0_f32;
+                let dimensions = self
+                    .resolution()
+                    .map_or_else(crate::timeline::SceneDimensions::default, |(width, height)| {
+                        crate::timeline::SceneDimensions { width, height }
+                    });
+                let overrides = Default::default();
+                let frame = Self::point_query_frame(t_start_ms, dimensions, &overrides);
+                if let Some(bounds) = self
+                    .world
+                    .get_id(&label)
+                    .and_then(|id| self.actor_point_geometry(id, &frame, false))
+                    .map(|(bounds, _)| bounds)
+                {
+                    let pos = [bounds.center().x as f32, bounds.center().y as f32];
+                    let w = (bounds.width() as f32).max(1.0);
+                    let h = (bounds.height() as f32).max(1.0);
+                    let view_w = dimensions.width as f32;
+                    let view_h = dimensions.height as f32;
                     let target_zoom = ((view_w - 2.0 * padding) / w)
                         .min((view_h - 2.0 * padding) / h)
                         .clamp(0.1, 10.0);

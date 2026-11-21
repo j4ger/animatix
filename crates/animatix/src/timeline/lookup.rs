@@ -62,6 +62,32 @@ pub(crate) fn actor_anchor_reference(
     crate::timeline::SceneAnchor::from_str(anchor).map(|anchor| (actor.to_string(), anchor))
 }
 
+/// Keep an authored point reference symbolic, including component aliases and
+/// build-time array indices. The receiver can be declared later in the scene.
+pub(crate) fn actor_point_reference(
+    expr: &Expr,
+    env: &Environment,
+) -> Option<(String, super::actor_points::ActorPoint)> {
+    use super::actor_points::ActorPoint;
+    let (receiver, member) = match expr {
+        Expr::Field(receiver, member) => (receiver.as_ref().clone(), member.as_str()),
+        Expr::Path(parts) => {
+            let (member, receiver) = parts.split_last()?;
+            (Expr::Path(receiver.to_vec()), member.as_str())
+        },
+        _ => return None,
+    };
+    let point = ActorPoint::named(member)?;
+    if let Ok(Value::ActorRef(actor)) = evaluate_expr(&receiver, env) {
+        return Some((actor.label().to_owned(), point));
+    }
+    let label = parse_actor_ref_literal(&receiver)?;
+    if label.is_empty() || label == "scene" || env.get_path(&label).is_some() {
+        return None;
+    }
+    Some((label, point))
+}
+
 /// Build a joined dot-separated key from target segments, using the base label
 /// for Indexed segments (e.g. `bars[i].color` → `"bars.color"`).
 ///

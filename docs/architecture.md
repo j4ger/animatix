@@ -738,6 +738,7 @@ Targeted `Callout` actors (those with a `target` property) need to compute the a
 
 - `derive_callout_geometry` computes `from`, `to`, `label_point`, attach side, and standoff for rendering.
 - `Timeline` implements `TargetResolver`, which exposes the target's world-space bounding box. It prefers the bounds derived from render commands for a target already evaluated on the current frame. Otherwise it transforms the declared size through `actor_world_affine` or falls back to the sampled position and size when the transform is unavailable.
+- Named actor points use the target's layout geometry. After the hierarchy is finalized, the build folds referenced points whose actors and ancestors have static tracks and absolute positioning. The memo is keyed by entity and point kind. Edits clear it, and subsequent reads can repopulate it. Viewport bindings, dynamic layout, camera projection, and frame overrides use live sampling.
 - A missing target name is diagnosed at build time (`CalloutTargetNotFound`) so the error surfaces in the editor rather than producing per-frame render log spam.
 
 ---

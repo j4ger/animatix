@@ -10,12 +10,12 @@ mod expr;
 mod tests;
 mod value;
 
+pub(crate) use expr::{
+    call_with_points, evaluate_call_arguments, evaluate_call_value, evaluate_callable_value,
+    evaluate_expr_with_points, evaluate_method_arguments,
+};
 pub use expr::{
     clear_eval_cache, disable_eval_cache, enable_eval_cache, evaluate_expr, safe_div, safe_rem,
-};
-pub(crate) use expr::{
-    evaluate_call_arguments, evaluate_call_value, evaluate_callable_value,
-    evaluate_method_arguments,
 };
 // The pre-split module exposed this crate-wide; keep the path intact even
 // though its only caller is `evaluate_call_value` today.

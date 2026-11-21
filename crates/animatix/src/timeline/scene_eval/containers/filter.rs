@@ -72,7 +72,11 @@ impl Timeline {
         let chain = self
             .world
             .effects(node_id)
-            .map(|effects| effects.build_chain(time_ms))
+            .map(|effects| {
+                effects.build_chain_with_points(time_ms, Some(scene_dimensions), |id, point| {
+                    self.actor_point(id, point, frame, true)
+                })
+            })
             .unwrap_or_default();
 
         if chain.is_empty() {
@@ -108,6 +112,7 @@ impl Timeline {
             return;
         }
 
+        let chain = chain.normalized_region(region, scene_dimensions);
         // Always take the zero-readback path when a backend exists: the
         // pending composites are blitted after the main scene render in
         // declaration order, and the CPU readback path is the one that loses

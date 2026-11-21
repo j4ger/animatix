@@ -15,13 +15,17 @@ impl Timeline {
         &self,
         node_id: EntityId,
         node_label: &str,
-        time_ms: u64,
+        frame: &crate::primitives::RenderFrame<'_>,
         local_transform: kurbo::Affine,
         opacity: f32,
-        scene_dimensions: SceneDimensions,
         node_overrides: Option<&std::collections::HashMap<String, Value>>,
         vector_paths: &[VelloPath],
     ) -> Option<Vec<crate::primitives::RenderCommand>> {
+        let time_ms = frame.time_ms;
+        let target_resolver = crate::timeline::callout_geometry::FrameTargetResolver {
+            timeline: self,
+            frame,
+        };
         // ── Behavior evaluation ──
         // The behavior's evaluate() is the direct render path.
         // `Some(commands)` draws the commands and records a hit region;
@@ -37,12 +41,12 @@ impl Timeline {
                 time_ms,
                 local_transform,
                 opacity,
-                scene_dimensions,
+                scene_dimensions: frame.scene_dimensions,
                 background_color: self.eval_caches.background_color.get(),
                 overrides: node_overrides,
                 vector_paths,
                 asset_cache: &self.asset_cache,
-                target_resolver: Some(self),
+                target_resolver: Some(&target_resolver),
                 legend: self.world.legend(node_id),
                 world: Some(&self.world),
                 highlight: self.world.highlight(node_id),

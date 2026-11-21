@@ -845,7 +845,7 @@ note: Callout {
 An orthogonal connector between two actor anchors (or explicit points). Endpoints are resolved against the targets' bounds each frame, so a connector follows actors as they move.
 
 **Properties:**
-- `from`: Endpoint — `(x, y)`, `(actor, anchor)`, `actor` (auto side), or `actor.anchor` (default `(0, 0)`)
+- `from`: Endpoint — a named point such as `actor.right`, an `actor` (auto side), or `(x, y)` (default `(0, 0)`)
 - `to`: Endpoint — same forms as `from` (default `(100, 100)`)
 - `routing`: String — `"elbow"` (default), `"l-bend"`, or `"straight"`
 - `arrow`: Boolean — draw an arrowhead at `to` (default `true`)
@@ -855,7 +855,7 @@ An orthogonal connector between two actor anchors (or explicit points). Endpoint
 - `stroke_width`: Number
 - `at`: Tuple `(x, y)`
 
-When no anchor is named (`to: database`), the side facing the other endpoint is chosen automatically. Anchor names are the `scene.*` vocabulary (`left`, `right`, `top`, `bottom`, the corners, and `center`).
+An actor endpoint such as `to: database` automatically selects the side facing the other endpoint. Named points use the layout-box anchors plus `origin` and `centroid`. The legacy `(actor, anchor)` syntax remains accepted.
 
 **Example:**
 ```animatix
@@ -863,8 +863,8 @@ client: Rect, at: (340, 420), size: (160, 80)
 database: Rect, at: (940, 420), size: (160, 80)
 
 conn: Connector,
-  from: (client, right),
-  to: (database, left),
+  from: client.right,
+  to: database.left,
   routing: "elbow",
   corner_radius: 8,
   arrow: true,
