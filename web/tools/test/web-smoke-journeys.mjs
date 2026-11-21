@@ -49,14 +49,21 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
     if (contract.action === 'edit') {
       await cdp.evaluate(`(() => {
         const code = document.querySelector('#source-code');
-        const source = code.value.replace('hex_color("65d9e8")', 'hex_color("f46ea0")').replace('duration: 3', 'duration: 4');
+        const source = code.value
+          .replace('hex_color("65d9e8")', 'hex_color("f46ea0")')
+          .replace('duration: 3', 'duration: 4').replace('#0.5s', '#0.25s');
         if (source === code.value) throw Error('Unexpected first-move source');
         code.value = source;
         code.dispatchEvent(new Event('input', {bubbles: true}));
       })()`);
-      await until('live editor build', async () => {
+      await until('live editor build and updated timeline', async () => {
         await checkErrors();
-        return cdp.evaluate(`${players}[${index}].duration === 4`);
+        return cdp.evaluate(`(() => {
+          const player = ${players}[${index}];
+          const marks = player.shadowRoot.querySelector('.amx-marks');
+          return player.duration === 4 && !marks.querySelector('[data-t="0.5"]') &&
+            marks.querySelector('[data-t="0.25"]')?.style.left === '6.25%';
+        })()`);
       });
     }
     await diagnose('before-pause');
@@ -99,7 +106,15 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
     await until('visible build diagnostic', () => cdp.evaluate(`document.querySelector('#editor-status').textContent.startsWith('Not built:')`));
     if (!await cdp.evaluate(`document.querySelector('#source-code').value===window.__submitted`)) throw new Error('Failed build changed source');
     // A failed edit must retain the last successful scene, not merely its DOM.
-    await cdp.evaluate(`${players}[0].pause();${players}[0].seek(2.1)`);
+    await cdp.evaluate(`(() => {
+      const player = ${players}[0];
+      player.pause();
+      player.seek(1);
+      player.seek(2.1);
+      if (player.shadowRoot.querySelector('.amx-time').textContent !== '2.1 / 4.0') {
+        throw Error('The time label did not follow the last paused seek');
+      }
+    })()`);
     assertPaint(await capture(0,'retained'), {color:'#F46EA0',x:920/1280,y:0.5,tolerance:0.08});
   }
   const resources = await cdp.evaluate(`performance.getEntriesByType('resource').map(x=>({name:new URL(x.name).pathname,startMs:x.startTime,durationMs:x.duration,bytes:x.transferSize}))`);

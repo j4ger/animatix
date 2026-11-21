@@ -1,12 +1,15 @@
 import {readableError} from '../lib/errors';
 import {withTimeout} from '../lib/requests';
 import {currentUi} from '../lib/ui';
+import {bindTimeline} from '../lib/timeline';
+import type {TimelineMarker} from '../../../embed/src/player/timeline.js';
 
 const {t} = currentUi();
 
 type LivePlayer = HTMLElement & {
   readonly time: number;
   readonly duration: number;
+  readonly timelineMarkers?: readonly TimelineMarker[];
   play(): void;
   pause(): void;
   seek(seconds: number): void;
@@ -21,7 +24,11 @@ const mount = film.querySelector<HTMLElement>('.engine-stage')!;
 const opening = film.querySelector<HTMLImageElement>('.opening-frame')!;
 const play = film.querySelector<HTMLButtonElement>('.play')!;
 const playLabel = play.querySelector('span')!;
-const slider = film.querySelector<HTMLInputElement>('.timeline')!;
+const slider = film.querySelector<HTMLInputElement>('.timeline-input')!;
+const timeline = bindTimeline(slider, time => {
+  followingScroll = false;
+  seek(time);
+});
 const timecode = film.querySelector('output')!;
 const status = film.querySelector<HTMLElement>('[role=status]')!;
 const retry = film.querySelector<HTMLButtonElement>('.retry')!;
@@ -37,7 +44,7 @@ let scrollFrame = 0;
 
 function showTime(time: number) {
   seconds = time;
-  slider.value = String(time);
+  timeline.paint(time);
   timecode.value = '0:' + String(Math.floor(time)).padStart(2, '0');
   playLabel.textContent = playing ? t('Pause film', '暂停动画') : time >= Number(slider.max) ? t('Replay film', '重播动画') : t('Play film', '播放动画');
   play.toggleAttribute('data-playing', playing);
@@ -66,10 +73,12 @@ function trackPlayback() {
 // Clamp to reachable scroll positions on short pages and wide screens.
 function measureStops() {
   const maxScroll = Math.max(0, document.documentElement.scrollHeight - innerHeight);
+  const filmHeight = film.offsetHeight;
+  story.style.setProperty('--film-height', `${filmHeight}px`);
   scrollStops = sections.map((section, i) => {
     if (!i) return 0;
     const rect = section.getBoundingClientRect();
-    const offset = narrow.matches ? -film.offsetHeight - 20 : (rect.height - innerHeight) / 2;
+    const offset = narrow.matches ? -filmHeight - 20 : (rect.height - innerHeight) / 2;
     return Math.max(0, Math.min(maxScroll, rect.top + scrollY + offset));
   });
 }
@@ -106,15 +115,12 @@ play.addEventListener('click', () => {
   engine.play();
   trackPlayback();
 });
-slider.addEventListener('input', () => {
-  followingScroll = false;
-  seek(Number(slider.value));
-});
 window.addEventListener('scroll', () => {
   followingScroll = true;
   if (!scrollFrame) scrollFrame = requestAnimationFrame(followScroll);
 }, {passive: true});
 window.addEventListener('resize', resize);
+new ResizeObserver(resize).observe(film);
 reduced.addEventListener('change', () => {
   if (reduced.matches && playing) {
     pause();
@@ -155,7 +161,7 @@ async function startEngine() {
     engine = player;
     engine.addEventListener('amxerror', e => unavailable((e as CustomEvent).detail.error));
     engine.seek(seconds);
-    slider.max = String(engine.duration);
+    timeline.setDocument(engine);
     play.disabled = slider.disabled = false;
     opening.hidden = true;
     status.textContent = '';

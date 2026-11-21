@@ -3,17 +3,14 @@ import {base, url, pageUrl, github} from '../lib/content';
 import {htmlLanguage, pageLanguage, sitePagePath} from '../lib/language';
 import {ui} from '../lib/ui';
 import PreferenceHead from '../components/PreferenceHead.astro';
-import SitePreferences from '../components/SitePreferences.astro';
+import SiteHeader from '../components/SiteHeader.astro';
 import '../styles/site.css';
 import '../styles/project.css';
 import '../styles/theme.css';
 import '../styles/preferences.css';
 const language = pageLanguage(Astro.currentLocale);
-const labels = ui(language);
-const {t} = labels;
-const path = Astro.url.pathname;
-const active = (prefixes: string[]) => prefixes.some(p => path.startsWith(pageUrl(language, p))) ? 'page' : undefined;
-const route = sitePagePath(path, base);
+const {t} = ui(language);
+const route = sitePagePath(Astro.url.pathname, base);
 const {
   title = t('A language for animated explainers', '为解释性动画而生的语言'),
   description = t('Animatix is an open-source language for creating explanatory animations in code.', 'Animatix 是一门用代码制作解释性动画的开源语言。'),
@@ -31,18 +28,7 @@ const {
 </head>
 <body class="project-page">
   <a class="skip" href="#main">{t('Skip to content', '跳到正文')}</a>
-  <header class="header">
-    <a class="brand" href={pageUrl(language)} aria-label={t('Animatix home', 'Animatix 首页')}><img src={url('logo.svg')} width="34" height="34" alt=""/>animatix<span class="brand-dot">.</span></a>
-    <div class="header-links">
-      <nav aria-label={t('Main navigation', '主导航')}>
-        <a href={pageUrl(language, '#examples')}>{labels.examples}</a>
-        <a aria-current={active(['docs/', 'learn/'])} href={pageUrl(language, 'docs/')}>{labels.docs}</a>
-        <a aria-current={active(['playground/'])} href={pageUrl(language, 'playground/')}>{labels.playground}</a>
-        <a class="github" href={github}>GitHub ↗</a>
-      </nav>
-      <SitePreferences homeLinks={homeLinks}/>
-    </div>
-  </header>
+  <SiteHeader homeLinks={homeLinks}/>
   <main id="main" class:list={['main', {wide}]}><slot/></main>
   <footer class="project-footer">
     <span>© 2026 j4ger</span>

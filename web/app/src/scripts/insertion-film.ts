@@ -3,6 +3,7 @@ import {readableError} from '../lib/errors';
 import {sourceCues} from '../lib/insertion-steps';
 import {draftSelection, takeEditorTransfer, transferEditor} from '../lib/editor-transfer';
 import {currentUi} from '../lib/ui';
+import {bindTimeline} from '../lib/timeline';
 
 const labels = currentUi();
 
@@ -10,7 +11,8 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
   const shell = sample.querySelector<HTMLElement>('[data-scene-shell]')!;
   const controls = sample.querySelector<HTMLButtonElement>('.sample-play')!;
   const controlText = controls.querySelector('span')!;
-  const slider = sample.querySelector<HTMLInputElement>('.sample-time')!;
+  const slider = sample.querySelector<HTMLInputElement>('.timeline-input')!;
+  const timeline = bindTimeline(slider, seek);
   const clock = sample.querySelector<HTMLOutputElement>('.sample-clock')!;
   const inspect = sample.querySelector<HTMLButtonElement>('.inspect')!;
   const panel = sample.querySelector<HTMLElement>('.source-panel')!;
@@ -97,8 +99,7 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
 
   function paint() {
     const duration = Number(slider.max);
-    slider.value = String(seconds);
-    slider.style.setProperty('--progress', (duration ? 100 * seconds / duration : 0) + '%');
+    timeline.paint(seconds);
     clock.value = seconds.toFixed(2) + 's';
     controls.toggleAttribute('data-playing', playing);
     controlText.textContent = problem ? labels.retry : playing ? labels.pause : seconds >= duration ? labels.replay : labels.play;
@@ -178,7 +179,7 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
         compiled = previousPreview;
       }
       previousPreview = undefined;
-      slider.max = String(player.duration);
+      timeline.setDocument(player);
       seek(seconds);
       if (!transferred && panel.hidden && !media.matches) play();
       if (buildTimer === undefined) buildPending = editor.value !== compiled;
@@ -205,7 +206,7 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
       // applySource resets the runtime clock. Restore the visible playhead and
       // preserve its playback state without restarting the film.
       compiled = submitted;
-      slider.max = String(preview.duration);
+      timeline.setDocument(preview);
       seconds = Math.min(seconds, preview.duration);
       preview.seek(seconds);
       if (seconds >= preview.duration) pause();
@@ -257,7 +258,6 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
   new ResizeObserver(sizeGuide).observe(editor);
   editor.addEventListener('compositionstart', cancelQueuedBuild);
   editor.addEventListener('compositionend', queueBuild);
-  slider.addEventListener('input', () => seek(Number(slider.value)));
   controls.addEventListener('click', () => {
     if (problem) { void start(); return; }
     if (playing) seek(player!.time);

@@ -1,0 +1,134 @@
+---
+import {base, github, pageUrl, url} from '../lib/content';
+import {pageLanguage, sitePagePath} from '../lib/language';
+import {ui} from '../lib/ui';
+import SitePreferences from './SitePreferences.astro';
+
+interface Props {
+  id?: string;
+  homeLinks?: boolean;
+  playgroundUrl?: string;
+}
+
+const language = pageLanguage(Astro.currentLocale);
+const labels = ui(language);
+const {t} = labels;
+const route = sitePagePath(Astro.url.pathname, base);
+const {id, homeLinks, playgroundUrl = pageUrl(language, 'playground/')} = Astro.props;
+---
+<header class="header site-header" id={id}>
+  <a class="site-brand" href={pageUrl(language)} aria-label={t('Animatix home', 'Animatix 首页')}>
+    <img src={url('logo.svg')} width="30" height="30" alt=""/>
+    <span>animatix<b>.</b></span>
+  </a>
+  <nav class="site-nav" aria-label={t('Main navigation', '主导航')}>
+    <a href={pageUrl(language, '#examples')} aria-current={route === 'journey/' || route.startsWith('showcase/') ? 'location' : undefined}>{labels.examples}</a>
+    <a href={pageUrl(language, 'docs/')} aria-current={route.startsWith('docs/') || route.startsWith('learn/') ? 'page' : undefined}>{labels.docs}</a>
+    <a href={playgroundUrl} aria-current={route.startsWith('playground/') ? 'page' : undefined}>{labels.playground}</a>
+  </nav>
+  <div class="site-tools">
+    <a class="repo-link" href={github} aria-label="GitHub" title="GitHub">
+      <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.86c-2.78.6-3.37-1.18-3.37-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.03A9.58 9.58 0 0 1 12 6.82c.85 0 1.71.12 2.51.34 1.91-1.3 2.75-1.03 2.75-1.03.55 1.38.2 2.4.1 2.65.64.7 1.03 1.6 1.03 2.69 0 3.84-2.34 4.69-4.57 4.93.36.31.68.92.68 1.85v2.76c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/>
+      </svg>
+      <span>GitHub</span>
+    </a>
+    <SitePreferences homeLinks={homeLinks}/>
+  </div>
+</header>
+
+<style>
+  .site-header {
+    --header-control-size: 34px;
+    display: grid;
+    grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+    grid-template-areas: 'brand nav tools';
+    align-items: center;
+    gap: 12px clamp(12px, 2.2vw, 30px);
+    height: auto;
+    min-height: 72px;
+    padding-block: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .site-brand {
+    grid-area: brand;
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.45rem;
+    font-weight: 700;
+    letter-spacing: -.055em;
+    line-height: 1;
+  }
+  .site-brand img { display: block; }
+  .site-brand b { color: var(--accent); }
+  .site-nav {
+    grid-area: nav;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    gap: clamp(14px, 2.5vw, 38px);
+    width: auto;
+    font-size: .9rem;
+  }
+  .site-nav a {
+    display: grid;
+    place-items: center;
+    min-height: 38px;
+    border-block: 2px solid transparent;
+    color: var(--muted);
+    white-space: nowrap;
+    text-decoration: none;
+  }
+  .site-nav a:is(:hover, [aria-current]) { color: var(--ink); text-decoration: none; }
+  .site-nav a[aria-current] { border-bottom-color: var(--accent); }
+  .site-tools {
+    grid-area: tools;
+    justify-self: end;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .repo-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: var(--header-control-size);
+    color: var(--muted);
+    font-size: .82rem;
+    text-decoration: none;
+  }
+  .repo-link:hover { color: var(--accent); text-decoration: none; }
+  @media (max-width: 900px) {
+    .site-tools { gap: 5px; }
+    .repo-link {
+      width: var(--header-control-size);
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--raised);
+      color: var(--ink);
+    }
+    .repo-link span { display: none; }
+  }
+  @media (max-width: 620px) {
+    .site-header {
+      --header-control-size: 40px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: 'brand tools' 'nav nav';
+      row-gap: 6px;
+      padding-block: 10px 0;
+    }
+    .site-brand { gap: 6px; font-size: 1.32rem; }
+    .site-brand img { width: 26px; height: 26px; }
+    .site-nav { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: .86rem; }
+    .site-nav a { min-height: 42px; }
+  }
+  @media (max-width: 360px) {
+    .site-header { --header-control-size: 36px; column-gap: 8px; }
+    :global(.project-page) .site-header { padding-inline: 12px; }
+    .site-brand { font-size: 1.22rem; }
+    .site-brand img { width: 24px; height: 24px; }
+  }
+</style>

@@ -49,7 +49,7 @@ body { background-color: var(--bg); }
 .project-page .editor-pane .diagnostic { color: var(--error-text); background: var(--error-surface); }
 .project-page :is(.muted, .lesson-number) { color: var(--muted); }
 
-amx-player {
+:is(amx-player, .amx-transport) {
   --amx-player-surface: var(--panel);
   --amx-player-ink: var(--ink);
   --amx-player-muted: var(--muted);

@@ -1,9 +1,20 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
+import {inspectPng} from '../../tools/test/web-smoke-pixels.mjs';
 import {insertionSteps, sourceCues} from '../src/lib/insertion-steps.ts';
 
 const source = readFileSync(new URL('../../content/scenes/insertion-sort.amx', import.meta.url), 'utf8');
+
+test('the homepage poster fills the authored insertion sort frame', () => {
+  const poster = readFileSync(new URL('../../content/posters/insertion-sort.png', import.meta.url));
+  const {width, height, pixels} = inspectPng(poster);
+  const [, sceneWidth, sceneHeight] = source.match(/resolution:\s*\((\d+),\s*(\d+)\)/);
+  assert.deepEqual([width, height], [Number(sceneWidth), Number(sceneHeight)]);
+  const lowerRight = (Math.floor(height * 0.95) * width + Math.floor(width * 0.95)) * 4;
+  const [r, g, b, a] = pixels.subarray(lowerRight, lowerRight + 4);
+  assert.ok(Math.min(r, g, b) > 180 && a === 255, 'the paper backdrop reaches the lower-right corner');
+});
 
 test('every inspectable move identifies its original AMX line and cue', () => {
   const steps = insertionSteps(source);

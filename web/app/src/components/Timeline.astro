@@ -1,0 +1,36 @@
+---
+import {timelineStyles} from '../../../embed/src/player/timeline.js';
+
+interface Props {
+  label: string;
+  max?: number;
+}
+
+const {label, max = 1} = Astro.props;
+---
+<div class="amx-timeline" data-timeline>
+  <input class="timeline-input" type="range" aria-label={label} min="0" max={max} step="any" value="0" disabled/>
+  <div class="amx-rail" aria-hidden="true">
+    <div class="amx-fill"></div>
+    <div class="amx-marks"></div>
+    <div class="amx-cursor" style="left:0"></div>
+  </div>
+</div>
+<style is:inline set:html={timelineStyles}></style>
+<style>
+  .timeline-input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    appearance: none;
+    opacity: 0;
+    cursor: inherit;
+    z-index: 1;
+  }
+  .timeline-input::-webkit-slider-thumb { appearance: none; width: var(--amx-thumb-size); height: var(--amx-thumb-size); }
+  .timeline-input::-moz-range-thumb { width: var(--amx-thumb-size); height: var(--amx-thumb-size); border: 0; }
+  .amx-timeline:has(.timeline-input:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+  .amx-timeline:has(.timeline-input:disabled) { cursor: default; }
+</style>

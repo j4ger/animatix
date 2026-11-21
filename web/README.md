@@ -4,9 +4,10 @@ A static Astro site around the `.amx` player. The website has
 three primary paths: **Examples**, **Docs**, and **Playground**. No backend,
 accounts or client-side UI framework are required.
 
-The header offers a language and a color theme control. English uses the
-existing URLs and Simplified Chinese lives under `/zh/`. The default home entry
-uses the browser's language preference. Explicit language choices are remembered
+The header groups the GitHub link with the language and theme controls. On
+narrow screens, the main navigation sits below the wordmark and these controls.
+English uses the existing URLs and Simplified Chinese lives under `/zh/`. The
+default home entry uses the browser's language preference. Explicit language choices are remembered
 and deep links use the language in their URL. Switching languages keeps the
 current AMX draft and playhead. The default color theme follows the operating
 system, with light and dark overrides. Themes apply to the website and playback
@@ -24,7 +25,13 @@ keep their poster and source available after an error. The Examples catalog uses
 native scene stills that carry each work’s authored backdrop into its card.
 The homepage opens with 3 beside the sorted row and plays one live insertion
 from `insertion-sort.amx` before holding the result.
+Export the loading poster at the scene's authored resolution with
+`animatix image web/content/scenes/insertion-sort.amx -o web/content/posters/insertion-sort.png`
+and update its entry in `content/preview-manifest.json` when the opening frame changes.
 Reduced-motion visitors can start playback manually.
+On the homepage, example pages, and Playground, the timeline uses the full
+player width in narrow previews, above the other controls. The ticks show
+authored keyframes and move when a source edit successfully rebuilds the scene.
 The homepage also lists the examples and links to GitHub Releases from the
 Linux, macOS, and Windows tabs. Quickstart has separate GUI and CLI paths.
 **View source** pauses the scene and opens its complete, editable AMX file beside
@@ -352,6 +359,9 @@ Behavior:
   declarations (and, in compositions, scene starts and transition windows);
   the strip draws them — ticks for keyframes, diamonds for scene starts,
   hatched spans for transitions — so the bar *is* the scene's structure.
+  In narrow embeds, the timeline takes its own row above playback, time, and
+  speed. A host with its own controls can read `player.timelineMarkers` for a
+  snapshot of the current document's landmarks (`{ t, kind, dur }`, times in seconds).
 
   **`debug-frame`** replaces the time chip with a readout for locating a broken
   frame: `f<frame> / <total>  <seconds>  @60fps  rs<render scale>`. The frame

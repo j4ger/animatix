@@ -1,9 +1,10 @@
 ---
-import {url, pageUrl, github} from '../lib/content';
+import {url, pageUrl} from '../lib/content';
 import {htmlLanguage, pageLanguage} from '../lib/language';
 import {ui} from '../lib/ui';
 import PreferenceHead from '../components/PreferenceHead.astro';
-import SitePreferences from '../components/SitePreferences.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import Timeline from '../components/Timeline.astro';
 import '../styles/journey.css';
 import '../styles/theme.css';
 import '../styles/preferences.css';
@@ -28,17 +29,7 @@ const editor = pageUrl(language, 'playground/?scene=quiet-carriage');
 </head>
 <body>
   <a class="skip" href="#story">{t("Skip to the explainer", "跳到正文")}</a>
-  <header class="masthead" id="choreography">
-    <a class="wordmark" href={pageUrl(language)} aria-label={t('Animatix home', 'Animatix 首页')}>animatix<span>.</span></a>
-    <span class="descriptor">{t("A language for animated explainers", "为解释性动画而生的语言")}</span>
-    <nav aria-label={t('Main navigation', '主导航')}>
-      <a href={pageUrl(language, '#examples')}>{labels.examples}</a>
-      <a href={pageUrl(language, 'docs/')}>{labels.docs}</a>
-      <a href={editor}>{labels.playground} <span aria-hidden="true">↗</span></a>
-      <a href={github}>GitHub ↗</a>
-    </nav>
-    <SitePreferences/>
-  </header>
+  <SiteHeader id="choreography" playgroundUrl={editor}/>
   <main id="story">
     <div class="journey" data-title={title} data-module={url('runtime/amx-player.js')} data-source={url('content/scenes/quiet-carriage.amx')}>
       <figure class="film" aria-labelledby="film-name">
@@ -47,10 +38,10 @@ const editor = pageUrl(language, 'playground/?scene=quiet-carriage');
           <img class="opening-frame" src={url('content/journey/quiet-carriage.webp')} width="960" height="560" alt={t("The orange train rumble and green sound at the ear initially have identical waves.", "开头的橙色列车轰鸣和绿色耳边声压具有相同波形。")}/>
           <div class="engine-stage"></div>
         </div>
-        <div class="transport">
+        <div class="transport amx-transport">
           <button type="button" class="play" disabled><i aria-hidden="true"></i><span>{t("Play film", "播放动画")}</span></button>
-          <input class="timeline" type="range" min="0" max="16" step="0.05" value="0" aria-label={t("Film time in seconds", "动画时间（秒）")} disabled/>
-          <span class="timecode"><output>0:00</output> / 0:16</span>
+          <Timeline label={t("Film time in seconds", "动画时间（秒）")} max={16}/>
+          <span class="timecode amx-time"><output>0:00</output> / 0:16</span>
         </div>
         <div class="feedback">
           <span role="status">{t("Loading the film…", "正在加载动画…")}</span>

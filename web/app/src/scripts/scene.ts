@@ -2,12 +2,14 @@ import {readableError} from '../lib/errors';
 import {withOverride} from '../lib/overrides';
 import {fetchSource, withTimeout} from '../lib/requests';
 import {currentUi} from '../lib/ui';
+import type {TimelineMarker} from '../../../embed/src/player/timeline.js';
 
 const {t} = currentUi();
 
 type Player = HTMLElement & {
   readonly time: number;
   readonly duration: number;
+  readonly timelineMarkers?: readonly TimelineMarker[];
   play(): void;
   pause(): void;
   seek(time: number): void;

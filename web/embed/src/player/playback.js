@@ -216,6 +216,11 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
     return this._duration;
   }
 
+  /// Snapshot of the landmarks in the currently compiled document.
+  get timelineMarkers() {
+    return this._markers.map(marker => ({ ...marker }));
+  }
+
   /// Current position within the playback cycle (may exceed `duration` during
   /// a loop's hold rest; clamp for timeline math).
   get time() {

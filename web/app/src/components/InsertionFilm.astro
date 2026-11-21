@@ -1,5 +1,6 @@
 ---
 import Scene from './Scene.astro';
+import Timeline from './Timeline.astro';
 import source from '../../../content/scenes/insertion-sort.amx?raw';
 import {insertionId} from '../lib/insertion-steps';
 import {url} from '../lib/content';
@@ -12,10 +13,10 @@ const {t} = labels;
   <figcaption><span class="file-icon" aria-hidden="true"></span><span>insertion-sort.amx</span></figcaption>
   <div class="sample-preview">
     <Scene inline id={insertionId} title={t('Insertion sort', '插入排序')} posterAlt={t('Where does 3 fit? A green 3 hovers by the sorted row of 2, 4 and 5.', '绿色的 3 悬在已经排好序的 2、4、5 上方。')}/>
-    <div class="sample-controls">
+    <div class="sample-controls amx-transport">
       <button type="button" class="sample-play" disabled><i aria-hidden="true"></i><span>{labels.play}</span></button>
-      <input class="sample-time" type="range" aria-label={t('Scene time in seconds', '场景时间（秒）')} min="0" max="1" step="any" value="0" disabled/>
-      <output class="sample-clock" aria-hidden="true">0.00s</output>
+      <Timeline label={t('Scene time in seconds', '场景时间（秒）')}/>
+      <output class="sample-clock amx-time" aria-hidden="true">0.00s</output>
       <button type="button" class="inspect" aria-expanded="false" aria-controls="move-source"><b aria-hidden="true">&lt;/&gt;</b> <span>{labels.viewSource}</span></button>
     </div>
   </div>

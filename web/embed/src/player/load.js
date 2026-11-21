@@ -9,6 +9,7 @@ const {
 import { AmxPlayerView } from "./view.js";
 import { loadRuntime, fetchSource } from "./runtime.js";
 import { dispatchPlayerError, playerError } from "./errors.js";
+import { findTimelineSnap, renderTimelineMarks } from "./timeline.js";
 const CONTROL_LABELS = {
   en: { playback: "Playback controls", play: "Play", pause: "Pause", replay: "Replay", timeline: "Timeline", speed: "Playback speed" },
   zh: { playback: "播放控制", play: "播放", pause: "暂停", replay: "重播", timeline: "时间轴", speed: "播放速度" },
@@ -190,7 +191,7 @@ export class AmxPlayerLoad extends AmxPlayerView {
   _buildControls() {
     const labels = CONTROL_LABELS[/^zh(?:-|$)/i.test(this.lang) ? "zh" : "en"];
     const strip = document.createElement("div");
-    strip.className = "strip";
+    strip.className = "strip amx-transport";
     strip.tabIndex = 0;
     strip.setAttribute("role", "region");
     strip.setAttribute("aria-label", labels.playback);
@@ -206,40 +207,41 @@ export class AmxPlayerLoad extends AmxPlayerView {
     });
 
     const track = document.createElement("div");
-    track.className = "track";
+    track.className = "track amx-timeline";
+    track.tabIndex = 0;
     track.setAttribute("role", "slider");
     track.setAttribute("aria-label", labels.timeline);
     track.setAttribute("aria-valuemin", "0");
     track.setAttribute("aria-valuemax", String(this._duration));
 
     const trackBar = document.createElement("div");
-    trackBar.className = "track-bar";
+    trackBar.className = "amx-rail";
+    trackBar.setAttribute("aria-hidden", "true");
 
     const fill = document.createElement("div");
-    fill.className = "fill";
+    fill.className = "amx-fill";
     const cursor = document.createElement("div");
-    cursor.className = "cursor";
-    const cursorHandle = document.createElement("div");
-    cursorHandle.className = "cursor-handle";
-    cursor.appendChild(cursorHandle);
+    cursor.className = "amx-cursor";
 
     // Landmarks at percentage positions of the pure timeline: keyframe ticks,
     // scene-start diamonds, hatched transition spans. They live in their own
     // layer so `applySource` can rebuild them when an edit changes the marks
     // or the timeline they are positioned against.
     this._marks = document.createElement("div");
-    this._marks.className = "marks";
+    this._marks.className = "amx-marks";
     this._renderMarks();
 
     trackBar.append(fill, this._marks, cursor);
 
     const scrubPill = document.createElement("div");
     scrubPill.className = "scrub-pill";
+    scrubPill.setAttribute("aria-hidden", "true");
 
-    track.append(trackBar, scrubPill);
+    trackBar.append(scrubPill);
+    track.append(trackBar);
 
     const chip = document.createElement("span");
-    chip.className = "chip";
+    chip.className = "chip amx-time";
     const speed = document.createElement("button");
     speed.type = "button";
     speed.className = "speed";
@@ -258,58 +260,37 @@ export class AmxPlayerLoad extends AmxPlayerView {
     this.shadowRoot.append(strip);
 
     // ── track scrubbing and magnetic snapping ──
-    const findSnap = (t) => {
-      const SNAP_S = 0.2;
-      let closest = null;
-      let minDiff = SNAP_S + 1e-4;
-      for (const m of this._markers) {
-        const d = Math.abs(t - m.t);
-        if (d <= SNAP_S && d < minDiff) {
-          minDiff = d;
-          closest = { t: m.t, kind: m.kind };
-        }
-        if (m.kind === "transition" && m.dur > 0) {
-          const dEnd = Math.abs(t - (m.t + m.dur));
-          if (dEnd <= SNAP_S && dEnd < minDiff) {
-            minDiff = dEnd;
-            closest = { t: m.t + m.dur, kind: "transition" };
-          }
-        }
-      }
-      return closest;
-    };
-
     const updateMarksSnap = (snap) => {
       if (!this._marks) return;
       this._marks.querySelectorAll(".snapped").forEach((el) => el.classList.remove("snapped"));
-      if (snap) {
+      if (snap !== null) {
         for (const el of this._marks.children) {
-          if (el.dataset.t && Math.abs(Number(el.dataset.t) - snap.t) < 1e-3) {
+          if (el.dataset.t && Math.abs(Number(el.dataset.t) - snap) < 1e-3) {
             el.classList.add("snapped");
           }
         }
-        if (navigator.vibrate && this._lastSnappedMarker !== snap.t) {
+        if (navigator.vibrate && this._lastSnappedMarker !== snap) {
           try { navigator.vibrate(10); } catch {}
         }
-        this._lastSnappedMarker = snap.t;
+        this._lastSnappedMarker = snap;
       } else {
         this._lastSnappedMarker = null;
       }
     };
 
     const timeAt = (e) => {
-      const rect = track.getBoundingClientRect();
+      const rect = trackBar.getBoundingClientRect();
       if (rect.width <= 0 || !Number.isFinite(e.clientX)) return { time: this._time, pct: 0, snap: null };
       const frac = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
       const raw = frac * this._duration;
-      const snap = findSnap(raw);
-      const targetTime = snap ? snap.t : raw;
+      const snap = findTimelineSnap(this._markers, raw, this._duration, rect.width);
+      const targetTime = snap ?? raw;
       const snapFrac = this._duration > 0 ? targetTime / this._duration : frac;
       return { time: targetTime, pct: snapFrac, snap };
     };
 
     const updateScrubPill = (t, pct) => {
-      scrubPill.style.left = `${pct * 100}%`;
+      scrubPill.style.setProperty("--amx-peek-position", `${pct * 100}%`);
       const frameNum = Math.round(t * FRAME_RATE);
       scrubPill.textContent = `${t.toFixed(2)}s (f${frameNum})`;
       scrubPill.classList.add("show");
@@ -354,7 +335,7 @@ export class AmxPlayerLoad extends AmxPlayerView {
       e.stopPropagation();
     });
 
-    const finishScrub = (e) => {
+    const finishScrub = () => {
       if (!this._scrubbing) return;
       this._scrubbing = false;
       strip.classList.remove("scrubbing");
@@ -368,6 +349,7 @@ export class AmxPlayerLoad extends AmxPlayerView {
 
     track.addEventListener("pointerup", finishScrub);
     track.addEventListener("pointercancel", finishScrub);
+    track.addEventListener("lostpointercapture", finishScrub);
 
     strip.addEventListener("keydown", (e) => this._handleKeyDown(e));
 
@@ -380,26 +362,7 @@ export class AmxPlayerLoad extends AmxPlayerView {
   /// document: an edit can change both the marks and the timeline they are
   /// positioned against, so the bar cannot be a one-time snapshot.
   _renderMarks() {
-    if (!this._marks) return;
-    const marks = document.createDocumentFragment();
-    for (const m of this._markers) {
-      const frac = this._duration > 0 ? Math.min(m.t / this._duration, 1) : 0;
-      if (m.kind === "transition" && m.dur > 0) {
-        const span = document.createElement("div");
-        span.className = "span";
-        span.style.left = `${frac * 100}%`;
-        span.style.width = `${Math.min(m.dur / this._duration, 1 - frac) * 100}%`;
-        span.dataset.t = String(m.t);
-        marks.appendChild(span);
-      } else {
-        const mark = document.createElement("div");
-        mark.className = m.kind === "scene" ? "diamond" : (m.kind === "step" ? "step" : "tick");
-        mark.style.left = `${frac * 100}%`;
-        mark.dataset.t = String(m.t);
-        marks.appendChild(mark);
-      }
-    }
-    this._marks.replaceChildren(marks);
+    if (this._marks) renderTimelineMarks(this._marks, this._markers, this._duration);
   }
 
   /// The next (dir=1) or previous (dir=-1) landmark at or after the playhead:
@@ -471,7 +434,9 @@ export class AmxPlayerLoad extends AmxPlayerView {
     }
 
     const now = performance.now();
-    const chipDue = now - s.chipAt >= 100; // ~10 Hz; the readout does not need 60 Hz
+    // Playback can refresh the chip on a later frame. A paused seek may
+    // render only once, so it must always leave the time label up to date.
+    const chipDue = !this._playing || now - s.chipAt >= 100;
     if (chipDue) {
       let text;
       let dbg;

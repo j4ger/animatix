@@ -10,8 +10,12 @@ const path = Astro.props.homeLinks ? '' : sitePagePath(Astro.url.pathname, base)
 <div class="site-preferences" data-site-preferences data-en={pageUrl('en', path)} data-zh={pageUrl('zh', path)}
      data-transfer-error={t('Could not keep the editor draft. Download it before switching language.', '无法保留草稿，请先下载源码再切换语言。')}>
   <details>
-    <summary aria-label={t('Language', '语言')} title={t('Language', '语言')}>
-      <span aria-hidden="true">{language === 'en' ? 'EN' : '中'}</span>
+    <summary aria-label={t('Language', '语言')} title={t('Language', '语言 / Language')}>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25">
+        <circle cx="8" cy="8" r="6.5"/>
+        <ellipse cx="8" cy="8" rx="2.8" ry="6.5"/>
+        <path d="M1.5 8h13"/>
+      </svg>
     </summary>
     <div class="preference-menu" role="group" aria-label={t('Language', '语言')}>
       <button type="button" data-language="auto" aria-pressed="false">{t('Browser default', '跟随浏览器')}</button>
