@@ -8,6 +8,7 @@
 use std::collections::BTreeMap;
 
 use animatix::composition::BuildTarget;
+use animatix::primitives::RenderCommand;
 use animatix::timeline::{
     ActionCategory, ActorCategory, PROPERTY_REGISTRY, PropertyValue, SceneDimensions, TrackAccessor,
 };
@@ -86,6 +87,8 @@ pub(crate) struct ActorFrameFact {
     pub draw_items: Option<u32>,
     /// Number of `RenderCommand`s those items emitted, when known.
     pub draw_commands: Option<u32>,
+    /// Segments in emitted path commands, before clipping and rasterization.
+    pub path_segments: Option<usize>,
     /// Evaluated `text_max_width` (0 = no wrap).
     pub text_max_width: Option<f32>,
     /// Evaluated `overflow` mode.
@@ -441,11 +444,17 @@ fn evaluate_frame(
     let mut draw_order_set = std::collections::HashSet::new();
 
     for part in &program_frame.parts {
-        let mut draw_counts: BTreeMap<&str, (u32, u32)> = BTreeMap::new();
+        let mut draw_counts: BTreeMap<&str, (u32, u32, Option<usize>)> = BTreeMap::new();
         for item in &part.program.items {
-            let entry = draw_counts.entry(item.label.as_str()).or_insert((0, 0));
+            let entry = draw_counts.entry(item.label.as_str()).or_default();
             entry.0 += 1;
             entry.1 += item.commands.len() as u32;
+            for command in &item.commands {
+                if let RenderCommand::Paths { paths } = command {
+                    let count = paths.iter().map(|p| p.path.segments().count()).sum::<usize>();
+                    *entry.2.get_or_insert(0) += count;
+                }
+            }
 
             let key = (part.scene.clone(), item.label.clone());
             if draw_order_set.insert(key.clone()) {
@@ -464,10 +473,12 @@ fn evaluate_frame(
             let raw_on_frame_fraction = bounds.map_or(0.0, |b| on_frame_fraction(b, dimensions));
             let padded_on_frame_fraction =
                 bounds.map_or(0.0, |b| on_frame_fraction(b.padded(BOUNDS_PAD), dimensions));
-            let (draw_items, draw_commands) = draw_counts
+            let (draw_items, draw_commands, path_segments) = draw_counts
                 .get(item.label.as_str())
                 .copied()
-                .map_or((None, None), |(items, commands)| (Some(items), Some(commands)));
+                .map_or((None, None, None), |(items, commands, segments)| {
+                    (Some(items), Some(commands), segments)
+                });
             by_actor.insert(
                 (part.scene.clone(), item.label.clone()),
                 ActorFrameFact {
@@ -479,6 +490,7 @@ fn evaluate_frame(
                     padded_on_frame_fraction,
                     draw_items,
                     draw_commands,
+                    path_segments,
                     text_max_width,
                     text_overflow,
                     measured_text_width,
@@ -508,6 +520,7 @@ fn evaluate_frame(
                     padded_on_frame_fraction: 0.0,
                     draw_items: None,
                     draw_commands: None,
+                    path_segments: None,
                     text_max_width,
                     text_overflow,
                     measured_text_width: None,

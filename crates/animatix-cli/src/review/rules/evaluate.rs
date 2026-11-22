@@ -28,6 +28,7 @@ pub(crate) fn evaluate(facts: &ReviewFacts, markers: &MarkerSet, policy: Policy)
     rule_keyframe_redundant(facts, &mut issues);
     rule_scene_duration(facts, &mut issues);
     rule_actor_draw_missing(facts, &mut issues);
+    rule_plot_empty_path(facts, &mut issues);
 
     for invalid in &markers.invalid {
         issues.push(RuleIssue {
@@ -141,7 +142,7 @@ pub(crate) fn evaluate(facts: &ReviewFacts, markers: &MarkerSet, policy: Policy)
     RuleRun {
         issues: final_issues,
         skipped,
-        checked: 15 + if render_ready { 7 } else { 0 },
+        checked: 16 + if render_ready { 7 } else { 0 },
         skipped_rules,
     }
 }

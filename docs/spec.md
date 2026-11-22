@@ -2137,18 +2137,22 @@ graph: Graph, x_domain: (-5, 5), y_domain: (-10, 30), size: (400, 400)
 ```
 
 Every `Graph` registers two frame-time methods:
-- `graph.map(math_x, math_y)` returns `(screen_x, screen_y)` in scene screen
-  coordinates. It uses the graph's `x_domain`/`y_domain` and scale, its
-  `padding`, and the runtime `size`/`at` values, so animated graph geometry
-  is reflected immediately.
+- `graph.map(math_x, math_y)` maps a point using the graph's domains, scales,
+  padding, and the geometry available to the expression evaluator.
 - `graph.map_inverse(screen_x, screen_y)` returns `(math_x, math_y)`, the
   inverse mapping. Coordinates outside the padded plot area are extrapolated
   rather than clamped.
 
+In `always`, pass `space: "scene"` to use the graph's evaluated layout and
+all its transforms, including ancestors, before camera projection. This
+option lets a root-level marker track a graph inside a container. A marker
+that is itself a child of the graph can use the two-argument mapping.
+
 ```animatix
 always {
-  marker.at = graph.map(0, 5)
-  let origin = graph.map_inverse(marker.at.x, marker.at.y)
+  let position = graph.map(0, 5, space: "scene")
+  marker.at = position
+  let point = graph.map_inverse(position[0], position[1], space: "scene")
 }
 ```
 

@@ -146,14 +146,8 @@ pub fn sample_recursive_cartesian_impl<F: FnMut(f64) -> f64, S: PointSink>(
     pts: &mut S,
     eval: &mut F,
 ) {
-    let min_screen_y = transform.min_screen_y;
-    let max_screen_y = transform.max_screen_y;
-
-    if (p0.y < min_screen_y && p1.y < min_screen_y) || (p0.y > max_screen_y && p1.y > max_screen_y)
-    {
-        pts.push(kurbo::Point::new(f64::NAN, f64::NAN));
-        return;
-    }
+    let above = p0.y < transform.min_screen_y && p1.y < transform.min_screen_y;
+    let below = p0.y > transform.max_screen_y && p1.y > transform.max_screen_y;
 
     let min_screen_x = transform.min_screen_x;
     let max_screen_x = transform.max_screen_x;
@@ -172,7 +166,11 @@ pub fn sample_recursive_cartesian_impl<F: FnMut(f64) -> f64, S: PointSink>(
     }
 
     if depth >= max_depth {
-        pts.push(p1);
+        if below || above {
+            pts.push(kurbo::Point::new(f64::NAN, f64::NAN));
+        } else {
+            pts.push(p1);
+        }
         return;
     }
 
@@ -181,6 +179,18 @@ pub fn sample_recursive_cartesian_impl<F: FnMut(f64) -> f64, S: PointSink>(
     let math_x = mid_t;
 
     let p_mid = transform.map_point(math_x, math_y);
+
+    // Cartesian x is monotone, but y can turn back toward the viewport
+    // between two offscreen ends. Probe the midpoint and the first two
+    // subdivision levels before culling, without sampling an entirely
+    // offscreen interval at the full in-view resolution.
+    if depth >= min_depth.min(2)
+        && ((above && p_mid.y < transform.min_screen_y)
+            || (below && p_mid.y > transform.max_screen_y))
+    {
+        pts.push(kurbo::Point::new(f64::NAN, f64::NAN));
+        return;
+    }
 
     let expected_mid_x = (p0.x + p1.x) / 2.0;
     let expected_mid_y = (p0.y + p1.y) / 2.0;

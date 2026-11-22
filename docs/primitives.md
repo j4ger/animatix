@@ -50,6 +50,9 @@ an alias for `Typst`.
 
 **Shorthand:** `$$ ... $$` desugars to a `Typst` actor whose `text` value is the raw, unquoted text between the delimiters. A label is required. Modifiers are supported.
 
+The math renderer preserves the vector rules in fractions and radicals,
+including when they occur in an `Equation` fragment.
+
 ```animatix
 eq: $$ x^2 + y^2 $$                    // desugars to: eq: Typst, text: "x^2 + y^2"
 eq: $$ x^2 $$ [2s, ease: bounce]       // with modifiers

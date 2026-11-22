@@ -135,7 +135,7 @@ pub(crate) fn try_named_call(
     env: &Environment,
     name: &str,
     args: &[(Option<String>, CompiledExpr)],
-    points: Option<super::PointLookup<'_>>,
+    points: Option<super::GeometryLookup<'_>>,
 ) -> Option<Result<Value, crate::timeline::EvalError>> {
     if args.iter().any(|(name, _)| name.is_some()) {
         return None;
@@ -147,7 +147,7 @@ pub(crate) fn try_named_call(
     Some((|| {
         let values: SmallVec<[Value; 4]> = args
             .iter()
-            .map(|(_, value)| super::evaluate_with_points(value, env, points))
+            .map(|(_, value)| super::evaluate_with_geometry(value, env, points))
             .collect::<Result<_, _>>()?;
         if let Some(value) = plan.sample(&values) {
             return Ok(value);

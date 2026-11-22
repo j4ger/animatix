@@ -1061,6 +1061,88 @@ fn graph_map_agrees_with_the_drawn_curve_scale() {
     );
 }
 
+#[test]
+fn graph_mapping_uses_mask_transform_and_current_modifier_values() {
+    let report = build(
+        r#"
+#0s
+window: Mask, at: (120, 140), size: (300, 300), scale: 1.5 {
+  g: Graph, at: (10, 0), size: (80, 40), x_domain: (-2, 2), y_domain: (-1, 1)
+}
+marker: Ellipse, size: (4, 4)
+round_trip: Ellipse, size: (4, 4)
+always {
+  window.at = (120 + 30 * t, 140)
+  window.rotation = pi / 2
+  let screen_position = window.g.map(1, 0.5, space: "scene")
+  marker.at = screen_position
+  let data = window.g.map_inverse(screen_position[0], screen_position[1], space: "scene")
+  round_trip.at = (100, 100) + data
+}
+"#,
+    );
+    assert_clean(&report);
+    let timeline = report.output;
+    let dimensions = SceneDimensions {
+        width: 400,
+        height: 400,
+    };
+    for time in [1.0, 0.0, 0.5, 1.0] {
+        let frame =
+            timeline.evaluate_program_with_debug(time, dimensions, Default::default(), &mut None);
+        assert!(frame.diagnostics.is_empty(), "{:?}", frame.diagnostics);
+        let marker = frame.precise_bounds["marker"].center();
+        let data = frame.precise_bounds["round_trip"].center();
+        assert!((marker.x - (135.0 + 30.0 * time)).abs() < 0.001, "{marker:?}");
+        assert!((marker.y - 185.0).abs() < 0.001, "{marker:?}");
+        assert!((data.x - 101.0).abs() < 0.001 && (data.y - 100.5).abs() < 0.001, "{data:?}");
+    }
+}
+
+#[test]
+fn cartesian_plot_keeps_visible_middle_between_offscreen_endpoints() {
+    let report = build(
+        r#"
+#0s
+g: Graph, at: (200, 100), size: (400, 200),
+    x_domain: (-6, 6), y_domain: (-2, 2), ticks: false, grid: false {
+  quadratic: PlotCurve, func: (x) => 1 - x^2 / 2 + t / 10
+  quartic: PlotCurve, func: (x) => 1 - x^2 / 2 + x^4 / 24
+  offset: PlotCurve, func: (x) => 1 - 3 * (x + 3)^2
+}
+"#,
+    );
+    assert_clean(&report);
+    let dimensions = SceneDimensions {
+        width: 400,
+        height: 200,
+    };
+    let frame =
+        report
+            .output
+            .evaluate_program_with_debug(1.0, dimensions, Default::default(), &mut None);
+    for (label, expected_x, expected_y) in [
+        ("quadratic", 200.0, 45.0),
+        ("quartic", 200.0, 50.0),
+        ("offset", 100.0, 50.0),
+    ] {
+        let curve = frame.items.iter().find(|item| item.label == label).unwrap();
+        let crate::primitives::RenderCommand::Paths { paths } = &curve.commands[0] else {
+            panic!("expected path output from {label}");
+        };
+        let points = paths.iter().flat_map(|path| path.path.segments()).flat_map(|seg| {
+            use kurbo::ParamCurve;
+            [seg.start(), seg.end()]
+        });
+        assert!(
+            points
+                .map(|p| curve.transform * p)
+                .any(|p| { (p.x - expected_x).abs() < 0.01 && (p.y - expected_y).abs() < 0.01 }),
+            "visible middle was dropped for {label}"
+        );
+    }
+}
+
 /// `map_inverse` respects padding: screen center (shifted by padding) maps to math (0, 0).
 /// With padding [left=20, right=10, top=15, bottom=5], the padded plot center is at
 /// screen offset (5, 5), which corresponds to math origin (0, 0).

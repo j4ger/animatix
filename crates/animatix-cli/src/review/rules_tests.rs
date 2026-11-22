@@ -64,6 +64,7 @@ fn actor_frame(label: &str, opacity: f32, bounds: Option<Box2>) -> ActorFrameFac
         padded_on_frame_fraction: if bounds.is_some() { 1.0 } else { 0.0 },
         draw_items: bounds.map(|_| 1),
         draw_commands: bounds.map(|_| 1),
+        path_segments: None,
         text_max_width: None,
         text_overflow: None,
         measured_text_width: None,
@@ -285,6 +286,50 @@ fn verify_draw_missing_flags_empty_commands() {
     facts.frames = vec![frame(0.0, vec![box_frame])];
     let run = evaluate(&facts, &MarkerSet::default(), Policy::Default);
     assert!(run.issues.iter().any(|issue| issue.rule_id == "actor.draw-missing"));
+}
+
+#[test]
+fn plot_empty_path_is_a_candidate_between_drawn_samples() {
+    let source = r#"
+config { duration: 3 }
+#0s
+g: Graph, at: (50, 50), size: (100, 100), y_domain: (-1, 1) {
+  curve: PlotCurve, func: (x) => if t >= 1 && t < 2 { 25 } else { 0 }
+}
+"#;
+    let (statements, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "{errors:?}");
+    let report = animatix::composition::BuildTarget::build_with_options(
+        &statements.unwrap(),
+        &Default::default(),
+        None,
+        Default::default(),
+    );
+    let dimensions = animatix::timeline::SceneDimensions {
+        width: 100,
+        height: 100,
+    };
+    let facts = crate::review::facts::collect_facts(
+        &report.output,
+        dimensions,
+        vec![0.0, 1.5, 2.5],
+        &report.diagnostics,
+    )
+    .unwrap();
+    let samples: Vec<_> = facts
+        .frames
+        .iter()
+        .map(|f| facts.actor_frame(f, "main", "curve").unwrap())
+        .collect();
+    assert_eq!(samples[1].draw_commands, Some(1));
+    assert_eq!(samples[1].path_segments, Some(0));
+    assert!(samples[0].path_segments.unwrap() > 0 && samples[2].path_segments.unwrap() > 0);
+
+    let run = evaluate(&facts, &MarkerSet::default(), Policy::Default);
+    let issue = run.issues.iter().find(|issue| issue.rule_id == "plot.empty-path").unwrap();
+    assert_eq!(issue.severity, Severity::Info);
+    assert_eq!(issue.time_s, Some(1.5));
+    assert_eq!(issue.actor.as_deref(), Some("curve"));
 }
 
 #[test]

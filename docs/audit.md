@@ -116,6 +116,12 @@ badge: Rect, size: (40, 40)
 - **Commands**: `tools/quality/audit-budget.sh --check|--update`。
 - **Gate**: `scene-audit` gate 强制棘轮（只降不升）。
 
+`measure` 的 `actors[].path_segments` 记录路径命令中的线段和曲线段数，
+单位为段，采集于裁切和光栅化之前。值为 `0` 表示发出了路径命令但没有线段，
+`null` 表示该采样没有可测量的路径命令。`audit --candidates` 的
+`plot.empty-path` 会标记同一图表在两次有几何输出的采样之间出现空路径的情况。
+曲线移出可见区或定义域暂时为空时，也可能出现这种情况。
+
 ## Known Limitations
 
 - **机器判定边界**: 机器无法判断刻意与否，仅输出事实与观察。

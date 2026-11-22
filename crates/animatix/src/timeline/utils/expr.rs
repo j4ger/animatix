@@ -4,7 +4,7 @@
 mod registered;
 use registered::resolve_registered_callback;
 
-use crate::timeline::modifier_runtime::ir::PointLookup;
+use crate::timeline::modifier_runtime::ir::GeometryLookup;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -286,7 +286,7 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
 pub(crate) fn evaluate_expr_with_points(
     expr: &Expr,
     env: &Environment,
-    points: Option<PointLookup<'_>>,
+    points: Option<GeometryLookup<'_>>,
 ) -> Result<Value, EvalError> {
     // Fast path: trivial expressions and disabled caches (e.g., inside tight
     // plot sampling loops) evaluate directly — a cache round-trip would cost
@@ -327,7 +327,7 @@ pub(crate) fn evaluate_expr_with_points(
 fn evaluate_expr_inner(
     expr: &Expr,
     env: &Environment,
-    points: Option<PointLookup<'_>>,
+    points: Option<GeometryLookup<'_>>,
 ) -> Result<Value, EvalError> {
     let Some(hash) = expr_hash(expr) else {
         return evaluate_expr_uncached(expr, env, points);
@@ -339,7 +339,7 @@ fn evaluate_expr_with_hash(
     expr: &Expr,
     env: &Environment,
     hash: u64,
-    points: Option<PointLookup<'_>>,
+    points: Option<GeometryLookup<'_>>,
 ) -> Result<Value, EvalError> {
     let key = (hash, expr as *const Expr as usize);
     let hit = COMPILED_EXPR_CACHE.with(|cache| cache.borrow().get(&key).cloned());
@@ -357,16 +357,16 @@ fn evaluate_expr_with_hash(
             compiled
         },
     };
-    crate::timeline::modifier_runtime::ir::evaluate_with_points(&compiled, env, points)
+    crate::timeline::modifier_runtime::ir::evaluate_with_geometry(&compiled, env, points)
 }
 
 fn evaluate_expr_uncached(
     expr: &Expr,
     env: &Environment,
-    points: Option<PointLookup<'_>>,
+    points: Option<GeometryLookup<'_>>,
 ) -> Result<Value, EvalError> {
     let compiled = crate::timeline::modifier_runtime::ir::compile_expr(expr)?;
-    crate::timeline::modifier_runtime::ir::evaluate_with_points(&compiled, env, points)
+    crate::timeline::modifier_runtime::ir::evaluate_with_geometry(&compiled, env, points)
 }
 
 /// Invoke a named function with already-evaluated arguments.
@@ -391,7 +391,7 @@ pub(crate) fn evaluate_call_arguments(
     func: &str,
     arg_values: Vec<(Option<String>, Value)>,
     env: &Environment,
-    points: Option<PointLookup<'_>>,
+    points: Option<GeometryLookup<'_>>,
 ) -> Result<Value, EvalError> {
     let unqualified = func.strip_prefix("std::").unwrap_or(func);
     let function = if func.starts_with("std::") {
@@ -580,7 +580,7 @@ pub(crate) fn call_with_points(
     arguments: Vec<(Option<String>, Value)>,
     name: &str,
     env: &Environment,
-    points: Option<PointLookup<'_>>,
+    points: Option<GeometryLookup<'_>>,
 ) -> Result<Value, EvalError> {
     match function {
         Value::RegisteredFn {
@@ -723,7 +723,7 @@ pub(crate) fn invoke_closure_value(
     arg_values: Vec<Value>,
     func_name: &str,
     env: &Environment,
-    points: Option<PointLookup<'_>>,
+    points: Option<GeometryLookup<'_>>,
 ) -> Result<Value, EvalError> {
     if arg_values.len() != params.len() {
         return Err(EvalError::TypeMismatch(format!(
@@ -770,7 +770,7 @@ pub(crate) fn invoke_closure_value(
         child_env.set(param, val);
     }
 
-    crate::timeline::modifier_runtime::ir::evaluate_with_points(body, &child_env, points)
+    crate::timeline::modifier_runtime::ir::evaluate_with_geometry(body, &child_env, points)
 }
 
 /// Evaluate a method call on a receiver value.

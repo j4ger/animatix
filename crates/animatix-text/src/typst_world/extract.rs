@@ -12,6 +12,8 @@ use animatix_core::error::RenderError;
 use kurbo::Affine;
 #[cfg(feature = "rich-text")]
 use typst::layout::{Frame, FrameItem, Transform};
+#[cfg(feature = "rich-text")]
+use typst::visualize::{CurveItem, FillRule, Geometry, LineCap, LineJoin, Shape};
 
 #[cfg(feature = "rich-text")]
 use super::geometry::center_text_paths;
@@ -180,6 +182,13 @@ fn extract_glyphs_grouped_legacy(frame: &Frame) -> (Vec<TextPath>, Vec<std::ops:
                     ranges.push(start..end);
                 }
             },
+            FrameItem::Shape(shape, _) => {
+                let start = all_glyphs.len();
+                emit_shape(shape, transform, &mut all_glyphs, &state);
+                if all_glyphs.len() > start {
+                    ranges.push(start..all_glyphs.len());
+                }
+            },
             _ => {},
         }
     }
@@ -288,6 +297,7 @@ fn extract_marked_frame(
                     emit_text_item(text, transform, &mut discarded, state);
                 }
             },
+            FrameItem::Shape(shape, _) => emit_shape(shape, transform, glyphs, state),
             _ => {
                 if let Some(marker) = fragment_marker(item)? {
                     match (marker, active.take()) {
@@ -307,6 +317,95 @@ fn extract_marked_frame(
         }
     }
     Ok(())
+}
+
+#[cfg(feature = "rich-text")]
+fn frame_affine(transform: Transform) -> Affine {
+    Affine::new([
+        transform.sx.get(),
+        transform.ky.get(),
+        transform.kx.get(),
+        transform.sy.get(),
+        transform.tx.to_pt(),
+        transform.ty.to_pt(),
+    ])
+}
+
+#[cfg(feature = "rich-text")]
+fn emit_shape(
+    shape: &Shape,
+    transform: Transform,
+    paths: &mut Vec<TextPath>,
+    state: &GlyphLayoutState,
+) {
+    use kurbo::Shape as _;
+
+    let point = |p: typst::layout::Point| Point::new(p.x.to_pt(), p.y.to_pt());
+    let path = match &shape.geometry {
+        Geometry::Line(end) => {
+            let mut path = BezPath::new();
+            path.move_to(Point::ORIGIN);
+            path.line_to(point(*end));
+            path
+        },
+        Geometry::Rect(size) => {
+            kurbo::Rect::new(0.0, 0.0, size.x.to_pt(), size.y.to_pt()).to_path(0.01)
+        },
+        Geometry::Curve(curve) => {
+            let mut path = BezPath::new();
+            for item in &curve.0 {
+                match item {
+                    CurveItem::Move(p) => path.move_to(point(*p)),
+                    CurveItem::Line(p) => path.line_to(point(*p)),
+                    CurveItem::Cubic(a, b, c) => path.curve_to(point(*a), point(*b), point(*c)),
+                    CurveItem::Close => path.close_path(),
+                }
+            }
+            path
+        },
+    };
+    let affine = frame_affine(transform);
+    let mut push = |mut path: BezPath, paint: &typst::visualize::Paint| {
+        if path.is_empty() {
+            return;
+        }
+        path.apply_affine(affine);
+        let mut text_path = TextPath::new(path, paint_to_rgba(paint), 1.0);
+        text_path.line_idx = state.line_idx;
+        text_path.word_idx = state.word_idx;
+        text_path.char_idx = paths.len() as u16;
+        paths.push(text_path);
+    };
+    if let Some(fill) = &shape.fill {
+        if shape.fill_rule == FillRule::EvenOdd && matches!(shape.geometry, Geometry::Curve(_)) {
+            tracing::debug!("Typst even-odd curve fill is unsupported by the text path renderer");
+        } else {
+            push(path.clone(), fill);
+        }
+    }
+    if let Some(stroke) = &shape.stroke
+        && stroke.thickness.to_pt() > 0.0
+    {
+        let cap = match stroke.cap {
+            LineCap::Butt => kurbo::Cap::Butt,
+            LineCap::Round => kurbo::Cap::Round,
+            LineCap::Square => kurbo::Cap::Square,
+        };
+        let join = match stroke.join {
+            LineJoin::Miter => kurbo::Join::Miter,
+            LineJoin::Round => kurbo::Join::Round,
+            LineJoin::Bevel => kurbo::Join::Bevel,
+        };
+        let mut style = kurbo::Stroke::new(stroke.thickness.to_pt())
+            .with_caps(cap)
+            .with_join(join)
+            .with_miter_limit(stroke.miter_limit.get());
+        if let Some(dash) = &stroke.dash {
+            style = style.with_dashes(dash.phase.to_pt(), dash.array.iter().map(|d| d.to_pt()));
+        }
+        let outline = kurbo::stroke(path.iter(), &style, &kurbo::StrokeOpts::default(), 0.01);
+        push(outline, &stroke.paint);
+    }
 }
 
 #[cfg(feature = "rich-text")]
@@ -369,14 +468,7 @@ fn emit_text_item(
             let scale_affine = Affine::scale_non_uniform(font_scale as f64, -font_scale as f64);
             let glyph_translate =
                 Affine::translate(kurbo::Vec2::new((x_curr + offset_x) as f64, offset_y as f64));
-            let item_transform = Affine::new([
-                transform.sx.get(),
-                transform.ky.get(),
-                transform.kx.get(),
-                transform.sy.get(),
-                transform.tx.to_pt(),
-                transform.ty.to_pt(),
-            ]);
+            let item_transform = frame_affine(transform);
             let final_affine = item_transform * glyph_translate * scale_affine;
             let mut final_path = path;
             final_path.apply_affine(final_affine);
@@ -415,6 +507,7 @@ fn walk_frame_for_glyphs_with_state(
                 walk_frame_for_glyphs_with_state(&group.frame, group_transform, glyphs, state);
             },
             FrameItem::Text(text) => emit_text_item(text, transform, glyphs, state),
+            FrameItem::Shape(shape, _) => emit_shape(shape, transform, glyphs, state),
             _ => {},
         }
     }

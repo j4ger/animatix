@@ -70,7 +70,7 @@ pub(crate) fn evaluate_user_fn_named(
     function_context: Option<&Arc<crate::module::FunctionContext>>,
     definition_path: Option<&Path>,
     component_scope: Option<&Arc<crate::timeline::env::ComponentMethodScope>>,
-    points: Option<crate::timeline::modifier_runtime::ir::PointLookup<'_>>,
+    points: Option<crate::timeline::modifier_runtime::ir::GeometryLookup<'_>>,
 ) -> Result<Value, EvalError> {
     let _depth = UserFnDepthGuard::enter(name)?;
     let mut local = if let (Some(context), Some(path)) = (function_context, definition_path) {
@@ -723,7 +723,7 @@ impl ComponentMethodTargetFolder {
 fn exec_block(
     stmts: &[Stmt],
     env: &mut Environment,
-    points: Option<crate::timeline::modifier_runtime::ir::PointLookup<'_>>,
+    points: Option<crate::timeline::modifier_runtime::ir::GeometryLookup<'_>>,
 ) -> Result<Flow, EvalError> {
     exec_block_scoped(stmts, env, points)
 }
@@ -731,7 +731,7 @@ fn exec_block(
 fn exec_block_scoped(
     stmts: &[Stmt],
     env: &mut Environment,
-    points: Option<crate::timeline::modifier_runtime::ir::PointLookup<'_>>,
+    points: Option<crate::timeline::modifier_runtime::ir::GeometryLookup<'_>>,
 ) -> Result<Flow, EvalError> {
     for stmt in stmts {
         match stmt {

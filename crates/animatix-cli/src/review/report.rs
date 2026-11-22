@@ -463,6 +463,7 @@ fn frame_json(frame: &FrameFact, render: Option<&RenderFacts>) -> serde_json::Va
             "opacity": a.opacity,
             "on_frame_fraction": a.on_frame_fraction,
             "draw_commands": a.draw_commands,
+            "path_segments": a.path_segments,
         })).collect::<Vec<_>>(),
     })
 }

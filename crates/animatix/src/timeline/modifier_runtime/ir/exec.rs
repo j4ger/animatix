@@ -8,7 +8,7 @@
 
 use super::fast_program::execute_fast_with_geometry;
 use super::types::{ModifierIrProgram, ModifierIrStmt, ModifierOverrides};
-use super::{CompiledExpr, evaluate_with_points};
+use super::{CompiledExpr, FrameGeometry, evaluate_with_geometry};
 use crate::ast::LoopPattern;
 use crate::timeline::frame_env::apply_override_incremental;
 use crate::timeline::{Environment, EvalError, Value};
@@ -54,17 +54,18 @@ pub(super) fn evaluate(
     overrides: &ModifierOverrides,
 ) -> Result<Value, EvalError> {
     let Some(geometry) = geometry else {
-        return evaluate_with_points(expr, env, None);
+        return evaluate_with_geometry(expr, env, None);
     };
     let frame = crate::timeline::Timeline::point_query_frame(
         geometry.time_ms,
         geometry.dimensions,
         overrides,
     );
-    let read = |actor: &crate::timeline::plan_value::ActorRef, point| {
-        geometry.timeline.actor_point(actor.entity_id()?, point, &frame, false)
+    let frame_geometry = FrameGeometry {
+        timeline: geometry.timeline,
+        frame,
     };
-    evaluate_with_points(expr, env, Some(&read))
+    evaluate_with_geometry(expr, env, Some(&frame_geometry))
 }
 
 /// Execute a lowered modifier IR program against a frame environment.

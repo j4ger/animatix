@@ -290,7 +290,7 @@ impl Timeline {
         }
     }
 
-    fn actor_point_transform(
+    pub(crate) fn actor_point_transform(
         &self,
         id: EntityId,
         frame: &RenderFrame<'_>,

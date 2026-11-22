@@ -5,21 +5,35 @@ use crate::timeline::env::CapturedEnv;
 use crate::timeline::{ActorPoint, Environment, EvalError, Value};
 use smallvec::SmallVec;
 
-pub(crate) type PointLookup<'a> =
-    &'a dyn Fn(&crate::timeline::plan_value::ActorRef, ActorPoint) -> Option<kurbo::Point>;
+pub(crate) type GeometryLookup<'a> = &'a FrameGeometry<'a>;
+
+pub(crate) struct FrameGeometry<'a> {
+    pub(super) timeline: &'a crate::timeline::Timeline,
+    pub(super) frame: crate::primitives::RenderFrame<'a>,
+}
+
+impl FrameGeometry<'_> {
+    fn actor_point(
+        &self,
+        actor: &crate::timeline::plan_value::ActorRef,
+        point: ActorPoint,
+    ) -> Option<kurbo::Point> {
+        self.timeline.actor_point(actor.entity_id()?, point, &self.frame, false)
+    }
+}
 
 /// Evaluate a compiled expression against the given environment.
 pub(crate) fn evaluate_compiled_expr(
     expr: &CompiledExpr,
     env: &Environment,
 ) -> Result<Value, EvalError> {
-    evaluate_with_points(expr, env, None)
+    evaluate_with_geometry(expr, env, None)
 }
 
-pub(crate) fn evaluate_with_points(
+pub(crate) fn evaluate_with_geometry(
     expr: &CompiledExpr,
     env: &Environment,
-    points: Option<PointLookup<'_>>,
+    geometry: Option<GeometryLookup<'_>>,
 ) -> Result<Value, EvalError> {
     match expr {
         CompiledExpr::Const(Value::Num(n)) => Ok(Value::Num(*n)),
@@ -32,11 +46,11 @@ pub(crate) fn evaluate_with_points(
             }
         },
         CompiledExpr::Field(base, field) => {
-            let base = evaluate_with_points(base, env, points)?;
+            let base = evaluate_with_geometry(base, env, geometry)?;
             match base {
                 Value::ActorRef(actor) => {
                     if let Some(point) = ActorPoint::named(field)
-                        && let Some(position) = points.and_then(|read| read(&actor, point))
+                        && let Some(position) = geometry.and_then(|g| g.actor_point(&actor, point))
                     {
                         return Ok(Value::Vec2([position.x, position.y]));
                     }
@@ -56,11 +70,11 @@ pub(crate) fn evaluate_with_points(
                 }),
             }
         },
-        CompiledExpr::MakeVec(items) => eval_make_vec(items, env, points),
+        CompiledExpr::MakeVec(items) => eval_make_vec(items, env, geometry),
         CompiledExpr::MakeList(items) => {
             let values = items
                 .iter()
-                .map(|item| evaluate_with_points(item, env, points))
+                .map(|item| evaluate_with_geometry(item, env, geometry))
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(Value::List(values.into()))
         },
@@ -73,7 +87,7 @@ pub(crate) fn evaluate_with_points(
                     "& expects a two-segment path: &actor.prop".to_string(),
                 ));
             }
-            let value = evaluate_with_points(expr, env, points)?;
+            let value = evaluate_with_geometry(expr, env, geometry)?;
             match (op, value) {
                 (UnaryOp::Neg, Value::Num(number)) => Ok(Value::Num(-number)),
                 (UnaryOp::Neg, Value::Duration(seconds)) => Ok(Value::Duration(-seconds)),
@@ -85,41 +99,42 @@ pub(crate) fn evaluate_with_points(
             }
         },
         CompiledExpr::Binary(left, op, right) => {
-            let left = evaluate_with_points(left, env, points)?;
+            let left = evaluate_with_geometry(left, env, geometry)?;
             match op {
                 crate::ast::BinaryOp::And if !left.is_truthy() => return Ok(Value::Bool(false)),
                 crate::ast::BinaryOp::Or if left.is_truthy() => return Ok(Value::Bool(true)),
                 _ => {},
             }
-            let right = evaluate_with_points(right, env, points)?;
+            let right = evaluate_with_geometry(right, env, geometry)?;
             crate::timeline::eval_shared::eval_binary_op(left, op, right)
         },
         CompiledExpr::Select(condition, then_expr, else_expr) => {
-            let cond = evaluate_with_points(condition, env, points)?;
+            let cond = evaluate_with_geometry(condition, env, geometry)?;
             if cond.is_truthy() {
-                evaluate_with_points(then_expr, env, points)
+                evaluate_with_geometry(then_expr, env, geometry)
             } else {
-                evaluate_with_points(else_expr, env, points)
+                evaluate_with_geometry(else_expr, env, geometry)
             }
         },
         CompiledExpr::CallBuiltin(builtin, args) => {
-            eval_call_builtin(builtin.clone(), args, env, points)
+            eval_call_builtin(builtin.clone(), args, env, geometry)
         },
         CompiledExpr::CallNamed(name, args) => {
-            if let Some(result) = super::numeric_closure::try_named_call(env, name, args, points) {
+            if let Some(result) = super::numeric_closure::try_named_call(env, name, args, geometry)
+            {
                 return result;
             }
-            let arg_values = evaluate_named_call_arguments(name, args, env, points)?;
-            crate::timeline::utils::evaluate_call_arguments(name, arg_values, env, points)
+            let arg_values = evaluate_named_call_arguments(name, args, env, geometry)?;
+            crate::timeline::utils::evaluate_call_arguments(name, arg_values, env, geometry)
         },
         CompiledExpr::CallMember(receiver, name, args) => {
-            let receiver = evaluate_with_points(receiver, env, points)?;
-            evaluate_member_call(receiver, name, args, env, points)
+            let receiver = evaluate_with_geometry(receiver, env, geometry)?;
+            evaluate_member_call(receiver, name, args, env, geometry)
         },
         CompiledExpr::CallValue(callee, args) => {
-            let callee = evaluate_with_points(callee, env, points)?;
-            let arg_values = evaluate_value_call_arguments(&callee, args, env, points)?;
-            crate::timeline::utils::call_with_points(callee, arg_values, "<call>", env, points)
+            let callee = evaluate_with_geometry(callee, env, geometry)?;
+            let arg_values = evaluate_value_call_arguments(&callee, args, env, geometry)?;
+            crate::timeline::utils::call_with_points(callee, arg_values, "<call>", env, geometry)
         },
         CompiledExpr::Timeline(plan_body) => {
             if env.is_frame_phase() {
@@ -175,7 +190,7 @@ pub(crate) fn evaluate_with_points(
                 ),
             )))
         },
-        CompiledExpr::Index(container, index) => eval_index(container, index, env, points),
+        CompiledExpr::Index(container, index) => eval_index(container, index, env, geometry),
         CompiledExpr::Closure(params, body) => {
             Ok(Value::Closure(params.clone(), body.clone(), CapturedEnv::snapshot(env)))
         },
@@ -183,10 +198,10 @@ pub(crate) fn evaluate_with_points(
             label: label.clone(),
             prop: prop.clone(),
         }),
-        CompiledExpr::LetChain(bindings, tail) => eval_let_chain(bindings, tail, env, points),
-        CompiledExpr::Construct(name, fields) => eval_construct(name, fields, env, points),
+        CompiledExpr::LetChain(bindings, tail) => eval_let_chain(bindings, tail, env, geometry),
+        CompiledExpr::Construct(name, fields) => eval_construct(name, fields, env, geometry),
         CompiledExpr::AnchorLookup { actor, anchor } => {
-            eval_actor_point(actor, *anchor, env, points)
+            eval_actor_point(actor, *anchor, env, geometry)
         },
     }
 }
@@ -232,11 +247,11 @@ fn eval_actor_point(
     actor: &str,
     anchor: ActorPoint,
     env: &Environment,
-    points: Option<PointLookup<'_>>,
+    geometry: Option<GeometryLookup<'_>>,
 ) -> Result<Value, EvalError> {
-    if let Some(read) = points
+    if let Some(geometry) = geometry
         && let Ok(Value::ActorRef(reference)) = load_env(actor, env)
-        && let Some(position) = read(&reference, anchor)
+        && let Some(position) = geometry.actor_point(&reference, anchor)
     {
         return Ok(Value::Vec2([position.x, position.y]));
     }
@@ -256,12 +271,12 @@ fn eval_construct(
     name: &str,
     fields: &[(String, CompiledExpr)],
     env: &Environment,
-    points: Option<PointLookup<'_>>,
+    geometry: Option<GeometryLookup<'_>>,
 ) -> Result<Value, EvalError> {
     let fields = fields
         .iter()
         .map(|(name, expr)| {
-            evaluate_with_points(expr, env, points).map(|value| (name.clone(), value))
+            evaluate_with_geometry(expr, env, geometry).map(|value| (name.clone(), value))
         })
         .collect::<Result<_, _>>()?;
     Ok(Value::Object(name.to_string(), fields))
@@ -285,16 +300,16 @@ fn evaluate_named_call_arguments(
     name: &str,
     arguments: &[(Option<String>, CompiledExpr)],
     env: &Environment,
-    points: Option<PointLookup<'_>>,
+    geometry: Option<GeometryLookup<'_>>,
 ) -> Result<Vec<(Option<String>, Value)>, EvalError> {
-    evaluate_named_call_arguments_with_offset(name, arguments, env, points, 0)
+    evaluate_named_call_arguments_with_offset(name, arguments, env, geometry, 0)
 }
 
 fn evaluate_named_call_arguments_with_offset(
     name: &str,
     arguments: &[(Option<String>, CompiledExpr)],
     env: &Environment,
-    points: Option<PointLookup<'_>>,
+    geometry: Option<GeometryLookup<'_>>,
     positional_offset: usize,
 ) -> Result<Vec<(Option<String>, Value)>, EvalError> {
     let unqualified = name.strip_prefix("std::").unwrap_or(name);
@@ -321,7 +336,7 @@ fn evaluate_named_call_arguments_with_offset(
             arguments,
             &params,
             env,
-            points,
+            geometry,
             positional_offset,
         );
     }
@@ -335,7 +350,7 @@ fn evaluate_named_call_arguments_with_offset(
                 .collect()
         })
         .unwrap_or_default();
-    evaluate_arguments_with_params_offset(arguments, &params, env, points, positional_offset)
+    evaluate_arguments_with_params_offset(arguments, &params, env, geometry, positional_offset)
 }
 
 fn evaluate_member_call(
@@ -343,7 +358,7 @@ fn evaluate_member_call(
     name: &str,
     arguments: &[(Option<String>, CompiledExpr)],
     env: &Environment,
-    points: Option<PointLookup<'_>>,
+    geometry: Option<GeometryLookup<'_>>,
 ) -> Result<Value, EvalError> {
     if let Value::ActorRef(actor) = &receiver {
         if let Some(method) = env.component_method_for_actor(actor, name) {
@@ -357,19 +372,30 @@ fn evaluate_member_call(
             } else {
                 crate::timeline::fn_eval::bind_component_method_receiver(method, actor)
             };
-            let values = evaluate_value_call_arguments(&method, arguments, env, points)?;
-            return crate::timeline::utils::call_with_points(method, values, name, env, points);
+            let values = evaluate_value_call_arguments(&method, arguments, env, geometry)?;
+            return crate::timeline::utils::call_with_points(method, values, name, env, geometry);
         }
 
         if callable_has_actor_receiver(name, env) {
             let mut values =
-                evaluate_named_call_arguments_with_offset(name, arguments, env, points, 1)?;
+                evaluate_named_call_arguments_with_offset(name, arguments, env, geometry, 1)?;
             values.insert(0, (None, Value::ActorRef(actor.clone())));
-            return crate::timeline::utils::evaluate_call_arguments(name, values, env, points);
+            return crate::timeline::utils::evaluate_call_arguments(name, values, env, geometry);
         }
     }
 
-    let values = evaluate_named_call_arguments("<method>", arguments, env, points)?;
+    let values = evaluate_named_call_arguments("<method>", arguments, env, geometry)?;
+    // The two-argument native helpers also serve actor positions inside Graph.
+    // Scene space is explicit so those positions are still transformed once.
+    if matches!(name, "map" | "map_inverse")
+        && values.iter().any(|(name, _)| name.as_deref() == Some("space"))
+        && let Some(geometry) = geometry
+        && let Value::ActorRef(actor) = &receiver
+        && let Some(id) = actor.entity_id()
+        && let Some(result) = geometry.timeline.map_graph_point(id, name, &values, &geometry.frame)
+    {
+        return result;
+    }
     crate::timeline::utils::evaluate_method_arguments(receiver, name, values, env)
 }
 
@@ -427,7 +453,7 @@ fn evaluate_value_call_arguments(
     callee: &Value,
     arguments: &[(Option<String>, CompiledExpr)],
     env: &Environment,
-    points: Option<PointLookup<'_>>,
+    geometry: Option<GeometryLookup<'_>>,
 ) -> Result<Vec<(Option<String>, Value)>, EvalError> {
     if let Value::UserFn { params, .. } = callee {
         let params = params
@@ -443,16 +469,16 @@ fn evaluate_value_call_arguments(
                 )
             })
             .collect::<Vec<_>>();
-        evaluate_arguments_with_params(arguments, &params, env, points)
+        evaluate_arguments_with_params(arguments, &params, env, geometry)
     } else if let Value::RegisteredFn { descriptor, .. } = callee {
         let params = descriptor
             .params
             .iter()
             .map(|param| (param.name.clone(), Some(param.ty.clone()), param.variadic))
             .collect::<Vec<_>>();
-        evaluate_arguments_with_params(arguments, &params, env, points)
+        evaluate_arguments_with_params(arguments, &params, env, geometry)
     } else {
-        evaluate_arguments_with_params(arguments, &[], env, points)
+        evaluate_arguments_with_params(arguments, &[], env, geometry)
     }
 }
 
@@ -460,16 +486,16 @@ fn evaluate_arguments_with_params(
     arguments: &[(Option<String>, CompiledExpr)],
     params: &[(String, Option<animatix_core::callable::CallableType>, bool)],
     env: &Environment,
-    points: Option<PointLookup<'_>>,
+    geometry: Option<GeometryLookup<'_>>,
 ) -> Result<Vec<(Option<String>, Value)>, EvalError> {
-    evaluate_arguments_with_params_offset(arguments, params, env, points, 0)
+    evaluate_arguments_with_params_offset(arguments, params, env, geometry, 0)
 }
 
 fn evaluate_arguments_with_params_offset(
     arguments: &[(Option<String>, CompiledExpr)],
     params: &[(String, Option<animatix_core::callable::CallableType>, bool)],
     env: &Environment,
-    points: Option<PointLookup<'_>>,
+    geometry: Option<GeometryLookup<'_>>,
     positional_offset: usize,
 ) -> Result<Vec<(Option<String>, Value)>, EvalError> {
     let mut positional_index = positional_offset;
@@ -488,7 +514,7 @@ fn evaluate_arguments_with_params_offset(
             let expected = param_index
                 .and_then(|index| params.get(index))
                 .and_then(|(_, ty, _)| ty.as_ref());
-            let value = evaluate_argument(expression, expected, env, points)?;
+            let value = evaluate_argument(expression, expected, env, geometry)?;
             Ok((name.clone(), value))
         })
         .collect()
@@ -498,7 +524,7 @@ fn evaluate_argument(
     expression: &CompiledExpr,
     expected: Option<&animatix_core::callable::CallableType>,
     env: &Environment,
-    points: Option<PointLookup<'_>>,
+    geometry: Option<GeometryLookup<'_>>,
 ) -> Result<Value, EvalError> {
     use animatix_core::callable::CallableType as T;
     if let CompiledExpr::LoadEnv(symbol) = expression
@@ -517,7 +543,7 @@ fn evaluate_argument(
         {
             let items = items
                 .iter()
-                .map(|item| evaluate_argument(item, Some(inner), env, points))
+                .map(|item| evaluate_argument(item, Some(inner), env, geometry))
                 .collect::<Result<Vec<_>, _>>()?;
             return Ok(Value::List(items.into()));
         },
@@ -541,7 +567,7 @@ fn evaluate_argument(
         },
         _ => {},
     }
-    evaluate_with_points(expression, env, points)
+    evaluate_with_geometry(expression, env, geometry)
 }
 
 fn argument_accepts_color(ty: &animatix_core::callable::CallableType) -> bool {
@@ -566,12 +592,12 @@ fn actor_reference_value(label: &str, env: &Environment) -> Result<Value, EvalEr
 fn eval_make_vec(
     items: &[CompiledExpr],
     env: &Environment,
-    points: Option<PointLookup<'_>>,
+    geometry: Option<GeometryLookup<'_>>,
 ) -> Result<Value, EvalError> {
     match items.len() {
         2 => {
-            let v0 = evaluate_with_points(&items[0], env, points)?;
-            let v1 = evaluate_with_points(&items[1], env, points)?;
+            let v0 = evaluate_with_geometry(&items[0], env, geometry)?;
+            let v1 = evaluate_with_geometry(&items[1], env, geometry)?;
             if matches!((&v0, &v1), (Value::Num(_), Value::Num(_))) {
                 Ok(Value::Vec2([v0.as_num(), v1.as_num()]))
             } else {
@@ -579,9 +605,9 @@ fn eval_make_vec(
             }
         },
         3 => {
-            let v0 = evaluate_with_points(&items[0], env, points)?;
-            let v1 = evaluate_with_points(&items[1], env, points)?;
-            let v2 = evaluate_with_points(&items[2], env, points)?;
+            let v0 = evaluate_with_geometry(&items[0], env, geometry)?;
+            let v1 = evaluate_with_geometry(&items[1], env, geometry)?;
+            let v2 = evaluate_with_geometry(&items[2], env, geometry)?;
             if matches!((&v0, &v1, &v2), (Value::Num(_), Value::Num(_), Value::Num(_))) {
                 Ok(Value::Vec3([v0.as_num(), v1.as_num(), v2.as_num()]))
             } else {
@@ -589,10 +615,10 @@ fn eval_make_vec(
             }
         },
         4 => {
-            let v0 = evaluate_with_points(&items[0], env, points)?;
-            let v1 = evaluate_with_points(&items[1], env, points)?;
-            let v2 = evaluate_with_points(&items[2], env, points)?;
-            let v3 = evaluate_with_points(&items[3], env, points)?;
+            let v0 = evaluate_with_geometry(&items[0], env, geometry)?;
+            let v1 = evaluate_with_geometry(&items[1], env, geometry)?;
+            let v2 = evaluate_with_geometry(&items[2], env, geometry)?;
+            let v3 = evaluate_with_geometry(&items[3], env, geometry)?;
             if matches!(
                 (&v0, &v1, &v2, &v3),
                 (Value::Num(_), Value::Num(_), Value::Num(_), Value::Num(_))
@@ -605,7 +631,7 @@ fn eval_make_vec(
         _ => {
             let values = items
                 .iter()
-                .map(|item| evaluate_with_points(item, env, points))
+                .map(|item| evaluate_with_geometry(item, env, geometry))
                 .collect::<Result<Vec<_>, _>>()?;
             make_vec_value(values)
         },
@@ -616,11 +642,11 @@ fn eval_call_builtin(
     builtin: BuiltinFn,
     args: &[CompiledExpr],
     env: &Environment,
-    points: Option<PointLookup<'_>>,
+    geometry: Option<GeometryLookup<'_>>,
 ) -> Result<Value, EvalError> {
     let args: SmallVec<[Value; 4]> = args
         .iter()
-        .map(|arg| evaluate_with_points(arg, env, points))
+        .map(|arg| evaluate_with_geometry(arg, env, geometry))
         .collect::<Result<_, _>>()?;
     let name = builtin_name(&builtin);
     if args.iter().any(|value| !matches!(value, Value::Num(_)))
@@ -671,14 +697,14 @@ fn eval_index(
     container: &CompiledExpr,
     index: &CompiledExpr,
     env: &Environment,
-    points: Option<PointLookup<'_>>,
+    geometry: Option<GeometryLookup<'_>>,
 ) -> Result<Value, EvalError> {
-    let index_val = evaluate_with_points(index, env, points)?;
+    let index_val = evaluate_with_geometry(index, env, geometry)?;
     let container_val = match container {
         CompiledExpr::LoadEnv(name) if env.get_path(name).is_none() => {
             Value::ActorRef(crate::timeline::plan_value::ActorRef::caller(name.as_str()))
         },
-        _ => evaluate_with_points(container, env, points)?,
+        _ => evaluate_with_geometry(container, env, geometry)?,
     };
     let raw_index = match index_val {
         Value::Num(value) => value,
@@ -753,7 +779,7 @@ fn eval_let_chain(
     bindings: &[(String, CompiledExpr)],
     tail: &CompiledExpr,
     env: &Environment,
-    points: Option<PointLookup<'_>>,
+    geometry: Option<GeometryLookup<'_>>,
 ) -> Result<Value, EvalError> {
     // Bindings evaluate in order; each becomes a let-scope entry so
     // later bindings and the tail see it. Scoped lookup lives in
@@ -762,7 +788,7 @@ fn eval_let_chain(
     let mut pushed = 0;
     let mut result = Ok(Value::Num(0.0));
     for (name, value) in bindings {
-        match evaluate_with_points(value, env, points) {
+        match evaluate_with_geometry(value, env, geometry) {
             Ok(v) => {
                 env.push_let_scope([(name.clone(), v)]);
                 pushed += 1;
@@ -774,7 +800,7 @@ fn eval_let_chain(
         }
     }
     if result.is_ok() {
-        result = evaluate_with_points(tail, env, points);
+        result = evaluate_with_geometry(tail, env, geometry);
     }
     for _ in 0..pushed {
         env.pop_let_scope();

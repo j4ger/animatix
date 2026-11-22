@@ -288,3 +288,51 @@ fn grouped_extraction_retains_empty_marked_fragment_ranges() {
     assert_eq!(ranges.len(), 1, "the empty authored fragment keeps its ordinal");
     assert_eq!(ranges[0], 0..0);
 }
+
+#[test]
+fn math_rule_paths_survive_plain_and_fragment_extraction() {
+    let mut fonts = FontContext::empty();
+    fonts.load_fonts([
+        include_bytes!("../../assets/fonts/OpenSans-Variable.ttf").to_vec(),
+        include_bytes!("../../assets/fonts/FiraMath-Regular.otf").to_vec(),
+    ]);
+    let compile = |source: &str| {
+        compile_typst(
+            source,
+            48.0,
+            white(),
+            "Open Sans",
+            &fonts,
+            400.0,
+            "normal",
+            1.2,
+            0.0,
+            0.0,
+            0.0,
+            "left",
+            "visible",
+        )
+        .expect("math compiles")
+    };
+    let horizontal_rule = |path: &TextPath| {
+        let bounds = path.bounds;
+        bounds.height() > 0.0 && bounds.width() > 10.0 && bounds.width() > 5.0 * bounds.height()
+    };
+    for math in ["$ frac(7, 3) $", "$ sqrt(123) $"] {
+        let paths = extract_glyphs(&compile(math));
+        assert!(
+            paths.iter().any(horizontal_rule),
+            "missing rule in {math}. Path bounds: {:?}",
+            paths.iter().map(|path| path.bounds).collect::<Vec<_>>()
+        );
+    }
+
+    let frame = compile(concat!(
+        "#metadata(\"animatix:equation-fragment:start:0\") ",
+        "#box()[$ frac(7, 3) $] ",
+        "#metadata(\"animatix:equation-fragment:end:0\")",
+    ));
+    let (paths, ranges) = extract_glyphs_grouped(&frame).expect("balanced fragment");
+    assert_eq!(ranges.len(), 1);
+    assert!(paths[ranges[0].clone()].iter().any(horizontal_rule));
+}

@@ -72,6 +72,54 @@ pub(crate) fn rule_actor_draw_missing(facts: &ReviewFacts, out: &mut Vec<RuleIss
     }
 }
 
+pub(crate) fn rule_plot_empty_path(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
+    for actor in facts.actors.iter().filter(|actor| actor.is_plot && !actor.is_non_content) {
+        let mut had_segments = false;
+        let mut first_empty = None;
+        for frame in facts.frames.iter().filter(|frame| frame.scene == actor.scene) {
+            match facts
+                .actor_frame(frame, &actor.scene, &actor.label)
+                .filter(|sample| sample.opacity.is_some_and(|value| value > 0.01))
+                .and_then(|sample| sample.path_segments)
+            {
+                None => {
+                    had_segments = false;
+                    first_empty = None;
+                },
+                Some(0) => {
+                    if had_segments {
+                        first_empty.get_or_insert(frame.time_s);
+                    }
+                },
+                Some(_) => {
+                    if let Some(time_s) = first_empty {
+                        out.push(RuleIssue {
+                            rule_id: "plot.empty-path",
+                            severity: Severity::Info,
+                            persistence: Persistence::Transient,
+                            scene: Some(actor.scene.clone()),
+                            time_s: Some(time_s),
+                            actor: Some(actor.label.clone()),
+                            source_line: actor.source_line,
+                            message: format!(
+                                "`{}` emitted a path with no segments between samples where it drew geometry.",
+                                actor.label
+                            ),
+                            evidence: serde_json::json!({ "path_segments": 0 }),
+                            fix_hint: None,
+                            waived_by: None,
+                            suggestion: "Check whether the plot intentionally leaves the viewport or has an empty domain at this time.".to_string(),
+                            baseline_state: None,
+                        });
+                        break;
+                    }
+                    had_segments = true;
+                },
+            }
+        }
+    }
+}
+
 pub(crate) fn rule_actor_ink_missing(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
     if facts.render.as_ref().is_none_or(|r| r.status != RenderStatus::Rendered) {
         return;

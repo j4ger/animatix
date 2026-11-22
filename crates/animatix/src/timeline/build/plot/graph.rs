@@ -509,6 +509,55 @@ fn make_graph_map_fn(
 }
 
 impl Timeline {
+    /// Convert between local graph data and scene coordinates before projection.
+    pub(crate) fn map_graph_point(
+        &self,
+        id: crate::timeline::EntityId,
+        method: &str,
+        args: &[(Option<String>, Value)],
+        frame: &crate::primitives::RenderFrame<'_>,
+    ) -> Option<Result<Value, crate::timeline::EvalError>> {
+        use super::super::utils::{
+            GraphGeometry, GraphScaleConfig, graph_math_to_screen, graph_screen_to_math,
+        };
+
+        let graph = self.world.coordinate_frame(id)?;
+        let [
+            (None, Value::Num(x)),
+            (None, Value::Num(y)),
+            (Some(option), Value::Str(space)),
+        ] = args
+        else {
+            return Some(Err(crate::timeline::EvalError::TypeMismatch(format!(
+                "graph.{method} expects two positional numbers followed by space: \"scene\""
+            ))));
+        };
+        if option != "space" || space != "scene" {
+            return Some(Err(crate::timeline::EvalError::TypeMismatch(format!(
+                "graph.{method} expects space: \"scene\""
+            ))));
+        }
+        let (transform, half_size) = self.actor_point_transform(id, frame, false);
+        let scale =
+            GraphScaleConfig::new(graph.x_domain, graph.y_domain, graph.x_scale, graph.y_scale);
+        let local =
+            GraphGeometry::new(half_size.map(|v| 2.0 * f64::from(v)), [0.0; 2], graph.padding);
+        let point = if method == "map_inverse" {
+            if transform.determinant() == 0.0 {
+                return Some(Err(crate::timeline::EvalError::TypeMismatch(
+                    "graph.map_inverse requires an invertible graph transform".to_string(),
+                )));
+            }
+            let p = transform.inverse() * kurbo::Point::new(*x, *y);
+            graph_screen_to_math(p.x, p.y, &scale, &local)
+        } else {
+            let [x, y] = graph_math_to_screen(*x, *y, &scale, &local, true);
+            let p = transform * kurbo::Point::new(x, y);
+            [p.x, p.y]
+        };
+        Some(Ok(Value::Vec2(point)))
+    }
+
     /// Register a graph host's coordinate frame and the `{label}_*` env entries
     /// authored expressions read, plus the `map`/`map_inverse` native functions.
     pub(super) fn register_graph_host_env(&mut self, label: &str, parsed: &PlotActorProps) {
