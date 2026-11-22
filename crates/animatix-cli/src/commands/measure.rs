@@ -34,6 +34,9 @@ pub(crate) struct MeasureArgs {
     /// Precise sample times in seconds (comma-separated, overrides --samples)
     #[arg(long, value_delimiter = ',')]
     pub(crate) times: Option<Vec<f64>>,
+    /// Intended display width in pixels, using the authored frame aspect ratio
+    #[arg(long, value_parser = clap::value_parser!(u32).range(1..))]
+    pub(crate) display_width: Option<u32>,
 }
 
 /// Run one measure command and own its exit code.
@@ -46,6 +49,7 @@ pub(crate) fn run(args: MeasureArgs, extensions: &CliExtensions) {
         max_frames,
         render,
         times,
+        display_width,
     } = args;
     let options = ReviewOptions {
         policy: Policy::Default,
@@ -56,6 +60,8 @@ pub(crate) fn run(args: MeasureArgs, extensions: &CliExtensions) {
         fail_on: FailOn::Never,
         frames_dir: None,
         times,
+        display_width,
+        min_text_height: None,
         anchors: 10,
         candidates: false,
         delta: None,

@@ -74,6 +74,8 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
         decl_span: Option<crate::ast::Span>,
     ) {
+        let styled = self.explainer_declaration_props(label, ty, props, time_ms, diagnostics);
+        let props = styled.as_ref();
         self.warn_duplicate_label_parent(label, parent_label, diagnostics, decl_span);
         self.add_node(label.to_string(), parent_label);
 
@@ -258,7 +260,6 @@ impl Timeline {
         }
 
         self.write_extension_properties_for_decl(label, ty, props, modifiers, time_ms, diagnostics);
-
         self.finalize_actor_container(label, ty, props, time_ms, parent_label, diagnostics);
     }
 

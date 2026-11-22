@@ -335,6 +335,7 @@ pub(crate) struct ProgramPart<'a> {
     /// Timeline the program was evaluated from (for actor track lookups).
     pub(crate) timeline: &'a animatix::timeline::Timeline,
     pub(crate) program: SceneProgram,
+    pub(crate) local_time_s: f64,
 }
 
 /// Structural evaluation of one frame without a GPU/filter backend.
@@ -357,6 +358,7 @@ pub(crate) fn evaluate_program_frame<'a>(
             parts: vec![ProgramPart {
                 scene: "main".to_string(),
                 timeline,
+                local_time_s: time_s,
                 program: timeline.evaluate_program_with_debug(
                     time_s,
                     dimensions,
@@ -373,6 +375,7 @@ pub(crate) fn evaluate_program_frame<'a>(
             parts: vec![ProgramPart {
                 scene: scene.name.clone(),
                 timeline: &scene.timeline,
+                local_time_s,
                 program: scene.timeline.evaluate_program_with_debug(
                     local_time_s,
                     dimensions,
@@ -387,6 +390,7 @@ pub(crate) fn evaluate_program_frame<'a>(
                 ProgramPart {
                     scene: from.name.clone(),
                     timeline: &from.timeline,
+                    local_time_s: blend.from_local,
                     program: from.timeline.evaluate_program_with_debug(
                         blend.from_local,
                         dimensions,
@@ -397,6 +401,7 @@ pub(crate) fn evaluate_program_frame<'a>(
                 ProgramPart {
                     scene: to.name.clone(),
                     timeline: &to.timeline,
+                    local_time_s: blend.to_local,
                     program: to.timeline.evaluate_program_with_debug(
                         blend.to_local,
                         dimensions,

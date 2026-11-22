@@ -248,9 +248,19 @@ pub(crate) struct ReviewOptions {
     /// Optional directory for rendered PNG samples.
     pub frames_dir: Option<PathBuf>,
     pub times: Option<Vec<f64>>,
+    pub display_width: Option<u32>,
+    pub min_text_height: Option<f64>,
     pub anchors: usize,
     pub candidates: bool,
     pub delta: Option<PathBuf>,
     pub budget: Option<PathBuf>,
     pub update_budget: bool,
+}
+
+pub(crate) fn parse_positive_text_height(source: &str) -> Result<f64, String> {
+    source
+        .parse::<f64>()
+        .ok()
+        .filter(|value| value.is_finite() && *value > 0.0)
+        .ok_or_else(|| "text height must be finite and positive".to_string())
 }

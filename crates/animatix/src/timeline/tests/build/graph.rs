@@ -1203,3 +1203,47 @@ fn graph_map_inverse_outside_plot_no_panic() {
         other => panic!("expected Vec2, got {other:?}"),
     }
 }
+
+#[test]
+fn math_explainer_defaults_respect_explicit_styles_and_major_ticks() {
+    let report = build(
+        r#"
+config { resolution: (1280, 720), colorscheme: "paper", style: "math-explainer" }
+#0s
+title: Text, text: "Cosine", role: "title"
+note: Text, text: "Reference", role: "note", font_size: 30
+wide: Graph, at: (450, 340), size: (740, 320), x_domain: (-5.6, 5.6) {
+  exact: PlotCurve, role: "reference", func: (x) => cos(x)
+  estimate: PlotCurve, role: "focus", stroke_width: 7, func: (x) => 1 - x^2 / 2
+}
+narrow: Graph, at: (1000, 400), size: (170, 180), x_domain: (-5.6, 5.6)
+explicit: Graph, at: (1000, 150), size: (240, 180), x_domain: (0, 3),
+   x_ticks: {0, 2, 4}, grid: false
+"#,
+    );
+    assert_clean(&report);
+    let timeline = report.output;
+    let id = |label| timeline.world.get_id(label).unwrap();
+    let font_size =
+        |label| timeline.world.text(id(label)).unwrap().font_size.as_ref().unwrap().evaluate(0);
+    assert_eq!(font_size("title"), 54.0);
+    assert_eq!(font_size("note"), 30.0);
+
+    let stroke_width =
+        |label| timeline.world.style(id(label)).stroke_width.as_ref().unwrap().evaluate(0);
+    assert_eq!(stroke_width("exact"), 2.5);
+    assert_eq!(stroke_width("estimate"), 7.0);
+
+    let count_labels = |prefix: &str| {
+        timeline
+            .world
+            .views()
+            .filter(|entity| entity.label().starts_with(prefix))
+            .count()
+    };
+    assert_eq!(count_labels("wide_tick_x_"), 5);
+    assert_eq!(count_labels("narrow_tick_x_"), 3);
+    assert_eq!(count_labels("explicit_tick_x_"), 2);
+    assert_eq!(font_size("explicit_tick_x_1"), 26.0);
+    assert!(!timeline.coordinate_frame_for("explicit").unwrap().grid);
+}

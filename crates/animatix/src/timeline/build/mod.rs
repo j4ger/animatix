@@ -39,6 +39,7 @@ mod container;
 mod defines;
 mod effect;
 mod entry;
+mod explainer_style;
 mod inputs;
 mod keyframe_utils;
 mod node;

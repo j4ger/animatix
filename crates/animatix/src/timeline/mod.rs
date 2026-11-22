@@ -26,7 +26,8 @@ pub mod components;
 mod plan_lowerer;
 pub use components::{
     AutoColorComponent, ChildOrderComponent, CoordinateContext, CoordinateFrameComponent,
-    CoordinateFrameTarget, LocalBoundsComponent, PersistenceComponent, TranscriptComponent,
+    CoordinateFrameTarget, GraphAxisOptions, LocalBoundsComponent, PersistenceComponent,
+    TranscriptComponent,
 };
 mod declarations_text;
 /// Post-processing effects, chain storage, and the compositing backend boundary.
@@ -262,6 +263,7 @@ pub struct Timeline {
     /// Actor targets written by modifier programs (e.g. `"circle0"` or array prefix `"ring"`).
     pub(crate) modifier_written_targets: std::collections::HashSet<String>,
     colorscheme: ResolvedColorscheme,
+    math_explainer_style: bool,
     external_colorschemes: std::collections::HashMap<String, ResolvedColorscheme>,
     pub(crate) export_preset: Option<String>,
     /// `config { resolution: (w, h) }`, so export tooling can default its canvas to the authored size.

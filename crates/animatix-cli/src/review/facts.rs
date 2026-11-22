@@ -95,6 +95,17 @@ pub(crate) struct ActorFrameFact {
     pub text_overflow: Option<String>,
     /// Measured world-space text width, from bounds.
     pub measured_text_width: Option<f32>,
+    /// Projected text bounds height and the display width it was measured at.
+    pub text_at_display: Option<DisplayTextFact>,
+}
+
+/// Visible text bounds projected to a specific display width.
+#[derive(Clone, Debug)]
+pub(crate) struct DisplayTextFact {
+    pub width_px: u32,
+    pub bounds_height_px: f64,
+    pub text_bounds: Box2,
+    pub role: Option<String>,
 }
 
 /// Measurements at one sample time.
@@ -181,6 +192,7 @@ pub(crate) struct TargetFacts {
 pub(crate) struct ReviewFacts {
     /// Target identity.
     pub target: TargetFacts,
+    pub display_width: Option<u32>,
     /// Structural samples (reported in `frames`).
     pub frames: Vec<FrameFact>,
     /// Extra rule probes (e.g. entrance end times) that are not report frames.
@@ -249,6 +261,7 @@ pub(crate) fn collect_facts(
     dimensions: SceneDimensions,
     base_times: Vec<f64>,
     build_diagnostics: &[Diagnostic],
+    display_width: Option<u32>,
 ) -> Result<ReviewFacts, String> {
     let mut actors = Vec::new();
     let mut actions = Vec::new();
@@ -271,7 +284,7 @@ pub(crate) fn collect_facts(
 
     let mut frames = Vec::with_capacity(base_times.len());
     for &time_s in &base_times {
-        frames.push(evaluate_frame(target, dimensions, time_s, &actors)?);
+        frames.push(evaluate_frame(target, dimensions, time_s, &actors, display_width)?);
     }
 
     let duration_s = super::samples::target_duration_s(target);
@@ -289,7 +302,7 @@ pub(crate) fn collect_facts(
     probe_times.dedup_by(|a, b| (*a - *b).abs() < 0.001);
     let mut probe_frames = Vec::with_capacity(probe_times.len());
     for &time_s in &probe_times {
-        probe_frames.push(evaluate_frame(target, dimensions, time_s, &actors)?);
+        probe_frames.push(evaluate_frame(target, dimensions, time_s, &actors, None)?);
     }
 
     let redundant_keyframes = collect_redundant_keyframes(target);
@@ -313,6 +326,7 @@ pub(crate) fn collect_facts(
         BuildTarget::MultiScene(_) => TargetKind::MultiScene,
     };
     Ok(ReviewFacts {
+        display_width,
         target: TargetFacts {
             kind: target_kind,
             duration_s: super::samples::target_duration_s(target),
@@ -436,6 +450,7 @@ fn evaluate_frame(
     dimensions: SceneDimensions,
     time_s: f64,
     actors: &[ActorFact],
+    display_width: Option<u32>,
 ) -> Result<FrameFact, String> {
     let program_frame = evaluate_program_frame(target, dimensions, time_s)?;
     let time_ms = (time_s * 1000.0) as u64;
@@ -494,6 +509,9 @@ fn evaluate_frame(
                     text_max_width,
                     text_overflow,
                     measured_text_width,
+                    text_at_display: display_width.and_then(|width| {
+                        measure_display_text(part, item, bounds, width, dimensions.width)
+                    }),
                 },
             );
         }
@@ -524,6 +542,7 @@ fn evaluate_frame(
                     text_max_width,
                     text_overflow,
                     measured_text_width: None,
+                    text_at_display: None,
                 },
             );
         }
@@ -576,6 +595,55 @@ fn frame_state_digest(actors: &[ActorFrameFact]) -> u64 {
         write(u64::from(actor.draw_commands.unwrap_or(0)));
     }
     hash
+}
+
+fn measure_display_text(
+    part: &crate::frame_source::ProgramPart<'_>,
+    item: &animatix::timeline::scene_program::SceneItem,
+    bounds: Option<Box2>,
+    display_width: u32,
+    canvas_width: u32,
+) -> Option<DisplayTextFact> {
+    use animatix::timeline::{ActorField, PropertyValue};
+
+    if item.opacity <= 0.01 {
+        return None;
+    }
+    let is_text = |command: &RenderCommand| matches!(command, RenderCommand::Text { .. });
+    let text_bounds = item
+        .commands
+        .iter()
+        .filter(|command| is_text(command))
+        .filter_map(|command| command.local_bounds(None))
+        .map(|rect| item.transform.transform_rect_bbox(rect))
+        .reduce(|left, right| left.union(right))
+        .map(|rect| Box2::new(rect.x0, rect.y0, rect.x1, rect.y1))
+        .or_else(|| {
+            (!item.commands.is_empty() && item.commands.iter().all(is_text))
+                .then_some(bounds)
+                .flatten()
+        })?;
+    if text_bounds.y1 <= text_bounds.y0 {
+        return None;
+    }
+    let world = part.timeline.world();
+    let role = world.get_id(&item.label).and_then(|id| {
+        match world.read_property_value(
+            id,
+            ActorField::Tagged("role"),
+            (part.local_time_s * 1000.0) as u64,
+        ) {
+            Some(PropertyValue::String(role)) if !role.is_empty() => Some(role),
+            _ => None, // Some generated and most legacy actors have no role.
+        }
+    });
+    Some(DisplayTextFact {
+        width_px: display_width,
+        bounds_height_px: (text_bounds.y1 - text_bounds.y0) * f64::from(display_width)
+            / f64::from(canvas_width),
+        text_bounds,
+        role,
+    })
 }
 
 fn text_measurements(

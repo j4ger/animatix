@@ -2,7 +2,7 @@
 //! native functions exposed to authored expressions.
 
 use super::PlotActorProps;
-use super::ticks::{format_axis_tick_label, generate_axis_ticks, normalize_axis};
+use super::ticks::{format_axis_tick_label, normalize_axis};
 use super::*;
 
 /// Format a number for use as a bar label (strip trailing zeros).
@@ -14,16 +14,17 @@ pub(super) fn format_float(n: f64) -> String {
 /// Omits an axis entirely when zero is not in its domain.
 pub(crate) fn build_graph_axis_paths(
     size: [f32; 2],
-    x_domain: [f64; 2],
-    y_domain: [f64; 2],
     axis_color: [f32; 4],
-    grid: bool,
-    ticks: bool,
-    _tick_labels: bool,
-    padding: [f64; 4],
-    x_scale: super::super::utils::ScaleType,
-    y_scale: super::super::utils::ScaleType,
+    frame: &crate::timeline::CoordinateFrameComponent,
 ) -> Vec<VelloPath> {
+    let [x_domain, y_domain] = [frame.x_domain, frame.y_domain];
+    let [x_scale, y_scale] = [frame.x_scale, frame.y_scale];
+    let padding = frame.padding;
+    let (x_ticks, y_ticks) = if frame.grid || frame.ticks {
+        super::ticks::graph_ticks(size, frame)
+    } else {
+        (Vec::new(), Vec::new())
+    };
     let mut paths = Vec::new();
     let mut axis_path = kurbo::BezPath::new();
 
@@ -98,80 +99,43 @@ pub(crate) fn build_graph_axis_paths(
         Some(x)
     };
 
-    if !axis_path.elements().is_empty() {
-        paths.push(VelloPath {
-            path: std::sync::Arc::new(axis_path),
-            fill: None,
-            stroke: Some((
-                peniko::Color::from_rgba8(
-                    (axis_color[0] * 255.0) as u8,
-                    (axis_color[1] * 255.0) as u8,
-                    (axis_color[2] * 255.0) as u8,
-                    (axis_color[3] * 255.0) as u8,
-                ),
-                2.0,
-            )),
-            line_cap: 0,
-            line_join: 0,
-            dash_pattern: None,
-            dash_offset: 0.0,
-            fill_gradient: None,
-            stroke_gradient: None,
-        });
-    }
+    paths.push(graph_stroke_path(axis_path, axis_color, 2.0, 1));
 
     // Grid lines
-    if grid {
+    if frame.grid {
         let mut grid_path = kurbo::BezPath::new();
-        let x_grid_ticks = generate_axis_ticks(x_domain[0], x_domain[1], x_scale);
-        let y_grid_ticks = generate_axis_ticks(y_domain[0], y_domain[1], y_scale);
 
         // Vertical grid lines (constant x)
-        for x in &x_grid_ticks {
+        for x in &x_ticks {
             let screen_x = math_x_to_screen(*x);
             grid_path.move_to((screen_x, top_edge));
             grid_path.line_to((screen_x, bot_edge));
         }
 
         // Horizontal grid lines (constant y)
-        for y in &y_grid_ticks {
+        for y in &y_ticks {
             let screen_y = math_y_to_screen(*y);
             grid_path.move_to((left_edge, screen_y));
             grid_path.line_to((right_edge, screen_y));
         }
 
         if !grid_path.elements().is_empty() {
-            paths.push(VelloPath {
-                path: std::sync::Arc::new(grid_path),
-                fill: None,
-                stroke: Some((
-                    peniko::Color::from_rgba8(
-                        (axis_color[0] * 255.0) as u8,
-                        (axis_color[1] * 255.0) as u8,
-                        (axis_color[2] * 255.0) as u8,
-                        (axis_color[3] * 255.0) as u8 / 4,
-                    ),
-                    1.0,
-                )),
-                line_cap: 0,
-                line_join: 0,
-                dash_pattern: None,
-                dash_offset: 0.0,
-                fill_gradient: None,
-                stroke_gradient: None,
-            });
+            let alpha_divisor = if frame.axis_options.label_size.is_some() {
+                8
+            } else {
+                4
+            };
+            paths.push(graph_stroke_path(grid_path, axis_color, 1.0, alpha_divisor));
         }
     }
 
     // Tick marks
-    if ticks {
+    if frame.ticks {
         let mut tick_path = kurbo::BezPath::new();
         let tick_len = 4.0;
-        let x_tick_vals = generate_axis_ticks(x_domain[0], x_domain[1], x_scale);
-        let y_tick_vals = generate_axis_ticks(y_domain[0], y_domain[1], y_scale);
 
         if let Some(y) = x_axis_y {
-            for x in &x_tick_vals {
+            for x in &x_ticks {
                 let screen_x = math_x_to_screen(*x);
                 tick_path.move_to((screen_x, y - tick_len));
                 tick_path.line_to((screen_x, y + tick_len));
@@ -179,7 +143,7 @@ pub(crate) fn build_graph_axis_paths(
         }
 
         if let Some(x) = y_axis_x {
-            for y in &y_tick_vals {
+            for y in &y_ticks {
                 let screen_y = math_y_to_screen(*y);
                 tick_path.move_to((x - tick_len, screen_y));
                 tick_path.line_to((x + tick_len, screen_y));
@@ -187,29 +151,31 @@ pub(crate) fn build_graph_axis_paths(
         }
 
         if !tick_path.elements().is_empty() {
-            paths.push(VelloPath {
-                path: std::sync::Arc::new(tick_path),
-                fill: None,
-                stroke: Some((
-                    peniko::Color::from_rgba8(
-                        (axis_color[0] * 255.0) as u8,
-                        (axis_color[1] * 255.0) as u8,
-                        (axis_color[2] * 255.0) as u8,
-                        (axis_color[3] * 255.0) as u8,
-                    ),
-                    1.5,
-                )),
-                line_cap: 0,
-                line_join: 0,
-                dash_pattern: None,
-                dash_offset: 0.0,
-                fill_gradient: None,
-                stroke_gradient: None,
-            });
+            paths.push(graph_stroke_path(tick_path, axis_color, 1.5, 1));
         }
     }
 
     paths
+}
+
+fn graph_stroke_path(
+    path: kurbo::BezPath,
+    color: [f32; 4],
+    width: f32,
+    alpha_divisor: u8,
+) -> VelloPath {
+    let [r, g, b, a] = color.map(|component| (component * 255.0) as u8);
+    VelloPath {
+        path: std::sync::Arc::new(path),
+        fill: None,
+        stroke: Some((peniko::Color::from_rgba8(r, g, b, a / alpha_divisor), width)),
+        line_cap: 0,
+        line_join: 0,
+        dash_pattern: None,
+        dash_offset: 0.0,
+        fill_gradient: None,
+        stroke_gradient: None,
+    }
 }
 
 /// Build NumberPlane VelloPaths: axes, grid lines, tick marks.
@@ -508,6 +474,22 @@ fn make_graph_map_fn(
     ))
 }
 
+impl PlotActorProps {
+    pub(super) fn coordinate_frame(&self) -> crate::timeline::CoordinateFrameComponent {
+        crate::timeline::CoordinateFrameComponent {
+            x_domain: self.x_domain,
+            y_domain: self.y_domain,
+            x_scale: self.x_scale,
+            y_scale: self.y_scale,
+            padding: self.graph_padding,
+            grid: self.grid,
+            ticks: self.ticks,
+            tick_labels: self.tick_labels.clone(),
+            axis_options: self.axis_options.clone(),
+        }
+    }
+}
+
 impl Timeline {
     /// Convert between local graph data and scene coordinates before projection.
     pub(crate) fn map_graph_point(
@@ -563,16 +545,7 @@ impl Timeline {
     pub(super) fn register_graph_host_env(&mut self, label: &str, parsed: &PlotActorProps) {
         // ECS registration: the frame component is the only source for the
         // hosted children's coordinate resolution below.
-        let frame = crate::timeline::CoordinateFrameComponent {
-            x_domain: parsed.x_domain,
-            y_domain: parsed.y_domain,
-            x_scale: parsed.x_scale,
-            y_scale: parsed.y_scale,
-            padding: parsed.graph_padding,
-            grid: parsed.grid,
-            ticks: parsed.ticks,
-            tick_labels: parsed.tick_labels.clone(),
-        };
+        let frame = parsed.coordinate_frame();
         if let Some(host_id) = self.world.tracks.get_id(label) {
             self.set_coordinate_frame(host_id, frame.clone());
         }

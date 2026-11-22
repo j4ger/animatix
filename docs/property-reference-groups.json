@@ -55,7 +55,8 @@
       "shadow",
       "shadow_color",
       "solo",
-      "idle"
+      "idle",
+      "role"
     ]
   },
   {
@@ -196,6 +197,8 @@
       "grid",
       "ticks",
       "tick_labels",
+      "x_ticks",
+      "y_ticks",
       "x_scale",
       "y_scale"
     ]

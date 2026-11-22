@@ -60,9 +60,9 @@ animatix audit scene.amx --delta target/review/before.json --evidence target/rev
 | 命令 | 职责 | 关键 Flags |
 |---|---|---|
 | `check` / `lint` | 解析/构建诊断与静态 lint | - |
-| `measure` | 纯事实 JSON | `kind: "measure"` |
+| `measure` | 纯事实 JSON | `--display-width`，`kind: "measure"` |
 | `audit` | 事实 + 缺陷 + 有界 anchors | `--policy`, `--anchors`, `--candidates`, `--evidence`, `--delta`, `--budget`, `--fail-on` |
-| `storyboard` | 节拍感知 contact sheet | `--cols`, `--times`, `--max-frames`, `--debug-bounds` |
+| `storyboard` | 节拍感知 contact sheet | `--cols`, `--times`, `--max-frames`, `--compare`, `--scene` |
 | `image --time <t>` | 单帧预览 (Remotion still) | - |
 | `baseline` | PNG 回归防护 | `--update`, `--threshold` |
 
@@ -121,6 +121,25 @@ badge: Rect, size: (40, 40)
 `null` 表示该采样没有可测量的路径命令。`audit --candidates` 的
 `plot.empty-path` 会标记同一图表在两次有几何输出的采样之间出现空路径的情况。
 曲线移出可见区或定义域暂时为空时，也可能出现这种情况。
+
+## 小屏审阅与改版对照
+
+`measure --display-width 360` 为有可见文字边界的对象输出
+`text_at_display`，包含展示宽度 `width_px` 和按原画布同比例缩放的
+边界高度 `bounds_height_px`，以及声明了角色时的 `role`。它使用逐帧求值后的文字盒，适用于包括
+`--render never` 在内的采样方式。
+
+`audit --display-width 360 --candidates` 把低于参考阈值的文本列为
+`text.small-at-display` 候选。默认阈值为 8 px，`note` 为 6 px。
+`--min-text-height` 可为本次审阅统一指定阈值。
+每个对象取边界高度最小的采样点。提供 `--evidence` 并成功渲染后，
+`evidence.display_frame_path` 指向实际缩放后的全帧。
+多行文字和复杂公式的整体边界可能比个别字形高。
+
+`animatix storyboard after.amx --compare before.amx --tile-width 360`
+把每个采样时刻的原版和新版并排渲染。可加 `--scene Cosine` 对齐两份
+多场景文件中的同名章节，此时 `--times` 使用章节内时间。图像以各自的
+原始画布渲染，再按原比例缩放到图块。
 
 ## Known Limitations
 

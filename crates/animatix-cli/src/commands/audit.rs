@@ -62,6 +62,12 @@ pub(crate) struct AuditArgs {
     /// Precise sample times in seconds (comma-separated, overrides --samples)
     #[arg(long, value_delimiter = ',')]
     pub(crate) times: Option<Vec<f64>>,
+    /// Intended display width in pixels, using the authored frame aspect ratio
+    #[arg(long, value_parser = clap::value_parser!(u32).range(1..))]
+    pub(crate) display_width: Option<u32>,
+    /// Flag visible text bounds shorter than this at --display-width (default: 8, notes: 6)
+    #[arg(long, requires = "display_width", value_parser = crate::review::types::parse_positive_text_height)]
+    pub(crate) min_text_height: Option<f64>,
     /// Path to a previous audit JSON for delta analysis
     #[arg(long)]
     pub(crate) delta: Option<PathBuf>,
@@ -92,6 +98,8 @@ pub(crate) fn run(args: AuditArgs, extensions: &CliExtensions) {
         candidates,
         evidence,
         times,
+        display_width,
+        min_text_height,
         delta,
         budget,
         update_budget,
@@ -105,6 +113,8 @@ pub(crate) fn run(args: AuditArgs, extensions: &CliExtensions) {
         fail_on,
         frames_dir,
         times,
+        display_width,
+        min_text_height,
         anchors,
         candidates,
         delta,

@@ -270,3 +270,59 @@ fn measure_json_findings_empty() {
     assert_eq!(json["kind"], "measure");
     assert!(json["findings"].as_array().unwrap().is_empty());
 }
+
+#[test]
+fn display_size_is_a_measurement_and_a_separate_audit_candidate() {
+    let (_project, input) = temp_project(
+        "display-text",
+        r#"
+config { resolution: (1280, 720), duration: 1 }
+#0s
+small: Text, text: "x = 2", at: (400, 350), font_size: 16, role: "note"
+large: Text, text: "Readable", at: (800, 350), font_size: 54
+"#,
+    );
+    let run = |verb| {
+        let output = Command::new(target_bin())
+            .arg(verb)
+            .arg(&input)
+            .args([
+                "--times",
+                "0.5",
+                "--display-width",
+                "360",
+                "--format",
+                "json",
+                "--render",
+                "never",
+            ])
+            .output()
+            .expect("review command should run");
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        parse_stdout_json(&output)
+    };
+
+    let measure = run("measure");
+    assert!(measure["findings"].as_array().unwrap().is_empty());
+    let samples = measure["frames"][0]["actors"].as_array().unwrap();
+    let small = samples.iter().find(|actor| actor["label"] == "small").unwrap();
+    let measured = &small["text_at_display"];
+    assert_eq!(measured["width_px"], 360);
+    let measured_height = measured["bounds_height_px"].as_f64().unwrap();
+    assert_eq!(measured["role"], "note");
+    assert!(measured_height > 0.0 && measured_height < 6.0);
+
+    let audit = run("audit");
+    let candidates: Vec<_> = audit["findings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|finding| finding["code"] == "text.small-at-display")
+        .collect();
+    assert_eq!(candidates.len(), 1);
+    assert_eq!(candidates[0]["actor"], "small");
+    assert_eq!(candidates[0]["time_s"], 0.5);
+    assert_eq!(candidates[0]["severity"], "info");
+    assert_eq!(candidates[0]["evidence"]["min_text_height_px"], 6.0);
+    assert_eq!(candidates[0]["evidence"]["bounds_height_px"], measured["bounds_height_px"]);
+}

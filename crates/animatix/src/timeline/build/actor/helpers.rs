@@ -235,18 +235,15 @@ impl Timeline {
             .map(PrimitiveFamilyDescriptor::from_info)
             .unwrap_or_default();
         if primitive.is_graph_host() {
-            return build_graph_axis_paths(
-                size,
-                extracted.x_domain,
-                extracted.y_domain,
-                stroke_color,
-                false,
-                false,
-                false,
-                extracted.graph_padding,
-                extracted.x_scale,
-                extracted.y_scale,
-            );
+            let frame = crate::timeline::CoordinateFrameComponent {
+                x_domain: extracted.x_domain,
+                y_domain: extracted.y_domain,
+                x_scale: extracted.x_scale,
+                y_scale: extracted.y_scale,
+                padding: extracted.graph_padding,
+                ..Default::default()
+            };
+            return build_graph_axis_paths(size, stroke_color, &frame);
         }
 
         // VectorField, Heatmap, ContourSet, and NumberPlane are handled by

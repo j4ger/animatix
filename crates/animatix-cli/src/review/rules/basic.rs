@@ -72,6 +72,64 @@ pub(crate) fn rule_actor_draw_missing(facts: &ReviewFacts, out: &mut Vec<RuleIss
     }
 }
 
+pub(crate) fn rule_text_size_at_display(
+    facts: &ReviewFacts,
+    min_height: Option<f64>,
+    out: &mut Vec<RuleIssue>,
+) {
+    let canvas = animatix::timeline::SceneDimensions {
+        width: facts.target.width,
+        height: facts.target.height,
+    };
+    for actor in facts.actors.iter().filter(|actor| !actor.is_non_content) {
+        let smallest = facts
+            .frames
+            .iter()
+            .filter_map(|frame| {
+                let sample = facts.actor_frame(frame, &actor.scene, &actor.label)?;
+                let text = sample.text_at_display.as_ref()?;
+                let default_height = if text.role.as_deref() == Some("note") {
+                    6.0
+                } else {
+                    8.0
+                };
+                let threshold = min_height.unwrap_or(default_height);
+                (text.bounds_height_px < threshold
+                    && crate::review::facts::on_frame_fraction(text.text_bounds, canvas) > 0.0)
+                    .then_some((text.bounds_height_px, text, threshold, frame.time_s))
+            })
+            .min_by(|left, right| left.0.total_cmp(&right.0));
+        let Some((height, text, threshold, time_s)) = smallest else {
+            continue;
+        };
+        let bounds = text.text_bounds;
+        out.push(RuleIssue {
+            rule_id: "text.small-at-display",
+            severity: Severity::Info,
+            persistence: Persistence::Transient,
+            scene: Some(actor.scene.clone()),
+            time_s: Some(time_s),
+            actor: Some(actor.label.clone()),
+            source_line: actor.source_line,
+            message: format!(
+                "`{}` has {:.1}px-high text bounds at a {}px-wide display.",
+                actor.label, height, text.width_px
+            ),
+            evidence: serde_json::json!({
+                "display_width_px": text.width_px,
+                "bounds_height_px": height,
+                "min_text_height_px": threshold,
+                "role": text.role,
+                "bounds": [bounds.x0, bounds.y0, bounds.x1, bounds.y1],
+            }),
+            fix_hint: None,
+            waived_by: None,
+            suggestion: "Check the text at the intended display size. Enlarge important labels or give them more space.".to_string(),
+            baseline_state: None,
+        });
+    }
+}
+
 pub(crate) fn rule_plot_empty_path(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) {
     for actor in facts.actors.iter().filter(|actor| actor.is_plot && !actor.is_non_content) {
         let mut had_segments = false;

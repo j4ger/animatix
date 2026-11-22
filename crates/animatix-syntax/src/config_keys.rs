@@ -108,6 +108,12 @@ pub static CONFIG_KEYS: &[ConfigKeyInfo] = &[
         summary: "Assert this scene is replayed as a loop; the build then checks the seam.",
     },
     ConfigKeyInfo {
+        name: "style",
+        scope: ConfigScope::Scene,
+        value: ConfigValueKind::Text,
+        summary: "Opt-in actor defaults (default or math-explainer).",
+    },
+    ConfigKeyInfo {
         name: "text_fast_path",
         scope: ConfigScope::Program,
         value: ConfigValueKind::Boolean,

@@ -74,6 +74,7 @@ pub(super) struct PlotActorProps {
     grid: bool,
     ticks: bool,
     tick_labels: String,
+    axis_options: crate::timeline::GraphAxisOptions,
     x_scale: super::utils::ScaleType,
     y_scale: super::utils::ScaleType,
     x_range: [f64; 3],

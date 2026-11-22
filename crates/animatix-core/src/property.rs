@@ -328,6 +328,9 @@ declare_property_descriptors! {
     "text_anchor" => (Applicable::TextLike, String),
     // Layout item maximum width (distinct from `max_width`, the text wrap width).
     "max_item_width" => (Applicable::SizedActors, F32),
+    "role" => (Applicable::Actors(&["Text", "Typst", "Math", "Counter", "PlotCurve"]), String),
+    "x_ticks" => (Applicable::PlotHost, Generic, NumList),
+    "y_ticks" => (Applicable::PlotHost, Generic, NumList),
 }
 
 /// The descriptor for `name`, when it is a built-in property.

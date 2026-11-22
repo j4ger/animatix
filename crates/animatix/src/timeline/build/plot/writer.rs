@@ -178,6 +178,7 @@ impl Timeline {
         } = PlotPropBag::from_props(props, label, initial_eval_env, diagnostics);
         let kind = kind.unwrap_or(PlotCurveKind::Cartesian);
 
+        let previous_frame = self.world.coordinate_frame(existing_track_id);
         // Graph plot-area padding [left, right, top, bottom] in pixels.
         // Pre-scan props for padding so it's available before the main match loop.
         let graph_padding: [f64; 4] = if primitive.is_graph_host() {
@@ -191,7 +192,20 @@ impl Timeline {
                         _ => None,
                     }
                 })
-                .unwrap_or([0.0; 4])
+                .unwrap_or_else(|| {
+                    if self.math_explainer_style {
+                        previous_frame.map_or_else(
+                            || {
+                                [22.0_f64
+                                    .min(f64::from(initial_size[0].min(initial_size[1])) * 0.4);
+                                    4]
+                            },
+                            |frame| frame.padding,
+                        )
+                    } else {
+                        [0.0; 4]
+                    }
+                })
         } else {
             [0.0; 4]
         };
@@ -228,6 +242,35 @@ impl Timeline {
             grid: false,
             ticks: false,
             tick_labels: String::from("auto"),
+            axis_options: if primitive.is_graph_host() {
+                crate::timeline::GraphAxisOptions {
+                    label_size: self.math_explainer_style.then(|| {
+                        self.resolution.map_or(26.0, |(w, h)| 26.0 * f64::from(w.min(h)) / 720.0)
+                    }),
+                    x_ticks: ticks::parse_tick_values(
+                        props,
+                        "x_ticks",
+                        initial_eval_env,
+                        label,
+                        diagnostics,
+                    )
+                    .or_else(|| {
+                        previous_frame.and_then(|frame| frame.axis_options.x_ticks.clone())
+                    }),
+                    y_ticks: ticks::parse_tick_values(
+                        props,
+                        "y_ticks",
+                        initial_eval_env,
+                        label,
+                        diagnostics,
+                    )
+                    .or_else(|| {
+                        previous_frame.and_then(|frame| frame.axis_options.y_ticks.clone())
+                    }),
+                }
+            } else {
+                Default::default()
+            },
             x_scale: super::super::utils::ScaleType::Linear,
             y_scale: super::super::utils::ScaleType::Linear,
             x_range: [-10.0, 10.0, 2.0],
@@ -261,14 +304,15 @@ impl Timeline {
                 match prop.name.as_str() {
                     "kind" | "func" | "x_domain" | "y_domain" | "t_domain" | "tolerance"
                     | "max_depth" | "resolution" | "density" | "levels" | "grid" | "ticks"
-                    | "tick_labels" | "x_range" | "y_range" | "size" | "at" | "position"
-                    | "color" | "opacity" | "stroke" | "stroke_width" | "stroke_progress"
-                    | "fill_opacity" | "radius_x" | "radius_y" | "from" | "to" | "head_size"
-                    | "text" | "code" | "font_size" | "font_family" | "url" | "source"
-                    | "volume" | "anchor" | "offset" | "rotation" | "scale" | "transform"
-                    | "blur" | "brightness" | "contrast" | "saturate" | "hue_rotate" | "sepia"
-                    | "gap" | "padding" | "align" | "cols" | "data" | "bar_width"
-                    | "bar_colors" | "direction" | "max_value" | "show_axis" | "show_labels" => {},
+                    | "role" | "tick_labels" | "x_range" | "y_range" | "size" | "at"
+                    | "position" | "color" | "opacity" | "stroke" | "stroke_width"
+                    | "stroke_progress" | "fill_opacity" | "radius_x" | "radius_y" | "from"
+                    | "to" | "head_size" | "text" | "code" | "font_size" | "font_family"
+                    | "url" | "source" | "volume" | "anchor" | "offset" | "rotation" | "scale"
+                    | "transform" | "blur" | "brightness" | "contrast" | "saturate"
+                    | "hue_rotate" | "sepia" | "gap" | "padding" | "align" | "cols" | "data"
+                    | "bar_width" | "bar_colors" | "direction" | "max_value" | "show_axis"
+                    | "show_labels" => {},
                     _ => {
                         // Treat unknown numeric props as plot parameters
                         let eval_env = self.build_eval_env(time_ms as u64);
@@ -371,31 +415,10 @@ impl Timeline {
         let is_bar_chart = primitive.plot == Some(PlotKind::BarChart);
 
         if primitive.is_graph_host() {
-            let label_x = ticks::tick_labels_has_axis(&parsed.tick_labels, 'x');
-            let label_y = ticks::tick_labels_has_axis(&parsed.tick_labels, 'y');
+            let frame = parsed.coordinate_frame();
+            vello_paths = build_graph_axis_paths(size, parsed.stroke_color, &frame);
 
-            vello_paths = build_graph_axis_paths(
-                size,
-                parsed.x_domain,
-                parsed.y_domain,
-                parsed.stroke_color,
-                parsed.grid,
-                parsed.ticks,
-                label_x || label_y,
-                parsed.graph_padding,
-                parsed.x_scale,
-                parsed.y_scale,
-            );
-
-            tick_label_data = ticks::compute_graph_tick_labels(
-                size,
-                parsed.x_domain,
-                parsed.y_domain,
-                parsed.x_scale,
-                parsed.y_scale,
-                parsed.graph_padding,
-                &parsed.tick_labels,
-            );
+            tick_label_data = ticks::compute_graph_tick_labels(size, &frame);
         } else if is_vector_field || is_heatmap || is_contour_set {
             let (paths, procedural) = self.build_field_plot_paths(
                 is_vector_field,

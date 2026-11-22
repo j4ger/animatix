@@ -95,6 +95,7 @@ Text) and `gap` (under Containers).
 | `shadow_color` | `Color` | `Color` | ✓ | ✓ | `Rect`, `Ellipse`, `Arrow`, `Polygon`, `Path` |
 | `solo` | `Bool` | `Bool` | — | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
 | `idle` | `Str` | `String` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+| `role` | `Str` | `String` | — | — | `Text`, `Math`, `Typst`, `Counter`, `PlotCurve` |
 <!-- generated-property-table:style:end -->
 
 `dash_pattern` takes a brace list of alternating segment and gap lengths in scene
@@ -330,6 +331,8 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 | `grid` | `Bool` | `Bool` | — | — | `Graph` |
 | `ticks` | `Bool` | `Bool` | — | — | `Graph` |
 | `tick_labels` | `Str` | `String` | — | — | `Graph` |
+| `x_ticks` | `List<Num>` | `BuildTimeOnly` | — | — | `Graph` |
+| `y_ticks` | `List<Num>` | `BuildTimeOnly` | — | — | `Graph` |
 | `x_scale` | `Str` | `String` | — | — | `Graph` |
 | `y_scale` | `Str` | `String` | — | — | `Graph` |
 <!-- generated-property-table:plotting:end -->

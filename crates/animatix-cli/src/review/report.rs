@@ -1,6 +1,6 @@
 //! Audit orchestration and report serialization.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use animatix::timeline::SceneDimensions;
 
@@ -88,6 +88,7 @@ impl AuditReport {
                         "frame_path": issue.evidence.get("frame_path"),
                         "crop_path": issue.evidence.get("crop_path"),
                         "annotated_path": issue.evidence.get("annotated_path"),
+                        "display_frame_path": issue.evidence.get("display_frame_path"),
                     },
                     "fix": issue.fix_hint.as_ref().map(|f| serde_json::json!({
                         "kind": f.kind,
@@ -328,6 +329,27 @@ impl AuditReport {
     }
 }
 
+fn write_display_evidence(
+    dir: &Path,
+    image: &image::RgbaImage,
+    width: u32,
+    sample: usize,
+    time_s: f64,
+) -> Option<PathBuf> {
+    let height = (f64::from(image.height()) * f64::from(width) / f64::from(image.width()))
+        .round()
+        .max(1.0);
+    // Bound the allocation for exceptionally wide displays.
+    if u64::from(width).saturating_mul(height as u64) > 67_108_864 {
+        tracing::warn!("Display evidence is too large to rasterize at {width} px");
+        return None;
+    }
+    let display =
+        image::imageops::resize(image, width, height as u32, image::imageops::FilterType::Triangle);
+    let path = dir.join(format!("review_{sample:04}_{time_s:.2}s.display-{width}.png"));
+    display.save(&path).ok().map(|()| path)
+}
+
 fn write_evidence(
     dir: &Path,
     findings: &mut [RuleIssue],
@@ -337,6 +359,7 @@ fn write_evidence(
     if render.status != RenderStatus::Rendered {
         return;
     }
+    let mut display_paths = std::collections::HashMap::new();
     for (finding_index, finding) in findings.iter_mut().enumerate() {
         // Info findings are already-explained observations; cropping them
         // would bury the actionable candidates in noise, unless --candidates
@@ -367,6 +390,17 @@ fn write_evidence(
             continue;
         };
         let mut img = img.to_rgba8();
+
+        if finding.rule_id == "text.small-at-display"
+            && let Some(width) =
+                finding.evidence.get("display_width_px").and_then(|value| value.as_u64())
+            && let Ok(width) = u32::try_from(width)
+            && let Some(path) = display_paths
+                .entry((idx, width))
+                .or_insert_with(|| write_display_evidence(dir, &img, width, idx, frame_time_s))
+        {
+            finding.evidence["display_frame_path"] = serde_json::json!(path);
+        }
 
         let bounds = crop_bounds(&finding.evidence);
 
@@ -464,6 +498,11 @@ fn frame_json(frame: &FrameFact, render: Option<&RenderFacts>) -> serde_json::Va
             "on_frame_fraction": a.on_frame_fraction,
             "draw_commands": a.draw_commands,
             "path_segments": a.path_segments,
+            "text_at_display": a.text_at_display.as_ref().map(|text| serde_json::json!({
+                "width_px": text.width_px,
+                "bounds_height_px": text.bounds_height_px,
+                "role": text.role,
+            })),
         })).collect::<Vec<_>>(),
     })
 }
@@ -490,7 +529,8 @@ pub(crate) fn run_review(
     let base_times = options.times.clone().unwrap_or_else(|| {
         samples::compute_sample_times(&target, &options.samples, options.max_frames)
     });
-    let mut facts = collect_facts(&target, dimensions, base_times, &diagnostics)?;
+    let mut facts =
+        collect_facts(&target, dimensions, base_times, &diagnostics, options.display_width)?;
     resolve_actor_source_lines(input, &mut facts);
 
     let _ = brief;
@@ -524,7 +564,7 @@ pub(crate) fn run_review(
             skipped_rules: Vec::new(),
         }
     } else {
-        rules::evaluate(&facts, &markers, options.policy)
+        rules::evaluate(&facts, &markers, options.policy, options.min_text_height)
     };
 
     let mut delta = None;

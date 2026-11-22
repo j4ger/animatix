@@ -36,6 +36,21 @@ pub struct CoordinateFrameComponent {
     pub ticks: bool,
     /// Axis tick label display mode (`"auto"`, `"x"`, `"y"`, `"both"`, `"false"`).
     pub tick_labels: String,
+    /// Graph presentation and optional authored tick positions.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub axis_options: GraphAxisOptions,
+}
+
+/// Declaration-time options for a graph's major ticks and labels.
+#[derive(Clone, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct GraphAxisOptions {
+    /// Font size for the explainer's size-aware major ticks and labels.
+    pub label_size: Option<f64>,
+    /// Horizontal tick positions in math coordinates.
+    pub x_ticks: Option<Vec<f64>>,
+    /// Vertical tick positions in math coordinates.
+    pub y_ticks: Option<Vec<f64>>,
 }
 
 impl Default for CoordinateFrameComponent {
@@ -49,6 +64,7 @@ impl Default for CoordinateFrameComponent {
             grid: false,
             ticks: false,
             tick_labels: "auto".to_string(),
+            axis_options: GraphAxisOptions::default(),
         }
     }
 }

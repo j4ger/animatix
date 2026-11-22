@@ -11,9 +11,23 @@ const STARTER: [(&str, &[u8]); 3] = [
     ("narration.speech.json", include_bytes!("delivery/narration.speech.json")),
 ];
 
+const MATH_EXPLAINER: [(&str, &[u8]); 2] = [
+    (SCENE, include_bytes!("delivery/math-explainer.amx")),
+    ("layout.amx", include_bytes!("delivery/explainer-layout.amx")),
+];
+
 /// Create a self-contained narrated project in a new or empty directory.
 /// Returns the scene path. An existing file is never overwritten.
 pub fn create_project(directory: &Path) -> io::Result<PathBuf> {
+    write_project(directory, &STARTER)
+}
+
+/// Create a math explainer with a sample graph and a reusable layout component.
+pub fn create_math_explainer_project(directory: &Path) -> io::Result<PathBuf> {
+    write_project(directory, &MATH_EXPLAINER)
+}
+
+fn write_project(directory: &Path, files: &[(&str, &[u8])]) -> io::Result<PathBuf> {
     let created_dir = match fs::create_dir(directory) {
         Ok(()) => true,
         Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
@@ -27,9 +41,9 @@ pub fn create_project(directory: &Path) -> io::Result<PathBuf> {
         },
         Err(err) => return Err(err),
     };
-    let mut created = Vec::with_capacity(STARTER.len());
+    let mut created = Vec::with_capacity(files.len());
     let result = (|| {
-        for (name, content) in STARTER {
+        for (name, content) in files {
             let path = directory.join(name);
             let mut file = OpenOptions::new().write(true).create_new(true).open(&path)?;
             created.push(path);

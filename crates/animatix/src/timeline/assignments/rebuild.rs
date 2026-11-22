@@ -114,18 +114,7 @@ pub(super) fn rebuild_vector_paths(
         // (linear scales, [-10, 10] domains), never to an env fallback.
         let frame = coordinate_frame.cloned().unwrap_or_default();
         let stroke_color = style.stroke_color.last(DEFAULT_WHITE);
-        let new_paths = build_graph_axis_paths(
-            size,
-            frame.x_domain,
-            frame.y_domain,
-            stroke_color,
-            frame.grid,
-            frame.ticks,
-            matches!(frame.tick_labels.as_str(), "auto" | "true" | "both"),
-            frame.padding,
-            frame.x_scale,
-            frame.y_scale,
-        );
+        let new_paths = build_graph_axis_paths(size, stroke_color, &frame);
 
         if has_duration {
             let start_paths = shape.evaluate_vector_paths_value(style, t_start_ms);

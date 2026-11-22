@@ -388,9 +388,14 @@ A coordinate container that maps child actor positions to math coordinates. Use 
 - `y_domain`: Tuple `(min, max)`
 - `size`: Tuple `(width, height)`
 - `at`: Tuple `(x, y)`
-- `grid`: Boolean — draw grid lines at regular intervals
+- `x_ticks`, `y_ticks`: Brace lists of numeric tick values, for example `x_ticks: {0, 1, 2}`. Values inside the domain feed the marks, grid lines and enabled labels. An empty list suppresses ticks and labels for that axis.
+- `grid`: Boolean — draw grid lines at tick positions
 - `ticks`: Boolean — draw tick marks on axes
 - `tick_labels`: `"auto" | "true" | "false" | "x" | "y" | "both"` — draw numeric labels on axes
+
+The `math-explainer` style spaces automatic major ticks according to the
+declared graph dimensions and a conservative estimate of numeric label
+width. The selected values drive the grid, marks and labels together.
 
 ## PlotCurve
 

@@ -498,6 +498,7 @@ static BINDINGS: &[PropertyBinding] = &[
         PlotDomainGroup,
         val!(f32 DEFAULT_PLOT_RESOLUTION as f32)
     ),
+    b!("role", V::String, F::empty(), Tagged, val!(str "")),
     b!("rotate_x", V::F32, F::ASSIGNABLE_AI.union(F::SPATIAL), Tagged, val!(f32 0.0)),
     b!("rotate_y", V::F32, F::ASSIGNABLE_AI.union(F::SPATIAL), Tagged, val!(f32 0.0)),
     b!("rotation", V::F32, F::SPATIAL_AI, Rotation, val!(f32 0.0)),
@@ -625,11 +626,13 @@ static BINDINGS: &[PropertyBinding] = &[
     )),
     b!("x_range", V::Vec2, F::empty(), PlotDomainGroup, val!(vec2 - 10.0, 10.0)),
     b!("x_scale", V::String, F::empty(), NoStorage, val!(str "linear")),
+    b!("x_ticks", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "")),
     b!("y_domain", V::Vec2, F::empty(), PlotDomainGroup, |_| PropertyValue::Vec2(
         DEFAULT_AXIS_DOMAIN.map(|value| value as f32)
     )),
     b!("y_range", V::Vec2, F::empty(), PlotDomainGroup, val!(vec2 - 10.0, 10.0)),
     b!("y_scale", V::String, F::empty(), NoStorage, val!(str "linear")),
+    b!("y_ticks", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "")),
 ];
 
 mod lookup;

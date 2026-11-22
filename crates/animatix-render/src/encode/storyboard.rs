@@ -5,7 +5,7 @@
 //! agents to review spatial layout, cue timing, transitions, and resting
 //! plate completeness in a single inspection pass.
 
-use animatix::composition::Composition;
+use animatix::composition::{BuildTarget, Composition};
 use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 use tracing::info;
 
@@ -321,50 +321,14 @@ pub fn render_storyboard_composition(
 
     let mut rendered_frames = Vec::with_capacity(panels.len());
     for (idx, panel) in panels.iter().enumerate() {
-        let (scene_name, local_time_s, transition_blend) = composition.evaluate(panel.time_s);
-
-        let frame = if let Some(blend) = transition_blend {
-            let from_scene = composition.scenes.get(&blend.from_scene).ok_or_else(|| {
-                ExportError::FrameRender {
-                    frame: idx,
-                    message: format!("From scene '{}' not found in composition", blend.from_scene),
-                }
-            })?;
-            let to_scene = composition.scenes.get(&blend.to_scene).ok_or_else(|| {
-                ExportError::FrameRender {
-                    frame: idx,
-                    message: format!("To scene '{}' not found in composition", blend.to_scene),
-                }
-            })?;
-            renderer
-                .render_transition(
-                    &from_scene.timeline,
-                    blend.from_local,
-                    &to_scene.timeline,
-                    blend.to_local,
-                    blend.progress as f32,
-                    blend.id.clone(),
-                    blend.easing,
-                    dims,
-                    debug_options,
-                )
-                .map_err(|e| ExportError::FrameRender {
-                    frame: idx,
-                    message: e,
-                })?
-        } else {
-            let scene =
-                composition.scenes.get(&scene_name).ok_or_else(|| ExportError::FrameRender {
-                    frame: idx,
-                    message: format!("Scene '{}' not found in composition", scene_name),
-                })?;
-            renderer
-                .render_timeline_with_debug(&scene.timeline, local_time_s, dims, debug_options)
-                .map_err(|e| ExportError::FrameRender {
-                    frame: idx,
-                    message: e,
-                })?
-        };
+        let frame = render_composition_sample(
+            &mut renderer,
+            composition,
+            panel.time_s,
+            dims,
+            debug_options,
+            idx,
+        )?;
 
         let tile_frame = normalize_frame_to_tile(frame, settings.tile_width, settings.tile_height)?;
         rendered_frames.push(tile_frame);
@@ -373,6 +337,144 @@ pub fn render_storyboard_composition(
     assemble_and_save_grid(settings, &panels, &rendered_frames, output_file)?;
     info!("Storyboard saved to {} ({} frames)", output_file.display(), panels.len());
     Ok(panels.len())
+}
+
+fn render_composition_sample(
+    renderer: &mut OffscreenRenderer,
+    composition: &Composition,
+    time_s: f64,
+    dims: SceneDimensions,
+    debug_options: DebugRenderOptions,
+    idx: usize,
+) -> Result<crate::offscreen::RenderedFrame, ExportError> {
+    let (scene_name, local_time_s, transition_blend) = composition.evaluate(time_s);
+
+    if let Some(blend) = transition_blend {
+        let from_scene =
+            composition
+                .scenes
+                .get(&blend.from_scene)
+                .ok_or_else(|| ExportError::FrameRender {
+                    frame: idx,
+                    message: format!("From scene '{}' not found in composition", blend.from_scene),
+                })?;
+        let to_scene =
+            composition
+                .scenes
+                .get(&blend.to_scene)
+                .ok_or_else(|| ExportError::FrameRender {
+                    frame: idx,
+                    message: format!("To scene '{}' not found in composition", blend.to_scene),
+                })?;
+        renderer
+            .render_transition(
+                &from_scene.timeline,
+                blend.from_local,
+                &to_scene.timeline,
+                blend.to_local,
+                blend.progress as f32,
+                blend.id.clone(),
+                blend.easing,
+                dims,
+                debug_options,
+            )
+            .map_err(|e| ExportError::FrameRender {
+                frame: idx,
+                message: e,
+            })
+    } else {
+        let scene =
+            composition.scenes.get(&scene_name).ok_or_else(|| ExportError::FrameRender {
+                frame: idx,
+                message: format!("Scene '{}' not found in composition", scene_name),
+            })?;
+        renderer
+            .render_timeline_with_debug(&scene.timeline, local_time_s, dims, debug_options)
+            .map_err(|e| ExportError::FrameRender {
+                frame: idx,
+                message: e,
+            })
+    }
+}
+
+/// Render matching timestamps in two columns, with the original on the left.
+/// Each source is rendered at its own resolution before it is fit into a tile.
+pub fn render_storyboard_comparison(
+    before: (&BuildTarget, SceneDimensions),
+    after: (&BuildTarget, SceneDimensions),
+    settings: &StoryboardSettings,
+    output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
+) -> Result<usize, ExportError> {
+    let mut settings = settings.clone();
+    settings.cols = Some(2);
+    validate_storyboard_settings(&settings)?;
+    if settings.times.is_empty() {
+        return Err(ExportError::FrameRender {
+            frame: 0,
+            message: "No shared times provided for storyboard comparison".into(),
+        });
+    }
+    let mut renderer = OffscreenRenderer::new().map_err(ExportError::RendererCreation)?;
+    let mut panels = Vec::with_capacity(settings.times.len() * 2);
+    let mut frames = Vec::with_capacity(panels.capacity());
+    for &time_s in &settings.times {
+        for (label, (target, dims)) in [("Before", before), ("After", after)] {
+            let idx = panels.len();
+            let frame = match target {
+                BuildTarget::SingleScene(timeline) => renderer
+                    .render_timeline_with_debug(timeline, time_s, dims, debug_options)
+                    .map_err(|message| ExportError::FrameRender {
+                        frame: idx,
+                        message,
+                    })?,
+                BuildTarget::MultiScene(composition) => render_composition_sample(
+                    &mut renderer,
+                    composition,
+                    time_s,
+                    dims,
+                    debug_options,
+                    idx,
+                )?,
+            };
+            panels.push(PanelMeta {
+                time_s,
+                label: format!("{label} {:.2}s", time_s),
+            });
+            frames.push(fit_comparison_frame(frame, &settings)?);
+        }
+    }
+    assemble_and_save_grid(&settings, &panels, &frames, output_file)?;
+    Ok(panels.len())
+}
+
+fn fit_comparison_frame(
+    frame: crate::offscreen::RenderedFrame,
+    settings: &StoryboardSettings,
+) -> Result<crate::offscreen::RenderedFrame, ExportError> {
+    let (tw, th) = (settings.tile_width, settings.tile_height);
+    let scale =
+        (f64::from(tw) / f64::from(frame.width)).min(f64::from(th) / f64::from(frame.height));
+    let width = ((f64::from(frame.width) * scale).round() as u32).clamp(1, tw);
+    let height = ((f64::from(frame.height) * scale).round() as u32).clamp(1, th);
+    let resized = normalize_frame_to_tile(frame, width, height)?;
+    if (width, height) == (tw, th) {
+        return Ok(resized);
+    }
+    let fitted = image::RgbaImage::from_raw(width, height, resized.rgba.to_vec())
+        .ok_or_else(|| ExportError::ImageEncode("Invalid resized storyboard frame".into()))?;
+    let mut tile = image::RgbaImage::from_pixel(tw, th, image::Rgba([24, 24, 27, 255]));
+    image::imageops::replace(
+        &mut tile,
+        &fitted,
+        i64::from((tw - width) / 2),
+        i64::from((th - height) / 2),
+    );
+    Ok(crate::offscreen::RenderedFrame {
+        width: tw,
+        height: th,
+        rgba: std::sync::Arc::new(tile.into_raw()),
+    })
 }
 
 fn build_panel_metadata(times: &[f64], duration_s: f64) -> Vec<PanelMeta> {

@@ -38,6 +38,7 @@ impl Timeline {
             prepared_modifiers: None,
             modifier_written_targets: std::collections::HashSet::new(),
             colorscheme: BuiltInColorscheme::DefaultDark.resolved(),
+            math_explainer_style: false,
             external_colorschemes: std::collections::HashMap::new(),
             export_preset: None,
             resolution: None,

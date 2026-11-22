@@ -1,0 +1,29 @@
+import "./layout.amx"
+
+pub let violet_paper = Colorscheme {
+  extends: "paper",
+  accent.primary: hex_color("5035a1")
+}
+config { resolution: (1280, 720), duration: 7, colorscheme: "violet_paper", style: "math-explainer" }
+
+let weight = 0
+
+#0s
+  slide: ExplainerLayout, heading: "Approximating cosine", takeaway: "Gray is cosine. Purple bends toward it near zero." {
+    @figure {
+      window: Mask, size: (754, 400) {
+        chart: Graph, size: (754, 400), x_domain: (-5.6, 5.6), y_domain: (-2, 2) {
+          exact: PlotCurve, role: "reference", func: (x) => cos(x)
+          estimate: PlotCurve, role: "focus", func: (x) => 1 - weight * x^2 / 2
+        }
+      }
+    }
+    @notes {
+      approximation_label: Text, text: "Quadratic target", role: "note"
+      approximation: Typst, text: "$ 1 - frac(x^2, 2!) $", role: "formula"
+    }
+  }
+
+  always {
+    weight = ease_in_out(clamp((t - 1) / 3, 0, 1))
+  }

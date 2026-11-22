@@ -1,0 +1,15 @@
+// The slots share the same margin and spacing on a 1280 × 720 canvas.
+pub component ExplainerLayout(heading: Str, takeaway: Str) {
+  page: Col, size: (1128, 594), at: (640, 360), gap: 36, align: "start" {
+    title: Text, text: heading, role: "title"
+    content: Row, size: (1128, 400), gap: 54, align: "center" {
+      figure: Group, size: (754, 400) {
+        @slot
+      }
+      notes: Col, size: (320, 400), gap: 22, align: "center" {
+        @slot
+      }
+    }
+    caption: Text, text: takeaway, role: "body"
+  }
+}

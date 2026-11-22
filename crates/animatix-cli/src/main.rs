@@ -120,10 +120,13 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Create a self-contained narrated project in a new or empty directory.
+    /// Create a starter project in a new or empty directory.
     Init {
         #[arg(default_value = ".")]
         directory: PathBuf,
+        /// Starter project to copy.
+        #[arg(long, default_value = "narrated", value_parser = ["narrated", "math-explainer"])]
+        template: String,
     },
     /// Diagnose GPU, font, audio muxing, and MP4 encoder availability.
     Doctor,
@@ -201,6 +204,12 @@ enum Commands {
         input: PathBuf,
         #[command(flatten)]
         set: SetArgs,
+        /// Original scene file to show in the left column.
+        #[arg(long, conflicts_with = "cols")]
+        compare: Option<PathBuf>,
+        /// Compare this named scene at scene-local times in both files.
+        #[arg(long, requires = "compare")]
+        scene: Option<String>,
         /// Number of columns in the grid (default: auto, up to 4)
         #[arg(short = 'c', long)]
         cols: Option<usize>,
@@ -451,8 +460,16 @@ fn dispatch_video(args: VideoArgs, extensions: &CliExtensions) {
 
 fn dispatch(command: Commands, extensions: &CliExtensions) {
     match command {
-        Commands::Init { directory } => {
-            match animatix_render::delivery::create_project(&directory) {
+        Commands::Init {
+            directory,
+            template,
+        } => {
+            let create = if template == "math-explainer" {
+                animatix_render::delivery::create_math_explainer_project
+            } else {
+                animatix_render::delivery::create_project
+            };
+            match create(&directory) {
                 Ok(scene) => println!("Created {}", scene.display()),
                 Err(err) => {
                     eprintln!("Could not create a project in {}: {err}", directory.display());
@@ -561,6 +578,8 @@ fn dispatch(command: Commands, extensions: &CliExtensions) {
         Commands::Storyboard {
             input,
             set,
+            compare,
+            scene,
             cols,
             tile_width,
             tile_height,
@@ -575,6 +594,7 @@ fn dispatch(command: Commands, extensions: &CliExtensions) {
             commands::storyboard::run(
                 &input,
                 &set.set,
+                compare.as_deref().map(|path| (path, scene.as_deref())),
                 cols,
                 tile_width,
                 tile_height,

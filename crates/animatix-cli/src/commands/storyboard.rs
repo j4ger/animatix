@@ -8,6 +8,8 @@ use tracing::{error, info};
 
 use crate::build::{configured_resolution, load_and_build};
 use crate::extensions::CliExtensions;
+mod comparison;
+
 use crate::frame_source::{
     DEFAULT_TOLERANCE, FrameView, frame_ink_fraction, render_frame_observable,
 };
@@ -15,6 +17,7 @@ use crate::frame_source::{
 pub fn run(
     input: &Path,
     set: &[(String, String)],
+    compare: Option<(&Path, Option<&str>)>,
     cols: Option<usize>,
     tile_width: Option<u32>,
     tile_height: Option<u32>,
@@ -27,21 +30,41 @@ pub fn run(
     output: Option<PathBuf>,
     extensions: &CliExtensions,
 ) {
-    match render_storyboard(
-        input,
-        set,
-        cols,
-        tile_width,
-        tile_height,
-        max_width,
-        min_ink,
-        fast,
-        times,
-        max_frames,
-        debug_bounds,
-        output,
-        extensions,
-    ) {
+    let result = if let Some((before, scene)) = compare {
+        comparison::render(
+            before,
+            input,
+            scene,
+            set,
+            tile_width,
+            tile_height,
+            max_width,
+            min_ink,
+            fast,
+            times,
+            max_frames,
+            debug_bounds,
+            output,
+            extensions,
+        )
+    } else {
+        render_storyboard(
+            input,
+            set,
+            cols,
+            tile_width,
+            tile_height,
+            max_width,
+            min_ink,
+            fast,
+            times,
+            max_frames,
+            debug_bounds,
+            output,
+            extensions,
+        )
+    };
+    match result {
         Ok((output_file, frame_count)) => {
             println!("Storyboard saved to {} ({} frames)", output_file.display(), frame_count);
         },

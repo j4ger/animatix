@@ -14,7 +14,12 @@ pub(crate) struct RuleRun {
     pub skipped_rules: Vec<String>,
 }
 
-pub(crate) fn evaluate(facts: &ReviewFacts, markers: &MarkerSet, policy: Policy) -> RuleRun {
+pub(crate) fn evaluate(
+    facts: &ReviewFacts,
+    markers: &MarkerSet,
+    policy: Policy,
+    min_text_height: Option<f64>,
+) -> RuleRun {
     let mut issues = Vec::new();
     let mut skipped = 0usize;
     let mut skipped_rules = Vec::new();
@@ -29,6 +34,9 @@ pub(crate) fn evaluate(facts: &ReviewFacts, markers: &MarkerSet, policy: Policy)
     rule_scene_duration(facts, &mut issues);
     rule_actor_draw_missing(facts, &mut issues);
     rule_plot_empty_path(facts, &mut issues);
+    if facts.display_width.is_some() {
+        rule_text_size_at_display(facts, min_text_height, &mut issues);
+    }
 
     for invalid in &markers.invalid {
         issues.push(RuleIssue {
@@ -142,7 +150,7 @@ pub(crate) fn evaluate(facts: &ReviewFacts, markers: &MarkerSet, policy: Policy)
     RuleRun {
         issues: final_issues,
         skipped,
-        checked: 16 + if render_ready { 7 } else { 0 },
+        checked: 16 + usize::from(facts.display_width.is_some()) + if render_ready { 7 } else { 0 },
         skipped_rules,
     }
 }

@@ -45,7 +45,8 @@ pub use image::{
 };
 #[cfg(feature = "raster-encode")]
 pub use storyboard::{
-    StoryboardSettings, render_storyboard_composition, render_storyboard_timeline,
+    StoryboardSettings, render_storyboard_comparison, render_storyboard_composition,
+    render_storyboard_timeline,
 };
 
 #[cfg(feature = "video")]

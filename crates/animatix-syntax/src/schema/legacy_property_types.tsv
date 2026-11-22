@@ -140,3 +140,6 @@
 137	end	Num
 138	text_anchor	Str
 139	max_item_width	Num
+140	role	Str
+141	x_ticks	List<Num>
+142	y_ticks	List<Num>

@@ -42,6 +42,10 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         for setting in settings {
+            if setting.name == "style" {
+                self.apply_explainer_style_config(&setting.value, diagnostics);
+                continue;
+            }
             if setting.name == "runtime_inputs" {
                 self.runtime_input_names = super::runtime_input_config::parse_runtime_input_names(
                     &setting.value,

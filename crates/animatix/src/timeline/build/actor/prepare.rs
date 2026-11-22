@@ -303,6 +303,7 @@ impl Timeline {
                 grid: false,
                 ticks: false,
                 tick_labels: "auto".to_string(),
+                axis_options: Default::default(),
             };
             if let Some(host_id) = self.world.tracks.get_id(label) {
                 self.set_coordinate_frame(host_id, frame.clone());

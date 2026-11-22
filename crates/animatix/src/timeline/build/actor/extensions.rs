@@ -577,7 +577,15 @@ impl Timeline {
         }
 
         for (child_label, sx, sy, text) in tick_actors {
-            self.spawn_plot_label(label, &child_label, [sx, sy], text, time_ms, diagnostics);
+            self.spawn_plot_label_with_size(
+                label,
+                &child_label,
+                [sx, sy],
+                text,
+                tick_data.font_size,
+                time_ms,
+                diagnostics,
+            );
         }
     }
 
@@ -590,12 +598,40 @@ impl Timeline {
         time_ms: f64,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let props = [
+        self.spawn_plot_label_with_size(parent, label, [x, y], text, None, time_ms, diagnostics);
+    }
+
+    #[allow(clippy::too_many_arguments)] // Generated plot label inputs.
+    fn spawn_plot_label_with_size(
+        &mut self,
+        parent: &str,
+        label: &str,
+        [x, y]: [f64; 2],
+        text: String,
+        font_size: Option<f64>,
+        time_ms: f64,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let mut props = vec![
             Property::new("text", Expr::Str(text)),
             Property::new("at", Expr::Tuple(vec![Expr::Num(x), Expr::Num(y)])),
-            Property::new("font_size", Expr::Num(10.0)),
-            Property::new("color", Expr::Path(vec!["text".into(), "muted".into()])),
+            Property::new("font_size", Expr::Num(font_size.unwrap_or(10.0))),
+            Property::new(
+                "color",
+                Expr::Path(vec![
+                    "text".into(),
+                    if font_size.is_some() {
+                        "secondary"
+                    } else {
+                        "muted"
+                    }
+                    .into(),
+                ]),
+            ),
         ];
+        if font_size.is_some() {
+            props.push(Property::new("role", Expr::Str("note".into())));
+        }
         // The text builder already reports declaration diagnostics.
         let _ = self.process_text_actor_decl(
             "Text",
