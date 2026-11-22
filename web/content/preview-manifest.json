@@ -82,7 +82,7 @@
       "audio": false,
       "parameters": "authored defaults",
       "renderer": "native CLI video at authored 1280x720; H.264 24 fps, fast-start MP4",
-      "source_sha256": "9343e2215aad79cd9842c272ed09017ef314ac8710d1b2abff40f4c19932b36c",
+      "source_sha256": "b4a112ff6770c8956a30de4e2b101db97641d120c8f0951cb17450adb022cc4b",
       "poster_sha256": "cb80670df0dc50354d210d8870a6300310505c888c753a00ea636c0fe1205e80",
       "recording_sha256": "6bff9aef4434cc026be082cfb22efe552cbfbcda995b3bd4b47bfcd3dc00cb93"
     }
@@ -172,9 +172,9 @@
       "poster_time_seconds": 7,
       "width": 1280,
       "height": 720,
-      "renderer": "native CLI image with SwiftShader",
+      "renderer": "native CLI image at authored 1280x720",
       "source_sha256": "a5e7fbc65037f9ce4bffb8a7f379562c72d54b676f3fcd4d7e584e815381072e",
-      "poster_sha256": "0a0887aa00452977c7ffd67e934fb9babf88358a81313571b819720ca48614a5"
+      "poster_sha256": "7959e053e21759664ceba95564713492261a8e00783124ce8b48d58358801d7a"
     },
     {
       "id": "technique-labels",
@@ -185,7 +185,7 @@
       "height": 720,
       "renderer": "native CLI image at authored 1280x720",
       "source_sha256": "f313adb425b6a53dd7178475e55d2205bf05a49238211c5377a787a2280ab210",
-      "poster_sha256": "4f484f0c9f91e28f9329de0cd573530ee46978c82037d1d4b6157fd211284a53"
+      "poster_sha256": "621c92dc57690ddc873861adf89aa5ee5084fe02d459ac9a7383133046f5a425"
     },
     {
       "id": "technique-reveal",
@@ -194,9 +194,9 @@
       "poster_time_seconds": 7,
       "width": 1280,
       "height": 720,
-      "renderer": "native CLI image with SwiftShader",
+      "renderer": "native CLI image at authored 1280x720",
       "source_sha256": "70199c264aa46943b5d7455a454028287fe5f9a0fa3786b6f5bfdb4a41b737ac",
-      "poster_sha256": "d77509a8d40dd5d19ca4bdcefb419a94bc4a9c4badf774b7f13c0b27aa5358fa"
+      "poster_sha256": "d4751a217a5e2e2631f217f740b54a898bfc5edbf453b58a5cd1665e5d909763"
     },
     {
       "id": "technique-stagger",
@@ -205,12 +205,12 @@
       "poster_time_seconds": 7,
       "width": 1280,
       "height": 720,
-      "renderer": "native CLI image with SwiftShader",
+      "renderer": "native CLI image at authored 1280x720",
       "source_sha256": "4fb3ae304df4fbcb90a6d15b5cf67fe7ca8ae709a24fb2115ec1c09918e3e479",
-      "poster_sha256": "1a64f2c34edc961f34b4b08db136e11cafea95bf7ddafad00459d0fff8874f24"
+      "poster_sha256": "ec36516d42644bc57ff2a3ac1844256e88cd17c4cdff92e5259cde6f2f8fce31"
     }
   ],
   "source_modules": {
-    "templates/layout.amx": "3fce5c7c17a1e1ca11515e6b57fc406f4a70be813243a05fe4b1c3bb235d0b96"
+    "templates/layout.amx": "09754a9b34b4d4d353184382572c380759006394853ad05c32d3d167cab5d775"
   }
 }

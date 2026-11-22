@@ -18,13 +18,15 @@ let step_y = if stacked() { card_height + gap } else { 0 }
 
 #0s
   backdrop: Backdrop
+  fill_light: FocusWash, at: (first_x + step_x, first_y + step_y),
+    tint: lerp_color(surface.secondary, accent.primary, 0.24), strength: 0.10
   head: ChapterHeader, eyebrow: "ENGINEERING UPDATE", heading: heading
   tests: MetricCard, label: "TEST COVERAGE", value: passing, detail: "Checks passing",
     width: card_width, height: card_height, at: (first_x, first_y), opacity: 0
   performance: MetricCard, label: "P95 LATENCY", value: latency, detail: "Budget · 200 ms",
     width: card_width, height: card_height, at: (first_x + step_x, first_y + step_y), opacity: 0
   review: MetricCard, label: "RELEASE REVIEW", value: reviews, detail: "Blocking approval", ink: accent.warning,
-    width: card_width, height: card_height, at: (first_x + 2 * step_x, first_y + 2 * step_y), opacity: 0
+    width: card_width, height: card_height, at: (first_x + 2 * step_x, first_y + 2 * step_y), raised: true, opacity: 0
   summary: Text, text: takeaway, role: body, text_anchor: "left",
     text_max_width: content_width(), at: (theme.margin, takeaway_y()), opacity: 0
   fade_in(target: tests, duration: 350ms)

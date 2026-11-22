@@ -70,6 +70,11 @@ keyframe or a value already used by the scene, and `strength: 0` makes it
 transparent. The Wash's `reach` scales with the canvas on each axis. Both
 components are static unless the source animates them.
 
+Set `raised: true` on a `MetricCard` to add a shallow shadow to its plate.
+The metric brief uses this on the review card and keeps the text outside
+the shadow. The four technique lessons use the shared static background
+from `TechniqueStage`.
+
 Edit the content bindings near the top of `main.amx`, or override them for a
 single-scene preview. For example:
 

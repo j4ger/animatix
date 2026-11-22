@@ -71,11 +71,14 @@ pub component ExplainerLayout(eyebrow: Str, heading: Str, takeaway: Str, with_no
   }
 }
 
-pub component MetricCard(label: Str, value: Str, detail: Str, width: Num, height: Num, ink: Color = text.primary) {
+pub component MetricCard(label: Str, value: Str, detail: Str, width: Num, height: Num,
+  ink: Color = text.primary, raised: Bool = false) {
   card: Group {
     plate: Rect, size: (width, height), color: surface.primary,
       stroke: lerp_color(surface.primary, text.secondary, 0.3),
-      stroke_width: unit(), corner_radius: theme.radius
+      stroke_width: unit(), corner_radius: theme.radius,
+      shadow: if raised { (0, 6 * unit(), 16 * unit(), 0) } else { (0, 0, 0, 0) },
+      shadow_color: (0, 0, 0, 0.24)
     card_label: Text, text: label, role: note, text_anchor: "left",
       text_max_width: width - 2 * theme.inset, at: (theme.inset - width / 2, -height * 0.29)
     card_value: Text, text: value, role: metric, color: ink, text_anchor: "left",
@@ -95,6 +98,7 @@ pub component NarrationStep(label: Str, width: Num) {
 // A lesson frame keeps the demonstration's timed actors at scene scope.
 pub component TechniqueStage(topic: Str, heading: Str, takeaway: Str = "") {
   stage: Group, at: (0, 0) {
+    floor: Backdrop, strength: 0.28
     head: ChapterHeader, eyebrow: topic, heading: heading
     for index in range(0, if takeaway != "" { 1 } else { 0 }) {
       footer: SceneCaption, text: takeaway

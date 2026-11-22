@@ -25,8 +25,7 @@ fn grow_prefix(line: Actor, count: Num) {
 }
 
 #0s
-  backdrop: Rect, anchor: scene.center, size: (scene_width, scene_height),
-    fill_gradient: radial((0.30, 0.32), 0.9, {surface.primary, scene.background})
+  backdrop: Backdrop, tint: surface.primary, center: (0.30, 0.32), strength: 1
   caption: SceneCaption, at: (scene_width / 2, 103), text: "Start with one sorted item. Insert the next."
   prefix: Rect, at: slot(0, underline_y), size: (width, 5), color: accent.success
   stats: Col, at: (83%, 54%), gap: theme.gap * 0.65, align: "start" {

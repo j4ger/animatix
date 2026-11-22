@@ -12,8 +12,7 @@ let domain = (0, 15)
 let pressure = (-1.2, 1.2)
 
 #0s
-  backdrop: Rect, anchor: scene.center, size: (scene_width, scene_height),
-    fill_gradient: radial((0.76, 0.2), 0.9, {surface.secondary, scene.background})
+  backdrop: Backdrop, center: (0.76, 0.2), strength: 1
   signals: Col, anchor: scene.center, offset: (0, -36), gap: 10, align: "start" {
     legend: Row, gap: 32, align: "center" {
       train: SignalKey, label: "Train rumble", ink: accent.warning

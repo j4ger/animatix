@@ -23,13 +23,19 @@ include the first frame, main cues and resting composition.
 7. **Give the animation a progression.** A useful starting structure is hook
    (0–20%), mechanism (20–75%) and assembled payoff (75–100%). Adapt it to the idea;
    do not add a decorative effect merely to fill the final act.
-8. **Choose a palette per work.** Prefer a coherent colorscheme; older examples
-   use `examples/lib/theme.amx`, but new work need not import that library. Glass should reveal useful content beneath it, not become
-   the default container for every element.
+8. **Choose a palette per work.** Derive the backdrop, surfaces, and accents
+   from the scene's colorscheme. Use Glass where it can reveal useful content
+   beneath it.
 
-Older shared scene building blocks live in `examples/lib/stage.amx` (`StageFloor`,
-`ActHead`, `Caption`, `Readout`) and `examples/lib/ambience.amx` (`Ambience`). They are optional example resources, not the Astro site's
-required design system. Reuse a suitable component when it serves the work.
+The [shared layout library](content/templates/layout.amx) supplies the
+background, heading, and caption treatment for the technique lessons. Use
+`Backdrop` for a static gradient and `FocusWash` when a subject needs local
+separation. Keep any movement tied to an authored cue. Reserve shadows for
+surfaces with a clear elevation, such as a raised metric card. Keep diagram
+marks and small type sharp. Over a busy background, start with a stable
+contrast treatment such as a caption plate. The [effects guide](../docs/effects.md)
+describes optional fixed grain for backgrounds.
+
 Frame-time readouts can update text inside `always`; review them in both playback
 and an offline storyboard.
 
