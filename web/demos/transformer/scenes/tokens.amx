@@ -21,7 +21,7 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 7.8 }
 let seq = 5
 
 // 5 columns × 5 sampled cells stand in for 768 dimensions.
-let cells = (0, 25)
+let cells = range(0, 25)
 
 // ── the stage ───────────────────────────────────────────────────────
 floor: StageFloor, glow: 1.35

@@ -41,7 +41,7 @@ chip_cross: Chip, label: "cross"
 
 rows: Band, label: "EMBEDDING ROWS (W_E) · 768 FLOAT32 COORDINATES", at: (640, 520), opacity: 0 {
 @row {
-for i in {0, 1, 2, 3, 4} {
+for i in range(0, 5) {
 cell[i]: Rect, size: (200, 40), corner_radius: 8, color: accent.primary, opacity: 0.35 + i * 0.15
     }
   }

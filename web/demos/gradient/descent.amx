@@ -67,7 +67,7 @@ let px = x0
 
 let py = y0
 
-for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} {
+for i in range(0, 48) {
   let nx = if i < steps { px - (lr * 4) * px } else { px }
   let ny = if i < steps { py - (lr * 2) * py } else { py }
   seg[i]: Line, from: (480 + px * 80, 445 - py * 80), to: (480 + nx * 80, 445 - ny * 80), stroke: accent.primary, stroke_width: 2.8, opacity: 0
@@ -156,7 +156,7 @@ eq_lr: Text, text: format("lr = {:.2}", lr), font_size: 16, font_family: "mono",
   fade_out(target: first_label, duration: 0.24s, ease: ease_in)
   fade_out(target: first_dot, duration: 0.24s, ease: ease_in)
   fade_in(target: path_label, duration: 0.36s, delay: 0.22s, ease: expo_out)
-  for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} [step: 0.032s] {
+  for i in range(0, 48) [step: 0.032s] {
       draw_in(target: seg[i], duration: 0.11s, ease: expo_out)
       fade_in(target: dot[i], duration: 0.09s, ease: expo_out)
     }

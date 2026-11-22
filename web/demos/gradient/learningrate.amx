@@ -6,6 +6,8 @@ import "../../../examples/lib/stage.amx"
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 10 }
 
+let sample_indices = range(0, 48)
+
 let lr = 0.1
 
 let steps = 24
@@ -60,7 +62,7 @@ let gold = hex_color("f4d47b")
   comparison_note: Text, opacity: 1, text: if lr == r_right { "L(x, y) = 2x² + y²   ·   Gold and coral share the same rate." } else { if lr == r_left { "L(x, y) = 2x² + y²   ·   Gold and cyan share the same rate." } else { "L(x, y) = 2x² + y²   ·   Each dot is one update." } }, font_size: 18, color: hex_color("90a4b8"), text_anchor: "left", at: (64, 678)
   let lx = x0
   let ly = y0
-  for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} {
+  for i in sample_indices {
       let nx = if i < steps { lx - (r_left * 4) * lx } else { lx }
       let ny = if i < steps { ly - (r_left * 2) * ly } else { ly }
       if i < steps {
@@ -72,7 +74,7 @@ let gold = hex_color("f4d47b")
     }
   let rx = x0
   let ry = y0
-  for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} {
+  for i in sample_indices {
       let nx = if i < steps { rx - (r_right * 4) * rx } else { rx }
       let ny = if i < steps { ry - (r_right * 2) * ry } else { ry }
       if i < steps {
@@ -84,7 +86,7 @@ let gold = hex_color("f4d47b")
     }
   let mx = x0
   let my = y0
-  for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} {
+  for i in sample_indices {
       let nx = if i < steps { mx - (lr * 4) * mx } else { mx }
       let ny = if i < steps { my - (lr * 2) * my } else { my }
       if i < steps {
@@ -106,7 +108,7 @@ let gold = hex_color("f4d47b")
       selected_halo.at = selected_dot.at
       step_value.text = if n == 0 { "Before the first update," } else { if n == 1 { "After 1 update," } else { format("After {:.0} updates,", n) } }
       loss_value.text = if ratio < 0.001 { "<0.1% remains" } else { format("{:.1}% remains", ratio * 100) }
-      for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} {
+      for i in sample_indices {
             if i < steps {
                     lseg[i].opacity = if n > i { 1 } else { 0 }
                     ldot[i].opacity = if n > i { 1 } else { 0 }

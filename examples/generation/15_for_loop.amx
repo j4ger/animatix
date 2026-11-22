@@ -6,6 +6,8 @@ import "../lib/theme.amx" as theme
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
+let dot_indices = range(0, 6)
+
 title: Text, text: "For Loop Gallery", font_size: 48, color: text.primary, anchor: scene.top, offset: (0, 60)
 
 sub: Text, text: "for inside always drives per-frame motion", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 110)
@@ -18,7 +20,7 @@ sub: Text, text: "for inside always drives per-frame motion", font_size: 20, col
   p4: Ellipse, size: (50, 50), color: accent.primary, at: (720, 400)
   p5: Ellipse, size: (50, 50), color: accent.success, at: (840, 400)
   always {
-      for i in {0, 1, 2, 3, 4, 5} {
+      for i in dot_indices {
             let offset_y = 80 * sin(t * 2 + i * 1.047)
             if i == 0 {
                     p0.at = (240, 400 + offset_y)

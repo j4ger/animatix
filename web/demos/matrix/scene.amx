@@ -30,6 +30,8 @@ import "../../../examples/lib/stage.amx"
 
 config { colorscheme: "moss", resolution: (1280, 720), duration: 23 }
 
+let grid_indices = range(-3, 4)
+
 // The slider target: the extra rotation (degrees) carried by the middle act.
 let theta = 0
 
@@ -100,7 +102,7 @@ grid_card: Rect, size: (600, 480), corner_radius: 18, color: surface.primary, st
 bloom: Ellipse, size: (700, 540), blend: "screen", opacity: 0, fill_gradient: radial((0.5, 0.5), 0.7, {(0%, accent.primary * 0.32), (55%, accent.primary * 0.1), (100%, (0, 0, 0, 0))})
   // Seven vertical and seven horizontal grid lines, declared on the identity.
   // `always` applies the composed matrix to every endpoint.
-for gx, i in {-3, -2, -1, 0, 1, 2, 3} {
+for gx, i in grid_indices {
 gv[i]: Line, from: (cx + s * gx, cy - s * 2.4), to: (cx + s * gx, cy + s * 2.4), stroke: stroke.default, stroke_width: 1.3, opacity: 0.75
   }
 for gy, i in {-2.4, -1.6, -0.8, 0, 0.8, 1.6, 2.4} {
@@ -156,7 +158,7 @@ j_t: Text, text: "j", font_size: 22, color: accent.info, at: (cx + 16, (cy - s) 
       let m21 = dd * si
       let m22 = dd * (si * k + co)
       // Vertical grid lines: x = gx, y sweeps -2.4 … 2.4.
-      for gx, i in {-3, -2, -1, 0, 1, 2, 3} {
+      for gx, i in grid_indices {
             gv[i].from = (cx + s * (m11 * gx + m12 * -2.4), cy - s * (m21 * gx + m22 * -2.4))
             gv[i].to = (cx + s * (m11 * gx + m12 * 2.4), cy - s * (m21 * gx + m22 * 2.4))
           }

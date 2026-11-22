@@ -9,7 +9,7 @@ let project = (x, y, shear) => (unit * (x + shear * y), 0 - unit * y)
     fill_gradient: radial((0.25, 0.28), 0.9, {surface.secondary, scene.background})
   plane: Group, at: (35%, 53%) {
     lattice: Group, opacity: 0 {
-      for n, i in {-2, -1, 0, 1, 2} {
+      for n, i in range(-2, 3) {
         vertical[i]: Line, from: project(n, -2, 0), to: project(n, 2, 0), opacity: 0.26
         horizontal[i]: Line, from: project(-2, n, 0), to: project(2, n, 0), opacity: 0.26
       }

@@ -20,7 +20,7 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 8.2 }
 
 let stages = 12
 
-let stage_span = (0, stages)
+let stage_span = range(0, stages)
 
 // ── the stage ───────────────────────────────────────────────────────
 floor: StageFloor, glow: 1.35

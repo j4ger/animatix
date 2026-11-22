@@ -6,7 +6,7 @@ let starts_with_cascade = start_pattern == 1
 let columns = 8
 let rows = 6
 let count = columns * rows
-let tile_indices = (0, count)
+let tile_indices = range(0, count)
 let cell = (64, 64)
 let ripple_delay = 0.28
 let cascade_delay = 0.14

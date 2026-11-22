@@ -22,6 +22,9 @@ import "../../../examples/lib/stage.amx"
 
 config { colorscheme: "coral", resolution: (1280, 720), duration: 9 }
 
+let bar_indices = range(0, 14)
+let needle_indices = range(0, 13)
+
 // The slider targets. `tilt` is the authored angle in degrees; the pitch below
 // carries a 1.4x share so the pair reads as one tilted surface.
 let tilt = 10
@@ -116,11 +119,11 @@ desc: Text, text: "The field behind it dissolves; the type on it does not.", fon
       // The field never stops: per-bar phase offsets make a travelling wave, and the
       // needles drift on a slower counter-orbit so the blur reads as motion, not as
       // a frozen grey plate.
-      for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13} {
+      for i in bar_indices {
             bars[i].shift = (16 * sin(t * 0.52 + i * 0.45), 22 * sin(t * 0.83 + i * 0.62))
             bars[i].scale = 1 + 0.06 * sin(t * 0.9 + i * 0.55)
           }
-      for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12} {
+      for i in needle_indices {
             needles[i].shift = (11 * sin(t * 0.61 + i * 0.8), 30 * sin(t * 0.74 + i * 0.5))
             needles[i].opacity = 0.55 + 0.3 * (0.5 + 0.5 * sin(t * 1.1 + i * 0.9))
           }

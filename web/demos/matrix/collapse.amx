@@ -21,6 +21,8 @@ import "../../../examples/lib/stage.amx"
 
 config { colorscheme: "moss", resolution: (1280, 720), duration: 10 }
 
+let grid_indices = range(-3, 4)
+
 // The slider target: how far past −1 the flip goes.
 let collapse = 0
 
@@ -81,7 +83,7 @@ bloom: Ellipse, size: (700, 540), blend: "screen", opacity: 0, fill_gradient: ra
   // Seven vertical and seven horizontal grid lines. The verticals never move;
   // the horizontals are scaled by d in `always`, so the whole field collapses
   // toward y = 0 and re-emerges flipped.
-for gx, i in {-3, -2, -1, 0, 1, 2, 3} {
+for gx, i in grid_indices {
 gv[i]: Line, from: (cx + s * gx, cy - s * 2.4), to: (cx + s * gx, cy + s * 2.4), stroke: stroke.default, stroke_width: 1.3, opacity: 0.75
   }
 for gy, i in {-2.4, -1.6, -0.8, 0, 0.8, 1.6, 2.4} {
@@ -126,7 +128,7 @@ j_t: Text, text: "j", font_size: 22, color: accent.info, at: (cx + 16, (cy - s) 
       let c = 0
       let d = dd
       // Vertical grid lines: x = gx, y = ±2.4 scaled by d.
-      for gx, i in {-3, -2, -1, 0, 1, 2, 3} {
+      for gx, i in grid_indices {
             gv[i].from = (cx + s * gx, cy - (s * 2.4) * d)
             gv[i].to = (cx + s * gx, cy + (s * 2.4) * d)
           }

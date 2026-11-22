@@ -74,10 +74,10 @@ cap3: Caption, text: format("Act III · Ascending — {:.0} comparisons, 15 swap
 
 // ── the build-time sort ─────────────────────────────────────────────
 fn insertion_sort(values: List<Num>) {
-  return #{ let order = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
-  for key in {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} [step: 1.8s] {
+  return #{ let order = range(0, 12)
+  for key in range(1, 12) [step: 1.8s] {
     if key < n {
-        for j in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10} [step: 0.15s] {
+        for j in range(0, 11) [step: 0.15s] {
               if j < key {
                       if values[order[key - j]] < values[order[(key - j) - 1]] {
                                 // Absolute bars are not layout-managed children, so `swap` is not

@@ -18,7 +18,7 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 8.2 }
 
 let expansion = 4
 
-let exp_span = (0, expansion)
+let exp_span = range(0, expansion)
 
 // ── the stage ───────────────────────────────────────────────────────
 floor: StageFloor, glow: 1.3

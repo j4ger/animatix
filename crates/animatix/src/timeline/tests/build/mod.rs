@@ -7,5 +7,6 @@ mod declaration_tail;
 mod format;
 mod graph;
 mod opacity_lifecycle;
+mod ranges;
 mod support;
 mod text;

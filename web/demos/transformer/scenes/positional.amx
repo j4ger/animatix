@@ -21,7 +21,7 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 7.4 }
 
 let wavelength = 24
 
-let cells = (0, 32)
+let cells = range(0, 32)
 
 // ── the stage ───────────────────────────────────────────────────────
 floor: StageFloor, glow: 1.25

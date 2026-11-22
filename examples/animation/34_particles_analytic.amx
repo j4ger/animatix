@@ -4,6 +4,9 @@ import "../lib/stage.amx"
 
 config { colorscheme: "neon-night", resolution: (1280, 720), duration: 6 }
 
+let spark_indices = range(0, 18)
+let mote_indices = range(0, 12)
+
 floor: StageFloor
 
 head: ActHead, kicker: "VISUAL · PARTICLES", title: "Analytic particles", sub: "Particle physics visualization."
@@ -14,11 +17,11 @@ glow: Ellipse, size: (620, 620), at: (640, 380), fill_gradient: radial((0.5, 0.5
 
 origin: Ellipse, size: (14, 14), at: (640, 380), color: hex_color("ffe9c7")
 
-for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17} {
+for i in spark_indices {
   spark[i]: Ellipse, size: (14, 14), at: (640, 380), color: hex_color("ffd60a"), opacity: 1
 }
 
-for j in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
+for j in mote_indices {
   mote[j]: Ellipse, size: (4, 4), at: (640, 360), color: hex_color("64d2ff"), opacity: 1
 }
 
@@ -30,7 +33,7 @@ for j in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
   pop_in(target: origin, duration: 0.3s)
   always {
       let age = clamp(t - 0.6, 0, 2.4)
-      for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17} {
+      for i in spark_indices {
             let dir = seeded_noise(i * 1.37, 0.5) * 6.28318
             let speed = 180 + seeded_noise(i * 2.11, 9) * 340
             let reach = speed * age
@@ -41,7 +44,7 @@ for j in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
           }
       let period = 6
       let phase = ((t % period) / period) * 6.28318
-      for j in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
+      for j in mote_indices {
             let seed = j * 3.71
             let bx = 200 + seeded_noise(seed, 1) * 380
             let by = 140 + seeded_noise(seed, 2) * 440

@@ -297,6 +297,9 @@ play Hero [wipe-left, 500ms]
 
 config { colorscheme: "orchid", dynamic_layout: true, duration: 11.8 }
 
+let odd_harmonics = range(1, 12, step: 2)
+let higher_harmonics = range(3, 12, step: 2)
+
 // The slider target: `--set harmonics=N` (1..6) chooses how many odd chains draw.
 let harmonics = 4
 
@@ -344,7 +347,7 @@ hero_hub: Ellipse, size: (11, 11), color: accent.secondary, at: (geo::pivot_x, g
 // scale on both its time beat and the `harmonics` count. Declaring all six and
 // gating them keeps the for-loop structural while the slider decides how many
 // actually draw.
-for k, i in {1, 3, 5, 7, 9, 11} {
+for k, i in odd_harmonics {
   ring[i]: Ellipse, size: ((2 * geo::R) / k, (2 * geo::R) / k), stroke: cols[i], fill_opacity: 0, stroke_width: 2, at: (geo::pivot_x, geo::cy), opacity: 0
   arm[i]: Line, from: (geo::pivot_x, geo::cy), to: (geo::pivot_x, geo::cy), stroke: cols[i], stroke_width: 1.5, opacity: 0
 }
@@ -384,7 +387,7 @@ hero_axis: Text, text: "θ — the chain's history, newest under the ball", font
 // evaluation.
 eq_row: Row, at: (640, 178), gap: 10, align: "center", opacity: 1 {
 eq_1: Text, text: "y(x) = sin x", font_size: 22, color: accent.info, opacity: 1
-for k, i in {3, 5, 7, 9, 11} {
+for k, i in higher_harmonics {
 eqt[i]: Text, text: format("+ sin {:.0}x/{:.0}", k, k), font_size: 22, color: cols[i + 1], opacity: if i < harmonics - 1 { 1 } else { 0 }
   }
 }
@@ -459,7 +462,7 @@ chip_a: Readout, label: "AMPLITUDE", value: "1.00", at: (1140, 613), opacity: 0
       let cx = geo::pivot_x
       let cy = geo::cy
       let sum = 0
-      for k, i in {1, 3, 5, 7, 9, 11} {
+      for k, i in odd_harmonics {
             ring[i].at = (cx, cy)
             arm[i].from = (cx, cy)
             let reach = wts[i] * rad[i]
@@ -479,7 +482,7 @@ chip_a: Readout, label: "AMPLITUDE", value: "1.00", at: (1140, 613), opacity: 0
           }
       tip.at = (cx, cy)
       // The equation row is the same gate as the chain, one term per harmonic.
-      for k, i in {3, 5, 7, 9, 11} {
+      for k, i in higher_harmonics {
             eqt[i].opacity = wts[i + 1]
           }
       // Bound to names because a path-call (`hero_graph.map(…)`) rejects binary
@@ -547,20 +550,20 @@ spec_axis: Text, text: "a(k)", font_size: 16, font_family: "mono", color: text.m
 // The odd bars. Six are declared; height collapses to zero for the terms
 // beyond `harmonics`, so the slider changes the drawn field without a second
 // declaration set.
-for k, i in {1, 3, 5, 7, 9, 11} {
+for k, i in range(1, 12, step: 2) {
   let h = if i < harmonics { bar_h_max / k } else { 0 }
   bars[i]: Rect, size: (bar_w, h), color: cols[i], at: (slot_x0 + (2 * i + 0.5) * slot_w, base_y - h / 2), opacity: 0
 }
 
 // The even slots: zero-height ticks rather than nothing, so "only odd" is a
 // visible rhythm instead of an assertion.
-for k, i in {2, 4, 6, 8, 10} {
+for k, i in range(2, 11, step: 2) {
   ghost[i]: Rect, size: (bar_w, 2), color: text.muted, at: (slot_x0 + (k - 0.5) * slot_w, base_y - 1), opacity: 0.32
 }
 
 // One label per slot. The even labels are muted; the odd labels carry their
 // harmonic's hue, matching the bar above them.
-for k, i in {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
+for k, i in range(1, 12) {
   lbl[i]: Text, text: format("{:.0}", k), font_size: 16, font_family: "mono", color: if k % 2 == 1 { accent.primary } else { text.muted }, text_anchor: "center", at: (slot_x0 + (k - 0.5) * slot_w, 548), opacity: 0.95
 }
 

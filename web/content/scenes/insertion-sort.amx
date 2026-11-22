@@ -16,7 +16,7 @@ pub component Card(value: Str, face: Color = surface.primary) {
   paper: Rect, anchor: scene.center, size: (scene_width, scene_height),
     fill_gradient: radial((0.25, 0.22), 0.9, {surface.primary, scene.background})
   caption: Text, anchor: scene.top, offset: (0, 91), text: "Where does 3 fit?", font_size: 36
-  for i in {0, 1, 2, 3} {
+  for i in range(0, 4) {
     let center = slot(i, row_y + card_size[1] / 2 + 18)
     let half = card_size[0] / 2 - 6
     marker[i]: Line, from: center - (half, 0), to: center + (half, 0),

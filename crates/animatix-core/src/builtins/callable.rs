@@ -465,6 +465,19 @@ fn utility_catalog() -> Vec<CallableDescriptor> {
             T::Color,
         ),
         descriptor("is_animating", vec![param("property", T::Any)], T::Bool),
+        CallableDescriptor {
+            help: "Generate integers from start up to (excluding) end. Use a negative step to descend."
+                .into(),
+            ..descriptor(
+                "range",
+                vec![
+                    param("start", T::Num),
+                    param("end", T::Num),
+                    opt("step", T::Num).with_default(D::Num(1.0)),
+                ],
+                T::List(Box::new(T::Num)),
+            )
+        },
         descriptor(
             "sum_range",
             vec![

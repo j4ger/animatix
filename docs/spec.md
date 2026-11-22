@@ -401,8 +401,7 @@ and stagger interval:
 
 ```animatix
 badge.opacity = 1 [400ms, ease: ease_out]
-let indices = (0, 4)
-for i in indices [step: 100ms] { ... }
+for i in range(0, 4) [step: 100ms] { ... }
 stagger [150ms] { ... }
 ```
 
@@ -1665,11 +1664,12 @@ The `for item, i in list` form binds both the element value and a zero-based
 index. Inside the body, `name[expr]: Type` declares an array actor element:
 `bars[i]` produces labels `bars__0`, `bars__1`, etc.
 
-A build-time loop can also take integer bounds from a binding. For example,
-`let indices = (0, 4)` followed by `for i in indices` visits `0`, `1`, `2` and `3`.
-Inside an `always` block, iterating that pair visits only its two values.
-To bind per-frame motion for every index in the interval, put the `always` block
-inside the build-time loop.
+`for i in range(0, 4)` visits `0`, `1`, `2` and `3` at build time or in an
+`always` block. To bind motion for a set of generated actors, iterate the
+same list when declaring them and when writing their `always` assignments.
+
+A bound numeric pair such as `(0, 4)` also expands to an integer interval in
+build-time loops. An `always` loop over that pair visits its two elements.
 
 Generated actors are first-class timeline actors — they support re-declaration
 morphing, property assignment, and all built-in timeline callables.
@@ -2466,6 +2466,23 @@ let x = pos[0]          // 100
 ```
 
 Supported: `List`, `Str` (char), `Vec2/3/4`, `Color`.
+
+### Integer Sequences
+
+`range(start, end, step: 1)` returns a `List<Num>` of integers. The first
+element is `start`. With a positive step, values are strictly below `end`.
+With a negative step, values descend and stay strictly above `end`.
+Equal bounds or a step pointing away from the end produce an empty list.
+
+```animatix
+let indices = range(0, 4)              // {0, 1, 2, 3}
+let odd = range(1, 8, step: 2)         // {1, 3, 5, 7}
+let reversed = range(5, -1, -2)        // {5, 3, 1}
+```
+
+Bounds and step must be finite integers between `-(2^53 - 1)` and
+`2^53 - 1`. A zero step or a result longer than 100,000 items produces an
+evaluation error.
 
 ### List Mutation Helpers
 

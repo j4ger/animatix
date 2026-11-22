@@ -505,11 +505,11 @@ fn register_random_fn(env: &mut Environment) {
     env.set("rand", Value::NativeFn(Arc::new(|_args, _env| Ok(Value::Num(fastrand::f64())))));
 }
 
-/// Σ_{k=lo}^{hi} f(k): invoke a single-parameter closure over an integer
-/// range and accumulate. Requires the caller env so the closure body can
-/// resolve the stdlib base (see docs/series_construction.md for why this
-/// is a NativeFn rather than an eval_shared fast-path builtin).
+/// Register integer sequences and sums.
 fn register_series_fn(env: &mut Environment) {
+    env.set("range", Value::NativeFn(Arc::new(|args, _env| integer_range(args))));
+
+    // sum_range needs the caller environment to resolve the callback's captures.
     env.set(
         "sum_range",
         Value::NativeFn(Arc::new(|args, env| {
@@ -572,6 +572,41 @@ fn register_series_fn(env: &mut Environment) {
             Ok(Value::Num(acc))
         })),
     );
+}
+
+fn integer_range(args: &[Value]) -> Result<Value, EvalError> {
+    const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
+    const MAX_ITEMS: i64 = 100_000;
+
+    expect_arg_count("range", args, 3)?;
+    let start = expect_num("range", &args[0])?;
+    let end = expect_num("range", &args[1])?;
+    let step = expect_num("range", &args[2])?;
+    for (name, value) in [("start", start), ("end", end), ("step", step)] {
+        if !(-MAX_SAFE_INTEGER..=MAX_SAFE_INTEGER).contains(&value) || value.fract() != 0.0 {
+            return Err(EvalError::TypeMismatch(format!(
+                "range {name} must be an integer between -{MAX_SAFE_INTEGER} and {MAX_SAFE_INTEGER}, got {value}"
+            )));
+        }
+    }
+    let (start, end, step) = (start as i64, end as i64, step as i64);
+    if step == 0 {
+        return Err(EvalError::TypeMismatch("range step must not be zero".into()));
+    }
+
+    // Safe-integer bounds leave room in i64 for the full distance and offsets.
+    let distance = if step > 0 { end - start } else { start - end };
+    if distance <= 0 {
+        return Ok(Value::List(Vec::new().into()));
+    }
+    let count = 1 + (distance - 1) / step.abs();
+    if count > MAX_ITEMS {
+        return Err(EvalError::TypeMismatch(
+            "range cannot generate more than 100,000 items".into(),
+        ));
+    }
+    let items = (0..count).map(|i| Value::Num((start + i * step) as f64)).collect::<Vec<_>>();
+    Ok(Value::List(items.into()))
 }
 
 fn sum_range_callable(

@@ -24,6 +24,9 @@ import "../../../examples/lib/stage.amx"
 
 config { colorscheme: "coral", resolution: (1280, 720), duration: 10 }
 
+let bar_indices = range(0, 11)
+let needle_indices = range(0, 10)
+
 // The slider targets, shared with glass.amx so the deck's two figures agree.
 let tilt = 10
 
@@ -137,11 +140,11 @@ chip_tilt: Readout, label: "LENS TILT", value: "10°", at: (1140, 176), opacity:
   // attribution, the frosted lens over its drifting field and both chips.
   always {
       // The field keeps moving under the lens for the whole loop.
-      for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10} {
+      for i in bar_indices {
             bars[i].shift = (13 * sin(t * 0.52 + i * 0.45), 18 * sin(t * 0.83 + i * 0.62))
             bars[i].scale = 1 + 0.06 * sin(t * 0.9 + i * 0.55)
           }
-      for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9} {
+      for i in needle_indices {
             needles[i].shift = (9 * sin(t * 0.61 + i * 0.8), 24 * sin(t * 0.74 + i * 0.5))
             needles[i].opacity = 0.55 + 0.3 * (0.5 + 0.5 * sin(t * 1.1 + i * 0.9))
           }

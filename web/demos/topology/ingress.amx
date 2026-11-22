@@ -18,6 +18,8 @@ import "../../../examples/lib/stage.amx"
 
 config { colorscheme: "tide", resolution: (1280, 720), duration: 9 }
 
+let client_indices = range(0, 4)
+
 // Slider target: `--set replicas=N` redraws the proxy fan-out (2..4 edge pods).
 let replicas = 3
 
@@ -48,13 +50,13 @@ zone_proxy: Text, text: "ENVOY PROXY POOL", font_size: 18, font_weight: 600, col
 zone_mesh: Text, text: "TRANSIT MESH", font_size: 18, font_weight: 600, color: text.secondary, at: (1095, 312), opacity: 1
 
 // ── client rows ─────────────────────────────────────────────────────
-for i in {0, 1, 2} {
+for i in range(0, 3) {
   client_row[i]: Rect, size: (224, 40), corner_radius: 9, color: surface.primary, stroke: stroke.default, stroke_width: 1.2, at: (185, 352 + i * 56), opacity: 1
   client_text[i]: Text, text: if i == 0 { "web · storefront" } else { if i == 1 { "mobile · app" } else { "partner · api" } }, font_size: 18, color: text.primary, at: (185, 352 + i * 56), opacity: 1
 }
 
 // ── the live proxy pool (replicas drives the drawn fan-out) ─────────
-for i in {0, 1, 2, 3, 4, 5} {
+for i in range(0, 6) {
   proxy_slot[i]: Rect, size: (304, 30), corner_radius: 9, color: if i < replicas { surface.primary } else { surface.secondary }, stroke: if i < replicas { accent.primary } else { stroke.default }, stroke_width: 1.4, at: (645, 318 + i * 34), opacity: if i < replicas { 1 } else { 0.18 }
   proxy_text[i]: Text, text: format("envoy-0{:.0} · TLS", i + 1), font_size: 18, color: if i < replicas { text.primary } else { text.muted }, at: (645, 318 + i * 34), opacity: if i < replicas { 1 } else { 0.02 }
 }
@@ -66,7 +68,7 @@ scan_bar: Rect, size: (288, 2), corner_radius: 1, color: accent.primary, at: (64
 proxy_policy: Text, text: "mTLS · rate limit · WAF", font_size: 16, color: text.muted, at: (645, 524), opacity: 0
 
 // ── transit rows ───────────────────────────────────────────────────
-for i in {0, 1, 2} {
+for i in range(0, 3) {
   mesh_row[i]: Rect, size: (224, 40), corner_radius: 9, color: surface.primary, stroke: stroke.default, stroke_width: 1.2, at: (1095, 352 + i * 56), opacity: 0
   mesh_text[i]: Text, text: if i == 0 { "api.v1 · sessions" } else { if i == 1 { "events.v1 · bus" } else { "billing.v1 · ledger" } }, font_size: 18, color: text.primary, at: (1095, 352 + i * 56), opacity: 0
 }
@@ -85,7 +87,7 @@ bloom_out: Path, commands: {move_to(815, 400), line_to(965, 400)}, stroke: accen
 // ── packet chips ───────────────────────────────────────────────────
 // Eight chips, four per rail. Their phase offsets keep a steady stream rather
 // than a convoy; at the resting frame they are still moving (house-style §2).
-for c in {0, 1, 2, 3} {
+for c in client_indices {
   chip_in[c]: Rect, size: (18, 8), corner_radius: 4, color: accent.primary, at: (315, 400), opacity: 1
   chip_out[c]: Rect, size: (16, 8), corner_radius: 4, color: accent.info, at: (815, 400), opacity: 1
 }
@@ -102,7 +104,7 @@ reps: Readout, label: "EDGE REPLICAS", value: format("×{:.0}", replicas), at: (
 // at their final values above and rewritten here for live counting only (the
 // storyboard shows the declared string, by design).
 always {
-  for c in {0, 1, 2, 3} {
+  for c in client_indices {
       let p = fract(t / 1.8 + c * 0.25)
       chip_in[c].at = (315 + 160 * p, 400)
       chip_in[c].opacity = clamp((0.96 - p) / 0.08, 0, 1)

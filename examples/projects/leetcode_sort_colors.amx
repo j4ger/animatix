@@ -24,7 +24,7 @@ head: ActHead, kicker: "LEETCODE · SORT COLORS", title: "Sort Colors"
 caption: Caption, text: "red 0 · white 1 · blue 2 — partition via zero/i/two pointers", tag: "leetcode"
 
 row: Row, at: (640, 440), gap: 16, align: "center" {
-for k in {0, 1, 2, 3, 4, 5} {
+for k in range(0, 6) {
 b[k]: Rect, size: (70, 60 + values[k] * 60), color: colors[values[k]]
   }
 }
@@ -39,11 +39,11 @@ two_p: Text, text: "▲ two", font_size: 18, color: accent.danger, at: (855, 590
 // `order[k]` = the original bar index at slot k; the pointers `zero`, `i`,
 // `two` index slots.
 fn dnf_pass(values: List<Num>) {
-  return #{ let order = {0, 1, 2, 3, 4, 5}
+  return #{ let order = range(0, 6)
   let zero = 0
   let i = 0
   let two = 5
-  for step in {0, 1, 2, 3, 4, 5, 6, 7} [step: 0.7s] {
+  for step in range(0, 8) [step: 0.7s] {
     if i <= two {
         zero_p.at = (425 + zero * 86, 250)[0.6s]
         i_p.at = (425 + i * 86, 218)[0.6s]

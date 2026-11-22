@@ -33,7 +33,7 @@ let tile_path = (i, progress) => {
   }
 
   // Sample one tile's path seven times for the light table.
-  for j in {0, 1, 2, 3, 4, 5, 6} {
+  for j in range(0, 7) {
     ghost[j]: Rect, size: (22, 18), corner_radius: 2, fill_opacity: 0, stroke: hex_color("78897e"), stroke_width: 2
     always {
       ghost[j].at = tile_path(stress * 12 + 7, smoothstep(0, 6, j))
@@ -42,8 +42,8 @@ let tile_path = (i, progress) => {
   }
 
   // Each tile pulses in place, then joins one of four underlines.
-  for row in {0, 1, 2, 3, 4, 5} {
-    for col in {0, 1, 2, 3, 4, 5, 6, 7} {
+  for row in range(0, 6) {
+    for col in range(0, 8) {
       tile[row * 8 + col]: Rect, corner_radius: 4
       always {
         let i = row * 8 + col
