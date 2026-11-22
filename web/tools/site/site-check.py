@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the new static output and its canonical scenes, not legacy HTML alone."""
+"""Check the generated site and its public scenes."""
 import argparse
 import hashlib
 import json
@@ -15,10 +15,13 @@ class Links(HTMLParser):
         super().__init__()
         self.urls = []
         self.icons = []
+        self.choices = []
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
         if tag == "link" and "icon" in attrs.get("rel", "").split():
             self.icons.append(attrs.get("href", ""))
+        if tag == 'option' and 'data-source' in attrs:
+            self.choices.append((attrs.get('value'), attrs['data-source']))
         for name in ('src', 'href', 'poster', 'data-recording', 'data-source', 'data-module'):
             if name in attrs:
                 self.urls.append(attrs[name])
@@ -28,7 +31,7 @@ def main():
     ap.add_argument('output', type=Path)
     ap.add_argument('--source-root', type=Path, default=ROOT, help='canonical source checkout (also permits isolated fixtures)')
     ap.add_argument('--assembled', action='store_true')
-    ap.add_argument('--write-manifest', action='store_true', help='record verified new output, before legacy overlay')
+    ap.add_argument('--write-manifest', action='store_true', help='record verified static output')
     args = ap.parse_args()
     output = args.output.resolve()
     source_root = args.source_root.resolve()
@@ -60,8 +63,13 @@ def main():
     except (OSError, ValueError, KeyError, TypeError) as exc:
         errors.append(f'invalid preview manifest: {exc}')
     scenes = sorted((source_root / 'web/content/scenes').glob('*.amx'))
-    if len(scenes) < 10:
-        errors.append(f'expected at least 10 canonical scenes, found {len(scenes)}')
+    if not scenes:
+        errors.append('public scene inventory is empty')
+    expected_choices = {scene.stem: f'{base}/content/scenes/{scene.name}' for scene in scenes}
+    if args.assembled:
+        deployed_names = {scene.name for scene in (content / 'scenes').glob('*.amx')}
+        for name in sorted(deployed_names - {scene.name for scene in scenes}):
+            errors.append(f'unlisted deployed source: {name}')
     for scene in scenes:
         if not scene.read_text().strip():
             errors.append(f'empty canonical scene: {scene.name}')
@@ -70,7 +78,8 @@ def main():
             if not deployed.is_file() or deployed.read_bytes() != scene.read_bytes():
                 errors.append(f'missing or stale deployed source: {scene.name}')
     # A missing output must never pass by checking zero pages.
-    for page in ('index.html', 'showcase/index.html', 'learn/index.html', 'playground/index.html'):
+    playground_pages = ('playground/index.html', 'zh/playground/index.html')
+    for page in ('index.html', 'showcase/index.html', 'learn/index.html', *playground_pages):
         if not (output / page).is_file():
             errors.append(f'missing entry page: {page}')
     pages = sorted(output.rglob('*.html'))
@@ -103,6 +112,10 @@ def main():
     for page in pages:
         parser = Links()
         parser.feed(page.read_text())
+        if page.relative_to(output).as_posix() in playground_pages:
+            choices = dict(parser.choices)
+            if len(choices) != len(parser.choices) or choices != expected_choices:
+                errors.append(f'{page.relative_to(output)}: scene choices must match the public AMX sources')
         for icon in parser.icons:
             if icon != base + '/logo.svg':
                 errors.append(f'{page.relative_to(output)}: favicon must reference deployment logo: {icon}')

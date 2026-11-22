@@ -138,7 +138,7 @@ kpi.value = 8490 [3s, ease: ease_in_out]
 
 **Example:**
 ```animatix
-icon: Svg { url: "examples/assets/animatix-mark.svg", scale: 1.5, at: (640, 600) }
+icon: Svg { url: "web/logo.svg", scale: 1.5, at: (640, 600) }
 ```
 
 Note: Missing files or invalid SVG contents report build diagnostics. Source changes require re-declaration at a keyframe (assignment not yet supported).
@@ -154,7 +154,7 @@ Note: Missing files or invalid SVG contents report build diagnostics. Source cha
 
 **Example:**
 ```animatix
-photo: Image { url: "examples/assets/checker.png", at: (640, 360), size: (180, 180) }
+photo: Image { url: "checker.png", at: (640, 360), size: (180, 180) }
 ```
 
 Note: Missing files report build diagnostics. Source changes are discrete (crossfade requires manual opacity layering).
@@ -440,7 +440,7 @@ curve.func = (x) => cos(x) [2s]  // 1s to 3s
 curve.func = (x) => x^2 [1s]  // freezes at 50%, chains to x^2
 ```
 
-See `examples/data/24_plot_transitions.amx` for demonstrations.
+
 
 ## VectorField
 
@@ -682,7 +682,7 @@ connectors behind content. Mask and Filter keep their children inside the
 scope; Glass applies a post-render backdrop composite and can cover later
 siblings, so source order alone does not define overlays crossing a Glass
 scope. See
-[`painter_order_annotations.amx`](../examples/layout/painter_order_annotations.amx).
+[`painter_order_annotations.amx`](../crates/animatix/tests/fixtures/amx/layout/painter_order_annotations.amx).
 
 Opacity on a Group or component instance multiplies into each descendant's
 opacity. It does not first flatten overlapping descendants into one offscreen

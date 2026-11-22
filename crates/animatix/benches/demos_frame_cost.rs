@@ -1,4 +1,4 @@
-//! Steady-state per-frame cost of every example demo, GPU-rendered offscreen.
+//! Steady-state per-frame cost of fixed workloads, GPU-rendered offscreen.
 //!
 //! This is the 30fps-preview gate: a demo previews smoothly when its
 //! per-frame cost stays under ~33 ms. Each sample renders one frame through
@@ -11,9 +11,8 @@
 //! so modules, typed components, colorschemes, and cross-file scenes all
 //! resolve. Multi-scene demos measure the scene active at the probe time
 //! (transition blending is a brief 2× overlap, not the steady state).
-//! `plugin_pulse.amx` needs a native plugin library and is skipped.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use animatix::composition::BuildTarget;
 use animatix::timeline::{BuildOptions, SceneDimensions};
@@ -27,42 +26,15 @@ const DIMS: SceneDimensions = SceneDimensions {
 };
 const FRAME_TIME_S: f64 = 1.5;
 
-/// Walk `examples/` the same way check_examples/render_smoke do: every `.amx`
-/// outside `lib/` and `scenes/`; multi-file projects via their `main.amx`.
-fn collect_demos(root: &Path) -> Vec<PathBuf> {
-    let mut demos = Vec::new();
-    let mut stack = vec![root.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        let mut entries: Vec<_> = std::fs::read_dir(&dir)
-            .expect("examples dir")
-            .filter_map(|e| e.ok())
-            .map(|e| e.path())
-            .collect();
-        entries.sort();
-        for path in entries {
-            if path.is_dir() {
-                stack.push(path);
-                continue;
-            }
-            if path.extension().is_some_and(|e| e == "amx")
-                && !path.components().any(|c| c.as_os_str() == "lib")
-                && !path.components().any(|c| c.as_os_str() == "scenes")
-            {
-                let parent_has_main = path.parent().is_some_and(|p| p.join("main.amx").is_file());
-                if parent_has_main && path.file_name().is_some_and(|f| f != "main.amx") {
-                    continue;
-                }
-                // plugin_pulse needs a native plugin library; render cost
-                // without it is not representative.
-                if path.file_name().is_some_and(|f| f == "plugin_pulse.amx") {
-                    continue;
-                }
-                demos.push(path);
-            }
-        }
-    }
-    demos
-}
+/// Fixed GPU workloads with durable Criterion IDs relative to the fixture root.
+const WORKLOADS: &[&str] = &[
+    "basics/01_shapes.amx",
+    "data/23_plot_kinds.amx",
+    "gallery/dashboard_story.amx",
+    "gallery/sorting_theatre.amx",
+    "generation/28_generation_reactive.amx",
+    "projects/fft_explain.amx",
+];
 
 /// Build a demo through the CLI's own load path (modules + typecheck +
 /// component expansion + scene grouping).
@@ -114,9 +86,7 @@ fn render_frame(target: &BuildTarget, renderer: &mut OffscreenRenderer, t: f64) 
 }
 
 pub(crate) fn bench_demo_frame_cost(c: &mut Criterion) {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
-    let demos = collect_demos(&root);
-    assert!(demos.len() > 30, "expected the full example corpus");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("benches/fixtures/amx");
 
     let mut renderer =
         OffscreenRenderer::new().expect("offscreen renderer initializes (GPU required)");
@@ -125,14 +95,10 @@ pub(crate) fn bench_demo_frame_cost(c: &mut Criterion) {
     group.sampling_mode(SamplingMode::Linear);
     group.sample_size(15);
 
-    for path in &demos {
-        let name = path
-            .strip_prefix(&root)
-            .expect("under examples")
-            .with_extension("")
-            .to_string_lossy()
-            .to_string();
-        let target = build_target(path);
+    for relative in WORKLOADS {
+        let path = root.join(relative);
+        let name = Path::new(relative).with_extension("").to_string_lossy().to_string();
+        let target = build_target(&path);
         // Warm the vello/effect pipelines once so samples measure steady state.
         let _ = render_frame(&target, &mut renderer, 0.2);
         group.bench_function(name.clone(), |b| {

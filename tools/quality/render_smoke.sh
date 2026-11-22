@@ -5,10 +5,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-# The same scene walk check_examples.sh uses, so the parse gate and the render
-# gate can never disagree about which examples exist.
-# shellcheck source=tools/quality/lib-scenes.sh
-. "$SCRIPT_DIR/lib-scenes.sh"
+cd "$PROJECT_DIR"
+scenes="$(python3 tools/quality/audit_corpus.py)" || exit 1
 
 command -v identify >/dev/null 2>&1 || {
     echo "error: identify (ImageMagick) not found on PATH" >&2
@@ -46,7 +44,7 @@ while read -r amx; do
         echo "FAILED (no non-blank frame at t=1/3/6)"
         FAILED=$((FAILED + 1))
     fi
-done < <(scene_files "$PROJECT_DIR/examples")
+done <<< "$scenes"
 
 if [ "$FAILED" -eq 0 ]; then
     echo "=== Render smoke passed for $TOTAL examples ==="

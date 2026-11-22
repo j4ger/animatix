@@ -12,7 +12,7 @@ git clone https://github.com/j4ger/animatix.git
 cd animatix
 nix develop
 cargo build --workspace
-cargo run --bin animatix-gui -- examples/basics/00_hello.amx
+cargo run --bin animatix-gui -- web/content/scenes/first-move.amx
 ```
 
 The default shell provides Rust, graphics/audio dependencies, FFmpeg headers,
@@ -28,10 +28,10 @@ run `direnv allow`. The file is ignored so personal shell customizations stay lo
 From this shell, use the CLI to inspect and review a scene:
 
 ```sh
-cargo run --bin animatix -- ast examples/basics/00_hello.amx --compact
-cargo run --bin animatix -- check examples/basics/00_hello.amx
-cargo run --bin animatix -- render examples/basics/00_hello.amx --loop
-cargo run --bin animatix -- image examples/basics/00_hello.amx --time 1.5 --output frame.png
+cargo run --bin animatix -- ast web/content/scenes/first-move.amx --compact
+cargo run --bin animatix -- check web/content/scenes/first-move.amx
+cargo run --bin animatix -- render web/content/scenes/first-move.amx --loop
+cargo run --bin animatix -- image web/content/scenes/first-move.amx --time 1.5 --output frame.png
 ```
 
 ### Downloaded builds
@@ -91,8 +91,8 @@ CLI and GUI builds do **not** enable video by default. Enable it explicitly:
 
 ```sh
 cargo build -p animatix-cli -p animatix-gui --features video
-cargo run -p animatix-cli --features video -- video examples/basics/00_hello.amx --fps 30 --output demo.mp4
-cargo run -p animatix-cli --features video -- gif examples/basics/00_hello.amx --fps 15 --output demo.gif
+cargo run -p animatix-cli --features video -- video web/content/scenes/first-move.amx --fps 30 --output demo.mp4
+cargo run -p animatix-cli --features video -- gif web/content/scenes/first-move.amx --fps 15 --output demo.gif
 ```
 
 Run these inside `nix develop`: its `bindgenHook` generates bindings from the
@@ -166,7 +166,7 @@ dependencies. Rich text enters through `animatix-text/rich-text` only.
 | Hot path | Record `tools/quality/perf-bench.sh compare` evidence. This is a manual measurement, not a PR gate; see [performance evaluation](performance_evaluation.md). |
 | Documentation | The `doc-links` gate runs `tools/docs/check-docs.sh` for links, source paths and stale roadmap wording. The separate `doc` gate validates Rustdoc and generated property tables. |
 
-Runnable examples belong in `examples/`. Use temporary harness artifacts for
+Public examples live in `web/content/scenes/` and have a Playground entry. Use temporary harness artifacts for
 unfinished projects and human review; keep focused regression fixtures beside
 their tests and actionable gaps in `docs/roadmap.md`. Historical experiments
 remain available in Git. For embedded looping scenes, the held final frame

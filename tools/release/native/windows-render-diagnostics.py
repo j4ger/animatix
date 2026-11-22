@@ -35,7 +35,7 @@ def main():
         project = Path(directory)
         subprocess.run([str(binary), "init", "Narrated Project"], cwd=project, check=True)
         scenes = [
-            ("hello", root / "examples/basics/00_hello.amx", "1"),
+            ("hello", root / "crates/animatix/benches/fixtures/amx/basics/00_hello.amx", "1"),
             ("narrated", project / "Narrated Project/main.amx", "4"),
         ]
         for name, scene, time in scenes:

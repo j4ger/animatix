@@ -258,7 +258,7 @@ plugin use case before expanding the ABI.
 > the raster scale between runs, and p50 swung 1.7 ms → 55.2 ms across two runs of
 > the same build. Pin `set_render_scale` first, and prefer
 > `web/dev/perf-probe.html` with `?base=`, which was built for this. A frame-cache
-> gating change was measured on `web/demos/matrix/` (four embeds, machine busy)
+> gating change was measured on the [retired matrix page](https://github.com/j4ger/animatix/tree/fb1aee420f42e86e08f95f3e8e223394d9955056/web/demos/matrix) (four embeds, machine busy)
 > and the result — p50 45.2 ms before, 49.4 ms after, at a pinned 0.5 scale — is
 > **inconclusive in both directions**, so no perf claim is attached to it.
 
@@ -276,14 +276,14 @@ display-matched raster/quality work, and measured web/native gap are archived in
 | Browser A/B of scale-animated `Filter` scopes | Re-run the browser measurement after the raster-scale work (`FilterBackend::set_raster_scale`, pixel-unit `EffectParamUnit::Pixel` parameters, ramp-width pin); see `docs/performance_evaluation.md` §The filter chain follows the raster. | Needs the browser A/B |
 | rAF-cadence sampling in automation | The controller now has a real-rAF mode (`AP_MANUAL=0`, headed) and a deterministic manual-injection mode; the policy itself is validated (`docs/performance_evaluation.md` §3.7). Remaining: measure achieved fps / long tasks on **real GPU hardware**, which no automated environment here provides. | Needs real-GPU runner |
 | Fixed per-embed frame cost | The P1 gate (2026-11-05, RTX 4060 WebGPU, `web/dev/perf-probe.html`) measured `gpu_ms` **flat across 16–27× raster area**: attention 0.75 ms fixed + ≤0.02 ms/MP (R² 0.32), plain-fill 1.34 ms fixed + 0.23 ms/MP (R² 0.11); 27× area changed `gpu_ms` by <0.1 ms. This run does not support prioritizing reductions in raster area. Players already share a context and queue. Measure further reductions in per-embed render/submission/present counts with `debug_bench_frames` and `debug_gpu_drain`. | **Not scheduled** — historical run found fixed costs dominated |
-| `debug_readback` intermittently traps the wasm | The readback probe is flaky rather than wrong at a particular time, and with `panic = "abort"` a trap takes the whole page's shared engine with it: after one, later probes in that tab fail (`error` states, `Runtime.evaluate` timeouts) until the browser restarts. Evidence from the 2026-10-01 sweep (flake `.#web` Chromium, `--webgpu`): the same call alternates — `tour/scenes/syntax.amx` `debug_readback(1.95)` timed out once and returned 27 distinct colours on the repeat; `web/demos/hash/scene.amx` `debug_readback(19.5)` hung twice while 19.0/20.0/20.5 were fine; one tour sweep surfaced `RuntimeError: unreachable` with frames inside `animatix_web_bg.wasm`. Meanwhile `render_frame` at the same time is fine and the transformer page's seven scenes, the hero and the hash/sorting compositions all read back — so the shipped demos render; only the probe path dies. Affects `web/dev/multi-probe.html?readback=1` and the `svg-probe/*` harnesses, which is why they need a fresh browser per probe until this is understood. | Not started |
+| `debug_readback` intermittently traps the wasm | The readback probe is flaky rather than wrong at a particular time, and with `panic = "abort"` a trap takes the whole page's shared engine with it: after one, later probes in that tab fail (`error` states, `Runtime.evaluate` timeouts) until the browser restarts. Evidence from the 2026-10-01 sweep (flake `.#web` Chromium, `--webgpu`): the same call alternates — `tour/scenes/syntax.amx` `debug_readback(1.95)` timed out once and returned 27 distinct colours on the repeat; [scene.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/web/demos/hash/scene.amx) `debug_readback(19.5)` hung twice while 19.0/20.0/20.5 were fine; one tour sweep surfaced `RuntimeError: unreachable` with frames inside `animatix_web_bg.wasm`. Meanwhile `render_frame` at the same time is fine and the transformer page's seven scenes, the hero and the hash/sorting compositions all read back — so the shipped demos render; only the probe path dies. Affects `web/dev/multi-probe.html?readback=1` and the `svg-probe/*` harnesses, which is why they need a fresh browser per probe until this is understood. | Not started |
 
 ## Planned Features
 
 | Feature | Notes | Status |
 |---|---|---|
 | `Code` custom highlighting theme | Token colours now follow the active colorscheme via a role→named-token palette (`ResolvedColorscheme::highlight_palette`, resolved at build). A fully custom palette (arbitrary per-role colours, or a user-supplied `.tmTheme`) is not exposed as an authoring surface; deferred until a real content need. | Not started |
-| Re-declaration morphs sharing one keyframe stamp | When two actor re-declarations share a single `#t` stamp, the actors render their **target** geometry on every frame before the morph starts (an `Ellipse`→`Rect` re-declaration shows a square on pre-morph frames; a size-less `Polygon` leaked as a default-size `Ellipse`). One re-declaration per stamp is safe — `web/tour/scenes/morph.amx` exercises the full sequence leak-free. Found while frame-auditing `web/scenes/hero.amx` (probes in the 2026-10-01 site session); the hero now choreographs its trio with rotations/resizes instead. Fix direction: a morph track's pre-start evaluation must hold the *previous* declaration, not the target. | Not started |
+| Re-declaration morphs sharing one keyframe stamp | When two actor re-declarations share a single `#t` stamp, the actors render their **target** geometry on every frame before the morph starts (an `Ellipse`→`Rect` re-declaration shows a square on pre-morph frames; a size-less `Polygon` leaked as a default-size `Ellipse`). One re-declaration per stamp is safe — [morph.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/web/tour/scenes/morph.amx) exercises the full sequence leak-free. Found while frame-auditing [hero.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/web/scenes/hero.amx) (probes in the 2026-10-01 site session); the hero now choreographs its trio with rotations/resizes instead. Fix direction: a morph track's pre-start evaluation must hold the *previous* declaration, not the target. | Not started |
 
 ## Dependency & Verification Constraints
 
@@ -324,7 +324,7 @@ pass"); what is left is below.
 | Item | What it is | Status |
 |---|---|---|
 | `pulse intensity` is additive | `intensity: 1.04` means 2.04× scale (peak = start × (1 + N)) — three demo diagrams were destroyed at their thesis beat before the semantics were spotted. Now documented in `docs/spec.md`; a gentler authoring story (percentage semantics or a lint for `intensity > 1`) is open. | Documented |
-| Pixel A/B has no noise floor yet | The render-either-side-and-`cmp` method this round used for content checks cannot resolve a small change: **the same binary is not byte-stable across processes.** Measured 2026-10-03 on a now-retired text-rendering probe at 1 s (source remains in Git) — three renders of one binary differ from each other by 20, 36 and 46 raw RGBA bytes (of 3 686 400), while that binary's two builds (which really do differ) are 12 and 24 bytes apart. PNG file sizes drift as well, so comparing files is noisier still, and `web/demos/transformer/scenes/pipeline.amx @ 4` came out *identical* between builds but 8 bytes apart between two runs of one build. Text/glyph scenes show it and `web/demos/matrix/scene.amx` does not, so the suspect is glyph rasterization or shaping order. Until that is pinned down: any engine A/B claim needs (a) a same-binary control and (b) a positive control proving the change is live — the track-level probe above is the shape to copy. | Not started |
+| Pixel A/B has no noise floor yet | The render-either-side-and-`cmp` method this round used for content checks cannot resolve a small change: **the same binary is not byte-stable across processes.** Measured 2026-10-03 on a now-retired text-rendering probe at 1 s (source remains in Git) — three renders of one binary differ from each other by 20, 36 and 46 raw RGBA bytes (of 3 686 400), while that binary's two builds (which really do differ) are 12 and 24 bytes apart. PNG file sizes drift as well, so comparing files is noisier still, and `web/demos/transformer/scenes/pipeline.amx @ 4` came out *identical* between builds but 8 bytes apart between two runs of one build. Text/glyph scenes show it and [scene.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/web/demos/matrix/scene.amx) does not, so the suspect is glyph rasterization or shaping order. Until that is pinned down: any engine A/B claim needs (a) a same-binary control and (b) a positive control proving the change is live — the track-level probe above is the shape to copy. | Not started |
 
 ## Easing pass — what else it turned up (2026-10-02)
 
@@ -336,7 +336,7 @@ the behaviour is *wrong* or merely *shaped badly*; what it did land is archived 
 
 | # | Item | Evidence |
 |---|---|---|
-| 2 | **`animatix fmt` reflows declarations.** | Comment deletion is fixed (2026-11-03): `Formatter::format_source` reinserts every `//` class from the lossless token stream — file header, free-standing, in-block, trailing, comment-only — with round-trip, idempotence, and scrubbed-AST tests. Remaining: formatting still collapses every multi-line declaration onto one line (`web/scenes/hero.amx` 202 → 124 lines), and nested-block indentation is sometimes doubled. A `for` inside a container can also lose indentation on its header and child nodes (`format_core::format_inline_item`, reproduced by `web/content/scenes/ripple-and-cascade.amx`). |
+| 2 | **`animatix fmt` reflows declarations.** | Comment deletion is fixed (2026-11-03): `Formatter::format_source` reinserts every `//` class from the lossless token stream — file header, free-standing, in-block, trailing, comment-only — with round-trip, idempotence, and scrubbed-AST tests. Remaining: formatting still collapses every multi-line declaration onto one line ([hero.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/web/scenes/hero.amx) 202 → 124 lines), and nested-block indentation is sometimes doubled. A `for` inside a container can also lose indentation on its header and child nodes (`format_core::format_inline_item`, reproduced by `web/content/scenes/ripple-and-cascade.amx`). |
 | 3 | **The native-plugin ABI silently flattens most easings to Linear.** | `easing_code` (`extension_native_plugin/`) maps everything outside {EaseIn, EaseOut, EaseInOut} onto code 0, so a plugin reading a `spring`, `bounce`, or `cubic_bezier` track sees a linear one. Pre-dates this pass. Widening the code space is a plugin-API version bump, not an easing change. |
 | 5 | **A component actor declared between keyframes renders half-drawn.** | `hash/lookup.amx`'s `q2`/`q3` (`LabeledBox`) appeared as a dim box *without its label* in beats before their own `fade_in`. Worked around scene-side with `opacity: 0.0`, but the engine question stands: "declared inside a keyframe is visible immediately" should not produce a partially drawn component. Narrowed 2026-10-03: the mechanism first blamed for it — a re-declaration sampling its own target because a sibling wrote a keyframe at the same `#t` — was probed on plain shape actors in four orderings and does **not** reproduce (the pre-frame keeps the old shape and colour and the morph still lands on target); `a_redeclaration_starts_from_what_it_replaces_not_from_its_target` pins that. What is left is specific to *component* actors, whose parts are separate sub-actors seeded during expansion, and it still needs a minimal repro outside the demo. |
 
@@ -408,7 +408,7 @@ The following scenarios still need targeted coverage:
   (`(93,27,32)` frosted vs `(255,0,0)` unfrosted on a 4 px border). A machine with
   working WebGPU adapter can settle it with a fixture that samples the panel
   interior at zero and nonzero blur on a contrasting border. The archived
-  `web/tour/scenes/glass.amx` is a starting point for that comparison.
+  [glass.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/web/tour/scenes/glass.amx) is a starting point for that comparison.
 - **Mixed capabilities on one page.** The current smoke tests exercise
   individual shapes, text/font and SVG fixtures, and the transaction test
   checks device sharing with two concurrent players. Mount a base-only
@@ -426,7 +426,7 @@ The following scenarios still need targeted coverage:
   quote cannot end the literal — and then takes the source slice verbatim, so
   `text: "1 · \"it\" looks back"` renders the backslash. The transformer page
   worked around it with typographic quotes; the grammar question is real and
-  unanswered: `\$` inside a `Typst` payload (`examples/gallery/sorting_theatre.amx`)
+  unanswered: `\$` inside a `Typst` payload (`crates/animatix/benches/fixtures/amx/gallery/sorting_theatre.amx`)
   *depends* on backslashes surviving to the markup, so "unescape every `\x` in
   the lexer" would silently change that scene. Any fix needs to say which
   escapes belong to `.amx` and which belong to the payload. Preserve payload
@@ -465,7 +465,7 @@ reading of the code.
 
 ## Graph tick labels collide at the origin (2026-10-06)
 
-`web/tour/scenes/plots.amx` draws `0.0` (the y-axis label) and `0` (the x-axis
+[plots.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/web/tour/scenes/plots.amx) draws `0.0` (the y-axis label) and `0` (the x-axis
 label) at the crossing of the two axes, with the axis rule running through both.
 It is the `Graph` primitive's tick layout, not that scene's authoring — every
 `Graph` with both axes labelled and a zero in both domains gets the same
@@ -476,7 +476,7 @@ to move the domains off zero, which changes what the figure teaches.
 
 ## Imported palettes and the embed's module path (2026-10-06) — worked around, still open
 
-**Fixed in content, unfixed in the engine.** Every scene under `web/demos/`
+**Fixed in the former demo sources.** The old [demo collection](https://github.com/j4ger/animatix/tree/fb1aee420f42e86e08f95f3e8e223394d9955056/web/demos)
 imported its palette as `import "../lib/theme.amx"`, and in the browser that
 specifier loses the import's `Colorscheme`: each such player logged
 
@@ -539,15 +539,15 @@ the current renderer before changing the authored workarounds.
   `always-overrides-keyframes` even after the declaration drops its
   `stroke_progress`. The warning is right that something is overriding, and
   wrong that the `always` block wins. The arc was removed from
-  `web/demos/epicycles/complexplane.amx`; a `reveals`-style entrance that never
+  [complexplane.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/web/demos/epicycles/complexplane.amx); a `reveals`-style entrance that never
   touches `stroke_progress`, or a dedicated `show` action, would let it come back.
 - **Verify mapped marker alignment in a rendered Graph.** The old half-scale
-  note and `graph.map()` call are gone from `web/demos/gradient/descent.amx`.
+  note and `graph.map()` call are gone from [descent.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/web/demos/gradient/descent.amx).
   The scene now computes the ball's pixel position directly. The prior numeric
   probe mapped `(1.0, 0.5)` to `(790, 285)` on a graph scaled at 150 px per unit.
   Check rendered marker and curve alignment before replacing the manual mapping.
 - **`stroke_progress` overshoots by one tessellation segment, so a marker
-  cannot sit on a plot's leading edge.** Measured on `web/demos/epicycles`
+  cannot sit on a plot's leading edge.** Measured on the [retired Epicycles walkthrough](https://github.com/j4ger/animatix/tree/fb1aee420f42e86e08f95f3e8e223394d9955056/web/demos/epicycles)
   §02: a `Graph` at `x_domain: (0, 4 pi)`, `size: (660, …)`, `at: (870, …)`
   driven by `stroke_progress = u` with `ease: linear`, against a ball placed at
   `graph.map(4 pi · u, …)`. At `u = 0.065` the ball is at screen x 583 and the
@@ -671,5 +671,5 @@ frame cost. Use the text benchmarks described in
   (they are evaluation-time spawns, not hierarchy children) and the label has
   no stable marker like the `for`-loop `__` suffix. The fix is an engine-side
   `generated_by` (or equivalent) on `ActorFact` so rules can skip what the
-  container owns. Until then `examples/templates/explain-figure.amx` uses a
+  container owns. Until then `crates/animatix-cli/tests/fixtures/amx/templates/explain-figure.amx` uses a
   hand-drawn `Path` to stay warning-free.

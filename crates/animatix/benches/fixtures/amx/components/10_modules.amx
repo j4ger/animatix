@@ -1,0 +1,57 @@
+// 10 — Modules, Imports, and Re-export Chains
+// import ... as, pub let exports, dotted access, re-export chains, design tokens.
+import "../../../../examples/web_present_driver/fixtures/lib/theme.amx"
+
+import "../lib/palette.amx" as palette
+
+import "../lib/tokens.amx" as tokens
+
+import "../lib/reexport.amx" as theme
+
+import "../lib/card.amx"
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+heading: Text, text: "Module System", font_size: 40, color: text.primary, anchor: scene.top, offset: (0, 50)
+
+subtitle: Text, text: "import + pub let + re-export + design tokens", font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 100)
+
+#0s
+  direct: Row, anchor: scene.center, offset: (0, -80), gap: 16, align: "center" {
+  sw_a: Rect, size: (80, 80), color: palette::primary
+  sw_b: Rect, size: (80, 80), color: palette::secondary
+  sw_c: Rect, size: (80, 80), color: palette::tertiary
+  sw_d: Rect, size: (80, 80), color: palette::quaternary
+    }
+  reexported: Row, anchor: scene.center, offset: (0, 40), gap: 16, align: "center" {
+  sw_e: Rect, size: (80, 80), color: theme::accent
+  sw_f: Rect, size: (80, 80), color: theme::bg
+  sw_g: Rect, size: (80, 80), color: theme::fg
+    }
+  info: Text, text: "tokens.space_md = 16, tokens.font_lg = 24, tokens.radius_md = 8", font_size: 14, color: text.muted, anchor: scene.bottom, offset: (0, -60)
+  flat_demo: Card, title: "Flattened", value: "import", accent: palette::primary
+
+#0.5s
+  fade_in(target: heading, duration: 0.6s, ease: ease_out)
+  fade_in(target: subtitle, duration: 0.4s)
+
+#1s
+  stagger [0.08s] {
+      fade_in(target: sw_a, duration: 0.4s)
+      fade_in(target: sw_b, duration: 0.4s)
+      fade_in(target: sw_c, duration: 0.4s)
+      fade_in(target: sw_d, duration: 0.4s)
+    }
+
+#2s
+  stagger [0.08s] {
+      fade_in(target: sw_e, duration: 0.4s)
+      fade_in(target: sw_f, duration: 0.4s)
+      fade_in(target: sw_g, duration: 0.4s)
+    }
+
+#3s
+  fade_in(target: info, duration: 0.5s)
+
+#3.5s
+  fade_in(target: flat_demo, duration: 0.5s)

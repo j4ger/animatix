@@ -7,11 +7,8 @@ use std::path::{Path, PathBuf};
 const SCENE: &str = "main.amx";
 const STARTER: [(&str, &[u8]); 3] = [
     (SCENE, include_bytes!("delivery/starter.amx")),
-    ("narration.mp3", include_bytes!("../../../examples/assets/narration.mp3")),
-    (
-        "narration.speech.json",
-        include_bytes!("../../../examples/assets/narration.speech.json"),
-    ),
+    ("narration.mp3", include_bytes!("delivery/narration.mp3")),
+    ("narration.speech.json", include_bytes!("delivery/narration.speech.json")),
 ];
 
 /// Create a self-contained narrated project in a new or empty directory.

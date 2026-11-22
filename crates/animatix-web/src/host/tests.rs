@@ -13,7 +13,7 @@ use super::*;
 #[cfg(feature = "image-decode")]
 #[test]
 fn preseeded_asset_cache_satisfies_build_time_loads() {
-    let png: &[u8] = include_bytes!("../../../../examples/assets/checker.png");
+    let png: &[u8] = include_bytes!("../../../animatix/benches/fixtures/amx/assets/checker.png");
     let mut cache = animatix::timeline::assets::AssetCache::new();
     cache.insert_image_bytes("dot.png", png).expect("checker.png decodes");
 
@@ -71,20 +71,25 @@ fade_in(target: pic, duration: 300ms)
     );
 }
 
-const HELLO: &str = include_str!("../../../../examples/basics/00_hello.amx");
-const MOTION: &str = include_str!("../../../../examples/basics/03_timing.amx");
-const MULTISCENE: &str = include_str!("../../../../examples/composition/14_multiscene.amx");
+const HELLO: &str = r#"
+import "../lib/theme.amx"
+#0s
+dot: Ellipse, at: (100, 100), size: (40, 40), color: accent.primary
+#1s
+"#;
+const MOTION: &str = include_str!("../../tests/fixtures/amx/basics/03_timing.amx");
+const MULTISCENE: &str = include_str!("../../tests/fixtures/amx/composition/14_multiscene.amx");
 
 fn example_modules() -> Vec<(PathBuf, String)> {
+    let theme =
+        include_str!("../../../animatix/examples/web_present_driver/fixtures/lib/theme.amx");
+    let stage =
+        include_str!("../../../animatix/examples/web_present_driver/fixtures/lib/stage.amx");
+    let prefix = "../../../../../animatix/examples/web_present_driver/fixtures/lib";
     vec![
-        (
-            PathBuf::from("../lib/theme.amx"),
-            include_str!("../../../../examples/lib/theme.amx").into(),
-        ),
-        (
-            PathBuf::from("../lib/stage.amx"),
-            include_str!("../../../../examples/lib/stage.amx").into(),
-        ),
+        (PathBuf::from("../lib/theme.amx"), theme.into()),
+        (PathBuf::from(format!("{prefix}/theme.amx")), theme.into()),
+        (PathBuf::from(format!("{prefix}/stage.amx")), stage.into()),
     ]
 }
 
@@ -208,89 +213,37 @@ fn warnings_still_yield_a_document() {
     assert!(matches!(doc.target, Some(BuildTarget::SingleScene(_))));
 }
 
-// Representative legacy scenes remain regression inputs. Their shared modules
-// are explicit test resources, exercising the same missing-import retry protocol
-// as the browser; the production runtime embeds no scene library.
-fn build_demo_scene(source: &str) -> BuiltDocument {
-    let mut modules: Vec<(PathBuf, String)> = Vec::new();
-    for _ in 0..4 {
-        let mut doc = build_document_with_modules(
-            source,
-            &modules,
-            Arc::new(FontContext::new()),
-            BuildQuality::Draft,
-            None,
-        );
-        if doc.result.missing_imports.is_empty() {
-            return doc;
-        }
-        for key in std::mem::take(&mut doc.result.missing_imports) {
-            let content = if key.ends_with("theme.amx") {
-                include_str!("../../../../examples/lib/theme.amx")
-            } else if key.ends_with("ambience.amx") {
-                include_str!("../../../../examples/lib/ambience.amx")
-            } else if key.ends_with("components.amx") {
-                include_str!("../../../../examples/lib/components.amx")
-            } else if key.ends_with("stage.amx") {
-                // The house-style stage furniture (web/DESIGN.md §1); every
-                // rewritten walkthrough scene imports it, so the demo-scene
-                // build test has to be able to close that import graph.
-                include_str!("../../../../examples/lib/stage.amx")
-            } else {
-                panic!("demo scenes should only import site demo lib files, got {key}");
-            };
-            let path = PathBuf::from(&key);
-            if !modules.iter().any(|(p, _)| *p == path) {
-                modules.push((path, content.into()));
-            }
-        }
-    }
-    panic!("the demo scene's import graph never closed: {source:?}");
-}
-
 #[test]
-fn transformer_demo_scenes_build_cleanly() {
-    const SCENES: &[(&str, &str)] = &[
+fn frozen_attention_workload_builds_with_supplied_modules() {
+    const ROOT: &str =
+        include_str!("../../../animatix/examples/web_present_driver/fixtures/attention.amx");
+    let modules = [
         (
-            "overview",
-            include_str!("../../../../web/demos/transformer/scenes/overview.amx"),
-        ),
-        ("tokens", include_str!("../../../../web/demos/transformer/scenes/tokens.amx")),
-        (
-            "positional",
-            include_str!("../../../../web/demos/transformer/scenes/positional.amx"),
+            "lib/theme.amx",
+            include_str!("../../../animatix/examples/web_present_driver/fixtures/lib/theme.amx"),
         ),
         (
-            "attention",
-            include_str!("../../../../web/demos/transformer/scenes/attention.amx"),
+            "lib/stage.amx",
+            include_str!("../../../animatix/examples/web_present_driver/fixtures/lib/stage.amx"),
         ),
         (
-            "multihead",
-            include_str!("../../../../web/demos/transformer/scenes/multihead.amx"),
+            "lib/components.amx",
+            include_str!(
+                "../../../animatix/examples/web_present_driver/fixtures/lib/components.amx"
+            ),
         ),
-        (
-            "feedforward",
-            include_str!("../../../../web/demos/transformer/scenes/feedforward.amx"),
-        ),
-        (
-            "pipeline",
-            include_str!("../../../../web/demos/transformer/scenes/pipeline.amx"),
-        ),
-    ];
-    for (name, source) in SCENES {
-        let doc = build_demo_scene(source);
-        assert!(
-            doc.result.ok,
-            "demo scene '{name}' failed to build: {:?}",
-            doc.result.diagnostics
-        );
-        assert!(
-            doc.result.diagnostics.is_empty(),
-            "demo scene '{name}' has diagnostics: {:?}",
-            doc.result.diagnostics
-        );
-        assert!(doc.result.duration_s > MIN_DURATION_S, "scene '{name}' has no duration");
-    }
+    ]
+    .map(|(key, source)| (PathBuf::from(key), source.to_owned()));
+    let doc = build_document_with_modules(
+        ROOT,
+        &modules,
+        Arc::new(FontContext::new()),
+        BuildQuality::Draft,
+        None,
+    );
+    assert!(doc.result.ok, "diagnostics: {:?}", doc.result.diagnostics);
+    assert!(doc.result.diagnostics.is_empty());
+    assert!(doc.result.duration_s > MIN_DURATION_S);
 }
 
 /// The scrubber's landmarks: single-scene documents report their
@@ -326,7 +279,6 @@ fn load_result_markers_expose_timeline_landmarks() {
         doc.result.markers
     );
 
-    const MULTISCENE: &str = include_str!("../../../../examples/composition/14_multiscene.amx");
     let doc = build_document_with_modules(
         MULTISCENE,
         &example_modules(),
@@ -597,7 +549,6 @@ fn an_unparseable_var_is_a_diagnostic_not_a_panic() {
 /// warning diagnostic the page can actually see — without failing the build.
 #[test]
 fn vars_on_a_composition_report_they_are_not_applied() {
-    const MULTISCENE: &str = include_str!("../../../../examples/composition/14_multiscene.amx");
     let doc = build_document_with_vars(
         MULTISCENE,
         &example_modules(),

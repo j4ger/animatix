@@ -313,7 +313,8 @@ fn navigating_to_the_end_of_a_large_source_keeps_the_target_line_active() {
 
 #[test]
 fn source_navigation_render_preserves_original_bytes() {
-    let speech = include_str!("../../../../examples/animation/41_speech_sync_captions.amx");
+    let speech =
+        include_str!("../../../animatix/tests/fixtures/amx/animation/41_speech_sync_captions.amx");
     for source in [
         speech,
         "// cue\r\n#voice[\"DSL\"]:\r\n    box.opacity = 1",

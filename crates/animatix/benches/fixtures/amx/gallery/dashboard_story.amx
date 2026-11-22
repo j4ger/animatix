@@ -1,0 +1,193 @@
+import "../../../../examples/web_present_driver/fixtures/lib/theme.amx"
+
+import "../../../../tests/fixtures/amx/lib/ui.amx"
+
+import "../../../../tests/fixtures/amx/lib/charts.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720), strict_types: true, dynamic_layout: true }
+
+// ── Scene 1: KPIs ───────────────────────────────────────────────────────────
+# KPIs
+config { colorscheme: "ink", duration: 5 }
+header1: Group, anchor: scene.top, offset: (0, 60) {
+title: TitleCard, title: "Dashboard Story", kicker: "实时数据故事 · LIVE DATA STORY", sub: "用动态组件讲述一行指标"
+}
+kpi_row: Row, anchor: scene.center, offset: (0, 50), gap: 24 {
+m0: MetricCard, label: "营收 Revenue", value: "0"
+m1: MetricCard, label: "用户 Users", value: "0"
+m2: MetricCard, label: "延迟 Latency", value: "0ms"
+m3: MetricCard, label: "可用性 Uptime", value: "0%"
+}
+#0.5s
+  fade_in(target: title, duration: 0.6s, ease: ease_out)
+#+0.4s
+  stagger [0.08s] {
+      fade_in(target: m0, duration: 0.4s)
+      fade_in(target: m1, duration: 0.4s)
+      fade_in(target: m2, duration: 0.4s)
+      fade_in(target: m3, duration: 0.4s)
+    }
+#+0.6s
+  m0.value_text.text = "128K"
+  m1.value_text.text = "24.5K"
+  m2.value_text.text = "12ms"
+  m3.value_text.text = "99.9%"
+#+0.2s
+  m0.value_text.text = "128K"[0.1s]
+#3s
+play Trend [fade, 500ms]
+
+// ── Scene 2: Trend ──────────────────────────────────────────────────────────
+# Trend
+config { colorscheme: "ink", duration: 7 }
+header2: Group, anchor: scene.top, offset: (0, 60) {
+section: SectionHeader, title: "趋势 · Trend", kicker: "02"
+}
+panel: Rect, size: (720, 360), color: surface.secondary, anchor: scene.center, offset: (0, 40)
+chart_row: Row, anchor: scene.center, offset: (0, 50), gap: 12, align: end {
+d0: Group {
+b0: Rect, size: (80, 120), color: accent.primary
+t0: Text, text: "Mon", font_size: 12, color: text.secondary, at: (0, 20), text_align: center
+  }
+d1: Group {
+b1: Rect, size: (80, 180), color: accent.primary
+t1: Text, text: "Tue", font_size: 12, color: text.secondary, at: (0, 20), text_align: center
+  }
+d2: Group {
+b2: Rect, size: (80, 240), color: accent.primary
+t2: Text, text: "Wed", font_size: 12, color: text.secondary, at: (0, 20), text_align: center
+  }
+d3: Group {
+b3: Rect, size: (80, 300), color: accent.warning
+t3: Text, text: "Thu", font_size: 12, color: text.secondary, at: (0, 20), text_align: center
+  }
+d4: Group {
+b4: Rect, size: (80, 260), color: accent.primary
+t4: Text, text: "Fri", font_size: 12, color: text.secondary, at: (0, 20), text_align: center
+  }
+d5: Group {
+b5: Rect, size: (80, 200), color: accent.primary
+t5: Text, text: "Sat", font_size: 12, color: text.secondary, at: (0, 20), text_align: center
+  }
+d6: Group {
+b6: Rect, size: (80, 140), color: accent.primary
+t6: Text, text: "Sun", font_size: 12, color: text.secondary, at: (0, 20), text_align: center
+  }
+}
+legend: Row, anchor: scene.bottom, offset: (0, -60), gap: 24 {
+l0: LegendItem, label: "WAU", color: accent.primary
+}
+#0.2s
+  fade_in(target: section, duration: 0.4s)
+#+0.2s
+  fade_in(target: panel, duration: 0.4s)
+#+0.2s
+  stagger [0.06s] {
+      fade_in(target: d0, duration: 0.4s)
+      fade_in(target: d1, duration: 0.4s)
+      fade_in(target: d2, duration: 0.4s)
+      fade_in(target: d3, duration: 0.4s)
+      fade_in(target: d4, duration: 0.4s)
+      fade_in(target: d5, duration: 0.4s)
+      fade_in(target: d6, duration: 0.4s)
+    }
+#+0.6s
+  b0.size = (80, 120) [0.8s, ease: ease_out]
+  b1.size = (80, 180) [0.8s, ease: ease_out]
+  b2.size = (80, 240) [0.8s, ease: ease_out]
+  b3.size = (80, 300) [0.8s, ease: ease_out]
+  b4.size = (80, 260) [0.8s, ease: ease_out]
+  b5.size = (80, 200) [0.8s, ease: ease_out]
+  b6.size = (80, 140) [0.8s, ease: ease_out]
+#+0.2s
+  fade_in(target: legend, duration: 0.4s)
+#+1s
+  peak: Callout, from: (760, 220), to: (760, 165), label: "峰值 920 · Peak", label_at: (10, -10), color: accent.warning
+  fade_in(target: peak, duration: 0.4s)
+#3.5s
+play Ranking [fade, 400ms]
+
+// ── Scene 3: Ranking Shift ──────────────────────────────────────────────────
+# Ranking
+config { colorscheme: "ink", duration: 5 }
+header3: Group, anchor: scene.top, offset: (0, 60) {
+section: SectionHeader, title: "排名变化 · Ranking Shift", kicker: "03"
+}
+rank_row: Row, anchor: scene.center, offset: (0, 40), gap: 16, align: end {
+bar_a: Group {
+ra: Rect, size: (80, 300), color: accent.success
+ta: Text, text: "A 15%", font_size: 14, color: text.secondary, at: (0, 20), text_align: center
+  }
+bar_b: Group {
+rb: Rect, size: (80, 260), color: accent.secondary
+tb: Text, text: "B 18%", font_size: 14, color: text.secondary, at: (0, 20), text_align: center
+  }
+bar_c: Group {
+rc: Rect, size: (80, 220), color: accent.info
+tc: Text, text: "C 31%", font_size: 14, color: text.secondary, at: (0, 20), text_align: center
+  }
+bar_d: Group {
+rd: Rect, size: (80, 120), color: accent.warning
+td: Text, text: "D 24%", font_size: 14, color: text.secondary, at: (0, 20), text_align: center
+  }
+bar_e: Group {
+re: Rect, size: (80, 180), color: accent.danger
+te: Text, text: "E 12%", font_size: 14, color: text.secondary, at: (0, 20), text_align: center
+  }
+}
+#0.2s
+  fade_in(target: section, duration: 0.4s)
+#+0.2s
+  stagger [0.06s] {
+      fade_in(target: bar_a, duration: 0.4s)
+      fade_in(target: bar_b, duration: 0.4s)
+      fade_in(target: bar_c, duration: 0.4s)
+      fade_in(target: bar_d, duration: 0.4s)
+      fade_in(target: bar_e, duration: 0.4s)
+    }
+#+0.8s
+  swap(bar_a, bar_e, duration: 0.7s, ease: ease_in_out)
+#+0.8s
+  swap(bar_b, bar_d, duration: 0.7s, ease: ease_in_out)
+#+0.8s
+  reorder(target: rank_row, order: {bar_e, bar_d, bar_c, bar_b, bar_a}, duration: 0.8s, ease: ease_in_out)
+#3.5s
+play Focus [fade, 400ms]
+
+// ── Scene 4: Focus & Takeaway ───────────────────────────────────────────────
+# Focus
+config { colorscheme: "ink", duration: 5 }
+kpi_row: Row, anchor: scene.center, offset: (0, 50), gap: 24 {
+m0: MetricCard, label: "营收 Revenue", value: "128K"
+m1: MetricCard, label: "用户 Users", value: "24.5K"
+m2: MetricCard, label: "延迟 Latency", value: "12ms"
+m3: MetricCard, label: "可用性 Uptime", value: "99.9%"
+}
+focus_wrap: Group, anchor: scene.center {
+focus: MetricCard, label: "关键洞察 Insight", value: "+23%", accent: accent.success
+}
+conclusion: Group, anchor: scene.bottom, offset: (0, -80) {
+end: TitleCard, title: "结论 · Takeaway", kicker: "数据在动，洞察更清晰", sub: "Data that moves, insight that sticks"
+}
+#0s
+  stagger [0.06s] {
+      fade_in(target: m0, duration: 0.4s)
+      fade_in(target: m1, duration: 0.4s)
+      fade_in(target: m2, duration: 0.4s)
+      fade_in(target: m3, duration: 0.4s)
+    }
+#+0.2s
+  fade_in(target: focus, duration: 0.5s)
+#+0.5s
+  fade_in(target: conclusion, duration: 0.6s)
+#3s
+play End [fade, 500ms]
+
+// ── Scene 5: End ────────────────────────────────────────────────────────────
+# End
+config { colorscheme: "ink", duration: 3 }
+final: Group, anchor: scene.center {
+end: TitleCard, title: "谢谢观看 · Thanks", kicker: "Animatix Gallery", sub: "dashboard_story.amx"
+}
+#0.5s
+  fade_in(target: end, duration: 0.8s, ease: ease_out)

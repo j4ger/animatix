@@ -607,7 +607,7 @@ fn explain_figure_audit_report() -> crate::review::report::AuditReport {
         update_budget: false,
     };
     let mut report = crate::review::run_review(
-        &root.join("examples/templates/explain-figure.amx"),
+        &root.join("crates/animatix-cli/tests/fixtures/amx/templates/explain-figure.amx"),
         &[],
         &crate::extensions::CliExtensions::default(),
         &options,
@@ -623,7 +623,7 @@ fn explain_figure_audit_report() -> crate::review::report::AuditReport {
     report.budget = Some(
         crate::review::budget::check(
             &budget,
-            "examples/templates/explain-figure.amx",
+            "crates/animatix-cli/tests/fixtures/amx/templates/explain-figure.amx",
             &report.findings,
             options.policy,
             options.render,

@@ -14,7 +14,7 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 - `crates/animatix-web`: wasm32 playback and source preparation with `SourcesOnly` module reuse. The SDK uses Vello GPU and prefers WebGPU with WebGL2 fallback. The site provides a source editor at `/playground/`. See `web/README.md` for SDK and site entry points.
 - `crates/animatix-plugin-api`, `-demo`, `-tooling`: native plugin C ABI, example, tooling. `crates/eparts`: themed egui widgets.
 - `crates/animatix-syntax/src/token/`: the single lossless tokenizer (parser input, LSP tokens, GUI highlighting).
-- `docs`: `roadmap.md` is remaining work only, `docs/history/` is the archive (`history.md` is a pointer), `docs/ecs.md` is normative ECS + structure contract. `examples/` has supported demos; focused regression fixtures belong beside their tests. Human review and temporary experiments run through the harness.
+- `docs`: `roadmap.md` is remaining work only, `docs/history/` is the archive (`history.md` is a pointer), `docs/ecs.md` is normative ECS + structure contract. `web/content/scenes/` holds the public examples. Keep focused regression fixtures beside their tests. Human review and temporary experiments run through the harness.
 
 ## Key Docs
 

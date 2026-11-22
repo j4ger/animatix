@@ -221,7 +221,7 @@ The in-repo plugin at `crates/animatix-plugin-demo` demonstrates a `Pulse`
 primitive, extension properties, a `demo::scale(value, factor)` value
 callable, a `demo::throb(target, duration, strength)` inert plan callable,
 a typed service, and a plugin-authored `Pixelate` effect. Its source example is
-`examples/projects/plugin_pulse.amx`.
+`crates/animatix-plugin-demo/demo.amx`.
 
 `animatix plugin describe` reads the runtime descriptors and emits the same
 manifest schema used by the analyzer and LSP:
@@ -230,7 +230,7 @@ manifest schema used by the analyzer and LSP:
 cargo build -p animatix-plugin-demo
 animatix plugin describe target/debug/libanimatix_plugin_demo.so \
   --output crates/animatix-plugin-demo/demo.amx-plugin.toml
-animatix check examples/projects/plugin_pulse.amx \
+animatix check crates/animatix-plugin-demo/demo.amx \
   --plugin crates/animatix-plugin-demo/demo.amx-plugin.toml
 ```
 

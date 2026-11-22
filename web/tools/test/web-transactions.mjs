@@ -931,7 +931,7 @@ async function main() {
       semiboldRegular: `${config}label: Text, text: "Variable weight sample", font_family: "Open Sans", font_size: 32, font_weight: 400, color: (1, 1, 1, 1), at: (64, 36), opacity: 1\n`,
       semibold: `${config}label: Text, text: "Variable weight sample", font_family: "Open Sans", font_size: 32, font_weight: "semibold", color: (1, 1, 1, 1), at: (64, 36), opacity: 1\n`,
       imported: `${config}import "./palette.amx" as palette\nbox: Rect, size: (60, 40), at: (64, 36), color: palette::tint, opacity: 1\n`,
-      sharedProgress: readFileSync(join(ROOT, 'examples/data/shared_progress_math.amx'), 'utf8'),
+      sharedProgress: readFileSync(join(ROOT, 'crates/animatix/tests/fixtures/amx/data/shared_progress_math.amx'), 'utf8'),
       slow: `${config}import "./slow.amx" as slow\nbox: Rect, size: (60, 40), at: (64, 36), color: slow::tint, opacity: 1\n`,
       latest: solid('(0.1, 0.8, 0.2, 1)'),
       missingAsset: `${config}pic: Svg, url: "missing.data", size: (40, 40), at: (64, 36), opacity: 1\n`,

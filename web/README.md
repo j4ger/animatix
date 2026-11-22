@@ -17,7 +17,7 @@ system, with light and dark overrides. Themes apply to the website and playback
 controls. The scene source, artwork, and recordings use their authored text and
 colors.
 
-The canonical scenes live in `content/scenes/`. The homepage, Showcase,
+The public examples live in `content/scenes/`. Both Playground languages enumerate the same source catalog. The homepage, Showcase,
 lessons, techniques, Playground and the noise cancellation story share one
 player with an editable source panel. Previews prepare the engine as soon as
 the page opens or Playground selects a source. Showcase, lessons and techniques
@@ -192,7 +192,7 @@ Nix pins Node24 via `flake.lock`; npm pins Astro and transitive dependencies via
 tools/ci/ci.sh gate web-site-smoke
 
 # Extract and render keyframes from an .amx scene and generate a contact sheet:
-tools/quality/render-keyframes.sh web/content/scenes/hero.amx /tmp/hero_frames
+tools/quality/render-keyframes.sh web/content/scenes/insertion-sort.amx /tmp/insertion_sort_frames
 tools/quality/contact-sheet.sh /tmp/hero_frames /tmp/hero_sheet.png
 ```
 

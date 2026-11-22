@@ -4,7 +4,7 @@
   "origin_source": "web/demos/transformer/scenes/attention.amx",
   "origin_source_sha256": "5596a52aa4ec0016ef9c9b0b18671588f6b645e4e767e8c9f8a4bc49c550ac4e",
   "fixture_source_sha256": "77b58e7f475f278aa938ec3b67542a554913235eae22158f6f04f34c27962b6f",
-  "change": "Migrated to canonical function and plan syntax with formatting; actor identities, timing cues, content, and the three-module closure are preserved. The relocated fixture differs from the current web scene only by import prefixes.",
+  "change": "Migrated to canonical function and plan syntax with formatting; actor identities, timing cues, content, and the three-module closure are preserved. The relocated fixture differs from the archived web scene only by import prefixes.",
   "modules": [
     {
       "source": "examples/lib/theme.amx",

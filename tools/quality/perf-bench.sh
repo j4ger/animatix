@@ -274,14 +274,21 @@ import hashlib, json, subprocess, sys
 from pathlib import Path
 (path, tier, commit, dirty, rustc, cpus, created, load1, ratio,
  allow, taskset, bench_count) = sys.argv[1:13]
-# Corpus-wide AMX hashes cover relative module inputs. Tracked dependency and
+# Benchmark AMX hashes cover relative module inputs. Tracked dependency and
 # runner configuration hashes describe dirty-tree inputs without absolute paths.
 # This is provenance only, not a complete reproducible build or compatibility gate:
 # fonts/non-AMX assets, dirty engine code, host state and env flags need review.
-provenance_paths = set(Path("examples").rglob("*.amx")) | {
+workload_root = Path("crates/animatix/benches/fixtures/amx")
+provenance_paths = {asset for asset in workload_root.rglob("*") if asset.is_file()} | {
     Path("crates/animatix/benches/full_pipeline.rs"),
     Path("crates/animatix/benches/full_pipeline_support.rs"),
+    Path("crates/animatix-syntax/tests/fixtures/amx/components/09_components.amx"),
 }
+for module_dir in (
+    "crates/animatix/tests/fixtures/amx/lib",
+    "crates/animatix/examples/web_present_driver/fixtures/lib",
+):
+    provenance_paths.update(Path(module_dir).glob("*.amx"))
 tracked = subprocess.check_output(["git", "ls-files", "-z"]).decode().split("\0")
 for name in tracked:
     p = Path(name)

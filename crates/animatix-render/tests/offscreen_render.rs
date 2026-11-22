@@ -423,7 +423,10 @@ fn two_filter_scopes_keep_backdrop_visible_across_repeated_renders() {
     let Some(mut renderer) = new_renderer() else {
         return;
     };
-    let asset = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/assets/checker.png");
+    let asset = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../animatix/benches/fixtures/amx/assets/checker.png"
+    );
     let timeline = build_checked(&format!(
         r#"config {{ resolution: (1280, 720) }}
 

@@ -153,7 +153,7 @@ card.opacity = 1
     std::fs::create_dir_all(&document_dir).expect("create relative document directory");
     std::fs::create_dir_all(&asset_dir).expect("create relative asset directory");
     let source_assets =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/assets");
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../animatix-render/src/delivery");
     std::fs::copy(
         source_assets.join("narration.speech.json"),
         asset_dir.join("narration.speech.json"),

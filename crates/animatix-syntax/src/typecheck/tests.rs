@@ -181,7 +181,7 @@ fn strict_types_warns_on_missing_annotations() {
 
 #[test]
 fn local_ticker_example_typechecks_with_keyframes_and_always_body() {
-    let source = include_str!("../../../../examples/animation/local_tickers.amx");
+    let source = include_str!("../../tests/fixtures/amx/animation/local_tickers.amx");
     let diagnostics = typecheck_source(source);
     assert!(
         diagnostics.is_empty(),
@@ -531,7 +531,7 @@ fn type_alias_resolves_in_component_param() {
 
 #[test]
 fn example_component_actions_demo_parses_and_typechecks() {
-    let source = include_str!("../../../../examples/components/09_components.amx");
+    let source = include_str!("../../tests/fixtures/amx/components/09_components.amx");
     let (ast, errors) = crate::parser::parse_source(source);
     assert!(errors.is_empty(), "Parse errors: {:?}", errors);
     let ast = ast.expect("parsed AST");

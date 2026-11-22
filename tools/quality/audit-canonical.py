@@ -34,7 +34,7 @@ def checkpoint(output, records, expected, binary_hash, complete=False, binary_un
 
 
 def collect(binary, output, ci_summary=None):
-    entries = inventory(corpus='canonical')
+    entries = inventory()
     # Require a fresh directory: old reports must never masquerade as this run.
     output.mkdir(parents=True, exist_ok=False)
     budget = output / 'zero-budget.json'

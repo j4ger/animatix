@@ -8,7 +8,7 @@ or pixel acceptance. The 105 example/legacy scenes remain covered unchanged.
 
 `tools/quality/audit_corpus.py` owns source discovery and exclusions for the
 scene gate, budget gate, and corpus statistics. Its default `legacy` selection
-preserves the existing population. `--corpus canonical` discovers every AMX
+uses the published inventory and discovers every AMX
 under the canonical scene directory without inheriting legacy exclusions.
 `--json` includes ownership and exclusion reasons. Missing roots and empty
 corpora, including all-excluded inventories, fail rather than yielding an empty

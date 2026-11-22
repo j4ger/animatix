@@ -13,17 +13,20 @@ function installPlayground(root: HTMLElement) {
   const sample = root.querySelector<HTMLElement>('[data-sample]')!;
   const scene = editableScene(sample);
   const selector = root.querySelector<HTMLSelectElement>('#scene-choice')!;
-  const ids = Array.from(selector.options, option => option.value);
+  const defaultId = selector.value;
+  const choices = new Map(Array.from(selector.options, option => [option.value, option]));
   const transferred = takeEditorTransfer('playground');
   let current = '';
   let leaving = false;
 
   async function openSource(id: string, initial = false) {
+    const option = choices.get(id);
+    const path = option?.dataset.source;
+    if (!path) return;
     selector.value = id;
     scene.setReading(true);
     try {
       const next = new URL(location.href);
-      const path = `${root.dataset.base}${id}.amx`;
       const canonical = await fetchSource(path);
       const source = initial ? overridesFor(id, next.searchParams).reduce(
         (text, [name, value]) => withOverride(text, name, value), canonical,
@@ -35,7 +38,7 @@ function installPlayground(root: HTMLElement) {
       const time = step && (requestedTime >= step.start && requestedTime <= step.start + step.duration
         ? requestedTime : step.start + step.duration / 2);
       current = id;
-      scene.replaceScene({id, path, title: selector.selectedOptions[0].text, canonical, source, draft, time});
+      scene.replaceScene({id, path, title: option.text, canonical, source, draft, time});
       if (step) {
         const line = source.split('\n')[step.line - 1];
         const match = /\[([\d.]+(?:ms|s))/.exec(line);
@@ -78,5 +81,5 @@ function installPlayground(root: HTMLElement) {
   transferEditor('playground', () => scene.snapshot() ?? transferred, () => { leaving = true; });
 
   const requested = canonicalSceneId(new URLSearchParams(location.search).get('scene') ?? '');
-  void openSource(ids.includes(requested) ? requested : 'first-move', true);
+  void openSource(choices.has(requested) ? requested : defaultId, true);
 }

@@ -1,7 +1,7 @@
 # Sorting contract candidate
 
 This additive fixture is **not acceptance evidence for retiring old scenes**.
-The old `web/demos/sorting/sort.amx`, formatter input, SDK legacy inventory and
+The old [sort.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/web/demos/sorting/sort.amx), formatter input, SDK legacy inventory and
 all audit budgets remain unchanged.
 
 ## Mapping

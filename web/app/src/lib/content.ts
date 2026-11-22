@@ -2,6 +2,7 @@ import {localizedPath, type Language} from './language';
 
 export const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 export const url = (path: string) => `${base}/${path.replace(/^\//, '')}`;
+export const sceneUrl = (id: string) => url(`content/scenes/${id}.amx`);
 export const pageUrl = (language: Language, path = '') => localizedPath(base, language, path);
 export const github = 'https://github.com/j4ger/animatix';
 export const works = [

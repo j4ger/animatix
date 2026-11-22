@@ -8,7 +8,7 @@ canonical site's checks.
 | --- | --- | --- |
 | Transformer tokens, host marker test | `crates/animatix-web/tests/fixtures/timeline_markers.amx` | All nine authored timestamps; existing six required marker checks, point durations and separate composition checks remain. No modules or text shaping needed. |
 | Sorting sort, formatter AST test | `crates/animatix-syntax/tests/fixtures/sorting_format.amx.txt` | The complete insertion-sort workload is migrated to current function, plan, call and timing syntax. The fixture is byte-identical to the current Web scene; formatter output reparses to the same scrubbed AST. Imports are syntax only, not resolved here. |
-| Transformer attention, native presentation driver | `crates/animatix/examples/web_present_driver/fixtures/attention.amx` and `lib/` | The complete workload is migrated to current syntax, retaining actor identities, text, geometry and cue timing. The fixture is byte-identical to the current Web scene after import-prefix relocation; all three library fixtures match their current `examples/lib/` sources. |
+| Transformer attention, native presentation driver | `crates/animatix/examples/web_present_driver/fixtures/attention.amx` and `lib/` | The complete workload is migrated to current syntax, retaining actor identities, text, geometry and cue timing. The fixture keeps its relocated source and three library inputs pinned by hash. Its original paths are recorded for Git history lookup. |
 
 The manifests preserve the pre-migration hashes as historical provenance and
 record separate hashes for the migrated current source and relocated fixture.

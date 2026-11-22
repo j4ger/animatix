@@ -72,7 +72,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: target/native-video-proof-inputs
-          key: native-proof-inputs-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('Cargo.*', 'rust-toolchain.toml', 'crates/**', 'examples/assets/narration.*', 'tools/release/native/video-proof.sh', 'tools/release/native/vcpkg-sources.lock') }}
+          key: native-proof-inputs-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('Cargo.*', 'rust-toolchain.toml', 'crates/**', 'tools/release/native/video-proof.sh', 'tools/release/native/vcpkg-sources.lock') }}
       - name: Restore FFmpeg dependencies
         if: steps.native-inputs.outputs.cache-hit != 'true'
         id: ffmpeg

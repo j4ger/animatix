@@ -1602,7 +1602,7 @@ fn ticker(dot, lane_y: Num) -> Timeline {
 
 #[test]
 fn local_keyframes_parse_in_the_real_ticker_example() {
-    let source = include_str!("../../../../examples/animation/local_tickers.amx");
+    let source = include_str!("../../tests/fixtures/amx/animation/local_tickers.amx");
     let ast = parse_ok(source);
     let Stmt::FnDecl { body, .. } = ast
         .iter()

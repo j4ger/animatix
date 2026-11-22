@@ -17,7 +17,7 @@ class PhaseGates(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
-        for folder in ('tools/ci', 'tools/quality', 'bin', 'target/debug', 'examples', 'web/scenes', 'web/demos'):
+        for folder in ('tools/ci', 'tools/quality', 'bin', 'target/debug', 'web/content/scenes'):
             (self.root / folder).mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / 'tools/ci/phase-timing.py', self.root / 'tools/ci/phase-timing.py')
         shutil.copyfile(ROOT / 'tools/quality/audit_corpus.py', self.root / 'tools/quality/audit_corpus.py')
@@ -38,7 +38,7 @@ if os.environ.get('FAIL_AUDIT'): sys.exit(9)
 print(json.dumps({'schema_version':3,'kind':'audit','summary':{'errors':0}}))
 ''')
         audit.chmod(0o755)
-        (self.root / 'examples/space scene.amx').write_text('fixture')
+        (self.root / 'web/content/scenes/space scene.amx').write_text('fixture')
         (self.root / 'tools/quality/audit-budget.sh').write_text('exit "${BUDGET_CODE:-0}"\n')
         self.env = {**os.environ, 'PATH': str(self.root/'bin')+os.pathsep+os.environ['PATH']}
         self.env.pop('ANIMATIX_PHASE_TIMINGS_DIR', None)
@@ -60,7 +60,7 @@ print(json.dumps({'schema_version':3,'kind':'audit','summary':{'errors':0}}))
     def test_canonical_gate_executes_collector_and_records_failure(self):
         shutil.copyfile(ROOT / 'tools/quality/audit-canonical.py', self.root / 'tools/quality/audit-canonical.py')
         scene = self.root / 'web/content/scenes/new.amx'
-        scene.parent.mkdir(parents=True)
+        scene.parent.mkdir(parents=True, exist_ok=True)
         scene.write_text('fixture')
         # The collector records repository identity, not fake build provenance.
         subprocess.run(['git', 'init', '-q', str(self.root)], check=True)
@@ -105,7 +105,7 @@ print(json.dumps({'schema_version':3,'kind':'audit','summary':{'errors':0}}))
     def test_scene_audit_keeps_space_paths_and_original_failure_mapping(self):
         result = self.run_gate('scene-audit')
         self.assertEqual(result.returncode,0,result.stderr)
-        self.assertIn('OK scene-audit: examples/space scene.amx',result.stdout)
+        self.assertIn('OK scene-audit: web/content/scenes/space scene.amx',result.stdout)
         result = self.run_gate('scene-audit',FAIL_AUDIT='1')
         self.assertEqual(result.returncode,1,result.stderr)
         self.assertIn('scene-audit: one or more scene audits failed',result.stderr)

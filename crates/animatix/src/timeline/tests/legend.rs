@@ -353,7 +353,7 @@ legend: Legend
 fn example_legend_entries_are_scanned() {
     let source = std::fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../examples/projects/legend_example.amx"
+        "/tests/fixtures/amx/projects/legend_example.amx"
     ))
     .expect("legend example should exist");
     let report = build(&source);

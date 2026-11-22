@@ -1,0 +1,16 @@
+import "../../../../examples/web_present_driver/fixtures/lib/theme.amx"
+
+import "../../../../examples/web_present_driver/fixtures/lib/stage.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720), duration: 1.5 }
+
+floor: StageFloor
+
+head: ActHead, kicker: "HELLO", title: "ANIMATIX", sub: "A declarative DSL for motion design"
+
+caption: Caption, text: "00_hello.amx", tag: "basics"
+
+#0s
+  fade_in(target: floor, duration: 0.6s)
+  fade_in(target: head, duration: 0.5s)
+  fade_in(target: caption, duration: 0.4s, delay: 0.3s)

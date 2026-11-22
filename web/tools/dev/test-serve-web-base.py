@@ -42,23 +42,10 @@ class BasePathTests(unittest.TestCase):
             self.assertIsNone(server.strip_base(path))
             self.assertEqual(self.handler.translate_path(path), str(Path(self.tmp.name, '__rejected_path__')))
 
-    def test_example_modules_are_development_only_and_cannot_escape(self):
-        repo = Path(self.tmp.name)
-        (repo / 'web').mkdir()
-        lib = repo / 'examples/lib'
-        lib.mkdir(parents=True)
-        (lib / 'theme.amx').write_text('pub let value = 1')
-        (repo / 'private.amx').write_text('private')
-        (lib / 'escape.amx').symlink_to(repo / 'private.amx')
-        with patch.object(server, 'REPO_ROOT', str(repo)):
-            server.SERVE_BASE = '/animatix'
-            server.WEB_DIR = str(repo / 'web')
-            self.handler.directory = server.WEB_DIR
-            self.assertEqual(self.handler.translate_path('/animatix/examples/lib/theme.amx'), str(lib / 'theme.amx'))
-            for name in ['../private.amx', '%2e%2e/private.amx', 'escape.amx', '', 'theme.amx/extra']:
-                self.assertEqual(self.handler.translate_path('/animatix/examples/lib/' + name), str(repo / 'web/__rejected_path__'))
-            server.WEB_DIR = str(repo / '_site')
-            self.assertIsNone(server.example_library_path('/examples/lib/theme.amx'))
+    def test_probe_imports_resolve_inside_the_served_tree(self):
+        server.SERVE_BASE = '/animatix'
+        path = self.handler.translate_path('/animatix/dev/lib/stage.amx')
+        self.assertEqual(path, str(Path(self.tmp.name, 'dev/lib/stage.amx')))
 
     def test_nix_store_script_finds_checker_from_served_checkout(self):
         repo = Path(self.tmp.name)

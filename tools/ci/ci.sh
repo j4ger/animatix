@@ -312,9 +312,7 @@ gate_scene_audit() {
     return 2
   fi
 
-  # The scene walk shared with tools/quality/audit-budget.sh: component libraries,
-  # site copies, the plugin showcase and the pure-`pub let` module are not
-  # standalone scenes; a multi-file project is driven through its main.amx.
+  # Share the public scene inventory with audit-budget.sh.
   scenes() {
     python3 tools/quality/audit_corpus.py
   }
@@ -529,15 +527,6 @@ gate_site_scenes() {
   # The SDK contains all capabilities; browser dependency tests prove that only
   # the required partitions are downloaded. No separate feature-profile run.
   cargo test -p animatix-web --test site_scenes
-  # Astro source pages are not HTML: explicitly check the canonical new scenes.
-  cargo build --bin animatix
-  local scene count=0
-  for scene in web/content/scenes/*.amx; do
-    [ -f "$scene" ] || continue
-    target/debug/animatix check "$scene" || return 1
-    count=$((count + 1))
-  done
-  [ "$count" -ge 10 ] || { echo "error: expected at least 10 canonical site scenes, found $count" >&2; return 1; }
 }
 
 

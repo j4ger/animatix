@@ -27,9 +27,9 @@ use animatix_syntax::module::ModuleGraph;
 
 fn main() {
     let mut args = std::env::args().skip(1);
-    let path = args
-        .next()
-        .unwrap_or_else(|| "examples/gallery/dashboard_story.amx".to_string());
+    let path = args.next().unwrap_or_else(|| {
+        "crates/animatix/benches/fixtures/amx/gallery/dashboard_story.amx".to_string()
+    });
     let frames: u32 = args.next().and_then(|v| v.parse().ok()).unwrap_or(120);
     let fps: f64 = 30.0;
     let path = std::path::PathBuf::from(path);

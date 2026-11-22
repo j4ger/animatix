@@ -3,9 +3,9 @@
 #[path = "../benches/full_pipeline_support.rs"]
 mod support;
 
-use std::path::Path;
-
-use support::{WORKLOADS, build_only, file_pipeline, parsed, required_source, source_pipeline};
+use support::{
+    build_only, file_pipeline, parsed, required_source, source_pipeline, workload_paths,
+};
 
 const SOURCE: &str = "#0s\nbox: Rect, size: (100, 100), at: (400, 300)\n";
 
@@ -54,9 +54,8 @@ fn file_pipeline_keeps_real_file_read_coverage() {
 
 #[test]
 fn mandatory_workloads_exist_and_are_nonempty() {
-    let examples = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
-    for relative in WORKLOADS {
-        let _ = required_source(&examples.join(relative));
+    for path in workload_paths() {
+        let _ = required_source(&path);
     }
 }
 

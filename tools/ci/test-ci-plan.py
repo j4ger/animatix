@@ -320,7 +320,7 @@ class PlannerTests(unittest.TestCase):
         })
 
     def test_web_scene_demo_and_font_assets_also_render_scenes(self):
-        for path in ("web/scenes/intro.amx", "web/demos/example.amx", "web/fonts/index.json", "web/content/scenes/first-move.amx"):
+        for path in ("web/fonts/index.json", "web/content/scenes/first-move.amx"):
             with self.subTest(path=path):
                 _, plan = self.plan([path])
                 selected = set(plan["candidate_job_ids"])

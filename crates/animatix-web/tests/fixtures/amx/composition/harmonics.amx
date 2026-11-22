@@ -1,0 +1,3 @@
+pub fn wave(x: Num) -> Num {
+  (4 / pi) * (sin(x) + sin(3 * x) / 3 + sin(5 * x) / 5)
+}

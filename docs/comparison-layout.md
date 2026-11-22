@@ -64,7 +64,7 @@ loss: Row, at: (1060, 510), size: (auto, 72), gap: 6, vertical_align: "baseline"
 
 The column's right edge is at x=1140. Its 12 px padding puts both values'
 right edges at x=1128. See both layouts in the runnable
-[readout alignment example](../examples/layout/readout_alignment.amx).
+[readout alignment example](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/examples/layout/readout_alignment.amx).
 
 ## Correctness and review
 

@@ -376,7 +376,7 @@ fn components_gallery_instances_form_single_nodes() {
         .load_program_with_source(
             std::path::Path::new(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/../../examples/components/09_components.amx"
+                "/../animatix-syntax/tests/fixtures/amx/components/09_components.amx"
             )),
             None,
         )

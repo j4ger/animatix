@@ -1,0 +1,23 @@
+// Reproduces the graph-hosted stroke reveal and scene handoff from the Fourier walkthrough.
+import "harmonics.amx" as math
+
+config { resolution: (640, 360) }
+
+# Trace
+config { duration: 3 }
+
+#0s
+graph: Graph, at: (320, 180), size: (420, 220), x_domain: (0, tau), y_domain: (-2, 2) {
+  wave: PlotCurve, func: (x) => math::wave(x), stroke_width: 3, stroke_progress: 0
+}
+
+#0.5s
+wave.stroke_progress = 1 [2s, ease: linear]
+
+#2.5s
+play Spectrum [wipe_left, 500ms]
+
+# Spectrum
+config { duration: 2 }
+#0s
+bars: BarChart, at: (320, 180), size: (380, 220), data: {(1, 1), (3, 1 / 3), (5, 1 / 5)}

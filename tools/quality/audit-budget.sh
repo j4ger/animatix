@@ -32,9 +32,7 @@ if [ ! -x "$BIN" ]; then
 fi
 mkdir -p "$(dirname "$BUDGET_FILE")"
 
-# The same scene walk the `scene-audit` gate uses: component libraries, site
-# copies, the plugin showcase and the pure-`pub let` module are not standalone
-# scenes; multi-file projects are driven through their `main.amx`.
+# Use the same public scene inventory as the scene-audit gate.
 scenes() {
   python3 tools/quality/audit_corpus.py
 }

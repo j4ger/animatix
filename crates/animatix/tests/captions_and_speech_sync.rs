@@ -255,10 +255,7 @@ box: Rect, at: (100, 100)
 #[test]
 fn test_demo_scene_captions_evaluation() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let amx_path = manifest_dir.join("../../examples/animation/41_speech_sync_captions.amx");
-    if !amx_path.exists() {
-        return;
-    }
+    let amx_path = manifest_dir.join("tests/fixtures/amx/animation/41_speech_sync_captions.amx");
     let mut graph = ModuleGraph::new();
     let program = graph.load_program(&amx_path).expect("load program");
     let expanded = program.expand_components().expect("component expansion");

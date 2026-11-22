@@ -12,7 +12,7 @@ const DIMS: SceneDimensions = SceneDimensions {
 
 fn build_example() -> Timeline {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples/layout/painter_order_annotations.amx");
+        .join("tests/fixtures/amx/layout/painter_order_annotations.amx");
     let mut graph = ModuleGraph::new();
     let mut program = graph.load_program(&path).expect("example should parse");
     let type_diagnostics = program.typecheck();

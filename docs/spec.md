@@ -16,7 +16,7 @@ Use these rules when generating `.amx` files:
 - Timeline operations are ordinary function calls with parentheses: `fade_in(target: title, duration: 1s, ease: ease_out)`. Positional arguments come before named arguments; animation targets are explicit `target:` or `targets:` parameters. `duration`, `delay`, and `ease` are ordinary parameters. Do not add a call-site `[ ... ]` suffix.
 - Use `sequence { ... }` to order plan statements and `stagger [150ms] { ... }` to offset them. A `#{ ... }` expression builds a local plan; actor declarations inside it belong to each plan mount.
 - Identifiers use `snake_case`; hyphens remain available inside strings such as colorscheme names, display text, and paths. Parameter types use `name: Type`, and defaults use `name: Type = value`.
-- A relative `url:` / `source:` / `transcript:` path resolves against the directory of the file that declares it, then the workspace root — from `examples/basics/`, `examples/assets/checker.png` is written `../assets/checker.png`.
+- A relative `url:` / `source:` / `transcript:` path resolves against the directory of the file that declares it, then the workspace root — from a scene in `scenes/`, a sibling asset in `assets/` is written `../assets/checker.png`.
 - Absolute paths and `http(s)://` / `data:` URLs are used verbatim.
 
 ---
@@ -28,11 +28,11 @@ Use these rules when generating `.amx` files:
 | Reactive | `always` | Yes | Runtime-real | Yes | Yes | Shipped stateless reactive model |
 | Reactive | `for` | Yes | Runtime-real | Yes | Yes | Compile-time structural expansion |
 | Reactive | `loop` / `yield` / `stop` / `pause` / `resume` | Rejected | Removed | Yes | Yes | Explicitly removed |
-| Components | `pub component` instantiation | Yes | Runtime-real | Yes | Yes | Via `module.rs`; see `examples/components/09_components.amx` |
+| Components | `pub component` instantiation | Yes | Runtime-real | Yes | Yes | See the [component section](#12-components) |
 | Components | parameter binding + nested-label isolation | Yes | Runtime-real | Yes | Yes | Module/timeline tests |
 | Components | dotted assignment targets / rhs property lookup | Yes | Runtime-real | Yes | Yes | Nested-label writes; nonexistent targets report diagnostics |
 | Components | timeline functions (`fn` in components) | Yes | Runtime-real | Yes | Yes | `fn` blocks inside components; expanded into scoped blocks at module load |
-| Modules | `pub let` exports | Yes | Runtime-real | Yes | Yes | Exported values from `.amx` files; see `examples/components/10_modules.amx`. |
+| Modules | `pub let` exports | Yes | Runtime-real | Yes | Yes | Exported values from `.amx` files. |
 | Modules | `import ... as` namespaced imports | Yes | Runtime-real | Yes | Yes | Aliased imports create namespaces for qualified access (`theme::accent`). |
 | Modules | Re-exports (`pub let x = c::x`) | Yes | Runtime-real | Yes | Yes | Re-export chains resolved transitively through namespace imports. |
 | Expressions | literals / arithmetic / calls / paths / conditionals | Yes | Runtime-real | Yes | Yes | Stable expression core |
@@ -40,11 +40,11 @@ Use these rules when generating `.amx` files:
 | Expressions | Member calls and namespace calls | Yes | Runtime-real | Yes | Yes | Methods use `receiver.method(...)`; imported values/functions use `alias::name` |
 | Expressions | `Expr::Index` | Yes | Runtime-real | Yes | Yes | Array/vector/string index: `items[0]`, `pos[1]`, `text[0]` |
 | Expressions | `Expr::Construct` | Yes | Runtime-real | Yes | Yes | Object construction: `Point { x: 10, y: 20 }` |
-| Primitives | All shapes (`Text`, `Typst`, `Svg`, `Image`, `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Mask`, etc.) | Yes | Runtime-real | Yes | Yes | See `examples/basics/01_shapes.amx`, `examples/layout/13_paths.amx`, `examples/gallery/motion_poster.amx` |
+| Primitives | All shapes (`Text`, `Typst`, `Svg`, `Image`, `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Mask`, etc.) | Yes | Runtime-real | Yes | Yes | See the [primitive reference](primitives.md) |
 | 3D | `Graph3D`, `Line3D`, `Polyhedron` | — | **Not supported** | — | Yes | Explicitly not planned; all rendering is 2D |
-| Primitives | `Code` | Yes | Runtime-real | Yes | Yes | `language` selects Typst syntax highlighting; token colours follow the colorscheme (empty/unknown renders plain). See `examples/basics/31_code.amx` |
-| Plotting | `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane` | Yes | Runtime-real | Yes | Yes | `PlotCurve` with `kind: cartesian|polar|parametric|implicit`. See `examples/data/07_plots.amx`, `examples/data/18_number_plane_contours.amx`, `examples/data/26_data_math.amx` |
-| Post-processing | `Filter` scope + ordered effect chain (14 built-ins) | Yes | Runtime-real | Yes | Yes | Effects are labelled child declarations of a `Filter` scope (`soft: Blur, radius: 10`); animate with `scope.stage.param = value`. GPU-only; no backend means skip + diagnostic. See `examples/animation/08_effects.amx` (composition) and `examples/animation/30_effects_catalog.amx` (14 effects across 13 Filter scopes) |
+| Primitives | `Code` | Yes | Runtime-real | Yes | Yes | `language` selects Typst syntax highlighting; token colours follow the colorscheme (empty/unknown renders plain). See [31_code.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/examples/basics/31_code.amx) |
+| Plotting | `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane` | Yes | Runtime-real | Yes | Yes | `PlotCurve` with `kind: cartesian|polar|parametric|implicit`. |
+| Post-processing | `Filter` scope + ordered effect chain (14 built-ins) | Yes | Runtime-real | Yes | Yes | Effects are labelled child declarations of a `Filter` scope (`soft: Blur, radius: 10`); animate with `scope.stage.param = value`. GPU-only; no backend means skip + diagnostic. See the [effects reference](effects.md) |
 | Morphing | re-declaration morphing + path/text interpolation | Yes | Runtime-real | Yes | Yes | Core morph path via re-declaration |
 | Morphing | `strategy:auto\|match\|fade`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing | Yes | Yes | |
 | Callables | Motion: `move`, `shift`, `rotate`, `scale`; Entrance/exit: `fade_in`, `draw_in`, `wipe_in`, `reveal_in`, `fade_out`, `wipe_out`, `reveal_out`, `draw_out`; Effects: `shake`, `pulse`, `bounce`; Persistence: `persist`, `remove`; Reorder: `swap`, `reorder` | Yes | Runtime-real | Yes | Yes | Built-ins, user functions, component methods, and plugins share callable signatures |
@@ -661,7 +661,7 @@ isolating and fading a composited image. Mask and Filter keep their content in
 their clipping/effect scopes. Glass uses a post-render backdrop composite and
 can cover later siblings, so source order alone does not define overlays that
 cross a Glass scope. See
-[`painter_order_annotations.amx`](../examples/layout/painter_order_annotations.amx).
+[`painter_order_annotations.amx`](../crates/animatix/tests/fixtures/amx/layout/painter_order_annotations.amx).
 
 **Declaration-time measure/place contract:** Layout containers consume each child's `size` track at timeline build; children with explicit `at` opt into manual placement instead.
 
@@ -784,7 +784,7 @@ circle: Ellipse, size: (100, 100)
 poly: Polygon, points: {(0,0), (100,0), (50,100)}
 path: Path, commands: {move_to(0, 0), line_to(100, 100), close()}
 arrow: Arrow, from: (0, 0), to: (120, 40), head_size: 18
-img: Image, url: "examples/assets/checker.png", at: (100, 100), size: (200, 150)
+img: Image, url: "checker.png", at: (100, 100), size: (200, 150)
 ```
 
 **Common generation properties:**
@@ -914,7 +914,7 @@ How a weight becomes a drawing — measured on this repo, not inferred:
   text path.
 - Trading place: the variable pair answers weights the statics could not, at the
   cost of slightly different advance widths for the ones they could. Measured on
-  `examples/layout/27_layout_text.amx`, the same frame before and after differs in
+  a layout scene, the same frame before and after differs in
   496 of 921,600 pixels (0.054%) — glyph-edge antialiasing, no line rewrapped.
 
 All typography properties are animatable via keyframes, and `font_weight` is a
@@ -1073,7 +1073,7 @@ Limits worth knowing:
   An opted-out actor keeps its *authored* coordinates — it is outside the
   camera, not compensating for it — and if it is a `Filter` scope, its authored
   `bounds:` are read as screen coordinates like everything else it authors.
-  `examples/animation/37_hud_overlay.amx` is the worked scene: a plate that
+  A HUD can use a plate that
   pushes in under a badge and rule that never move.
 - Authoring a camera turns off the static-subtree encoding cache for root
   subtrees (a cached encoding cannot be re-transformed when it is appended), so
@@ -1378,9 +1378,9 @@ with fixed values and update them in `always`, or read the input in a plot
 function. Runtime input editing currently supports single scenes only;
 multi-scene calls report an error. A successfully installed replacement
 document clears inputs; a failed replacement retains the prior document and
-inputs. See [`shared_progress_math.amx`](../examples/data/shared_progress_math.amx).
+inputs. See [`shared_progress_math.amx`](../crates/animatix/tests/fixtures/amx/data/shared_progress_math.amx).
 
-The [probability bar template](../examples/templates/probability-bars.amx) uses a common zero and width across categories. Pass `ProbabilityBar` a `value` and a `progress` fraction in [0, 1]. Its line endpoint and percentage label read the same fraction on every frame, including when seeking backward.
+The [probability bar fixture](../crates/animatix/tests/fixtures/amx/lib/probability.amx) uses a common zero and width across categories. Pass `ProbabilityBar` a `value` and a `progress` fraction in [0, 1]. Its line endpoint and percentage label read the same fraction on every frame, including when seeking backward.
 
 **BarChart** draws rectangular bars from a list of `(key, value)` pairs.
 Use a literal such as `{("A", 12), ("B", 30)}`, a variable, or an expression
@@ -1394,7 +1394,7 @@ and captions follow their categories into the new slots. Added categories
 grow from zero. Removed categories move after the new set, shrink to zero,
 and disappear with their captions. A chart carried with `persist` keeps the
 dataset visible at the scene boundary. Use an explicit `max_value` to keep
-the vertical scale fixed across datasets. See the [bar chart example](../examples/data/27_bars_race.amx).
+the vertical scale fixed across datasets.
 
 ### Built-in Variables
 
@@ -1536,9 +1536,8 @@ always {
 Gravity is `260 * age²` — the closed form of constant acceleration, not a
 stepped velocity — so it is exact at any frame time. Give the burst a light source
 (a `radial` ramp to a transparent stop with `blend: "screen"`) and it reads as
-emitted rather than as moving dots. See
-`examples/animation/34_particles_analytic.amx` for the full form, including
-ambient motes whose noise is sampled on a circle so the drift loops.
+emitted rather than as moving dots. For looping ambient motes, sample noise
+along a circle in noise space so a full turn returns to the original sample.
 
 > Generated actors are addressed as `spark__0`, `spark__1`, … internally, so an
 > entrance call cannot target the whole array — give them `opacity: 1.0` at
@@ -1567,34 +1566,6 @@ wire.dash_offset = 0
 #2s
 wire.dash_offset = 140 [2s]
 ```
-
-**The light pack.** The same moves are packaged as components in
-`examples/lib/light.amx` — `KeyLight` / `CoolLight` (a two-point radial wash on
-`screen`), `MarchingRail` (a dashed rule that keeps travelling), `Ticker`
-(count-up text) and `Breather` (idle scale on a sine) — so a lit stage is four
-declarations:
-
-```animatix
-import "../lib/light.amx"
-
-key:  KeyLight,    radius: 400, at: (560, 300)
-fill: CoolLight,   radius: 300, at: (900, 470)
-kpi:  Ticker,      to: 1284, suffix: "×", at: (560, 300)
-rail: MarchingRail, length: 900, speed: 40, at: (640, 600)
-```
-
-One rule comes with them: a component that writes a property from `always`
-owns it. Enter those actors with `fade_in` (opacity), not `settle_in` /
-`pop_in` (scale) or `draw_in` (stroke progress) — a frame-time write wins every
-frame, so the entrance would do nothing.
-
-**Where to watch them move.** Every recipe in this section has a running version
-in the browser. `web/recipes/` plays one move per figure — `two_point_light`,
-`marching_ants`, `count_up`, `camera_push`, `word_reveal`, `analytic_sparks`,
-`bloom_stage`, `bar_race` — and tour §06 (`web/tour/scenes/light_camera.amx`) stacks them
-into a single scene so the *order* is visible: light first, then a live edge,
-then bloom, and the camera push last. The sources are ordinary `.amx` under
-`web/recipes/scenes/` and `web/tour/scenes/`, so each one can be copied whole.
 
 ### Property References & State Queries
 
@@ -1882,8 +1853,8 @@ are scoped to the plan mount; explicit `sequence` and `stagger` expressions
 control ordering. `stretch(animation: ..., factor: ...)` and
 `fit_duration(animation: ..., duration: ...)` are regular plan-composition
 functions that replace the removed `time_scale` and `clip_duration` call-site
-modifiers. See `examples/animation/local_tickers.amx` and
-`examples/projects/leetcode_sort_colors.amx`.
+modifiers. See `crates/animatix-syntax/tests/fixtures/amx/animation/local_tickers.amx` and
+`crates/animatix/tests/fixtures/amx/projects/leetcode_sort_colors.amx`.
 
 ### 12.1 Slots
 
@@ -2285,7 +2256,7 @@ curve.func = (x) => cos(x) [2s]  // starts at 1s, would end at 3s
 curve.func = (x) => x^2 [1s]  // overlaps: freezes sin→cos at 50%, chains to x^2
 ```
 
-See `examples/data/24_plot_transitions.amx` for complete demonstrations.
+
 
 
 
@@ -2586,7 +2557,7 @@ for i in {0, 1, 2, 3, 4} [step: 1200ms] {
 This preserves the frame-time random-access guarantee: no per-frame mutable
 state is introduced. Frame-time branching still uses `if`/`match` inside
 `always`, and sequential algorithms are precomputed into an event list at build
-time. See `examples/projects/leetcode_sort_colors.amx` for a full Dutch
+time. See `crates/animatix/tests/fixtures/amx/projects/leetcode_sort_colors.amx` for a full Dutch
 National Flag walkthrough authored this way.
 
 ### Match
@@ -2690,13 +2661,13 @@ when no explicit `--export-preset` flag is provided.
 
 ```bash
 # Export full timeline + 1s hold
-animatix gif examples/layout/12_reorder.amx -o out.gif
+animatix gif web/content/scenes/make-room.amx -o out.gif
 
 # Export with a 2-second trailing hold
-animatix gif examples/layout/12_reorder.amx -o out.gif --hold 2.0
+animatix gif web/content/scenes/make-room.amx -o out.gif --hold 2.0
 
 # Export explicit 3-second slice (hold is ignored when --duration is set)
-animatix gif examples/layout/12_reorder.amx -o out.gif --duration 3.0
+animatix gif web/content/scenes/make-room.amx -o out.gif --duration 3.0
 ```
 
 **Build-time overrides (`--set`).** `image`, `video`, `gif`, `check`, `review`, `storyboard` and `verify`
@@ -2720,18 +2691,18 @@ rather than overriding some scenes.
 
 ```bash
 # Export to WebM with VP9
-animatix video examples/gallery/brand_reel/main.amx -o out.webm --codec vp9
+animatix video web/content/scenes/quiet-carriage.amx -o out.webm --codec vp9
 
 # Auto-detect WebM from output extension (auto-selects VP9)
-animatix video examples/gallery/brand_reel/main.amx -o out.webm
+animatix video web/content/scenes/quiet-carriage.amx -o out.webm
 
 # WebM with custom resolution and framerate
-animatix video examples/composition/14_multiscene.amx --width 960 --height 540 --fps 24 -o out.webm
+animatix video crates/animatix-web/tests/fixtures/amx/composition/14_multiscene.amx --width 960 --height 540 --fps 24 -o out.webm
 ```
 
 ```bash
 # Low-FPS quick preview
-animatix gif examples/gallery/brand_reel/main.amx -o out.gif --fps 10
+animatix gif web/content/scenes/quiet-carriage.amx -o out.gif --fps 10
 ```
 
 **Image export (`animatix image`):** Renders a single frame at `--time` (default 0s). No trailing hold or parallelization applies.
@@ -2783,13 +2754,13 @@ Run `animatix timeline INPUT` to list the scheduled scene names.
 
 ```bash
 # Export a multi-scene composition
-animatix video examples/composition/14_multiscene.amx --width 1280 --height 720
+animatix video crates/animatix-web/tests/fixtures/amx/composition/14_multiscene.amx --width 1280 --height 720
 
 # Export one chapter with its incoming transition and audio
-animatix video examples/composition/14_multiscene.amx --scene Develop -o develop.mp4
+animatix video crates/animatix-web/tests/fixtures/amx/composition/14_multiscene.amx --scene Develop -o develop.mp4
 
 # GIF export with quick preview settings
-animatix gif examples/composition/19_cross_file_scenes.amx --width 640 --height 360 --fps 10
+animatix gif project.amx --width 640 --height 360 --fps 10
 ```
 
 ---
@@ -3107,7 +3078,7 @@ author-facing semantics that are now part of the language.
 | Wave | Semantics | Authoring surface |
 |------|-----------|-------------------|
 | 1 — Channels & high-ROI | Text gradient fills; feathered wipes and push transitions; spatial/radial stagger; camera parallax | `fill_gradient`, `gradient_extend`, `gradient_space` on text-like actors; `play ... [wipe-* \| push-*, duration]`; `stagger [each: 40ms, from: center \| top-left \| (x, y), metric: euclidean \| manhattan]`; `parallax: F32` |
-| 2 — Topology & typography | Post-layout orthogonal connectors; split-text reveals; pre-baked rolling counters; standard card/boundary components | `Connector` (`routing: elbow \| l-bend \| straight`); `reveal_in ... [by: char \| word \| line, stagger: ...]`; `Counter`; `CardNode` / `BoundaryBox` in `examples/lib/ui.amx` |
+| 2 — Topology & typography | Post-layout orthogonal connectors; split-text reveals; pre-baked rolling counters; standard card/boundary components | `Connector` (`routing: elbow \| l-bend \| straight`); `reveal_in ... [by: char \| word \| line, stagger: ...]`; `Counter`; layout components |
 | 3 — Materials & 2.5D | Native analytic Gaussian shadows; 2.5D perspective tilt; closed-loop idle micro-motion | `shadow` (`(offset_x, offset_y, blur, spread)`), `shadow_color`; `rotate_x`, `rotate_y`, `perspective`; `idle: "float" \| "breath"` |
 | 4 — Camera & continuity | Camera framing; shared-element FLIP overlay; spring handoff with initial velocity; interactive step pauses | `camera.focus = actor [padding: N]`; `shared_id: "key"` selects elements for a FLIP overlay; `spring_v0(damping, frequency, v0)`; `#step N` |
 

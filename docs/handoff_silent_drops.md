@@ -61,7 +61,7 @@ The corrected measurement, two binaries differing **only** in the step fence:
 Conclusion, recorded in `docs/roadmap.md` ("Pixel A/B has no noise floor yet"):
 **the step fence has no measurable visual effect**, and a corpus pixel diff
 cannot resolve any change below roughly "several tens of bytes on text scenes".
-Text/glyph scenes show the drift and `web/demos/matrix/scene.amx` does not, so
+Text/glyph scenes show the drift and [scene.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/web/demos/matrix/scene.amx) does not, so
 the suspect is glyph rasterization or shaping order — unpinned so far.
 
 Two rules follow, and both were used successfully this round:
@@ -101,7 +101,7 @@ fixed without deciding what it means"):
   centred the measured ink regardless of value, so the default has always been
   lying and the three spellings were indistinguishable.
 - Making alignment real reaches ordinary centred text everywhere (~two thirds of
-  the corpus moved, `examples/basics/00_hello.amx` at PSNR 40 — visible, not
+  the corpus moved, `crates/animatix/benches/fixtures/amx/basics/00_hello.amx` at PSNR 40 — visible, not
   noise). That number was not noise-controlled either; re-derive it if it
   matters.
 - `max_width == 0.0` (the engine default) routes to `compile_text_fast`, which

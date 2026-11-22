@@ -187,7 +187,7 @@ always {
 fn ambience_component_evaluates_at_runtime() {
     let mut graph = animatix_syntax::module::ModuleGraph::new();
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples/animation/39_ambience.amx");
+        .join("tests/fixtures/amx/animation/39_ambience.amx");
     let program = graph.load_program(&path).unwrap();
     let expanded = program.expand_components().expect("component expansion");
     let report = Timeline::build_with_options(

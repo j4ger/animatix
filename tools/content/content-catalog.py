@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Inventory AMX content without moving it or changing publication.
 
-The review registry carries stable IDs and decisions. Astro content.ts owns
-current pages; historical navigation is not an inventory input. Defaults are
-inferred purpose, never visual-quality approval.
+Astro owns publication. This report inventories source files, import edges,
+media metadata, and literal references for maintenance.
 """
 from __future__ import annotations
 
@@ -18,8 +17,6 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
 IMPORT = re.compile(r'^\s*import\s+"([^"]+)"', re.M)
-KINDS = {"example", "showcase", "fixture", "benchmark", "experiment", "library", "brand"}
-DECISIONS = {"review", "keep", "merge", "rework", "fixture", "retire"}
 
 
 def paths() -> list[str]:
@@ -32,46 +29,18 @@ def paths() -> list[str]:
 def inferred_kind(path: str) -> str:
     if "/lib/" in path:
         return "library"
-    if path.startswith(("web/tools/fixtures/web-runtime-perf/", "web/_perf_ab/")):
+    if "/benches/" in path or path.startswith(("web/tools/fixtures/web-runtime-perf/", "web/_perf_ab/")):
         return "benchmark"
     if "/fixtures/" in path or "/broken_corpus/" in path:
         return "fixture"
     if path.startswith("web/dev/"):
         return "experiment"
-    if path == "web/content/scenes/hero.amx":
-        return "brand"
-    if path.startswith("web/scenes/"):
-        return "brand"
-    if path.startswith(("examples/gallery/", "examples/projects/", "web/demos/")):
-        return "showcase"
     return "example"
 
 
 def build() -> dict:
     all_paths = paths()
     sources = [p for p in all_paths if p.endswith(".amx")]
-    registry = json.loads((ROOT / "docs/content/legacy-review.json").read_text())
-    entries = registry["entries"]
-    if registry["version"] != 1:
-        raise ValueError("unsupported registry version")
-    overrides = {}
-    ids = set()
-    for item in entries:
-        if item["source"] not in sources:
-            raise ValueError(f"missing registered source: {item['source']}")
-        if item["source"] in overrides or item["id"] in ids:
-            raise ValueError(f"duplicate registry source or id: {item['id']}")
-        ids.add(item["id"])
-        overrides[item["source"]] = item
-        if item.get("decision", "review") not in DECISIONS:
-            raise ValueError(f"invalid decision: {item['id']}")
-        if item.get("kind", "example") not in KINDS:
-            raise ValueError(f"invalid kind: {item['id']}")
-        for dependency in item.get("generated_from", []) + item.get("related_sources", []):
-            if dependency not in sources:
-                raise ValueError(f"missing related source: {dependency}")
-        if item.get("generator") and not (ROOT / item["generator"]).is_file():
-            raise ValueError(f"missing generator: {item['generator']}")
     current_previews = json.loads((ROOT / "web/content/preview-manifest.json").read_text())["works"]
     current_sources = {"web/content/" + w["source"]: w["id"] for w in current_previews}
     # Literal full-path references are useful evidence, not a complete dependency
@@ -87,32 +56,20 @@ def build() -> dict:
         for raw in IMPORT.findall(text):
             resolved = posixpath.normpath(posixpath.join(posixpath.dirname(source), raw))
             imports.append({"specifier": raw, "source": resolved, "exists": resolved in sources})
-        override = overrides.get(source, {})
         source_hash = hashlib.sha256((ROOT / source).read_bytes()).hexdigest()
-        reviewed_hash = override.get("reviewed_sha256")
-        review_stale = bool(reviewed_hash and reviewed_hash != source_hash)
-        kind = override.get("kind", "showcase" if source in current_sources else inferred_kind(source))
-        module = "/lib/" in source or "/scenes/" in source and source.startswith("examples/")
+        kind = "showcase" if source in current_sources else inferred_kind(source)
+        module = "/lib/" in source
         sibling_main = (ROOT / source).with_name("main.amx")
         fragment = sibling_main.exists() and Path(source).name != "main.amx"
         record = {
-            "id": override.get("id"),
             "source": source,
             "sha256": source_hash,
-            "visual_review_stale": review_stale,
             "kind": kind,
-            "kind_basis": "override" if "kind" in override else "path-inference",
             "role": "module" if module else "fragment" if fragment else "entry-candidate",
-            "decision": override.get("decision", "review"),
-            "status": override.get("status", "unreviewed"),
-            "visual_review": override.get("visual_review", "not-reviewed"),
             "current_work": current_sources.get(source),
             "imports": imports,
             "literal_references": [p for p, body in reference_texts.items() if source in body and p != source],
         }
-        record.update({k: v for k, v in override.items() if k not in {"id", "source", "kind"}})
-        if review_stale:
-            record["visual_review"] = "stale-source-changed"
         inventory.append(record)
     return {
         "version": 1,
@@ -128,7 +85,7 @@ def build() -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="validate registry and report counts")
+    parser.add_argument("--check", action="store_true", help="check the inventory and report counts")
     parser.add_argument("--output", type=Path, help="write JSON inventory instead of stdout")
     args = parser.parse_args()
     try:

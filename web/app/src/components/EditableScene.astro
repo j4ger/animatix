@@ -1,7 +1,7 @@
 ---
 import SourceEditor from './SourceEditor.astro';
 import Timeline from './Timeline.astro';
-import {url} from '../lib/content';
+import {sceneUrl, url} from '../lib/content';
 import {pageLanguage} from '../lib/language';
 import {ui} from '../lib/ui';
 import '../styles/editable-scene.css';
@@ -28,7 +28,7 @@ const {
 } = Astro.props;
 const sourcePanel = `${id}-source`;
 const sourceStatus = workspace ? 'editor-status' : `${id}-source-status`;
-const sourceUrl = url(`content/scenes/${id}.amx`);
+const sourceUrl = sceneUrl(id);
 const poster = url(posterPath);
 ---
 <figure class="sample" id={id} data-sample data-autoplay={autoplay || undefined}

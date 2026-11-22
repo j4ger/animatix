@@ -254,8 +254,10 @@ def classify_paths(changed_paths: list[str], roots: dict[str, Path],
             continue
         if path.startswith("web/"):
             web_changed = True
-            if path.startswith(("web/scenes/", "web/demos/", "web/fonts/", "web/content/scenes/")):
+            if path.startswith(("web/fonts/", "web/content/scenes/")):
                 web_scenes_changed = True
+            if path.startswith("web/content/scenes/"):
+                examples_changed = True
             continue
         if path.startswith("examples/"):
             examples_changed = True

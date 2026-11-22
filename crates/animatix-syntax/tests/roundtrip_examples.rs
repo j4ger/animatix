@@ -1,4 +1,4 @@
-//! Serializer roundtrip tests over every `.amx` file in the repo.
+//! Serializer roundtrip tests over public scenes and valid AMX fixtures.
 //!
 //! Both serializers are exercised against the real corpus: parse → serialize →
 //! re-parse, then serialization is repeated to prove the output is stable. The
@@ -30,15 +30,24 @@ fn collect_amx_files(dir: &Path) -> Vec<std::path::PathBuf> {
 
 // Serializer stability over the whole repo
 
-/// Roots whose `.amx` files are real content, not fixtures.
+/// Use authored inputs and fixtures instead of anything copied into build output.
 fn repo_amx_files() -> Vec<std::path::PathBuf> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .canonicalize()
         .expect("workspace root");
     let mut files = Vec::new();
-    for dir in ["examples", "web"] {
-        files.extend(collect_amx_files(&root.join(dir)));
+    for dir in [
+        "web/content/scenes",
+        "crates/animatix-syntax/tests/fixtures/amx",
+        "crates/animatix-web/tests/fixtures/amx",
+        "crates/animatix/tests/fixtures/amx",
+        "crates/animatix/benches/fixtures/amx",
+        "crates/animatix-cli/tests/fixtures/amx",
+    ] {
+        let sources = collect_amx_files(&root.join(dir));
+        assert!(!sources.is_empty(), "no AMX inputs under {dir}");
+        files.extend(sources);
     }
     files.sort();
     files
@@ -66,16 +75,11 @@ fn both_serializers_are_stable_across_the_repo() {
             indent_size: 2,
             ..Default::default()
         });
-    let files = repo_amx_files();
-    assert!(files.len() > 100, "expected the repo's .amx corpus, found {}", files.len());
-
     let mut failures: Vec<String> = Vec::new();
 
-    for file_path in &files {
-        let Ok(source) = std::fs::read_to_string(file_path) else {
-            continue;
-        };
+    for file_path in repo_amx_files() {
         let label = file_path.display().to_string();
+        let source = std::fs::read_to_string(&file_path).expect(&label);
         let (stmts, parse_errors) = animatix_syntax::parser::parse_source(&source);
         let Some(stmts) = stmts else {
             failures.push(format!(
@@ -145,15 +149,10 @@ fn formatter_preserves_comments_across_repo_files() {
             indent_size: 2,
             ..Default::default()
         });
-    let files = repo_amx_files();
-    assert!(files.len() > 100, "expected the repo's .amx corpus, found {}", files.len());
-
     let mut failures: Vec<String> = Vec::new();
-    for file_path in &files {
-        let Ok(source) = std::fs::read_to_string(file_path) else {
-            continue;
-        };
+    for file_path in repo_amx_files() {
         let label = file_path.display().to_string();
+        let source = std::fs::read_to_string(&file_path).expect(&label);
         let (stmts, parse_errors) = animatix_syntax::parser::parse_source(&source);
         let Some(stmts) = stmts else {
             failures.push(format!(

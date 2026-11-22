@@ -1,31 +1,24 @@
 ---
 import Page from '../layouts/Page.astro';
 import EditableScene from '../components/EditableScene.astro';
-import {techniques} from '../lib/techniques';
-import {works, lessons, url} from '../lib/content';
-import {workCopy, lessonCopy, techniqueCopy} from '../lib/catalog-zh';
+import {sceneUrl} from '../lib/content';
+import {firstSceneId, playgroundScenes} from '../lib/scene-catalog';
 import {pageLanguage} from '../lib/language';
 import {ui} from '../lib/ui';
 const language = pageLanguage(Astro.currentLocale);
 const labels = ui(language);
 const {t, playground} = labels;
-const choices = [
-  {id: 'insertion-sort', title: t('Insertion sort', '插入排序')},
-  {id: 'quiet-carriage', title: t('Noise cancellation', '主动降噪')},
-  ...lessons.map(x => ({id: x.file, title: t(x.title, lessonCopy[x.id].title)})),
-  ...works.map(x => ({id: x.id, title: t(x.title, workCopy[x.id].title)})),
-  ...techniques.map(x => ({id: x.file, title: t(x.title, techniqueCopy[x.id].title)})),
-  {id: 'first-beat', title: t('First beat · wave only', '第一拍 · 波纹')},
-  {id: 'give-it-a-beat', title: t('Give it a beat.', '给画面一点节奏')},
-];
+const choices = playgroundScenes(language);
 ---
 <Page title={playground} wide>
   <h1 class="play-heading">{playground}</h1>
-  <div class="playground" data-playground data-base={url('content/scenes/')}>
-    <EditableScene id="first-move" title={t('Your scene', '当前场景')} workspace download>
+  <div class="playground" data-playground>
+    <EditableScene id={firstSceneId} title={t('Your scene', '当前场景')} workspace download>
       <label slot="chooser" class="sample-chooser">
         {t('Scene', '场景')}
-        <select id="scene-choice" disabled>{choices.map(x => <option value={x.id}>{x.title}</option>)}</select>
+        <select id="scene-choice" disabled>{choices.map(x =>
+          <option value={x.id} data-source={sceneUrl(x.id)} selected={x.id === firstSceneId}>{x.title}</option>
+        )}</select>
       </label>
     </EditableScene>
   </div>

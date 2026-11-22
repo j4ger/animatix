@@ -1,0 +1,57 @@
+import "../../../../examples/web_present_driver/fixtures/lib/theme.amx"
+
+import "../../../../examples/web_present_driver/fixtures/lib/stage.amx"
+
+import "../lib/ui.amx"
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+floor: StageFloor
+
+head: ActHead, kicker: "KINETIC · ARCHITECTURE", title: "Autonomous Edge Topology", sub: "Kinetic UI components."
+
+caption: Caption, text: "Complex topology visualization with rolling counter.", tag: "40_delightful_kinetic"
+
+// Canvas background
+bg: Rect, size: (1280, 720), color: surface.secondary, at: (640, 360)
+
+// VPC Boundary enclosure
+vpc: BoundaryBox, label: "US-EAST EDGE CLUSTER", width: 880, height: 380, at: (640, 420), opacity: 1
+
+// Topology service nodes
+client: CardNode, title: "Client Edge", eyebrow: "INGRESS", sub: "Envoy Gateway", at: (340, 420)
+
+auth: CardNode, title: "Auth Service", eyebrow: "SECURITY", sub: "mTLS & JWT", at: (640, 320)
+
+database: CardNode, title: "Distributed DB", eyebrow: "STORAGE", sub: "Raft Consensus", at: (940, 420), focal: true
+
+// Orthogonal smart connectors
+conn1: Connector, from: client.right, to: auth.left, routing: "elbow", corner_radius: 8, arrow: true, stroke: accent.primary, stroke_width: 2
+
+conn2: Connector, from: auth.right, to: database.left, routing: "elbow", corner_radius: 8, arrow: true, stroke: accent.primary, stroke_width: 2
+
+// Live throughput metric ticker with rolling counter
+kpi: Col, at: (640, 560), align: "center", gap: 4 {
+kpi_label: Text, text: "PROCESSED REQUESTS / SEC", font_size: 11, font_weight: 600, color: text.muted
+ticker: Counter, value: 1250, color: accent.primary, suffix: " req/s"
+}
+
+#0s
+  fade_in(target: floor, duration: 0.6s)
+  fade_in(target: head, duration: 0.5s)
+  fade_in(target: caption, duration: 0.4s, delay: 0.3s)
+  fade_in(target: bg, duration: 0.6s)
+  fade_in(target: vpc, duration: 0.4s)
+
+#0.6s
+  fade_in(target: client, duration: 0.4s)
+  fade_in(target: auth, duration: 0.4s)
+  fade_in(target: database, duration: 0.4s)
+
+#1.4s
+  draw_in(target: conn1, duration: 0.5s)
+  draw_in(target: conn2, duration: 0.5s)
+  fade_in(target: kpi, duration: 0.4s)
+
+#2s
+  ticker.value = 8490[3s]

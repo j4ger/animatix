@@ -1,15 +1,19 @@
 //! Measurement boundaries shared with the full-pipeline contract tests.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use animatix::timeline::Timeline;
 use animatix_syntax::{ast::Stmt, module::ModuleGraph};
 
-pub const WORKLOADS: [&str; 3] = [
-    "projects/fft_explain.amx",
-    "components/09_components.amx",
-    "components/10_modules.amx",
-];
+pub fn workload_paths() -> [PathBuf; 3] {
+    let crates = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    [
+        "animatix/benches/fixtures/amx/projects/fft_explain.amx",
+        "animatix-syntax/tests/fixtures/amx/components/09_components.amx",
+        "animatix/benches/fixtures/amx/components/10_modules.amx",
+    ]
+    .map(|relative| crates.join(relative))
+}
 
 /// Required workloads must not disappear from a successful benchmark run.
 pub fn required_source(path: &Path) -> String {

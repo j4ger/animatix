@@ -40,7 +40,6 @@ The original announcement is visible from the first frame. At 4 s it moves left 
 
 | Source | Duration | Single purpose |
 |---|---:|---|
-| `scenes/hero.amx` | 7 s | Periodic three-shape brand motif, complete start/end composition |
 | `scenes/first-move.amx` | 3 s | Declare a dot; animate `at` with a `#` marker |
 | `scenes/compose.amx` | 4 s | Group transformation and Row alignment |
 | `scenes/repeat.amx` | 5 s | Generated array in a Grid |

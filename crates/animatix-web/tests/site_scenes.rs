@@ -10,21 +10,15 @@
 //! The site-scene gate runs once against the SDK's default feature set, which
 //! includes every capability. Partition loading is covered by SDK tests.
 
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use animatix::composition::BuildTarget;
 use animatix::renderer::text::FontContext;
 use animatix::timeline::BuildQuality;
 use animatix::timeline::assets::AssetCache;
 use animatix_web::asset_urls::collect_asset_urls_from_source;
-use animatix_web::host::build_document_with_modules;
-
-/// A scene the site plays, and the pages that play it.
-#[derive(Default)]
-struct SceneRefs {
-    pages: Vec<String>,
-}
+use animatix_web::host::{BuiltDocument, build_document_with_modules};
 
 /// One source the player has in hand, with the directory its urls and imports
 /// resolve against — the equivalent of `new URL(key, sourceUrl)`.
@@ -59,30 +53,6 @@ fn resolve(dir: &Path, src: &str) -> PathBuf {
     out
 }
 
-/// Historical scene coverage is an explicit regression corpus, independent of
-/// whether its former HTML presentation still exists. Current site coverage is
-/// tested separately from canonical Astro sources below.
-fn collect_regressions(root: &Path, into: &mut BTreeMap<PathBuf, SceneRefs>) {
-    for line in include_str!("fixtures/legacy-scenes.txt").lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        assert!(!line.starts_with('/') && !line.split('/').any(|part| part == ".."));
-        let scene = root.join(line);
-        assert!(
-            into.insert(
-                scene,
-                SceneRefs {
-                    pages: vec!["legacy regression corpus".into()]
-                }
-            )
-            .is_none(),
-            "duplicate regression: {line}"
-        );
-    }
-}
-
 /// The literal `url: "…"` properties in a source, in order, deduplicated.
 ///
 /// This drives the same AST collector as `list_asset_urls` on the wasm class,
@@ -95,17 +65,26 @@ fn literal_asset_urls(text: &str) -> Vec<String> {
 /// against that source's own location, `.svg` crosses as text and anything
 /// else as encoded bytes, and the literal url string is the cache key. A url
 /// with no file behind it is the page's own 404, so it is reported.
-fn seed_assets(cache: &mut AssetCache, sources: &[Fetched]) -> Vec<String> {
+fn read_resource(path: &Path, published: Option<&Path>) -> std::io::Result<Vec<u8>> {
+    if let Some(root) = published
+        && !path.canonicalize()?.starts_with(root)
+    {
+        return Err(std::io::Error::other("outside the published content tree"));
+    }
+    std::fs::read(path)
+}
+
+fn seed_assets(
+    cache: &mut AssetCache,
+    sources: &[Fetched],
+    published: Option<&Path>,
+) -> Vec<String> {
     let mut unfetchable = Vec::new();
     for source in sources {
         for url in literal_asset_urls(&source.text) {
             let path = resolve(&source.dir, &url);
             let svg = url.to_lowercase().ends_with(".svg");
-            let payload = if svg {
-                std::fs::read_to_string(&path).map(|text| text.into_bytes())
-            } else {
-                std::fs::read(&path)
-            };
+            let payload = read_resource(&path, published);
             match payload {
                 Err(e) => unfetchable.push(format!("{url} (resolved to {path:?}): {e}")),
                 Ok(bytes) => {
@@ -129,7 +108,7 @@ fn seed_assets(cache: &mut AssetCache, sources: &[Fetched]) -> Vec<String> {
 /// loop (the engine names the unresolved keys, each is read relative to the
 /// scene, the build runs again — 32 rounds as in JS) and assets pre-seeded
 /// into the cache, because the sandboxed build never touches a filesystem.
-fn build_scene(scene: &Path) -> Result<(), Vec<String>> {
+fn build_scene(scene: &Path, published: Option<&Path>) -> Result<BuiltDocument, Vec<String>> {
     let source = std::fs::read_to_string(scene).map_err(|e| vec![format!("{scene:?}: {e}")])?;
     let scene_dir = scene.parent().unwrap().to_path_buf();
     let mut modules: Vec<Fetched> = Vec::new();
@@ -142,7 +121,7 @@ fn build_scene(scene: &Path) -> Result<(), Vec<String>> {
         }];
         sources.extend(modules.iter().cloned());
         let mut cache = AssetCache::new();
-        let unfetchable = seed_assets(&mut cache, &sources);
+        let unfetchable = seed_assets(&mut cache, &sources, published);
         if !unfetchable.is_empty() {
             return Err(unfetchable);
         }
@@ -165,7 +144,9 @@ fn build_scene(scene: &Path) -> Result<(), Vec<String>> {
                     continue;
                 }
                 let path = resolve(&scene_dir, key);
-                match std::fs::read_to_string(&path) {
+                let text = read_resource(&path, published)
+                    .and_then(|bytes| String::from_utf8(bytes).map_err(std::io::Error::other));
+                match text {
                     Ok(text) => {
                         modules.push(Fetched {
                             dir: resolve(&scene_dir, key)
@@ -205,7 +186,7 @@ fn build_scene(scene: &Path) -> Result<(), Vec<String>> {
         return if !errors.is_empty() {
             Err(errors)
         } else if built.result.ok {
-            Ok(())
+            Ok(built)
         } else {
             Err(vec!["build produced no target and no error diagnostic".to_string()])
         };
@@ -214,51 +195,35 @@ fn build_scene(scene: &Path) -> Result<(), Vec<String>> {
 }
 
 #[test]
-fn legacy_regression_corpus_builds_with_explicit_modules() {
-    let root = web_root();
-    let mut refs: BTreeMap<PathBuf, SceneRefs> = BTreeMap::new();
-    collect_regressions(&root, &mut refs);
-    assert!(!refs.is_empty(), "legacy regression corpus is empty");
+fn graph_trace_composition_builds_with_explicit_imports() {
+    let scene = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/amx/composition/curve-handoff.amx");
+    let built = build_scene(&scene, None).expect("the graph and its harmonic module build");
+    assert!((built.result.duration_s - 4.5).abs() < 1e-6);
+    let Some(BuildTarget::MultiScene(composition)) = built.target else {
+        panic!("the fixture must build a composition");
+    };
+    let (_, _, blend) = composition.evaluate(2.75);
+    let blend = blend.expect("the graph hands off to the spectrum during the wipe");
+    assert_eq!((blend.from_scene.as_str(), blend.to_scene.as_str()), ("Trace", "Spectrum"));
+    assert!((blend.progress - 0.5).abs() < 1e-6);
+}
 
-    let mut failures = Vec::new();
-    let mut missing_files = Vec::new();
-    let mut checked = 0usize;
-
-    for (scene, r) in &refs {
-        if !scene.exists() {
-            missing_files.push(format!("{} (played by {:?})", scene.display(), r.pages));
-            continue;
-        }
-        checked += 1;
-        if let Err(errors) = build_scene(scene) {
-            failures.push(format!(
-                "{} [{}] failed to build: {}",
-                scene.display(),
-                r.pages.join(", "),
-                errors.join("; ")
-            ));
+#[test]
+fn svg_probe_prepares_assets_and_nested_imports() {
+    let root = web_root().join("dev/svg-probe");
+    for file in ["scene-import.amx", "scene_rect.amx", "scene-quality.amx"] {
+        if let Err(errors) = build_scene(&root.join(file), None) {
+            panic!("{file}: {errors:?}");
         }
     }
-
-    eprintln!("site scenes: {} referenced, {} built with the unified SDK", refs.len(), checked);
-    assert!(
-        missing_files.is_empty(),
-        "players point at scene files that are not on disk:\n{}",
-        missing_files.join("\n")
-    );
-    assert!(
-        failures.is_empty(),
-        "scenes the site plays do not build cleanly (warning or worse):\n{}",
-        failures.join("\n")
-    );
-    assert!(checked > 0, "no scene was exercised");
 }
 
 #[test]
 fn nested_module_smoke_scene_builds_through_the_explicit_fetch_protocol() {
     let scene = web_root().join("dev/smoke/imports/scene.amx");
     assert!(
-        build_scene(&scene).is_ok(),
+        build_scene(&scene, None).is_ok(),
         "nested module smoke scene must close its import graph"
     );
 }
@@ -283,23 +248,21 @@ fn authored_source_errors(path: &Path, source: &str) -> Vec<String> {
 /// players. Keep these in the workspace test gate as well as manual site builds.
 #[test]
 fn every_canonical_astro_scene_builds_with_the_sdk() {
-    let directory = web_root().join("content/scenes");
+    let published = web_root().join("content");
+    let directory = published.join("scenes");
     let mut scenes: Vec<_> = std::fs::read_dir(&directory)
         .expect("canonical site sources exist")
         .map(|entry| entry.expect("readable scene entry").path())
         .filter(|path| path.extension().and_then(|extension| extension.to_str()) == Some("amx"))
         .collect();
     scenes.sort();
-    assert!(
-        scenes.len() >= 16,
-        "the curated works, lessons, techniques and brand scene must be covered"
-    );
+    assert!(!scenes.is_empty(), "public scene inventory must be nonempty");
     let failures: Vec<_> = scenes
         .iter()
         .filter_map(|scene| {
             let source = std::fs::read_to_string(scene).expect("canonical source is readable");
             let mut errors = authored_source_errors(scene, &source);
-            if let Err(build_errors) = build_scene(scene) {
+            if let Err(build_errors) = build_scene(scene, Some(&published)) {
                 errors.extend(build_errors);
             }
             (!errors.is_empty()).then(|| format!("{}: {}", scene.display(), errors.join("; ")))

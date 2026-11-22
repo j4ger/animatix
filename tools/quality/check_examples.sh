@@ -1,64 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-
-# The scene walk is shared with render_smoke.sh — an example visible to one gate
-# and not the other means one of them is green about a file it never looked at.
-# shellcheck source=tools/quality/lib-scenes.sh
-. "$SCRIPT_DIR/lib-scenes.sh"
-
-# The plugin showcase example needs the native demo plugin loaded; build it
-# so `check --plugin <manifest>` can install the library.
-echo "=== Building animatix-plugin-demo (needed by projects/plugin_pulse.amx) ==="
-cargo build --manifest-path "$PROJECT_DIR/Cargo.toml" -p animatix-plugin-demo
-
-PLUGIN_MANIFEST="$PROJECT_DIR/crates/animatix-plugin-demo/demo.amx-plugin.toml"
-
-echo "=== Checking all example .amx files parse cleanly ==="
-FAILED=0
-TOTAL=0
-WARN_TOTAL=0
-
-# Lint categories that are intentional in demos and therefore allowed:
-#   unused-label        — actors/curves declared for visual content, never re-referenced
-#   always-overrides    — `always` deliberately overrides keyframes in reactive demos
-#   unknown-type        — analyzer is single-file; imported/plugin types are unresolved
-#   missing-glyph       — demos include CJK text; allowed on headless systems lacking CJK fonts
-ALLOWED_WARNINGS='unused-label|always-overrides-keyframes|unknown-type|missing-glyph|duration-shorter-than-content'
-
-ANIMATIX_BIN="${ANIMATIX_BIN:-$PROJECT_DIR/target/debug/animatix}"
-if [ ! -x "$ANIMATIX_BIN" ]; then
-    cargo build --quiet --manifest-path "$PROJECT_DIR/Cargo.toml" --bin animatix
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$root"
+bin="${ANIMATIX_BIN:-$root/target/debug/animatix}"
+if [ ! -x "$bin" ]; then
+    cargo build --quiet --bin animatix
 fi
+scenes="$(python3 tools/quality/audit_corpus.py)"
+check_scene() {
+    printf 'Checking %s\n' "$1"
+    "$bin" check --format json "$@" | python3 -c '
+import json
+import sys
 
-while read -r amx; do
-    TOTAL=$((TOTAL + 1))
-    echo -n "Checking $(basename "$amx")... "
-    PLUGIN_FLAGS=()
-    if [ "$amx" = "$PROJECT_DIR/examples/projects/plugin_pulse.amx" ]; then
-        PLUGIN_FLAGS=(--plugin "$PLUGIN_MANIFEST")
-    fi
-    OUTPUT=$("$ANIMATIX_BIN" check "$amx" "${PLUGIN_FLAGS[@]}" 2>&1) || {
-        echo "FAILED"
-        FAILED=1
-        continue
-    }
-    WARNINGS=$(echo "$OUTPUT" | grep -E 'warning|info' | grep -vE "$ALLOWED_WARNINGS" || true)
-    if [ -n "$WARNINGS" ]; then
-        echo "WARN"
-        echo "$WARNINGS" | head -3
-        FAILED=1
-    else
-        echo "OK"
-    fi
-    WARN_TOTAL=$((WARN_TOTAL + $(echo "$OUTPUT" | grep -cE 'warning|info' || true)))
-done < <(scene_files "$PROJECT_DIR/examples")
+result = json.load(sys.stdin)
+for diagnostic in result.get("errors", []):
+    if diagnostic["severity"] not in ("hint", "info"):
+        print("{severity} [{code}] {message}".format(**diagnostic), file=sys.stderr)
+        result["passed"] = False
+sys.exit(not result["passed"])
+'
+}
 
-if [ $FAILED -eq 0 ]; then
-    echo "=== All $TOTAL example files clean (warnings: $WARN_TOTAL, all allowed categories) ==="
-else
-    echo "=== Some examples failed to parse or have unexpected warnings ==="
-    exit 1
-fi
+while IFS= read -r scene; do
+    check_scene "$scene"
+done <<< "$scenes"
+
+# This native extension has its own sample in the plugin crate.
+cargo build -p animatix-plugin-demo
+check_scene crates/animatix-plugin-demo/demo.amx \
+    --plugin crates/animatix-plugin-demo/demo.amx-plugin.toml

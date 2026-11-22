@@ -40,13 +40,18 @@ class SiteCheckTests(unittest.TestCase):
         return subprocess.run(['python3',str(CHECK),str(self.root),'--source-root',str(self.source),*args],
                               capture_output=True, env=dict(os.environ,SITE_BASE=base))
 
-    def pages(self):
-        pages = ['index.html','showcase/index.html','learn/index.html','playground/index.html']
+    def pages(self, base='/'):
+        playgrounds = ['playground/index.html', 'zh/playground/index.html']
+        pages = ['index.html','showcase/index.html','learn/index.html', *playgrounds]
         pages += [f'lesson{i}/index.html' for i in range(9)]
         for name in pages + ['_astro/client.js']:
             path = self.root / name
             path.parent.mkdir(parents=True,exist_ok=True)
             path.write_text('<title>Test</title>' if name.endswith('.html') else 'export {};')
+        for name in playgrounds:
+            choices = ''.join(f'<option value="{scene.stem}" data-source="{base}content/scenes/{scene.name}"></option>'
+                              for scene in (self.source/'web/content/scenes').glob('*.amx'))
+            (self.root/name).write_text(f'<select>{choices}</select>')
         return pages
 
     def assembly(self):
@@ -76,8 +81,15 @@ class SiteCheckTests(unittest.TestCase):
         self.assertNotEqual(result.returncode,0)
         self.assertIn(b'missing entry page',result.stderr)
 
+    def test_unlisted_source_cannot_ship(self):
+        self.assembly()
+        (self.root / 'content/scenes/extra.amx').write_text('#0s')
+        result = self.run_check('--assembled')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b'unlisted deployed source: extra.amx', result.stderr)
+
     def test_missing_target_and_base_escape_fail(self):
-        self.pages()
+        self.pages(base='/animatix/')
         result = self.run_check(base='/animatix/')
         self.assertEqual(result.returncode,0,result.stderr)
         (self.root/'index.html').write_text('<a href="/missing/">bad base</a><a href="/animatix/absent/">missing</a>')
@@ -85,6 +97,16 @@ class SiteCheckTests(unittest.TestCase):
         self.assertNotEqual(result.returncode,0)
         self.assertIn(b'URL escapes base',result.stderr)
         self.assertIn(b'missing target',result.stderr)
+
+    def test_missing_catalog_choice_and_unlisted_source_fail(self):
+        self.pages()
+        relative = 'zh/playground/index.html'
+        page = self.root / relative
+        page.write_text(page.read_text().replace('value="scene8"', 'value="scene0"'))
+        self.assertIn(b'scene choices must match', self.run_check().stderr)
+        self.pages()
+        (self.source/'web/content/scenes/unlisted.amx').write_text('#0s')
+        self.assertIn(b'scene choices must match', self.run_check().stderr)
 
     def test_legacy_pages_cannot_mask_missing_generated_page(self):
         pages = self.assembly()
@@ -136,6 +158,7 @@ class SiteCheckTests(unittest.TestCase):
         logo = self.source / 'web/logo.svg'
         logo.write_text('<svg/>')
         for base in ('/', '/animatix/'):
+            self.pages(base=base)
             href = base + 'logo.svg'
             (self.root/'index.html').write_text(f'<link rel="icon" href="{href}">')
             self.assertEqual(self.run_check(base=base).returncode, 0)

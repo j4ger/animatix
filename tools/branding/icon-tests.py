@@ -38,7 +38,7 @@ class Icons(unittest.TestCase):
         self.assertGreater(links, 0)
         # Product pages use the shared Astro layout; generated root/base links
         # are checked by site-check. Do not require retired HTML to reach a count.
-        layout = (ROOT / "web/app/src/layouts/Page.astro").read_text()
+        layout = (ROOT / "web/app/src/layouts/SiteDocument.astro").read_text()
         self.assertIn('rel="icon"', layout)
         self.assertIn("url('logo.svg')", layout)
         self.assertIn("entries=(logo.svg", (ROOT / "web/tools/site/site-artifact.sh").read_text())

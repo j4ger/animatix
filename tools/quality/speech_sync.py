@@ -17,7 +17,7 @@ Usage:
   uv run tools/quality/speech_sync.py synthesize \\
       --text "Welcome to Animatix. The layout-first animation DSL for technical storytelling." \\
       --markers "intro:0.1,feature:1.9,captions:6.2,outro:9.8" \\
-      --output examples/assets/narration
+      --output target/narration
 
   # Convert Whisper JSON or SubRip subtitles to universal .speech.json:
   uv run tools/quality/speech_sync.py convert input.json -o output.speech.json

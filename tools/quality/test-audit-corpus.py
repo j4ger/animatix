@@ -2,7 +2,6 @@
 """Inventory compatibility and diagnostic-runner contracts (no real renderer)."""
 import importlib.util
 import json
-import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -17,43 +16,21 @@ spec.loader.exec_module(canonical)
 
 
 class CorpusTests(unittest.TestCase):
-    def test_legacy_matches_prior_find(self):
-        env = os.environ.copy()
-        env['LC_ALL'] = 'C'
-        env['LANG'] = 'C'
-        old = subprocess.check_output(['bash', '-c', """
-find examples web/scenes web/demos -name '*.amx' -not -path '*/lib/*' \\
--not -path '*/_site/*' -not -path '*/plugin_pulse.amx' \\
--not -path '*/epicycles/fourier.amx' | sort | while IFS= read -r f; do
-if [ -f "$(dirname "$f")/main.amx" ] && [ "$(basename "$f")" != main.amx ]; then continue; fi
-printf '%s\\n' "$f"; done
-"""], cwd=ROOT, text=True, env=env).splitlines()
-        self.assertEqual(old, [p.relative_to(ROOT).as_posix() for p in scene_files()])
-
-    def test_canonical_discovers_all_without_legacy_exclusions(self):
+    def test_public_entries_ignore_modules_and_retired_sources(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
-            folder = root / 'web/content/scenes'
-            folder.mkdir(parents=True)
-            for name in ['main.amx', 'extra.amx']:
-                (folder / name).touch()
-            self.assertEqual(len(scene_files(root, 'canonical')), 2)
-            self.assertTrue(all(x['excluded'] is None for x in inventory(root, 'canonical')))
+            for name in ('web/content/scenes/live.amx', 'web/content/scenes/lib/module.amx',
+                         'examples/old.amx', 'web/demos/old.amx'):
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.touch()
+            self.assertEqual(scene_files(root), [root / 'web/content/scenes/live.amx'])
 
     def test_missing_and_empty_fail_closed(self):
         with tempfile.TemporaryDirectory() as d:
-            with self.assertRaises(ValueError): inventory(Path(d), 'canonical')
+            with self.assertRaises(ValueError): inventory(Path(d))
             (Path(d) / 'web/content/scenes').mkdir(parents=True)
-            with self.assertRaises(ValueError): inventory(Path(d), 'canonical')
-
-    def test_all_excluded_fails_closed(self):
-        with tempfile.TemporaryDirectory() as d:
-            root = Path(d)
-            for source in ('examples/lib', 'web/scenes', 'web/demos'):
-                (root / source).mkdir(parents=True)
-            (root / 'examples/lib/module.amx').touch()
-            with self.assertRaisesRegex(ValueError, 'no eligible scenes'):
-                inventory(root)
+            with self.assertRaises(ValueError): inventory(Path(d))
 
     def test_newline_paths_rejected(self):
         with tempfile.TemporaryDirectory() as d:
@@ -62,10 +39,10 @@ printf '%s\\n' "$f"; done
             folder.mkdir(parents=True)
             (folder / 'bad\nname.amx').touch()
             with self.assertRaisesRegex(ValueError, 'newline'):
-                inventory(root, 'canonical')
+                inventory(root)
 
     def test_timeout_preserves_partial_output(self):
-        entry = inventory(corpus='canonical')[0]
+        entry = inventory()[0]
         with tempfile.TemporaryDirectory() as d:
             binary = Path(d) / 'fake'
             binary.write_text('fake')
@@ -77,7 +54,7 @@ printf '%s\\n' "$f"; done
             self.assertEqual((output / '00-compose.json').read_bytes(), b'{partial')
 
     def test_zero_exit_is_not_zero_debt(self):
-        entry = inventory(corpus='canonical')[0]
+        entry = inventory()[0]
         clean = {'schema_version': 3, 'kind': 'audit',
                  'summary': {'errors': 0, 'warnings': 0},
                  'budget': {'exceeded': [], 'updated': False}}
@@ -104,7 +81,7 @@ printf '%s\\n' "$f"; done
                                          0 if name == 'clean' else 1)
 
     def test_changed_source_or_binary_fails(self):
-        entry = inventory(corpus='canonical')[0]
+        entry = inventory()[0]
         clean = {'schema_version': 3, 'kind': 'audit',
                  'summary': {'errors': 0, 'warnings': 0},
                  'budget': {'exceeded': [], 'updated': False}}
@@ -115,7 +92,7 @@ printf '%s\\n' "$f"; done
                     self.assertEqual(canonical.collect(Path(d) / 'binary', Path(d) / 'run'), 1)
 
     def test_safe_progress_survives_interrupted_collection(self):
-        entry = inventory(corpus='canonical')[0]
+        entry = inventory()[0]
         with tempfile.TemporaryDirectory() as d:
             binary = Path(d) / 'fake'
             binary.write_text('fake')
@@ -133,7 +110,7 @@ printf '%s\\n' "$f"; done
             self.assertNotIn(str(binary), summary.read_text())
 
     def test_missing_stdout_cannot_pass_and_summary_has_no_raw_diagnostics(self):
-        entry = inventory(corpus='canonical')[0]
+        entry = inventory()[0]
         with tempfile.TemporaryDirectory() as d:
             binary = Path(d) / 'fake'
             binary.write_text('fake')
@@ -156,7 +133,7 @@ printf '%s\\n' "$f"; done
         self.assertIn("if: always()", block)
 
     def test_collection_keeps_failure_and_never_updates_budget(self):
-        entry = inventory(corpus='canonical')[0]
+        entry = inventory()[0]
         with tempfile.TemporaryDirectory() as d:
             output = Path(d) / 'run'
             binary = Path(d) / 'fake'

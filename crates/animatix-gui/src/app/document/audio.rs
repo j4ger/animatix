@@ -148,7 +148,9 @@ a.volume = 0.75"
 
     #[test]
     fn opening_a_relative_document_resolves_audio_and_transcript_once() {
-        let file = std::path::Path::new("../../examples/animation/41_speech_sync_captions.amx");
+        let file = std::path::Path::new(
+            "../animatix/tests/fixtures/amx/animation/41_speech_sync_captions.amx",
+        );
         let doc = DocumentSession::load(file.to_owned()).unwrap();
         let paths = doc.narration_asset_paths();
         assert!(paths.iter().any(|path| path.ends_with("narration.mp3") && path.is_file()));

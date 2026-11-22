@@ -153,7 +153,9 @@ fn text_outline_signature(program: &SceneProgram, actor: &str) -> Vec<String> {
 
 #[test]
 fn local_ticker_example_is_seekable_scoped_and_hands_off_at_clip_end() {
-    let timeline = build(include_str!("../../../examples/animation/local_tickers.amx"));
+    let timeline = build(include_str!(
+        "../../animatix-syntax/tests/fixtures/amx/animation/local_tickers.amx"
+    ));
 
     // One authored 500ms ticker is called twice for the same actor at different
     // starts and rates; a second actor runs concurrently at a different rate.
@@ -405,7 +407,7 @@ dot: Ellipse, at: (100, 300), size: (20, 20), color: accent.info
 
 #[test]
 fn compare_swap_example_keeps_the_two_cards_as_one_moving_unit() {
-    let timeline = build(include_str!("../../../examples/projects/compare_swap.amx"));
+    let timeline = build(include_str!("fixtures/amx/projects/compare_swap.amx"));
     let order = |time_ms| timeline.get_child_order("pair", time_ms);
     assert_eq!(order(0), vec!["card8", "card3"]);
     assert_eq!(order(1350), vec!["card3", "card8"]);
@@ -450,7 +452,7 @@ fn compare_swap_example_keeps_the_two_cards_as_one_moving_unit() {
 
 #[test]
 fn runtime_progress_updates_two_component_plots_markers_and_text_at_same_time() {
-    let timeline = build(include_str!("../../../examples/data/shared_progress_math.amx"));
+    let timeline = build(include_str!("fixtures/amx/data/shared_progress_math.amx"));
     assert_eq!(
         timeline.runtime_input_names().iter().map(String::as_str).collect::<Vec<_>>(),
         vec!["progress"]
@@ -763,7 +765,7 @@ fn probability_bar_keeps_its_zero_and_formats_the_visible_fraction() {
         half: Text, text: "39.32%", at: (820, 250), font_family: "mono", font_size: 23, text_anchor: "left", opacity: 1
         full: Text, text: "78.64%", at: (820, 250), font_family: "mono", font_size: 23, text_anchor: "left", opacity: 1
         "#,
-        include_str!("../../../examples/lib/probability.amx"),
+        include_str!("fixtures/amx/lib/probability.amx"),
     ));
     for (time, end_x, reference) in [
         (0.0, 300.0, "zero"),

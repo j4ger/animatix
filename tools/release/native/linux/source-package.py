@@ -24,7 +24,7 @@ ROOT_FILES = {
 # Include their manifests, sources, and licensed compile-time font fixtures so
 # cargo metadata/vendor and the offline source rebuild see the same workspace.
 SOURCE_DIRS = {
-    "crates", "tools", "examples", "docs", "web/tools",
+    "crates", "tools", "examples", "docs", "web/tools", "web/content/scenes",
 }
 SOURCE_SCRIPTS = {
     "tools/release/dist-linux.sh", "tools/release/dist-linux-container.sh",

@@ -10,23 +10,23 @@ sampled visual observations, not proof of every frame, audio or web behavior.
 
 | Source | Observation | Next action |
 | --- | --- | --- |
-| `examples/layout/02_layout.amx` | Four small, unlabeled groups sit at the canvas edges. Useful API exercise, weak standalone teaching and showcase. | Rework as one focused layout lesson; preserve current test/discovery behavior. |
-| `examples/generation/28_generation_reactive.amx` | Group, Mask, generated arrays and reactive rules compete in one composition; labels are small. | Split teaching responsibilities rather than promote this as a finished work. |
-| `examples/gallery/epicycles.amx` | A real explanation exists, but thin dark strokes, small annotations and excessive empty space weaken the presentation. | Keep as source material; rewrite the focused explanation, not another public gallery entry. |
-| `web/demos/gradient/scene.amx` | Four acts have coherent hierarchy and a meaningful held composition. | At review time, replace hand-copied assembly with a checked generator. **Follow-up:** `tools/content/gradient-plate.py` now generates the plate and `content-sync` checks it. |
-| `web/demos/epicycles/scene.amx` | The figure language is more polished. Sampled act transitions show superimposed headings and footers. | Preserve generated assembly. Review crossfade timing for text readability; this is not evidence of an engine defect. |
+| [02_layout.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/examples/layout/02_layout.amx) | Four small, unlabeled groups sit at the canvas edges. Useful API exercise, weak standalone teaching and showcase. | Rework as one focused layout lesson; preserve current test/discovery behavior. |
+| `crates/animatix/benches/fixtures/amx/generation/28_generation_reactive.amx` | Group, Mask, generated arrays and reactive rules compete in one composition; labels are small. | Split teaching responsibilities rather than promote this as a finished work. |
+| [epicycles.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/examples/gallery/epicycles.amx) | A real explanation exists, but thin dark strokes, small annotations and excessive empty space weaken the presentation. | Keep as source material; rewrite the focused explanation, not another public gallery entry. |
+| [scene.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/web/demos/gradient/scene.amx) | Four acts have coherent hierarchy and a meaningful held composition. | At review time, replace hand-copied assembly with a checked generator. **Follow-up:** [historical generator](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/tools/content/gradient-plate.py) now generates the plate and `content-sync` checks it. |
+| [scene.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/web/demos/epicycles/scene.amx) | The figure language is more polished. Sampled act transitions show superimposed headings and footers. | Preserve generated assembly. Review crossfade timing for text readability; this is not evidence of an engine defect. |
 
 The existing sample count is deliberately small. The inventory is comprehensive;
 visual review is not. In particular, registry membership is not a quality badge.
 
 ## Two complementary prototypes
 
-- `examples/generation/array_layout.amx`: a short teaching example. Twelve array
+- [array_layout.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/examples/generation/array_layout.amx): a short teaching example. Twelve array
   actors, one Grid, animated sizes and dynamic reflow. No per-tile positions.
   Four reviewed samples at 1.5, 3.8, 6.3 and 8.8 seconds show clear spacing and
   no visible text overlap or clipping. It intentionally explains one mechanism,
   rather than competing with a narrative showcase.
-- `examples/gallery/phase_interference.amx`: an experimental 26-second science work. Six rendered frames (2, 7, 11,
+- [phase_interference.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/examples/gallery/phase_interference.amx): an experimental 26-second science work. Six rendered frames (2, 7, 11,
   17, 22, 26 seconds) verify common amplitude scale, constructive/destructive
   states, readable labels and a complete resting frame. Audit reports no
   warning/error; graph-child and dial overlaps are intentional info findings.

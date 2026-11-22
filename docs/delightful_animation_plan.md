@@ -4,13 +4,13 @@
 > **目标**：突破当前 Animatix 语言的“机械感 / AI味”，融合编辑级设计系统（如 `diagram-design` 规范），建立涵盖**动能排版**、**智能连接与端口**、**连续物理**、**材质光影**、**2.5D深度**、**智能运镜**与**无缝转场**的高级动效体系。
 > **关联文档**：[`docs/spec.md`](spec.md), [`docs/architecture.md`](architecture.md), [`docs/roadmap.md`](roadmap.md), [`docs/primitive_abstraction.md`](primitive_abstraction.md), [`docs/ai_agent_animation_quality.md`](ai_agent_animation_quality.md)。
 
-本提案的大部分语言与运行时项目已在 Wave 1–4 落地，包括文本渐变、空间错落、连接器、逐字/逐词/逐行 reveal、Counter、阴影、透视倾斜、idle 微动、共享元素转场、弹簧初速度接续和 `#step`。`CardNode` 与 `BoundaryBox` 也已作为组件实现于 `examples/lib/ui.amx`。这里保留原始问题陈述与设计推导作为历史记录，不应据此认定这些能力仍未实现。领域图表包和外部格式转换器等建议仍属提案；只有列入 `roadmap.md` 的项目才是当前确认的工作。
+本提案的大部分语言与运行时项目已在 Wave 1–4 落地，包括文本渐变、空间错落、连接器、逐字/逐词/逐行 reveal、Counter、阴影、透视倾斜、idle 微动、共享元素转场、弹簧初速度接续和 `#step`。`CardNode` 与 `BoundaryBox` 也已作为组件实现于 `crates/animatix/tests/fixtures/amx/lib/ui.amx`。这里保留原始问题陈述与设计推导作为历史记录，不应据此认定这些能力仍未实现。领域图表包和外部格式转换器等建议仍属提案；只有列入 `roadmap.md` 的项目才是当前确认的工作。
 
 ---
 
 ## 1. 现状审查与痛点诊断 (Audit Findings)
 
-通过对现有代码库（`animatix-core`, `animatix-std`, `animatix-syntax`, `animatix-text`, `animatix`, `animatix-render`）及代表性案例（[`web/scenes/hero.amx`](../web/scenes/hero.amx), [`examples/gallery/motion_poster.amx`](../examples/gallery/motion_poster.amx), [`examples/animation/35_camera_moves.amx`](../examples/animation/35_camera_moves.amx)）的深度审查，当前动效与图表能力存在以下核心瓶颈：
+通过对现有代码库（`animatix-core`, `animatix-std`, `animatix-syntax`, `animatix-text`, `animatix`, `animatix-render`）及代表性案例（[hero.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/web/scenes/hero.amx), [motion_poster.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/examples/gallery/motion_poster.amx), [35_camera_moves.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/examples/animation/35_camera_moves.amx)）的深度审查，当前动效与图表能力存在以下核心瓶颈：
 
 | # | 痛点表现 | 根本原因与代码证据 | 视觉与维护缺陷 |
 |---|---------|-------------------|-------------|

@@ -2,6 +2,7 @@
 import {url, pageUrl, works} from '../lib/content';
 import {workCopy} from '../lib/catalog-zh';
 import {pageLanguage} from '../lib/language';
+import {noiseCancellation} from '../lib/scene-catalog';
 import {ui} from '../lib/ui';
 const language = pageLanguage(Astro.currentLocale);
 const {t} = ui(language);
@@ -14,7 +15,7 @@ const titles: Record<string, string> = {
 };
 const examples = [
   {
-    path: 'journey/', poster: 'journey/noise-waves.webp', width: 960, height: 560,
+    path: noiseCancellation.page, poster: 'journey/noise-waves.webp', width: 960, height: 560,
     title: t('How do headphones cancel noise?', '降噪耳机是怎么消掉噪声的？'),
     category: t('Physics', '物理'), color: '#cce893',
   },

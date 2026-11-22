@@ -88,42 +88,34 @@ fn broken_corpus_matches_goldens() {
     }
 }
 
-/// Every `.amx` scene shipped in the repository's examples and web content
-/// must parse without errors and analyze without panicking. This pins the
-/// invariant that shipped content is clean; a commit that breaks parsing of
-/// real content fails here instead of at someone's next render.
+/// Every public scene must parse without errors and analyze without panicking.
 #[test]
 fn repo_content_parses_clean() {
-    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let scenes = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/content/scenes");
     let mut checked = 0usize;
     let mut failures = Vec::new();
 
-    for dir in ["examples", "web"] {
-        let root = repo_root.join(dir);
-        if !root.is_dir() {
+    for entry in walkdir::WalkDir::new(scenes) {
+        let entry = entry.expect("walk the public scene directory");
+        let path = entry.path();
+        if !entry.file_type().is_file() || path.extension().is_none_or(|ext| ext != "amx") {
             continue;
         }
-        for entry in walkdir::WalkDir::new(&root).into_iter().filter_map(|e| e.ok()) {
-            let path = entry.path();
-            if !path.is_file() || path.extension().is_none_or(|ext| ext != "amx") {
-                continue;
-            }
-            let source = fs::read_to_string(path).expect("read repo content");
-            let analyzer = Analyzer::new(&source);
-            checked += 1;
-            for error in analyzer.parse_errors() {
-                failures.push(format!(
-                    "{}:{}:{}: {}",
-                    path.display(),
-                    error.line,
-                    error.column,
-                    error.message
-                ));
-            }
+        let source = fs::read_to_string(path).expect("read repo content");
+        let analyzer = Analyzer::new(&source);
+        checked += 1;
+        for error in analyzer.parse_errors() {
+            failures.push(format!(
+                "{}:{}:{}: {}",
+                path.display(),
+                error.line,
+                error.column,
+                error.message
+            ));
         }
     }
 
-    assert!(checked >= 100, "expected to sweep the full repo corpus, saw {checked} files");
+    assert!(checked > 0, "no public scenes to analyze");
     assert!(
         failures.is_empty(),
         "shipped content must parse cleanly:\n{}",

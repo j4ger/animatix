@@ -36,6 +36,10 @@ fade_in(target: accent, duration: 800ms)
 accent.size = (640, 3) [800ms, ease: ease_out]
 ```
 
+## Examples
+
+[Open the online examples](https://amx.j4ger.dev/#examples) or [browse the same AMX files](web/content/scenes/).
+
 ## Try it locally
 
 See [GitHub Releases](https://github.com/j4ger/animatix/releases) for available builds. The nightly workflow packages a Linux x86-64 development snapshot. For runtime dependencies and portability, see [Downloaded builds](docs/contributing.md#downloaded-builds). Use the Nix shell below to build from source.
@@ -45,13 +49,13 @@ Use a video-enabled build to create, preview and export the narrated starter fro
 <details>
 <summary><strong>Build from source with Nix</strong></summary>
 
-With [Nix](https://nixos.org/download/) and flakes enabled, open the hello scene:
+With [Nix](https://nixos.org/download/) and flakes enabled, open the first tutorial scene:
 
 ```sh
 git clone https://github.com/j4ger/animatix.git
 cd animatix
 nix develop
-cargo run --bin animatix-gui -- examples/basics/00_hello.amx
+cargo run --bin animatix-gui -- web/content/scenes/first-move.amx
 ```
 
 For CLI rendering, video export, and other build setups, see the [development guide](docs/contributing.md).

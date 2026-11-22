@@ -485,7 +485,7 @@ fn delightful_kinetic_connectors_reference_existing_actor_anchors() {
     use crate::timeline::{ConnectorEndpoint, SceneAnchor, TrackAccessor};
 
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples/animation/40_delightful_kinetic.amx");
+        .join("tests/fixtures/amx/animation/40_delightful_kinetic.amx");
     let mut modules = ModuleGraph::new();
     let program = modules.load_program(&path).expect("load kinetic example");
     let expanded = program.expand_components().expect("expand kinetic example");
@@ -543,7 +543,7 @@ fn kinetic_probe_timeline() -> crate::timeline::Timeline {
     use animatix_syntax::module::ModuleGraph;
 
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples/animation/40_delightful_kinetic.amx");
+        .join("tests/fixtures/amx/animation/40_delightful_kinetic.amx");
     let mut modules = ModuleGraph::new();
     let program = modules.load_program(&path).expect("load kinetic example");
     let expanded = program.expand_components().expect("expand kinetic example");

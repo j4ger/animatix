@@ -1,14 +1,15 @@
 ---
 import Page from '../../layouts/Page.astro';
 import DocsBackLink from '../../components/DocsBackLink.astro';
-import {url, pageUrl, github} from '../../lib/content';
+import {sceneUrl, pageUrl, github} from '../../lib/content';
+import {insertionId} from '../../lib/insertion-steps';
 import {pageLanguage} from '../../lib/language';
 import {ui} from '../../lib/ui';
 const language = pageLanguage(Astro.currentLocale);
 const {t, quickstart} = ui(language);
 const install = pageUrl(language, '#install');
-const edit = pageUrl(language, 'playground/?scene=insertion-sort&step=four');
-const download = url('content/scenes/insertion-sort.amx');
+const edit = pageUrl(language, `playground/?scene=${insertionId}&step=four`);
+const download = sceneUrl(insertionId);
 ---
 <Page title={quickstart}>
   <article class="docs-layout quickstart">
@@ -33,6 +34,8 @@ const download = url('content/scenes/insertion-sort.amx');
 ./bin/animatix image insertion-sort.amx --time 7.6 --output frame.png`}</code></pre>
       <p>{t('Use a video-enabled build to render the full scene to MP4.', '使用支持视频导出的构建，将完整场景渲染为 MP4。')}</p>
       <pre><code>./bin/animatix video insertion-sort.amx --output insertion-sort.mp4</code></pre>
+      <p>{t('For a narrated example with audio and captions, create a starter project.', '要体验旁白和字幕，可以生成一个起步项目。')}</p>
+      <pre><code>./bin/animatix init narrated-example</code></pre>
       <p class="quickstart-note">{language === 'en' ? <>On macOS, use <code>./animatix</code>. On Windows, use <code>{String.raw`.\animatix.exe`}</code>.</> : <>macOS 使用 <code>./animatix</code>，Windows 使用 <code>{String.raw`.\animatix.exe`}</code>。</>}</p>
     </section>
   </article>

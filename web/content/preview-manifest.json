@@ -4,7 +4,7 @@
     {
       "id": "ripple-and-cascade",
       "source": "scenes/ripple-and-cascade.amx",
-      "source_sha256": "9dc1fc1864c0ec8b1ca00fb18b705d82ab0f1b982c34b4ce5cbb22aed794ca27",
+      "source_sha256": "644c9817812b80057776cc18eb199f49a716237c250df0fb2e25cfb3c16b8883",
       "poster": "posters/ripple-and-cascade.png",
       "poster_time_seconds": 6.5,
       "poster_sha256": "4db57aec06a2a81888188091d3bd7e3ef8d02817a9e88b0d46e6e3a69615da6f",
@@ -21,12 +21,12 @@
     {
       "id": "when-waves-meet",
       "source": "scenes/when-waves-meet.amx",
-      "source_sha256": "96ffa1656ab19eee94e0747b66c70d0214b2e033e59041d9b4c7523321585d3f",
+      "source_sha256": "039e31cc2bb51807e1347ac059cba0077e4a57323c66fa5d0173e0562c9c71a2",
       "poster": "posters/when-waves-meet.png",
       "poster_time_seconds": 15,
       "poster_sha256": "39aa954666d0cab5a8becce2ecb5c40dd6cf4fd3c7aea83a8d3e4bafb9067ab9",
       "recording": "previews/when-waves-meet.mp4",
-      "recording_sha256": "d6470e75fd6761bc9d8459b5d055c971f5fba3dc2d9c36c42e2605f41d858be8",
+      "recording_sha256": "b1c7add70cefe3b8701911046e20a70c05916e30984c9b1772b574e67d9a69ba",
       "duration_seconds": 28.0,
       "width": 1280,
       "height": 720,
@@ -65,9 +65,9 @@
       "audio": false,
       "parameters": "authored defaults",
       "renderer": "native CLI video at authored 1280x720; H.264 24 fps, fast-start MP4",
-      "source_sha256": "fb28c2fb3db61fd04e9496a26e190ec943fdbab7df2bdcbec69c0df8a2819a2b",
+      "source_sha256": "899403f892257dd2ac6c6da32a3af718009e551bdcfe0465db51d60b87f301c6",
       "poster_sha256": "481ea54bccc13bfe8f14a34ffca529c36430fea429cbe0979a14805e8aa7d5f1",
-      "recording_sha256": "54a27799f00eed7eec08f3a9f91fb998e5b6d52eaab7709a678ab42dc538a00d"
+      "recording_sha256": "63c3b16806684bdfad4938602af9aee01008995f7ed6d3b4ae09b7ec12d24b66"
     },
     {
       "id": "make-room",
@@ -96,7 +96,7 @@
       "width": 960,
       "height": 540,
       "renderer": "native CLI image at authored 960x540",
-      "source_sha256": "7f4bfb43685d99ff875a23da3aa9fc004ff42a0e547ec18a9dcfd6cb3ae1cca2",
+      "source_sha256": "ae6c49a3fcae062cc31c486954f874900ab94edf8fabb7b5eae37d5046d0557f",
       "poster_sha256": "3bca90daf5f8181f70291ba40d1268645392f5de5c5e4d28f0d144b1fe2b9eb4"
     },
     {
@@ -128,9 +128,9 @@
       "poster_time_seconds": 2.8,
       "width": 1280,
       "height": 720,
-      "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "538b97807d4fe40d2a8dff5b93c634f89aac75ce66fbe8b688e160d0585bc3ff",
-      "poster_sha256": "9602db90151485d29380cb169d64afe1b5d38187b68a9264427386fa77448656"
+      "renderer": "native CLI image at authored 1280x720",
+      "source_sha256": "eb81918d791251f1241777c03dc158ed4f7f63a8f15d0a44147e7f138752e0e7",
+      "poster_sha256": "95b678d66ce3c039d3ba57a2e855706f6973c1790dcefd421a2649869690c9d9"
     },
     {
       "id": "values",
@@ -139,9 +139,9 @@
       "poster_time_seconds": 1,
       "width": 1280,
       "height": 720,
-      "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "93899949f3734d4fd38dd69e0bdd65c64a08b537761ac3e5d64667fd20908252",
-      "poster_sha256": "a4aec7820849fe82909ec9a3c56e682c6024471b3154943a51f448b84c07fb5b"
+      "renderer": "native CLI image at authored 1280x720",
+      "source_sha256": "f9742824c498dc2f9e81f1dabbccf2987a1220ee89fe48c315ddec9af92f86f6",
+      "poster_sha256": "55da983002b7227eea033d5bed6a64a2befd0fc06c246eada245cab18ae6d474"
     },
     {
       "id": "timing",
@@ -183,9 +183,9 @@
       "poster_time_seconds": 7,
       "width": 1280,
       "height": 720,
-      "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "23bda3c20a52cad02076177e2cec30b88257491aafa004255418ee72a648df20",
-      "poster_sha256": "71c757302066dd03aba285154d57c0b351bbc393f32c562aff3334cbd4eb19f6"
+      "renderer": "native CLI image at authored 1280x720",
+      "source_sha256": "f704aa3241691177ec1d072290c337002aefaf5266a8670753f2f830e01eea55",
+      "poster_sha256": "5622778887dbad020c79c15d9df10405cf979057f228327dfe6aac4fc9b3e966"
     },
     {
       "id": "technique-reveal",

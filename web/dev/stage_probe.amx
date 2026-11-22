@@ -13,9 +13,9 @@
 // whole plate, which is what house-style rule 2 demands. In the DSL the loop
 // is declared with `seamless_loop: true` (autoplay/loop/hold are player
 // attributes, not config keys).
-import "../../examples/lib/theme.amx"
+import "lib/theme.amx"
 
-import "../../examples/lib/stage.amx"
+import "lib/stage.amx"
 
 config { colorscheme: "tide", resolution: (1280, 720), duration: 8, seamless_loop: true }
 

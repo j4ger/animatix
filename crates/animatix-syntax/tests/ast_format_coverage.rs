@@ -1111,7 +1111,7 @@ fn format_source_preserves_ast_on_real_scenes() {
     let formatter = animatix_syntax::formatter::Formatter::default();
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     for relative in [
-        "examples/lib/stage.amx",
+        "crates/animatix/examples/web_present_driver/fixtures/lib/stage.amx",
         "crates/animatix-syntax/tests/fixtures/sorting_format.amx.txt",
     ] {
         let path = root.join(relative);

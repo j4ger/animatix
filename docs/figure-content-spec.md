@@ -1,6 +1,6 @@
 # Figure Content Spec — the per-template character budget
 
-The figure kit (`examples/lib/figure.amx`)
+The figure kit (`crates/animatix/tests/fixtures/amx/lib/figure.amx`)
 gives an explanatory figure its layout
 baseline: the FIG header block, left-pinned section bands, and small info
 cards. Layout is only half of the baseline; the other half is **how much text
@@ -71,5 +71,5 @@ exists to retire.
 
 `animatix check` + `animatix audit` on any scene using the kit must report no
 `text.overflow`; `tools/quality/check_examples.sh` covers the kit's own example
-(`examples/figures/figure_kit.amx`), which is the executable documentation of
+([figure_kit.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/examples/figures/figure_kit.amx)), which is the executable documentation of
 every cap above.

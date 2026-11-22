@@ -90,9 +90,9 @@ Parse-only row names and their parse boundaries are retained.
 All three file workloads are mandatory, loaded before timing; a missing,
 unreadable or blank input fails the run instead of silently removing a row:
 
-- `examples/projects/fft_explain.amx` (previous `gallery/` path was stale)
-- `examples/components/09_components.amx`
-- `examples/components/10_modules.amx`
+- `crates/animatix/benches/fixtures/amx/projects/fft_explain.amx` (previous `gallery/` path was stale)
+- `crates/animatix-syntax/tests/fixtures/amx/components/09_components.amx`
+- [10_modules.amx](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/examples/components/10_modules.amx)
 
 These are still repository examples, not frozen benchmark fixtures. A changed
 source or imported resource invalidates workload comparability even when its
@@ -219,21 +219,21 @@ Policy changes over the current state:
   default guard.
 
 The editor-intelligence middle workload is now `medium`
-(`examples/projects/fft_explain.amx`). Its input differs from the retired
+(`crates/animatix/benches/fixtures/amx/projects/fft_explain.amx`). Its input differs from the retired
 `analyzer_update/dogfood` workload; establish fresh baselines rather than
 comparing their timings. Historical measurements below keep their original IDs.
 
 ### 3.3 Layer 2 — Scenario suite (new)
 
-A set of realistic `.amx` workloads drawn from `examples/`,
-parameterized to stress the expensive paths:
+A fixed set of `.amx` workloads under `crates/animatix/benches/fixtures/amx/`,
+parameterized to stress expensive paths:
 
 | Scenario | Stresses |
 |---|---|
-| `examples/gallery/sorting_theatre.amx` | generated actors, many tracks, sequence/stagger actions |
-| `examples/projects/fft_explain.amx` | feature density, mixed primitives |
-| `examples/data/23_plot_kinds.amx` | plot path generation (vector paths) |
-| `examples/generation/*` | reactive `always` blocks → frame env + modifier runtime |
+| `crates/animatix/benches/fixtures/amx/gallery/sorting_theatre.amx` | generated actors, many tracks, sequence/stagger actions |
+| `crates/animatix/benches/fixtures/amx/projects/fft_explain.amx` | feature density, mixed primitives |
+| `crates/animatix/benches/fixtures/amx/data/23_plot_kinds.amx` | plot path generation (vector paths) |
+| `crates/animatix/benches/fixtures/amx/generation/28_generation_reactive.amx` | reactive `always` blocks → frame env + modifier runtime |
 | a synthetic `N`-actor generated scene (scaling sweep) | planner, layout, scene flatten |
 
 Each scenario reports **rebuild time**, **first-frame eval**, **steady-state eval
@@ -569,7 +569,7 @@ production hot path pays only a thread-local push/pop unless compiled out (see
 > wgpu render → CPU readback) on a real `.amx` project through
 > `OffscreenRenderer` — the same code path `animatix image`/video export
 > run — with the dhat profiler installed after a settle phase. First
-> capture (`examples/gallery/dashboard_story.amx`, 1280×720, 90 frames):
+> capture (`crates/animatix/benches/fixtures/amx/gallery/dashboard_story.amx`, 1280×720, 90 frames):
 > **1192.8 blocks / 3.97 MB per frame**, peak live 5.9 MB. Site ranking:
 > 93% of bytes was `readback_output`'s `vec![0; w*h*4]` — one 3.7 MB
 > allocation per frame for the CPU readback. Fix: `RenderedFrame.rgba` is
@@ -790,8 +790,8 @@ or a human. Two properties are deliberate and should survive edits:
 - **`debug_readback` is a correctness probe, not a timing sync.** It costs ~10 ms
   at 1280×720 for the texture copy + buffer map, which is the same order as the
   frame being measured.
-- **Scene URLs resolve against the page**, so a probe under `web/demos/` needs a
-  path relative to *itself*; the failure mode is an ordinary 404 reported as
+- **Scene URLs resolve against the page**, so a probe under `web/dev/` needs a
+  path relative to itself. A mismatched path produces a 404 reported as
   "scene failed to load" (the probe prints the resolved URL for this reason).
 
 ### Result: display-matched raster + page-wide adaptation

@@ -10,7 +10,9 @@ use criterion::Criterion;
 
 #[path = "full_pipeline_support.rs"]
 mod support;
-use support::{WORKLOADS, build_only, file_pipeline, parsed, required_source, source_pipeline};
+use support::{
+    build_only, file_pipeline, parsed, required_source, source_pipeline, workload_paths,
+};
 
 /// Simple scene with no imports — isolates parse + build cost.
 fn simple_scene_source() -> String {
@@ -60,11 +62,10 @@ pub(crate) fn bench_full_pipeline(c: &mut Criterion) {
     let simple_ast = parsed(&simple);
     let reactive_ast = parsed(&reactive);
 
-    let examples_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
-    let paths = WORKLOADS.map(|relative| examples_dir.join(relative));
+    let paths = workload_paths();
     // Preflight every mandatory input, even the file-I/O case. No conditional rows.
     let sources = paths.each_ref().map(|path| required_source(path));
-    let virtual_path = examples_dir.join("_bench_virtual.amx");
+    let virtual_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("benches/_bench_virtual.amx");
     let mut group = c.benchmark_group("full_pipeline");
 
     group.bench_function("simple_parse_only", |b| {

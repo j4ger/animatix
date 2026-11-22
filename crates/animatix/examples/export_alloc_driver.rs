@@ -16,7 +16,7 @@
 //! target/profiling/examples/export_alloc_driver [path/to/project.amx] [frames]
 //! ```
 //!
-//! Defaults to `examples/gallery/dashboard_story.amx` (multi-file imports,
+//! Defaults to the dashboard benchmark fixture (multi-file imports,
 //! dynamic layout, components, charts) at 30 fps for 90 frames. Output:
 //! steady-state per-frame blocks/bytes (post-settle) plus the peak live heap
 //! over the measured window — the "peak RSS on real scenarios" proxy.
@@ -32,9 +32,9 @@ use animatix_syntax::module::ModuleGraph;
 
 fn main() {
     let mut args = std::env::args().skip(1);
-    let path = args
-        .next()
-        .unwrap_or_else(|| "examples/gallery/dashboard_story.amx".to_string());
+    let path = args.next().unwrap_or_else(|| {
+        "crates/animatix/benches/fixtures/amx/gallery/dashboard_story.amx".to_string()
+    });
     let frames: u32 = args.next().and_then(|v| v.parse().ok()).unwrap_or(90);
     let fps: f64 = 30.0;
     let path = std::path::PathBuf::from(path);

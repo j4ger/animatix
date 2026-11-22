@@ -215,7 +215,10 @@ fn load_fixtures() -> Result<Vec<Fixture>, Box<dyn Error>> {
             PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("examples/web_present_driver/fixtures/attention.amx"),
         ),
-        ("basic-shapes-image-svg", PathBuf::from("examples/basics/01_shapes.amx")),
+        (
+            "basic-shapes-image-svg",
+            PathBuf::from("crates/animatix/benches/fixtures/amx/basics/01_shapes.amx"),
+        ),
     ];
     inputs.into_iter().map(|(name, path)| load_fixture(name, path)).collect()
 }

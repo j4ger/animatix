@@ -24,10 +24,9 @@ class JointAudit(base.PhaseGates):
         self.env.update(ANIMATIX_GATE_CHILD='1', ANIMATIX_CI_SHELL='nix')
         for key in ('ANIMATIX_BIN', 'ANIMATIX_AUDIT_BUDGET', 'ANIMATIX_SCENE_AUDIT_JOBS'):
             self.env.pop(key, None)
-        for name in ('examples/single.amx', 'examples/lib/omit.amx',
-                     'web/scenes/epicycles/fourier.amx', 'web/demos/plugin_pulse.amx',
-                     'web/scenes/_site/omit.amx', 'examples/multi/main.amx',
-                     'examples/multi/part.amx', 'web/demos/valid.amx'):
+        for name in ('web/content/scenes/single.amx', 'web/content/scenes/timing.amx',
+                     'web/content/scenes/other.amx', 'examples/retired.amx',
+                     'web/content/scenes/lib/module.amx'):
             path = self.root/name
             path.parent.mkdir(parents=True,exist_ok=True)
             path.write_text('fixture')
@@ -92,8 +91,8 @@ print(json.dumps(data))
         legacy=self.execute('gate_scene_audit; gate_budget_audit')
         self.assertEqual(legacy.returncode,0,legacy.stderr)
         calls=self.audit_calls()
-        expected={'examples/space scene.amx','examples/single.amx',
-                  'examples/multi/main.amx','web/demos/valid.amx'}
+        expected={'web/content/scenes/space scene.amx', 'web/content/scenes/single.amx',
+                  'web/content/scenes/timing.amx', 'web/content/scenes/other.amx'}
         self.assertEqual({c[1] for c in calls[:4]},expected)
         self.assertEqual({c[1] for c in calls[4:]},expected)
         self.assertEqual(len(calls),8)
@@ -242,7 +241,7 @@ print(json.dumps(data))
         self.assertFalse((self.root/'cargo-calls.jsonl').exists())
 
     def test_missing_input_directory_fails_union(self):
-        shutil.rmtree(self.root/'web/demos')
+        shutil.rmtree(self.root/'web/content/scenes')
         result=self.execute('run_explicit_gates scene-audit budget-audit')
         self.assertEqual(result.returncode,1)
         self.assertNotIn('OK gate: budget-audit',result.stdout)

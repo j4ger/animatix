@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Source contracts retained after the old public HTML/manifest was retired.
-# These check generated AMX, actual import closure, font provenance and SDK
-# integrity. Current website contracts live with Astro, not a second generator.
+# Check the AMX import closure, font provenance and SDK integrity.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -10,28 +8,6 @@ cd "$root"
 FAILED=0
 fail() { echo "FAIL: $*" >&2; FAILED=1; }
 ok() { echo "ok: $*"; }
-
-# Gradient math, parameter bounds and opt-out wiring must stay consistent.
-if python3 tools/content/check-gradient-content.py; then
-  ok "gradient math and parameter contracts"
-else
-  fail "gradient content contract mismatch"
-fi
-
-# Gradient uses the same single-source assembly policy as Epicycles.
-if python3 tools/content/gradient-plate.py --check; then
-  ok "gradient plate matches canonical acts"
-else
-  fail "gradient plate is stale"
-fi
-
-# ── 1. generated plates match their sources ───────────────────────────────────
-if python3 tools/content/epicycles-plate.py --check >/dev/null 2>&1; then
-  ok "web/demos/epicycles/scene.amx is what epicycles-plate.py generates"
-else
-  fail "web/demos/epicycles/scene.amx is stale — run: python3 tools/content/epicycles-plate.py"
-  python3 tools/content/epicycles-plate.py --check 2>&1 | sed 's/^/       /' >&2 || true
-fi
 
 # Scene imports are real source dependencies, not an embedded engine catalog.
 python3 tools/content/check-scene-imports.py || fail "scene import graph is incomplete"

@@ -337,7 +337,7 @@ Implemented:
 
 Exit criteria (met):
 
-- `cargo run --bin animatix -- audit examples/projects/fft_explain.amx --format json` works without a GPU.
+- `cargo run --bin animatix -- audit crates/animatix/benches/fixtures/amx/projects/fft_explain.amx --format json` works without a GPU.
 - The report contains actor bounds/opacity facts, keyframe timing, and issues with evidence.
 - No model or external service is required.
 

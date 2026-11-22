@@ -704,8 +704,8 @@ fn sort_colors_demo_file_produces_dnf_sequence() {
     // partition swaps on the step-sequenced timeline and end with the
     // values 0,0,1,1,2,2 left to right.
     let workspace = std::env::var("CARGO_MANIFEST_DIR").expect("manifest dir");
-    let demo_path =
-        std::path::Path::new(&workspace).join("../../examples/projects/leetcode_sort_colors.amx");
+    let demo_path = std::path::Path::new(&workspace)
+        .join("tests/fixtures/amx/projects/leetcode_sort_colors.amx");
     let Some(timeline) = build_module_file(&demo_path) else {
         eprintln!("skipping: demo file not found at {demo_path:?}");
         return;

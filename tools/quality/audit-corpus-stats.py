@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure `animatix audit` findings across the examples / web demo corpora.
+"""Measure `animatix audit` findings across the public scene corpus.
 
 This is the before/after instrument for the toolchain follow-up round. It walks
 the same three corpora the docs talk about, runs the CPU-only structural tier,
@@ -27,11 +27,11 @@ import pathlib
 import subprocess
 import sys
 
-from audit_corpus import scene_files, LEGACY_ROOTS
+from audit_corpus import scene_files, CANONICAL_ROOT
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BIN = ROOT / "target" / "debug" / "animatix"
-CORPORA = LEGACY_ROOTS
+CORPORA = (CANONICAL_ROOT,)
 
 # Observation codes: geometry/aesthetics candidates, not hard defects. Counted
 # separately so the report can show "warnings (actionable)" vs "candidates".

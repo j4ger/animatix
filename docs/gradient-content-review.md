@@ -36,7 +36,7 @@ For the learning-rate act's start (3.4, 1.6), 24 steps give loss approximately
 - The surface act's straight line to the origin is labelled an illustrative
   probe, not the negative-gradient trajectory. Its initial-loss chip stays fixed.
 - `scene.amx` is generated from the four standalone acts by
-  `tools/content/gradient-plate.py`. Both generator drift and mathematical contracts
+  [historical generator](https://github.com/j4ger/animatix/blob/fb1aee420f42e86e08f95f3e8e223394d9955056/tools/content/gradient-plate.py). Both generator drift and mathematical contracts
   run in `tools/content/content-sync.sh`.
 - The full walkthrough is explicitly static (`data-param-static`). The engine
   does not propagate build-time overrides into composed scenes. Parameter rails

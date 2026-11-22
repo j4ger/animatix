@@ -27,22 +27,19 @@ fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
-fn load(relative: &str) -> Option<String> {
-    std::fs::read_to_string(repo_root().join(relative)).ok()
-}
-
-/// Real-content samples, smallest to largest.
-///
-/// Skipped individually when absent so the bench still runs from a packaged
-/// crate without the repository's example tree.
+/// Fixed real-content workloads, smallest to largest.
 fn samples() -> Vec<Sample> {
     [
-        ("small", "examples/basics/00_hello.amx"),
-        ("medium", "examples/projects/fft_explain.amx"),
-        ("large", "examples/gallery/dashboard_story.amx"),
+        ("small", "crates/animatix/benches/fixtures/amx/basics/00_hello.amx"),
+        ("medium", "crates/animatix/benches/fixtures/amx/projects/fft_explain.amx"),
+        ("large", "crates/animatix/benches/fixtures/amx/gallery/dashboard_story.amx"),
     ]
     .into_iter()
-    .filter_map(|(label, rel)| load(rel).map(|source| Sample { label, source }))
+    .map(|(label, relative)| Sample {
+        label,
+        source: std::fs::read_to_string(repo_root().join(relative))
+            .unwrap_or_else(|error| panic!("cannot read {relative}: {error}")),
+    })
     .collect()
 }
 
