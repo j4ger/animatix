@@ -63,6 +63,13 @@ existing scene to reuse `ChapterHeader`, `ExplainerLayout`, `MetricCard`, or
 lanes, and reading panels used by the public scenes.
 [Shared layout source](../web/content/templates/layout.amx)
 
+Use `Backdrop` for a soft palette-aware stage. Its `center` is normalized to
+the canvas and `strength: 0` yields the flat scene background. Add a
+`FocusWash` behind the subject for a local tint. Its `at` can follow a
+keyframe or a value already used by the scene, and `strength: 0` makes it
+transparent. The Wash's `reach` scales with the canvas on each axis. Both
+components are static unless the source animates them.
+
 Edit the content bindings near the top of `main.amx`, or override them for a
 single-scene preview. For example:
 

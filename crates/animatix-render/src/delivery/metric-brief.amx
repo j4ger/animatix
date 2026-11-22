@@ -17,6 +17,7 @@ let step_x = if stacked() { 0 } else { card_width + gap }
 let step_y = if stacked() { card_height + gap } else { 0 }
 
 #0s
+  backdrop: Backdrop
   head: ChapterHeader, eyebrow: "ENGINEERING UPDATE", heading: heading
   tests: MetricCard, label: "TEST COVERAGE", value: passing, detail: "Checks passing",
     width: card_width, height: card_height, at: (first_x, first_y), opacity: 0

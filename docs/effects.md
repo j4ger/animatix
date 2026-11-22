@@ -95,6 +95,7 @@ Built-in identity values:
 | `Grain` | `amount` | `0` |
 | `Grain` | `seed` | `0` |
 | `Grain` | `monochrome` | `false` |
+| `Grain` | `animated` | `true` |
 | `Levels` | `in_black` | `0` |
 | `Levels` | `in_white` | `1` |
 | `Levels` | `gamma` | `1` |
@@ -110,6 +111,11 @@ Built-in identity values:
 | `DropShadow` | `offset` | `(0, 0)` |
 | `DropShadow` | `softness` | `0` |
 | `DropShadow` | `color` | `(0, 0, 0, 1)` |
+
+Set `Grain.animated` to `false` to keep its pattern fixed for a given seed
+and texture size. To add a subtle paper texture, use a small monochrome amount
+such as `0.012` and put only the backdrop inside the `Filter`. Declare text,
+fine rules and diagrams after the filter so their pixels bypass the effect.
 
 **Parameter units.** Most parameters are unitless, normalized fractions, or
 angles. Exactly seven are lengths in **scene pixels**:

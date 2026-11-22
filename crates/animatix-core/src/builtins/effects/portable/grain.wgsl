@@ -2,7 +2,7 @@ struct GrainParams {
     amount: f32,
     seed: f32,
     monochrome: u32,
-    _pad0: f32,
+    animated: u32,
 }
 
 @group(0) @binding(0) var src: texture_2d<f32>;
@@ -28,7 +28,7 @@ fn fragment_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
     if (amount <= 0.0) {
         return texel;
     }
-    let frame = u32(ctx.time_ms * 0.06);
+    let frame = select(0u, u32(ctx.time_ms * 0.06), params.animated != 0u);
     let pixel = coord.x + coord.y * ctx.tex_size.x;
     let salt = u32(params.seed * 4096.0);
     if (params.monochrome != 0u) {

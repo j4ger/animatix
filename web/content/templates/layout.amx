@@ -19,6 +19,25 @@ pub fn figure_height(with_notes: Bool) -> Num {
     - (if stacked() && with_notes { notes_height() + figure_gap() } else { 0 })
 }
 
+// The backdrop owns the stage fill. Its gradient uses normalized coordinates.
+pub component Backdrop(tint: Color = surface.secondary, center: Vec2 = (0.30, 0.30), strength: Num = 0.45) {
+  floor: Rect, size: (scene_width, scene_height), anchor: scene.center, opacity: 1, legend: false,
+    fill_gradient: radial(center, 0.9, {lerp_color(scene.background, tint, clamp(strength, 0, 1)), scene.background})
+}
+
+// Place above the backdrop and behind the content. Animate the instance's at
+// to follow an authored cue. Its default position and opacity stay constant.
+pub component FocusWash(tint: Color = accent.primary, strength: Num = 0.08, reach: Vec2 = (0.74, 1.08)) {
+  light: Ellipse, size: (scene_width * reach[0], scene_height * reach[1]),
+    at: (scene_width / 2, scene_height / 2), opacity: clamp(strength, 0, 1), legend: false,
+    fill_gradient: radial((0.5, 0.5), 0.48, {
+      (0%, rgba(tint[0], tint[1], tint[2], tint[3])),
+      (40%, rgba(tint[0], tint[1], tint[2], tint[3] * 0.55)),
+      (78%, rgba(tint[0], tint[1], tint[2], tint[3] * 0.12)),
+      (100%, rgba(tint[0], tint[1], tint[2], 0))
+    })
+}
+
 pub component ChapterHeader(eyebrow: Str, heading: Str) {
   header: Group, at: (theme.margin, theme.margin) {
     category: Text, text: eyebrow, role: roles::eyebrow, text_anchor: "left", at: (0, 14 * unit())

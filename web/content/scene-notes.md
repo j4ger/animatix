@@ -16,6 +16,7 @@ use 1280×720 stages and semantic colorscheme values.
 | `SequenceTile` and `MetricNumber` | Homepage insertion and the stable-sort showcase share tile geometry. Stable sort and the shear showcase use the number component. |
 | `SignalLane` and `SignalKey` | Wave addition and train-noise cancellation share graph and legend defaults. Each source keeps its own signal formula and scale. |
 | `ReadingPanel` and `ReadingField` | The maintenance notice reuses a reading surface and three fields with the same visual hierarchy. |
+| `Backdrop` and `FocusWash` | Insertion sort has a stationary paper backdrop. The shear example lets one wash follow the authored shear value. Native starters use the same static backdrop. |
 
 Six introductory syntax lessons use the style and colorscheme directly so
 their source continues to show the construct being taught. The homepage's two

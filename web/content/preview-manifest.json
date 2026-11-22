@@ -65,9 +65,9 @@
       "audio": false,
       "parameters": "authored defaults",
       "renderer": "native CLI video at authored 1280x720; H.264 24 fps, fast-start MP4",
-      "source_sha256": "440f9c7edeed20ecde55a61f38814361a8254691a1a483484eb3247e6b68020d",
-      "poster_sha256": "a612e31983657b7efa7069c71c9a21c539cd29b92ca49d5ebf1e62890aea29cf",
-      "recording_sha256": "ea3cf22d69a6e36366712000dfcb95aab01793559914d8301e6c2f0544d95de5"
+      "source_sha256": "39d96ae86f70b5d463f8a751ebfed359c14046ccd03922366b3dc9ca464b42b1",
+      "poster_sha256": "6b3e3adfe94e6755351e3d8e7142a88face89b8a50fd6b94dab096e05fa13fab",
+      "recording_sha256": "8e943028ee716636383180031e51c5d92b31b4b93d113f223669ec919d869fc8"
     },
     {
       "id": "make-room",
@@ -96,8 +96,8 @@
       "width": 960,
       "height": 540,
       "renderer": "native CLI image at authored 960x540",
-      "source_sha256": "913c4f097014ca5a1aff6014798fc692350d358d56aeee1adbeeacf5ea3e0e39",
-      "poster_sha256": "24371be9e88c4c21b8016476adf2951d3fa8fda94e66613060d73cd111eaeadb"
+      "source_sha256": "7503753e698b0a35375bf58ed4f1f5668b36716f2d1049a1cd249be28a9a545e",
+      "poster_sha256": "88841e256eb710095e5c7c1066c6741f22a50705ddd3e2614b982173b77be3c1"
     },
     {
       "id": "first-move",
@@ -211,6 +211,6 @@
     }
   ],
   "source_modules": {
-    "templates/layout.amx": "8c3e349b440cfd8b1e5083c155ac313ba6b74db52459822161ab3d660c7b73a9"
+    "templates/layout.amx": "3fce5c7c17a1e1ca11515e6b57fc406f4a70be813243a05fe4b1c3bb235d0b96"
   }
 }

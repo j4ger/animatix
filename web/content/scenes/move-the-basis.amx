@@ -5,10 +5,12 @@ config { style: "editorial", colorscheme: "editorial-dark", resolution: (1280, 7
 
 let basis_unit = 85
 let project = (x, y, shear) => (basis_unit * (x + shear * y), 0 - basis_unit * y)
+let ambient_strength = 0.08
 
 #0s
-  backdrop: Rect, anchor: scene.center, size: (scene_width, scene_height),
-    fill_gradient: radial((0.25, 0.28), 0.9, {surface.secondary, scene.background})
+  backdrop: Backdrop, center: (0.25, 0.28), strength: 1
+  ambient_light: FocusWash, tint: lerp_color(surface.secondary, accent.primary, 0.24),
+    strength: ambient_strength
   plane: Group, at: (35%, 53%) {
     lattice: Group, opacity: 0 {
       for n, i in range(-2, 3) {
@@ -39,6 +41,7 @@ let project = (x, y, shear) => (basis_unit * (x + shear * y), 0 - basis_unit * y
   always {
     let tip = e2.to
     let k = tip[0] / basis_unit
+    ambient_light.at = (scene_width * (0.35 + 0.03 * clamp(k, -1, 1)), scene_height * 0.48)
     lattice.transform = (1, 0, -k, 1, 0, 0)
     point.at = project(1, 1, k)
     top_edge.from = project(0, 1, k)

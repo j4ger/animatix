@@ -731,7 +731,8 @@ fn grain_perturbs_flat_field_deterministically() {
         EffectParamValue::Bool(true),
     ];
 
-    let image = backend.render(&scene, DIMS, &effect_chain("Grain", params.clone()), 1.0);
+    let mut chain = effect_chain("Grain", params);
+    let image = backend.render(&scene, DIMS, &chain, 1.0);
     let raw = image.rgba.as_slice();
     let touched = raw.as_chunks::<4>().0.iter().filter(|px| px[0] != 128).count();
     assert!(
@@ -739,8 +740,16 @@ fn grain_perturbs_flat_field_deterministically() {
         "grain should perturb most pixels of a flat field, only {touched} changed"
     );
 
-    let image_again = backend.render(&scene, DIMS, &effect_chain("Grain", params), 1.0);
+    let image_again = backend.render(&scene, DIMS, &chain, 1.0);
     assert_eq!(raw, image_again.rgba.as_slice(), "grain must be deterministic");
+
+    chain.time_ms = 250.0;
+    let later = backend.render(&scene, DIMS, &chain, 1.0);
+    assert_ne!(raw, later.rgba.as_slice(), "omitting animated must retain temporal grain");
+
+    chain.instances[0].params.values.push(EffectParamValue::Bool(false));
+    let static_later = backend.render(&scene, DIMS, &chain, 1.0);
+    assert_eq!(raw, static_later.rgba.as_slice(), "static grain uses the time-zero pattern");
 }
 
 #[test]

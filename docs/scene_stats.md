@@ -265,44 +265,23 @@ definition *first* in z-order, and `can_post_composite_filter` (`timeline/scene_
 call site `:2290`) permits the zero-readback path only for the last rendered element,
 so a background scope takes the inline readback path every frame.
 
-## The consumer: a recipe, not a mechanism
+## Ambience recipes
 
-Ambience ships as `crates/animatix/tests/fixtures/amx/lib/ambience.amx`, as an explicit source module
-— the deliberate choice recorded in `history/2026-10.md`: the three background recipes were
-catalogued and then landed as *primitives + builtins + recipes*, "product forms of the
-light vocabulary"; the particle item closed as *"no new primitive, no state model"*
-(`history/2026-10.md`, "Item inventory and feasibility") and count-up as *"Deliverable is a recipe + example"*
-(`history/2026-10.md`, "Item inventory and feasibility"). STAT-1 supplies the one thing genuinely missing from that
-decision — a way to read the scene — and stops there.
+The shared layout library provides `Backdrop` and `FocusWash`. They use
+canvas-relative dimensions and palette defaults. The backdrop is stationary,
+and an author can position the wash with a keyframe or a value that already
+drives the scene. Neither component requests scene statistics on its own.
+[Shared layout source](../web/content/templates/layout.amx)
 
-Illustrative shape, using only what exists today plus the two builtins:
+The [optional statistics recipe](../crates/animatix/tests/fixtures/amx/lib/ambience.amx)
+uses the baked centroid to move a single wash. It attenuates the signal, limits
+the offset to 3% of each canvas dimension, and holds size and opacity fixed.
+The [loop fixture](../crates/animatix/tests/fixtures/amx/animation/39_ambience.amx)
+shows this on a small cast with keyframed positions.
 
-```
-# ambience.amx — authored-explicit, reads the scene, invents no actors
-config { resolution: (1280, 720), duration: 12 }
-
-plate: Rect, size: fill, color: scene.background, anchor: scene.center, opacity: 1, legend: false
-
-wash: Ellipse, size: (900, 900), opacity: 0.18, blend: "screen", legend: false,
-  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, hex_color("f5b94233")), (100%, hex_color("f5b94200"))})
-
-always {
-  let e   = curve_smooth(scene.stats.motion, t, 0.7)
-  let fx  = curve_smooth(scene.stats.focus_x, t, 1.2)
-  let fy  = curve_smooth(scene.stats.focus_y, t, 1.2)
-  let sx  = curve_smooth(scene.stats.spread_x, t, 1.0)
-  wash.at       = (fx, fy)
-  wash.size     = (600 + 600 * sx, 600 + 600 * sx)
-  wash.opacity  = clamp(0.06 + 0.5 * e, 0.02, 0.45)
-  plate.color   = lerp_color(hex_color("0d0f14"), hex_color("141821"), clamp(1.5 * e, 0, 1))
-}
-```
-
-`opacity` on `wash` is **not** decorative. An actor declared before the first keyframe
-with no explicit `opacity` is seeded `opacity: 0` and stays invisible until an entrance
-lifts it (`AGENTS.md`, "Hidden by default"), so a component whose entire job is to be
-behind everything must state that it is visible. A recipe that omits it renders
-nothing and looks correct in source.
+Choose an authored signal when the focal point is semantic or the subject's
+geometry is produced by `always`. The public shear example uses the same
+value for its grid, number and wash position.
 
 ## Non-goals
 

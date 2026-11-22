@@ -1,5 +1,4 @@
-//! `Grain` — animated film-grain noise, `time_ms`-driven so it animates for
-//! free.
+//! `Grain` — film-grain noise with an optional timeline clock.
 //!
 //! This file is the single source for the effect: parameters (name, kind,
 //! identity), WGSL passes, `pack`, and `support`.
@@ -13,12 +12,13 @@ use crate::effect::{
 /// `amount` is the ± deviation around the mid-grey noise term (0.25 at the
 /// canonical film-grain strength, clamped so the noise never inverts a channel
 /// by more than its headroom); `seed` shifts the noise field; `monochrome`
-/// applies one noise sample to all channels instead of independent per-channel
-/// grain.
+/// applies one noise sample to all channels. `animated` selects between a
+/// timeline-driven pattern and a fixed pattern.
 pub const GRAIN_PARAMS: &[EffectParamSpec] = &[
     EffectParamSpec::new("amount", EffectParamKind::F32, EffectParamValue::F32(0.0), 0, 4),
     EffectParamSpec::new("seed", EffectParamKind::F32, EffectParamValue::F32(0.0), 4, 4),
     EffectParamSpec::new("monochrome", EffectParamKind::Bool, EffectParamValue::Bool(false), 8, 4),
+    EffectParamSpec::new("animated", EffectParamKind::Bool, EffectParamValue::Bool(true), 12, 4),
 ];
 
 pub(crate) const GRAIN_WGSL: &str = concat!(
@@ -28,7 +28,7 @@ struct GrainParams {
     amount: f32,
     seed: f32,
     monochrome: u32,
-    _pad0: f32,
+    animated: u32,
 }
 
 @group(0) @binding(0) var src: texture_2d<f32>;
@@ -68,7 +68,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     // The frame index comes from time_ms so grain animates without a new
     // parameter; 60 fps frames stay distinct for ~1.1 years of timeline.
-    let frame = u32(ctx.time_ms * 0.06);
+    let frame = select(0u, u32(ctx.time_ms * 0.06), params.animated != 0u);
     let pixel = coord.x + coord.y * size.x;
     let salt = u32(params.seed * 4096.0);
 
@@ -123,6 +123,9 @@ impl Effect for Grain {
             _ => 0,
         };
         out[8..12].copy_from_slice(&flag.to_le_bytes());
+        let animated =
+            u32::from(!matches!(params.values.get(3), Some(EffectParamValue::Bool(false))));
+        out[12..16].copy_from_slice(&animated.to_le_bytes());
     }
 
     /// Reads only the pixel itself.

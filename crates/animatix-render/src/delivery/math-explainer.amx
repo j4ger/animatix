@@ -23,6 +23,7 @@ let with_notes = formula != ""
 let weight = 0
 
 #0s
+  backdrop: Backdrop, tint: surface.primary
   slide: ExplainerLayout, eyebrow: "FUNCTION APPROXIMATION", heading: heading,
     takeaway: takeaway, with_notes: with_notes {
     @figure {

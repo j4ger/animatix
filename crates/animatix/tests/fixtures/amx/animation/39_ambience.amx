@@ -1,16 +1,10 @@
-import "../../../../examples/web_present_driver/fixtures/lib/theme.amx"
-
-import "../../../../examples/web_present_driver/fixtures/lib/stage.amx"
-
 import "../lib/ambience.amx"
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6, seamless_loop: true }
 
-floor: StageFloor
-
-// No ActHead/Caption here: the STAT-1 demo needs a stats population of
-// exactly the two moving actors, or the wash's target gets diluted.
-bg: Ambience, tint: rgb(1, 0.62, 0.04), base_opacity: 0.22, tau: 0.5
+// Only the two moving actors contribute to the follow signal.
+let wash_strength = 0.08
+bg: Ambience, strength: wash_strength
 
 hero: Ellipse, size: (120, 120), color: accent.primary, at: (320, 360), opacity: 1
 

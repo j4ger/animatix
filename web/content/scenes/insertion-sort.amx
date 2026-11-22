@@ -10,8 +10,7 @@ let compare_y = row_y - card_size[1] - 40
 let slot = (index, y) => (480 + (index - 1.5) * spacing, y)
 
 #0s
-  paper: Rect, anchor: scene.center, size: (scene_width, scene_height),
-    fill_gradient: radial((0.25, 0.22), 0.9, {surface.primary, scene.background})
+  paper: Backdrop, tint: surface.primary, center: (0.25, 0.22), strength: 0.72
   caption: SceneCaption, level: "title", at: (scene_width / 2, 91), text: "Where does 3 fit?"
   for i in range(0, 4) {
     let center = slot(i, row_y + card_size[1] / 2 + 18)

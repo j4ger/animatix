@@ -12,6 +12,7 @@ let track_y = scene_height * 0.57
 voice: Audio, source: "narration.mp3", transcript: "narration.speech.json"
 
 #0s
+  backdrop: Backdrop
   head: ChapterHeader, eyebrow: "NARRATED EXPLAINER", heading: heading
   statement: Text, text: summary, role: body, text_anchor: "left",
     text_max_width: width, at: (theme.margin, scene_height * 0.40)
