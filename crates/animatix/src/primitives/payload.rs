@@ -11,7 +11,25 @@ use serde::{Deserialize, Serialize};
 
 use crate::timeline::image::SceneImage;
 use crate::timeline::plot::{BarDataTransition, FuncTransition, ProceduralPlot};
-use crate::timeline::{BarChartLayout, PropertyTrack, VelloPath};
+use crate::timeline::{BarChartLayout, EntityId, PropertyTrack, VelloPath};
+
+/// Caption placements resolved with the same ordered datasets as the bars.
+#[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub(crate) struct BarCaptions {
+    pub(crate) entities: std::collections::HashSet<EntityId>,
+    pub(crate) initial: CaptionPlacements,
+    pub(crate) transitions: Vec<BarCaptionTransition>,
+}
+
+type CaptionPlacements = std::collections::BTreeMap<EntityId, [f64; 2]>;
+
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub(crate) struct BarCaptionTransition {
+    pub(crate) active: CaptionPlacements,
+    pub(crate) settled: CaptionPlacements,
+}
 
 /// Payload for procedural plots, mathematical curves, and bar charts.
 ///
@@ -62,6 +80,9 @@ pub struct PlotPayload {
     pub bar_data: Vec<(String, f32)>,
     /// Timed dataset transitions for bar charts.
     pub bar_data_transitions: Vec<BarDataTransition>,
+    /// Layouts of prebuilt caption actors for a chart with timed data.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub(crate) bar_captions: Option<Box<BarCaptions>>,
 }
 
 /// Payload for vector SVG assets and timed SVG frame sequences.

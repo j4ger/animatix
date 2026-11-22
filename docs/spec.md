@@ -1382,28 +1382,19 @@ inputs. See [`shared_progress_math.amx`](../examples/data/shared_progress_math.a
 
 The [probability bar template](../examples/templates/probability-bars.amx) uses a common zero and width across categories. Pass `ProbabilityBar` a `value` and a `progress` fraction in [0, 1]. Its line endpoint and percentage label read the same fraction on every frame, including when seeking backward.
 
-**BarChart** — produces a set of rectangular bars from `data: {(key, value), ...}` lists. Supports standalone mode (pixel coords) and Graph-child mode (math coords). See `examples/projects/fft_explain.amx`.
+**BarChart** draws rectangular bars from a list of `(key, value)` pairs.
+Use a literal such as `{("A", 12), ("B", 30)}`, a variable, or an expression
+such as `zip(categories, values)`. The same forms work in a timed assignment.
+Keys can be strings or numbers. The chart can stand alone in pixel coordinates
+or use a parent `Graph`'s math coordinates.
 
-`data` keyframes. A later `chart.data = {…} [800ms]` assignment races the bars
-between the two datasets, matched **by label**: a category present in both
-interpolates its height, one only the new set has enters from 0, and one the new
-set drops leaves toward 0 and keeps its slot until it is gone. Three limits
-come with it:
-
-- **Heights animate, slots do not.** The result follows the new set's order, so a
-  re-ordered dataset moves each bar to its new column at the first frame of the
-  window and then interpolates its height. Sorting a chart by value is a
-  `swap`/`reorder` call on separate actors, not a `data` assignment — and
-  reordering that way warns anyway, for the caption reason below.
-- **Labels do not follow.** Bar captions are compiled to text at build, into the
-  slots the *declaration's* dataset laid out, so an assignment that changes the
-  label set **or its order** warns (`BarChart '…' assigns a different label set
-  or order`) and renders the new bars under the old labels. Keep the labels the
-  same, in the same order, and animate the values.
-- **`max_value: auto` hides the race.** Auto-scaling normalises the tallest bar
-  to the full plot height every frame, so growing the maximum changes nothing
-  visible; only relative differences survive. Pin `max_value:` when the point is
-  that the numbers got bigger.
+`chart.data = zip(categories, next_values) [800ms]` matches heights by key
+and interpolates them. The new order takes effect when the transition starts,
+and captions follow their categories into the new slots. Added categories
+grow from zero. Removed categories move after the new set, shrink to zero,
+and disappear with their captions. A chart carried with `persist` keeps the
+dataset visible at the scene boundary. Use an explicit `max_value` to keep
+the vertical scale fixed across datasets. See the [bar chart example](../examples/data/27_bars_race.amx).
 
 ### Built-in Variables
 
@@ -2537,6 +2528,30 @@ produce new list values and can run during construction or in `always`.
 let middle = list_slice({10, 20, 30, 40}, 1, 3) // {20, 30}
 let joined = list_concat(middle, {50, 60})      // {20, 30, 50, 60}
 let backward = list_reverse(joined)            // {60, 50, 30, 20}
+```
+
+`tabulate(count, function)` calls the function with each zero-based index.
+`count` must be an integer from 0 through 100,000. `list_map(list, function)`
+calls the function with each item. `zip(left, right)` pairs the corresponding
+items and reports an error when the lengths differ. `scan(initial, list, function)`
+passes the previous state and current item to the function. Its result contains
+one state per input item, starting with the result of the first call.
+
+```animatix
+let xs = tabulate(4, (i) => 100 + 80 * i)           // {100, 180, 260, 340}
+let labels = list_map(xs, (x) => format("x = {}", x))
+let rows = zip(labels, xs)
+let totals = scan(0, {2, 5, 3}, (sum, n) => sum + n) // {2, 7, 10}
+```
+
+Use `stagger_each(list, interval, function)` to turn each item into a timeline
+plan and offset each start from the previous one. It runs during timeline
+construction. For example, after generating `dot[i]` actors, pass their references
+as a list.
+
+```animatix
+let dots = tabulate(4, (i) => dot[i])
+stagger_each(dots, 70ms, (dot) => fade_in(target: dot, duration: 400ms))
 ```
 
 ### Build-Time Algorithm Precomputation

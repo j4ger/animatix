@@ -472,11 +472,6 @@ impl AssignmentCtx<'_> {
             .map_or(&[], |plot| &plot.bar_data_transitions)
     }
 
-    /// Bar layout resolved at build time.
-    pub(crate) fn bar_layout(&self) -> Option<&crate::timeline::BarChartLayout> {
-        self.payload.as_ref().and_then(|payload| payload.as_plot())?.bar_layout.as_ref()
-    }
-
     /// Ensure and borrow the actor's plot payload.
     pub fn ensure_plot_payload(&mut self) -> &mut crate::primitives::PlotPayload {
         self.payload

@@ -1,9 +1,5 @@
 // 15 — For Loop: Gallery
 // Procedural per-frame wave animation using for inside always.
-import "../lib/theme.amx"
-
-import "../lib/theme.amx" as theme
-
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 let dot_x = linspace(240, 840, 6)
@@ -15,7 +11,7 @@ sub: Text, text: "for inside always drives per-frame motion", font_size: 20, col
 
 #0s
   for x, i in dot_x {
-    dot[i]: Ellipse, size: (50, 50), color: dot_colors[i], at: (x, 400)
+    dot[i]: Ellipse, size: (50, 50), color: dot_colors[i], at: (x, 400), opacity: 0
   }
   always {
     for x, i in dot_x {
@@ -29,6 +25,5 @@ sub: Text, text: "for inside always drives per-frame motion", font_size: 20, col
   fade_in(target: sub, duration: 0.4s, delay: 0.2s)
 
 #1s
-  for i in range(0, dot_x.length) [step: 70ms] {
-    fade_in(target: dot[i], duration: 0.4s)
-  }
+  let dots = tabulate(dot_x.length, (i) => dot[i])
+  stagger_each(dots, 70ms, (item) => fade_in(target: item, duration: 400ms))

@@ -613,6 +613,39 @@ fn test_persist_basic_carry() {
     assert_root(scene_b, "title");
 }
 
+#[test]
+fn a_carried_chart_starts_with_the_dataset_and_captions_visible_at_exit() {
+    let report = build_composition(
+        r#"
+# Before
+config { duration: 3 }
+#0s
+chart: BarChart, data: {("A", 10), ("B", 20)}
+#1s
+chart.data = {("C", 45), ("B", 30)} [800ms]
+persist(target: chart)
+# After
+config { duration: 3 }
+#1s
+chart.data = {("B", 50), ("C", 10)} [800ms]
+"#,
+    );
+    assert_no_errors(&report);
+    let after = &scene(&report.output, "After").timeline;
+    let id = after.get_entity_id("chart").unwrap();
+    let expected = vec![("C".to_string(), 45.0), ("B".to_string(), 30.0)];
+    assert_eq!(after.world.bar_data(id), expected);
+    let changes = after.world.bar_data_transitions(id);
+    assert_eq!(changes.len(), 1);
+    assert_eq!(changes[0].from, expected);
+    for (i, key) in [(0, "C"), (1, "B")] {
+        let caption = after.get_entity_id(&format!("chart_bar_label_{i}")).unwrap();
+        let text = after.world.text_or_default(caption);
+        assert_eq!(text.text_content.as_ref().unwrap().evaluate(0), key);
+    }
+    assert!(after.get_entity_id("chart_bar_label_2").is_none());
+}
+
 /// Carry with assignment: SceneB modifies the carried actor's property.
 #[test]
 fn test_persist_carry_then_assign() {

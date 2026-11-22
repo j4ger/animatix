@@ -12,15 +12,11 @@ mod value;
 
 pub(crate) use expr::{
     call_with_points, evaluate_call_arguments, evaluate_call_value, evaluate_callable_value,
-    evaluate_expr_with_points, evaluate_method_arguments,
+    evaluate_expr_with_points, evaluate_method_arguments, invoke_closure_value,
 };
 pub use expr::{
     clear_eval_cache, disable_eval_cache, enable_eval_cache, evaluate_expr, safe_div, safe_rem,
 };
-// The pre-split module exposed this crate-wide; keep the path intact even
-// though its only caller is `evaluate_call_value` today.
-#[allow(unused_imports)]
-pub(crate) use expr::invoke_closure_value;
 pub use value::{
     parse_color, parse_color_in_env, resolve_color_in_env, time_to_ms, time_to_ms_at_beat,
 };

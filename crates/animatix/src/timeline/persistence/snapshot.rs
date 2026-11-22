@@ -16,6 +16,15 @@ pub fn snapshot_payload_at(
             collapse_property_track_inner(pt, time_ms);
         }
         plot.func_transitions.clear();
+        if !plot.bar_data_transitions.is_empty() {
+            plot.bar_data = crate::timeline::plot::bar_data_at(
+                &plot.bar_data,
+                &plot.bar_data_transitions,
+                time_ms,
+            );
+            plot.bar_data_transitions.clear();
+        }
+        plot.bar_captions = None;
     }
     snapshot
 }

@@ -1,4 +1,6 @@
 use super::{Arc, Environment, EvalError, Value, expect_arg_count, expect_num};
+use crate::timeline::plan_value::{PlanDuration, PlanOp, TimelinePlan};
+use crate::timeline::utils::{evaluate_callable_value, invoke_closure_value};
 
 const MAX_LIST_ITEMS: usize = 100_000;
 
@@ -14,6 +16,137 @@ pub(super) fn register(env: &mut Environment) {
     for (name, function) in functions {
         env.set(name, Value::NativeFn(Arc::new(move |args, _env| function(args))));
     }
+    for (name, function) in [
+        ("tabulate", tabulate as fn(&[Value], &Environment) -> Result<Value, EvalError>),
+        ("list_map", list_map),
+        ("zip", zip),
+        ("scan", scan),
+        ("stagger_each", stagger_each),
+    ] {
+        env.set(name, Value::NativeFn(Arc::new(function)));
+    }
+}
+
+fn require_callback(name: &str, function: &Value) -> Result<(), EvalError> {
+    match function {
+        Value::Closure(..)
+        | Value::UserFn { .. }
+        | Value::NativeFn(_)
+        | Value::RegisteredFn { .. } => Ok(()),
+        _ => Err(EvalError::TypeMismatch(format!("{name} expects a function"))),
+    }
+}
+
+fn invoke(
+    function: &Value,
+    args: impl IntoIterator<Item = Value>,
+    name: &str,
+    env: &Environment,
+) -> Result<Value, EvalError> {
+    if let Value::Closure(params, body, captures) = function {
+        return invoke_closure_value(
+            params,
+            body,
+            captures,
+            args.into_iter().collect(),
+            name,
+            env,
+            None,
+        );
+    }
+    evaluate_callable_value(
+        function.clone(),
+        args.into_iter().map(|value| (None, value)).collect(),
+        name,
+        env,
+    )
+}
+
+fn tabulate(args: &[Value], env: &Environment) -> Result<Value, EvalError> {
+    let [count, function] = args else {
+        return Err(EvalError::TypeMismatch("tabulate expects a count and a function".into()));
+    };
+    require_callback("tabulate", function)?;
+    let count = list_count("tabulate", count)?;
+    (0..count)
+        .map(|index| invoke(function, [Value::Num(index as f64)], "tabulate callback", env))
+        .collect::<Result<Arc<[_]>, _>>()
+        .map(Value::List)
+}
+
+fn list_map(args: &[Value], env: &Environment) -> Result<Value, EvalError> {
+    let [Value::List(items), function] = args else {
+        return Err(EvalError::TypeMismatch("list_map expects a list and a function".into()));
+    };
+    require_callback("list_map", function)?;
+    items
+        .iter()
+        .map(|item| invoke(function, [item.clone()], "list_map callback", env))
+        .collect::<Result<Arc<[_]>, _>>()
+        .map(Value::List)
+}
+
+fn zip(args: &[Value], _env: &Environment) -> Result<Value, EvalError> {
+    let [Value::List(left), Value::List(right)] = args else {
+        return Err(EvalError::TypeMismatch("zip expects two lists".into()));
+    };
+    if left.len() != right.len() {
+        return Err(EvalError::TypeMismatch(format!(
+            "zip requires lists of equal length, got {} and {}",
+            left.len(),
+            right.len()
+        )));
+    }
+    left.iter()
+        .zip(right.iter())
+        .map(|(a, b)| {
+            crate::timeline::modifier_runtime::ir::make_vec_value(vec![a.clone(), b.clone()])
+        })
+        .collect::<Result<Arc<[_]>, _>>()
+        .map(Value::List)
+}
+
+fn scan(args: &[Value], env: &Environment) -> Result<Value, EvalError> {
+    let [initial, Value::List(items), function] = args else {
+        return Err(EvalError::TypeMismatch(
+            "scan expects an initial value, a list and a function".into(),
+        ));
+    };
+    require_callback("scan", function)?;
+    let mut state = initial.clone();
+    let mut states = Vec::with_capacity(items.len());
+    for item in items.iter() {
+        state = invoke(function, [state, item.clone()], "scan callback", env)?;
+        states.push(state.clone());
+    }
+    Ok(Value::List(states.into()))
+}
+
+fn stagger_each(args: &[Value], env: &Environment) -> Result<Value, EvalError> {
+    let [Value::List(items), Value::Duration(seconds), function] = args else {
+        return Err(EvalError::TypeMismatch(
+            "stagger_each expects a list, a duration and a function".into(),
+        ));
+    };
+    require_callback("stagger_each", function)?;
+    let interval = PlanDuration::from_seconds(*seconds)
+        .map_err(|error| EvalError::TypeMismatch(error.to_string()))?;
+    let mut children = Vec::with_capacity(items.len());
+    for item in items.iter() {
+        let Value::TimelinePlan(plan) =
+            invoke(function, [item.clone()], "stagger_each callback", env)?
+        else {
+            return Err(EvalError::TypeMismatch(
+                "stagger_each callback must return a timeline".into(),
+            ));
+        };
+        children.push(plan);
+    }
+    let plan = TimelinePlan::from_ops(vec![PlanOp::Stagger {
+        interval,
+        children: children.into(),
+    }]);
+    Ok(Value::TimelinePlan(Arc::new(plan)))
 }
 
 fn integer_range(args: &[Value]) -> Result<Value, EvalError> {

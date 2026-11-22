@@ -2,24 +2,16 @@
 //
 // Bars are matched by label, so each category's height travels to its own new
 // value rather than to whatever slot it occupies in the new dataset. The slot
-// itself is chosen at the start of the window — heights animate, positions do
-// not — which is why the datasets below keep their labels in the same order.
-// Two things the scene has to get right to show that:
-//
-//   - `max_value` is pinned. With the default `auto`, the tallest bar is
-//     normalised to the full plot height every frame, so growing the maximum is
-//     invisible — only the *relative* differences survive auto-scaling.
-//   - The label set and its order never change. Bar captions are compiled at
-//     build into the declaration's slots, so a dataset with new labels — or the
-//     same labels re-ordered — would render new bars under old captions (and
-//     `check` says so).
+// itself is chosen at the start of the window. The final update puts the
+// busiest services first. Pin max_value to keep the vertical scale fixed.
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7.4 }
 
-chart: BarChart, data: {("api", 34), ("web", 52), ("batch", 18), ("ml", 27)}, max_value: 70, at: (640, 400), size: (820, 420), bar_width: 96, gap: 46, color: accent.primary, opacity: 1
+let services = {"api", "web", "batch", "ml"}
+chart: BarChart, data: zip(services, {34, 52, 18, 27}), max_value: 70, at: (640, 400), size: (820, 420), bar_width: 96, gap: 46, color: accent.primary, opacity: 1
 
 title: Text, text: "requests by service, thousands", font_size: 26, color: text.primary, at: (640, 148)
 
-cap: Text, text: "the labels stay; the heights race", font_size: 22, color: text.secondary, at: (640, 648), opacity: 0
+cap: Text, text: "the labels follow their bars", font_size: 22, color: text.secondary, at: (640, 648), opacity: 0
 
 #0s
   fade_in(target: title, duration: 0.4s, ease: expo_out)
@@ -27,10 +19,10 @@ cap: Text, text: "the labels stay; the heights race", font_size: 22, color: text
   settle_in(target: chart, duration: 0.52s, ease: expo_out)
 
 #1.6s
-  chart.data = {("api", 61), ("web", 24), ("batch", 45), ("ml", 12)} [0.9s, ease: ease_in_out]
+  chart.data = zip(services, {61, 24, 45, 12}) [0.9s, ease: ease_in_out]
 
 #3.4s
-  chart.data = {("api", 28), ("web", 66), ("batch", 33), ("ml", 54)} [0.9s, ease: ease_in_out]
+  chart.data = zip({"web", "ml", "batch", "api"}, {66, 54, 33, 28}) [0.9s, ease: ease_in_out]
 
 // Outro: everything leaves in the reverse order it arrived.
 #5.6s

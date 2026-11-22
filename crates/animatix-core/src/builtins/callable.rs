@@ -606,7 +606,55 @@ fn sequence_catalog() -> Vec<CallableDescriptor> {
         },
         CallableDescriptor {
             help: "Return the elements of a list in reverse order.".into(),
-            ..descriptor("list_reverse", vec![param("list", list.clone())], list)
+            ..descriptor("list_reverse", vec![param("list", list.clone())], list.clone())
+        },
+        CallableDescriptor {
+            help: "Call a function with each zero-based index to generate a list.".into(),
+            ..descriptor(
+                "tabulate",
+                vec![param("count", T::Num), param("function", T::Any)],
+                list.clone(),
+            )
+        },
+        CallableDescriptor {
+            help: "Call a function with each element and collect its results.".into(),
+            ..descriptor(
+                "list_map",
+                vec![param("list", list.clone()), param("function", T::Any)],
+                list.clone(),
+            )
+        },
+        CallableDescriptor {
+            help: "Pair corresponding elements of two lists of equal length.".into(),
+            ..descriptor(
+                "zip",
+                vec![param("left", list.clone()), param("right", list.clone())],
+                list.clone(),
+            )
+        },
+        CallableDescriptor {
+            help: "Collect the state after each item, starting with an initial value.".into(),
+            ..descriptor(
+                "scan",
+                vec![
+                    param("initial", T::Any),
+                    param("list", list.clone()),
+                    param("function", T::Any),
+                ],
+                list.clone(),
+            )
+        },
+        CallableDescriptor {
+            help: "Build one timeline per item and offset their starts by a fixed interval.".into(),
+            ..descriptor(
+                "stagger_each",
+                vec![
+                    param("list", list),
+                    param("interval", T::Duration),
+                    param("function", T::Any),
+                ],
+                T::Timeline,
+            )
         },
     ]
 }

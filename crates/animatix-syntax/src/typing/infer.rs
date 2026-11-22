@@ -1,4 +1,5 @@
 use super::*;
+use crate::ast::CallArgument;
 
 /// Compute the common supertype for a list of inferred types.
 pub fn common_type(types: &[Type]) -> Type {
@@ -165,8 +166,15 @@ pub fn infer_expr_type(expr: &Expr, env: &TypeEnv) -> Type {
         },
         Expr::Call(callee, args) => {
             if let Some(name) = callee_name(callee) {
-                if let Some(Type::Function { ret, .. }) = env.lookup_ident(&name) {
+                let binding = env.lookup_ident(&name);
+                if let Some(Type::Function { ret, .. }) = binding {
                     return *ret;
+                }
+                if binding.is_none()
+                    && !env.functions.contains_key(&name)
+                    && let Some(ret) = infer_sequence_call(&name, args, env)
+                {
+                    return ret;
                 }
                 if let Some(ret) = env.function_return_type(&name) {
                     return ret;
@@ -220,6 +228,60 @@ pub fn infer_expr_type(expr: &Expr, env: &TypeEnv) -> Type {
         },
         Expr::Construct(name, _) => env.construct_type(name).unwrap_or(Type::Any),
         Expr::Timeline(_) | Expr::Sequence(_) | Expr::Stagger { .. } => Type::Timeline,
+    }
+}
+
+fn infer_sequence_call(name: &str, args: &[CallArgument], env: &TypeEnv) -> Option<Type> {
+    let arg = |index, name| {
+        args.iter()
+            .find(|arg| arg.name.as_deref() == Some(name))
+            .or_else(|| args.iter().filter(|arg| arg.name.is_none()).nth(index))
+            .map(|arg| &arg.value)
+    };
+    let item_type = |expr| match infer_expr_type(expr, env) {
+        Type::List(item) => *item,
+        _ => Type::Any,
+    };
+    let item = match name.strip_prefix("std::").unwrap_or(name) {
+        "tabulate" => infer_callback_return(arg(1, "function")?, &[Type::Num], env),
+        "list_map" => {
+            let item = item_type(arg(0, "list")?);
+            infer_callback_return(arg(1, "function")?, &[item], env)
+        },
+        "zip" => {
+            let left = item_type(arg(0, "left")?);
+            let right = item_type(arg(1, "right")?);
+            if left == Type::Num && right == Type::Num {
+                Type::Vec2
+            } else {
+                Type::Tuple(vec![left, right])
+            }
+        },
+        "scan" => {
+            let initial = infer_expr_type(arg(0, "initial")?, env);
+            let item = item_type(arg(1, "list")?);
+            let result = infer_callback_return(arg(2, "function")?, &[initial.clone(), item], env);
+            common_type(&[initial, result])
+        },
+        _ => return None,
+    };
+    Some(Type::List(Box::new(item)))
+}
+
+fn infer_callback_return(callback: &Expr, input: &[Type], env: &TypeEnv) -> Type {
+    if let Expr::Closure(params, body) = callback
+        && params.len() == input.len()
+    {
+        let mut local = env.clone();
+        local.push_scope();
+        for (param, ty) in params.iter().zip(input) {
+            local.bind(param, ty.clone());
+        }
+        return infer_expr_type(body, &local);
+    }
+    match infer_expr_type(callback, env) {
+        Type::Function { ret, .. } => *ret,
+        _ => Type::Any,
     }
 }
 

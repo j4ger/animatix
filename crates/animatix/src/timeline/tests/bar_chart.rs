@@ -710,12 +710,9 @@ chart.data = {("A", 30), ("B", 5)} [800ms]
     );
 }
 
-/// A `data` assignment on a chart with no `data:` declaration still animates —
-/// the layout resolves either way — but there were no captions to compile at
-/// build, so the bars arrive unlabeled. That is a warning, not a refusal.
 #[test]
-fn a_data_assignment_with_no_declaration_warns_about_its_captions() {
-    let (timeline, diagnostics) = build_ignoring_warnings(
+fn a_data_assignment_can_add_bars_and_captions_to_an_empty_chart() {
+    let timeline = build_clean(
         r#"
 config { resolution: (640, 360), duration: 3 }
 chart: BarChart, at: (320, 180), size: (400, 220), opacity: 1.0
@@ -723,60 +720,91 @@ chart: BarChart, at: (320, 180), size: (400, 220), opacity: 1.0
 chart.data = {("A", 30), ("B", 5)} [800ms]
 "#,
     );
-    let hits: Vec<_> = diagnostics
-        .iter()
-        .filter(|d| d.message.contains("declares no `data:`"))
-        .collect();
-    assert_eq!(
-        hits.len(),
-        1,
-        "expected the no-captions warning, got: {:?}",
-        diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-    let track = timeline.world.tracks.get_id("chart").expect("chart track");
-    assert!(
-        timeline.world.bar_data(track).is_empty(),
-        "an undeclared chart starts from no dataset"
-    );
-    assert_eq!(timeline.world.bar_data_transitions(track).len(), 1);
-    assert_eq!(timeline.world.bar_data_transitions(track)[0].from.len(), 0);
-    assert_eq!(timeline.world.bar_data_transitions(track)[0].to.len(), 2);
+    assert_bar_captions(&timeline, 0.5, &[]);
+    assert_bar_captions(&timeline, 1.4, &[("chart_bar_label_0", 0), ("chart_bar_label_1", 1)]);
+    assert_bar_captions(&timeline, 0.5, &[]);
 }
 
-/// A dataset whose labels move (a new set, or the same set in a new order)
-/// warns, because the captions were compiled into the declaration's slots — and
-/// the transition is still recorded, because the values do travel correctly.
 #[test]
-fn a_moved_label_set_warns_and_is_still_recorded() {
-    let (timeline, diagnostics) = build_ignoring_warnings(
+fn computed_datasets_keep_captions_with_categories_during_seek() {
+    let timeline = build_clean(
         r#"
-config { resolution: (640, 360), duration: 3 }
-chart: BarChart, data: {("A", 10), ("B", 20)}, at: (320, 180), size: (400, 220), opacity: 1.0
+config { resolution: (640, 360), duration: 4 }
+let labels = {"A", "B", "C"}
+let starting_data = zip(labels, {10, 20, 30})
+chart: BarChart, data: starting_data, at: (320, 180), size: (400, 220), opacity: 1
 #1s
-chart.data = {("A", 30), ("C", 5)} [800ms]
+chart.data = zip({"C", "D", "A"}, {45, 30, 20}) [800ms]
+#2s
+chart.data = zip({"A", "C"}, {55, 12})
 "#,
     );
-    let drift: Vec<_> = diagnostics
-        .iter()
-        .filter(|d| d.message.contains("different label set or order"))
-        .collect();
-    assert_eq!(
-        drift.len(),
-        1,
-        "expected one caption-drift warning, got: {:?}",
-        diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-    let track = timeline.world.tracks.get_id("chart").expect("chart track");
-    assert_eq!(
-        timeline.world.bar_data_transitions(track).len(),
-        1,
-        "the transition is still recorded"
-    );
-    assert_eq!(timeline.world.bar_data_transitions(track)[0].to[1].0, "C");
+    let a = "chart_bar_label_0";
+    let b = "chart_bar_label_1";
+    let c = "chart_bar_label_2";
+    let d = "chart_bar_label_3";
+    for (time, expected) in [
+        (1.4, &[(c, 0), (d, 1), (a, 2), (b, 3)][..]),
+        (1.8, &[(c, 0), (d, 1), (a, 2)][..]),
+        (2.0, &[(a, 0), (c, 1)][..]),
+        (0.0, &[(a, 0), (b, 1), (c, 2)][..]),
+        (1.4, &[(c, 0), (d, 1), (a, 2), (b, 3)][..]),
+    ] {
+        assert_bar_captions(&timeline, time, expected);
+    }
 }
 
-/// Both caption guards speak about captions, so a chart that asks for none
-/// (`show_labels: false`) may re-order its categories without a word.
+fn assert_bar_captions(timeline: &Timeline, time: f64, expected: &[(&str, usize)]) {
+    let program = timeline.evaluate_program_with_debug(
+        time,
+        SceneDimensions {
+            width: 640,
+            height: 360,
+        },
+        Default::default(),
+        &mut None,
+    );
+    let captions: Vec<_> = program
+        .items
+        .iter()
+        .filter(|item| item.label.starts_with("chart_bar_label_"))
+        .collect();
+    assert_eq!(
+        captions.len(),
+        expected.len(),
+        "time={time}: {:?}",
+        captions.iter().map(|item| &item.label).collect::<Vec<_>>()
+    );
+    if expected.is_empty() {
+        return;
+    }
+    let chart = program.items.iter().find(|item| item.label == "chart").unwrap();
+    let bars: Vec<_> = chart
+        .commands
+        .iter()
+        .filter_map(|command| {
+            if let crate::primitives::RenderCommand::Paths { paths } = command {
+                Some(paths)
+            } else {
+                None
+            }
+        })
+        .flatten()
+        .filter(|path| path.fill.is_some())
+        .collect();
+    assert_eq!(bars.len(), expected.len());
+    use kurbo::Shape;
+    for &(label, slot) in expected {
+        let caption = captions.iter().find(|item| item.label == label).unwrap();
+        let center = chart.transform * bars[slot].path.bounding_box().center();
+        assert!(
+            (center.x - caption.transform.as_coeffs()[4]).abs() < 0.01,
+            "time={time}, label={label}, bar={center:?}"
+        );
+    }
+}
+
+/// Hidden captions stay hidden when a dataset changes order.
 #[test]
 fn a_chart_without_captions_may_reorder_silently() {
     let timeline = build_clean(

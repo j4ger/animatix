@@ -13,6 +13,7 @@ use super::*;
 /// collected before idle tracks could add generated actors, and hierarchy links
 /// are resolved last so carry-injected tracks join the tree.
 pub(super) fn finalize_assets_legend(timeline: &mut Timeline, diagnostics: &mut Vec<Diagnostic>) {
+    super::bar_captions::prepare(timeline, diagnostics);
     timeline
         .env
         .bind_world_actor_refs(&timeline.world, !timeline.modifier_programs.is_empty());

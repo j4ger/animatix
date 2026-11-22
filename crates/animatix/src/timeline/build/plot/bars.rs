@@ -8,106 +8,71 @@ use super::graph::format_float;
 use super::*;
 use crate::ast::{Expr, Property};
 
-/// Parse bar chart data from a `data` property value.
-///
-/// Supports:
-/// - `((2, 1.0), (5, 0.55), (9, 0.3))` — numeric keys (auto-labeled as "2", "5", "9")
-/// - `(("2 Hz", 1.0), ("5 Hz", 0.55), ("9 Hz", 0.3))` — string-labeled tuples
-/// - `()` — empty data
-pub(crate) fn parse_bar_chart_data(
-    props: &[Property],
-    diagnostics: &mut Vec<Diagnostic>,
-    label: &str,
-) -> Vec<(String, f32)> {
-    let mut data: Vec<(String, f32)> = Vec::new();
-
-    for prop in props {
-        if prop.name != "data" {
-            continue;
-        }
-        data = parse_bar_chart_data_expr(&prop.value, diagnostics, label);
-        break; // Only the first `data` property wins, as before
-    }
-    data
-}
-
-/// The `data` list itself, split out so a `data = {…}` *assignment* can be parsed
-/// by exactly the same rules as the declaration — same auto-labelled flat list,
-/// same `(label, value)` tuples, same diagnostics.
+/// Resolve the same dataset expression for declarations and timed assignments.
 pub(crate) fn parse_bar_chart_data_expr(
     expr: &Expr,
+    env: &Environment,
     diagnostics: &mut Vec<Diagnostic>,
     label: &str,
-) -> Vec<(String, f32)> {
-    let mut data: Vec<(String, f32)> = Vec::new();
-    {
-        // Expect a list (outer list of bars)
-        if let Expr::List(items) = expr {
-            // Flat number list? E.g. {10, 20, 30} — auto-label with 1-based indices.
-            if !items.is_empty() && items.iter().all(|item| matches!(item, Expr::Num(_))) {
-                for (i, item) in items.iter().enumerate() {
-                    if let Expr::Num(n) = item {
-                        data.push(((i + 1).to_string(), *n as f32));
-                    }
-                }
-                diagnostics.push(Diagnostic::warning(
-                    DiagnosticCode::InvalidPropertyValue,
-                    DiagnosticPhase::Build,
-                    format!(
-                        "BarChart '{}' data: flat number list detected — auto-labeling with 1-based indices. \
-                         To specify custom labels, use (label, value) tuples like ('A', 10), ('B', 20)",
-                        label
-                    ),
-                ));
-            } else {
-                for item in items {
-                    match item {
-                        Expr::Tuple(bar) if bar.len() == 2 => {
-                            let key_str = match &bar[0] {
-                                Expr::Num(n) => format_float(*n),
-                                Expr::Str(s) => s.clone(),
-                                _ => {
-                                    diagnostics.push(Diagnostic::warning(
-                                        DiagnosticCode::InvalidPropertyValue,
-                                        DiagnosticPhase::Build,
-                                        format!(
-                                            "BarChart '{}' data key must be a number or string",
-                                            label
-                                        ),
-                                    ));
-                                    continue;
-                                },
-                            };
-                            let val = match &bar[1] {
-                                Expr::Num(n) => *n as f32,
-                                _ => {
-                                    diagnostics.push(Diagnostic::warning(
-                                        DiagnosticCode::InvalidPropertyValue,
-                                        DiagnosticPhase::Build,
-                                        format!("BarChart '{}' data value must be a number", label),
-                                    ));
-                                    continue;
-                                },
-                            };
-                            data.push((key_str, val));
-                        },
-                        _ => {
-                            diagnostics.push(Diagnostic::warning(
-                                DiagnosticCode::InvalidPropertyValue,
-                                DiagnosticPhase::Build,
-                                format!(
-                                    "BarChart '{}' data entry must be a (key, value) tuple",
-                                    label
-                                ),
-                            ));
-                        },
-                    }
-                }
-            }
-        }
+) -> Option<Vec<(String, f32)>> {
+    let mut warn = |message: &str| {
+        diagnostics.push(Diagnostic::warning(
+            DiagnosticCode::InvalidPropertyValue,
+            DiagnosticPhase::Build,
+            format!("BarChart '{label}' data: {message}"),
+        ));
+    };
+    let items = match crate::timeline::utils::evaluate_expr(expr, env) {
+        Ok(Value::List(items)) => items,
+        Ok(_) => {
+            warn("expected a list of (key, value) pairs or numbers");
+            return None;
+        },
+        Err(error) => {
+            warn(&error.to_string());
+            return None;
+        },
+    };
+    if !items.is_empty() && items.iter().all(|item| matches!(item, Value::Num(_))) {
+        warn(
+            "flat number list detected — auto-labeling with 1-based indices. Use (label, value) pairs for custom labels",
+        );
+        return Some(
+            items
+                .iter()
+                .enumerate()
+                .map(|(i, item)| ((i + 1).to_string(), item.as_num() as f32))
+                .collect(),
+        );
     }
 
-    data
+    let mut data = Vec::with_capacity(items.len());
+    for item in items.iter() {
+        let (key, value) = match item {
+            Value::Vec2([key, value]) => (format_float(*key), *value),
+            Value::List(pair) if pair.len() == 2 => {
+                let key = match &pair[0] {
+                    Value::Num(key) => format_float(*key),
+                    Value::Str(key) => key.clone(),
+                    _ => {
+                        warn("key must be a number or string");
+                        continue;
+                    },
+                };
+                let Value::Num(value) = pair[1] else {
+                    warn("value must be a number");
+                    continue;
+                };
+                (key, value)
+            },
+            _ => {
+                warn("entry must be a (key, value) tuple");
+                continue;
+            },
+        };
+        data.push((key, value as f32));
+    }
+    Some(data)
 }
 
 /// Build VelloPaths for a BarChart.
@@ -183,11 +148,20 @@ impl BarChartLayout {
         })
     }
 
-    /// Whether this chart compiles bar captions at build. A chart that shows
-    /// none has nothing that can drift out of position, so the caption guard on
-    /// a `data` assignment stays quiet for it.
     pub(crate) fn has_captions(&self) -> bool {
         self.show_labels
+    }
+
+    fn slots(&self, count: usize) -> (BarPlotGeometry, f64, f64) {
+        let geometry = self.plot_geometry((self.size[0] * 2.0) as f64, (self.size[1] * 2.0) as f64);
+        let width = self.bar_width(count as f64, &geometry);
+        let gap = self.bar_gap(count as f64, width, &geometry);
+        (geometry, width, gap)
+    }
+
+    pub(crate) fn caption_anchors(&self, count: usize) -> impl Iterator<Item = [f64; 2]> {
+        let (geometry, width, gap) = self.slots(count.max(1));
+        (0..count).map(move |i| geometry.caption_anchor(i, width, gap))
     }
 
     /// The bars, the axis line and the label anchors for `data`.
@@ -201,23 +175,24 @@ impl BarChartLayout {
         if data.is_empty() {
             return (vec![], vec![]);
         }
-        let mut bar_labels: Vec<(f64, f64, String)> = Vec::new();
-        let n = data.len() as f32;
-        let full_w = (self.size[0] * 2.0) as f64;
-        let full_h = (self.size[1] * 2.0) as f64;
+        let paths = self.vector_paths(data);
+        let bar_labels = if self.show_labels {
+            self.caption_anchors(data.len())
+                .zip(data)
+                .map(|([x, y], (key, _))| (x, y, key.clone()))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        (paths, bar_labels)
+    }
 
-        // Graph child mode maps math coordinates; standalone mode uses the
-        // pixel bounds within `self.size`.
-        let geom = self.plot_geometry(full_w, full_h);
+    pub(crate) fn vector_paths(&self, data: &[(String, f32)]) -> Vec<VelloPath> {
+        if data.is_empty() {
+            return Vec::new();
+        }
+        let (geom, bw, gap) = self.slots(data.len());
         let use_math_coords = geom.use_math_coords;
-
-        // Auto bar width
-        let n_f64 = n as f64;
-        let bw = self.bar_width(n_f64, &geom);
-
-        // Gap
-        let n_f64 = n as f64;
-        let gap = self.bar_gap(n_f64, bw, &geom);
 
         // Determine max value for scaling (if using math coords, domain is authoritative)
         let max_val = if !self.max_value_auto {
@@ -236,16 +211,11 @@ impl BarChartLayout {
         }
 
         // Per-bar paths
-        for (i, (label_text, value)) in data.iter().enumerate() {
-            let (bar, bar_center_x) = self.bar_path(i, *value, bw, gap, max_val, &geom);
-            paths.push(bar);
-
-            if self.show_labels {
-                bar_labels.push((bar_center_x, geom.baseline_y + 16.0, label_text.clone()));
-            }
+        for (i, (_, value)) in data.iter().enumerate() {
+            paths.push(self.bar_path(i, *value, bw, gap, max_val, &geom));
         }
 
-        (paths, bar_labels)
+        paths
     }
 
     /// Resolve the plot frame: math-coordinate mapping when hosted by a `Graph`,
@@ -365,8 +335,7 @@ impl BarChartLayout {
         }
     }
 
-    /// One bar rectangle path plus the x of its label anchor (the caller knows
-    /// the baseline y).
+    /// One bar rectangle path.
     fn bar_path(
         &self,
         i: usize,
@@ -375,13 +344,9 @@ impl BarChartLayout {
         gap: f64,
         max_val: f64,
         geom: &BarPlotGeometry,
-    ) -> (VelloPath, f64) {
-        let i_f = i as f64;
-
-        // Bar position: evenly spaced from left to right
-        let bar_x_start = -(geom.plot_w / 2.0) + gap + i_f * (bw + gap);
+    ) -> VelloPath {
+        let bar_x_start = geom.bar_left(i, bw, gap);
         let bar_x_end = bar_x_start + bw;
-        let bar_center_x = bar_x_start + bw / 2.0;
 
         // Bar height in screen coords
         let val_norm = if max_val > 0.0 {
@@ -417,7 +382,7 @@ impl BarChartLayout {
             (bar_c[3] * 255.0) as u8,
         );
 
-        let bar = VelloPath {
+        VelloPath {
             path: std::sync::Arc::new(bp),
             fill: Some(fill_c),
             stroke: if self.stroke_width > 0.0 {
@@ -437,9 +402,20 @@ impl BarChartLayout {
             dash_offset: 0.0,
             fill_gradient: None,
             stroke_gradient: None,
-        };
+        }
+    }
+}
 
-        (bar, bar_center_x)
+impl BarPlotGeometry {
+    fn bar_left(&self, i: usize, width: f64, gap: f64) -> f64 {
+        -(self.plot_w / 2.0) + gap + i as f64 * (width + gap)
+    }
+
+    fn caption_anchor(&self, i: usize, width: f64, gap: f64) -> [f64; 2] {
+        [
+            self.bar_left(i, width, gap) + width / 2.0,
+            self.baseline_y + 16.0,
+        ]
     }
 }
 
@@ -459,7 +435,11 @@ pub(crate) fn resolve_bar_chart_layout(
     diagnostics: &mut Vec<Diagnostic>,
     label: &str,
 ) -> (BarChartLayout, Vec<(String, f32)>) {
-    let data = parse_bar_chart_data(props, diagnostics, label);
+    let data = props
+        .iter()
+        .find(|prop| prop.name == "data")
+        .and_then(|prop| parse_bar_chart_data_expr(&prop.value, env, diagnostics, label))
+        .unwrap_or_default();
 
     // Parse properties
     let mut bar_width_auto = true;

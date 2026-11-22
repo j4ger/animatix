@@ -108,8 +108,9 @@ fn runtime_action_names_match_builtins_registry() {
     let mut registry: Vec<String> = animatix_core::builtins::callable::callables()
         .iter()
         .filter(|signature| {
+            // These functions compose plans without dispatching an actor action.
             signature.return_type == animatix_core::callable::CallableType::Timeline
-                && !matches!(signature.name.as_str(), "stretch" | "fit_duration")
+                && !matches!(signature.name.as_str(), "stretch" | "fit_duration" | "stagger_each")
         })
         .map(|signature| signature.name.clone())
         .collect();

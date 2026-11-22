@@ -24,7 +24,7 @@ fn inject_entry(
     source_timeline: &Timeline,
     source_duration_ms: u64,
     dims: [f64; 2],
-    _diagnostics: &mut Vec<Diagnostic>,
+    diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut geometry = entry.geometry.clone();
 
@@ -45,11 +45,29 @@ fn inject_entry(
             source_timeline,
             source_duration_ms,
             dims,
-            _diagnostics,
+            diagnostics,
         );
     }
 
     restore_carried_entity(dest, label, entry, &geometry, is_root, source_timeline);
+    if let Some(source_id) = source_timeline.world.get_id(label)
+        && source_timeline
+            .world
+            .plot_payload(source_id)
+            .is_some_and(|plot| plot.bar_captions.is_some())
+        && let Some(plot) = entry.payload.as_plot()
+        && let Some(layout) = &plot.bar_layout
+    {
+        for (i, ((key, _), anchor)) in plot
+            .bar_data
+            .iter()
+            .zip(layout.caption_anchors(plot.bar_data.len()))
+            .enumerate()
+        {
+            let child = format!("{label}_bar_label_{i}");
+            dest.spawn_plot_label(label, &child, anchor, key.clone(), 0.0, diagnostics);
+        }
+    }
     carry_auxiliary_state(dest, label, entry, source_timeline);
     dest.rebuild_carried_counter(label);
 }

@@ -22,9 +22,7 @@ mod writer;
 // The module is the façade for the former `build/plot.rs`; keep its full
 // `build::plot::*` surface even where only the plot module itself uses it.
 #[allow(unused_imports)]
-pub(crate) use bars::{
-    BarChartLayout, parse_bar_chart_data, parse_bar_chart_data_expr, resolve_bar_chart_layout,
-};
+pub(crate) use bars::{BarChartLayout, parse_bar_chart_data_expr, resolve_bar_chart_layout};
 pub(crate) use curves::{PlotCurveParams, build_plot_curve_paths};
 pub(crate) use fields::{build_contour_set_paths, build_heatmap_paths, build_vector_field_paths};
 pub(crate) use graph::{build_graph_axis_paths, build_number_plane_paths};

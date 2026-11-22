@@ -261,6 +261,37 @@ fn closure_and_call_return_types_infer() {
 }
 
 #[test]
+fn sequence_call_results_follow_their_inputs_and_callbacks() {
+    let mut env = std_env();
+    let numeric_list = Type::List(Box::new(Type::Num));
+    let string_list = Type::List(Box::new(Type::Str));
+    env.bind("numbers", numeric_list.clone());
+    env.bind("labels", string_list.clone());
+    let identity = Expr::Closure(vec!["item".into()], Box::new(Expr::Ident("item".into())));
+    let call = |name, args| infer_expr_type(&Expr::call(name, args), &env);
+    assert_eq!(call("tabulate", vec![Expr::Num(4.0), identity.clone()]), numeric_list);
+    assert_eq!(call("list_map", vec![Expr::Ident("labels".into()), identity]), string_list);
+    assert_eq!(
+        call("zip", vec![Expr::Ident("labels".into()), Expr::Ident("numbers".into())]),
+        Type::List(Box::new(Type::Tuple(vec![Type::Str, Type::Num])))
+    );
+    let state =
+        Expr::Closure(vec!["state".into(), "item".into()], Box::new(Expr::Ident("state".into())));
+    assert_eq!(
+        call("scan", vec![Expr::Num(0.0), Expr::Ident("labels".into()), state]),
+        numeric_list
+    );
+    env.register_function(
+        "tabulate",
+        Type::Function {
+            params: Vec::new(),
+            ret: Box::new(Type::Str),
+        },
+    );
+    assert_eq!(infer_expr_type(&Expr::call("tabulate", vec![]), &env), Type::Str);
+}
+
+#[test]
 fn known_properties_are_derived_from_typed_registry() {
     let typed = known_property_types();
     for (ty, properties) in known_properties() {

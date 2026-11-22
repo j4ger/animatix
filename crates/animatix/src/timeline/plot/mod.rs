@@ -34,6 +34,7 @@ pub use procedural::{
 };
 
 mod api;
+pub(crate) use api::{bar_departures_visible, bar_transition_index};
 
 // The frame-time evaluation helpers keep their `timeline::plot::*` paths; this
 // module is the façade over them and the sibling sampling modules.

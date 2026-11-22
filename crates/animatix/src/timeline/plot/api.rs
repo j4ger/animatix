@@ -111,17 +111,29 @@ pub fn bar_data_at(
     transitions: &[BarDataTransition],
     time_ms: u64,
 ) -> Vec<(String, f32)> {
-    let mut current: Vec<(String, f32)> = base.to_vec();
-    for transition in transitions {
-        if time_ms < transition.start_ms {
-            break;
-        }
-        current = match transition.progress_at(time_ms) {
-            Some(progress) => interpolate_bar_data(&transition.from, &transition.to, progress),
-            None => transition.to.clone(),
-        };
+    let Some(index) = bar_transition_index(transitions, time_ms) else {
+        return base.to_vec();
+    };
+    let transition = &transitions[index];
+    match transition.progress_at(time_ms) {
+        Some(progress) => interpolate_bar_data(&transition.from, &transition.to, progress),
+        None => transition.to.clone(),
     }
-    current
+}
+
+pub(crate) fn bar_transition_index(
+    transitions: &[BarDataTransition],
+    time_ms: u64,
+) -> Option<usize> {
+    transitions
+        .iter()
+        .take_while(|transition| transition.start_ms <= time_ms)
+        .count()
+        .checked_sub(1)
+}
+
+pub(crate) fn bar_departures_visible(progress: f64) -> bool {
+    (progress.clamp(0.0, 1.0) as f32) < 1.0
 }
 
 /// Interpolate two bar datasets, matching bars by label. Order follows `to`; a
@@ -143,7 +155,7 @@ pub fn interpolate_bar_data(
             .map_or(0.0, |(_, from_value)| *from_value);
         out.push((label.clone(), lerp(start, *value)));
     }
-    if p < 1.0 {
+    if bar_departures_visible(progress) {
         for (label, value) in from {
             if !to.iter().any(|(kept, _)| kept == label) {
                 out.push((label.clone(), lerp(*value, 0.0)));

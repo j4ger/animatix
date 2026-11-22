@@ -98,7 +98,7 @@ m7: Fragment, text: " + sin(7x)/7"
   fade_in(target: wave_tip, duration: 0.4s, delay: 0.5s)
   fade_in(target: hero_eq, duration: 0.5s, delay: 0.5s)
 #1s
-  hero_wave.stroke_progress = 1 [20s, ease: linear]
+  hero_wave.stroke_progress = 1 [10s, ease: linear]
   // Epicycle chain: every center is an analytic function of t.
   always {
       let phase = linear_progress(t, 1, 11)

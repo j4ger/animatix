@@ -746,9 +746,47 @@ impl Timeline {
                 self.render_captions_children_ctx(&mut ctx);
             },
             animatix_core::caps::ChildProcessingKind::Generic => {
-                let children: Vec<EntityId> = self.world.hierarchy(node_id).children.to_vec();
-                ctx.render_children_ids(&children);
+                if !caps.plot_geometry || !self.render_bar_captions(&mut ctx) {
+                    let children: Vec<EntityId> = self.world.hierarchy(node_id).children.to_vec();
+                    ctx.render_children_ids(&children);
+                }
             },
         }
+    }
+
+    fn render_bar_captions(
+        &self,
+        ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,
+    ) -> bool {
+        use crate::timeline::plot::{bar_departures_visible, bar_transition_index};
+
+        let Some(plot) = self.world.plot_payload(ctx.host_id) else {
+            return false;
+        };
+        let Some(captions) = &plot.bar_captions else {
+            return false;
+        };
+        let placements = bar_transition_index(&plot.bar_data_transitions, ctx.time_ms)
+            .and_then(|index| {
+                let layout = captions.transitions.get(index)?;
+                let progress = plot.bar_data_transitions[index].progress_at(ctx.time_ms);
+                Some(if progress.is_some_and(bar_departures_visible) {
+                    &layout.active
+                } else {
+                    &layout.settled
+                })
+            })
+            .unwrap_or(&captions.initial);
+        let parent = ctx.global_transform;
+        for &child in &self.world.hierarchy(ctx.host_id).children {
+            if let Some(&[x, y]) = placements.get(&child) {
+                ctx.global_transform = parent * kurbo::Affine::translate((x, y));
+                ctx.render_child_by_id(child);
+                ctx.global_transform = parent;
+            } else if !captions.entities.contains(&child) {
+                ctx.render_child_by_id(child);
+            }
+        }
+        true
     }
 }

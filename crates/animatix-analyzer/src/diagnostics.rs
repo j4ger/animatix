@@ -304,6 +304,7 @@ pub(crate) fn collect_callable_diagnostics(
         extensions,
         extensions_only,
         actor_params,
+        closure_params: Vec::new(),
         diagnostics: Vec::new(),
         reported: HashSet::new(),
     };
@@ -328,6 +329,7 @@ struct CallableDiagnosticVisitor<'a> {
     extensions: &'a [CallableDescriptor],
     extensions_only: bool,
     actor_params: HashSet<String>,
+    closure_params: Vec<String>,
     diagnostics: Vec<Diagnostic>,
     reported: HashSet<(String, usize)>,
 }
@@ -413,6 +415,7 @@ impl CallableDiagnosticVisitor<'_> {
                 if is_camera
                     || root == "self"
                     || self.actor_params.contains(root)
+                    || self.closure_params.iter().any(|param| param == root)
                     || self.symbols.labels.contains_key(root)
                     || self.symbols.array_labels.contains(root)
                 {
@@ -441,6 +444,13 @@ impl CallableDiagnosticVisitor<'_> {
 
 impl<'ast> AstVisitor<'ast> for CallableDiagnosticVisitor<'_> {
     fn visit_expr(&mut self, expr: &'ast Expr) {
+        if let Expr::Closure(params, body) = expr {
+            let outer = self.closure_params.len();
+            self.closure_params.extend(params.iter().cloned());
+            self.visit_expr(body);
+            self.closure_params.truncate(outer);
+            return;
+        }
         if let Expr::Call(callee, args) = expr {
             self.visit_call(callee, args);
         }

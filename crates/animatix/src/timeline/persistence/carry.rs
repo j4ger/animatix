@@ -51,7 +51,16 @@ fn collect_persistent_entries(
 
     // Build child entries first so their references can be moved in.
     let mut child_entries = BTreeMap::new();
+    let animated_captions =
+        timeline.world.plot_payload(id).and_then(|plot| plot.bar_captions.as_deref());
     for child_label in timeline.child_labels(label) {
+        if let Some(captions) = animated_captions
+            && let Some(child_id) = timeline.world.get_id(child_label)
+            && captions.entities.contains(&child_id)
+        {
+            // The successor rebuilds these generated children from the sampled dataset.
+            continue;
+        }
         collect_persistent_entries(
             timeline,
             child_label,
@@ -67,7 +76,7 @@ fn collect_persistent_entries(
     let highlight = snapshot_highlight_at(timeline.world.highlight_or_default(id), time_ms);
     let property_plan = snapshot_property_plan_at(timeline.world.property_plan(id), time_ms);
     let tagged = snapshot_tagged_at(timeline.world.tagged_tracks(id), time_ms);
-    let shape = snapshot_shape_at(timeline.world.shape_or_default(id), time_ms);
+    let mut shape = snapshot_shape_at(timeline.world.shape_or_default(id), time_ms);
     let text = snapshot_text_at(timeline.world.text_or_default(id), time_ms);
     let geometry = snapshot_geometry_at(timeline.world.geometry(id), time_ms);
     let style = snapshot_style_at(timeline.world.style(id), time_ms);
@@ -77,6 +86,13 @@ fn collect_persistent_entries(
         .map_or_else(crate::primitives::PrimitivePayload::default, |payload| {
             snapshot_payload_at(&payload, time_ms)
         });
+    if !timeline.world.bar_data_transitions(id).is_empty()
+        && let Some(plot) = payload.as_plot()
+        && let Some(layout) = &plot.bar_layout
+    {
+        shape.vector_paths = Some(super::PropertyTrack::new(layout.vector_paths(&plot.bar_data)));
+        *shape.vector_paths_memo.get_mut() = None;
+    }
     let actor_type = timeline.world.actor_type(id).to_string();
     let caps = timeline.world.caps_overrides.get(id).copied();
     let meta = timeline.world.meta.get(id).map(|meta| CarriedMeta {

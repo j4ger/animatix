@@ -1,7 +1,7 @@
 //! Bar chart / column chart primitive.
 
 use crate::ast::{Expr, Property};
-use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use crate::diagnostics::Diagnostic;
 use crate::primitives::{AssignmentCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx};
 use crate::renderer::error::RenderError;
 use crate::timeline::{BarDataTransition, Environment, SceneDimensions, parse_bar_chart_data_expr};
@@ -39,60 +39,22 @@ impl Primitive for BarChartPrimitive {
         property: &str,
         value: &Expr,
         ctx: &mut AssignmentCtx,
-        _env: &Environment,
+        env: &Environment,
         diagnostics: &mut Vec<Diagnostic>,
-        subject: &str,
+        _subject: &str,
     ) -> bool {
         if property != "data" {
             return false;
         }
-        let to = parse_bar_chart_data_expr(value, diagnostics, ctx.label);
+        let Some(to) = parse_bar_chart_data_expr(value, env, diagnostics, ctx.label) else {
+            return true;
+        };
         // Chain like `func` does: the value in effect is the previous
         // transition's target, or the declaration when there is none.
         let from = ctx
             .bar_data_transitions()
             .last()
             .map_or_else(|| ctx.bar_data().to_vec(), |previous| previous.to.clone());
-        // Bar *captions* are compiled once at build, into the slots the
-        // declaration's dataset laid out, so the two things a transition can get
-        // wrong about them are both worth saying out loud. Note the actor's own
-        // name in the message: `subject` is the assignment target (`chart.data`),
-        // which reads as though `data` were the chart's label.
-        let same_labels =
-            from.len() == to.len() && from.iter().zip(&to).all(|(left, right)| left.0 == right.0);
-        // Both guards are about captions, so a chart that asks for none
-        // (`show_labels: false`) is free to re-order or start empty.
-        let captions_expected = ctx.bar_layout().is_some_and(|l| l.has_captions());
-        if captions_expected && from.is_empty() {
-            diagnostics.push(
-                Diagnostic::warning(
-                    DiagnosticCode::InvalidPropertyValue,
-                    DiagnosticPhase::Build,
-                    format!(
-                        "BarChart '{}' declares no `data:`, so no bar captions were compiled at \
-                         build time; the assigned bars will draw without labels. Declare the \
-                         first dataset with `data:` and assign the later ones.",
-                        ctx.label
-                    ),
-                )
-                .with_subject(subject),
-            );
-        } else if captions_expected && !same_labels {
-            diagnostics.push(
-                Diagnostic::warning(
-                    DiagnosticCode::InvalidPropertyValue,
-                    DiagnosticPhase::Build,
-                    format!(
-                        "BarChart '{}' assigns a different label set or order; bar captions are \
-                         compiled at build time into the declaration's slots, so the values will \
-                         interpolate but the captions will not follow. Keep the same labels in \
-                         the same order to animate a chart's values.",
-                        ctx.label
-                    ),
-                )
-                .with_subject(subject),
-            );
-        }
         let transition = BarDataTransition {
             start_ms: ctx.t_start_ms,
             end_ms: ctx.t_end_ms,

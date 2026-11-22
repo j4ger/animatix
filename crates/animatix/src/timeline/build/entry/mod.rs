@@ -12,6 +12,7 @@ use super::*;
 use crate::timeline::layout::ChildExtent;
 
 mod actor_captures;
+mod bar_captions;
 mod builders;
 mod finalize;
 mod format_specs;

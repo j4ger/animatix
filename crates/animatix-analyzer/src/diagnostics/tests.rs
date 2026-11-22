@@ -63,6 +63,23 @@ fn undefined_label_detected() {
     assert!(undefined[0].message.contains("nonexistent"));
 }
 
+#[test]
+fn actor_target_can_be_a_lexically_bound_closure_parameter() {
+    let diagnostics = diagnostics_for_source(
+        r#"#0s
+dot: Ellipse
+stagger_each({dot}, 100ms, (item) => fade_in(target: item, duration: 400ms))
+fade_in(target: item, duration: 400ms)
+"#,
+    );
+    let warnings: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| d.code.as_deref() == Some("undefined-label"))
+        .collect();
+    assert_eq!(warnings.len(), 1);
+    assert_eq!(warnings[0].line, 3);
+}
+
 /// `camera` is a reserved target, never a declared actor — persistence
 /// callables accept it while motion callables still require an Actor value.
 #[test]

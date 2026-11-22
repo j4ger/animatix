@@ -577,23 +577,35 @@ impl Timeline {
         }
 
         for (child_label, sx, sy, text) in tick_actors {
-            let tick_props = vec![
-                Property::new("text", Expr::Str(text)),
-                Property::new("at", Expr::Tuple(vec![Expr::Num(sx), Expr::Num(sy)])),
-                Property::new("font_size", Expr::Num(10.0)),
-                Property::new("color", Expr::Path(vec!["text".to_string(), "muted".to_string()])),
-            ];
-            self.process_text_actor_decl(
-                "Text",
-                &child_label,
-                &tick_props,
-                &[], // no modifiers
-                time_ms,
-                Some(label),
-                diagnostics,
-            )
-            .ok();
+            self.spawn_plot_label(label, &child_label, [sx, sy], text, time_ms, diagnostics);
         }
+    }
+
+    pub(crate) fn spawn_plot_label(
+        &mut self,
+        parent: &str,
+        label: &str,
+        [x, y]: [f64; 2],
+        text: String,
+        time_ms: f64,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let props = [
+            Property::new("text", Expr::Str(text)),
+            Property::new("at", Expr::Tuple(vec![Expr::Num(x), Expr::Num(y)])),
+            Property::new("font_size", Expr::Num(10.0)),
+            Property::new("color", Expr::Path(vec!["text".into(), "muted".into()])),
+        ];
+        // The text builder already reports declaration diagnostics.
+        let _ = self.process_text_actor_decl(
+            "Text",
+            label,
+            &props,
+            &[],
+            time_ms,
+            Some(parent),
+            diagnostics,
+        );
     }
 }
 
