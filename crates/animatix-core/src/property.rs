@@ -61,6 +61,8 @@ pub enum AuthoredTypeHint {
     Vec2List,
     /// List of numbers.
     NumList,
+    /// Built-in semantic role choices, narrowed by actor type in the syntax schema.
+    Role,
     /// 2D affine transform input forms.
     Transform,
     /// Four-number tuple.
@@ -328,7 +330,7 @@ declare_property_descriptors! {
     "text_anchor" => (Applicable::TextLike, String),
     // Layout item maximum width (distinct from `max_width`, the text wrap width).
     "max_item_width" => (Applicable::SizedActors, F32),
-    "role" => (Applicable::Actors(&["Text", "Typst", "Math", "Counter", "PlotCurve"]), String),
+    "role" => (Applicable::Actors(crate::roles::ROLE_ACTORS), String, Role),
     "x_ticks" => (Applicable::PlotHost, Generic, NumList),
     "y_ticks" => (Applicable::PlotHost, Generic, NumList),
 }

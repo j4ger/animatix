@@ -197,7 +197,7 @@ impl<'a> TypeEnv<'a> {
         if let Some(entry) = self.components.get(ty) {
             self.check_component_props(ty, &entry.definition, props, diagnostics);
         } else {
-            self.check_primitive_color_props(ty, props, diagnostics);
+            self.check_primitive_props(ty, props, diagnostics);
         }
         // Recurse into children
         for child in children {
@@ -626,7 +626,7 @@ impl<'a> TypeEnv<'a> {
                 if let Some(entry) = self.components.get(ty) {
                     self.check_component_props(ty, &entry.definition, props, diagnostics);
                 } else {
-                    self.check_primitive_color_props(ty, props, diagnostics);
+                    self.check_primitive_props(ty, props, diagnostics);
                 }
                 for child in children {
                     self.check_inline_item(child, diagnostics);
@@ -650,7 +650,7 @@ impl<'a> TypeEnv<'a> {
                 if let Some(entry) = self.components.get(ty) {
                     self.check_component_props(ty, &entry.definition, props, diagnostics);
                 } else {
-                    self.check_primitive_color_props(ty, props, diagnostics);
+                    self.check_primitive_props(ty, props, diagnostics);
                 }
                 for child in children {
                     self.check_inline_item(child, diagnostics);

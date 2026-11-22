@@ -47,6 +47,13 @@ pub fn completions_at(
             items.extend(keyword_completions(symbols));
         },
         Some(CompletionContext::NamespacePosition { prefix }) => {
+            if prefix == "roles" {
+                let roles = animatix_core::roles::ROLES
+                    .iter()
+                    .map(|&(_, name)| name.to_owned())
+                    .collect::<Vec<_>>();
+                items.extend(enum_completions(&roles));
+            }
             let prefix = format!("{prefix}::");
             items.extend(
                 callable_completions(symbols, manifest)

@@ -316,7 +316,11 @@ pub(super) fn compute_graph_tick_labels(
                 continue;
             }
             let mut screen_x = tick_math_x_to_screen(x);
-            let mut screen_y = axis_y + tick_label_offset;
+            let mut screen_y = if frame.axis_options.label_x_at_edge {
+                hh - graph_padding[3] / 2.0
+            } else {
+                axis_y + tick_label_offset
+            };
             if let Some(size) = label_size {
                 let edge = (hw - label_width(x, size) / 2.0).max(0.0);
                 screen_x = screen_x.clamp(-edge, edge);

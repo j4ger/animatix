@@ -839,7 +839,7 @@ fn load_program_slot_with_component_as_fill() {
 }
 
 #[test]
-fn load_program_slot_fill_nonexistent_slot() {
+fn load_program_rejects_unknown_slot_with_available_names() {
     let program = load_scene(&[
         (
             "slides.amx",
@@ -859,14 +859,23 @@ fn load_program_slot_fill_nonexistent_slot() {
 
  card: Card {
      @nonexistent {
-         Text, text: "This should be ignored"
+         Text, text: "Misplaced content"
      }
  }
  "#,
         ),
     ]);
 
-    assert_contents(&program, &["card", "Default Header"], &["This should be ignored", "Card"]);
+    let error = program.expand_components().expect_err("misspelled slots must be diagnosed");
+    assert!(
+        error.diagnostics.iter().any(|d| {
+            d.code == animatix_syntax::diagnostics::DiagnosticCode::InvalidComponentSlot
+                && d.message.contains("@nonexistent")
+                && d.message.contains("Available slots: header")
+        }),
+        "{:?}",
+        error.diagnostics
+    );
 }
 
 #[test]

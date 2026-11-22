@@ -136,10 +136,14 @@ impl GuiShell {
                 commands.push_back(ShellAction::View(ViewAction::NewFile));
                 ui.close();
             }
-            if ui.button("New narrated project…").clicked() {
-                commands.push_back(ShellAction::View(ViewAction::NewProject));
-                ui.close();
-            }
+            ui.menu_button("New project…", |ui| {
+                for template in animatix_render::delivery::ProjectTemplate::ALL {
+                    if ui.button(template.title()).clicked() {
+                        commands.push_back(ShellAction::View(ViewAction::NewProject(template)));
+                        ui.close();
+                    }
+                }
+            });
             if ui.button("Narration Takes…").clicked() {
                 self.open_narration_takes(ui.ctx());
                 ui.close();

@@ -22,6 +22,9 @@ fn property_type_for_descriptor(desc: &animatix_core::property::PropertyDescript
         AuthoredTypeHint::BoolOrStr => Type::Union(vec![Type::Bool, Type::Str]),
         AuthoredTypeHint::Vec2List => Type::List(Box::new(Type::Vec2)),
         AuthoredTypeHint::NumList => Type::List(Box::new(Type::Num)),
+        AuthoredTypeHint::Role => Type::Enum(
+            animatix_core::roles::ROLES.iter().map(|&(_, name)| name.to_owned()).collect(),
+        ),
         AuthoredTypeHint::Transform => transform_type(),
         AuthoredTypeHint::Vec4 => Type::Vec4,
         AuthoredTypeHint::Any => Type::Any,

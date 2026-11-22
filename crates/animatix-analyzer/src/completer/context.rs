@@ -50,7 +50,8 @@ impl CompletionContext {
                         TokenKind::Ident(name) => Some(name.clone()),
                         _ => None,
                     });
-                    CompletionContext::PropertyValue { property_name, actor_type: None }
+                    let actor_type = find_inline_actor_type(tokens, previous, symbols);
+                    CompletionContext::PropertyValue { property_name, actor_type }
                 }
             },
             TokenKind::Assign | TokenKind::ReactiveAssign => CompletionContext::PropertyValue {
@@ -67,6 +68,25 @@ impl CompletionContext {
             _ => CompletionContext::Unknown,
         }
     }
+}
+
+// At an inline property's colon, search back to the declaration's type.
+fn find_inline_actor_type(tokens: &[Token], colon: usize, symbols: &SymbolTable) -> Option<String> {
+    for (index, token) in tokens[..colon].iter().enumerate().rev() {
+        match &token.kind {
+            TokenKind::Ident(name)
+                if index >= 2
+                    && matches!(tokens[index - 1].kind, TokenKind::Colon)
+                    && animatix_syntax::typing::known_properties().contains_key(name) =>
+            {
+                return Some(name.clone());
+            },
+            TokenKind::RBrace if index + 1 == colon => return None,
+            TokenKind::LBrace => return find_actor_type_before_brace(tokens, token, symbols),
+            _ => {},
+        }
+    }
+    None
 }
 
 fn namespace_prefix(tokens: &[Token], separator: usize) -> Option<String> {

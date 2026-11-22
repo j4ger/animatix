@@ -107,7 +107,7 @@ pub enum ViewAction {
     ResetLayout,
     OpenFileDialog,
     NewFile,
-    NewProject,
+    NewProject(animatix_render::delivery::ProjectTemplate),
     SaveAsDialog,
     OpenSettings,
     OpenShortcuts,

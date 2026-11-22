@@ -1,17 +1,35 @@
-// Edit the scene here. The two audio files can travel with this directory.
-config { duration: 30, resolution: (640, 360) }
-scene.background_color = hex_color("101827")
+import "./layout.amx"
+
+config { duration: 30, resolution: (640, 360), colorscheme: "editorial-dark", style: "editorial" }
+
+let heading = "Tell it in time"
+let summary = "Put narration, captions, and motion on one timeline."
+let width = content_width()
+let gap = theme.gap
+let tile_width = (width - 2 * gap) / 3
+let track_y = scene_height * 0.57
 
 voice: Audio, source: "narration.mp3", transcript: "narration.speech.json"
 
-title: Text, text: "Animatix", at: (320, 95), font_size: 60, color: hex_color("f5f7ff"), opacity: 1
-tagline: Text, text: "Animation for technical storytelling", at: (320, 180), font_size: 26, color: hex_color("b4c6e7")
-rule: Rect, size: (150, 4), at: (320, 233), color: hex_color("5eead4")
-subtitles: Captions, at: (320, 301), transcript: "narration.speech.json",
-  font_size: 21, text_max_width: 544, opacity: 1
+#0s
+  head: ChapterHeader, eyebrow: "NARRATED EXPLAINER", heading: heading
+  statement: Text, text: summary, role: body, text_anchor: "left",
+    text_max_width: width, at: (theme.margin, scene_height * 0.40)
+  cards: Row, at: (scene_width / 2, track_y), size: (width, 68 * unit()), gap: gap, align: "center" {
+    script: NarrationStep, label: "Script", width: tile_width
+    narration: NarrationStep, label: "Voice", width: tile_width
+    captions: NarrationStep, label: "Captions", width: tile_width
+  }
+  rail: Rect, size: (width, 2 * unit()), at: (scene_width / 2, scene_height * 0.69), color: stroke.default
+  marker: Ellipse, size: (10 * unit(), 10 * unit()), color: accent.primary,
+    at: (theme.margin, scene_height * 0.69)
+  subtitles: Captions, at: (scene_width / 2, scene_height - theme.margin - 48 * unit()),
+    transcript: "narration.speech.json", font_size: 36 * unit(), text_max_width: width - 2 * theme.inset,
+    active_color: accent.primary, inactive_color: text.primary, backdrop_color: surface.secondary,
+    backdrop_radius: theme.radius, backdrop_padding: (theme.inset, theme.inset * 0.50)
 
 #voice@feature
-  fade_in(target: tagline, duration: 400ms)
+  marker.at = (scene_width / 2, scene_height * 0.69) [500ms]
 
 #voice@captions
-  fade_in(target: rule, duration: 400ms)
+  marker.at = (scene_width - theme.margin, scene_height * 0.69) [500ms]

@@ -148,6 +148,8 @@ pub enum DiagnosticCode {
     ModifierRuntimeError,
     /// A component instance property does not match any defined parameter.
     UnknownComponentProperty,
+    /// An unknown or repeated component slot fill.
+    InvalidComponentSlot,
     /// An `always` block writes to a property that also has keyframes.
     AlwaysOverridesKeyframes,
     /// An `at` or `position` property was set on a layout-managed child.

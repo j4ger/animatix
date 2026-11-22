@@ -1,15 +1,74 @@
-// The slots share the same margin and spacing on a 1280 × 720 canvas.
-pub component ExplainerLayout(heading: Str, takeaway: Str) {
-  page: Col, size: (1128, 594), at: (640, 360), gap: 36, align: "start" {
-    title: Text, text: heading, role: "title"
-    content: Row, size: (1128, 400), gap: 54, align: "center" {
-      figure: Group, size: (754, 400) {
-        @slot
-      }
-      notes: Col, size: (320, 400), gap: 22, align: "center" {
-        @slot
-      }
+// Shared layout and components. Import this file into an existing scene to reuse them.
+pub fn unit() -> Num { min(scene_width, scene_height) / 720 }
+pub fn content_width() -> Num { scene_width - 2 * theme.margin }
+pub fn stacked() -> Bool { scene_width < 1.25 * scene_height }
+
+pub fn tall() -> Bool { scene_height > 1.25 * scene_width }
+pub fn figure_top() -> Num { theme.margin + (if tall() { 207 } else { 184 }) * unit() }
+pub fn takeaway_y() -> Num {
+  scene_height - theme.margin - (if tall() { 65 } else { 35 }) * unit()
+}
+pub fn figure_gap() -> Num { theme.gap }
+pub fn notes_width() -> Num { min(content_width() * 0.36, 360 * unit()) }
+pub fn notes_height() -> Num { (if tall() { 158 } else { 144 }) * unit() }
+pub fn figure_width(with_notes: Bool) -> Num {
+  if with_notes && !stacked() { content_width() - notes_width() - figure_gap() } else { content_width() }
+}
+pub fn figure_height(with_notes: Bool) -> Num {
+  scene_height - figure_top() - theme.margin - (if tall() { 160 } else { 122 }) * unit()
+    - (if stacked() && with_notes { notes_height() + figure_gap() } else { 0 })
+}
+
+pub component ChapterHeader(eyebrow: Str, heading: Str) {
+  header: Group, at: (theme.margin, theme.margin) {
+    category: Text, text: eyebrow, role: roles::eyebrow, text_anchor: "left", at: (0, 14 * unit())
+    heading_ink: Text, text: heading, role: title, text_anchor: "left",
+      text_max_width: content_width(), at: (0, (if tall() { 106 } else { 96 }) * unit())
+  }
+}
+
+pub component ExplainerLayout(eyebrow: Str, heading: Str, takeaway: Str, with_notes: Bool = true) {
+  page: Group, at: (0, 0) {
+    head: ChapterHeader, eyebrow: eyebrow, heading: heading
+    figure_plate: Rect, size: (figure_width(with_notes), figure_height(with_notes)),
+      color: surface.primary, stroke: stroke.default, stroke_width: unit(), corner_radius: theme.radius,
+      at: (theme.margin + figure_width(with_notes) / 2, figure_top() + figure_height(with_notes) / 2)
+    figure: Group, at: (theme.margin + figure_width(with_notes) / 2, figure_top() + figure_height(with_notes) / 2) {
+      @slot
+      figure_placeholder: Text, text: "Add a figure to this slot", role: note
     }
-    caption: Text, text: takeaway, role: "body"
+    notes: Group, at: (
+      if stacked() { scene_width / 2 } else { scene_width - theme.margin - notes_width() / 2 },
+      if stacked() {
+        figure_top() + figure_height(with_notes) + figure_gap() + notes_height() / 2
+      } else {
+        figure_top() + figure_height(with_notes) / 2
+      }
+    ) {
+      @slot
+    }
+    conclusion: Text, text: takeaway, role: body, text_anchor: "left",
+      text_max_width: content_width(), at: (theme.margin, takeaway_y())
+  }
+}
+
+pub component MetricCard(label: Str, value: Str, detail: Str, width: Num, height: Num, ink: Color = text.primary) {
+  card: Group {
+    plate: Rect, size: (width, height), color: surface.primary,
+      stroke: lerp_color(surface.primary, text.secondary, 0.3),
+      stroke_width: unit(), corner_radius: theme.radius
+    card_label: Text, text: label, role: note, text_anchor: "left",
+      text_max_width: width - 2 * theme.inset, at: (theme.inset - width / 2, -height * 0.29)
+    card_value: Text, text: value, role: metric, color: ink, text_anchor: "left",
+      text_max_width: width - 2 * theme.inset, at: (theme.inset - width / 2, 0)
+    card_detail: Text, text: detail, role: note, text_anchor: "left",
+      text_max_width: width - 2 * theme.inset, at: (theme.inset - width / 2, height * 0.30)
+  }
+}
+
+pub component NarrationStep(label: Str, width: Num) {
+  tile: Stack, size: (width, 68 * unit()) {
+    plate: Rect, size: (width, 68 * unit()), color: surface.primary, corner_radius: theme.radius
+    step_label: Text, text: label, role: body
   }
 }

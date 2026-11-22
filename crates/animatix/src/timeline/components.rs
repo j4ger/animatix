@@ -47,6 +47,9 @@ pub struct CoordinateFrameComponent {
 pub struct GraphAxisOptions {
     /// Font size for the explainer's size-aware major ticks and labels.
     pub label_size: Option<f64>,
+    /// Place horizontal labels in the bottom margin of the plot.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub label_x_at_edge: bool,
     /// Horizontal tick positions in math coordinates.
     pub x_ticks: Option<Vec<f64>>,
     /// Vertical tick positions in math coordinates.

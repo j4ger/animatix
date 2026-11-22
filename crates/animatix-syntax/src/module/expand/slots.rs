@@ -34,6 +34,30 @@ pub(super) fn has_slot_marker(children: &[InlineItem]) -> bool {
     children.iter().any(|item| matches!(item, InlineItem::SlotMarker))
 }
 
+pub(super) fn collect_slot_names(body: &[Stmt]) -> Vec<String> {
+    let mut names = Vec::new();
+    for stmt in body {
+        if let Stmt::ActorDecl {
+            label, children, ..
+        } = stmt
+        {
+            if has_slot_marker(children) {
+                names.push(label.clone());
+            }
+            crate::walk::walk_inline_items(children, &mut |item| {
+                if let InlineItem::Labeled {
+                    label, children, ..
+                } = item
+                    && has_slot_marker(children)
+                {
+                    names.push(label.clone());
+                }
+            });
+        }
+    }
+    names
+}
+
 pub(super) fn resolve_slots(
     stmts: &[Stmt],
     slot_fills: &HashMap<String, Vec<InlineItem>>,

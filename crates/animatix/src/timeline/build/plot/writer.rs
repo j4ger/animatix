@@ -193,12 +193,17 @@ impl Timeline {
                     }
                 })
                 .unwrap_or_else(|| {
-                    if self.math_explainer_style {
+                    if let Some(padding) = self.style_preset.graph_padding() {
                         previous_frame.map_or_else(
                             || {
-                                [22.0_f64
-                                    .min(f64::from(initial_size[0].min(initial_size[1])) * 0.4);
-                                    4]
+                                let limit = f64::from(initial_size[0].min(initial_size[1])) * 0.4;
+                                let edge = padding.min(limit);
+                                let bottom = if self.style_preset.graph_labels_at_edge() {
+                                    (padding + 26.0 * self.style_scale()).min(limit)
+                                } else {
+                                    edge
+                                };
+                                [edge, edge, edge, bottom]
                             },
                             |frame| frame.padding,
                         )
@@ -244,9 +249,11 @@ impl Timeline {
             tick_labels: String::from("auto"),
             axis_options: if primitive.is_graph_host() {
                 crate::timeline::GraphAxisOptions {
-                    label_size: self.math_explainer_style.then(|| {
-                        self.resolution.map_or(26.0, |(w, h)| 26.0 * f64::from(w.min(h)) / 720.0)
-                    }),
+                    label_size: self
+                        .style_preset
+                        .graph_label_size()
+                        .map(|size| size * self.style_scale()),
+                    label_x_at_edge: self.style_preset.graph_labels_at_edge(),
                     x_ticks: ticks::parse_tick_values(
                         props,
                         "x_ticks",

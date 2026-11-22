@@ -1902,6 +1902,7 @@ slide: SlideLayout {
 - Slots are resolved at compile time during component expansion
 - Unfilled required slots (no fill + no defaults) produce an empty container at build time
 - Slots are matched by container label (named, positional-independent)
+- An unknown or repeated slot fill reports an expansion error
 
 ---
 
@@ -2129,24 +2130,45 @@ When strict mode is enabled:
 
 ---
 
-## Math explainer style
+## Scene styles and roles
 
-`config { style: "math-explainer" }` selects scene-scoped presentation
-defaults. Use `colorscheme` to choose the palette. A scene can select
-`style: "default"` to use the standard defaults. Explicit actor values
-override the preset, and later assignments follow the usual track rules.
+Select a scene style with `config { style: "editorial" }`. The style supplies
+typography, spacing tokens, and graph defaults. Choose a `colorscheme` to
+supply the colors used by those defaults. Both settings are scene-scoped.
 
-On a 720 px short edge, `Text`, `Typst`, `Math`, and `Counter` accept the
-declaration roles `"title"` (54 px, bold), `"body"` (34 px), `"note"`
-(24 px, secondary ink), `"formula"` (60 px, accent ink), and `"metric"`
-(38 px). Omitted roles use the preset's body, math, or metric size for
-that primitive. Sizes scale with the configured canvas's short edge.
-`PlotCurve` accepts `"reference"` (thin secondary ink) and `"focus"`
-(thicker accent ink, the default). The graph uses a light major grid and
-sparse horizontal labels.
+```amx
+config { resolution: (1280, 720), style: "editorial", colorscheme: "paper" }
+#0s
+  title: Text, text: "Approximating cosine", role: title
+  note: Text, text: "Near the origin", role: note, font_size: 28
+  curve: PlotCurve, role: reference, func: (x) => cos(x)
+```
 
-`animatix init --template math-explainer ./lesson` creates an animated
-example and a reusable `ExplainerLayout` with figure and notes slots.
+The `role` property accepts these enum choices:
+
+| Actor family | Roles |
+|---|---|
+| `Text`, `Typst`, `Math`, `Counter` | `title`, `body`, `note`, `formula`, `metric`, `eyebrow` |
+| `PlotCurve` | `reference`, `focus` |
+
+A bare choice works in the `role:` position. A local value of the same name
+takes precedence, and `roles::title` selects the standard value explicitly.
+Quoted choices such as `"title"` remain supported. Roles describe declarations.
+Animate the resulting properties such as `font_size` or `color` using the
+ordinary assignment rules. An explicit actor property overrides that property's
+style default.
+
+At a 720 px short edge in a landscape scene, `editorial` uses 58 px titles,
+32 px body text, 24 px notes, 60 px formulas, and 64 px metrics. `compact`
+uses a tighter title, body, formula, and metric scale for denser scenes.
+Both scale with the canvas and use a smaller scale in narrow compositions.
+They place horizontal graph labels in the bottom margin.
+`math-explainer` preserves the earlier math typography and graph defaults.
+`default` uses the standard primitive appearance.
+
+Reusable components can read `theme.margin`, `theme.gap`, `theme.inset`, and
+`theme.radius` as numeric values. `scene_width` and `scene_height` expose the
+authored resolution to build-time layout expressions.
 
 ## 14. Typst & Graphs
 
@@ -2939,7 +2961,7 @@ config { colorscheme: "editorial-dark" }  // overrides prelude colorscheme
 | `strict_types` | Program | ❌ No | Enables strict type checking for the entire file. Scene-level `strict_types` is ignored. |
 | `text_fast_path` | Program | ❌ No | Accepted for compatibility; ordinary Text always uses the literal text path. |
 | `colorscheme` | Scene | ✅ Yes | Scene-level overrides prelude. Each scene can have a different colorscheme. |
-| `style` | Scene | ✅ Yes | Selects `"math-explainer"` or the standard `"default"` actor defaults. |
+| `style` | Scene | ✅ Yes | Selects `"editorial"`, `"compact"`, `"math-explainer"`, or `"default"`. |
 | `dynamic_layout` | Scene | ✅ Yes | Scene-level overrides prelude. Enables per-frame layout recomputation. |
 | `duration` | Scene | ✅ Yes | Scene-only; sets explicit scene duration (overrides keyframe-inferred duration). A timeline never plays past it: keyframes beyond it are unreachable, and the build warns with `duration-shorter-than-content`. |
 | `runtime_inputs` | Scene | ✅ Yes | Single-scene only; a brace-list of names that callers may override with finite numbers during frame evaluation. Runtime overrides are read-only and take precedence over global tracks and `always` assignments, while closure parameters and local `let` bindings still shadow them; clearing restores the frame's authored value. Direct use in a build-time `let`, branch/loop selector, actor property, or static config value is an error because those values are fixed during compilation. |

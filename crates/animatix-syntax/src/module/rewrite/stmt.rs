@@ -14,6 +14,17 @@ impl AstFolder for ModuleRewriter<'_> {
         rewrite_expr(&expr, self.prefix, self.root_label, self.known_labels, self.bindings)
     }
 
+    fn fold_property(&mut self, mut prop: Property) -> Property {
+        prop.value = rewrite_property_value(
+            &prop,
+            self.prefix,
+            self.root_label,
+            self.known_labels,
+            self.bindings,
+        );
+        prop
+    }
+
     fn fold_stmt(&mut self, stmt: Stmt) -> Stmt {
         match stmt {
             Stmt::ActorDecl {

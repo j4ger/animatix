@@ -1,0 +1,32 @@
+import "./layout.amx"
+
+config { resolution: (1280, 720), duration: 6, colorscheme: "editorial-dark", style: "editorial" }
+
+let heading = "Release readiness"
+let takeaway = "Performance is within budget. Close the final review before shipping."
+let passing = "42 / 42"
+let latency = "184 ms"
+let reviews = "1 open"
+
+let gap = theme.gap
+let card_width = if stacked() { content_width() } else { (content_width() - 2 * gap) / 3 }
+let card_height = if stacked() { min(168 * unit(), (takeaway_y() - figure_top() - 78 * unit() - 2 * gap) / 3) } else { 196 * unit() }
+let first_x = if stacked() { scene_width / 2 } else { theme.margin + card_width / 2 }
+let first_y = if stacked() { figure_top() + card_height / 2 } else { scene_height / 2 }
+let step_x = if stacked() { 0 } else { card_width + gap }
+let step_y = if stacked() { card_height + gap } else { 0 }
+
+#0s
+  head: ChapterHeader, eyebrow: "ENGINEERING UPDATE", heading: heading
+  tests: MetricCard, label: "TEST COVERAGE", value: passing, detail: "Checks passing",
+    width: card_width, height: card_height, at: (first_x, first_y), opacity: 0
+  performance: MetricCard, label: "P95 LATENCY", value: latency, detail: "Budget · 200 ms",
+    width: card_width, height: card_height, at: (first_x + step_x, first_y + step_y), opacity: 0
+  review: MetricCard, label: "RELEASE REVIEW", value: reviews, detail: "Blocking approval", ink: accent.warning,
+    width: card_width, height: card_height, at: (first_x + 2 * step_x, first_y + 2 * step_y), opacity: 0
+  summary: Text, text: takeaway, role: body, text_anchor: "left",
+    text_max_width: content_width(), at: (theme.margin, takeaway_y()), opacity: 0
+  fade_in(target: tests, duration: 350ms)
+  fade_in(target: performance, duration: 350ms, delay: 180ms)
+  fade_in(target: review, duration: 350ms, delay: 360ms)
+  fade_in(target: summary, duration: 350ms, delay: 550ms)

@@ -175,6 +175,12 @@ impl TypeEnv {
 
     /// Look up a namespaced path such as `deck.bar` or `accent.primary`.
     pub(super) fn lookup_path(&self, parts: &[String]) -> Option<Type> {
+        if let [namespace, name] = parts
+            && namespace == "theme"
+            && animatix_core::roles::STYLE_TOKENS.contains(&name.as_str())
+        {
+            return Some(Type::Num);
+        }
         if parts.len() >= 2 && COLOR_NAMESPACES.contains(&parts[0].as_str()) {
             return Some(Type::Color);
         }

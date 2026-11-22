@@ -88,6 +88,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::TypeMismatch => write!(f, "type-mismatch"),
             DiagnosticCode::ModifierRuntimeError => write!(f, "modifier-runtime-error"),
             DiagnosticCode::UnknownComponentProperty => write!(f, "unknown-component-property"),
+            DiagnosticCode::InvalidComponentSlot => write!(f, "invalid-component-slot"),
             DiagnosticCode::AlwaysOverridesKeyframes => {
                 write!(f, "always-overrides-keyframes")
             },

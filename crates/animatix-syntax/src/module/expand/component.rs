@@ -313,6 +313,58 @@ fn multiply_instance_opacity(props: &mut Vec<Property>, instance_opacity: &Prope
     });
 }
 
+fn collect_instance_slots(
+    children: &[InlineItem],
+    component: &ComponentEntry,
+    instance_label: &str,
+    ctx: &mut ExpansionCtx,
+) -> HashMap<String, Vec<InlineItem>> {
+    use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+    let mut fills = HashMap::new();
+    let mut items = children
+        .iter()
+        .filter_map(|item| match item {
+            InlineItem::SlotFill { slot, items } => Some((slot, items)),
+            _ => None,
+        })
+        .peekable();
+    if items.peek().is_none() {
+        return fills;
+    }
+    let names = collect_slot_names(&component.definition.body);
+    for (slot, items) in items {
+        let message = if !names.contains(slot) {
+            Some(format!(
+                "Component '{}' has no slot '@{slot}'. Available slots: {}.",
+                component.definition.name,
+                if names.is_empty() {
+                    "none".to_owned()
+                } else {
+                    names.join(", ")
+                },
+            ))
+        } else if fills.contains_key(slot) {
+            Some(format!("Slot '@{slot}' is filled more than once on '{instance_label}'."))
+        } else {
+            None
+        };
+        if let Some(message) = message {
+            ctx.diagnostics.push(
+                Diagnostic::error(
+                    DiagnosticCode::InvalidComponentSlot,
+                    DiagnosticPhase::Build,
+                    message,
+                )
+                .with_subject(instance_label),
+            );
+        }
+        if names.contains(slot) {
+            fills.insert(slot.clone(), items.clone());
+        }
+    }
+    fills
+}
+
 pub(super) fn expand_component_instance(
     instance_label: &str,
     instance_array_index: &Option<Expr>,
@@ -366,13 +418,7 @@ pub(super) fn expand_component_instance(
     let root_label = first_labeled_stmt(&component.definition.body);
     let known_labels = collect_labels(&component.definition.body);
 
-    // Extract slot fills from instance children (keyed by original slot name)
-    let mut slot_fills: HashMap<String, Vec<InlineItem>> = HashMap::new();
-    for item in instance_children {
-        if let InlineItem::SlotFill { slot, items } = item {
-            slot_fills.insert(slot.clone(), items.clone());
-        }
-    }
+    let slot_fills = collect_instance_slots(instance_children, component, instance_label, ctx);
 
     // Resolve slots on original component body BEFORE rewriting labels
     let resolved = resolve_slots(&component.definition.body, &slot_fills);

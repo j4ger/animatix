@@ -11,11 +11,29 @@ pub(super) fn rewrite_properties(
         .iter()
         .map(|prop| Property {
             name: prop.name.clone(),
-            value: rewrite_expr(&prop.value, prefix, root_label, known_labels, bindings),
+            value: rewrite_property_value(prop, prefix, root_label, known_labels, bindings),
             value_span: prop.value_span,
             trailing_comment: prop.trailing_comment.clone(),
         })
         .collect()
+}
+
+pub(super) fn rewrite_property_value(
+    prop: &Property,
+    prefix: &str,
+    root_label: Option<&str>,
+    known_labels: &HashSet<String>,
+    bindings: &HashMap<String, Expr>,
+) -> Expr {
+    // A bare role choice can have the same spelling as an actor label.
+    // Component parameters still substitute before role resolution.
+    if prop.name == "role"
+        && matches!(&prop.value, Expr::Ident(name)
+        if !bindings.contains_key(name) && animatix_core::roles::Role::from_name(name).is_some())
+    {
+        return prop.value.clone();
+    }
+    rewrite_expr(&prop.value, prefix, root_label, known_labels, bindings)
 }
 
 pub(super) fn rewrite_expr(

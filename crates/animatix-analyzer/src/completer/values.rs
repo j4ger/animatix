@@ -30,6 +30,14 @@ pub(super) fn value_for_property(
 ) -> Vec<CompletionItem> {
     let mut items = Vec::new();
 
+    if property_name.as_deref() == Some("role")
+        && let Some(actor_type) = actor_type
+        && let Some(animatix_syntax::typing::Type::Enum(roles)) =
+            animatix_syntax::typing::property_type(actor_type, "role")
+    {
+        return enum_completions(&roles);
+    }
+
     // Look up expected type from component definition
     let expected_type = expected_type_for(actor_type, property_name, symbols);
 
@@ -74,6 +82,7 @@ fn completions_for_type(ty: &TypeAnnotation) -> Vec<CompletionItem> {
 fn simple_type_completions(ty: &TypeAnnotation) -> Vec<CompletionItem> {
     let mut items = Vec::new();
     match ty {
+        TypeAnnotation::Enum(values) => return enum_completions(values),
         TypeAnnotation::Bool => {
             items.extend(["true", "false"].iter().map(|v| CompletionItem {
                 label: v.to_string(),
@@ -260,6 +269,19 @@ fn completions_for_property_name(name: &str) -> Vec<CompletionItem> {
         _ => {},
     }
     items
+}
+
+pub(super) fn enum_completions(values: &[String]) -> Vec<CompletionItem> {
+    values
+        .iter()
+        .map(|value| CompletionItem {
+            label: value.clone(),
+            kind: CompletionKind::Value,
+            detail: Some("Enum choice".into()),
+            documentation: None,
+            insert_text: None,
+        })
+        .collect()
 }
 
 fn hex_color_completion() -> CompletionItem {

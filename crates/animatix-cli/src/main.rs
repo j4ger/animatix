@@ -118,6 +118,10 @@ struct Args {
     command: Commands,
 }
 
+fn template_ids() -> [&'static str; 3] {
+    animatix_render::delivery::ProjectTemplate::ALL.map(|template| template.id())
+}
+
 #[derive(Subcommand, Debug)]
 enum Commands {
     /// Create a starter project in a new or empty directory.
@@ -125,7 +129,7 @@ enum Commands {
         #[arg(default_value = ".")]
         directory: PathBuf,
         /// Starter project to copy.
-        #[arg(long, default_value = "narrated", value_parser = ["narrated", "math-explainer"])]
+        #[arg(long, default_value = "narrated", value_parser = clap::builder::PossibleValuesParser::new(template_ids()))]
         template: String,
     },
     /// Diagnose GPU, font, audio muxing, and MP4 encoder availability.
@@ -464,12 +468,10 @@ fn dispatch(command: Commands, extensions: &CliExtensions) {
             directory,
             template,
         } => {
-            let create = if template == "math-explainer" {
-                animatix_render::delivery::create_math_explainer_project
-            } else {
-                animatix_render::delivery::create_project
-            };
-            match create(&directory) {
+            let result = template
+                .parse::<animatix_render::delivery::ProjectTemplate>()
+                .and_then(|template| template.create(&directory));
+            match result {
                 Ok(scene) => println!("Created {}", scene.display()),
                 Err(err) => {
                     eprintln!("Could not create a project in {}: {err}", directory.display());

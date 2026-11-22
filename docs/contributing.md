@@ -47,6 +47,40 @@ The current packaging scripts build a different, relocatable distribution. A
 successful packaging check does not establish that an older uploaded release was
 built with those scripts. Recheck this caveat when replacing the nightly artifact.
 
+### Start from a built-in template
+
+| `animatix init --template` | Starting point |
+|---|---|
+| `narrated` (default) | A 30-second project with bundled narration and synchronized captions |
+| `math-explainer` | An animated graph with a formula and a takeaway |
+| `metric-brief` | Three metric cards with a summary |
+
+The CLI and the workbench's **New project…** menu offer the same starters.
+Each project comes with `main.amx` and a portable `layout.amx`. Keep the files
+together when copying the project. You can also import `layout.amx` from an
+existing scene to reuse `ChapterHeader`, `ExplainerLayout`, `MetricCard`, or
+`NarrationStep`.
+
+Edit the content bindings near the top of `main.amx`, or override them for a
+single-scene preview. For example:
+
+```sh
+animatix init --template math-explainer Lesson
+animatix image Lesson/main.amx --time 4 --set 'heading="Cosine near zero"' -o frame.png
+animatix storyboard Lesson/main.amx
+```
+
+Math Explainer accepts `heading`, `takeaway`, `formula`, `horizontal_domain`,
+and `vertical_domain`. Edit `reference_fn` and `approximation_fn` to replace
+the curves. An empty `formula` gives the graph the full width. When reusing
+`ExplainerLayout` directly, set `with_notes: false` to give a figure the full
+width without a note slot. Metric Brief accepts `heading`,
+`takeaway`, `passing`, `latency`, and `reviews`. Narrated Explainer accepts
+`heading` and `summary`. Each template lets you choose the scene style and
+colorscheme in its `config`. Change the authored resolution to `(720, 1280)`
+to use the stacked math and metric layouts. Check longer copy with a
+storyboard and keep the headline and takeaway short enough for the format.
+
 ### Create a narrated project from a video-enabled package
 
 Keep the extracted binaries and bundled media tools together. From a folder
@@ -61,8 +95,7 @@ animatix video "My Narrated Project/main.amx" --hold 0 --output narrated.mp4
 ```
 
 Use the paths to the extracted binaries if they are outside `PATH`. On Windows
-the binaries have an `.exe` suffix. In the workbench, **New narrated project…**
-in the file menu also creates and opens the starter. Choose a new or empty
+the binaries have an `.exe` suffix. In the workbench, choose **New project… → Narrated Explainer** to create and open the starter. Choose a new or empty
 directory. Keep `narration.mp3` and `narration.speech.json` beside `main.amx`
 when moving the project. The scene uses the transcript's cue markers to time
 the graphics and displays captions from the same transcript.

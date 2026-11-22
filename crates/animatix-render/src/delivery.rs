@@ -5,26 +5,82 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 const SCENE: &str = "main.amx";
-const STARTER: [(&str, &[u8]); 3] = [
+const LAYOUT: (&str, &[u8]) = ("layout.amx", include_bytes!("delivery/explainer-layout.amx"));
+const NARRATED: [(&str, &[u8]); 4] = [
     (SCENE, include_bytes!("delivery/starter.amx")),
+    LAYOUT,
     ("narration.mp3", include_bytes!("delivery/narration.mp3")),
     ("narration.speech.json", include_bytes!("delivery/narration.speech.json")),
 ];
-
 const MATH_EXPLAINER: [(&str, &[u8]); 2] = [
     (SCENE, include_bytes!("delivery/math-explainer.amx")),
-    ("layout.amx", include_bytes!("delivery/explainer-layout.amx")),
+    LAYOUT,
 ];
+const METRIC_BRIEF: [(&str, &[u8]); 2] =
+    [(SCENE, include_bytes!("delivery/metric-brief.amx")), LAYOUT];
+
+/// A self-contained starter available in both native authoring tools.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ProjectTemplate {
+    /// A timed narrative with a bundled voice and captions.
+    #[default]
+    Narrated,
+    /// A graph, math note, and takeaway.
+    MathExplainer,
+    /// A status summary with reusable metric cards.
+    MetricBrief,
+}
+
+impl ProjectTemplate {
+    pub const ALL: [Self; 3] = [Self::Narrated, Self::MathExplainer, Self::MetricBrief];
+
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Narrated => "narrated",
+            Self::MathExplainer => "math-explainer",
+            Self::MetricBrief => "metric-brief",
+        }
+    }
+
+    pub const fn title(self) -> &'static str {
+        match self {
+            Self::Narrated => "Narrated Explainer",
+            Self::MathExplainer => "Math Explainer",
+            Self::MetricBrief => "Metric Brief",
+        }
+    }
+
+    /// Create this starter in a new or empty directory and return its scene path.
+    pub fn create(self, directory: &Path) -> io::Result<PathBuf> {
+        write_project(
+            directory,
+            match self {
+                Self::Narrated => &NARRATED,
+                Self::MathExplainer => &MATH_EXPLAINER,
+                Self::MetricBrief => &METRIC_BRIEF,
+            },
+        )
+    }
+}
+
+impl std::str::FromStr for ProjectTemplate {
+    type Err = io::Error;
+
+    fn from_str(id: &str) -> Result<Self, Self::Err> {
+        Self::ALL.into_iter().find(|template| template.id() == id).ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, format!("unknown template '{id}'"))
+        })
+    }
+}
 
 /// Create a self-contained narrated project in a new or empty directory.
-/// Returns the scene path. An existing file is never overwritten.
 pub fn create_project(directory: &Path) -> io::Result<PathBuf> {
-    write_project(directory, &STARTER)
+    ProjectTemplate::Narrated.create(directory)
 }
 
 /// Create a math explainer with a sample graph and a reusable layout component.
 pub fn create_math_explainer_project(directory: &Path) -> io::Result<PathBuf> {
-    write_project(directory, &MATH_EXPLAINER)
+    ProjectTemplate::MathExplainer.create(directory)
 }
 
 fn write_project(directory: &Path, files: &[(&str, &[u8])]) -> io::Result<PathBuf> {

@@ -43,7 +43,7 @@ impl Timeline {
     ) {
         for setting in settings {
             if setting.name == "style" {
-                self.apply_explainer_style_config(&setting.value, diagnostics);
+                self.apply_style_config(&setting.value, diagnostics);
                 continue;
             }
             if setting.name == "runtime_inputs" {

@@ -173,12 +173,14 @@ fn push_palette_view_items(items: &mut Vec<PaletteItem>) {
         action: ShellAction::View(ViewAction::NewFile),
         keywords: "new create file scene document",
     });
-    items.push(PaletteItem {
-        label: "New Narrated Project…".into(),
-        icon: egui_phosphor::regular::FILE_PLUS,
-        action: ShellAction::View(ViewAction::NewProject),
-        keywords: "new create starter project narration audio captions",
-    });
+    for template in animatix_render::delivery::ProjectTemplate::ALL {
+        items.push(PaletteItem {
+            label: format!("New {}…", template.title()),
+            icon: egui_phosphor::regular::FILE_PLUS,
+            action: ShellAction::View(ViewAction::NewProject(template)),
+            keywords: "new create starter template project",
+        });
+    }
     items.push(PaletteItem {
         label: "Save As…".into(),
         icon: egui_phosphor::regular::FLOPPY_DISK,

@@ -10,19 +10,60 @@ use crate::module::expand::INSTANCE_FORWARDED_PROPS;
 use crate::typing;
 
 impl<'a> TypeEnv<'a> {
-    pub(super) fn check_primitive_color_props(
+    pub(super) fn check_primitive_props(
         &self,
         ty: &str,
         props: &[Property],
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         for prop in props {
+            if prop.name == "role" && typing::known_properties().contains_key(ty) {
+                self.check_role_value(ty, prop, diagnostics);
+                continue;
+            }
             if typing::property_type(ty, color_property_name(&prop.name))
                 == Some(typing::Type::Color)
             {
                 self.check_color_value(&prop.name, &prop.value, prop.value_span, diagnostics);
             }
         }
+    }
+
+    fn check_role_value(&self, ty: &str, prop: &Property, diagnostics: &mut Vec<Diagnostic>) {
+        use animatix_core::roles::{ROLES, Role};
+
+        let name = match &prop.value {
+            Expr::Str(name) => name,
+            Expr::Ident(name)
+                if matches!(self.typed.lookup_ident(name), None | Some(typing::Type::Actor(_))) =>
+            {
+                name
+            },
+            // A variable or computed value is validated after it is resolved at build time.
+            _ => return,
+        };
+        if Role::from_name(name).is_some_and(|role| role.applies_to(ty)) {
+            return;
+        }
+        let choices = ROLES
+            .iter()
+            .filter_map(|(role, name)| role.applies_to(ty).then_some(*name))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let message = if choices.is_empty() {
+            format!("{ty} does not accept visual roles.")
+        } else {
+            format!("Role '{name}' is invalid for {ty}. Choose {choices}.")
+        };
+        diagnostics.push(
+            Diagnostic::error(
+                DiagnosticCode::InvalidPropertyValue,
+                DiagnosticPhase::Build,
+                message,
+            )
+            .with_byte_span(prop.value_span)
+            .with_subject("role"),
+        );
     }
 
     pub(super) fn check_color_assignment(

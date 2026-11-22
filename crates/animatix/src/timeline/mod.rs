@@ -263,7 +263,7 @@ pub struct Timeline {
     /// Actor targets written by modifier programs (e.g. `"circle0"` or array prefix `"ring"`).
     pub(crate) modifier_written_targets: std::collections::HashSet<String>,
     colorscheme: ResolvedColorscheme,
-    math_explainer_style: bool,
+    style_preset: build::StylePreset,
     external_colorschemes: std::collections::HashMap<String, ResolvedColorscheme>,
     pub(crate) export_preset: Option<String>,
     /// `config { resolution: (w, h) }`, so export tooling can default its canvas to the authored size.

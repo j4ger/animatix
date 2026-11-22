@@ -25,7 +25,18 @@ pub fn known_property_types() -> &'static HashMap<(String, String), Type> {
         let mut map = HashMap::new();
         for spec in property_specs() {
             for actor_type in spec.actor_types {
-                map.insert((actor_type.to_string(), spec.name.to_string()), spec.ty.clone());
+                let ty = if spec.name == "role" {
+                    Type::Enum(
+                        animatix_core::roles::ROLES
+                            .iter()
+                            .filter(|(role, _)| role.applies_to(actor_type))
+                            .map(|&(_, name)| name.to_owned())
+                            .collect(),
+                    )
+                } else {
+                    spec.ty.clone()
+                };
+                map.insert((actor_type.to_string(), spec.name.to_string()), ty);
             }
         }
         map

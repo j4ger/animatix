@@ -111,7 +111,7 @@ pub static CONFIG_KEYS: &[ConfigKeyInfo] = &[
         name: "style",
         scope: ConfigScope::Scene,
         value: ConfigValueKind::Text,
-        summary: "Opt-in actor defaults (default or math-explainer).",
+        summary: "Scene style (default, editorial, compact, or math-explainer).",
     },
     ConfigKeyInfo {
         name: "text_fast_path",

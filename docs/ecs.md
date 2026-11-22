@@ -80,7 +80,10 @@ EntityId(u32) ── entities: EntityStore { label ↔ id maps }
 
 `World` owns the entity store and the component stores. `Timeline` owns the
 `World` plus scene-level resources (environment, colorscheme, camera, assets,
-font context, layout engine, `audio_segments`, …) and the frame caches.
+font context, style preset, layout engine, `audio_segments`, …) and the frame caches.
+The build resolves visual role defaults into existing text, style, and geometry
+components. The role's canonical name remains a tagged entity property for
+inspection and review.
 
 ### 2.1 Storage contract
 

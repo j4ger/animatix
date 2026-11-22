@@ -144,15 +144,12 @@ pub(super) fn seed_environment(
     timeline.apply_colorscheme(BuiltInColorscheme::DefaultDark.resolved());
     // Seed build-time environment with scene dimensions so `let` declarations
     // can reference `scene_width` / `scene_height`.
-    let default_dims = SceneDimensions::default();
-    timeline
-        .env
-        .set_host_global("scene_width", Value::Num(default_dims.width as f64));
-    timeline
-        .env
-        .set_host_global("scene_height", Value::Num(default_dims.height as f64));
+    let defaults = SceneDimensions::default();
+    seed_canvas_globals(&mut timeline.env, defaults.width, defaults.height);
 
     timeline.load_colorscheme_declarations(ast, diagnostics);
+
+    timeline.seed_role_values();
 
     // Seed environment with namespace exports, recursing into nested aliases.
     for (alias, namespace) in namespaces {
@@ -164,6 +161,12 @@ pub(super) fn seed_environment(
             timeline.apply_config_settings(settings, diagnostics);
         }
     }
+
+    // Use the authored canvas when sizing scene content at build time.
+    if let Some((width, height)) = timeline.resolution {
+        seed_canvas_globals(&mut timeline.env, width, height);
+    }
+    timeline.seed_style_values();
 
     // Inject carry bag (if any) BEFORE statement processing so that
     // carried actors are visible to re-declarations and assignments.
@@ -206,6 +209,11 @@ pub(super) fn seed_environment(
     );
 
     SeededBuild { ast }
+}
+
+fn seed_canvas_globals(env: &mut Environment, width: u32, height: u32) {
+    env.set_host_global("scene_width", Value::Num(f64::from(width)));
+    env.set_host_global("scene_height", Value::Num(f64::from(height)));
 }
 
 fn namespace_has_functions(namespace: &crate::module::Namespace) -> bool {

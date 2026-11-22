@@ -162,6 +162,7 @@ static STATIC_EXEMPT: LazyLock<HashSet<String>> = LazyLock::new(|| {
         // The scene dimensions, readable from `always` and reactive expressions.
         "scene_width",
         "scene_height",
+        "theme",
         // The scene camera — a reserved assignment target, not a declared actor.
         "camera",
         "auto",
@@ -242,6 +243,12 @@ fn is_resolved_qualified_value(
     }
     if start == index {
         return false;
+    }
+    if index == start + 2
+        && matches!(&tokens[start].kind, TokenKind::Ident(name) if name == "roles")
+        && animatix_core::roles::Role::from_name(&occurrence.name).is_some()
+    {
+        return true;
     }
 
     let path = tokens[start..=index]

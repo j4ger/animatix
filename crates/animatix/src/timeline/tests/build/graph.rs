@@ -1247,3 +1247,46 @@ explicit: Graph, at: (1000, 150), size: (240, 180), x_domain: (0, 3),
     assert_eq!(font_size("explicit_tick_x_1"), 26.0);
     assert!(!timeline.coordinate_frame_for("explicit").unwrap().grid);
 }
+
+#[test]
+fn scene_styles_share_role_choices_and_respect_explicit_property_values() {
+    let source = r#"
+config { resolution: (1280, 720), style: "editorial" }
+let note = "body"
+#0s
+title: Text, text: "Actor names do not hide roles", role: title
+rebound: Text, text: "Lexical binding", role: note
+qualified: Text, text: "Qualified choice", role: roles::note
+overridden: Text, text: "Local override", role: title, font_size: 72
+mark: Rect, at: (theme.margin, scene_height / 2)
+"#;
+    for (preset, title_size, body_size, margin) in [
+        ("editorial", 58.0, 32.0, 56.0),
+        ("compact", 46.0, 28.0, 40.0),
+    ] {
+        let report = build(&source.replace("editorial", preset));
+        assert_clean(&report);
+        let world = &report.output.world;
+        let size = |name| {
+            world
+                .text(world.get_id(name).unwrap())
+                .unwrap()
+                .font_size
+                .as_ref()
+                .unwrap()
+                .evaluate(0)
+        };
+        assert_eq!(size("title"), title_size);
+        assert_eq!(size("rebound"), body_size);
+        assert_eq!(size("qualified"), 24.0);
+        assert_eq!(size("overridden"), 72.0);
+        let center = world.geometry(world.get_id("mark").unwrap()).position.get_or_default(0);
+        assert_eq!(center, Some([margin, 360.0]));
+    }
+
+    let report = build("#0s\ncurve: PlotCurve, role: title, func: (x) => x\n");
+    assert!(report.diagnostics.iter().any(|d| {
+        d.code == crate::diagnostics::DiagnosticCode::InvalidPropertyValue
+            && d.message.contains("Choose reference, focus")
+    }));
+}

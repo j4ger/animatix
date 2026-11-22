@@ -140,6 +140,6 @@
 137	end	Num
 138	text_anchor	Str
 139	max_item_width	Num
-140	role	Str
+140	role	Enum(title, body, note, formula, metric, eyebrow, reference, focus)
 141	x_ticks	List<Num>
 142	y_ticks	List<Num>

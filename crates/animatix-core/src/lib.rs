@@ -24,4 +24,5 @@ pub mod error;
 pub mod features;
 pub mod icon_glyphs;
 pub mod property;
+pub mod roles;
 pub mod stroke_icons;

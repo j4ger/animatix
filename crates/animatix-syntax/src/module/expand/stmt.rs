@@ -473,6 +473,7 @@ impl<'a> StmtExpander<'a> {
         span: Option<Span>,
     ) {
         if let Some(component) = self.components.get(ty) {
+            let first_diagnostic = self.ctx.diagnostics.len();
             let (instance_stmts, instance_registry) = expand_component_instance(
                 label,
                 array_index,
@@ -482,6 +483,13 @@ impl<'a> StmtExpander<'a> {
                 self.components,
                 self.ctx,
             );
+            for diagnostic in &mut self.ctx.diagnostics[first_diagnostic..] {
+                if diagnostic.code == crate::diagnostics::DiagnosticCode::InvalidComponentSlot
+                    && diagnostic.location.line.is_none()
+                {
+                    *diagnostic = diagnostic.clone().with_ast_span(span);
+                }
+            }
             let instance_stmts = carry_instance_array_index(instance_stmts, array_index);
             merge_registry(self.registry, instance_registry);
             self.output.extend(instance_stmts);

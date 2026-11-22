@@ -108,3 +108,24 @@ fn top_level_completions_include_all_builtin_kinds() {
     assert!(callables.contains(&"move"));
     assert!(callables.contains(&"scale"));
 }
+
+#[test]
+fn role_completion_follows_the_actor_family() {
+    let source = "#0s\ncurve: PlotCurve, func: (x) => x, role: ";
+    let tokens = animatix_syntax::token::tokenize(source);
+    let symbols = SymbolTable::build_from_ast(&[]);
+    let items = completions_at(
+        &symbols,
+        &tokens,
+        source,
+        1,
+        source.lines().last().unwrap().len(),
+        &ExtensionManifest::default(),
+    );
+    let choices = items
+        .iter()
+        .filter(|item| item.kind == CompletionKind::Value)
+        .map(|item| item.label.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(choices, ["reference", "focus"]);
+}

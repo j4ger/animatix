@@ -32,11 +32,11 @@ impl GuiShell {
                     ))],
                 }
             },
-            ViewAction::NewProject => {
+            ViewAction::NewProject(template) => {
                 if self.document_store.source.is_dirty() {
                     self.ui_store.unsaved_changes.open(
-                        "Save changes before creating a narrated project?",
-                        ShellAction::View(ViewAction::NewProject),
+                        "Save changes before creating a project?",
+                        ShellAction::View(ViewAction::NewProject(template)),
                     );
                     return vec![];
                 }
@@ -46,7 +46,7 @@ impl GuiShell {
                 else {
                     return vec![];
                 };
-                match animatix_render::delivery::create_project(&directory) {
+                match template.create(&directory) {
                     Ok(scene) => self.handle_command(Command::OpenFile(scene)),
                     Err(err) => vec![Effect::Toast(crate::app::components::toast::Toast::error(
                         format!("Could not create a project in {}: {err}", directory.display()),
