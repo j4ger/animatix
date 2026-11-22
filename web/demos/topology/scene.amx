@@ -139,7 +139,7 @@ always {
   for i in proxy_indices {
       let p = fract(t / 2 + i * 0.31)
       in_chip[i].at = (40 + 55 * p, 322 + i * 68)
-      in_chip[i].opacity = clamp((0.95 - p) / 0.1, 0, 1)
+      in_chip[i].opacity = linear_progress(p, 0.95, 0.85)
     }
   // Proxy → log: row → bus → trunk. Three legs, one route each.
   for i in proxy_indices {
@@ -148,7 +148,7 @@ always {
       let x = if p < 0.3 { 335 + 55 * (p / 0.3) } else { if p < 0.72 { 390 } else { 390 + 40 * ((p - 0.72) / 0.28) } }
       let y = if p < 0.3 { py } else { if p < 0.72 { py + (390 - py) * ((p - 0.3) / 0.42) } else { 390 } }
       mid_chip[i].at = (x, y)
-      mid_chip[i].opacity = clamp((0.95 - p) / 0.08, 0, 1)
+      mid_chip[i].opacity = linear_progress(p, 0.95, 0.87)
     }
   // Partition segments append lane by lane, newest flashing then settling.
   for s in segment_indices {

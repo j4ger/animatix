@@ -149,7 +149,7 @@ chip_tilt: Readout, label: "LENS TILT", value: "10°", at: (1140, 176), opacity:
             needles[i].opacity = 0.55 + 0.3 * (0.5 + 0.5 * sin(t * 1.1 + i * 0.9))
           }
       // Frost wakes over the mechanism act and holds at the authored radius.
-      soft.radius = frost * (0.22 + 0.78 * clamp((t - 3.2) / 3, 0, 1))
+      soft.radius = frost * lerp(0.22, 1, linear_progress(t, 3.2, 6.2))
       // Live specs: the blur the lens is running and its current yaw in degrees.
       chip_frost.value_text.text = format("{:.0f} px", soft.radius)
       chip_tilt.value_text.text = format("{:.0f}°", abs(deg(lens.rotate_y)))

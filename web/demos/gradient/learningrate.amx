@@ -44,7 +44,7 @@ let gold = hex_color("f4d47b")
   y100: Text, text: "100%", font_size: 16, color: hex_color("90a4b8"), text_anchor: "right", at: (97, 310)
   y50: Text, text: "50%", font_size: 16, color: hex_color("90a4b8"), text_anchor: "right", at: (97, 430)
   y0: Text, text: "0", font_size: 16, color: hex_color("90a4b8"), text_anchor: "right", at: (97, 550)
-  for y, i in {310, 430, 550} {
+  for y, i in linspace(310, 550, 3) {
       guide[i]: Line, from: (112, y), to: (864, y), stroke: hex_color("344455"), stroke_width: 1
     }
   x0_label: Text, text: "0", font_size: 16, color: hex_color("90a4b8"), at: (112, 578)

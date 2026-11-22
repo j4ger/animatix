@@ -8,7 +8,7 @@ let progress = 0
 // Run the shared timeline driver before the component-level `always` blocks,
 // so automatic playback and runtime input overrides reach the same values.
 always {
-  progress = clamp(t / 6, 0, 1)
+  progress = linear_progress(t, 0, 6)
 }
 
 title: Text, text: "One progress, two learning rates", font_size: 38, font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)

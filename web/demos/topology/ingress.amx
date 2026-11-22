@@ -107,10 +107,10 @@ always {
   for c in client_indices {
       let p = fract(t / 1.8 + c * 0.25)
       chip_in[c].at = (315 + 160 * p, 400)
-      chip_in[c].opacity = clamp((0.96 - p) / 0.08, 0, 1)
+      chip_in[c].opacity = linear_progress(p, 0.96, 0.88)
       let q = fract((t / 1.55 + c * 0.25) + 0.35)
       chip_out[c].at = (815 + 150 * q, 400)
-      chip_out[c].opacity = clamp((t - 2.3) / 0.3, 0, 1) * clamp((0.96 - q) / 0.08, 0, 1)
+      chip_out[c].opacity = linear_progress(t, 2.3, 2.6) * linear_progress(q, 0.96, 0.88)
     }
   trunk_in.dash_offset = (t * 30) % 22
   trunk_out.dash_offset = (t * 34) % 22

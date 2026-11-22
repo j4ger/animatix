@@ -17,14 +17,15 @@ for i in spark_indices {
 
 always {
   let age = clamp(t - 0.4, 0, 2.2)
+  let fade = linear_progress(age, 0, 2.2)
   for i in spark_indices {
       let dir = seeded_noise(i * 1.37, 0.5) * 6.28318
       let speed = 90 + seeded_noise(i * 2.11, 9) * 170
       let reach = speed * age
       spark[i].at = (320 + cos(dir) * reach, (190 + sin(dir) * reach) + (150 * age) * age)
       spark[i].size = (10 * (1 - age / 2.6), 10 * (1 - age / 2.6))
-      spark[i].color = lerp_color_oklab(hex_color("ffe9c7"), hex_color("ff2d55"), age / 2.2)
-      spark[i].opacity = clamp(1 - age / 2.2, 0, 1)
+      spark[i].color = lerp_color_oklab(hex_color("ffe9c7"), hex_color("ff2d55"), fade)
+      spark[i].opacity = 1 - fade
     }
 }
 

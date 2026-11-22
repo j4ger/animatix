@@ -31,6 +31,7 @@ import "../../../examples/lib/stage.amx"
 config { colorscheme: "moss", resolution: (1280, 720), duration: 23 }
 
 let grid_indices = range(-3, 4)
+let grid_rows = linspace(-2.4, 2.4, 7)
 
 // The slider target: the extra rotation (degrees) carried by the middle act.
 let theta = 0
@@ -105,7 +106,7 @@ bloom: Ellipse, size: (700, 540), blend: "screen", opacity: 0, fill_gradient: ra
 for gx, i in grid_indices {
 gv[i]: Line, from: (cx + s * gx, cy - s * 2.4), to: (cx + s * gx, cy + s * 2.4), stroke: stroke.default, stroke_width: 1.3, opacity: 0.75
   }
-for gy, i in {-2.4, -1.6, -0.8, 0, 0.8, 1.6, 2.4} {
+for gy, i in grid_rows {
 gh[i]: Line, from: (cx - s * 3.2, cy - s * gy), to: (cx + s * 3.2, cy - s * gy), stroke: stroke.default, stroke_width: 1.3, opacity: 0.75
   }
 x_axis: Line, from: (cx - s * 3.2, cy), to: (cx + s * 3.2, cy), stroke: text.muted, stroke_width: 1.8, opacity: 0.9
@@ -144,12 +145,9 @@ j_t: Text, text: "j", font_size: 22, color: accent.info, at: (cx + 16, (cy - s) 
       //   k : 0 → 1 over 0.35s … 5.95s  (shear)
       //   θ : 0 → 90° over 6.2s … 13.4s (rotation, plus the slider's theta)
       //   d : 1 → −1 over 14.2s … 20.7s (collapse)
-      let ku = clamp((t - 0.35) / 5.6, 0, 1)
-      let ru = clamp((t - 6.2) / 7.2, 0, 1)
-      let du = clamp((t - 14.2) / 6.5, 0, 1)
-      let k = (ku * ku) * (3 - 2 * ku)
-      let th = deg(theta) + ((ru * ru) * (3 - 2 * ru)) * (pi / 2)
-      let dd = 1 - 2 * ((du * du) * (3 - 2 * du))
+      let k = smoothstep(0, 5.6, t - 0.35)
+      let th = deg(theta) + smoothstep(6.2, 13.4, t) * (pi / 2)
+      let dd = lerp(1, -1, smoothstep(14.2, 20.7, t))
       // M = C · R(θ) · S(k), written out so the readouts can track every entry.
       let co = cos(th)
       let si = sin(th)
@@ -163,7 +161,7 @@ j_t: Text, text: "j", font_size: 22, color: accent.info, at: (cx + 16, (cy - s) 
             gv[i].to = (cx + s * (m11 * gx + m12 * 2.4), cy - s * (m21 * gx + m22 * 2.4))
           }
       // Horizontal grid lines: y = gy, x sweeps -3.2 … 3.2.
-      for gy, i in {-2.4, -1.6, -0.8, 0, 0.8, 1.6, 2.4} {
+      for gy, i in grid_rows {
             gh[i].from = (cx + s * (m11 * -3.2 + m12 * gy), cy - s * (m21 * -3.2 + m22 * gy))
             gh[i].to = (cx + s * (m11 * 3.2 + m12 * gy), cy - s * (m21 * 3.2 + m22 * gy))
           }

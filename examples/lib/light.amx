@@ -49,7 +49,7 @@ pub component Ticker(to: Num = 100, size: Num = 64, suffix: Str = "") {
   value: Text, text: "0", font_size: size, color: text.primary
   always {
       // First 900 ms of the scene, then it holds on the target value.
-      let p = clamp(t / 0.9, 0, 1)
+      let p = linear_progress(t, 0, 0.9)
       self.value.text = format("{}{}", floor(to * p), suffix)
     }
 }

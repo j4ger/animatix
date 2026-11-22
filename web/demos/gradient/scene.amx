@@ -144,7 +144,7 @@ eq_lr: Text, text: format("learning rate lr = {:.2}", lr), font_size: 16, font_f
   // This illustrative straight probe is not the negative-gradient trajectory.
   // Only current loss changes; LOSS AT START remains the initial 29.16.
   always {
-      let p = clamp((t - 4.35) / 1.45, 0, 1)
+      let p = linear_progress(t - 4.35, 0, 1.45)
       let e = (p * p) * (3 - 2 * p)
       probe.at = (768 - 288 * e, 301 + 144 * e)
       probe_glow.at = probe.at
@@ -313,7 +313,7 @@ eq_note: Text, text: "one step is lr · |∇L| long", font_size: 16, font_family
   // The ball walks the same build-time path as the drawn segments, interpolated
   // between adjacent iterates so the motion stays frame-exact and scrubbable.
   always {
-      let raw = clamp((t - 4.55) / 1.7, 0, 1) * steps
+      let raw = linear_progress(t - 4.55, 0, 1.7) * steps
       let n = clamp(floor(raw), 0, steps - 1)
       let f = clamp(raw - n, 0, 1)
       let kx = 1 - 4 * lr
@@ -500,7 +500,7 @@ eq_lr: Text, text: format("lr = {:.2}", lr), font_size: 16, font_family: "mono",
   // walk handles lr > 0.25, where the x factor is negative and the path folds
   // back across the valley.
   always {
-      let raw = clamp((t - 4.5) / 1.75, 0, 1) * steps
+      let raw = linear_progress(t, 4.5, 6.25) * steps
       let n = clamp(floor(raw), 0, steps - 1)
       let f = clamp(raw - n, 0, 1)
       let kx = 1 - 4 * lr
@@ -566,7 +566,7 @@ let gold = hex_color("f4d47b")
   y100: Text, text: "100%", font_size: 16, color: hex_color("90a4b8"), text_anchor: "right", at: (97, 310)
   y50: Text, text: "50%", font_size: 16, color: hex_color("90a4b8"), text_anchor: "right", at: (97, 430)
   y0: Text, text: "0", font_size: 16, color: hex_color("90a4b8"), text_anchor: "right", at: (97, 550)
-  for y, i in {310, 430, 550} {
+  for y, i in linspace(310, 550, 3) {
       guide[i]: Line, from: (112, y), to: (864, y), stroke: hex_color("344455"), stroke_width: 1
     }
   x0_label: Text, text: "0", font_size: 16, color: hex_color("90a4b8"), at: (112, 578)

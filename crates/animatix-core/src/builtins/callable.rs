@@ -368,6 +368,18 @@ fn numeric_catalog() -> Vec<CallableDescriptor> {
             ],
             T::Num,
         ),
+        CallableDescriptor {
+            help: "Return the fraction from one bound to the other, clamped to [0, 1].".into(),
+            ..descriptor(
+                "linear_progress",
+                vec![
+                    param("value", T::Num),
+                    param("from", T::Num),
+                    param("to", T::Num),
+                ],
+                T::Num,
+            )
+        },
         descriptor("fbm", vec![param("value", T::Num), param("octaves", T::Num)], T::Num),
         descriptor("seeded_rand", vec![param("seed", T::Num)], T::Num),
         descriptor("seeded_noise", vec![param("seed", T::Num), param("value", T::Num)], T::Num),
@@ -542,8 +554,61 @@ fn utility_catalog() -> Vec<CallableDescriptor> {
             T::Timeline,
         ),
     ];
+    out.extend(sequence_catalog());
     out.extend(construction_catalog());
     out
+}
+
+fn sequence_catalog() -> Vec<CallableDescriptor> {
+    let list = T::List(Box::new(T::Any));
+    vec![
+        CallableDescriptor {
+            help: "Generate a fixed number of evenly spaced samples, including the end by default."
+                .into(),
+            ..descriptor(
+                "linspace",
+                vec![
+                    param("start", T::Num),
+                    param("end", T::Num),
+                    param("count", T::Num),
+                    opt("endpoint", T::Bool).with_default(D::Bool(true)),
+                ],
+                T::List(Box::new(T::Num)),
+            )
+        },
+        CallableDescriptor {
+            help: "Create a list with the given value at every position.".into(),
+            ..descriptor(
+                "repeat",
+                vec![param("value", T::Any), param("count", T::Num)],
+                list.clone(),
+            )
+        },
+        CallableDescriptor {
+            help: "Copy a half-open index interval. Omitted bounds select the full list.".into(),
+            ..descriptor(
+                "list_slice",
+                vec![
+                    param("list", list.clone()),
+                    opt("start", T::Num).with_default(D::Num(0.0)),
+                    opt("end", T::Num),
+                ],
+                list.clone(),
+            )
+        },
+        CallableDescriptor {
+            help: "Join two lists in order.".into(),
+            ..descriptor(
+                "list_concat",
+                vec![param("left", list.clone()), param("right", list.clone())],
+                list.clone(),
+            )
+        },
+        CallableDescriptor {
+            help: "Return the elements of a list in reverse order.".into(),
+            ..descriptor("list_reverse", vec![param("list", list.clone())], list)
+        },
+    ]
 }
 
 fn construction_catalog() -> Vec<CallableDescriptor> {

@@ -54,7 +54,7 @@ one_hint: Text, text: "the pen rides the rim — height over time is a sine", fo
 #1s
   sine.stroke_progress = 1 [12s, ease: linear]
   always {
-      let th = ((2 * pi) * clamp(t - 1, 0, 12)) / 12
+      let th = tau * linear_progress(t, 1, 13)
       pen.at = (280 + 140 * cos(th), 400 + 140 * sin(th))
       let px = clamp(t - 1, 0, 12)
       let wy = (4 / pi) * sin(px)
@@ -101,7 +101,8 @@ m7: Fragment, text: " + sin(7x)/7"
   hero_wave.stroke_progress = 1 [20s, ease: linear]
   // Epicycle chain: every center is an analytic function of t.
   always {
-      let th = ((2 * pi) * clamp(t - 1, 0, 10)) / 10
+      let phase = linear_progress(t, 1, 11)
+      let th = tau * phase
       let r1 = 140
       let r3 = 140 / 3
       let r5 = 140 / 5
@@ -116,7 +117,7 @@ m7: Fragment, text: " + sin(7x)/7"
       let c4y = c3y + r5 * sin(5 * th)
       c4.at = (c4x, c4y)
       tip.at = (c4x + r7 * cos(7 * th), c4y + r7 * sin(7 * th))
-      let x_now = (12.566 * clamp(t - 1, 0, 10)) / 10
+      let x_now = 12.566 * phase
       let wy = (4 / pi) * (((sin(x_now) + sin(3 * x_now) / 3) + sin(5 * x_now) / 5) + sin(7 * x_now) / 7)
       // Same linear mapping as the OneCircle scene (hero_graph geometry).
       wave_tip.at = (450 + 60.5 * x_now, 400 - 110 * wy)
@@ -171,7 +172,7 @@ cp_eq: Typst, text: "e^(i theta) = cos(theta) + i sin(theta)", font_size: 20, co
 cp_note: Text, text: "each circle is one term e^(i k theta) with radius a_k", font_size: theme::text_sm, color: text.secondary, anchor: scene.center, offset: (300, 20)
 endnote: Text, text: "sum enough circles and even a square wave is just rotation", font_size: theme::text_sm, color: text.muted, anchor: scene.bottom, offset: (0, -48)
 always {
-  let th = ((2 * pi) * clamp(t - 0.8, 0, 10)) / 10
+  let th = tau * linear_progress(t, 0.8, 10.8)
   vector.to = (420 + 200 * cos(th), 400 + 200 * sin(th))
   vec_tip.at = (420 + 200 * cos(th), 400 + 200 * sin(th))
 }

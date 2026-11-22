@@ -175,7 +175,7 @@ eq_note: Text, text: "one step is lr · |∇L| long", font_size: 16, font_family
   // The ball walks the same build-time path as the drawn segments, interpolated
   // between adjacent iterates so the motion stays frame-exact and scrubbable.
   always {
-      let raw = clamp((t - 4.55) / 1.7, 0, 1) * steps
+      let raw = linear_progress(t - 4.55, 0, 1.7) * steps
       let n = clamp(floor(raw), 0, steps - 1)
       let f = clamp(raw - n, 0, 1)
       let kx = 1 - 4 * lr

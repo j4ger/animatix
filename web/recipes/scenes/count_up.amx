@@ -9,7 +9,7 @@ kpi: Text, text: "0", font_size: 92, color: accent.warning, at: (320, 158), opac
 cap: Text, text: "requests per second", font_size: 20, color: text.secondary, at: (320, 226), opacity: 1
 
 always {
-  let p = clamp(t / 1.6, 0, 1)
+  let p = linear_progress(t, 0, 1.6)
   // Eased by hand: the counter should arrive with the plate, not linearly.
   let eased = 1 - pow(1 - p, 3)
   // `format` knows `{}` and `{.N}` — no thousands grouping — so the target is a

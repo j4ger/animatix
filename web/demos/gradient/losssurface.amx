@@ -157,7 +157,7 @@ eq_lr: Text, text: format("learning rate lr = {:.2}", lr), font_size: 16, font_f
   // This illustrative straight probe is not the negative-gradient trajectory.
   // Only current loss changes; LOSS AT START remains the initial 29.16.
   always {
-      let p = clamp((t - 4.35) / 1.45, 0, 1)
+      let p = linear_progress(t - 4.35, 0, 1.45)
       let e = (p * p) * (3 - 2 * p)
       probe.at = (768 - 288 * e, 301 + 144 * e)
       probe_glow.at = probe.at

@@ -2,9 +2,9 @@
 config { colorscheme: "neon-night", resolution: (1280, 720), duration: 28 }
 
 let phase_degrees = 0
-let initial = phase_degrees * pi / 180
+let initial = deg_to_rad(phase_degrees)
 let phase = initial
-let advance = (time, start, duration) => pi * ease_in_out(clamp((time - start) / duration, 0, 1))
+let advance = (time, start, end) => pi * ease_in_out(linear_progress(time, start, end))
 let domain = 4 * pi
 let plot_size = (710, 168)
 let y_unit = 40
@@ -53,12 +53,12 @@ let sample_x = lane_x + plot_size[0] * (sample / domain - 0.5)
   }
 
   always {
-    phase = initial + advance(t, 12, 6) + advance(t, 21, 5)
+    phase = initial + advance(t, 12, 18) + advance(t, 21, 26)
     let height_b = sin(sample + phase)
     point_b.at = (sample_x, center_y - y_unit * height_b)
     point_sum.at = (sample_x, lane_sum - y_unit * (1 + height_b))
     addition.text = format("1 + ({:.1}) = {:.1}", height_b, 1 + height_b)
-    phase_value.text = format("Phase: {:.0}°", phase * 180 / pi)
+    phase_value.text = format("Phase: {:.0}°", rad_to_deg(phase))
     amplitude_value.text = format("Amplitude: {:.2}", 2 * abs(cos(phase / 2)))
   }
 

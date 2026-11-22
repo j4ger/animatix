@@ -166,7 +166,7 @@ pv2: Text, text: "0.05", font_size: 16, color: text.secondary, at: (1160, 176)
       // The caret blinks on the loop phase and dims out as the prediction lands:
       // `always` owns this opacity outright (no keyframe may touch it, or the
       // build warns that the keyframe is silently overridden).
-      caret.opacity = (0.35 + 0.55 * (0.5 + 0.5 * sin((t * 6.283185307179586) * 1.1))) * clamp((7.9 - t) / 0.3, 0, 1)
+      caret.opacity = (0.35 + 0.55 * (0.5 + 0.5 * sin((t * tau) * 1.1))) * linear_progress(t, 7.9, 7.6)
     }
 
 // Act II — the mechanism: the climb, then the block's internals in execution

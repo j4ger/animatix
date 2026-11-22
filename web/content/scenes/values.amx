@@ -6,6 +6,6 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6 }
   ring: Ellipse, at: (640, 360), size: (300, 300), fill_opacity: 0, stroke: hex_color("344455"), stroke_width: 2
   point: Ellipse, at: (790, 360), size: (48, 48), color: hex_color("65d9e8")
   always {
-      let angle = ((2 * pi) * t) / 6
+      let angle = tau * t / 6
       point.at = (640 + 150 * cos(angle), 360 - 150 * sin(angle))
     }

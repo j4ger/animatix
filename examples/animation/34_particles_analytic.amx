@@ -33,14 +33,15 @@ for j in mote_indices {
   pop_in(target: origin, duration: 0.3s)
   always {
       let age = clamp(t - 0.6, 0, 2.4)
+      let life_fraction = linear_progress(t, 0.6, 3)
       for i in spark_indices {
             let dir = seeded_noise(i * 1.37, 0.5) * 6.28318
             let speed = 180 + seeded_noise(i * 2.11, 9) * 340
             let reach = speed * age
             spark[i].at = (640 + cos(dir) * reach, (380 + sin(dir) * reach) + (260 * age) * age)
             spark[i].size = (14 * (1 - age / 2.8), 14 * (1 - age / 2.8))
-            spark[i].color = lerp_color_oklab(hex_color("ffe9c7"), hex_color("ff2d55"), age / 2.4)
-            spark[i].opacity = clamp(1 - age / 2.4, 0, 1)
+            spark[i].color = lerp_color_oklab(hex_color("ffe9c7"), hex_color("ff2d55"), life_fraction)
+            spark[i].opacity = 1 - life_fraction
           }
       let period = 6
       let phase = ((t % period) / period) * 6.28318

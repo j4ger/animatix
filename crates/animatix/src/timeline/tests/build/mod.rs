@@ -8,5 +8,6 @@ mod format;
 mod graph;
 mod opacity_lifecycle;
 mod ranges;
+mod sequences;
 mod support;
 mod text;

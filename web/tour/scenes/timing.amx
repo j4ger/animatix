@@ -1,8 +1,7 @@
 // timing.amx — tour §02: sequence, stagger and the easing vocabulary.
 // The five squares are one Row container; the cast is generated at build
-// time by a `for` over an array of colors — layout and generation instead
-// of five hand-copied lines. (For-expansion covers declarations, not the
-// inside of stagger/sequence blocks: choreography stays explicit.)
+// time by a `for` over a list of colors. The stagger and sequence blocks
+// show each timed item in playback order.
 //
 // The easing beat names each ease on screen: the finale palette uses all
 // five distinct channels (amber/bone/coral/sage/steel) because here hue IS
@@ -15,12 +14,13 @@
 // the five curves — linear is behind, ease-out is ahead, bounce has already
 // landed and is still wobbling. A scale ramp cannot show that (1.25 -> 1.0
 // is a 25% change on a 120px box, and every curve ends in the same place).
-// The labels are hand-positioned at the Row's slot centres (x = 272 + 184i,
-// from 5 slots of 120 + gap 64 centred on 640) so each name sits exactly
-// under its square.
+// The labels and racers share the Row's five slot centres. Each square is
+// 120 px wide, with a 64 px gap and the row centred at x = 640.
 import "../../../examples/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 7.7 }
+
+let slot_xs = linspace(272, 1008, 5)
 
 title: Text, text: "stagger · sequence · easing", font_size: 30, color: text.primary, anchor: scene.top, offset: (0, 56)
 
@@ -35,15 +35,15 @@ square[i]: Rect, size: (120, 120), color: color, corner_radius: 14
   }
 }
 
-label_0: Text, text: "linear", font_size: 26, color: text.secondary, at: (272, 462)
+label_0: Text, text: "linear", font_size: 26, color: text.secondary, at: (slot_xs[0], 462)
 
-label_1: Text, text: "ease-in", font_size: 26, color: text.secondary, at: (456, 462)
+label_1: Text, text: "ease-in", font_size: 26, color: text.secondary, at: (slot_xs[1], 462)
 
-label_2: Text, text: "ease-out", font_size: 26, color: text.secondary, at: (640, 462)
+label_2: Text, text: "ease-out", font_size: 26, color: text.secondary, at: (slot_xs[2], 462)
 
-label_3: Text, text: "ease-in-out", font_size: 26, color: text.secondary, at: (824, 462)
+label_3: Text, text: "ease-in-out", font_size: 26, color: text.secondary, at: (slot_xs[3], 462)
 
-label_4: Text, text: "bounce", font_size: 26, color: text.secondary, at: (1008, 462)
+label_4: Text, text: "bounce", font_size: 26, color: text.secondary, at: (slot_xs[4], 462)
 
 // The race: start rail, landing rail, five neutral dots. The dots are bone,
 // not the squares' hues — the position IS the read, and a coloured dot would
@@ -53,7 +53,7 @@ rail_top: Path, commands: {move_to(212, 505), line_to(1068, 505)}, stroke: strok
 rail_bot: Path, commands: {move_to(212, 610), line_to(1068, 610)}, stroke: stroke.default, stroke_width: 1, fill_opacity: 0, dash_pattern: {4, 6}
 
 racers: Group {
-for x, i in {272, 456, 640, 824, 1008} {
+for x, i in slot_xs {
 drop[i]: Ellipse, size: (24, 24), at: (x, 505), fill_gradient: radial((0.34, 0.28), 0.66, {(0%, hex_color("ffffff")), (45%, hex_color("ece7db")), (100%, hex_color("7d786f"))})
   }
 }

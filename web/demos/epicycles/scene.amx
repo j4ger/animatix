@@ -298,7 +298,7 @@ play Hero [wipe-left, 500ms]
 config { colorscheme: "orchid", dynamic_layout: true, duration: 11.8 }
 
 let odd_harmonics = range(1, 12, step: 2)
-let higher_harmonics = range(3, 12, step: 2)
+let higher_harmonics = list_slice(odd_harmonics, 1)
 
 // The slider target: `--set harmonics=N` (1..6) chooses how many odd chains draw.
 let harmonics = 4
@@ -436,26 +436,15 @@ chip_a: Readout, label: "AMPLITUDE", value: "1.00", at: (1140, 613), opacity: 0
   // hold. Nothing erases; the loop wraps onto itself.
   always {
       // Harmonic gates: 1.35 s apart, smoothstepped so the wave does not kink.
-      let s3 = clamp((t - 2.2) / 1, 0, 1)
-      let s5 = clamp((t - 3.55) / 1, 0, 1)
-      let s7 = clamp((t - 4.9) / 1, 0, 1)
-      let s9 = clamp((t - 6.25) / 1, 0, 1)
-      let s11 = clamp((t - 7.6) / 1, 0, 1)
-      let e3 = (s3 * s3) * (3 - 2 * s3)
-      let e5 = (s5 * s5) * (3 - 2 * s5)
-      let e7 = (s7 * s7) * (3 - 2 * s7)
-      let e9 = (s9 * s9) * (3 - 2 * s9)
-      let e11 = (s11 * s11) * (3 - 2 * s11)
-      g3 = if harmonics > 1 { e3 } else { 0 }
-      g5 = if harmonics > 2 { e5 } else { 0 }
-      g7 = if harmonics > 3 { e7 } else { 0 }
-      g9 = if harmonics > 4 { e9 } else { 0 }
-      g11 = if harmonics > 5 { e11 } else { 0 }
+      g3 = if harmonics > 1 { smoothstep(0, 1, t - 2.2) } else { 0 }
+      g5 = if harmonics > 2 { smoothstep(0, 1, t - 3.55) } else { 0 }
+      g7 = if harmonics > 3 { smoothstep(0, 1, t - 4.9) } else { 0 }
+      g9 = if harmonics > 4 { smoothstep(0, 1, t - 6.25) } else { 0 }
+      g11 = if harmonics > 5 { smoothstep(0, 1, t - 7.6) } else { 0 }
       let u = clamp((t - 0.15) / 10, 0, 0.986)
       th_now = geo::span * u
       let th = th_now
       let wts = {1, g3, g5, g7, g9, g11}
-      let rad = {geo::R, geo::R / 3, geo::R / 5, geo::R / 7, geo::R / 9, geo::R / 11}
       // Walk the chain: circle i is centred where harmonic i-1's vector ended, and
       // its own weighted radius reaches the next centre. `sum` is the same partial
       // sum the plotted function evaluates at x = th.
@@ -465,7 +454,7 @@ chip_a: Readout, label: "AMPLITUDE", value: "1.00", at: (1140, 613), opacity: 0
       for k, i in odd_harmonics {
             ring[i].at = (cx, cy)
             arm[i].from = (cx, cy)
-            let reach = wts[i] * rad[i]
+            let reach = wts[i] * (geo::R / k)
             let nx = cx + reach * cos(k * th)
             let ny = cy - reach * sin(k * th)
             arm[i].to = (nx, ny)

@@ -2364,6 +2364,19 @@ The build-time sampler automatically excludes non-content elements to prevent fe
 
 **Easing helpers (for use in `always` blocks):** `ease_linear(t)`, `ease_in(t)`, `ease_out(t)`, `ease_in_out(t)`, `bounce(t)`, `elastic(t)`, `back(t)`, `expo(t)` — each takes a progress value `t` in `[0, 1]` and returns the eased progress.
 
+`linear_progress(value, from, to)` returns the linear fraction from `from` to `to`,
+clamped to `[0, 1]`. A descending interval runs from `1` at lower values to
+`0` at higher values. All three arguments must be finite numbers, and the
+bounds must be distinct. With `t`, use seconds for both bounds.
+`smoothstep(edge0, edge1, x)` applies a cubic ease to the clamped fraction
+between its two bounds.
+
+```animatix
+always {
+  label.opacity = ease_in_out(linear_progress(t, from: 1, to: 5))
+}
+```
+
 ### Typst vs LaTeX Cheat Sheet
 
 The `Typst` primitive uses **Typst** syntax, not LaTeX. Common mistakes:
@@ -2494,6 +2507,36 @@ are intended for build-time algorithm precomputation.
 let arr = {5, 2, 8}
 let swapped = list_swap(arr, 0, 2)   // {8, 2, 5}
 let replaced = list_set(arr, 1, 9)   // {5, 9, 8}
+```
+
+### List Construction and Selection
+
+`linspace(start, end, count, endpoint: true)` returns exactly `count` evenly
+spaced numeric samples between finite bounds. Both ascending and descending
+intervals work. By default the series includes both endpoints when there are at
+least two samples. Use `endpoint: false` to sample the half-open interval.
+Zero samples gives an empty list, and one sample gives `{start}`.
+
+`repeat(value, count)` fills a list with `count` copies of a value. Counts for
+both constructors must be integers between 0 and 100,000.
+
+```animatix
+let weights = linspace(0, 1, 5)        // {0, 0.25, 0.5, 0.75, 1}
+let angles = linspace(0, tau, 8, endpoint: false)
+let opacities = repeat(0, 4)           // {0, 0, 0, 0}
+```
+
+`list_slice(list, start: 0, end: list.length)` uses zero-based indices. It
+includes `start` and excludes `end`. Bounds must be integers in order within
+`[0, list.length]`. Equal bounds return an empty list.
+`list_concat(left, right)` joins two lists in order, up to 100,000 elements.
+`list_reverse(list)` returns the elements in reverse order. These functions
+produce new list values and can run during construction or in `always`.
+
+```animatix
+let middle = list_slice({10, 20, 30, 40}, 1, 3) // {20, 30}
+let joined = list_concat(middle, {50, 60})      // {20, 30, 50, 60}
+let backward = list_reverse(joined)            // {60, 50, 30, 20}
 ```
 
 ### Build-Time Algorithm Precomputation

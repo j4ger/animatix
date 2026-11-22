@@ -147,8 +147,8 @@ desc_c: Text, text: "bounds-normalised", font_size: 16, color: text.muted, at: (
   // spec chips. Nothing erases.
   always {
       // Live morph phase: 0 at the star, 1 at the ring, and back again.
-      let up = clamp((t - 2.2) / 1.8, 0, 1)
-      let down = clamp((t - 5.8) / 1.6, 0, 1)
+      let up = linear_progress(t - 2.2, 0, 1.8)
+      let down = linear_progress(t - 5.8, 0, 1.6)
       let ph = up * (1 - down)
       // Station names stay lit while their strategy is the one under the cursor:
       // the arc label tracks the slider, the shared MORPH chip names the current road.

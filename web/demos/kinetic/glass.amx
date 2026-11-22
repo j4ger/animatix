@@ -128,7 +128,7 @@ desc: Text, text: "The field behind it dissolves; the type on it does not.", fon
             needles[i].opacity = 0.55 + 0.3 * (0.5 + 0.5 * sin(t * 1.1 + i * 0.9))
           }
       // The frost ramps from a faint breath to the authored radius and holds there.
-      soft.radius = frost * (0.2 + 0.8 * clamp((t - 0.15) / 3, 0, 1))
+      soft.radius = frost * lerp(0.2, 1, linear_progress(t, 0.15, 3.15))
       // Live specs: the blur the panel is actually running and the plane's current
       // yaw. `deg` converts the orthographic radian property back to degrees.
       chip_frost.value_text.text = format("{:.0f} px", soft.radius)

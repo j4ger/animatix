@@ -10,8 +10,7 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 8 }
   label: Text, text: "subject", at: (380, 290), font_size: 28, color: hex_color("f3f5f7")
   caption: Text, text: "One position. Three related elements.", at: (640, 560), font_size: 26, color: hex_color("adbcca")
   always {
-      let progress = clamp((t - 1) / 4, 0, 1)
-      let x = 380 + 520 * ease_in_out(progress)
+      let x = lerp(380, 900, ease_in_out(linear_progress(t, 1, 5)))
       point.at = (x, 420)
       leader.from = (x, 380)
       leader.to = (x, 325)

@@ -19,9 +19,9 @@ let pulse_at = (time, center) => exp(0 - ((time - center) / 0.65) ^ 2)
     fill_gradient: radial((0.5, 0.5), 0.68, {surface.secondary, scene.background})
   seed: Rect, anchor: scene.center, size: cell, corner_radius: 14, color: accent.primary
   field: Grid, cols: columns, gap: 24, anchor: scene.center {
-    for i in tile_indices {
+    for mix, i in linspace(0, 1, count) {
       tile[i]: Rect, size: cell, corner_radius: 14, opacity: 0,
-        color: lerp_color_oklab(accent.primary, accent.info, i / (count - 1))
+        color: lerp_color_oklab(accent.primary, accent.info, mix)
     }
   }
   caption: Text, anchor: scene.bottom, offset: (0, -58), text: format("One tile becomes {}.", count), font_size: 28
@@ -37,7 +37,7 @@ let pulse_at = (time, center) => exp(0 - ((time - center) / 0.65) ^ 2)
       let first_delay = if starts_with_cascade { cascade } else { ripple }
       let second_delay = if starts_with_cascade { ripple } else { cascade }
       let pulse = pulse_at(t, 5.5 + first_delay) + pulse_at(t, 11 + second_delay) + pulse_at(t, 16 + second_delay)
-      let reveal = clamp((t - 2 - i * 0.025) / 0.5, 0, 1)
+      let reveal = linear_progress(t - i * 0.025, 2, 2.5)
       tile[i].scale = 0.45 + 0.37 * reveal + 0.32 * pulse
       tile[i].rotation = 0.45 * pulse
       tile[i].opacity = reveal * (0.65 + 0.35 * pulse)
