@@ -1,8 +1,10 @@
 // Shear maps (x, y) to (x + k*y, y). The reference axes stay fixed.
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 24 }
+import "../templates/layout.amx"
 
-let unit = 85
-let project = (x, y, shear) => (unit * (x + shear * y), 0 - unit * y)
+config { style: "editorial", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 24 }
+
+let basis_unit = 85
+let project = (x, y, shear) => (basis_unit * (x + shear * y), 0 - basis_unit * y)
 
 #0s
   backdrop: Rect, anchor: scene.center, size: (scene_width, scene_height),
@@ -16,28 +18,27 @@ let project = (x, y, shear) => (unit * (x + shear * y), 0 - unit * y)
     }
     x_axis: Line, from: project(-3.4, 0, 0), to: project(3.4, 0, 0), opacity: 0.55
     y_axis: Line, from: project(0, -2.6, 0), to: project(0, 2.6, 0), opacity: 0.55
-    x_label: Text, at: project(3.6, 0, 0), text: "x", color: text.secondary
-    y_label: Text, at: project(0, 2.85, 0), text: "y", color: text.secondary
+    x_label: Text, at: project(3.6, 0, 0), text: "x", role: body
+    y_label: Text, at: project(0, 2.85, 0), text: "y", role: body
     e1: Arrow, from: (0, 0), to: project(1, 0, 0), stroke: accent.primary, stroke_width: 4
     e2: Arrow, from: (0, 0), to: project(0, 1, 0), stroke: accent.warning, stroke_width: 4
     top_edge: Line, from: project(0, 1, 0), to: project(1, 1, 0), stroke: accent.primary, stroke_width: 3, opacity: 0
     right_edge: Line, from: project(1, 0, 0), to: project(1, 1, 0), stroke: accent.primary, stroke_width: 3, opacity: 0
     point: Ellipse, size: (14, 14), color: accent.danger, opacity: 0
   }
-  readout: Col, at: (81%, 52%), align: "start", gap: 14 {
-    equation: Text, text: "(x, y) → (x + ky, y)", font_size: 31
-    shear: Row, align: "center", gap: 8 {
-      symbol: Text, text: "k =", font_size: 38, color: text.secondary
-      amount: Counter, value: 0, decimals: 2, font_size: 38, color: accent.warning
+  readout: Col, at: (81%, 52%), align: "start", gap: theme.gap * 0.7 {
+    equation: Text, text: "(x, y) → (x + ky, y)", role: body
+    shear: Row, align: "center", gap: theme.gap * 0.35 {
+      symbol: Text, text: "k =", role: body, color: text.secondary
+      amount: MetricNumber, places: 2, ink: accent.warning
     }
-    area: Text, text: "Area = 1", font_size: 24, color: text.secondary, opacity: 0
+    area: Text, text: "Area = 1", role: note, opacity: 0
   }
-  caption: Text, anchor: scene.bottom, offset: (0, -68),
-    text: "Two basis vectors describe the original space.", font_size: 26
+  caption: SceneCaption, text: "Two basis vectors describe the original space."
 
   always {
     let tip = e2.to
-    let k = tip[0] / unit
+    let k = tip[0] / basis_unit
     lattice.transform = (1, 0, -k, 1, 0, 0)
     point.at = project(1, 1, k)
     top_edge.from = project(0, 1, k)

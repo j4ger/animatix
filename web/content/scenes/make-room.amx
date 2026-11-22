@@ -1,5 +1,7 @@
 // Sort [4, 2a, 5, 2b, 3]. The letters show the relative order of equal values.
-config { colorscheme: "default-light", resolution: (1280, 720), duration: 24 }
+import "../templates/layout.amx"
+
+config { style: "compact", colorscheme: "default-light", resolution: (1280, 720), duration: 24 }
 
 let width = 110
 let spacing = 152
@@ -10,11 +12,6 @@ let slot = (index, y) => (180 + index * spacing, y)
 let neutral = surface.primary
 let comparing = surface.secondary
 let active = accent.warning
-
-pub component NumberCard(value: Str) {
-  tile: Rect, size: (width, width), corner_radius: 14, color: neutral
-  digit: Text, text: value, font_size: 40, font_weight: "bold"
-}
 
 fn place(card: Actor, index: Num, y: Num) {
   return #{ card.at = slot(index, y) [400ms, ease: ease_in_out] }
@@ -30,20 +27,19 @@ fn grow_prefix(line: Actor, count: Num) {
 #0s
   backdrop: Rect, anchor: scene.center, size: (scene_width, scene_height),
     fill_gradient: radial((0.30, 0.32), 0.9, {surface.primary, scene.background})
-  caption: Text, anchor: scene.top, offset: (0, 103),
-    text: "Start with one sorted item. Insert the next.", font_size: 32
+  caption: SceneCaption, at: (scene_width / 2, 103), text: "Start with one sorted item. Insert the next."
   prefix: Rect, at: slot(0, underline_y), size: (width, 5), color: accent.success
-  stats: Col, at: (83%, 54%), gap: 12 {
-    compare_label: Text, text: "Comparisons", font_size: 22, color: text.secondary
-    comparisons: Counter, value: 0, font_size: 50
-    shift_label: Text, text: "Rightward shifts", font_size: 22, color: text.secondary
-    shifts: Counter, value: 0, font_size: 50
+  stats: Col, at: (83%, 54%), gap: theme.gap * 0.65, align: "start" {
+    comparison_label: Text, text: "Comparisons", role: note
+    comparisons: MetricNumber
+    shift_label: Text, text: "Rightward shifts", role: note
+    shifts: MetricNumber
   }
-  four: NumberCard, value: "4", at: slot(0, row_y)
-  two_a: NumberCard, value: "2a", at: slot(1, row_y)
-  five: NumberCard, value: "5", at: slot(2, row_y)
-  two_b: NumberCard, value: "2b", at: slot(3, row_y)
-  three: NumberCard, value: "3", at: slot(4, row_y)
+  four: SequenceTile, extent: (width, width), value: "4", at: slot(0, row_y)
+  two_a: SequenceTile, extent: (width, width), value: "2a", at: slot(1, row_y)
+  five: SequenceTile, extent: (width, width), value: "5", at: slot(2, row_y)
+  two_b: SequenceTile, extent: (width, width), value: "2b", at: slot(3, row_y)
+  three: SequenceTile, extent: (width, width), value: "3", at: slot(4, row_y)
 
 #3s
   caption.text = "Lift 2a. Compare it with the sorted prefix."

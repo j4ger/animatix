@@ -1,5 +1,7 @@
 // A maintenance notice, split into three answers and revealed in reading order.
-config { colorscheme: "paper", resolution: (1280, 720), duration: 20 }
+import "../templates/layout.amx"
+
+config { style: "compact", colorscheme: "paper", resolution: (1280, 720), duration: 20 }
 
 let impact = "The editor will be read-only"
 let window = "Sunday, 02:00–02:20 UTC"
@@ -7,29 +9,23 @@ let available = "Reading and exports"
 let panel_size = (520, 340)
 let column_offset = panel_size[0] / 2 + 22
 
-pub component NoticeField(label: Str, value: Str) {
-  field: Col, size: (440, auto), gap: 8, align: "start" {
-    name: Text, text: label, font_size: 18, font_weight: "bold", color: accent.primary
-    detail: Text, text: value, font_size: 26
-  }
-}
-
 #0s
   ground: Rect, anchor: scene.center, size: (scene_width, scene_height),
     fill_gradient: linear(150, {surface.primary, scene.background})
   heading: Text, anchor: scene.top, offset: (0, 101), text: "Scheduled maintenance",
-    font_size: 46, font_weight: "bold"
-  original: Stack, anchor: scene.center, align: "center" {
-    page: Rect, size: panel_size, corner_radius: 18, color: surface.primary, stroke: stroke.default
-    copy: Text, text: format("{} on {}. {} stay available.", impact, window, available),
-      font_size: 29, text_max_width: 428, line_height: 1.35
+    role: title
+  original: ReadingPanel, extent: panel_size, anchor: scene.center {
+    @content {
+      copy: Text, text: format("{} on {}. {} stay available.", impact, window, available),
+        role: body, text_max_width: 428, line_height: 1.35
+    }
   }
   notice: Stack, anchor: scene.center, offset: (column_offset, 0), align: "center" {
-    sheet: Rect, size: panel_size, corner_radius: 18, color: surface.secondary, opacity: 0
-    entries: Col, align: "start", gap: 23 {
-      changed: NoticeField, label: "What changes", value: impact, opacity: 0
-      time: NoticeField, label: "When", value: window, opacity: 0
-      usable: NoticeField, label: "Still available", value: available, opacity: 0
+    sheet: Rect, size: panel_size, corner_radius: theme.radius, color: surface.secondary, opacity: 0
+    entries: Col, align: "start", gap: theme.gap {
+      changed: ReadingField, width: 440, label: "What changes", detail: impact, opacity: 0
+      time: ReadingField, width: 440, label: "When", detail: window, opacity: 0
+      usable: ReadingField, width: 440, label: "Still available", detail: available, opacity: 0
     }
   }
 

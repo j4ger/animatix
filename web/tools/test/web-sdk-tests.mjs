@@ -225,6 +225,7 @@ test('SDK identity follows subsystem tooling and excludes ignored build caches',
   let previous = inputs(root);
   for (const path of ['web/tools/build/build-web.sh', 'web/tools/test/helper.mjs',
     'web/tools/animatix-web-build/src/main.rs', 'tools/ci/ci.sh',
+    'web/content/templates/layout.amx',
     'crates/animatix-gui/tools/packaging/package-macos.py']) {
     const absolute = join(root, path);
     mkdirSync(absolute.slice(0, absolute.lastIndexOf('/')), { recursive: true });

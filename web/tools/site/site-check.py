@@ -47,6 +47,11 @@ def main():
         works = previews['works']
         if previews.get('schema_version') != 1 or len(works) < 3:
             errors.append('preview manifest must describe at least three works with schema_version 1')
+        for name, digest in previews.get('source_modules', {}).items():
+            module = (content / name).resolve()
+            if (not module.is_relative_to(content.resolve()) or not module.is_file()
+                    or hashlib.sha256(module.read_bytes()).hexdigest() != digest):
+                errors.append(f"stale or missing preview source module: {name}")
         ids = set()
         for work in works + previews.get('stills', []):
             if work['id'] in ids:

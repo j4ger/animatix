@@ -1,5 +1,7 @@
 // Add the two displacements at each x. Every lane uses the same y scale.
-config { colorscheme: "neon-night", resolution: (1280, 720), duration: 28 }
+import "../templates/layout.amx"
+
+config { style: "editorial", colorscheme: "neon-night", resolution: (1280, 720), duration: 28 }
 
 let phase_degrees = 0
 let initial = deg_to_rad(phase_degrees)
@@ -21,23 +23,26 @@ let sample_x = lane_x + plot_size[0] * (sample / domain - 0.5)
   backdrop: Rect, anchor: scene.center, size: (scene_width, scene_height),
     fill_gradient: linear(115, {scene.background, surface.secondary})
   waves: Col, at: (lane_x, center_y), gap: lane_gap - plot_size[1] {
-    input_a: Graph, size: plot_size, x_domain: (0, domain), y_domain: (-2.1, 2.1),
-      stroke: text.muted, grid: false, ticks: false, tick_labels: "none", opacity: 0 {
-      wave_a: PlotCurve, func: (x) => sin(x), stroke_width: 5, stroke: accent.info
+    input_a: SignalLane, extent: plot_size, domain: (0, domain), span: (-2.1, 2.1), opacity: 0 {
+      @graph {
+        wave_a: PlotCurve, func: (x) => sin(x), role: focus, stroke: accent.info
+      }
     }
-    input_b: Graph, size: plot_size, x_domain: (0, domain), y_domain: (-2.1, 2.1),
-      stroke: text.muted, grid: false, ticks: false, tick_labels: "none", opacity: 0 {
-      wave_b: PlotCurve, func: (x) => sin(x + phase), stroke_width: 5, stroke: accent.secondary
+    input_b: SignalLane, extent: plot_size, domain: (0, domain), span: (-2.1, 2.1), opacity: 0 {
+      @graph {
+        wave_b: PlotCurve, func: (x) => sin(x + phase), role: focus, stroke: accent.secondary
+      }
     }
-    sum: Graph, size: plot_size, x_domain: (0, domain), y_domain: (-2.1, 2.1),
-      stroke: text.muted, grid: false, ticks: false, tick_labels: "none", opacity: 0 {
-      wave_sum: PlotCurve, func: (x) => sin(x) + sin(x + phase), stroke_width: 5, stroke: accent.success
+    sum: SignalLane, extent: plot_size, domain: (0, domain), span: (-2.1, 2.1), opacity: 0 {
+      @graph {
+        wave_sum: PlotCurve, func: (x) => sin(x) + sin(x + phase), role: focus, stroke: accent.success
+      }
     }
   }
   labels: Col, anchor: scene.left, offset: (68, -24), gap: lane_gap - 42 {
-    first: Text, text: "A", font_size: 24, line_height: 1.75, color: accent.info, opacity: 0
-    second: Text, text: "B", font_size: 24, line_height: 1.75, color: accent.secondary, opacity: 0
-    total: Text, text: "A + B", font_size: 24, line_height: 1.75, color: accent.success, opacity: 0
+    first: Text, text: "A", role: note, line_height: 1.75, color: accent.info, opacity: 0
+    second: Text, text: "B", role: note, line_height: 1.75, color: accent.secondary, opacity: 0
+    total: Text, text: "A + B", role: note, line_height: 1.75, color: accent.success, opacity: 0
   }
   sample_guide: Line, from: (sample_x, lane_a - 80), to: (sample_x, lane_sum + 80),
     stroke: text.muted, dash_pattern: {5, 7}, opacity: 0
@@ -46,10 +51,10 @@ let sample_x = lane_x + plot_size[0] * (sample / domain - 0.5)
   point_a: Ellipse, at: (sample_x, lane_a - y_unit), size: (14, 14), color: accent.info, opacity: 0
   point_b: Ellipse, size: (14, 14), color: accent.secondary, opacity: 0
   point_sum: Ellipse, size: (14, 14), color: accent.success, opacity: 0
-  addition: Text, at: (82%, 50%), text: "1 + 1 = 2", font_size: 30, opacity: 0
+  addition: Text, at: (82%, 50%), text: "1 + 1 = 2", role: body, opacity: 0
   readout: Col, at: (82%, 50%), align: "start", gap: 12, opacity: 0 {
-    phase_value: Text, text: "Phase: 0°", font_size: 32
-    amplitude_value: Text, text: "Amplitude: 2.00", font_size: 27, color: accent.success
+    phase_value: Text, text: "Phase: 0°", role: body
+    amplitude_value: Text, text: "Amplitude: 2.00", role: body, color: accent.success
   }
 
   always {

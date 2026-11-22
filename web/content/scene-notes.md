@@ -1,6 +1,26 @@
 # Scene contracts and verification
 
-Every source is self-contained. Page titles and long explanations belong in the DOM; the canvas carries the labels and captions needed to follow the animation. The Showcase works use 1280×720 stages. The scenes use built-in colorschemes for text, surfaces, accents and backdrop gradients. Layout containers group the legends, readouts and notice fields. Computed positions keep related marks on a common scale.
+Public scenes share the presentation library at `templates/layout.amx`.
+Scenes place their own actors and own their timings. When a source imports the
+library, the website fetches that module for playback and includes the module
+in the downloaded AMX. Native `animatix init` projects copy the same library
+into their project folder.
+
+Page titles and long explanations belong in the DOM. The canvas carries the
+labels and captions that let the viewer follow the animation. Showcase works
+use 1280×720 stages and semantic colorscheme values.
+
+| Reusable layout | First uses |
+|---|---|
+| `TechniqueStage` and `SceneCaption` | Focus, anchoring, reveal, and stagger lessons share a heading and takeaway treatment. |
+| `SequenceTile` and `MetricNumber` | Homepage insertion and the stable-sort showcase share tile geometry. Stable sort and the shear showcase use the number component. |
+| `SignalLane` and `SignalKey` | Wave addition and train-noise cancellation share graph and legend defaults. Each source keeps its own signal formula and scale. |
+| `ReadingPanel` and `ReadingField` | The maintenance notice reuses a reading surface and three fields with the same visual hierarchy. |
+
+Six introductory syntax lessons use the style and colorscheme directly so
+their source continues to show the construct being taught. The homepage's two
+single-purpose rhythm sketches keep their authored geometry, controls, and
+typography.
 
 ## Works
 
@@ -34,7 +54,7 @@ A enters at 0.2 s, B at 2.5 s. Single-point addition appears at 5.5 s; the compl
 
 ### Maintenance notice
 
-The original announcement is visible from the first frame. At 4 s it moves left and the impact appears on the right. The time window and available features follow at 8 and 12 s. Both panels hold through 20 s. A `Stack` aligns the original card and its text. A `Col` places three instances of `NoticeField`. Both panels use the same three strings.
+The original announcement is visible from the first frame. At 4 s it moves left and the impact appears on the right. The time window and available features follow at 8 and 12 s. Both panels hold through 20 s. `ReadingPanel` aligns the original card and its text. A `Col` places three instances of `ReadingField`. Both panels use the same three strings.
 
 ## Hero and lessons
 
@@ -59,7 +79,7 @@ playback failure.
 `preview-manifest.json` binds each work to its source, poster and optional
 recording. All five recordings are silent H.264/yuv420p, 1280×720 at 24 fps,
 with MP4 fast-start and verified frame counts. The manifest carries each
-duration, poster timestamp and artifact hash.
+duration, poster timestamp and artifact hash. The manifest also hashes the shared layout dependency.
 
 Render at the authored resolution: the current CLI's smaller `--width/--height` video options cropped this scene instead of scaling. The initial low-resolution attempt was rejected after viewing encoded frames. Current delivered recordings have no crop or resize.
 
@@ -91,7 +111,7 @@ The repository has a narration example, word-level JSON, an Edge-TTS helper, and
 - `make-room.amx` (24 s): stable insertion sort on `[4, 2a, 5, 2b, 3]`. Counters
   count eight key comparisons and five rightward moves, excluding key placement.
   Each `Counter` rolls once alongside its comparison highlight or card shift.
-  Explicit keyframe events pair each decision with its caption. `NumberCard`
+  Explicit keyframe events pair each decision with its caption. `SequenceTile`
   moves the face and digit together, the slot and prefix share one spacing
   value, and a `Col` lays out the counters.
 - `technique-reveal/focus/stagger/labels.amx`: four short, single-intent sources

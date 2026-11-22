@@ -46,8 +46,9 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
     if (contract.action === 'edit') {
       await cdp.evaluate(`(() => {
         const code = document.querySelector('#source-code');
+        if (!code.value.includes('color: accent.primary')) throw Error('Unexpected first-move dot color');
         const source = code.value
-          .replace('hex_color("65d9e8")', 'hex_color("f46ea0")')
+          .replace('color: accent.primary', 'color: hex_color("f46ea0")')
           .replace('duration: 3', 'duration: 4').replace('#0.5s', '#0.25s')
           .replace('#3s', '#1.9s\\n\\n#3s');
         if (source === code.value) throw Error('Unexpected first-move source');
@@ -286,7 +287,9 @@ async function presetJourney(cdp, capture, checkErrors, record) {
     player.pause();player.seek(6);
     return {draft,source};
   })()`);
-  if(result.draft!==result.source || !/^let start_pattern = 1$/m.test(result.source))throw Error('Preset, editor and downloaded source disagree');
+  if (!containsPortableLayout(result.source, result.draft) || !/^let start_pattern = 1$/m.test(result.source)) {
+    throw Error('Preset download did not preserve the draft body and include its layout');
+  }
   await until('full grid painted with the cascade preset', async () => {
     await checkErrors();
     try {
@@ -326,13 +329,24 @@ async function storyEditorJourney(cdp, checkErrors) {
   await cdp.evaluate(`document.querySelector('[data-edit-film="half"]').click()`);
   await until('half strength edits and replays the scene inline', async () => {
     await checkErrors();
-    return cdp.evaluate(`(async () => {
+    return cdp.evaluate(`(() => {
       const editor = document.querySelector('.source-editor textarea');
       const download = document.querySelector('[data-source-download]');
       return editor.getClientRects().length && editor.value.includes('let speaker_level = 0.5') &&
         !(document.querySelector('.sample-play').disabled) && download.href.startsWith('blob:') &&
-        (await (await fetch(download.href)).text()) === editor.value &&
         location.pathname.endsWith('/journey/');
     })()`);
   });
+  const result = await cdp.evaluate(`(async () => ({
+    draft: document.querySelector('.source-editor textarea').value,
+    source: await (await fetch(document.querySelector('[data-source-download]').href)).text(),
+  }))()`);
+  if (!containsPortableLayout(result.source, result.draft)) {
+    throw Error('Journey download did not preserve the edited scene and include its layout');
+  }
+}
+
+function containsPortableLayout(source, draft) {
+  const sceneBody = draft.split('import "../templates/layout.amx"\n')[1];
+  return !!sceneBody && source.endsWith(sceneBody) && source.includes('pub component SceneCaption');
 }

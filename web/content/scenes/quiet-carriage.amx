@@ -1,5 +1,7 @@
 // One low train tone plus the headphones' opposing pressure wave.
-config { colorscheme: "editorial-dark", resolution: (960, 560), duration: 16 }
+import "../templates/layout.amx"
+
+config { style: "editorial", colorscheme: "editorial-dark", resolution: (960, 560), duration: 16 }
 
 let speaker_level = 1
 let phase = 0
@@ -9,34 +11,28 @@ let plot_size = (864, 146)
 let domain = (0, 15)
 let pressure = (-1.2, 1.2)
 
-pub component WaveLabel(label: Str, ink: Color) {
-  tag: Row, align: "center", gap: 10 {
-    dot: Ellipse, size: (13, 13), color: ink
-    name: Text, text: label, font_size: 26
-  }
-}
-
 #0s
   backdrop: Rect, anchor: scene.center, size: (scene_width, scene_height),
     fill_gradient: radial((0.76, 0.2), 0.9, {surface.secondary, scene.background})
   signals: Col, anchor: scene.center, offset: (0, -36), gap: 10, align: "start" {
     legend: Row, gap: 32, align: "center" {
-      train: WaveLabel, label: "Train rumble", ink: accent.warning
-      headphones: WaveLabel, label: "Headphones", ink: accent.info, opacity: 0
+      train: SignalKey, label: "Train rumble", ink: accent.warning
+      headphones: SignalKey, label: "Headphones", ink: accent.info, opacity: 0
     }
-    outside: Graph, size: plot_size, x_domain: domain, y_domain: pressure,
-      stroke: text.muted, ticks: false, tick_labels: "none" {
-      rumble: PlotCurve, func: (x) => wave(x, phase), stroke: accent.warning, stroke_width: 5
-      opposing: PlotCurve, func: (x) => -gain * wave(x, phase), stroke: accent.info, stroke_width: 5, opacity: 0
+    outside: SignalLane, extent: plot_size, domain: domain, span: pressure {
+      @graph {
+        rumble: PlotCurve, func: (x) => wave(x, phase), stroke: accent.warning, role: focus
+        opposing: PlotCurve, func: (x) => -gain * wave(x, phase), stroke: accent.info, role: focus, opacity: 0
+      }
     }
-    result: WaveLabel, label: "At your ear", ink: accent.success
-    inside: Graph, size: plot_size, x_domain: domain, y_domain: pressure,
-      stroke: text.muted, ticks: false, tick_labels: "none" {
-      heard: PlotCurve, func: (x) => (1 - gain) * wave(x, phase), stroke: accent.success, stroke_width: 5
+    result: SignalKey, label: "At your ear", ink: accent.success
+    inside: SignalLane, extent: plot_size, domain: domain, span: pressure {
+      @graph {
+        heard: PlotCurve, func: (x) => (1 - gain) * wave(x, phase), stroke: accent.success, role: focus
+      }
     }
   }
-  caption: Text, anchor: scene.bottom, offset: (0, -46),
-    text: "A low rumble reaches your ear.", font_size: 30
+  caption: SceneCaption, text: "A low rumble reaches your ear."
 
   always {
     phase = 0.85 * t

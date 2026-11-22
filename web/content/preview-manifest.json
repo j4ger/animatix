@@ -4,12 +4,12 @@
     {
       "id": "ripple-and-cascade",
       "source": "scenes/ripple-and-cascade.amx",
-      "source_sha256": "644c9817812b80057776cc18eb199f49a716237c250df0fb2e25cfb3c16b8883",
+      "source_sha256": "47293795d9176c2d21489e6284de03d1a63b524caa342ef3cd4dd0a26d0836aa",
       "poster": "posters/ripple-and-cascade.png",
       "poster_time_seconds": 6.5,
-      "poster_sha256": "4db57aec06a2a81888188091d3bd7e3ef8d02817a9e88b0d46e6e3a69615da6f",
+      "poster_sha256": "04ec2488fcf177af6e1bd4174f8bebbea9a77193d12cb580d2392c7d45d47550",
       "recording": "previews/ripple-and-cascade.mp4",
-      "recording_sha256": "fa8327affb51bc348e5cbfa6d766d32a35eba7228b5261762aa1970e9e6b00ca",
+      "recording_sha256": "d709ca5e80cfbd2267e77c736412bd221eed4788beee25da9589b00e78e6bbf5",
       "duration_seconds": 20.0,
       "width": 1280,
       "height": 720,
@@ -21,12 +21,12 @@
     {
       "id": "when-waves-meet",
       "source": "scenes/when-waves-meet.amx",
-      "source_sha256": "039e31cc2bb51807e1347ac059cba0077e4a57323c66fa5d0173e0562c9c71a2",
+      "source_sha256": "eb3c3ff6e3466198c314b8d9b9a6d265ce7466a3753595b1c2c6a9bc1d5b317a",
       "poster": "posters/when-waves-meet.png",
       "poster_time_seconds": 15,
-      "poster_sha256": "39aa954666d0cab5a8becce2ecb5c40dd6cf4fd3c7aea83a8d3e4bafb9067ab9",
+      "poster_sha256": "007cb10c4a7b4e2abcaca23b975fc52fe4ef7e383d04324d7097a02591a8ff14",
       "recording": "previews/when-waves-meet.mp4",
-      "recording_sha256": "b1c7add70cefe3b8701911046e20a70c05916e30984c9b1772b574e67d9a69ba",
+      "recording_sha256": "7eb6f5106424a00c4302866997040af2c20ccc192d2bcab6972c38a68a8e6931",
       "duration_seconds": 28.0,
       "width": 1280,
       "height": 720,
@@ -38,12 +38,12 @@
     {
       "id": "words-keep-time",
       "source": "scenes/words-keep-time.amx",
-      "source_sha256": "caf119f14b07a8f79e70d9687e165171166217531138fc3b12db17b592f53aca",
+      "source_sha256": "8e850bac653e6a723192cc5a3768092ddcbda4a1002205eeac657c8d9a0de34f",
       "poster": "posters/words-keep-time.png",
       "poster_time_seconds": 20,
-      "poster_sha256": "32d902d5170ad20a2bf3f1b04193991475f5ebd9dfbd744b219d8c4fd53348d1",
+      "poster_sha256": "9366df6476f25c822c4ea9ea688adb1c23627ce85caba70fb6e72c0af2ae5bfa",
       "recording": "previews/words-keep-time.mp4",
-      "recording_sha256": "2d7ba9b749d46dd939f99c4ee961326dcf0cf0ebaa98acbb52cf4510faa12298",
+      "recording_sha256": "d01837dc69c8948b80a0b624f5dfaa9b61e926ac043e1fc9c13c503f5c927181",
       "duration_seconds": 20.0,
       "width": 1280,
       "height": 720,
@@ -65,9 +65,9 @@
       "audio": false,
       "parameters": "authored defaults",
       "renderer": "native CLI video at authored 1280x720; H.264 24 fps, fast-start MP4",
-      "source_sha256": "899403f892257dd2ac6c6da32a3af718009e551bdcfe0465db51d60b87f301c6",
-      "poster_sha256": "481ea54bccc13bfe8f14a34ffca529c36430fea429cbe0979a14805e8aa7d5f1",
-      "recording_sha256": "63c3b16806684bdfad4938602af9aee01008995f7ed6d3b4ae09b7ec12d24b66"
+      "source_sha256": "440f9c7edeed20ecde55a61f38814361a8254691a1a483484eb3247e6b68020d",
+      "poster_sha256": "a612e31983657b7efa7069c71c9a21c539cd29b92ca49d5ebf1e62890aea29cf",
+      "recording_sha256": "ea3cf22d69a6e36366712000dfcb95aab01793559914d8301e6c2f0544d95de5"
     },
     {
       "id": "make-room",
@@ -82,9 +82,9 @@
       "audio": false,
       "parameters": "authored defaults",
       "renderer": "native CLI video at authored 1280x720; H.264 24 fps, fast-start MP4",
-      "source_sha256": "75aca46b97d2a73e92f051eb4aa9c819e04c6e05c19991e8f291afccd153880d",
-      "poster_sha256": "482d9c64f15dfcd098a9e4d54148a186ede71199253324c261e8e575ba0748b5",
-      "recording_sha256": "4f56d213af5ea905a3478fb1b63f8f3875e353fda7d46955f831c0f250c24208"
+      "source_sha256": "9343e2215aad79cd9842c272ed09017ef314ac8710d1b2abff40f4c19932b36c",
+      "poster_sha256": "cb80670df0dc50354d210d8870a6300310505c888c753a00ea636c0fe1205e80",
+      "recording_sha256": "6bff9aef4434cc026be082cfb22efe552cbfbcda995b3bd4b47bfcd3dc00cb93"
     }
   ],
   "stills": [
@@ -96,8 +96,8 @@
       "width": 960,
       "height": 540,
       "renderer": "native CLI image at authored 960x540",
-      "source_sha256": "ae6c49a3fcae062cc31c486954f874900ab94edf8fabb7b5eae37d5046d0557f",
-      "poster_sha256": "3bca90daf5f8181f70291ba40d1268645392f5de5c5e4d28f0d144b1fe2b9eb4"
+      "source_sha256": "913c4f097014ca5a1aff6014798fc692350d358d56aeee1adbeeacf5ea3e0e39",
+      "poster_sha256": "24371be9e88c4c21b8016476adf2951d3fa8fda94e66613060d73cd111eaeadb"
     },
     {
       "id": "first-move",
@@ -107,8 +107,8 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "5de85450e7e209654561094ebee28906e5236c1dd3e054243cee1da55399a358",
-      "poster_sha256": "51f5daac789c9f66d132aca75e0122d114f8ee8b6172395ebec293d131fbebfc"
+      "source_sha256": "684e8fb03dafe271ab477309e3247bd4c39bb24b741654aad5af14f02db09df1",
+      "poster_sha256": "0bfe1b20a22f216d62bbaca6529415c1795457d18502e41fcf9218b2187b71e2"
     },
     {
       "id": "compose",
@@ -118,8 +118,8 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "dcb6a6e872d3e8b14f39257d928d006293a029972591e55384c8617cad8c2585",
-      "poster_sha256": "5ecb1d72ce6085350e0392621b31f17f8379fa50c4cf7b8c90c4c4db606005bb"
+      "source_sha256": "1825f7f4af91d957ab3deb5f206eb6e31855ed5fc22edd313a9c5c3587b09ecd",
+      "poster_sha256": "798af5babd9da2ebc8326d0f17c553c40976574200243cf8dd6dda9e24fd039e"
     },
     {
       "id": "repeat",
@@ -129,8 +129,8 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image at authored 1280x720",
-      "source_sha256": "eb81918d791251f1241777c03dc158ed4f7f63a8f15d0a44147e7f138752e0e7",
-      "poster_sha256": "95b678d66ce3c039d3ba57a2e855706f6973c1790dcefd421a2649869690c9d9"
+      "source_sha256": "e77060186e36a4f7b60a6b482be0f8f74d5bf6eb551e22917d6232d936467614",
+      "poster_sha256": "c7ce8b3b3875db0c26e3e999d57dd4f8a76705ccc95cd251325c2f51b337fdaf"
     },
     {
       "id": "values",
@@ -140,8 +140,8 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image at authored 1280x720",
-      "source_sha256": "f9742824c498dc2f9e81f1dabbccf2987a1220ee89fe48c315ddec9af92f86f6",
-      "poster_sha256": "55da983002b7227eea033d5bed6a64a2befd0fc06c246eada245cab18ae6d474"
+      "source_sha256": "08e71a40c67c2835dd3e5750abf3139f35c5c19bbe2be0cd126b716d11a56945",
+      "poster_sha256": "0362c0b0945f6d67b65923b7892b940bed41e97f30a0d27c4ed2abf560d9cd01"
     },
     {
       "id": "timing",
@@ -151,8 +151,8 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "dc5353f8238297459c779b249d8e458a27e80d808fad332dba4c757dfe6d45d0",
-      "poster_sha256": "36692dfefca385ed6eff0403c6ca6981bb3aa8d3b0a203c650332b424bdf977e"
+      "source_sha256": "957fb0bda32694d2d7d401da9c67fc6681687554c84ff1395139cc1ad13bd823",
+      "poster_sha256": "b55a8a21a7e5f160c0a3ae79ebca5f38f9120a49bdce5425764fa44bf1bcc465"
     },
     {
       "id": "finish",
@@ -162,8 +162,8 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "b1bfebea81a5dd1a03ee437b94395b2ae47765ed173a541dee427f95b79c29d2",
-      "poster_sha256": "631306346a7f3fcd4dba09c8ade51084861c188ffcdf118caf81004c151ac8ca"
+      "source_sha256": "dc946e2f8b95e0c52056730d124b41f270d35c85194642a0b4a1fc2f3f037159",
+      "poster_sha256": "f12781f29d860f4cd8bc86a6a4ddcd670faf2f18f8dcf43da0b7450d9f784461"
     },
     {
       "id": "technique-focus",
@@ -173,8 +173,8 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "83df46585fa47b85b9d895d7cebd4de9c01f909d86070726016f77f88b6b4d6b",
-      "poster_sha256": "ed2ab28deb196d1d2ef6571d4a90b48df75570a22b99111c89afd225a1393ba0"
+      "source_sha256": "a5e7fbc65037f9ce4bffb8a7f379562c72d54b676f3fcd4d7e584e815381072e",
+      "poster_sha256": "0a0887aa00452977c7ffd67e934fb9babf88358a81313571b819720ca48614a5"
     },
     {
       "id": "technique-labels",
@@ -184,8 +184,8 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image at authored 1280x720",
-      "source_sha256": "f704aa3241691177ec1d072290c337002aefaf5266a8670753f2f830e01eea55",
-      "poster_sha256": "5622778887dbad020c79c15d9df10405cf979057f228327dfe6aac4fc9b3e966"
+      "source_sha256": "f313adb425b6a53dd7178475e55d2205bf05a49238211c5377a787a2280ab210",
+      "poster_sha256": "4f484f0c9f91e28f9329de0cd573530ee46978c82037d1d4b6157fd211284a53"
     },
     {
       "id": "technique-reveal",
@@ -195,8 +195,8 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "832527f025bec3329c290dd31a2f223e28a3affc23ae6c56e6060b748db6feef",
-      "poster_sha256": "0e7550cbf618728859f1e3af23cd334d1d6fa8a48736a6126403e347a342d043"
+      "source_sha256": "70199c264aa46943b5d7455a454028287fe5f9a0fa3786b6f5bfdb4a41b737ac",
+      "poster_sha256": "d77509a8d40dd5d19ca4bdcefb419a94bc4a9c4badf774b7f13c0b27aa5358fa"
     },
     {
       "id": "technique-stagger",
@@ -206,8 +206,11 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "a9a41cebefcff8b19a80c5be592554c3e4c4df00785b93e5cecbdf50e61d7e08",
-      "poster_sha256": "577fcaa718783559554641e6a72581889ea22b26d7ec25833918f53f06d13e9f"
+      "source_sha256": "4fb3ae304df4fbcb90a6d15b5cf67fe7ca8ae709a24fb2115ec1c09918e3e479",
+      "poster_sha256": "1a64f2c34edc961f34b4b08db136e11cafea95bf7ddafad00459d0fff8874f24"
     }
-  ]
+  ],
+  "source_modules": {
+    "templates/layout.amx": "8c3e349b440cfd8b1e5083c155ac313ba6b74db52459822161ab3d660c7b73a9"
+  }
 }

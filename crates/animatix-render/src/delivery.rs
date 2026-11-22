@@ -5,7 +5,8 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 const SCENE: &str = "main.amx";
-const LAYOUT: (&str, &[u8]) = ("layout.amx", include_bytes!("delivery/explainer-layout.amx"));
+const LAYOUT: (&str, &[u8]) =
+    ("layout.amx", include_bytes!("../../../web/content/templates/layout.amx"));
 const NARRATED: [(&str, &[u8]); 4] = [
     (SCENE, include_bytes!("delivery/starter.amx")),
     LAYOUT,

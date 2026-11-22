@@ -1,5 +1,7 @@
 // Insert 3 into the sorted row [2, 4, 5].
-config { colorscheme: "paper", resolution: (960, 540), duration: 12.5 }
+import "../templates/layout.amx"
+
+config { style: "compact", colorscheme: "paper", resolution: (960, 540), duration: 12.5 }
 
 let card_size = (172, 116)
 let spacing = 220
@@ -7,25 +9,20 @@ let row_y = 350
 let compare_y = row_y - card_size[1] - 40
 let slot = (index, y) => (480 + (index - 1.5) * spacing, y)
 
-pub component Card(value: Str, face: Color = surface.primary) {
-  front: Rect, size: card_size, corner_radius: 12, color: face, stroke: stroke.default, stroke_width: 2
-  digit: Text, text: value, font_size: 74
-}
-
 #0s
   paper: Rect, anchor: scene.center, size: (scene_width, scene_height),
     fill_gradient: radial((0.25, 0.22), 0.9, {surface.primary, scene.background})
-  caption: Text, anchor: scene.top, offset: (0, 91), text: "Where does 3 fit?", font_size: 36
+  caption: SceneCaption, level: "title", at: (scene_width / 2, 91), text: "Where does 3 fit?"
   for i in range(0, 4) {
     let center = slot(i, row_y + card_size[1] / 2 + 18)
     let half = card_size[0] / 2 - 6
     marker[i]: Line, from: center - (half, 0), to: center + (half, 0),
       stroke: text.muted, stroke_width: 2, opacity: 0.65
   }
-  two: Card, value: "2", at: slot(0, row_y)
-  four: Card, value: "4", at: slot(1, row_y)
-  five: Card, value: "5", at: slot(2, row_y)
-  key: Card, value: "3", at: slot(3, compare_y + 28), face: lerp_color_oklab(surface.primary, accent.success, 0.24)
+  two: SequenceTile, extent: card_size, value: "2", at: slot(0, row_y)
+  four: SequenceTile, extent: card_size, value: "4", at: slot(1, row_y)
+  five: SequenceTile, extent: card_size, value: "5", at: slot(2, row_y)
+  key: SequenceTile, extent: card_size, value: "3", at: slot(3, compare_y + 28), face: lerp_color_oklab(surface.primary, accent.success, 0.24)
 
 #0.7s
   key.at = slot(3, compare_y) [1s, ease: ease_out]

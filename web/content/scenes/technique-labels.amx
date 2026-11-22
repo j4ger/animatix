@@ -1,14 +1,15 @@
 // Derive the object, leader and label from one position, not three animations.
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 8 }
+import "../templates/layout.amx"
+
+config { style: "editorial", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 8 }
 
 #0s
-  background: Rect, at: (640, 360), size: (1280, 720), color: hex_color("0d1520")
-  heading: Text, text: "A label that belongs to its subject.", at: (640, 130), font_size: 38, color: hex_color("f3f5f7")
-  track: Line, from: (380, 420), to: (900, 420), stroke: hex_color("344455"), stroke_width: 2
-  point: Ellipse, at: (380, 420), size: (56, 56), color: hex_color("65d9e8")
-  leader: Line, from: (380, 380), to: (380, 325), stroke: hex_color("65d9e8"), stroke_width: 2
-  label: Text, text: "subject", at: (380, 290), font_size: 28, color: hex_color("f3f5f7")
-  caption: Text, text: "One position. Three related elements.", at: (640, 560), font_size: 26, color: hex_color("adbcca")
+  stage: TechniqueStage, topic: "ANCHORING", heading: "A label that belongs to its subject.",
+    takeaway: "One position. Three related elements."
+  track: Line, from: (380, 420), to: (900, 420), stroke: text.muted, stroke_width: 2
+  point: Ellipse, at: (380, 420), size: (56, 56), color: accent.primary
+  leader: Line, from: (380, 380), to: (380, 325), stroke: accent.primary, stroke_width: 2
+  label: Text, text: "subject", at: (380, 290), role: body
   always {
       let x = lerp(380, 900, ease_in_out(linear_progress(t, 1, 5)))
       point.at = (x, 420)

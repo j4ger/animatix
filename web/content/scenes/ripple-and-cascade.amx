@@ -1,5 +1,7 @@
 // 0 starts with a ripple, 1 starts with a cascade. Both patterns play.
-config { colorscheme: "vivid", resolution: (1280, 720), duration: 20 }
+import "../templates/layout.amx"
+
+config { style: "editorial", colorscheme: "vivid", resolution: (1280, 720), duration: 20 }
 
 let start_pattern = 0
 let starts_with_cascade = start_pattern == 1
@@ -17,14 +19,14 @@ let pulse_at = (time, center) => exp(0 - ((time - center) / 0.65) ^ 2)
 #0s
   backdrop: Rect, anchor: scene.center, size: (scene_width, scene_height),
     fill_gradient: radial((0.5, 0.5), 0.68, {surface.secondary, scene.background})
-  seed: Rect, anchor: scene.center, size: cell, corner_radius: 14, color: accent.primary
-  field: Grid, cols: columns, gap: 24, anchor: scene.center {
+  seed: Rect, anchor: scene.center, size: cell, corner_radius: theme.radius, color: accent.primary
+  field: Grid, cols: columns, gap: theme.gap, anchor: scene.center {
     for mix, i in linspace(0, 1, count) {
-      tile[i]: Rect, size: cell, corner_radius: 14, opacity: 0,
+      tile[i]: Rect, size: cell, corner_radius: theme.radius, opacity: 0,
         color: lerp_color_oklab(accent.primary, accent.info, mix)
     }
   }
-  caption: Text, anchor: scene.bottom, offset: (0, -58), text: format("One tile becomes {}.", count), font_size: 28
+  caption: SceneCaption, at: (scene_width / 2, scene_height - theme.margin), text: format("One tile becomes {}.", count)
 
   for i in tile_indices {
     always {

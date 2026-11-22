@@ -6,6 +6,8 @@ import {currentUi} from '../lib/ui';
 import {bindTimeline} from '../lib/timeline';
 import {bindSourceEditor, type SourceKeyframe} from '../lib/source-highlight';
 import {numericDefault, withOverride} from '../lib/overrides';
+import {withSharedLayout} from '../lib/portable-source';
+import sharedLayout from '../../../content/templates/layout.amx?raw';
 
 const labels = currentUi();
 const {t} = labels;
@@ -114,7 +116,8 @@ function bindEditableScene(sample: HTMLElement) {
       download.removeAttribute('href');
       return;
     }
-    if (editor.value !== canonical) downloadUrl = URL.createObjectURL(new Blob([editor.value], {type: 'text/plain'}));
+    const portable = withSharedLayout(editor.value, sharedLayout);
+    if (portable !== canonical) downloadUrl = URL.createObjectURL(new Blob([portable], {type: 'text/plain'}));
     download.href = downloadUrl ?? shell.dataset.source!;
     download.download = `${id}.amx`;
   }

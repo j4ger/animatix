@@ -254,7 +254,7 @@ def classify_paths(changed_paths: list[str], roots: dict[str, Path],
             continue
         if path.startswith("web/"):
             web_changed = True
-            if path.startswith(("web/fonts/", "web/content/scenes/")):
+            if path.startswith(("web/fonts/", "web/content/scenes/", "web/content/templates/")):
                 web_scenes_changed = True
             if path.startswith("web/content/scenes/"):
                 examples_changed = True
@@ -402,7 +402,7 @@ def web_smoke_policy(classification, event, base):
         "crates/animatix-render/", "crates/animatix-web/", "crates/animatix-core/",
         "crates/animatix/src/timeline/", "crates/animatix/src/renderer/",
         "web/embed/src/", "web/tools/animatix-web-build/", "web/tools/",
-        "web/content/scenes/", "web/dev/smoke/", "web/tools/test/web-smoke",
+        "web/content/scenes/", "web/content/templates/", "web/dev/smoke/", "web/tools/test/web-smoke",
         "web/tools/test/web-transactions", "tools/ci/", ".github/workflows/ci.yml",
     )
     shared_playback = {"web/app/src/components/Scene.astro", "web/app/src/scripts/scene.ts"}

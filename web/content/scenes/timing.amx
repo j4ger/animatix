@@ -1,11 +1,10 @@
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6 }
+config { style: "compact", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6 }
 
 #0s
-  background: Rect, at: (640, 360), size: (1280, 720), color: hex_color("0d1520")
   // Three absolute # markers: no hidden cumulative timing.
-  left: Rect, at: (460, 360), size: (100, 100), corner_radius: 20, color: hex_color("65d9e8"), opacity: 0.2
-  middle: Rect, at: (640, 360), size: (100, 100), corner_radius: 20, color: hex_color("aba4fa"), opacity: 0.2
-  right: Rect, at: (820, 360), size: (100, 100), corner_radius: 20, color: hex_color("f4d47b"), opacity: 0.2
+  left: Rect, at: (460, 360), size: (100, 100), corner_radius: theme.radius, color: accent.primary, opacity: 0.2
+  middle: Rect, at: (640, 360), size: (100, 100), corner_radius: theme.radius, color: accent.info, opacity: 0.2
+  right: Rect, at: (820, 360), size: (100, 100), corner_radius: theme.radius, color: accent.warning, opacity: 0.2
 
 #1s
   left.opacity = 1[0.5s]

@@ -592,9 +592,9 @@ impl Environment {
             .callable_descriptors
             .iter()
             .filter(|(_, descriptor)| descriptor.namespace != "std")
-            .filter_map(|(name, _)| match source.get_ref(name) {
+            .filter_map(|(name, _)| match source.get(name) {
                 Some(value @ (Value::NativeFn(_) | Value::RegisteredFn { .. })) => {
-                    Some((name.clone(), value.clone()))
+                    Some((name.clone(), value))
                 },
                 _ => None, // User functions are seeded from their definition module.
             })

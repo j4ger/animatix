@@ -1,0 +1,2 @@
+// Repository source entry. animatix init writes the shared module here.
+import "../../../../web/content/templates/layout.amx"

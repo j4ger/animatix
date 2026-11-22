@@ -59,7 +59,9 @@ The CLI and the workbench's **New project…** menu offer the same starters.
 Each project comes with `main.amx` and a portable `layout.amx`. Keep the files
 together when copying the project. You can also import `layout.amx` from an
 existing scene to reuse `ChapterHeader`, `ExplainerLayout`, `MetricCard`, or
-`NarrationStep`.
+`NarrationStep`. The same module also supplies the stage, sequence tiles, signal
+lanes, and reading panels used by the public scenes.
+[Shared layout source](../web/content/templates/layout.amx)
 
 Edit the content bindings near the top of `main.amx`, or override them for a
 single-scene preview. For example:

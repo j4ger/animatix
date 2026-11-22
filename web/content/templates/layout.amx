@@ -72,3 +72,56 @@ pub component NarrationStep(label: Str, width: Num) {
     step_label: Text, text: label, role: body
   }
 }
+
+// A lesson frame keeps the demonstration's timed actors at scene scope.
+pub component TechniqueStage(topic: Str, heading: Str, takeaway: Str = "") {
+  stage: Group, at: (0, 0) {
+    head: ChapterHeader, eyebrow: topic, heading: heading
+    for index in range(0, if takeaway != "" { 1 } else { 0 }) {
+      footer: SceneCaption, text: takeaway
+    }
+  }
+}
+
+pub component SceneCaption(text: Str, level: Str = "body") {
+  caption: Text, text: text, role: level, at: (scene_width / 2, takeaway_y()),
+    text_max_width: content_width(), text_align: "center"
+}
+
+pub component SequenceTile(value: Str, extent: Vec2, face: Color = surface.primary) {
+  tile: Rect, size: extent, corner_radius: theme.radius, color: face,
+    stroke: lerp_color(face, text.secondary, 0.48), stroke_width: 2 * unit()
+  digit: Text, text: value, role: metric, font_size: min(extent[0] * 0.46, extent[1] * 0.63)
+}
+
+pub component MetricNumber(initial: Num = 0, places: Num = 0, ink: Color = text.primary) {
+  amount: Counter, value: initial, decimals: places, role: metric, color: ink
+}
+
+pub component SignalLane(extent: Vec2, domain: Vec2, span: Vec2) {
+  graph: Graph, size: extent, x_domain: domain, y_domain: span, padding: 0,
+    stroke: text.muted, grid: false, ticks: false, tick_labels: "none" {
+    @slot
+  }
+}
+
+pub component SignalKey(label: Str, ink: Color) {
+  key: Row, align: "center", gap: theme.gap * 0.45 {
+    dot: Ellipse, size: (14 * unit(), 14 * unit()), color: ink
+    name: Text, text: label, role: body
+  }
+}
+
+pub component ReadingField(label: Str, detail: Str, width: Num) {
+  field: Col, size: (width, auto), gap: theme.gap * 0.3, align: "start" {
+    name: Text, text: label, role: eyebrow
+    copy: Text, text: detail, role: body, text_max_width: width
+  }
+}
+
+pub component ReadingPanel(extent: Vec2, face: Color = surface.primary) {
+  panel: Stack, size: extent, align: "center" {
+    sheet: Rect, size: extent, color: face, corner_radius: theme.radius, stroke: stroke.default
+    content: Group { @slot }
+  }
+}

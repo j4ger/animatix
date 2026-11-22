@@ -23,8 +23,10 @@ ROOT_FILES = {
 # Web build/probe crates remain workspace members even for a native-only build.
 # Include their manifests, sources, and licensed compile-time font fixtures so
 # cargo metadata/vendor and the offline source rebuild see the same workspace.
+# Native starters also embed the layout library shared with the public scenes.
 SOURCE_DIRS = {
     "crates", "tools", "examples", "docs", "web/tools", "web/content/scenes",
+    "web/content/templates",
 }
 SOURCE_SCRIPTS = {
     "tools/release/dist-linux.sh", "tools/release/dist-linux-container.sh",
