@@ -9,10 +9,10 @@ export const workCopy: Record<string, {title: string; question: string; category
     description: '插入排序每次处理一个新元素。向左逐个比较，把较大的元素右移，再将新元素放入空位。两个相等的元素保留原来的顺序。',
     insight: '逐步看清每次比较如何决定下一次移动。', note: '演示使用一组固定的五个元素。计数器记录比较次数与右移次数。',
   },
-  'one-rule-many-forms': {
-    title: '同一形状，不同节奏', question: '同一个形状重复 48 次，会产生什么运动？', category: '视觉节奏',
-    description: '每个方块执行相同的动作，只有延迟不同。按离中心的距离延迟，会形成涟漪。按对角线方向延迟，则会依次扫过。',
-    insight: '改变延迟规则，就能改变整组动作的节奏。', note: '选择一种起始规则。演示进行到一半时，同一组方块会切换到另一种规则。',
+  'ripple-and-cascade': {
+    title: '涟漪与级联', question: '同一组方块，两种错峰方式。', category: '视觉节奏',
+    description: '涟漪按方块离中心的距离安排延迟，越远越晚。级联用行号与列号之和计算延迟，让波沿对角线从一个角扫到另一个角。',
+    insight: '同一个脉冲，两种延迟', note: '选框决定先播哪一种。到第 10 秒，网格会切换到另一种。',
   },
   'when-waves-meet': {
     title: '当两道波相遇', question: '两道波相遇时，什么时候增强，什么时候抵消？', category: '数学',

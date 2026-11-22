@@ -33,7 +33,7 @@ test('project base prefixes contracts and links, never silently tests root',asyn
 });
 test('documentation has direct destinations and showcase checks presets',()=>{
  for(const path of ['/docs/','/docs/quickstart/'])assert.ok(contracts('site').find(c=>c.path===path).links.length>=2);
- assert.equal(contracts('site').find(c=>c.path==='/showcase/one-rule-many-forms/').preset,true);
+ assert.equal(contracts('site').find(c=>c.path==='/showcase/ripple-and-cascade/').preset,true);
  assert.ok(contracts('site').some(c=>c.backend==='webgl2'&&c.action==='load'));
  assert.ok(contracts('site').some(c=>c.action==='recording'&&c.recording));
 });

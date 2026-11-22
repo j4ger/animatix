@@ -9,12 +9,10 @@ SDK integrity, text/raster parity, or transaction tests.
 | `site-smoke` | Assembled `_site/` only | Astro navigation, automatic previews, live poster-to-player handoff, WebGL2 and recording fallback, playback and seek. |
 | `web-site-smoke` | Assemble `_site/`, then run `site-smoke` | PR/main integration in the existing Web Build job, reusing its SDK. |
 
-The homepage and Playground load their previews automatically. Docs pages load
-without a player, and Showcase and tutorial scenes initially show a poster.
-Site tests click the public **Play live** action and check that the page
-has no player or media requests before activation. They then check poster
-visibility during loading, keyboard focus on the ready player and no MP4
-requests during live playback.
+Scene pages prepare their previews automatically. Docs pages load without a
+player. The Showcase, tutorial and technique checks wait for a ready player
+before any click, verify it is paused at the first frame, then click **Play**
+and verify the existing player advances. Live playback must make no MP4 requests.
 
 ## Run
 
@@ -36,8 +34,9 @@ prefix and contracts check prefixed navigation, module and scene URLs.
 The SDK suite also accepts `SITE_BASE` to exercise its relative module chain
 under a prefix; run it at both `/` and `/animatix/` after import-loader changes.
 The Docs and Quickstart journeys check their navigation. The Showcase preset journey
-checks the enabled selector, committed public vars, Open code query, downloadable
-source and subsequent painted frame. One separate journey disables WebGPU and
+checks the enabled selector, the edited and downloaded source, and the painted
+frame. Tutorial and showcase edits rebuild their markers and can be reset.
+The story exercises scroll seeking and editing inline. One separate journey disables WebGPU and
 checks that WebGL2 actually paints a Showcase scene. A second disables both
 backends, verifies the visible poster and late recording choice, starts the MP4
 with a user action and retries live playback.

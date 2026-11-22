@@ -84,14 +84,8 @@ async function createPlayer(shell: HTMLElement): Promise<Player> {
     player.setAttribute('src', shell.dataset.source!);
     player.setAttribute('title', shell.dataset.title || t('Animation preview', '动画预览'));
     player.lang = document.documentElement.lang;
-    player.setAttribute('aspect', '16:9');
-    if (shell.hasAttribute('data-inline')) {
-      player.setAttribute('sealed', '');
-      player.setAttribute('no-veil', '');
-    } else {
-      player.setAttribute('controls', '');
-    }
-    player.setAttribute('eager', '');
+    player.setAttribute('aspect', shell.dataset.aspect!);
+    for (const flag of ['sealed', 'no-veil', 'eager']) player.setAttribute(flag, '');
     const ready = new Promise<void>((resolve, reject) => {
       const options = {once: true, signal: listeners.signal};
       player!.addEventListener('amxready', () => resolve(), options);
@@ -102,15 +96,6 @@ async function createPlayer(shell: HTMLElement): Promise<Player> {
 
     shell.querySelector<HTMLElement>('.scene-placeholder')!.hidden = true;
     status.textContent = '';
-    if (!shell.hasAttribute('data-inline')) player.addEventListener('amxerror', event => {
-      const error = playbackError(event);
-      if ((event as CustomEvent).detail?.kind === 'capability') {
-        resetPlayer(shell);
-        showPlaybackFailure(shell, error);
-      } else {
-        status.textContent = readableError(error);
-      }
-    });
     return player;
   } catch (error) {
     if (player) resetPlayer(shell);
@@ -122,38 +107,15 @@ async function createPlayer(shell: HTMLElement): Promise<Player> {
   }
 }
 
-for (const shell of document.querySelectorAll<HTMLElement>('[data-scene-shell]')) {
-  const surface = shell.querySelector<HTMLElement>('.scene-surface')!;
-  const mount = shell.querySelector<HTMLElement>('.scene-mount')!;
-  const status = shell.querySelector<HTMLElement>('.scene-status')!;
-  const button = shell.querySelector<HTMLButtonElement>('.load-scene');
-  const fallback = shell.querySelector<HTMLElement>('.scene-fallback');
+export function bindRecording(shell: HTMLElement) {
   const recording = shell.querySelector<HTMLElement>('.recording-panel');
-  const video = recording?.querySelector<HTMLVideoElement>('video');
+  if (!recording) return;
+  const surface = shell.querySelector<HTMLElement>('.scene-surface')!;
+  const status = shell.querySelector<HTMLElement>('.scene-status')!;
+  const fallback = shell.querySelector<HTMLElement>('.scene-fallback')!;
+  const video = recording.querySelector<HTMLVideoElement>('video')!;
 
-  if (button) {
-    button.addEventListener('click', async () => {
-      const hadFocus = document.activeElement === button;
-      button.disabled = true;
-
-      let focusTarget: HTMLElement | undefined;
-      try {
-        (await loadPlayer(shell)).play();
-        focusTarget = mount;
-      } catch (error) {
-        showPlaybackFailure(shell, error);
-        focusTarget = button;
-      } finally {
-        button.disabled = false;
-        if (hadFocus && (document.activeElement === button || document.activeElement === document.body)) {
-          focusTarget?.focus({preventScroll: focusTarget === mount});
-        }
-      }
-    });
-  }
-
-  if (recording && video && fallback) {
-    fallback.querySelector<HTMLButtonElement>('.watch-recording')!.addEventListener('click', () => {
+  fallback.querySelector<HTMLButtonElement>('.watch-recording')!.addEventListener('click', () => {
       if (surface.getAttribute('aria-busy') === 'true') return;
       if (!video.hasAttribute('src')) video.src = video.dataset.recording!;
       surface.hidden = true;
@@ -164,14 +126,13 @@ for (const shell of document.querySelectorAll<HTMLElement>('[data-scene-shell]')
       video.play().catch(() => {
         if (!recording.hidden && !video.error) status.textContent = t('Press play in the video controls to start the recording.', '点击视频控件上的播放按钮即可观看。');
       });
-    });
-    video.addEventListener('error', () => {
+  });
+  video.addEventListener('error', () => {
       if (recording.hidden) return;
       video.removeAttribute('src');
       status.textContent = t('The recording could not load. Try live playback again or download the scene source.', '无法加载录制视频。可以重试实时播放，或下载场景源码。');
-    });
-    new IntersectionObserver(([entry]) => {
-      if (!entry.isIntersecting) video.pause();
-    }).observe(shell);
-  }
+  });
+  new IntersectionObserver(([entry]) => {
+    if (!entry.isIntersecting) video.pause();
+  }).observe(shell);
 }

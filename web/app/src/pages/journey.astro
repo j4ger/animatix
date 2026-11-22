@@ -1,10 +1,11 @@
 ---
-import {url, pageUrl} from '../lib/content';
+import {pageUrl} from '../lib/content';
 import {pageLanguage} from '../lib/language';
+import {sceneSource} from '../lib/scene-source';
 import {ui} from '../lib/ui';
 import SiteDocument from '../layouts/SiteDocument.astro';
 import SiteHeader from '../components/SiteHeader.astro';
-import Timeline from '../components/Timeline.astro';
+import EditableScene from '../components/EditableScene.astro';
 import '../styles/journey.css';
 import '../styles/theme.css';
 import '../styles/preferences.css';
@@ -20,23 +21,13 @@ const editor = pageUrl(language, 'playground/?scene=quiet-carriage');
   <a class="skip" href="#story">{t("Skip to the explainer", "跳到正文")}</a>
   <SiteHeader id="choreography" playgroundUrl={editor}/>
   <main id="story">
-    <div class="journey" data-title={title} data-module={url('runtime/amx-player.js')} data-source={url('content/scenes/quiet-carriage.amx')}>
-      <figure class="film" aria-labelledby="film-name">
-        <figcaption><span id="film-name">{t("Inside the ear cup", "耳罩内")}</span><span>{t("Sound pressure over time", "声压随时间变化")}</span></figcaption>
-        <div class="screen">
-          <img class="opening-frame" src={url('content/journey/quiet-carriage.webp')} width="960" height="560" alt={t("The gold train rumble and green sound at the ear initially have identical waves.", "开头的金色列车轰鸣和绿色耳边声压具有相同波形。")}/>
-          <div class="engine-stage"></div>
-        </div>
-        <div class="transport amx-transport">
-          <button type="button" class="play" disabled><i aria-hidden="true"></i><span>{t("Play film", "播放动画")}</span></button>
-          <Timeline label={t("Film time in seconds", "动画时间（秒）")} max={16}/>
-          <span class="timecode amx-time"><output>0:00</output> / 0:16</span>
-        </div>
-        <div class="feedback">
-          <span role="status">{t("Loading the film…", "正在加载动画…")}</span>
-          <button type="button" class="retry" hidden>{t("Retry live film", "重试实时播放")}</button>
-        </div>
-      </figure>
+    <div class="journey">
+      <div class="film">
+        <EditableScene id="quiet-carriage" {title} source={sceneSource('quiet-carriage')}
+          posterPath="content/journey/quiet-carriage.webp" width={960} height={560} duration={16}
+          posterAlt={t("The gold train rumble and green sound at the ear initially have identical waves.", "开头的金色列车轰鸣和绿色耳边声压具有相同波形。")}
+          download/>
+      </div>
 
       <div class="story-copy">
         <section id="train" aria-labelledby="question" data-cue="0">
@@ -60,14 +51,14 @@ const editor = pageUrl(language, 'playground/?scene=quiet-carriage');
             <p class="eyebrow"><span class="swatch ear"></span>{t("At your ear", "到达耳朵的声音")}</p>
             <h2 id="ear-title">{t('The train keeps moving. ', '列车继续开。')}<em>{t('The hum fades.', '耳边安静了。')}</em></h2>
             <p class="narration">{t("The green line is the sum of the two waves. When they’re equal and opposite, it goes flat. This one note cancels inside the ear cup. Outside, the carriage is just as loud.", "绿线是两道波的叠加。它们幅度相同、方向相反时，绿线变平，说明这个低频音在耳罩里被抵消了。车厢里的轰鸣依旧。")}</p>
-            <a class="turn" href={editor}>{t("Open the film’s source", "查看动画源码")} <span aria-hidden="true">↗</span></a>
+            <a class="turn" href="#quiet-carriage" data-edit-film>{t("Open the film’s source", "查看动画源码")} <span aria-hidden="true">↑</span></a>
           </div>
         </section>
       </div>
     </div>
     <aside class="endnote" aria-label={t("Try the same film with a weaker speaker", "用更低的扬声器幅度重试")}>
       <p>{t("What if the speaker pushes only half as hard?", "如果扬声器的幅度减半，会发生什么？")}</p>
-      <a href={editor + '&speaker_level=0.5'}>{t("Try half strength in Playground", "在在线编辑器里试试幅度减半")} <span aria-hidden="true">↗</span></a>
+      <a href={editor + '&speaker_level=0.5'} data-edit-film="half">{t("Try half strength", "试试幅度减半")} <span aria-hidden="true">↑</span></a>
     </aside>
   </main>
   <noscript><p class="noscript">{t("The text tells the full story. Enable JavaScript to play the film.", "可直接阅读下方讲解。启用 JavaScript 后即可播放动画。")}</p></noscript>

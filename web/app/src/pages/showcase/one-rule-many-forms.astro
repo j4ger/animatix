@@ -1,0 +1,6 @@
+---
+import {pageUrl} from '../../lib/content';
+import {pageLanguage} from '../../lib/language';
+
+return Astro.redirect(pageUrl(pageLanguage(Astro.currentLocale), 'showcase/ripple-and-cascade/'), 301);
+---

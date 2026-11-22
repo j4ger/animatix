@@ -13,11 +13,11 @@
 </p>
 
 <p align="center">
-  <a href="https://amx.j4ger.dev/showcase/one-rule-many-forms/">
-    <img src="web/content/posters/one-rule-many-forms.png" width="800" alt="One rule, many forms. A field of shapes makes a ripple as their start times change.">
+  <a href="https://amx.j4ger.dev/showcase/ripple-and-cascade/">
+    <img src="web/content/posters/ripple-and-cascade.png" width="800" alt="A pulse travels outward across a grid of tiles.">
   </a>
   <br>
-  <sub>One rule. Many forms. <a href="https://amx.j4ger.dev/showcase/one-rule-many-forms/">Play it live →</a></sub>
+  <sub>Ripple and Cascade. <a href="https://amx.j4ger.dev/showcase/ripple-and-cascade/">Play it live →</a></sub>
 </p>
 
 ## A scene in a few lines

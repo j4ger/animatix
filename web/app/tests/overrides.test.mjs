@@ -4,10 +4,13 @@ import fs from 'node:fs';
 import {withOverride,overridesFor} from '../src/lib/overrides.ts';
 
 test('a configured download changes exactly the canonical scalar default',()=>{
- const source=fs.readFileSync(new URL('../../content/scenes/one-rule-many-forms.amx',import.meta.url),'utf8');
- const configured=withOverride(source,'preset',1);
- assert.equal(configured,source.replace(/^let preset = 0$/m,'let preset = 1'));
- assert.equal(withOverride(configured,'preset',0),source);
+ const source=fs.readFileSync(new URL('../../content/scenes/ripple-and-cascade.amx',import.meta.url),'utf8');
+ const configured=withOverride(source,'start_pattern',1);
+ assert.equal(configured,source.replace(/^let start_pattern = 0$/m,'let start_pattern = 1'));
+ assert.equal(withOverride(configured,'start_pattern',0),source);
+ for (const query of ['start_pattern=1','preset=1']) {
+  assert.deepEqual(overridesFor('ripple-and-cascade',new URLSearchParams(query)),[['start_pattern',1]]);
+ }
 });
 test('phase presets arrive in the editor as a source change',()=>{
  const source=fs.readFileSync(new URL('../../content/scenes/when-waves-meet.amx',import.meta.url),'utf8');
@@ -18,10 +21,10 @@ test('phase presets arrive in the editor as a source change',()=>{
  }
 });
 test('query strings cannot inject unsupported scene variables or expressions',()=>{
- for(const [id,q] of [['first-move','preset=1'],['one-rule-many-forms','preset=2'],['when-waves-meet','phase_degrees=NaN'],['when-waves-meet','phase_degrees=0%3Balert(1)']])assert.deepEqual(overridesFor(id,new URLSearchParams(q)),[]);
- assert.throws(()=>withOverride('let preset = 0','unknown',1));
- assert.throws(()=>withOverride('let preset = 0','preset',Infinity));
- assert.throws(()=>withOverride('let phase = 0','preset',1));
+ for(const [id,q] of [['first-move','preset=1'],['ripple-and-cascade','preset=2'],['when-waves-meet','phase_degrees=NaN'],['when-waves-meet','phase_degrees=0%3Balert(1)']])assert.deepEqual(overridesFor(id,new URLSearchParams(q)),[]);
+ assert.throws(()=>withOverride('let start_pattern = 0','unknown',1));
+ assert.throws(()=>withOverride('let start_pattern = 0','start_pattern',Infinity));
+ assert.throws(()=>withOverride('let phase = 0','start_pattern',1));
 });
 test('the journey carries all three choices into editable source',()=>{
  const original=fs.readFileSync(new URL('../../content/scenes/give-it-a-beat.amx',import.meta.url),'utf8');

@@ -1,44 +1,84 @@
 ---
-import Scene from './Scene.astro';
 import SourceEditor from './SourceEditor.astro';
 import Timeline from './Timeline.astro';
 import {url} from '../lib/content';
 import {pageLanguage} from '../lib/language';
 import {ui} from '../lib/ui';
+import '../styles/editable-scene.css';
 const labels = ui(pageLanguage(Astro.currentLocale));
 const {t} = labels;
 interface Props {
   id: string;
   title: string;
-  source: string;
+  source?: string;
   posterAlt?: string;
+  posterPath?: string;
+  width?: number;
+  height?: number;
   autoplay?: boolean;
   recording?: boolean;
   duration?: number;
+  download?: boolean;
+  workspace?: boolean;
 }
-const {id, title, source, posterAlt = '', autoplay = false, recording = false, duration} = Astro.props;
+const {
+  id, title, source, posterAlt = '', posterPath = `content/posters/${id}.png`,
+  width = 1280, height = 720, autoplay = false,
+  recording = false, duration, download = false, workspace = false,
+} = Astro.props;
 const sourcePanel = `${id}-source`;
-const sourceStatus = `${id}-source-status`;
+const sourceStatus = workspace ? 'editor-status' : `${id}-source-status`;
+const sourceUrl = url(`content/scenes/${id}.amx`);
+const poster = url(posterPath);
 ---
-<figure class="sample" id={id} data-sample data-autoplay={autoplay || undefined}>
-  <figcaption><span class="file-icon" aria-hidden="true"></span><span>{id}.amx</span><slot name="actions"/></figcaption>
+<figure class="sample" id={id} data-sample data-autoplay={autoplay || undefined}
+        data-workspace={workspace || undefined} data-source-open={workspace || undefined} style={`--scene-aspect: ${width}/${height}`}>
+  <figcaption>
+    <div class="sample-file"><span class="file-icon" aria-hidden="true"></span><span data-scene-filename>{id}.amx</span></div>
+    <slot name="chooser"/>
+    {download && <a class="sample-download" data-source-download href={workspace ? undefined : sourceUrl}
+      download={`${id}.amx`}>{t('Download AMX', '下载 AMX')} ↓</a>}
+  </figcaption>
   <div class="sample-preview">
-    <Scene inline {id} {title} {posterAlt} {recording}/>
+    <div class="scene-shell" data-scene-shell data-module={url('runtime/amx-player.js')}
+         data-source={sourceUrl} data-title={title} data-aspect={`${width}:${height}`}>
+      <div class="scene-surface">
+        <div class:list={['scene-placeholder', {'editor-placeholder': workspace}]}>
+          {workspace ? <p>{labels.waitingForScene}</p> :
+            <div class="scene-poster"><img src={poster} alt={posterAlt} {width} {height} decoding="async"/></div>}
+        </div>
+        <div class="scene-mount" role="region" aria-label={labels.playback(title)}></div>
+      </div>
+      {recording && <div class="recording-panel" hidden>
+        <video controls playsinline preload="none" {width} {height} poster={poster}
+          data-recording={url(`content/previews/${id}.mp4`)} aria-label={t(`${title} — recording`, `${title}录制视频`)}
+          tabindex="0"></video>
+        <p class="recording-caption">{t('Recording of the original settings.', '按原始设置录制。')}</p>
+      </div>}
+      <p class="scene-status" role="status" aria-live="polite"></p>
+      {recording && <div class="scene-fallback" hidden>
+        <button class="button watch-recording" type="button">{t('Play recording', '播放录制视频')}</button>
+      </div>}
+    </div>
     <div class="sample-controls amx-transport">
       <button type="button" class="sample-play" disabled><i aria-hidden="true"></i><span>{labels.play}</span></button>
       <Timeline label={t('Scene time in seconds', '场景时间（秒）')} max={duration}/>
       <output class="sample-clock amx-time" aria-hidden="true">0.00s</output>
-      <button type="button" class="inspect" aria-expanded="false" aria-controls={sourcePanel}><b aria-hidden="true">&lt;/&gt;</b> <span>{labels.viewSource}</span></button>
+      <button type="button" class="inspect" aria-expanded={workspace ? 'true' : 'false'} aria-controls={sourcePanel}><b aria-hidden="true">&lt;/&gt;</b> <span>{workspace ? labels.hideSource : labels.viewSource}</span></button>
     </div>
     <slot name="presets"/>
   </div>
-  <div class="source-panel" id={sourcePanel} role="region" aria-label={labels.amxSource} tabindex="-1" hidden>
-    <SourceEditor id={`${sourcePanel}-code`} describedBy={sourceStatus} {source}/>
+  <div class="source-panel" id={sourcePanel} role="region" aria-label={labels.amxSource} tabindex="-1" hidden={!workspace}>
+    <SourceEditor id={workspace ? 'source-code' : `${sourcePanel}-code`} describedBy={sourceStatus} {source}/>
     <div class="source-footer">
       <p id={sourceStatus} class="source-status" role="status"></p>
       <button class="reset-source" type="button" aria-label={t('Reset source', '重置源码')} disabled>{labels.reset}</button>
     </div>
+    {workspace && <div id="diagnostics"></div>}
   </div>
-  <noscript><a href={url(`content/scenes/${id}.amx`)}>{t(`View ${id}.amx`, `查看 ${id}.amx`)} →</a></noscript>
+  {!download && <noscript><a href={sourceUrl}>{t(`View ${id}.amx`, `查看 ${id}.amx`)} →</a></noscript>}
 </figure>
-<script src="../scripts/editable-scene.ts"></script>
+<script>
+  import {editableScene} from '../scripts/editable-scene';
+  for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) editableScene(sample);
+</script>

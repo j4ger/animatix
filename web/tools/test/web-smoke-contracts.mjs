@@ -13,22 +13,24 @@ export function contracts(suite, depth = 'critical') {
     { path: '/', action: 'preview', players: 1, links: ['/journey/', '/showcase/move-the-basis/', '/docs/', '/playground/'] },
     { path: '/docs/', action: 'static', players: 0, links: ['/docs/quickstart/', '/learn/', '/docs/reference/'] },
     { path: '/docs/quickstart/', action: 'static', players: 0, links: ['/docs/', '/playground/'] },
+    { path: '/journey/', action: 'story', players: 1 },
     { path: '/learn/make-something-move/', action: 'load', players: 1, motion: true },
-    { path: '/showcase/move-the-basis/', action: 'load', players: 1, editable: true, editSource: true, recording: true },
-    { path: '/showcase/one-rule-many-forms/', action: 'load', players: 1, editable: true, preset: true, recording: true },
-    { path: '/showcase/one-rule-many-forms/?check=webgl2', action: 'load', players: 1, editable: true, backend: 'webgl2', recording: true },
-    { path: '/showcase/one-rule-many-forms/?check=recording', action: 'recording', players: 0, editable: true, recording: true },
+    { path: '/learn/techniques/stagger/', action: 'load', players: 1, editSource: {duration: 7, stamp: 1} },
+    { path: '/showcase/move-the-basis/', action: 'load', players: 1, editSource: {duration: 24, stamp: 3}, recording: true },
+    { path: '/showcase/ripple-and-cascade/', action: 'load', players: 1, preset: true, recording: true },
+    { path: '/showcase/ripple-and-cascade/?check=webgl2', action: 'load', players: 1, backend: 'webgl2', recording: true },
+    { path: '/showcase/ripple-and-cascade/?check=recording', action: 'recording', players: 0, recording: true },
     { path: '/playground/?scene=first-move', action: 'edit', players: 1, motion: true },
   ];
   if (depth === 'deep') {
     const editor = pages.pop(); // Keep dirty-editor recovery last: navigation asks before discarding edits.
     for (const id of ['make-room', 'when-waves-meet', 'words-keep-time']) {
-      pages.push({path: `/showcase/${id}/`, action: 'load', players: 1, editable: true, recording: true});
+      pages.push({path: `/showcase/${id}/`, action: 'load', players: 1, recording: true});
     }
     for (const id of ['compose-a-scene', 'repeat-with-intent', 'values-drive-motion', 'structure-time', 'finish-and-share']) {
       pages.push({path: `/learn/${id}/`, action: 'load', players: 1});
     }
-    for (const id of ['focus', 'labels', 'reveal', 'stagger']) {
+    for (const id of ['focus', 'labels', 'reveal']) {
       pages.push({path: `/learn/techniques/${id}/`, action: 'load', players: 1});
     }
     pages.push(editor);

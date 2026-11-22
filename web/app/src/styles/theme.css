@@ -33,21 +33,6 @@ body { background-color: var(--bg); }
 }
 
 ::selection { color: var(--ink); background: var(--accent-soft); }
-.project-page .button { border-color: var(--edge); }
-.project-page .button:hover { border-color: var(--accent); }
-.project-page .button.primary, .project-page .skip {
-  color: var(--on-accent);
-  background: var(--accent);
-  border-color: var(--accent);
-}
-:where(.project-page) :is(.editor-pane, .lesson-code, .scene-shell, select, textarea) {
-  background: var(--panel);
-  border-color: var(--line);
-  color: var(--ink);
-}
-.project-page .source-editor textarea { background: transparent; }
-.project-page .editor-pane .diagnostic { color: var(--error-text); background: var(--error-surface); }
-.project-page :is(.muted, .lesson-number) { color: var(--muted); }
 
 :is(amx-player, .amx-transport) {
   --amx-player-surface: var(--panel);

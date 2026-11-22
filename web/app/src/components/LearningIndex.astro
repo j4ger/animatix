@@ -1,0 +1,46 @@
+---
+import DocsBackLink from './DocsBackLink.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+  items: {href: string; title: string; goal: string}[];
+  numbered?: boolean;
+}
+
+const {title, description, items, numbered = false} = Astro.props;
+const List = numbered ? 'ol' : 'ul';
+---
+<section class="guide" aria-labelledby="learning-title">
+  <DocsBackLink/>
+  <h1 id="learning-title">{title}</h1>
+  {description && <p>{description}</p>}
+</section>
+<List class:list={['learning-list', {numbered}]} role="list">
+  {items.map((item, index) => <li>
+    <a href={item.href}>
+      {numbered && <span class="lesson-number" aria-hidden="true">{index + 1}</span>}
+      <div><h2>{item.title}</h2><p>{item.goal}</p></div>
+      <span class="learning-arrow" aria-hidden="true">→</span>
+    </a>
+  </li>)}
+</List>
+
+<style>
+  .learning-list { list-style: none; margin: 30px 0 0; padding: 0; border-top: 1px solid var(--line); }
+  .learning-list a {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px clamp(12px, 2vw, 20px);
+    padding: 22px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .learning-list.numbered a { grid-template-columns: clamp(40px, 5vw, 75px) minmax(0, 1fr) auto; padding-block: 30px; }
+  .learning-list h2 { font-size: clamp(1.22rem, 2.4vw, 1.55rem); margin-bottom: 4px; letter-spacing: -.025em; }
+  .learning-list.numbered h2 { font-size: clamp(1.5rem, 2.4vw, 1.75rem); margin-bottom: 8px; letter-spacing: -.045em; }
+  .learning-list p { font-size: .875rem; margin: 0; }
+  .lesson-number { font: 25px var(--mono); color: var(--muted); }
+  .learning-arrow { color: var(--muted); }
+  .learning-list a:is(:hover, :focus-visible) :is(h2, .learning-arrow) { color: var(--accent); }
+</style>

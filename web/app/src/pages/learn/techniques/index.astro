@@ -1,6 +1,6 @@
 ---
 import Page from '../../../layouts/Page.astro';
-import DocsBackLink from '../../../components/DocsBackLink.astro';
+import LearningIndex from '../../../components/LearningIndex.astro';
 import {pageUrl} from '../../../lib/content';
 import {techniques} from '../../../lib/techniques';
 import {techniqueCopy} from '../../../lib/catalog-zh';
@@ -9,8 +9,13 @@ import {ui} from '../../../lib/ui';
 const language = pageLanguage(Astro.currentLocale);
 const {t} = ui(language);
 const title = t('Animation techniques', '动画技法');
+const description = t('Open a scene to see the technique in motion and edit its AMX source.', '打开示例，查看动画效果并直接修改 AMX 源码。');
+const items = techniques.map(entry => ({
+  href: pageUrl(language, `learn/techniques/${entry.id}/`),
+  title: t(entry.title, techniqueCopy[entry.id].title),
+  goal: t(entry.goal, techniqueCopy[entry.id].goal),
+}));
 ---
-<Page title={title}>
-  <section class="guide"><DocsBackLink/><h1>{title}</h1></section>
-  <div class="link-list">{techniques.map(entry => <a href={pageUrl(language, 'learn/techniques/' + entry.id + '/')}>{t(entry.title, techniqueCopy[entry.id].title)}<span aria-hidden="true">→</span></a>)}</div>
+<Page {title} {description}>
+  <LearningIndex {title} {description} {items}/>
 </Page>

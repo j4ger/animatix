@@ -7,14 +7,14 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
   };
   await until('page complete', () => cdp.evaluate(`document.readyState==='complete'`));
   if (!await cdp.evaluate(`!!document.querySelector('body')`)) throw new Error('Missing document body');
-  if (['static', 'load', 'recording'].includes(contract.action)) {
+  if (contract.action === 'static') {
     const cold = await cdp.evaluate(`({
       players: ${players}.length,
       requests: performance.getEntriesByType('resource').filter(entry =>
         ['.wasm', '.wasm.gz', '.mp4', '/runtime/amx-player.js'].some(suffix =>
           new URL(entry.name).pathname.endsWith(suffix))).length,
     })`);
-    if (cold.players || cold.requests) throw new Error('Public page loaded the runtime or a recording before user interaction');
+    if (cold.players || cold.requests) throw new Error('Documentation loaded a player or its runtime');
   }
   for (const path of contract.links || []) {
     const found = await cdp.evaluate(`Array.from(document.querySelectorAll('a[href]')).some(a => {
@@ -28,14 +28,10 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
     return;
   }
   record({kind:'action',action:contract.action,pageTimeMs:await cdp.evaluate('performance.now()')});
-  if (contract.backend === 'webgl2' || contract.action === 'recording') {
-    await cdp.evaluate(`Object.defineProperty(navigator, 'gpu', {value: undefined}); true`);
-  }
   if (contract.action === 'recording') {
-    await recordingJourney(cdp, contract, record);
+    await recordingJourney(cdp, record);
     return;
   }
-  if (contract.action === 'load') await startPoster(cdp, contract);
   await until('expected players', async () => {
     await checkErrors();
     return cdp.evaluate(`${players}.length===${contract.players}`);
@@ -46,6 +42,7 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
       await checkErrors();
       return cdp.evaluate(`__smoke.ready.has(${players}[${index}])`);
     });
+    if (contract.action === 'load') await playReadyScene(cdp, contract);
     if (contract.action === 'edit') {
       await cdp.evaluate(`(() => {
         const code = document.querySelector('#source-code');
@@ -64,7 +61,7 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
         await checkErrors();
         return cdp.evaluate(`(() => {
           const player = ${players}[${index}];
-          const marks = player.shadowRoot.querySelector('.amx-marks');
+          const marks = document.querySelector('.sample .amx-marks');
           return player.duration === 4 && !marks.querySelector('[data-t="0.5"]') &&
             marks.querySelector('[data-t="0.25"]')?.style.left === '6.25%';
         })()`);
@@ -74,18 +71,18 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
     const info = await cdp.evaluate(`(()=>{const p=${players}[${index}];p.pause();return {src:p.getAttribute('src'),duration:p.duration,backend:p.backend,report:p.debugReport?.()};})()`);
     if (!(info.duration > 0)) throw new Error('Invalid public duration');
     if (contract.backend && info.backend !== contract.backend) throw Error(`Expected ${contract.backend}, got ${info.backend}`);
-    if (contract.action === 'load') {
-      await until('poster replaced by the ready player', () => cdp.evaluate(`
-        document.querySelector('.scene-placeholder').hidden &&
-        !document.querySelector('.scene-surface').hasAttribute('aria-busy') &&
-        (document.querySelector('.scene-fallback')?.hidden ?? true) &&
-        document.activeElement === document.querySelector('${contract.editable ? '.sample-play' : '.scene-mount'}')
-      `));
-    }
     const samples = contract.motion ? [0, 2.1] : [info.duration * 0.65];
     for (const time of samples) {
       await diagnose(`before-seek-${time}`);
-      await cdp.evaluate(`${players}[${index}].seek(${time})`);
+      if (contract.action === 'story') {
+        await cdp.evaluate(`(() => {
+          const slider = document.querySelector('.timeline-input');
+          slider.value = '${time}';
+          slider.dispatchEvent(new Event('input', {bubbles: true}));
+        })()`);
+      } else {
+        await cdp.evaluate(`${players}[${index}].seek(${time})`);
+      }
       await diagnose(`after-seek-${time}`);
       let stats, last;
       await until(`paint at ${time}s`, async () => {
@@ -120,7 +117,8 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
     if (count !== 1) throw new Error(`Expected exactly one on-demand fetch for ${module}, got ${count}`);
   }
   if (contract.preset) await presetJourney(cdp, capture, checkErrors, record);
-  if (contract.editSource) await inlineEditorJourney(cdp, checkErrors);
+  if (contract.editSource) await inlineEditorJourney(cdp, checkErrors, contract.editSource);
+  if (contract.action === 'story') await storyEditorJourney(cdp, checkErrors);
   if (contract.action === 'edit') {
     await cdp.evaluate(`(() => {
       const code = document.querySelector('#source-code');
@@ -136,11 +134,12 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
     if (!await cdp.evaluate(`document.querySelector('#source-code').value===window.__submitted`)) throw new Error('Failed build changed source');
     // A failed edit must retain the last successful scene, not merely its DOM.
     await cdp.evaluate(`(() => {
-      const player = ${players}[0];
-      player.pause();
-      player.seek(1);
-      player.seek(2.1);
-      if (player.shadowRoot.querySelector('.amx-time').textContent !== '2.1 / 4.0') {
+      const slider = document.querySelector('.timeline-input');
+      for (const time of [1, 2.1]) {
+        slider.value = String(time);
+        slider.dispatchEvent(new Event('input', {bubbles: true}));
+      }
+      if (document.querySelector('.sample-clock').textContent !== '2.10s') {
         throw Error('The time label did not follow the last paused seek');
       }
     })()`);
@@ -190,40 +189,45 @@ async function playgroundSwitchJourney(cdp) {
 
   await choose('compose', true, 1);
   await loaded('compose');
+  await choose('ripple-and-cascade', true, 0);
+  await loaded('ripple-and-cascade');
+  if (!await cdp.evaluate(`
+    document.querySelector('[data-scene-filename]').textContent === 'ripple-and-cascade.amx' &&
+    document.querySelector('[data-source-download]').download === 'ripple-and-cascade.amx'
+  `)) throw Error('Playground filename and download must use the selected scene name');
   await choose('first-move', true, 0);
   await loaded('first-move');
 }
 
-async function startPoster(cdp, {editable, recording}) {
-  await until('rendered poster image', () => cdp.evaluate(`document.querySelector('.scene-poster img')?.naturalWidth === 1280`));
+async function playReadyScene(cdp, {recording}) {
+  await until('preloaded preview with enabled controls', () => cdp.evaluate(`
+    document.querySelector('.scene-placeholder').hidden &&
+    !document.querySelector('.scene-surface').hasAttribute('aria-busy') &&
+    !document.querySelector('.sample-play').disabled
+  `));
   await cdp.evaluate(`(() => {
-    const poster = document.querySelector('.scene-placeholder');
-    const action = ${editable ? "document.querySelector('.sample-play')" : "poster.querySelector('.load-scene')"};
+    const surface = document.querySelector('.scene-surface');
+    const action = document.querySelector('.sample-play');
     const fallback = document.querySelector('.scene-fallback');
-    if (poster.hidden || !action.getClientRects().length) throw Error('Missing visible Play live poster');
-    if (${Boolean(editable)} && (poster.querySelector('button') || action.getBoundingClientRect().top < poster.getBoundingClientRect().bottom)) {
+    const player = document.querySelector('amx-player');
+    if (player.time !== 0) throw Error('The preloaded scene must wait at the first frame');
+    if (!action.getClientRects().length || action.getBoundingClientRect().top < surface.getBoundingClientRect().bottom) {
       throw Error('Editable scene playback controls must sit under the picture');
     }
     if (Boolean(fallback) !== ${Boolean(recording)} || (fallback && !fallback.hidden)) {
       throw Error('Unexpected recording action on an unopened scene');
     }
-    action.scrollIntoView({block:'center', behavior:'instant'});
     action.focus();
     action.click();
-    if (poster.hidden || document.querySelector('.scene-surface').getAttribute('aria-busy') !== 'true') {
-      throw Error('Poster must stay visible while live playback starts');
+    if (surface.hasAttribute('aria-busy') || player !== document.querySelector('amx-player')) {
+      throw Error('Play must reuse the prepared preview');
     }
   })()`);
+  await until('Play advances the prepared scene', () => cdp.evaluate(`document.querySelector('amx-player').time > 0`));
+  await cdp.evaluate(`document.querySelector('.sample-play').click()`);
 }
 
-async function recordingJourney(cdp, contract, record) {
-  await cdp.evaluate(`(() => {
-    const getContext = HTMLCanvasElement.prototype.getContext;
-    HTMLCanvasElement.prototype.getContext = function(kind, ...args) {
-      return kind === 'webgl2' ? null : getContext.call(this, kind, ...args);
-    };
-  })()`);
-  await startPoster(cdp, contract);
+async function recordingJourney(cdp, record) {
   async function failedWithPoster() {
     await until('graphics failure and recording choice', () => cdp.evaluate(`
       document.querySelector('.scene-status').textContent.includes('could not start WebGPU or WebGL2') &&
@@ -239,7 +243,6 @@ async function recordingJourney(cdp, contract, record) {
     if (video.hasAttribute('src') || performance.getEntriesByType('resource').some(entry =>
       new URL(entry.name).pathname.endsWith('.mp4'))) throw Error('Recording fetched before the user chose it');
     const button = document.querySelector('.watch-recording');
-    if (document.activeElement !== button) throw Error('Recording choice did not receive keyboard focus');
     button.scrollIntoView({block:'center', behavior:'instant'});
     const box = button.getBoundingClientRect();
     return {x: box.x + box.width / 2, y: box.y + box.height / 2};
@@ -248,9 +251,16 @@ async function recordingJourney(cdp, contract, record) {
     await cdp.send('Input.dispatchMouseEvent', {type, ...point, button:'left', clickCount:1});
   }
   await until('recording playback', () => cdp.evaluate(`document.querySelector('video').currentTime > 0.1`));
-  await cdp.evaluate(`document.querySelector('.sample-play').click()`);
+  await cdp.evaluate(`(() => {
+    const retry = document.querySelector('.sample-play');
+    retry.focus();
+    retry.click();
+  })()`);
   await failedWithPoster();
-  if (!await cdp.evaluate(`document.querySelector('.recording-panel').hidden && document.querySelector('video').paused`)) {
+  if (!await cdp.evaluate(`
+    document.querySelector('.recording-panel').hidden && document.querySelector('video').paused &&
+    document.activeElement === document.querySelector('.watch-recording')
+  `)) {
     throw Error('Retry must pause the recording and return to the poster');
   }
   record({kind:'recording-fallback', liveRetry:true});
@@ -276,26 +286,53 @@ async function presetJourney(cdp, capture, checkErrors, record) {
     player.pause();player.seek(6);
     return {draft,source};
   })()`);
-  if(result.draft!==result.source || !/^let preset = 1$/m.test(result.source))throw Error('Preset, editor and downloaded source disagree');
-  await until('preset painted',async()=>{await checkErrors();try{assertPaint(await capture(0,'preset-1'));return true;}catch{return false;}},10000);
+  if(result.draft!==result.source || !/^let start_pattern = 1$/m.test(result.source))throw Error('Preset, editor and downloaded source disagree');
+  await until('full grid painted with the cascade preset', async () => {
+    await checkErrors();
+    try {
+      return assertPaint(await capture(0, 'preset-1')).coverage > 0.07;
+    } catch {
+      return false;
+    }
+  }, 10000);
   record({kind:'preset',value:1,downloadMatches:true});
 }
 
-async function inlineEditorJourney(cdp, checkErrors) {
+async function inlineEditorJourney(cdp, checkErrors, {duration, stamp}) {
+  const editedStamp = stamp + 0.25;
   await cdp.evaluate(`(() => {
     const address = location.href;
     document.querySelector('.inspect').click();
     const source = document.querySelector('.source-editor textarea');
     if (!source.getClientRects().length || location.href !== address) throw Error('Source must open in place');
-    source.value = source.value.replace('duration: 24', 'duration: 26').replace('#3s', '#3.25s');
+    source.value = source.value.replace('duration: ${duration}', 'duration: ${duration + 2}').replace('#${stamp}s', '#${editedStamp}s');
     source.dispatchEvent(new Event('input', {bubbles:true}));
   })()`);
   await until('inline edit rebuilt the timeline', async () => {
     await checkErrors();
-    return cdp.evaluate(`document.querySelector('amx-player').duration === 26 &&
-      !!document.querySelector('.sample .amx-marks [data-t="3.25"]')`);
+    return cdp.evaluate(`document.querySelector('amx-player').duration === ${duration + 2} &&
+      !!document.querySelector('.sample .amx-marks [data-t="${editedStamp}"]')`);
   });
   await cdp.evaluate(`document.querySelector('.reset-source').click()`);
-  await until('inline editor reset', () => cdp.evaluate(`document.querySelector('amx-player').duration === 24 &&
-    !document.querySelector('.sample .amx-marks [data-t="3.25"]')`));
+  await until('inline editor reset', () => cdp.evaluate(`document.querySelector('amx-player').duration === ${duration} &&
+    !document.querySelector('.sample .amx-marks [data-t="${editedStamp}"]')`));
+}
+
+async function storyEditorJourney(cdp, checkErrors) {
+  await cdp.evaluate(`window.scrollTo({top: document.querySelector('#speaker').offsetTop, behavior: 'instant'})`);
+  await until('reading scroll seeks the shared player', () => cdp.evaluate(`
+    document.querySelector('amx-player').time > 0 && document.querySelector('amx-player').time < 16
+  `));
+  await cdp.evaluate(`document.querySelector('[data-edit-film="half"]').click()`);
+  await until('half strength edits and replays the scene inline', async () => {
+    await checkErrors();
+    return cdp.evaluate(`(async () => {
+      const editor = document.querySelector('.source-editor textarea');
+      const download = document.querySelector('[data-source-download]');
+      return editor.getClientRects().length && editor.value.includes('let speaker_level = 0.5') &&
+        !(document.querySelector('.sample-play').disabled) && download.href.startsWith('blob:') &&
+        (await (await fetch(download.href)).text()) === editor.value &&
+        location.pathname.endsWith('/journey/');
+    })()`);
+  });
 }

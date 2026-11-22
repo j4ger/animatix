@@ -7,8 +7,7 @@ import {pageLanguage} from '../../../lib/language';
 import {ui} from '../../../lib/ui';
 export function getStaticPaths(){return techniques.map(technique=>({params:{id:technique.id},props:{technique}}));}
 const language = pageLanguage(Astro.currentLocale);
-const labels = ui(language);
-const {t} = labels;
+const {t} = ui(language);
 const original: typeof techniques[number] = Astro.props.technique;
 const translation = techniqueCopy[original.id];
 const technique = language === 'zh' ? {...original, ...translation} : original;
@@ -21,6 +20,6 @@ const descriptions: Record<string,string> = {
 ---
 <Page title={technique.title}>
   <LearningScene entry={technique} backPath="learn/techniques/" backLabel={t('All techniques', '全部技法')}
-    eyebrow={`${t('Technique', '技法')} / ${labels.seconds(technique.duration)}`}
+    eyebrow={t('Technique', '技法')}
     posterAlt={t(descriptions[technique.id], translation.alt)}/>
 </Page>

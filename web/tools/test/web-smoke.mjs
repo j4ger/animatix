@@ -98,6 +98,17 @@ async function main(){
         const {data}=await cdp.send('Page.captureScreenshot',{format:'png',clip,captureBeyondViewport:false});
         const buffer=Buffer.from(data,'base64');writeFileSync(join(OUTPUT,`${n}-${name}.png`),buffer);return buffer;
       };
+      // Configure the backend before the page initializes its preview.
+      const fault = contract.backend === 'webgl2' || contract.action === 'recording'
+        ? await cdp.send('Page.addScriptToEvaluateOnNewDocument', {source: `
+          Object.defineProperty(navigator, 'gpu', {value: undefined});
+          ${contract.action === 'recording' ? `{
+            const getContext = HTMLCanvasElement.prototype.getContext;
+            HTMLCanvasElement.prototype.getContext = function(kind, ...args) {
+              return kind === 'webgl2' ? null : getContext.call(this, kind, ...args);
+            };
+          }` : ''}
+        `}) : undefined;
       let timer;
       try{
         await Promise.race([(async()=>{
@@ -105,7 +116,10 @@ async function main(){
           await navigationCommitted(cdp,base+contract.path);
           await journey(cdp,contract,capture,event=>record({page:current,...event}),checkErrors);
         })(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error(`Host page deadline (${PAGE_BUDGET}ms)`)),PAGE_BUDGET);})]);
-      }finally{clearTimeout(timer);}
+      }finally{
+        clearTimeout(timer);
+        if (fault) await cdp.send('Page.removeScriptToEvaluateOnNewDocument', {identifier: fault.identifier});
+      }
       record({kind:'page-complete',page:current,durationMs:Date.now()-started,cache:n===0?'browser-first-journey':'browser-reused'});
       console.log(`web-smoke ${SUITE}: ${current} ok (${Date.now()-started}ms)`);
     }

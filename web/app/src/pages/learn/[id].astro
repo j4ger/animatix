@@ -24,3 +24,8 @@ const titleOf = (entry: typeof lessons[number]) => t(entry.title, lessonCopy[ent
     {i < lessons.length - 1 && <a href={pageUrl(language, `learn/${lessons[i + 1].id}/`)}>{titleOf(lessons[i + 1])} →</a>}
   </div>
 </Page>
+
+<style>
+  .lesson-nav { display: flex; justify-content: space-between; gap: 24px; font-size: .875rem; color: var(--accent); }
+  @media (max-width: 800px) { .lesson-nav { font-size: .75rem; } }
+</style>

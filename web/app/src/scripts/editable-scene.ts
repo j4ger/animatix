@@ -1,20 +1,44 @@
-import {closeRecording, loadPlayer, loadPlayerModule, resetPlayer, showPlaybackFailure} from './scene';
+import {bindRecording, closeRecording, loadPlayer, loadPlayerModule, resetPlayer, showPlaybackFailure} from './scene';
 import {readableError} from '../lib/errors';
 import {sourceCues} from '../lib/insertion-steps';
-import {draftSelection, takeEditorTransfer, transferEditor} from '../lib/editor-transfer';
+import {draftSelection, takeEditorTransfer, transferEditor, type EditorDraft} from '../lib/editor-transfer';
 import {currentUi} from '../lib/ui';
 import {bindTimeline} from '../lib/timeline';
 import {bindSourceEditor, type SourceKeyframe} from '../lib/source-highlight';
 import {numericDefault, withOverride} from '../lib/overrides';
 
 const labels = currentUi();
+const {t} = labels;
+const scenes = new WeakMap<HTMLElement, ReturnType<typeof bindEditableScene>>();
 
-for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
+export function editableScene(sample: HTMLElement) {
+  let scene = scenes.get(sample);
+  if (!scene) {
+    scene = bindEditableScene(sample);
+    scenes.set(sample, scene);
+  }
+  return scene;
+}
+
+interface SceneSource {
+  id: string;
+  path: string;
+  title: string;
+  canonical: string;
+  source: string;
+  time?: number;
+  draft?: EditorDraft;
+}
+
+function bindEditableScene(sample: HTMLElement) {
   const shell = sample.querySelector<HTMLElement>('[data-scene-shell]')!;
   const controls = sample.querySelector<HTMLButtonElement>('.sample-play')!;
   const controlText = controls.querySelector('span')!;
   const slider = sample.querySelector<HTMLInputElement>('.timeline-input')!;
-  const timeline = bindTimeline(slider, seek);
+  const timeline = bindTimeline(slider, time => {
+    signalInteraction();
+    seek(time);
+  });
   const clock = sample.querySelector<HTMLOutputElement>('.sample-clock')!;
   const inspect = sample.querySelector<HTMLButtonElement>('.inspect')!;
   const panel = sample.querySelector<HTMLElement>('.source-panel')!;
@@ -26,11 +50,18 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
   const preset = sample.querySelector<HTMLSelectElement>('[data-scene-preset]');
   const presetStatus = sample.querySelector<HTMLElement>('.scene-presets [role=status]');
   const download = sample.querySelector<HTMLAnchorElement>('[data-source-download]');
-  const originalDownload = download?.href;
+  const filename = sample.querySelector<HTMLElement>('[data-scene-filename]')!;
+  const mount = shell.querySelector<HTMLElement>('.scene-mount')!;
+  const diagnostics = sample.querySelector<HTMLElement>('#diagnostics');
   const media = matchMedia('(prefers-reduced-motion: reduce)');
-  const original = editor.value;
+  const workspace = sample.hasAttribute('data-workspace');
+  let id = workspace ? '' : sample.id;
+  let original = editor.value;
+  let canonical = original;
+  let savedCopy: string | null = null;
   const transferKey = sample.hasAttribute('data-autoplay') ? 'home' : `example.${sample.id}`;
-  const transferred = takeEditorTransfer(transferKey);
+  const stored = workspace ? undefined : takeEditorTransfer(transferKey);
+  const transferred = stored?.scene === id ? stored : undefined;
   let previousPreview = transferred?.compiled;
   let compiled = original;
   let timedCells: {element: HTMLElement; time: number}[] = [];
@@ -41,9 +72,14 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
   let seconds = transferred?.time ?? 0;
   let problem = false;
   let busy = false;
+  let reading = workspace;
   let buildTimer: number | undefined;
   let buildPending = false;
   let replaySource: string | undefined;
+  let downloadUrl: string | undefined;
+  const hasUnsaved = () => editor.value !== original && editor.value !== savedCopy;
+  const signalInteraction = () => sample.dispatchEvent(new Event('scene-interaction'));
+  bindRecording(shell);
 
   function markCurrentCell() {
     const next = editor.value === compiled ? timedCells.findLast(cell => cell.time <= seconds + 0.001)?.element : undefined;
@@ -67,10 +103,20 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
     timedCells = [];
     activeCell = undefined;
     highlight.render();
-    if (download) {
-      if (download.href.startsWith('blob:')) URL.revokeObjectURL(download.href);
-      download.href = editor.value === original ? originalDownload! : URL.createObjectURL(new Blob([editor.value], {type: 'text/plain'}));
+    updateDownload();
+  }
+
+  function updateDownload() {
+    if (!download) return;
+    if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+    downloadUrl = undefined;
+    if (!id || reading) {
+      download.removeAttribute('href');
+      return;
     }
+    if (editor.value !== canonical) downloadUrl = URL.createObjectURL(new Blob([editor.value], {type: 'text/plain'}));
+    download.href = downloadUrl ?? shell.dataset.source!;
+    download.download = `${id}.amx`;
   }
 
   function revealCurrentCell() {
@@ -93,14 +139,17 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
   }
 
   function updateControls() {
-    controls.disabled = busy;
-    slider.disabled = busy || !player;
-    reset.disabled = editor.value === original && compiled === original;
+    controls.disabled = busy || reading;
+    slider.disabled = busy || reading || !player;
+    reset.disabled = reading || !id || (editor.value === original && compiled === original);
+    editor.readOnly = reading || !id;
+    sample.toggleAttribute('data-scene-busy', busy || reading);
     if (preset) {
       preset.disabled = busy || !player;
       const value = String(numericDefault(compiled, preset.name));
       preset.value = [...preset.options].some(option => option.value === value) ? value : '';
     }
+    sample.dispatchEvent(new Event('scene-controls'));
   }
 
   function pause() {
@@ -114,6 +163,45 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
     seconds = Math.min(Math.max(0, time), Number(slider.max));
     player?.seek(seconds);
     paint();
+  }
+
+  function selectLine(line: number, from = 0, length?: number) {
+    const lines = editor.value.split('\n');
+    const start = lines.slice(0, line - 1).reduce((offset, text) => offset + text.length + 1, 0);
+    if (matchMedia('(pointer: fine)').matches) editor.focus({preventScroll: true});
+    editor.setSelectionRange(start + from, start + (length === undefined ? lines[line - 1]?.length ?? 0 : from + length));
+    const style = getComputedStyle(editor);
+    const measure = document.createElement('div');
+    measure.className = 'source-wrap';
+    Object.assign(measure.style, {
+      position: 'fixed', visibility: 'hidden', width: editor.clientWidth + 'px',
+      paddingLeft: style.paddingLeft, paddingRight: style.paddingRight,
+      font: style.font, letterSpacing: style.letterSpacing,
+    });
+    measure.textContent = editor.value.slice(0, start + from) + '\u200b';
+    document.body.append(measure);
+    editor.scrollTop = Math.max(0, measure.getBoundingClientRect().height - 3 * parseFloat(style.lineHeight));
+    measure.remove();
+  }
+
+  function clearDiagnostics() {
+    status.textContent = '';
+    diagnostics?.replaceChildren();
+  }
+
+  function showDiagnostics(error: unknown) {
+    status.textContent = (workspace ? t('Not built:', '编译失败：') + ' ' : '') + readableError(error);
+    if (!diagnostics) return;
+    for (const item of (error as {diagnostics?: {line?: number; message?: string; code?: string}[]}).diagnostics ?? []) {
+      const line = item.line;
+      if (!line) continue;
+      const button = document.createElement('button');
+      button.className = 'diagnostic';
+      button.type = 'button';
+      button.textContent = `${labels.line(line)} · ${item.message ?? item.code ?? ''}`;
+      button.addEventListener('click', () => selectLine(line));
+      diagnostics.append(button);
+    }
   }
 
   function tick() {
@@ -157,7 +245,7 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
     if (player && compiled !== original) previousPreview = compiled;
     player = undefined;
     resetPlayer(shell);
-    compiled = original;
+    compiled = canonical;
     problem = true;
     showPlaybackFailure(shell, error);
     paint();
@@ -173,7 +261,7 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
     closeRecording(shell);
     try {
       player = await loadPlayer(shell);
-      if (previousPreview !== undefined && previousPreview !== original) {
+      if (previousPreview !== undefined && previousPreview !== canonical) {
         await player.applySource(previousPreview);
         compiled = previousPreview;
       }
@@ -191,7 +279,7 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
         const fallback = shell.querySelector<HTMLButtonElement>('.scene-fallback:not([hidden]) .watch-recording');
         (fallback ?? controls).focus({preventScroll: true});
       }
-      void buildDraft();
+      await buildDraft();
     }
   }
 
@@ -223,7 +311,7 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
       }
     } catch (error) {
       if (player === preview && editor.value === submitted) {
-        status.textContent = readableError(error);
+        showDiagnostics(error);
         if (replay && panel.hidden && presetStatus) presetStatus.textContent = status.textContent;
       }
     } finally {
@@ -249,16 +337,93 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
     }, 350);
   }
 
+  function showSource() {
+    signalInteraction();
+    if (panel.hidden) setPanel(true);
+  }
+
+  function snapshot(): EditorDraft | undefined {
+    if (!id) return;
+    return {
+      scene: id, source: editor.value, compiled, time: player?.time ?? selectedTime,
+      selection: draftSelection(editor), scroll: editor.scrollTop, sourceOpen: !panel.hidden, savedCopy,
+    };
+  }
+
+  let selectedTime: number | undefined;
+
+  function setReading(value: boolean) {
+    reading = value;
+    updateControls();
+    updateDownload();
+  }
+
+  function sourceError(error: unknown) {
+    const message = t('Could not load source.', '无法加载源码。') + ' ' + readableError(error);
+    shell.querySelector('.scene-status')!.textContent = message;
+    if (!id) problem = true;
+    paint();
+    setReading(false);
+  }
+
+  function replaceScene(scene: SceneSource) {
+    cancelQueuedBuild();
+    pause();
+    resetPlayer(shell);
+    player = undefined;
+    id = scene.id;
+    shell.dataset.source = scene.path;
+    shell.dataset.title = scene.title;
+    mount.setAttribute('aria-label', labels.playback(scene.title));
+    filename.textContent = `${id}.amx`;
+    original = scene.source;
+    compiled = canonical = scene.canonical;
+    previousPreview = scene.draft?.compiled;
+    savedCopy = scene.draft?.savedCopy ?? null;
+    selectedTime = scene.draft?.time ?? scene.time;
+    seconds = selectedTime ?? 0;
+    editor.value = scene.draft?.source ?? original;
+    editor.scrollTop = 0;
+    clearDiagnostics();
+    timeline.setDocument({duration: Math.max(1, seconds)});
+    if (scene.draft) restoreEditor(scene.draft);
+    reading = false;
+    renderSource();
+    paint();
+    void start(selectedTime === undefined && !media.matches);
+  }
+
+  function restoreEditor(draft: EditorDraft) {
+    editor.value = draft.source;
+    if (draft.sourceOpen !== undefined) setPanel(draft.sourceOpen, false);
+    editor.setSelectionRange(...draft.selection);
+    editor.scrollTop = draft.scroll;
+  }
+
+  function changeParameter(name: string, value: number) {
+    const source = withOverride(editor.value, name, value);
+    cancelQueuedBuild();
+    clearDiagnostics();
+    if (presetStatus) presetStatus.textContent = '';
+    editor.value = source;
+    renderSource();
+    replaySource = source;
+    buildPending = true;
+    return player ? buildDraft() : busy ? Promise.resolve() : start(false);
+  }
+
+  if (workspace) highlight.setVisible(true);
   inspect.addEventListener('click', () => {
-    setPanel(panel.hidden);
-    if (!panel.hidden && !player && !busy && !problem) void start(false);
+    if (panel.hidden) showSource();
+    else setPanel(false);
   });
   slider.addEventListener('change', revealCurrentCell);
   reset.addEventListener('click', () => {
+    if (workspace && hasUnsaved() && !confirm(t('Restore the original source?', '要恢复原始源码吗？'))) return;
     cancelQueuedBuild();
     editor.value = original;
     editor.scrollTop = 0;
-    status.textContent = '';
+    clearDiagnostics();
     if (presetStatus) presetStatus.textContent = '';
     renderSource();
     updateControls();
@@ -268,7 +433,7 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
   editor.addEventListener('input', event => {
     renderSource();
     updateControls();
-    status.textContent = '';
+    clearDiagnostics();
     if (presetStatus) presetStatus.textContent = '';
     if (!(event as InputEvent).isComposing) queueBuild();
   });
@@ -278,14 +443,7 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
     if (!player || busy || !presetStatus) return;
     const hadFocus = document.activeElement === preset;
     try {
-      const source = withOverride(editor.value, preset.name, Number(preset.value));
-      cancelQueuedBuild();
-      editor.value = source;
-      status.textContent = presetStatus.textContent = '';
-      renderSource();
-      replaySource = source;
-      buildPending = true;
-      void buildDraft().finally(() => {
+      void changeParameter(preset.name, Number(preset.value)).finally(() => {
         if (hadFocus && !preset.disabled && document.activeElement === document.body) {
           preset.focus({preventScroll: true});
         }
@@ -296,6 +454,8 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
     }
   });
   controls.addEventListener('click', () => {
+    signalInteraction();
+    if (!id) { sample.dispatchEvent(new Event('scene-retry')); return; }
     if (!player) { void start(true); return; }
     if (playing) seek(player!.time);
     else play();
@@ -304,20 +464,15 @@ for (const sample of document.querySelectorAll<HTMLElement>('[data-sample]')) {
   shell.addEventListener('amxerror', event => {
     if (player) fail((event as CustomEvent).detail.error);
   });
+  download?.addEventListener('click', () => {
+    if (download.hasAttribute('href')) savedCopy = editor.value;
+  });
 
-  if (transferred) {
-    editor.value = transferred.source;
-    setPanel(!!transferred.sourceOpen, false);
-    editor.setSelectionRange(...transferred.selection);
-    editor.scrollTop = transferred.scroll;
-  }
-  transferEditor(transferKey, () => ({
-    scene: sample.id, source: editor.value, compiled, time: player?.time,
-    selection: draftSelection(editor), scroll: editor.scrollTop, sourceOpen: !panel.hidden,
-  }));
+  if (transferred) restoreEditor(transferred);
+  if (!workspace) transferEditor(transferKey, snapshot);
   renderSource();
   updateControls();
-  if (sample.hasAttribute('data-autoplay') || transferred?.sourceOpen || transferred?.time !== undefined) {
-    void start(!transferred && !media.matches);
-  }
+  const autoplay = sample.hasAttribute('data-autoplay');
+  if (id) void start(autoplay && !transferred && !media.matches);
+  return {seek, showSource, selectLine, changeParameter, snapshot, hasUnsaved, setReading, sourceError, replaceScene};
 }

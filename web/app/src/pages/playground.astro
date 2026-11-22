@@ -1,7 +1,6 @@
 ---
 import Page from '../layouts/Page.astro';
-import Scene from '../components/Scene.astro';
-import SourceEditor from '../components/SourceEditor.astro';
+import EditableScene from '../components/EditableScene.astro';
 import {techniques} from '../lib/techniques';
 import {works, lessons, url} from '../lib/content';
 import {workCopy, lessonCopy, techniqueCopy} from '../lib/catalog-zh';
@@ -23,14 +22,12 @@ const choices = [
 <Page title={playground} wide>
   <h1 class="play-heading">{playground}</h1>
   <div class="playground" data-playground data-base={url('content/scenes/')}>
-    <section class="editor-pane" aria-label={t('Source editor', '源码编辑器')}>
-      <div class="editor-toolbar"><label for="scene-choice">{t('Source', '场景')}</label><select id="scene-choice">{choices.map(x => <option value={x.id}>{x.title}</option>)}</select></div>
-      <p id="editor-status" role="status" aria-live="polite">{labels.loadingSource}</p>
-      <SourceEditor id="source-code" describedBy="editor-status"/>
-      <div class="editor-actions"><button id="reset" class="button">{labels.reset}</button><button disabled id="download" class="button">{t('Download .amx', '下载 .amx')} ↓</button></div>
-      <div id="diagnostics"></div>
-    </section>
-    <section class="preview-pane" aria-label={t('Animation preview', '动画预览')}><Scene editor id="first-move" title={t('Your scene', '当前场景')}/><button class="button retry-preview" type="button" hidden>{t('Retry preview', '重新预览')}</button></section>
+    <EditableScene id="first-move" title={t('Your scene', '当前场景')} workspace download>
+      <label slot="chooser" class="sample-chooser">
+        {t('Scene', '场景')}
+        <select id="scene-choice" disabled>{choices.map(x => <option value={x.id}>{x.title}</option>)}</select>
+      </label>
+    </EditableScene>
   </div>
 </Page>
 <script src="../scripts/playground.ts"></script>

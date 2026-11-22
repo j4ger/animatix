@@ -17,9 +17,11 @@ system, with light and dark overrides. Themes apply to the website and playback
 controls. The scene source, artwork, and recordings use their authored text and
 colors.
 
-The canonical scenes live in `content/scenes/`. Lessons and techniques open
-with a **Play live** poster. Showcase pages use the homepage's editable
-player and load the engine when the visitor chooses **Play** or **View source**.
+The canonical scenes live in `content/scenes/`. The homepage, Showcase,
+lessons, techniques, Playground and the noise cancellation story share one
+player with an editable source panel. Previews prepare the engine as soon as
+the page opens or Playground selects a source. Showcase, lessons and techniques
+hold at the first frame until the visitor chooses **Play**.
 The poster stays visible during loading. Playback tries WebGPU first and falls
 back to WebGL2 automatically.
 
@@ -33,9 +35,10 @@ Export the loading poster at the scene's authored resolution with
 `animatix image web/content/scenes/insertion-sort.amx -o web/content/posters/insertion-sort.png`
 and update its entry in `content/preview-manifest.json` when the opening frame changes.
 Reduced-motion visitors can start playback manually.
-On the homepage, example pages, and Playground, the timeline uses the full
-player width in narrow previews, above the other controls. The ticks show
+The timeline uses the full player width in narrow previews, above the other
+controls. The ticks show
 authored keyframes and move when a source edit successfully rebuilds the scene.
+Tutorial and technique lists show the goal of each scene in the current language.
 The homepage also lists the examples and links to GitHub Releases from the
 Linux, macOS, and Windows tabs. Quickstart has separate GUI and CLI paths.
 **View source** pauses the scene and opens its complete, editable AMX file beside
@@ -45,20 +48,19 @@ timestamp cell. The editor rebuilds after a short pause in typing and keeps
 the current playhead position.
 Build errors leave the previous scene available. **Reset** restores the original
 file. Showcase presets update the editable source, and **Download AMX** saves
-the current draft. Playground shares the cell editor and opens a scene when it
-is selected. Switching scenes asks for confirmation when the draft has unsaved
+the current draft. Playground starts with the source panel open and loads a
+scene when it is selected. Switching scenes asks for confirmation when the draft has unsaved
 edits. The editors wrap long lines visually and preserve the source text.
 They highlight AMX keywords, literals, identifier roles and keyframes using
 the SDK's tokenizer and parser, independently of live preview builds.
-Use **Download .amx** to save the current draft.
 
 The noise cancellation example at `/journey/` presents a 16-second captioned explainer about
 active noise cancellation on a train. One live AMX scene plots a low tone, the
 headphones’ opposing wave, and their sum at the ear on the same pressure scale.
 Scrolling forward or backward seeks through the film. Reduced-motion mode
-selects a still for each passage. Visitors can also play the film independently,
-scrub its timeline, or open `quiet-carriage.amx` in Playground to compare the
-authored result with a speaker at half strength. A native opening
+selects a still for each passage. Visitors can play the film independently,
+scrub its timeline, or edit `quiet-carriage.amx` in place. **Try half strength**
+sets `speaker_level` to `0.5` in the same editor and replays the scene. A native opening
 frame covers initial loading and the player offers a retry after an error.
 
 ## Source map

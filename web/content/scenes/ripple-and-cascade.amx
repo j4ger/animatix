@@ -1,0 +1,54 @@
+// 0 starts with a ripple, 1 starts with a cascade. Both patterns play.
+config { colorscheme: "vivid", resolution: (1280, 720), duration: 20 }
+
+let start_pattern = 0
+let starts_with_cascade = start_pattern == 1
+let columns = 8
+let rows = 6
+let count = columns * rows
+let tile_indices = (0, count)
+let cell = (64, 64)
+let ripple_delay = 0.28
+let cascade_delay = 0.14
+let ripple_caption = "Ripple · center outward"
+let cascade_caption = "Cascade · corner to corner"
+let pulse_at = (time, center) => exp(0 - ((time - center) / 0.65) ^ 2)
+
+#0s
+  backdrop: Rect, anchor: scene.center, size: (scene_width, scene_height),
+    fill_gradient: radial((0.5, 0.5), 0.68, {surface.secondary, scene.background})
+  seed: Rect, anchor: scene.center, size: cell, corner_radius: 14, color: accent.primary
+  field: Grid, cols: columns, gap: 24, anchor: scene.center {
+    for i in tile_indices {
+      tile[i]: Rect, size: cell, corner_radius: 14, opacity: 0,
+        color: lerp_color_oklab(accent.primary, accent.info, i / (count - 1))
+    }
+  }
+  caption: Text, anchor: scene.bottom, offset: (0, -58), text: format("One tile becomes {}.", count), font_size: 28
+
+  for i in tile_indices {
+    always {
+      let column = i % columns
+      let row = floor(i / columns)
+      let dx = column - (columns - 1) / 2
+      let dy = row - (rows - 1) / 2
+      let ripple = sqrt(dx ^ 2 + dy ^ 2) * ripple_delay
+      let cascade = (column + row) * cascade_delay
+      let first_delay = if starts_with_cascade { cascade } else { ripple }
+      let second_delay = if starts_with_cascade { ripple } else { cascade }
+      let pulse = pulse_at(t, 5.5 + first_delay) + pulse_at(t, 11 + second_delay) + pulse_at(t, 16 + second_delay)
+      let reveal = clamp((t - 2 - i * 0.025) / 0.5, 0, 1)
+      tile[i].scale = 0.45 + 0.37 * reveal + 0.32 * pulse
+      tile[i].rotation = 0.45 * pulse
+      tile[i].opacity = reveal * (0.65 + 0.35 * pulse)
+    }
+  }
+
+#1.7s
+  fade_out(target: seed, duration: 0.4s)
+
+#4.5s
+  caption.text = if starts_with_cascade { cascade_caption } else { ripple_caption }
+
+#10s
+  caption.text = if starts_with_cascade { ripple_caption } else { cascade_caption }

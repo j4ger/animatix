@@ -1,7 +1,7 @@
 ---
 import Page from '../../layouts/Page.astro';
 import EditableScene from '../../components/EditableScene.astro';
-import {works, url, pageUrl} from '../../lib/content';
+import {works, pageUrl} from '../../lib/content';
 import {workCopy} from '../../lib/catalog-zh';
 import {pageLanguage} from '../../lib/language';
 import {sceneSource} from '../../lib/scene-source';
@@ -19,13 +19,14 @@ const source = sceneSource(work.id);
 const experiments: Record<string, [string, string, string]> = {
   'move-the-basis': ['#3s · plane.e2.to', 'Change 4s to 2s. The other shapes still follow the moving vector.', '把 4s 改成 2s。看看其他图形怎样继续跟着基向量运动。'],
   'make-room': ['let lifted_y = row_y - 135', 'Change 135 to 170 to lift each card higher during a comparison.', '把 135 改成 170，让待插入的卡片在比较时抬得更高。'],
-  'one-rule-many-forms': ['let radial_delay = 0.28', 'Change 0.28 to 0.14 and watch the ripple move through the grid faster.', '把 0.28 改成 0.14，看看涟漪怎样更快地穿过方阵。'],
+  'ripple-and-cascade': ['let ripple_delay = 0.28', 'Change 0.28 to 0.14 to make the ripple spread faster.', '把 0.28 改成 0.14，让涟漪扩散得更快。'],
   'when-waves-meet': ['let phase_degrees = 0', 'Change 0 to 180 and see what the two waves add up to at the start.', '把 0 改成 180，看看两道波一开始叠加成什么样。'],
   'words-keep-time': ['let available = "Reading and exports"', 'Change the list of available features, then watch where it appears in the notice.', '改一下维护期间可用的功能，再看这句话在通知里的哪个位置出现。'],
 };
 const [exampleCode, exampleEn, exampleZh] = experiments[work.id];
 const next = works[(works.indexOf(original) + 1) % works.length];
 const nextTitle = t(next.title, workCopy[next.id].title);
+const patternControl = work.controls === 'start_pattern';
 ---
 <Page title={work.title}>
   <article class="example-page" style={`--work-color: ${work.color}`}>
@@ -35,17 +36,17 @@ const nextTitle = t(next.title, workCopy[next.id].title);
       <p>{work.question}</p>
     </header>
     <div class="example-workspace">
-      <EditableScene id={work.id} title={work.title} {source} duration={work.duration} recording>
-        <a slot="actions" data-source-download class="sample-download" href={url(`content/scenes/${work.id}.amx`)} download={`${work.id}.amx`}>{t('Download AMX', '下载 AMX')} ↓</a>
+      <EditableScene id={work.id} title={work.title} {source} recording download>
         {work.controls && <div slot="presets" class="scene-presets">
-          <label>{work.controls === 'preset' ? t('Starting rule', '起始规则') : t('Initial phase', '初始相位')}
-            <select data-scene-preset disabled name={work.controls === 'preset' ? 'preset' : 'phase_degrees'}>
+          <label>{patternControl ? t('Start with', '先播') : t('Initial phase', '初始相位')}
+            <select data-scene-preset disabled name={work.controls} aria-describedby={patternControl ? 'start-pattern-hint' : undefined}>
               <option value="" hidden disabled>{t('Custom', '自定义')}</option>
-              {work.controls === 'preset'
-                ? <><option value="0" selected>{t('Ripple', '涟漪')}</option><option value="1">{t('Cascade', '级联')}</option></>
+              {patternControl
+                ? <><option value="0" selected>0 · {t('Ripple', '涟漪')}</option><option value="1">1 · {t('Cascade', '级联')}</option></>
                 : <><option value="0" selected>0° · {t('In phase', '同相')}</option><option value="90">90° · {t('Quarter cycle', '四分之一周期')}</option><option value="180">180° · {t('Half cycle', '半周期')}</option></>}
             </select>
           </label>
+          {patternControl && <p id="start-pattern-hint" class="preset-hint">{t('Sets the value of', '改写源码开头的')} <code>start_pattern</code> {t('at the top of the source.', '变量。')}</p>}
           <p class="source-status" role="status"></p>
         </div>}
       </EditableScene>
@@ -88,7 +89,7 @@ const nextTitle = t(next.title, workCopy[next.id].title);
     background: color-mix(in srgb, var(--work-color) 8%, var(--surface));
   }
   .example-experiment code { display: block; margin-bottom: 8px; font: .8rem/1.4 var(--mono); overflow-wrap: anywhere; }
-  .example-next { justify-content: flex-end; margin-top: clamp(30px, 4vw, 56px); padding-top: 15px; border-top: 1px solid var(--line); }
+  .example-next { display: flex; justify-content: flex-end; margin-top: clamp(30px, 4vw, 56px); padding-top: 15px; border-top: 1px solid var(--line); font-size: .875rem; }
   .example-next a { display: flex; gap: 10px; flex-wrap: wrap; color: var(--ink); }
   .example-next span { color: var(--muted); }
   .example-next a:hover { color: var(--accent); }

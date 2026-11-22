@@ -8,15 +8,19 @@ Every source is self-contained. Page titles and long explanations belong in the 
 |---|---:|---|---|
 | `scenes/move-the-basis.amx` | 24 s | none | A horizontal shear changes shape and direction while preserving area against a fixed reference. |
 | `scenes/make-room.amx` | 24 s | none | Stable insertion sort preserves the order of equal keys while shifting a sorted prefix. |
-| `scenes/one-rule-many-forms.amx` | 20 s | `preset=0` or `1` | One shape → 48 copies → distance controls delay → changing the distance rule changes the choreography. Not a benchmark. |
+| `scenes/ripple-and-cascade.amx` | 20 s | `start_pattern=0` or `1` | Compare two ways to stagger a pulse through the same 8 × 6 grid. |
 | `scenes/when-waves-meet.amx` | 28 s | `phase_degrees=0`, `90`, `180` | Reveal A and B, add their heights at one x position, reveal the full sum, then change the phase. |
 | `scenes/words-keep-time.amx` | 20 s | none | Turn a maintenance announcement into a notice with distinct fields for impact, timing and what still works. |
 
-### One Rule
+### Ripple and Cascade
 
 The seed holds until 1.7 s. Array reveal starts at 2 s, with a 25 ms per-index offset. The first pulse starts at 5.5 s plus distance delay. At 10 s only the delay metric changes; pulses at 11 and 16 s demonstrate it. The final state holds at 19–20 s.
 
-Preset 0 starts radial and switches to diagonal; preset 1 reverses that order. A caption names the current delay rule. `Grid` owns fixed spacing while scale, rotation and opacity vary inside the slots. The Gaussian envelope uses `exp(0 - x^2)` to make the sign of the squared term explicit.
+`start_pattern = 0` starts with a ripple from the center. `start_pattern = 1`
+starts with a diagonal cascade. Both orders switch at 10 s, and the caption names
+the active pattern. The selector edits that binding in the AMX draft. The grid
+and the build-time loop that installs its `always` bindings share an interval
+with exclusive end `columns * rows`.
 
 ### Waves
 
@@ -48,10 +52,10 @@ Lessons are intentionally minimal, not duplicated work scenes. Lesson 06 can dem
 
 ## Live playback and recorded fallback
 
-The works, lessons and techniques use their published AMX sources. Showcase
-works start the engine from **Play** or **View source** below the picture.
-Lessons and techniques start from **Play live** on their posters. A Showcase
-work offers its recording of the authored defaults after a live playback failure.
+The works, lessons and techniques use their published AMX sources. Their
+shared player prepares the first frame when the page opens and plays on demand.
+A Showcase work offers its recording of the authored defaults after a live
+playback failure.
 
 `preview-manifest.json` binds each work to its source, poster and optional
 recording. All five recordings are silent H.264/yuv420p, 1280×720 at 24 fps,

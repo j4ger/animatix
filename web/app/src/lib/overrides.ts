@@ -1,11 +1,16 @@
 const sceneParameters: Record<string, Record<string, readonly number[]>> = {
-  'one-rule-many-forms': { preset: [0, 1] },
+  'ripple-and-cascade': { start_pattern: [0, 1] },
   'when-waves-meet': { phase_degrees: [0, 90, 180] },
   'quiet-carriage': { speaker_level: [0.5, 1] },
   'give-it-a-beat': { beat: [0.06, 0.12, 0.2], diagonal: [0, 1], stress: [0, 1, 2, 3] },
 };
 
-export const parameterNames = Object.values(sceneParameters).flatMap(Object.keys);
+const parameterNames = Object.values(sceneParameters).flatMap(Object.keys);
+export const parameterQueryNames = [...parameterNames, 'preset'];
+
+export function canonicalSceneId(id: string) {
+  return id === 'one-rule-many-forms' ? 'ripple-and-cascade' : id;
+}
 
 function defaultPattern(name: string) {
   return new RegExp('^let ' + name + ' = ([^\\r\\n]+)', 'm');
@@ -26,8 +31,8 @@ export function withOverride(source: string, name: string, value: number): strin
 
 export function overridesFor(id: string, query: URLSearchParams): [string, number][] {
   const result: [string, number][] = [];
-  for (const [name, allowed] of Object.entries(sceneParameters[id] ?? {})) {
-    const raw = query.get(name)?.trim();
+  for (const [name, allowed] of Object.entries(sceneParameters[canonicalSceneId(id)] ?? {})) {
+    const raw = (query.get(name) ?? (name === 'start_pattern' ? query.get('preset') : null))?.trim();
     if (raw && allowed.includes(Number(raw))) result.push([name, Number(raw)]);
   }
   return result;

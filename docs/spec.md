@@ -401,7 +401,8 @@ and stagger interval:
 
 ```animatix
 badge.opacity = 1 [400ms, ease: ease_out]
-for i in 0..4 [step: 100ms] { ... }
+let indices = (0, 4)
+for i in indices [step: 100ms] { ... }
 stagger [150ms] { ... }
 ```
 
@@ -1663,6 +1664,12 @@ for mag, i in magnitudes {
 The `for item, i in list` form binds both the element value and a zero-based
 index. Inside the body, `name[expr]: Type` declares an array actor element:
 `bars[i]` produces labels `bars__0`, `bars__1`, etc.
+
+A build-time loop can also take integer bounds from a binding. For example,
+`let indices = (0, 4)` followed by `for i in indices` visits `0`, `1`, `2` and `3`.
+Inside an `always` block, iterating that pair visits only its two values.
+To bind per-frame motion for every index in the interval, put the `always` block
+inside the build-time loop.
 
 Generated actors are first-class timeline actors — they support re-declaration
 morphing, property assignment, and all built-in timeline callables.

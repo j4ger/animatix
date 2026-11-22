@@ -2,4 +2,19 @@
 import Page from '../layouts/Page.astro';
 import {url} from '../lib/content';
 ---
-<Page title="Page not found" homeLinks><section class="section"><p class="eyebrow">404 / Out of frame</p><h1>This scene is missing.</h1><p>The link may have moved. Find a new starting point below.</p><div class="actions"><a class="button primary" href={url('')}>Back home</a><a class="button" href={url('#examples')}>Explore the works</a></div></section></Page>
+<Page title="Page not found" homeLinks>
+  <section class="not-found">
+    <p class="eyebrow">404 / Out of frame</p>
+    <h1>This scene is missing.</h1>
+    <p>The link may have moved. Find a new starting point below.</p>
+    <div class="actions">
+      <a class="button primary" href={url('')}>Back home</a>
+      <a class="button" href={url('#examples')}>Explore the works</a>
+    </div>
+  </section>
+</Page>
+
+<style>
+  .not-found { padding-block: clamp(50px, 6vw, 75px); border-top: 1px solid var(--line); }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; }
+</style>
