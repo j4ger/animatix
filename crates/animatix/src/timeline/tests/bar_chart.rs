@@ -274,6 +274,109 @@ fn hosted_bar_chart_spans_graph_axis() {
     }
 }
 
+#[test]
+fn hosted_bar_chart_auto_maps_values_to_graph_axis() {
+    use kurbo::Shape;
+    // Each case uses a 144px plot. A nonzero-only domain uses the same
+    // bottom-edge baseline as Graph itself.
+    for (domain, values, expected) in [
+        ((-6, 6), (-4, 2), [(0.0, 48.0), (-24.0, 0.0)]),
+        ((-2, 10), (-2, 10), [(48.0, 72.0), (-72.0, 48.0)]),
+        ((2, 14), (2, 8), [(72.0, 72.0), (0.0, 72.0)]),
+        ((-14, -2), (-14, -8), [(72.0, 72.0), (0.0, 72.0)]),
+        ((0, 12), (0, 6), [(72.0, 72.0), (0.0, 72.0)]),
+    ] {
+        let timeline = build_clean(&format!(
+            r#"
+            g: Graph, size: (300, 144), x_domain: (0, 2), y_domain: {domain:?} {{
+              chart: BarChart, data: {{("A", {}), ("B", {})}}, show_labels: false
+            }}
+            "#,
+            values.0, values.1,
+        ));
+        let paths = baked_paths(&timeline, "chart");
+        assert_eq!(paths.len(), 3);
+        for (bar, (y0, y1)) in paths[1..].iter().zip(expected) {
+            let bounds = bar.path.bounding_box();
+            assert!(
+                (bounds.y0 - y0).abs() < 1e-6 && (bounds.y1 - y1).abs() < 1e-6,
+                "domain {domain:?}: expected y bounds ({y0}, {y1}), got {bounds:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn hosted_bar_chart_explicit_max_value_preserves_custom_scale() {
+    use kurbo::Shape;
+    let timeline = build_clean(
+        r#"
+        g: Graph, size: (300, 144), x_domain: (0, 2), y_domain: (-6, 6) {
+          chart: BarChart, data: {("A", -4), ("B", 2)}, max_value: 24, show_labels: false
+        }
+        "#,
+    );
+    let paths = baked_paths(&timeline, "chart");
+    assert_eq!(paths.len(), 3);
+    let first = paths[1].path.bounding_box();
+    let second = paths[2].path.bounding_box();
+    assert!(first.y0.abs() < 1e-6 && (first.y1 - 24.0).abs() < 1e-6);
+    assert!((second.y0 + 12.0).abs() < 1e-6 && second.y1.abs() < 1e-6);
+}
+
+#[test]
+fn hosted_bar_chart_crosses_zero_on_the_graph_scale() {
+    use kurbo::Shape;
+    let timeline = build_clean(
+        r#"
+config { canvas_size: (640, 360), duration: 4 }
+g: Graph, size: (300, 144), at: (320, 180), x_domain: (0, 2), y_domain: (-6, 6), opacity: 1 {
+  chart: BarChart, data: {("A", -4)}, show_labels: false, opacity: 1
+}
+#1s
+g.chart.data = {("A", 4)} [2s, ease: linear]
+"#,
+    );
+    for (time, (y0, y1)) in [
+        (0.0, (0.0, 48.0)),
+        (1.5, (0.0, 24.0)),
+        (2.0, (0.0, 0.0)),
+        (2.5, (-24.0, 0.0)),
+        (3.5, (-48.0, 0.0)),
+        (0.0, (0.0, 48.0)),
+    ] {
+        let program = timeline.evaluate_program_with_debug(
+            time,
+            SceneDimensions {
+                width: 640,
+                height: 360,
+            },
+            Default::default(),
+            &mut None,
+        );
+        let bounds = program
+            .items
+            .iter()
+            .find(|item| item.label == "chart")
+            .expect("hosted chart render item")
+            .commands
+            .iter()
+            .find_map(|command| match command {
+                crate::primitives::RenderCommand::Paths { paths } => {
+                    paths.iter().find(|path| path.fill.is_some())
+                },
+                _ => None,
+            })
+            .expect("bar fill path")
+            .path
+            .bounding_box();
+        assert!(
+            (bounds.y0 - y0).abs() < 1e-6 && (bounds.y1 - y1).abs() < 1e-6,
+            "t={time}: expected y bounds ({y0}, {y1}), got {bounds:?}"
+        );
+    }
+}
+
 /// A cross-file `@slot` fill must reach the expanded component even when
 /// the slot container sits DEEPER than the component body's top level.
 /// Regression: resolve_slots only handled top-level slots, so nested

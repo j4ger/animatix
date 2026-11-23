@@ -376,16 +376,13 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 property tracks; the timed assignment behavior is described below.
 
 For `BarChart`, `bar_width` also accepts `"auto"` and derives its width from the
-available chart space. `max_value: auto` scales to the largest data value; pin it
-when comparing bar heights across data transitions.
+available chart space. In a linear `Graph`, `max_value: auto` uses the
+parent's full y-domain span. In a standalone chart it scales to the largest
+positive data value in each frame, which can hide relative height changes.
+Use a positive `max_value` to explicitly set the value for one full plot height.
 
-> **Note on `data` assignment:** `BarChart.data` accepts a timed assignment that
-> races the bars between two datasets, matched by label — see
-> [`spec.md`](spec.md)'s BarChart section for the three limits: slots are chosen
-> at the start of the window (heights animate, positions do not), captions are
-> compiled at build into the declaration's slots so neither the label set nor its
-> order may change, and `max_value: auto` normalises the tallest bar every frame,
-> which hides the race unless pinned.
+See the [BarChart section of the spec](spec.md) for how timed assignments
+match bars and captions by key.
 
 ## Containers
 
