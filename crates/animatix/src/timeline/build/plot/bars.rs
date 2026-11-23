@@ -127,7 +127,7 @@ struct BarPlotGeometry {
     plot_h: f64,
     math_x0: f64,
     math_x1: f64,
-    math_y1: f64,
+    baseline_value: f64,
     baseline_y: f64,
 }
 
@@ -192,15 +192,15 @@ impl BarChartLayout {
             return Vec::new();
         }
         let (geom, bw, gap) = self.slots(data.len());
-        let use_math_coords = geom.use_math_coords;
 
-        // Determine max value for scaling (if using math coords, domain is authoritative)
-        let max_val = if !self.max_value_auto {
-            self.max_value_val as f64
-        } else if use_math_coords {
-            geom.math_y1
+        let (origin, span) = if !self.max_value_auto {
+            (0.0, f64::from(self.max_value_val))
+        } else if geom.use_math_coords {
+            // The full plot height corresponds to the entire y-domain.
+            (geom.baseline_value, self.y_domain[1] - self.y_domain[0])
         } else {
-            data.iter().map(|(_, v)| *v as f64).fold(0.0f64, f64::max).max(0.001)
+            let max = data.iter().map(|(_, v)| f64::from(*v)).fold(0.0f64, f64::max);
+            (0.0, max.max(0.001))
         };
 
         let mut paths: Vec<VelloPath> = Vec::with_capacity(data.len() + 1);
@@ -212,7 +212,12 @@ impl BarChartLayout {
 
         // Per-bar paths
         for (i, (_, value)) in data.iter().enumerate() {
-            paths.push(self.bar_path(i, *value, bw, gap, max_val, &geom));
+            let height = if span > 0.0 {
+                (f64::from(*value) - origin) / span * geom.plot_h
+            } else {
+                0.0
+            };
+            paths.push(self.bar_path(i, height, bw, gap, &geom));
         }
 
         paths
@@ -225,12 +230,13 @@ impl BarChartLayout {
             // Inside a Graph — map math coordinates to pixels relative to actor center
             let pw = p_size[0];
             let ph = p_size[1];
-            let baseline_norm = if self.y_domain[0] <= 0.0 && self.y_domain[1] >= 0.0 {
-                // Baseline at y=0 in math coords
-                (0.0 - self.y_domain[0]) / (self.y_domain[1] - self.y_domain[0])
+            let [y_min, y_max] = self.y_domain;
+            // Match the Graph's linear axis: use zero where visible and the
+            // lower edge otherwise.
+            let (baseline_value, baseline_norm) = if y_min <= 0.0 && y_max >= 0.0 && y_max > y_min {
+                (0.0, -y_min / (y_max - y_min))
             } else {
-                // Baseline at min y
-                0.0
+                (y_min, 0.0)
             };
             // In local coordinates centered at (0, 0), Y points down,
             // so normalized y=0 is at +ph/2 (bottom) and y=1 is at -ph/2 (top).
@@ -241,7 +247,7 @@ impl BarChartLayout {
                 plot_h: ph,
                 math_x0: self.x_domain[0],
                 math_x1: self.x_domain[1],
-                math_y1: self.y_domain[1],
+                baseline_value,
                 baseline_y: baseline,
             }
         } else {
@@ -256,7 +262,7 @@ impl BarChartLayout {
                 plot_h: plot_bottom - plot_top,
                 math_x0: plot_left,
                 math_x1: plot_right,
-                math_y1: plot_bottom,
+                baseline_value: 0.0,
                 baseline_y: plot_bottom, // baseline at bottom
             }
         }
@@ -339,30 +345,22 @@ impl BarChartLayout {
     fn bar_path(
         &self,
         i: usize,
-        value: f32,
+        height: f64,
         bw: f64,
         gap: f64,
-        max_val: f64,
         geom: &BarPlotGeometry,
     ) -> VelloPath {
         let bar_x_start = geom.bar_left(i, bw, gap);
         let bar_x_end = bar_x_start + bw;
 
-        // Bar height in screen coords
-        let val_norm = if max_val > 0.0 {
-            value as f64 / max_val
-        } else {
-            0.0
-        };
-        let bar_screen_height = val_norm * geom.plot_h;
-        let bar_top_y = geom.baseline_y - bar_screen_height;
+        let bar_end_y = geom.baseline_y - height;
 
         // Build rectangle path
         let mut bp = kurbo::BezPath::new();
         bp.move_to(kurbo::Point::new(bar_x_start, geom.baseline_y));
         bp.line_to(kurbo::Point::new(bar_x_end, geom.baseline_y));
-        bp.line_to(kurbo::Point::new(bar_x_end, bar_top_y));
-        bp.line_to(kurbo::Point::new(bar_x_start, bar_top_y));
+        bp.line_to(kurbo::Point::new(bar_x_end, bar_end_y));
+        bp.line_to(kurbo::Point::new(bar_x_start, bar_end_y));
         bp.close_path();
 
         // Per-bar self.color: a single `self.bar_colors` value is uniform across all

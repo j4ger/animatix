@@ -1429,8 +1429,16 @@ and interpolates them. The new order takes effect when the transition starts,
 and captions follow their categories into the new slots. Added categories
 grow from zero. Removed categories move after the new set, shrink to zero,
 and disappear with their captions. A chart carried with `persist` keeps the
-dataset visible at the scene boundary. Use an explicit `max_value` to keep
-the vertical scale fixed across datasets.
+dataset visible at the scene boundary.
+
+With `max_value: auto`, a chart hosted by a linear `Graph` uses the
+full span of the graph's `y_domain`. Bars start at zero if it is in
+the domain, or at the bottom of the plot otherwise. For example, in
+`y_domain: (-6, 6)`, a value of `-4` extends one third of the plot
+height below zero. A standalone chart instead scales to its largest
+positive value in each frame. An explicit positive `max_value` overrides
+auto scaling: a value equal to it extends one full plot height above
+the baseline.
 
 ### Built-in Variables
 

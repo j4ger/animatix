@@ -565,7 +565,9 @@ modes.
 - `show_axis`: Bool or string `"true"` | `"false"` — show baseline axis (default `"true"`)
 - `show_labels`: Bool or string `"true"` | `"false"` — show bar labels (default `"true"`)
 - `direction`: `"vertical"` | `"horizontal"` — bar orientation (default `"vertical"`, horizontal reserved)
-- `max_value`: Number or `"auto"` — y-axis scale cap (default auto)
+- `max_value`: positive Number or `"auto"` (default) — a number is the value
+  for one full plot height. Auto uses the parent linear `Graph`'s y-domain
+  or the largest positive value for a standalone chart.
 - `color`: Color — fallback bar fill color
 - `stroke` / `stroke_color`: Color — bar outline color
 - `stroke_width`: Number — bar outline width
