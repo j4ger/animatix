@@ -22,12 +22,14 @@ let approximation_fn = (x, progress) => 1 - progress * x^2 / 2
 let with_notes = formula != ""
 let weight = 0
 let figure_size = (figure_width(with_notes), figure_height(with_notes))
-let chart_size = (figure_size[0] - 12 * unit(), figure_size[1] - 12 * unit())
+let chart_inset = 6 * unit()
+let chart_size = figure_size - (2 * chart_inset, 2 * chart_inset)
+let equation_width = if stacked() { content_width() } else { notes_width() }
 
 #0s
   backdrop: Backdrop, tint: surface.primary
   head: ChapterHeader, eyebrow: "FUNCTION APPROXIMATION", heading: heading
-  figure: Panel, size: figure_size, inset: 0,
+  figure: Panel, size: figure_size, inset: chart_inset,
     at: (theme.margin + figure_size[0] / 2, figure_top() + figure_size[1] / 2) {
     @content {
       chart_window: Mask, size: chart_size {
@@ -46,10 +48,10 @@ let chart_size = (figure_size[0] - 12 * unit(), figure_size[1] - 12 * unit())
         if stacked() { figure_top() + figure_size[1] + figure_gap() + notes_height() / 2 }
         else { figure_top() + figure_size[1] / 2 }
       ),
-      size: (if stacked() { content_width() } else { notes_width() }, notes_height()) {
-      equation_label: Text, text: "QUADRATIC TARGET", role: roles::eyebrow
+      size: (equation_width, notes_height()) {
+      equation_label: Text, text: "QUADRATIC TARGET", role: eyebrow
       expression: Typst, text: formula, role: roles::formula,
-        text_max_width: (if stacked() { content_width() } else { notes_width() }) - theme.inset
+        text_max_width: equation_width - theme.inset
       key: Text, text: "Reference · cos x", role: note
     }
   }

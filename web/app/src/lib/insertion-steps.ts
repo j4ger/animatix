@@ -1,9 +1,9 @@
 export const insertionId = 'insertion-sort';
 
 const moves = [
-  {id: 'five', label: 'Shift 5', target: 'five.at'},
-  {id: 'four', label: 'Shift 4', target: 'four.at'},
-  {id: 'key', label: 'Insert 3', target: 'key.at'},
+  {id: 'five', label: 'Shift 5', targets: ['sorted[2].at', 'five.at']},
+  {id: 'four', label: 'Shift 4', targets: ['sorted[1].at', 'four.at']},
+  {id: 'key', label: 'Insert 3', targets: ['key.at']},
 ];
 
 // This editor marks literal, absolute AMX keyframe times.
@@ -22,7 +22,8 @@ export function insertionSteps(source: string) {
   const lines = source.split('\n');
   const cues = sourceCues(source);
   return moves.flatMap(move => {
-    const index = lines.findLastIndex(line => line.trimStart().startsWith(move.target + ' ='));
+    const index = lines.findLastIndex(line =>
+      move.targets.some(target => line.trimStart().startsWith(target + ' =')));
     if (index < 0) return [];
     const cue = cues.findLast(cue => cue.line <= index);
     if (!cue) return [];

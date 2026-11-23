@@ -7,7 +7,7 @@ let speaker_level = 1
 let phase = 0
 let gain = 0
 let wave = (x, angle) => sin(x - angle)
-let plot_size = (864, 146)
+let plot_size = (content_width(), scene_height * 0.26)
 let domain = (0, 15)
 let pressure = (-1.2, 1.2)
 

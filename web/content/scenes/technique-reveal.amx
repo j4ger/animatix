@@ -3,14 +3,18 @@ import "../templates/layout.amx"
 
 config { style: "editorial", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7 }
 
+let start = (scene_width / 2, scene_height / 2) + (-210, -10)
+let endpoint = (scene_width / 2, scene_height / 2) + (210, -10)
+let label_offset = (0, 115)
+
 #0s
   floor: Backdrop, strength: 0.28
   head: ChapterHeader, eyebrow: "REVEAL", heading: "Give the eye a first step."
-  dot: Ellipse, at: (430, 350), size: (112, 112), color: accent.primary, opacity: 0
-  name: Text, text: "A point", at: (430, 465), role: note, opacity: 0
-  link: Line, from: (510, 350), to: (810, 350), stroke: accent.primary, stroke_width: 3, opacity: 0
-  end: Ellipse, at: (850, 350), size: (30, 30), color: accent.warning, opacity: 0
-  meaning: Text, text: "Then a connection.", at: (850, 465), role: note, opacity: 0
+  dot: Ellipse, at: start, size: (112, 112), color: accent.primary, opacity: 0
+  name: Text, text: "A point", at: start + label_offset, role: note, opacity: 0
+  link: Line, from: start + (80, 0), to: endpoint - (40, 0), stroke: accent.primary, stroke_width: 3, opacity: 0
+  end: Ellipse, at: endpoint, size: (30, 30), color: accent.warning, opacity: 0
+  meaning: CaptionPlate, text: "Then a connection.", at: endpoint + label_offset, level: note, opacity: 0
 
 #0.5s
   fade_in(target: dot, duration: 0.6s)

@@ -7,12 +7,17 @@ let impact = "The editor will be read-only"
 let window = "Sunday, 02:00–02:20 UTC"
 let available = "Reading and exports"
 let panel_size = (520, 340)
-let column_offset = panel_size[0] / 2 + 22
+let panel_gap = 44
+let column_offset = (panel_size[0] + panel_gap) / 2
+let inset = 40
+let field_width = panel_size[0] - 2 * inset
+let notice_face = surface.secondary
+let clear_face = rgba(notice_face[0], notice_face[1], notice_face[2], 0)
 
 component NoticeField(label: Str, detail: Str) {
-  field: Col, size: (440, auto), gap: theme.gap * 0.3, align: "start" {
+  field: Col, size: (field_width, auto), gap: theme.gap * 0.3, align: "start" {
     name: Text, text: label, role: eyebrow
-    copy: Text, text: detail, role: body, text_max_width: 440
+    copy: Text, text: detail, role: body, text_max_width: field_width
   }
 }
 
@@ -27,21 +32,24 @@ component NoticeField(label: Str, detail: Str) {
         role: body, text_max_width: 428, line_height: 1.35
     }
   }
-  notice: Stack, anchor: scene.center, offset: (column_offset, 0), align: "center" {
-    sheet: Rect, size: panel_size, corner_radius: theme.radius, color: surface.secondary, opacity: 0
-    entries: Col, align: "start", gap: theme.gap {
-      changed: NoticeField, label: "What changes", detail: impact, opacity: 0
-      time: NoticeField, label: "When", detail: window, opacity: 0
-      usable: NoticeField, label: "Still available", detail: available, opacity: 0
+  notice: Panel, size: panel_size, anchor: scene.center, offset: (column_offset, 0),
+    align: "start", inset: inset, face: clear_face, border_width: 0 {
+    @content {
+      for entry, i in {{"What changes", impact}, {"When", window}, {"Still available", available}} {
+        field[i]: NoticeField, label: entry[0], detail: entry[1], opacity: 0
+      }
     }
   }
 
 #4s
   original.offset = (0 - column_offset, 0) [650ms, ease: ease_in_out]
-  fade_in(targets: {notice.sheet, notice.entries.changed}, duration: 500ms, delay: 400ms)
+
+#4.4s
+  notice.backdrop_color = notice_face [500ms]
+  fade_in(target: notice.field[0], duration: 500ms)
 
 #8s
-  fade_in(target: notice.entries.time, duration: 500ms)
+  fade_in(target: notice.field[1], duration: 500ms)
 
 #12s
-  fade_in(target: notice.entries.usable, duration: 500ms)
+  fade_in(target: notice.field[2], duration: 500ms)

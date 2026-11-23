@@ -15,7 +15,8 @@ use 1280×720 stages and semantic colorscheme values.
 | `Backdrop`, `ChapterHeader`, and `SceneCaption` | Focus, anchoring, reveal, and stagger compose the same quiet backdrop, heading, and takeaway treatment. |
 | `SequenceTile` and `Counter` | Homepage insertion and stable sort share tile geometry. Stable sort and the shear showcase use the native counter with the metric role. |
 | `SignalLane` and `SignalKey` | Wave addition and train-noise cancellation share graph and legend defaults. Each source keeps its own signal formula and scale. |
-| `Panel` and `CaptionPlate` | The maintenance notice and native starters use layout-backed panels. The anchoring lesson uses a label plate that follows the subject. |
+| `Panel` and `CaptionPlate` | The maintenance notice and native starters use layout-backed panels. The shear diagram frames its live readout, and the anchoring and reveal lessons attach plates to labels. |
+| `Row`, `Grid`, `tabulate`, and `stagger_each` | The stagger technique and metric starter generate their cast from one collection. Containers own the spacing, and the same generated actor references drive the entrance. |
 | `Backdrop` and `FocusWash` | The two sorting scenes and train-noise film use stationary backdrops. The shear example lets one wash follow the authored shear value. Native starters use the static backdrop and the metric brief adds a wash behind the cards. |
 
 Six introductory syntax lessons use the style and colorscheme directly so
@@ -48,14 +49,14 @@ with exclusive end `columns * rows`.
 A enters at 0.2 s, B at 2.5 s. Single-point addition appears at 5.5 s; the complete sum enters at 8.5 s. The phase and amplitude values replace the addition at 11 s. Initial phase holds until 12 s, moves by +180° at 12–18 s, holds until 21 s, moves to +360° at 21–26 s, then holds through 28 s.
 
 - A(x)=sin(x); B(x)=sin(x+phase); the output is exactly A(x)+B(x).
-- All three plots use the same domain and range. The `Col` supplies their spacing, and the sample points use 40 px per amplitude unit.
+- All three plots use the same domain and range. The `Col` supplies their spacing. The sample points derive their scale from the shared plot height and range.
 - Phase, amplitude, sample-point values and curves derive from the same analytic phase. Amplitude is `2*abs(cos(phase/2))`.
 - Continuous numeric strings update immediately, without repeatedly starting a whole-string morph.
 - Initial phase 180° starts cancelled, reinforces midway and ends cancelled. No caption hardcodes the default narrative.
 
 ### Maintenance notice
 
-The original announcement is visible from the first frame. At 4 s it moves left and the impact appears on the right. The time window and available features follow at 8 and 12 s. Both panels hold through 20 s. `ReadingPanel` aligns the original card and its text. A `Col` places three instances of `ReadingField`. Both panels use the same three strings.
+The original announcement is visible from the first frame. At 4 s it moves left. At 4.4 s the second panel fades in its surface and first field. The time window and available features follow at 8 and 12 s. Both panels hold through 20 s. `Panel` owns the surface and the layout of each column. The three generated fields reuse the strings in the original announcement.
 
 ## Hero and lessons
 

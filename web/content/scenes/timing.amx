@@ -1,21 +1,27 @@
 config { style: "compact", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6 }
 
+let inks = {accent.primary, accent.info, accent.warning}
+let tile_size = 100
+
 #0s
   // Three absolute # markers: no hidden cumulative timing.
-  left: Rect, at: (460, 360), size: (100, 100), corner_radius: theme.radius, color: accent.primary, opacity: 0.2
-  middle: Rect, at: (640, 360), size: (100, 100), corner_radius: theme.radius, color: accent.info, opacity: 0.2
-  right: Rect, at: (820, 360), size: (100, 100), corner_radius: theme.radius, color: accent.warning, opacity: 0.2
+  strip: Row, anchor: scene.center, gap: 80, align: "center" {
+    for ink, i in inks {
+      tile[i]: Rect, size: (tile_size, tile_size), corner_radius: theme.radius,
+        color: ink, opacity: 0.2
+    }
+  }
 
 #1s
-  left.opacity = 1[0.5s]
+  strip.tile[0].opacity = 1 [500ms]
 
 #2s
-  middle.opacity = 1[0.5s]
+  strip.tile[1].opacity = 1 [500ms]
 
 #3s
-  right.opacity = 1[0.5s]
+  strip.tile[2].opacity = 1 [500ms]
 
 #4s
-  left.rotation = 0.12[0.5s]
-  middle.rotation = 0.12[0.5s]
-  right.rotation = 0.12[0.5s]
+  for i in range(0, inks.length) {
+    strip.tile[i].rotation = 0.12 [500ms]
+  }

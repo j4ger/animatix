@@ -63,8 +63,8 @@ The same module supplies the backgrounds, sequence tiles, and signal lanes
 used by the public scenes.
 [Shared layout source](../web/content/templates/layout.amx)
 
-Use `Backdrop` for a soft palette-aware stage. Its `center` is normalized to
-the canvas and `strength: 0` yields the flat scene background. Add a
+Use `Backdrop` for a soft palette-aware stage. Its `center` and `radius` are
+normalized to the canvas, and `strength: 0` yields the flat scene background. Add a
 `FocusWash` behind the subject for a local tint. Its `at` can follow a
 keyframe or a value already used by the scene, and `strength: 0` makes it
 transparent. The Wash's `reach` scales with the canvas on each axis. Both

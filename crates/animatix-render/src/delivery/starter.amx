@@ -6,8 +6,11 @@ let heading = "Tell it in time"
 let summary = "Put narration, captions, and motion on one timeline."
 let width = content_width()
 let gap = theme.gap
-let tile_width = (width - 2 * gap) / 3
+let steps = {"Script", "Voice", "Captions"}
+let tile_width = (width - (steps.length - 1) * gap) / steps.length
+let tile_height = 68 * unit()
 let track_y = scene_height * 0.57
+let rail_y = scene_height * 0.69
 
 voice: Audio, source: "narration.mp3", transcript: "narration.speech.json"
 
@@ -16,27 +19,23 @@ voice: Audio, source: "narration.mp3", transcript: "narration.speech.json"
   head: ChapterHeader, eyebrow: "NARRATED EXPLAINER", heading: heading
   statement: Text, text: summary, role: body, text_anchor: "left",
     text_max_width: width, at: (theme.margin, scene_height * 0.40)
-  cards: Row, at: (scene_width / 2, track_y), size: (width, 68 * unit()), gap: gap, align: "center" {
-    script: Panel, size: (tile_width, 68 * unit()), border_width: 0, inset: 0 {
-      @content { script_label: Text, text: "Script", role: body }
-    }
-    narration: Panel, size: (tile_width, 68 * unit()), border_width: 0, inset: 0 {
-      @content { voice_label: Text, text: "Voice", role: body }
-    }
-    captions: Panel, size: (tile_width, 68 * unit()), border_width: 0, inset: 0 {
-      @content { captions_label: Text, text: "Captions", role: body }
+  cards: Row, at: (scene_width / 2, track_y), size: (width, tile_height), gap: gap, align: "center" {
+    for label, i in steps {
+      step[i]: Panel, size: (tile_width, tile_height), border_width: 0, inset: 0 {
+        @content { step_label: Text, text: label, role: body }
+      }
     }
   }
-  rail: Rect, size: (width, 2 * unit()), at: (scene_width / 2, scene_height * 0.69), color: stroke.default
+  rail: Rect, size: (width, 2 * unit()), at: (scene_width / 2, rail_y), color: stroke.default
   marker: Ellipse, size: (10 * unit(), 10 * unit()), color: accent.primary,
-    at: (theme.margin, scene_height * 0.69)
+    at: (theme.margin, rail_y)
   subtitles: Captions, at: (scene_width / 2, scene_height - theme.margin - 48 * unit()),
     transcript: "narration.speech.json", font_size: 36 * unit(), text_max_width: width - 2 * theme.inset,
     active_color: accent.primary, inactive_color: text.primary, backdrop_color: surface.secondary,
     backdrop_radius: theme.radius, backdrop_padding: (theme.inset, theme.inset * 0.50)
 
 #voice@feature
-  marker.at = (scene_width / 2, scene_height * 0.69) [500ms]
+  marker.at = (scene_width / 2, rail_y) [500ms]
 
 #voice@captions
-  marker.at = (scene_width - theme.margin, scene_height * 0.69) [500ms]
+  marker.at = (scene_width - theme.margin, rail_y) [500ms]

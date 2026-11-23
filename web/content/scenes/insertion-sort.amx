@@ -7,20 +7,22 @@ let card_size = (172, 116)
 let spacing = 220
 let row_y = 350
 let compare_y = row_y - card_size[1] - 40
-let slot = (index, y) => (480 + (index - 1.5) * spacing, y)
+let sorted_keys = {"2", "4", "5"}
+let slot_count = sorted_keys.length + 1
+let slot = (index, y) => (scene_width / 2 + (index - (slot_count - 1) / 2) * spacing, y)
 
 #0s
   paper: Backdrop, tint: surface.primary, center: (0.25, 0.22), strength: 0.72
-  caption: SceneCaption, level: "title", at: (scene_width / 2, 91), text: "Where does 3 fit?"
-  for i in range(0, 4) {
+  caption: SceneCaption, level: title, at: (scene_width / 2, 91), text: "Where does 3 fit?"
+  for i in range(0, slot_count) {
     let center = slot(i, row_y + card_size[1] / 2 + 18)
     let half = card_size[0] / 2 - 6
     marker[i]: Line, from: center - (half, 0), to: center + (half, 0),
       stroke: text.muted, stroke_width: 2, opacity: 0.65
   }
-  two: SequenceTile, extent: card_size, value: "2", at: slot(0, row_y)
-  four: SequenceTile, extent: card_size, value: "4", at: slot(1, row_y)
-  five: SequenceTile, extent: card_size, value: "5", at: slot(2, row_y)
+  for value, i in sorted_keys {
+    sorted[i]: SequenceTile, extent: card_size, value: value, at: slot(i, row_y)
+  }
   key: SequenceTile, extent: card_size, value: "3", at: slot(3, compare_y + 28), face: lerp_color_oklab(surface.primary, accent.success, 0.24)
 
 #0.7s
@@ -32,7 +34,7 @@ let slot = (index, y) => (480 + (index - 1.5) * spacing, y)
 
 #3.7s
   caption.text = "5 is larger. Move it right."
-  five.at = slot(3, row_y) [1.25s, ease: ease_in_out]
+  sorted[2].at = slot(3, row_y) [1.25s, ease: ease_in_out]
 
 #5.4s
   caption.text = "Now compare 3 with 4."
@@ -40,7 +42,7 @@ let slot = (index, y) => (480 + (index - 1.5) * spacing, y)
 
 #6.95s
   caption.text = "4 is larger too. Move it right."
-  four.at = slot(2, row_y) [1.25s, ease: ease_in_out]
+  sorted[1].at = slot(2, row_y) [1.25s, ease: ease_in_out]
 
 #8.7s
   caption.text = "3 is larger than 2. Fill the gap."

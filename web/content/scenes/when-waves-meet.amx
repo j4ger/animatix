@@ -7,33 +7,36 @@ let phase_degrees = 0
 let initial = deg_to_rad(phase_degrees)
 let phase = initial
 let advance = (time, start, end) => pi * ease_in_out(linear_progress(time, start, end))
-let domain = 4 * pi
+let domain = (0, 2 * tau)
+let amplitude = 2.1
+let span = (-amplitude, amplitude)
 let plot_size = (710, 168)
-let y_unit = 40
+let y_unit = plot_size[1] / (span[1] - span[0])
 let plot_left = 130
 let lane_x = plot_left + plot_size[0] / 2
 let lane_gap = 174
-let center_y = 360
+let center_y = scene_height / 2
 let lane_a = center_y - lane_gap
 let lane_sum = center_y + lane_gap
+let guide_half_height = plot_size[1] / 2 - 4
 let sample = pi / 2
-let sample_x = lane_x + plot_size[0] * (sample / domain - 0.5)
+let sample_x = lane_x + plot_size[0] * (sample / domain[1] - 0.5)
 
 #0s
   backdrop: Rect, anchor: scene.center, size: (scene_width, scene_height),
     fill_gradient: linear(115, {scene.background, surface.secondary})
   waves: Col, at: (lane_x, center_y), gap: lane_gap - plot_size[1] {
-    input_a: SignalLane, extent: plot_size, domain: (0, domain), span: (-2.1, 2.1), opacity: 0 {
+    input_a: SignalLane, extent: plot_size, domain: domain, span: span, opacity: 0 {
       @graph {
         wave_a: PlotCurve, func: (x) => sin(x), role: focus, stroke: accent.info
       }
     }
-    input_b: SignalLane, extent: plot_size, domain: (0, domain), span: (-2.1, 2.1), opacity: 0 {
+    input_b: SignalLane, extent: plot_size, domain: domain, span: span, opacity: 0 {
       @graph {
         wave_b: PlotCurve, func: (x) => sin(x + phase), role: focus, stroke: accent.secondary
       }
     }
-    sum: SignalLane, extent: plot_size, domain: (0, domain), span: (-2.1, 2.1), opacity: 0 {
+    sum: SignalLane, extent: plot_size, domain: domain, span: span, opacity: 0 {
       @graph {
         wave_sum: PlotCurve, func: (x) => sin(x) + sin(x + phase), role: focus, stroke: accent.success
       }
@@ -44,7 +47,7 @@ let sample_x = lane_x + plot_size[0] * (sample / domain - 0.5)
     second: Text, text: "B", role: note, line_height: 1.75, color: accent.secondary, opacity: 0
     total: Text, text: "A + B", role: note, line_height: 1.75, color: accent.success, opacity: 0
   }
-  sample_guide: Line, from: (sample_x, lane_a - 80), to: (sample_x, lane_sum + 80),
+  sample_guide: Line, from: (sample_x, lane_a - guide_half_height), to: (sample_x, lane_sum + guide_half_height),
     stroke: text.muted, dash_pattern: {5, 7}, opacity: 0
   sum_axis: Line, from: (plot_left, lane_sum), to: (plot_left + plot_size[0], lane_sum),
     stroke: text.muted, opacity: 0

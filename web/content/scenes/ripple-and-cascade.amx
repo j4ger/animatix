@@ -17,8 +17,7 @@ let cascade_caption = "Cascade · corner to corner"
 let pulse_at = (time, center) => exp(0 - ((time - center) / 0.65) ^ 2)
 
 #0s
-  backdrop: Rect, anchor: scene.center, size: (scene_width, scene_height),
-    fill_gradient: radial((0.5, 0.5), 0.68, {surface.secondary, scene.background})
+  backdrop: Backdrop, center: (0.5, 0.5), radius: 0.68, strength: 1
   seed: Rect, anchor: scene.center, size: cell, corner_radius: theme.radius, color: accent.primary
   field: Grid, cols: columns, gap: theme.gap, anchor: scene.center {
     for mix, i in linspace(0, 1, count) {
@@ -34,7 +33,7 @@ let pulse_at = (time, center) => exp(0 - ((time - center) / 0.65) ^ 2)
       let row = floor(i / columns)
       let dx = column - (columns - 1) / 2
       let dy = row - (rows - 1) / 2
-      let ripple = sqrt(dx ^ 2 + dy ^ 2) * ripple_delay
+      let ripple = hypot(dx, dy) * ripple_delay
       let cascade = (column + row) * cascade_delay
       let first_delay = if starts_with_cascade { cascade } else { ripple }
       let second_delay = if starts_with_cascade { ripple } else { cascade }

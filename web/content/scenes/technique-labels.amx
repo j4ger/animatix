@@ -3,18 +3,21 @@ import "../templates/layout.amx"
 
 config { style: "editorial", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 8 }
 
+let start = (scene_width / 2, scene_height / 2) + (-260, 60)
+let end = (scene_width / 2, scene_height / 2) + (260, 60)
+let point_size = 56
+let leader_start = point_size / 2 + 12
+
 #0s
   floor: Backdrop, strength: 0.28
   head: ChapterHeader, eyebrow: "ANCHORING", heading: "A label that belongs to its subject."
   takeaway: SceneCaption, text: "One position. Three related elements."
-  track: Line, from: (380, 420), to: (900, 420), stroke: text.muted, stroke_width: 2
-  point: Ellipse, at: (380, 420), size: (56, 56), color: accent.primary
-  leader: Line, from: (380, 380), to: (380, 325), stroke: accent.primary, stroke_width: 2
-  label: CaptionPlate, text: "subject", at: (380, 290), width: 250
+  track: Line, from: start, to: end, stroke: text.muted, stroke_width: 2
+  annotation: Group, at: start {
+    point: Ellipse, at: (0, 0), size: (point_size, point_size), color: accent.primary
+    leader: Line, from: (0, -leader_start), to: (0, -95), stroke: accent.primary, stroke_width: 2
+    label: CaptionPlate, text: "subject", at: (0, -130), width: 250
+  }
   always {
-      let x = lerp(380, 900, ease_in_out(linear_progress(t, 1, 5)))
-      point.at = (x, 420)
-      leader.from = (x, 380)
-      leader.to = (x, 325)
-      label.at = (x, 290)
-    }
+    annotation.at = lerp_vec2(start, end, ease_in_out(linear_progress(t, 1, 5)))
+  }

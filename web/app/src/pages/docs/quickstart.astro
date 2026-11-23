@@ -22,7 +22,7 @@ const download = sceneUrl(insertionId);
       <h2 id="gui-title">{t('GUI', '图形界面')}</h2>
       <ol>
         <li>{language === 'en' ? <>Launch <code>animatix-gui</code>. Open the <code>.amx</code> file from the filename menu.</> : <>启动 <code>animatix-gui</code>，从文件名菜单打开 <code>.amx</code> 文件。</>}</li>
-        <li>{language === 'en' ? <>Choose <strong>Write</strong> to change the source. Change the <code>1.25s</code> on the <code>four.at</code> line to <code>1.6s</code> to slow the move.</> : <>选择 <strong>Write</strong> 进入编辑。把 <code>four.at</code> 那一行的 <code>1.25s</code> 改为 <code>1.6s</code>，让卡片移动得更慢。</>}</li>
+        <li>{language === 'en' ? <>Choose <strong>Write</strong> to change the source. Change the <code>1.25s</code> on the <code>sorted[1].at</code> line to <code>1.6s</code> to slow the move.</> : <>选择 <strong>Write</strong> 进入编辑。把 <code>sorted[1].at</code> 那一行的 <code>1.25s</code> 改为 <code>1.6s</code>，让卡片移动得更慢。</>}</li>
         <li>{language === 'en' ? <>Choose <strong>Review</strong> and scrub to <code>7.6s</code> to see the move in progress. Save the file when you’re done.</> : <>选择 <strong>Review</strong>，拖到 <code>7.6s</code> 查看移动中的画面。修改完成后保存文件。</>}</li>
       </ol>
       <a class="text-link" href={github + '/blob/main/docs/gui-workbench.md'}>{t('Workbench guide ↗', '工作台指南（英文）↗')}</a>

@@ -1,10 +1,13 @@
 config { style: "compact", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6 }
 
+let radius = 150
+let period = 6
+
 #0s
   // A value is computed from absolute scene time. Scrubbing never accumulates drift.
-  ring: Ellipse, at: (640, 360), size: (300, 300), fill_opacity: 0, stroke: text.muted, stroke_width: 2
-  point: Ellipse, at: (790, 360), size: (48, 48), color: accent.primary
+  ring: Ellipse, anchor: scene.center, size: (2 * radius, 2 * radius), fill_opacity: 0, stroke: text.muted, stroke_width: 2
+  point: Ellipse, at: (scene_width / 2, scene_height / 2) + (radius, 0), size: (48, 48), color: accent.primary
   always {
-      let angle = tau * t / 6
-      point.at = (640 + 150 * cos(angle), 360 - 150 * sin(angle))
+      let angle = tau * t / period
+      point.at = (scene_width / 2, scene_height / 2) + (radius * cos(angle), -radius * sin(angle))
     }

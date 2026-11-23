@@ -2,15 +2,18 @@ config { style: "compact", colorscheme: "editorial-dark", resolution: (1280, 720
 
 #0s
   // A silent complete composition: explicit resolution, duration and held ending.
-  plate: Rect, at: (640, 360), size: (440, 220), corner_radius: theme.radius, color: surface.primary
-  mark: Ellipse, at: (640, 325), size: (54, 54), color: accent.primary, opacity: 0
-  label: Text, text: "Made to move.", at: (640, 395), role: title, opacity: 0
+  card: Col, anchor: scene.center, size: (440, 220), gap: theme.gap, align: "center",
+    backdrop: true, backdrop_color: surface.primary, backdrop_radius: theme.radius,
+    backdrop_stroke: stroke.default {
+    mark: Ellipse, size: (54, 54), color: accent.primary, opacity: 0
+    label: Text, text: "Made to move.", role: title, opacity: 0
+  }
 
 #0.5s
-  fade_in(target: mark, duration: 0.7s)
+  fade_in(target: card.mark, duration: 0.7s)
 
 #1.2s
-  fade_in(target: label, duration: 0.7s)
+  fade_in(target: card.label, duration: 0.7s)
 
 #2s
 // Hold intact through 5 s; image export at 5 s remains a complete poster.

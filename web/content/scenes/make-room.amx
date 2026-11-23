@@ -3,6 +3,7 @@ import "../templates/layout.amx"
 
 config { style: "compact", colorscheme: "default-light", resolution: (1280, 720), duration: 24 }
 
+let keys = {"4", "2a", "5", "2b", "3"}
 let width = 110
 let spacing = 152
 let row_y = 396
@@ -10,11 +11,25 @@ let lifted_y = row_y - 135
 let underline_y = row_y + width / 2 + 18
 let slot = (index, y) => (180 + index * spacing, y)
 let neutral = surface.primary
-let comparing = surface.secondary
 let active = accent.warning
 
 fn place(card: Actor, index: Num, y: Num) {
   return #{ card.at = slot(index, y) [400ms, ease: ease_in_out] }
+}
+
+fn compare_card(face: Actor, count: Actor, step: Num) {
+  return #{
+    count.value = step [200ms, ease: ease_in_out]
+    face.color = surface.secondary [200ms]
+  }
+}
+
+fn shift_card(card: Actor, face: Actor, index: Num, count: Actor, step: Num) {
+  return #{
+    card.at = slot(index, row_y) [400ms, ease: ease_in_out]
+    face.color = neutral [400ms]
+    count.value = step [400ms, ease: ease_in_out]
+  }
 }
 
 fn grow_prefix(line: Actor, count: Num) {
@@ -34,136 +49,116 @@ fn grow_prefix(line: Actor, count: Num) {
     shift_label: Text, text: "Rightward shifts", role: note
     shifts: Counter, role: metric
   }
-  four: SequenceTile, extent: (width, width), value: "4", at: slot(0, row_y)
-  two_a: SequenceTile, extent: (width, width), value: "2a", at: slot(1, row_y)
-  five: SequenceTile, extent: (width, width), value: "5", at: slot(2, row_y)
-  two_b: SequenceTile, extent: (width, width), value: "2b", at: slot(3, row_y)
-  three: SequenceTile, extent: (width, width), value: "3", at: slot(4, row_y)
+  for key, i in keys {
+    cards[i]: SequenceTile, extent: (width, width), value: key, at: slot(i, row_y)
+  }
 
 #3s
   caption.text = "Lift 2a. Compare it with the sorted prefix."
-  place(two_a, 1, lifted_y)
-  two_a.tile.color = active [0.3s]
+  place(cards[1], 1, lifted_y)
+  cards[1].tile.color = active [0.3s]
 
 #3.8s
-  stats.comparisons.value = 1 [200ms, ease: ease_in_out]
-  four.tile.color = comparing [0.2s]
+  compare_card(cards[0].tile, stats.comparisons, 1)
 
 #4.15s
   caption.text = "4 is larger. Shift it right."
-  place(four, 1, row_y)
-  four.tile.color = neutral [0.4s]
-  stats.shifts.value = 1 [400ms, ease: ease_in_out]
+  shift_card(cards[0], cards[0].tile, 1, stats.shifts, 1)
 
 #4.85s
-  place(two_a, 0, lifted_y)
+  place(cards[1], 0, lifted_y)
 
 #5.25s
   caption.text = "Insert 2a. The sorted prefix grows."
-  place(two_a, 0, row_y)
-  two_a.tile.color = neutral [0.4s]
+  place(cards[1], 0, row_y)
+  cards[1].tile.color = neutral [0.4s]
   grow_prefix(prefix, 2)
 
 #6.45s
   caption.text = "Lift 5. Compare it with the sorted prefix."
-  place(five, 2, lifted_y)
-  five.tile.color = active [0.3s]
+  place(cards[2], 2, lifted_y)
+  cards[2].tile.color = active [0.3s]
 
 #7.25s
   caption.text = "4 is smaller. The key belongs after it."
-  stats.comparisons.value = 2 [200ms, ease: ease_in_out]
-  four.tile.color = comparing [0.2s]
+  compare_card(cards[0].tile, stats.comparisons, 2)
 
 #7.9s
-  four.tile.color = neutral [200ms]
+  cards[0].tile.color = neutral [200ms]
 
 #8.3s
   caption.text = "Insert 5. The sorted prefix grows."
-  place(five, 2, row_y)
-  five.tile.color = neutral [0.4s]
+  place(cards[2], 2, row_y)
+  cards[2].tile.color = neutral [0.4s]
   grow_prefix(prefix, 3)
 
 #9.5s
   caption.text = "Lift 2b. Compare it with the sorted prefix."
-  place(two_b, 3, lifted_y)
-  two_b.tile.color = active [0.3s]
+  place(cards[3], 3, lifted_y)
+  cards[3].tile.color = active [0.3s]
 
 #10.3s
-  stats.comparisons.value = 3 [200ms, ease: ease_in_out]
-  five.tile.color = comparing [0.2s]
+  compare_card(cards[2].tile, stats.comparisons, 3)
 
 #10.65s
   caption.text = "5 is larger. Shift it right."
-  place(five, 3, row_y)
-  five.tile.color = neutral [0.4s]
-  stats.shifts.value = 2 [400ms, ease: ease_in_out]
+  shift_card(cards[2], cards[2].tile, 3, stats.shifts, 2)
 
 #11.35s
-  stats.comparisons.value = 4 [200ms, ease: ease_in_out]
-  four.tile.color = comparing [0.2s]
+  compare_card(cards[0].tile, stats.comparisons, 4)
 
 #11.7s
   caption.text = "4 is larger. Shift it right."
-  place(four, 2, row_y)
-  four.tile.color = neutral [0.4s]
-  stats.shifts.value = 3 [400ms, ease: ease_in_out]
+  shift_card(cards[0], cards[0].tile, 2, stats.shifts, 3)
 
 #12.4s
   caption.text = "Equal keys stay in their original order."
-  stats.comparisons.value = 5 [200ms, ease: ease_in_out]
-  two_a.tile.color = comparing [0.2s]
+  compare_card(cards[1].tile, stats.comparisons, 5)
 
 #13.05s
-  two_a.tile.color = neutral [0.2s]
-  place(two_b, 1, lifted_y)
+  cards[1].tile.color = neutral [0.2s]
+  place(cards[3], 1, lifted_y)
 
 #13.45s
   caption.text = "Insert 2b. The sorted prefix grows."
-  place(two_b, 1, row_y)
-  two_b.tile.color = neutral [0.4s]
+  place(cards[3], 1, row_y)
+  cards[3].tile.color = neutral [0.4s]
   grow_prefix(prefix, 4)
 
 #14.65s
   caption.text = "Lift 3. Compare it with the sorted prefix."
-  place(three, 4, lifted_y)
-  three.tile.color = active [0.3s]
+  place(cards[4], 4, lifted_y)
+  cards[4].tile.color = active [0.3s]
 
 #15.45s
-  stats.comparisons.value = 6 [200ms, ease: ease_in_out]
-  five.tile.color = comparing [0.2s]
+  compare_card(cards[2].tile, stats.comparisons, 6)
 
 #15.8s
   caption.text = "5 is larger. Shift it right."
-  place(five, 4, row_y)
-  five.tile.color = neutral [0.4s]
-  stats.shifts.value = 4 [400ms, ease: ease_in_out]
+  shift_card(cards[2], cards[2].tile, 4, stats.shifts, 4)
 
 #16.5s
-  stats.comparisons.value = 7 [200ms, ease: ease_in_out]
-  four.tile.color = comparing [0.2s]
+  compare_card(cards[0].tile, stats.comparisons, 7)
 
 #16.85s
   caption.text = "4 is larger. Shift it right."
-  place(four, 3, row_y)
-  four.tile.color = neutral [0.4s]
-  stats.shifts.value = 5 [400ms, ease: ease_in_out]
+  shift_card(cards[0], cards[0].tile, 3, stats.shifts, 5)
 
 #17.55s
   caption.text = "2b is smaller. The key belongs after it."
-  stats.comparisons.value = 8 [200ms, ease: ease_in_out]
-  two_b.tile.color = comparing [0.2s]
+  compare_card(cards[3].tile, stats.comparisons, 8)
 
 #18.2s
-  two_b.tile.color = neutral [0.2s]
-  place(three, 2, lifted_y)
+  cards[3].tile.color = neutral [0.2s]
+  place(cards[4], 2, lifted_y)
 
 #18.6s
   caption.text = "Insert 3. The sorted prefix grows."
-  place(three, 2, row_y)
-  three.tile.color = neutral [0.4s]
+  place(cards[4], 2, row_y)
+  cards[4].tile.color = neutral [0.4s]
   grow_prefix(prefix, 5)
 
 #19.8s
   caption.text = "Sorted. The two equal keys still read 2a, then 2b."
-  two_a.tile.color = accent.success [0.5s]
-  two_b.tile.color = accent.success [0.5s]
+  cards[1].tile.color = accent.success [0.5s]
+  cards[3].tile.color = accent.success [0.5s]

@@ -17,7 +17,7 @@ export const techniques = [
   {
     id: 'stagger', file: 'technique-stagger', title: 'Build a rhythm',
     goal: 'Turn repeated entrances into a deliberate reading order.',
-    explanation: 'stagger offsets five identical 600 ms fades by 300 ms each. The interval chooses when each entrance begins; it does not change the duration of the fade.',
+    explanation: 'stagger_each gives the five generated dots identical 600 ms fades. Each fade starts 300 ms after the previous one.',
     exercise: 'Try a 150 ms interval, then 600 ms. Compare overlap with one-at-a-time entrances.',
     rule: 'Time offsets should reveal structure, not simply make a scene busier.',
   },

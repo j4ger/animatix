@@ -3,26 +3,35 @@ import "../templates/layout.amx"
 
 config { style: "editorial", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7 }
 
+let count = 3
+let tile_size = 150
+let tile_gap = 90
+let center = (scene_width / 2, scene_height / 2) + (0, -10)
+let marker_at = (i) => center + ((i - (count - 1) / 2) * (tile_size + tile_gap), tile_size / 2 + 30)
+let dimmed = 0.25
+
 #0s
   floor: Backdrop, strength: 0.28
   head: ChapterHeader, eyebrow: "EMPHASIS", heading: "Keep the context. Change the focus."
   takeaway: SceneCaption, text: "The arrangement does not have to move."
-  a: Rect, at: (400, 350), size: (150, 150), corner_radius: theme.radius, color: accent.primary
-  b: Rect, at: (640, 350), size: (150, 150), corner_radius: theme.radius, color: accent.primary
-  c: Rect, at: (880, 350), size: (150, 150), corner_radius: theme.radius, color: accent.primary
-  marker: Rect, at: (640, 455), size: (48, 4), color: accent.warning, opacity: 0
+  row: Row, at: center, gap: tile_gap, align: "center" {
+    for i in range(0, count) {
+      tile[i]: Rect, size: (tile_size, tile_size), corner_radius: theme.radius, color: accent.primary
+    }
+  }
+  marker: Rect, at: marker_at(1), size: (48, 4), color: accent.warning, opacity: 0
 
 #1.5s
-  a.opacity = 0.25[0.5s]
-  c.opacity = 0.25[0.5s]
-  b.color = accent.warning[0.5s]
-  fade_in(target: marker, duration: 0.5s)
+  row.tile[0].opacity = dimmed [500ms]
+  row.tile[2].opacity = dimmed [500ms]
+  row.tile[1].color = accent.warning [500ms]
+  fade_in(target: marker, duration: 500ms)
 
 #4s
-  b.opacity = 0.25[0.5s]
-  b.color = accent.primary[0.5s]
-  c.opacity = 1[0.5s]
-  c.color = accent.warning[0.5s]
-  marker.at = (880, 455) [0.5s, ease: ease_in_out]
+  row.tile[1].opacity = dimmed [500ms]
+  row.tile[1].color = accent.primary [500ms]
+  row.tile[2].opacity = 1 [500ms]
+  row.tile[2].color = accent.warning [500ms]
+  marker.at = marker_at(2) [500ms, ease: ease_in_out]
 
 #7s

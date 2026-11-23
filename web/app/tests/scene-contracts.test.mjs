@@ -27,11 +27,18 @@ test('every inspectable move identifies its original AMX line and cue', () => {
 });
 
 test('editing a move in the Playground follows the new cue and duration', () => {
-  const edited = source.replace('#6.95s', '#7s').replace(/four\.at[^\n]+/, line => line.replace('1.25s', '1.6s'));
+  const edited = source.replace('#6.95s', '#7s').replace(/sorted\[1\]\.at[^\n]+/, line => line.replace('1.25s', '1.6s'));
   const move = insertionSteps('// Added line\n' + edited).find(step => step.id === 'four');
   assert.equal(move.start, 7);
   assert.equal(move.duration, 1.6);
   assert.equal(move.line, insertionSteps(source)[1].line + 1);
+});
+
+test('steps still resolve against older drafts with named actors', () => {
+  const previous = source.replace('sorted[2].at', 'five.at').replace('sorted[1].at', 'four.at');
+  assert.deepEqual(insertionSteps(previous).map(({id, start}) => [id, start]), [
+    ['five', 3.7], ['four', 6.95], ['key', 8.7],
+  ]);
 });
 
 test('the source navigator marks every absolute timestamp and reads edited millisecond cues', () => {

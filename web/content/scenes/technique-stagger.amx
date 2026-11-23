@@ -3,23 +3,23 @@ import "../templates/layout.amx"
 
 config { style: "editorial", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7 }
 
+let count = 5
+let diameter = 80
+let step = 300ms
+let entrance = 600ms
+
 #0s
   floor: Backdrop, strength: 0.28
   head: ChapterHeader, eyebrow: "STAGGER", heading: "One entrance. A shared rhythm."
-  takeaway: SceneCaption, text: "Each starts 300 ms after the last."
-  a: Ellipse, at: (340, 350), size: (80, 80), color: accent.primary, opacity: 0
-  b: Ellipse, at: (490, 350), size: (80, 80), color: accent.primary, opacity: 0
-  c: Ellipse, at: (640, 350), size: (80, 80), color: accent.primary, opacity: 0
-  d: Ellipse, at: (790, 350), size: (80, 80), color: accent.primary, opacity: 0
-  e: Ellipse, at: (940, 350), size: (80, 80), color: accent.primary, opacity: 0
+  takeaway: SceneCaption, text: format("Each starts {} ms after the last.", step / 1ms)
+  row: Row, anchor: scene.center, offset: (0, -10), gap: 70, align: "center" {
+    for i in range(0, count) {
+      dot[i]: Ellipse, size: (diameter, diameter), color: accent.primary, opacity: 0
+    }
+  }
+  let dots = tabulate(count, (i) => row.dot[i])
 
 #1s
-  stagger [0.3s] {
-      fade_in(target: a, duration: 0.6s)
-      fade_in(target: b, duration: 0.6s)
-      fade_in(target: c, duration: 0.6s)
-      fade_in(target: d, duration: 0.6s)
-      fade_in(target: e, duration: 0.6s)
-    }
+  stagger_each(dots, step, (dot) => fade_in(target: dot, duration: entrance))
 
 #7s

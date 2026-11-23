@@ -20,9 +20,10 @@ pub fn figure_height(with_notes: Bool) -> Num {
 }
 
 // The backdrop owns the stage fill. Its gradient uses normalized coordinates.
-pub component Backdrop(tint: Color = surface.secondary, center: Vec2 = (0.30, 0.30), strength: Num = 0.45) {
+pub component Backdrop(tint: Color = surface.secondary, center: Vec2 = (0.30, 0.30), strength: Num = 0.45,
+  radius: Num = 0.9) {
   floor: Rect, size: (scene_width, scene_height), anchor: scene.center, opacity: 1, legend: false,
-    fill_gradient: radial(center, 0.9, {lerp_color(scene.background, tint, clamp(strength, 0, 1)), scene.background})
+    fill_gradient: radial(center, radius, {lerp_color(scene.background, tint, clamp(strength, 0, 1)), scene.background})
 }
 
 // Place above the backdrop and behind the content. Animate the instance's at
@@ -41,7 +42,7 @@ pub component FocusWash(tint: Color = accent.primary, strength: Num = 0.08, reac
 pub component ChapterHeader(eyebrow: Str, heading: Str) {
   header: Group, at: (theme.margin, theme.margin) {
     category: Text, text: eyebrow, role: roles::eyebrow, text_anchor: "left", at: (0, 14 * unit())
-    heading_ink: Text, text: heading, role: title, text_anchor: "left",
+    heading_ink: Text, text: heading, role: roles::title, text_anchor: "left",
       text_max_width: content_width(), at: (0, (if tall() { 106 } else { 96 }) * unit())
   }
 }
@@ -60,7 +61,7 @@ pub component Panel(size: Any = (auto, auto), face: Color = surface.primary, bor
   }
 }
 
-pub component CaptionPlate(text: Str, level: Str = body, width: Num = content_width()) {
+pub component CaptionPlate(text: Str, level: Str = roles::body, width: Num = content_width()) {
   label: Text, text: text, role: level, text_align: "center",
     text_max_width: max(1, width - 2 * theme.inset), backdrop: true,
     backdrop_color: surface.primary, backdrop_radius: theme.radius,
@@ -72,14 +73,14 @@ pub component MetricCard(label: Str, value: Str, detail: Str, width: Num, height
   card: Panel, size: (width, height), align: "start", gap: 8 * unit(), raised: raised,
     border: lerp_color(surface.primary, text.secondary, 0.3) {
     @content {
-      card_label: Text, text: label, role: note
-      card_value: Text, text: value, role: metric, color: ink
-      card_detail: Text, text: detail, role: note
+      card_label: Text, text: label, role: roles::note
+      card_value: Text, text: value, role: roles::metric, color: ink
+      card_detail: Text, text: detail, role: roles::note
     }
   }
 }
 
-pub component SceneCaption(text: Str, level: Str = "body", plate: Bool = false) {
+pub component SceneCaption(text: Str, level: Str = roles::body, plate: Bool = false) {
   caption: Text, text: text, role: level, at: (scene_width / 2, takeaway_y()),
     text_max_width: content_width() - (if plate { 2 * theme.inset } else { 0 }), text_align: "center",
     backdrop: plate, backdrop_color: surface.primary, backdrop_radius: theme.radius,
@@ -89,7 +90,7 @@ pub component SceneCaption(text: Str, level: Str = "body", plate: Bool = false) 
 pub component SequenceTile(value: Str, extent: Vec2, face: Color = surface.primary) {
   tile: Rect, size: extent, corner_radius: theme.radius, color: face,
     stroke: lerp_color(face, text.secondary, 0.48), stroke_width: 2 * unit()
-  digit: Text, text: value, role: metric, font_size: min(extent[0] * 0.46, extent[1] * 0.63)
+  digit: Text, text: value, role: roles::metric, font_size: min(extent[0] * 0.46, extent[1] * 0.63)
 }
 
 pub component SignalLane(extent: Vec2, domain: Vec2, span: Vec2) {
@@ -102,7 +103,7 @@ pub component SignalLane(extent: Vec2, domain: Vec2, span: Vec2) {
 pub component SignalKey(label: Str, ink: Color) {
   key: Row, align: "center", gap: theme.gap * 0.45 {
     dot: Ellipse, size: (14 * unit(), 14 * unit()), color: ink
-    name: Text, text: label, role: body
+    name: Text, text: label, role: roles::body
   }
 }
 
@@ -117,7 +118,7 @@ pub component ExplainerLayout(eyebrow: Str, heading: Str, takeaway: Str, with_no
       at: (theme.margin + figure_width(with_notes) / 2, figure_top() + figure_height(with_notes) / 2)
     figure: Group, at: (theme.margin + figure_width(with_notes) / 2, figure_top() + figure_height(with_notes) / 2) {
       @slot
-      figure_placeholder: Text, text: "Add a figure to this slot", role: note
+      figure_placeholder: Text, text: "Add a figure to this slot", role: roles::note
     }
     notes: Group, at: (
       if stacked() { scene_width / 2 } else { scene_width - theme.margin - notes_width() / 2 },
@@ -129,7 +130,7 @@ pub component ExplainerLayout(eyebrow: Str, heading: Str, takeaway: Str, with_no
     ) {
       @slot
     }
-    conclusion: Text, text: takeaway, role: body, text_anchor: "left",
+    conclusion: Text, text: takeaway, role: roles::body, text_anchor: "left",
       text_max_width: content_width(), at: (theme.margin, takeaway_y())
   }
 }
@@ -137,7 +138,7 @@ pub component ExplainerLayout(eyebrow: Str, heading: Str, takeaway: Str, with_no
 pub component NarrationStep(label: Str, width: Num) {
   tile: Stack, size: (width, 68 * unit()) {
     plate: Rect, size: (width, 68 * unit()), color: surface.primary, corner_radius: theme.radius
-    step_label: Text, text: label, role: body
+    step_label: Text, text: label, role: roles::body
   }
 }
 
@@ -153,13 +154,13 @@ pub component TechniqueStage(topic: Str, heading: Str, takeaway: Str = "") {
 }
 
 pub component MetricNumber(initial: Num = 0, places: Num = 0, ink: Color = text.primary) {
-  amount: Counter, value: initial, decimals: places, role: metric, color: ink
+  amount: Counter, value: initial, decimals: places, role: roles::metric, color: ink
 }
 
 pub component ReadingField(label: Str, detail: Str, width: Num) {
   field: Col, size: (width, auto), gap: theme.gap * 0.3, align: "start" {
-    name: Text, text: label, role: eyebrow
-    copy: Text, text: detail, role: body, text_max_width: width
+    name: Text, text: label, role: roles::eyebrow
+    copy: Text, text: detail, role: roles::body, text_max_width: width
   }
 }
 

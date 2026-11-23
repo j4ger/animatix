@@ -3,7 +3,8 @@ import "../templates/layout.amx"
 
 config { style: "editorial", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 24 }
 
-let basis_unit = 85
+let basis_unit = 85 * unit()
+let grid_radius = 2
 let project = (x, y, shear) => (basis_unit * (x + shear * y), 0 - basis_unit * y)
 let ambient_strength = 0.08
 
@@ -13,9 +14,9 @@ let ambient_strength = 0.08
     strength: ambient_strength
   plane: Group, at: (35%, 53%) {
     lattice: Group, opacity: 0 {
-      for n, i in range(-2, 3) {
-        vertical[i]: Line, from: project(n, -2, 0), to: project(n, 2, 0), opacity: 0.26
-        horizontal[i]: Line, from: project(-2, n, 0), to: project(2, n, 0), opacity: 0.26
+      for n, i in range(-grid_radius, grid_radius + 1) {
+        vertical[i]: Line, from: project(n, -grid_radius, 0), to: project(n, grid_radius, 0), opacity: 0.26
+        horizontal[i]: Line, from: project(-grid_radius, n, 0), to: project(grid_radius, n, 0), opacity: 0.26
       }
     }
     x_axis: Line, from: project(-3.4, 0, 0), to: project(3.4, 0, 0), opacity: 0.55
@@ -28,13 +29,15 @@ let ambient_strength = 0.08
     right_edge: Line, from: project(1, 0, 0), to: project(1, 1, 0), stroke: accent.primary, stroke_width: 3, opacity: 0
     point: Ellipse, size: (14, 14), color: accent.danger, opacity: 0
   }
-  readout: Col, at: (81%, 52%), align: "start", gap: theme.gap * 0.7 {
-    equation: Text, text: "(x, y) → (x + ky, y)", role: body
-    shear: Row, align: "center", gap: theme.gap * 0.35 {
-      symbol: Text, text: "k =", role: body, color: text.secondary
-      amount: Counter, decimals: 2, role: metric, color: accent.warning
+  readout: Panel, at: (81%, 52%), align: "start", gap: theme.gap * 0.7 {
+    @content {
+      equation: Text, text: "(x, y) → (x + ky, y)", role: body
+      shear: Row, align: "center", gap: theme.gap * 0.35 {
+        symbol: Text, text: "k =", role: body, color: text.secondary
+        amount: Counter, decimals: 2, role: metric, color: accent.warning
+      }
+      area: Text, text: "Area = 1", role: note, opacity: 0
     }
-    area: Text, text: "Area = 1", role: note, opacity: 0
   }
   caption: SceneCaption, text: "Two basis vectors describe the original space."
 
@@ -43,10 +46,11 @@ let ambient_strength = 0.08
     let k = tip[0] / basis_unit
     ambient_light.at = (scene_width * (0.35 + 0.03 * clamp(k, -1, 1)), scene_height * 0.48)
     lattice.transform = (1, 0, -k, 1, 0, 0)
-    point.at = project(1, 1, k)
-    top_edge.from = project(0, 1, k)
-    top_edge.to = project(1, 1, k)
-    right_edge.to = project(1, 1, k)
+    let corner = project(1, 1, k)
+    point.at = corner
+    top_edge.from = tip
+    top_edge.to = corner
+    right_edge.to = corner
     amount.value = k
   }
 

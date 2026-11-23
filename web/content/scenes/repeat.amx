@@ -1,10 +1,12 @@
 config { style: "compact", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 5 }
 
-let tiles = range(0, 12)
+let columns = 6
+let rows = 2
+let tiles = range(0, columns * rows)
 
 #0s
   // One declaration creates twelve distinct actors. Grid owns their slots.
-  field: Grid, opacity: 1, cols: 6, gap: theme.gap, anchor: scene.center {
+  field: Grid, opacity: 1, cols: columns, gap: theme.gap, anchor: scene.center {
     for mix, i in linspace(0, 1, tiles.length) {
       tile[i]: Rect, opacity: 1, size: (72, 72), corner_radius: theme.radius,
         color: lerp_color_oklab(accent.primary, accent.info, mix)

@@ -2,13 +2,13 @@ config { style: "compact", colorscheme: "editorial-dark", resolution: (1280, 720
 
 #0s
   // Row owns alignment; Group applies one transform to the composition.
-  cluster: Group, opacity: 1, at: (640, 360) {
-  row: Row, opacity: 1, gap: theme.gap, align: "center" {
-  circle: Ellipse, opacity: 1, size: (100, 100), color: accent.primary
-  square: Rect, opacity: 1, size: (100, 100), corner_radius: theme.radius, color: accent.info
-  small: Rect, opacity: 1, size: (64, 64), corner_radius: theme.radius, color: accent.warning
-      }
+  cluster: Group, opacity: 1, anchor: scene.center {
+    row: Row, opacity: 1, gap: theme.gap, align: "center" {
+      circle: Ellipse, opacity: 1, size: (100, 100), color: accent.primary
+      square: Rect, opacity: 1, size: (100, 100), corner_radius: theme.radius, color: accent.info
+      small: Rect, opacity: 1, size: (64, 64), corner_radius: theme.radius, color: accent.warning
     }
+  }
 
 #1s
   cluster.rotation = 0.15 [1s, ease: ease_in_out]
