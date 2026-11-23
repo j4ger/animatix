@@ -195,7 +195,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image at authored 1280x720",
-      "source_sha256": "b91d6dc076dee5841da164965b37f1bc384c699e17f396ed423be6c9a8af4781",
+      "source_sha256": "e08e87613e952d982ccf704302db9ed8fb331fbcaa7ea733f7ec159affe6fdf0",
       "poster_sha256": "a3f23917a1ca66f216e8e34e37be87799cb39bd3b50bdf1f157b63b562236800"
     },
     {
@@ -211,6 +211,6 @@
     }
   ],
   "source_modules": {
-    "templates/layout.amx": "26027c5814d5a52475298eb23c42cfeab57c2f3fe77eb812207898f77d833d44"
+    "templates/layout.amx": "d873be1928cad8203d4af372f3765cd43facb64c8d443667336275205cf7ad01"
   }
 }

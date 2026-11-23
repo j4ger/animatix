@@ -1894,9 +1894,11 @@ modifiers. See `crates/animatix-syntax/tests/fixtures/amx/animation/local_ticker
 
 The installed project templates call `ChapterHeader.enter()` at the opening
 keyframe. This method fades in the category and briefly lifts the title into
-place. The math template also fades in its figure region. Set the starter's
-`motion` variable to `"none"` for a static opening. The narrated template still
-shows subtitles on the speech timeline.
+place. The math template fades in the figure and any formula notes together.
+The narrated template uses word highlights and switches to `karaoke_sweep`
+when the narration introduces caption synchronization. Set the starter's
+`motion` variable to `"none"` for a static opening and ordinary word highlights
+throughout the narrated template.
 
 The shared layout library also provides `ExplainerLayout.enter()` and
 `SceneCaption.enter()`. Pass `defer_takeaway: true` to the explainer's entrance

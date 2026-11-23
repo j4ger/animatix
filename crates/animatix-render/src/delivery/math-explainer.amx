@@ -56,6 +56,7 @@ let equation_width = if stacked() { content_width() } else { notes_width() }
         text_max_width: equation_width - theme.inset
       key: Text, text: "Reference · cos x", role: note
     }
+    soft_entrance(equation, motion: motion, delay: 110ms)
   }
   conclusion: Text, text: takeaway, role: body, text_anchor: "left",
     text_max_width: content_width(), at: (theme.margin, takeaway_y()),

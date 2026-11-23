@@ -33,6 +33,7 @@ voice: Audio, source: "narration.mp3", transcript: "narration.speech.json"
     at: (if motion == "none" { scene_width - theme.margin } else { theme.margin }, rail_y)
   subtitles: Captions, at: (scene_width / 2, scene_height - theme.margin - 48 * unit()),
     transcript: "narration.speech.json", font_size: 36 * unit(), text_max_width: width - 2 * theme.inset,
+    caption_mode: "word",
     caption_enter: (if motion == "none" { 0 } else { 0.08 }),
     caption_exit: (if motion == "none" { 0 } else { 0.08 }),
     active_color: accent.primary, inactive_color: text.primary, backdrop_color: surface.secondary,
@@ -42,4 +43,7 @@ voice: Audio, source: "narration.mp3", transcript: "narration.speech.json"
   if motion != "none" { marker.at = (scene_width / 2, rail_y) [500ms] }
 
 #voice@captions
-  if motion != "none" { marker.at = (scene_width - theme.margin, rail_y) [500ms] }
+  if motion != "none" {
+    marker.at = (scene_width - theme.margin, rail_y) [500ms]
+    subtitles.caption_mode = "karaoke_sweep"
+  }

@@ -20,7 +20,7 @@ let label_offset = (0, 115)
   fade_in(target: dot, duration: 0.6s)
 
 #1.5s
-  fade_in(target: name, duration: 0.4s)
+  wipe_in(target: name, direction: bottom, duration: 320ms, ease: ease_out)
 
 #3s
   draw_in(target: link, duration: 0.8s)
