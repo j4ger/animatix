@@ -138,22 +138,24 @@ impl RenderCommand {
                 stroke_width,
             } => {
                 let rounded = super::surface::rounded_rect(*rect, *radius);
-                let [r, g, b, a] = *fill;
-                if a > 0 {
-                    let color = peniko::Color::from_rgba8(r, g, b, a);
-                    let color = color.with_alpha(color.components[3] * opacity);
-                    scene.fill(peniko::Fill::NonZero, *transform, color, None, &rounded);
-                }
-                let [r, g, b, a] = *stroke;
-                if a > 0 && *stroke_width > 0.0 {
-                    let color = peniko::Color::from_rgba8(r, g, b, a);
-                    let color = color.with_alpha(color.components[3] * opacity);
-                    let style = kurbo::Stroke::new(f64::from(*stroke_width))
-                        .with_join(kurbo::Join::Miter)
-                        .with_miter_limit(10.0)
-                        .with_caps(kurbo::Cap::Butt);
-                    scene.stroke(&style, *transform, color, None, &rounded);
-                }
+                let paint = |[r, g, b, a]: [u8; 4]| {
+                    (a > 0).then(|| {
+                        let color = peniko::Color::from_rgba8(r, g, b, a);
+                        color.with_alpha(color.components[3] * opacity)
+                    })
+                };
+                let stroke = if *stroke_width > 0.0 {
+                    paint(*stroke).map(|color| {
+                        let style = kurbo::Stroke::new(f64::from(*stroke_width))
+                            .with_join(kurbo::Join::Miter)
+                            .with_miter_limit(10.0)
+                            .with_caps(kurbo::Cap::Butt);
+                        (style, color)
+                    })
+                } else {
+                    None
+                };
+                scene.draw_rounded_rect(&rounded, *transform, paint(*fill), stroke);
             },
             RenderCommand::Text {
                 paths,

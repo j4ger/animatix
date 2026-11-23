@@ -5,10 +5,12 @@
 //! scene. Backends translate Draw values into their own encoding.
 
 pub use kurbo::Stroke;
-use kurbo::{Affine, BezPath, Rect, Shape};
+use kurbo::{Affine, BezPath, Rect, RoundedRect, Shape};
 pub use peniko::{BlendMode, Brush, Color, Fill, FontData, ImageBrush};
 
 use crate::timeline::effects::{EffectChain, EffectRegion, PendingBackdrop};
+
+const SHAPE_PATH_TOLERANCE: f64 = 0.1;
 
 /// A sequence of owned drawing operations.
 #[derive(Clone, Default)]
@@ -219,6 +221,47 @@ impl Scene {
             brush: brush.into(),
             brush_transform,
         });
+    }
+
+    /// Paint a rounded rectangle in fill-then-stroke order from one contour.
+    pub(crate) fn draw_rounded_rect(
+        &mut self,
+        shape: &RoundedRect,
+        transform: Affine,
+        fill: Option<Color>,
+        stroke: Option<(Stroke, Color)>,
+    ) {
+        if fill.is_none() && stroke.is_none() {
+            return;
+        }
+
+        // A single cubic per corner is the usual case. The iterator can add
+        // more cubics to meet the same tolerance as the generic shape paths.
+        let mut path = BezPath::with_capacity(10);
+        path.extend(shape.path_elements(SHAPE_PATH_TOLERANCE));
+        if let Some(color) = fill {
+            let fill_path = if stroke.is_some() {
+                path.clone()
+            } else {
+                std::mem::take(&mut path)
+            };
+            self.draws.push(Draw::Fill {
+                path: fill_path,
+                rule: Fill::NonZero,
+                transform,
+                brush: color.into(),
+                brush_transform: None,
+            });
+        }
+        if let Some((style, color)) = stroke {
+            self.draws.push(Draw::Stroke {
+                path,
+                style,
+                transform,
+                brush: color.into(),
+                brush_transform: None,
+            });
+        }
     }
 
     /// Push a path clip with no blend mode.
@@ -452,13 +495,62 @@ impl Draw {
 
 fn shape_to_path(shape: &impl Shape) -> BezPath {
     let mut path = BezPath::new();
-    path.extend(shape.path_elements(0.1));
+    path.extend(shape.path_elements(SHAPE_PATH_TOLERANCE));
     path
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rounded_rect_paints_the_same_contour_in_fill_then_stroke_order() {
+        let transform = Affine::translate((12.0, 30.0));
+        let style = Stroke::new(2.0).with_join(kurbo::Join::Miter);
+        for radius in [0.0, 8.0, 500.0] {
+            let shape = RoundedRect::new(0.0, 0.0, 1024.0, 1024.0, radius);
+            let expected = shape_to_path(&shape);
+            let mut scene = Scene::new();
+            scene.draw_rounded_rect(&shape, transform, None, None);
+            assert!(scene.draws().is_empty());
+
+            scene.draw_rounded_rect(&shape, transform, Some(Color::WHITE), None);
+            assert!(matches!(scene.draws(), [Draw::Fill { path, .. }] if *path == expected));
+            scene.reset();
+
+            scene.draw_rounded_rect(&shape, transform, None, Some((style.clone(), Color::BLACK)));
+            assert!(matches!(scene.draws(), [Draw::Stroke { path, .. }] if *path == expected));
+            scene.reset();
+
+            scene.draw_rounded_rect(
+                &shape,
+                transform,
+                Some(Color::WHITE),
+                Some((style.clone(), Color::BLACK)),
+            );
+            let [
+                Draw::Fill {
+                    path: fill_path,
+                    transform: fill_transform,
+                    ..
+                },
+                Draw::Stroke {
+                    path: stroke_path,
+                    transform: stroke_transform,
+                    style: drawn_style,
+                    ..
+                },
+            ] = scene.draws()
+            else {
+                panic!("expected fill before stroke");
+            };
+            assert_eq!(*fill_path, expected);
+            assert_eq!(*stroke_path, expected);
+            assert_eq!(*fill_transform, transform);
+            assert_eq!(*stroke_transform, transform);
+            assert_eq!(*drawn_style, style);
+        }
+    }
 
     #[test]
     fn scene_keeps_draw_order_and_reuses_capacity_after_reset() {
