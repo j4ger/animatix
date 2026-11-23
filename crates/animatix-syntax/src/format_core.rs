@@ -214,7 +214,7 @@ pub fn format_expr(expr: &Expr) -> String {
         },
         Expr::Percent(n) => format!("{}%", n),
         Expr::Str(s) => {
-            let escaped = escape_string_quotes(s);
+            let escaped = escape_string(s);
             format!("\"{}\"", escaped)
         },
         Expr::Color([r, g, b, 255]) => format!("hex_color(\"{r:02x}{g:02x}{b:02x}\")"),
@@ -333,26 +333,20 @@ pub fn format_expr(expr: &Expr) -> String {
     }
 }
 
-/// Escape only quotes that would otherwise terminate the double-quoted
-/// literal. The tokenizer preserves the source spelling of backslash escapes,
-/// so doubling every backslash would make each formatting pass grow them.
-fn escape_string_quotes(value: &str) -> String {
+/// Encode an AST string as an ordinary double-quoted source literal.
+fn escape_string(value: &str) -> String {
     let mut escaped = String::with_capacity(value.len());
-    let mut backslashes = 0usize;
-    for character in value.chars() {
-        if character == '"' {
-            if backslashes.is_multiple_of(2) {
-                escaped.push('\\');
-            }
-            escaped.push(character);
-            backslashes = 0;
-        } else {
-            escaped.push(character);
-            if character == '\\' {
-                backslashes += 1;
-            } else {
-                backslashes = 0;
-            }
+    let mut chars = value.chars().peekable();
+    while let Some(character) = chars.next() {
+        match character {
+            '"' => escaped.push_str("\\\""),
+            '\\' if matches!(chars.peek(), None | Some('\\' | '"' | 'n' | 'r' | 't')) => {
+                escaped.push_str("\\\\");
+            },
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\t' => escaped.push_str("\\t"),
+            _ => escaped.push(character),
         }
     }
     escaped

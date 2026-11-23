@@ -11,23 +11,58 @@ struct FragInfo {
     hl_blend: peniko::Mix,
 }
 
-/// Escape a Fragment's content for embedding in one #box() markup block.
-///
-/// Typst parses a leading '+' as an enum item and a leading '-' as a bullet,
-/// so a term fragment like "+ sin(3x)/3" otherwise renders as the list marker
-/// "1." — escape the marker so equations read as written.
-pub(crate) fn equation_markup_escaped(content: &str) -> String {
-    let trimmed = content.trim_start();
-    if trimmed.starts_with('+') || trimmed.starts_with('-') {
-        // Keep any leading whitespace, escape the marker itself.
-        let cut = content.len() - trimmed.len();
-        format!("{}\\{}", &content[..cut], trimmed)
-    } else {
-        content.to_string()
-    }
-}
-
 impl Timeline {
+    /// Check the authored equation states with the same compiler used for rendering.
+    pub(crate) fn validate_equations(&self, diagnostics: &mut Vec<crate::diagnostics::Diagnostic>) {
+        use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+
+        let overrides = std::collections::HashMap::new();
+        let scene_dimensions =
+            self.resolution().map_or_else(Default::default, |(width, height)| {
+                crate::timeline::SceneDimensions { width, height }
+            });
+        for (label, id) in self.world.tracks.iter() {
+            if self.world.actor_type(id) != "Equation" {
+                continue;
+            }
+            let mut times = std::collections::BTreeSet::from([self.world.first_seen(id)]);
+            for &child in &self.world.hierarchy(id).children {
+                times.insert(self.world.first_seen(child));
+                if let Some(track) =
+                    self.world.text(child).and_then(|text| text.text_content.as_ref())
+                {
+                    times.extend(track.keyframes().keys().copied());
+                }
+            }
+            for time_ms in times {
+                let frame = crate::primitives::RenderFrame {
+                    time_ms,
+                    scene_dimensions,
+                    debug_options: Default::default(),
+                    overrides: &overrides,
+                    frame_env: None,
+                };
+                let frags = self.collect_equation_fragments(id, &frame);
+                if !frags.is_empty()
+                    && let Err(error) = self.compile_equation(id, time_ms, &frags)
+                {
+                    diagnostics.push(
+                        Diagnostic::error(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Equation '{label}' at {:.3}s: {error}",
+                                time_ms as f64 / 1000.0
+                            ),
+                        )
+                        .with_subject(label)
+                        .with_ast_span(self.world.decl_span(id).cloned()),
+                    );
+                }
+            }
+        }
+    }
+
     /// Equation strategy: fragment children aggregate into one Typst document.
     /// Selected by `ChildProcessingKind::Equation` in the scene evaluator.
     fn render_equation_children(
@@ -97,6 +132,9 @@ impl Timeline {
         let child_ids: Vec<EntityId> = self.world.hierarchy(node_id).children.to_vec();
 
         for &child_id in &child_ids {
+            if self.world.first_seen(child_id) > time_ms {
+                continue;
+            }
             // A fragment is any child whose behavior opts into
             // `equation_fragment` — never a hard-coded type name.
             let Some(def) = self.behavior_for_node(child_id, time_ms) else {
@@ -140,34 +178,38 @@ impl Timeline {
         frags
     }
 
-    /// Compile and draw the aggregated Typst document for `frags`.
-    fn render_equation_document(
+    fn compile_equation(
         &self,
         node_id: EntityId,
         time_ms: u64,
         frags: &[FragInfo],
-        global_transform: kurbo::Affine,
-        global_opacity: f32,
-        out: &mut crate::primitives::RenderOutputs<'_, '_>,
-    ) {
-        if frags.is_empty() {
-            return;
-        }
-
+    ) -> Result<std::sync::Arc<animatix_text::CachedGroupedText>, crate::renderer::error::RenderError>
+    {
         // Keep fragment identity explicit in the frame stream. Typst adds
         // transparent layout groups around the whole paragraph, so group depth
         // alone cannot reliably recover the authored Fragment boundaries.
-        let typst_body: String = frags
+        let fragments = frags
             .iter()
             .enumerate()
             .map(|(index, f)| {
+                let source = f.content.trim();
+                let math = source.strip_prefix('$').and_then(|s| s.strip_suffix('$')).unwrap_or(source);
+                // Alphanumeric labels such as a1 predate mathematical layout.
+                let literal_label = math.as_bytes().first().is_some_and(u8::is_ascii_alphabetic)
+                    && math.as_bytes().last().is_some_and(u8::is_ascii_digit)
+                    && math.bytes().all(|byte| byte.is_ascii_alphanumeric());
+                let math = if literal_label {
+                    std::borrow::Cow::Owned(format!("#text(\"{math}\")"))
+                } else {
+                    std::borrow::Cow::Borrowed(math)
+                };
                 format!(
-                    "#metadata(\"animatix:equation-fragment:start:{index}\") #box()[{}] #metadata(\"animatix:equation-fragment:end:{index}\")",
-                    equation_markup_escaped(&f.content)
+                    "#metadata(\"animatix:equation-fragment:start:{index}\") {math} #metadata(\"animatix:equation-fragment:end:{index}\")",
                 )
             })
             .collect::<Vec<_>>()
             .join(" ");
+        let typst_body = format!("$ {fragments} $");
 
         // Use equation-level font_size and color from the Equation track.
         let text = self.world.text_or_default(node_id);
@@ -184,7 +226,7 @@ impl Timeline {
         // content and font properties rarely change between frames, so
         // scrubbing an equation-heavy out.scene reuses one compilation
         // instead of re-running Typst every frame.
-        match crate::renderer::text::compile_typst_grouped_cached(
+        crate::renderer::text::compile_typst_grouped_cached(
             &typst_body,
             font_size,
             eq_color,
@@ -195,7 +237,23 @@ impl Timeline {
             line_height,
             letter_spacing,
             word_spacing,
-        ) {
+        )
+    }
+
+    /// Compile and draw the aggregated Typst document for `frags`.
+    fn render_equation_document(
+        &self,
+        node_id: EntityId,
+        time_ms: u64,
+        frags: &[FragInfo],
+        global_transform: kurbo::Affine,
+        global_opacity: f32,
+        out: &mut crate::primitives::RenderOutputs<'_, '_>,
+    ) {
+        if frags.is_empty() {
+            return;
+        }
+        match self.compile_equation(node_id, time_ms, frags) {
             Ok(compiled) => {
                 // One glyph range per authored Fragment, resolved at compile
                 // time and shared through the memo.
@@ -226,7 +284,16 @@ impl Timeline {
                 }
             },
             Err(e) => {
-                tracing::warn!("Equation Typst compilation failed: {e}");
+                use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+                self.eval_caches.runtime_diagnostics.borrow_mut().push(
+                    Diagnostic::error(
+                        DiagnosticCode::RenderFailure,
+                        DiagnosticPhase::Render,
+                        format!("Equation failed to compile: {e}"),
+                    )
+                    .with_subject(self.world.label(node_id).unwrap_or("Equation"))
+                    .with_ast_span(self.world.decl_span(node_id).cloned()),
+                );
             },
         }
     }

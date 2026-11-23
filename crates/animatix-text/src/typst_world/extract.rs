@@ -169,6 +169,7 @@ fn extract_glyphs_grouped_legacy(frame: &Frame) -> (Vec<TextPath>, Vec<std::ops:
                     &mut state,
                 );
                 let end = all_glyphs.len();
+                apply_group_clip(&mut all_glyphs[start..end], group, group_transform);
                 if end > start {
                     ranges.push(start..end);
                 }
@@ -285,7 +286,9 @@ fn extract_marked_frame(
         match item {
             FrameItem::Group(group) => {
                 let group_transform = transform.pre_concat(group.transform);
+                let start = glyphs.len();
                 extract_marked_frame(&group.frame, group_transform, glyphs, ranges, state, active)?;
+                apply_group_clip(&mut glyphs[start..], group, group_transform);
             },
             FrameItem::Text(text) => {
                 // Spaces between fragments still advance word/line bookkeeping,
@@ -332,6 +335,37 @@ fn frame_affine(transform: Transform) -> Affine {
 }
 
 #[cfg(feature = "rich-text")]
+fn curve_path(curve: &typst::visualize::Curve) -> BezPath {
+    let point = |p: typst::layout::Point| Point::new(p.x.to_pt(), p.y.to_pt());
+    let mut path = BezPath::new();
+    for item in &curve.0 {
+        match item {
+            CurveItem::Move(p) => path.move_to(point(*p)),
+            CurveItem::Line(p) => path.line_to(point(*p)),
+            CurveItem::Cubic(a, b, c) => path.curve_to(point(*a), point(*b), point(*c)),
+            CurveItem::Close => path.close_path(),
+        }
+    }
+    path
+}
+
+#[cfg(feature = "rich-text")]
+fn apply_group_clip(
+    glyphs: &mut [TextPath],
+    group: &typst::layout::GroupItem,
+    transform: Transform,
+) {
+    use kurbo::Shape as _;
+    if let Some(curve) = &group.clip {
+        let clip = frame_affine(transform) * curve_path(curve);
+        let bounds = clip.bounding_box();
+        for glyph in glyphs {
+            glyph.apply_clip(&clip, bounds);
+        }
+    }
+}
+
+#[cfg(feature = "rich-text")]
 fn emit_shape(
     shape: &Shape,
     transform: Transform,
@@ -351,18 +385,7 @@ fn emit_shape(
         Geometry::Rect(size) => {
             kurbo::Rect::new(0.0, 0.0, size.x.to_pt(), size.y.to_pt()).to_path(0.01)
         },
-        Geometry::Curve(curve) => {
-            let mut path = BezPath::new();
-            for item in &curve.0 {
-                match item {
-                    CurveItem::Move(p) => path.move_to(point(*p)),
-                    CurveItem::Line(p) => path.line_to(point(*p)),
-                    CurveItem::Cubic(a, b, c) => path.curve_to(point(*a), point(*b), point(*c)),
-                    CurveItem::Close => path.close_path(),
-                }
-            }
-            path
-        },
+        Geometry::Curve(curve) => curve_path(curve),
     };
     let affine = frame_affine(transform);
     let mut push = |mut path: BezPath, paint: &typst::visualize::Paint| {
@@ -477,6 +500,7 @@ fn emit_text_item(
             tp.line_idx = state.line_idx;
             tp.word_idx = state.word_idx;
             tp.char_idx = char_idx;
+            tp.baseline_y = transform.ty.to_pt();
             glyphs.push(tp);
         }
         x_curr += advance;
@@ -504,7 +528,9 @@ fn walk_frame_for_glyphs_with_state(
         match item {
             FrameItem::Group(group) => {
                 let group_transform = transform.pre_concat(group.transform);
+                let start = glyphs.len();
                 walk_frame_for_glyphs_with_state(&group.frame, group_transform, glyphs, state);
+                apply_group_clip(&mut glyphs[start..], group, group_transform);
             },
             FrameItem::Text(text) => emit_text_item(text, transform, glyphs, state),
             FrameItem::Shape(shape, _) => emit_shape(shape, transform, glyphs, state),

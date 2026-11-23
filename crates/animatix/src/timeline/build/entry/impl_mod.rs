@@ -56,6 +56,7 @@ impl Timeline {
         super::validate::validate_reveals(&timeline, &mut diagnostics);
         super::validate::validate_duration_and_seam(&mut timeline, &mut diagnostics);
         super::validate::validate_actors(&mut timeline, &mut diagnostics);
+        timeline.validate_equations(&mut diagnostics);
 
         // 6. Freeze the environment and derive legend/idle/audio state.
         super::finalize::finalize_assets_legend(&mut timeline, &mut diagnostics);

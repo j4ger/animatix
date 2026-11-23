@@ -476,6 +476,12 @@ impl Requirements<'_> {
         if ty == "Math" || ty == "Equation" || ty == "Fragment" {
             push_unique(&mut self.analysis.fonts.families, "Fira Math".to_string());
         }
+        if ty == "Code" {
+            push_unique(
+                &mut self.analysis.fonts.families,
+                animatix::renderer::text::DEFAULT_CODE_FONT_FAMILY.to_string(),
+            );
+        }
         if info.capabilities.text_paths
             || info.capabilities.plot_geometry
             || info.capabilities.plot_host

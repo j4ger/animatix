@@ -1,4 +1,3 @@
-use super::containers::equation_markup_escaped;
 use super::*;
 use crate::easing::Easing;
 use crate::timeline::{PropertyTrack, ShapeType};
@@ -562,14 +561,12 @@ fn frame_cache_restores_precise_bounds_on_hit() {
 }
 
 #[test]
-fn equation_fragment_leading_marker_is_escaped() {
-    // A fragment starting with '+' used to render as a Typst enum marker
-    // ("1.") once fragments became separate #box() markup blocks.
-    assert_eq!(equation_markup_escaped("+ sin(3x)/3"), "\\+ sin(3x)/3");
-    assert_eq!(equation_markup_escaped("  + 0.55 dot "), "  \\+ 0.55 dot ");
-    assert_eq!(equation_markup_escaped("- b"), "\\- b");
-    assert_eq!(equation_markup_escaped("sin(x)"), "sin(x)");
-    assert_eq!(equation_markup_escaped("y(x) = "), "y(x) = ");
+fn invalid_equation_is_reported_during_build() {
+    let (statements, errors) =
+        animatix_syntax::parser::parse_source("eq: Equation { term: Fragment, text: \"frac(\" }");
+    assert!(errors.is_empty(), "{errors:?}");
+    let report = Timeline::build_with_diagnostics(&statements.unwrap(), &Default::default());
+    assert!(report.diagnostics.iter().any(|d| d.message.contains("Equation 'eq'")));
 }
 
 /// A root-level filter may only take the zero-readback post-render blit

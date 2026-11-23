@@ -340,7 +340,8 @@ pub fn render_counter_columns_with_affixes(
     let mut out_paths = Vec::new();
     let slot_h = data.slot_height;
 
-    for item in items {
+    for (index, item) in items.into_iter().enumerate() {
+        let start = out_paths.len();
         match item {
             ColItem::Symbol(sym_paths, w) => {
                 // Compiled symbol paths are centered around their origin, while
@@ -363,6 +364,9 @@ pub fn render_counter_columns_with_affixes(
                 }
                 x += data.col_width;
             },
+        }
+        for path in &mut out_paths[start..] {
+            path.char_idx = index as u16;
         }
     }
 

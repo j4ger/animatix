@@ -232,6 +232,9 @@ impl RenderCommand {
             RenderCommand::RoundedSurface { rect, .. } => return Some(*rect),
             RenderCommand::Text { paths, .. } => {
                 for text_path in paths.iter() {
+                    if text_path.bounds.area() == 0.0 {
+                        continue;
+                    }
                     bounds = union(bounds, text_path.bounds);
                 }
             },
@@ -439,6 +442,9 @@ fn execute_text(
         if glyph_alpha <= 0.0 {
             continue;
         }
+        for clip in &text_path.clips {
+            scene.push_clip(peniko::Fill::NonZero, *transform, clip);
+        }
         if let Some(grad) = fill_gradient {
             let g = grad.to_peniko(bounds, glyph_alpha);
             scene.fill(
@@ -456,6 +462,9 @@ fn execute_text(
             };
             let color = peniko::Color::from_rgba8(r, g, b, (a as f32 * glyph_alpha) as u8);
             scene.fill(peniko::Fill::NonZero, *transform, color, None, &text_path.path);
+        }
+        for _ in &text_path.clips {
+            scene.pop_layer();
         }
     }
 

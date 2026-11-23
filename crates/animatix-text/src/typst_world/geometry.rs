@@ -1,4 +1,4 @@
-use kurbo::{Affine, BezPath};
+use kurbo::BezPath;
 
 use crate::TextPath;
 
@@ -16,6 +16,9 @@ pub fn center_text_paths(paths: &mut [TextPath]) -> f32 {
     let mut max_y = f64::NEG_INFINITY;
 
     for path in paths.iter() {
+        if path.opacity == 0.0 {
+            continue;
+        }
         let bounds = path.bounds;
         min_x = min_x.min(bounds.x0);
         max_x = max_x.max(bounds.x1);
@@ -26,12 +29,10 @@ pub fn center_text_paths(paths: &mut [TextPath]) -> f32 {
     if min_x.is_finite() && max_x.is_finite() && min_y.is_finite() && max_y.is_finite() {
         let center_x = (min_x + max_x) / 2.0;
         let center_y = (min_y + max_y) / 2.0;
-        let offset = Affine::translate((-center_x, -center_y));
         let vec_offset = kurbo::Vec2::new(-center_x, -center_y);
 
         for path in paths.iter_mut() {
-            path.path.apply_affine(offset);
-            path.bounds = path.bounds + vec_offset;
+            path.translate(vec_offset);
             let b = path.bounds;
             if b.width().is_finite() && b.height().is_finite() {
                 path.glyph_center = [((b.x0 + b.x1) * 0.5) as f32, ((b.y0 + b.y1) * 0.5) as f32];
@@ -53,6 +54,9 @@ pub fn measure_text_paths(paths: &[TextPath]) -> [f32; 2] {
     let mut max_y = f64::NEG_INFINITY;
 
     for text_path in paths {
+        if text_path.opacity == 0.0 {
+            continue;
+        }
         let bounds = text_path.bounds;
         min_x = min_x.min(bounds.x0);
         max_x = max_x.max(bounds.x1);

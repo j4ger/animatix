@@ -1,5 +1,7 @@
 #[cfg(feature = "rich-text")]
-use crate::font_context::{BUNDLED_FONT_FACES, BUNDLED_FONTS, FontContext, VARIABLE_FONT_FACES};
+use crate::font_context::{
+    BUNDLED_FONT_FACES, BUNDLED_FONTS, DEFAULT_CODE_FONT_FAMILY, FontContext, VARIABLE_FONT_FACES,
+};
 #[cfg(feature = "rich-text")]
 use animatix_core::error::RenderError;
 #[cfg(feature = "rich-text")]
@@ -39,15 +41,18 @@ fn build_world(
     let overlay_families = font_ctx.registered_family_names();
     let is_overlay_family =
         |family: &str| overlay_families.iter().any(|overlay| overlay.eq_ignore_ascii_case(family));
+    let wants_code_font = extra_fonts
+        .iter()
+        .any(|font| font.eq_ignore_ascii_case(DEFAULT_CODE_FONT_FAMILY));
 
     // Load bundled fonts. The parsed faces are process-wide; only the
     // refcounted handles are cloned into this world. An explicitly registered
     // family replaces its bundled counterpart for this compilation.
-    for (bf, cached) in BUNDLED_FONTS
-        .iter()
-        .zip(BUNDLED_FONT_FACES.iter())
-        .filter(|(bf, _)| font_ctx.include_bundled && !is_overlay_family(bf.family))
-    {
+    for (bf, cached) in BUNDLED_FONTS.iter().zip(BUNDLED_FONT_FACES.iter()).filter(|(bf, _)| {
+        font_ctx.include_bundled
+            && !is_overlay_family(bf.family)
+            && (bf.family != DEFAULT_CODE_FONT_FAMILY || wants_code_font)
+    }) {
         let font = cached.clone().ok_or_else(|| {
             RenderError::TextCompilation(format!("Failed to load bundled font: {}", bf.family))
         })?;

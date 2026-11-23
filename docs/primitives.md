@@ -34,8 +34,8 @@ Timed `text` assignments cross-fade the source and target glyph sets instead of 
 
 ## Typst
 
-Preferred rich-text primitive; the deprecated `Math` name remains accepted as
-an alias for `Typst`.
+`Typst` accepts markup, including inline and display formulas. The legacy
+`Math` primitive takes a bare Typst math expression.
 
 **Properties:**
 - `text`: String — Typst markup source
@@ -48,13 +48,13 @@ an alias for `Typst`.
 - `highlight_padding`: Number — padding around actor bounding box (default `4.0`)
 - `highlight_radius`: Number — corner radius of highlight rectangle (default `2.0`)
 
-**Shorthand:** `$$ ... $$` desugars to a `Typst` actor whose `text` value is the raw, unquoted text between the delimiters. A label is required. Modifiers are supported.
+**Shorthand:** `$$ ... $$` creates a display equation in a `Typst` actor. A label is required. Modifiers are supported.
 
 The math renderer preserves the vector rules in fractions and radicals,
 including when they occur in an `Equation` fragment.
 
 ```animatix
-eq: $$ x^2 + y^2 $$                    // desugars to: eq: Typst, text: "x^2 + y^2"
+eq: $$ x^2 + y^2 $$                    // desugars to: eq: Typst, text: "$ x^2 + y^2 $"
 eq: $$ x^2 $$ [2s, ease: bounce]       // with modifiers
 ```
 
@@ -66,7 +66,7 @@ This is distinct from Equation+Fragment per-segment highlighting — a Typst act
 
 **Example:**
 ```animatix
-eq: Typst, text: "x^2 + 3", font_size: 18, at: (640, 360)
+eq: Typst, text: "$ x^2 + 3 $", font_size: 18, at: (640, 360)
 
 #2s
   highlight(target: eq, color: yellow, blend: multiply, duration: 800ms)
@@ -77,8 +77,10 @@ eq: Typst, text: "x^2 + 3", font_size: 18, at: (640, 360)
 
 ## Code
 
-Renders via the text-path pipeline (Typst `raw` block). Setting `language` to
-one of Typst's built-in highlighting languages turns on syntax highlighting.
+Renders literal code using DejaVu Sans Mono by default. Tabs advance to
+four-column stops. Setting `language` to one of Typst's built-in highlighting
+languages turns on syntax highlighting. A raw multiline string (`r#"..."#`)
+can contain code indentation, quotes and backslashes as written.
 Token colours follow the active colorscheme: each token role is mapped to a
 named scheme colour (keyword→`accent.danger`, function→`accent.primary`,
 string→`accent.success`, number→`accent.secondary`, comment→`text.muted`, …),
@@ -324,12 +326,16 @@ Container for speech-synced subtitles. Cues come from `Cue` children or from a t
 - `pop_scale`: Number — scale multiplier applied to the current word in `"pop"` mode
 - `font_size`: Number — cue text size (default 32)
 - `text_max_width`: Number — wrap width in pixels for the cue text; `0` (default) leaves it on one line
-- `max_lines`: Integer — cap on how many *wrapped* lines a cue may show; `0` means no cap (default 2). Needs `text_max_width` to wrap first
+- `max_lines`: Integer — lines per page, default `2`; `0` displays the entire cue at once. Both authored and wrapped lines count
 - `transition_time`: Number — seconds to fade a cue in from its own start; `0` (default) snaps
 - `color`: Color — base text color, used by `"line"` mode
 - `at`: Tuple `(x, y)` — defaults to the lower part of the scene, `(width / 2, height * 0.85)`
 
-Word timings for a `Cue` child are distributed evenly across its text; a transcript supplies real word timings.
+Word timings for a `Cue` child are distributed evenly across its text.
+Word-timed transcripts use their original timestamps. SRT and ordinary
+WebVTT cues retain their explicit line breaks and use cue-level display.
+When a cue has multiple pages, pages follow word timings where available
+and otherwise split the cue time between them.
 
 **Example:**
 ```animatix
@@ -625,7 +631,8 @@ Child primitive of `Equation`. Represents a named, addressable segment of the eq
 Does not render independently — the parent Equation handles all rendering.
 
 **Properties:**
-- `content`: String — Typst math content for this segment (default `""`)
+- `text`: String — Typst math content for this segment (default `""`).
+  The legacy declaration spelling `content` is accepted.
 - `highlight_color`: Color — color of highlight overlay rectangle (default `white`)
 - `highlight_opacity`: Number — opacity of highlight, 0 = hidden, 1 = full (default `0.0`)
 - `highlight_blend`: String — blend mode: `difference`, `exclusion`, `normal`, `multiply`, `screen` (default `"difference"`)

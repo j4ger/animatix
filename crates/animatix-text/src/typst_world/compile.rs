@@ -14,6 +14,26 @@ use typst::syntax::{RootedPath, Source, VirtualPath, VirtualRoot};
 use super::world::TypstWorld;
 
 #[cfg(feature = "rich-text")]
+fn compile_single_frame(world: &TypstWorld, subject: &str) -> Result<Frame, RenderError> {
+    let result = typst::compile::<typst_layout::PagedDocument>(world);
+    for warning in result.warnings {
+        tracing::warn!(message = %warning.message, "Typst compilation warning");
+    }
+    let document = result.output.map_err(|errors| {
+        let details =
+            errors.iter().map(|error| error.message.as_str()).collect::<Vec<_>>().join("; ");
+        RenderError::TextCompilation(format!("{subject}: {details}"))
+    })?;
+    match document.pages() {
+        [page] => Ok(page.frame.clone()),
+        pages => Err(RenderError::TextCompilation(format!(
+            "{subject} produced {} pages; an actor requires one page",
+            pages.len()
+        ))),
+    }
+}
+
+#[cfg(feature = "rich-text")]
 /// Build a Typst `#set text(...)` rule string from the given typography parameters.
 fn typst_text_set_rules(
     font_weight: f32,
@@ -58,9 +78,6 @@ fn typst_par_leading_rule(line_height: f32) -> String {
         return String::new();
     }
     let leading_em = line_height - 1.0;
-    if leading_em.abs() < 0.001 {
-        return String::new();
-    }
     format!("#set par(leading: {}em); ", leading_em)
 }
 
@@ -97,7 +114,7 @@ fn typst_wrapping_preamble(
     match text_align {
         "center" => inner.push_str("#set align(center); "),
         "right" => inner.push_str("#set align(right); "),
-        "justify" => inner.push_str("#set align(justify); "),
+        "justify" => inner.push_str("#set par(justify: true); "),
         _ => {}, // "left" is default
     }
 
@@ -130,54 +147,6 @@ pub fn parse_font_weight(value: &str) -> f32 {
         "black" => 900.0,
         _ => value.parse::<f32>().unwrap_or(400.0),
     }
-}
-
-#[cfg(feature = "rich-text")]
-/// Compile a math expression string (Typst math syntax) into a rendered frame.
-///
-/// Uses Typst's layout engine to parse and render the math expression, returning
-/// a [`Frame`] containing the positioned glyphs ready for Vello scene assembly.
-pub fn compile_math(
-    math: &str,
-    font_size: f32,
-    color: typst::visualize::Color,
-    font_family: &str,
-    font_ctx: &FontContext,
-    max_width: f32,
-    text_align: &str,
-    overflow: &str,
-) -> Result<Frame, RenderError> {
-    let text_font = resolve_font_family(font_family, font_ctx);
-    let fallback = collect_fallback_fonts(font_ctx, math, &text_font, 400.0, "normal");
-    let page_preamble = typst_page_preamble(max_width, math, font_size, 0.0);
-    let base_markup = format!(
-        "#set text(size: {}pt, fill: rgb(\"{}\"), font: (\"{}\", \"Fira Math\")); #show math.equation: set text(font: \"Fira Math\"); $ {} $",
-        font_size,
-        color.to_hex(),
-        text_font,
-        math
-    );
-
-    let markup = format!(
-        "{}{}",
-        page_preamble,
-        typst_wrapping_preamble(max_width, text_align, overflow, &base_markup)
-    );
-
-    let vpath = VirtualPath::new("main.typ")
-        .map_err(|e| RenderError::TextCompilation(format!("invalid virtual path: {e}")))?;
-    let source = Source::new(RootedPath::new(VirtualRoot::Project, vpath).intern(), markup);
-    let world = TypstWorld::with_fonts_and_fallback(
-        source,
-        &[&text_font, DEFAULT_MATH_FONT_FAMILY],
-        &fallback,
-        font_ctx,
-    )?;
-    let document: typst_layout::PagedDocument = typst::compile(&world).output.map_err(|e| {
-        RenderError::TextCompilation(format!("failed to compile Typst math document: {e:?}"))
-    })?;
-
-    Ok(document.pages()[0].frame.clone())
 }
 
 #[cfg(feature = "rich-text")]
@@ -232,11 +201,7 @@ pub fn compile_typst(
         &fallback,
         font_ctx,
     )?;
-    let document: typst_layout::PagedDocument = typst::compile(&world).output.map_err(|e| {
-        RenderError::TextCompilation(format!("failed to compile Typst document: {e:?}"))
-    })?;
-
-    Ok(document.pages()[0].frame.clone())
+    compile_single_frame(&world, "Typst")
 }
 
 #[cfg(all(feature = "rich-text", test))]
@@ -299,11 +264,41 @@ pub fn compile_text(
 const RAW_TEXT_EM_SCALE: f32 = 0.8;
 
 #[cfg(feature = "rich-text")]
-/// A plain (un-highlighted) Typst raw block: four backticks so the code body is
-/// taken verbatim (no markup interpretation, no escaping beyond backslashes).
-fn plain_code_fence(code: &str) -> String {
-    let escaped = code.replace('\\', "\\\\");
-    format!("````\n{escaped}````")
+fn plain_code_markup(code: &str) -> String {
+    code.split('\n')
+        .map(|line| format!("#text(\"{}\")", literal_code_span(line)))
+        .collect::<Vec<_>>()
+        .join("\\\n")
+}
+
+#[cfg(feature = "rich-text")]
+fn literal_code_span(text: &str) -> String {
+    let text = if text.is_empty() { " " } else { text };
+    text.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+#[cfg(feature = "rich-text")]
+fn code_layout_source(code: &str) -> String {
+    let mut expanded = String::with_capacity(code.len());
+    let mut column = 0;
+    for ch in code.replace("\r\n", "\n").replace('\r', "\n").chars() {
+        match ch {
+            '\n' => {
+                expanded.push(ch);
+                column = 0;
+            },
+            '\t' => {
+                let spaces = 4 - column % 4;
+                expanded.extend(std::iter::repeat_n(' ', spaces));
+                column += spaces;
+            },
+            _ => {
+                expanded.push(ch);
+                column += 1;
+            },
+        }
+    }
+    expanded
 }
 
 /// Recolours syntax-highlighted `Code` tokens to follow the active colorscheme
@@ -407,18 +402,17 @@ fn highlighted_code_markup(
 
     use syntect::easy::HighlightLines;
     use syntect::highlighting::Color;
-    use syntect::util::LinesWithEndings;
 
     let syntaxes = &*typst::text::RAW_SYNTAXES;
     let syntax = syntaxes.find_syntax_by_token(language)?;
     let theme = &*typst::text::RAW_THEME;
-    let base_fg = theme.settings.foreground;
+    // Syntect's default foreground is black when the theme leaves it unset.
+    let base_fg = theme.settings.foreground.unwrap_or(Color::BLACK);
     let mut highlighter = HighlightLines::new(syntax, theme);
 
-    let lines: Vec<&str> = LinesWithEndings::from(code).collect();
+    let lines: Vec<&str> = code.split('\n').collect();
     let mut out = String::new();
     for (index, line) in lines.iter().enumerate() {
-        let line = line.strip_suffix('\n').unwrap_or(line);
         let ranges = highlighter.highlight_line(line, syntaxes).ok()?;
 
         // Merge whitespace-only pieces into the previous token (or the next,
@@ -439,7 +433,7 @@ fn highlighted_code_markup(
             }
             let mut text = mem::take(&mut pending);
             text.push_str(piece);
-            let color = if Some(style.foreground) == base_fg {
+            let color = if style.foreground == base_fg {
                 None
             } else {
                 Some(style.foreground)
@@ -458,7 +452,7 @@ fn highlighted_code_markup(
         }
 
         for (text, color) in merged {
-            let escaped = text.replace('\\', "\\\\").replace('"', "\\\"");
+            let escaped = literal_code_span(&text);
             match color {
                 Some(c) => {
                     let fill = match palette {
@@ -514,10 +508,11 @@ pub fn compile_code(
     let leading_rule = typst_par_leading_rule(line_height);
     // Typst's `raw` show rule renders at 0.8em; match that scale for the span
     // path so toggling `language` does not resize the block.
+    let code = code_layout_source(code);
     let highlighted_markup = if language.is_empty() {
         None
     } else {
-        highlighted_code_markup(code, language, palette)
+        highlighted_code_markup(&code, &language.to_ascii_lowercase(), palette)
     };
     if !language.is_empty() && highlighted_markup.is_none() {
         tracing::warn!(
@@ -525,13 +520,11 @@ pub fn compile_code(
              (only Typst's built-in raw languages are supported)"
         );
     }
-    let (content, set_size) = match highlighted_markup {
-        Some(markup) => (markup, font_size * RAW_TEXT_EM_SCALE),
-        None => (plain_code_fence(code), font_size),
-    };
-    let page_preamble = typst_page_preamble(max_width, code, set_size, letter_spacing);
+    let content = highlighted_markup.unwrap_or_else(|| plain_code_markup(&code));
+    let set_size = font_size * RAW_TEXT_EM_SCALE;
+    let page_preamble = typst_page_preamble(max_width, &code, set_size, letter_spacing);
     let base_markup = format!(
-        "{}{}#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\")\n{content}",
+        "{}{}#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\", ligatures: false, kerning: false)\n{content}",
         extra_rules,
         leading_rule,
         set_size,
@@ -549,9 +542,5 @@ pub fn compile_code(
         .map_err(|e| RenderError::TextCompilation(format!("invalid virtual path: {e}")))?;
     let source = Source::new(RootedPath::new(VirtualRoot::Project, vpath).intern(), markup);
     let world = TypstWorld::with_fonts_and_fallback(source, &[&font], &fallback, font_ctx)?;
-    let document: typst_layout::PagedDocument = typst::compile(&world).output.map_err(|_| {
-        RenderError::TextCompilation("failed to compile Typst code document".to_string())
-    })?;
-
-    Ok(document.pages()[0].frame.clone())
+    compile_single_frame(&world, "Code")
 }

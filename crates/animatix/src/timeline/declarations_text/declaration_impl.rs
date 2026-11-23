@@ -43,6 +43,14 @@ impl TextDeclarationKind {
         }
     }
 
+    pub(super) fn default_font_family(self) -> &'static str {
+        use crate::renderer::text::{DEFAULT_CODE_FONT_FAMILY, DEFAULT_FONT_FAMILY};
+        match self {
+            Self::Code => DEFAULT_CODE_FONT_FAMILY,
+            _ => DEFAULT_FONT_FAMILY,
+        }
+    }
+
     pub(super) fn content_matches(self, property_name: &str) -> bool {
         // Uniform content property across text-like kinds: `text`, which the
         // schema lists for every text-like actor. `Code` also accepts its own

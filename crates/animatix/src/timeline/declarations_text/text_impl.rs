@@ -1,5 +1,3 @@
-use kurbo::Shape;
-
 use super::*;
 use crate::renderer::text::{TextCompileRequest, TextStyle};
 use crate::timeline::TextTracks;
@@ -560,13 +558,15 @@ impl Timeline {
             easing,
         );
         let font_family = if parsed.font_family.is_empty() {
-            crate::renderer::text::DEFAULT_FONT_FAMILY.to_string()
+            kind.default_font_family().to_string()
         } else {
             parsed.font_family.clone()
         };
-        text.font_family
-            .ensure(crate::renderer::text::DEFAULT_FONT_FAMILY.to_string())
-            .add_keyframe(t_end_ms, font_family, easing);
+        text.font_family.ensure(kind.default_font_family().to_string()).add_keyframe(
+            t_end_ms,
+            font_family,
+            easing,
+        );
         text.font_size.ensure(kind.default_font_size()).add_keyframe(
             t_end_ms,
             parsed.font_size,
@@ -778,7 +778,7 @@ impl Timeline {
         };
 
         let font_family = if parsed.font_family.is_empty() {
-            crate::renderer::text::DEFAULT_FONT_FAMILY.to_string()
+            kind.default_font_family().to_string()
         } else {
             parsed.font_family.clone()
         };
@@ -904,15 +904,11 @@ impl Timeline {
         };
         let text_bounds = (duration_ms == 0.0)
             .then(|| {
-                let mut text_bounds: Option<kurbo::Rect> = None;
-                for p in &new_paths {
-                    let b = p.path.bounding_box();
-                    text_bounds = Some(match text_bounds {
-                        Some(existing) => existing.union(b),
-                        None => b,
-                    });
-                }
-                text_bounds
+                new_paths
+                    .iter()
+                    .map(|p| p.bounds)
+                    .filter(|bounds| bounds.area() > 0.0)
+                    .reduce(|a, b| a.union(b))
             })
             .flatten();
         text.text_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths, easing);

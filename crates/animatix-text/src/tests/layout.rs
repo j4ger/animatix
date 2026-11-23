@@ -1,6 +1,27 @@
 use super::*;
 
 #[test]
+fn clip_and_ellipsis_bound_an_unbreakable_literal_line() {
+    let fonts = test_font_ctx();
+    let mut request = TextCompileRequest {
+        max_width: 80.0,
+        overflow: "visible",
+        ..TextCompileRequest::new(TextKind::Text, "WWWWWWWWWWWW", TextStyle::new("Open Sans", 36.0))
+    };
+    let visible = compile_text_cached(&request, &fonts).unwrap();
+    assert!(visible.half_size[0] > 150.0);
+    request.overflow = "clip";
+    let clipped = compile_text_cached(&request, &fonts).unwrap();
+    assert!(clipped.half_size[0] <= 40.01);
+    assert!(clipped.hardware_layout.is_none());
+    assert!(clipped.paths.iter().any(|p| !p.clips.is_empty()));
+    request.overflow = "ellipsis";
+    let ellipsis = compile_text_cached(&request, &fonts).unwrap();
+    assert!(ellipsis.half_size[0] <= 40.01);
+    assert!(ellipsis.paths.len() < visible.paths.len());
+}
+
+#[test]
 fn wrapped_fast_path_centered_alignment() {
     let font_ctx = test_font_ctx();
     let text = "left center right";

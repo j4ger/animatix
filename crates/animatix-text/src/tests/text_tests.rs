@@ -464,6 +464,34 @@ fn highlight_preserves_spacing() {
     );
 }
 
+#[cfg(feature = "rich-text")]
+#[test]
+fn highlighted_and_plain_code_keep_the_same_literal_geometry() {
+    let fonts = test_font_ctx();
+    let source =
+        "fn main() {\r\n\tlet win = \"C:\\tmp\";\r\n\r\n\t// ```` \\\\ not markup\r\n}\r\n";
+    let measure = |language| {
+        let mut request = code_request(source, language, None);
+        request.style.font_family = DEFAULT_CODE_FONT_FAMILY;
+        let compiled = compile_text_cached(&request, &fonts).unwrap();
+        compiled.paths.iter().map(|p| (p.bounds, p.line_idx)).collect::<Vec<_>>()
+    };
+    let plain = measure("");
+    assert!(!plain.is_empty());
+    let highlighted = measure("RUST");
+    assert_eq!(highlighted.len(), plain.len());
+    for (index, ((a, a_line), (b, b_line))) in plain.iter().zip(&highlighted).enumerate() {
+        assert_eq!(a_line, b_line, "source line for glyph {index}");
+        assert!(
+            (a.x0 - b.x0).abs() < 0.01
+                && (a.y0 - b.y0).abs() < 0.01
+                && (a.x1 - b.x1).abs() < 0.01
+                && (a.y1 - b.y1).abs() < 0.01,
+            "glyph {index} moved when recolored: {a:?} vs {b:?}"
+        );
+    }
+}
+
 #[test]
 #[cfg(feature = "rich-text")]
 fn language_is_part_of_text_cache_key() {

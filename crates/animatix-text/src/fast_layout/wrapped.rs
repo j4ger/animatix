@@ -1,4 +1,5 @@
 use animatix_core::error::RenderError;
+use kurbo::Shape as _;
 
 use crate::font_context::FontContext;
 use crate::{CompiledText, TextPath, f32_color_to_rgba8};
@@ -52,8 +53,9 @@ struct LayoutParams<'a> {
 fn measure_and_break(
     content: &str,
     params: &LayoutParams<'_>,
+    wrap: bool,
 ) -> Result<(Vec<WordInfo>, Vec<LineInfo>), RenderError> {
-    let wrap_threshold = if params.max_width > 0.0 {
+    let wrap_threshold = if wrap && params.max_width > 0.0 {
         params.max_width as f64
     } else {
         f64::INFINITY
@@ -202,7 +204,7 @@ fn measure_and_break(
 }
 
 /// Emit centered glyph paths for the laid-out lines: per-line alignment,
-/// justification, truncation by `max_lines`/overflow guard, and the ellipsis
+/// justification, truncation by `max_lines`, and the ellipsis
 /// marker on the last surviving line.
 fn emit_lines(
     word_infos: &[WordInfo],
@@ -212,38 +214,26 @@ fn emit_lines(
     text_align: &str,
     overflow: &str,
 ) -> (Vec<TextPath>, Vec<HardwarePendingGlyph>) {
-    // Handle overflow. An explicit `max_lines` (the `max_lines` property) wins;
-    // otherwise ellipsis/clip keeps the old "one page worth" guard so unbounded
-    // growth is still prevented.
-    let line_limit = max_lines.or(if overflow == "ellipsis" || overflow == "clip" {
-        // Limit to roughly the visible area: one page worth (no explicit height limit yet)
-        // For now, just prevent unbounded growth
-        Some(100usize)
-    } else {
-        None
-    });
-
-    let truncated_lines: &[LineInfo] = if let Some(limit) = line_limit {
-        if lines.len() > limit {
-            &lines[..limit]
-        } else {
-            lines
-        }
-    } else {
-        lines
-    };
+    let truncated_lines = &lines[..max_lines.unwrap_or(lines.len()).min(lines.len())];
 
     let mut glyphs: Vec<TextPath> = Vec::new();
     let mut y_curr: f64 = -(truncated_lines.len() as f64 * params.line_height_pts as f64) / 2.0; // start at top, centered vertically
     let mut pending_hardware = Vec::new();
+    let mut use_hardware = true;
 
     for (line_idx, line) in truncated_lines.iter().enumerate() {
+        let first_glyph = glyphs.len();
         let mut x_curr: f64 = 0.0;
         let line_width = line.total_width;
         let alignment_width = alignment_width(params.max_width, line_width);
+        let constrained_width = if params.max_width > 0.0 && overflow != "visible" {
+            line_width.min(alignment_width)
+        } else {
+            line_width
+        };
         let x_offset = match text_align {
-            "center" => (alignment_width - line_width) / 2.0,
-            "right" => alignment_width - line_width,
+            "center" => (alignment_width - constrained_width) / 2.0,
+            "right" => alignment_width - constrained_width,
             "justify" => 0.0, // handled per-word below
             _ => 0.0,         // left
         };
@@ -253,7 +243,10 @@ fn emit_lines(
             .iter()
             .filter(|item| matches!(item, VisualLayoutItem::Gap))
             .count();
-        let is_justify = text_align == "justify" && !is_last_line && gap_count > 0;
+        let is_justify = text_align == "justify"
+            && !is_last_line
+            && gap_count > 0
+            && alignment_width > line_width;
         let extra_space_per_gap = if is_justify {
             (alignment_width - line_width) / gap_count as f64
         } else {
@@ -288,50 +281,92 @@ fn emit_lines(
             }
         }
 
-        // Add ellipsis for overflow: "ellipsis" on last visible line if truncated
+        let width = f64::from(params.max_width);
+        let overflows_width = width > 0.0
+            && (line_width > width || glyphs[first_glyph..].iter().any(|g| g.bounds.x1 > width));
         if overflow == "ellipsis"
-            && line_idx == truncated_lines.len() - 1
-            && lines.len() > truncated_lines.len()
+            && (overflows_width || (is_last_line && lines.len() > truncated_lines.len()))
         {
-            let (dot_w, dot_glyphs) = shape_fragment(
-                "…",
-                0,
-                params.faces,
-                params.size,
-                0.0,
-                rustybuzz::Direction::LeftToRight,
-            );
-            let (_ell_w, ell_glyphs) = if dot_glyphs.is_empty() || dot_glyphs[0].glyph_id == 0 {
-                shape_fragment(
-                    ".",
-                    0,
-                    params.faces,
-                    params.size,
-                    0.0,
-                    rustybuzz::Direction::LeftToRight,
-                )
-            } else {
-                (dot_w, dot_glyphs)
-            };
-            let last_w_idx = line.words.last().copied().unwrap_or(0) as u16;
-            emit_shaped_glyphs(
+            trim_line_with_ellipsis(
                 &mut glyphs,
-                &mut pending_hardware,
-                params.faces,
-                &ell_glyphs,
-                params.size,
-                params.rgba,
+                first_glyph,
+                params,
                 line_idx as u16,
-                last_w_idx,
-                x_curr + x_offset,
+                x_offset,
                 y_curr,
             );
+            use_hardware = false;
+        }
+        if width > 0.0 && matches!(overflow, "clip" | "ellipsis") {
+            use_hardware &= clip_line_width(&mut glyphs[first_glyph..], width);
         }
 
         y_curr += params.line_height_pts as f64;
     }
 
+    if !use_hardware {
+        pending_hardware.clear();
+    }
     (glyphs, pending_hardware)
+}
+
+/// Clip ink that crosses the layout box. Returns whether the original
+/// hardware glyphs can still be painted without a clip.
+fn clip_line_width(glyphs: &mut [TextPath], width: f64) -> bool {
+    let mut unchanged = true;
+    for glyph in glyphs {
+        if glyph.bounds.x0 < 0.0 || glyph.bounds.x1 > width {
+            let bounds = kurbo::Rect::new(0.0, glyph.bounds.y0, width, glyph.bounds.y1);
+            glyph.apply_clip(&bounds.to_path(0.0), bounds);
+            unchanged = false;
+        }
+    }
+    unchanged
+}
+
+fn trim_line_with_ellipsis(
+    glyphs: &mut Vec<TextPath>,
+    start: usize,
+    params: &LayoutParams<'_>,
+    line: u16,
+    x: f64,
+    y: f64,
+) {
+    let (advance, marker) =
+        shape_fragment("…", 0, params.faces, params.size, 0.0, rustybuzz::Direction::LeftToRight);
+    let width = f64::from(params.max_width);
+    let end = if width > 0.0 {
+        width - advance
+    } else {
+        f64::INFINITY
+    };
+    let mut next_x = x;
+    let mut keep = start;
+    while keep < glyphs.len() {
+        let char_idx = glyphs[keep].char_idx;
+        let cluster = &glyphs[keep..];
+        let count = cluster.iter().take_while(|glyph| glyph.char_idx == char_idx).count();
+        let right = cluster[..count].iter().fold(next_x, |right, glyph| right.max(glyph.bounds.x1));
+        if right > end {
+            break;
+        }
+        next_x = right;
+        keep += count;
+    }
+    let word = glyphs.get(keep).map_or(0, |glyph| glyph.word_idx);
+    glyphs.truncate(keep);
+    emit_shaped_glyphs(
+        glyphs,
+        &mut Vec::new(),
+        params.faces,
+        &marker,
+        params.size,
+        params.rgba,
+        line,
+        word,
+        next_x,
+        y,
+    );
 }
 
 /// Compile plain text into glyph paths with word wrapping (fast path).
@@ -395,7 +430,8 @@ pub fn compile_text_fast_wrapped(
         rgba,
     };
 
-    let (word_infos, lines) = measure_and_break(content, &params)?;
+    let (word_infos, lines) =
+        measure_and_break(content, &params, overflow != "ellipsis" || max_lines.is_some())?;
     if word_infos.is_empty() {
         return Ok(CompiledText {
             glyphs: Vec::new(),

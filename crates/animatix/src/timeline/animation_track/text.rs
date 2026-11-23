@@ -125,7 +125,8 @@ impl TextTracks {
             )
         });
 
-        let clip = apply_split_text_animation(&mut paths, self, time_ms);
+        let clip =
+            apply_split_text_animation(&mut paths, self, time_ms, self.static_split_clip.as_ref());
         (paths, clip)
     }
 
@@ -210,6 +211,7 @@ pub fn apply_split_text_animation(
     paths: &mut Vec<TextPath>,
     text: &TextTracks,
     time_ms: u64,
+    cached_clip: Option<&kurbo::BezPath>,
 ) -> Option<kurbo::BezPath> {
     let cp_track = text.char_progress.as_ref()?;
     let progress = cp_track.evaluate(time_ms).clamp(0.0, 1.0);
@@ -233,8 +235,20 @@ pub fn apply_split_text_animation(
         || (split_by != "char" && split_by != "chars");
 
     if !is_split_mode {
-        let n = (progress as f64 * paths.len() as f64).ceil() as usize;
-        paths.truncate(n);
+        if paths.windows(2).all(|pair| pair[0].char_idx < pair[1].char_idx) {
+            let n = (f64::from(progress) * paths.len() as f64).ceil() as usize;
+            paths.truncate(n);
+            return None;
+        }
+        // A shaping cluster can emit several outlines (e.g. a base and an
+        // accent). Reveal all of them together, following logical order.
+        let mut units: Vec<_> = paths.iter().map(|path| path.char_idx).collect();
+        units.sort_unstable();
+        units.dedup();
+        let n = (f64::from(progress) * units.len() as f64).ceil() as usize;
+        if let Some(&cutoff) = units.get(n) {
+            paths.retain(|path| path.char_idx < cutoff);
+        }
         return None;
     }
 
@@ -287,7 +301,7 @@ pub fn apply_split_text_animation(
 
     // Calculate baseline clip rectangles if split_mask is true
     let clip_path = if split_mask {
-        if let Some(static_clip) = &text.static_split_clip {
+        if let Some(static_clip) = cached_clip {
             Some(static_clip.clone())
         } else {
             crate::renderer::text::compute_split_mask_clip(paths)

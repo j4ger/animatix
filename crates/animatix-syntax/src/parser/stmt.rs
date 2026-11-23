@@ -440,7 +440,7 @@ fn shape_actor_parser<'src>(
         .boxed()
 }
 
-/// `label: typst"…"` shorthand for a `Typst` actor.
+/// `label: $$ … $$` shorthand for a display equation in a `Typst` actor.
 fn typst_shorthand_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
     ctx.ident
         .clone()
@@ -454,8 +454,8 @@ fn typst_shorthand_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
             array_index: None,
             ty: "Typst".to_string(),
             props: vec![Property {
-                name: "content".to_string(),
-                value: Expr::Str(content),
+                name: "text".to_string(),
+                value: Expr::Str(format!("$ {content} $")),
                 value_span: None,
                 trailing_comment: None,
             }],
@@ -532,6 +532,13 @@ fn actor_decl_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
                     label_span,
                 );
                 lift_duration_suffix_from_actor_props(&mut props, &mut modifiers);
+                if ty == "Fragment" {
+                    for prop in &mut props {
+                        if prop.name == "content" {
+                            prop.name = "text".to_owned();
+                        }
+                    }
+                }
                 Stmt::ActorDecl {
                     is_pub,
                     is_anonymous: false,

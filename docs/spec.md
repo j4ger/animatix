@@ -203,7 +203,9 @@ B.color = red [2s]
 ```
 
 **Speech & Voiceover Synchronization:**
-Keyframes can be anchored to spoken markers or word timestamps from an `Audio` track transcript (Universal JSON, Whisper JSON, WebVTT, or SRT):
+Keyframes can be anchored to spoken markers or word timestamps from an `Audio`
+track transcript. Word anchors require word-timed Universal JSON or Whisper JSON.
+WebVTT and SRT supply cue timings for captions.
 - Named marker: `#track@marker`, with optional offset: `#track@marker + 250ms`, `#track@marker - 100ms`
 - Spoken word: `#track["word"]` (matches first occurrence), or `#track["word", 2]` (matches 2nd occurrence)
 - Speech anchors lower to scene time at build time. The authored Audio start (including its delay) is added to the clip-relative transcript timestamp.
@@ -865,11 +867,20 @@ title: "Hello" [2s, ease: expo_out] // with modifiers
 
 **Typst shorthand:**
 ```animatix
-eq: $$ x^2 + y^2 $$                    // desugars to: eq: Typst, text: "x^2 + y^2"
+eq: $$ x^2 + y^2 $$                    // desugars to: eq: Typst, text: "$ x^2 + y^2 $"
 eq: $$ x^2 $$ [2s, ease: expo_out]       // with modifiers
 ```
 
-A bare `$$ ... $$` block produces a `Typst` actor. The text between `$$` delimiters is taken as raw text (unquoted) and becomes the `text` property. A label is required. Modifiers are supported.
+A `$$ ... $$` block produces a `Typst` actor and wraps its body in Typst
+display math delimiters. A label is required. Modifiers are supported.
+Each `Typst` actor must produce a single page. Use `Image` or `Svg` for
+standalone graphics and solid fills and strokes inside Typst markup.
+
+Ordinary strings decode `\n`, `\r`, `\t`, `\\` and an escaped closing
+quote. Other backslash escapes, such as Typst's `\$`, survive unchanged.
+Use `r"..."` for literal backslashes or `r#"..."#` to include double quotes.
+Raw strings may span multiple lines. Match the number of `#` characters
+at each end.
 
 ### Typography Properties
 
@@ -955,7 +966,7 @@ Text primitives support wrapping and overflow control for multi-line layout:
 |----------|------|---------|-------------|
 | `text_max_width` | Num | `0` | Maximum width in pixels for text wrapping. `0` = no wrapping (single line). |
 | `text_align` | Str | `"left"` | Horizontal alignment within the text box. `"left"`, `"center"`, `"right"`, or `"justify"`. |
-| `overflow` | Str | `"visible"` | Text overflow behavior. `"visible"` (render beyond bounds), `"clip"` (hide overflow), or `"ellipsis"` (show `…` truncation). |
+| `overflow` | Str | `"visible"` | `"visible"` wraps at word breaks and permits oversize ink. `"clip"` wraps and clips overhanging ink. `"ellipsis"` shortens each overlong authored line and adds `…`. |
 
 ```animatix
 // Wrapped text with center alignment

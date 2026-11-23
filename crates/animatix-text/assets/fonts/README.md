@@ -50,6 +50,19 @@ static faces, each carrying its own weight/style into `BUNDLED_FONTS`. Web selec
 `FiraMath-Regular.otf` — the math font used by `Math`/`$...$` rendering
 (SIL OFL; Fira is an open-source project by Carmen and Bernhard).
 
+## DejaVu Sans Mono
+
+The four faces used by `Code` come from `typst-assets` 0.15.1. The native
+rich-text build embeds them and the web font pack serves them on demand.
+Their licenses are in [LICENSE-DejaVu.txt](LICENSE-DejaVu.txt).
+
+| File | SHA-256 |
+|---|---|
+| DejaVuSansMono.ttf | `b4a6c3e4faab8773f4ff761d56451646409f29abedd68f05d38c2df667d3c582` |
+| DejaVuSansMono-Bold.ttf | `bce60f1b4421acd9ea51ba6623d7024ecbe6817a953e3654df62a5e6bdf8f769` |
+| DejaVuSansMono-Oblique.ttf | `742097840c541870e8d6dc5c9b37bb1ceeea6c0dedd1d475faf903ef9df734b0` |
+| DejaVuSansMono-BoldOblique.ttf | `91713a71d550bba22c2a6b2bb2a9ad8f9a159e12e4e9f0a5b2677998ba21213e` |
+
 ## Refreshing
 
 `web/tools/build/refresh-fonts.sh` verifies the vendored files against the pinned

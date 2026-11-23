@@ -10,6 +10,3 @@ mod filter;
 mod glass;
 mod mask;
 mod render;
-
-#[cfg(test)]
-pub(crate) use equation::equation_markup_escaped;

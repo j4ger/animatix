@@ -54,6 +54,53 @@ impl TextFrameValues {
     }
 }
 
+fn track_changes<T: PartialEq>(track: &Option<crate::timeline::PropertyTrack<T>>) -> bool {
+    let Some(track) = track else { return false };
+    let mut values = track.keyframes_raw().values();
+    values.next().is_some_and(|(first, _)| values.any(|(value, _)| value != first))
+}
+
+/// Paths compiled at declaration time cannot be reused when frame typography
+/// differs. Color is resolved at paint time for literal text only.
+fn samples_text_geometry(
+    ctx: &EvaluateCtx,
+    text: &crate::timeline::animation_track::TextTracks,
+    kind: crate::renderer::text::TextKind,
+) -> bool {
+    let rich = kind != crate::renderer::text::TextKind::Text;
+    track_changes(&text.font_family)
+        || track_changes(&text.font_size)
+        || track_changes(&text.font_weight)
+        || track_changes(&text.font_style)
+        || track_changes(&text.line_height)
+        || track_changes(&text.letter_spacing)
+        || track_changes(&text.word_spacing)
+        || track_changes(&text.text_max_width)
+        || track_changes(&text.text_align)
+        || track_changes(&text.overflow)
+        || track_changes(&text.language)
+        || (rich && track_changes(&ctx.style.color))
+        || ctx.overrides.is_some_and(|values| {
+            [
+                "font_family",
+                "font_size",
+                "font_weight",
+                "font_style",
+                "line_height",
+                "letter_spacing",
+                "word_spacing",
+                "text_max_width",
+                "max_width",
+                "text_align",
+                "overflow",
+                "language",
+            ]
+            .iter()
+            .any(|property| values.contains_key(*property))
+                || (rich && values.contains_key("color"))
+        })
+}
+
 /// Sample the text tracks and modifier overrides for this frame.
 fn text_frame_values(
     ctx: &EvaluateCtx,
@@ -230,8 +277,12 @@ fn crossfade_text_paths(
             ..Default::default()
         },
     );
-    let clip =
-        crate::timeline::dispatch::apply_split_text_animation(&mut crossfaded, text, ctx.time_ms);
+    let clip = crate::timeline::dispatch::apply_split_text_animation(
+        &mut crossfaded,
+        text,
+        ctx.time_ms,
+        None,
+    );
     Ok(Some((std::sync::Arc::from(crossfaded), clip)))
 }
 
@@ -243,11 +294,12 @@ fn evaluate_uncached_text_paths(
     kind: crate::renderer::text::TextKind,
     text: &crate::timeline::animation_track::TextTracks,
     values: &TextFrameValues,
+    geometry_changed: bool,
 ) -> Result<TextPathOutcome, crate::renderer::error::RenderError> {
     use crate::timeline::TrackAccessor;
 
     let style = ctx.style;
-    if values.content_override.is_none() && text.text_paths.is_some() {
+    if values.content_override.is_none() && text.text_paths.is_some() && !geometry_changed {
         let (paths, clip) = text.evaluate_paths_and_clip(style, ctx.time_ms);
         let track_anchor = text.text_anchor.get(ctx.time_ms, "center".to_string());
         if values.text_anchor != track_anchor && !paths.is_empty() {
@@ -268,6 +320,8 @@ fn evaluate_uncached_text_paths(
                 for p in &mut shifted {
                     p.translate((delta_x as f64, 0.0));
                 }
+                let clip =
+                    clip.map(|path| kurbo::Affine::translate((f64::from(delta_x), 0.0)) * path);
                 return Ok((std::sync::Arc::from(shifted), clip));
             }
         }
@@ -302,11 +356,11 @@ fn evaluate_uncached_text_paths(
             &mut paths_vec,
             text,
             ctx.time_ms,
+            None,
         );
         Ok((std::sync::Arc::from(paths_vec), clip))
     } else {
-        let (paths, clip) = text.evaluate_paths_and_clip(style, ctx.time_ms);
-        Ok((std::sync::Arc::from(paths), clip))
+        Ok((std::sync::Arc::from([]), None))
     }
 }
 
@@ -343,8 +397,10 @@ pub(crate) fn evaluate_text_paths_with_content(
     if let Some(result) = crossfade_text_paths(ctx, text_ctx, kind, text, &values)? {
         return Ok(result);
     }
+    let geometry_changed = samples_text_geometry(ctx, text, kind);
     if values.content_override.is_none()
         && text.char_progress.is_none()
+        && !geometry_changed
         && let Some(static_paths) = &text.static_paths
     {
         let track_anchor = text.text_anchor.get(ctx.time_ms, "center".to_string());
@@ -352,7 +408,7 @@ pub(crate) fn evaluate_text_paths_with_content(
             return Ok((std::sync::Arc::clone(static_paths), None));
         }
     }
-    evaluate_uncached_text_paths(ctx, text_ctx, kind, text, &values)
+    evaluate_uncached_text_paths(ctx, text_ctx, kind, text, &values, geometry_changed)
 }
 
 /// Resolve a shape's half-size (radius) for this frame.

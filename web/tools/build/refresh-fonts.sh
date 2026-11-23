@@ -17,6 +17,10 @@ declare -A EXPECTED=(
     ["OpenSans-Bold.ttf"]="1a6bc6775358bfed0e4191b6f2c4d7d75d122f0c6e5a255f264ab455c67237b7"
     ["OpenSans-Italic.ttf"]="e5178be12cd740aeafebea15ec563fe577bbb4fab42d9e40500bd49ec8c9ce16"
     ["OpenSans-BoldItalic.ttf"]="b5c44af3cb55f65fadb2f1b20edc38e1008bb71388d04ad127c5ad340c9329f2"
+    ["DejaVuSansMono.ttf"]="b4a6c3e4faab8773f4ff761d56451646409f29abedd68f05d38c2df667d3c582"
+    ["DejaVuSansMono-Bold.ttf"]="bce60f1b4421acd9ea51ba6623d7024ecbe6817a953e3654df62a5e6bdf8f769"
+    ["DejaVuSansMono-Oblique.ttf"]="742097840c541870e8d6dc5c9b37bb1ceeea6c0dedd1d475faf903ef9df734b0"
+    ["DejaVuSansMono-BoldOblique.ttf"]="91713a71d550bba22c2a6b2bb2a9ad8f9a159e12e4e9f0a5b2677998ba21213e"
 )
 
 FAILED=0

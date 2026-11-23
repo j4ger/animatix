@@ -61,6 +61,7 @@ impl<'a> Lexer<'a> {
             b'_' if !self.peek_n(1).is_ascii_alphanumeric() && self.peek_n(1) != b'_' => {
                 self.advance(TokenKind::Underscore)
             },
+            b'r' if self.raw_string_end_delimiter().is_some() => self.lex_raw_string(),
             b'a'..=b'z' | b'A'..=b'Z' | b'_' => self.lex_ident_or_keyword(),
             b'0'..=b'9' => self.lex_number(),
             b'"' | b'\'' => self.lex_string(),
@@ -150,7 +151,8 @@ impl<'a> Lexer<'a> {
         let quote = self.peek();
         let open = self.pos;
         self.pos += 1; // opening quote
-        let start = self.pos;
+        let mut chunk_start = self.pos;
+        let mut text = String::new();
         let mut terminated = false;
         while self.pos < self.bytes.len() {
             if self.peek() == quote {
@@ -158,7 +160,24 @@ impl<'a> Lexer<'a> {
                 break;
             }
             if self.peek() == b'\\' {
-                self.pos += 2; // skip escape
+                let next = self.peek_n(1);
+                let decoded = match next {
+                    b'n' => Some('\n'),
+                    b'r' => Some('\r'),
+                    b't' => Some('\t'),
+                    b'\\' => Some('\\'),
+                    value if value == quote => Some(char::from(quote)),
+                    _ => None,
+                };
+                if let Some(character) = decoded {
+                    text.push_str(&self.src[chunk_start..self.pos]);
+                    text.push(character);
+                    self.pos += 2;
+                    chunk_start = self.pos;
+                } else {
+                    // A payload may use its own escapes (e.g. Typst's \$).
+                    self.pos += 1;
+                }
             } else if self.peek() == b'\n' {
                 // A newline before the closing quote means the literal was
                 // never terminated; stop here so the error stays on one line
@@ -168,7 +187,7 @@ impl<'a> Lexer<'a> {
                 self.pos += 1;
             }
         }
-        let text = self.src[start..self.pos.min(self.src.len())].to_string();
+        text.push_str(&self.src[chunk_start..self.pos]);
         if terminated {
             self.pos += 1; // closing quote
         } else {
@@ -181,6 +200,33 @@ impl<'a> Lexer<'a> {
             });
         }
         TokenKind::Str(text)
+    }
+
+    fn raw_string_end_delimiter(&self) -> Option<usize> {
+        let hashes = self.bytes[self.pos + 1..].iter().take_while(|&&b| b == b'#').count();
+        (self.peek_n(hashes + 1) == b'"').then_some(hashes)
+    }
+
+    fn lex_raw_string(&mut self) -> TokenKind {
+        let open = self.pos;
+        let hashes = self.raw_string_end_delimiter().expect("raw string opener");
+        let start = open + hashes + 2;
+        let delimiter = format!("\"{}", "#".repeat(hashes));
+        if let Some(length) = self.src[start..].find(&delimiter) {
+            let end = start + length;
+            self.pos = end + delimiter.len();
+            TokenKind::Str(self.src[start..end].to_owned())
+        } else {
+            self.pos = self.bytes.len();
+            self.issues.push(TokenIssue {
+                kind: TokenIssueKind::UnterminatedString,
+                span: crate::ast::ByteSpan {
+                    start: open,
+                    end: self.pos,
+                },
+            });
+            TokenKind::Str(self.src[start..].to_owned())
+        }
     }
 
     fn lex_operator_or_punct(&mut self) -> TokenKind {

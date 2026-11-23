@@ -42,7 +42,9 @@ fn evaluate_text_kind(
             .overrides
             .and_then(|values| crate::primitives::styling::override_color(values, "color"))
             .unwrap_or_else(|| style.color.get(ctx.time_ms, [1.0, 1.0, 1.0, 1.0]));
-        let tint_color = Some(crate::renderer::text::f32_color_to_rgba8(&col));
+        // Rich text carries authored fills and alpha in its compiled paths.
+        let tint_color =
+            (kind == TextKind::Text).then(|| crate::renderer::text::f32_color_to_rgba8(&col));
         let text = ctx.text.expect("text primitive requires text component");
         // `text.hardware_layout` was compiled from the declaration's static
         // glyphs. With a text context it is only a valid fast path while `paths`
@@ -75,7 +77,10 @@ fn evaluate_text_kind(
                 let mut min_y = f64::INFINITY;
                 let mut max_y = f64::NEG_INFINITY;
                 for tp in paths.iter() {
-                    let b = tp.path.bounding_box();
+                    let b = tp.bounds;
+                    if b.area() == 0.0 {
+                        continue;
+                    }
                     min_x = min_x.min(b.x0);
                     max_x = max_x.max(b.x1);
                     min_y = min_y.min(b.y0);
@@ -295,7 +300,10 @@ pub fn evaluate_counter(
     text_ctx: Option<&mut TextCompileCtx>,
 ) -> Result<Option<Vec<RenderCommand>>, RenderError> {
     let style = ctx.style;
-    let Some(base_data) = ctx.text.and_then(|t| t.counter_data.as_ref()) else {
+    let Some(tracks) = ctx.text else {
+        return Ok(None);
+    };
+    let Some(base_data) = tracks.counter_data.as_ref() else {
         return Ok(None);
     };
 
@@ -373,7 +381,7 @@ pub fn evaluate_counter(
         }
     });
 
-    let (paths, clip_rect) = crate::primitives::counter::render_counter_columns_with_affixes(
+    let (mut paths, clip_rect) = crate::primitives::counter::render_counter_columns_with_affixes(
         data,
         value,
         decimals,
@@ -398,6 +406,16 @@ pub fn evaluate_counter(
         None
     };
 
+    let reveal_clip = crate::timeline::dispatch::apply_split_text_animation(
+        &mut paths,
+        tracks,
+        ctx.time_ms,
+        None,
+    );
+    if paths.is_empty() {
+        return Ok(None);
+    }
+    let clip_rect = reveal_clip.map_or(clip_rect, |clip| clip_rect.intersect(clip.bounding_box()));
     let clip_path = Some(clip_rect.to_path(0.1));
 
     Ok(Some(vec![RenderCommand::Text {

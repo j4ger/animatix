@@ -22,7 +22,9 @@ pub(crate) fn node_local_bounds(
         bounds = union_rect(bounds, vector_path.path.bounding_box());
     }
     for text_path in text_paths {
-        bounds = union_rect(bounds, text_path.path.bounding_box());
+        if text_path.bounds.area() > 0.0 {
+            bounds = union_rect(bounds, text_path.bounds);
+        }
     }
     for svg_path in svg_paths {
         bounds = union_rect(bounds, svg_path.path.bounding_box());

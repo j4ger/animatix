@@ -42,6 +42,8 @@ pub(crate) use font_context::{BUNDLED_FONTS, BundledFont, bundled_face, system_f
 pub struct TextPath {
     /// The glyph path.
     pub path: BezPath,
+    /// Local-space clips inherited from text layout groups.
+    pub clips: Vec<BezPath>,
     /// The solid glyph fill as RGBA bytes. (Rich-text paints degrade to
     /// their solid RGBA; gradients already fell back to white.)
     pub color: [u8; 4],
@@ -53,6 +55,8 @@ pub struct TextPath {
     pub word_idx: u16,
     /// Character index within the text content (0-indexed).
     pub char_idx: u16,
+    /// Baseline of the glyph's line, in local coordinates.
+    pub baseline_y: f64,
     /// Bounding box center of this glyph in local coordinates.
     pub glyph_center: [f32; 2],
     /// Cached bounding box of this glyph in local coordinates.
@@ -67,9 +71,22 @@ impl TextPath {
             return;
         }
         self.path.apply_affine(kurbo::Affine::translate(offset));
+        for clip in &mut self.clips {
+            clip.apply_affine(kurbo::Affine::translate(offset));
+        }
         self.bounds = self.bounds + offset;
+        self.baseline_y += offset.y;
         self.glyph_center[0] += offset.x as f32;
         self.glyph_center[1] += offset.y as f32;
+    }
+
+    pub(crate) fn apply_clip(&mut self, clip: &BezPath, bounds: kurbo::Rect) {
+        self.bounds = self.bounds.intersect(bounds);
+        if self.bounds.area() <= 0.0 {
+            self.opacity = 0.0;
+        } else {
+            self.clips.push(clip.clone());
+        }
     }
 
     /// Create a new TextPath with basic fields and default layout indices.
@@ -83,11 +100,13 @@ impl TextPath {
         };
         Self {
             path,
+            clips: Vec::new(),
             color,
             opacity,
             line_idx: 0,
             word_idx: 0,
             char_idx: 0,
+            baseline_y: 0.0,
             glyph_center: center,
             bounds: b,
         }

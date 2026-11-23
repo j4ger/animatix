@@ -253,7 +253,7 @@ fn test_shorthand_parser() {
     // Cases: (1) Text shorthand string literal, (2) Typst shorthand math delimiters ($$).
     for (input, expected_label, expected_ty, expected_prop, expected_val) in [
         (r#"a: "hello world""#, "a", "Text", "text", "hello world"),
-        ("eq: $$ x^2 + y^2 $$", "eq", "Typst", "content", "x^2 + y^2"),
+        ("eq: $$ x^2 + y^2 $$", "eq", "Typst", "text", "$ x^2 + y^2 $"),
     ] {
         let res = parse_ok(input);
 
@@ -293,7 +293,7 @@ fn test_shorthand_with_modifiers() {
             "Slide 1",
             2,
         ),
-        ("eq: $$ x^2 $$ [2s]", "eq", "Typst", "content", "x^2", 1),
+        ("eq: $$ x^2 $$ [2s]", "eq", "Typst", "text", "$ x^2 $", 1),
     ] {
         let res = parse_ok(input);
 

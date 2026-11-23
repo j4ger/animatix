@@ -663,7 +663,7 @@ mod tests {
     #[test]
     fn escaped_string_content_is_idempotent() {
         let source =
-            r#"label: Text, text: "path=C:\tmp\file, line\nnext, quote: \"hi\", token: \$name""#;
+            r#"label: Text, text: "path=C:\\tmp\file, line\nnext, quote: \"hi\", token: \$name""#;
         let formatter = Formatter::default();
         let original = parse(source);
         let first = formatter.format_source(source, &original);
@@ -679,7 +679,7 @@ mod tests {
             value
         }
 
-        let expected = r#"path=C:\tmp\file, line\nnext, quote: \"hi\", token: \$name"#;
+        let expected = "path=C:\\tmp\\file, line\nnext, quote: \"hi\", token: \\$name";
         assert_eq!(text_value(&original), expected);
         assert_eq!(text_value(&reparsed), expected, "formatting must preserve raw escapes");
         assert_eq!(
@@ -687,6 +687,35 @@ mod tests {
             formatter.format_source(&first, &reparsed),
             "string escapes must not grow on a second pass"
         );
+    }
+
+    #[test]
+    fn raw_multiline_code_and_typst_payloads_survive_formatting() {
+        let source = r###"script: Code, text: r#"let path = "C:\tmp";
+// literal \n
+"#
+formula: Typst, text: r"literal \$ currency"
+"###;
+        let formatter = Formatter::default();
+        let original = parse(source);
+        let output = formatter.format_source(source, &original);
+        let body = |statements: &[Stmt]| {
+            statements
+                .iter()
+                .map(|stmt| {
+                    let Stmt::ActorDecl { props, .. } = stmt else {
+                        panic!("expected an actor")
+                    };
+                    let Expr::Str(value) = &props[0].value else {
+                        panic!("expected a string")
+                    };
+                    value.clone()
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(body(&original), body(&parse(&output)));
+        assert_eq!(body(&original)[0], "let path = \"C:\\tmp\";\n// literal \\n\n");
+        assert_eq!(body(&original)[1], "literal \\$ currency");
     }
 
     #[test]

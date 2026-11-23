@@ -430,15 +430,7 @@ impl Timeline {
             },
         };
         let new_half_size = compiled.half_size;
-        let measured_width = {
-            use kurbo::Shape as _;
-            compiled
-                .paths
-                .iter()
-                .map(|glyph| glyph.path.bounding_box())
-                .reduce(|bounds, glyph| bounds.union(glyph))
-                .map_or(new_half_size[0] * 2.0, |bounds| bounds.width() as f32)
-        };
+        let measured_width = new_half_size[0] * 2.0;
         if measured_width > effective_max_width + 0.5 {
             diagnostics.push(
                 Diagnostic::warning(

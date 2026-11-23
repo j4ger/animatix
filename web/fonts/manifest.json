@@ -3,7 +3,9 @@
   "sources": [
     "OpenSans-Regular.ttf", "OpenSans-Bold.ttf", "OpenSans-Italic.ttf",
     "OpenSans-BoldItalic.ttf", "OpenSans-Variable.ttf", "OpenSans-Italic-Variable.ttf",
-    "NotoSansSC-Common.ttf", "FiraMath-Regular.otf"
+    "NotoSansSC-Common.ttf", "FiraMath-Regular.otf",
+    "DejaVuSansMono.ttf", "DejaVuSansMono-Bold.ttf",
+    "DejaVuSansMono-Oblique.ttf", "DejaVuSansMono-BoldOblique.ttf"
   ],
   "fallbacks": ["OpenSans-Regular.ttf", "NotoSansSC-Common.ttf", "FiraMath-Regular.otf"]
 }

@@ -162,13 +162,13 @@ def parse_srt(content: str) -> dict:
         except ValueError as error:
             raise ValueError(f"cue {index}: {error}") from error
 
-        text = " ".join(line.strip() for line in lines[1:])
-        # Match the native SRT loader: each token inherits its cue's time span.
+        text = "\n".join(line.strip() for line in lines[1:])
+        # SRT carries cue timing. Keep the missing word timings explicit.
         segments.append({
             "start": start,
             "end": end,
             "text": text,
-            "words": [{"word": word, "start": start, "end": end} for word in text.split()],
+            "words": [],
         })
     return {"segments": segments}
 

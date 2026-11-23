@@ -490,11 +490,13 @@ pub(super) fn emit_shaped_glyphs(
             let bounds = final_path.bounding_box();
             glyphs.push(TextPath {
                 path: final_path,
+                clips: Vec::new(),
                 color: rgba,
                 opacity: 1.0,
                 line_idx,
                 word_idx,
                 char_idx: g.char_idx,
+                baseline_y: y,
                 glyph_center: [0.0, 0.0],
                 bounds,
             });
@@ -522,6 +524,9 @@ pub(super) fn finalize_layout(
     let mut min_y = f64::INFINITY;
     let mut max_y = f64::NEG_INFINITY;
     for path in glyphs.iter() {
+        if path.opacity == 0.0 {
+            continue;
+        }
         let b = path.bounds;
         min_x = min_x.min(b.x0);
         max_x = max_x.max(b.x1);

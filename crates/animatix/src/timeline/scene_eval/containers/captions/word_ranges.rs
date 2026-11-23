@@ -233,6 +233,7 @@ pub(super) fn style_for_glyph(
     ranges: &[Option<Range<usize>>],
     char_idx: usize,
     active_word_idx: Option<usize>,
+    latest_started: Option<usize>,
     style: &CaptionWordStyle<'_>,
 ) -> ([f32; 4], f32) {
     let Some(word_idx) = word_index_for_char(ranges, char_idx) else {
@@ -241,7 +242,7 @@ pub(super) fn style_for_glyph(
     super::caption_glyph_style(
         style.caption_mode,
         active_word_idx == Some(word_idx),
-        active_word_idx.is_some_and(|active| word_idx < active),
+        latest_started.is_some_and(|last| word_idx <= last),
         style.active_color,
         style.inactive_color,
         style.base_color,
@@ -343,7 +344,7 @@ mod tests {
             base_color: [0.5, 0.5, 0.5, 1.0],
             pop_scale: 1.25,
         };
-        assert_eq!(style_for_glyph(&ranges, 0, Some(0), &style), (style.base_color, 1.0));
+        assert_eq!(style_for_glyph(&ranges, 0, Some(0), Some(0), &style), (style.base_color, 1.0));
     }
 
     fn fixture_fonts(with_cjk: bool) -> animatix_text::FontContext {
@@ -398,7 +399,7 @@ mod tests {
         };
         for glyph in glyphs {
             let idx = usize::from(glyph.char_idx);
-            let (color, scale) = style_for_glyph(&ranges, idx, Some(1), &style);
+            let (color, scale) = style_for_glyph(&ranges, idx, Some(1), Some(1), &style);
             match idx {
                 0..=1 => assert_eq!(color, style.inactive_color),
                 2 => {
@@ -448,7 +449,7 @@ mod tests {
                     continue;
                 }
                 assert_eq!(word_idx, expected);
-                let (color, scale) = style_for_glyph(&ranges, idx, Some(1), &style);
+                let (color, scale) = style_for_glyph(&ranges, idx, Some(1), Some(1), &style);
                 assert_eq!(
                     color,
                     if expected == 1 {

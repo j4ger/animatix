@@ -279,24 +279,15 @@ fn parse_timed_subtitles(
         let end_s = parse_sub_timestamp(end_str, decimal_sep)?;
 
         let text_lines = &lines[(timing_line_idx + 1)..];
-        let text = text_lines.join(" ");
-
-        let words: Vec<TranscriptWord> = text
-            .split_whitespace()
-            .map(|w| TranscriptWord {
-                word: w.to_string(),
-                start_s,
-                end_s,
-                confidence: 1.0,
-            })
-            .collect();
+        let text = text_lines.join("\n");
 
         segments.push(TranscriptSegment {
             id: id_counter,
             start_s,
             end_s,
             text,
-            words,
+            // SubRip and ordinary WebVTT provide cue timestamps only.
+            words: Vec::new(),
             speaker: None,
         });
         id_counter += 1;
@@ -412,12 +403,13 @@ mod tests {
 
     #[test]
     fn test_parse_srt() {
-        let srt = "1\n00:00:01,500 --> 00:00:03,000\nSubRip Subtitle\n\n2\n00:00:04,000 --> 00:00:06,000\nNext line\n";
+        let srt = "1\n00:00:01,500 --> 00:00:03,000\nSubRip\nSubtitle\n\n2\n00:00:04,000 --> 00:00:06,000\nNext line\n";
         let transcript = parse_transcript_auto(srt).unwrap();
         assert_eq!(transcript.segments.len(), 2);
         assert_eq!(transcript.segments[0].start_s, 1.5);
         assert_eq!(transcript.segments[0].end_s, 3.0);
-        assert_eq!(transcript.segments[0].text, "SubRip Subtitle");
+        assert_eq!(transcript.segments[0].text, "SubRip\nSubtitle");
+        assert!(transcript.segments[0].words.is_empty());
     }
 
     #[test]

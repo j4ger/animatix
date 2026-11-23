@@ -421,16 +421,6 @@ The following scenarios still need targeted coverage:
 
 ## Found by the transformer review, left open on purpose (2026-10-06)
 
-- **String escapes keep their backslash in the value.** `lex_string`
-  (`crates/animatix-syntax/src/token/`) skips a `\x` pair so an escaped
-  quote cannot end the literal — and then takes the source slice verbatim, so
-  `text: "1 · \"it\" looks back"` renders the backslash. The transformer page
-  worked around it with typographic quotes; the grammar question is real and
-  unanswered: `\$` inside a `Typst` payload (`crates/animatix/benches/fixtures/amx/gallery/sorting_theatre.amx`)
-  *depends* on backslashes surviving to the markup, so "unescape every `\x` in
-  the lexer" would silently change that scene. Any fix needs to say which
-  escapes belong to `.amx` and which belong to the payload. Preserve payload
-  escapes during formatting. Include a plain-text line break and a Typst payload containing `\$` in the regression.
 - **Region-scoped baseline comparison is still open.** `animatix baseline`
   compares the whole rendered frame against an approved PNG at full resolution,
   so a beat whose entire change is a 3px line (0.26% of a 1280×720 plate) is

@@ -233,7 +233,7 @@ declare_property_descriptors! {
     "t_domain" => (Applicable::Actors(&["PlotCurve"]), Vec2),
     "target" => (Applicable::Callout, Generic),
     // Uniform body property for every text-like actor; `code` is the `Code` spelling.
-    "text" => (Applicable::Any(&[Applicable::TextLike, Applicable::Actors(&["Fragment"])]), String),
+    "text" => (Applicable::Any(&[Applicable::TextLike, Applicable::Actors(&["Fragment", "Cue"])]), String),
     "text_align" => (Applicable::TextLike, String),
     // Canonical text wrap width (`max_width` is a legacy alias); every host that
     // can set one must be listed.

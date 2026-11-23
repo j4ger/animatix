@@ -4,7 +4,9 @@ use crate::timeline::{EntityId, Timeline, TrackAccessor};
 use std::ops::Range;
 
 mod word_ranges;
-use word_ranges::{CaptionWordStyle, map_timed_words_to_char_ranges, style_for_glyph};
+use word_ranges::{
+    CaptionWordStyle, map_timed_words_to_char_ranges, style_for_glyph, word_index_for_char,
+};
 
 /// One subtitle cue active or transcript-derived for a Captions container.
 struct ActiveCue {
@@ -93,7 +95,10 @@ impl Timeline {
         }
 
         let time_s = time_ms as f64 / 1000.0;
-        let active_cue = all_cues.iter().find(|c| c.start_s <= time_s && time_s < c.end_s);
+        let active_cue = all_cues
+            .iter()
+            .filter(|c| c.start_s <= time_s && time_s < c.end_s)
+            .max_by(|a, b| a.start_s.total_cmp(&b.start_s));
 
         if let Some(cue) = active_cue {
             self.render_active_caption(
@@ -243,14 +248,19 @@ impl Timeline {
         let line_height = text.line_height.get(time_ms, 1.2);
         let letter_spacing = text.letter_spacing.get(time_ms, 0.0);
         let word_spacing = text.word_spacing.get(time_ms, 0.0);
-        let base_color = self.world.style(node_id).color.get(time_ms, [1.0, 1.0, 1.0, 1.0]);
+        let backdrop = property_plan.sample_bool_prop("backdrop", time_ms, true);
+        let default_color = if backdrop {
+            [1.0; 4]
+        } else {
+            self.colorscheme.color("text.primary").unwrap_or([1.0; 4])
+        };
+        let base_color = self.world.style(node_id).color.get(time_ms, default_color);
         let active_color = cue.active_color.unwrap_or_else(|| {
             property_plan.sample_color_prop("active_color", time_ms, [1.0, 0.84, 0.0, 1.0])
         });
         let inactive_color =
             property_plan.sample_color_prop("inactive_color", time_ms, [0.7, 0.7, 0.7, 0.7]);
         let caption_mode = property_plan.sample_string_prop("caption_mode", time_ms, "word");
-        let backdrop = property_plan.sample_bool_prop("backdrop", time_ms, true);
         let backdrop_color =
             property_plan.sample_color_prop("backdrop_color", time_ms, [0.0, 0.0, 0.0, 0.6]);
         let backdrop_radius = property_plan.sample_f32_prop("backdrop_radius", time_ms, 8.0);
@@ -270,10 +280,10 @@ impl Timeline {
             .words
             .iter()
             .position(|w| w.start_s <= speech_time_s && speech_time_s < w.end_s);
+        let latest_started = cue.words.iter().rposition(|word| word.start_s <= speech_time_s);
 
         let request = TextCompileRequest {
             max_width: text_max_width,
-            max_lines: (max_lines > 0).then_some(max_lines as usize),
             text_align: "center",
             allow_fast_path: true,
             ..TextCompileRequest::new(
@@ -290,73 +300,136 @@ impl Timeline {
                 },
             )
         };
-        if let Ok(compiled) =
-            crate::renderer::text::compile_text_cached(&request, self.font_context.as_ref())
-        {
-            use kurbo::Shape as _;
-            let mut bounds: Option<kurbo::Rect> = None;
-            for g in compiled.paths.iter() {
-                let b = g.path.bounding_box();
-                bounds = Some(match bounds {
-                    Some(prev) => prev.union(b),
-                    None => b,
-                });
+        let compiled = match crate::renderer::text::compile_text_cached(
+            &request,
+            self.font_context.as_ref(),
+        ) {
+            Ok(compiled) => compiled,
+            Err(error) => {
+                use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+                self.eval_caches.runtime_diagnostics.borrow_mut().push(
+                    Diagnostic::error(
+                        DiagnosticCode::RenderFailure,
+                        DiagnosticPhase::Render,
+                        format!("Caption failed to compile: {error}"),
+                    )
+                    .with_subject(self.world.label(node_id).unwrap_or("Captions"))
+                    .with_ast_span(self.world.decl_span(node_id).cloned()),
+                );
+                return;
+            },
+        };
+        let page = caption_page(&compiled.paths, cue, max_lines, time_s);
+        let on_page =
+            |g: &&crate::renderer::types::TextPath| page.contains(&usize::from(g.line_idx));
+        let glyphs = compiled.paths.iter().filter(on_page);
+        let bounds = glyphs.clone().map(|glyph| glyph.bounds).reduce(|a, b| a.union(b));
+        let active_bounds = active_word_idx.and_then(|active| {
+            glyphs
+                .clone()
+                .filter(|g| {
+                    word_index_for_char(&cue.word_char_ranges, usize::from(g.char_idx))
+                        == Some(active)
+                })
+                .map(|g| g.bounds)
+                .reduce(|a, b| a.union(b))
+        });
+
+        if let Some(b) = bounds {
+            let center = b.center();
+            let global_transform =
+                global_transform * kurbo::Affine::translate((-center.x, -center.y));
+            let pop = active_bounds.map_or(kurbo::Affine::IDENTITY, |rect| {
+                let center = rect.center();
+                kurbo::Affine::translate((center.x, center.y))
+                    * kurbo::Affine::scale(f64::from(pop_scale))
+                    * kurbo::Affine::translate((-center.x, -center.y))
+            });
+            if backdrop {
+                draw_caption_backdrop(
+                    out,
+                    global_transform,
+                    b,
+                    caption_opacity,
+                    backdrop_padding,
+                    backdrop_radius,
+                    backdrop_color,
+                );
             }
 
-            if let Some(b) = bounds {
-                if backdrop {
-                    draw_caption_backdrop(
-                        out,
-                        global_transform,
-                        b,
-                        caption_opacity,
-                        backdrop_padding,
-                        backdrop_radius,
-                        backdrop_color,
-                    );
+            for g in glyphs {
+                let (color, scale) = style_for_glyph(
+                    &cue.word_char_ranges,
+                    usize::from(g.char_idx),
+                    active_word_idx,
+                    latest_started,
+                    &word_style,
+                );
+
+                let alpha = color[3] * caption_opacity * g.opacity;
+                if alpha <= 0.0 {
+                    continue;
                 }
+                let peniko_color = peniko::Color::from_rgba8(
+                    (color[0] * 255.0).clamp(0.0, 255.0) as u8,
+                    (color[1] * 255.0).clamp(0.0, 255.0) as u8,
+                    (color[2] * 255.0).clamp(0.0, 255.0) as u8,
+                    (alpha * 255.0).clamp(0.0, 255.0) as u8,
+                );
 
-                for g in compiled.paths.iter() {
-                    let (color, scale) = style_for_glyph(
-                        &cue.word_char_ranges,
-                        usize::from(g.char_idx),
-                        active_word_idx,
-                        &word_style,
-                    );
+                let glyph_transform = if (scale - 1.0).abs() > 0.001 {
+                    global_transform * pop
+                } else {
+                    global_transform
+                };
 
-                    let alpha = color[3] * caption_opacity * g.opacity;
-                    if alpha <= 0.0 {
-                        continue;
-                    }
-                    let peniko_color = peniko::Color::from_rgba8(
-                        (color[0] * 255.0).clamp(0.0, 255.0) as u8,
-                        (color[1] * 255.0).clamp(0.0, 255.0) as u8,
-                        (color[2] * 255.0).clamp(0.0, 255.0) as u8,
-                        (alpha * 255.0).clamp(0.0, 255.0) as u8,
-                    );
-
-                    let glyph_transform = if (scale - 1.0).abs() > 0.001 {
-                        let cx = g.glyph_center[0] as f64;
-                        let cy = g.glyph_center[1] as f64;
-                        global_transform
-                            * kurbo::Affine::translate((cx, cy))
-                            * kurbo::Affine::scale(scale as f64)
-                            * kurbo::Affine::translate((-cx, -cy))
-                    } else {
-                        global_transform
-                    };
-
-                    out.scene.fill(
-                        peniko::Fill::NonZero,
-                        glyph_transform,
-                        peniko_color,
-                        None,
-                        &g.path,
-                    );
-                }
+                out.scene
+                    .fill(peniko::Fill::NonZero, glyph_transform, peniko_color, None, &g.path);
             }
         }
     }
+}
+
+fn caption_page(
+    paths: &[crate::renderer::types::TextPath],
+    cue: &ActiveCue,
+    max_lines: u32,
+    time_s: f64,
+) -> Range<usize> {
+    if max_lines == 0 {
+        return 0..usize::MAX;
+    }
+    let page_size = max_lines as usize;
+    let line_count = paths.iter().map(|g| usize::from(g.line_idx) + 1).max().unwrap_or(0);
+    let page_count = line_count.div_ceil(page_size).max(1);
+    if page_count == 1 {
+        return 0..page_size;
+    }
+    let mut first_chars = vec![None; page_count];
+    for path in paths {
+        let page = usize::from(path.line_idx) / page_size;
+        let index = usize::from(path.char_idx);
+        first_chars[page] = Some(first_chars[page].map_or(index, |first: usize| first.min(index)));
+    }
+    let mut page = 0;
+    let mut previous_start = cue.start_s;
+    for (index, first_char) in first_chars.into_iter().enumerate().skip(1) {
+        let spoken_start = first_char.and_then(|first| {
+            let word_idx = word_index_for_char(&cue.word_char_ranges, first)?;
+            let word = cue.words.get(word_idx)?;
+            let range = cue.word_char_ranges[word_idx].as_ref()?;
+            let fraction = (first - range.start) as f64 / range.len().max(1) as f64;
+            Some(cue.speech_start_s + word.start_s + fraction * (word.end_s - word.start_s))
+        });
+        let even_start = cue.start_s + (cue.end_s - cue.start_s) * index as f64 / page_count as f64;
+        let start = spoken_start.unwrap_or(even_start).clamp(previous_start, cue.end_s);
+        if start > time_s {
+            break;
+        }
+        previous_start = start;
+        page = index;
+    }
+    page * page_size..(page + 1) * page_size
 }
 
 /// Fill the rounded backdrop behind one caption cue's text bounds.

@@ -51,7 +51,7 @@ pub(crate) fn recompile_text_at_assignment(
         },
         Some(crate::timeline::TextKind::Code) => crate::renderer::text::TextKind::Code,
         Some(crate::timeline::TextKind::Typst) => crate::renderer::text::TextKind::Typst,
-        // `Math` never recompiled on `text` assignment (no plain-text body).
+        Some(crate::timeline::TextKind::Math) => crate::renderer::text::TextKind::Math,
         _ => return Ok(()),
     };
 

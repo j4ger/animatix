@@ -34,11 +34,13 @@ pub(in crate::timeline) fn sample_text_paths(
         for path in source {
             result.push(TextPath {
                 path: path.path.clone(),
+                clips: path.clips.clone(),
                 color: path.color,
                 opacity: path.opacity * source_alpha,
                 line_idx: path.line_idx,
                 word_idx: path.word_idx,
                 char_idx: path.char_idx,
+                baseline_y: path.baseline_y,
                 glyph_center: path.glyph_center,
                 bounds: path.bounds,
             });
@@ -46,11 +48,13 @@ pub(in crate::timeline) fn sample_text_paths(
         for path in target {
             result.push(TextPath {
                 path: path.path.clone(),
+                clips: path.clips.clone(),
                 color: path.color,
                 opacity: path.opacity * target_alpha,
                 line_idx: path.line_idx,
                 word_idx: path.word_idx,
                 char_idx: path.char_idx,
+                baseline_y: path.baseline_y,
                 glyph_center: path.glyph_center,
                 bounds: path.bounds,
             });
@@ -79,6 +83,7 @@ pub(in crate::timeline) fn sample_text_paths(
                     let b = morphed.bounding_box();
                     TextPath {
                         path: morphed,
+                        clips: Vec::new(),
                         color: if t < 0.5 {
                             source.get(index).map(|path| path.color).unwrap_or_else(|| {
                                 target
@@ -98,6 +103,7 @@ pub(in crate::timeline) fn sample_text_paths(
                         line_idx: ref_path.map(|p| p.line_idx).unwrap_or(0),
                         word_idx: ref_path.map(|p| p.word_idx).unwrap_or(0),
                         char_idx: ref_path.map(|p| p.char_idx).unwrap_or(index as u16),
+                        baseline_y: ref_path.map_or(0.0, |p| p.baseline_y),
                         glyph_center: ref_path.map(|p| p.glyph_center).unwrap_or([0.0, 0.0]),
                         bounds: b,
                     }

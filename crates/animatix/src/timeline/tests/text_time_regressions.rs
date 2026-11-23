@@ -135,6 +135,68 @@ fn counter_paths_from_program(
 }
 
 #[test]
+fn final_text_commands_preserve_rich_color_clip_and_sampled_typography() {
+    let timeline = build_output(
+        r##"
+config { duration: 4 }
+#0s
+plain: Text, text: "MMMMM", font_size: 30, at: (300, 80), backdrop: true
+rich: Typst, text: "#text(fill: red)[MMMMM]", font_size: 30, at: (300, 150)
+source: Code, text: "let x = 42;", language: "rust", at: (300, 200)
+clipped: Typst, text: "#box(width: 240pt, height: 20pt, fill: red)", text_max_width: 100, overflow: "clip", at: (300, 250)
+equation: $$ x^2 + 3 $$
+always {
+    rich.font_size = 70
+}
+#1s
+plain.font_size = 70 [1s]
+"##,
+    );
+    let evaluate = |time| {
+        timeline.evaluate_program_with_debug(
+            time,
+            SceneDimensions {
+                width: 640,
+                height: 360,
+            },
+            DebugRenderOptions::default(),
+            &mut None,
+        )
+    };
+    let path_data = |program: &crate::timeline::scene_program::SceneProgram, label| {
+        let item = program.items.iter().find(|item| item.label == label).unwrap();
+        item.commands
+            .iter()
+            .find_map(|command| match command {
+                crate::primitives::RenderCommand::Text {
+                    paths, tint_color, ..
+                } => {
+                    Some((paths.clone(), *tint_color, command.local_bounds(None).unwrap().width()))
+                },
+                _ => None,
+            })
+            .unwrap()
+    };
+    let start = evaluate(0.0);
+    let middle = evaluate(1.5);
+    let end = evaluate(3.0);
+    let back = evaluate(0.0);
+    let width = path_data(&start, "plain").2;
+    assert_eq!(path_data(&back, "plain").2, width);
+    assert!(path_data(&middle, "plain").2 > width * 1.5);
+    assert!(path_data(&end, "plain").2 > width * 2.0);
+    let (paths, tint, width) = path_data(&start, "rich");
+    assert!(width > 250.0 && tint.is_none());
+    assert!(paths.iter().all(|p| p.color == [255, 65, 54, 255]));
+    let (paths, tint, _) = path_data(&start, "source");
+    assert!(tint.is_none() && paths.iter().any(|p| p.color != paths[0].color));
+    assert!(paths.iter().any(|p| p.color == [255, 255, 255, 255]));
+    let (paths, _, width) = path_data(&start, "clipped");
+    assert!(width <= 100.01 && paths.iter().any(|p| !p.clips.is_empty()));
+    assert_eq!(path_data(&start, "equation").0.len(), 4);
+}
+
+#[test]
 fn future_instant_text_assignments_do_not_change_past_or_reverse_seek_samples() {
     let timeline = build_output(
         r#"

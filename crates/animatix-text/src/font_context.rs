@@ -747,10 +747,40 @@ pub(crate) static BUNDLED_FONTS: &[BundledFont] = &[
         weight: 400.0,
         style: "normal",
     },
+    #[cfg(all(feature = "rich-text", feature = "bundled-fonts"))]
+    BundledFont {
+        family: DEFAULT_CODE_FONT_FAMILY,
+        data: include_bytes!("../assets/fonts/DejaVuSansMono.ttf"),
+        weight: 400.0,
+        style: "normal",
+    },
+    #[cfg(all(feature = "rich-text", feature = "bundled-fonts"))]
+    BundledFont {
+        family: DEFAULT_CODE_FONT_FAMILY,
+        data: include_bytes!("../assets/fonts/DejaVuSansMono-Bold.ttf"),
+        weight: 700.0,
+        style: "normal",
+    },
+    #[cfg(all(feature = "rich-text", feature = "bundled-fonts"))]
+    BundledFont {
+        family: DEFAULT_CODE_FONT_FAMILY,
+        data: include_bytes!("../assets/fonts/DejaVuSansMono-Oblique.ttf"),
+        weight: 400.0,
+        style: "italic",
+    },
+    #[cfg(all(feature = "rich-text", feature = "bundled-fonts"))]
+    BundledFont {
+        family: DEFAULT_CODE_FONT_FAMILY,
+        data: include_bytes!("../assets/fonts/DejaVuSansMono-BoldOblique.ttf"),
+        weight: 700.0,
+        style: "italic",
+    },
 ];
 
 /// Default font family used when the requested one is not available.
 pub const DEFAULT_FONT_FAMILY: &str = "Open Sans";
+/// Default monospace family used by Code.
+pub const DEFAULT_CODE_FONT_FAMILY: &str = "DejaVu Sans Mono";
 /// Default math font family used for math rendering.
 pub const DEFAULT_MATH_FONT_FAMILY: &str = "Fira Math";
 /// The weight a caller that never says otherwise compiles at.
