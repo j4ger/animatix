@@ -1,4 +1,4 @@
-config { resolution: (960, 600), duration: 1.72 }
+config { canvas_size: (960, 600), duration: 1.72 }
 
 #0s
   scene.background_color = hex_color("191816")

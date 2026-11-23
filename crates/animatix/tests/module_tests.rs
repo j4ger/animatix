@@ -924,7 +924,7 @@ fn load_program_slot_all_filled_no_defaults_used() {
 fn load_program_three_slot_fills() {
     let program = load_entry(
         r##"
-config { colorscheme: "editorial-dark", resolution: (800, 500) }
+config { colorscheme: "editorial-dark", canvas_size: (800, 500) }
 
 pub component Card(title: Str = "Card") {
   frame: Rect, size: (200, 120), color: surface.primary, corner_radius: 8
@@ -970,7 +970,7 @@ card_c: Card, title: "Test", anchor: scene.center, offset: (0, 0) {
 fn load_program_component_method_self_nested_path() {
     let program = load_entry(
         r##"
-config { colorscheme: "editorial-dark", resolution: (800, 500) }
+config { colorscheme: "editorial-dark", canvas_size: (800, 500) }
 
 pub component Card(title: Str = "Card") {
   frame: Rect, size: (200, 120), color: surface.primary, corner_radius: 8
@@ -1006,7 +1006,7 @@ card_a.highlight()
 fn load_program_comments_in_always_block() {
     let program = load_entry(
         r##"
-config { colorscheme: "editorial-dark", resolution: (800, 500) }
+config { colorscheme: "editorial-dark", canvas_size: (800, 500) }
 
 #0s
 scene.background_color = hex_color("1a1a2e")
@@ -1054,7 +1054,7 @@ dashboard: MetricCard, title: "Latency"
 fn transform_property_builds_without_diagnostics() {
     let mut program = load_entry(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 a: Rect, size: (100, 100), transform: (1, 0.5, 0, 1, 0, 0), color: accent.primary, at: (200, 150)
 

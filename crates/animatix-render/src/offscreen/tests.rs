@@ -45,6 +45,48 @@ fn is_red(frame: &RenderedFrame, x: usize, y: usize) -> bool {
     p[0] > 200 && p[1] < 80 && p[2] < 80
 }
 
+#[test]
+fn canvas_export_scales_edge_content_and_letterboxes_transitions() {
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let timeline = build_checked(
+        r#"
+config { canvas_size: (400, 300) }
+#0s
+edge: Rect, at: (360, 260), size: (36, 28), color: red
+"#,
+    );
+    let fitted = SceneDimensions {
+        width: 200,
+        height: 150,
+    };
+    let portrait = SceneDimensions {
+        width: 200,
+        height: 350,
+    };
+    let options = DebugRenderOptions::default();
+    let frame = renderer.render_canvas(&timeline, 0.0, fitted, options).unwrap();
+    assert!(is_red(&frame, 180, 130));
+    let frame = renderer.render_canvas(&timeline, 0.0, portrait, options).unwrap();
+    assert!(is_red(&frame, 180, 230));
+    assert_eq!(px(&frame, 180, 320), [0, 0, 0, 255]);
+    let transition = renderer
+        .render_canvas_transition(
+            &timeline,
+            0.0,
+            &timeline,
+            0.0,
+            0.5,
+            "fade".into(),
+            animatix::easing::Easing::Linear,
+            portrait,
+            options,
+        )
+        .unwrap();
+    assert_eq!(frame.rgba, transition.rgba);
+}
+
 fn clip_geometry_warnings(source: &str) -> Vec<String> {
     let timeline = build(source);
     let _ = timeline.evaluate(0.5, FRAME);
@@ -221,7 +263,7 @@ mod frame_gpu_tests {
         };
         let timeline = build_checked(
             r#"
-config { resolution: (160, 120) }
+config { canvas_size: (160, 120) }
 #0s
 fx: Filter {
   soft: Blur, radius: 6
@@ -274,7 +316,7 @@ fn filter_scope_renders_across_plain_frames_and_transition_sides() {
     let plain = common::solid_rect_timeline();
     let filtered = build_checked(
         r#"
-config { resolution: (400, 300) }
+config { canvas_size: (400, 300) }
 #0s
 fx: Filter {
   soft: Blur, radius: 6
@@ -360,7 +402,7 @@ fn derived_effect_region_preserves_content() {
     };
     let timeline = build(
         r#"
-config { resolution: (400, 300) }
+config { canvas_size: (400, 300) }
 
 #0s
 fx: Filter {
@@ -399,7 +441,7 @@ fn authored_effect_bounds_region_renders_at_origin() {
     };
     let timeline = build(
         r#"
-config { resolution: (400, 300) }
+config { canvas_size: (400, 300) }
 
 #0s
 fx: Filter, bounds: (100, 60, 200, 180) {
@@ -433,7 +475,7 @@ fn mask_clips_children_at_mask_position() {
     };
     let timeline = build(
         r#"
-config { resolution: (400, 300) }
+config { canvas_size: (400, 300) }
 
 #0s
 m: Mask, size: (200, 150), at: (300, 150) {
@@ -464,7 +506,7 @@ fn mask_clip_shape_ellipse_defines_clip_region() {
     };
     let timeline = build(
         r#"
-config { resolution: (400, 300) }
+config { canvas_size: (400, 300) }
 
 m: Mask, size: (200, 150), at: (300, 150) {
   clip_shape: Ellipse, size: (100, 100)
@@ -497,7 +539,7 @@ fn mask_clip_shape_polygon_defines_clip_region() {
     };
     let timeline = build(
         r#"
-config { resolution: (400, 300) }
+config { canvas_size: (400, 300) }
 
 m: Mask, size: (100, 75), at: (200, 150) {
   clip_shape: Polygon, points: {(0, -50), (50, 0), (0, 50), (-50, 0)}, color: accent.success
@@ -524,7 +566,7 @@ fade_in(target: m, duration: 1ms)
 fn mask_clip_shape_without_geometry_warns() {
     assert_clip_geometry_warning(
         r#"
-config { resolution: (400, 300) }
+config { canvas_size: (400, 300) }
 
 m: Mask, size: (100, 75), at: (200, 150) {
   clip_shape: Text, text: "clip"
@@ -545,7 +587,7 @@ fade_in(target: m, duration: 1ms)
 fn mask_clip_shape_plot_falls_back_with_warning() {
     assert_clip_geometry_warning(
         r#"
-config { resolution: (400, 300) }
+config { canvas_size: (400, 300) }
 
 m: Mask, size: (100, 75), at: (200, 150) {
   clip_shape: PlotCurve, kind: "cartesian", func: (x) => x
@@ -573,7 +615,7 @@ fn hosted_bar_chart_paints_bars_across_the_full_graph_axis() {
     // paths; this one checks the rasterized frame.)
     let timeline = build(
         r#"
-config { resolution: (800, 400) }
+config { canvas_size: (800, 400) }
 
 #0s
 g: Graph, size: (600, 300), at: (400, 200), x_domain: (0, 4), y_domain: (0, 100) {
@@ -644,7 +686,7 @@ fn region_composite_does_not_leak_stale_pixels() {
     };
     let timeline = build_checked(
         r#"
-config { resolution: (640, 360) }
+config { canvas_size: (640, 360) }
 
 sheet: Rect, size: (640, 360), color: (1, 1, 1, 1), anchor: scene.center
 control: Rect, at: (40, 40), size: (32, 32), color: (0, 0, 1, 1)

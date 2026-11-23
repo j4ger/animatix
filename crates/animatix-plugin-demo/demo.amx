@@ -9,7 +9,7 @@
 //   cargo build -p animatix-plugin-demo
 //   animatix check demo.amx --plugin demo.amx-plugin.toml
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }
 
 // lint-disable: unused-label
 // Cache the checker texture so the native `append_image` command can resolve

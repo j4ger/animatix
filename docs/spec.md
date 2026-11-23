@@ -8,7 +8,7 @@
 
 Use these rules when generating `.amx` files:
 
-- Start with `config { colorscheme: "editorial-dark", resolution: (1280, 720) }` unless the user asks otherwise.
+- Start with `config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }` unless the user asks otherwise.
 - Declare actors as `label: Type, prop: value`; animate later with keyframes (`#1s`) and assignments (`label.prop = value [800ms, ease: ease_out]`).
 - Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Typst`, `Code`, `Math`, `Svg`, `Image`, `Audio`, `Equation`, `Fragment`, `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Glass`, `Mask`, `Callout`, `Legend`, `Connector`, `Counter`, `Captions`, `Cue`.
 - Avoid common hallucinations: `Circle` (use `Ellipse`), `Triangle` (use `Polygon`), `Chart`/`Diagram` (use `Graph`/`PlotCurve`), and any 3D primitives.
@@ -739,7 +739,7 @@ Row, gap: 0 {
 - `size: fill` is shorthand for `size: (fill, auto)` — fills the available width.
 - `size: auto` or `size: fit` on a layout container makes it shrink-wrap to its children's content.
 - `size: auto` on a non-container primitive produces a build-time warning (only containers shrink-wrap).
-- `size: fill` at the top level (no parent container) produces a build-time warning.
+- `size: fill` at the top level uses the logical canvas for its width.
 
 **Intrinsic container sizing:** Containers with `size: auto` or `size: fit` compute their own size from children:
 
@@ -769,19 +769,19 @@ row: Row, size: auto, gap: 10 {
 **Min/Max constraints:** Clamp the resolved size of any actor (child or container):
 
 ```animatix
-a: Rect, size: (500, 50), min_width: 100, max_width: 300, min_height: 20
+a: Rect, size: (500, 50), min_width: 100, max_item_width: 300, min_height: 20
 ```
 
 - `min_width`, `min_height` — enforce a minimum size.
-- `max_height` — enforce a maximum size.
+- `max_item_width`, `max_height` — enforce a maximum size.
 - All four are optional (omit for no constraint).
 - Constraints apply after percentage resolution: `min ≤ resolved ≤ max`.
 - These are animatable (ASSIGNABLE).
 
 **Important notes:**
-- Percentage sizing resolves against the parent's **content box** (size minus padding).
-- If the parent container also uses intrinsic sizing, percentages resolve after the parent's size is computed from non-percentage children.
-- Existing fixed-size layouts continue to work unchanged (backward compatible).
+- At the scene root, percentages resolve against the logical canvas. Container children use the parent dimension or Grid cell described above.
+- A relative child needs a definite parent axis. A missing basis can produce a layout fallback diagnostic.
+- In a size assignment, a numeric expression such as `box.size = (scene_width * 50%, 40)` gives a size in scene units. A bare percentage axis in an assignment evaluates as a fraction and emits a diagnostic.
 
 ---
 
@@ -1235,7 +1235,7 @@ one offscreen pass. The GPU pass contract is specified in `docs/effects.md`.
 Use an actor point to keep the clear area on moving content:
 
 ```animatix
-config { resolution: (960, 540), duration: 2 }
+config { canvas_size: (960, 540), duration: 2 }
 
 #0s
   plate: Filter, at: (0, 0), bounds: (0, 0, 960, 540) {
@@ -1439,8 +1439,8 @@ The following variables are automatically available in `always` blocks and expre
 | Variable | Type | Description |
 |----------|------|-------------|
 | `t` | `Num` | Scene-local time in **seconds**, starting at `0.0` when the scene begins. In multi-scene compositions, `t` resets to `0` at each scene boundary; it does **not** accumulate across scenes. |
-| `scene_width` | `Num` | Scene width in pixels (from `config { resolution: (w, h) }`). |
-| `scene_height` | `Num` | Scene height in pixels. |
+| `scene_width` | `Num` | Logical canvas width in scene units. |
+| `scene_height` | `Num` | Logical canvas height in scene units. |
 
 **Scene anchor points** (available as `Vec2`):
 ```animatix
@@ -2186,7 +2186,7 @@ typography, spacing tokens, and graph defaults. Choose a `colorscheme` to
 supply the colors used by those defaults. Both settings are scene-scoped.
 
 ```amx
-config { resolution: (1280, 720), style: "editorial", colorscheme: "paper" }
+config { canvas_size: (1280, 720), style: "editorial", colorscheme: "paper" }
 #0s
   title: Text, text: "Approximating cosine", role: title
   note: Text, text: "Near the origin", role: note, font_size: 28
@@ -2217,7 +2217,7 @@ They place horizontal graph labels in the bottom margin.
 
 Reusable components can read `theme.margin`, `theme.gap`, `theme.inset`, and
 `theme.radius` as numeric values. `scene_width` and `scene_height` expose the
-authored resolution to build-time layout expressions.
+logical canvas dimensions to expressions at build and frame time.
 
 ### Text fitting and paint ranges
 
@@ -2824,14 +2824,18 @@ Returns a `Value::Object` with typed fields. Field reads (`p.x`, `p.a.b`) are im
 | `--duration` | *auto* | Omit to use timeline length + hold |
 | `--hold` | 1.0 | Trailing hold in seconds; ignored when `--duration` is set |
 | `--fps` | 30 (video), 15 (GIF) | Output framerate |
-| `--width` / `--height` | 1280x720 (video), 640x360 (GIF) | Output resolution |
-| `--export-preset` | *none* | Named preset: `720p30`, `1080p30`, `1080p60`, `4k30`; overrides resolution/fps/codec/preset |
+| `--width` / `--height` | Authored canvas, else 1280×720 (image/video), 640×360 (GIF) | Output pixels. One explicit axis derives the other from the canvas ratio. |
+| `--export-preset` | *none* | Named preset: `720p30`, `1080p30`, `1080p60`, `4k30`; supplies output size, FPS, codec, and encoder preset |
 | `--scene NAME` | whole composition | Export one named chapter (video) |
 | `--no-audio` | include audio | Omit the audio track (video) |
 
 **Export presets:** CLI and GUI share the named `ExportPreset` set. A document can
 also declare `config { export_preset: "1080p30" }`; CLI video/GIF export uses it
-when no explicit `--export-preset` flag is provided.
+when no explicit `--export-preset` flag is provided. Explicit output dimensions
+take precedence over the preset's dimensions. A different output aspect ratio
+fits the logical canvas inside the frame with centered black padding. GUI export
+defaults to the canvas and lets you unlock the output aspect ratio. Web playback
+adapts raster pixels to the displayed element and device pixel ratio.
 
 **Auto-duration:** If `--duration` is omitted, the CLI builds the timeline, reads `Timeline::duration_seconds()` (the latest track, background, child-order, camera, or finite local invocation endpoint), and adds a trailing hold (configurable via `--hold`, default **1.0s**). This prevents the export from cutting off bluntly at the last animation's end frame.
 
@@ -2999,7 +3003,7 @@ graph: Rect, size: (400, 400)
 
 ### Per-Scene Configuration
 
-A scene may contain its own `config` block after the scene declaration. Scene-scoped keys (`colorscheme`, `dynamic_layout`, `duration`) override the prelude; composition-scoped keys (`resolution`, `strict_types`) are ignored with a warning. See [Config Merge Semantics](#config-merge-semantics) below.
+A scene may contain its own `config` block after the scene declaration. Scene-scoped keys (`colorscheme`, `dynamic_layout`, `duration`) override the prelude; composition-scoped keys (`canvas_size`, `strict_types`) are ignored with a warning. See [Config Merge Semantics](#config-merge-semantics) below.
 
 **Position inside the scene does not matter.** A `config` block configures its
 scene whether it is the first statement after the header or the last, and several
@@ -3026,7 +3030,7 @@ Top-level statements before the first scene (imports, `pub let`, file-level `con
 import "./theme.amx" as theme
 pub let accent = theme::accent
 
-config { resolution: (1280, 720) }
+config { canvas_size: (1280, 720) }
 
 # Intro
 title: Text, text: "Welcome", color: accent
@@ -3074,21 +3078,21 @@ Cross-file scenes are referenced as `alias::SceneName` in `play` statements. Eac
 When both the shared prelude and a scene define `config` blocks, the **scene-level config takes precedence** for scene-scoped keys. The prelude provides base defaults; scene config overrides them.
 
 ```animatix
-config { resolution: (1280, 720), colorscheme: "default-dark" }
+config { canvas_size: (1280, 720), colorscheme: "default-dark" }
 
 # Intro
 config { colorscheme: "editorial-dark" }  // overrides prelude colorscheme
-// Intro uses: resolution (1280, 720) from prelude, colorscheme "editorial-dark" from scene config
+// Intro inherits the prelude canvas and selects its own colorscheme.
 
 # Diagram
-// No scene config — inherits both resolution and colorscheme from prelude
+// This scene inherits the canvas and colorscheme from the prelude.
 ```
 
 **Config key scopes:**
 
 | Key | Scope | Scene override? | Notes |
 |-----|-------|----------------|-------|
-| `resolution` | Composition | ❌ No | Set once in the prelude; affects canvas size and export dimensions. Scene-level `resolution` is ignored with a warning. |
+| `canvas_size` | Composition | ❌ No | Logical width and height as positive integer literals. Defaults to `(1920, 1080)`. Set once in the top-level config. |
 | `strict_types` | Program | ❌ No | Enables strict type checking for the entire file. Scene-level `strict_types` is ignored. |
 | `text_fast_path` | Program | ❌ No | Accepted for compatibility; ordinary Text always uses the literal text path. |
 | `font_files` | Program | ❌ No | Ordered project font files, resolved before any text is shaped. Later files take precedence over earlier faces of the same family. |
@@ -3105,7 +3109,7 @@ config { colorscheme: "editorial-dark" }  // overrides prelude colorscheme
 **Merge rules:**
 - The shared prelude statements are prepended to every scene's body before timeline compilation.
 - Scene-scoped keys such as `colorscheme`, `style`, and `duration` override the prelude.
-- Composition-scoped keys (`resolution`, `strict_types`) are inherited from the prelude only; scene-level overrides produce a warning and are ignored.
+- Composition-scoped keys (`canvas_size`, `strict_types`) are inherited from the prelude only; scene-level overrides produce a warning and are ignored.
 - Properties present only in the prelude are inherited by all scenes.
 - Properties present only in a scene's config apply only to that scene.
 
@@ -3150,7 +3154,7 @@ remove(target: camera)
 ### Examples
 
 ```animatix
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }
 
 # Intro
 title: Text, text: "Welcome", font_size: 48, at: (640, 200)

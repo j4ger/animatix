@@ -51,11 +51,11 @@ struct VideoArgs {
     #[arg(long)]
     no_audio: bool,
 
-    /// Output video width (defaults to the file's `config { resolution: .. }`, else 1280)
+    /// Output video width (defaults to the configured canvas size, else 1280)
     #[arg(long)]
     width: Option<u32>,
 
-    /// Output video height (defaults to the file's `config { resolution: .. }`, else 720)
+    /// Output video height (defaults to the configured canvas size, else 720)
     #[arg(long)]
     height: Option<u32>,
 
@@ -204,11 +204,11 @@ enum Commands {
         #[command(flatten)]
         set: SetArgs,
 
-        /// Output image width (defaults to the file's `config { resolution: .. }`, else 1280)
+        /// Output image width (defaults to the configured canvas size, else 1280)
         #[arg(long)]
         width: Option<u32>,
 
-        /// Output image height (defaults to the file's `config { resolution: .. }`, else 720)
+        /// Output image height (defaults to the configured canvas size, else 720)
         #[arg(long)]
         height: Option<u32>,
 
@@ -279,11 +279,11 @@ enum Commands {
         #[command(flatten)]
         set: SetArgs,
 
-        /// Output GIF width (defaults to the file's `config { resolution: .. }`, else 640)
+        /// Output GIF width (defaults to the configured canvas size, else 640)
         #[arg(long)]
         width: Option<u32>,
 
-        /// Output GIF height (defaults to the file's `config { resolution: .. }`, else 360)
+        /// Output GIF height (defaults to the configured canvas size, else 360)
         #[arg(long)]
         height: Option<u32>,
 

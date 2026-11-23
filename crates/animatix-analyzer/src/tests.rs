@@ -106,7 +106,7 @@ fn analyzer_handles_parse_errors() {
 #[test]
 fn transform_is_known_actor_property() {
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 a: Rect, size: (100, 100), transform: (1, 0.5, 0, 1, 0, 0), color: accent.primary, at: (200, 150)
 "#;
     let analyzer = Analyzer::new(source);

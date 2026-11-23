@@ -75,8 +75,7 @@ impl Timeline {
         // The scene is a definite parent box for a top-level relative Group,
         // including generated wrappers around full-screen backdrop components.
         let assigned = if self.world.hierarchy(id).parent.is_none() {
-            let defaults = crate::timeline::SceneDimensions::default();
-            let (width, height) = self.resolution.unwrap_or((defaults.width, defaults.height));
+            let crate::timeline::SceneDimensions { width, height } = self.canvas_dimensions();
             self.resolve_group_relative_child(
                 id,
                 [Some(width as f32), Some(height as f32)],

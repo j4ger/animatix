@@ -1,4 +1,4 @@
-config { style: "compact", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6 }
+config { style: "compact", colorscheme: "editorial-dark", canvas_size: (1280, 720), duration: 6 }
 
 let inks = {accent.primary, accent.info, accent.warning}
 let tile_size = 100

@@ -1,5 +1,5 @@
 // Static text corpus: Latin markup literals, CJK fallback, bidi controls and variable weights.
-config { resolution: (960, 540), duration: 2 }
+config { canvas_size: (960, 540), duration: 2 }
 
 literal: Text, text: "*literal* #markup `text`", font_family: "Open Sans", font_size: 30, font_weight: 400, color: hex_color("f2f4f8"), anchor: scene.center, offset: (0, -190), opacity: 1
 

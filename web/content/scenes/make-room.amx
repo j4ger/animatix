@@ -1,7 +1,7 @@
 // Sort [4, 2a, 5, 2b, 3]. The letters show the relative order of equal values.
 import "../templates/layout.amx"
 
-config { style: "compact", colorscheme: "default-light", resolution: (1280, 720), duration: 24 }
+config { style: "compact", colorscheme: "default-light", canvas_size: (1280, 720), duration: 24 }
 
 let keys = {"4", "2a", "5", "2b", "3"}
 let width = 110

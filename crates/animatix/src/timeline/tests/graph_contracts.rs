@@ -94,7 +94,7 @@ explicit: NumberPlane, size: (200, 160), x_domain: (-5, 5), y_domain: (-4, 4),
 
 fn nested_graph_entrance_fixture() -> Timeline {
     let source = r#"
-config { resolution: (1280, 720), duration: 5 }
+config { canvas_size: (1280, 720), duration: 5 }
 pub component PlotCard() {
     graph: Graph, size: (400, 300), x_domain: (-pi, pi), y_domain: (-2, 2) {
         curve: PlotCurve, kind: "cartesian", func: (x) => sin(x), stroke_width: 4

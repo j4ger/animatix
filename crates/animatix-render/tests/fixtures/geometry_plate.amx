@@ -1,5 +1,5 @@
 // Eight independent 96px cells. No labels/fonts, effects, camera or animation.
-config { resolution: (384, 192) }
+config { canvas_size: (384, 192) }
 #0s
 scene.background_color = (0, 0, 0, 1)
 rect: Rect, at: (48, 48), size: (56, 40), color: (1, 0, 0, 1), stroke_width: 0

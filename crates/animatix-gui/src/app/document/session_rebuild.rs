@@ -6,7 +6,6 @@ use std::hash::{Hash, Hasher};
 
 use animatix::composition::BuildTarget;
 use animatix::timeline::{SceneDimensions, TimelineIndex};
-use animatix_syntax::ast::{Expr, Stmt};
 use animatix_syntax::source_index::SourceIndex;
 
 use super::DocumentSession;
@@ -144,7 +143,7 @@ impl DocumentSession {
         }
         self.last_rebuild_error = None;
         self.duration_s = report.output.duration_s().max(0.1);
-        self.scene_dimensions = document_scene_dimensions(&expanded.statements);
+        self.scene_dimensions = report.output.canvas_dimensions();
         self.raw_statements = Some(result.raw_statements);
         self.expanded_statements = Some(expanded.statements);
         self.source_index = Some(source_index);
@@ -289,34 +288,4 @@ impl DocumentSession {
             })
         })
     }
-}
-
-pub(super) fn document_scene_dimensions(ast: &[Stmt]) -> SceneDimensions {
-    ast.iter()
-        .find_map(|stmt| match stmt {
-            Stmt::Config { settings, .. } => settings.iter().find_map(|property| {
-                if property.name != "resolution" {
-                    return None;
-                }
-
-                let Expr::Tuple(items) = &property.value else {
-                    return None;
-                };
-                if items.len() != 2 {
-                    return None;
-                }
-
-                match (&items[0], &items[1]) {
-                    (Expr::Num(width), Expr::Num(height)) if *width > 0.0 && *height > 0.0 => {
-                        Some(SceneDimensions {
-                            width: width.round() as u32,
-                            height: height.round() as u32,
-                        })
-                    },
-                    _ => None,
-                }
-            }),
-            _ => None,
-        })
-        .unwrap_or_default()
 }

@@ -1,7 +1,7 @@
 // Emphasis changes contrast, not layout. Neighbours stay visible as context.
 import "../templates/layout.amx"
 
-config { style: "editorial", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7 }
+config { style: "editorial", colorscheme: "editorial-dark", canvas_size: (1280, 720), duration: 7 }
 
 let count = 3
 let tile_size = 150

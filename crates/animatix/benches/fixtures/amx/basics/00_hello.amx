@@ -2,7 +2,7 @@ import "../../../../examples/web_present_driver/fixtures/lib/theme.amx"
 
 import "../../../../examples/web_present_driver/fixtures/lib/stage.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 1.5 }
+config { colorscheme: "ink", canvas_size: (1280, 720), duration: 1.5 }
 
 floor: StageFloor
 

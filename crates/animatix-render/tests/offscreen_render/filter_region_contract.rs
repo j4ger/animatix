@@ -23,7 +23,7 @@ fn growing_filter_auto_region_matches_explicit_region_across_seeks() {
             let source = |bounds: &str| {
                 format!(
                     r##"
-config {{ resolution: (400,200), duration: 3 }}
+config {{ canvas_size: (400,200), duration: 3 }}
 scope: Filter, at: (200,100), opacity: 1{bounds} {{
  fx: Blur, radius: 4
  box: Rect, size: (60,40), color: hex_color("ff0000"), opacity: 1
@@ -67,7 +67,7 @@ fn full_canvas_filter_bounds_preserve_vignette_coordinate_extent() {
         let source = |bounds: &str| {
             format!(
                 r##"
-config {{ resolution: (400,200) }}
+config {{ canvas_size: (400,200) }}
 scope: Filter, at: (200,100), opacity: 1{bounds} {{
  fx: Vignette, amount: 1, radius: 0.1, softness: 0.5
  box: Rect, size: (120,60), color: hex_color("ffffff"), opacity: 1
@@ -109,7 +109,7 @@ fn filtered_shadow_region_matches_fresh_explicit_reference_after_memo_hits() {
         let source = |bounds: &str| {
             format!(
                 r##"
-config {{ resolution: (400,240), duration: 3 }}
+config {{ canvas_size: (400,240), duration: 3 }}
 scope: Filter, at:(200,120), opacity:1{bounds} {{
  fx: Blur, radius: 2
  box: Rect, size:(100,60), color:hex_color("ff0000"), opacity:1,
@@ -151,7 +151,7 @@ fn reactive_shadow_matches_keyframed_pixels_across_seeks() {
         height: 240,
     };
     let source = r##"
-config { resolution: (400,240), duration: 3 }
+config { canvas_size: (400,240), duration: 3 }
 scope: Filter, at:(200,120), opacity:1 {
   fx: Blur, radius: 2
   box: Rect, size:(100,60), color:hex_color("ff0000"), opacity:1,
@@ -182,7 +182,7 @@ fn reactive_text_color_and_callout_content_match_static_output() {
     };
     let source = |color: &str, label: &str| {
         format!(
-            r#"config {{ resolution: (400, 240), duration: 2 }}
+            r#"config {{ canvas_size: (400, 240), duration: 2 }}
 #0s
 heading: Text, text: "Heading", font_size: 32, at: (120, 70), color: hex_color("{color}")
 note: Callout, from: (-40, 0), to: (40, 0), at: (270, 145), label_at: (-10, 38), label: "{label}"
@@ -213,7 +213,7 @@ fn same_type_fade_morph_draws_both_endpoint_silhouettes() {
     };
     let timeline = build(
         r##"
-config { resolution: (160, 120), duration: 3 }
+config { canvas_size: (160, 120), duration: 3 }
 #0s
 shape: Rect, at: (80, 60), size: (120, 40), color: hex_color("ff0000")
 #1s

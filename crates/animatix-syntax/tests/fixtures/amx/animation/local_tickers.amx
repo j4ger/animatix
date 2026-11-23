@@ -1,6 +1,6 @@
 // One ticker animation, reused at two paces and on two independent actors.
 // The explicit last stamps hand each scoped motion back to the authored scene.
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 5 }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720), duration: 5 }
 
 title: Text, text: "One ticker, two tempos", font_size: 42, font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 55)
 

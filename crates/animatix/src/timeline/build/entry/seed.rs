@@ -144,8 +144,9 @@ pub(super) fn seed_environment(
     timeline.apply_colorscheme(BuiltInColorscheme::DefaultDark.resolved());
     // Seed build-time environment with scene dimensions so `let` declarations
     // can reference `scene_width` / `scene_height`.
-    let defaults = SceneDimensions::default();
-    seed_canvas_globals(&mut timeline.env, defaults.width, defaults.height);
+    timeline.canvas_size = animatix_syntax::config_keys::configured_canvas_size(ast, diagnostics);
+    let canvas = timeline.canvas_dimensions();
+    seed_canvas_globals(&mut timeline.env, canvas.width, canvas.height);
 
     timeline.load_colorscheme_declarations(ast, diagnostics);
 
@@ -163,10 +164,6 @@ pub(super) fn seed_environment(
     }
     super::project_fonts::apply(timeline, ast, diagnostics);
 
-    // Use the authored canvas when sizing scene content at build time.
-    if let Some((width, height)) = timeline.resolution {
-        seed_canvas_globals(&mut timeline.env, width, height);
-    }
     timeline.seed_style_values();
 
     // Inject carry bag (if any) BEFORE statement processing so that

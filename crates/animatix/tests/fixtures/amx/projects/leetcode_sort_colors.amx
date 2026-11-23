@@ -13,7 +13,7 @@ import "../../../../examples/web_present_driver/fixtures/lib/stage.amx"
 
 import "../../../../examples/web_present_driver/fixtures/lib/theme.amx"
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), dynamic_layout: true }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720), dynamic_layout: true }
 
 let values = {2, 0, 1, 2, 1, 0}
 

@@ -7,7 +7,7 @@ use crate::diagnostics::DiagnosticCode;
 fn fixed_point_specifier_renders_the_number() {
     let report = build(
         r#"
-config { resolution: (320, 180) }
+config { canvas_size: (320, 180) }
 #0s
 t: Text, text: format("{:.1f}k msg/s", 184.5), at: (160, 90)
 "#,
@@ -27,7 +27,7 @@ t: Text, text: format("{:.1f}k msg/s", 184.5), at: (160, 90)
 fn precision_zero_still_renders_a_whole_number() {
     let report = build(
         r#"
-config { resolution: (320, 180) }
+config { canvas_size: (320, 180) }
 #0s
 t: Text, text: format("{:.0}", 2.6), at: (160, 90)
 "#,
@@ -39,7 +39,7 @@ t: Text, text: format("{:.0}", 2.6), at: (160, 90)
 fn unsupported_specifier_warns_with_the_actor_and_specifier() {
     let report = build(
         r#"
-config { resolution: (320, 180) }
+config { canvas_size: (320, 180) }
 #0s
 t: Text, text: format("{:d}", 7), at: (160, 90)
 "#,
@@ -70,7 +70,7 @@ t: Text, text: format("{:d}", 7), at: (160, 90)
 fn unsupported_specifier_in_an_always_block_warns_with_the_actor() {
     let report = build(
         r#"
-config { resolution: (320, 180) }
+config { canvas_size: (320, 180) }
 t: Text, text: "0", at: (160, 90)
 always {
   t.text = format("{:,}", 1000)

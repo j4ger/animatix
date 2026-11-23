@@ -316,7 +316,7 @@ fn test_local_time_for_scene() {
 fn test_single_scene_no_scenes_parsed() {
     // Single-scene file — no # SceneName declarations.
     let (parsed, _) = parse_source(concat!(
-        "config { resolution: (1280, 720) }\n",
+        "config { canvas_size: (1280, 720) }\n",
         "#0s\n",
         "title: Text, text: \"Hello\"\n",
         "#1s\n",
@@ -437,10 +437,10 @@ fn a_transition_without_an_eased_authored_stays_linear() {
 #[test]
 fn test_scene_config_resolution_warning() {
     let report = build_composition(concat!(
-        "config { resolution: (1280, 720) }\n",
+        "config { canvas_size: (1280, 720) }\n",
         "\n",
         "# Intro\n",
-        "config { resolution: (1920, 1080) }\n",
+        "config { canvas_size: (1920, 1080) }\n",
         "#0s\n",
         "title: Text, text: \"Welcome\"\n",
         "\n",
@@ -450,7 +450,7 @@ fn test_scene_config_resolution_warning() {
     ));
     let has_resolution_warning = report.diagnostics.iter().any(|d| {
         d.code == DiagnosticCode::InvalidConfigValue
-            && d.message.contains("resolution")
+            && d.message.contains("canvas_size")
             && d.message.contains("composition-scoped")
     });
     assert!(has_resolution_warning, "Expected resolution scene-config warning");
@@ -1072,7 +1072,7 @@ fn a_scene_config_written_after_an_import_still_sets_the_scene_duration() {
     let report = build_composition(concat!(
         "# Intro\n",
         "import \"./lib/tokens.amx\" as tk\n",
-        "config { resolution: (400, 300), duration: 4 }\n",
+        "config { canvas_size: (400, 300), duration: 4 }\n",
         "title: Text, text: \"Welcome\"\n",
         "#0s\n",
         "title.opacity = 0\n",

@@ -77,7 +77,7 @@ fn main() {
 
     let dims = timelines
         .first()
-        .and_then(|t| t.resolution())
+        .and_then(|t| t.configured_canvas_size())
         .map(|(w, h)| SceneDimensions {
             width: w,
             height: h,

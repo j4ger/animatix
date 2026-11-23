@@ -34,7 +34,7 @@ fn first_easing(stmts: &[Stmt]) -> Option<Easing> {
 
 fn source_with(ease: &str) -> String {
     format!(
-        "config {{ resolution: (400, 400), duration: 2 }}\nd: Rect, size: (40, 40), color: accent.primary, at: (60, 200)\n#0.2s\nd.at = (340, 200) [1.2s, ease: {ease}]\n"
+        "config {{ canvas_size: (400, 400), duration: 2 }}\nd: Rect, size: (40, 40), color: accent.primary, at: (60, 200)\n#0.2s\nd.at = (340, 200) [1.2s, ease: {ease}]\n"
     )
 }
 
@@ -131,7 +131,7 @@ fn a_play_transition_ease_parses_and_survives_formatting() {
 
     let doc = |ease: &str| {
         format!(
-            "# A\nconfig {{ resolution: (400, 400), duration: 1 }}\nb: Rect, size: (10, 10), color: accent.primary, at: (1, 1)\n#0s\nplay B [fade, 800ms, ease: {ease}]\n# B\nconfig {{ resolution: (400, 400), duration: 1 }}\nc: Rect, size: (10, 10), color: accent.primary, at: (1, 1)\n"
+            "# A\nconfig {{ canvas_size: (400, 400), duration: 1 }}\nb: Rect, size: (10, 10), color: accent.primary, at: (1, 1)\n#0s\nplay B [fade, 800ms, ease: {ease}]\n# B\nconfig {{ canvas_size: (400, 400), duration: 1 }}\nc: Rect, size: (10, 10), color: accent.primary, at: (1, 1)\n"
         )
     };
 
@@ -152,7 +152,7 @@ fn a_play_transition_ease_parses_and_survives_formatting() {
     }
 
     // No authored ease must not start inventing one in the output.
-    let plain = "# A\nconfig { resolution: (400, 400), duration: 1 }\n#0s\nplay B [fade, 800ms]\n# B\nconfig { resolution: (400, 400), duration: 1 }\n";
+    let plain = "# A\nconfig { canvas_size: (400, 400), duration: 1 }\n#0s\nplay B [fade, 800ms]\n# B\nconfig { canvas_size: (400, 400), duration: 1 }\n";
     let out = animatix_syntax::to_source::stmts_to_source(&parse(plain));
     assert!(!out.contains("ease:"), "a transition with no authored ease grew one:\n{out}");
 }

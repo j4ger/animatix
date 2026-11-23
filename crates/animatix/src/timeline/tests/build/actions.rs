@@ -12,7 +12,7 @@ fn brace_list_with_non_numeric_element_warns() {
     // non-numeric element produces an InvalidPropertyValue diagnostic and
     // the previous position is kept.
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (480, 270) }
+config { colorscheme: "editorial-dark", canvas_size: (480, 270) }
 
 box: Rect, size: (80, 40), color: accent.primary, anchor: scene.center
 
@@ -101,7 +101,7 @@ r: Rect, at: (100, 50), size: (120, 70), color: (1, 1, 1, 1), corner_radius: 30 
 // path has always honoured it. These pin the single-scene equivalent.
 
 const SCENE_WITH_DURATION: &str = r#"
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 2.0 }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720), duration: 2.0 }
 r: Rect, size: (100, 100), color: accent.primary, at: (640, 360)
 #5s
 fade_in(target: r, duration: 500ms)
@@ -146,7 +146,7 @@ fn truncating_at_the_declared_duration_warns() {
 fn declared_duration_longer_than_content_extends_playback_without_warning() {
     let report = build(
         r#"
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 8.0 }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720), duration: 8.0 }
 r: Rect, size: (100, 100), color: accent.primary, at: (640, 360)
 #1s
 fade_in(target: r, duration: 500ms)
@@ -224,7 +224,7 @@ fn every_documented_config_key_is_recognised() {
         r#"
 config {
     colorscheme: "editorial-dark",
-    resolution: (1280, 720),
+    canvas_size: (1280, 720),
     duration: 8.0,
     dynamic_layout: true,
     strict_types: false,
@@ -252,7 +252,7 @@ fn rect_to_ellipse_redeclaration_keeps_rect_geometry_before_the_morph() {
     // A type-morphing re-declaration must render as the declared type until
     // the morph beat without leaking target geometry into the pre-morph span.
     let source = r#"
-config { resolution: (640, 360), duration: 3 }
+config { canvas_size: (640, 360), duration: 3 }
 box: Rect, size: (140, 140), color: accent.primary, at: (320, 180)
 
 #0.3s
@@ -301,7 +301,7 @@ box: Ellipse, size: (140, 140), color: accent.success [900ms, strategy: match]
 fn bounce_action_settles_with_decaying_hops() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 a: Rect, size: (40, 40), color: accent.primary, at: (200, 150)
 bounce(target: a, duration: 1s, intensity: 100)
@@ -329,7 +329,7 @@ bounce(target: a, duration: 1s, intensity: 100)
 fn bounce_restitution_stretches_the_series_to_the_duration() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 a: Rect, size: (40, 40), color: accent.primary, at: (200, 150)
 bounce(target: a, duration: 1s, intensity: 100, restitution: 0.9)
@@ -353,7 +353,7 @@ bounce(target: a, duration: 1s, intensity: 100, restitution: 0.9)
 fn action_modifiers_are_tolerated_from_the_signature_not_a_literal_list() {
     let report = build(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 a: Rect, size: (40, 40), color: accent.primary, at: (200, 150)
 bounce(target: a, duration: 1s, intensity: 40, restitution: 0.7)
@@ -372,7 +372,7 @@ bounce(target: a, duration: 1s, intensity: 40, restitution: 0.7)
 fn a_misspelled_action_modifier_still_warns() {
     let report = build(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 a: Rect, size: (40, 40), color: accent.primary, at: (200, 150)
 bounce(a, duration: 1s, intensy: 40)
@@ -390,7 +390,7 @@ bounce(a, duration: 1s, intensy: 40)
 fn stroke_only_shapes_inherit_an_authored_color_into_their_stroke() {
     for (ty, label) in [("Arrow", "arrow"), ("Line", "line")] {
         let source = format!(
-            "config {{ colorscheme: \"editorial-dark\", resolution: (640, 360) }}\n\
+            "config {{ colorscheme: \"editorial-dark\", canvas_size: (640, 360) }}\n\
              #0s\na: {ty}, from: (100, 100), to: (300, 200), color: accent.danger, at: (0, 0)\n"
         );
         let report = build(&source);
@@ -413,7 +413,7 @@ fn stroke_only_shapes_inherit_an_authored_color_into_their_stroke() {
 fn plot_actors_honour_an_authored_opacity() {
     for ty in ["Graph", "BarChart"] {
         let source = format!(
-            "config {{ colorscheme: \"editorial-dark\", resolution: (640, 360) }}\n\
+            "config {{ colorscheme: \"editorial-dark\", canvas_size: (640, 360) }}\n\
              #0s\ng: {ty}, size: (400, 300), values: {{1, 2, 3}}, x_domain: (-1, 1), \
              y_domain: (-1, 1), opacity: 0.05, at: (320, 180)\n"
         );
@@ -431,7 +431,7 @@ fn plot_actors_honour_an_authored_opacity() {
 /// starting value rather than adopting its own target value before the beat.
 #[test]
 fn a_redeclaration_starts_from_what_it_replaces_not_from_its_target() {
-    let prelude = "config { resolution: (400, 300), duration: 3 }\n\
+    let prelude = "config { canvas_size: (400, 300), duration: 3 }\n\
                    a: Ellipse, size: (60, 60), color: (1.0, 0.0, 0.0, 1.0), at: (100, 100)\n";
     let cases = [
         (
@@ -491,7 +491,7 @@ fn a_redeclaration_starts_from_what_it_replaces_not_from_its_target() {
 #[test]
 fn an_undated_text_swap_holds_the_old_string_until_its_own_stamp() {
     let source = "\
-config { resolution: (400, 300), duration: 3 }
+config { canvas_size: (400, 300), duration: 3 }
 t: Text, text: \"first\", font_size: 30, at: (100, 100)
 #2s
 t.text = \"second\"
@@ -531,7 +531,7 @@ t.text = \"second\"
 #[test]
 fn an_undated_numeric_assignment_is_a_step_not_a_backwards_ramp() {
     let source = "\
-config { resolution: (400, 300), duration: 3 }
+config { canvas_size: (400, 300), duration: 3 }
 r: Rect, size: (40, 40), color: (1.0, 0.0, 0.0, 1.0), opacity: 1.0, at: (200, 200)
 #2s
 r.opacity = 0.0
@@ -559,7 +559,7 @@ fn gradient_paints_are_parsed_stamped_and_interpolated() {
     // declaration seeds them, dated assignments interpolate, and the shared
     // `gradient_extend:` / `gradient_space:` settings ride the stamp.
     let source = r##"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 r: Rect, size: (200, 120), at: (320, 180), color: accent.primary,
   fill_gradient: linear(135, {hex_color("ff0000"), hex_color("00ff00")}),
@@ -652,7 +652,7 @@ fn seamless_loop_lints_values_that_do_not_wrap() {
     // keyframed value that differs between the first and last frame jumps on
     // every replay. A scene whose values do wrap must stay quiet.
     let broken = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360), seamless_loop: true }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360), seamless_loop: true }
 
 box: Rect, size: (100, 100), at: (200, 180), color: accent.primary
 #0s
@@ -665,7 +665,7 @@ box.at = (440, 180)
     // is transparent at frame 0 and opaque at the end, which is itself a seam)
     // and a position that returns to where it started.
     let seamless = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360), seamless_loop: true }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360), seamless_loop: true }
 
 box: Rect, size: (100, 100), at: (200, 180), color: accent.primary, opacity: 1.0
 #0s
@@ -705,7 +705,7 @@ box.at = (200, 180)
 #[test]
 fn seamless_loop_lints_camera_axes() {
     let pushed = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360), seamless_loop: true }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360), seamless_loop: true }
 box: Rect, size: (100, 100), at: (320, 180), color: accent.primary, opacity: 1.0
 #0s
 camera.zoom = 1.0
@@ -713,7 +713,7 @@ camera.zoom = 1.0
 camera.zoom = 1.8
 "#;
     let wrapped = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360), seamless_loop: true }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360), seamless_loop: true }
 box: Rect, size: (100, 100), at: (320, 180), color: accent.primary, opacity: 1.0
 #0s
 camera.zoom = 1.0
@@ -754,7 +754,7 @@ fn settle_in_and_pop_in_ramp_scale_onto_the_authored_scale() {
     // already authored, so `scale: 2` still ends at 2 instead of being
     // flattened to 1 by the entrance.
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 card: Rect, size: (120, 80), at: (200, 180), color: accent.primary
 chip: Ellipse, size: (60, 60), at: (420, 180), color: accent.warning
@@ -821,7 +821,7 @@ fn anticipate_inserts_a_counter_move_before_the_travel() {
     // `[anticipate: 100ms]` leans the actor back by 12% of its travel before
     // the move starts, so the translation reads as intentional.
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 dot: Ellipse, size: (40, 40), at: (200, 180), color: accent.primary
 
@@ -869,7 +869,7 @@ fn cli_defines_shadow_the_authored_let_defaults() {
     // defaults with a top-level `let`, and the command line replaces them
     // before anything resolves against the build environment.
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 let label = "Default"
 let tint = (1.0, 0.0, 0.0, 1.0)
@@ -924,7 +924,7 @@ fn beat_stamps_resolve_against_the_declared_tempo() {
     let source = |config: &str| {
         format!(
             r#"
-config {{ colorscheme: "editorial-dark", resolution: (640, 360), {config} }}
+config {{ colorscheme: "editorial-dark", canvas_size: (640, 360), {config} }}
 
 box: Rect, size: (100, 100), at: (200, 180), color: accent.primary, opacity: 1.0
 #0s
@@ -967,7 +967,7 @@ fn icon_property_expands_to_commands_geometry() {
     // SVG parser lowers to move_to(20,6) + implicit line_to(9,17) +
     // relative line_to(4,12).
     let source = r#"
-        config { colorscheme: "editorial-dark", resolution: (640, 360) }
+        config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
         p_icon: Path, icon: "check", at: (100, 100)
         p_manual: Path,
@@ -1004,7 +1004,7 @@ fn icon_property_expands_to_commands_geometry() {
 #[test]
 fn unknown_icon_warns() {
     let source = r#"
-        config { colorscheme: "editorial-dark", resolution: (640, 360) }
+        config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
         p: Path, icon: "nope", at: (100, 100)
     "#;
@@ -1025,7 +1025,7 @@ fn unknown_icon_warns() {
 fn an_authored_scale_reaches_the_transform() {
     // `scale:` on an actor declaration must reach the initial transform keyframe.
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 box: Rect, size: (20, 20), at: (200, 180), color: accent.primary, scale: 4.0
 half: Rect, size: (20, 20), at: (400, 180), color: accent.primary, scale: 0.5
@@ -1053,7 +1053,7 @@ fn move_along_bakes_arc_length_keyframes_onto_the_route() {
     // arc length is the whole point, since the bezier parameter would crawl
     // through the curve and sprint along the straight.
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 dot: Ellipse, size: (20, 20), at: (100, 100), color: accent.primary, opacity: 1.0
 
@@ -1101,7 +1101,7 @@ fn draw_in_by_word_steps_through_the_words() {
     let build_variant = |extra: &str| {
         let source = format!(
             r#"
-config {{ colorscheme: "editorial-dark", resolution: (640, 360) }}
+config {{ colorscheme: "editorial-dark", canvas_size: (640, 360) }}
 
 line: Text, text: "aa bb cc dd", at: (320, 180), font_size: 40
 #0s

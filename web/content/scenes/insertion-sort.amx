@@ -1,7 +1,7 @@
 // Insert 3 into the sorted row [2, 4, 5].
 import "../templates/layout.amx"
 
-config { style: "compact", colorscheme: "paper", resolution: (960, 540), duration: 12.5 }
+config { style: "compact", colorscheme: "paper", canvas_size: (960, 540), duration: 12.5 }
 
 let card_size = (172, 116)
 let spacing = 220

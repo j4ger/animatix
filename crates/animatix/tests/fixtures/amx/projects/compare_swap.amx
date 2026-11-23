@@ -1,6 +1,6 @@
 // A single compare-and-swap decision: move the complete card so its value
 // and color stay attached while the row changes from [8, 3] to [3, 8].
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 3, dynamic_layout: true }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720), duration: 3, dynamic_layout: true }
 
 fn compare_swap(a, b, left: Num, right: Num) {
   return #{ if left > right {

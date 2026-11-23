@@ -1,4 +1,4 @@
-config { style: "compact", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6 }
+config { style: "compact", colorscheme: "editorial-dark", canvas_size: (1280, 720), duration: 6 }
 
 let radius = 150
 let period = 6

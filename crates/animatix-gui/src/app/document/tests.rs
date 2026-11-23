@@ -12,7 +12,6 @@ use super::save::{
     atomic_write, clear_recovery, recovery_is_newer, recovery_is_newer_than, recovery_path,
     write_recovery,
 };
-use super::session_rebuild::document_scene_dimensions;
 use super::timing::{timeline_duration_seconds, timeline_keyframe_times_s};
 use crate::error::GuiError;
 
@@ -110,17 +109,17 @@ fn duration_scans_latest_track_keyframe() {
 }
 
 #[test]
-fn scene_dimensions_use_config_resolution_when_present() {
+fn scene_dimensions_use_config_canvas_size_when_present() {
     let ast = vec![Stmt::Config {
         settings: vec![Property::new(
-            "resolution",
+            "canvas_size",
             Expr::Tuple(vec![Expr::Num(1280.0), Expr::Num(720.0)]),
         )],
         span: None,
     }];
 
     assert_eq!(
-        document_scene_dimensions(&ast),
+        Timeline::build(&ast).canvas_dimensions(),
         SceneDimensions {
             width: 1280,
             height: 720,
@@ -132,7 +131,7 @@ fn scene_dimensions_use_config_resolution_when_present() {
 fn scene_dimensions_fall_back_to_default_when_missing() {
     let ast = vec![Stmt::Comment("no config".to_string(), None)];
 
-    assert_eq!(document_scene_dimensions(&ast), SceneDimensions::default());
+    assert_eq!(Timeline::build(&ast).canvas_dimensions(), SceneDimensions::default());
 }
 
 #[test]
@@ -249,7 +248,7 @@ badge.color = red
     write_file(
         &entry,
         r#"
-config { resolution: (1280, 720) }
+config { canvas_size: (1280, 720) }
 import "./components.amx"
 
 card: MetricCard, title: "Latency"

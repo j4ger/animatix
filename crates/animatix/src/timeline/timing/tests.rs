@@ -78,7 +78,7 @@ fn an_explicit_ease_always_wins_over_the_role_default() {
 fn an_uneased_entrance_lands_the_eased_curve_on_its_keyframe() {
     // The default is only real if it reaches the track, not just the parser.
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 box: Rect, size: (100, 100), at: (200, 180), color: accent.primary
 #0s

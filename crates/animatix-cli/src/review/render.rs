@@ -14,7 +14,7 @@ use crate::frame_source::{
     DEFAULT_MIN_INK_PIXELS, DEFAULT_TOLERANCE, FrameView, actor_visibility, differing_fraction,
     frame_ink_fraction, render_frame_observable, verify_time_key,
 };
-use crate::review::facts::ReviewFacts;
+use crate::review::facts::{ReviewFacts, evaluate_frame};
 
 use super::types::{
     Policy, RenderFacts, RenderMode, RenderSampleFacts, RenderStatus, SiteRestFacts,
@@ -76,9 +76,14 @@ pub(crate) fn run_render_tier(
     let mut samples = Vec::new();
     let mut previous: Option<(f64, animatix_render::offscreen::RenderedFrame)> = None;
     for (index, &time_s) in all_times.iter().enumerate() {
-        let frame = facts
-            .frame_at(time_s)
-            .ok_or_else(|| format!("missing fact for sample time {}", time_s))?;
+        let site_frame;
+        let frame = if let Some(frame) = facts.frame_at(time_s) {
+            frame
+        } else {
+            // Site resting probes can fall outside the structural report's sample grid.
+            site_frame = evaluate_frame(target, dimensions, time_s, &facts.actors, None)?;
+            &site_frame
+        };
         let draw_order: Vec<crate::review::probe::ProbeActor> = frame
             .draw_order
             .iter()

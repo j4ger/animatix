@@ -105,16 +105,15 @@ impl Timeline {
     }
 
     pub(crate) fn style_scale(&self) -> f64 {
-        self.resolution.map_or(1.0, |(w, h)| {
-            let scale = f64::from(w.min(h)) / 720.0;
-            if matches!(self.style_preset, StylePreset::Editorial | StylePreset::Compact)
-                && f64::from(w) < 1.25 * f64::from(h)
-            {
-                scale * 0.80
-            } else {
-                scale
-            }
-        })
+        let SceneDimensions { width, height } = self.canvas_dimensions();
+        let scale = f64::from(width.min(height)) / 720.0;
+        if matches!(self.style_preset, StylePreset::Editorial | StylePreset::Compact)
+            && f64::from(width) < 1.25 * f64::from(height)
+        {
+            scale * 0.80
+        } else {
+            scale
+        }
     }
 
     pub(crate) fn seed_role_values(&mut self) {

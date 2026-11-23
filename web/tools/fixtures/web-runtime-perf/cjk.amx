@@ -1,5 +1,5 @@
 // CJK font fallback and vector geometry for a stable browser playback workload.
-config { resolution: (1280, 720), duration: 2 }
+config { canvas_size: (1280, 720), duration: 2 }
 
 title: Text, text: "动画运行时性能", font_size: 48, color: hex_color("f2f4f8"), anchor: scene.center, offset: (0, -150), opacity: 1
 

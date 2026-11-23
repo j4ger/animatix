@@ -48,12 +48,7 @@ pub fn render_image_timeline_with_options(
     }
     let mut renderer = OffscreenRenderer::new().map_err(ExportError::RendererCreation)?;
     let frame = renderer
-        .render_timeline_with_debug(
-            &timeline,
-            time as f64,
-            SceneDimensions { width, height },
-            debug_options,
-        )
+        .render_canvas(&timeline, time as f64, SceneDimensions { width, height }, debug_options)
         .map_err(|e| ExportError::FrameRender {
             frame: 0,
             message: e,
@@ -115,7 +110,7 @@ pub fn render_image_composition(
                 }
             })?;
             renderer
-                .render_transition(
+                .render_canvas_transition(
                     &from_scene.timeline,
                     blend.from_local,
                     &to_scene.timeline,
@@ -138,12 +133,7 @@ pub fn render_image_composition(
                 })?;
 
             renderer
-                .render_timeline_with_debug(
-                    &scene.timeline,
-                    local_time_s,
-                    dims,
-                    DebugRenderOptions::default(),
-                )
+                .render_canvas(&scene.timeline, local_time_s, dims, DebugRenderOptions::default())
                 .map_err(|e| ExportError::FrameRender {
                     frame: 0,
                     message: e,

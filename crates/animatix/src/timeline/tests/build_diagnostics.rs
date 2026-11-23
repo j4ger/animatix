@@ -225,7 +225,7 @@ fn conflicting_at_and_anchor_warning() {
 fn missing_glyph_warning_fires_for_unassignable_codepoints() {
     let source = format!(
         r#"
-config {{ resolution: (320, 180) }}
+config {{ canvas_size: (320, 180) }}
 t: Text, text: "a{}b", at: (160, 90)
 "#,
         '\u{10ffff}'
@@ -271,7 +271,7 @@ t: Text, text: "a{}b", at: (160, 90)
 #[test]
 fn unknown_declaration_property_warns() {
     let source = r#"
-config { resolution: (320, 180) }
+config { canvas_size: (320, 180) }
 r: Rect, size: (100, 80), colour: (1, 0, 0, 1), at: (160, 90)
 "#;
     let report = support::build(source);
@@ -300,7 +300,7 @@ fn inapplicable_warnings(source: &str) -> Vec<String> {
 fn a_property_the_primitive_never_reads_warns() {
     let warnings = inapplicable_warnings(
         r#"
-config { resolution: (320, 180) }
+config { canvas_size: (320, 180) }
 t: Text, text: "caption", font_size: 20, stroke_width: 6, at: (160, 90)
 "#,
     );
@@ -322,7 +322,7 @@ t: Text, text: "caption", font_size: 20, stroke_width: 6, at: (160, 90)
 fn a_wrap_width_on_a_text_actor_is_silent() {
     let warnings = inapplicable_warnings(
         r#"
-config { resolution: (320, 180) }
+config { canvas_size: (320, 180) }
 t: Text, text: "a long caption that wraps", font_size: 20, text_max_width: 240, at: (160, 90)
 l: Legend, at: (160, 150), title: "Series", text_max_width: 200
 "#,
@@ -345,7 +345,7 @@ fn trips_always_override(source: &str) -> bool {
 fn a_seeded_dash_offset_declaration_does_not_trip_the_lint() {
     assert!(!trips_always_override(
         r#"
-config { resolution: (320, 180), duration: 4 }
+config { canvas_size: (320, 180), duration: 4 }
 rail: Path, commands: {move_to(20, 90), line_to(300, 90)}, stroke: accent.primary,
   stroke_width: 2, fill_opacity: 0.0, dash_pattern: {10, 7}, opacity: 1.0
 always {
@@ -361,7 +361,7 @@ always {
 fn a_constant_declared_size_does_not_trip_the_lint() {
     assert!(!trips_always_override(
         r#"
-config { resolution: (320, 180), duration: 4 }
+config { canvas_size: (320, 180), duration: 4 }
 b: Rect, size: (100, 60), at: (160, 90), color: accent.primary, opacity: 1.0
 always {
   b.size = (100.0, 60.0)
@@ -376,7 +376,7 @@ always {
 fn a_keyframed_value_still_trips_the_lint() {
     assert!(trips_always_override(
         r#"
-config { resolution: (320, 180), duration: 4 }
+config { canvas_size: (320, 180), duration: 4 }
 b: Rect, size: (100, 60), at: (160, 90), color: accent.primary, opacity: 1.0
 #1s
 b.size = (140, 80) [1s]
@@ -393,7 +393,7 @@ always {
 fn equation_accepts_color_without_warning() {
     let warnings = inapplicable_warnings(
         r#"
-config { resolution: (320, 180) }
+config { canvas_size: (320, 180) }
 eq: Equation, font_size: 48, color: (1.0, 0.0, 0.0, 1.0), at: (160, 90) {
     e: Fragment, text: "E"
 }
@@ -410,7 +410,7 @@ eq: Equation, font_size: 48, color: (1.0, 0.0, 0.0, 1.0), at: (160, 90) {
 #[test]
 fn line_and_arrow_accept_actor_anchors_without_unknown_lookup_path() {
     let source = r#"
-config { resolution: (320, 180) }
+config { canvas_size: (320, 180) }
 pen: Ellipse, size: (18, 18), at: (100, 100)
 dot: Ellipse, size: (14, 14), at: (200, 100)
 link: Line, from: pen.center, to: dot.center
@@ -436,7 +436,7 @@ arrow: Arrow, from: pen.right, to: dot.left
 #[test]
 fn perspective_warns_as_unimplemented() {
     let source = r#"
-config { resolution: (320, 180) }
+config { canvas_size: (320, 180) }
 card: Rect, size: (100, 60), at: (160, 90), perspective: 800.0
 "#;
     let report = support::build(source);
@@ -456,7 +456,7 @@ card: Rect, size: (100, 60), at: (160, 90), perspective: 800.0
 
     // A scene that never authors it stays quiet.
     let quiet_source = r#"
-config { resolution: (320, 180) }
+config { canvas_size: (320, 180) }
 card: Rect, size: (100, 60), at: (160, 90)
 "#;
     let quiet = support::build(quiet_source);
@@ -474,7 +474,7 @@ card: Rect, size: (100, 60), at: (160, 90)
 #[test]
 fn audio_source_assignment_warns_as_unimplemented() {
     let source = r#"
-config { resolution: (320, 180) }
+config { canvas_size: (320, 180) }
 voice: Audio, source: "voice.wav"
 #1s
 voice.source = "voice2.wav" [1s]
@@ -498,7 +498,7 @@ voice.source = "voice2.wav" [1s]
 #[test]
 fn audio_volume_animation_creates_envelope() {
     let source = r#"
-config { resolution: (320, 180) }
+config { canvas_size: (320, 180) }
 voice: Audio, source: "voice.wav", volume: 1.0
 #1s
 voice.volume = 0.2 [1s]
@@ -523,7 +523,7 @@ voice.volume = 0.2 [1s]
 #[test]
 fn duplicate_label_across_filter_parents_warns() {
     let source = r#"
-config { resolution: (320, 180) }
+config { canvas_size: (320, 180) }
 #0s
 a: Filter, at: (80, 90) {
   fx_a: Blur, radius: 4
@@ -554,7 +554,7 @@ b: Filter, at: (240, 90) {
 #[test]
 fn layout_managed_child_offset_warns() {
     let source = r#"
-config { resolution: (320, 180) }
+config { canvas_size: (320, 180) }
 #0s
 row: Row, size: (300, 60), gap: 8 {
   a: Rect, size: (40, 40), offset: (0, 10)
@@ -583,7 +583,7 @@ row: Row, size: (300, 60), gap: 8 {
 #[test]
 fn layout_managed_child_at_plus_offset_reports_once() {
     let source = r#"
-config { resolution: (320, 180) }
+config { canvas_size: (320, 180) }
 #0s
 row: Row, size: (300, 60) {
   a: Rect, size: (40, 40), at: (10, 10), offset: (0, 10)

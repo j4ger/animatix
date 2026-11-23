@@ -75,7 +75,44 @@ impl Timeline {
         decl_span: Option<crate::ast::Span>,
     ) {
         let styled = self.style_declaration_props(label, ty, props, time_ms, diagnostics);
-        let props = styled.as_ref();
+        let (sized, authored_root_size) = if parent_label.is_none() {
+            super::prepare::resolve_root_size(styled.as_ref(), self.canvas_dimensions())
+        } else {
+            (std::borrow::Cow::Borrowed(styled.as_ref()), None)
+        };
+        self.process_sized_actor_decl(
+            label,
+            ty,
+            sized.as_ref(),
+            modifiers,
+            children,
+            time_ms,
+            parent_label,
+            diagnostics,
+            decl_span,
+        );
+        // Scene statistics and legends recognize explicitly full-canvas shapes.
+        if let Some(spec) = authored_root_size
+            && let Some(id) = self.world.get_id(label)
+            && self.world.caps(id).is_shape
+        {
+            self.world.geometry.get_mut(id).size_spec = Some(spec);
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn process_sized_actor_decl(
+        &mut self,
+        label: &str,
+        ty: &str,
+        props: &[Property],
+        modifiers: &[Modifier],
+        children: &[InlineItem],
+        time_ms: f64,
+        parent_label: Option<&str>,
+        diagnostics: &mut Vec<Diagnostic>,
+        decl_span: Option<crate::ast::Span>,
+    ) {
         self.warn_duplicate_label_parent(label, parent_label, diagnostics, decl_span);
         self.add_node(label.to_string(), parent_label);
 
@@ -222,7 +259,6 @@ impl Timeline {
             props,
             &eval_env,
             label,
-            parent_label,
             t_start_ms,
             t_end_ms,
             easing,

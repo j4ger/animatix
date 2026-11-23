@@ -4,7 +4,7 @@ import "../../../../examples/web_present_driver/fixtures/lib/stage.amx"
 
 import "../../../../tests/fixtures/amx/lib/ui.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 6 }
+config { colorscheme: "ink", canvas_size: (1280, 720), duration: 6 }
 
 floor: StageFloor
 

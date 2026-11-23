@@ -1,8 +1,8 @@
 {
   "origin_commit": "72938ed6f99111b683b5dae007d319426134071d",
   "origin_source": "web/demos/sorting/sort.amx",
-  "sha256": "2bd73ddab4a80200930575343669ddbdd82498c6efbc8b856cedfdc3e8d455ea",
+  "sha256": "7dc15e9907e704dcddfcf1c05d1064dbdb2e0e09b5ba5e5d4e5602a335dc02be",
   "scope": "Byte-identical to the current migrated web source; formatter input with imports parsed as syntax and not fetched by this test.",
   "origin_sha256": "c5f46257cd82dd39d3503ea2c848e5fcdcba5d935be6c3e471847d4c1412abca",
-  "migrated_source_sha256": "2bd73ddab4a80200930575343669ddbdd82498c6efbc8b856cedfdc3e8d455ea"
+  "migrated_source_sha256": "7dc15e9907e704dcddfcf1c05d1064dbdb2e0e09b5ba5e5d4e5602a335dc02be"
 }

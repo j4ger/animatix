@@ -1,5 +1,5 @@
 // First lesson: declare a shape, then animate one property at a # time marker.
-config { style: "compact", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 3 }
+config { style: "compact", colorscheme: "editorial-dark", canvas_size: (1280, 720), duration: 3 }
 
 let track_half = (280, 0)
 let center = (scene_width / 2, scene_height / 2)

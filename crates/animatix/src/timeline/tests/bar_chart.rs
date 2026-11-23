@@ -446,7 +446,7 @@ pub component Pulsar {
     let main = r#"
 import "fnlib.amx"
 
-config { resolution: (640, 360) }
+config { canvas_size: (640, 360) }
 
 p: Pulsar
 
@@ -602,7 +602,7 @@ fn bar_chart_anchor_offset_produce_scene_binding() {
 fn a_data_assignment_records_a_transition() {
     let timeline = build_clean(
         r#"
-config { resolution: (640, 360), duration: 3 }
+config { canvas_size: (640, 360), duration: 3 }
 chart: BarChart, data: {("A", 10), ("B", 20)}, at: (320, 180), size: (400, 220), opacity: 1.0
 #1s
 chart.data = {("A", 30), ("B", 5)} [800ms]
@@ -675,7 +675,7 @@ fn bar_geometry_follows_the_data_transition() {
     use kurbo::Shape;
     let timeline = build_clean(
         r#"
-config { resolution: (640, 360), duration: 3 }
+config { canvas_size: (640, 360), duration: 3 }
 chart: BarChart, data: {("A", 10), ("B", 20)}, max_value: 40, at: (320, 180), size: (400, 220), opacity: 1.0
 #1s
 chart.data = {("A", 30), ("B", 5)} [800ms]
@@ -714,7 +714,7 @@ chart.data = {("A", 30), ("B", 5)} [800ms]
 fn a_data_assignment_can_add_bars_and_captions_to_an_empty_chart() {
     let timeline = build_clean(
         r#"
-config { resolution: (640, 360), duration: 3 }
+config { canvas_size: (640, 360), duration: 3 }
 chart: BarChart, at: (320, 180), size: (400, 220), opacity: 1.0
 #1s
 chart.data = {("A", 30), ("B", 5)} [800ms]
@@ -729,7 +729,7 @@ chart.data = {("A", 30), ("B", 5)} [800ms]
 fn computed_datasets_keep_captions_with_categories_during_seek() {
     let timeline = build_clean(
         r#"
-config { resolution: (640, 360), duration: 4 }
+config { canvas_size: (640, 360), duration: 4 }
 let labels = {"A", "B", "C"}
 let starting_data = zip(labels, {10, 20, 30})
 chart: BarChart, data: starting_data, at: (320, 180), size: (400, 220), opacity: 1
@@ -809,7 +809,7 @@ fn assert_bar_captions(timeline: &Timeline, time: f64, expected: &[(&str, usize)
 fn a_chart_without_captions_may_reorder_silently() {
     let timeline = build_clean(
         r#"
-config { resolution: (640, 360), duration: 3 }
+config { canvas_size: (640, 360), duration: 3 }
 chart: BarChart, data: {("A", 10), ("B", 20)}, show_labels: false, at: (320, 180), size: (400, 220), opacity: 1.0
 #1s
 chart.data = {("B", 5), ("A", 30)} [800ms]

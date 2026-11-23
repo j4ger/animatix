@@ -255,7 +255,7 @@ fn load_fixture(name: &str, path: PathBuf) -> Result<Fixture, Box<dyn Error>> {
             path.display()
         )));
     }
-    let (width, height) = timeline.resolution().unwrap_or((1280, 720));
+    let (width, height) = timeline.configured_canvas_size().unwrap_or((1280, 720));
     let dims = SceneDimensions { width, height };
     let mut samples = Vec::with_capacity(FIXTURE_TIMES.len());
     for time_s in FIXTURE_TIMES {

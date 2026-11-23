@@ -784,7 +784,6 @@ impl Timeline {
         props: &[Property],
         eval_env: &Environment,
         label: &str,
-        parent_label: Option<&str>,
         t_start_ms: u64,
         t_end_ms: u64,
         easing: Easing,
@@ -823,14 +822,7 @@ impl Timeline {
         );
         {
             let geometry = self.world.geometry.get_mut(track_id);
-            apply_size_spec(
-                geometry,
-                primitive,
-                extracted.size_decl.as_ref(),
-                label,
-                parent_label,
-                diagnostics,
-            );
+            apply_size_spec(geometry, primitive, extracted.size_decl.as_ref(), label, diagnostics);
         }
     }
 }

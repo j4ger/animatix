@@ -1,7 +1,9 @@
 use animatix::timeline::DebugRenderOptions;
 use animatix::timeline::{SceneDimensions, Timeline};
 
-use super::{OffscreenRenderer, PendingFrame, RenderedFrame, render_timeline_into_frame_gpu};
+use super::{
+    CanvasMapping, OffscreenRenderer, PendingFrame, RenderedFrame, render_timeline_into_frame_gpu,
+};
 use crate::transition::{
     TransitionCompositor, collect_flip_pairs, encode_flip_overlay, plan_shared_actors,
 };
@@ -35,7 +37,7 @@ impl OffscreenRenderer {
             progress,
             transition_id,
             easing,
-            dimensions,
+            CanvasMapping::new(dimensions, dimensions),
             debug_options,
         )?;
         self.begin_readback(dimensions)
@@ -63,10 +65,68 @@ impl OffscreenRenderer {
             progress,
             transition_id,
             easing,
-            dimensions,
+            CanvasMapping::new(dimensions, dimensions),
             debug_options,
         )?;
         self.readback_output(dimensions)
+    }
+
+    /// Queue an authored composition transition at the requested output size.
+    #[allow(clippy::too_many_arguments)]
+    pub fn begin_canvas_transition(
+        &mut self,
+        from_timeline: &Timeline,
+        from_time: f64,
+        to_timeline: &Timeline,
+        to_time: f64,
+        progress: f32,
+        transition_id: String,
+        easing: animatix::easing::Easing,
+        output: SceneDimensions,
+        debug_options: DebugRenderOptions,
+    ) -> Result<PendingFrame, String> {
+        let mapping = CanvasMapping::new(from_timeline.canvas_dimensions(), output);
+        self.render_transition_to_output(
+            from_timeline,
+            from_time,
+            to_timeline,
+            to_time,
+            progress,
+            transition_id,
+            easing,
+            mapping,
+            debug_options,
+        )?;
+        self.begin_readback(output)
+    }
+
+    /// Render an authored composition transition at the requested output size.
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_canvas_transition(
+        &mut self,
+        from_timeline: &Timeline,
+        from_time: f64,
+        to_timeline: &Timeline,
+        to_time: f64,
+        progress: f32,
+        transition_id: String,
+        easing: animatix::easing::Easing,
+        output: SceneDimensions,
+        debug_options: DebugRenderOptions,
+    ) -> Result<RenderedFrame, String> {
+        let mapping = CanvasMapping::new(from_timeline.canvas_dimensions(), output);
+        self.render_transition_to_output(
+            from_timeline,
+            from_time,
+            to_timeline,
+            to_time,
+            progress,
+            transition_id,
+            easing,
+            mapping,
+            debug_options,
+        )?;
+        self.readback_output(output)
     }
 
     /// Shared tail of `render_transition` / `begin_transition`: render both
@@ -82,14 +142,10 @@ impl OffscreenRenderer {
         progress: f32,
         transition_id: String,
         easing: animatix::easing::Easing,
-        dimensions: SceneDimensions,
+        mapping: CanvasMapping,
         debug_options: DebugRenderOptions,
     ) -> Result<(), String> {
-        if dimensions.width == 0 || dimensions.height == 0 {
-            return Err("Preview dimensions must be greater than zero".to_string());
-        }
-
-        self.ensure_targets(dimensions);
+        self.prepare_canvas(mapping, true)?;
 
         // Lazy-init compositor
         if self.compositor.is_none() {
@@ -106,7 +162,7 @@ impl OffscreenRenderer {
             from_time,
             to_timeline,
             to_time,
-            dimensions,
+            mapping.logical,
             debug_options,
         );
 
@@ -116,7 +172,7 @@ impl OffscreenRenderer {
             TransitionSceneSide::Outgoing,
             from_timeline,
             from_time,
-            dimensions,
+            mapping,
             debug_options,
             &shared.suppressed_from,
         )?;
@@ -124,29 +180,27 @@ impl OffscreenRenderer {
             TransitionSceneSide::Incoming,
             to_timeline,
             to_time,
-            dimensions,
+            mapping,
             debug_options,
             &shared.suppressed_to,
         )?;
 
         // Composite to output_texture
-        let output_view = self
-            .output_view
-            .as_ref()
-            .ok_or_else(|| "Missing offscreen output view".to_string())?;
-        let view_a = self.view_a.as_ref().ok_or_else(|| "Missing offscreen view_a".to_string())?;
-        let view_b = self.view_b.as_ref().ok_or_else(|| "Missing offscreen view_b".to_string())?;
+        let views = self.canvas_views(mapping)?;
+        let [view_a, view_b] =
+            views.sides.ok_or("Missing offscreen transition inputs")?.map(Clone::clone);
+        let output_view = views.output.clone();
         let compositor =
             self.compositor.as_ref().ok_or_else(|| "Missing compositor".to_string())?;
         compositor
             .render(
                 &self.device,
                 &self.queue,
-                view_a,
-                view_b,
-                output_view,
-                dimensions.width,
-                dimensions.height,
+                &view_a,
+                &view_b,
+                &output_view,
+                mapping.raster.width,
+                mapping.raster.height,
                 progress,
                 &transition_id,
                 easing,
@@ -156,11 +210,11 @@ impl OffscreenRenderer {
         // Render floating FLIP overlays above the blended transition.
         if !flip_items.is_empty() {
             let overlay = encode_flip_overlay(&flip_items, progress, easing);
-            self.core.frame.render_into(&overlay, view_a, kurbo::Affine::IDENTITY)?;
-            self.core.frame.over(output_view, view_a, 1.0)?;
+            self.core.frame.render_into(&overlay, &view_a, mapping.transform)?;
+            self.core.frame.over(&output_view, &view_a, 1.0)?;
         }
 
-        Ok(())
+        self.present_canvas(mapping)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -169,22 +223,24 @@ impl OffscreenRenderer {
         side: TransitionSceneSide,
         timeline: &Timeline,
         time: f64,
-        dimensions: SceneDimensions,
+        mapping: CanvasMapping,
         debug_options: DebugRenderOptions,
         suppressed_actors: &[String],
     ) -> Result<(), String> {
+        let views = self.canvas_views(mapping)?;
+        let [outgoing, incoming] = views.sides.ok_or("Missing offscreen transition inputs")?;
         let view = match side {
-            TransitionSceneSide::Outgoing => self.view_a.as_ref(),
-            TransitionSceneSide::Incoming => self.view_b.as_ref(),
-        }
-        .ok_or_else(|| "Missing offscreen transition input view".to_string())?;
+            TransitionSceneSide::Outgoing => outgoing.clone(),
+            TransitionSceneSide::Incoming => incoming.clone(),
+        };
         render_timeline_into_frame_gpu(
             &mut self.core.frame,
             timeline,
             time,
-            dimensions,
+            mapping.logical,
             debug_options,
-            view,
+            &view,
+            mapping.transform,
             suppressed_actors,
         )
     }

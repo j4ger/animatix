@@ -9,9 +9,9 @@ The PNG and original scene coexist at commit
 [`52dabbfe`](https://github.com/j4ger/animatix/commit/52dabbfe318fab987d66b2adb7bf58f5d74aac91).
 The saved baseline manifest's source SHA-256 matches that original scene exactly.
 Its recorded sample is 11 seconds at 1280 × 720. `provenance.json` records the
-original paths and hashes. The PNG is unchanged; only three import prefixes in
-`overview.amx` were relocated. The three module files are unchanged historical
-copies, deliberately independent of the current example library.
+original paths and hashes. The PNG retains its original bytes. The scene copy relocates three import
+prefixes and uses the current canvas key. Its module copies remain independent
+of the current example library.
 
 This is the complete local source-import closure. No external image, audio or
 font file is referenced. Text still uses engine-provided fonts and rendering.

@@ -24,7 +24,7 @@ impl Timeline {
 
         let overrides = std::collections::HashMap::new();
         let scene_dimensions =
-            self.resolution().map_or_else(Default::default, |(width, height)| {
+            self.configured_canvas_size().map_or_else(Default::default, |(width, height)| {
                 crate::timeline::SceneDimensions { width, height }
             });
         for (label, id) in self.world.tracks.iter() {

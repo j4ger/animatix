@@ -17,7 +17,7 @@ import "lib/stage.amx"
 
 import "lib/components.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 8.4 }
+config { colorscheme: "ink", canvas_size: (1280, 720), duration: 8.4 }
 
 let dim = 64
 

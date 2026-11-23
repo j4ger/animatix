@@ -79,7 +79,7 @@ fn nested_target_connector_stays_on_world_edges_at_multiple_depths() {
     // No font/GPU dependency: evaluate collects precise vector command bounds.
     for depth in [1, 2, 8, 16] {
         let mut source = String::from(
-            "config { resolution:(1280,720) }
+            "config { canvas_size:(1280,720) }
 ",
         );
         for level in 0..depth {

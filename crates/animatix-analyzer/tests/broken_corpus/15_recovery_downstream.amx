@@ -1,4 +1,4 @@
-config { resolution: (640, 360) }
+config { canvas_size: (640, 360) }
 good1: Text, text: "before"
 #0s
 fade_in(target: good1, duration: 1s)

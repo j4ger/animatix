@@ -1,5 +1,5 @@
 // Minimal single-scene marker contract extracted from Transformer tokens.
-config { resolution: (64, 64), duration: 7.8 }
+config { canvas_size: (64, 64), duration: 7.8 }
 probe: Rect, size: (8, 8), at: (32, 32)
 #0.10s
 probe.opacity = 1

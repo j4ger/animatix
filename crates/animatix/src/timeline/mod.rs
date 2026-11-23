@@ -266,8 +266,8 @@ pub struct Timeline {
     style_preset: build::StylePreset,
     external_colorschemes: std::collections::HashMap<String, ResolvedColorscheme>,
     pub(crate) export_preset: Option<String>,
-    /// `config { resolution: (w, h) }`, so export tooling can default its canvas to the authored size.
-    pub(crate) resolution: Option<(u32, u32)>,
+    /// `config { canvas_size: (w, h) }`, which supplies the document layout coordinate space.
+    pub(crate) canvas_size: Option<(u32, u32)>,
     /// `config { duration: N }` in seconds. It *overrides* the keyframe-inferred
     /// length rather than extending it, so the timeline ends there even if
     /// keyframes continue past it — see [`Timeline::playback_duration_seconds`].

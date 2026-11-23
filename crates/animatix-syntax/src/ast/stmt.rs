@@ -355,7 +355,7 @@ pub enum Stmt {
     /// the return value (Rust-style tail expression), rejected elsewhere.
     Expr(Expr, Option<Span>),
 
-    /// Config block: `@config { resolution: 1920x1080 }`
+    /// Config block: `config { canvas_size: (1920, 1080) }`
     Config {
         /// Configuration settings as properties.
         settings: Vec<Property>,

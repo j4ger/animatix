@@ -44,8 +44,8 @@ if os.environ.get('VALIDATE_BUDGET'):
     except Exception: sys.exit(9)
 if os.environ.get('FAIL_AUDIT') or mode=='exit': sys.exit(9)
 if mode=='malformed': print('{'); sys.exit(0)
-if mode=='truncated': print('{"schema_version":3,'); sys.exit(0)
-data={'schema_version':3,'kind':'audit','summary':{'errors':0}}
+if mode=='truncated': print('{"schema_version":4,'); sys.exit(0)
+data={'schema_version':4,'kind':'audit','summary':{'errors':0}}
 if mode=='list': data=[]
 if mode=='null': data=None
 if mode=='summary': data['summary']=[]

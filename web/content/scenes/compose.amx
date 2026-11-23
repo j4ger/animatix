@@ -1,4 +1,4 @@
-config { style: "compact", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 4 }
+config { style: "compact", colorscheme: "editorial-dark", canvas_size: (1280, 720), duration: 4 }
 
 #0s
   // Row owns alignment; Group applies one transform to the composition.

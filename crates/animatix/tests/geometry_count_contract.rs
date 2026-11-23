@@ -128,12 +128,12 @@ fn source_bytes_are_frozen_and_unversioned_counts_are_rejected() {
     // Non-cryptographic snapshot checks, not provenance/security hashes. SHA256
     // fingerprints of the generator/runner are recorded separately in META.json.
     let expected = [
-        (16, Mode::StaticRepeatedTime, 0xc177f60fff93a58e_u64),
-        (16, Mode::AnimatedVaryingTime, 0x250ab3b8092a650c),
-        (64, Mode::StaticRepeatedTime, 0x8b1a764f98d17ff2),
-        (64, Mode::AnimatedVaryingTime, 0xcba773c35f6d226),
-        (256, Mode::StaticRepeatedTime, 0xc71d024cbbcc011e),
-        (256, Mode::AnimatedVaryingTime, 0x33096cf93663eea),
+        (16, Mode::StaticRepeatedTime, 0x40373e902e546598_u64),
+        (16, Mode::AnimatedVaryingTime, 0x6b60442752b9b786),
+        (64, Mode::StaticRepeatedTime, 0xf07a644156230784),
+        (64, Mode::AnimatedVaryingTime, 0x4c7f5ff58483c420),
+        (256, Mode::StaticRepeatedTime, 0xa292fea5822c0870),
+        (256, Mode::AnimatedVaryingTime, 0x6b491682d41b56c4),
     ];
     for (count, mode, hash) in expected {
         let source = source(count, mode);

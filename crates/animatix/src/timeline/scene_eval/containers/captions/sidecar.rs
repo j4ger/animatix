@@ -10,7 +10,7 @@ impl Timeline {
     ) -> Vec<animatix_text::transcript::SubtitleCue> {
         let overrides = std::collections::HashMap::new();
         let scene_dimensions =
-            self.resolution().map_or_else(Default::default, |(width, height)| {
+            self.configured_canvas_size().map_or_else(Default::default, |(width, height)| {
                 crate::timeline::SceneDimensions { width, height }
             });
         let mut result = Vec::new();

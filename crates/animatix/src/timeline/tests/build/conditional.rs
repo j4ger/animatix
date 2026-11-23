@@ -11,7 +11,7 @@ fn conditional_actor_declaration_instantiates_the_taken_branch() {
     let timeline = build_timeline(
         r#"
 let n = 2
-config { resolution: (640, 360) }
+config { canvas_size: (640, 360) }
 always { }
 if n == 2 {
   a: Rect, size: (100, 100), color: accent.primary, at: (320, 180), opacity: 1.0
@@ -26,7 +26,7 @@ fn conditional_actor_declaration_skips_the_untaken_branch() {
     let report = build(
         r#"
 let n = 1
-config { resolution: (640, 360) }
+config { canvas_size: (640, 360) }
 if n == 2 {
   a: Rect, size: (100, 100), color: accent.primary, at: (320, 180), opacity: 1.0
 } else {
@@ -43,7 +43,7 @@ fn conditional_for_loop_instantiates_array_actors() {
     let report = build(
         r#"
 let banks = 2
-config { resolution: (640, 360) }
+config { canvas_size: (640, 360) }
 always { }
 if banks == 2 {
   for i in {0, 1} {

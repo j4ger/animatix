@@ -143,7 +143,7 @@ fn explicit_opacity_before_keyframe_is_honored() {
     // A declaration before any keyframe starts hidden by default, but an
     // explicit `opacity` must be preserved instead of ignored.
     let source = r#"
-        config { colorscheme: "editorial-dark", resolution: (640, 360) }
+        config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
         box: Rect, size: (100, 100), color: accent.primary, opacity: 0, at: (200, 150)
     "#;
     let report = build(source);
@@ -300,7 +300,7 @@ fn plot_capture_of_always_written_var_is_dynamic() {
     // A plot closure capturing variables updated in an `always` block must be
     // marked dynamic so it resamples every frame.
     let source = r#"
-        config { colorscheme: "editorial-dark", resolution: (640, 360) }
+        config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
         #0s
         let freq = 2
@@ -335,7 +335,7 @@ fn plot_closure_calls_pure_fn_at_frame_time() {
     // `double` through the named-call dispatch. The sampled curve at t where
     // the dynamic gate is active must equal double(x) = 2x, not NaN.
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 fn double(n: Num) -> Num {
   n * 2
@@ -374,7 +374,7 @@ fn draw_in_trims_stroke_only_path_geometry_mid_draw() {
     // `draw-in` must trim stroke geometry along path commands mid-draw,
     // restoring the full path once the animation settles.
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 p: Path, commands: {move_to(0, 0), line_to(100, 0), line_to(100, 100), line_to(0, 100)},
   stroke: accent.primary, stroke_width: 4, fill_opacity: 0.0, at: (320, 180)
@@ -422,7 +422,7 @@ fn draw_in_cuts_a_straight_line_mid_segment() {
     // The hero-underline case: a single-segment stroke must draw from its
     // start point rather than pop whole segments (trim is arc-length aware).
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 underline: Path, commands: {move_to(100, 180), line_to(540, 180)},
   stroke: accent.primary, stroke_width: 6, fill_opacity: 0.0
@@ -466,7 +466,7 @@ fn draw_in_scheduled_after_the_declaration_starts_hidden() {
     // state: a `draw-in` at #1s must leave the line unpainted from frame 0
     // instead of showing the full stroke until the action begins.
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 line_a: Line, from: (100, 180), to: (540, 180), stroke: accent.primary,
   stroke_width: 6, opacity: 1
@@ -496,7 +496,7 @@ fn dash_pattern_stamps_paths_and_dash_offset_animates() {
     // static pattern is stamped on every frame and an animated offset (the
     // marching-ants idiom) is never served from a cached encoding.
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 p: Path, commands: {move_to(0, 0), line_to(300, 0)},
   stroke: accent.primary, stroke_width: 2, fill_opacity: 0.0,
@@ -544,7 +544,7 @@ fn blend_mode_is_bound_and_sampled() {
     // `blend:` rides the registry-backed declaration path; the sampled track
     // must carry the authored mode and default to "normal" elsewhere.
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 base: Rect, size: (200, 200), color: accent.primary, at: (200, 180)
 glow: Ellipse, size: (200, 200), color: accent.warning, at: (380, 180),
@@ -576,7 +576,7 @@ fn sum_range_computes_series_at_build_and_frame_time() {
     // Build time: `let` precompute inside a keyframe. 1! + 2! + 3! = 9 and
     // an arithmetic series 0+1+2+3+4 = 10.
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (480, 270) }
+config { colorscheme: "editorial-dark", canvas_size: (480, 270) }
 
 label: Text, text: "init", font_size: 18, anchor: scene.center, text_max_width: 440
 
@@ -605,7 +605,7 @@ fn sum_range_inside_plot_closure() {
     // dynamic gate fires, and every sampled y must be finite — the partial
     // sum of sin's series at small x stays bounded.
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 c: PlotCurve, kind: "cartesian",
   func: (x) => sum_range((k) => (-1)^k * x^(2*k + 1) / factorial(2*k + 1), 0, 2) + 0 * t,
@@ -637,7 +637,7 @@ fn sum_range_rejects_invalid_arguments() {
     ] {
         let source = format!(
             r#"
-config {{ colorscheme: "editorial-dark", resolution: (480, 270) }}
+config {{ colorscheme: "editorial-dark", canvas_size: (480, 270) }}
 #0.5s
 {bad}
     "#
@@ -652,7 +652,7 @@ fn anonymous_graph_child_builds_without_reserved_prefix_error() {
     // Engine-generated `__anon_*` labels on anonymous container children
     // must not be rejected by the reserved-prefix check.
     let source = r#"
-        config { colorscheme: "editorial-dark", resolution: (640, 360) }
+        config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
         g: Graph, x_domain: (-pi, pi), y_domain: (-1.8, 1.8), size: (400, 300), at: (320, 180) {
             PlotCurve, kind: "cartesian", func: (x) => sin(x), color: accent.primary, stroke_width: 4
@@ -673,7 +673,7 @@ fn anonymous_graph_child_builds_without_reserved_prefix_error() {
 fn undeclared_action_modifier_warns() {
     // Named arguments outside the callable contract are errors.
     let source = r#"
-        config { colorscheme: "editorial-dark", resolution: (640, 360) }
+        config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
         ball: Ellipse, size: (16, 16), color: accent.warning, at: (320, 180)
 
@@ -694,7 +694,7 @@ fn undeclared_action_modifier_warns() {
 fn declared_action_modifier_does_not_warn() {
     // `shake` declares `intensity`; its use must stay silent.
     let source = r#"
-        config { colorscheme: "editorial-dark", resolution: (640, 360) }
+        config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
         ball: Ellipse, size: (16, 16), color: accent.warning, at: (320, 180)
 
@@ -720,7 +720,7 @@ fn high_frequency_curve_meets_resolution_floor() {
     // High-frequency curves must respect the resolution sample floor so
     // oscillatory functions produce detailed polylines instead of under-sampled chords.
     let source = r#"
-        config { colorscheme: "editorial-dark", resolution: (640, 360) }
+        config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
         c: PlotCurve, kind: "cartesian", func: (x) => sin(5 * x),
           color: accent.primary, stroke_width: 3, at: (320, 180), size: (400, 300)
@@ -1208,7 +1208,7 @@ fn graph_map_inverse_outside_plot_no_panic() {
 fn math_explainer_defaults_respect_explicit_styles_and_major_ticks() {
     let report = build(
         r#"
-config { resolution: (1280, 720), colorscheme: "paper", style: "math-explainer" }
+config { canvas_size: (1280, 720), colorscheme: "paper", style: "math-explainer" }
 #0s
 title: Text, text: "Cosine", role: "title"
 note: Text, text: "Reference", role: "note", font_size: 30
@@ -1251,7 +1251,7 @@ explicit: Graph, at: (1000, 150), size: (240, 180), x_domain: (0, 3),
 #[test]
 fn scene_styles_share_role_choices_and_respect_explicit_property_values() {
     let source = r#"
-config { resolution: (1280, 720), style: "editorial" }
+config { canvas_size: (1280, 720), style: "editorial" }
 let note = "body"
 #0s
 title: Text, text: "Actor names do not hide roles", role: title

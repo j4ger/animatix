@@ -25,7 +25,7 @@
 Describe the scene, then say what changes and when.
 
 ```animatix
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }
 
 title: Text, text: "ANIMATIX", font_size: 96, color: text.primary, anchor: scene.center
 accent: Rect, size: (60, 3), color: accent.primary, anchor: scene.center, offset: (0, -80)

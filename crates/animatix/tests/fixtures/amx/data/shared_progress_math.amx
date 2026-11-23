@@ -1,7 +1,7 @@
 // Two analytic decay curves compare the same loss model at the same progress.
 // Dragging one progress input should update both curves, their endpoint markers,
 // and readouts together; without an input, the timeline drives progress.
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6, runtime_inputs: {"progress"} }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720), duration: 6, runtime_inputs: {"progress"} }
 
 let progress = 0
 

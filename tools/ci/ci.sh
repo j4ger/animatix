@@ -354,8 +354,8 @@ import json, sys
 try:
     with open(sys.argv[1]) as f:
         data = json.load(f)
-    if data.get("schema_version") != 3:
-        print("schema_version %s != 3" % data.get("schema_version"), file=sys.stderr)
+    if data.get("schema_version") != 4:
+        print("schema_version %s != 4" % data.get("schema_version"), file=sys.stderr)
         sys.exit(1)
     if data.get("kind") != "audit":
         print("kind %s != audit" % data.get("kind"), file=sys.stderr)

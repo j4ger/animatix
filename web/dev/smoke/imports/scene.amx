@@ -1,7 +1,7 @@
 import "./palette.amx" as palette
 
 // First lesson: declare a shape, then animate one property at a # time marker.
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 3 }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720), duration: 3 }
 
 #0s
   background: Rect, at: (640, 360), size: (1280, 720), color: hex_color("0d1520")

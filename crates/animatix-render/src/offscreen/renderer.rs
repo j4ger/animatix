@@ -54,6 +54,7 @@ impl OffscreenRenderer {
             view_a: None,
             texture_b: None,
             view_b: None,
+            fitted_targets: None,
             compositor: None,
             dimensions: SceneDimensions {
                 width: 0,
@@ -116,6 +117,32 @@ impl OffscreenRenderer {
         Ok(frame)
     }
 
+    /// Render the authored canvas to export pixels, fitting it into the requested output.
+    pub fn render_canvas(
+        &mut self,
+        timeline: &Timeline,
+        time_s: f64,
+        output: SceneDimensions,
+        debug_options: DebugRenderOptions,
+    ) -> Result<RenderedFrame, String> {
+        let mapping = CanvasMapping::new(timeline.canvas_dimensions(), output);
+        self.render_to_output_texture_inner(timeline, time_s, mapping, debug_options)?;
+        self.readback_output_with_alpha(output, ReadbackAlpha::Opaque)
+    }
+
+    /// Queue a fitted export frame and its readback without waiting for the GPU.
+    pub fn begin_canvas_frame(
+        &mut self,
+        timeline: &Timeline,
+        time_s: f64,
+        output: SceneDimensions,
+        debug_options: DebugRenderOptions,
+    ) -> Result<PendingFrame, String> {
+        let mapping = CanvasMapping::new(timeline.canvas_dimensions(), output);
+        self.render_to_output_texture_inner(timeline, time_s, mapping, debug_options)?;
+        self.begin_readback_with_alpha(output, ReadbackAlpha::Opaque)
+    }
+
     /// pipelined variant of [`Self::render_timeline_with_debug`]:
     /// evaluate, render, and queue the readback copy WITHOUT blocking. Pair
     /// with [`Self::wait_frame`], submitting the NEXT frame before waiting on
@@ -151,7 +178,8 @@ impl OffscreenRenderer {
         dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
     ) -> Result<(), String> {
-        self.render_to_output_texture_inner(timeline, time_s, dimensions, debug_options)
+        let mapping = CanvasMapping::new(dimensions, dimensions);
+        self.render_to_output_texture_inner(timeline, time_s, mapping, debug_options)
             .map(|_| ())
     }
 
@@ -172,9 +200,25 @@ impl OffscreenRenderer {
         dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
     ) -> Result<(RenderedFrame, animatix::timeline::scene_program::SceneProgram), String> {
+        let mapping = CanvasMapping::new(dimensions, dimensions);
         let program =
-            self.render_to_output_texture_inner(timeline, time_s, dimensions, debug_options)?;
+            self.render_to_output_texture_inner(timeline, time_s, mapping, debug_options)?;
         let frame = self.readback_output_with_alpha(dimensions, ReadbackAlpha::Opaque)?;
+        Ok((frame, program))
+    }
+
+    /// Render a fitted export frame and return the program in logical coordinates.
+    pub fn render_canvas_observable(
+        &mut self,
+        timeline: &Timeline,
+        time_s: f64,
+        output: SceneDimensions,
+        debug_options: DebugRenderOptions,
+    ) -> Result<(RenderedFrame, animatix::timeline::scene_program::SceneProgram), String> {
+        let mapping = CanvasMapping::new(timeline.canvas_dimensions(), output);
+        let program =
+            self.render_to_output_texture_inner(timeline, time_s, mapping, debug_options)?;
+        let frame = self.readback_output_with_alpha(output, ReadbackAlpha::Opaque)?;
         Ok((frame, program))
     }
 
@@ -185,31 +229,29 @@ impl OffscreenRenderer {
         &mut self,
         timeline: &Timeline,
         time_s: f64,
-        dimensions: SceneDimensions,
+        mapping: CanvasMapping,
         debug_options: DebugRenderOptions,
     ) -> Result<animatix::timeline::scene_program::SceneProgram, String> {
-        if dimensions.width == 0 || dimensions.height == 0 {
-            return Err("Preview dimensions must be greater than zero".to_string());
-        }
-
-        self.ensure_targets(dimensions);
+        self.prepare_canvas(mapping, false)?;
 
         let t_eval = crate::probe::timing_probe();
         let mut recorder = crate::frame_gpu::SceneRecorder;
         let mut backend: Option<&mut dyn animatix::timeline::effects::FilterBackend> =
             Some(&mut recorder);
-        let program =
-            timeline.evaluate_program_with_debug(time_s, dimensions, debug_options, &mut backend);
+        let program = timeline.evaluate_program_with_debug(
+            time_s,
+            mapping.logical,
+            debug_options,
+            &mut backend,
+        );
         let probe_eval_ms = crate::probe::probe_ms(t_eval);
 
-        let output_view = self
-            .output_view
-            .as_ref()
-            .ok_or_else(|| "Missing offscreen output view".to_string())?;
+        let output_view = self.canvas_views(mapping)?.output.clone();
 
         self.core
             .frame
-            .render_frame_into(&program.scene, output_view, kurbo::Affine::IDENTITY)?;
+            .render_frame_into(&program.scene, &output_view, mapping.transform)?;
+        self.present_canvas(mapping)?;
         if t_eval.is_some() {
             eprintln!(
                 "[frame-phases] evaluate={:.2}ms main_render={:.2}ms",

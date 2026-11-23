@@ -8,9 +8,7 @@ use animatix::timeline::SceneDimensions;
 use clap::Args as ClapArgs;
 use tracing::error;
 
-use crate::build::{
-    configured_resolution, parse_set_pair, print_build_diagnostics, try_load_and_build,
-};
+use crate::build::{parse_set_pair, print_build_diagnostics, try_load_and_build};
 use crate::diagnostics::OutputFormat;
 use crate::extensions::CliExtensions;
 use crate::frame_source::{
@@ -41,11 +39,11 @@ pub(crate) struct BaselineArgs {
     #[arg(long, default_value_t = 0.001)]
     pub(crate) threshold: f64,
 
-    /// Override canvas width (defaults to scene config resolution, else 1280)
+    /// Output snapshot width in pixels (defaults to the logical canvas width)
     #[arg(long)]
     pub(crate) width: Option<u32>,
 
-    /// Override canvas height (defaults to scene config resolution, else 720)
+    /// Output snapshot height in pixels (defaults to the logical canvas height)
     #[arg(long)]
     pub(crate) height: Option<u32>,
 
@@ -544,9 +542,13 @@ fn execute_baseline(
         return Err(format!("build produced {error_count} error diagnostic(s)"));
     }
 
-    let (default_w, default_h) = configured_resolution(&target).unwrap_or((1280, 720));
-    let scene_width = width.unwrap_or(default_w);
-    let scene_height = height.unwrap_or(default_h);
+    let canvas = target.canvas_dimensions();
+    let (scene_width, scene_height) = animatix_render::encode::output_dimensions(
+        canvas,
+        width,
+        height,
+        (canvas.width, canvas.height),
+    );
     let dimensions = SceneDimensions {
         width: scene_width,
         height: scene_height,

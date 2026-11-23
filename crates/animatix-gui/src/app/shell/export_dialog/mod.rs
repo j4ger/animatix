@@ -28,6 +28,8 @@ pub(crate) struct ExportDialogState {
     pub(crate) format: ExportFormat,
     pub(crate) width: u32,
     pub(crate) height: u32,
+    pub(crate) lock_aspect: bool,
+    pub(crate) follow_canvas: bool,
     /// For Image export — time in seconds.
     pub(crate) time_s: f32,
     /// For Video/GIF export.

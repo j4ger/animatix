@@ -70,12 +70,9 @@ class ConversionTests(unittest.TestCase):
         first, second = transcript["segments"]
         self.assertEqual(
             (first["id"], first["start"], first["end"], first["text"]),
-            (0, 0.0, 1.234, "Hello world!"),
+            (0, 0.0, 1.234, "Hello\nworld!"),
         )
-        self.assertEqual(first["words"], [
-            {"word": "Hello", "start": 0.0, "end": 1.234, "confidence": 1.0},
-            {"word": "world!", "start": 0.0, "end": 1.234, "confidence": 1.0},
-        ])
+        self.assertEqual(first["words"], [])
         self.assertEqual(
             (second["id"], second["start"], second["end"], second["text"]),
             (1, 3723.004, 3724.567, "Encore"),

@@ -229,7 +229,7 @@ fn local_ticker_example_is_seekable_scoped_and_hands_off_at_clip_end() {
 fn nested_local_time_scopes_compose_and_preserve_relative_handoffs() {
     let timeline = build(
         r#"
-config { colorscheme: "editorial-dark", resolution: (900, 500), duration: 4 }
+config { colorscheme: "editorial-dark", canvas_size: (900, 500), duration: 4 }
 dot: Ellipse, at: (100, 300), size: (24, 24), color: accent.info
 
 fn inner(dot, lane_y: Num) { return #{
@@ -297,7 +297,7 @@ stretch(outer(dot, 300), 2.0)
 fn scoped_plot_func_uses_local_t_then_holds_and_yields_to_later_func_keyframe() {
     let timeline = build(
         r#"
-config { colorscheme: "editorial-dark", resolution: (900, 500), duration: 4 }
+config { colorscheme: "editorial-dark", canvas_size: (900, 500), duration: 4 }
 #0s
 graph: Graph, at: (450, 250), size: (520, 320),
   x_domain: (0, 2), y_domain: (-1, 1),
@@ -378,7 +378,7 @@ fn bad(dot) { return #{
     ] {
         let source = format!(
             r#"
-config {{ colorscheme: "editorial-dark", resolution: (640, 360), duration: 2 }}
+config {{ colorscheme: "editorial-dark", canvas_size: (640, 360), duration: 2 }}
 {function}
 #0s
 dot: Ellipse, at: (100, 300), size: (20, 20), color: accent.info
@@ -663,7 +663,7 @@ config { runtime_inputs: {"sin"} }
 fn keyframed_captured_variable_resamples_a_plot_without_continuous_let_interpolation() {
     let timeline = build(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360), duration: 2 }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360), duration: 2 }
 #0s
 let slope = 1.0
 graph: Graph, at: (320, 180), size: (400, 240), x_domain: (0, 1), y_domain: (0, 2.5),
@@ -694,7 +694,7 @@ let slope = 2.0
 fn independent_component_parameters_follow_distinct_variable_tracks() {
     let timeline = build(
         r#"
-config { colorscheme: "editorial-dark", resolution: (900, 420), duration: 2 }
+config { colorscheme: "editorial-dark", canvas_size: (900, 420), duration: 2 }
 
 pub component Lane(p: Num, y: Num, tint: Color) {
   graph: Graph, at: (225, y), size: (360, 300),

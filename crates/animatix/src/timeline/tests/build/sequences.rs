@@ -77,7 +77,7 @@ fn list_slice_validates_bounds_and_repeat_preserves_values() {
 fn sequence_helpers_compose_in_amx_and_frame_evaluation() {
     let timeline = build_clean(
         r#"
-        config { resolution: (320, 180), duration: 4 }
+        config { canvas_size: (320, 180), duration: 4 }
         let values = linspace(20, 100, 4, endpoint: false)
         let angles = list_reverse(list_concat(list_slice(values, end: 3), repeat(80, 1)))
 
@@ -118,7 +118,7 @@ fn sequence_helpers_compose_in_amx_and_frame_evaluation() {
 fn list_callbacks_generate_map_and_scan_typed_values() {
     let timeline = build_clean(
         r#"
-        config { resolution: (320, 180), duration: 4 }
+        config { canvas_size: (320, 180), duration: 4 }
         fn triple(value: Num) -> Num { value * 3 }
         let inputs = std::tabulate(function: (i) => i + 1, count: 4)
         let sizes = list_map(inputs, triple)
@@ -163,7 +163,7 @@ fn generated_actor_list_staggers_in_list_order() {
     use crate::timeline::TrackAccessor;
     let timeline = build_clean(
         r#"
-        config { resolution: (320, 180), duration: 4 }
+        config { canvas_size: (320, 180), duration: 4 }
         #0s
         for i in range(0, 3) {
             dot[i]: Ellipse, at: (40 + 80 * i, 90), size: (24, 24), opacity: 0

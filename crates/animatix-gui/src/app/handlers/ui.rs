@@ -144,6 +144,12 @@ pub fn handle_open_export_dialog(
     document_store: &DocumentStore,
 ) -> Vec<Effect> {
     export_store.export_dialog_open = true;
+    let state = &mut export_store.export_state;
+    if state.follow_canvas {
+        let canvas = document_store.source.document.scene_dimensions;
+        state.width = canvas.width;
+        state.height = canvas.height;
+    }
     if export_store.export_state.output_path.is_empty() {
         let path = suggest_export_filename(export_store, document_store);
         export_store.export_state.output_path = path.to_string_lossy().to_string();

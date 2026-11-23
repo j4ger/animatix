@@ -34,7 +34,7 @@ fn a_config_after_an_import_still_belongs_to_the_scene() {
         "\
 # Intro
 import \"./lib/tokens.amx\" as tk
-config { resolution: (400, 300), duration: 4 }
+config { canvas_size: (400, 300), duration: 4 }
 b: Rect, size: (20, 20), color: (1.0, 0.5, 0.2, 1.0), at: (10, 10)
 #1s
 b.opacity = 1.0
@@ -46,7 +46,7 @@ b.opacity = 1.0
         Some(&Expr::Num(4.0)),
         "the scene's authored duration never reached Scene.config"
     );
-    assert!(setting(scene, "resolution").is_some(), "resolution was lost with it");
+    assert!(setting(scene, "canvas_size").is_some(), "canvas_size was lost with it");
     match scene {
         Stmt::Scene { body, .. } => assert!(
             !body.iter().any(|s| matches!(s, Stmt::Config { .. })),
@@ -64,7 +64,7 @@ fn a_config_anywhere_in_a_scene_is_promoted() {
     let stmts = parse(
         "\
 # Intro
-config { resolution: (400, 300) }
+config { canvas_size: (400, 300) }
 b: Rect, size: (20, 20), color: (1.0, 0.5, 0.2, 1.0), at: (10, 10)
 #1s
 b.opacity = 1.0
@@ -73,14 +73,14 @@ config { duration: 6 }
     );
     let scene = scene_named(&stmts, "Intro");
     assert_eq!(setting(scene, "duration"), Some(&Expr::Num(6.0)));
-    assert!(setting(scene, "resolution").is_some(), "the first block was lost");
+    assert!(setting(scene, "canvas_size").is_some(), "the first block was lost");
 }
 
 /// A config in no scene at all is document-level and stays where it is.
 #[test]
 fn a_leading_config_outside_any_scene_is_untouched() {
     let stmts = parse(
-        "config { resolution: (400, 300), duration: 2 }\nb: Rect, size: (20, 20), color: (1.0, 0.5, 0.2, 1.0), at: (10, 10)\n",
+        "config { canvas_size: (400, 300), duration: 2 }\nb: Rect, size: (20, 20), color: (1.0, 0.5, 0.2, 1.0), at: (10, 10)\n",
     );
     assert!(
         stmts.iter().any(|s| matches!(s, Stmt::Config { .. })),

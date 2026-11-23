@@ -43,7 +43,7 @@ fn shape_bounds_follow_geometry_and_style_across_seek_orders() {
             ] {
                 let timeline = super::support::build_timeline(&format!(
                     r##"
-config {{ resolution: (400,200), duration: 3 }}
+config {{ canvas_size: (400,200), duration: 3 }}
 box: {shape}, size: (60,40), at: (200,100), opacity: 1, stroke: hex_color("ffffff"), stroke_width: 2{extra}
 always {{
  box.size = (60 + 180 * clamp(t,0,1),40)
@@ -64,7 +64,7 @@ fn shape_bounds_follow_size_tween_and_static_cache_hits() {
     for animation in ["", "#0s\nbox.size = (240,40) [1s]"] {
         let timeline = super::support::build_timeline(&format!(
             r##"
-config {{ resolution: (400,200), duration: 3 }}
+config {{ canvas_size: (400,200), duration: 3 }}
 box: Rect, size: (60,40), at: (200,100), opacity: 1
 {animation}
 "##
@@ -89,7 +89,7 @@ fn shape_bounds_include_final_trim_and_shadow_without_polluting_memo() {
         ] {
             let timeline = super::support::build_timeline(&format!(
                 r##"
-config {{ resolution: (400,200), duration: 3 }}
+config {{ canvas_size: (400,200), duration: 3 }}
 box: {actor}, at: (200,100), opacity: 1, fill_opacity: 0,
  stroke: hex_color("ffffff"), stroke_width: 6, {decoration}
 always {{ box.at = (200 + t,100) }}
@@ -133,7 +133,7 @@ always {{ box.at = (200 + t,100) }}
 fn path_shadow_tracks_only_the_revealed_stroke() {
     let timeline = super::support::build_timeline(
         r##"
-config { resolution:(400,200), duration:3 }
+config { canvas_size:(400,200), duration:3 }
 box: Path, commands:{move_to(0,0), line_to(200,0)}, at:(100,80),
  fill_opacity:0, stroke:hex_color("ffffff"), stroke_width:6,
  opacity:1, shadow:(0,30,0,0)
@@ -163,7 +163,7 @@ always { box.stroke_progress = t / 2 }
 fn trimmed_path_bounds_cover_only_the_revealed_segment() {
     let timeline = super::support::build_timeline(
         r##"
-config { resolution:(400,200), duration:3 }
+config { canvas_size:(400,200), duration:3 }
 box: Path, commands:{move_to(0,0), line_to(200,0)}, at:(100,100),
  fill_opacity:0, stroke:hex_color("ffffff"), stroke_width:6, opacity:1
 always { box.stroke_progress = t / 2 }
@@ -192,7 +192,7 @@ always { box.stroke_progress = t / 2 }
 fn animated_shadow_can_toggle_without_leaking_decorations_into_memo() {
     let timeline = super::support::build_timeline(
         r#"
-config { resolution:(400,200), duration:3 }
+config { canvas_size:(400,200), duration:3 }
 box: Rect, size:(100,60), at:(200,100), opacity:1, shadow:(0,0,0,0)
 #0s
 box.shadow = (20,8,12,2) [1s]
@@ -224,7 +224,7 @@ box.shadow = (20,8,12,2) [1s]
 fn reactive_dashes_use_sampled_pattern_and_offset() {
     let timeline = super::support::build_timeline(
         r##"
-config { resolution:(400,200), duration:3 }
+config { canvas_size:(400,200), duration:3 }
 box: Rect, size:(100,60), at:(200,100), opacity:1, stroke:hex_color("ffffff"), stroke_width:4
 always {
   box.dash_pattern = {4 + t, 3}

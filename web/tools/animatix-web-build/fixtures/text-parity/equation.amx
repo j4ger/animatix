@@ -1,4 +1,4 @@
-config { resolution: (960, 540), duration: 2 }
+config { canvas_size: (960, 540), duration: 2 }
 
 eq: Equation, font_size: 42, at: (480, 190), opacity: 1 {
 lhs: Fragment, content: "E"

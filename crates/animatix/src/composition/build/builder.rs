@@ -247,6 +247,12 @@ impl Composition {
         let scene_scoped_keys = animatix_syntax::config_keys::scene_scoped_config_key_names();
 
         for prop in config {
+            if let Some(diagnostic) =
+                animatix_syntax::config_keys::scene_canvas_diagnostic(prop, scene_name)
+            {
+                diagnostics.push(diagnostic);
+                continue;
+            }
             if prop.name == "runtime_inputs" {
                 diagnostics.push(
                     Diagnostic::error(

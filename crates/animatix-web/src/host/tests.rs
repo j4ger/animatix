@@ -18,7 +18,7 @@ fn preseeded_asset_cache_satisfies_build_time_loads() {
     cache.insert_image_bytes("dot.png", png).expect("checker.png decodes");
 
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0.1s
 pic: Image, url: "dot.png", size: (400, 240), at: (320, 180)
 fade_in(target: pic, duration: 300ms)
@@ -52,7 +52,7 @@ fn preseeded_svg_source_satisfies_build_time_parse() {
     cache.insert_svg_source("mark.svg", svg).expect("the inline svg parses");
 
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0.1s
 pic: Svg, url: "mark.svg", size: (300, 300), at: (320, 180)
 fade_in(target: pic, duration: 300ms)
@@ -173,7 +173,7 @@ fn parse_failure_reports_diagnostics_without_target() {
 #[test]
 fn build_failure_reports_diagnostics_without_target() {
     let doc = build_document(
-        "config { colorscheme: \"editorial-dark\", resolution: (320, 180) }\nghost: DoesNotExist, size: (10, 10)\nseen: Rect, size: (10, 10), color: accent.primary, at: (20, 20)\n#0.1s\nfade_in(target: seen, duration: 100ms)\n",
+        "config { colorscheme: \"editorial-dark\", canvas_size: (320, 180) }\nghost: DoesNotExist, size: (10, 10)\nseen: Rect, size: (10, 10), color: accent.primary, at: (20, 20)\n#0.1s\nfade_in(target: seen, duration: 100ms)\n",
         Arc::new(FontContext::new()),
         BuildQuality::Draft,
     );
@@ -200,7 +200,7 @@ fn build_failure_reports_diagnostics_without_target() {
 #[test]
 fn warnings_still_yield_a_document() {
     let doc = build_document(
-        "config { colorscheme: \"editorial-dark\", resolution: (320, 180) }\nghost: Rect, size: (10, 10), color: accent.primary, at: (20, 20)\nseen: Rect, size: (10, 10), color: accent.success, at: (60, 20)\n#0.1s\nfade_in(target: seen, duration: 100ms)\n",
+        "config { colorscheme: \"editorial-dark\", canvas_size: (320, 180) }\nghost: Rect, size: (10, 10), color: accent.primary, at: (20, 20)\nseen: Rect, size: (10, 10), color: accent.success, at: (60, 20)\n#0.1s\nfade_in(target: seen, duration: 100ms)\n",
         Arc::new(FontContext::new()),
         BuildQuality::Draft,
     );
@@ -411,7 +411,7 @@ fn missing_imports_close_the_graph_through_the_retry_protocol() {
 #[test]
 fn single_scene_persist_target_stays_unwarned() {
     let doc = build_document(
-        "config { colorscheme: \"editorial-dark\", resolution: (320, 180) }\n#0s\nbadge: Ellipse, size: (30, 30), at: (60, 60)\nfade_in(target: badge, duration: 100ms)\n#1s\npersist(target: badge)\n",
+        "config { colorscheme: \"editorial-dark\", canvas_size: (320, 180) }\n#0s\nbadge: Ellipse, size: (30, 30), at: (60, 60)\nfade_in(target: badge, duration: 100ms)\n#1s\npersist(target: badge)\n",
         Arc::new(FontContext::new()),
         BuildQuality::Draft,
     );
@@ -431,7 +431,7 @@ fn single_scene_persist_target_stays_unwarned() {
 #[test]
 fn vars_shadow_the_authored_let_defaults() {
     const SOURCE: &str = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360), duration: 1.0 }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360), duration: 1.0 }
 
 let amp = 200
 let label = "default"
@@ -515,7 +515,7 @@ fn a_rendered_string_var_round_trips_through_the_engine_parser() {
 /// take the player down (nor panic).
 #[test]
 fn an_unparseable_var_is_a_diagnostic_not_a_panic() {
-    const SOURCE: &str = "config { resolution: (320, 180) }\n#0s\ndot: Ellipse, size: (30, 30)\n";
+    const SOURCE: &str = "config { canvas_size: (320, 180) }\n#0s\ndot: Ellipse, size: (30, 30)\n";
     let doc = build_document_with_vars(
         SOURCE,
         &[],

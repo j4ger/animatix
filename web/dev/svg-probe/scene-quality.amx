@@ -4,7 +4,7 @@
 // page readbacks both and compares.
 import "../lib/theme.amx"
 
-config { colorscheme: "ink", resolution: (640, 360), duration: 3 }
+config { colorscheme: "ink", canvas_size: (640, 360), duration: 3 }
 
 backdrop: Rect, size: (640, 360), color: text.primary, opacity: 1, at: (320, 180)
 

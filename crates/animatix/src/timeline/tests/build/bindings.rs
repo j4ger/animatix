@@ -171,7 +171,7 @@ fn test_for_loop_variables_cleaned_after_exit() {
 fn filled_shape_defaults_to_no_stroke() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 a: Rect, size: (100, 100), color: accent.primary, at: (200, 150)
 "#,
@@ -184,7 +184,7 @@ a: Rect, size: (100, 100), color: accent.primary, at: (200, 150)
 fn stroke_only_shape_keeps_default_stroke() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 a: Line, from: (0, 0), to: (100, 0), at: (200, 150)
 "#,
@@ -197,7 +197,7 @@ a: Line, from: (0, 0), to: (100, 0), at: (200, 150)
 fn explicit_filled_shape_stroke_is_preserved() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 a: Rect, size: (100, 100), color: accent.primary, stroke: red, stroke_width: 4, at: (200, 150)
 "#,
@@ -212,7 +212,7 @@ fn plot_actor_declarations_seed_dash_and_gradient() {
     // onto their tracks rather than silently defaulting to a solid stroke.
     let timeline = build_timeline(
         r##"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 g: Graph, x_domain: (-1, 1), y_domain: (-1, 1), at: (320, 180) {
   c: PlotCurve, kind: "cartesian", func: (x) => x, stroke: red, dash_pattern: {10, 7},
@@ -234,7 +234,7 @@ g: Graph, x_domain: (-1, 1), y_domain: (-1, 1), at: (320, 180) {
 fn draw_in_adds_visible_stroke_to_filled_shape() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 a: Rect, size: (100, 100), color: accent.primary, at: (200, 150)
 draw_in(target: a, duration: 1s)
@@ -251,7 +251,7 @@ draw_in(target: a, duration: 1s)
 fn reveal_in_adds_visible_stroke_to_filled_shape() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 a: Rect, size: (100, 100), color: accent.primary, at: (200, 150)
 reveal_in(target: a, duration: 1s)
@@ -267,7 +267,7 @@ reveal_in(target: a, duration: 1s)
 fn filter_effect_child_lowers_into_scope_chain() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (320, 180) }
+config { colorscheme: "editorial-dark", canvas_size: (320, 180) }
 #0s
 bg: Filter {
   soft: Blur, radius: 10
@@ -293,7 +293,7 @@ bg: Filter {
 fn effect_stage_param_assignment_animates() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (320, 180) }
+config { colorscheme: "editorial-dark", canvas_size: (320, 180) }
 #0s
 bg: Filter {
   soft: Blur, radius: 4
@@ -322,7 +322,7 @@ bg.soft.radius = 16 [1s]
 #[test]
 fn effect_outside_filter_scope_reports_diagnostic() {
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (320, 180) }
+config { colorscheme: "editorial-dark", canvas_size: (320, 180) }
 #0s
 row: Row {
   soft: Blur, radius: 10
@@ -346,7 +346,7 @@ row: Row {
 fn filter_bounds_yields_support_padded_region() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (320, 180) }
+config { colorscheme: "editorial-dark", canvas_size: (320, 180) }
 #0s
 bg: Filter, bounds: (40, 30, 120, 80) {
   soft: Blur, radius: 10
@@ -357,7 +357,7 @@ bg: Filter, bounds: (40, 30, 120, 80) {
     let scope = timeline.world.tracks.get_id("bg").expect("filter scope");
     assert!(!timeline.world.effects(scope).expect("effects").build_chain(0).is_empty());
 
-    let (width, height) = timeline.resolution().expect("configured resolution");
+    let (width, height) = timeline.configured_canvas_size().expect("configured resolution");
     let region = timeline
         .effect_scope_region(
             scope,
@@ -380,7 +380,7 @@ bg: Filter, bounds: (40, 30, 120, 80) {
 fn filter_bounds_follow_the_camera() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (320, 180) }
+config { colorscheme: "editorial-dark", canvas_size: (320, 180) }
 #0s
 bg: Filter, bounds: (40, 30, 120, 80) {
   soft: Blur, radius: 10
@@ -391,7 +391,7 @@ camera.zoom = 2.0
 "#,
     );
     let scope = timeline.world.tracks.get_id("bg").expect("filter scope");
-    let (width, height) = timeline.resolution().expect("configured resolution");
+    let (width, height) = timeline.configured_canvas_size().expect("configured resolution");
     let dims = crate::timeline::SceneDimensions { width, height };
 
     let before = timeline
@@ -417,7 +417,7 @@ camera.zoom = 2.0
 fn filter_without_bounds_has_no_region() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (320, 180) }
+config { colorscheme: "editorial-dark", canvas_size: (320, 180) }
 #0s
 bg: Filter {
   soft: Blur, radius: 10
@@ -426,7 +426,7 @@ bg: Filter {
 "#,
     );
     let scope = timeline.world.tracks.get_id("bg").expect("filter scope");
-    let (width, height) = timeline.resolution().expect("configured resolution");
+    let (width, height) = timeline.configured_canvas_size().expect("configured resolution");
     assert!(
         timeline
             .effect_scope_region(
@@ -474,7 +474,7 @@ fn plugin_effect_lowers_into_scope_chain() {
 
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (320, 180) }
+config { colorscheme: "editorial-dark", canvas_size: (320, 180) }
 #0s
 bg: Filter {
   fx: MockPixelate, size: 8
@@ -492,15 +492,15 @@ bg: Filter {
     assert_eq!(chain.instances[0].params.f32_at(0), 8.0);
 }
 
-/// Top-level `config { resolution: (w, h) }` is recorded on the timeline so
+/// Top-level `config { canvas_size: (w, h) }` is recorded on the timeline so
 /// export tooling can default its canvas to the authored size.
 #[test]
 fn config_resolution_is_recorded_on_timeline() {
     let source = r#"
-config { resolution: (960, 540) }
+config { canvas_size: (960, 540) }
 r: Rect, size: (100, 100), at: (480, 270)
 "#;
-    assert_eq!(build_clean(source).resolution(), Some((960, 540)));
+    assert_eq!(build_clean(source).configured_canvas_size(), Some((960, 540)));
 }
 
 /// A stroke-only Path with no declared fill color must default to zero fill
@@ -609,7 +609,7 @@ fn letchain_evaluates_with_shadowing_and_restores_env() {
     // ones, shadowing wins innermost, and the caller env is restored (a later
     // read of the shadowed name must see the original value).
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (480, 270) }
+config { colorscheme: "editorial-dark", canvas_size: (480, 270) }
 
 label: Text, text: "init", font_size: 18, anchor: scene.center, text_max_width: 440
 
@@ -657,7 +657,7 @@ fn letchain_inside_plot_closure_is_dynamic_and_finite() {
     // as dynamic (references_ident walks LetChain bindings + tail) and every
     // sampled y must be finite.
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 c: PlotCurve, kind: "cartesian",
   func: (x) => {
@@ -697,7 +697,7 @@ fn is_animating_guards_on_property_state() {
     // with the interpolation window), `scale` has no track (always false),
     // and the composition drives an idle/tracking style switch.
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 status: Text, text: "idle", font_size: 18, anchor: scene.center, text_max_width: 500
 
@@ -754,7 +754,7 @@ fn is_animating_requires_property_reference() {
     // Passing a plain value instead of &actor.prop must be a clear type
     // error, not a silent false.
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (480, 270) }
+config { colorscheme: "editorial-dark", canvas_size: (480, 270) }
 
 label: Text, text: "t"
 
@@ -783,7 +783,7 @@ fn letchain_closure_captures_let_binding() {
     // Nested closures inside block bodies must capture outer let-bound variables
     // from enclosing LetChain scopes.
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (480, 270) }
+config { colorscheme: "editorial-dark", canvas_size: (480, 270) }
 
 label: Text, text: "init", font_size: 18, anchor: scene.center, text_max_width: 440
 
@@ -809,7 +809,7 @@ fn effect_keys_on_non_action_hosts_warn() {
     // assignment or actor declaration are silent no-ops today, and the
     // host-gated whitelist must surface them.
     let source = r#"
-        config { colorscheme: "editorial-dark", resolution: (480, 270) }
+        config { colorscheme: "editorial-dark", canvas_size: (480, 270) }
 
         box: Rect, size: (80, 40), color: accent.primary, at: (240, 135)
 
@@ -850,7 +850,7 @@ fn prop_ref_build_diagnostics() {
 
     for (source, expected_msg, code) in cases {
         let report = build(&format!(
-            "config {{ colorscheme: \"editorial-dark\", resolution: (480, 270) }}\n#0.2s\nfade_in(target: box, duration: 200ms)\n{}",
+            "config {{ colorscheme: \"editorial-dark\", canvas_size: (480, 270) }}\n#0.2s\nfade_in(target: box, duration: 200ms)\n{}",
             source
         ));
         assert!(
@@ -870,7 +870,7 @@ fn brace_list_assignment_to_vector_properties_works() {
     // Numeric brace lists must bind directly to vector properties with the
     // same semantics as parenthesized coordinate tuples.
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 box: Rect, size: {40, 40}, color: accent.primary, anchor: scene.center
 
@@ -911,7 +911,7 @@ box.size = {120, 60} [500ms, ease: ease_out]
 #[test]
 fn text_max_width_binds_to_text_tracks_for_declaration_and_assignment() {
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 long: Text, text: "The quick brown fox jumps over the lazy dog", font_size: 20, text_max_width: 100, opacity: 1.0, at: (320, 100)
 unwrapped: Text, text: "The quick brown fox jumps over the lazy dog", font_size: 20, text_max_width: 0, opacity: 1.0, at: (320, 220)
@@ -1002,7 +1002,7 @@ fn explicit_full_filter_region_is_distinct_from_derived_region() {
     ] {
         let timeline = build_timeline(&format!(
             r#"
-config {{ resolution: (400,200) }}
+config {{ canvas_size: (400,200) }}
 scope: Filter{bounds} {{ fx: Blur, radius: 4
  box: Rect, size: (120,60), opacity: 1
 }}
@@ -1031,7 +1031,7 @@ fn explicit_filter_region_fullness_is_resolved_after_camera_and_padding() {
     for follow in [true, false] {
         let timeline = build_timeline(&format!(
             r#"
-config {{ resolution: (400,200) }}
+config {{ canvas_size: (400,200) }}
 scope: Filter, bounds: (0,0,400,200), camera_follow: {follow} {{
  fx: Blur, radius: 4
  box: Rect, size: (120,60), opacity: 1

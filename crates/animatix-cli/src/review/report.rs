@@ -2,9 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use animatix::timeline::SceneDimensions;
-
-use crate::build::{configured_resolution, print_build_diagnostics, try_load_and_build};
+use crate::build::{print_build_diagnostics, try_load_and_build};
 use crate::extensions::CliExtensions;
 
 use super::facts::{FrameFact, ReviewFacts, TargetFacts, collect_facts};
@@ -107,13 +105,13 @@ impl AuditReport {
         let frames: Vec<serde_json::Value> =
             self.frames.iter().map(|f| frame_json(f, Some(&self.render))).collect();
         serde_json::json!({
-            "schema_version": 3,
+            "schema_version": 4,
             "kind": self.kind,
             "input": self.input,
             "target": {
                 "kind": self.target.kind.as_str(),
                 "duration_s": self.target.duration_s,
-                "resolution": [self.target.width, self.target.height],
+                "canvas_size": [self.target.width, self.target.height],
             },
             "render": {
                 "status": self.render.status.as_str(),
@@ -224,7 +222,7 @@ impl AuditReport {
             })
             .collect();
         serde_json::json!({
-            "schema_version": 3,
+            "schema_version": 4,
             "kind": "audit.brief",
             "verdict": self.verdict(),
             "summary": {
@@ -524,8 +522,7 @@ pub(crate) fn run_review(
         return Err(format!("build produced {errors} error diagnostic(s)"));
     }
 
-    let (width, height) = configured_resolution(&target).unwrap_or((1280, 720));
-    let dimensions = SceneDimensions { width, height };
+    let dimensions = target.canvas_dimensions();
     let base_times = options.times.clone().unwrap_or_else(|| {
         samples::compute_sample_times(&target, &options.samples, options.max_frames)
     });
@@ -841,7 +838,7 @@ mod tests {
         ] {
             assert!(json.get(key).is_some(), "missing {key}");
         }
-        assert_eq!(json["schema_version"], 3);
+        assert_eq!(json["schema_version"], 4);
         assert_eq!(json["summary"]["warnings"], 1);
         assert_eq!(json["frames"].as_array().expect("frames array").len(), 1);
         let full = report.to_json(Detail::Full);

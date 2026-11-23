@@ -77,9 +77,16 @@ impl Timeline {
         self.export_preset.as_deref()
     }
 
-    /// Returns the scene resolution declared via `config { resolution: (w, h) }`, if any.
-    pub fn resolution(&self) -> Option<(u32, u32)> {
-        self.resolution
+    /// Returns the authored logical canvas size, if configured.
+    pub fn configured_canvas_size(&self) -> Option<(u32, u32)> {
+        self.canvas_size
+    }
+
+    /// Returns the logical dimensions used to lay out the document.
+    pub fn canvas_dimensions(&self) -> crate::timeline::SceneDimensions {
+        self.canvas_size.map_or_else(Default::default, |(width, height)| {
+            crate::timeline::SceneDimensions { width, height }
+        })
     }
 
     /// Returns the appropriate default color for a primitive type and property,

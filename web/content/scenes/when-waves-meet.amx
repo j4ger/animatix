@@ -1,7 +1,7 @@
 // Add the two displacements at each x. Every lane uses the same y scale.
 import "../templates/layout.amx"
 
-config { style: "editorial", colorscheme: "neon-night", resolution: (1280, 720), duration: 28 }
+config { style: "editorial", colorscheme: "neon-night", canvas_size: (1280, 720), duration: 28 }
 
 let phase_degrees = 0
 let initial = deg_to_rad(phase_degrees)

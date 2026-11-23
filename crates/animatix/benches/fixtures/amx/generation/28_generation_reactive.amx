@@ -8,7 +8,7 @@ import "../../../../examples/web_present_driver/fixtures/lib/theme.amx"
 
 import "../../../../examples/web_present_driver/fixtures/lib/theme.amx" as theme
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }
 
 let dot_positions = {(900, 320), (960, 320), (1020, 320), (900, 400), (960, 400), (1020, 400), (900, 480), (960, 480), (1020, 480)}
 

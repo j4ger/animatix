@@ -137,7 +137,7 @@ impl Box2 {
 ///
 /// Reads [`SceneProgram::precise_bounds`], which is only populated on the
 /// observable evaluation path — use
-/// `animatix_render::offscreen::OffscreenRenderer::render_timeline_observable`
+/// `animatix_render::offscreen::OffscreenRenderer::render_canvas_observable`
 /// so the bounds and the pixels come from the same evaluation.
 pub(crate) fn bounds_map(program: &SceneProgram, scene: &str) -> HashMap<(String, String), Box2> {
     program
@@ -255,7 +255,7 @@ pub(crate) fn render_frame_observable(
 ) -> Result<ObservableFrame, String> {
     match resolve_frame_target(target, time_s)? {
         FrameTarget::Single { timeline } => {
-            let (frame, program) = renderer.render_timeline_observable(
+            let (frame, program) = renderer.render_canvas_observable(
                 timeline,
                 time_s,
                 dimensions,
@@ -271,7 +271,7 @@ pub(crate) fn render_frame_observable(
             scene,
             local_time_s,
         } => {
-            let (frame, program) = renderer.render_timeline_observable(
+            let (frame, program) = renderer.render_canvas_observable(
                 &scene.timeline,
                 local_time_s,
                 dimensions,
@@ -284,7 +284,7 @@ pub(crate) fn render_frame_observable(
             })
         },
         FrameTarget::Transition { from, to, blend } => {
-            let frame = renderer.render_transition(
+            let frame = renderer.render_canvas_transition(
                 &from.timeline,
                 blend.from_local,
                 &to.timeline,
@@ -301,7 +301,7 @@ pub(crate) fn render_frame_observable(
             let mut fb = None;
             let from_program = from.timeline.evaluate_program_with_debug(
                 blend.from_local,
-                dimensions,
+                from.timeline.canvas_dimensions(),
                 DebugRenderOptions::default(),
                 &mut fb,
             );
@@ -309,7 +309,7 @@ pub(crate) fn render_frame_observable(
             let mut fb = None;
             let to_program = to.timeline.evaluate_program_with_debug(
                 blend.to_local,
-                dimensions,
+                to.timeline.canvas_dimensions(),
                 DebugRenderOptions::default(),
                 &mut fb,
             );

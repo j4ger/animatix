@@ -1,4 +1,4 @@
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }
 
 // Legend example: shows a Legend annotation alongside colored lines
 // that represent the same data series.

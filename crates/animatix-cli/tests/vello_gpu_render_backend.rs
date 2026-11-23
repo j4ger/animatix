@@ -44,7 +44,7 @@ fn image_command_preserves_typst_clip_and_code_highlight_pixels() {
     let (project, input) = common::temp_project(
         "text-paint-acceptance",
         r##"
-config { resolution: (520, 240), colorscheme: "editorial-dark" }
+config { canvas_size: (520, 240), colorscheme: "editorial-dark" }
 #0s
 rect: Typst, text: "#box(width: 240pt, height: 32pt, fill: red)", text_max_width: 100, overflow: "clip", at: (140, 65)
 code: Code, text: "let answer = 42;", language: "rust", font_size: 40, at: (270, 152)

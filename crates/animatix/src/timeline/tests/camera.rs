@@ -13,7 +13,7 @@ fn scene() -> SceneDimensions {
 }
 
 const PLAIN: &str = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 a: Rect, size: (100, 100), at: (200, 100), color: accent.primary
 "#;
@@ -22,20 +22,20 @@ a: Rect, size: (100, 100), at: (200, 100), color: accent.primary
 fn diagnostic_tests() {
     let cases = [
         (
-            r#"config { colorscheme: "editorial-dark", resolution: (640, 360) }
+            r#"config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
                #0s
                a: Rect, size: (100, 100), at: (200, 100)
                camera.zoom = (1.0, 2.0)"#,
             "camera.zoom` expects a number",
         ),
         (
-            r#"config { colorscheme: "editorial-dark", resolution: (640, 360) }
+            r#"config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
                #0s
                camera: Rect, size: (100, 100), at: (200, 100)"#,
             "is reserved",
         ),
         (
-            r#"config { colorscheme: "editorial-dark", resolution: (640, 360) }
+            r#"config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
                #0s
                deck: Col, at: (320, 180) {
                  hud: Rect, size: (40, 40), camera_follow: false
@@ -70,7 +70,7 @@ fn a_scene_that_never_addresses_the_camera_stays_untransformed() {
 fn camera_zoom_magnifies_about_the_scene_center() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 a: Rect, size: (100, 100), at: (200, 100), color: accent.primary
 camera.zoom = 2.0
@@ -92,7 +92,7 @@ camera.zoom = 2.0
 fn a_delayed_camera_write_holds_its_identity_until_its_stamp() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 a: Rect, size: (100, 100), at: (200, 100), color: accent.primary
 #1s
@@ -111,7 +111,7 @@ camera.zoom = 2.0
 fn camera_pan_shifts_in_screen_pixels_after_the_zoom() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 a: Rect, size: (100, 100), at: (200, 100), color: accent.primary
 camera.zoom = 2.0
@@ -126,7 +126,7 @@ camera.at = (10.0, -20.0)
 fn camera_axes_interpolate_over_their_authored_duration() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 a: Rect, size: (100, 100), at: (200, 100), color: accent.primary
 camera.zoom = 1.0
@@ -151,7 +151,7 @@ fn an_always_block_camera_write_engages_the_frame_path() {
     // map — so `refresh_camera_used` has to read the modifier statements.
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 always { camera.at = (4.0, 4.0) }
 #0s
 a: Rect, size: (100, 100), at: (200, 100), color: accent.primary
@@ -169,7 +169,7 @@ a: Rect, size: (100, 100), at: (200, 100), color: accent.primary
 fn an_unknown_camera_axis_is_reported() {
     let (_, diagnostics) = build_ignoring_warnings(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 a: Rect, size: (100, 100), at: (200, 100)
 camera.tilt = 0.4
@@ -215,7 +215,7 @@ fn bounds_centre(timeline: &Timeline, time_s: f64, label: &str) -> Point {
 fn a_camera_follow_false_root_stays_put_under_a_push_in() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 scrolled: Rect, size: (40, 40), at: (420, 180), color: accent.primary
 hud: Rect, size: (40, 40), at: (420, 180), color: accent.secondary, camera_follow: false
@@ -242,7 +242,7 @@ camera.zoom = 2.0
 fn camera_follow_cannot_be_assigned_at_frame_time() {
     let (_, diagnostics) = build_ignoring_warnings(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 hud: Rect, size: (40, 40), at: (420, 180), camera_follow: false
 #1s
@@ -270,7 +270,7 @@ hud.camera_follow = true [300ms]
 fn a_non_bool_camera_follow_declaration_keeps_the_default() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 hud: Rect, size: (40, 40), at: (420, 180), camera_follow: "no"
 "#,
@@ -289,7 +289,7 @@ hud: Rect, size: (40, 40), at: (420, 180), camera_follow: "no"
 fn a_camera_follow_false_scope_keeps_its_authored_region() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 bg: Filter, bounds: (40, 30, 120, 80), camera_follow: false {
   soft: Blur, radius: 10
@@ -328,7 +328,7 @@ camera.zoom = 2.0
 fn camera_follow_reaches_the_actor_families_that_build_their_own_declaration() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }
 #0s
 plate: Rect, size: (300, 200), at: (400, 400), color: accent.primary
 hud: Text, text: "LIVE", font_size: 24, color: accent.secondary, at: (1088, 84), camera_follow: false

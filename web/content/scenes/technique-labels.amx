@@ -1,7 +1,7 @@
 // Derive the object, leader and label from one position, not three animations.
 import "../templates/layout.amx"
 
-config { style: "editorial", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 8 }
+config { style: "editorial", colorscheme: "editorial-dark", canvas_size: (1280, 720), duration: 8 }
 
 let start = (scene_width / 2, scene_height / 2) + (-260, 60)
 let end = (scene_width / 2, scene_height / 2) + (260, 60)

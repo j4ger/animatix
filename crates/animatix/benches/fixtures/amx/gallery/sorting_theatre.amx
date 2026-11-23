@@ -4,7 +4,7 @@ import "../../../../examples/web_present_driver/fixtures/lib/theme.amx"
 
 import "../../../../tests/fixtures/amx/lib/ui.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), dynamic_layout: true }
+config { colorscheme: "ink", canvas_size: (1280, 720), dynamic_layout: true }
 
 // Timeline function: precomputed insertion sort over eight bars. `order[k]`
 // tracks which ORIGINAL bar occupies slot k, so every `swap` targets the bars

@@ -3,7 +3,7 @@
   "origin_commit": "72938ed6f99111b683b5dae007d319426134071d",
   "origin_source": "web/demos/transformer/scenes/attention.amx",
   "origin_source_sha256": "5596a52aa4ec0016ef9c9b0b18671588f6b645e4e767e8c9f8a4bc49c550ac4e",
-  "fixture_source_sha256": "77b58e7f475f278aa938ec3b67542a554913235eae22158f6f04f34c27962b6f",
+  "fixture_source_sha256": "2756f6fe85d54e32d9b18130d6952fdf3df7be70120a7917385e9ffaf9ca8f89",
   "change": "Migrated to canonical function and plan syntax with formatting; actor identities, timing cues, content, and the three-module closure are preserved. The relocated fixture differs from the archived web scene only by import prefixes.",
   "modules": [
     {
@@ -16,7 +16,7 @@
       "source": "examples/lib/stage.amx",
       "file": "lib/stage.amx",
       "sha256": "e978cbdf269ea1da5e9a0e4fbd1a349d01827044ce60ef08a0e7dba2d872f305",
-      "migrated_sha256": "353565d8285029b26896fd498079e52cf068fb97d3f799c6e756164bd7f12660"
+      "migrated_sha256": "3ad1d5c2bd914713938cc853ecde0e228a8e18ec5f9f91913676ca376009b557"
     },
     {
       "source": "examples/lib/components.amx",

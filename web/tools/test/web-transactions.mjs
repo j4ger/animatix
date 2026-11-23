@@ -75,7 +75,7 @@ function encodeFramePng(frame) {
   assert.equal(decodedHash, frame.hash, 'decoded PNG pixels do not match the GPU readback hash');
   return png;
 }
-const config = 'config { resolution: (128, 72), duration: 2 }\n';
+const config = 'config { canvas_size: (128, 72), duration: 2 }\n';
 const graphics = `${config}let side = 40\nlet tall = 24\nbox: Rect, size: (side, tall), color: (0.9, 0.1, 0.1, 1), at: (64, 36), opacity: 1\n`;
 const solid = color => `${config}box: Rect, size: (80, 48), color: ${color}, at: (64, 36), opacity: 1\n`;
 const text = value => `${config}label: Text, text: ${JSON.stringify(value)}, font_size: 14, text_max_width: 112, color: (1, 1, 1, 1), at: (64, 36), opacity: 1\n`;

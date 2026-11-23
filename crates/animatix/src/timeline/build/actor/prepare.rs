@@ -4,6 +4,45 @@ use super::*;
 use crate::ast::{Expr, InlineItem, Property};
 use crate::timeline::animation_track::GeometryTracks;
 
+/// Resolve root size axes before dispatch so paths, plots and text wrapping
+/// all see numeric dimensions in the logical canvas coordinate space.
+pub(super) fn resolve_root_size(
+    props: &[Property],
+    canvas: SceneDimensions,
+) -> (
+    std::borrow::Cow<'_, [Property]>,
+    Option<crate::timeline::taffy_layout::ChildSizeSpec>,
+) {
+    use crate::timeline::taffy_layout::{SizeSpec, parse_size_spec};
+    let mut result = std::borrow::Cow::Borrowed(props);
+    let mut authored = None;
+    let mut first = true;
+    for (index, prop) in props.iter().enumerate().filter(|(_, prop)| prop.name == "size") {
+        let spec = parse_size_spec(&prop.value);
+        if first {
+            authored = spec.needs_parent_box().then_some(spec);
+            first = false;
+        }
+        if !spec.needs_parent_box() {
+            continue;
+        }
+        let mut axes = match &prop.value {
+            Expr::Tuple(axes) => axes.clone(),
+            _ => vec![prop.value.clone(), Expr::Ident("auto".into())],
+        };
+        for (axis, dimension, basis) in [
+            (0, spec.width, canvas.width),
+            (1, spec.height, canvas.height),
+        ] {
+            if matches!(dimension, SizeSpec::Percent(_) | SizeSpec::Fill) {
+                axes[axis] = Expr::Num(f64::from(dimension.resolve_absolute(basis as f32)));
+            }
+        }
+        result.to_mut()[index].value = Expr::Tuple(axes);
+    }
+    (result, authored)
+}
+
 /// Apply the prepared `size` declaration to a track's layout geometry.
 ///
 /// The `ChildSizeSpec` and the authored expression were parsed once in the
@@ -15,7 +54,6 @@ pub(super) fn apply_size_spec(
     primitive: &PrimitiveFamilyDescriptor,
     size: Option<&ParsedSizeDecl>,
     label: &str,
-    parent_label: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(size) = size else {
@@ -41,21 +79,6 @@ pub(super) fn apply_size_spec(
                 format!(
                     "size: {} on non-container primitive '{}' — auto/fit sizing only applies to layout containers",
                     keyword, label
-                ),
-            )
-            .with_subject(label),
-        );
-    }
-
-    // Warn on fill at top level (no parent container).
-    if parent_label.is_none() && keyword == "fill" {
-        diagnostics.push(
-            Diagnostic::warning(
-                DiagnosticCode::InvalidModifierValue,
-                DiagnosticPhase::Build,
-                format!(
-                    "size: fill on top-level actor '{}' — fill only makes sense inside a layout container",
-                    label
                 ),
             )
             .with_subject(label),

@@ -53,7 +53,7 @@ fn endpoints(path: &VelloPath) -> (kurbo::Point, kurbo::Point) {
 fn always_override_controls_shape_stroke_progress() {
     let timeline = build_clean(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 signal: Path, commands: {move_to(100, 180), line_to(540, 180)},
   stroke: accent.primary, stroke_width: 6, fill_opacity: 0.0, opacity: 1.0
@@ -80,7 +80,7 @@ always { signal.stroke_progress = t / 2.0 }
 fn always_override_controls_plot_stroke_progress() {
     let timeline = build_clean(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 
 graph: Graph, x_domain: (-10, 10), y_domain: (-10, 10), size: (400, 400), at: (320, 180) {
   signal: PlotCurve, kind: "cartesian", func: (x) => x,

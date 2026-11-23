@@ -83,7 +83,7 @@ recording. All five recordings are silent H.264/yuv420p, 1280×720 at 24 fps,
 with MP4 fast-start and verified frame counts. The manifest carries each
 duration, poster timestamp and artifact hash. The manifest also hashes the shared layout dependency.
 
-Render at the authored resolution: the current CLI's smaller `--width/--height` video options cropped this scene instead of scaling. The initial low-resolution attempt was rejected after viewing encoded frames. Current delivered recordings have no crop or resize.
+The delivered recordings use the scenes' authored canvas sizes. New exports can select a smaller output size to scale the same composition.
 
 ## Earlier acceptance record
 

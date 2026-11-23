@@ -9,7 +9,7 @@ pub let study = Colorscheme {
   text.secondary: hex_color("56534f"),
   accent.primary: hex_color("4436a0")
 }
-config { resolution: (1280, 720), duration: 7, colorscheme: "study", style: "editorial" }
+config { canvas_size: (1280, 720), duration: 7, colorscheme: "study", style: "editorial" }
 
 let motion = "subtle"
 let heading = "Approximating cosine"

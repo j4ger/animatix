@@ -41,7 +41,7 @@ impl Timeline {
             style_preset: Default::default(),
             external_colorschemes: std::collections::HashMap::new(),
             export_preset: None,
-            resolution: None,
+            canvas_size: None,
             declared_duration_s: None,
             local_time_scope_end_ms: 0,
             plan_clock_rate: 1.0,

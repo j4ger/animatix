@@ -80,12 +80,12 @@ fn offscreen_six_cases_and_guard_fault_injection() {
 #[test]
 fn source_bytes_are_frozen_v1() {
     let expected: [u64; 6] = [
-        0x36158af8574d0828,
-        0x1b1bd5ac65e477e1,
-        0xbbf4e2ba1f6ec866,
-        0xe02f937074afd247,
-        0x05cf4730dc3449fe,
-        0x0499e3ffeeb2eaaf,
+        0xedac2cd9f4e6d852,
+        0x4f0f2b8fdb9fef2f,
+        0x6253b36350a12ec8,
+        0xe9b72a154240883d,
+        0x733300f90038c1e8,
+        0x37fcbd4b23e8141d,
     ];
     let mut index = 0;
     for size in workload::SIZES {

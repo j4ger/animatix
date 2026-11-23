@@ -31,7 +31,7 @@ keep their poster and source available after an error. The Examples catalog uses
 native scene stills that carry each work’s authored backdrop into its card.
 The homepage opens with 3 beside the sorted row and plays one live insertion
 from `insertion-sort.amx` before holding the result.
-Export the loading poster at the scene's authored resolution with
+Export the loading poster at the scene's `canvas_size` with
 `animatix image web/content/scenes/insertion-sort.amx -o web/content/posters/insertion-sort.png`
 and update its entry in `content/preview-manifest.json` when the opening frame changes.
 Reduced-motion visitors can start playback manually.
@@ -570,7 +570,7 @@ importing the library and naming the scheme:
 
 ```amx
 import "../lib/theme.amx"          // path relative to the scene
-config { colorscheme: "ink", resolution: (1280, 720), duration: 7 }
+config { colorscheme: "ink", canvas_size: (1280, 720), duration: 7 }
 ```
 
 `ink.scene.background` equals the site stylesheet's `--bg` (`#0b0e14`)

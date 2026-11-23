@@ -27,7 +27,7 @@ const MAX_MEASURED_FRAMES: usize = 120;
 const FRAME_STEP_S: f64 = 1.0 / 60.0;
 
 const PLAIN: &str = r#"
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }
 background: Rect, at: (640, 360), size: (1280, 720), color: (0.04, 0.05, 0.08, 1), opacity: 1
 stripe_a: Rect, at: (300, 360), size: (60, 680), color: (0.12, 0.55, 0.78, 1), opacity: 1
 stripe_b: Rect, at: (470, 360), size: (60, 680), color: (0.85, 0.24, 0.2, 1), opacity: 1
@@ -38,7 +38,7 @@ card: Rect, at: (640, 360), size: (600, 300), color: (0.96, 0.97, 0.99, 0.72), o
 "#;
 
 const MASK: &str = r#"
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }
 background: Rect, at: (640, 360), size: (1280, 720), color: (0.04, 0.05, 0.08, 1), opacity: 1
 stripe_a: Rect, at: (300, 360), size: (60, 680), color: (0.12, 0.55, 0.78, 1), opacity: 1
 stripe_b: Rect, at: (470, 360), size: (60, 680), color: (0.85, 0.24, 0.2, 1), opacity: 1
@@ -55,7 +55,7 @@ clip: Mask, at: (640, 360), size: (600, 300), opacity: 1 {
 // backend predicate must account for the future keyframe so frame 0 can safely
 // establish backend state before the Blur starts contributing.
 const FUTURE_BLUR: &str = r#"
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }
 background: Rect, at: (640, 360), size: (1280, 720), color: (0.04, 0.05, 0.08, 1), opacity: 1
 stripe_a: Rect, at: (300, 360), size: (60, 680), color: (0.12, 0.55, 0.78, 1), opacity: 1
 stripe_b: Rect, at: (470, 360), size: (60, 680), color: (0.85, 0.24, 0.2, 1), opacity: 1
@@ -71,7 +71,7 @@ card.frost.radius = 18 [500ms, ease: ease-out]
 "#;
 
 const ACTIVE_BLUR: &str = r#"
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }
 background: Rect, at: (640, 360), size: (1280, 720), color: (0.04, 0.05, 0.08, 1), opacity: 1
 stripe_a: Rect, at: (300, 360), size: (60, 680), color: (0.12, 0.55, 0.78, 1), opacity: 1
 stripe_b: Rect, at: (470, 360), size: (60, 680), color: (0.85, 0.24, 0.2, 1), opacity: 1
@@ -85,7 +85,7 @@ card: Filter, at: (640, 360), size: (600, 300), opacity: 1 {
 "#;
 
 const GLASS: &str = r#"
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }
 background: Rect, at: (640, 360), size: (1280, 720), color: (0.04, 0.05, 0.08, 1), opacity: 1
 stripe_a: Rect, at: (300, 360), size: (60, 680), color: (0.12, 0.55, 0.78, 1), opacity: 1
 stripe_b: Rect, at: (470, 360), size: (60, 680), color: (0.85, 0.24, 0.2, 1), opacity: 1

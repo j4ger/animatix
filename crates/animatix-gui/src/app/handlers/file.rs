@@ -730,7 +730,7 @@ mod tests {
         let path = PathBuf::from("review.amx");
         let mut document = DocumentSession::from_source(
             path.clone(),
-            "config { resolution: (800, 500), duration: 7 }\n#0s\nbox: Rect".into(),
+            "config { canvas_size: (800, 500), duration: 7 }\n#0s\nbox: Rect".into(),
         )
         .unwrap();
         document.rebuild().unwrap();

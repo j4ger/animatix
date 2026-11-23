@@ -121,6 +121,9 @@ impl Timeline {
             }
         };
         let assignment_subject = format!("{}.{}", assignment_target_key(&target), property);
+        if let Some(diagnostic) = relative_size_assignment_diagnostic(property, value, span) {
+            diagnostics.push(diagnostic.with_subject(&assignment_subject));
+        }
         let ParsedTimingModifiers {
             duration_ms,
             delay_ms,

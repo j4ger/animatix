@@ -1,4 +1,4 @@
-config { resolution: (960, 600), duration: 4.5, runtime_inputs: {"beat", "diagonal", "stress", "onion_skin"} }
+config { canvas_size: (960, 600), duration: 4.5, runtime_inputs: {"beat", "diagonal", "stress", "onion_skin"} }
 let beat = 0.12
 let diagonal = 0
 let stress = 0

@@ -1,7 +1,7 @@
 // FFT Explanation Animation
 // A visual walkthrough of the Fast Fourier Transform:
 // time-domain signal → sine decomposition → frequency spectrum → reconstruction.
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }
 
 // =============================================================================
 // Scene 1: Title card

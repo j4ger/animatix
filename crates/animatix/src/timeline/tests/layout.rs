@@ -5,7 +5,7 @@ use super::*;
 fn layout_backdrop_uses_the_measured_box_without_a_child_actor() {
     let timeline = super::support::build_timeline(
         r#"
-config { resolution: (400, 220), duration: 3 }
+config { canvas_size: (400, 220), duration: 3 }
 #0s
   panel: Col, at: (200, 100), size: (auto, auto), padding: 12,
     backdrop: true, backdrop_color: surface.primary, backdrop_radius: 8 {
@@ -42,7 +42,7 @@ always { panel.backdrop_color = if t < 1 { accent.primary } else { accent.info }
 fn text_backdrop_follows_new_wrapped_glyphs_and_can_be_switched_off() {
     let timeline = super::support::build_timeline(
         r#"
-config { resolution: (400, 220), duration: 4 }
+config { canvas_size: (400, 220), duration: 4 }
 #0s
   label: Text, at: (200, 100), text: "Short", font_size: 24,
     text_max_width: 180, backdrop: true, backdrop_padding: (12, 8)
@@ -311,7 +311,7 @@ fn assert_layout_coordinate(actual: f64, expected: f64) {
 #[test]
 fn fixed_linear_containers_align_to_their_padded_cross_edges() {
     let source = r#"
-config { resolution: (640, 360) }
+config { canvas_size: (640, 360) }
 #0s
 labels: Col, at: (180, 100), size: (200, auto), gap: 9, padding: (11, 7, 19, 13), align: "start" {
   narrow: Rect, size: (20, 12)
@@ -339,7 +339,7 @@ icons: Row, at: (400, 240), size: (auto, 100), gap: 9, padding: (11, 7, 19, 13),
 #[test]
 fn digital_column_keeps_its_right_edge_through_resize_and_reorder() {
     let source = r#"
-config { resolution: (640, 360), dynamic_layout: true }
+config { canvas_size: (640, 360), dynamic_layout: true }
 #0s
 numbers: Col, at: (420, 150), size: (200, 90), gap: 10, padding: (11, 7, 19, 13), align: "end" {
   short_value: Text, text: "0.02", font_size: 24, font_family: "mono"
@@ -375,7 +375,7 @@ swap(short_value, long_value, duration: 1s)
 #[test]
 fn mixed_font_sizes_share_the_painted_baseline_in_a_fixed_row() {
     let source = r#"
-config { resolution: (640, 360) }
+config { canvas_size: (640, 360) }
 #0s
 value: Row, at: (320, 180), size: (auto, 90), gap: 6, vertical_align: "baseline" {
   big: Text, text: "HH", font_size: 52
@@ -400,7 +400,7 @@ value: Row, at: (320, 180), size: (auto, 90), gap: 6, vertical_align: "baseline"
 #[test]
 fn stack_align_start_places_child_at_box_top_left() {
     let source = r#"
-config { resolution: (640, 360) }
+config { canvas_size: (640, 360) }
 #0s
 stack: Stack, at: (320, 180), size: (400, 200), align: "start" {
   a: Rect, size: (100, 50)
@@ -420,7 +420,7 @@ stack: Stack, at: (320, 180), size: (400, 200), align: "start" {
 #[test]
 fn unsized_stack_publishes_measured_union_extent() {
     let source = r#"
-config { resolution: (640, 360) }
+config { canvas_size: (640, 360) }
 #0s
 panel: Stack, at: (320, 180) {
   bg: Rect, size: (260, 300)
@@ -444,7 +444,7 @@ panel: Stack, at: (320, 180) {
 #[test]
 fn group_publishes_children_union_extent() {
     let source = r#"
-config { resolution: (640, 360) }
+config { canvas_size: (640, 360) }
 #0s
 row: Row, at: (320, 180), gap: 10 {
   wrap: Group {
@@ -469,7 +469,7 @@ row: Row, at: (320, 180), gap: 10 {
 #[test]
 fn unsized_nested_col_publishes_measured_extent() {
     let source = r#"
-config { resolution: (640, 360) }
+config { canvas_size: (640, 360) }
 #0s
 row: Row, at: (320, 180), gap: 0, align: "center" {
   c: Col, gap: 0, align: "center" {
@@ -497,7 +497,7 @@ fn dynamic_row_reflows_literal_size_animation_with_measured_bounds() {
     let source = |width: &str| {
         format!(
             r#"
-config {{ resolution: (640, 360), dynamic_layout: true }}
+config {{ canvas_size: (640, 360), dynamic_layout: true }}
 let initial_width = 90
 #0s
 row: Row, size: (500, 180), at: (320, 180), gap: 12 {{
@@ -554,7 +554,7 @@ a.size = (180, 60) [2s]
 #[test]
 fn mixed_container_size_seeds_fixed_literal_and_expression_axes() {
     let source = r#"
-config { resolution: (640, 360), dynamic_layout: true }
+config { canvas_size: (640, 360), dynamic_layout: true }
 let W = 180
 #0s
 outer: Col, size: (420, 320), at: (320, 180), gap: 10 {
@@ -594,7 +594,7 @@ fn fixed_width_grid_reflows_nested_wrapped_text_and_auto_height() {
     for width in [420.0f32, 840.0] {
         let source = format!(
             r#"
-config {{ resolution: (1200, 900) }}
+config {{ canvas_size: (1200, 900) }}
 #0s
 cards: Grid, size: ({width}, auto), cols: 2, gap: 18, padding: 12, at: (600, 420) {{
   first: Col, size: fill, padding: 12, gap: 8 {{
@@ -821,7 +821,7 @@ fn dynamic_col_grid_reflow_uses_sampled_sizes_without_scaling_slots() {
         let container_props = if container == "Grid" { "cols: 2, " } else { "" };
         let source = format!(
             r#"
-config {{ resolution: (640, 360), dynamic_layout: true }}
+config {{ canvas_size: (640, 360), dynamic_layout: true }}
 #0s
 layout: {container}, {container_props}size: (400, 280), at: (320, 180), gap: 12 {{
   a: Rect, size: (90, 90), scale: 2

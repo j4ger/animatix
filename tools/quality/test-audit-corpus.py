@@ -55,7 +55,7 @@ class CorpusTests(unittest.TestCase):
 
     def test_zero_exit_is_not_zero_debt(self):
         entry = inventory()[0]
-        clean = {'schema_version': 3, 'kind': 'audit',
+        clean = {'schema_version': 4, 'kind': 'audit',
                  'summary': {'errors': 0, 'warnings': 0},
                  'budget': {'exceeded': [], 'updated': False}}
         mutations = [
@@ -82,7 +82,7 @@ class CorpusTests(unittest.TestCase):
 
     def test_changed_source_or_binary_fails(self):
         entry = inventory()[0]
-        clean = {'schema_version': 3, 'kind': 'audit',
+        clean = {'schema_version': 4, 'kind': 'audit',
                  'summary': {'errors': 0, 'warnings': 0},
                  'budget': {'exceeded': [], 'updated': False}}
         for hashes in [('bin', 'src', 'changed', 'bin'), ('bin', 'src', 'src', 'changed')]:
@@ -138,7 +138,7 @@ class CorpusTests(unittest.TestCase):
             output = Path(d) / 'run'
             binary = Path(d) / 'fake'
             binary.write_text('fake binary')
-            for payload in ['{', '[]', json.dumps({'schema_version':3,'kind':'audit','summary':{'errors':1}})]:
+            for payload in ['{', '[]', json.dumps({'schema_version':4,'kind':'audit','summary':{'errors':1}})]:
                 result = subprocess.CompletedProcess([], 1, payload, 'real diagnostic')
                 with patch.object(canonical, 'inventory', return_value=[entry]), patch.object(canonical.subprocess, 'run', return_value=result), patch.object(canonical.subprocess, 'check_output', return_value='test-sha\n'):
                     self.assertEqual(canonical.collect(binary, output), 1)

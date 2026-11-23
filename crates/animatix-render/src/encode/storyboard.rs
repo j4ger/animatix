@@ -269,12 +269,13 @@ pub fn render_storyboard_timeline(
 
     let mut rendered_frames = Vec::with_capacity(panels.len());
     for (idx, panel) in panels.iter().enumerate() {
-        let frame = renderer
-            .render_timeline_with_debug(&timeline, panel.time_s, dims, debug_options)
-            .map_err(|e| ExportError::FrameRender {
-                frame: idx,
-                message: e,
-            })?;
+        let frame =
+            renderer
+                .render_canvas(&timeline, panel.time_s, dims, debug_options)
+                .map_err(|e| ExportError::FrameRender {
+                    frame: idx,
+                    message: e,
+                })?;
         let tile_frame = normalize_frame_to_tile(frame, settings.tile_width, settings.tile_height)?;
         rendered_frames.push(tile_frame);
     }
@@ -367,7 +368,7 @@ fn render_composition_sample(
                     message: format!("To scene '{}' not found in composition", blend.to_scene),
                 })?;
         renderer
-            .render_transition(
+            .render_canvas_transition(
                 &from_scene.timeline,
                 blend.from_local,
                 &to_scene.timeline,
@@ -389,7 +390,7 @@ fn render_composition_sample(
                 message: format!("Scene '{}' not found in composition", scene_name),
             })?;
         renderer
-            .render_timeline_with_debug(&scene.timeline, local_time_s, dims, debug_options)
+            .render_canvas(&scene.timeline, local_time_s, dims, debug_options)
             .map_err(|e| ExportError::FrameRender {
                 frame: idx,
                 message: e,
@@ -423,7 +424,7 @@ pub fn render_storyboard_comparison(
             let idx = panels.len();
             let frame = match target {
                 BuildTarget::SingleScene(timeline) => renderer
-                    .render_timeline_with_debug(timeline, time_s, dims, debug_options)
+                    .render_canvas(timeline, time_s, dims, debug_options)
                     .map_err(|message| ExportError::FrameRender {
                         frame: idx,
                         message,

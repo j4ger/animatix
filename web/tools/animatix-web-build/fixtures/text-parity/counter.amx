@@ -1,4 +1,4 @@
-config { resolution: (960, 540), duration: 2 }
+config { canvas_size: (960, 540), duration: 2 }
 
 count: Counter, value: 1200, font_size: 72, comma: true, suffix: " 次", at: (480, 250), opacity: 1
 

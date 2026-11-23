@@ -56,7 +56,7 @@ fn range_rejects_invalid_arguments_and_large_lists() {
 fn range_drives_build_and_frame_loops() {
     let timeline = build_clean(
         r#"
-        config { resolution: (320, 180), duration: 2 }
+        config { canvas_size: (320, 180), duration: 2 }
 
         #0s
         for index in range(0, 3) {

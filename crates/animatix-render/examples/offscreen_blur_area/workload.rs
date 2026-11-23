@@ -18,7 +18,7 @@ pub fn source(size: u32, blur: bool) -> String {
         format!("{rect}, at: (256, 256)")
     };
     format!(
-        "config {{ resolution: (512, 512) }}\n#0s\nbackground: Rect, at: (256, 256), size: (512, 512), color: (0, 0, 0, 1), opacity: 1, stroke_width: 0\n{actor}\n"
+        "config {{ canvas_size: (512, 512) }}\n#0s\nbackground: Rect, at: (256, 256), size: (512, 512), color: (0, 0, 0, 1), opacity: 1, stroke_width: 0\n{actor}\n"
     )
 }
 

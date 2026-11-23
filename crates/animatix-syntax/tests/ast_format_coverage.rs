@@ -443,14 +443,14 @@ fn pick(v: Num) -> Num {
     Probe {
         variant: "Config",
         source: "\
-config { resolution: (400, 300), duration: 3, fps: 30 }
+config { canvas_size: (400, 300), duration: 3, fps: 30 }
 ",
     },
     Probe {
         variant: "Scene",
         source: "\
 # Intro
-config { resolution: (400, 300), duration: 1 }
+config { canvas_size: (400, 300), duration: 1 }
 b: Rect, size: (20, 20), color: (1.0, 0.5, 0.2, 1.0), at: (60, 90)
 #0.5s
 b.opacity = 1.0
@@ -461,7 +461,7 @@ b.opacity = 1.0
         source: "\
 play Intro [fade, 500ms, ease: expo_out]
 # Intro
-config { resolution: (400, 300), duration: 1 }
+config { canvas_size: (400, 300), duration: 1 }
 b: Rect, size: (20, 20), color: (1.0, 0.5, 0.2, 1.0), at: (60, 90)
 ",
     },

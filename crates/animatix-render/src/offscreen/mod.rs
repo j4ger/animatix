@@ -5,12 +5,14 @@ use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 use super::core::RendererCore;
 use super::transition::TransitionCompositor;
 
+mod canvas;
 mod renderer;
 #[cfg(test)]
 mod tests;
 mod timeline_render;
 mod transitions;
 
+use canvas::{CanvasMapping, FittedTargets};
 use timeline_render::render_timeline_into_frame_gpu;
 
 /// A single frame rendered to CPU-accessible RGBA memory.
@@ -51,6 +53,7 @@ pub struct OffscreenRenderer {
     pub(super) view_a: Option<wgpu::TextureView>,
     pub(super) texture_b: Option<wgpu::Texture>,
     pub(super) view_b: Option<wgpu::TextureView>,
+    fitted_targets: Option<FittedTargets>,
     pub(super) compositor: Option<TransitionCompositor>,
     pub(super) dimensions: SceneDimensions,
     pub(super) bytes_per_row: u32,

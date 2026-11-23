@@ -215,10 +215,18 @@ pub fn collect_diagnostics_with_config(
 
     // 2. Semantic checks (if AST is available)
     if let Some(stmts) = ast {
-        let syntax_diagnostics =
+        let mut syntax_diagnostics =
             animatix_syntax::semantic_diagnostics::collect_semantic_diagnostics(
                 stmts, symbols, tokens, source,
             );
+        animatix_syntax::config_keys::configured_canvas_size(stmts, &mut syntax_diagnostics);
+        for stmt in stmts {
+            if let Stmt::Scene { name, config, .. } = stmt {
+                syntax_diagnostics.extend(config.iter().filter_map(|property| {
+                    animatix_syntax::config_keys::scene_canvas_diagnostic(property, name)
+                }));
+            }
+        }
         let line_index = animatix_syntax::token::LineIndex::new(source);
         diagnostics.extend(
             syntax_diagnostics

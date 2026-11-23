@@ -1,7 +1,7 @@
 // One low train tone plus the headphones' opposing pressure wave.
 import "../templates/layout.amx"
 
-config { style: "editorial", colorscheme: "editorial-dark", resolution: (960, 560), duration: 16 }
+config { style: "editorial", colorscheme: "editorial-dark", canvas_size: (960, 560), duration: 16 }
 
 let speaker_level = 1
 let phase = 0

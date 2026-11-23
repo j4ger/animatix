@@ -8,8 +8,27 @@ impl Timeline {
     pub(super) fn collect_scoped_modifiers(
         &mut self,
         body: Vec<Stmt>,
-        _diagnostics: &mut Vec<Diagnostic>,
+        diagnostics: &mut Vec<Diagnostic>,
     ) {
+        animatix_syntax::walk::walk_stmts(&body, &mut |statement| {
+            if let Stmt::Assignment {
+                target,
+                property,
+                value,
+                span,
+                ..
+            } = statement
+                && let Some(diagnostic) =
+                    crate::timeline::assignments::relative_size_assignment_diagnostic(
+                        property, value, *span,
+                    )
+            {
+                diagnostics.push(diagnostic.with_subject(format!(
+                    "{}.{property}",
+                    crate::timeline::assignment_target_key(target)
+                )));
+            }
+        });
         if (self.build_loop_scopes.is_empty() && self.block_scope.is_empty()) || body.is_empty() {
             self.modifiers.extend(body);
             return;

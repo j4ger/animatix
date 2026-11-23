@@ -17,7 +17,7 @@ import "lib/theme.amx"
 
 import "lib/stage.amx"
 
-config { colorscheme: "tide", resolution: (1280, 720), duration: 8, seamless_loop: true }
+config { colorscheme: "tide", canvas_size: (1280, 720), duration: 8, seamless_loop: true }
 
 floor: StageFloor
 

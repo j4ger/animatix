@@ -4,7 +4,7 @@ import "../../../../examples/web_present_driver/fixtures/lib/stage.amx"
 
 import "../lib/ui.amx"
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }
 
 floor: StageFloor
 

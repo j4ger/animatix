@@ -34,7 +34,7 @@ let cmp_step = 0.2
 
 let values = {42, 17, 93, 5, 68, 31, 76, 12, 57, 24, 89, 46}
 
-config { colorscheme: "coral", resolution: (1280, 720) }
+config { colorscheme: "coral", canvas_size: (1280, 720) }
 
 // ── the stage ───────────────────────────────────────────────────────
 floor: StageFloor, glow: 1.2, grid: 1.5

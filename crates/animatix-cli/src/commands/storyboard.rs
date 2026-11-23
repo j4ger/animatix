@@ -6,7 +6,7 @@ use animatix_render::encode as export;
 use animatix_render::offscreen::OffscreenRenderer;
 use tracing::{error, info};
 
-use crate::build::{configured_resolution, load_and_build};
+use crate::build::load_and_build;
 use crate::extensions::CliExtensions;
 mod comparison;
 
@@ -96,15 +96,16 @@ pub(crate) fn render_storyboard(
 ) -> Result<(PathBuf, usize), String> {
     info!("Generating storyboard for {}", input.display());
     let (target, _) = load_and_build(input, extensions, set);
-    let configured_resolution = configured_resolution(&target);
-    let (default_tw, default_th) = configured_resolution
+    let canvas_size = target.configured_canvas_size();
+    let (default_tw, default_th) = canvas_size
         .map(|(w, h)| ((w / 2).clamp(320, 640), (h / 2).clamp(180, 360)))
         .unwrap_or((480, 270));
     let mut tile_width = tile_width.unwrap_or(default_tw);
     let height_was_explicit = tile_height.is_some();
     let mut tile_height = tile_height.unwrap_or(default_th);
-    let render_width = configured_resolution.map(|(w, _)| w);
-    let render_height = configured_resolution.map(|(_, h)| h);
+    let canvas = target.canvas_dimensions();
+    let render_width = Some(canvas.width);
+    let render_height = Some(canvas.height);
 
     // Cap the contact sheet to a vision-model-friendly long edge. `cols` is
     // auto-detected by the exporter (up to 4), so assume the maximum when it
@@ -327,12 +328,7 @@ pub(crate) fn select_storyboard_times(
             // No GPU: fall back to midpoints rather than failing the command.
             Err(_) => return select_storyboard_times(target, max_frames, min_ink, true),
         };
-        let dimensions = configured_resolution(target)
-            .map(|(width, height)| animatix::timeline::SceneDimensions { width, height })
-            .unwrap_or(animatix::timeline::SceneDimensions {
-                width: 1280,
-                height: 720,
-            });
+        let dimensions = target.canvas_dimensions();
         for (start, end) in &intervals {
             let gap = end - start;
             let mut best_t = start + gap * 0.5;

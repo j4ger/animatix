@@ -155,7 +155,7 @@ fn scroll_to_line_focuses_diagnostic() {
     assert_eq!(document_store.source.editor.pending_scroll_to_line, Some(5));
 }
 
-const TEST_SOURCE: &str = r#"config { resolution: (1280, 720) }
+const TEST_SOURCE: &str = r#"config { canvas_size: (1280, 720) }
 
 box: Rect, at: (100, 100), size: (100, 100), color: blue
 circle: Ellipse, at: (200, 200), radius_x: 50, radius_y: 50, color: red

@@ -97,7 +97,7 @@ and `vertical_domain`. Edit `reference_fn` and `approximation_fn` to replace
 the curves. An empty `formula` gives the graph the full width. Metric Brief accepts `heading`,
 `takeaway`, `passing`, `latency`, and `reviews`. Narrated Explainer accepts
 `heading` and `summary`. Each template lets you choose the scene style and
-colorscheme in its `config`. Change the authored resolution to `(720, 1280)`
+colorscheme in its `config`. Change the authored `canvas_size` to `(720, 1280)`
 to use the stacked math and metric layouts. Check longer copy with a
 storyboard and keep the headline and takeaway short enough for the format.
 

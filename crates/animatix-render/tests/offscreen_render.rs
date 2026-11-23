@@ -89,7 +89,7 @@ fn transition(
 /// A full-bleed solid-colour scene for transition pixel probes.
 fn solid_scene_at(color: &str, width: u32, height: u32) -> Timeline {
     build_checked(&format!(
-        "config {{ colorscheme: \"editorial-dark\", resolution: ({width}, {height}) }}\n\
+        "config {{ colorscheme: \"editorial-dark\", canvas_size: ({width}, {height}) }}\n\
          #0s\n\
          r: Rect, size: (400, 400), color: {color}, at: ({}, {})\n\
          fade_in(target: r, duration: 100ms)\n",
@@ -352,7 +352,7 @@ fn frame_time_text_override_replaces_declared_glyphs_offline() {
     };
     let animated = build_checked(
         r#"
-config { colorscheme: "paper", resolution: (400, 200) }
+config { colorscheme: "paper", canvas_size: (400, 200) }
 
 #0s
 counter: Text, text: "DECLAREDTEXT", font_size: 64, at: (200, 100)
@@ -366,7 +366,7 @@ always {
     // would replay.
     let declared = build_checked(
         r#"
-config { colorscheme: "paper", resolution: (400, 200) }
+config { colorscheme: "paper", canvas_size: (400, 200) }
 
 #0s
 counter: Text, text: "DECLAREDTEXT", font_size: 64, at: (200, 100)
@@ -428,7 +428,7 @@ fn two_filter_scopes_keep_backdrop_visible_across_repeated_renders() {
         "/../animatix/benches/fixtures/amx/assets/checker.png"
     );
     let timeline = build_checked(&format!(
-        r#"config {{ resolution: (1280, 720) }}
+        r#"config {{ canvas_size: (1280, 720) }}
 
 backdrop: Filter, anchor: scene.center {{
   film: Vignette, amount: 0.55, radius: 0.45, softness: 0.7
@@ -487,7 +487,7 @@ fn transition_midframe_blends_both_scenes() {
     // frame average lands on a mix of the two fills.
     let scene = |color: &str| {
         build_checked(&format!(
-            "config {{ colorscheme: \"editorial-dark\", resolution: (64, 64) }}\n\
+            "config {{ colorscheme: \"editorial-dark\", canvas_size: (64, 64) }}\n\
              #0s\n\
              r: Rect, size: (200, 200), color: {color}, at: (32, 32)\n\
              fade_in(target: r, duration: 100ms)\n"
@@ -694,7 +694,7 @@ fn transition_flip_suppresses_shared_actors_and_repaints_at_midpoint() {
     };
     let scene = |x: u32| {
         build_checked(&format!(
-            "config {{ colorscheme: \"editorial-dark\", resolution: (64, 64) }}\n\
+            "config {{ colorscheme: \"editorial-dark\", canvas_size: (64, 64) }}\n\
              #0s\n\
              hero: Rect, at: ({x}, 32), size: (10, 10), color: (1.0, 0.0, 0.0, 1.0), shared_id: \"hero\"\n"
         ))
@@ -728,7 +728,7 @@ fn transition_flip_preserves_text_brightness_and_hands_off_one_title_at_a_time()
     let scene = |x: u32, content: &str, size: u32, color: &str| {
         build_checked(&format!(
             r#"
-config {{ colorscheme: "editorial-dark", resolution: (340, 150) }}
+config {{ colorscheme: "editorial-dark", canvas_size: (340, 150) }}
 #0s
 stable: Text, text: "STABLE", at: ({x}, 42), font_size: 42, color: white, shared_id: "stable"
 changed: Text, text: "{content}", at: ({x}, 109), font_size: {size}, color: {color}, shared_id: "changed"
@@ -776,7 +776,7 @@ fn shared_title_interpolates_font_size_and_anchor_and_can_fade_through_a_text_ch
     let build_title = |text: &str, size: u32, x: u32, anchor: &str| {
         build_checked(&format!(
             r#"
-config {{ resolution: (420, 128), colorscheme: "editorial-dark" }}
+config {{ canvas_size: (420, 128), colorscheme: "editorial-dark" }}
 #0s
 title: Text, text: "{text}", font_size: {size}, at: ({x}, 64), text_anchor: "{anchor}", color: white,
   shared_id: "hero", shared_text_transition: "fade_through"
@@ -832,7 +832,7 @@ fn transition_frames_keep_gpu_filter_scopes() {
     // frame average well beyond rounding noise.
     let filtered = build_checked(
         r#"
-config { colorscheme: "editorial-dark", resolution: (64, 64) }
+config { colorscheme: "editorial-dark", canvas_size: (64, 64) }
 #0s
 backdrop: Rect, at: (32, 32), size: (200, 200), color: (0.06, 0.07, 0.1, 1)
 panel: Filter {
@@ -844,7 +844,7 @@ fade_in(target: panel, duration: 100ms)
     );
     let plain = build_checked(
         r#"
-config { colorscheme: "editorial-dark", resolution: (64, 64) }
+config { colorscheme: "editorial-dark", canvas_size: (64, 64) }
 #0s
 backdrop: Rect, at: (32, 32), size: (200, 200), color: (0.2, 0.3, 0.5, 1)
 "#,
@@ -880,7 +880,7 @@ fn build_quality_changes_plot_sampling_output() {
         height: 320,
     };
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (320, 320) }
+config { colorscheme: "editorial-dark", canvas_size: (320, 320) }
 g: Graph, x_domain: (-3, 3), y_domain: (-3, 3), size: (300, 300), at: (160, 160) {
   rose: PlotCurve, kind: "polar", func: (t) => 1.6 * sin(4 * t), color: (0.95, 0.3, 0.25, 1), stroke_width: 2
 }

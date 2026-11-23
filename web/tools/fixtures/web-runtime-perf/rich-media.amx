@@ -1,5 +1,5 @@
 // Rich text + image capability workload for the browser runtime A/B harness.
-config { resolution: (1280, 720), duration: 2 }
+config { canvas_size: (1280, 720), duration: 2 }
 
 title: Text, text: "Rich text and media", font_size: 42, color: hex_color("f2f4f8"), anchor: scene.center, offset: (0, -245), opacity: 1
 

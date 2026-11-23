@@ -4,7 +4,7 @@
     {
       "id": "ripple-and-cascade",
       "source": "scenes/ripple-and-cascade.amx",
-      "source_sha256": "b52d3479f0faaa00eb7453dcb5e650f5f8549f86acc5b73ef213b75e5a3ebcdb",
+      "source_sha256": "248ff70017dc914d43224a2e797fac44eb1c157d5c75c52f851099d4d9868962",
       "poster": "posters/ripple-and-cascade.png",
       "poster_time_seconds": 6.5,
       "poster_sha256": "04ec2488fcf177af6e1bd4174f8bebbea9a77193d12cb580d2392c7d45d47550",
@@ -21,7 +21,7 @@
     {
       "id": "when-waves-meet",
       "source": "scenes/when-waves-meet.amx",
-      "source_sha256": "e4d8ad7df72805564c7817a2dd7d15e1590a79ab3be504f442a78a988aa3ad7b",
+      "source_sha256": "74e20a3907fe691fa2ea758a613fae1e440c0ea0a33154ccda40b533e1502e0b",
       "poster": "posters/when-waves-meet.png",
       "poster_time_seconds": 15,
       "poster_sha256": "007cb10c4a7b4e2abcaca23b975fc52fe4ef7e383d04324d7097a02591a8ff14",
@@ -38,7 +38,7 @@
     {
       "id": "words-keep-time",
       "source": "scenes/words-keep-time.amx",
-      "source_sha256": "34567e925b212e8f512eb349ff5bfa5b4fc8de71f0d519803097e4382ff2cc25",
+      "source_sha256": "915ec05c80fdb7b0b740dc7555cac27e1699bc84c03a74f3c33147275a6b22b2",
       "poster": "posters/words-keep-time.png",
       "poster_time_seconds": 20,
       "poster_sha256": "32d6175120284a8192f983931b0c5d6db5f8c53aadbc3da5f87e3b1e91d523da",
@@ -65,7 +65,7 @@
       "audio": false,
       "parameters": "authored defaults",
       "renderer": "native CLI video at authored 1280x720; H.264 24 fps, fast-start MP4",
-      "source_sha256": "7980d61ec397b3f342435c2ee6a67d6ae38aa5df035478294399db650d4cf451",
+      "source_sha256": "49cc3bc1ee0e052ea15feea037d58b3f1449c87835bfb6860fb38d7cbe8bb314",
       "poster_sha256": "a3e6f327f0421e50af642fbcae0ae24b78d5f4719047a6d8069c586eade37a26",
       "recording_sha256": "5dd0d691cdb09e2fd528fcd9decdef946fa8391cf91ff325d91e018b2fb1b486"
     },
@@ -82,7 +82,7 @@
       "audio": false,
       "parameters": "authored defaults",
       "renderer": "native CLI video at authored 1280x720; H.264 24 fps, fast-start MP4",
-      "source_sha256": "4b55f9b24955999830cc1ae56b6a9a6a7540dbfef5d7e3616400c77dd4268020",
+      "source_sha256": "5042ca8c48fbdc7418f452b346f04b8f99195b754e220a62f0a5ea6b1be6fe11",
       "poster_sha256": "cb80670df0dc50354d210d8870a6300310505c888c753a00ea636c0fe1205e80",
       "recording_sha256": "6bff9aef4434cc026be082cfb22efe552cbfbcda995b3bd4b47bfcd3dc00cb93"
     }
@@ -96,7 +96,7 @@
       "width": 960,
       "height": 540,
       "renderer": "native CLI image at authored 960x540",
-      "source_sha256": "433acea522c3593fe17751cff878a3e280bbdc0ec3f6876b0be48fe3399ed9c4",
+      "source_sha256": "d1b382afd83005127c9e3f52cf72e0349180f70967ba7616d507625290ef6945",
       "poster_sha256": "88841e256eb710095e5c7c1066c6741f22a50705ddd3e2614b982173b77be3c1"
     },
     {
@@ -107,7 +107,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "dee2b28c947d8b988fc6b5b5d4fe6d932e452642341e76b6ee61221477a3d36d",
+      "source_sha256": "b261e3fce00c411254de346c8cd217f0850682e276e3cda0a6bf0572ed1e93da",
       "poster_sha256": "0bfe1b20a22f216d62bbaca6529415c1795457d18502e41fcf9218b2187b71e2"
     },
     {
@@ -118,7 +118,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "5f5aa8f4a3544e3d33bd32692cde3b00fca961065b43a460302e028afb819658",
+      "source_sha256": "dd41a466e1be96ba3ba78308dcd67dd97278e68ddde110983fdebd40aad55db7",
       "poster_sha256": "798af5babd9da2ebc8326d0f17c553c40976574200243cf8dd6dda9e24fd039e"
     },
     {
@@ -129,7 +129,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image at authored 1280x720",
-      "source_sha256": "eb63b04a39da3a8ad5fb012fe140200d7dd230e19ea2f67386c60c7541183e13",
+      "source_sha256": "c06f416c44e4a154f865595080698fb1b8c0cee7f843b4a7693d45ebfe17ef1f",
       "poster_sha256": "c7ce8b3b3875db0c26e3e999d57dd4f8a76705ccc95cd251325c2f51b337fdaf"
     },
     {
@@ -140,7 +140,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image at authored 1280x720",
-      "source_sha256": "af0cfbdb6d35dccd0fea7e913a835b47303cdbf40277320086856988dfb8df7c",
+      "source_sha256": "ed5a690e61e66643b283ab4a3140c7427d8b4e209700ddb6709c1b8909a09abc",
       "poster_sha256": "0362c0b0945f6d67b65923b7892b940bed41e97f30a0d27c4ed2abf560d9cd01"
     },
     {
@@ -151,7 +151,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image with SwiftShader",
-      "source_sha256": "d46d56e6b2c0374df34166596c0c8fbb89955a7edf2b33af44be53cebb8dd7fe",
+      "source_sha256": "91e1e3deb1d4d6be6b3c49d70b4d629c951fd619a1e3ce0aa8fea920fb4dd5fd",
       "poster_sha256": "b55a8a21a7e5f160c0a3ae79ebca5f38f9120a49bdce5425764fa44bf1bcc465"
     },
     {
@@ -162,7 +162,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image at authored 1280x720",
-      "source_sha256": "a698a4be9a88f96f8d2831aaf34295382d664bba3ea756990f20bf463582f6d9",
+      "source_sha256": "c36b28a64d8ecda792b45b31ef888f7cc41039f431f385a291bf290003ab7add",
       "poster_sha256": "c6429093bad4f8e6b5757473fe0edc246b03eadedf45cc7b9786caa04fc4a852"
     },
     {
@@ -173,7 +173,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image at authored 1280x720",
-      "source_sha256": "4c738868d631f404ed448ddff1a4084fdc2edca94213cf29d92af1294797e33d",
+      "source_sha256": "c50e020bfec1923980c09de5174b5b764843d7571380a83e603380154b651283",
       "poster_sha256": "7959e053e21759664ceba95564713492261a8e00783124ce8b48d58358801d7a"
     },
     {
@@ -184,7 +184,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image at authored 1280x720",
-      "source_sha256": "efcf7c54ff43dbf8dc84bdcd1a030eec3e04bd8d319cb3bde2931608f5659685",
+      "source_sha256": "be99a6a07f73c1afc58c622d8b62d772c9df220e379a2f30023ec83996fe99da",
       "poster_sha256": "092c478560ebeec1a1131d08b8384092238ccec8031898c491e8bc8cadd3c459"
     },
     {
@@ -195,7 +195,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image at authored 1280x720",
-      "source_sha256": "e08e87613e952d982ccf704302db9ed8fb331fbcaa7ea733f7ec159affe6fdf0",
+      "source_sha256": "dea96b5556dbaa3bc55639218a105a9c96e180fbaf2c378593489c36ed1c36bf",
       "poster_sha256": "a3f23917a1ca66f216e8e34e37be87799cb39bd3b50bdf1f157b63b562236800"
     },
     {
@@ -206,7 +206,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image at authored 1280x720",
-      "source_sha256": "1b45f60194c968f4479f81fe388e38a2f897088cfd3ea19f3fa1492db4c3cfff",
+      "source_sha256": "30aa349d68157e35c4bcfeb12026cf461f1cf05d20349db335a4e7c031185447",
       "poster_sha256": "ec36516d42644bc57ff2a3ac1844256e88cd17c4cdff92e5259cde6f2f8fce31"
     }
   ],

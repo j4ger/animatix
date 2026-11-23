@@ -55,7 +55,7 @@ def collect(binary, output, ci_summary=None):
             report = json.loads(result.stdout)
             summary = report.get('summary') if isinstance(report, dict) else None
             budget_report = report.get('budget') if isinstance(report, dict) else None
-            valid = (isinstance(report, dict) and report.get('schema_version') == 3
+            valid = (isinstance(report, dict) and report.get('schema_version') == 4
                      and report.get('kind') == 'audit' and isinstance(summary, dict)
                      and type(summary.get('errors')) is int and summary['errors'] == 0
                      and type(summary.get('warnings')) is int and summary['warnings'] == 0

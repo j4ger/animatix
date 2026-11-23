@@ -30,6 +30,29 @@ use rebuild::{
     push_unsupported_assignment_property_diagnostic, rebuild_vector_paths, scale_plot_curve_paths,
 };
 
+pub(super) fn relative_size_assignment_diagnostic(
+    property: &str,
+    value: &crate::ast::Expr,
+    span: Option<crate::ast::Span>,
+) -> Option<Diagnostic> {
+    use crate::ast::Expr;
+    let percent_axis = match value {
+        Expr::Percent(_) => true,
+        Expr::Tuple(axes) | Expr::List(axes) => {
+            axes.iter().any(|axis| matches!(axis, Expr::Percent(_)))
+        },
+        _ => false,
+    };
+    (property == "size" && percent_axis).then(|| {
+        Diagnostic::warning(
+            DiagnosticCode::InvalidPropertyValue,
+            DiagnosticPhase::Build,
+            "Percent literals in size assignments are numeric fractions. Multiply by scene_width or scene_height to express a scene-relative size.",
+        )
+        .with_ast_span(span)
+    })
+}
+
 /// Build-fixed inputs of one assignment statement, resolved once before any
 /// mutable component borrow by [`Timeline::prepare_assignment`].
 struct AssignmentPlan {

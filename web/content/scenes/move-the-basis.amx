@@ -1,7 +1,7 @@
 // Shear maps (x, y) to (x + k*y, y). The reference axes stay fixed.
 import "../templates/layout.amx"
 
-config { style: "editorial", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 24 }
+config { style: "editorial", colorscheme: "editorial-dark", canvas_size: (1280, 720), duration: 24 }
 
 let basis_unit = 85 * unit()
 let grid_radius = 2

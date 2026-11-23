@@ -1,6 +1,6 @@
 import "../lib/ambience.amx"
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6, seamless_loop: true }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720), duration: 6, seamless_loop: true }
 
 // Only the two moving actors contribute to the follow signal.
 let wash_strength = 0.08

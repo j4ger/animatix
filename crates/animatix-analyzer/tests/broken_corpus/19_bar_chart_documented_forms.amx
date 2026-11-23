@@ -8,7 +8,7 @@
 // diagnostics: the analyzer must accept what the builder accepts. Top-level
 // declarations only — the semantic walker does not reach actors inside a
 // container's braces (see docs/roadmap.md).
-config { resolution: (640, 360) }
+config { canvas_size: (640, 360) }
 
 chart: BarChart, size: (400, 240),
   data: {("A", 4), ("B", 8), ("C", 6)},

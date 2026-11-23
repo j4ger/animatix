@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 
 const ENTRY: &str = r#"
 import "lesson/chapter.amx" as lesson
-config { resolution: (160, 90) }
+config { canvas_size: (160, 90) }
 
 # First
 config { duration: 0.75 }

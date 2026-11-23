@@ -754,7 +754,7 @@ Core concepts:
 - `Composition::evaluate(global_time_s)` maps global time → `(scene_name, local_time_s, transition_blend)` with eased progress.
 - `BuildTarget` auto-routes single-scene vs multi-scene for CLI/GUI.
 
-**Config merge:** The shared prelude (imports, `pub let`, top-level `config`) is prepended to every scene body before timeline compilation. Scene-scoped config keys (`colorscheme`, `dynamic_layout`) override the prelude; composition-scoped keys (`resolution`, `strict_types`) are ignored with a warning. See [`spec.md`](spec.md) §Config Merge Semantics for the full key-scope table.
+**Config merge:** The shared prelude (imports, `pub let`, top-level `config`) is prepended to every scene body before timeline compilation. Scene-scoped config keys (`colorscheme`, `dynamic_layout`) override the prelude; composition-scoped keys (`canvas_size`, `strict_types`) are ignored with a warning. See [`spec.md`](spec.md) §Config Merge Semantics for the full key-scope table.
 
 **Diagnostics:**
 - `DuplicateSceneName` — error on repeated scene names

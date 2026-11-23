@@ -24,7 +24,7 @@ class SiteCheckTests(unittest.TestCase):
         (content / 'scenes').mkdir(parents=True)
         works = []
         for i in range(10):
-            (content / f'scenes/scene{i}.amx').write_text('config { resolution: (640, 360) }')
+            (content / f'scenes/scene{i}.amx').write_text('config { canvas_size: (640, 360) }')
             if i < 3:
                 item = {'id': f'scene{i}'}
                 for role, name in [('source',f'scenes/scene{i}.amx'),('poster',f'poster{i}.png'),('recording',f'video{i}.mp4')]:

@@ -207,7 +207,7 @@ fn closure_block_can_capture_outer_let_and_shadow_inside() {
 #[test]
 fn closure_let_chain_parses_after_a_keyframe() {
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (480, 270) }
+config { colorscheme: "editorial-dark", canvas_size: (480, 270) }
 
 label: Text, text: "init", font_size: 18, anchor: scene.center, text_max_width: 440
 

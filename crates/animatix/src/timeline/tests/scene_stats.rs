@@ -5,7 +5,7 @@ use crate::timeline::{SceneDimensions, Timeline, Value};
 #[test]
 fn scene_stats_are_baked_when_referenced() {
     let source = r#"
-config { duration: 4, resolution: (1280, 720) }
+config { duration: 4, canvas_size: (1280, 720) }
 
 dot: Ellipse, size: (60, 60), color: accent.primary, at: (200, 300), opacity: 1.0
 
@@ -57,7 +57,7 @@ always {
 #[test]
 fn scene_stats_not_baked_when_unreferenced() {
     let source = r#"
-config { duration: 2, resolution: (1280, 720) }
+config { duration: 2, canvas_size: (1280, 720) }
 
 dot: Ellipse, size: (60, 60), color: accent.primary, at: (200, 300), opacity: 1.0
 
@@ -78,7 +78,7 @@ dot.at = (800, 300)
 #[test]
 fn scene_stats_purity_across_builds() {
     let source = r#"
-config { duration: 3, resolution: (1280, 720) }
+config { duration: 3, canvas_size: (1280, 720) }
 
 a: Rect, size: (100, 100), at: (100, 100), opacity: 1.0
 b: Ellipse, size: (80, 80), at: (600, 400), opacity: 1.0
@@ -114,7 +114,7 @@ always {
 #[test]
 fn scene_stats_seamless_loop_pins_endpoints() {
     let source = r#"
-config { duration: 4, resolution: (640, 360), seamless_loop: true }
+config { duration: 4, canvas_size: (640, 360), seamless_loop: true }
 
 ball: Ellipse, size: (50, 50), at: (200, 180), opacity: 1.0
 
@@ -154,7 +154,7 @@ always {
 #[test]
 fn scene_stats_excludes_full_viewport_background() {
     let source = r#"
-config { duration: 2, resolution: (1000, 1000) }
+config { duration: 2, canvas_size: (1000, 1000) }
 
 bg: Rect, size: (fill, fill), at: scene.center, opacity: 1.0
 subject: Ellipse, size: (100, 100), at: (200, 200), opacity: 1.0
@@ -235,7 +235,7 @@ fn ambience_component_evaluates_at_runtime() {
 #[test]
 fn scene_stats_preserves_actors_with_non_spatial_modifiers() {
     let source = r#"
-config { duration: 2, resolution: (1000, 1000) }
+config { duration: 2, canvas_size: (1000, 1000) }
 
 hero: Ellipse, size: (100, 100), at: (200, 500), opacity: 1.0
 
@@ -272,7 +272,7 @@ always {
 #[test]
 fn scene_stats_excludes_containers_and_non_visual_actors() {
     let source = r#"
-config { duration: 2, resolution: (1000, 1000) }
+config { duration: 2, canvas_size: (1000, 1000) }
 
 group: Group, at: (100, 100)
 row: Row, at: (200, 200)

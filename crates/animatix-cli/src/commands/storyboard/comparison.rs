@@ -5,7 +5,7 @@ use animatix::timeline::{DebugRenderOptions, SceneDimensions};
 use animatix_render::encode::{StoryboardSettings, render_storyboard_comparison};
 
 use super::select_storyboard_times;
-use crate::build::{configured_resolution, try_load_and_build};
+use crate::build::try_load_and_build;
 use crate::extensions::CliExtensions;
 use crate::review::samples::target_duration_s;
 
@@ -88,7 +88,7 @@ fn comparison_target(
     if let Some(error) = diagnostics.iter().find(|diagnostic| diagnostic.is_error()) {
         return Err(format!("{}: {}", path.display(), error.message));
     }
-    let (width, height) = configured_resolution(&target).unwrap_or((1280, 720));
+    let SceneDimensions { width, height } = target.canvas_dimensions();
     let selected = if let Some(name) = scene {
         let BuildTarget::MultiScene(mut composition) = target else {
             return Err(format!("{} has no named scene '{name}'", path.display()));

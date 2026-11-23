@@ -73,7 +73,7 @@ fn scene_dims() -> SceneDimensions {
 }
 
 const GLASS_SCENE: &str = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 plate: Rect, size: (600, 200), at: (320, 180), color: accent.primary
 card: Glass, at: (320, 180), size: (200, 100), corner_radius: 12 {
@@ -110,7 +110,7 @@ fn a_glass_scope_queues_one_backdrop_and_one_overlay() {
 fn recorded_glass_stays_in_deferred_order_with_its_children() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 plate: Rect, size: (600, 200), at: (320, 180), color: accent.primary
 card: Glass, at: (320, 180), size: (200, 100), corner_radius: 12 {
@@ -149,7 +149,7 @@ hud: Rect, size: (80, 20), at: (60, 40), color: accent.warning
 #[test]
 fn recorded_filter_keeps_painter_order_or_marks_safe_tail_composites() {
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 plate: Rect, size: (600, 200), at: (320, 180), color: accent.primary
 fx: Filter, at: (320, 180) {
@@ -263,7 +263,7 @@ fn the_backdrop_region_pads_beyond_the_panel_it_clips_to() {
 fn a_glass_scope_still_frosts_when_something_renders_after_it() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 plate: Rect, size: (600, 200), at: (320, 180), color: accent.primary
 card: Glass, at: (320, 180), size: (200, 100), corner_radius: 12 {
@@ -300,7 +300,7 @@ hud: Rect, size: (80, 20), at: (60, 40), color: accent.warning
 fn a_glass_scope_without_stages_costs_no_backdrop() {
     let timeline = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 plain: Glass, at: (320, 180), size: (200, 100) {
     label: Text, text: "no frost", font_size: 20
@@ -332,7 +332,7 @@ plain: Glass, at: (320, 180), size: (200, 100) {
 #[test]
 fn a_glass_scope_names_the_surface_properties_it_cannot_use() {
     let source = r#"
-config { colorscheme: "editorial-dark", resolution: (320, 200) }
+config { colorscheme: "editorial-dark", canvas_size: (320, 200) }
 c: Glass, at: (160, 100), size: (120, 60), color: rgb(1, 0, 0), fill_opacity: 0.5, stroke_width: 3 {
     f: Blur, radius: 10
 }

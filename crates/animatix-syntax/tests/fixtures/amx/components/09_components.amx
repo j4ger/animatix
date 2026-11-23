@@ -4,7 +4,7 @@ import "../../../../../animatix/examples/web_present_driver/fixtures/lib/theme.a
 
 import "../../../../../animatix/examples/web_present_driver/fixtures/lib/theme.amx" as theme
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }
 
 pub component MetricCard(title: Str = "Metric", value: Str = "0") {
   frame: Rect, size: (240, 140), color: surface.secondary

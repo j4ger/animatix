@@ -1,5 +1,5 @@
 // English text plus vector geometry for a stable browser playback workload.
-config { resolution: (1280, 720), duration: 2 }
+config { canvas_size: (1280, 720), duration: 2 }
 
 title: Text, text: "Animatix Web Runtime", font_size: 46, color: hex_color("f2f4f8"), anchor: scene.center, offset: (0, -170), opacity: 1
 

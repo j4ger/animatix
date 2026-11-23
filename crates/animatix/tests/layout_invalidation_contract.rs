@@ -190,12 +190,12 @@ fn layout_manifest_and_clock_match_frozen_parameters() {
 fn layout_source_bytes_are_frozen() {
     // Lightweight snapshot checks only; metadata carries SHA256 provenance.
     let expected = [
-        (16, Mode::Static, 0xc54d09f803cb07f7_u64),
-        (16, Mode::Color, 0x2b49dc187aebc53b_u64),
-        (16, Mode::Size, 0xd620aceffbeaff19_u64),
-        (64, Mode::Static, 0xca4888ca0a744ca3_u64),
-        (64, Mode::Color, 0x591df539395b09bb_u64),
-        (64, Mode::Size, 0x41a695ab8fbbc261_u64),
+        (16, Mode::Static, 0x71b30f35e84ffc49_u64),
+        (16, Mode::Color, 0x9b13aad36e9701bd_u64),
+        (16, Mode::Size, 0x40f36efee0d27deb_u64),
+        (64, Mode::Static, 0xcd5ff691b4c380f5_u64),
+        (64, Mode::Color, 0xd93805904ac260ed_u64),
+        (64, Mode::Size, 0x8c704a725a8855bb_u64),
     ];
     for (count, mode, hash) in expected {
         let text = source(count, mode);

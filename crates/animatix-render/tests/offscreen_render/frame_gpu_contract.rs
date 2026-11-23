@@ -36,7 +36,7 @@ fn caption_cue_and_page_fades_follow_their_own_windows() {
     };
     let timeline = common::build_checked(
         r#"
-config { resolution: (230, 112), duration: 3, colorscheme: "editorial-dark" }
+config { canvas_size: (230, 112), duration: 3, colorscheme: "editorial-dark" }
 #0s
 caps: Captions, at: (115, 56), color: white, font_size: 44, backdrop: false, caption_mode: "line",
   max_lines: 1, caption_enter: 0.2, caption_exit: 0.2, caption_page_transition: 0.2 {
@@ -71,7 +71,7 @@ fn named_formula_terms_keep_identity_when_duplicate_glyphs_reorder() {
         height: 145,
     };
     let source = r####"
-config { resolution: (440, 145), duration: 3 }
+config { canvas_size: (440, 145), duration: 3 }
 #0s
 eq: Equation, at: (220, 72), font_size: 56, equation_transition: 1, equation_source: r##"$ #term("first", text(fill: rgb("#ff3030"))[$x$]) + #term("second", text(fill: rgb("#30ff30"))[$x$]) $"##
 #1s
@@ -123,7 +123,7 @@ fn text_wipe_clips_opaque_ink_and_all_vector_exits_clear_the_actor() {
     };
     let timeline = common::build_checked(
         r#"
-config { resolution: (300, 192), colorscheme: "editorial-dark", duration: 3 }
+config { canvas_size: (300, 192), colorscheme: "editorial-dark", duration: 3 }
 #0s
 incoming: Text, text: "MMMMMM", at: (150, 24), font_size: 40, text_cursor: true, opacity: 0, color: white
 wipe: Text, text: "MMMMMM", at: (150, 72), font_size: 40, text_cursor: true, color: white
@@ -166,7 +166,7 @@ fn equation_fragment_move_and_highlight_render_on_the_authored_term() {
     };
     let timeline = common::build_checked(
         r#"
-config { resolution: (280, 120), duration: 3 }
+config { canvas_size: (280, 120), duration: 3 }
 #0s
 eq: Equation, at: (160, 60), font_size: 42, equation_transition: 0.5 {
   lhs: Fragment, text: "x", fragment_order: 1, fragment_color: rgba(0.1, 1, 0.1, 1)
@@ -228,7 +228,7 @@ fn ellipse_shadow_follows_the_silhouette_with_signed_spread() {
     let render = |renderer: &mut OffscreenRenderer, blur: f32, spread: f32| {
         let timeline = common::build_checked(&format!(
             r##"
-config {{ resolution: (96, 64) }}
+config {{ canvas_size: (96, 64) }}
 #0s
   bg: Rect, at: (48,32), size: (96,64), color: hex_color("ffffff")
   oval: Ellipse, at: (33,14), size: (48,14), color: hex_color("406080"),
@@ -258,7 +258,7 @@ fn opaque_readback_matches_straight_alpha_conversion() {
     };
     let timeline = common::build_checked(
         r##"
-config { resolution: (96, 64) }
+config { canvas_size: (96, 64) }
 #0s
   translucent: Rect, at: (28, 30), size: (46, 38), color: hex_color("ff804080")
   panel: Glass, at: (52, 32), size: (45, 38), corner_radius: 5 {
@@ -285,7 +285,7 @@ fn inline_filter_stays_below_later_sibling() {
     };
     let timeline = common::build_checked(
         r##"
-config { resolution: (96, 64) }
+config { canvas_size: (96, 64) }
 #0s
   bg: Rect, at: (48, 32), size: (96, 64), color: hex_color("152436")
   filtered: Filter, at: (48, 32) {
@@ -308,7 +308,7 @@ fn bounded_grain_and_vignette_match_compute_coordinates() {
     };
     let timeline = common::build_checked(
         r##"
-config { resolution: (96, 64), duration: 1 }
+config { canvas_size: (96, 64), duration: 1 }
 #0s
   bg: Rect, at: (48, 32), size: (96, 64), color: hex_color("152436")
   filtered: Filter, at: (38, 24), bounds: (17, 11, 42, 26) {
@@ -374,7 +374,7 @@ fn vignette_clear_area_follows_animated_center() {
     };
     let timeline = common::build_checked(
         r##"
-config { resolution: (96, 64), duration: 2 }
+config { canvas_size: (96, 64), duration: 2 }
 #0s
   plate: Filter, at: (48, 32), bounds: (0, 0, 96, 64) {
     shade: Vignette, amount: 1, radius: 0.1, softness: 0.2, center: (0.25, 0.25)
@@ -405,7 +405,7 @@ fn vignette_follows_later_actor_points_inside_a_padded_crop() {
     };
     let timeline = common::build_checked(
         r##"
-config { resolution: (96, 64), duration: 2 }
+config { canvas_size: (96, 64), duration: 2 }
 #0s
   plate: Filter, at: (48, 32), bounds: (8, 8, 80, 48) {
     shade: Vignette, amount: 1, radius: 0.08, softness: 0.12, center: cards[0].center
@@ -435,7 +435,7 @@ fn deferred_glass_panel_stays_above_later_base_draws() {
     };
     let timeline = common::build_checked(
         r##"
-config { resolution: (96, 64) }
+config { canvas_size: (96, 64) }
 #0s
   bg: Rect, at: (48, 32), size: (96, 64), color: hex_color("152436")
   panel: Glass, at: (48, 32), size: (60, 48), corner_radius: 6 {

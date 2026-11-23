@@ -18,7 +18,7 @@ spec.loader.exec_module(driver)
 def fixture(size, blur):
     rect = f"box: Rect, size: ({size}, {size}), color: (1, 1, 1, 1), opacity: 1, stroke_width: 0"
     actor = f"panel: Filter, at: (256, 256), opacity: 1 {{\nsoft: Blur, radius: 6\n{rect}\n}}" if blur else f"{rect}, at: (256, 256)"
-    return f"config {{ resolution: (512, 512) }}\n#0s\nbackground: Rect, at: (256, 256), size: (512, 512), color: (0, 0, 0, 1), opacity: 1, stroke_width: 0\n{actor}\n"
+    return f"config {{ canvas_size: (512, 512) }}\n#0s\nbackground: Rect, at: (256, 256), size: (512, 512), color: (0, 0, 0, 1), opacity: 1, stroke_width: 0\n{actor}\n"
 
 
 def result():

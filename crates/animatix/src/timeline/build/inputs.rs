@@ -74,7 +74,8 @@ pub fn prepare_input_environment(
         seeded.insert(name);
     }
     BuiltInColorscheme::DefaultDark.resolved().seed_environment(&mut env);
-    let dims = SceneDimensions::default();
+    let dims = animatix_syntax::config_keys::configured_canvas_size(statements, &mut diagnostics)
+        .map_or_else(SceneDimensions::default, |(width, height)| SceneDimensions { width, height });
     env.set_host_global("scene_width", Value::Num(dims.width as f64));
     env.set_host_global("scene_height", Value::Num(dims.height as f64));
     let external_colorschemes =

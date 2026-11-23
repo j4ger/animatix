@@ -201,6 +201,12 @@ function sceneFile(scene) {
   return {path, url:`/repo/${relative(ROOT,path).split(sep).map(encodeURIComponent).join('/')}`};
 }
 
+// The pinned comparison runtime predates canvas_size. Feed it the same
+// scene and modules with the old config key, at a mirrored URL.
+export function legacyCanvasSource(source) {
+  return source.replace(/(\bconfig\s*\{[^{}]*?)\bcanvas_size(?=\s*:)/g, "$1resolution");
+}
+
 export function page(kind) {
   const old = kind === 'old';
   const setup = old
@@ -323,14 +329,16 @@ function summarize(values) {
 
 async function staticServer(stage, port) {
   const { createServer } = await import('node:http');
-  const roots = { '/old/': join(stage,'old'), '/fresh/': join(stage,'fresh'), '/repo/': ROOT };
+  const roots = { '/old/': join(stage,'old'), '/fresh/': join(stage,'fresh'), '/repo/': ROOT, '/legacy-repo/': ROOT };
   const server = createServer((req,res)=>{
     try {
       const url = new URL(req.url, `http://localhost:${port}`); let path;
       if(url.pathname==='/old-page.html') path=join(stage,'old-page.html');
       else if(url.pathname==='/fresh-page.html') path=join(stage,'fresh-page.html');
       else { const root=Object.entries(roots).find(([prefix])=>url.pathname.startsWith(prefix)); if(!root) throw Error('not found'); path=resolve(root[1], decodeURIComponent(url.pathname.slice(root[0].length))); if(!path.startsWith(root[1]+sep)&&path!==root[1]) throw Error('invalid path'); }
-      const bytes=readFileSync(path); const cache=/page\.html$|scene\.amx$/.test(path)?'no-store':'public, max-age=3600'; res.writeHead(200,{'content-type':contentType(path),'cache-control':cache,'access-control-allow-origin':'*'}); res.end(bytes);
+      const bytes=readFileSync(path); const cache=/page\.html$|scene\.amx$/.test(path)?'no-store':'public, max-age=3600'; res.writeHead(200,{'content-type':contentType(path),'cache-control':cache,'access-control-allow-origin':'*'});
+      res.end(url.pathname.startsWith('/legacy-repo/') && path.endsWith('.amx')
+        ? legacyCanvasSource(bytes.toString('utf8')) : bytes);
     } catch { res.writeHead(404);res.end('not found'); }
   });
   await new Promise((ok,no)=>{server.once('error',no);server.listen(port,'127.0.0.1',ok)}); return server;
@@ -340,7 +348,8 @@ async function runOne(kind, order, scene, stage, chrome, port, options = {}) {
   const owned = !options.context;
   const context = options.context || (await chrome.send('Target.createBrowserContext', { disposeOnDetach: true })).browserContextId;
   try {
-    const sceneLocation=sceneFile(scene).url;
+    const url = sceneFile(scene).url;
+    const sceneLocation = kind === 'old' ? url.replace('/repo/', '/legacy-repo/') : url;
     const pageUrl=new URL(`http://127.0.0.1:${port}/${kind==='old'?'old-page.html':'fresh-page.html'}`);pageUrl.searchParams.set('scene',sceneLocation);
     const target = (await chrome.send('Target.createTarget', { url: 'about:blank', browserContextId: context })).targetId;
     const { sessionId } = await chrome.send('Target.attachToTarget', { targetId: target, flatten: true });

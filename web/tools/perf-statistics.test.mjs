@@ -2,7 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { combinePrimaryVerdict, comparePaired } from './perf-statistics.mjs';
-import { contentType, parseScenes } from '../../web/tools/test/web-runtime-perf.mjs';
+import { contentType, legacyCanvasSource, parseScenes } from '../../web/tools/test/web-runtime-perf.mjs';
+
+test('legacy performance input keeps the same canvas and sampling density', () => {
+  const scene = 'config {\n  canvas_size: (800, 600)\n}\nplot: Heatmap, resolution: 32\n';
+  assert.equal(legacyCanvasSource(scene), scene.replace('canvas_size', 'resolution'));
+});
 
 const compare = (oldValues, newValues, absoluteThreshold, options = {}) => comparePaired(oldValues, newValues, {
   threshold: 1.05,

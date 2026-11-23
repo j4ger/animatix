@@ -30,7 +30,7 @@ impl Mode {
 /// Prefixes of one fixed 16-column grid: count is the only scaling parameter.
 pub fn source(count: usize, mode: Mode) -> String {
     assert!(COUNTS.contains(&count), "unsupported frozen geometry count: {count}");
-    let mut source = String::from("config { resolution: (1024, 1024) }\n#0s\n");
+    let mut source = String::from("config { canvas_size: (1024, 1024) }\n#0s\n");
     for i in 0..count {
         let x = 32 + (i % 16) * 56;
         let y = 32 + (i / 16) * 56;

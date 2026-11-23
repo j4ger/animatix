@@ -84,7 +84,8 @@ animatix audit scene.amx --delta target/review/before.json --evidence target/rev
 
 ## Schema v3
 
-`schema_version: 3` 用于统一 `audit`、`audit.brief`、`measure`、`baseline` 输出。
+`audit`、`audit.brief`、`measure` 输出使用 `schema_version: 4`，其中 `target.canvas_size` 是逻辑画布。
+`baseline` 输出仍使用 `schema_version: 3`，快照清单的 `resolution` 记录实际像素。
 
 ### 核心结构
 - **Top-level**: `schema_version, kind, input, target, render, sample_times_s, frames, coverage, findings, summary`。可选 `delta`, `budget`。

@@ -4,7 +4,7 @@ import "../../../../tests/fixtures/amx/lib/ui.amx"
 
 import "../../../../tests/fixtures/amx/lib/charts.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), strict_types: true, dynamic_layout: true }
+config { colorscheme: "ink", canvas_size: (1280, 720), strict_types: true, dynamic_layout: true }
 
 // ── Scene 1: KPIs ───────────────────────────────────────────────────────────
 # KPIs

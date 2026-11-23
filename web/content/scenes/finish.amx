@@ -1,4 +1,4 @@
-config { style: "compact", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 5 }
+config { style: "compact", colorscheme: "editorial-dark", canvas_size: (1280, 720), duration: 5 }
 
 #0s
   // A silent complete composition: explicit resolution, duration and held ending.

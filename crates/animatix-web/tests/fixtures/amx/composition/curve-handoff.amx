@@ -1,7 +1,7 @@
 // Reproduces the graph-hosted stroke reveal and scene handoff from the Fourier walkthrough.
 import "harmonics.amx" as math
 
-config { resolution: (640, 360) }
+config { canvas_size: (640, 360) }
 
 # Trace
 config { duration: 3 }

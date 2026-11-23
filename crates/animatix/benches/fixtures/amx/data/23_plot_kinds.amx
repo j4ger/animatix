@@ -4,7 +4,7 @@ import "../../../../examples/web_present_driver/fixtures/lib/theme.amx"
 
 import "../../../../examples/web_present_driver/fixtures/lib/theme.amx" as theme
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }
 
 kinds: Graph, x_domain: (-3, 3), y_domain: (-3, 3), size: (400, 400), at: (640, 360) {
 rose: PlotCurve, kind: "polar", func: (t) => 1.6 * sin(4 * t), color: accent.primary, stroke_width: 2

@@ -31,7 +31,7 @@ impl Mode {
 pub fn source(count: usize, mode: Mode) -> String {
     assert!(COUNTS.contains(&count), "unsupported frozen Row child count: {count}");
     let mut source = String::from(
-        "config { resolution: (2048, 256), dynamic_layout: true }\n#0s\n\
+        "config { canvas_size: (2048, 256), dynamic_layout: true }\n#0s\n\
          row: Row, size: (1792, 128), at: (1024, 128), gap: 4, align: \"center\", opacity: 1 {\n",
     );
     for i in 0..count {

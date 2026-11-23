@@ -94,17 +94,17 @@ where
             // from CPU+GPU to ~max(CPU, GPU).
             let times: Vec<f64> = (start..end).map(|frame| (frame as f64) / (fps as f64)).collect();
             let mut pending = Some(
-                renderer
-                    .begin_frame_with_debug(&timeline, times[0], dims, debug_options)
-                    .map_err(|e| ExportError::FrameRender {
+                renderer.begin_canvas_frame(&timeline, times[0], dims, debug_options).map_err(
+                    |e| ExportError::FrameRender {
                         frame: start,
                         message: e,
-                    })?,
+                    },
+                )?,
             );
             for (offset, &time) in times.iter().enumerate().skip(1) {
                 let frame = start + offset;
                 let next = renderer
-                    .begin_frame_with_debug(&timeline, time, dims, debug_options)
+                    .begin_canvas_frame(&timeline, time, dims, debug_options)
                     .map_err(|e| ExportError::FrameRender { frame, message: e })?;
                 let rendered = renderer
                     .wait_frame(pending.take().expect("pending consumed exactly once"))
@@ -286,7 +286,7 @@ where
                         }
                     })?;
                     renderer
-                        .begin_transition(
+                        .begin_canvas_transition(
                             &from_scene.timeline,
                             blend.from_local,
                             &to_scene.timeline,
@@ -307,7 +307,7 @@ where
                     })?;
 
                     renderer
-                        .begin_frame_with_debug(
+                        .begin_canvas_frame(
                             &scene_timeline.timeline,
                             local_time_s,
                             dims,

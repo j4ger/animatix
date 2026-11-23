@@ -1,4 +1,4 @@
-config { style: "compact", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 5 }
+config { style: "compact", colorscheme: "editorial-dark", canvas_size: (1280, 720), duration: 5 }
 
 let columns = 6
 let rows = 2

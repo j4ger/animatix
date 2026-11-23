@@ -25,6 +25,13 @@ pub fn load_and_build(
     match try_load_and_build(input, extensions, defines) {
         Ok((target, diagnostics)) => {
             print_build_diagnostics(&diagnostics);
+            if diagnostics.iter().any(|diagnostic| {
+                diagnostic.is_error()
+                    && diagnostic.code
+                        == animatix_syntax::diagnostics::DiagnosticCode::InvalidConfigValue
+            }) {
+                std::process::exit(1);
+            }
             (target, diagnostics)
         },
         Err(e) => {
@@ -90,17 +97,6 @@ pub fn try_load_and_build_in(
     all_diagnostics.extend(report.diagnostics);
     let _disposers = disposers;
     Ok((report.output, all_diagnostics))
-}
-
-/// Resolution declared by the file via top-level `config { resolution: (w, h) }`,
-/// used as the default export canvas when `--width`/`--height` are omitted.
-pub fn configured_resolution(target: &BuildTarget) -> Option<(u32, u32)> {
-    match target {
-        BuildTarget::SingleScene(timeline) => timeline.resolution(),
-        BuildTarget::MultiScene(composition) => {
-            composition.scenes.values().next().and_then(|scene| scene.timeline.resolution())
-        },
-    }
 }
 
 pub fn print_build_diagnostics(diagnostics: &[Diagnostic]) {

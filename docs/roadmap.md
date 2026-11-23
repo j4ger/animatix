@@ -127,10 +127,8 @@ The correctness-fix evidence and disposition of AMX-01–11 are recorded in
    companion design document; `.amx` remains the timing authority. Reuse `always`
    for shared responsive values.
 
-Config `resolution` currently requires positive numeric literals: `--set W=...`
-does not make `resolution: (W, H)` an evaluated expression. Keep this limitation
-visible in authoring guidance; design config-expression evaluation and validation
-before advertising parameterized canvas dimensions.
+Parameterized logical canvases need a config expression evaluation design.
+The current `canvas_size` accepts two positive integer literals.
 
 ### Callable syntax migration validation (active)
 

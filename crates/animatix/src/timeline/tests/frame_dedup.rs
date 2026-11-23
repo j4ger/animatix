@@ -4,7 +4,7 @@
 use super::*;
 
 const SCENE: &str = r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 box: Rect, size: (200, 100), at: (320, 180), color: accent.primary
 "#;
@@ -39,7 +39,7 @@ fn a_fresh_document_restarts_the_epoch_at_zero() {
     let first = build_timeline(SCENE);
     let second = build_timeline(
         r#"
-config { colorscheme: "editorial-dark", resolution: (640, 360) }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360) }
 #0s
 dot: Rect, size: (40, 40), at: (320, 180), color: accent.warning
 "#,

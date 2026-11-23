@@ -10,7 +10,7 @@ import "../lib/reexport.amx" as theme
 
 import "../lib/card.amx"
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }
 
 heading: Text, text: "Module System", font_size: 40, color: text.primary, anchor: scene.top, offset: (0, 50)
 

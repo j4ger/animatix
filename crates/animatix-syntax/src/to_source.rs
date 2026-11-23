@@ -104,7 +104,7 @@ mod tests {
     // equality, so a length-only comparison here would duplicate it weakly.
 
     const SHOWCASE_FIXTURE: &str = r#"// Animatix Showcase
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }
 
 fn reveal(actor: Actor, duration: Duration = 500ms) -> Timeline {
   #{

@@ -3,8 +3,8 @@
   "source_commit": "52dabbfe318fab987d66b2adb7bf58f5d74aac91",
   "original_source": "web/demos/transformer/scenes/overview.amx",
   "original_source_sha256": "b5c71e85b04ed33227eea883f6c61a09e438f70a215f08454e6b3e9befb9ff0b",
-  "archived_source_sha256": "28f80606ffebbb9283a34077fd46c49a1583b6de7d8d23ef3e77ea658c085d98",
-  "source_edit": "Only the three import prefixes ../../lib/ were changed to lib/.",
+  "archived_source_sha256": "e98ced09c89532a7a083ebdbc1e07d58168870db0675aec60a7961156a025076",
+  "source_edit": "The three import prefixes ../../lib/ were changed to lib/ and the canvas key was migrated.",
   "modules": [
     {
       "archive": "lib/theme.amx",
@@ -14,7 +14,8 @@
     {
       "archive": "lib/stage.amx",
       "original": "web/demos/lib/stage.amx",
-      "sha256": "e978cbdf269ea1da5e9a0e4fbd1a349d01827044ce60ef08a0e7dba2d872f305"
+      "original_sha256": "e978cbdf269ea1da5e9a0e4fbd1a349d01827044ce60ef08a0e7dba2d872f305",
+      "sha256": "d76cd2e0d5e42cfdcb2062565ab261b5639097b3dd893aec0288200240d4e67c"
     },
     {
       "archive": "lib/components.amx",

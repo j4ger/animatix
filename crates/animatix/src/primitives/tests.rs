@@ -308,7 +308,7 @@ fn runtime_text_override_drops_declared_hardware_layout() {
     use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
     let source = r#"
-config { colorscheme: "paper", resolution: (400, 200) }
+config { colorscheme: "paper", canvas_size: (400, 200) }
 
 #0s
 counter: Text, text: "DECLAREDTEXT", font_size: 64, at: (200, 100)

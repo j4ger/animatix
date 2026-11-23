@@ -30,7 +30,7 @@
 // Usage:
 //   import "../lib/theme.amx"
 //   import "../lib/stage.amx"
-//   config { colorscheme: "tide", resolution: (1280, 720) }
+//   config { colorscheme: "tide", canvas_size: (1280, 720) }
 //
 //   floor: StageFloor
 //   head:  ActHead, kicker: "ACT I", title: "Attention", sub: "one question"

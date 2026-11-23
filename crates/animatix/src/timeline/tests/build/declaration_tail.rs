@@ -53,7 +53,7 @@ fn prepared_size_decl_keeps_fixed_percent_and_numeric_semantics() {
 /// Keyword diagnostics are emitted by the single apply step; a second parse in
 /// the declaration tail would duplicate these warnings.
 #[test]
-fn size_keyword_warns_once_and_keeps_keyword_semantics() {
+fn root_fill_uses_canvas_and_non_container_auto_warns_once() {
     let report = build(
         r#"
         auto_box: Rect, size: auto
@@ -74,13 +74,19 @@ fn size_keyword_warns_once_and_keeps_keyword_semantics() {
     let fill_warnings: Vec<_> = without_content_lints(&report.diagnostics)
         .filter(|d| d.message.contains("fill on top-level actor"))
         .collect();
+    assert!(fill_warnings.is_empty());
+    let fill_id = report.output.world.get_id("fill_box").expect("fill id");
     assert_eq!(
-        fill_warnings.len(),
-        1,
-        "top-level fill must warn exactly once, got: {:?}",
-        report.diagnostics
+        report
+            .output
+            .world
+            .geometry(fill_id)
+            .size
+            .as_ref()
+            .expect("fill size")
+            .evaluate(0),
+        [960.0, 50.0],
     );
-    assert_eq!(fill_warnings[0].location.subject.as_deref(), Some("fill_box"));
 
     assert_eq!(
         size_spec(&report.output, "auto_box"),

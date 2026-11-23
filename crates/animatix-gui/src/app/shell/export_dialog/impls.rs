@@ -11,8 +11,10 @@ impl Default for ExportDialogState {
     fn default() -> Self {
         Self {
             format: ExportFormat::Video,
-            width: 1280,
-            height: 720,
+            width: 1920,
+            height: 1080,
+            lock_aspect: true,
+            follow_canvas: true,
             time_s: 0.0,
             fps: 30,
             auto_duration: true,

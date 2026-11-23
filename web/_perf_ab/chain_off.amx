@@ -2,7 +2,7 @@
 // timing, the only difference is whether the scope carries a chain.
 import "../dev/lib/theme.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 4 }
+config { colorscheme: "ink", canvas_size: (1280, 720), duration: 4 }
 
 panel: Group, anchor: scene.center {
 art: Group, anchor: scene.center {

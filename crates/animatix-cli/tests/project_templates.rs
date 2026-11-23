@@ -51,7 +51,7 @@ fn starters_build_and_the_math_layout_reflows_for_portrait() {
     );
     assert!(measure.status.success(), "{measure:?}");
     let report: Value = serde_json::from_slice(&measure.stdout).unwrap();
-    assert_eq!(report["target"]["resolution"], serde_json::json!([720, 1280]));
+    assert_eq!(report["target"]["canvas_size"], serde_json::json!([720, 1280]));
     let actors = report["frames"][0]["actors"].as_array().unwrap();
     for label in ["chart", "expression", "head.heading_ink", "conclusion"] {
         let actor = actors.iter().find(|a| a["label"] == label).unwrap();
@@ -82,7 +82,7 @@ fn explainer_template_orders_entrances_and_can_open_static_in_portrait() {
     .unwrap();
     let source = r#"
 import "./layout.amx"
-config { resolution: (720, 1280), duration: 3, style: "editorial" }
+config { canvas_size: (720, 1280), duration: 3, style: "editorial" }
 let motion = "subtle"
 #0s
 panel: ExplainerLayout, eyebrow: "EXPLAINER",

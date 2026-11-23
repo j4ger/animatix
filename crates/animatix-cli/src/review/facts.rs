@@ -445,7 +445,7 @@ fn collect_actions(
     }
 }
 
-fn evaluate_frame(
+pub(super) fn evaluate_frame(
     target: &BuildTarget,
     dimensions: SceneDimensions,
     time_s: f64,

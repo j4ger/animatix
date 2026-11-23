@@ -1,6 +1,6 @@
 import "./layout.amx"
 
-config { resolution: (1280, 720), duration: 6, colorscheme: "editorial-dark", style: "editorial" }
+config { canvas_size: (1280, 720), duration: 6, colorscheme: "editorial-dark", style: "editorial" }
 
 let motion = "subtle"
 let heading = "Release readiness"

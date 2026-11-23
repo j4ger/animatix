@@ -237,7 +237,7 @@ impl Timeline {
                     .unwrap_or(40.0);
 
                 let dimensions = self
-                    .resolution()
+                    .configured_canvas_size()
                     .map_or_else(crate::timeline::SceneDimensions::default, |(width, height)| {
                         crate::timeline::SceneDimensions { width, height }
                     });

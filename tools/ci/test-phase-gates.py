@@ -35,7 +35,7 @@ if sys.argv[1] == 'tree': print('animatix v0.1.0')
         audit.write_text('''#!/usr/bin/env python3
 import json,os,sys
 if os.environ.get('FAIL_AUDIT'): sys.exit(9)
-print(json.dumps({'schema_version':3,'kind':'audit','summary':{'errors':0}}))
+print(json.dumps({'schema_version':4,'kind':'audit','summary':{'errors':0}}))
 ''')
         audit.chmod(0o755)
         (self.root / 'web/content/scenes/space scene.amx').write_text('fixture')

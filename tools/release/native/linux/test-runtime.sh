@@ -67,7 +67,7 @@ python3 /workspace/tools/release/native/test-first-run.py /package/bin "$testdir
 /package/bin/ffmpeg -hide_banner -loglevel error -f lavfi \
   -i 'sine=frequency=440:duration=1.2' -ar 44100 -ac 2 -c:a pcm_s16le tone.wav
 cat > scene.amx <<'EOF'
-config { duration: 1.0, resolution: (320, 180) }
+config { duration: 1.0, canvas_size: (320, 180) }
 sound: Audio, source: "tone.wav", transcript: "tone.srt" [delay: 200ms]
 subs: Captions, source: "sound", opacity: 1.0, at: (160, 145), font_size: 28, color: "#FFFFFF", caption_mode: "line", backdrop: false
 #0s

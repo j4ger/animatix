@@ -100,8 +100,6 @@ impl GuiShell {
                     .desired_width(78.0)
                     .show(ui);
             });
-            state.width = w_f64 as u32;
-
             ui.add_space(sp.base.space_2);
 
             let mut h_f64 = state.height as f64;
@@ -113,7 +111,24 @@ impl GuiShell {
                     .desired_width(78.0)
                     .show(ui);
             });
-            state.height = h_f64 as u32;
+            let (width, height) = (w_f64 as u32, h_f64 as u32);
+            let width_changed = width != state.width;
+            let height_changed = height != state.height;
+            if width_changed || height_changed {
+                state.follow_canvas = false;
+                let (width, height) = if state.lock_aspect {
+                    let (w, h) = if width_changed {
+                        (Some(width), None)
+                    } else {
+                        (None, Some(height))
+                    };
+                    animatix_render::encode::output_dimensions(scene_dims, w, h, (width, height))
+                } else {
+                    (width, height)
+                };
+                state.width = width;
+                state.height = height;
+            }
 
             ui.add_space(sp.base.space_2);
 
@@ -129,10 +144,16 @@ impl GuiShell {
                 if resp.interact(egui::Sense::click()).clicked() {
                     state.width = scene_dims.width;
                     state.height = scene_dims.height;
+                    state.follow_canvas = true;
                 }
             }
         });
 
+        ui.add_space(sp.base.space_1);
+
+        Self::settings_row(ui, "Aspect ratio", |ui| {
+            ui.checkbox(&mut state.lock_aspect, "Lock to canvas");
+        });
         ui.add_space(sp.base.space_1);
 
         // ── Shared export presets ──
@@ -140,6 +161,7 @@ impl GuiShell {
             for preset in animatix_render::encode::ExportPreset::ALL {
                 let resp = ui.add(Button::secondary(preset.name).with_size(eparts::Size::Sm));
                 if resp.clicked() {
+                    state.follow_canvas = false;
                     state.width = preset.width;
                     state.height = preset.height;
                     state.fps = preset.fps;
@@ -159,8 +181,10 @@ impl GuiShell {
             );
             if reset.clicked() {
                 let defaults = ExportDialogState::default();
-                state.width = defaults.width;
-                state.height = defaults.height;
+                state.width = scene_dims.width;
+                state.height = scene_dims.height;
+                state.lock_aspect = defaults.lock_aspect;
+                state.follow_canvas = defaults.follow_canvas;
                 state.time_s = defaults.time_s;
                 state.fps = defaults.fps;
                 state.auto_duration = defaults.auto_duration;

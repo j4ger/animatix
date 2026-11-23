@@ -1,7 +1,7 @@
 // The same entrance, offset in time. Positions and duration do not change.
 import "../templates/layout.amx"
 
-config { style: "editorial", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7 }
+config { style: "editorial", colorscheme: "editorial-dark", canvas_size: (1280, 720), duration: 7 }
 
 let count = 5
 let diameter = 80

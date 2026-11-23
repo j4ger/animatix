@@ -191,3 +191,21 @@ impl std::str::FromStr for H264Preset {
         }
     }
 }
+
+/// Resolve output pixels, deriving a missing axis from the logical canvas.
+pub fn output_dimensions(
+    canvas: animatix::timeline::SceneDimensions,
+    width: Option<u32>,
+    height: Option<u32>,
+    fallback: (u32, u32),
+) -> (u32, u32) {
+    fn scale_axis(value: u32, source: u32, destination: u32) -> u32 {
+        (f64::from(value) * f64::from(destination) / f64::from(source)).round().max(1.0) as u32
+    }
+    match (width, height) {
+        (Some(w), Some(h)) => (w, h),
+        (Some(w), None) => (w, scale_axis(w, canvas.width, canvas.height)),
+        (None, Some(h)) => (scale_axis(h, canvas.height, canvas.width), h),
+        (None, None) => fallback,
+    }
+}

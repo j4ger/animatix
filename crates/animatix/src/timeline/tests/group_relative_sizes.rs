@@ -27,7 +27,7 @@ fn text_wrap_width(timeline: &Timeline, label: &str) -> f32 {
 fn fixed_group_passes_relative_width_to_col_and_wrapped_text() {
     let timeline = build(
         r#"
-config { resolution: (800, 600) }
+config { canvas_size: (800, 600) }
 #0s
 host: Col, size: (480, auto), at: (400, 300), gap: 0 {
   wrap: Group, size: (50%, auto) {
@@ -54,7 +54,7 @@ fn grid_fill_width_reaches_group_col_and_text_at_multiple_grid_sizes() {
     for grid_width in [420.0f32, 840.0] {
         let report = build(&format!(
             r#"
-config {{ resolution: (1200, 900) }}
+config {{ canvas_size: (1200, 900) }}
 #0s
 grid: Grid, size: ({grid_width}, auto), cols: 2, gap: 18, padding: 12, at: (600, 450) {{
   left: Group, size: fill {{
@@ -102,7 +102,7 @@ grid: Grid, size: ({grid_width}, auto), cols: 2, gap: 18, padding: 12, at: (600,
 fn explicit_relative_percentages_multiply_through_nested_groups() {
     let timeline = build(
         r#"
-config { resolution: (800, 600) }
+config { canvas_size: (800, 600) }
 #0s
 host: Col, size: (400, auto), at: (400, 300), gap: 0 {
   outer: Group, size: (50%, auto) {
@@ -128,7 +128,7 @@ host: Col, size: (400, auto), at: (400, 300), gap: 0 {
 fn group_constraints_clamp_size_without_moving_fixed_children() {
     let timeline = build(
         r#"
-config { resolution: (800, 600) }
+config { canvas_size: (800, 600) }
 #0s
 host: Col, size: (400, 300), at: (400, 300), gap: 0 {
   minimum: Group, size: (25%, auto), min_width: 130 {
@@ -159,7 +159,7 @@ host: Col, size: (400, 300), at: (400, 300), gap: 0 {
 fn root_fixed_group_provides_percent_basis_and_empty_groups_keep_fixed_axes() {
     let timeline = build(
         r#"
-config { resolution: (800, 600) }
+config { canvas_size: (800, 600) }
 #0s
 root: Group, size: (400, auto) {
   body: Col, size: (50%, auto) {
@@ -317,11 +317,12 @@ host: Col, size: (600, auto) {
 fn scene_is_the_definite_parent_of_a_top_level_relative_group() {
     let report = build(
         r#"
-config { resolution: (640, 360) }
+config { canvas_size: (640, 360) }
 #0s
 backdrop: Group, size: (fill, fill) {
   plate: Rect, size: (fill, fill)
 }
+
 half_scene: Group, size: (50%, auto) {
   fixed: Rect, size: (40, 20)
 }
@@ -342,8 +343,25 @@ half_scene: Group, size: (50%, auto) {
     assert_eq!(layout_size(&report.output, "half_scene").map(|half| half * 2.0), [320.0, 20.0]);
 }
 
+#[test]
+fn root_shape_and_container_resolve_relative_axes_against_canvas() {
+    let report = build(
+        r#"
+config { canvas_size: (800, 600) }
+#0s
+root_box: Rect, size: (50%, 25%)
+root_col: Col, size: (50%, 25%) {
+  leaf: Rect, size: (50%, 20)
+}
+"#,
+    );
+    assert_eq!(layout_size(&report.output, "root_box"), [200.0, 75.0]);
+    assert_eq!(layout_size(&report.output, "root_col"), [200.0, 75.0]);
+    assert_eq!(layout_size(&report.output, "leaf"), [100.0, 10.0]);
+}
+
 fn group_depth_limit_fixture(group_count: usize) -> crate::timeline::BuildReport<Timeline> {
-    let mut source = String::from("config { resolution: (800, 600) }\n");
+    let mut source = String::from("config { canvas_size: (800, 600) }\n");
     source.push_str("g0: Group, size: (800, 600) {\n");
     // The scalar `fill` shorthand only fills width; this fixture exercises both axes.
     for index in 1..group_count {
@@ -519,7 +537,7 @@ fn mixed_group_col_layout_preserves_fixed_leaf_height_through_64_levels() {
     // the authored leaf height, not a default from an unresolved mixed tuple.
     for count in [3, 4, 63, 64] {
         let mut source =
-            String::from("config { resolution: (800, 600) }\nroot: Group, size:(800,600) {\n");
+            String::from("config { canvas_size: (800, 600) }\nroot: Group, size:(800,600) {\n");
         for index in 1..count {
             let ty = if index % 2 == 1 { "Col" } else { "Group" };
             source.push_str(&format!("g{index}: {ty}, size:(fill,auto) {{\n"));

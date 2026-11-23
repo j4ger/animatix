@@ -624,9 +624,7 @@ impl<'ast> AstVisitor<'ast> for Requirements<'_> {
 
     fn visit_stmt(&mut self, statement: &'ast Stmt) {
         match statement {
-            Stmt::Scene {
-                name, config, body, ..
-            } => {
+            Stmt::Scene { name, body, .. } => {
                 let saved = self.env.clone();
                 let empty = InstanceFnRegistry::new();
                 animatix::timeline::install_input_methods(
@@ -634,15 +632,6 @@ impl<'ast> AstVisitor<'ast> for Requirements<'_> {
                     self.scene_methods.get(name).unwrap_or(&empty),
                     Some(self.function_context),
                 );
-                for prop in config {
-                    if prop.name == "resolution"
-                        && let Ok(Value::Vec2([width, height])) =
-                            evaluate_expr(&prop.value, &self.env)
-                    {
-                        self.env.set_host_global("scene_width", Value::Num(width));
-                        self.env.set_host_global("scene_height", Value::Num(height));
-                    }
-                }
                 for statement in body {
                     self.visit_stmt(statement);
                 }
@@ -663,13 +652,6 @@ impl<'ast> AstVisitor<'ast> for Requirements<'_> {
                         && let Expr::Bool(value) = prop.value
                     {
                         self.analysis.fonts.project_only = value;
-                    }
-                    if prop.name == "resolution"
-                        && let Ok(Value::Vec2([width, height])) =
-                            evaluate_expr(&prop.value, &self.env)
-                    {
-                        self.env.set_host_global("scene_width", Value::Num(width));
-                        self.env.set_host_global("scene_height", Value::Num(height));
                     }
                 }
             },

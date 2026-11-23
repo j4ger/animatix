@@ -612,7 +612,7 @@ note: Callout, target: "nonexistent"
 fn canvas_coordinate_path_callout_targets_rendered_edge_without_double_translation() {
     let timeline = build_timeline(
         r#"
-        config { resolution: (1280, 720) }
+        config { canvas_size: (1280, 720) }
         plot: Path, commands: {move_to(180, 300), curve_to(360, 140, 560, 140, 740, 300), curve_to(880, 400, 980, 360, 1080, 240)}, at: (-40, 20), stroke_width: 5, fill_opacity: 0, opacity: 1
         note: Callout, target: plot, place: right, standoff: 24, label: "", opacity: 1
         "#,

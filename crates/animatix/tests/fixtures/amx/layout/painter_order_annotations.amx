@@ -1,6 +1,6 @@
 // A moving component with a back-layer connector and a root-level callout.
 // The declarations are the painter order: backdrop/edge, nodes, then note.
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 4 }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720), duration: 4 }
 
 component DiagramNode(title: Str, color: Color) {
   body: Rect, size: (210, 112), corner_radius: 18, color: color

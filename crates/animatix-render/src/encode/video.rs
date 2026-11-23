@@ -166,6 +166,11 @@ fn encode_video(
     debug_options: DebugRenderOptions,
     options: ExportOptions<'_>,
 ) -> Result<(), ExportError> {
+    if width == 0 || height == 0 || !width.is_multiple_of(2) || !height.is_multiple_of(2) {
+        return Err(ExportError::VideoEncode(format!(
+            "Video output dimensions must be positive and even for YUV 4:2:0, got {width}×{height}",
+        )));
+    }
     let full_frames = video_frame_count(duration, fps)?;
     let chapter = match &source {
         VideoSource::Timeline(_) => None,

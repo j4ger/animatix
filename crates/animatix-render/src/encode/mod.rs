@@ -60,6 +60,8 @@ pub use video_chapters::{VideoFrameRange, video_chapter_frame_ranges};
 
 pub use export_error::ExportError;
 
+pub use impls::output_dimensions;
+
 #[cfg(feature = "video")]
 pub use audio_mix::render_mixed_audio;
 

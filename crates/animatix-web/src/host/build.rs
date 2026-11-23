@@ -169,23 +169,10 @@ pub fn build_prepared(
 
 /// Duration + dimensions of a built target, with the same floors as the GUI.
 fn document_extent(target: &BuildTarget) -> (f64, u32, u32) {
-    let default_dims = SceneDimensions::default();
-    let default_dims = (default_dims.width, default_dims.height);
-    match target {
-        BuildTarget::SingleScene(timeline) => {
-            let (w, h) = timeline.resolution().unwrap_or(default_dims);
-            // Playback length, not the inferred keyframe extent: a declared
-            // `config { duration: N }` overrides it, so the player stops there.
-            (timeline.playback_duration_seconds().max(MIN_DURATION_S), w, h)
-        },
-        BuildTarget::MultiScene(composition) => {
-            let (w, h) = composition
-                .scenes
-                .values()
-                .next()
-                .and_then(|scene| scene.timeline.resolution())
-                .unwrap_or(default_dims);
-            (composition.global_duration_s.max(MIN_DURATION_S), w, h)
-        },
-    }
+    let SceneDimensions { width, height } = target.canvas_dimensions();
+    let duration = match target {
+        BuildTarget::SingleScene(timeline) => timeline.playback_duration_seconds(),
+        BuildTarget::MultiScene(composition) => composition.global_duration_s,
+    };
+    (duration.max(MIN_DURATION_S), width, height)
 }

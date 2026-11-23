@@ -9,7 +9,7 @@ const source = readFileSync(new URL('../../content/scenes/insertion-sort.amx', i
 test('the homepage poster fills the authored insertion sort frame', () => {
   const poster = readFileSync(new URL('../../content/posters/insertion-sort.png', import.meta.url));
   const {width, height, pixels} = inspectPng(poster);
-  const [, sceneWidth, sceneHeight] = source.match(/resolution:\s*\((\d+),\s*(\d+)\)/);
+  const [, sceneWidth, sceneHeight] = source.match(/canvas_size:\s*\((\d+),\s*(\d+)\)/);
   assert.deepEqual([width, height], [Number(sceneWidth), Number(sceneHeight)]);
   const lowerRight = (Math.floor(height * 0.95) * width + Math.floor(width * 0.95)) * 4;
   const [r, g, b, a] = pixels.subarray(lowerRight, lowerRight + 4);

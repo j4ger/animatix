@@ -19,6 +19,34 @@ fn parse_stdout_json(output: &std::process::Output) -> serde_json::Value {
 }
 
 #[test]
+fn check_rejects_removed_and_invalid_canvas_declarations() {
+    for (index, key) in [
+        "resolution: (1280, 720)",
+        "canvas_size: (0.5, 720)",
+        "canvas_size: (100%, 720)",
+        "canvas_size: (W, 720)",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let (_project, input) = temp_project(
+            &format!("canvas-{index}"),
+            &format!("config {{ {key} }}\n#0s\nbox: Rect, size: (40, 40)\n"),
+        );
+        let output = Command::new(target_bin())
+            .args(["check", input.to_str().unwrap(), "--format", "json"])
+            .output()
+            .expect("run check");
+        let report = parse_stdout_json(&output);
+        assert_eq!(output.status.code(), Some(1), "{key}: {report}");
+        assert_eq!(report["passed"], false);
+        assert!(report["errors"].as_array().unwrap().iter().any(|error| {
+            error["message"].as_str().is_some_and(|message| message.contains("canvas_size"))
+        }));
+    }
+}
+
+#[test]
 fn audit_json_shape_and_default_exit_zero() {
     // `ghost` is declared before the first keyframe and never revealed, so the
     // build layer produces a never-revealed warning. Structural audit must
@@ -57,7 +85,7 @@ fn audit_json_shape_and_default_exit_zero() {
     ] {
         assert!(json.get(key).is_some(), "missing `{key}` in {json}");
     }
-    assert_eq!(json["schema_version"], 3);
+    assert_eq!(json["schema_version"], 4);
     assert_eq!(json["kind"], "audit");
     assert_eq!(json["render"]["status"], "skipped");
     assert_eq!(json["target"]["kind"], "single_scene");
@@ -72,6 +100,45 @@ fn audit_json_shape_and_default_exit_zero() {
             assert!(frame.get(key).is_some(), "frame missing `{key}`: {frame}");
         }
     }
+}
+
+#[test]
+fn site_audit_renders_rest_probes_between_report_samples() {
+    if animatix_render::offscreen::OffscreenRenderer::new().is_err() {
+        animatix_render::testing::skip_if_no_gpu();
+        return;
+    }
+
+    let (project, input) = temp_project(
+        "site-rest-probes",
+        "config { canvas_size: (160, 90), duration: 4 }\n#0s\nbox: Rect, at: (80, 45), size: (60, 40)\n",
+    );
+    let frames = project.path().join("frames");
+    let output = Command::new(target_bin())
+        .arg("audit")
+        .arg(input)
+        .args([
+            "--policy",
+            "site",
+            "--render",
+            "always",
+            "--times",
+            "0,4",
+            "--format",
+            "json",
+            "--fail-on",
+            "never",
+            "--frames-dir",
+        ])
+        .arg(&frames)
+        .output()
+        .expect("run site audit");
+    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    let report = parse_stdout_json(&output);
+    assert_eq!(report["render"]["status"], "rendered");
+    assert_eq!(report["sample_times_s"], serde_json::json!([0.0, 4.0]));
+    assert!(frames.join("review_0001_2.00s.png").is_file());
+    assert!(frames.join("review_0002_3.95s.png").is_file());
 }
 
 #[test]
@@ -276,7 +343,7 @@ fn display_size_is_a_measurement_and_a_separate_audit_candidate() {
     let (_project, input) = temp_project(
         "display-text",
         r#"
-config { resolution: (1280, 720), duration: 1 }
+config { canvas_size: (1280, 720), duration: 1 }
 #0s
 small: Text, text: "x = 2", at: (400, 350), font_size: 16, role: "note"
 large: Text, text: "Readable", at: (800, 350), font_size: 54

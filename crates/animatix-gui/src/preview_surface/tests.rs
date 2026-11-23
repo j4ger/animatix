@@ -448,26 +448,26 @@ fn direct_srgb_view_matches_legacy_copy() {
 
 const FADE_COMPOSITION: &str = r##"
 # From
-config { colorscheme: "editorial-dark", resolution: (64, 64), duration: 2.0 }
+config { colorscheme: "editorial-dark", canvas_size: (64, 64), duration: 2.0 }
 #0s
 red: Rect, size: (2000, 2000), at: (32, 32), color: hex_color("ff0000")
 play To [fade, 500ms]
 
 # To
-config { colorscheme: "editorial-dark", resolution: (64, 64), duration: 2.0 }
+config { colorscheme: "editorial-dark", canvas_size: (64, 64), duration: 2.0 }
 #0s
 blue: Rect, size: (2000, 2000), at: (32, 32), color: hex_color("0000ff")
 "##;
 
 const MIXED_FILTER_COMPOSITION: &str = r##"
 # From
-config { colorscheme: "editorial-dark", resolution: (64, 64), duration: 2.0 }
+config { colorscheme: "editorial-dark", canvas_size: (64, 64), duration: 2.0 }
 #0s
 red: Rect, size: (2000, 2000), at: (32, 32), color: hex_color("ff0000")
 play To [fade, 500ms]
 
 # To
-config { colorscheme: "editorial-dark", resolution: (64, 64), duration: 2.0 }
+config { colorscheme: "editorial-dark", canvas_size: (64, 64), duration: 2.0 }
 #0s
 fx: Filter {
     soft: Blur, radius: 3
@@ -658,7 +658,7 @@ fn mixed_filter_transition_preserves_both_scenes() {
 }
 
 const GLASS_SCENE: &str = r##"
-config { colorscheme: "editorial-dark", resolution: (64, 64), duration: 2.0 }
+config { colorscheme: "editorial-dark", canvas_size: (64, 64), duration: 2.0 }
 #0s
 plate: Rect, size: (60, 60), at: (32, 32), color: hex_color("304050")
 card: Glass, at: (32, 32), size: (28, 22), corner_radius: 4 {
@@ -669,7 +669,7 @@ card: Glass, at: (32, 32), size: (28, 22), corner_radius: 4 {
 
 const TRANSITION_GLASS_COMPOSITION: &str = r##"
 # From
-config { colorscheme: "editorial-dark", resolution: (64, 64), duration: 2.0 }
+config { colorscheme: "editorial-dark", canvas_size: (64, 64), duration: 2.0 }
 #0s
 backdrop: Rect, size: (2000, 2000), at: (32, 32), color: hex_color("ff0000")
 card: Glass, at: (32, 32), size: (64, 64), corner_radius: 0 {
@@ -679,7 +679,7 @@ card: Glass, at: (32, 32), size: (64, 64), corner_radius: 0 {
 play To [fade, 500ms]
 
 # To
-config { colorscheme: "editorial-dark", resolution: (64, 64), duration: 2.0 }
+config { colorscheme: "editorial-dark", canvas_size: (64, 64), duration: 2.0 }
 #0s
 backdrop: Rect, size: (2000, 2000), at: (32, 32), color: hex_color("0000ff")
 card: Glass, at: (32, 32), size: (64, 64), corner_radius: 0 {

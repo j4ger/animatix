@@ -1,7 +1,7 @@
 // A maintenance notice, split into three answers and revealed in reading order.
 import "../templates/layout.amx"
 
-config { style: "compact", colorscheme: "paper", resolution: (1280, 720), duration: 20 }
+config { style: "compact", colorscheme: "paper", canvas_size: (1280, 720), duration: 20 }
 
 let impact = "The editor will be read-only"
 let window = "Sunday, 02:00–02:20 UTC"

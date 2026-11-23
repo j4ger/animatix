@@ -9,8 +9,90 @@
 //!
 //! A key has exactly one [`ConfigScope`], which is where it is *honoured*: a
 //! key scoped to a stricter unit warns when it appears somewhere narrower (a
-//! scene-level `resolution` cannot change the document's canvas). Adding a key
+//! scene-level `canvas_size` cannot change the document's canvas). Adding a key
 //! is one row here plus the code that applies it.
+
+use crate::ast::{Expr, Property, Stmt};
+use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+
+/// The top-level canvas declaration, if present. Inspects the authored values
+/// directly so resource discovery and timeline builds use the same dimensions.
+pub fn configured_canvas_size(
+    statements: &[Stmt],
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<(u32, u32)> {
+    let mut size = None;
+    let mut seen = false;
+    for stmt in statements {
+        let Stmt::Config { settings, span } = stmt else {
+            continue;
+        };
+        for property in settings {
+            let message = match property.name.as_str() {
+                "resolution" => removed_resolution_message(),
+                "canvas_size" if seen => "Declare 'canvas_size' only once per document.",
+                "canvas_size" => {
+                    seen = true;
+                    size = canvas_size_literal(&property.value);
+                    if size.is_some() {
+                        continue;
+                    }
+                    "'canvas_size' expects two positive integer literals (width, height)."
+                },
+                _ => continue,
+            };
+            diagnostics.push(
+                Diagnostic::error(
+                    DiagnosticCode::InvalidConfigValue,
+                    DiagnosticPhase::Build,
+                    message,
+                )
+                .with_subject(&property.name)
+                .with_ast_span(*span)
+                .with_byte_span(property.value_span),
+            );
+        }
+    }
+    size
+}
+
+fn canvas_size_literal(expr: &Expr) -> Option<(u32, u32)> {
+    fn dimension(expr: &Expr) -> Option<u32> {
+        match expr {
+            Expr::Num(n) if (1.0..=f64::from(u32::MAX)).contains(n) && n.fract() == 0.0 => {
+                Some(*n as u32)
+            },
+            _ => None,
+        }
+    }
+    let Expr::Tuple(axes) = expr else { return None };
+    let [width, height] = axes.as_slice() else {
+        return None;
+    };
+    Some((dimension(width)?, dimension(height)?))
+}
+
+fn removed_resolution_message() -> &'static str {
+    "Config key 'resolution' has been removed. Use 'canvas_size' for the logical canvas."
+}
+
+/// Diagnose canvas declarations inside a named scene.
+pub fn scene_canvas_diagnostic(property: &Property, scene: &str) -> Option<Diagnostic> {
+    let diagnostic = match property.name.as_str() {
+        "resolution" => Diagnostic::error(
+            DiagnosticCode::InvalidConfigValue,
+            DiagnosticPhase::Build,
+            removed_resolution_message(),
+        ).with_subject("resolution"),
+        "canvas_size" => Diagnostic::warning(
+            DiagnosticCode::InvalidConfigValue,
+            DiagnosticPhase::Build,
+            format!("Config key 'canvas_size' in scene '{scene}' is composition-scoped and will be ignored; set it in the top-level config block instead."),
+        ).with_subject(scene),
+        _ => return None,
+    };
+    Some(diagnostic.with_byte_span(property.value_span))
+}
 
 /// Where a `config` key is honoured.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -32,7 +114,7 @@ pub enum ConfigValueKind {
     Text,
     /// `true`/`false`, also accepted as a string for authoring convenience.
     Boolean,
-    /// A `(width, height)` tuple of positive numbers.
+    /// A `(width, height)` tuple of positive integer literals.
     Size,
     /// A brace-list of quoted strings or bare identifiers.
     Names,
@@ -96,10 +178,10 @@ pub static CONFIG_KEYS: &[ConfigKeyInfo] = &[
         summary: "Export preset name the CLI video/GIF paths pick up (e.g. \"1080p30\").",
     },
     ConfigKeyInfo {
-        name: "resolution",
+        name: "canvas_size",
         scope: ConfigScope::Composition,
         value: ConfigValueKind::Size,
-        summary: "Canvas size and export dimensions; set once in the prelude.",
+        summary: "Logical canvas width and height; set once at the top level.",
     },
     ConfigKeyInfo {
         name: "runtime_inputs",

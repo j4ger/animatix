@@ -115,7 +115,7 @@ fn needs_filter_backend_tracks_what_the_scene_actually_contains() {
     };
 
     let plain = build(
-        "config { resolution: (100, 100) }\n\
+        "config { canvas_size: (100, 100) }\n\
          b: Rect, size: (20, 20), color: (1.0, 0.0, 0.0, 1.0), at: (10, 10)\n\
          #0s\nb.opacity = 1.0\n",
     );
@@ -125,7 +125,7 @@ fn needs_filter_backend_tracks_what_the_scene_actually_contains() {
     );
 
     let filtered = build(
-        "config { resolution: (100, 100) }\n\
+        "config { canvas_size: (100, 100) }\n\
          f: Filter, at: (30, 30), size: (60, 60), blur: 4 {\n\
            b: Rect, size: (20, 20), color: (1.0, 0.0, 0.0, 1.0), at: (10, 10)\n\
          }\n\
@@ -137,7 +137,7 @@ fn needs_filter_backend_tracks_what_the_scene_actually_contains() {
     );
 
     let masked = build(
-        "config { resolution: (100, 100) }\n\
+        "config { canvas_size: (100, 100) }\n\
          #0s\nm: Mask, size: (60, 60) {\n\
            b: Rect, size: (20, 20), color: (1.0, 0.0, 0.0, 1.0), at: (10, 10)\n\
          }\n",
@@ -646,7 +646,7 @@ fn assert_same_draw_kinds(a: &crate::scene::Scene, b: &crate::scene::Scene) {
 #[test]
 fn static_root_caches_when_another_root_has_an_effect_scope() {
     let timeline = build_timeline(
-        "config { resolution: (200, 200) }\n\
+        "config { canvas_size: (200, 200) }\n\
          #0s\n\
          plane: Rect, size: (20, 20), color: (1.0, 0.0, 0.0, 1.0), at: (10, 10)\n\
          fx: Filter, at: (100, 100), size: (60, 60), blur: 4 {\n\
@@ -682,7 +682,7 @@ fn static_root_caches_when_another_root_has_an_effect_scope() {
 #[test]
 fn animated_filter_scope_is_never_cached_or_replayed() {
     let timeline = build_timeline(
-        "config { resolution: (200, 200) }\n\
+        "config { canvas_size: (200, 200) }\n\
          #0s\n\
          fx: Filter {\n\
            soft: Blur, radius: 2\n\
@@ -723,7 +723,7 @@ fn animated_filter_scope_is_never_cached_or_replayed() {
 #[test]
 fn static_subtree_encoding_is_invalidated_by_content_epoch() {
     let timeline = build_timeline(
-        "config { resolution: (200, 200) }\n\
+        "config { canvas_size: (200, 200) }\n\
          #0s\n\
          plane: Rect, size: (20, 20), color: (1.0, 0.0, 0.0, 1.0), at: (10, 10)\n",
     );

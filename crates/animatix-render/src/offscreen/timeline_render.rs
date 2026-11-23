@@ -13,6 +13,7 @@ pub(crate) fn render_timeline_into_frame_gpu(
     dimensions: SceneDimensions,
     debug_options: DebugRenderOptions,
     view: &wgpu::TextureView,
+    raster: kurbo::Affine,
     suppressed_actors: &[String],
 ) -> Result<(), String> {
     let mut recorder = crate::frame_gpu::SceneRecorder;
@@ -33,5 +34,5 @@ pub(crate) fn render_timeline_into_frame_gpu(
             )
             .scene
     };
-    frame_gpu.render_frame_into(&scene, view, kurbo::Affine::IDENTITY)
+    frame_gpu.render_frame_into(&scene, view, raster)
 }

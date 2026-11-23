@@ -187,7 +187,7 @@ pub(crate) fn bake_scene_stats(timeline: &mut Timeline) {
     let duration_s = timeline.duration_seconds().max(0.1);
     let duration_ms = (duration_s * 1000.0).round() as u64;
     let (canvas_w, canvas_h) = timeline
-        .resolution
+        .canvas_size
         .map(|(w, h)| (w as f64, h as f64))
         .unwrap_or((1920.0, 1080.0));
     let canvas_area = (canvas_w * canvas_h).max(1.0);

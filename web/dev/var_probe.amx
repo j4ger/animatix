@@ -8,7 +8,7 @@
 //
 //   animatix image web/dev/var_probe.amx --set amp=320 --set hue=0.85 \
 //     --time 1 -o target/review/var_probe.png
-config { colorscheme: "editorial-dark", resolution: (640, 360), duration: 2 }
+config { colorscheme: "editorial-dark", canvas_size: (640, 360), duration: 2 }
 
 let amp = 200  // ellipse diameter, scene units
 

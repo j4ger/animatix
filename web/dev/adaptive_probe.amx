@@ -1,7 +1,7 @@
 // adaptive_probe.amx — self-contained, continuously animating plate for the
 // adaptive-quality probe. Every frame changes (always-block drive), so neither
 // the engine's frame dedup nor a static hold hides the render cost.
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 4 }
+config { colorscheme: "editorial-dark", canvas_size: (1280, 720), duration: 4 }
 
 box: Rect, size: (260, 260), color: rgb(0.96, 0.72, 0.26), at: (400, 360)
 

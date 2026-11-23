@@ -710,7 +710,7 @@ Intel Gen-12LP iGPU (1280×720):
 
 | scene | per frame |
 |---|---|
-| empty (`config { resolution: (1280, 720) }` and nothing else) | 3.71 ms |
+| empty (`config { canvas_size: (1280, 720) }` and nothing else) | 3.71 ms |
 | two rects | 4.11 ms |
 | `attention.amx` (a transformer demo scene) | 3.59 ms |
 | `debug_fill` — raw surface clear + present, no vello, no blit | 0.07 ms |

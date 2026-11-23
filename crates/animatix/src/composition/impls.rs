@@ -76,6 +76,25 @@ impl Composition {
 }
 
 impl BuildTarget {
+    /// Returns the authored document canvas size, if configured.
+    pub fn configured_canvas_size(&self) -> Option<(u32, u32)> {
+        match self {
+            Self::SingleScene(timeline) => timeline.configured_canvas_size(),
+            Self::MultiScene(composition) => composition
+                .scenes
+                .values()
+                .next()
+                .and_then(|scene| scene.timeline.configured_canvas_size()),
+        }
+    }
+
+    /// Returns the dimensions of the document's logical canvas.
+    pub fn canvas_dimensions(&self) -> crate::timeline::SceneDimensions {
+        self.configured_canvas_size().map_or_else(Default::default, |(width, height)| {
+            crate::timeline::SceneDimensions { width, height }
+        })
+    }
+
     /// Resolve authored subtitle cues onto the final document clock.
     pub fn subtitle_cues(
         &self,

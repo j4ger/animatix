@@ -1,7 +1,7 @@
 // 0 starts with a ripple, 1 starts with a cascade. Both patterns play.
 import "../templates/layout.amx"
 
-config { style: "editorial", colorscheme: "vivid", resolution: (1280, 720), duration: 20 }
+config { style: "editorial", colorscheme: "vivid", canvas_size: (1280, 720), duration: 20 }
 
 let start_pattern = 0
 let starts_with_cascade = start_pattern == 1

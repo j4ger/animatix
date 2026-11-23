@@ -95,7 +95,10 @@ pub fn run(
     let mut diagnostics = type_diagnostics;
     diagnostics.extend(report.diagnostics);
 
-    if render_smoke && let Err(e) = run_render_smoke(&report.output) {
+    if render_smoke
+        && !diagnostics.iter().any(Diagnostic::is_error)
+        && let Err(e) = run_render_smoke(&report.output)
+    {
         diagnostics.push(Diagnostic::error(
             DiagnosticCode::RenderFailure,
             DiagnosticPhase::Render,
@@ -115,7 +118,16 @@ pub fn run(
     .with_extension_manifest(extensions.merged_manifest());
     analyzer.merge_import_symbols();
     let lint_config = animatix_analyzer::LintConfig::from_source(&source);
-    let semantic = analyzer.diagnostics_with_config(&lint_config);
+    let semantic = analyzer
+        .diagnostics_with_config(&lint_config)
+        .into_iter()
+        .filter(|diagnostic| {
+            !diagnostics.iter().any(|build| {
+                build.code == DiagnosticCode::InvalidConfigValue
+                    && build.message == diagnostic.message
+            })
+        })
+        .collect();
 
     // Build-layer diagnostics that name an actor but carry no position
     // (they are produced from the runtime track table, which has no
@@ -140,7 +152,7 @@ pub fn run_render_smoke(target: &BuildTarget) -> Result<(), String> {
     match target {
         BuildTarget::SingleScene(timeline) => {
             renderer
-                .render_timeline_with_debug(timeline, 0.0, dims, DebugRenderOptions::default())
+                .render_canvas(timeline, 0.0, dims, DebugRenderOptions::default())
                 .map_err(|e| e.to_string())?;
         },
         BuildTarget::MultiScene(composition) => {
@@ -158,7 +170,7 @@ pub fn run_render_smoke(target: &BuildTarget) -> Result<(), String> {
                     .get(&blend.to_scene)
                     .ok_or_else(|| format!("To scene '{}' not found", blend.to_scene))?;
                 renderer
-                    .render_transition(
+                    .render_canvas_transition(
                         &from_scene.timeline,
                         blend.from_local,
                         &to_scene.timeline,
@@ -176,7 +188,7 @@ pub fn run_render_smoke(target: &BuildTarget) -> Result<(), String> {
                     .get(&scene_name)
                     .ok_or_else(|| format!("Scene '{}' not found", scene_name))?;
                 renderer
-                    .render_timeline_with_debug(
+                    .render_canvas(
                         &scene.timeline,
                         local_time_s,
                         dims,

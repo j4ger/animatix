@@ -572,10 +572,10 @@ mod tests {
 
     #[test]
     fn format_preserves_config() {
-        let stmts = parse("config { resolution: (1280, 720) }");
+        let stmts = parse("config { canvas_size: (1280, 720) }");
         let formatter = Formatter::default();
         let result = formatter.format(&stmts);
-        assert!(result.contains("config { resolution: (1280, 720) }"));
+        assert!(result.contains("config { canvas_size: (1280, 720) }"));
     }
 
     #[test]

@@ -160,7 +160,7 @@ try {
 
   await browser(cdp, () => {
     const peer = document.createElement('amx-player');
-    peer.setAttribute('src', '../content/scenes/first-move.amx');
+    peer.setAttribute('src', './smoke/imports/scene.amx');
     document.querySelector('#stage').append(peer);
   });
   await until('second WebGL2 player', async () => {
