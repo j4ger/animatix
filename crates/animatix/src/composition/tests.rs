@@ -1029,6 +1029,37 @@ fn test_summary_reports_playback_order_and_edges() {
     assert!(summary.total_duration_s >= 2.0);
 }
 
+#[test]
+fn sidecar_cues_follow_scene_offsets_during_transition_overlap() {
+    let report = build_target(
+        r#"
+# Intro
+config { duration: 2 }
+#0s
+subs: Captions {
+  a: Cue, text: "intro", start: 0.2, end: 3
+}
+#2s
+play End [fade, 500ms]
+# End
+config { duration: 1 }
+#0s
+subs: Captions {
+  a: Cue, text: "end", start: 0, end: 0.5
+}
+"#,
+    );
+    assert!(report.diagnostics.iter().all(|d| !d.is_error()), "{:?}", report.diagnostics);
+    let BuildTarget::MultiScene(composition) = &report.output else {
+        panic!("expected composition")
+    };
+    let cues = report.output.subtitle_cues(Some("subs"));
+    assert_eq!(cues.len(), 2);
+    let offset = composition.scene_start_times["End"];
+    assert_eq!((&*cues[0].text, cues[0].end_s), ("intro", 2.0));
+    assert_eq!((&*cues[1].text, cues[1].start_s, cues[1].end_s), ("end", offset, offset + 0.5));
+}
+
 /// A scene's authored `duration` is the player's clock, so losing it is not
 /// cosmetic: `animatix-web` wraps playback time at the scene duration, and a
 /// scene whose last keyframe lands earlier than its declared length restarts

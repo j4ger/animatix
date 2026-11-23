@@ -43,7 +43,9 @@ pub component ChapterHeader(eyebrow: Str, heading: Str) {
   header: Group, at: (theme.margin, theme.margin) {
     category: Text, text: eyebrow, role: roles::eyebrow, text_anchor: "left", at: (0, 14 * unit())
     heading_ink: Text, text: heading, role: roles::title, text_anchor: "left",
-      text_max_width: content_width(), at: (0, (if tall() { 106 } else { 96 }) * unit())
+      text_max_width: content_width(), fit_min_size: 32 * unit(), fit_max_lines: 2,
+      fit_max_height: (if tall() { 144 } else { 132 }) * unit(),
+      at: (0, (if tall() { 106 } else { 96 }) * unit())
   }
 }
 
@@ -63,7 +65,7 @@ pub component Panel(size: Any = (auto, auto), face: Color = surface.primary, bor
 
 pub component CaptionPlate(text: Str, level: Str = roles::body, width: Num = content_width()) {
   label: Text, text: text, role: level, text_align: "center",
-    text_max_width: max(1, width - 2 * theme.inset), backdrop: true,
+    text_max_width: max(1, width - 2 * theme.inset), fit_min_size: 20 * unit(), fit_max_lines: 3, backdrop: true,
     backdrop_color: surface.primary, backdrop_radius: theme.radius,
     backdrop_padding: (theme.inset, theme.inset * 0.5)
 }
@@ -73,9 +75,12 @@ pub component MetricCard(label: Str, value: Str, detail: Str, width: Num, height
   card: Panel, size: (width, height), align: "start", gap: 8 * unit(), raised: raised,
     border: lerp_color(surface.primary, text.secondary, 0.3) {
     @content {
-      card_label: Text, text: label, role: roles::note
-      card_value: Text, text: value, role: roles::metric, color: ink
-      card_detail: Text, text: detail, role: roles::note
+      card_label: Text, text: label, role: roles::note, text_max_width: max(1, width - 2 * theme.inset),
+        fit_min_size: 16 * unit(), fit_max_lines: 1
+      card_value: Text, text: value, role: roles::metric, color: ink, text_max_width: max(1, width - 2 * theme.inset),
+        fit_min_size: 24 * unit(), fit_max_lines: 1
+      card_detail: Text, text: detail, role: roles::note, text_max_width: max(1, width - 2 * theme.inset),
+        fit_min_size: 16 * unit(), fit_max_lines: 2
     }
   }
 }
@@ -83,6 +88,7 @@ pub component MetricCard(label: Str, value: Str, detail: Str, width: Num, height
 pub component SceneCaption(text: Str, level: Str = roles::body, plate: Bool = false) {
   caption: Text, text: text, role: level, at: (scene_width / 2, takeaway_y()),
     text_max_width: content_width() - (if plate { 2 * theme.inset } else { 0 }), text_align: "center",
+    fit_min_size: 20 * unit(), fit_max_lines: 2,
     backdrop: plate, backdrop_color: surface.primary, backdrop_radius: theme.radius,
     backdrop_padding: (theme.inset, theme.inset * 0.5)
 }

@@ -57,6 +57,33 @@ and retakes. The tool verifies cached audio and word timings before reusing a
 take. A regular build can regenerate missing takes and reorder sentences. If
 a later sentence fails, the next build can reuse earlier validated takes.
 
+## Correct an external transcript and export subtitles
+
+Point a `Captions` actor at Whisper JSON, speech JSON, SRT, or VTT. The CLI
+can normalize external recognition output and apply corrections before you
+build the scene.
+
+```bash
+animatix transcript whisper.json --edits edits.json -o voice.speech.json
+animatix subtitles scene.amx --track captions -o voice.vtt
+```
+
+The optional edits JSON is a list of edits keyed by segment `id`. Each entry
+can replace `text`, `start_s`, and `end_s`. A `words` list selects words by
+zero-based `index` and can replace their time bounds. When changing a word's
+spelling, supply the corrected segment text as well.
+
+```json
+[{"id": 7, "text": "The result", "words": [{"index": 1, "word": "result", "start_s": 1.4}]}]
+```
+
+The `.srt` or `.vtt` suffix selects the export format. Export reads logical
+cues on the scene or composition clock, including audio offsets, trims,
+and scene offsets. `--track` selects a Captions actor by label. On-screen
+captions can additionally use `caption_pause` in seconds, `caption_outline` and
+`caption_outline_width`, `caption_shadow` and `caption_shadow_color`, or
+`word_backdrop_color` for the active word.
+
 ## Choose a read and retake one sentence
 
 Pass a sentence ID and repeat `--candidate` with `VOICE@RATE` or a voice alone

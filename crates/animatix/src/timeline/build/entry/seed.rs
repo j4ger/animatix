@@ -161,6 +161,7 @@ pub(super) fn seed_environment(
             timeline.apply_config_settings(settings, diagnostics);
         }
     }
+    super::project_fonts::apply(timeline, ast, diagnostics);
 
     // Use the authored canvas when sizing scene content at build time.
     if let Some((width, height)) = timeline.resolution {

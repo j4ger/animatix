@@ -79,6 +79,8 @@ pub(crate) fn recompile_text_at_assignment(
         color,
     };
     let request = TextCompileRequest {
+        code: text.code_options,
+        typst_sources: text.typst_sources.as_ref(),
         kind: text_kind,
         content: &target_text,
         language: &language,

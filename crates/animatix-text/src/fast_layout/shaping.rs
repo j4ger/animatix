@@ -29,6 +29,7 @@ pub fn compile_text_fast(
     // Early return for empty string: no glyphs, zero metrics
     if content.is_empty() {
         return Ok(CompiledText {
+            layout_metrics: None,
             glyphs: Vec::new(),
             ascent: 0.0,
             descent: 0.0,

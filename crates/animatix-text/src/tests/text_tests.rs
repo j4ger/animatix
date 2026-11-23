@@ -19,6 +19,8 @@ fn compile_request_with_defaults(
     font_ctx: &FontContext,
 ) -> std::sync::Arc<[crate::TextPath]> {
     let request = TextCompileRequest {
+        code: Default::default(),
+        typst_sources: None,
         kind,
         content,
         language,
@@ -403,6 +405,33 @@ fn code_request<'a>(
         palette,
         ..TextCompileRequest::new(TextKind::Code, code, TextStyle::new("monospace", 24.0))
     }
+}
+
+#[cfg(feature = "rich-text")]
+#[test]
+fn code_source_rows_survive_blank_lines_and_wrapping() {
+    let code = "a\r\n\r\n\tlong row with many words\r\nz";
+    let request = TextCompileRequest {
+        max_width: 105.0,
+        code: crate::CodeOptions {
+            tab_width: 2,
+            line_numbers: true,
+            first_line: 8,
+            track_lines: true,
+        },
+        ..code_request(code, "", None)
+    };
+    let compiled = compile_text_cached(&request, &test_font_ctx()).unwrap();
+    let rows: std::collections::BTreeSet<_> =
+        compiled.paths.iter().filter_map(|path| path.source_line).collect();
+    assert_eq!(rows.into_iter().collect::<Vec<_>>(), [0, 1, 2, 3]);
+    let wrapped_lines: std::collections::BTreeSet<_> = compiled
+        .paths
+        .iter()
+        .filter(|path| path.source_line == Some(2))
+        .map(|path| path.line_idx)
+        .collect();
+    assert!(wrapped_lines.len() > 1, "{wrapped_lines:?}");
 }
 
 /// Distinct glyph fill colors produced by a `Code` compilation of the same

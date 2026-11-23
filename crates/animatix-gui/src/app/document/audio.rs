@@ -66,7 +66,9 @@ impl DocumentSession {
                 .flat_map(|composition| composition.scenes.values().map(|scene| &scene.timeline)),
         );
         for timeline in timelines {
-            paths.extend(timeline.asset_cache_arc().transcripts().map(|(name, _)| name.into()));
+            let assets = timeline.asset_cache();
+            paths.extend(assets.transcripts().map(|(name, _)| name.into()));
+            paths.extend(assets.project_font_paths().map(Into::into));
         }
         paths
             .retain(|path| !path.as_os_str().is_empty() && !path.to_string_lossy().contains("://"));

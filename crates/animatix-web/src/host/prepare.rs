@@ -21,6 +21,8 @@ pub struct AssetRequirement {
 /// Conservative text inputs used by the font catalog resolver.
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct FontRequirements {
+    /// The scene uses the same explicitly declared font set on every host.
+    pub project_only: bool,
     pub text: String,
     pub families: Vec<String>,
     pub weights: Vec<f32>,

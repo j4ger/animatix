@@ -489,6 +489,9 @@ pub(super) fn emit_shaped_glyphs(
 
             let bounds = final_path.bounding_box();
             glyphs.push(TextPath {
+                source_line: None,
+                source_range: Some(g.source_range),
+                caret: Some((x + g.caret_x, g.rtl)),
                 path: final_path,
                 clips: Vec::new(),
                 color: rgba,
@@ -583,6 +586,7 @@ pub(super) fn finalize_layout(
     };
 
     CompiledText {
+        layout_metrics: None,
         glyphs,
         ascent,
         descent,
@@ -660,12 +664,24 @@ pub(super) fn shape_fragment(
             }
             let cluster_byte = range.start + info.cluster as usize;
             let source_char = source_char_start + token_text[..cluster_byte].chars().count();
+            let source_end = source_char + run_text[cluster_start..cluster_end].chars().count();
+            let rtl = direction == rustybuzz::Direction::RightToLeft;
             glyphs.push(ShapedGlyph {
                 face_idx,
                 glyph_id: info.glyph_id as u16,
                 x_offset: total_width + pos.x_offset as f64 * font_scale,
                 y_offset: -(pos.y_offset as f64) * font_scale,
                 char_idx: source_char.min(u16::MAX as usize) as u16,
+                source_range: [
+                    source_char.min(u32::MAX as usize) as u32,
+                    source_end.min(u32::MAX as usize) as u32,
+                ],
+                caret_x: if rtl {
+                    total_width
+                } else {
+                    total_width + pos.x_advance as f64 * font_scale + tracking
+                },
+                rtl,
             });
             total_width += pos.x_advance as f64 * font_scale + tracking;
         }

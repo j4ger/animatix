@@ -14,6 +14,30 @@ use crate::compiler::TextKind;
 use crate::font_context::{DEFAULT_FONT_WEIGHT, FontContext, FontSetId};
 use crate::typst_world::HighlightPalette;
 
+/// Presentation settings for a Code actor, independent of source contents.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct CodeOptions {
+    pub tab_width: u8,
+    pub line_numbers: bool,
+    pub first_line: u32,
+    pub track_lines: bool,
+}
+
+impl Default for CodeOptions {
+    fn default() -> Self {
+        Self {
+            tab_width: 4,
+            line_numbers: false,
+            first_line: 1,
+            track_lines: false,
+        }
+    }
+}
+
+/// Explicit virtual sources a Typst actor may import or include.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct TypstSources(pub Vec<(String, String)>);
+
 /// Typography and solid fill for one text compilation.
 ///
 /// Borrowed so a request can be built on the per-frame path without allocating.
@@ -57,6 +81,8 @@ impl<'a> TextStyle<'a> {
 /// One text compilation: content, kind, typography, and wrapping policy.
 #[derive(Clone, Debug)]
 pub struct TextCompileRequest<'a> {
+    pub code: CodeOptions,
+    pub typst_sources: Option<&'a TypstSources>,
     /// Which text engine understands `content`.
     pub kind: TextKind,
     /// The text to compile.
@@ -88,6 +114,8 @@ impl<'a> TextCompileRequest<'a> {
     /// path), unwrapped, left-aligned, overflow visible, no language or palette.
     pub fn new(kind: TextKind, content: &'a str, style: TextStyle<'a>) -> Self {
         Self {
+            code: CodeOptions::default(),
+            typst_sources: None,
             kind,
             content,
             language: "",
@@ -124,6 +152,8 @@ impl<'a> TextCompileRequest<'a> {
     /// other output-affecting input is read from the request itself.
     pub fn cache_key(&self, font_ctx: &FontContext) -> TextCacheKey {
         TextCacheKey {
+            code: self.code,
+            typst_sources: self.typst_sources.cloned(),
             content: self.content.to_string(),
             language: self.language.to_string(),
             palette_bits: self.palette.map(HighlightPalette::cache_bits),
@@ -154,6 +184,8 @@ impl<'a> TextCompileRequest<'a> {
 /// [`TextCompileRequest::cache_key`], which keeps the key exhaustive.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TextCacheKey {
+    code: CodeOptions,
+    typst_sources: Option<TypstSources>,
     content: String,
     /// Syntax-highlighting language for `TextKind::Code` (part of the key:
     /// highlighting changes glyph colors, so different languages must not share

@@ -107,7 +107,25 @@
       "text_align",
       "text_anchor",
       "overflow",
-      "char_progress"
+      "char_progress",
+      "fit_min_size",
+      "fit_max_height",
+      "fit_max_lines",
+      "text_file",
+      "typst_modules",
+      "tab_width",
+      "line_numbers",
+      "first_line",
+      "focus_lines",
+      "unfocused_opacity",
+      "diff_from",
+      "diff_file",
+      "text_spans",
+      "selected_span",
+      "span_opacity",
+      "span_progress",
+      "span_color",
+      "text_cursor"
     ]
   },
   {
@@ -134,6 +152,12 @@
       "pop_scale",
       "max_lines",
       "transition_time",
+      "caption_pause",
+      "caption_outline",
+      "caption_outline_width",
+      "caption_shadow",
+      "caption_shadow_color",
+      "word_backdrop_color",
       "start",
       "end"
     ]
@@ -154,7 +178,10 @@
       "highlight_color",
       "highlight_opacity",
       "highlight_padding",
-      "highlight_radius"
+      "highlight_radius",
+      "equation_transition",
+      "fragment_order",
+      "fragment_color"
     ]
   },
   {

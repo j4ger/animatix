@@ -439,7 +439,7 @@ export class AmxPlayerView extends AmxPlayerBase {
     try {
       await runtime.ensureCapabilities(Number(analysis.required_features ?? 0) >>> 0);
       const assets = await fetchPreparedAssets(runtime, analysis.assets ?? [], signal);
-      const textAssets = (analysis.assets ?? []).filter((asset) => asset?.kind === "text");
+      const textAssets = (analysis.assets ?? []).filter((asset) => asset?.kind === "text" || asset?.kind === "source-text");
       if (textAssets.length) {
         if (typeof prepared.prepare_transcripts !== "function") {
           throw playerError(
@@ -471,9 +471,10 @@ export class AmxPlayerView extends AmxPlayerBase {
           throw playerError(error, "resource");
         }
       }
-      const fontFaces = selectFontFaces(runtime, analysis.fonts ?? {});
+      const projectFontsOnly = analysis.fonts?.project_only === true;
+      const fontFaces = projectFontsOnly ? [] : selectFontFaces(runtime, analysis.fonts ?? {});
       const defaultFonts = await Promise.all(fontFaces.map((face) => fetchFontFace(runtime, face, signal)));
-      const overlayFonts = await Promise.all(this._fontUrls().map((url) => fetchOverlayFont(runtime, url, signal)));
+      const overlayFonts = projectFontsOnly ? [] : await Promise.all(this._fontUrls().map((url) => fetchOverlayFont(runtime, url, signal)));
       return { prepared, analysis, assets, fontBytes: [...defaultFonts, ...overlayFonts], sourceUrl, modules, vars };
     } catch (error) {
       prepared.free?.();

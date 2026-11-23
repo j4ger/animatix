@@ -242,6 +242,25 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("camera_follow", V::BuildTimeOnly, F::empty(), NoStorage, val!(bool true)),
     b!("caption_mode", V::String, F::ASSIGNABLE_AI, Tagged, val!(str "block")),
     b!(
+        "caption_outline",
+        V::Color,
+        F::ASSIGNABLE_AI,
+        Tagged,
+        val!(color 0.0, 0.0, 0.0, 1.0)
+    ),
+    b!("caption_outline_width", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
+    b!("caption_pause", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
+    b!("caption_shadow", V::Vec2, F::ASSIGNABLE_AI, Tagged, |_| PropertyValue::Vec2(
+        [0.0; 2]
+    )),
+    b!(
+        "caption_shadow_color",
+        V::Color,
+        F::ASSIGNABLE_AI,
+        Tagged,
+        val!(color 0.0, 0.0, 0.0, 0.75)
+    ),
+    b!(
         "char_progress",
         V::F32,
         F::ASSIGNABLE_AI.union(F::NO_FRAME_OVERRIDE),
@@ -281,10 +300,20 @@ static BINDINGS: &[PropertyBinding] = &[
         Descent,
         val!(f32 0.0)
     ),
+    b!("diff_file", V::String, F::empty(), Tagged, val!(str "")),
+    b!("diff_from", V::String, F::empty(), Tagged, val!(str "")),
     b!("direction", V::String, F::empty(), NoStorage, val!(str "vertical")),
     b!("end", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
+    b!("equation_transition", V::F32, F::ASSIGNABLE, Tagged, val!(f32 0.0)),
     b!("fill_gradient", V::Gradient, F::ASSIGNABLE_A, FillGradient, val!(gradient)),
     b!("fill_opacity", V::F32, F::ASSIGNABLE_AI, FillOpacity, val!(f32 1.0)),
+    b!("first_line", V::U32, F::empty(), Tagged, val!(u32 1)),
+    b!("fit_max_height", V::F32, F::empty(), Tagged, val!(f32 0.0)),
+    b!("fit_max_lines", V::U32, F::empty(), Tagged, val!(u32 0)),
+    b!("fit_min_size", V::F32, F::empty(), Tagged, val!(f32 0.0)),
+    b!("focus_lines", V::Vec2, F::ASSIGNABLE_AI, Tagged, |_| PropertyValue::Vec2(
+        [0.0; 2]
+    )),
     b!(
         "font_family",
         V::String,
@@ -326,6 +355,14 @@ static BINDINGS: &[PropertyBinding] = &[
     ),
     b!("font_style", V::String, F::ASSIGNABLE_A, FontStyle, val!(str "normal")),
     b!("font_weight", V::F32, F::ASSIGNABLE_A, FontWeight, val!(f32 400.0)),
+    b!(
+        "fragment_color",
+        V::Color,
+        F::ASSIGNABLE_AI,
+        Tagged,
+        val!(color 0.0, 0.0, 0.0, 0.0)
+    ),
+    b!("fragment_order", V::F32, F::ASSIGNABLE, Tagged, val!(f32 0.0)),
     b!("from", V::Vec2, F::SPATIAL_PATH_AI, LineFrom, |_| ActorField::LineFrom
         .default_value()
         .expect("line start default")),
@@ -404,6 +441,7 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("line_cap", V::U32, F::ASSIGNABLE_AI, LineCap, val!(u32 0)),
     b!("line_height", V::F32, F::ASSIGNABLE_A, LineHeight, val!(f32 1.2)),
     b!("line_join", V::U32, F::ASSIGNABLE_AI, LineJoin, val!(u32 0)),
+    b!("line_numbers", V::Bool, F::empty(), Tagged, val!(bool false)),
     b!(
         "max_depth",
         V::F32,
@@ -512,6 +550,7 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("rotation", V::F32, F::SPATIAL_AI, Rotation, val!(f32 0.0)),
     b!("routing", V::String, F::ASSIGNABLE_AI, Tagged, val!(str "elbow")),
     b!("scale", V::F32, F::SPATIAL_AI, Scale, val!(f32 1.0)),
+    b!("selected_span", V::String, F::ASSIGNABLE_AI, Tagged, val!(str "")),
     b!("shadow", V::Vec4, F::ASSIGNABLE_AI, Tagged, val!(vec4 0.0, 4.0, 12.0, 0.0)),
     b!(
         "shadow_color",
@@ -533,6 +572,9 @@ static BINDINGS: &[PropertyBinding] = &[
     ),
     b!("solo", V::Bool, F::ASSIGNABLE, Tagged, val!(bool false)),
     b!("source", V::String, F::ASSIGNABLE, AudioSource, val!(str "")),
+    b!("span_color", V::Color, F::ASSIGNABLE_AI, Tagged, val!(color 0.0, 0.0, 0.0, 0.0)),
+    b!("span_opacity", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 1.0)),
+    b!("span_progress", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 1.0)),
     b!("split_by", V::String, F::ASSIGNABLE_A, Tagged, val!(str "char")),
     b!("split_mask", V::Bool, F::ASSIGNABLE_A, Tagged, val!(bool false)),
     b!("split_offset_y", V::F32, F::ASSIGNABLE_A, Tagged, val!(f32 0.0)),
@@ -572,11 +614,15 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("t_domain", V::Vec2, F::empty(), PlotDomainGroup, |_| PropertyValue::Vec2(
         DEFAULT_PARAMETER_DOMAIN.map(|value| value as f32)
     )),
+    b!("tab_width", V::U32, F::empty(), Tagged, val!(u32 4)),
     b!("target", V::BuildTimeOnly, F::ASSIGNABLE, CalloutTarget, val!(str "")),
     b!("text", V::String, F::ASSIGNABLE_A, TextContent, val!(str "")),
     b!("text_align", V::String, F::ASSIGNABLE_A, TextAlign, val!(str "left")),
     b!("text_anchor", V::String, F::ASSIGNABLE_A, TextAnchor, val!(str "center")),
+    b!("text_cursor", V::Bool, F::ASSIGNABLE_AI, Tagged, val!(bool false)),
+    b!("text_file", V::String, F::empty(), Tagged, val!(str "")),
     b!("text_max_width", V::F32, F::ASSIGNABLE_A, TextMaxWidth, val!(f32 240.0)),
+    b!("text_spans", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "")),
     b!("tick_labels", V::String, F::empty(), PlotDomainGroup, val!(str "auto")),
     b!("ticks", V::Bool, F::empty(), PlotDomainGroup, val!(bool false)),
     b!(
@@ -606,6 +652,8 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("transcript", V::String, F::ASSIGNABLE, Tagged, val!(str "")),
     b!("transform", V::Transform, F::SPATIAL_AI, Transform, val!(transform)),
     b!("transition_time", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
+    b!("typst_modules", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "")),
+    b!("unfocused_opacity", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.25)),
     b!("url", V::String, F::ASSIGNABLE, ImageData, val!(str "")),
     b!("value", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
     b!("vertical_align", V::String, F::empty(), NoStorage, val!(str "center")),
@@ -627,6 +675,13 @@ static BINDINGS: &[PropertyBinding] = &[
             index: 0,
             scale: 2.0
         }
+    ),
+    b!(
+        "word_backdrop_color",
+        V::Color,
+        F::ASSIGNABLE_AI,
+        Tagged,
+        val!(color 0.0, 0.0, 0.0, 0.0)
     ),
     b!("word_spacing", V::F32, F::ASSIGNABLE_A, WordSpacing, val!(f32 0.0)),
     b!("x_domain", V::Vec2, F::empty(), PlotDomainGroup, |_| PropertyValue::Vec2(

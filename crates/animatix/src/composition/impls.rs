@@ -76,6 +76,38 @@ impl Composition {
 }
 
 impl BuildTarget {
+    /// Resolve authored subtitle cues onto the final document clock.
+    pub fn subtitle_cues(
+        &self,
+        track: Option<&str>,
+    ) -> Vec<animatix_text::transcript::SubtitleCue> {
+        match self {
+            Self::SingleScene(timeline) => {
+                let end = timeline.declared_duration_seconds().unwrap_or_else(|| {
+                    timeline.duration_seconds().max(timeline.caption_end_seconds())
+                });
+                timeline.subtitle_cues(end, track)
+            },
+            Self::MultiScene(composition) => {
+                let mut cues = Vec::new();
+                for name in composition.playback_order() {
+                    let scene = &composition.scenes[name];
+                    let offset = composition.scene_start_times[name];
+                    let limit = scene.duration_s.min(composition.global_duration_s - offset);
+                    cues.extend(scene.timeline.subtitle_cues(limit, track).into_iter().map(
+                        |mut cue| {
+                            cue.start_s += offset;
+                            cue.end_s += offset;
+                            cue
+                        },
+                    ));
+                }
+                cues.sort_by(|a, b| a.start_s.total_cmp(&b.start_s));
+                cues
+            },
+        }
+    }
+
     /// The mutation epoch of the whole document, for a driver keying rendered
     /// frames by content (`timeline::frame_signature`).
     ///
@@ -109,13 +141,28 @@ impl BuildTarget {
         source_path: Option<&std::path::Path>,
         options: BuildOptions<'_>,
     ) -> BuildReport<Self> {
-        let asset_cache = options.asset_cache.clone().or_else(|| {
-            source_path.and_then(|path| path.parent()).map(|dir| {
-                let mut cache = crate::timeline::assets::AssetCache::new();
-                cache.set_base_dirs(Some(dir), None);
-                std::sync::Arc::new(cache)
+        let asset_cache = options
+            .asset_cache
+            .clone()
+            .or_else(|| {
+                source_path.and_then(|path| path.parent()).map(|dir| {
+                    let mut cache = crate::timeline::assets::AssetCache::new();
+                    cache.set_base_dirs(Some(dir), None);
+                    std::sync::Arc::new(cache)
+                })
             })
-        });
+            .map(|mut cache| {
+                if let Some(dir) = source_path.and_then(std::path::Path::parent) {
+                    let dir = if dir.as_os_str().is_empty() {
+                        std::path::Path::new(".")
+                    } else {
+                        dir
+                    };
+                    let dir = std::path::absolute(dir).unwrap_or_else(|_| dir.to_path_buf());
+                    std::sync::Arc::make_mut(&mut cache).set_project_dir(&dir);
+                }
+                cache
+            });
         let skip_persist_target_warning = options.skip_persist_target_warning;
         let options = BuildOptions {
             asset_cache,

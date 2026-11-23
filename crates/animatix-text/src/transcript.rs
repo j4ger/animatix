@@ -10,6 +10,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ops::Range;
 
+mod subtitles;
+pub use subtitles::{SubtitleCue, SubtitleFormat};
+
 /// Error encountered while parsing a transcript.
 #[derive(Debug, thiserror::Error)]
 pub enum TranscriptError {

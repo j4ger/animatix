@@ -240,6 +240,11 @@ impl Default for FontContext {
 }
 
 impl FontContext {
+    /// Number of faces explicitly registered by the host or project.
+    pub fn registered_face_count(&self) -> usize {
+        self.registered_faces.len()
+    }
+
     /// Create an isolated font context with no system or bundled faces.
     ///
     /// This is intended for deterministic callers that provide their complete

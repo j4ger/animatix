@@ -320,7 +320,13 @@ fn collect_scenes(
                 let mut merged_body = state.shared_prelude.clone();
                 // Insert scene config as a Stmt::Config before the scene body
                 merged_body.push(Stmt::Config {
-                    settings: config.clone(),
+                    settings: config
+                        .iter()
+                        .filter(|prop| {
+                            !matches!(prop.name.as_str(), "font_files" | "font_files_only")
+                        })
+                        .cloned()
+                        .collect(),
                     span: None,
                 });
                 merged_body.extend(body.clone());

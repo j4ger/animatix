@@ -52,6 +52,11 @@ impl Primitive for FragmentPrimitive {
                         start_val,
                         Easing::Linear,
                     );
+                } else {
+                    crate::timeline::preserve_instant_delayed_value(
+                        &mut text.text_content,
+                        t_start_ms,
+                    );
                 }
                 text.text_content
                     .ensure(String::new())

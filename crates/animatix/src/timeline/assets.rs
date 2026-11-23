@@ -29,6 +29,8 @@ pub struct AssetCache {
     svg_paths: HashMap<String, Vec<VelloPath>>,
     images: HashMap<String, SceneImage>,
     transcripts: HashMap<String, Arc<str>>,
+    font_files: HashMap<String, Arc<[u8]>>,
+    project_dir: Option<PathBuf>,
     usage: HashMap<String, BTreeSet<String>>,
     metadata: HashMap<String, AssetFileMetadata>,
 }
@@ -51,6 +53,28 @@ impl AssetCache {
     /// Document base currently used for source-relative assets.
     pub fn document_dir(&self) -> Option<&Path> {
         self.document_dir.as_deref()
+    }
+
+    /// Set the project entry directory for explicitly declared source files.
+    pub(crate) fn set_project_dir(&mut self, dir: &Path) {
+        self.project_dir = Some(dir.to_path_buf());
+    }
+
+    /// Resolve a project source or font path against the entry directory.
+    pub(crate) fn normalize_project_file(&self, path: &str) -> String {
+        if let Some(dir) = &self.project_dir
+            && !Path::new(path).is_absolute()
+            && !path.contains("://")
+            && !path.starts_with("data:")
+        {
+            return normalize_lexically(dir.join(path)).display().to_string();
+        }
+        self.normalize_asset_url(path)
+    }
+
+    /// Project fonts registered or read into this asset snapshot.
+    pub fn project_font_paths(&self) -> impl Iterator<Item = &String> {
+        self.font_files.keys()
     }
 
     /// Change the document base while retaining workspace fallback and decoded assets.
@@ -164,6 +188,11 @@ impl AssetCache {
     /// cache instead of the filesystem. Used by embedders that fetch resources
     /// before starting the synchronous build.
     pub fn insert_transcript_text(&mut self, url: &str, text: impl Into<Arc<str>>) {
+        self.insert_text_source(url, text);
+    }
+
+    /// Supply a prepared UTF-8 file to the synchronous timeline builder.
+    pub fn insert_text_source(&mut self, url: &str, text: impl Into<Arc<str>>) {
         let key = self.normalize_asset_url(url);
         self.metadata.remove(&key);
         self.transcripts.insert(key, text.into());
@@ -173,12 +202,17 @@ impl AssetCache {
     /// filesystem on a miss. Web builds must pre-register text because their
     /// filesystem is unavailable.
     pub fn load_transcript_text(&mut self, url: &str) -> Result<Arc<str>, String> {
+        self.load_text_source(url)
+    }
+
+    /// Read a UTF-8 project resource once per asset snapshot.
+    pub(crate) fn load_text_source(&mut self, url: &str) -> Result<Arc<str>, String> {
         let key = self.normalize_asset_url(url);
         if let Some(text) = self.transcripts.get(&key) {
             return Ok(text.clone());
         }
         let text = std::fs::read_to_string(&key)
-            .map_err(|error| format!("failed to read transcript '{}': {error}", key))?;
+            .map_err(|error| format!("failed to read text resource '{}': {error}", key))?;
         self.record_file_metadata(&key);
         let text: Arc<str> = Arc::from(text);
         self.transcripts.insert(key, text.clone());
@@ -188,6 +222,25 @@ impl AssetCache {
     /// Iterate over cached transcript text keyed by normalized source ID.
     pub fn transcripts(&self) -> impl Iterator<Item = (&String, &Arc<str>)> {
         self.transcripts.iter()
+    }
+
+    /// Stage a project font fetched by the host.
+    pub fn insert_font_file(&mut self, url: &str, bytes: impl Into<Arc<[u8]>>) {
+        let key = self.normalize_asset_url(url);
+        self.font_files.insert(key, bytes.into());
+    }
+
+    pub(crate) fn load_font_file(&mut self, url: &str) -> Result<Arc<[u8]>, String> {
+        let key = self.normalize_asset_url(url);
+        if let Some(bytes) = self.font_files.get(&key) {
+            return Ok(bytes.clone());
+        }
+        let bytes: Arc<[u8]> = std::fs::read(&key)
+            .map_err(|error| format!("failed to read font '{key}': {error}"))?
+            .into();
+        self.record_file_metadata(&key);
+        self.font_files.insert(key, bytes.clone());
+        Ok(bytes)
     }
 
     /// Record that an actor uses an asset without caching its decoded payload.
@@ -243,7 +296,13 @@ impl AssetCache {
     /// pre-seeded cache useless.
     pub fn invalidate_changed_assets(&mut self) {
         let mut changed: Vec<String> = Vec::new();
-        for path in self.svg_paths.keys().chain(self.images.keys()).chain(self.transcripts.keys()) {
+        for path in self
+            .svg_paths
+            .keys()
+            .chain(self.images.keys())
+            .chain(self.transcripts.keys())
+            .chain(self.font_files.keys())
+        {
             if self.metadata.contains_key(path) && !self.file_metadata_matches(path) {
                 changed.push(path.clone());
             }
@@ -300,6 +359,7 @@ impl AssetCache {
         self.svg_paths.remove(path);
         self.images.remove(path);
         self.transcripts.remove(path);
+        self.font_files.remove(path);
         self.usage.remove(path);
         self.metadata.remove(path);
     }

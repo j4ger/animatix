@@ -40,6 +40,12 @@ pub(crate) use font_context::{BUNDLED_FONTS, BundledFont, bundled_face, system_f
 /// A glyph path extracted from text, with color and opacity.
 #[derive(Debug, Clone)]
 pub struct TextPath {
+    /// Source row for Code, independent of wrapping and visible line numbers.
+    pub source_line: Option<u32>,
+    /// Half-open source range in Unicode scalar offsets for literal text.
+    pub source_range: Option<[u32; 2]>,
+    /// Logical trailing caret X and whether the run is right-to-left.
+    pub caret: Option<(f64, bool)>,
     /// The glyph path.
     pub path: BezPath,
     /// Local-space clips inherited from text layout groups.
@@ -76,6 +82,9 @@ impl TextPath {
         }
         self.bounds = self.bounds + offset;
         self.baseline_y += offset.y;
+        if let Some((x, _)) = &mut self.caret {
+            *x += offset.x;
+        }
         self.glyph_center[0] += offset.x as f32;
         self.glyph_center[1] += offset.y as f32;
     }
@@ -104,6 +113,9 @@ impl TextPath {
             color,
             opacity,
             line_idx: 0,
+            source_line: None,
+            source_range: None,
+            caret: None,
             word_idx: 0,
             char_idx: 0,
             baseline_y: 0.0,
@@ -154,6 +166,15 @@ pub struct CompiledText {
     pub baseline_offset: f32,
     /// Optional hardware glyph layout for direct Vello draw_glyphs execution.
     pub hardware_layout: Option<fast_layout::HardwareTextLayout>,
+    pub layout_metrics: Option<TextLayoutMetrics>,
+}
+
+/// Untruncated line measurements before clipping and ellipsis.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TextLayoutMetrics {
+    pub width: f32,
+    pub height: f32,
+    pub lines: usize,
 }
 
 // Tests

@@ -512,7 +512,7 @@ fn execute_highlight_layer(
         *transform,
         &rounded,
     );
-    scene.fill(peniko::Fill::NonZero, kurbo::Affine::IDENTITY, *color, None, &rounded);
+    scene.fill(peniko::Fill::NonZero, *transform, *color, None, &rounded);
     scene.pop_layer();
 }
 

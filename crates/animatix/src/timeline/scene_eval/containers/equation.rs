@@ -1,8 +1,13 @@
 use crate::renderer::types::TextPath;
 use crate::timeline::{DEFAULT_WHITE, EntityId, Timeline, TrackAccessor};
 
+mod animate;
+
 /// A Fragment child's content and highlight state, collected for one Equation.
 struct FragInfo {
+    id: EntityId,
+    order: f32,
+    paint: Option<[u8; 4]>,
     content: String,
     hl_color: [f32; 4],
     hl_opacity: f32,
@@ -92,14 +97,23 @@ impl Timeline {
         };
         // Collect Fragment children with their content and highlight state.
         let frags = self.collect_equation_fragments(node_id, frame);
-        self.render_equation_document(
+        if !self.render_equation_transition(
             node_id,
-            time_ms,
             &frags,
             global_transform,
             global_opacity,
+            frame,
             out,
-        );
+        ) {
+            self.render_equation_document(
+                node_id,
+                time_ms,
+                &frags,
+                global_transform,
+                global_opacity,
+                out,
+            );
+        }
 
         // Render Fragment children. They return `None` from evaluate (no
         // visual output of their own), so they draw nothing here and
@@ -164,7 +178,28 @@ impl Timeline {
                 payload: None,
             };
             if let Some(fragment) = def.equation_fragment(&ctx) {
+                if fragment.content.trim().is_empty() {
+                    continue;
+                }
+                let mut order = 0.0;
+                let mut paint = None;
+                if !ctx.property_plan.is_empty() {
+                    order = ctx.property_plan.sample_f32_prop("fragment_order", time_ms, 0.0);
+                    if let Some(crate::timeline::PropertyValue::Color(color)) =
+                        ctx.property_plan.sample_property_named("fragment_color", time_ms)
+                    {
+                        paint = Some(animatix_text::f32_color_to_rgba8(&color));
+                    }
+                }
+                if let Some(color) = ctx.overrides.and_then(|values| {
+                    crate::primitives::styling::override_color(values, "fragment_color")
+                }) {
+                    paint = Some(animatix_text::f32_color_to_rgba8(&color));
+                }
                 frags.push(FragInfo {
+                    id: child_id,
+                    order,
+                    paint,
                     content: fragment.content,
                     hl_color: fragment.highlight_color,
                     hl_opacity: fragment.highlight_opacity,
@@ -175,6 +210,9 @@ impl Timeline {
             }
         }
 
+        if frags.iter().any(|fragment| fragment.order != 0.0) {
+            frags.sort_by(|a, b| a.order.total_cmp(&b.order));
+        }
         frags
     }
 
@@ -263,13 +301,33 @@ impl Timeline {
                 // Compute highlight bounding boxes from the shared
                 // glyph groups before drawing them.
                 let highlight_cmds = equation_highlight_commands(frags, all_glyphs, ranges);
+                draw_highlights(
+                    &highlight_cmds,
+                    true,
+                    out.scene,
+                    &global_transform,
+                    global_opacity,
+                );
 
                 // Render all glyphs as a single text command. The memo
                 // owns the glyph slice, so share it by refcount instead
                 // of re-wrapping a freshly built Vec.
                 if !all_glyphs.is_empty() {
+                    let paths = if frags.iter().any(|frag| frag.paint.is_some()) {
+                        let mut paths = all_glyphs.to_vec();
+                        for (frag, range) in frags.iter().zip(ranges) {
+                            if let Some(color) = frag.paint {
+                                for path in &mut paths[range.clone()] {
+                                    path.color = color;
+                                }
+                            }
+                        }
+                        paths.into()
+                    } else {
+                        std::sync::Arc::clone(&compiled.glyphs)
+                    };
                     let cmd = crate::primitives::RenderCommand::Text {
-                        paths: std::sync::Arc::clone(&compiled.glyphs),
+                        paths,
                         fill_gradient: None,
                         clip_path: None,
                         tint_color: None,
@@ -279,9 +337,13 @@ impl Timeline {
                 }
 
                 // Render highlight overlays.
-                for cmd in &highlight_cmds {
-                    cmd.execute(out.scene, &global_transform, global_opacity);
-                }
+                draw_highlights(
+                    &highlight_cmds,
+                    false,
+                    out.scene,
+                    &global_transform,
+                    global_opacity,
+                );
             },
             Err(e) => {
                 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
@@ -322,6 +384,22 @@ impl Timeline {
     }
 }
 
+fn draw_highlights(
+    commands: &[crate::primitives::RenderCommand],
+    behind_text: bool,
+    scene: &mut crate::scene::Scene,
+    transform: &kurbo::Affine,
+    opacity: f32,
+) {
+    for command in commands {
+        if let crate::primitives::RenderCommand::HighlightLayer { blend, .. } = command
+            && (*blend == peniko::Mix::Normal) == behind_text
+        {
+            command.execute(scene, transform, opacity);
+        }
+    }
+}
+
 /// Highlight-layer commands for the fragments that declare one, clipped to the
 /// glyph runs the grouped compile resolved per authored fragment.
 fn equation_highlight_commands(
@@ -329,43 +407,32 @@ fn equation_highlight_commands(
     all_glyphs: &[TextPath],
     ranges: &[std::ops::Range<usize>],
 ) -> Vec<crate::primitives::RenderCommand> {
-    let mut highlight_cmds: Vec<crate::primitives::RenderCommand> = Vec::new();
-    for (frag_idx, frag) in frags.iter().enumerate() {
-        if frag.hl_opacity > 0.001 && frag_idx < ranges.len() {
-            let range = &ranges[frag_idx];
-            if range.start >= range.end || range.end > all_glyphs.len() {
-                continue;
-            }
-            let mut min_x = f64::INFINITY;
-            let mut max_x = f64::NEG_INFINITY;
-            let mut min_y = f64::INFINITY;
-            let mut max_y = f64::NEG_INFINITY;
-            for tp in &all_glyphs[range.start..range.end] {
-                use kurbo::Shape;
-                let b = tp.path.bounding_box();
-                min_x = min_x.min(b.x0);
-                max_x = max_x.max(b.x1);
-                min_y = min_y.min(b.y0);
-                max_y = max_y.max(b.y1);
-            }
-            if min_x.is_finite() && max_x.is_finite() {
-                let pad = frag.hl_padding as f64;
-                let hl_rect = kurbo::Rect::new(min_x - pad, min_y - pad, max_x + pad, max_y + pad);
-                let hl_color = peniko::Color::from_rgba8(
-                    (frag.hl_color[0] * 255.0) as u8,
-                    (frag.hl_color[1] * 255.0) as u8,
-                    (frag.hl_color[2] * 255.0) as u8,
-                    255,
-                );
-                highlight_cmds.push(crate::primitives::RenderCommand::HighlightLayer {
-                    rect: hl_rect,
-                    color: hl_color,
-                    blend: frag.hl_blend,
-                    alpha: frag.hl_opacity,
-                    corner_radius: frag.hl_radius as f64,
-                });
-            }
-        }
+    frags
+        .iter()
+        .zip(ranges)
+        .filter_map(|(fragment, range)| {
+            equation_highlight(fragment, all_glyphs.get(range.clone())?, 1.0)
+        })
+        .collect()
+}
+
+fn equation_highlight(
+    fragment: &FragInfo,
+    paths: &[TextPath],
+    opacity: f32,
+) -> Option<crate::primitives::RenderCommand> {
+    let alpha = fragment.hl_opacity * opacity;
+    if alpha <= 0.001 {
+        return None;
     }
-    highlight_cmds
+    let bounds = paths.iter().map(|path| path.bounds).reduce(|a, b| a.union(b))?;
+    let padding = f64::from(fragment.hl_padding.max(0.0));
+    let [r, g, b, a] = animatix_text::f32_color_to_rgba8(&fragment.hl_color);
+    Some(crate::primitives::RenderCommand::HighlightLayer {
+        rect: bounds.inflate(padding, padding),
+        color: peniko::Color::from_rgba8(r, g, b, a),
+        blend: fragment.hl_blend,
+        alpha,
+        corner_radius: f64::from(fragment.hl_radius.max(0.0)),
+    })
 }

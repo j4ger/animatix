@@ -410,6 +410,11 @@ pub fn compile_text_fast_wrapped(
 
     if content.is_empty() {
         return Ok(CompiledText {
+            layout_metrics: Some(crate::TextLayoutMetrics {
+                width: 0.0,
+                height: 0.0,
+                lines: 0,
+            }),
             glyphs: Vec::new(),
             ascent: ascent * font_scale,
             descent: descent * font_scale,
@@ -432,8 +437,14 @@ pub fn compile_text_fast_wrapped(
 
     let (word_infos, lines) =
         measure_and_break(content, &params, overflow != "ellipsis" || max_lines.is_some())?;
+    let layout_metrics = Some(crate::TextLayoutMetrics {
+        width: lines.iter().map(|line| line.total_width as f32).fold(0.0, f32::max),
+        height: line_height_pts * lines.len() as f32,
+        lines: lines.len(),
+    });
     if word_infos.is_empty() {
         return Ok(CompiledText {
+            layout_metrics,
             glyphs: Vec::new(),
             ascent: ascent * font_scale,
             descent: descent * font_scale,
@@ -445,12 +456,14 @@ pub fn compile_text_fast_wrapped(
     let (glyphs, pending_hardware) =
         emit_lines(&word_infos, &lines, &params, max_lines, text_align, overflow);
 
-    Ok(finalize_layout(
+    let mut compiled = finalize_layout(
         glyphs,
         pending_hardware,
         &faces,
         size,
         ascent * font_scale,
         descent * font_scale,
-    ))
+    );
+    compiled.layout_metrics = layout_metrics;
+    Ok(compiled)
 }

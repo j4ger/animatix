@@ -16,4 +16,4 @@ pub use geometry::{
 pub use highlight::HighlightTracks;
 pub use shape::ShapeTracks;
 pub use style::StyleTracks;
-pub use text::{TextTracks, apply_split_text_animation};
+pub use text::{TextSpan, TextTracks, apply_split_text_animation};

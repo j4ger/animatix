@@ -166,13 +166,64 @@ pub fn compile_typst(
     text_align: &str,
     overflow: &str,
 ) -> Result<Frame, RenderError> {
+    compile_typst_with_sources(
+        typst_markup,
+        font_size,
+        color,
+        font_family,
+        font_ctx,
+        font_weight,
+        font_style,
+        line_height,
+        letter_spacing,
+        word_spacing,
+        max_width,
+        text_align,
+        overflow,
+        None,
+    )
+}
+
+#[cfg(feature = "rich-text")]
+pub fn compile_typst_with_sources(
+    typst_markup: &str,
+    font_size: f32,
+    color: typst::visualize::Color,
+    font_family: &str,
+    font_ctx: &FontContext,
+    font_weight: f32,
+    font_style: &str,
+    line_height: f32,
+    letter_spacing: f32,
+    word_spacing: f32,
+    max_width: f32,
+    text_align: &str,
+    overflow: &str,
+    sources: Option<&crate::TypstSources>,
+) -> Result<Frame, RenderError> {
     let font = resolve_font_family(font_family, font_ctx);
-    let fallback = collect_fallback_fonts(font_ctx, typst_markup, &font, font_weight, font_style);
+    let fallback_text = sources.map(|sources| {
+        std::iter::once(typst_markup)
+            .chain(sources.0.iter().map(|(_, text)| text.as_str()))
+            .collect::<Vec<_>>()
+            .join("\n")
+    });
+    let fallback = collect_fallback_fonts(
+        font_ctx,
+        fallback_text.as_deref().unwrap_or(typst_markup),
+        &font,
+        font_weight,
+        font_style,
+    );
     let extra_rules = typst_text_set_rules(font_weight, font_style, letter_spacing, word_spacing);
     let leading_rule = typst_par_leading_rule(line_height);
     // Include math font so that $...$ math expressions compile correctly.
     // Mirror the compile_math show-rule for math.equation font.
-    let page_preamble = typst_page_preamble(max_width, typst_markup, font_size, letter_spacing);
+    let page_preamble = if sources.is_some() && max_width <= 0.0 {
+        "#set page(width: auto, height: auto, margin: 0pt)\n".to_owned()
+    } else {
+        typst_page_preamble(max_width, typst_markup, font_size, letter_spacing)
+    };
     let base_markup = format!(
         "{}{}#set text(size: {}pt, fill: rgb(\"{}\"), font: (\"{}\", \"{}\")); #show math.equation: set text(font: \"{}\")\n{}",
         extra_rules,
@@ -195,12 +246,15 @@ pub fn compile_typst(
     let vpath = VirtualPath::new("main.typ")
         .map_err(|e| RenderError::TextCompilation(format!("invalid virtual path: {e}")))?;
     let source = Source::new(RootedPath::new(VirtualRoot::Project, vpath).intern(), markup);
-    let world = TypstWorld::with_fonts_and_fallback(
+    let mut world = TypstWorld::with_fonts_and_fallback(
         source,
         &[&font, DEFAULT_MATH_FONT_FAMILY],
         &fallback,
         font_ctx,
     )?;
+    if let Some(sources) = sources {
+        world.add_sources(sources)?;
+    }
     compile_single_frame(&world, "Typst")
 }
 
@@ -264,11 +318,10 @@ pub fn compile_text(
 const RAW_TEXT_EM_SCALE: f32 = 0.8;
 
 #[cfg(feature = "rich-text")]
-fn plain_code_markup(code: &str) -> String {
+fn plain_code_markup(code: &str) -> Vec<String> {
     code.split('\n')
         .map(|line| format!("#text(\"{}\")", literal_code_span(line)))
-        .collect::<Vec<_>>()
-        .join("\\\n")
+        .collect()
 }
 
 #[cfg(feature = "rich-text")]
@@ -278,7 +331,7 @@ fn literal_code_span(text: &str) -> String {
 }
 
 #[cfg(feature = "rich-text")]
-fn code_layout_source(code: &str) -> String {
+fn code_layout_source(code: &str, tab_width: usize) -> String {
     let mut expanded = String::with_capacity(code.len());
     let mut column = 0;
     for ch in code.replace("\r\n", "\n").replace('\r', "\n").chars() {
@@ -288,7 +341,7 @@ fn code_layout_source(code: &str) -> String {
                 column = 0;
             },
             '\t' => {
-                let spaces = 4 - column % 4;
+                let spaces = tab_width - column % tab_width;
                 expanded.extend(std::iter::repeat_n(' ', spaces));
                 column += spaces;
             },
@@ -397,7 +450,7 @@ fn highlighted_code_markup(
     code: &str,
     language: &str,
     palette: Option<&HighlightPalette>,
-) -> Option<String> {
+) -> Option<Vec<String>> {
     use std::mem;
 
     use syntect::easy::HighlightLines;
@@ -410,9 +463,9 @@ fn highlighted_code_markup(
     let base_fg = theme.settings.foreground.unwrap_or(Color::BLACK);
     let mut highlighter = HighlightLines::new(syntax, theme);
 
-    let lines: Vec<&str> = code.split('\n').collect();
-    let mut out = String::new();
-    for (index, line) in lines.iter().enumerate() {
+    let mut lines = Vec::new();
+    for line in code.split('\n') {
+        let mut out = String::new();
         let ranges = highlighter.highlight_line(line, syntaxes).ok()?;
 
         // Merge whitespace-only pieces into the previous token (or the next,
@@ -469,11 +522,9 @@ fn highlighted_code_markup(
                 None => out.push_str(&format!("#text(\"{escaped}\")")),
             }
         }
-        if index + 1 < lines.len() {
-            out.push_str("\\\n");
-        }
+        lines.push(out);
     }
-    Some(out)
+    Some(lines)
 }
 
 #[cfg(feature = "rich-text")]
@@ -486,29 +537,31 @@ fn highlighted_code_markup(
 /// When `palette` is `Some`, token colours are remapped through it so the
 /// highlight follows the active colorscheme; `None` keeps Typst's fixed theme.
 pub fn compile_code(
-    code: &str,
-    language: &str,
-    palette: Option<&HighlightPalette>,
-    font_size: f32,
+    request: &crate::TextCompileRequest<'_>,
     color: typst::visualize::Color,
-    font_family: &str,
     font_ctx: &FontContext,
-    font_weight: f32,
-    font_style: &str,
-    line_height: f32,
-    letter_spacing: f32,
-    word_spacing: f32,
     max_width: f32,
     text_align: &str,
-    overflow: &str,
 ) -> Result<Frame, RenderError> {
+    let crate::TextStyle {
+        font_family,
+        font_size,
+        font_weight,
+        font_style,
+        line_height,
+        letter_spacing,
+        word_spacing,
+        ..
+    } = request.style;
+    let (code, language, palette, options) =
+        (request.content, request.language, request.palette, request.code);
     let font = resolve_font_family(font_family, font_ctx);
     let fallback = collect_fallback_fonts(font_ctx, code, &font, font_weight, font_style);
     let extra_rules = typst_text_set_rules(font_weight, font_style, letter_spacing, word_spacing);
     let leading_rule = typst_par_leading_rule(line_height);
     // Typst's `raw` show rule renders at 0.8em; match that scale for the span
     // path so toggling `language` does not resize the block.
-    let code = code_layout_source(code);
+    let code = code_layout_source(code, usize::from(options.tab_width.max(1)));
     let highlighted_markup = if language.is_empty() {
         None
     } else {
@@ -520,7 +573,21 @@ pub fn compile_code(
              (only Typst's built-in raw languages are supported)"
         );
     }
-    let content = highlighted_markup.unwrap_or_else(|| plain_code_markup(&code));
+    let mut lines = highlighted_markup.unwrap_or_else(|| plain_code_markup(&code));
+    let last = options.first_line.saturating_add(lines.len().saturating_sub(1) as u32);
+    let number_width = last.to_string().len();
+    for (index, line) in lines.iter_mut().enumerate() {
+        if options.line_numbers {
+            let number = options.first_line.saturating_add(index as u32);
+            *line = format!("#box[#text(\"{number:>number_width$}  \")]{line}");
+        }
+        if options.track_lines {
+            *line = format!(
+                "#metadata(\"animatix:equation-fragment:start:{index}\"){line}#metadata(\"animatix:equation-fragment:end:{index}\")",
+            );
+        }
+    }
+    let content = lines.join("\\\n");
     let set_size = font_size * RAW_TEXT_EM_SCALE;
     let page_preamble = typst_page_preamble(max_width, &code, set_size, letter_spacing);
     let base_markup = format!(
@@ -535,7 +602,7 @@ pub fn compile_code(
     let markup = format!(
         "{}{}",
         page_preamble,
-        typst_wrapping_preamble(max_width, text_align, overflow, &base_markup)
+        typst_wrapping_preamble(max_width, text_align, request.overflow, &base_markup)
     );
 
     let vpath = VirtualPath::new("main.typ")

@@ -263,6 +263,8 @@ pub(crate) fn compute_container_size_with_specs(
 /// Collected text child properties for width propagation (immutable read phase).
 #[derive(Clone, Debug)]
 pub(crate) struct TextChildProps {
+    code_options: animatix_text::CodeOptions,
+    typst_sources: Option<animatix_text::TypstSources>,
     /// Text kind (Text, Typst, Code).
     pub text_kind: TextKind,
     /// Raw text content.
@@ -329,6 +331,8 @@ impl Timeline {
         };
 
         Some(TextChildProps {
+            code_options: text.code_options,
+            typst_sources: text.typst_sources.clone(),
             text_kind,
             content,
             font_family,
@@ -393,6 +397,8 @@ impl Timeline {
         let recompiled = {
             let text_compiler = self.text_compiler.borrow();
             let request = TextCompileRequest {
+                code: props.code_options,
+                typst_sources: props.typst_sources.as_ref(),
                 kind: props.text_kind,
                 content: &props.content,
                 language: &props.language,

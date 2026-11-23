@@ -78,6 +78,9 @@ struct ShapedGlyph {
     x_offset: f64,
     y_offset: f64,
     char_idx: u16,
+    source_range: [u32; 2],
+    caret_x: f64,
+    rtl: bool,
 }
 
 #[cfg(test)]

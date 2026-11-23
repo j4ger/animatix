@@ -29,6 +29,8 @@ fn highlight_palette() -> HighlightPalette {
 
 fn compile_once(compiler: &mut TextCompiler, font_ctx: &FontContext, language: &str) -> usize {
     let request = TextCompileRequest {
+        code: Default::default(),
+        typst_sources: None,
         kind: TextKind::Code,
         content: CODE,
         language,

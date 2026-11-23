@@ -3,6 +3,8 @@ use crate::timeline::plan::PropertyPlan;
 use crate::timeline::{EntityId, Timeline, TrackAccessor};
 use std::ops::Range;
 
+mod sidecar;
+mod styling;
 mod word_ranges;
 use word_ranges::{
     CaptionWordStyle, map_timed_words_to_char_ranges, style_for_glyph, word_index_for_char,
@@ -101,9 +103,15 @@ impl Timeline {
             .max_by(|a, b| a.start_s.total_cmp(&b.start_s));
 
         if let Some(cue) = active_cue {
+            let paint_overrides = frame.overrides.get(node_label);
+            let pause = match paint_overrides.and_then(|values| values.get("caption_pause")) {
+                Some(crate::timeline::Value::Num(value)) => *value as f32,
+                _ => property_plan.sample_f32_prop("caption_pause", time_ms, 0.0),
+            };
+            let phrase = styling::cue_phrase(cue, f64::from(pause), time_s);
             self.render_active_caption(
                 node_id,
-                cue,
+                phrase.as_ref().unwrap_or(cue),
                 time_s,
                 time_ms,
                 global_transform,
@@ -112,6 +120,7 @@ impl Timeline {
                 text_max_width,
                 max_lines,
                 property_plan,
+                paint_overrides,
                 out,
             );
         }
@@ -133,6 +142,9 @@ impl Timeline {
         let child_ids: Vec<EntityId> = self.world.hierarchy(node_id).children.to_vec();
 
         for &child_id in &child_ids {
+            if self.world.first_seen(child_id) > time_ms {
+                continue;
+            }
             let Some(def) = self.behavior_for_node(child_id, time_ms) else {
                 continue;
             };
@@ -234,6 +246,7 @@ impl Timeline {
         text_max_width: f32,
         max_lines: u32,
         property_plan: &PropertyPlan,
+        paint_overrides: Option<&std::collections::HashMap<String, crate::timeline::Value>>,
         out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) {
         // `transition_time` fades a cue in from its own start. It is 0 by
@@ -356,6 +369,25 @@ impl Timeline {
                     backdrop_color,
                 );
             }
+            let paint = styling::CaptionPaint::sample(property_plan, time_ms, paint_overrides);
+            if let Some(rect) = active_bounds
+                && paint.word_backdrop[3] > 0.0
+            {
+                let transform = if caption_mode == "pop" {
+                    global_transform * pop
+                } else {
+                    global_transform
+                };
+                draw_caption_backdrop(
+                    out,
+                    transform,
+                    rect,
+                    caption_opacity,
+                    [4.0, 2.0],
+                    3.0,
+                    paint.word_backdrop,
+                );
+            }
 
             for g in glyphs {
                 let (color, scale) = style_for_glyph(
@@ -383,8 +415,7 @@ impl Timeline {
                     global_transform
                 };
 
-                out.scene
-                    .fill(peniko::Fill::NonZero, glyph_transform, peniko_color, None, &g.path);
+                paint.draw(out.scene, g, glyph_transform, peniko_color, caption_opacity);
             }
         }
     }

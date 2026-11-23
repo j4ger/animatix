@@ -440,11 +440,6 @@ Measured by A/B rendering (same scene with and without one beat) and counting
 changed pixels, so each item below is a reproduced dead end rather than a
 reading of the code.
 
-- **Render coverage for fragment highlighting.** The October pixel comparison
-  found no visible change for dotted fragment targets. The current engine builds
-  Equation highlight commands and tests highlight tracks. Repeat the comparison
-  with current callable syntax. Compare pixels for a minimal Equation before,
-  during and after both actions, including dotted target paths.
 - **`baseline`/`DEAD-BEAT` sampling is meaningless for a multi-scene plate.** The
   per-keyframe sweep samples `#Ns` stamps as absolute times, but in a file with
   `# Scene` sections those stamps are scene-local — `demos/hash/scene.amx` was

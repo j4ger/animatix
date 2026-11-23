@@ -134,6 +134,29 @@ enum Commands {
     },
     /// Diagnose GPU, font, audio muxing, and MP4 encoder availability.
     Doctor,
+    /// Export caption cues to an SRT or WebVTT file without rendering.
+    Subtitles {
+        input: PathBuf,
+        #[command(flatten)]
+        set: SetArgs,
+        /// Select a Captions actor by label.
+        #[arg(long)]
+        track: Option<String>,
+        /// Destination ending in .srt or .vtt.
+        #[arg(short, long)]
+        output: PathBuf,
+    },
+    /// Normalize transcript output from an external recognizer and apply optional corrections.
+    Transcript {
+        /// Whisper JSON, speech JSON, SRT, or WebVTT.
+        input: PathBuf,
+        /// JSON document with corrections by segment ID and word index.
+        #[arg(long)]
+        edits: Option<PathBuf>,
+        /// Destination .speech.json file.
+        #[arg(short, long)]
+        output: PathBuf,
+    },
     /// Inspect the frame ranges and dependencies for incremental chapter video export.
     #[cfg(feature = "video")]
     ChapterPlan(commands::chapters::PlanArgs),
@@ -462,6 +485,13 @@ fn dispatch_video(args: VideoArgs, extensions: &CliExtensions) {
     );
 }
 
+fn exit_on_error(result: Result<(), String>) {
+    if let Err(error) = result {
+        tracing::error!("{error}");
+        std::process::exit(1);
+    }
+}
+
 fn dispatch(command: Commands, extensions: &CliExtensions) {
     match command {
         Commands::Init {
@@ -484,6 +514,25 @@ fn dispatch(command: Commands, extensions: &CliExtensions) {
                 std::process::exit(1);
             }
         },
+        Commands::Subtitles {
+            input,
+            set,
+            track,
+            output,
+        } => {
+            exit_on_error(commands::subtitles::run(
+                &input,
+                &set.set,
+                track.as_deref(),
+                &output,
+                extensions,
+            ));
+        },
+        Commands::Transcript {
+            input,
+            edits,
+            output,
+        } => exit_on_error(commands::transcript::run(&input, edits.as_deref(), &output)),
         #[cfg(feature = "video")]
         Commands::ChapterPlan(args) => {
             if let Err(err) = commands::chapters::run_plan(args, extensions) {

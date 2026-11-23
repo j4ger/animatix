@@ -416,6 +416,36 @@ impl Requirements<'_> {
         }
     }
 
+    fn asset_list(&mut self, kind: &str, value: &Expr, label: &str, named: bool) {
+        let Ok(Value::List(items)) = evaluate_expr(value, &self.env) else {
+            self.analysis.diagnostics.push(error_diagnostic(
+                "dynamic-asset",
+                "resource list must be determined before playback",
+                Some(label),
+            ));
+            return;
+        };
+        for item in items.iter() {
+            let path = match item {
+                Value::Str(path) if !named => Some(path),
+                Value::List(pair) if named => match pair.as_ref() {
+                    [Value::Str(_), Value::Str(path)] => Some(path),
+                    _ => None,
+                },
+                _ => None,
+            };
+            if let Some(path) = path {
+                self.asset(kind, &Expr::Str(path.clone()), label);
+            } else {
+                self.analysis.diagnostics.push(error_diagnostic(
+                    "invalid-resource",
+                    "resource list has an invalid entry",
+                    Some(label),
+                ));
+            }
+        }
+    }
+
     fn caption_source(&mut self, value: &Expr) {
         match evaluate_expr(value, &self.env) {
             Ok(Value::Str(actor)) => {
@@ -481,6 +511,20 @@ impl Requirements<'_> {
                 &mut self.analysis.fonts.families,
                 animatix::renderer::text::DEFAULT_CODE_FONT_FAMILY.to_string(),
             );
+        }
+        if matches!(ty, "Code" | "Typst") {
+            for prop in props {
+                match prop.name.as_str() {
+                    "text_file" | "diff_file" => {
+                        self.asset("source-text", &prop.value, label);
+                    },
+                    "diff_from" => self.text_value(prop),
+                    "typst_modules" if ty == "Typst" => {
+                        self.asset_list("source-text", &prop.value, label, true)
+                    },
+                    _ => {}, // The remaining text properties do not name files.
+                }
+            }
         }
         if info.capabilities.text_paths
             || info.capabilities.plot_geometry
@@ -612,6 +656,14 @@ impl<'ast> AstVisitor<'ast> for Requirements<'_> {
             },
             Stmt::Config { settings, .. } => {
                 for prop in settings {
+                    if prop.name == "font_files" {
+                        self.asset_list("font", &prop.value, "font_files", false);
+                    }
+                    if prop.name == "font_files_only"
+                        && let Expr::Bool(value) = prop.value
+                    {
+                        self.analysis.fonts.project_only = value;
+                    }
                     if prop.name == "resolution"
                         && let Ok(Value::Vec2([width, height])) =
                             evaluate_expr(&prop.value, &self.env)

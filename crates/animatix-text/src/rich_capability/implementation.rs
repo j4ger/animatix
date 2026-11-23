@@ -1,7 +1,8 @@
 //! This entire implementation is reachable only through the rich factory.
 
 use crate::typst_world::{
-    compile_code, compile_typst, extract_glyphs_grouped, extract_glyphs_with_metrics,
+    compile_code, compile_typst, compile_typst_with_sources, extract_glyphs_grouped,
+    extract_glyphs_with_metrics,
 };
 use crate::{CachedGroupedText, CompiledText, FontContext, TextCompileRequest, TextKind};
 use animatix_core::error::RenderError;
@@ -175,24 +176,8 @@ pub(super) fn compile(
         tracing::warn!("max_lines is unavailable for rich text; the line cap is ignored");
     }
     let frame = match request.kind {
-        TextKind::Code => compile_code(
-            request.content,
-            request.language,
-            request.palette,
-            style.font_size,
-            color(request),
-            style.font_family,
-            fonts,
-            style.font_weight,
-            style.font_style,
-            style.line_height,
-            style.letter_spacing,
-            style.word_spacing,
-            max_width,
-            text_align,
-            request.overflow,
-        )?,
-        TextKind::Math | TextKind::Typst => compile_typst(
+        TextKind::Code => compile_code(request, color(request), fonts, max_width, text_align)?,
+        TextKind::Math | TextKind::Typst => compile_typst_with_sources(
             &math_or_markup(request),
             style.font_size,
             color(request),
@@ -206,6 +191,7 @@ pub(super) fn compile(
             max_width,
             text_align,
             request.overflow,
+            request.typst_sources,
         )?,
         TextKind::Text => {
             return Err(RenderError::TextCompilation(
@@ -215,6 +201,15 @@ pub(super) fn compile(
     };
     validate_frame(&frame)?;
     let mut compiled = extract_glyphs_with_metrics(&frame);
+    if request.kind == TextKind::Code && request.code.track_lines {
+        let (mut paths, ranges) = extract_glyphs_grouped(&frame)?;
+        for (line, range) in ranges.into_iter().enumerate() {
+            for path in &mut paths[range] {
+                path.source_line = u32::try_from(line).ok();
+            }
+        }
+        compiled.glyphs = paths;
+    }
     if ellipsis {
         fit_rich_ellipsis(&mut compiled, request, fonts)?;
     }

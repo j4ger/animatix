@@ -33,6 +33,9 @@ pub(in crate::timeline) fn sample_text_paths(
         let mut result = Vec::with_capacity(source.len() + target.len());
         for path in source {
             result.push(TextPath {
+                source_line: path.source_line,
+                source_range: path.source_range,
+                caret: path.caret,
                 path: path.path.clone(),
                 clips: path.clips.clone(),
                 color: path.color,
@@ -47,6 +50,9 @@ pub(in crate::timeline) fn sample_text_paths(
         }
         for path in target {
             result.push(TextPath {
+                source_line: path.source_line,
+                source_range: path.source_range,
+                caret: path.caret,
                 path: path.path.clone(),
                 clips: path.clips.clone(),
                 color: path.color,
@@ -82,6 +88,9 @@ pub(in crate::timeline) fn sample_text_paths(
                     let morphed = aligned.sample(t as f64, options.path_arc);
                     let b = morphed.bounding_box();
                     TextPath {
+                        source_line: ref_path.and_then(|p| p.source_line),
+                        source_range: ref_path.and_then(|p| p.source_range),
+                        caret: ref_path.and_then(|p| p.caret),
                         path: morphed,
                         clips: Vec::new(),
                         color: if t < 0.5 {

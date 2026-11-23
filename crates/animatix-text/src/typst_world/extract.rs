@@ -100,6 +100,7 @@ pub fn extract_glyphs_with_metrics(frame: &Frame) -> CompiledText {
     let (ascent, descent) = extract_frame_metrics(frame);
 
     CompiledText {
+        layout_metrics: None,
         glyphs,
         ascent,
         descent,

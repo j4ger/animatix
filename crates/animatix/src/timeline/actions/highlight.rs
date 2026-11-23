@@ -7,7 +7,7 @@ use crate::timeline::actions::BuiltinInvocation;
 use crate::timeline::property_track::TrackAccessor;
 
 /// Parse a blend mode string into a `peniko::Mix` variant.
-fn parse_blend_mode(s: &str) -> peniko::Mix {
+pub(crate) fn parse_blend_mode(s: &str) -> peniko::Mix {
     match s {
         "difference" => peniko::Mix::Difference,
         "exclusion" => peniko::Mix::Exclusion,
@@ -192,7 +192,7 @@ impl BuiltinAction for Highlight {
         for (sibling, t_start, t_end) in siblings_to_unhighlight {
             if let Some(id) = timeline.world.get_id(&sibling) {
                 let hl = timeline.world.ensure_highlight(id);
-                let start_opacity = hl.highlight_opacity.get(t_start, 1.0);
+                let start_opacity = hl.highlight_opacity.get(t_start, 0.0);
                 hl.highlight_opacity.ensure(0.0).add_keyframe(
                     t_start,
                     start_opacity,

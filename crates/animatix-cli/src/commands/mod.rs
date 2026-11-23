@@ -10,4 +10,6 @@ pub mod measure;
 pub mod plugin;
 pub mod render;
 pub mod storyboard;
+pub mod subtitles;
 pub mod timeline;
+pub mod transcript;

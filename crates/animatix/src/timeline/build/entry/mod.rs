@@ -19,6 +19,7 @@ mod format_specs;
 mod impl_mod;
 mod layout;
 mod options;
+mod project_fonts;
 mod seed;
 mod validate;
 mod walk;

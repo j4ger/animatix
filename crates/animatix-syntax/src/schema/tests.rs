@@ -86,7 +86,7 @@ fn property_id_order_is_pinned() {
     let specs = property_specs();
     assert_eq!(
         specs.len(),
-        145,
+        172,
         "the built-in property count changed; update this pin deliberately (ids are persisted)"
     );
     // Dense, unique ids starting at zero — no gaps for a join to fall into.

@@ -44,7 +44,8 @@ pub fn build_extra_fragment(
     let env = timeline.env().clone();
 
     let track_id = timeline.world.spawn(label, "Fragment");
-    timeline.world.meta_mut(track_id).first_seen_ms = time_ms as u64;
+    let meta = timeline.world.meta_mut(track_id);
+    meta.first_seen_ms = meta.first_seen_ms.min(time_ms as u64);
     timeline.world.ensure_text(track_id);
     timeline.world.ensure_highlight(track_id);
 
@@ -97,7 +98,45 @@ pub fn build_extra_fragment(
                         .add_keyframe(time_ms as u64, color, Easing::Linear);
                 }
             },
-            _ => {}, // Properties other than text content and highlight color are handled by plan slots.
+            "highlight_opacity" | "highlight_padding" | "highlight_radius" | "fragment_order"
+            | "fragment_color" => {
+                use crate::timeline::property_engine::parse_property_value;
+                use crate::timeline::property_registry::lookup_property;
+                if let Some(schema) = lookup_property(&prop.name)
+                    && let Some(value) = parse_property_value(
+                        schema.value_type,
+                        &prop.value,
+                        &env,
+                        diagnostics,
+                        &format!("{label}.{}", prop.name),
+                    )
+                {
+                    let field = schema.field_for_actor(&timeline.world.caps(track_id), "Fragment");
+                    timeline.world.write_property_field(
+                        track_id,
+                        field,
+                        value,
+                        time_ms as u64,
+                        time_ms as u64,
+                        Easing::Linear,
+                        diagnostics,
+                    );
+                }
+            },
+            "highlight_blend" => {
+                if let Some(crate::timeline::Value::Str(blend)) =
+                    crate::timeline::evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &env,
+                        diagnostics,
+                        label,
+                    )
+                {
+                    timeline.world.ensure_highlight(track_id).highlight_blend =
+                        crate::timeline::actions::highlight::parse_blend_mode(&blend);
+                }
+            },
+            _ => {}, // Fragment content, paint and ordering consume the properties above.
         }
     }
 

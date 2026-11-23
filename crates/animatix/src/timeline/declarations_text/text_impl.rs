@@ -4,8 +4,12 @@ use crate::timeline::TextTracks;
 use crate::timeline::entity::EntityId;
 use crate::timeline::env::Environment;
 
+mod fit;
+mod sources;
+
 struct ParsedTextProperties {
     text_content: String,
+    code_diff: bool,
     font_family: String,
     font_size: f32,
     font_weight: f32,
@@ -32,6 +36,7 @@ impl ParsedTextProperties {
     fn new(kind: TextDeclarationKind) -> Self {
         Self {
             text_content: String::new(),
+            code_diff: false,
             font_family: String::new(),
             font_size: kind.default_font_size(),
             font_weight: 400.0,
@@ -98,7 +103,18 @@ impl Timeline {
             );
         }
 
-        let parsed = self.parse_text_properties(kind, &label_str, props, &eval_env, diagnostics);
+        let mut parsed =
+            self.parse_text_properties(kind, &label_str, props, &eval_env, diagnostics);
+        if kind == TextDeclarationKind::Text {
+            self.fit_text(&label_str, props, &eval_env, diagnostics, &mut parsed)?;
+        }
+        let sources = if matches!(kind, TextDeclarationKind::Code | TextDeclarationKind::Typst) {
+            self.prepare_text_sources(kind, &label_str, props, &eval_env, diagnostics, &mut parsed)?
+        } else {
+            None
+        };
+        let spans =
+            sources::parse_spans(props, &eval_env, &label_str, &parsed.text_content, diagnostics)?;
 
         // Pre-seed opacity for pre-keyframe first declarations without explicit opacity.
         let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
@@ -167,7 +183,29 @@ impl Timeline {
         );
 
         self.world.ensure_text(track_id);
+        let plan = self.world.property_plan(track_id);
+        let code_options =
+            (kind == TextDeclarationKind::Code).then(|| animatix_text::CodeOptions {
+                tab_width: plan.sample_u32_prop("tab_width", t_end_ms, 4).clamp(1, 32) as u8,
+                line_numbers: plan.sample_bool_prop("line_numbers", t_end_ms, false),
+                first_line: plan.sample_u32_prop("first_line", t_end_ms, 1).max(1),
+                track_lines: true,
+            });
         let text = self.world.text.get_mut(track_id).expect("text component");
+        if let Some(options) = code_options {
+            text.code_options = options;
+        }
+        text.typst_sources = sources;
+        if parsed.code_diff {
+            text.language.ensure(String::new()).add_keyframe(
+                t_end_ms,
+                "diff".into(),
+                Easing::Linear,
+            );
+        }
+        if let Some(spans) = spans {
+            text.spans = spans;
+        }
         if duration_ms == 0.0 {
             // A declaration at a future keyframe is a step. Fence the discrete
             // content before adding the new endpoint so it cannot interpolate
@@ -806,6 +844,8 @@ impl Timeline {
                 text_align: &parsed.text_align,
                 overflow: &parsed.overflow,
                 allow_fast_path: text_compiler.text_fast_path,
+                code: text.code_options,
+                typst_sources: text.typst_sources.as_ref(),
             };
             crate::renderer::text::compile_text_cached(&request, self.font_context.as_ref())?
         };

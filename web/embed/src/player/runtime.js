@@ -570,7 +570,7 @@ export async function fetchPreparedAssets(runtime, assets, signal) {
     if (!response.ok) throw playerError(new Error(`asset '${asset.id}' HTTP ${response.status}: ${url}`), "resource");
     let payload;
     try {
-      payload = asset.kind === "text" || asset.kind === "svg"
+      payload = asset.kind === "text" || asset.kind === "source-text" || asset.kind === "svg"
         ? await response.text()
         : new Uint8Array(await response.arrayBuffer());
     } catch (error) {

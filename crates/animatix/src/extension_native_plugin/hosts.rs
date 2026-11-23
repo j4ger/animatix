@@ -188,6 +188,8 @@ pub(crate) unsafe extern "C" fn native_append_text(
         _ => crate::renderer::text::TextKind::Text,
     };
     let request = TextCompileRequest {
+        code: Default::default(),
+        typst_sources: None,
         kind: text_kind,
         content: &content,
         language: "",

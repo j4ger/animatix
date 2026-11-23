@@ -137,7 +137,7 @@ impl WasmPreparedProgram {
             match requirement.kind.as_str() {
                 "svg" => insert_svg(&mut cache, &id, &payload)?,
                 "image" => insert_image(&mut cache, &id, &payload)?,
-                "text" => {
+                "text" | "source-text" => {
                     let text = payload
                         .as_string()
                         .ok_or_else(|| JsError::new("transcript payload must be text"))?;
@@ -147,7 +147,13 @@ impl WasmPreparedProgram {
                             "transcript differs from the font-prepared snapshot",
                         ));
                     }
-                    cache.insert_transcript_text(&id, text);
+                    cache.insert_text_source(&id, text);
+                },
+                "font" => {
+                    let bytes = payload
+                        .dyn_ref::<Uint8Array>()
+                        .ok_or_else(|| JsError::new("project font payload must be Uint8Array"))?;
+                    cache.insert_font_file(&id, bytes.to_vec());
                 },
                 _ => return Err(JsError::new("unknown resource kind")),
             }

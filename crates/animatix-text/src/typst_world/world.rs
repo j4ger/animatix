@@ -20,6 +20,7 @@ use typst::{Library, LibraryExt, World};
 pub struct TypstWorld {
     /// The source document.
     source: Source,
+    modules: std::collections::HashMap<FileId, Source>,
     /// Loaded fonts.
     fonts: Vec<Font>,
     /// Font book mapping indices to font info.
@@ -130,6 +131,7 @@ fn build_world(
     let library = typst::Library::builder().build();
     Ok(TypstWorld {
         source,
+        modules: Default::default(),
         fonts,
         book: LazyHash::new(book),
         library: LazyHash::new(library),
@@ -138,6 +140,24 @@ fn build_world(
 
 #[cfg(feature = "rich-text")]
 impl TypstWorld {
+    pub(super) fn add_sources(&mut self, sources: &crate::TypstSources) -> Result<(), RenderError> {
+        use typst::syntax::{RootedPath, VirtualPath, VirtualRoot};
+        for (name, text) in &sources.0 {
+            let path = VirtualPath::new(name).map_err(|error| {
+                RenderError::TextCompilation(format!("invalid Typst module path {name:?}: {error}"))
+            })?;
+            let id = RootedPath::new(VirtualRoot::Project, path).intern();
+            if id == self.source.id()
+                || self.modules.insert(id, Source::new(id, text.clone())).is_some()
+            {
+                return Err(RenderError::TextCompilation(format!(
+                    "duplicate Typst source {name:?}"
+                )));
+            }
+        }
+        Ok(())
+    }
+
     /// Create a new Typst world with additional font families plus
     /// pre-collected glyph-fallback fonts (see `collect_fallback_fonts`).
     pub fn with_fonts_and_fallback(
@@ -167,6 +187,8 @@ impl World for TypstWorld {
     fn source(&self, id: FileId) -> typst::diag::FileResult<Source> {
         if id == self.source.id() {
             Ok(self.source.clone())
+        } else if let Some(source) = self.modules.get(&id) {
+            Ok(source.clone())
         } else {
             Err(typst::diag::FileError::NotFound(id.vpath().get_without_slash().into()))
         }

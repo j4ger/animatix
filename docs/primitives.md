@@ -643,10 +643,10 @@ Does not render independently — the parent Equation handles all rendering.
 - `highlight(target: fragment, color: C, blend: B, duration: D, ease: E)` — animate the Fragment's highlight from 0 to 1
 - `unhighlight(target: fragment, duration: D, ease: E)` — animate the Fragment's highlight from its current value to 0
 
-The current engine collects Fragment highlight tracks while rendering the
-parent Equation and emits highlight-layer commands. Automated timing coverage
-checks the tracks; a visual A/B for the rendered overlay remains listed in the
-[roadmap](roadmap.md).
+The parent Equation draws the Fragment's highlight at its laid-out position.
+Use `fragment_order` to reorder terms and `fragment_color` for the term's own
+fill. An Equation with `equation_transition` animates between keyed layouts by
+fragment identity. See [formula transitions](spec.md#formula-transitions).
 
 **Example:**
 ```animatix

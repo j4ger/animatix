@@ -663,6 +663,11 @@ cd web/tools && npm install && npm run build:embed
   stays visible. WOFF2 is not decodable. Browser-installed fonts are not
   scanned; include a supported TTF/OTF face when the SDK faces do not cover the
   scene's text.
+- **Project resources** — `Code` and `Typst` can use `text_file`, and Typst
+  can import the virtual sources in `typst_modules`. The player fetches them
+  before preparing fonts and building the scene. `config { font_files: {...} }`
+  supplies project TTF/OTF fonts. With `font_files_only: true`, the project
+  faces determine the font set and fallback order in every host.
 - **Audio tracks are not played** (no Web Audio wiring yet).
 - **Video export** is native-only and requires FFmpeg. The web SDK exposes
   on-demand PNG encoding through `encode_rgba_png` for RGBA readbacks; this is

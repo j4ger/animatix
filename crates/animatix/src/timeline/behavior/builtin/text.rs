@@ -11,6 +11,8 @@ use crate::renderer::types::GradientSpec;
 use crate::timeline::property_registry::ActorField;
 use crate::timeline::{Timeline, TrackAccessor};
 
+mod spans;
+
 // ── Shared text evaluation helper ────────────────────────────────────────────
 
 fn evaluate_text_kind(
@@ -22,7 +24,7 @@ fn evaluate_text_kind(
     let style = ctx.style;
     let has_text_ctx = text_ctx.is_some();
 
-    let (paths, clip_path) = if let Some(text_ctx) = text_ctx {
+    let (mut paths, clip_path) = if let Some(text_ctx) = text_ctx {
         evaluate_text_paths(ctx, text_ctx, kind, default_font_size)
     } else {
         let text = ctx.text.expect("text primitive requires text component");
@@ -30,10 +32,23 @@ fn evaluate_text_kind(
         Ok((std::sync::Arc::from(paths), clip))
     }?;
 
+    let text = ctx.text.expect("text primitive requires text component");
+    if kind == TextKind::Code {
+        apply_code_focus(ctx, text.code_options.first_line, &mut paths);
+    }
+    let cursor = kind == TextKind::Text
+        && match ctx.overrides.and_then(|values| values.get("text_cursor")) {
+            Some(crate::timeline::Value::Bool(enabled)) => *enabled,
+            _ => ctx.property_plan.sample_bool_prop("text_cursor", ctx.time_ms, false),
+        };
+    let painted = kind == TextKind::Text && (!text.spans.is_empty() || cursor);
+    if painted {
+        paths = spans::paint(ctx, text, &paths, cursor).into();
+    }
     if paths.is_empty() {
         Ok(None)
     } else {
-        let fill_gradient = if style.fill_gradient.is_some() {
+        let fill_gradient = if !painted && style.fill_gradient.is_some() {
             Some(Box::new(style.fill_gradient.get(ctx.time_ms, GradientSpec::default())))
         } else {
             None
@@ -43,8 +58,8 @@ fn evaluate_text_kind(
             .and_then(|values| crate::primitives::styling::override_color(values, "color"))
             .unwrap_or_else(|| style.color.get(ctx.time_ms, [1.0, 1.0, 1.0, 1.0]));
         // Rich text carries authored fills and alpha in its compiled paths.
-        let tint_color =
-            (kind == TextKind::Text).then(|| crate::renderer::text::f32_color_to_rgba8(&col));
+        let tint_color = (kind == TextKind::Text && !painted)
+            .then(|| crate::renderer::text::f32_color_to_rgba8(&col));
         let text = ctx.text.expect("text primitive requires text component");
         // `text.hardware_layout` was compiled from the declaration's static
         // glyphs. With a text context it is only a valid fast path while `paths`
@@ -56,7 +71,8 @@ fn evaluate_text_kind(
         // rebuilds the static paths as a fresh `Arc`; no override was applied,
         // so the declared layout still describes them.
         let static_paths = text.static_paths.as_ref();
-        let hardware_layout = if text.char_progress.is_none()
+        let hardware_layout = if !painted
+            && text.char_progress.is_none()
             && text.text_anchor.get(ctx.time_ms, "center".to_string()) == "center"
             && static_paths.is_some_and(|static_paths| {
                 !has_text_ctx || std::sync::Arc::ptr_eq(static_paths, &paths)
@@ -120,6 +136,35 @@ fn evaluate_text_kind(
             hardware_layout,
         });
         Ok(Some(commands))
+    }
+}
+
+fn apply_code_focus(
+    ctx: &EvaluateCtx<'_>,
+    first_line: u32,
+    paths: &mut std::sync::Arc<[crate::renderer::types::TextPath]>,
+) {
+    let plan = ctx.property_plan;
+    let [start, end] = match ctx.overrides.and_then(|values| values.get("focus_lines")) {
+        Some(crate::timeline::Value::Vec2(range)) => range.map(|n| n as f32),
+        _ => plan.sample_vec2_prop("focus_lines", ctx.time_ms, [0.0; 2]),
+    };
+    if start <= 0.0 || end < start {
+        return;
+    }
+    let dim = match ctx.overrides.and_then(|values| values.get("unfocused_opacity")) {
+        Some(crate::timeline::Value::Num(value)) => *value as f32,
+        _ => plan.sample_f32_prop("unfocused_opacity", ctx.time_ms, 0.25),
+    }
+    .clamp(0.0, 1.0);
+    for path in std::sync::Arc::make_mut(paths) {
+        if path
+            .source_line
+            .map(|index| first_line.saturating_add(index) as f32)
+            .is_some_and(|line| line < start || line > end)
+        {
+            path.opacity *= dim;
+        }
     }
 }
 

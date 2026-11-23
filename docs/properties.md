@@ -209,6 +209,24 @@ parameter and identity tables.
 | `text_anchor` | `Str` | `String` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter` |
 | `overflow` | `Str` | `String` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter` |
 | `char_progress` | `Num` | `F32` | ✓ | ✓ | `Text`, `Code`, `Math`, `Typst`, `Counter` |
+| `fit_min_size` | `Num` | `F32` | — | — | `Text` |
+| `fit_max_height` | `Num` | `F32` | — | — | `Text` |
+| `fit_max_lines` | `Num` | `U32` | — | — | `Text` |
+| `text_file` | `Str` | `String` | — | — | `Code`, `Typst` |
+| `typst_modules` | `Any` | `BuildTimeOnly` | — | — | `Typst` |
+| `tab_width` | `Num` | `U32` | — | — | `Code` |
+| `line_numbers` | `Bool` | `Bool` | — | — | `Code` |
+| `first_line` | `Num` | `U32` | — | — | `Code` |
+| `focus_lines` | `Vec2` | `Vec2` | ✓ | ✓ | `Code` |
+| `unfocused_opacity` | `Num` | `F32` | ✓ | ✓ | `Code` |
+| `diff_from` | `Str` | `String` | — | — | `Code` |
+| `diff_file` | `Str` | `String` | — | — | `Code` |
+| `text_spans` | `Any` | `BuildTimeOnly` | — | — | `Text` |
+| `selected_span` | `Str` | `String` | ✓ | ✓ | `Text` |
+| `span_opacity` | `Num` | `F32` | ✓ | ✓ | `Text` |
+| `span_progress` | `Num` | `F32` | ✓ | ✓ | `Text` |
+| `span_color` | `Color` | `Color` | ✓ | ✓ | `Text` |
+| `text_cursor` | `Bool` | `Bool` | ✓ | ✓ | `Text` |
 <!-- generated-property-table:text-typst-code:end -->
 
 `language` is the syntax-highlighting tag for `Code` (Typst's built-in `raw`
@@ -247,6 +265,12 @@ maps to a named scheme colour, resolved at build like any other `color`).
 | `pop_scale` | `Num` | `F32` | ✓ | ✓ | `Captions` |
 | `max_lines` | `Num` | `U32` | ✓ | ✓ | `Captions` |
 | `transition_time` | `Num` | `F32` | ✓ | ✓ | `Captions` |
+| `caption_pause` | `Num` | `F32` | ✓ | ✓ | `Captions` |
+| `caption_outline` | `Color` | `Color` | ✓ | ✓ | `Captions` |
+| `caption_outline_width` | `Num` | `F32` | ✓ | ✓ | `Captions` |
+| `caption_shadow` | `Vec2` | `Vec2` | ✓ | ✓ | `Captions` |
+| `caption_shadow_color` | `Color` | `Color` | ✓ | ✓ | `Captions` |
+| `word_backdrop_color` | `Color` | `Color` | ✓ | ✓ | `Captions` |
 | `start` | `Num` | `F32` | ✓ | ✓ | `Cue` |
 | `end` | `Num` | `F32` | ✓ | ✓ | `Cue` |
 <!-- generated-property-table:captions-and-cues:end -->
@@ -272,6 +296,9 @@ maps to a named scheme colour, resolved at build like any other `color`).
 | `highlight_opacity` | `Num` | `F32` | ✓ | — | `Typst`, `Equation`, `Fragment` |
 | `highlight_padding` | `Num` | `F32` | ✓ | — | `Typst`, `Equation`, `Fragment` |
 | `highlight_radius` | `Num` | `F32` | ✓ | — | `Typst`, `Equation`, `Fragment` |
+| `equation_transition` | `Num` | `F32` | — | ✓ | `Equation` |
+| `fragment_order` | `Num` | `F32` | — | ✓ | `Fragment` |
+| `fragment_color` | `Color` | `Color` | ✓ | ✓ | `Fragment` |
 <!-- generated-property-table:equation-and-fragment-highlights:end -->
 
 ### Text metrics (internal)

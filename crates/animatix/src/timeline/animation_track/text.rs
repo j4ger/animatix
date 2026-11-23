@@ -8,12 +8,37 @@ use crate::timeline::property_track::{PropertyTrack, TrackAccessor};
 
 use super::style::StyleTracks;
 
+/// An authored paint style attached to a literal text source range.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct TextSpan {
+    /// Name scoped to the Text actor.
+    pub name: String,
+    /// Half-open Unicode scalar interval.
+    pub range: std::ops::Range<u32>,
+    /// Solid RGBA fill.
+    pub color: [u8; 4],
+    /// Opacity multiplier for this range.
+    pub opacity: f32,
+    /// Draw a rule beneath the range.
+    pub underline: bool,
+}
+
 // TextTracks sub-struct
 
 /// Sub-struct holding all text-related property tracks.
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TextTracks {
+    /// Paint-only source ranges for literal Text.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub spans: Vec<TextSpan>,
+    /// Source-row configuration for Code.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub code_options: animatix_text::CodeOptions,
+    /// Immutable declared modules available to Typst recompilation.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub typst_sources: Option<animatix_text::TypstSources>,
     /// Raw text content.
     pub text_content: Option<PropertyTrack<String>>,
     /// Font family name.

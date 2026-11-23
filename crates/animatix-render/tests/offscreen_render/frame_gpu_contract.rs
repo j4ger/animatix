@@ -26,6 +26,67 @@ fn renderer_or_skip() -> Option<OffscreenRenderer> {
 }
 
 #[test]
+fn equation_fragment_move_and_highlight_render_on_the_authored_term() {
+    let Some(mut renderer) = renderer_or_skip() else {
+        return;
+    };
+    let timeline = common::build_checked(
+        r#"
+config { resolution: (280, 120), duration: 3 }
+#0s
+eq: Equation, at: (160, 60), font_size: 42, equation_transition: 0.5 {
+  lhs: Fragment, text: "x", fragment_order: 1, fragment_color: rgba(0.1, 1, 0.1, 1)
+  plus: Fragment, text: "+", fragment_order: 2
+  rhs: Fragment, text: "x", fragment_order: 3
+}
+#0.4s
+  highlight(target: eq.rhs, color: red, blend: normal, duration: 100ms)
+#0.8s
+  unhighlight(target: eq.rhs, duration: 100ms)
+#1.2s
+  eq.lhs.fragment_order = 3
+  eq.rhs.fragment_order = 1
+"#,
+    );
+    let dims = SceneDimensions {
+        width: 280,
+        height: 120,
+    };
+    let mut frame = |time| renderer.render_timeline(&timeline, time, dims).unwrap();
+    let red_pixels = |f: &RenderedFrame| {
+        f.rgba
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .filter(|p| p[0] > 160 && p[1] < 80 && p[2] < 80)
+            .count()
+    };
+    let green_center = |f: &RenderedFrame| {
+        let xs: Vec<_> = f
+            .rgba
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| p[1] > 140 && p[0] < 110 && p[2] < 110)
+            .map(|(i, _)| i % f.width as usize)
+            .collect();
+        assert!(!xs.is_empty(), "named fragment must remain green");
+        xs.iter().sum::<usize>() as f64 / xs.len() as f64
+    };
+    let before = frame(0.2);
+    let highlighted = frame(0.6);
+    let cleared = frame(1.0);
+    assert_eq!(red_pixels(&before), 0);
+    assert!(red_pixels(&highlighted) > 40, "translated term highlight must be visible");
+    assert_eq!(before.rgba, cleared.rgba, "siblings are clear before and after");
+    let from = green_center(&cleared);
+    let during = green_center(&frame(1.45));
+    let to = green_center(&frame(1.8));
+    assert!(from + 5.0 < during && during + 5.0 < to, "{from}, {during}, {to}");
+}
+
+#[test]
 fn ellipse_shadow_follows_the_silhouette_with_signed_spread() {
     let Some(mut renderer) = renderer_or_skip() else {
         return;

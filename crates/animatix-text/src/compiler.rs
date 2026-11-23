@@ -33,6 +33,7 @@ pub fn default_font_size(kind: TextKind) -> f32 {
 /// Memoized output of one text compilation: centered glyph paths plus metrics.
 #[derive(Clone)]
 pub struct CachedText {
+    pub layout_metrics: Option<crate::TextLayoutMetrics>,
     /// Glyph paths, centered around the origin.
     pub paths: std::sync::Arc<[TextPath]>,
     /// Font ascent in scene units (see [`CompiledText::ascent`]).
@@ -179,7 +180,7 @@ fn compile_uncached(
     // Ordinary Text is literal on every platform; its per-glyph color is
     // applied by the engine, independently of geometry and text cache entries.
     let color = [1.0, 1.0, 1.0, 1.0];
-    if request.max_width > 0.0 || request.content.contains('\n') {
+    if request.max_width > 0.0 || request.max_lines.is_some() || request.content.contains('\n') {
         compile_text_fast_wrapped(
             request.content,
             style.font_family,
@@ -216,6 +217,7 @@ fn compile_uncached(
 fn store_cached_text(key: TextCacheKey, compiled: CompiledText) -> std::sync::Arc<CachedText> {
     let half_size = measure_text_paths(&compiled.glyphs);
     let entry = std::sync::Arc::new(CachedText {
+        layout_metrics: compiled.layout_metrics,
         paths: compiled.glyphs.into(),
         ascent: compiled.ascent,
         descent: compiled.descent,
@@ -265,6 +267,8 @@ pub fn compile_typst_grouped_cached(
     // Record the Equation path's fixed policy (unwrapped, left-aligned, visible)
     // in a request so the grouped table shares the flat table's key space.
     let request = TextCompileRequest {
+        code: Default::default(),
+        typst_sources: None,
         kind: TextKind::Typst,
         content: typst_markup,
         language: "",

@@ -14,6 +14,28 @@ fn text_paths_at(
     text.evaluate_paths(timeline.world.style(id), time_ms)
 }
 
+#[test]
+fn text_fit_counts_empty_lines_and_uses_unclipped_ink() {
+    let (timeline, diagnostics) = support::build_ignoring_warnings(
+        r#"
+#0s
+heading: Text, text: r"A wide title
+
+continued", font_size: 48, fit_min_size: 12,
+  fit_max_height: 90, text_max_width: 240, fit_max_lines: 3
+token: Text, text: "WWWWWWWWWWWWWW", font_size: 30, fit_min_size: 24,
+  text_max_width: 30, overflow: "clip"
+"#,
+    );
+    assert!(diagnostics.iter().all(|diag| !diag.is_error()), "{diagnostics:?}");
+    assert!(diagnostics.iter().any(|diag| diag.message.contains("exceeds its fit bounds")));
+    let heading = timeline.world.get_id("heading").unwrap();
+    let size = timeline.world.text_or_default(heading).font_size.get(0, 0.0);
+    assert!((12.0..32.0).contains(&size), "fit must reserve a blank line, got {size}");
+    let paths = text_paths_at(&timeline, "heading", 0);
+    assert_eq!(paths.iter().map(|p| p.line_idx).max(), Some(2));
+}
+
 fn path_samples(path: &kurbo::BezPath) -> Vec<Point> {
     let mut samples = Vec::new();
     let mut current = Point::ORIGIN;

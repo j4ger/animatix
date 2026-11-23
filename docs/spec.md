@@ -2190,6 +2190,72 @@ Reusable components can read `theme.margin`, `theme.gap`, `theme.inset`, and
 `theme.radius` as numeric values. `scene_width` and `scene_height` expose the
 authored resolution to build-time layout expressions.
 
+### Text fitting and paint ranges
+
+Set `text_max_width`, `fit_max_height`, or `fit_max_lines` on a `Text`
+declaration and use `fit_min_size` to allow the declaration's font size to
+shrink. Fitting checks untruncated line advances, line metrics, and ink. Zero
+height and line count leave those dimensions unconstrained. If the minimum
+still exceeds a limit, the build warns and uses that size with the authored
+overflow mode. Declare new fitted content as another `Text` keyframe declaration
+to fit its own endpoint.
+
+```amx
+#0s
+heading: Text, text: "A heading that fits", font_size: 52,
+  fit_min_size: 24, text_max_width: 320, fit_max_height: 110, fit_max_lines: 2
+body: Text, text: "Show the result", text_cursor: true,
+  text_spans: {{"result", 9, 15, rgba(0.2, 0.8, 1, 1), 1, true}},
+  selected_span: "result", span_progress: 0
+#1s
+  body.span_progress = 1 [0.5s]
+```
+
+Each span is `{name, start, end, color, opacity, underline}`. Offsets count
+Unicode scalar values from zero and exclude the end. A shaping cluster that
+intersects a span is painted together. Later spans have priority on overlap.
+`selected_span` chooses the range affected by `span_opacity`, `span_progress`,
+and optional `span_color`. Span paint uses solid fills. A visible
+`text_cursor` follows the logical end of the displayed glyph clusters.
+
+### Project text resources
+
+```amx
+config { font_files: {"fonts/Brand.ttf", "fonts/Brand-Bold.ttf"} }
+#0s
+example: Code, text_file: "examples/current.rs", language: "rust",
+  tab_width: 2, line_numbers: true, first_line: 10, focus_lines: (12, 14)
+changes: Code, text_file: "examples/current.rs", diff_file: "examples/previous.rs"
+diagram: Typst, text_file: "math/diagram.typ",
+  typst_modules: {{"lib/shared.typ", "math/shared.typ"}}
+#1s
+  example.focus_lines = (15, 16)
+```
+
+Paths resolve from the entry `.amx` file. `text_file` is a UTF-8 alternative to
+inline source. `Code` uses logical source rows for `focus_lines` even when a row
+wraps, counts blank rows, and dims the remaining rows with
+`unfocused_opacity` (default 0.25). A range of `(0, 0)` clears focus.
+`diff_from` takes inline previous code and `diff_file` reads previous code from
+a file. The unified view compares complete lines and numbers its displayed rows.
+
+`typst_modules` declares pairs of a virtual Typst path and a project file.
+The main source can use `#import "lib/shared.typ"` and relative paths resolve
+within the virtual source set. Native and Web builds resolve these same
+declarations before playback. Project font files overlay the host's font set.
+Set `font_files_only: true` to use the declared font set and its fallback
+order on every host. Include faces for every writing system and math font
+the project uses.
+
+### Formula transitions
+
+`equation_transition` sets the seconds for interpolating to an authored
+Equation state. `fragment_order` controls placement within the layout, with
+declaration order breaking ties. The actor label identifies the fragment when
+terms reorder, including duplicate visible terms. Assign a new `text` to
+replace a term or an empty string to remove it. `fragment_color` controls
+its fill. Changes to a single formula state should share one keyframe.
+
 ## 14. Typst & Graphs
 
 **`Graph`**: Container mapping logical domains to physical bounds. Supports axes, optional grid lines, and ticks.
@@ -2980,6 +3046,8 @@ config { colorscheme: "editorial-dark" }  // overrides prelude colorscheme
 | `resolution` | Composition | ❌ No | Set once in the prelude; affects canvas size and export dimensions. Scene-level `resolution` is ignored with a warning. |
 | `strict_types` | Program | ❌ No | Enables strict type checking for the entire file. Scene-level `strict_types` is ignored. |
 | `text_fast_path` | Program | ❌ No | Accepted for compatibility; ordinary Text always uses the literal text path. |
+| `font_files` | Program | ❌ No | Ordered project font files, resolved before any text is shaped. Later files take precedence over earlier faces of the same family. |
+| `font_files_only` | Program | ❌ No | Restricts font resolution to the declared project font files. |
 | `colorscheme` | Scene | ✅ Yes | Scene-level overrides prelude. Each scene can have a different colorscheme. |
 | `style` | Scene | ✅ Yes | Selects `"editorial"`, `"compact"`, `"math-explainer"`, or `"default"`. |
 | `dynamic_layout` | Scene | ✅ Yes | Scene-level overrides prelude. Enables per-frame layout recomputation. |

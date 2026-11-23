@@ -54,6 +54,18 @@ pub struct ConfigKeyInfo {
 /// Every `config` key the language recognises, sorted by name.
 pub static CONFIG_KEYS: &[ConfigKeyInfo] = &[
     ConfigKeyInfo {
+        name: "font_files_only",
+        scope: ConfigScope::Program,
+        value: ConfigValueKind::Boolean,
+        summary: "Use only the fonts declared by the project",
+    },
+    ConfigKeyInfo {
+        name: "font_files",
+        scope: ConfigScope::Program,
+        value: ConfigValueKind::Names,
+        summary: "Ordered project font files",
+    },
+    ConfigKeyInfo {
         name: "bpm",
         scope: ConfigScope::Scene,
         value: ConfigValueKind::Number,

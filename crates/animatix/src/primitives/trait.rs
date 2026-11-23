@@ -228,6 +228,8 @@ fn crossfade_text_paths(
     }
 
     let mut request = TextCompileRequest {
+        code: text.code_options,
+        typst_sources: text.typst_sources.as_ref(),
         kind,
         content: &source_text,
         language: &values.language,
@@ -328,6 +330,8 @@ fn evaluate_uncached_text_paths(
         Ok((std::sync::Arc::from(paths), clip))
     } else if values.content_override.is_some() || !values.content.is_empty() {
         let request = TextCompileRequest {
+            code: text.code_options,
+            typst_sources: text.typst_sources.as_ref(),
             kind,
             content: &values.content,
             language: &values.language,

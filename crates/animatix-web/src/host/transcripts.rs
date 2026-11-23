@@ -15,8 +15,16 @@ impl PreparedProgram {
             if !seen.insert(id.as_str()) {
                 return Err(format!("duplicate transcript resource: {id}"));
             }
-            if !self.analysis.assets.iter().any(|asset| asset.id == *id && asset.kind == "text") {
+            let asset = self.analysis.assets.iter().find(|asset| {
+                asset.id == *id && matches!(asset.kind.as_str(), "text" | "source-text")
+            });
+            let Some(asset) = asset else {
                 return Err(format!("transcript is outside this prepared snapshot: {id}"));
+            };
+            if asset.kind == "source-text" {
+                prepared.analysis.fonts.text.push_str(source);
+                prepared.analysis.fonts.text.push('\n');
+                continue;
             }
             let transcript = animatix::renderer::text::transcript::parse_transcript_auto(source)
                 .map_err(|error| format!("invalid transcript '{id}': {error}"))?;
@@ -31,7 +39,12 @@ impl PreparedProgram {
                 }
             }
         }
-        for asset in self.analysis.assets.iter().filter(|asset| asset.kind == "text") {
+        for asset in self
+            .analysis
+            .assets
+            .iter()
+            .filter(|asset| matches!(asset.kind.as_str(), "text" | "source-text"))
+        {
             if !seen.contains(asset.id.as_str()) {
                 return Err(format!("transcript resource was not prepared: {}", asset.id));
             }
@@ -115,6 +128,47 @@ row: Row {
         assert!(!original.analysis.fonts.text.contains("中文"));
         assert!(!prepared.analysis.fonts.rich_text);
         assert!(!prepared.analysis.fonts.dynamic);
+    }
+
+    #[test]
+    fn prepared_project_text_and_font_assets_are_reusable() {
+        use animatix::renderer::text::FontContext;
+        use animatix::timeline::{BuildQuality, assets::AssetCache};
+        use std::sync::Arc;
+
+        let source = r#"
+config { font_files: {"overlay.ttf"} }
+#0s
+code: Code, text_file: "snippet.rs", line_numbers: true
+equation: Typst, text_file: "equation.typ", typst_modules: {{"lib/shared.typ", "shared.typ"}}
+"#;
+        let url = "https://host.test/project/main.amx";
+        let prepared = prepare_document(source, &[], &[], Some(url));
+        assert!(prepared.analysis.ok, "{:?}", prepared.analysis.diagnostics);
+        assert_eq!(prepared.analysis.assets.len(), 4, "{:?}", prepared.analysis.assets);
+        let id = |file| format!("https://host.test/project/{file}");
+        let sources = [
+            (id("snippet.rs"), "let text = \"字幕\";".into()),
+            (id("equation.typ"), "#import \"lib/shared.typ\": x\n#x".into()),
+            (id("shared.typ"), "#let x = [Typst]".into()),
+        ];
+        let prepared = prepared.with_transcript_sources(&sources).unwrap();
+        assert!(prepared.analysis.fonts.text.contains("字幕"));
+        let mut assets = AssetCache::new();
+        for (id, source) in sources {
+            assets.insert_text_source(&id, source);
+        }
+        assets.insert_font_file(
+            &id("overlay.ttf"),
+            &include_bytes!("../../../animatix-text/assets/fonts/DejaVuSansMono.ttf")[..],
+        );
+        let built = super::super::build_prepared(
+            &prepared,
+            Arc::new(FontContext::new()),
+            BuildQuality::Production,
+            Some(Arc::new(assets)),
+        );
+        assert!(built.result.ok, "{:?}", built.result.diagnostics);
     }
 
     #[test]
