@@ -129,6 +129,8 @@
       "backdrop_color",
       "backdrop_radius",
       "backdrop_padding",
+      "backdrop_stroke",
+      "backdrop_stroke_width",
       "pop_scale",
       "max_lines",
       "transition_time",

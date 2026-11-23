@@ -87,6 +87,8 @@ fn top_level_completions_include_all_builtin_kinds() {
     assert!(types.contains(&"Text"));
     assert!(types.contains(&"Ellipse"));
     assert!(types.contains(&"Button"));
+    assert!(!types.contains(&"Cue"));
+    assert!(!types.contains(&"Fragment"));
 
     let snippets: Vec<_> = items
         .iter()
@@ -107,6 +109,41 @@ fn top_level_completions_include_all_builtin_kinds() {
     assert!(callables.contains(&"fade_in"));
     assert!(callables.contains(&"move"));
     assert!(callables.contains(&"scale"));
+}
+
+#[test]
+fn child_actor_completions_follow_the_enclosing_parent() {
+    for (parent, expected, excluded) in [
+        ("Captions", "Cue", "Fragment"),
+        ("Equation", "Fragment", "Cue"),
+        ("Stack", "Text", "Cue"),
+    ] {
+        let source = format!("box: {parent} {{\n  child: {expected}\n}}\n");
+        let (stmts, errors) = animatix_syntax::parser::parse_source(&source);
+        assert!(errors.is_empty(), "{errors:?}");
+        let symbols = SymbolTable::build_from_ast(stmts.as_deref().unwrap_or(&[]));
+        let tokens = animatix_syntax::token::tokenize(&source);
+        let items = completions_at(&symbols, &tokens, &source, 1, 9, &ExtensionManifest::default());
+        assert!(
+            items
+                .iter()
+                .any(|item| item.label == expected && item.kind == CompletionKind::Type)
+        );
+        assert!(!items.iter().any(|item| item.label == excluded));
+    }
+
+    let symbols = SymbolTable::build_from_ast(&[]);
+    let manifest = ExtensionManifest::default();
+    assert!(
+        !property_completions(&symbols, Some("Stack"), &manifest)
+            .iter()
+            .any(|i| i.label == "gap")
+    );
+    assert!(
+        property_completions(&symbols, Some("Col"), &manifest)
+            .iter()
+            .any(|i| i.label == "gap")
+    );
 }
 
 #[test]

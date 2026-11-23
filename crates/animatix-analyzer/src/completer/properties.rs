@@ -52,6 +52,9 @@ pub(super) fn property_completions(
 
         if let Some(props) = symbols.properties.get(ty) {
             for prop in props {
+                if ty == "Stack" && prop == "gap" {
+                    continue; // Stack accepts gap for compatibility and diagnoses it.
+                }
                 let extension = manifest
                     .properties
                     .iter()

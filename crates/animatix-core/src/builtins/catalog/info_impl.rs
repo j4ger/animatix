@@ -411,7 +411,7 @@ pub static FRAGMENT: PrimitiveInfo = PrimitiveInfo::new(
 )
 .with_doc("Sub-equation fragment within an Equation container.")
 .requires(FeatureMask::RICH_TEXT)
-.with_stub("text: \"x\"");
+.with_stub("content: \"x\"");
 
 // Captions container & Cue sub-item
 pub static CAPTIONS: PrimitiveInfo = PrimitiveInfo::new(
@@ -427,7 +427,7 @@ pub static CAPTIONS: PrimitiveInfo = PrimitiveInfo::new(
 pub static CUE: PrimitiveInfo =
     PrimitiveInfo::new("Cue", "Cue", icon_glyphs::TEXT_T, ActorCategory::Text, CUE_CAPS)
         .with_doc("Individual timed subtitle cue inside a Captions container.")
-        .with_stub("text: \"\"");
+        .with_stub("text: \"Subtitle\", start: 0, end: 2");
 
 // Annotations
 pub static CALLOUT: PrimitiveInfo = PrimitiveInfo::new(

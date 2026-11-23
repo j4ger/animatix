@@ -197,6 +197,14 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("backdrop_padding", V::Vec2, F::ASSIGNABLE_AI, Tagged, val!(vec2 16.0, 8.0)),
     b!("backdrop_radius", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 8.0)),
     b!(
+        "backdrop_stroke",
+        V::Color,
+        F::ASSIGNABLE_AI,
+        Tagged,
+        val!(color 0.0, 0.0, 0.0, 0.0)
+    ),
+    b!("backdrop_stroke_width", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 1.0)),
+    b!(
         "background_color",
         V::Color,
         F::ASSIGNABLE_AI.union(F::NO_FRAME_OVERRIDE),

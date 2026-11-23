@@ -4,7 +4,8 @@ import "../templates/layout.amx"
 config { style: "editorial", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7 }
 
 #0s
-  stage: TechniqueStage, topic: "REVEAL", heading: "Give the eye a first step."
+  floor: Backdrop, strength: 0.28
+  head: ChapterHeader, eyebrow: "REVEAL", heading: "Give the eye a first step."
   dot: Ellipse, at: (430, 350), size: (112, 112), color: accent.primary, opacity: 0
   name: Text, text: "A point", at: (430, 465), role: note, opacity: 0
   link: Line, from: (510, 350), to: (810, 350), stroke: accent.primary, stroke_width: 3, opacity: 0

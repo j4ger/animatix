@@ -52,6 +52,7 @@ pub mod commands;
 mod context;
 mod shadow;
 pub mod styling;
+pub(crate) mod surface;
 mod r#trait;
 
 pub use commands::{RenderCommand, image_display_transform, translate_text_paths};

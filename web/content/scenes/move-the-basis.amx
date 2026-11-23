@@ -32,7 +32,7 @@ let ambient_strength = 0.08
     equation: Text, text: "(x, y) → (x + ky, y)", role: body
     shear: Row, align: "center", gap: theme.gap * 0.35 {
       symbol: Text, text: "k =", role: body, color: text.secondary
-      amount: MetricNumber, places: 2, ink: accent.warning
+      amount: Counter, decimals: 2, role: metric, color: accent.warning
     }
     area: Text, text: "Area = 1", role: note, opacity: 0
   }

@@ -206,19 +206,6 @@ pub(crate) fn build_number_plane_paths(
     let step_x = x_step.max(0.001);
     let step_y = y_step.max(0.001);
 
-    let axis_c = peniko::Color::from_rgba8(
-        (axis_color[0] * 255.0) as u8,
-        (axis_color[1] * 255.0) as u8,
-        (axis_color[2] * 255.0) as u8,
-        (axis_color[3] * 255.0) as u8,
-    );
-    let grid_c = peniko::Color::from_rgba8(
-        (axis_color[0] * 255.0) as u8,
-        (axis_color[1] * 255.0) as u8,
-        (axis_color[2] * 255.0) as u8,
-        (axis_color[3] * 255.0) as u8 / 4,
-    );
-
     // ── Grid lines ──
     let mut grid_path = kurbo::BezPath::new();
 
@@ -241,17 +228,7 @@ pub(crate) fn build_number_plane_paths(
     }
 
     if !grid_path.elements().is_empty() {
-        paths.push(VelloPath {
-            path: std::sync::Arc::new(grid_path),
-            fill: None,
-            stroke: Some((grid_c, 1.0)),
-            line_cap: 0,
-            line_join: 0,
-            dash_pattern: None,
-            dash_offset: 0.0,
-            fill_gradient: None,
-            stroke_gradient: None,
-        });
+        paths.push(graph_stroke_path(grid_path, axis_color, 1.0, 4));
     }
 
     // ── Axes (X-axis at y=0, Y-axis at x=0) ──
@@ -277,17 +254,7 @@ pub(crate) fn build_number_plane_paths(
     }
 
     if has_axis {
-        paths.push(VelloPath {
-            path: std::sync::Arc::new(axis_path),
-            fill: None,
-            stroke: Some((axis_c, 2.0)),
-            line_cap: 0,
-            line_join: 0,
-            dash_pattern: None,
-            dash_offset: 0.0,
-            fill_gradient: None,
-            stroke_gradient: None,
-        });
+        paths.push(graph_stroke_path(axis_path, axis_color, 2.0, 1));
     }
 
     // ── Tick marks (4px perpendicular lines at each step on axes) ──
@@ -323,17 +290,7 @@ pub(crate) fn build_number_plane_paths(
     }
 
     if !tick_path.elements().is_empty() {
-        paths.push(VelloPath {
-            path: std::sync::Arc::new(tick_path),
-            fill: None,
-            stroke: Some((axis_c, 1.5)),
-            line_cap: 0,
-            line_join: 0,
-            dash_pattern: None,
-            dash_offset: 0.0,
-            fill_gradient: None,
-            stroke_gradient: None,
-        });
+        paths.push(graph_stroke_path(tick_path, axis_color, 1.5, 1));
     }
 
     paths

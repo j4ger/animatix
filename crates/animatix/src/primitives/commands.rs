@@ -18,6 +18,19 @@ pub enum RenderCommand {
         /// The vector paths to draw.
         paths: Vec<VelloPath>,
     },
+    /// Paint a rounded surface with solid colors.
+    RoundedSurface {
+        /// Local-space geometry.
+        rect: kurbo::Rect,
+        /// Corner radius in scene units.
+        radius: f32,
+        /// Fill color as sRGB bytes. A zero alpha skips paint.
+        fill: [u8; 4],
+        /// Stroke color as sRGB bytes. A zero alpha skips paint.
+        stroke: [u8; 4],
+        /// Stroke width in scene units.
+        stroke_width: f32,
+    },
     /// Draw text glyphs.
     Text {
         /// Text glyph paths with per-glyph color and opacity.
@@ -117,6 +130,31 @@ impl RenderCommand {
     pub fn execute(&self, scene: &mut Scene, transform: &kurbo::Affine, opacity: f32) {
         match self {
             RenderCommand::Paths { paths } => execute_paths(paths, scene, transform, opacity),
+            RenderCommand::RoundedSurface {
+                rect,
+                radius,
+                fill,
+                stroke,
+                stroke_width,
+            } => {
+                let rounded = super::surface::rounded_rect(*rect, *radius);
+                let [r, g, b, a] = *fill;
+                if a > 0 {
+                    let color = peniko::Color::from_rgba8(r, g, b, a);
+                    let color = color.with_alpha(color.components[3] * opacity);
+                    scene.fill(peniko::Fill::NonZero, *transform, color, None, &rounded);
+                }
+                let [r, g, b, a] = *stroke;
+                if a > 0 && *stroke_width > 0.0 {
+                    let color = peniko::Color::from_rgba8(r, g, b, a);
+                    let color = color.with_alpha(color.components[3] * opacity);
+                    let style = kurbo::Stroke::new(f64::from(*stroke_width))
+                        .with_join(kurbo::Join::Miter)
+                        .with_miter_limit(10.0)
+                        .with_caps(kurbo::Cap::Butt);
+                    scene.stroke(&style, *transform, color, None, &rounded);
+                }
+            },
             RenderCommand::Text {
                 paths,
                 fill_gradient,
@@ -189,6 +227,7 @@ impl RenderCommand {
                     bounds = union(bounds, path.path.bounding_box());
                 }
             },
+            RenderCommand::RoundedSurface { rect, .. } => return Some(*rect),
             RenderCommand::Text { paths, .. } => {
                 for text_path in paths.iter() {
                     bounds = union(bounds, text_path.bounds);
@@ -238,6 +277,19 @@ impl RenderCommand {
             },
         }
         bounds
+    }
+
+    /// Count segments for commands that paint explicit vector geometry.
+    pub fn path_segment_count(&self) -> Option<usize> {
+        use kurbo::Shape;
+        match self {
+            Self::Paths { paths } => Some(paths.iter().map(|p| p.path.segments().count()).sum()),
+            Self::RoundedSurface { rect, radius, .. } => {
+                let rounded = super::surface::rounded_rect(*rect, *radius);
+                Some(kurbo::segments(rounded.path_elements(0.1)).count())
+            },
+            _ => None, // Other commands do not represent ordinary vector paths.
+        }
     }
 }
 

@@ -371,20 +371,9 @@ fn draw_caption_backdrop(
 ) {
     let pad_x = backdrop_padding[0] as f64;
     let pad_y = backdrop_padding[1] as f64;
-    let bg_rect = kurbo::RoundedRect::new(
-        bounds.x0 - pad_x,
-        bounds.y0 - pad_y,
-        bounds.x1 + pad_x,
-        bounds.y1 + pad_y,
-        backdrop_radius as f64,
-    );
-    let bg_alpha = backdrop_color[3] * caption_opacity;
-    let bg_col = peniko::Color::from_rgba8(
-        (backdrop_color[0] * 255.0).clamp(0.0, 255.0) as u8,
-        (backdrop_color[1] * 255.0).clamp(0.0, 255.0) as u8,
-        (backdrop_color[2] * 255.0).clamp(0.0, 255.0) as u8,
-        (bg_alpha * 255.0).clamp(0.0, 255.0) as u8,
-    );
+    let bg_rect =
+        crate::primitives::surface::rounded_rect(bounds.inflate(pad_x, pad_y), backdrop_radius);
+    let bg_col = crate::primitives::surface::paint_color(backdrop_color, caption_opacity);
     out.scene.fill(peniko::Fill::NonZero, global_transform, bg_col, None, &bg_rect);
 }
 

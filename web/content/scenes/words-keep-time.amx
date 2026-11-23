@@ -9,12 +9,19 @@ let available = "Reading and exports"
 let panel_size = (520, 340)
 let column_offset = panel_size[0] / 2 + 22
 
+component NoticeField(label: Str, detail: Str) {
+  field: Col, size: (440, auto), gap: theme.gap * 0.3, align: "start" {
+    name: Text, text: label, role: eyebrow
+    copy: Text, text: detail, role: body, text_max_width: 440
+  }
+}
+
 #0s
   ground: Rect, anchor: scene.center, size: (scene_width, scene_height),
     fill_gradient: linear(150, {surface.primary, scene.background})
   heading: Text, anchor: scene.top, offset: (0, 101), text: "Scheduled maintenance",
     role: title
-  original: ReadingPanel, extent: panel_size, anchor: scene.center {
+  original: Panel, size: panel_size, anchor: scene.center {
     @content {
       copy: Text, text: format("{} on {}. {} stay available.", impact, window, available),
         role: body, text_max_width: 428, line_height: 1.35
@@ -23,9 +30,9 @@ let column_offset = panel_size[0] / 2 + 22
   notice: Stack, anchor: scene.center, offset: (column_offset, 0), align: "center" {
     sheet: Rect, size: panel_size, corner_radius: theme.radius, color: surface.secondary, opacity: 0
     entries: Col, align: "start", gap: theme.gap {
-      changed: ReadingField, width: 440, label: "What changes", detail: impact, opacity: 0
-      time: ReadingField, width: 440, label: "When", detail: window, opacity: 0
-      usable: ReadingField, width: 440, label: "Still available", detail: available, opacity: 0
+      changed: NoticeField, label: "What changes", detail: impact, opacity: 0
+      time: NoticeField, label: "When", detail: window, opacity: 0
+      usable: NoticeField, label: "Still available", detail: available, opacity: 0
     }
   }
 

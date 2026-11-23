@@ -38,12 +38,12 @@
     {
       "id": "words-keep-time",
       "source": "scenes/words-keep-time.amx",
-      "source_sha256": "8e850bac653e6a723192cc5a3768092ddcbda4a1002205eeac657c8d9a0de34f",
+      "source_sha256": "f88aec77ce1a945b347321bb1079e34810a8a84d233f3500b11dcaf4d1771298",
       "poster": "posters/words-keep-time.png",
       "poster_time_seconds": 20,
-      "poster_sha256": "9366df6476f25c822c4ea9ea688adb1c23627ce85caba70fb6e72c0af2ae5bfa",
+      "poster_sha256": "32d6175120284a8192f983931b0c5d6db5f8c53aadbc3da5f87e3b1e91d523da",
       "recording": "previews/words-keep-time.mp4",
-      "recording_sha256": "d01837dc69c8948b80a0b624f5dfaa9b61e926ac043e1fc9c13c503f5c927181",
+      "recording_sha256": "6b16eac695fa1447bb0297baeb3da1b1583a47a180a3d3aafd2ab0bf9821aa32",
       "duration_seconds": 20.0,
       "width": 1280,
       "height": 720,
@@ -65,7 +65,7 @@
       "audio": false,
       "parameters": "authored defaults",
       "renderer": "native CLI video at authored 1280x720; H.264 24 fps, fast-start MP4",
-      "source_sha256": "39d96ae86f70b5d463f8a751ebfed359c14046ccd03922366b3dc9ca464b42b1",
+      "source_sha256": "c5014e45c04a2c0bd71650704b210556973637f7592bef290768113bb6a3d58b",
       "poster_sha256": "6b3e3adfe94e6755351e3d8e7142a88face89b8a50fd6b94dab096e05fa13fab",
       "recording_sha256": "8e943028ee716636383180031e51c5d92b31b4b93d113f223669ec919d869fc8"
     },
@@ -82,7 +82,7 @@
       "audio": false,
       "parameters": "authored defaults",
       "renderer": "native CLI video at authored 1280x720; H.264 24 fps, fast-start MP4",
-      "source_sha256": "b4a112ff6770c8956a30de4e2b101db97641d120c8f0951cb17450adb022cc4b",
+      "source_sha256": "79e28fc8531bcd80123cf4c1d9c90b8cb5ae59194fe0916bcab9ac6d9b55bbd3",
       "poster_sha256": "cb80670df0dc50354d210d8870a6300310505c888c753a00ea636c0fe1205e80",
       "recording_sha256": "6bff9aef4434cc026be082cfb22efe552cbfbcda995b3bd4b47bfcd3dc00cb93"
     }
@@ -173,7 +173,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image at authored 1280x720",
-      "source_sha256": "a5e7fbc65037f9ce4bffb8a7f379562c72d54b676f3fcd4d7e584e815381072e",
+      "source_sha256": "fdcfc09333532383a6209b9d6f68008351bbad56a41cff6a5abf9039a6920804",
       "poster_sha256": "7959e053e21759664ceba95564713492261a8e00783124ce8b48d58358801d7a"
     },
     {
@@ -184,8 +184,8 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image at authored 1280x720",
-      "source_sha256": "f313adb425b6a53dd7178475e55d2205bf05a49238211c5377a787a2280ab210",
-      "poster_sha256": "621c92dc57690ddc873861adf89aa5ee5084fe02d459ac9a7383133046f5a425"
+      "source_sha256": "af7afb805b810ac5fcc5d1e9130479147e7b42d1c6ab6ce9abd278e69e0ea582",
+      "poster_sha256": "092c478560ebeec1a1131d08b8384092238ccec8031898c491e8bc8cadd3c459"
     },
     {
       "id": "technique-reveal",
@@ -195,7 +195,7 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image at authored 1280x720",
-      "source_sha256": "70199c264aa46943b5d7455a454028287fe5f9a0fa3786b6f5bfdb4a41b737ac",
+      "source_sha256": "5ee1c927e83528bc3d17f104b42d99c8c91ac2f2663ba28d9ca85292fee1bba1",
       "poster_sha256": "d4751a217a5e2e2631f217f740b54a898bfc5edbf453b58a5cd1665e5d909763"
     },
     {
@@ -206,11 +206,11 @@
       "width": 1280,
       "height": 720,
       "renderer": "native CLI image at authored 1280x720",
-      "source_sha256": "4fb3ae304df4fbcb90a6d15b5cf67fe7ca8ae709a24fb2115ec1c09918e3e479",
+      "source_sha256": "87ac61176ae74c5a2aa30d75ba4ca45da95415b06c85f0b513508e134692e112",
       "poster_sha256": "ec36516d42644bc57ff2a3ac1844256e88cd17c4cdff92e5259cde6f2f8fce31"
     }
   ],
   "source_modules": {
-    "templates/layout.amx": "09754a9b34b4d4d353184382572c380759006394853ad05c32d3d167cab5d775"
+    "templates/layout.amx": "f4e67a6751a0c7c57f8566e06fc0c7d246cf94237af247a4803764a037c06755"
   }
 }

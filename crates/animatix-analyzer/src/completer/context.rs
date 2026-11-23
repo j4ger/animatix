@@ -37,14 +37,20 @@ impl CompletionContext {
                 .map(|receiver| CompletionContext::MethodPosition { receiver })
                 .unwrap_or(CompletionContext::Unknown),
             TokenKind::Colon => {
+                let parent = enclosing_actor_type(tokens, previous, symbols);
                 let before_colon = tokens[..previous]
                     .iter()
                     .rev()
                     .find(|token| !matches!(token.kind, TokenKind::Comment(_)));
                 if before_colon.is_some_and(|token| {
                     matches!(&token.kind, TokenKind::Ident(name) if symbols.labels.contains_key(name))
-                }) {
-                    CompletionContext::TypePosition
+                }) || (matches!(parent.as_deref(), Some("Captions" | "Equation"))
+                    && !before_colon.is_some_and(|token| {
+                        matches!(&token.kind, TokenKind::Ident(name)
+                            if animatix_core::property::descriptor(name).is_some())
+                    }))
+                {
+                    CompletionContext::TypePosition { parent }
                 } else {
                     let property_name = before_colon.and_then(|token| match &token.kind {
                         TokenKind::Ident(name) => Some(name.clone()),
@@ -68,6 +74,37 @@ impl CompletionContext {
             _ => CompletionContext::Unknown,
         }
     }
+}
+
+fn enclosing_actor_type(tokens: &[Token], cursor: usize, symbols: &SymbolTable) -> Option<String> {
+    let mut depth = 0;
+    for (index, token) in tokens[..cursor].iter().enumerate().rev() {
+        match token.kind {
+            TokenKind::RBrace => depth += 1,
+            TokenKind::LBrace if depth > 0 => depth -= 1,
+            TokenKind::LBrace => {
+                return tokens[..index]
+                    .windows(2)
+                    .rev()
+                    .take_while(|pair| {
+                        !matches!(
+                            pair[1].kind,
+                            TokenKind::LBrace | TokenKind::RBrace | TokenKind::Time { .. }
+                        )
+                    })
+                    .find_map(|pair| match (&pair[0].kind, &pair[1].kind) {
+                        (TokenKind::Colon, TokenKind::Ident(name))
+                            if symbols.types.contains(name) =>
+                        {
+                            Some(name.clone())
+                        },
+                        _ => None,
+                    });
+            },
+            _ => {}, // Only braces delimit the containing actor body.
+        }
+    }
+    None
 }
 
 // At an inline property's colon, search back to the declaration's type.

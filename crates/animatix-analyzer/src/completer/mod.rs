@@ -46,7 +46,7 @@ enum CompletionContext {
     /// Top-level of the file (keywords, labels, types)
     TopLevel,
     /// After ":" in "label: " (expecting a type name)
-    TypePosition,
+    TypePosition { parent: Option<String> },
     /// Inside a property block { ... } (expecting property names)
     PropertyBlock { actor_type: Option<String> },
     /// Inside a callable argument list.

@@ -91,8 +91,8 @@ Text) and `gap` (under Containers).
 | `stroke_gradient` | `Any` | `Gradient` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
 | `gradient_extend` | `Str` | `String` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
 | `gradient_space` | `Str` | `String` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
-| `shadow` | `Vec4` | `Vec4` | ✓ | ✓ | `Rect`, `Ellipse`, `Arrow`, `Polygon`, `Path` |
-| `shadow_color` | `Color` | `Color` | ✓ | ✓ | `Rect`, `Ellipse`, `Arrow`, `Polygon`, `Path` |
+| `shadow` | `Vec4` | `Vec4` | ✓ | ✓ | `Rect`, `Ellipse`, `Arrow`, `Polygon`, `Path`, `Row`, `Col`, `Grid`, `Stack` |
+| `shadow_color` | `Color` | `Color` | ✓ | ✓ | `Rect`, `Ellipse`, `Arrow`, `Polygon`, `Path`, `Row`, `Col`, `Grid`, `Stack` |
 | `solo` | `Bool` | `Bool` | — | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
 | `idle` | `Str` | `String` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
 | `role` | `Enum(title, body, note, formula, metric, eyebrow, reference, focus)` | `String` | — | — | `Text`, `Math`, `Typst`, `Counter`, `PlotCurve` |
@@ -238,10 +238,12 @@ maps to a named scheme colour, resolved at build like any other `color`).
 | `caption_mode` | `Str` | `String` | ✓ | ✓ | `Captions` |
 | `active_color` | `Color` | `Color` | ✓ | ✓ | `Captions`, `Cue` |
 | `inactive_color` | `Color` | `Color` | ✓ | ✓ | `Captions` |
-| `backdrop` | `Bool` | `Bool` | ✓ | ✓ | `Captions` |
-| `backdrop_color` | `Color` | `Color` | ✓ | ✓ | `Captions` |
-| `backdrop_radius` | `Num` | `F32` | ✓ | ✓ | `Captions` |
-| `backdrop_padding` | `Vec2` | `Vec2` | ✓ | ✓ | `Captions` |
+| `backdrop` | `Bool` | `Bool` | ✓ | ✓ | `Text`, `Row`, `Col`, `Grid`, `Stack`, `Captions` |
+| `backdrop_color` | `Color` | `Color` | ✓ | ✓ | `Text`, `Row`, `Col`, `Grid`, `Stack`, `Captions` |
+| `backdrop_radius` | `Num` | `F32` | ✓ | ✓ | `Text`, `Row`, `Col`, `Grid`, `Stack`, `Captions` |
+| `backdrop_padding` | `Vec2` | `Vec2` | ✓ | ✓ | `Text`, `Captions` |
+| `backdrop_stroke` | `Color` | `Color` | ✓ | ✓ | `Text`, `Row`, `Col`, `Grid`, `Stack` |
+| `backdrop_stroke_width` | `Num` | `F32` | ✓ | ✓ | `Text`, `Row`, `Col`, `Grid`, `Stack` |
 | `pop_scale` | `Num` | `F32` | ✓ | ✓ | `Captions` |
 | `max_lines` | `Num` | `U32` | ✓ | ✓ | `Captions` |
 | `transition_time` | `Num` | `F32` | ✓ | ✓ | `Captions` |

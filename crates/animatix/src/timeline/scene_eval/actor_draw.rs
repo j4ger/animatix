@@ -78,6 +78,7 @@ impl Timeline {
                             _ => false,
                         });
                 if (caps.text.is_none() || uses_static_text_paths)
+                    && (!caps.layout_container || commands.is_empty())
                     && let Some(lb) = self.world.local_bounds(node_id)
                 {
                     Some(lb)

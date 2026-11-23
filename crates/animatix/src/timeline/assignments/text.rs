@@ -64,6 +64,9 @@ pub(crate) fn recompile_text_at_assignment(
     let word_spacing = text.word_spacing.get(t_end_ms, 0.0);
     let color = style.color.get(t_end_ms, [1.0, 1.0, 1.0, 1.0]);
     let language = text.language.get(t_end_ms, String::new());
+    let max_width = text.text_max_width.get(t_end_ms, 0.0);
+    let text_align = text.text_align.get(t_end_ms, "left".to_string());
+    let overflow = text.overflow.get(t_end_ms, "visible".to_string());
 
     let text_style = TextStyle {
         font_family: &font_family,
@@ -82,10 +85,10 @@ pub(crate) fn recompile_text_at_assignment(
         palette: text_compiler.highlight_palette.as_ref(),
         allow_fast_path: text_compiler.text_fast_path,
         style: text_style,
-        max_width: 0.0,
+        max_width,
         max_lines: None,
-        text_align: "left",
-        overflow: "visible",
+        text_align: &text_align,
+        overflow: &overflow,
     };
     let new_paths = text_compiler.compile_request(&request, font_ctx)?;
     let new_half_size = crate::renderer::text::measure_text_paths(&new_paths);

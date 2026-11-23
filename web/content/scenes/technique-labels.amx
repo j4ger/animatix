@@ -4,12 +4,13 @@ import "../templates/layout.amx"
 config { style: "editorial", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 8 }
 
 #0s
-  stage: TechniqueStage, topic: "ANCHORING", heading: "A label that belongs to its subject.",
-    takeaway: "One position. Three related elements."
+  floor: Backdrop, strength: 0.28
+  head: ChapterHeader, eyebrow: "ANCHORING", heading: "A label that belongs to its subject."
+  takeaway: SceneCaption, text: "One position. Three related elements."
   track: Line, from: (380, 420), to: (900, 420), stroke: text.muted, stroke_width: 2
   point: Ellipse, at: (380, 420), size: (56, 56), color: accent.primary
   leader: Line, from: (380, 380), to: (380, 325), stroke: accent.primary, stroke_width: 2
-  label: Text, text: "subject", at: (380, 290), role: body
+  label: CaptionPlate, text: "subject", at: (380, 290), width: 250
   always {
       let x = lerp(380, 900, ease_in_out(linear_progress(t, 1, 5)))
       point.at = (x, 420)

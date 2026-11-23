@@ -465,8 +465,7 @@ fn evaluate_frame(
             entry.0 += 1;
             entry.1 += item.commands.len() as u32;
             for command in &item.commands {
-                if let RenderCommand::Paths { paths } = command {
-                    let count = paths.iter().map(|p| p.path.segments().count()).sum::<usize>();
+                if let Some(count) = command.path_segment_count() {
                     *entry.2.get_or_insert(0) += count;
                 }
             }

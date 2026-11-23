@@ -4,8 +4,9 @@ import "../templates/layout.amx"
 config { style: "editorial", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7 }
 
 #0s
-  stage: TechniqueStage, topic: "STAGGER", heading: "One entrance. A shared rhythm.",
-    takeaway: "Each starts 300 ms after the last."
+  floor: Backdrop, strength: 0.28
+  head: ChapterHeader, eyebrow: "STAGGER", heading: "One entrance. A shared rhythm."
+  takeaway: SceneCaption, text: "Each starts 300 ms after the last."
   a: Ellipse, at: (340, 350), size: (80, 80), color: accent.primary, opacity: 0
   b: Ellipse, at: (490, 350), size: (80, 80), color: accent.primary, opacity: 0
   c: Ellipse, at: (640, 350), size: (80, 80), color: accent.primary, opacity: 0

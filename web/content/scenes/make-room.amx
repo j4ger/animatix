@@ -30,9 +30,9 @@ fn grow_prefix(line: Actor, count: Num) {
   prefix: Rect, at: slot(0, underline_y), size: (width, 5), color: accent.success
   stats: Col, at: (83%, 54%), gap: theme.gap * 0.65, align: "start" {
     comparison_label: Text, text: "Comparisons", role: note
-    comparisons: MetricNumber
+    comparisons: Counter, role: metric
     shift_label: Text, text: "Rightward shifts", role: note
-    shifts: MetricNumber
+    shifts: Counter, role: metric
   }
   four: SequenceTile, extent: (width, width), value: "4", at: slot(0, row_y)
   two_a: SequenceTile, extent: (width, width), value: "2a", at: slot(1, row_y)

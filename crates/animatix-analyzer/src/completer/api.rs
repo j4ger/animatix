@@ -25,18 +25,18 @@ pub fn completions_at(
             items.extend(snippet_completions());
             items.extend(keyword_completions(symbols));
             items.extend(label_completions(symbols));
-            items.extend(type_completions(symbols, manifest));
+            items.extend(type_completions(symbols, manifest, None));
             items.extend(callable_completions(symbols, manifest));
         },
         Some(CompletionContext::TopLevel) => {
             items.extend(snippet_completions());
             items.extend(keyword_completions(symbols));
             items.extend(label_completions(symbols));
-            items.extend(type_completions(symbols, manifest));
+            items.extend(type_completions(symbols, manifest, None));
             items.extend(callable_completions(symbols, manifest));
         },
-        Some(CompletionContext::TypePosition) => {
-            items.extend(type_completions(symbols, manifest));
+        Some(CompletionContext::TypePosition { parent }) => {
+            items.extend(type_completions(symbols, manifest, parent.as_deref()));
         },
         Some(CompletionContext::PropertyBlock { actor_type }) => {
             items.extend(property_completions(symbols, actor_type.as_deref(), manifest));
@@ -93,7 +93,7 @@ pub fn completions_at(
         Some(CompletionContext::Unknown) => {
             items.extend(keyword_completions(symbols));
             items.extend(label_completions(symbols));
-            items.extend(type_completions(symbols, manifest));
+            items.extend(type_completions(symbols, manifest, None));
             items.extend(callable_completions(symbols, manifest));
         },
     }

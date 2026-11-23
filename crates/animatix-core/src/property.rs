@@ -132,6 +132,11 @@ macro_rules! declare_property_descriptors {
     };
 }
 
+const BACKDROP_ACTORS: Applicable = Applicable::Any(&[
+    Applicable::LayoutContainers,
+    Applicable::Actors(&["Text", "Captions"]),
+]);
+
 declare_property_descriptors! {
     "align" => (Applicable::LayoutContainers, String),
     "anchor" => (Applicable::Everything, Generic),
@@ -293,9 +298,9 @@ declare_property_descriptors! {
     // Declarative idle ambient motion ("float" or "breath").
     "idle" => (Applicable::Everything, String),
     // Instanced Gaussian shadow [offset_x, offset_y, blur, spread].
-    "shadow" => (Applicable::AllShapesExceptLine, Vec4, Vec4),
+    "shadow" => (Applicable::Any(&[Applicable::AllShapesExceptLine, Applicable::LayoutContainers]), Vec4, Vec4),
     // Shadow color in RGBA.
-    "shadow_color" => (Applicable::AllShapesExceptLine, Vec4, Color),
+    "shadow_color" => (Applicable::Any(&[Applicable::AllShapesExceptLine, Applicable::LayoutContainers]), Vec4, Color),
     // 2.5D X-axis rotation angle in radians.
     "rotate_x" => (Applicable::Everything, F32),
     // 2.5D Y-axis rotation angle in radians.
@@ -310,11 +315,11 @@ declare_property_descriptors! {
     "active_color" => (Applicable::Actors(&["Captions", "Cue"]), Vec4, Color),
     // Color for inactive or dimmed words in captions.
     "inactive_color" => (Applicable::Actors(&["Captions"]), Vec4, Color),
-    "backdrop" => (Applicable::Actors(&["Captions"]), Bool),
-    "backdrop_color" => (Applicable::Actors(&["Captions"]), Vec4, Color),
-    "backdrop_radius" => (Applicable::Actors(&["Captions"]), F32),
+    "backdrop" => (BACKDROP_ACTORS, Bool),
+    "backdrop_color" => (BACKDROP_ACTORS, Vec4, Color),
+    "backdrop_radius" => (BACKDROP_ACTORS, F32),
     // Padding (horizontal, vertical) around text inside the backdrop box.
-    "backdrop_padding" => (Applicable::Actors(&["Captions"]), Vec2),
+    "backdrop_padding" => (Applicable::Actors(&["Text", "Captions"]), Vec2),
     // Scale multiplier for active word spring pop in "pop" caption mode.
     "pop_scale" => (Applicable::Actors(&["Captions"]), F32),
     "max_lines" => (Applicable::Actors(&["Captions"]), U32),
@@ -333,6 +338,8 @@ declare_property_descriptors! {
     "role" => (Applicable::Actors(crate::roles::ROLE_ACTORS), String, Role),
     "x_ticks" => (Applicable::PlotHost, Generic, NumList),
     "y_ticks" => (Applicable::PlotHost, Generic, NumList),
+    "backdrop_stroke" => (Applicable::Any(&[Applicable::LayoutContainers, Applicable::Actors(&["Text"])]), Vec4, Color),
+    "backdrop_stroke_width" => (Applicable::Any(&[Applicable::LayoutContainers, Applicable::Actors(&["Text"])]), F32),
 }
 
 /// The descriptor for `name`, when it is a built-in property.

@@ -720,6 +720,18 @@ parent. `align` positions each layer against that box: `"start"` = top-left,
 
 Root layout containers can omit `at` and default to `scene.center`. Scene-relative placement via `anchor: scene.*`, `offset`, and percentage-based `at` is supported.
 
+Row, Col, Grid, and Stack accept `backdrop: true` to paint their resolved
+layout box before their children. Style it with `backdrop_color`,
+`backdrop_radius`, `backdrop_stroke`, and `backdrop_stroke_width`. Use the
+existing `shadow` and `shadow_color` for optional elevation. The backdrop
+uses the result of layout and does not occupy a child slot.
+
+Plain `Text` accepts the same backdrop paint properties and
+`backdrop_padding: (horizontal, vertical)`. Its plate follows the painted
+glyph bounds after wrapping. The padding expands paint bounds. To reserve
+padding in a surrounding layout, place the text in a padded layout container
+and give that container the backdrop.
+
 ## Filter
 
 A compositing scope with an **ordered effect chain**. Declare effects as

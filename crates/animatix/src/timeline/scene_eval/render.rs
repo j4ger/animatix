@@ -564,6 +564,7 @@ impl Timeline {
             frame,
             local_transform,
             opacity,
+            half_size,
             node_overrides,
             &vector_paths,
         );

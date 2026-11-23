@@ -68,7 +68,6 @@ impl Primitive for StackPrimitive {
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            Property::new("gap", Expr::Num(0.0)),
             Property::new("padding", Expr::Num(0.0)),
             Property::new("align", Expr::Str("center".into())),
         ]

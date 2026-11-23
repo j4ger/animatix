@@ -143,3 +143,5 @@
 140	role	Enum(title, body, note, formula, metric, eyebrow, reference, focus)
 141	x_ticks	List<Num>
 142	y_ticks	List<Num>
+143	backdrop_stroke	Color
+144	backdrop_stroke_width	Num

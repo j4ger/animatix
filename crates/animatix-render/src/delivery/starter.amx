@@ -17,9 +17,15 @@ voice: Audio, source: "narration.mp3", transcript: "narration.speech.json"
   statement: Text, text: summary, role: body, text_anchor: "left",
     text_max_width: width, at: (theme.margin, scene_height * 0.40)
   cards: Row, at: (scene_width / 2, track_y), size: (width, 68 * unit()), gap: gap, align: "center" {
-    script: NarrationStep, label: "Script", width: tile_width
-    narration: NarrationStep, label: "Voice", width: tile_width
-    captions: NarrationStep, label: "Captions", width: tile_width
+    script: Panel, size: (tile_width, 68 * unit()), border_width: 0, inset: 0 {
+      @content { script_label: Text, text: "Script", role: body }
+    }
+    narration: Panel, size: (tile_width, 68 * unit()), border_width: 0, inset: 0 {
+      @content { voice_label: Text, text: "Voice", role: body }
+    }
+    captions: Panel, size: (tile_width, 68 * unit()), border_width: 0, inset: 0 {
+      @content { captions_label: Text, text: "Captions", role: body }
+    }
   }
   rail: Rect, size: (width, 2 * unit()), at: (scene_width / 2, scene_height * 0.69), color: stroke.default
   marker: Ellipse, size: (10 * unit(), 10 * unit()), color: accent.primary,

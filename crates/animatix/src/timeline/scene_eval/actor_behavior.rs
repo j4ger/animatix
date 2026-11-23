@@ -18,6 +18,7 @@ impl Timeline {
         frame: &crate::primitives::RenderFrame<'_>,
         local_transform: kurbo::Affine,
         opacity: f32,
+        half_size: [f32; 2],
         node_overrides: Option<&std::collections::HashMap<String, Value>>,
         vector_paths: &[VelloPath],
     ) -> Option<Vec<crate::primitives::RenderCommand>> {
@@ -63,7 +64,10 @@ impl Timeline {
                 font_context: self.font_context.as_ref(),
             };
             match def.evaluate(&ctx, Some(&mut text_ctx)) {
-                Ok(commands) => commands,
+                Ok(commands) => commands.map(|mut commands| {
+                    crate::primitives::surface::prepend(&ctx, half_size, &mut commands);
+                    commands
+                }),
                 Err(e) => {
                     self.eval_caches.runtime_diagnostics.borrow_mut().push(
                         crate::diagnostics::Diagnostic::error(

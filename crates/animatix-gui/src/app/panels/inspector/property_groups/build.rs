@@ -300,8 +300,12 @@ fn route_tagged_entry(
         "comma" | "decimals" | "prefix" | "suffix" | "value" | "split_by" | "split_mask"
         | "split_offset_y" | "split_stagger" => buckets.text.push(entry),
         "transcript" if actor_type == "Audio" => buckets.audio.push(entry),
-        "caption_mode" | "active_color" | "inactive_color" | "backdrop" | "backdrop_color"
-        | "backdrop_radius" | "backdrop_padding" | "pop_scale" | "max_lines"
+        "backdrop" | "backdrop_color" | "backdrop_radius" | "backdrop_padding"
+            if actor_type == "Captions" =>
+        {
+            buckets.captions.push(entry)
+        },
+        "caption_mode" | "active_color" | "inactive_color" | "pop_scale" | "max_lines"
         | "transition_time" | "transcript" => buckets.captions.push(entry),
         s if s.starts_with("legend_") => buckets.legend.push(entry),
         _ => buckets.style.push(entry),

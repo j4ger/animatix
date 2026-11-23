@@ -4,8 +4,9 @@ import "../templates/layout.amx"
 config { style: "editorial", colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7 }
 
 #0s
-  stage: TechniqueStage, topic: "EMPHASIS", heading: "Keep the context. Change the focus.",
-    takeaway: "The arrangement does not have to move."
+  floor: Backdrop, strength: 0.28
+  head: ChapterHeader, eyebrow: "EMPHASIS", heading: "Keep the context. Change the focus."
+  takeaway: SceneCaption, text: "The arrangement does not have to move."
   a: Rect, at: (400, 350), size: (150, 150), corner_radius: theme.radius, color: accent.primary
   b: Rect, at: (640, 350), size: (150, 150), corner_radius: theme.radius, color: accent.primary
   c: Rect, at: (880, 350), size: (150, 150), corner_radius: theme.radius, color: accent.primary

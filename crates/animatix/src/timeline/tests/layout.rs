@@ -1,5 +1,81 @@
 use super::support::{build, build_output};
 use super::*;
+
+#[test]
+fn layout_backdrop_uses_the_measured_box_without_a_child_actor() {
+    let timeline = super::support::build_timeline(
+        r#"
+config { resolution: (400, 220), duration: 3 }
+#0s
+  panel: Col, at: (200, 100), size: (auto, auto), padding: 12,
+    backdrop: true, backdrop_color: surface.primary, backdrop_radius: 8 {
+    child: Rect, size: (60, 30)
+  }
+always { panel.backdrop_color = if t < 1 { accent.primary } else { accent.info } }
+"#,
+    );
+    let dims = SceneDimensions {
+        width: 400,
+        height: 220,
+    };
+    for time in [0.0, 1.5, 0.5] {
+        let program = timeline.evaluate_program_with_debug(
+            time,
+            dims,
+            DebugRenderOptions::default(),
+            &mut None,
+        );
+        let panel = program.items.iter().find(|item| item.label == "panel").unwrap();
+        let [crate::primitives::RenderCommand::RoundedSurface { rect, .. }] =
+            panel.commands.as_slice()
+        else {
+            panic!("layout backdrop should be one vector command: {:?}", panel.commands);
+        };
+        assert_eq!((rect.width(), rect.height()), (84.0, 54.0));
+        let bounds = program.precise_bounds["panel"];
+        assert_eq!((bounds.width(), bounds.height()), (84.0, 54.0));
+        assert_eq!(program.items.len(), 2);
+    }
+}
+
+#[test]
+fn text_backdrop_follows_new_wrapped_glyphs_and_can_be_switched_off() {
+    let timeline = super::support::build_timeline(
+        r#"
+config { resolution: (400, 220), duration: 4 }
+#0s
+  label: Text, at: (200, 100), text: "Short", font_size: 24,
+    text_max_width: 180, backdrop: true, backdrop_padding: (12, 8)
+#1s
+  label.text = "A longer caption that needs to wrap on the stage."
+#2s
+  label.backdrop = false
+"#,
+    );
+    let dims = SceneDimensions {
+        width: 400,
+        height: 220,
+    };
+    let sample = |time| {
+        let program = timeline.evaluate_program_with_debug(
+            time,
+            dims,
+            DebugRenderOptions::default(),
+            &mut None,
+        );
+        let label = program.items.iter().find(|item| item.label == "label").unwrap();
+        (label.commands.len(), program.precise_bounds["label"])
+    };
+    let (commands, short) = sample(0.0);
+    assert_eq!(commands, 2);
+    let (commands, wrapped) = sample(1.5);
+    assert_eq!(commands, 2);
+    assert!(wrapped.height() > short.height() + 20.0);
+    let (commands, plain) = sample(2.5);
+    assert_eq!(commands, 1);
+    assert!((wrapped.height() - plain.height() - 16.0).abs() < 0.1);
+    assert_eq!(sample(0.0), (2, short));
+}
 use kurbo::Shape;
 
 #[test]

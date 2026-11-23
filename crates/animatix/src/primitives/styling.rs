@@ -348,7 +348,7 @@ pub(crate) fn evaluate_shape_render(
     Ok(Some(commands))
 }
 
-fn sample_shape_shadow(ctx: &EvaluateCtx) -> Option<([f32; 4], [f32; 4])> {
+pub(super) fn sample_shape_shadow(ctx: &EvaluateCtx) -> Option<([f32; 4], [f32; 4])> {
     use crate::timeline::ActorField;
     use crate::timeline::property_engine::PropertyValue;
     let params = ctx

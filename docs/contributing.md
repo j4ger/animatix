@@ -58,9 +58,9 @@ built with those scripts. Recheck this caveat when replacing the nightly artifac
 The CLI and the workbench's **New project…** menu offer the same starters.
 Each project comes with `main.amx` and a portable `layout.amx`. Keep the files
 together when copying the project. You can also import `layout.amx` from an
-existing scene to reuse `ChapterHeader`, `ExplainerLayout`, `MetricCard`, or
-`NarrationStep`. The same module also supplies the stage, sequence tiles, signal
-lanes, and reading panels used by the public scenes.
+existing scene to reuse `ChapterHeader`, `Panel`, `CaptionPlate`, or `MetricCard`.
+The same module supplies the backgrounds, sequence tiles, and signal lanes
+used by the public scenes.
 [Shared layout source](../web/content/templates/layout.amx)
 
 Use `Backdrop` for a soft palette-aware stage. Its `center` is normalized to
@@ -70,10 +70,18 @@ keyframe or a value already used by the scene, and `strength: 0` makes it
 transparent. The Wash's `reach` scales with the canvas on each axis. Both
 components are static unless the source animates them.
 
-Set `raised: true` on a `MetricCard` to add a shallow shadow to its plate.
-The metric brief uses this on the review card and keeps the text outside
-the shadow. The four technique lessons use the shared static background
-from `TechniqueStage`.
+Use `Panel` with an `@content` slot to give content an auto-sized background.
+Set `size: (fill, auto)` to fill the width of a definite parent and fit the
+content height. `raised: true` adds a shallow shadow to the surface. Use
+`CaptionPlate` for a label that follows wrapped glyphs or set `plate: true`
+on `SceneCaption` to give a timed takeaway the same treatment. For a long
+takeaway, place it with `at` to reserve enough space for the wrapped lines.
+
+`MetricNumber`, `ReadingPanel`, `NarrationStep`, and the older scene-layout
+components remain available for imported projects. Use `Counter, role: metric`
+for a readout and compose new layouts with `Panel`, `ChapterHeader`, and
+`SceneCaption`. If a keyframe targets the former `MetricCard` `.plate` child,
+target the card itself with `backdrop_color` or `shadow` instead.
 
 Edit the content bindings near the top of `main.amx`, or override them for a
 single-scene preview. For example:
@@ -86,9 +94,7 @@ animatix storyboard Lesson/main.amx
 
 Math Explainer accepts `heading`, `takeaway`, `formula`, `horizontal_domain`,
 and `vertical_domain`. Edit `reference_fn` and `approximation_fn` to replace
-the curves. An empty `formula` gives the graph the full width. When reusing
-`ExplainerLayout` directly, set `with_notes: false` to give a figure the full
-width without a note slot. Metric Brief accepts `heading`,
+the curves. An empty `formula` gives the graph the full width. Metric Brief accepts `heading`,
 `takeaway`, `passing`, `latency`, and `reviews`. Narrated Explainer accepts
 `heading` and `summary`. Each template lets you choose the scene style and
 colorscheme in its `config`. Change the authored resolution to `(720, 1280)`

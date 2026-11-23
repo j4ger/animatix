@@ -95,10 +95,16 @@ pub(super) fn keyword_completions(symbols: &SymbolTable) -> Vec<CompletionItem> 
 pub(super) fn type_completions(
     symbols: &SymbolTable,
     manifest: &ExtensionManifest,
+    parent: Option<&str>,
 ) -> Vec<CompletionItem> {
     symbols
         .types
         .iter()
+        .filter(|ty| match ty.as_str() {
+            "Cue" => parent == Some("Captions"),
+            "Fragment" => parent == Some("Equation"),
+            _ => true,
+        })
         .map(|ty| {
             let (detail, doc) = manifest
                 .primitives
