@@ -141,6 +141,9 @@
     "id": "captions-and-cues",
     "properties": [
       "caption_mode",
+      "caption_enter",
+      "caption_exit",
+      "caption_page_transition",
       "active_color",
       "inactive_color",
       "backdrop",
@@ -180,6 +183,7 @@
       "highlight_padding",
       "highlight_radius",
       "equation_transition",
+      "equation_source",
       "fragment_order",
       "fragment_color"
     ]
@@ -248,7 +252,8 @@
       "background_color",
       "camera_follow",
       "parallax",
-      "shared_id"
+      "shared_id",
+      "shared_text_transition"
     ]
   }
 ]

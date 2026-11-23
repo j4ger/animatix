@@ -316,7 +316,7 @@ Container for speech-synced subtitles. Cues come from `Cue` children or from a t
 **Properties:**
 - `transcript`: String — path to a transcript file (`.json`, `.vtt`, `.srt`); times are scene-relative and used when the container has no `Cue` children
 - `source`: String — label of an `Audio` actor whose transcript supplies cues when the container has no `Cue` children or explicit transcript. The cues and word timings follow the clip start and respect its authored trim.
-- `caption_mode`: String — `"karaoke"`, `"pop"`, or `"line"`; any other value highlights only the current word
+- `caption_mode`: String — `"karaoke"`, `"karaoke_sweep"`, `"pop"`, or `"line"`; other values highlight the current word
 - `active_color`: Color — color of the current word (in `"karaoke"`, also of words already spoken)
 - `inactive_color`: Color — color of the not-yet-spoken words
 - `backdrop`: Boolean — draw a rounded backdrop box behind the cue text
@@ -328,6 +328,8 @@ Container for speech-synced subtitles. Cues come from `Cue` children or from a t
 - `text_max_width`: Number — wrap width in pixels for the cue text; `0` (default) leaves it on one line
 - `max_lines`: Integer — lines per page, default `2`; `0` displays the entire cue at once. Both authored and wrapped lines count
 - `transition_time`: Number — seconds to fade a cue in from its own start; `0` (default) snaps
+- `caption_enter`, `caption_exit`: Number — fade durations in seconds at the cue boundaries. Both default to `0`. A positive `caption_enter` takes precedence over `transition_time`.
+- `caption_page_transition`: Number — duration in seconds on each side of a page change. The outgoing page fades down before the boundary and the incoming page fades up after it. The default `0` switches immediately.
 - `color`: Color — base text color, used by `"line"` mode
 - `at`: Tuple `(x, y)` — defaults to the lower part of the scene, `(width / 2, height * 0.85)`
 
@@ -336,6 +338,9 @@ Word-timed transcripts use their original timestamps. SRT and ordinary
 WebVTT cues retain their explicit line breaks and use cue-level display.
 When a cue has multiple pages, pages follow word timings where available
 and otherwise split the cue time between them.
+`"karaoke_sweep"` advances the highlight through shaped clusters over each
+recorded word's interval. Captions without recorded word timings use the
+cue's base text color. Fades apply to the text and its backdrop together.
 
 **Example:**
 ```animatix

@@ -934,9 +934,6 @@ impl Timeline {
         } else {
             None
         };
-        text.static_split_clip = has_static_content
-            .then(|| crate::renderer::text::compute_split_mask_clip(&new_paths))
-            .flatten();
         text.hardware_layout = if duration_ms == 0.0 && anchor_offset_x == 0.0 {
             compiled.hardware_layout.clone()
         } else {

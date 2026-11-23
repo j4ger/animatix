@@ -20,7 +20,6 @@ pub(crate) fn recompile_text_at_assignment(
     // replay the old string before the new text-path keyframes are consulted.
     text.static_paths = None;
     text.hardware_layout = None;
-    text.static_split_clip = None;
 
     if duration_ms > 0.0 {
         let start_val = text.text_content.get(t_start_ms, String::new());

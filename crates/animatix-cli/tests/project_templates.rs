@@ -42,7 +42,7 @@ fn starters_build_and_the_math_layout_reflows_for_portrait() {
             "measure",
             "math-explainer/main.amx",
             "--times",
-            "4",
+            "4.8",
             "--render",
             "never",
             "--display-width",
@@ -70,4 +70,70 @@ fn starters_build_and_the_math_layout_reflows_for_portrait() {
         }),
         "{report}"
     );
+}
+
+#[test]
+fn explainer_template_orders_entrances_and_can_open_static_in_portrait() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(
+        root.path().join("layout.amx"),
+        include_str!("../../../web/content/templates/layout.amx"),
+    )
+    .unwrap();
+    let source = r#"
+import "./layout.amx"
+config { resolution: (720, 1280), duration: 3, style: "editorial" }
+let motion = "subtle"
+#0s
+panel: ExplainerLayout, eyebrow: "EXPLAINER",
+  heading: "A longer title that wraps across two lines in this portrait template",
+  takeaway: "The conclusion appears after the figure.", with_notes: false
+panel.enter(motion: motion, defer_takeaway: true)
+#1s
+panel.reveal_takeaway(motion: motion)
+"#;
+    std::fs::write(root.path().join("scene.amx"), source).unwrap();
+    let frames = |set: &str| {
+        let output = run(
+            root.path(),
+            &[
+                "measure",
+                "scene.amx",
+                "--times",
+                "0,0.09,0.4,1.3,2.9",
+                "--render",
+                "never",
+                "--set",
+                set,
+            ],
+        );
+        assert!(output.status.success(), "{output:?}");
+        let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+        report["frames"].as_array().unwrap().clone()
+    };
+    let opacity = |frame: &Value, label: &str| {
+        frame["actors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|actor| actor["label"] == label)
+            .unwrap()["opacity"]
+            .as_f64()
+            .unwrap()
+    };
+    let animated = frames("motion=\"subtle\"");
+    let title = "panel.head.heading_ink";
+    let plate = "panel.figure_plate";
+    let takeaway = "panel.conclusion";
+    assert_eq!(opacity(&animated[0], title), 0.0);
+    assert!(opacity(&animated[1], title) > 0.0);
+    assert_eq!(opacity(&animated[1], plate), 0.0);
+    assert_eq!(opacity(&animated[2], plate), 1.0);
+    assert_eq!(opacity(&animated[2], takeaway), 0.0);
+    assert_eq!(opacity(&animated[3], takeaway), 1.0);
+    assert_eq!(opacity(&animated[4], title), 1.0);
+    let still = frames("motion=\"none\"");
+    for label in [title, plate, takeaway] {
+        assert_eq!(opacity(&still[0], label), 1.0);
+    }
 }

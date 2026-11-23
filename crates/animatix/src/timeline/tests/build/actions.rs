@@ -1116,27 +1116,14 @@ draw_in(target: line, duration: 4s{extra})
     };
 
     let words = build_variant(", by: word");
-    // Four words over 4s: at 1.5s the second word has landed (6 of 11 chars) and
-    // the third has not, so progress sits at the word boundary, not mid-word.
-    let at_1500 = progress_at(&words, 1500);
-    assert!(
-        (at_1500 - 6.0 / 11.0).abs() < 0.06,
-        "expected the second word boundary (~{:.3}), got {at_1500:.3}",
-        6.0 / 11.0
-    );
-    // Each word lands at the start of its slot and holds: 2.5s is inside the
-    // third slot, so the third boundary (9 of 11 chars) must still be holding.
-    assert!(
-        (progress_at(&words, 2500) - 9.0 / 11.0).abs() < 0.02,
-        "the third boundary must hold until the fourth word, got {}",
-        progress_at(&words, 2500)
-    );
-    assert!(
-        progress_at(&words, 1600) > 0.5 && progress_at(&words, 1600) < 0.6,
-        "a word must hold its boundary rather than creep, got {}",
-        progress_at(&words, 1600)
-    );
-    assert!((progress_at(&words, 4000) - 1.0).abs() < 1e-3, "must finish full");
+    let id = words.world.get_id("line").unwrap();
+    let text = words.world.text_or_default(id);
+    for (ms, count) in [(1500, 2), (1600, 2), (2500, 3), (4000, 4)] {
+        let paths = text.evaluate_paths(words.world.style(id), ms);
+        let indices: Vec<_> = paths.iter().map(|glyph| glyph.word_idx).collect();
+        let expected: Vec<_> = (0..count).flat_map(|word| [word, word]).collect();
+        assert_eq!(indices, expected, "{ms}ms");
+    }
 
     // The default stays a smooth typewriter, and it inherits the role default
     // for entrances: `expo-out` puts a quarter of the *time* at ~82% of the

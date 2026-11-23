@@ -287,6 +287,16 @@ impl Timeline {
         self.pause_points.iter().copied().rfind(|&t| t < current_time_ms)
     }
 
+    /// Check whether a shared title opts into a brief fade through its handoff.
+    pub fn shared_text_fade_through(&self, label: &str, time_ms: u64) -> bool {
+        self.world.get_id(label).is_some_and(|id| {
+            self.world
+                .property_plan(id)
+                .sample_string_prop("shared_text_transition", time_ms, "")
+                == "fade_through"
+        })
+    }
+
     /// Collects actor labels with non-empty `shared_id` at `time_ms`, keyed by `shared_id`.
     pub fn shared_id_actors(&self, time_ms: u64) -> std::collections::HashMap<String, String> {
         let mut map = std::collections::HashMap::new();

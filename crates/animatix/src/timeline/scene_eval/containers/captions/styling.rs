@@ -51,10 +51,52 @@ pub(super) fn cue_phrase(cue: &ActiveCue, pause: f64, time_s: f64) -> Option<Act
             .map_or(cue.end_s, |word| (cue.speech_start_s + word.start_s).min(cue.end_s)),
         word_char_ranges: map_timed_words_to_char_ranges(&text, &words, "caption phrase"),
         speech_start_s: cue.speech_start_s,
+        real_word_timings: cue.real_word_timings,
         active_color: cue.active_color,
         text,
         words,
     })
+}
+
+/// Fit independent cue and page fades inside the currently visible interval.
+pub(super) fn transition_alpha(
+    cue: &ActiveCue,
+    time_s: f64,
+    time_ms: u64,
+    (start, end): (f64, f64),
+    property_plan: &PropertyPlan,
+    paint_overrides: Option<&std::collections::HashMap<String, crate::timeline::Value>>,
+) -> f32 {
+    let number = |name: &str| match paint_overrides.and_then(|values| values.get(name)) {
+        Some(crate::timeline::Value::Num(value)) => value.max(0.0),
+        _ => f64::from(property_plan.sample_f32_prop(name, time_ms, 0.0).max(0.0)),
+    };
+    let entrance = number("caption_enter");
+    let legacy = if entrance == 0.0 {
+        number("transition_time")
+    } else {
+        0.0
+    };
+    let page_fade = number("caption_page_transition");
+    let enter = if start == cue.start_s {
+        entrance
+    } else {
+        page_fade
+    };
+    let exit = if end == cue.end_s {
+        number("caption_exit")
+    } else {
+        page_fade
+    };
+    let fit = if enter + exit > 0.0 {
+        ((end - start) / (enter + exit)).min(1.0)
+    } else {
+        1.0
+    };
+    let fade = crate::primitives::captions::cue_transition_alpha;
+    fade(time_s, cue.start_s, legacy)
+        * fade(time_s, start, enter * fit)
+        * fade(end - time_s, 0.0, exit * fit)
 }
 
 pub(super) struct CaptionPaint {

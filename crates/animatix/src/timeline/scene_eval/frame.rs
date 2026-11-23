@@ -480,17 +480,18 @@ impl Timeline {
         // On a plain miss the replaced frame-cache entry is stale by
         // definition (restore_frame_cache just rejected it), so its encoded
         // scene is moved out — no clone — and becomes this frame's encode
-        // buffer. Filter/debug frames bypass the frame cache (its entry stays
-        // valid), so they recycle via scene_buffer instead.
+        // buffer. Filter/debug/suppressed frames preserve the ordinary cache
+        // entry and recycle via scene_buffer instead.
         // `presentation` frames never consult or publish the frame cache, so
         // they always recycle their encode target from `scene_buffer` (the
         // buffer parked by `recycle_presentation_scene`), leaving frame_cache
         // untouched for the GUI/export paths.
-        let debug_or_filter = presentation
+        let bypass_frame_cache = presentation
             || self.backend_can_run(filter_backend)
             || debug_options != DebugRenderOptions::default()
+            || !suppressed_actors.is_empty()
             || !transient_overrides.is_empty();
-        let mut scene = if debug_or_filter {
+        let mut scene = if bypass_frame_cache {
             self.eval_caches.scene_buffer.borrow_mut().take().unwrap_or_default()
         } else {
             self.eval_caches
@@ -677,6 +678,7 @@ impl Timeline {
         };
         if !self.backend_can_run(filter_backend)
             && state.debug_options == DebugRenderOptions::default()
+            && state.suppressed_actors.is_empty()
             && state.transient_overrides.is_empty()
         {
             *self.eval_caches.frame_cache.borrow_mut() = Some(crate::timeline::FrameCacheEntry {

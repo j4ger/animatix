@@ -279,12 +279,8 @@ fn crossfade_text_paths(
             ..Default::default()
         },
     );
-    let clip = crate::timeline::dispatch::apply_split_text_animation(
-        &mut crossfaded,
-        text,
-        ctx.time_ms,
-        None,
-    );
+    let clip =
+        crate::timeline::dispatch::apply_split_text_animation(&mut crossfaded, text, ctx.time_ms);
     Ok(Some((std::sync::Arc::from(crossfaded), clip)))
 }
 
@@ -360,7 +356,6 @@ fn evaluate_uncached_text_paths(
             &mut paths_vec,
             text,
             ctx.time_ms,
-            None,
         );
         Ok((std::sync::Arc::from(paths_vec), clip))
     } else {

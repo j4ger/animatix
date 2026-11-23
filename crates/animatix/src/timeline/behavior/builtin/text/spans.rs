@@ -90,7 +90,7 @@ fn caret(
     let last = paths
         .iter()
         .filter(|path| path.opacity > 0.0)
-        .filter_map(|path| Some((path.source_range?, path.caret?, path.baseline_y)))
+        .filter_map(|path| Some((path.source_range?, path.caret?, path)))
         .max_by(|a, b| {
             a.0[1].cmp(&b.0[1]).then_with(|| {
                 if a.1.1 {
@@ -100,10 +100,11 @@ fn caret(
                 }
             })
         });
-    let (x, y) = if let Some((_, (x, _), y)) = last {
-        (x, y)
+    let baked;
+    let (x, glyph) = if let Some((_, (x, _), glyph)) = last {
+        (x, glyph)
     } else {
-        let baked = tracks.text_paths.as_ref()?.evaluate(time);
+        baked = tracks.text_paths.as_ref()?.evaluate(time);
         let first = baked
             .iter()
             .filter(|path| path.caret.is_some())
@@ -115,12 +116,15 @@ fn caret(
             } else {
                 first.bounds.x0
             },
-            first.baseline_y,
+            first,
         )
     };
-    Some(TextPath::new(
+    let y = glyph.baseline_y;
+    let mut caret = TextPath::new(
         Rect::new(x, y - size * 0.8, x + (size * 0.045).max(1.0), y + size * 0.15).to_path(0.1),
         color,
         1.0,
-    ))
+    );
+    caret.clips.clone_from(&glyph.clips);
+    Some(caret)
 }

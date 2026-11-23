@@ -87,6 +87,7 @@ left: Text, text: "LEFT ANCHOR", text_anchor: "left", at: (100, 100), font_size:
 right: Text, text: "RIGHT ANCHOR", text_anchor: "right", at: (900, 100), font_size: 32
 morph: Text, text: "BEFORE MORPH", text_anchor: "right", at: (900, 190), font_size: 32
 reactive: Text, text: "i", text_anchor: "left", at: (100, 280), font_size: 32
+revealed: Text, text: "A SHORT REPLACEMENT", text_anchor: "left", at: (100, 350), font_size: 32
 always { reactive.text = if (t < 1.0) { "i" } else { "MMMMMMMM" } }
 column: Col, size: (300, auto), at: (360, 430), gap: 8 {
   wrapped: Text, text: "Anchored text wraps inside its column and keeps every glyph bound aligned.",
@@ -98,7 +99,7 @@ left.text = "A SHORT REPLACEMENT" [0s]
 right.text = "A LONGER RIGHT-ANCHORED REPLACEMENT" [0s]
 
 #2s
-reveal_in(target: left, duration: 800ms, by: word, offset_y: 14, ease: ease_out)
+reveal_in(target: revealed, duration: 800ms, by: word, offset_y: 14, ease: ease_out)
 
 #4s
 morph: Text, text: "AFTER MORPH WITH A DIFFERENT WIDTH", text_anchor: "right",
@@ -131,8 +132,8 @@ morph: Text, text: "AFTER MORPH WITH A DIFFERENT WIDTH", text_anchor: "right",
         ("left", 0.999),
         ("left", 1.0),
         ("right", 1.0),
-        ("left", 2.4),
-        ("left", 2.9),
+        ("revealed", 2.4),
+        ("revealed", 2.9),
         ("morph", 4.0),
         ("morph", 5.0),
         ("morph", 6.0),

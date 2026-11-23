@@ -2,6 +2,7 @@ import "./layout.amx"
 
 config { resolution: (1280, 720), duration: 6, colorscheme: "editorial-dark", style: "editorial" }
 
+let motion = "subtle"
 let heading = "Release readiness"
 let takeaway = "Performance is within budget. Close the final review before shipping."
 let passing = "42 / 42"
@@ -30,15 +31,18 @@ let entrance = 350ms
   fill_light: FocusWash, at: grid_center,
     tint: lerp_color(surface.secondary, accent.primary, 0.24), strength: 0.10
   head: ChapterHeader, eyebrow: "ENGINEERING UPDATE", heading: heading
+  head.enter(motion: motion)
   grid: Grid, cols: columns, size: (content_width(), grid_height), at: grid_center, gap: gap {
     for record, i in metrics {
       card[i]: MetricCard, label: record[0], value: record[1], detail: record[2],
-        width: card_width, height: card_height, opacity: 0,
+        width: card_width, height: card_height, opacity: (if motion == "none" { 1 } else { 0 }),
         ink: if i == count - 1 { accent.warning } else { text.primary }, raised: i == count - 1
     }
   }
   summary: Text, text: takeaway, role: body, text_anchor: "left",
-    text_max_width: content_width(), at: (theme.margin, takeaway_y()), opacity: 0
+    text_max_width: content_width(), at: (theme.margin, takeaway_y()), opacity: (if motion == "none" { 1 } else { 0 })
   let cards = tabulate(count, (i) => grid.card[i])
-  stagger_each(cards, 180ms, (card) => fade_in(target: card, duration: entrance))
-  fade_in(target: summary, duration: entrance, delay: 550ms)
+  if motion != "none" {
+    stagger_each(cards, 180ms, (card) => fade_in(target: card, duration: entrance))
+    fade_in(target: summary, duration: entrance, delay: 550ms)
+  }

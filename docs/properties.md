@@ -254,6 +254,9 @@ maps to a named scheme colour, resolved at build like any other `color`).
 | Property | Type | Runtime kind | Animated | Assignable | Applies to |
 |----------|------|--------------|----------|------------|------------|
 | `caption_mode` | `Str` | `String` | ✓ | ✓ | `Captions` |
+| `caption_enter` | `Num` | `F32` | ✓ | ✓ | `Captions` |
+| `caption_exit` | `Num` | `F32` | ✓ | ✓ | `Captions` |
+| `caption_page_transition` | `Num` | `F32` | ✓ | ✓ | `Captions` |
 | `active_color` | `Color` | `Color` | ✓ | ✓ | `Captions`, `Cue` |
 | `inactive_color` | `Color` | `Color` | ✓ | ✓ | `Captions` |
 | `backdrop` | `Bool` | `Bool` | ✓ | ✓ | `Text`, `Row`, `Col`, `Grid`, `Stack`, `Captions` |
@@ -297,6 +300,7 @@ maps to a named scheme colour, resolved at build like any other `color`).
 | `highlight_padding` | `Num` | `F32` | ✓ | — | `Typst`, `Equation`, `Fragment` |
 | `highlight_radius` | `Num` | `F32` | ✓ | — | `Typst`, `Equation`, `Fragment` |
 | `equation_transition` | `Num` | `F32` | — | ✓ | `Equation` |
+| `equation_source` | `Str` | `String` | ✓ | ✓ | `Equation` |
 | `fragment_order` | `Num` | `F32` | — | ✓ | `Fragment` |
 | `fragment_color` | `Color` | `Color` | ✓ | ✓ | `Fragment` |
 <!-- generated-property-table:equation-and-fragment-highlights:end -->
@@ -407,6 +411,7 @@ width.
 | `camera_follow` | `Any` | `BuildTimeOnly` | — | — | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
 | `parallax` | `Num` | `F32` | — | — | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
 | `shared_id` | `Str` | `String` | — | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector` |
+| `shared_text_transition` | `Str` | `String` | ✓ | ✓ | `Text` |
 <!-- generated-property-table:scene:end -->
 
 `background_color` is scene-level and is assigned as `scene.background_color`;

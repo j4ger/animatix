@@ -257,7 +257,7 @@ fn reveal_out_preserves_prior_state_for_delayed_instant_change() {
 
 #[test]
 fn text_vector_reveal_proceeds_without_diagnostics() {
-    for (verb, expected_fill_start) in [("reveal_out", 0.0), ("draw_out", 1.0)] {
+    for verb in ["wipe_out", "reveal_out", "draw_out"] {
         let ast = vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
             body: vec![text_decl("headline"), action_stmt(verb, "headline", 1.0)],
@@ -275,9 +275,9 @@ fn text_vector_reveal_proceeds_without_diagnostics() {
         );
 
         let headline_id = report.output.world.get_id("headline").expect("headline id");
-        let style = report.output.world.style(headline_id);
-        assert_eq!(style.fill_opacity.get(0, 1.0), expected_fill_start, "{verb} fill start");
-        assert_eq!(style.fill_opacity.get(1000, 1.0), 0.0, "{verb} fill end");
+        let text = report.output.world.text_or_default(headline_id);
+        assert_eq!(text.char_progress.get(0, 0.0), 1.0, "{verb} glyph progress start");
+        assert_eq!(text.char_progress.get(1000, 1.0), 0.0, "{verb} glyph progress end");
     }
 }
 

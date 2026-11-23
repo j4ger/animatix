@@ -123,12 +123,22 @@ pub fn extract_glyphs_with_metrics(frame: &Frame) -> CompiledText {
 pub fn extract_glyphs_grouped(
     frame: &Frame,
 ) -> Result<(Vec<TextPath>, Vec<std::ops::Range<usize>>), RenderError> {
+    let (glyphs, ranges, _) = extract_grouped_with_names(frame)?;
+    Ok((glyphs, ranges))
+}
+
+#[cfg(feature = "rich-text")]
+pub(crate) type ExtractedGroups = (Vec<TextPath>, Vec<std::ops::Range<usize>>, Vec<String>);
+
+#[cfg(feature = "rich-text")]
+pub(crate) fn extract_grouped_with_names(frame: &Frame) -> Result<ExtractedGroups, RenderError> {
     let mut markers = Vec::new();
     collect_fragment_markers(frame, &mut markers)?;
     if markers.is_empty() {
-        return Ok(extract_glyphs_grouped_legacy(frame));
+        let (glyphs, ranges) = extract_glyphs_grouped_legacy(frame);
+        return Ok((glyphs, ranges, Vec::new()));
     }
-    validate_fragment_markers(&markers)?;
+    let names = validate_fragment_markers(&markers)?;
 
     let mut glyphs = Vec::new();
     let mut ranges = Vec::new();
@@ -141,6 +151,7 @@ pub fn extract_glyphs_grouped(
         &mut ranges,
         &mut state,
         &mut active,
+        !names.is_empty(),
     )?;
     if active.is_some() || ranges.len() * 2 != markers.len() {
         return Err(RenderError::TextCompilation(
@@ -148,7 +159,7 @@ pub fn extract_glyphs_grouped(
         ));
     }
     center_text_paths(&mut glyphs);
-    Ok((glyphs, ranges))
+    Ok((glyphs, ranges, names))
 }
 
 #[cfg(feature = "rich-text")]
@@ -201,10 +212,17 @@ fn extract_glyphs_grouped_legacy(frame: &Frame) -> (Vec<TextPath>, Vec<std::ops:
 }
 
 #[cfg(feature = "rich-text")]
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 enum FragmentMarker {
-    Start(usize),
-    End(usize),
+    Start(FragmentKey),
+    End(FragmentKey),
+}
+
+#[cfg(feature = "rich-text")]
+#[derive(Debug, Clone, Eq, PartialEq)]
+enum FragmentKey {
+    Ordinal(usize),
+    Name(String),
 }
 
 #[cfg(feature = "rich-text")]
@@ -228,9 +246,18 @@ fn fragment_marker(item: &FrameItem) -> Result<Option<FragmentMarker>, RenderErr
     let (kind, index) = rest.split_once(':').ok_or_else(|| {
         RenderError::TextCompilation("malformed Equation fragment metadata".to_string())
     })?;
-    let index = index.parse().map_err(|_| {
-        RenderError::TextCompilation("malformed Equation fragment ordinal".to_string())
-    })?;
+    let index = if let Some(name) = index.strip_prefix("name:") {
+        if name.trim().is_empty() {
+            return Err(RenderError::TextCompilation(
+                "Equation term names must not be empty".into(),
+            ));
+        }
+        FragmentKey::Name(name.to_owned())
+    } else {
+        FragmentKey::Ordinal(index.parse().map_err(|_| {
+            RenderError::TextCompilation("malformed Equation fragment ordinal".to_string())
+        })?)
+    };
     match kind {
         "start" => Ok(Some(FragmentMarker::Start(index))),
         "end" => Ok(Some(FragmentMarker::End(index))),
@@ -257,20 +284,41 @@ fn collect_fragment_markers(
 }
 
 #[cfg(feature = "rich-text")]
-fn validate_fragment_markers(markers: &[FragmentMarker]) -> Result<(), RenderError> {
+fn validate_fragment_markers(markers: &[FragmentMarker]) -> Result<Vec<String>, RenderError> {
     if !markers.len().is_multiple_of(2) {
         return Err(RenderError::TextCompilation(
             "incomplete Equation fragment metadata".to_string(),
         ));
     }
+    let mut names = Vec::new();
     for (index, pair) in markers.as_chunks::<2>().0.iter().enumerate() {
-        if *pair != [FragmentMarker::Start(index), FragmentMarker::End(index)] {
-            return Err(RenderError::TextCompilation(format!(
-                "invalid Equation fragment metadata at ordinal {index}"
-            )));
+        match pair {
+            [FragmentMarker::Start(start), FragmentMarker::End(end)] if start == end => {
+                match start {
+                    FragmentKey::Ordinal(ordinal) if *ordinal == index && names.is_empty() => {
+                        continue;
+                    },
+                    FragmentKey::Name(name) if names.len() == index => {
+                        if names.contains(name) {
+                            return Err(RenderError::TextCompilation(format!(
+                                "duplicate Equation term name '{name}'"
+                            )));
+                        }
+                        names.push(name.clone());
+                        continue;
+                    },
+                    // Named and ordinal markers cannot be mixed in one formula.
+                    _ => {},
+                }
+            },
+            // A missing, nested, or mismatched marker must not match unrelated glyphs.
+            _ => {},
         }
+        return Err(RenderError::TextCompilation(format!(
+            "invalid Equation fragment metadata at ordinal {index}"
+        )));
     }
-    Ok(())
+    Ok(names)
 }
 
 #[cfg(feature = "rich-text")]
@@ -280,7 +328,8 @@ fn extract_marked_frame(
     glyphs: &mut Vec<TextPath>,
     ranges: &mut Vec<std::ops::Range<usize>>,
     state: &mut GlyphLayoutState,
-    active: &mut Option<(usize, usize)>,
+    active: &mut Option<(FragmentKey, usize)>,
+    include_unmarked: bool,
 ) -> Result<(), RenderError> {
     for (pos, item) in frame.items() {
         let transform = current_transform.pre_concat(Transform::translate(pos.x, pos.y));
@@ -288,13 +337,21 @@ fn extract_marked_frame(
             FrameItem::Group(group) => {
                 let group_transform = transform.pre_concat(group.transform);
                 let start = glyphs.len();
-                extract_marked_frame(&group.frame, group_transform, glyphs, ranges, state, active)?;
+                extract_marked_frame(
+                    &group.frame,
+                    group_transform,
+                    glyphs,
+                    ranges,
+                    state,
+                    active,
+                    include_unmarked,
+                )?;
                 apply_group_clip(&mut glyphs[start..], group, group_transform);
             },
             FrameItem::Text(text) => {
                 // Spaces between fragments still advance word/line bookkeeping,
                 // but their glyphs do not belong to either adjacent range.
-                if active.is_some() {
+                if include_unmarked || active.is_some() {
                     emit_text_item(text, transform, glyphs, state);
                 } else {
                     let mut discarded = Vec::new();
@@ -447,8 +504,8 @@ fn emit_text_item(
     if let Some(last_y) = state.last_y {
         if (current_y - last_y).abs() > 2.0 {
             state.line_idx += 1;
+            state.word_idx += 1;
             state.last_y = Some(current_y);
-            state.last_end = 0;
         }
     } else {
         state.last_y = Some(current_y);
@@ -514,7 +571,6 @@ struct GlyphLayoutState {
     line_idx: u16,
     word_idx: u16,
     last_y: Option<f64>,
-    last_end: usize,
 }
 
 #[cfg(feature = "rich-text")]

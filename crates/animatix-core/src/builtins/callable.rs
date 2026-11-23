@@ -172,6 +172,13 @@ fn timeline(
     }
 }
 
+fn wipe_params() -> Vec<CallableParam> {
+    vec![opt(
+        "direction",
+        T::Enum(["left", "right", "top", "bottom"].map(String::from).to_vec()),
+    )]
+}
+
 fn reveal_params() -> Vec<CallableParam> {
     vec![
         opt("by", T::Enum(vec!["char".into(), "word".into(), "line".into()])),
@@ -179,6 +186,19 @@ fn reveal_params() -> Vec<CallableParam> {
         opt("offset_y", T::Num),
         opt("mask", T::Union(vec![T::Bool, T::Enum(vec!["baseline".into()])])),
     ]
+}
+
+fn with_options(
+    mut operation: CallableDescriptor,
+    options: impl IntoIterator<Item = CallableParam>,
+) -> CallableDescriptor {
+    // Append to the established signature so positional calls retain their meaning.
+    operation.params.extend(options);
+    operation
+}
+
+fn reveal_order_param() -> CallableParam {
+    opt("order", T::Enum(vec!["forward".into(), "reverse".into()]))
 }
 
 fn timeline_catalog() -> Vec<CallableDescriptor> {
@@ -190,7 +210,15 @@ fn timeline_catalog() -> Vec<CallableDescriptor> {
     };
     vec![
         timeline("fade_in", "Entrance", "Fade from transparent to authored opacity.", vec![]),
-        timeline("wipe_in", "Entrance", "Reveal vector stroke and fill.", vec![]),
+        with_options(
+            timeline(
+                "wipe_in",
+                "Entrance",
+                "Reveal vector stroke and fill or wipe text from an edge.",
+                vec![],
+            ),
+            wipe_params(),
+        ),
         timeline(
             "move",
             "Motion",
@@ -220,14 +248,28 @@ fn timeline_catalog() -> Vec<CallableDescriptor> {
             "Multiply the authored scale by a factor.",
             vec![param("by", T::Num)],
         ),
-        timeline(
-            "draw_in",
-            "Entrance",
-            "Draw vector or split-text content into view.",
-            reveal_params(),
+        with_options(
+            timeline(
+                "draw_in",
+                "Entrance",
+                "Draw vector or split-text content into view.",
+                reveal_params(),
+            ),
+            [reveal_order_param()],
         ),
-        timeline("reveal_in", "Entrance", "Reveal vector or split-text content.", reveal_params()),
-        timeline("draw_out", "Exit", "Erase stroke and fill.", vec![]),
+        with_options(
+            timeline(
+                "reveal_in",
+                "Entrance",
+                "Reveal vector or split-text content.",
+                reveal_params(),
+            ),
+            [reveal_order_param()],
+        ),
+        with_options(
+            timeline("draw_out", "Exit", "Erase stroke and fill or hide split text.", vec![]),
+            reveal_params().into_iter().chain([reveal_order_param()]),
+        ),
         timeline("fade_out", "Exit", "Fade to transparent.", vec![]),
         timeline(
             "persist",
@@ -236,8 +278,14 @@ fn timeline_catalog() -> Vec<CallableDescriptor> {
             vec![],
         ),
         timeline("remove", "Persistence", "Fade out and stop carrying an actor.", vec![]),
-        timeline("wipe_out", "Exit", "Wipe vector content out.", vec![]),
-        timeline("reveal_out", "Exit", "Reverse a reveal.", vec![]),
+        with_options(
+            timeline("wipe_out", "Exit", "Wipe vector or text content out.", vec![]),
+            wipe_params(),
+        ),
+        with_options(
+            timeline("reveal_out", "Exit", "Reverse a reveal.", vec![]),
+            reveal_params().into_iter().chain([reveal_order_param()]),
+        ),
         timeline(
             "shake",
             "Effects",

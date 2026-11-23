@@ -468,7 +468,6 @@ impl Timeline {
         // stale caches.
         text.static_paths = None;
         text.hardware_layout = None;
-        text.static_split_clip = None;
 
         // Update max_width track
         text.text_max_width

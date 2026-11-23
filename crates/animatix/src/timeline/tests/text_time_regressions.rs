@@ -4,6 +4,181 @@ use super::support::build_output;
 use super::*;
 use kurbo::{PathEl, Point};
 
+#[test]
+fn directed_wipes_and_ordered_exits_use_the_shaped_layout() {
+    use kurbo::Shape;
+
+    let timeline = support::build_timeline(
+        r#"
+#0s
+wiped: Text, text: "Title", font_size: 36
+reversed: Text, text: "One Two Three", font_size: 36
+staggered: Text, text: r"UPPER
+LOWER", font_size: 36
+#1s
+  wipe_in(target: wiped, direction: top, duration: 1s)
+  draw_out(target: reversed, by: word, order: forward, duration: 1s)
+  reveal_out(target: staggered, by: line, order: reverse, stagger: 250ms, offset_y: 16, mask: baseline, duration: 1s, ease: linear)
+#3s
+  wipe_out(target: wiped, direction: right, duration: 1s)
+"#,
+    );
+    let id = timeline.world.get_id("wiped").unwrap();
+    let text = timeline.world.text_or_default(id);
+    let style = timeline.world.style(id);
+    let resting = text.evaluate_paths(style, 2000);
+    let ink = resting.iter().map(|glyph| glyph.bounds).reduce(|a, b| a.union(b)).unwrap();
+    let clip = |time| text.evaluate_paths_and_clip(style, time).1.unwrap().bounding_box();
+    assert!((clip(1500).y1 - ink.center().y).abs() < 0.001);
+    assert!((clip(3500).x0 - ink.center().x).abs() < 0.001);
+    let words = text_paths_at(&timeline, "reversed", 1500);
+    assert!(words.iter().any(|g| g.word_idx == 1) && words.iter().any(|g| g.word_idx == 2));
+    assert!(words.iter().all(|g| g.word_idx >= 1));
+    let early = text_paths_at(&timeline, "staggered", 1200);
+    let full = text_paths_at(&timeline, "staggered", 999);
+    assert!(
+        early
+            .iter()
+            .filter(|g| g.line_idx == 0)
+            .zip(full.iter())
+            .all(|(sampled, resting)| sampled.path == resting.path)
+    );
+    assert!(early.iter().any(|g| g.line_idx == 1 && !g.clips.is_empty()));
+    assert!(text_paths_at(&timeline, "staggered", 2000).is_empty());
+}
+
+#[test]
+fn draw_in_reveals_shaped_words_and_wrapped_lines_as_whole_groups() {
+    let timeline = build_output(
+        r#"
+#0s
+words: Text, text: "a     bb ccc", font_size: 36
+wrapped: Text, text: "Alpha Bravo Charlie", font_size: 36, text_max_width: 120
+#1s
+draw_in(target: words, by: word, duration: 900ms)
+draw_in(target: wrapped, by: line, duration: 900ms)
+"#,
+    );
+    let authored = text_paths_at(&timeline, "words", 1900);
+    assert_eq!(authored.iter().map(|g| g.word_idx).max(), Some(2));
+    for (time, groups) in [(1000, 0), (1299, 1), (1301, 2), (1599, 2), (1601, 3)] {
+        let current = text_paths_at(&timeline, "words", time);
+        let expected = authored.iter().filter(|glyph| glyph.word_idx < groups);
+        assert!(current.iter().map(|glyph| &glyph.path).eq(expected.map(|glyph| &glyph.path)));
+        assert!(current.iter().all(|glyph| glyph.opacity == 1.0));
+    }
+    let wrapped = text_paths_at(&timeline, "wrapped", 1900);
+    assert_eq!(wrapped.iter().map(|g| g.line_idx).max(), Some(2));
+    let early = text_paths_at(&timeline, "wrapped", 1299);
+    assert!(!early.is_empty());
+    assert!(early.iter().all(|glyph| glyph.line_idx == 0 && glyph.opacity == 1.0));
+}
+
+#[test]
+fn split_stagger_uses_elapsed_time_and_masks_each_visual_line() {
+    use kurbo::Shape;
+
+    let timeline = build_output(
+        r#"
+#0s
+timed: Text, text: "A B C", font_size: 36
+springy: Text, text: "A B", font_size: 36
+masked: Text, text: r"HELLO
+
+gjpqy", font_size: 36
+#1s
+reveal_in(target: timed, by: word, stagger: 200ms, ease: ease_out, duration: 1s)
+reveal_in(target: springy, by: word, stagger: 650ms, ease: spring, duration: 1s)
+reveal_in(target: masked, by: line, stagger: 200ms, offset_y: 32, mask: baseline, duration: 1s)
+"#,
+    );
+    for (time, words) in [(1199, 1), (1200, 1), (1201, 2), (1401, 3)] {
+        let sampled = text_paths_at(&timeline, "timed", time);
+        assert_eq!(sampled.len(), words);
+    }
+    assert_eq!(text_paths_at(&timeline, "springy", 1500).len(), 1);
+    assert_eq!(text_paths_at(&timeline, "springy", 1649).len(), 1);
+    assert_eq!(text_paths_at(&timeline, "springy", 1700).len(), 2);
+    let resting = text_paths_at(&timeline, "masked", 2000);
+    assert_eq!(resting.iter().map(|g| g.line_idx).max(), Some(2));
+    let sampled = text_paths_at(&timeline, "masked", 1600);
+    for line in [0, 2] {
+        let upper_bound = resting
+            .iter()
+            .filter(|g| g.line_idx == line)
+            .map(|g| g.bounds.y1)
+            .reduce(f64::max)
+            .unwrap();
+        let partial: Vec<_> = sampled.iter().filter(|g| g.line_idx == line).collect();
+        assert!(!partial.is_empty(), "line {line} must be entering");
+        assert!(partial.iter().any(|g| !g.clips.is_empty()));
+        for glyph in partial {
+            assert!(glyph.bounds.y1 <= upper_bound + 0.001);
+            assert!(glyph.clips.iter().all(|clip| clip.bounding_box().y1 <= upper_bound + 0.001));
+        }
+    }
+    assert!(resting.iter().all(|g| g.clips.is_empty()));
+}
+
+#[cfg(feature = "rich-text")]
+#[test]
+fn rich_text_word_reveal_separates_the_last_word_from_the_next_line() {
+    let timeline = build_output(
+        r#"
+#0s
+rich: Typst, text: r"A \
+B", font_size: 36
+code: Code, text: r"foo
+bar", font_size: 36
+draw_in(target: rich, by: word, duration: 1s)
+draw_in(target: code, by: word, duration: 1s)
+"#,
+    );
+    for label in ["rich", "code"] {
+        let early = text_paths_at(&timeline, label, 250);
+        let late = text_paths_at(&timeline, label, 1000);
+        assert!(!early.is_empty(), "{label}");
+        assert!(early.iter().all(|glyph| glyph.line_idx == 0), "{label}");
+        assert!(late.iter().any(|glyph| glyph.line_idx > 0), "{label}");
+    }
+}
+
+#[test]
+fn text_reveal_modes_hold_between_actions_and_support_delayed_instant_exit() {
+    let timeline = build_output(
+        r#"
+#0s
+title: Text, text: "One two", opacity: 0.6, font_size: 36
+#1s
+wipe_in(target: title, duration: 1s)
+#3s
+draw_out(target: title, duration: 1s)
+#5s
+reveal_in(target: title, by: word, duration: 1s)
+#7s
+wipe_out(target: title, duration: 0ms, delay: 200ms)
+"#,
+    );
+    let id = timeline.world.get_id("title").unwrap();
+    let text = timeline.world.text_or_default(id);
+    let style = timeline.world.style(id);
+    let sample = |time| text.evaluate_paths_and_clip(style, time);
+    let early_clip = sample(1500).1.expect("wipe clip");
+    let full = sample(2000).0.len();
+    assert!(full > 2);
+    for time in [0, 999, 1000, 4000, 4999, 5000, 7200, 8000] {
+        assert!(sample(time).0.is_empty(), "{time}ms");
+    }
+    for time in [2000, 2999, 3000, 6000, 7199] {
+        assert_eq!(sample(time).0.len(), full, "{time}ms");
+        assert!(sample(time).1.is_none(), "{time}ms");
+    }
+    let (outgoing, clip) = sample(3500);
+    assert!(outgoing.len() < full && clip.is_none());
+    assert!((style.opacity.get(1500, 1.0) - 0.6).abs() < f32::EPSILON);
+    assert_eq!(sample(1500).1, Some(early_clip));
+}
+
 fn text_paths_at(
     timeline: &Timeline,
     label: &str,
@@ -302,10 +477,6 @@ title: Text, text: "OMEGA" [2s]
     assert!(
         text.static_paths.is_none(),
         "multiple declarations cannot reuse the last declaration's glyphs"
-    );
-    assert!(
-        text.static_split_clip.is_none(),
-        "multiple declarations cannot reuse the last declaration's split clip"
     );
     assert_eq!(text.text_content.get(9_999, String::new()), "BEFORE LONG");
     assert_eq!(text.text_content.get(10_000, String::new()), "X");

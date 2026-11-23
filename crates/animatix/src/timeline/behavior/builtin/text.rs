@@ -37,6 +37,7 @@ fn evaluate_text_kind(
         apply_code_focus(ctx, text.code_options.first_line, &mut paths);
     }
     let cursor = kind == TextKind::Text
+        && (!paths.is_empty() || text.wipe_reveal.is_none())
         && match ctx.overrides.and_then(|values| values.get("text_cursor")) {
             Some(crate::timeline::Value::Bool(enabled)) => *enabled,
             _ => ctx.property_plan.sample_bool_prop("text_cursor", ctx.time_ms, false),
@@ -451,12 +452,8 @@ pub fn evaluate_counter(
         None
     };
 
-    let reveal_clip = crate::timeline::dispatch::apply_split_text_animation(
-        &mut paths,
-        tracks,
-        ctx.time_ms,
-        None,
-    );
+    let reveal_clip =
+        crate::timeline::dispatch::apply_split_text_animation(&mut paths, tracks, ctx.time_ms);
     if paths.is_empty() {
         return Ok(None);
     }

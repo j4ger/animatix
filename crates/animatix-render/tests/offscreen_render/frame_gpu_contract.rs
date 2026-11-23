@@ -26,6 +26,140 @@ fn renderer_or_skip() -> Option<OffscreenRenderer> {
 }
 
 #[test]
+fn caption_cue_and_page_fades_follow_their_own_windows() {
+    let Some(mut renderer) = renderer_or_skip() else {
+        return;
+    };
+    let dims = SceneDimensions {
+        width: 230,
+        height: 112,
+    };
+    let timeline = common::build_checked(
+        r#"
+config { resolution: (230, 112), duration: 3, colorscheme: "editorial-dark" }
+#0s
+caps: Captions, at: (115, 56), color: white, font_size: 44, backdrop: false, caption_mode: "line",
+  max_lines: 1, caption_enter: 0.2, caption_exit: 0.2, caption_page_transition: 0.2 {
+  cue: Cue, text: r"FIRST
+NEXT", start: 0.2, end: 2.2
+}
+"#,
+    );
+    let mut peak = |time| {
+        let frame = renderer.render_timeline(&timeline, time, dims).unwrap();
+        frame.rgba.as_chunks::<4>().0.iter().map(|p| p[0]).max().unwrap()
+    };
+    for time in [0.2, 1.2, 2.2] {
+        assert!(peak(time) < 50, "{time}");
+    }
+    for time in [0.3, 1.1, 1.3, 2.1] {
+        let value = peak(time);
+        assert!((95..177).contains(&value), "{time}: {value}");
+    }
+    for time in [0.7, 1.7, 0.7] {
+        assert!(peak(time) >= 245, "{time}");
+    }
+}
+
+#[test]
+fn named_formula_terms_keep_identity_when_duplicate_glyphs_reorder() {
+    let Some(mut renderer) = renderer_or_skip() else {
+        return;
+    };
+    let dims = SceneDimensions {
+        width: 440,
+        height: 145,
+    };
+    let source = r####"
+config { resolution: (440, 145), duration: 3 }
+#0s
+eq: Equation, at: (220, 72), font_size: 56, equation_transition: 1, equation_source: r##"$ #term("first", text(fill: rgb("#ff3030"))[$x$]) + #term("second", text(fill: rgb("#30ff30"))[$x$]) $"##
+#1s
+  eq.equation_source = r##"$ #term("second", text(fill: rgb("#30ff30"))[$x$]) + #term("first", text(fill: rgb("#ff3030"))[$x$]) $"##
+"####;
+    let timeline = common::build_checked(source);
+    let mut red_center = |time| {
+        let frame = renderer.render_timeline(&timeline, time, dims).unwrap();
+        let xs: Vec<_> = frame
+            .rgba
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| p[0] > 215 && p[1] < 100)
+            .map(|(i, _)| (i % dims.width as usize) as f64)
+            .collect();
+        assert!(xs.len() > 30, "{time}");
+        xs.iter().sum::<f64>() / xs.len() as f64
+    };
+    let from = red_center(0.8);
+    let to = red_center(2.1);
+    assert!(to - from > 35.0);
+    assert!((red_center(1.25) - (0.75 * from + 0.25 * to)).abs() < 3.0);
+    assert!((red_center(1.75) - (0.25 * from + 0.75 * to)).abs() < 3.0);
+    assert_eq!(from, red_center(0.8));
+
+    let duplicate = source.replace("#term(\"second\"", "#term(\"first\"");
+    let report = animatix::timeline::Timeline::build_with_diagnostics(
+        &common::parse(&duplicate),
+        &Default::default(),
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.is_error() && d.message.contains("duplicate Equation term name"))
+    );
+}
+
+#[test]
+fn text_wipe_clips_opaque_ink_and_all_vector_exits_clear_the_actor() {
+    let Some(mut renderer) = renderer_or_skip() else {
+        return;
+    };
+    let dims = SceneDimensions {
+        width: 300,
+        height: 192,
+    };
+    let timeline = common::build_checked(
+        r#"
+config { resolution: (300, 192), colorscheme: "editorial-dark", duration: 3 }
+#0s
+incoming: Text, text: "MMMMMM", at: (150, 24), font_size: 40, text_cursor: true, opacity: 0, color: white
+wipe: Text, text: "MMMMMM", at: (150, 72), font_size: 40, text_cursor: true, color: white
+draw: Text, text: "MMMMMM", at: (150, 120), font_size: 40, text_cursor: true, color: white
+reveal: Text, text: "MMMMMM", at: (150, 168), font_size: 40, text_cursor: true, color: white
+#1s
+wipe_in(target: incoming, duration: 1s)
+wipe_out(target: wipe, duration: 1s)
+draw_out(target: draw, duration: 1s, ease: linear)
+reveal_out(target: reveal, duration: 1s, ease: linear)
+"#,
+    );
+    let bright = |frame: &RenderedFrame, xs: std::ops::Range<usize>, row: usize| {
+        (row * 48..(row + 1) * 48)
+            .flat_map(|y| xs.clone().map(move |x| pixel(frame, x, y)))
+            .filter(|rgba| rgba[0] >= 230)
+            .count()
+    };
+    let mut render = |time| renderer.render_timeline(&timeline, time, dims).unwrap();
+    let resting = render(2.5);
+    let before = render(0.8);
+    let mid = render(1.5);
+    assert!(bright(&resting, 160..300, 0) > 100);
+    assert_eq!(bright(&before, 0..300, 0), 0);
+    assert!(bright(&mid, 0..145, 0) > 100, "visible text must already be opaque");
+    assert_eq!(bright(&mid, 160..300, 0), 0, "wipe must have a moving front");
+    for row in 1..4 {
+        assert!(bright(&before, 0..300, row) > 200);
+        assert!(bright(&mid, 0..145, row) > 80);
+        assert_eq!(bright(&mid, 165..300, row), 0);
+        assert_eq!(bright(&resting, 0..300, row), 0, "exit must clear text and caret");
+    }
+    assert_eq!(render(0.8).rgba, before.rgba, "jumping backward must reconstruct the frame");
+}
+
+#[test]
 fn equation_fragment_move_and_highlight_render_on_the_authored_term() {
     let Some(mut renderer) = renderer_or_skip() else {
         return;

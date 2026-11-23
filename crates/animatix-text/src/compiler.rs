@@ -56,6 +56,8 @@ pub struct CachedGroupedText {
     pub glyphs: std::sync::Arc<[TextPath]>,
     /// One range per authored fragment, indexing into [`Self::glyphs`].
     pub ranges: std::sync::Arc<[std::ops::Range<usize>]>,
+    /// Explicit term names, index-aligned with ranges for a named formula.
+    pub names: std::sync::Arc<[String]>,
 }
 
 /// Process-wide memo table for compiled text, keyed by every input. It lives

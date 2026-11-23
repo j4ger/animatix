@@ -89,13 +89,35 @@ impl TextPath {
         self.glyph_center[1] += offset.y as f32;
     }
 
-    pub(crate) fn apply_clip(&mut self, clip: &BezPath, bounds: kurbo::Rect) {
+    /// Intersect the glyph with a local-space clip and update its visible bounds.
+    pub fn apply_clip(&mut self, clip: &BezPath, bounds: kurbo::Rect) {
         self.bounds = self.bounds.intersect(bounds);
         if self.bounds.area() <= 0.0 {
             self.opacity = 0.0;
         } else {
             self.clips.push(clip.clone());
         }
+    }
+
+    /// Compare two outlines under a mapping, allowing small layout quantization.
+    pub fn outline_matches(&self, other: &Self, transform: kurbo::Affine, tolerance: f64) -> bool {
+        use kurbo::PathEl;
+        let a = self.path.elements();
+        let b = other.path.elements();
+        let close = |a: kurbo::Point, b: kurbo::Point| ((transform * a) - b).hypot() <= tolerance;
+        a.len() == b.len()
+            && a.iter().zip(b).all(|(&a, &b)| match (a, b) {
+                (PathEl::MoveTo(a), PathEl::MoveTo(b)) | (PathEl::LineTo(a), PathEl::LineTo(b)) => {
+                    close(a, b)
+                },
+                (PathEl::QuadTo(a, c), PathEl::QuadTo(b, d)) => close(a, b) && close(c, d),
+                (PathEl::CurveTo(a, c, e), PathEl::CurveTo(b, d, f)) => {
+                    close(a, b) && close(c, d) && close(e, f)
+                },
+                (PathEl::ClosePath, PathEl::ClosePath) => true,
+                // Distinct outline commands have no point correspondence.
+                _ => false,
+            })
     }
 
     /// Create a new TextPath with basic fields and default layout indices.

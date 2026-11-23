@@ -11,6 +11,7 @@ pub let study = Colorscheme {
 }
 config { resolution: (1280, 720), duration: 7, colorscheme: "study", style: "editorial" }
 
+let motion = "subtle"
 let heading = "Approximating cosine"
 let takeaway = "A quadratic matches cosine’s curvature at zero. The fit weakens farther away."
 let formula = "$ 1 - frac(x^2, 2!) $"
@@ -29,6 +30,7 @@ let equation_width = if stacked() { content_width() } else { notes_width() }
 #0s
   backdrop: Backdrop, tint: surface.primary
   head: ChapterHeader, eyebrow: "FUNCTION APPROXIMATION", heading: heading
+  head.enter(motion: motion)
   figure: Panel, size: figure_size, inset: chart_inset,
     at: (theme.margin + figure_size[0] / 2, figure_top() + figure_size[1] / 2) {
     @content {
@@ -56,8 +58,14 @@ let equation_width = if stacked() { content_width() } else { notes_width() }
     }
   }
   conclusion: Text, text: takeaway, role: body, text_anchor: "left",
-    text_max_width: content_width(), at: (theme.margin, takeaway_y())
+    text_max_width: content_width(), at: (theme.margin, takeaway_y()),
+    opacity: (if motion == "none" { 1 } else { 0 })
+
+  soft_entrance(figure, motion: motion, delay: 110ms)
 
   always {
-    weight = ease_in_out(clamp((t - 0.9) / 3.4, 0, 1))
+    weight = if motion == "none" { 1 } else { ease_in_out(clamp((t - 0.9) / 3.4, 0, 1)) }
   }
+
+#4.45s
+  soft_entrance(conclusion, motion: motion)

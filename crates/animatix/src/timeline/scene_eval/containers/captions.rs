@@ -17,6 +17,7 @@ struct ActiveCue {
     end_s: f64,
     words: Vec<animatix_text::transcript::TranscriptWord>,
     speech_start_s: f64,
+    real_word_timings: bool,
     word_char_ranges: Vec<Option<Range<usize>>>,
     active_color: Option<[f32; 4]>,
 }
@@ -78,8 +79,6 @@ impl Timeline {
         let text_max_width =
             self.world.text_or_default(node_id).text_max_width.get(time_ms, 0.0).max(0.0);
         let max_lines = property_plan.sample_u32_prop("max_lines", time_ms, 2);
-        let transition_s =
-            (property_plan.sample_f32_prop("transition_time", time_ms, 0.0).max(0.0)) as f64;
 
         let all_cues = self.collect_caption_cues(node_id, node_label, frame);
 
@@ -116,7 +115,6 @@ impl Timeline {
                 time_ms,
                 global_transform,
                 global_opacity,
-                transition_s,
                 text_max_width,
                 max_lines,
                 property_plan,
@@ -201,6 +199,7 @@ impl Timeline {
                     end_s,
                     words,
                     speech_start_s: 0.0,
+                    real_word_timings: false,
                     word_char_ranges,
                     active_color: cue.active_color,
                 });
@@ -222,6 +221,7 @@ impl Timeline {
                     end_s,
                     words: seg.words.clone(),
                     speech_start_s: start,
+                    real_word_timings: !seg.words.is_empty(),
                     word_char_ranges: map_timed_words_to_char_ranges(
                         &seg.text, &seg.words, node_label,
                     ),
@@ -242,17 +242,12 @@ impl Timeline {
         time_ms: u64,
         global_transform: kurbo::Affine,
         global_opacity: f32,
-        transition_s: f64,
         text_max_width: f32,
         max_lines: u32,
         property_plan: &PropertyPlan,
         paint_overrides: Option<&std::collections::HashMap<String, crate::timeline::Value>>,
         out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) {
-        // `transition_time` fades a cue in from its own start. It is 0 by
-        // default, so captions snap unless an author asks for a transition.
-        let caption_opacity = global_opacity
-            * crate::primitives::captions::cue_transition_alpha(time_s, cue.start_s, transition_s);
         let text = self.world.text_or_default(node_id);
         let font_size = text.font_size.get(time_ms, crate::primitives::captions::DEFAULT_FONT_SIZE);
         let font_family = text.font_family.get(time_ms, String::new());
@@ -332,7 +327,19 @@ impl Timeline {
                 return;
             },
         };
-        let page = caption_page(&compiled.paths, cue, max_lines, time_s);
+        let (page, start, end) = caption_page(&compiled.paths, cue, max_lines, time_s);
+        let caption_opacity = global_opacity
+            * styling::transition_alpha(
+                cue,
+                time_s,
+                time_ms,
+                (start, end),
+                property_plan,
+                paint_overrides,
+            );
+        if caption_opacity <= 0.0 {
+            return;
+        }
         let on_page =
             |g: &&crate::renderer::types::TextPath| page.contains(&usize::from(g.line_idx));
         let glyphs = compiled.paths.iter().filter(on_page);
@@ -390,13 +397,19 @@ impl Timeline {
             }
 
             for g in glyphs {
-                let (color, scale) = style_for_glyph(
-                    &cue.word_char_ranges,
-                    usize::from(g.char_idx),
-                    active_word_idx,
-                    latest_started,
-                    &word_style,
-                );
+                let char_idx =
+                    g.source_range.map_or(usize::from(g.char_idx), |range| range[0] as usize);
+                let (color, scale) = if caption_mode == "karaoke_sweep" {
+                    (sweep_color(cue, char_idx, speech_time_s, &word_style), 1.0)
+                } else {
+                    style_for_glyph(
+                        &cue.word_char_ranges,
+                        char_idx,
+                        active_word_idx,
+                        latest_started,
+                        &word_style,
+                    )
+                };
 
                 let alpha = color[3] * caption_opacity * g.opacity;
                 if alpha <= 0.0 {
@@ -426,24 +439,25 @@ fn caption_page(
     cue: &ActiveCue,
     max_lines: u32,
     time_s: f64,
-) -> Range<usize> {
+) -> (Range<usize>, f64, f64) {
     if max_lines == 0 {
-        return 0..usize::MAX;
+        return (0..usize::MAX, cue.start_s, cue.end_s);
     }
     let page_size = max_lines as usize;
     let line_count = paths.iter().map(|g| usize::from(g.line_idx) + 1).max().unwrap_or(0);
     let page_count = line_count.div_ceil(page_size).max(1);
     if page_count == 1 {
-        return 0..page_size;
+        return (0..page_size, cue.start_s, cue.end_s);
     }
     let mut first_chars = vec![None; page_count];
     for path in paths {
         let page = usize::from(path.line_idx) / page_size;
-        let index = usize::from(path.char_idx);
+        let index = path.source_range.map_or(usize::from(path.char_idx), |range| range[0] as usize);
         first_chars[page] = Some(first_chars[page].map_or(index, |first: usize| first.min(index)));
     }
     let mut page = 0;
     let mut previous_start = cue.start_s;
+    let mut end = cue.end_s;
     for (index, first_char) in first_chars.into_iter().enumerate().skip(1) {
         let spoken_start = first_char.and_then(|first| {
             let word_idx = word_index_for_char(&cue.word_char_ranges, first)?;
@@ -455,12 +469,41 @@ fn caption_page(
         let even_start = cue.start_s + (cue.end_s - cue.start_s) * index as f64 / page_count as f64;
         let start = spoken_start.unwrap_or(even_start).clamp(previous_start, cue.end_s);
         if start > time_s {
+            end = start;
             break;
         }
         previous_start = start;
         page = index;
     }
-    page * page_size..(page + 1) * page_size
+    (page * page_size..(page + 1) * page_size, previous_start, end)
+}
+
+fn sweep_color(
+    cue: &ActiveCue,
+    char_idx: usize,
+    time: f64,
+    style: &CaptionWordStyle<'_>,
+) -> [f32; 4] {
+    if !cue.real_word_timings {
+        return style.base_color;
+    }
+    let Some(word_idx) = word_index_for_char(&cue.word_char_ranges, char_idx) else {
+        return style.base_color;
+    };
+    let word = &cue.words[word_idx];
+    let range = cue.word_char_ranges[word_idx].as_ref().expect("matched word range");
+    let duration = word.end_s - word.start_s;
+    let progress = if duration > 0.0 {
+        (((time - word.start_s) / duration) * range.len() as f64 - (char_idx - range.start) as f64)
+            .clamp(0.0, 1.0) as f32
+    } else if time >= word.start_s {
+        1.0
+    } else {
+        0.0
+    };
+    std::array::from_fn(|i| {
+        style.inactive_color[i] + (style.active_color[i] - style.inactive_color[i]) * progress
+    })
 }
 
 /// Fill the rounded backdrop behind one caption cue's text bounds.
@@ -514,5 +557,41 @@ fn caption_glyph_style(
                 (inactive_color, 1.0f32)
             }
         },
+    }
+}
+
+#[cfg(test)]
+mod sweep_tests {
+    use super::*;
+
+    #[test]
+    fn sweep_uses_recorded_word_intervals_and_falls_back_to_cue_color() {
+        let mut cue = ActiveCue {
+            text: "Hi".into(),
+            start_s: 1.0,
+            end_s: 3.0,
+            speech_start_s: 0.0,
+            real_word_timings: true,
+            words: vec![animatix_text::transcript::TranscriptWord {
+                word: "Hi".into(),
+                start_s: 1.2,
+                end_s: 2.2,
+                confidence: 1.0,
+            }],
+            word_char_ranges: vec![Some(0..2)],
+            active_color: None,
+        };
+        let style = CaptionWordStyle {
+            caption_mode: "karaoke_sweep",
+            active_color: [1.0, 0.0, 0.0, 1.0],
+            inactive_color: [0.0, 0.0, 0.0, 1.0],
+            base_color: [0.0, 1.0, 0.0, 1.0],
+            pop_scale: 1.0,
+        };
+        assert_eq!(sweep_color(&cue, 0, 1.45, &style)[0], 0.5);
+        assert_eq!(sweep_color(&cue, 1, 1.45, &style)[0], 0.0);
+        assert_eq!(sweep_color(&cue, 1, 2.2, &style), style.active_color);
+        cue.real_word_timings = false;
+        assert_eq!(sweep_color(&cue, 0, 1.45, &style), style.base_color);
     }
 }

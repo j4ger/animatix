@@ -305,8 +305,16 @@ fn route_tagged_entry(
         {
             buckets.captions.push(entry)
         },
-        "caption_mode" | "active_color" | "inactive_color" | "pop_scale" | "max_lines"
-        | "transition_time" | "transcript" => buckets.captions.push(entry),
+        "caption_mode"
+        | "active_color"
+        | "inactive_color"
+        | "pop_scale"
+        | "max_lines"
+        | "transition_time"
+        | "transcript"
+        | "caption_enter"
+        | "caption_exit"
+        | "caption_page_transition" => buckets.captions.push(entry),
         s if s.starts_with("legend_") => buckets.legend.push(entry),
         _ => buckets.style.push(entry),
     }

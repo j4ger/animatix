@@ -118,7 +118,8 @@ fn collapse_text_tracks(tracks: &mut TextTracks, time_ms: u64) {
     collapse_optional_track(&mut tracks.text_align, time_ms);
     collapse_optional_track(&mut tracks.text_anchor, time_ms);
     collapse_optional_track(&mut tracks.overflow, time_ms);
-    // text_paths is preserved unchanged per spec
+    // Preserve text_paths and the associated reveal tracks (char_progress,
+    // wipe_reveal, wipe_direction, and split settings) on the same time axis.
     collapse_optional_track(&mut tracks.ascent, time_ms);
     collapse_optional_track(&mut tracks.descent, time_ms);
     collapse_optional_track(&mut tracks.baseline, time_ms);

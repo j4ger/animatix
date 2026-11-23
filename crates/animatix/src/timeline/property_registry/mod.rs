@@ -240,6 +240,8 @@ static BINDINGS: &[PropertyBinding] = &[
         val!(vec4 0.0, 0.0, 0.0, 0.0)
     ),
     b!("camera_follow", V::BuildTimeOnly, F::empty(), NoStorage, val!(bool true)),
+    b!("caption_enter", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
+    b!("caption_exit", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
     b!("caption_mode", V::String, F::ASSIGNABLE_AI, Tagged, val!(str "block")),
     b!(
         "caption_outline",
@@ -249,6 +251,7 @@ static BINDINGS: &[PropertyBinding] = &[
         val!(color 0.0, 0.0, 0.0, 1.0)
     ),
     b!("caption_outline_width", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
+    b!("caption_page_transition", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
     b!("caption_pause", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
     b!("caption_shadow", V::Vec2, F::ASSIGNABLE_AI, Tagged, |_| PropertyValue::Vec2(
         [0.0; 2]
@@ -304,6 +307,13 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("diff_from", V::String, F::empty(), Tagged, val!(str "")),
     b!("direction", V::String, F::empty(), NoStorage, val!(str "vertical")),
     b!("end", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
+    b!(
+        "equation_source",
+        V::String,
+        F::ASSIGNABLE_AI.union(F::NO_FRAME_OVERRIDE),
+        Tagged,
+        val!(str "")
+    ),
     b!("equation_transition", V::F32, F::ASSIGNABLE, Tagged, val!(f32 0.0)),
     b!("fill_gradient", V::Gradient, F::ASSIGNABLE_A, FillGradient, val!(gradient)),
     b!("fill_opacity", V::F32, F::ASSIGNABLE_AI, FillOpacity, val!(f32 1.0)),
@@ -560,6 +570,13 @@ static BINDINGS: &[PropertyBinding] = &[
         val!(color 0.0, 0.0, 0.0, 0.25)
     ),
     b!("shared_id", V::String, F::ASSIGNABLE, Tagged, val!(str "")),
+    b!(
+        "shared_text_transition",
+        V::String,
+        F::ASSIGNABLE_AI.union(F::NO_FRAME_OVERRIDE),
+        Tagged,
+        val!(str "")
+    ),
     b!("shift", V::Vec2, F::SPATIAL_AI, MotionOffset, val!(vec2 0.0, 0.0)),
     b!("show_axis", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "true")),
     b!("show_labels", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "true")),

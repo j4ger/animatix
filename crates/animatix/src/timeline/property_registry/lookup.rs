@@ -328,6 +328,9 @@ mod tests {
     fn frame_consumed_properties_are_flagged_animated() {
         const FRAME_READ: &[&str] = &[
             "text",
+            "caption_enter",
+            "caption_exit",
+            "caption_page_transition",
             "code",
             "font_family",
             "font_size",

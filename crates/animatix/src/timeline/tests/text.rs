@@ -53,10 +53,11 @@ draw_in(target: title, duration: 1s, by: word, offset_y: 30, mask: baseline, sta
     assert_eq!(text.char_progress.get(1000, 1.0), 0.0);
     assert_eq!(text.char_progress.get(2000, 1.0), 1.0);
 
-    // At t=1500 (midpoint of reveal, progress=0.5):
+    // At t=1500, the masking action emits line-local glyph clips.
     let (paths_mid, clip_mid) = text.evaluate_paths_and_clip(style, 1500);
     assert!(!paths_mid.is_empty(), "Glyphs should be present");
-    assert!(clip_mid.is_some(), "Baseline mask should generate clip path at midpoint");
+    assert!(clip_mid.is_none());
+    assert!(paths_mid.iter().any(|p| !p.clips.is_empty()));
 
     // Word 0 should have progressed further than word 2
     let word0_y = paths_mid
@@ -80,6 +81,7 @@ draw_in(target: title, duration: 1s, by: word, offset_y: 30, mask: baseline, sta
     assert!(clip_end.is_none(), "Baseline mask should be None once reveal is complete");
     for p in &paths_end {
         assert_eq!(p.opacity, 1.0, "All glyphs should be at full opacity at end");
+        assert!(p.clips.is_empty());
     }
 }
 
@@ -103,7 +105,8 @@ reveal_in(target: sub, duration: 500ms, by: line, offset_y: 15, mask: baseline)
 
     let (paths_mid, clip_mid) = text.evaluate_paths_and_clip(style, 750);
     assert!(!paths_mid.is_empty());
-    assert!(clip_mid.is_some());
+    assert!(clip_mid.is_none());
+    assert!(paths_mid.iter().any(|p| !p.clips.is_empty()));
 }
 
 #[test]
@@ -355,7 +358,11 @@ draw_in(target: title, duration: 1s, by: word, offset_y: 30, mask: baseline, sta
 
     let (paths_mid, clip_mid) = text.evaluate_paths_and_clip(style, 1500);
     assert!(!paths_mid.is_empty(), "CJK glyphs should be generated");
-    assert!(clip_mid.is_some(), "Mask should be generated for CJK");
+    assert!(clip_mid.is_none());
+    assert!(
+        paths_mid.iter().any(|p| !p.clips.is_empty()),
+        "Mask should be generated for CJK"
+    );
 
     // Word indices should span across CJK words
     let distinct_words: std::collections::HashSet<u16> =

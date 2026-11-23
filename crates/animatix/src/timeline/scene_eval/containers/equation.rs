@@ -2,6 +2,7 @@ use crate::renderer::types::TextPath;
 use crate::timeline::{DEFAULT_WHITE, EntityId, Timeline, TrackAccessor};
 
 mod animate;
+mod source;
 
 /// A Fragment child's content and highlight state, collected for one Equation.
 struct FragInfo {
@@ -39,6 +40,9 @@ impl Timeline {
                     times.extend(track.keyframes().keys().copied());
                 }
             }
+            if let Some(key) = crate::timeline::property_id("equation_source") {
+                times.extend(self.world.property_plan(id).keyframe_times(key));
+            }
             for time_ms in times {
                 let frame = crate::primitives::RenderFrame {
                     time_ms,
@@ -48,9 +52,25 @@ impl Timeline {
                     frame_env: None,
                 };
                 let frags = self.collect_equation_fragments(id, &frame);
-                if !frags.is_empty()
-                    && let Err(error) = self.compile_equation(id, time_ms, &frags)
-                {
+                let result = if self.has_equation_source(id) {
+                    if frags.is_empty() {
+                        self.compile_source_equation(
+                            id,
+                            time_ms,
+                            &self.equation_source(id, time_ms),
+                        )
+                        .map(|_| ())
+                    } else {
+                        Err(crate::renderer::error::RenderError::TextCompilation(
+                            "equation_source and Fragment children cannot be used on the same Equation".into()
+                        ))
+                    }
+                } else if !frags.is_empty() {
+                    self.compile_equation(id, time_ms, &frags).map(|_| ())
+                } else {
+                    Ok(())
+                };
+                if let Err(error) = result {
                     diagnostics.push(
                         Diagnostic::error(
                             DiagnosticCode::InvalidPropertyValue,
@@ -97,7 +117,15 @@ impl Timeline {
         };
         // Collect Fragment children with their content and highlight state.
         let frags = self.collect_equation_fragments(node_id, frame);
-        if !self.render_equation_transition(
+        if self.has_equation_source(node_id) {
+            self.render_source_equation(
+                node_id,
+                time_ms,
+                global_transform,
+                global_opacity,
+                out.scene,
+            );
+        } else if !self.render_equation_transition(
             node_id,
             &frags,
             global_transform,
@@ -249,6 +277,16 @@ impl Timeline {
             .join(" ");
         let typst_body = format!("$ {fragments} $");
 
+        self.compile_equation_markup(node_id, time_ms, &typst_body)
+    }
+
+    fn compile_equation_markup(
+        &self,
+        node_id: EntityId,
+        time_ms: u64,
+        typst_body: &str,
+    ) -> Result<std::sync::Arc<animatix_text::CachedGroupedText>, crate::renderer::error::RenderError>
+    {
         // Use equation-level font_size and color from the Equation track.
         let text = self.world.text_or_default(node_id);
         let font_size = text.font_size.get(time_ms, 48.0);
@@ -265,7 +303,7 @@ impl Timeline {
         // scrubbing an equation-heavy out.scene reuses one compilation
         // instead of re-running Typst every frame.
         crate::renderer::text::compile_typst_grouped_cached(
-            &typst_body,
+            typst_body,
             font_size,
             eq_color,
             &font_family,

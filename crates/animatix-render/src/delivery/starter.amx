@@ -2,6 +2,7 @@ import "./layout.amx"
 
 config { duration: 30, resolution: (640, 360), colorscheme: "editorial-dark", style: "editorial" }
 
+let motion = "subtle"
 let heading = "Tell it in time"
 let summary = "Put narration, captions, and motion on one timeline."
 let width = content_width()
@@ -17,6 +18,7 @@ voice: Audio, source: "narration.mp3", transcript: "narration.speech.json"
 #0s
   backdrop: Backdrop
   head: ChapterHeader, eyebrow: "NARRATED EXPLAINER", heading: heading
+  head.enter(motion: motion)
   statement: Text, text: summary, role: body, text_anchor: "left",
     text_max_width: width, at: (theme.margin, scene_height * 0.40)
   cards: Row, at: (scene_width / 2, track_y), size: (width, tile_height), gap: gap, align: "center" {
@@ -28,14 +30,16 @@ voice: Audio, source: "narration.mp3", transcript: "narration.speech.json"
   }
   rail: Rect, size: (width, 2 * unit()), at: (scene_width / 2, rail_y), color: stroke.default
   marker: Ellipse, size: (10 * unit(), 10 * unit()), color: accent.primary,
-    at: (theme.margin, rail_y)
+    at: (if motion == "none" { scene_width - theme.margin } else { theme.margin }, rail_y)
   subtitles: Captions, at: (scene_width / 2, scene_height - theme.margin - 48 * unit()),
     transcript: "narration.speech.json", font_size: 36 * unit(), text_max_width: width - 2 * theme.inset,
+    caption_enter: (if motion == "none" { 0 } else { 0.08 }),
+    caption_exit: (if motion == "none" { 0 } else { 0.08 }),
     active_color: accent.primary, inactive_color: text.primary, backdrop_color: surface.secondary,
     backdrop_radius: theme.radius, backdrop_padding: (theme.inset, theme.inset * 0.50)
 
 #voice@feature
-  marker.at = (scene_width / 2, rail_y) [500ms]
+  if motion != "none" { marker.at = (scene_width / 2, rail_y) [500ms] }
 
 #voice@captions
-  marker.at = (scene_width - theme.margin, rail_y) [500ms]
+  if motion != "none" { marker.at = (scene_width - theme.margin, rail_y) [500ms] }

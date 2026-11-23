@@ -367,6 +367,11 @@ declare_property_descriptors! {
     "text_cursor" => (Applicable::Actors(&["Text"]), Bool),
     "diff_from" => (Applicable::Actors(&["Code"]), String),
     "diff_file" => (Applicable::Actors(&["Code"]), String),
+    "caption_enter" => (Applicable::Actors(&["Captions"]), F32),
+    "caption_exit" => (Applicable::Actors(&["Captions"]), F32),
+    "caption_page_transition" => (Applicable::Actors(&["Captions"]), F32),
+    "shared_text_transition" => (Applicable::Actors(&["Text"]), String),
+    "equation_source" => (Applicable::Actors(&["Equation"]), String),
 }
 
 /// The descriptor for `name`, when it is a built-in property.

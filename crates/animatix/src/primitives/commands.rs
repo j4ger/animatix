@@ -37,7 +37,7 @@ pub enum RenderCommand {
         paths: std::sync::Arc<[TextPath]>,
         /// Optional paint that ramps across the text fill.
         fill_gradient: Option<Box<crate::renderer::types::GradientSpec>>,
-        /// Optional clip bounds (e.g. for split-text baseline reveal).
+        /// Optional clip bounds (e.g. for a horizontal text wipe).
         clip_path: Option<kurbo::BezPath>,
         /// Optional uniform tint color override (for Text and Counter primitives).
         tint_color: Option<[u8; 4]>,
@@ -230,12 +230,19 @@ impl RenderCommand {
                 }
             },
             RenderCommand::RoundedSurface { rect, .. } => return Some(*rect),
-            RenderCommand::Text { paths, .. } => {
+            RenderCommand::Text {
+                paths, clip_path, ..
+            } => {
                 for text_path in paths.iter() {
                     if text_path.bounds.area() == 0.0 {
                         continue;
                     }
                     bounds = union(bounds, text_path.bounds);
+                }
+                if let Some(clip) = clip_path {
+                    let clip_bounds = clip.bounding_box();
+                    bounds =
+                        bounds.map(|ink| ink.intersect(clip_bounds)).filter(|ink| ink.area() > 0.0);
                 }
             },
             RenderCommand::Image { .. } => {

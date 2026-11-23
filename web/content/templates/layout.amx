@@ -39,13 +39,34 @@ pub component FocusWash(tint: Color = accent.primary, strength: Num = 0.08, reac
     })
 }
 
-pub component ChapterHeader(eyebrow: Str, heading: Str) {
+fn heading_y() -> Num { (if tall() { 106 } else { 96 }) * unit() }
+
+pub fn soft_entrance(target: Actor, motion: Str = "subtle", delay: Duration = 0ms) {
+  return #{
+    if motion != "none" {
+      target.opacity = 0
+      fade_in(target: target, duration: 200ms, delay: delay, ease: ease_out)
+    }
+  }
+}
+
+pub component ChapterHeader(eyebrow: Str, heading: Str, title_id: Str = "") {
+  pub fn enter(motion: Str = "subtle") {
+    return #{
+      if motion != "none" {
+        soft_entrance(self.category)
+        self.heading_ink.at = (0, heading_y() + 6 * unit())
+        self.heading_ink.at = (0, heading_y()) [220ms, delay: 60ms, ease: ease_out]
+        soft_entrance(self.heading_ink, delay: 60ms)
+      }
+    }
+  }
   header: Group, at: (theme.margin, theme.margin) {
     category: Text, text: eyebrow, role: roles::eyebrow, text_anchor: "left", at: (0, 14 * unit())
     heading_ink: Text, text: heading, role: roles::title, text_anchor: "left",
       text_max_width: content_width(), fit_min_size: 32 * unit(), fit_max_lines: 2,
       fit_max_height: (if tall() { 144 } else { 132 }) * unit(),
-      at: (0, (if tall() { 106 } else { 96 }) * unit())
+      at: (0, heading_y()), shared_id: title_id
   }
 }
 
@@ -86,6 +107,9 @@ pub component MetricCard(label: Str, value: Str, detail: Str, width: Num, height
 }
 
 pub component SceneCaption(text: Str, level: Str = roles::body, plate: Bool = false) {
+  pub fn enter(motion: Str = "subtle") {
+    return #{ soft_entrance(self.caption, motion: motion) }
+  }
   caption: Text, text: text, role: level, at: (scene_width / 2, takeaway_y()),
     text_max_width: content_width() - (if plate { 2 * theme.inset } else { 0 }), text_align: "center",
     fit_min_size: 20 * unit(), fit_max_lines: 2,
@@ -117,6 +141,21 @@ pub component SignalKey(label: Str, ink: Color) {
 // components above directly or keep their own scene-specific layout.
 
 pub component ExplainerLayout(eyebrow: Str, heading: Str, takeaway: Str, with_notes: Bool = true) {
+  pub fn enter(motion: Str = "subtle", defer_takeaway: Bool = false) {
+    return #{
+      if motion != "none" && defer_takeaway {
+        self.conclusion.opacity = 0
+      }
+      self.head.enter(motion: motion)
+      soft_entrance(self.figure_plate, motion: motion, delay: 110ms)
+      soft_entrance(self.figure, motion: motion, delay: 110ms)
+      soft_entrance(self.notes, motion: motion, delay: 140ms)
+    }
+  }
+
+  pub fn reveal_takeaway(motion: Str = "subtle") {
+    return #{ soft_entrance(self.conclusion, motion: motion) }
+  }
   page: Group, at: (0, 0) {
     head: ChapterHeader, eyebrow: eyebrow, heading: heading
     figure_plate: Rect, size: (figure_width(with_notes), figure_height(with_notes)),

@@ -164,7 +164,8 @@ pub(super) fn convert_for_display(value: PropertyValue, name: &str) -> PropertyV
 
 pub(super) fn value_to_kind(value: PropertyValue, ty: ValueType, name: &str) -> PropertyKind {
     if name == "caption_mode" {
-        static CAPTION_MODES: &[&str] = &["word", "karaoke", "pop", "line", "block"];
+        static CAPTION_MODES: &[&str] =
+            &["word", "karaoke", "karaoke_sweep", "pop", "line", "block"];
         let current_val = match &value {
             PropertyValue::String(s) | PropertyValue::Enum(s) => s.clone(),
             other => format!("{other:?}"),

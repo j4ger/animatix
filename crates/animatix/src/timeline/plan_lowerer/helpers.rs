@@ -225,7 +225,7 @@ pub(super) fn builtin_invocation(
                     return None;
                 }
             },
-            "order" => {
+            "order" if call.name == "reorder" => {
                 let Value::List(items) = value else {
                     diagnostics.push(plan_timing_error("'order' expects a list of actors", span));
                     return None;

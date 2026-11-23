@@ -1,7 +1,10 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
 
+mod shared_text;
+
 use animatix::easing::Easing;
+use animatix::primitives::RenderCommand;
 use animatix::timeline::scene_program::SceneItem;
 use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
@@ -436,7 +439,12 @@ impl SharedActorPlan {
 }
 
 /// One matched outgoing/incoming item pair drawn in the floating FLIP overlay.
-pub type FlipItem = (SceneItem, SceneItem);
+pub struct FlipItem {
+    from: SceneItem,
+    to: SceneItem,
+    text_geometry: Option<(f64, kurbo::Vec2)>,
+    fade_through: bool,
+}
 
 /// Match actors carrying the same non-empty `shared_id` at the two local
 /// transition times.
@@ -502,15 +510,23 @@ pub fn collect_flip_pairs(
         let from_item = from_program.items.iter().find(|item| item.label == *from_label).cloned();
         let to_item = to_program.items.iter().find(|item| item.label == *to_label).cloned();
         if let (Some(from_item), Some(to_item)) = (from_item, to_item) {
-            items.push((from_item, to_item));
+            let text_geometry = shared_text::text_geometry(&from_item, &to_item);
+            let fade_through = text_geometry.is_none()
+                && to_timeline.shared_text_fade_through(to_label, (to_time_s * 1000.0) as u64);
+            items.push(FlipItem {
+                from: from_item,
+                to: to_item,
+                text_geometry,
+                fade_through,
+            });
         }
     }
     items
 }
 
 /// Encode the floating FLIP overlay scene: each pair's transform is linearly
-/// interpolated with the eased progress, and the from/to commands fade out/in
-/// over it.
+/// interpolated with the eased progress. Shared text paints once using the
+/// matching endpoint's commands and the interpolated actor opacity.
 pub fn encode_flip_overlay(
     pairs: &[FlipItem],
     progress: f32,
@@ -519,7 +535,13 @@ pub fn encode_flip_overlay(
     let mut overlay = animatix::scene::Scene::new();
     let p_eased = animatix::easing::apply_easing(progress, easing);
     let p = p_eased as f64;
-    for (from_item, to_item) in pairs {
+    for FlipItem {
+        from: from_item,
+        to: to_item,
+        text_geometry,
+        fade_through,
+    } in pairs
+    {
         let from_coeffs = from_item.transform.as_coeffs();
         let to_coeffs = to_item.transform.as_coeffs();
         let mut coeffs = [0.0; 6];
@@ -530,6 +552,29 @@ pub fn encode_flip_overlay(
 
         let alpha_from = (1.0 - p_eased) * from_item.opacity;
         let alpha_to = p_eased * to_item.opacity;
+        if has_text(from_item) && has_text(to_item) {
+            // Compositing the same glyph twice at partial opacity dims it.
+            // For different glyphs, a single handoff keeps the title legible
+            // while the shared transform continues to move.
+            let incoming = progress >= 0.5;
+            let item = if incoming { to_item } else { from_item };
+            let transform = text_geometry.map_or(transform, |(scale, offset)| {
+                transform
+                    * shared_text::interpolate_local(scale, offset, p.clamp(0.0, 1.0), incoming)
+            });
+            let handoff = if *fade_through {
+                ((progress - 0.5).abs() / 0.15).min(1.0)
+            } else {
+                1.0
+            };
+            let alpha = (alpha_from + alpha_to).clamp(0.0, 1.0) * handoff;
+            if alpha > 0.001 {
+                for command in &item.commands {
+                    command.execute(&mut overlay, &transform, alpha);
+                }
+            }
+            continue;
+        }
         if alpha_from > 0.001 {
             for command in &from_item.commands {
                 command.execute(&mut overlay, &transform, alpha_from);
@@ -542,6 +587,12 @@ pub fn encode_flip_overlay(
         }
     }
     overlay
+}
+
+fn has_text(item: &SceneItem) -> bool {
+    item.commands
+        .iter()
+        .any(|command| matches!(command, RenderCommand::Text { .. }))
 }
 
 #[cfg(test)]
@@ -655,9 +706,9 @@ card_large: Rect, at: (400, 300), size: (150, 150), color: (1, 0, 0, 1), shared_
         let pairs =
             collect_flip_pairs(&plan, &from, 0.0, &to, 0.0, dims(), DebugRenderOptions::default());
         assert_eq!(pairs.len(), 1);
-        assert_eq!(pairs[0].0.label, "card");
-        assert_eq!(pairs[0].1.label, "card_large");
-        assert_ne!(pairs[0].0.transform, pairs[0].1.transform);
+        assert_eq!(pairs[0].from.label, "card");
+        assert_eq!(pairs[0].to.label, "card_large");
+        assert_ne!(pairs[0].from.transform, pairs[0].to.transform);
 
         let overlay = encode_flip_overlay(&pairs, 0.5, Easing::Linear);
         assert!(!overlay.draws().is_empty(), "mid-transition overlay must draw");

@@ -716,6 +716,105 @@ fn transition_flip_suppresses_shared_actors_and_repaints_at_midpoint() {
     );
 }
 
+#[test]
+fn transition_flip_preserves_text_brightness_and_hands_off_one_title_at_a_time() {
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let dims = SceneDimensions {
+        width: 340,
+        height: 150,
+    };
+    let scene = |x: u32, content: &str, size: u32, color: &str| {
+        build_checked(&format!(
+            r#"
+config {{ colorscheme: "editorial-dark", resolution: (340, 150) }}
+#0s
+stable: Text, text: "STABLE", at: ({x}, 42), font_size: 42, color: white, shared_id: "stable"
+changed: Text, text: "{content}", at: ({x}, 109), font_size: {size}, color: {color}, shared_id: "changed"
+"#,
+        ))
+    };
+    let from = scene(95, "OLD", 38, "red");
+    let to = scene(245, "READY", 47, "green");
+    for (progress, incoming) in [(0.0, false), (0.49, false), (0.5, true), (1.0, true)] {
+        let frame = transition(&mut renderer, &from, &to, progress, dims);
+        let (top, bottom) = frame.rgba.as_chunks::<4>().0.split_at(75 * dims.width as usize);
+        let peak = top.iter().map(|pixel| pixel[0].min(pixel[1]).min(pixel[2])).max().unwrap();
+        let white: Vec<_> = top
+            .iter()
+            .enumerate()
+            .filter(|(_, pixel)| pixel[0] >= 220 && pixel[1] >= 220 && pixel[2] >= 220)
+            .map(|(i, _)| (i % dims.width as usize) as f32)
+            .collect();
+        assert!(
+            peak >= 240 && white.len() > 80,
+            "white ink at {progress} peaked at {peak} with {} bright pixels",
+            white.len()
+        );
+        let center = white.iter().sum::<f32>() / white.len() as f32;
+        assert!((center - (95.0 + progress * 150.0)).abs() < 12.0, "{center} at {progress}");
+        let red = bottom.iter().filter(|p| p[0] > 100 && p[1] < 90).count();
+        let green = bottom.iter().filter(|p| p[1] > 100 && p[0] < 90).count();
+        if incoming {
+            assert!(green > 100 && red == 0, "incoming title at {progress}: {red}, {green}");
+        } else {
+            assert!(red > 100 && green == 0, "outgoing title at {progress}: {red}, {green}");
+        }
+    }
+}
+
+#[test]
+fn shared_title_interpolates_font_size_and_anchor_and_can_fade_through_a_text_change() {
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let dims = SceneDimensions {
+        width: 420,
+        height: 128,
+    };
+    let build_title = |text: &str, size: u32, x: u32, anchor: &str| {
+        build_checked(&format!(
+            r#"
+config {{ resolution: (420, 128), colorscheme: "editorial-dark" }}
+#0s
+title: Text, text: "{text}", font_size: {size}, at: ({x}, 64), text_anchor: "{anchor}", color: white,
+  shared_id: "hero", shared_text_transition: "fade_through"
+"#,
+        ))
+    };
+    let from = build_title("Title", 30, 100, "left");
+    let to = build_title("Title", 72, 320, "right");
+    let span = |frame: &RenderedFrame| {
+        let xs: Vec<_> = frame
+            .rgba
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| p[0] > 214)
+            .map(|(i, _)| i % dims.width as usize)
+            .collect();
+        (*xs.iter().min().unwrap(), *xs.iter().max().unwrap())
+    };
+    let mut widths = Vec::new();
+    for p in [0.0, 0.25, 0.49, 0.5, 0.51, 0.75, 1.0] {
+        let (left, right) = span(&transition(&mut renderer, &from, &to, p, dims));
+        widths.push(right - left);
+        if p == 0.5 {
+            assert!(left > 130 && right < 305, "midpoint title {left}..{right}");
+        }
+    }
+    assert!(widths.windows(2).all(|pair| pair[0] <= pair[1]), "{widths:?}");
+    assert!(widths[4] - widths[2] <= 8, "no midpoint scale jump: {widths:?}");
+    assert!(widths[3] >= widths[0] + 16 && widths[3] + 16 <= widths[6], "{widths:?}");
+
+    let different = build_title("Next", 72, 320, "right");
+    let frame = transition(&mut renderer, &from, &different, 0.5, dims);
+    assert!(frame.rgba.as_chunks::<4>().0.iter().all(|pixel| pixel[0] < 120));
+    assert!(span(&transition(&mut renderer, &from, &different, 0.75, dims)).1 > 200);
+}
+
 /// Transition frames at progress 0 must evaluate with GPU filter scopes active
 /// to match the single-scene render of the outgoing scene.
 #[test]

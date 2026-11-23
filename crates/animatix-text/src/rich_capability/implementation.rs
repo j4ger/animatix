@@ -2,7 +2,7 @@
 
 use crate::typst_world::{
     compile_code, compile_typst, compile_typst_with_sources, extract_glyphs_grouped,
-    extract_glyphs_with_metrics,
+    extract_glyphs_with_metrics, extract_grouped_with_names,
 };
 use crate::{CachedGroupedText, CompiledText, FontContext, TextCompileRequest, TextKind};
 use animatix_core::error::RenderError;
@@ -244,9 +244,10 @@ pub(super) fn grouped(
         "visible",
     )?;
     validate_frame(&frame)?;
-    let (glyphs, ranges) = extract_glyphs_grouped(&frame)?;
+    let (glyphs, ranges, names) = extract_grouped_with_names(&frame)?;
     Ok(CachedGroupedText {
         glyphs: glyphs.into(),
         ranges: ranges.into(),
+        names: names.into(),
     })
 }

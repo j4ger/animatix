@@ -1,7 +1,9 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::easing::Easing;
+use kurbo::{BezPath, Rect, Shape};
+
+use crate::easing::{Easing, apply_easing};
 use crate::renderer::types::TextPath;
 use crate::timeline::morph;
 use crate::timeline::property_track::{PropertyTrack, TrackAccessor};
@@ -75,6 +77,18 @@ pub struct TextTracks {
     pub morph_alignment: morph::AlignmentCache,
     /// Character reveal progress (0-1) for typewriter effect.
     pub char_progress: Option<PropertyTrack<f32>>,
+    /// Geometry used by the latest named text reveal action.
+    #[doc(hidden)]
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub wipe_reveal: Option<PropertyTrack<bool>>,
+    /// Fixed edge of the active wipe rectangle.
+    #[doc(hidden)]
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub wipe_direction: Option<PropertyTrack<String>>,
+    /// Reverse visibility order of the active glyph groups.
+    #[doc(hidden)]
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub split_reverse: Option<PropertyTrack<bool>>,
     /// Font ascent in scene units (points), used for baseline alignment.
     pub ascent: Option<PropertyTrack<f32>>,
     /// Font descent in scene units (points), used for baseline alignment.
@@ -99,9 +113,6 @@ pub struct TextTracks {
     /// Precomputed hardware glyph layout for direct Vello draw_glyphs hardware execution.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub hardware_layout: Option<std::sync::Arc<animatix_text::HardwareTextLayout>>,
-    /// Precomputed resting baseline clip path for split-text masking.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    pub static_split_clip: Option<kurbo::BezPath>,
 }
 
 impl TextTracks {
@@ -118,8 +129,8 @@ impl TextTracks {
         self.baseline.ensure(0.0).add_keyframe(time_ms, baseline, Easing::Linear);
     }
 
-    /// Evaluate text paths and optional baseline clip path at `time_ms`,
-    /// applying morphing, char_progress typewriter truncation, and split-text baseline reveal.
+    /// Evaluate text paths and optional wipe clip at `time_ms`, after morphing
+    /// and glyph reveal have been sampled.
     pub fn evaluate_paths_and_clip(
         &self,
         style: &StyleTracks,
@@ -150,8 +161,7 @@ impl TextTracks {
             )
         });
 
-        let clip =
-            apply_split_text_animation(&mut paths, self, time_ms, self.static_split_clip.as_ref());
+        let clip = apply_split_text_animation(&mut paths, self, time_ms);
         (paths, clip)
     }
 
@@ -186,6 +196,9 @@ impl TextTracks {
             language,
             text_paths,
             char_progress,
+            wipe_reveal,
+            wipe_direction,
+            split_reverse,
             ascent,
             descent,
             baseline,
@@ -219,6 +232,9 @@ impl TextTracks {
             language,
             text_paths,
             char_progress,
+            wipe_reveal,
+            wipe_direction,
+            split_reverse,
             ascent,
             descent,
             baseline,
@@ -230,140 +246,184 @@ impl TextTracks {
     }
 }
 
-/// Applies split-text baseline reveal and typewriter animation to a collection of text paths.
-/// Returns an optional baseline clip path if `split_mask` is active.
+/// Apply glyph-group reveals and return the optional horizontal wipe clip.
 pub fn apply_split_text_animation(
     paths: &mut Vec<TextPath>,
     text: &TextTracks,
     time_ms: u64,
-    cached_clip: Option<&kurbo::BezPath>,
-) -> Option<kurbo::BezPath> {
-    let cp_track = text.char_progress.as_ref()?;
-    let progress = cp_track.evaluate(time_ms).clamp(0.0, 1.0);
-    if progress >= 1.0 {
-        return None;
-    }
-
-    let split_by = text
-        .split_by
-        .as_ref()
-        .map(|t| t.evaluate(time_ms))
-        .unwrap_or_else(|| "char".to_string());
-    let split_stagger = text.split_stagger.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0);
-    let split_offset_y = text.split_offset_y.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0);
-    let split_mask = text.split_mask.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(false);
-
-    // Case A: Standard typewriter truncation
-    let is_split_mode = split_offset_y != 0.0
-        || split_mask
-        || split_stagger > 0.0
-        || (split_by != "char" && split_by != "chars");
-
-    if !is_split_mode {
-        if paths.windows(2).all(|pair| pair[0].char_idx < pair[1].char_idx) {
-            let n = (f64::from(progress) * paths.len() as f64).ceil() as usize;
-            paths.truncate(n);
-            return None;
-        }
-        // A shaping cluster can emit several outlines (e.g. a base and an
-        // accent). Reveal all of them together, following logical order.
-        let mut units: Vec<_> = paths.iter().map(|path| path.char_idx).collect();
-        units.sort_unstable();
-        units.dedup();
-        let n = (f64::from(progress) * units.len() as f64).ceil() as usize;
-        if let Some(&cutoff) = units.get(n) {
-            paths.retain(|path| path.char_idx < cutoff);
-        }
-        return None;
-    }
-
+) -> Option<BezPath> {
+    let track = text.char_progress.as_ref()?;
     if paths.is_empty() {
         return None;
     }
+    let progress = track.evaluate(time_ms).clamp(0.0, 1.0);
+    let motion = track
+        .interpolation_segment_with_duration(time_ms)
+        .filter(|(_, from, to, elapsed, _, _)| from != to && *elapsed < 1.0);
 
-    // Case B: Split-text reveal
-    let mut max_unit = 0usize;
-    for g in paths.iter() {
-        let u = match split_by.as_str() {
-            "line" | "lines" => g.line_idx as usize,
-            "word" | "words" => g.word_idx as usize,
-            _ => g.char_idx as usize,
+    if last_option(&text.wipe_reveal, time_ms).copied().unwrap_or(false) {
+        if progress <= 0.0 {
+            paths.clear();
+        }
+        if progress <= 0.0 || progress >= 1.0 {
+            return None;
+        }
+        let ink = paths
+            .iter()
+            .filter(|glyph| glyph.opacity > 0.0 && glyph.bounds.area() > 0.0)
+            .map(|glyph| glyph.bounds)
+            .reduce(|ink, glyph| ink.union(glyph))?;
+        let progress = f64::from(progress);
+        let direction = last_option(&text.wipe_direction, time_ms).map(String::as_str);
+        let rect = match direction {
+            Some("right") => {
+                Rect::new(ink.x1 - ink.width() * progress, ink.y0 - 1.0, ink.x1, ink.y1 + 1.0)
+            },
+            Some("top") => {
+                Rect::new(ink.x0 - 1.0, ink.y0, ink.x1 + 1.0, ink.y0 + ink.height() * progress)
+            },
+            Some("bottom") => {
+                Rect::new(ink.x0 - 1.0, ink.y1 - ink.height() * progress, ink.x1 + 1.0, ink.y1)
+            },
+            _ => Rect::new(ink.x0, ink.y0 - 1.0, ink.x0 + ink.width() * progress, ink.y1 + 1.0),
         };
-        if u > max_unit {
-            max_unit = u;
+        return Some(rect.to_path(0.1));
+    }
+
+    let group = text.split_by.get(time_ms, String::new());
+    let reverse = last_option(&text.split_reverse, time_ms).copied().unwrap_or(false);
+    let unit = |glyph: &TextPath| {
+        let index = match group.as_str() {
+            "line" | "lines" => u32::from(glyph.line_idx),
+            "word" | "words" => u32::from(glyph.word_idx),
+            _ => glyph.source_range.map_or(u32::from(glyph.char_idx), |range| range[0]),
+        };
+        if reverse { u32::MAX - index } else { index }
+    };
+    let stagger = text.split_stagger.get(time_ms, 0.0);
+    let offset = text.split_offset_y.get(time_ms, 0.0);
+    let masked = text.split_mask.get(time_ms, false);
+    let animated_units = stagger > 0.0 || offset != 0.0 || masked;
+
+    // An easing overshoot only settles the whole group for unstaggered text.
+    // In staggered text, later groups still have their own timeline windows.
+    if !animated_units || motion.is_none() {
+        if progress <= 0.0 {
+            paths.clear();
+        }
+        if progress <= 0.0 || progress >= 1.0 {
+            return None;
         }
     }
-    let n_units = max_unit + 1;
-
-    let s = if split_stagger > 0.0 {
-        if split_stagger > 1.0 {
-            (split_stagger / 1000.0).clamp(0.0, 0.5)
-        } else {
-            split_stagger
+    if !animated_units && paths.windows(2).all(|pair| unit(&pair[0]) < unit(&pair[1])) {
+        paths.truncate(visible_units(progress, paths.len()));
+        return None;
+    }
+    // Shaping can issue several paths per cluster and use non-contiguous IDs
+    // for visible words and lines. Keep the logical order of the units with ink.
+    let mut units: Vec<_> = paths.iter().map(unit).collect();
+    units.sort_unstable();
+    units.dedup();
+    if !animated_units {
+        if let Some(&cutoff) = units.get(visible_units(progress, units.len())) {
+            paths.retain(|glyph| unit(glyph) < cutoff);
         }
-    } else {
-        (0.6 / n_units as f32).min(0.08)
-    };
+        return None;
+    }
 
-    let s_clamped = if n_units > 1 {
-        s.min(0.85 / (n_units - 1) as f32)
+    let duration = motion.map_or(0.0, |(_, _, _, _, duration, _)| duration);
+    let gaps = units.len().saturating_sub(1) as f32;
+    let requested = if stagger > 1.0 {
+        stagger / 1000.0
+    } else if stagger > 0.0 {
+        stagger
     } else {
-        0.0
+        (0.6 / units.len() as f32).min(0.08)
     };
-    let w = if n_units > 1 {
-        1.0 - (n_units - 1) as f32 * s_clamped
+    // Leave at least one timeline tick for the last unit to settle.
+    let max_span = if duration > 0.0 {
+        1.0 - 1.0 / duration
     } else {
-        1.0
+        0.85
     };
+    let delay = requested.min(max_span / gaps.max(1.0));
+    let width = (1.0 - gaps * delay).max(f32::EPSILON);
+    let unit_progress = |index: usize| {
+        let start = index as f32 * delay;
+        let local = |value: f32| ((value - start) / width).clamp(0.0, 1.0);
+        let Some((_, from, to, elapsed, _, ease)) = motion else {
+            return local(progress);
+        };
+        // Place the stagger on the timeline, then ease each unit independently.
+        let sampled = local(*from + elapsed * (*to - *from));
+        let start = local(*from);
+        let end = local(*to);
+        if start == end {
+            start
+        } else {
+            start + (end - start) * apply_easing((sampled - start) / (end - start), *ease)
+        }
+    };
+    animate_units(paths, &unit, &units, offset, masked, unit_progress);
+    None
+}
 
-    let effective_offset = if split_offset_y != 0.0 {
-        split_offset_y
-    } else if split_mask {
+fn last_option<T: crate::timeline::property_track::Interpolate>(
+    track: &Option<PropertyTrack<T>>,
+    time_ms: u64,
+) -> Option<&T> {
+    let keys = track.as_ref()?.keyframes().as_slice();
+    let index = keys.partition_point(|key| key.time_ms <= time_ms);
+    index.checked_sub(1).map(|index| &keys[index].payload.0)
+}
+
+fn visible_units(progress: f32, count: usize) -> usize {
+    (f64::from(progress) * count as f64).ceil() as usize
+}
+
+fn animate_units(
+    paths: &mut Vec<TextPath>,
+    unit: &impl Fn(&TextPath) -> u32,
+    units: &[u32],
+    offset: f32,
+    masked: bool,
+    unit_progress: impl Fn(usize) -> f32,
+) {
+    let offset = if masked && offset == 0.0 {
         30.0
     } else {
-        0.0
+        offset
     };
-
-    // Calculate baseline clip rectangles if split_mask is true
-    let clip_path = if split_mask {
-        if let Some(static_clip) = cached_clip {
-            Some(static_clip.clone())
-        } else {
-            crate::renderer::text::compute_split_mask_clip(paths)
-        }
-    } else {
-        None
-    };
-
-    for g in paths.iter_mut() {
-        let u = match split_by.as_str() {
-            "line" | "lines" => g.line_idx as usize,
-            "word" | "words" => g.word_idx as usize,
-            _ => g.char_idx as usize,
-        };
-        let start_u = u as f32 * s_clamped;
-        let p_u = if w > 0.0 {
-            ((progress - start_u) / w).clamp(0.0, 1.0)
-        } else {
-            1.0
-        };
-
-        let dy = (1.0 - p_u) * effective_offset;
-        if dy != 0.0 {
-            g.translate((0.0, dy as f64));
-        }
-
-        if split_mask {
-            let alpha = if p_u <= 0.0 {
-                0.0
-            } else {
-                (p_u * 4.0).min(1.0)
-            };
-            g.opacity *= alpha;
-        } else {
-            g.opacity *= p_u;
+    let mut lines = std::collections::HashMap::<u16, Rect>::new();
+    if masked {
+        for glyph in paths.iter() {
+            lines
+                .entry(glyph.line_idx)
+                .and_modify(|ink| *ink = ink.union(glyph.bounds))
+                .or_insert(glyph.bounds);
         }
     }
+    paths.retain_mut(|glyph| {
+        let index = units.partition_point(|&id| id < unit(glyph));
+        let shown = unit_progress(index).clamp(0.0, 1.0);
+        if shown <= 0.0 {
+            return false;
+        }
 
-    clip_path
+        glyph.translate((0.0, f64::from((1.0 - shown) * offset)));
+        if masked {
+            if shown < 1.0 {
+                // Keep the clip in the resting coordinates of this line. A
+                // neighboring line's mask must never expose this glyph.
+                let clip = lines[&glyph.line_idx].inflate(1.0, 0.0);
+                if glyph.bounds.intersect(clip) != glyph.bounds {
+                    glyph.apply_clip(&clip.to_path(0.1), clip);
+                }
+            }
+            glyph.opacity *= (shown * 4.0).min(1.0);
+        } else {
+            glyph.opacity *= shown;
+        }
+        glyph.opacity > 0.0
+    });
 }

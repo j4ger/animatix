@@ -20,7 +20,8 @@ impl BuiltinAction for WipeIn {
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let timing = super::ActionTiming::parse(action, time_ms, diagnostics);
+        let timing =
+            super::ActionTiming::parse_excluding(action, &["direction"], time_ms, diagnostics);
         let duration_ms = timing.duration_ms;
         let delay_ms = timing.delay_ms;
         let easing = timing.easing;
@@ -41,9 +42,10 @@ impl BuiltinAction for WipeIn {
             let Some(id) = timeline.world.get_id(target) else {
                 continue;
             };
+            let is_text = super::reveal::is_text_like(timeline, id);
             let style = timeline.world.style.get_mut(id);
 
-            if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
+            if !is_text && delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
                 super::ensure_guard_keyframe(&mut style.stroke_progress, guard_time, 1.0);
                 super::ensure_guard_keyframe(&mut style.fill_opacity, guard_time, 1.0);
@@ -57,12 +59,28 @@ impl BuiltinAction for WipeIn {
                 .meta
                 .get_or_insert_with(id, crate::timeline::world::EntityMeta::default);
             let was_hidden = meta.hidden_by_default;
-            super::lift_hidden_by_default(style, meta, t_start_ms, t_end_ms, easing);
+            // A text wipe reveals by geometry at the settled opacity.
+            let opacity_end = if is_text {
+                if t_start_ms > 0 && (was_hidden || style.opacity.get(t_start_ms, 1.0) == 0.0) {
+                    super::ensure_guard_keyframe(&mut style.opacity, t_start_ms - 1, 1.0);
+                }
+                t_start_ms
+            } else {
+                t_end_ms
+            };
+            super::lift_hidden_by_default(style, meta, t_start_ms, opacity_end, easing);
             if !was_hidden {
                 // An explicitly authored `opacity: 0` needs the same lift: the
                 // wipe itself never writes opacity, so the target would stay
                 // invisible for the whole timeline.
-                super::reveal_authored_zero_opacity(style, t_start_ms, t_end_ms, easing);
+                super::reveal_authored_zero_opacity(style, t_start_ms, opacity_end, easing);
+            }
+
+            if is_text {
+                let text = timeline.world.ensure_text(id);
+                super::reveal::set_text_wipe_direction(text, &action.modifiers, t_start_ms);
+                super::reveal::set_text_reveal(text, &timing, true, true);
+                continue;
             }
 
             // Reveal the fill to its authored value, not blindly to 1.0: a

@@ -172,3 +172,8 @@
 169	text_cursor	Bool
 170	diff_from	Str
 171	diff_file	Str
+172	caption_enter	Num
+173	caption_exit	Num
+174	caption_page_transition	Num
+175	shared_text_transition	Str
+176	equation_source	Str

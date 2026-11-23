@@ -151,8 +151,8 @@ target's authored opacity: `opacity: 0.25` with `fade_in` leaves the actor at
 0.25, it does not force 1.0. An authored `opacity: 0` is the one exception —
 that reads as "start hidden", and all four entrance callables (`fade_in`,
 `wipe_in`, `draw_in`, `reveal_in`) reveal it to 1.0. `wipe_in`, `draw_in` and
-`reveal_in` leave a non-zero authored opacity untouched, since they reveal by
-stroke and fill progress rather than by fading.
+`reveal_in` preserve non-zero authored opacity. They reveal shapes by stroke
+and fill progress and text by clipping or revealing glyphs.
 
 A scheduled entrance owns its whole window: `draw_in(target: line, duration: 600ms)` at `#1s`
 leaves the line unpainted from frame 0 until its start, even when `opacity: 1`
@@ -427,7 +427,23 @@ swap(a: first, b: second, duration: 500ms)
 
 Motion uses explicit parameters: `move` accepts `to` or `along`, `shift`, `rotate`,
 and `scale` use `by`. Reveal operations use `by`, `stagger`, `offset_y`, and `mask`
-where supported. Entrance and exit presets are ordinary timeline callables:
+where supported. On glyph-based text actors, `direction: left | right | top |
+bottom` selects the anchored edge of the visible region for `wipe_in` and
+`wipe_out`. The default is `left`. An entrance grows from that edge and an
+exit shrinks towards it.
+`draw_in` and `reveal_in` reveal complete glyph clusters, words, or visual lines
+according to `by`. With stagger, offset, or a baseline mask, every group has
+its own reveal interval. A duration-valued `stagger` measures time between starts.
+Easing then applies within each interval. The engine shortens an interval
+between starts if it would push groups past the action's end. `mask: baseline`
+clips each glyph to the resting band of its own line, including descenders.
+`draw_out` and `reveal_out` accept the same grouping, offset and mask options
+for exits. `order: forward | reverse` sets the order in which groups enter
+or leave. The default is forward for entrances and reverse for exits.
+Text wipes and unanimated word and line steps are linear by default. An
+explicit `ease` controls how the wipe or sequence advances.
+
+Entrance and exit presets are ordinary timeline callables:
 `fade_in`, `draw_in`, `wipe_in`, `reveal_in`, `settle_in`, `pop_in`, `grow_in`,
 `fade_out`, `draw_out`, `wipe_out`, `reveal_out`, and `shrink_out`. Other built-ins
 include `shake`, `pulse`, `bounce`, `highlight`, `unhighlight`, `persist`,
@@ -1876,6 +1892,17 @@ functions that replace the removed `time_scale` and `clip_duration` call-site
 modifiers. See `crates/animatix-syntax/tests/fixtures/amx/animation/local_tickers.amx` and
 `crates/animatix/tests/fixtures/amx/projects/leetcode_sort_colors.amx`.
 
+The installed project templates call `ChapterHeader.enter()` at the opening
+keyframe. This method fades in the category and briefly lifts the title into
+place. The math template also fades in its figure region. Set the starter's
+`motion` variable to `"none"` for a static opening. The narrated template still
+shows subtitles on the speech timeline.
+
+The shared layout library also provides `ExplainerLayout.enter()` and
+`SceneCaption.enter()`. Pass `defer_takeaway: true` to the explainer's entrance
+and call `reveal_takeaway()` at the desired beat to hold the conclusion back.
+These methods accept `motion: "none"` so the settled layout is visible at once.
+
 ### 12.1 Slots
 
 Slots allow component authors to declare fillable regions that can be customized at instantiation time.
@@ -2255,6 +2282,22 @@ declaration order breaking ties. The actor label identifies the fragment when
 terms reorder, including duplicate visible terms. Assign a new `text` to
 replace a term or an empty string to remove it. `fragment_color` controls
 its fill. Changes to a single formula state should share one keyframe.
+
+Use `equation_source` to write and replace a complete Typst formula. Mark
+terms that should move together between versions with
+`#term("name", $math$)`. Names must be unique within each formula. A matched
+name moves to its new position, and changed, added or removed glyphs fade
+during `equation_transition`. Surrounding unmarked material still renders.
+Use one representation per Equation instance.
+
+```animatix
+config { duration: 3 }
+#0s
+eq: Equation, at: (480, 240), equation_transition: 0.6,
+  equation_source: r#"$ #term("sample", $x$) + #term("offset", $a$) $"#
+#1s
+  eq.equation_source = r#"$ #term("offset", $a$) + #term("sample", $x$) $"#
+```
 
 ## 14. Typst & Graphs
 
@@ -3219,12 +3262,17 @@ author-facing semantics that are now part of the language.
 Semantics that are easy to miss:
 
 - **Everything is build-time synthetic where possible.** Spatial stagger order,
-  split-text boundaries, idle tracks, and path-following moves are expanded
-  into keyframes at build time, preserving stateless scrubbing and parallel
-  export.
+  idle tracks, and path-following moves are expanded into keyframes at build
+  time. Split-text reveals use the shaped text for the sampled frame. Both paths
+  support stateless scrubbing and parallel export.
 - **`shared_id` is not a transition.** It matches actors with the same non-empty
   `shared_id` across the two scenes of any `play` transition and draws a
-  floating FLIP overlay; `transition_registry` contains no `flip` id.
+  floating FLIP overlay. Matched text draws once at the interpolated transform
+  and opacity. Compatible glyph outlines and line breaks also interpolate
+  font size and the local text anchor. At the midpoint, the title takes its
+  content and styling from the incoming scene. A different incoming title
+  can set `shared_text_transition: "fade_through"` for a short fade out and
+  in around the handoff.
 - **`#step N` adds a pause point, not a keyframe.** The timeline records it in
   `pause_points` so the player can stop there; it does not change timing.
 - **Text gradients use the same gradient values as shapes.** `linear(...)`,
