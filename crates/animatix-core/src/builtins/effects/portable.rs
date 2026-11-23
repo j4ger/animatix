@@ -22,7 +22,6 @@ portable_shader!(COLOR_GRADE_FRAGMENT_WGSL, "portable/color_grade.wgsl");
 portable_shader!(DROP_SHADOW_FRAGMENT_WGSL, "portable/drop_shadow.wgsl");
 portable_shader!(DUOTONE_FRAGMENT_WGSL, "portable/duotone.wgsl");
 portable_shader!(EDGE_FRAGMENT_WGSL, "portable/edge.wgsl");
-portable_shader!(GRAIN_FRAGMENT_WGSL, "portable/grain.wgsl");
 portable_shader!(LENS_DISTORTION_FRAGMENT_WGSL, "portable/lens_distortion.wgsl");
 portable_shader!(LEVELS_FRAGMENT_WGSL, "portable/levels.wgsl");
 portable_shader!(MOTION_BLUR_FRAGMENT_WGSL, "portable/motion_blur.wgsl");

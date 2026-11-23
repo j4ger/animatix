@@ -753,6 +753,46 @@ fn grain_perturbs_flat_field_deterministically() {
 }
 
 #[test]
+fn coarse_static_grain_has_lower_neighbor_variation() {
+    let Some(mut backend) = EffectHarness::new() else {
+        return;
+    };
+    let scene = filled_scene(
+        peniko::Color::from_rgba8(128, 128, 128, 255),
+        kurbo::Rect::new(0.0, 0.0, 64.0, 64.0),
+    );
+    let chain = |size| {
+        effect_chain(
+            "Grain",
+            vec![
+                EffectParamValue::F32(0.15),
+                EffectParamValue::F32(5.0),
+                EffectParamValue::Bool(true),
+                EffectParamValue::Bool(false),
+                EffectParamValue::F32(size),
+            ],
+        )
+    };
+    let fine = backend.render(&scene, DIMS, &chain(1.0), 1.0);
+    let mut coarse_chain = chain(6.0);
+    let coarse = backend.render(&scene, DIMS, &coarse_chain, 1.0);
+    coarse_chain.time_ms = 350.0;
+    let later = backend.render(&scene, DIMS, &coarse_chain, 1.0);
+    assert_eq!(coarse.rgba, later.rgba);
+    let variation = |rgba: &[u8]| {
+        rgba.as_chunks::<{ DIMS.width as usize * 4 }>()
+            .0
+            .iter()
+            .flat_map(|row| row.as_chunks::<4>().0.windows(2))
+            .map(|pair| u32::from(pair[0][0].abs_diff(pair[1][0])))
+            .sum::<u32>()
+    };
+    let coarse_variation = variation(&coarse.rgba);
+    assert!(coarse_variation > 0);
+    assert!(coarse_variation * 3 < variation(&fine.rgba));
+}
+
+#[test]
 fn motion_blur_smears_horizontally() {
     let Some(mut backend) = EffectHarness::new() else {
         return;

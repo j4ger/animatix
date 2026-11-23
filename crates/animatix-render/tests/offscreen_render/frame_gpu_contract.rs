@@ -26,6 +26,37 @@ fn renderer_or_skip() -> Option<OffscreenRenderer> {
 }
 
 #[test]
+fn ellipse_shadow_follows_the_silhouette_with_signed_spread() {
+    let Some(mut renderer) = renderer_or_skip() else {
+        return;
+    };
+    let render = |renderer: &mut OffscreenRenderer, blur: f32, spread: f32| {
+        let timeline = common::build_checked(&format!(
+            r##"
+config {{ resolution: (96, 64) }}
+#0s
+  bg: Rect, at: (48,32), size: (96,64), color: hex_color("ffffff")
+  oval: Ellipse, at: (33,14), size: (48,14), color: hex_color("406080"),
+    shadow: (0,28,{blur},{spread}), shadow_color: (0,0,0,1)
+"##,
+        ));
+        renderer.render_timeline(&timeline, 0.0, DIMS).expect("shadow frame")
+    };
+    let sharp = render(&mut renderer, 0.0, 0.0);
+    assert!(pixel(&sharp, 12, 42)[0] < 10, "shadow should reach the wide end");
+    assert_eq!(pixel(&sharp, 12, 36), [255; 4], "oval corner should be clear");
+    let soft = render(&mut renderer, 4.0, 2.0);
+    let penumbra = pixel(&soft, 33, 52)[0];
+    assert!((35..245).contains(&penumbra), "expected a soft edge, got {penumbra}");
+    assert_eq!(pixel(&soft, 60, 26), [255; 4], "no square corner behind the oval");
+    let inset = render(&mut renderer, 0.0, -3.0);
+    assert!(pixel(&inset, 33, 42)[0] < 10, "shrinking still leaves the center");
+    assert_eq!(pixel(&inset, 33, 36), [255; 4], "negative spread shrinks the shadow");
+    let collapsed = render(&mut renderer, 0.0, -8.0);
+    assert_eq!(pixel(&collapsed, 33, 42), [255; 4], "the inset consumes the shadow");
+}
+
+#[test]
 fn opaque_readback_matches_straight_alpha_conversion() {
     let Some(mut candidate) = renderer_or_skip() else {
         return;

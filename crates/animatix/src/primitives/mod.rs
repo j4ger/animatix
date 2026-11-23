@@ -50,6 +50,7 @@ use crate::timeline::behavior::builtin;
 
 pub mod commands;
 mod context;
+mod shadow;
 pub mod styling;
 mod r#trait;
 

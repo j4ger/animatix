@@ -808,6 +808,15 @@ side so an over-large value yields a stadium rather than a self-intersecting
 path. It animates like any other property, and a `Rect` used as a `clip_shape`
 clips to the rounded outline.
 
+**Shape shadows.** Set `shadow: (offset_x, offset_y, blur, spread)` and
+optionally `shadow_color` on a `Rect`, `Ellipse`, `Arrow`, `Polygon`, or
+`Path`. All four distances use the actor's local scene units. Positive spread
+expands the shadow and negative spread shrinks it. A rectangle casts the
+shadow of its rounded box. Other shapes cast the silhouette of the visible
+fill and stroke, including dash and stroke reveal. Soft edges are approximated
+with several expanding outlines. Use the
+[`DropShadow` effect](effects.md) for text or a group of actors.
+
 **Solo.** `solo: true` (default `false`) is authored state, honoured by the
 preview and every export path alike. While any actor in the scene declares
 `solo: true`, only soloed actors draw, and the hiding is **recursive**: a
@@ -1183,7 +1192,7 @@ nothing (the pass and the offscreen round-trip are skipped).
 | `Sharpen` | `amount` (0), `radius` (0, px) | Unsharp mask: adds the pixel−local-average residual back at `amount` strength; box kernel of `radius` scene pixels |
 | `Vignette` | `amount` (0), `radius` (0.9), `softness` (0.6), `color` (black), `center` ((0.5, 0.5)) | Darkens outward from an actor point or normalized texture coordinate. `radius` and `softness` are the start and spread of the falloff, in fractions of the shorter side. |
 | `MotionBlur` | `length` (0, px), `angle` (0, degrees) | Directional smear sampled through the linear sampler; 0° = right, counter-clockwise |
-| `Grain` | `amount` (0), `seed` (0), `monochrome` (false), `animated` (true) | Film grain follows the timeline clock by default. Set `animated: false` for a fixed pattern. |
+| `Grain` | `amount` (0), `seed` (0), `monochrome` (false), `animated` (true), `size` (1) | Film grain follows the timeline clock by default. Set `animated: false` for a fixed pattern and increase `size` for a smoother texture. |
 | `Levels` | `in_black` (0), `in_white` (1), `gamma` (1), `out_black` (0), `out_white` (1) | Black/white point remap + gamma per channel; the grading complement to `ColorGrade` |
 | `Duotone` | `amount` (0), `shadow` (black), `highlight` (white) | Maps Rec. 709 luma onto a two-colour ramp; `amount` blends the ramp over the original |
 | `Posterize` | `levels` (0) | Quantises each channel to `levels` steps (`2` = hard threshold); `0` means off |

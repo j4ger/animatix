@@ -111,7 +111,13 @@ always {{ box.at = (200 + t,100) }}
                 let commands = &program.items.iter().find(|i| i.label == "box").unwrap().commands;
                 let shadows = commands
                     .iter()
-                    .filter(|c| matches!(c, crate::primitives::RenderCommand::Shadow { .. }))
+                    .filter(|c| {
+                        matches!(
+                            c,
+                            crate::primitives::RenderCommand::Shadow { .. }
+                                | crate::primitives::RenderCommand::PathShadow { .. }
+                        )
+                    })
                     .count();
                 assert_eq!(
                     shadows,
@@ -120,6 +126,36 @@ always {{ box.at = (200 + t,100) }}
                 );
             }
         }
+    }
+}
+
+#[test]
+fn path_shadow_tracks_only_the_revealed_stroke() {
+    let timeline = super::support::build_timeline(
+        r##"
+config { resolution:(400,200), duration:3 }
+box: Path, commands:{move_to(0,0), line_to(200,0)}, at:(100,80),
+ fill_opacity:0, stroke:hex_color("ffffff"), stroke_width:6,
+ opacity:1, shadow:(0,30,0,0)
+always { box.stroke_progress = t / 2 }
+"##,
+    );
+    for time in [0.5, 1.5, 1.0, 0.5] {
+        let program = timeline.evaluate_program_with_debug(
+            time,
+            SceneDimensions {
+                width: 400,
+                height: 200,
+            },
+            DebugRenderOptions::default(),
+            &mut None,
+        );
+        let item = program.items.iter().find(|item| item.label == "box").unwrap();
+        let shadow = &item.commands[0];
+        assert!(matches!(shadow, crate::primitives::RenderCommand::PathShadow { .. }));
+        let bounds = shadow.local_bounds(None).unwrap();
+        assert!((bounds.width() - 100.0 * time).abs() < 0.1, "{bounds:?}");
+        assert!((bounds.height() - 6.0).abs() < 0.1, "{bounds:?}");
     }
 }
 

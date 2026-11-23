@@ -2,12 +2,9 @@
 //!
 //! # Extension boundary
 //!
-//! The set of commands a plugin can emit is currently fixed to the five
-//! variants below (the plugin ABI exposes one `append_*` callback per
-//! variant). Adding a new variant requires updating the ABI
-//! (`animatix-plugin-api`), [`RenderCommand::execute`], and
-//! [`RenderCommand::local_bounds`] together. The enum is `#[non_exhaustive]`
-//! so external code must already handle unknown variants.
+//! Plugins emit commands through the fixed `append_*` callbacks in
+//! `animatix-plugin-api`. Engine-only variants need no new ABI callback.
+//! Keep [`RenderCommand::execute`] and [`RenderCommand::local_bounds`] in sync.
 
 use crate::renderer::types::{TextPath, VelloPath};
 use crate::scene::{Glyph, Scene};
@@ -56,12 +53,21 @@ pub enum RenderCommand {
         /// Corner radius.
         corner_radius: f64,
     },
-    /// Analytical erf Gaussian drop shadow for cards and shapes.
+    /// Rounded-rectangle drop shadow for cards and other rectangular surfaces.
     Shadow {
         /// Half size [w/2, h/2] of the base shape.
         size: [f32; 2],
         /// Corner radius.
         corner_radius: f32,
+        /// [offset_x, offset_y, blur, spread].
+        params: [f32; 4],
+        /// Shadow color RGBA.
+        color: [f32; 4],
+    },
+    /// Drop shadow following the filled surfaces and stroke outlines of a vector shape.
+    PathShadow {
+        /// Filled silhouettes in the actor's local coordinates.
+        outlines: Vec<std::sync::Arc<kurbo::BezPath>>,
         /// [offset_x, offset_y, blur, spread].
         params: [f32; 4],
         /// Shadow color RGBA.
@@ -154,6 +160,13 @@ impl RenderCommand {
                 params,
                 color,
             } => execute_shadow(size, corner_radius, params, color, scene, transform, opacity),
+            RenderCommand::PathShadow {
+                outlines,
+                params,
+                color,
+            } => {
+                super::shadow::draw(outlines, *params, *color, scene, *transform, opacity);
+            },
         }
     }
 
@@ -202,7 +215,10 @@ impl RenderCommand {
             RenderCommand::Shadow { size, params, .. } => {
                 let (half_w, half_h) =
                     (size[0] as f64 + params[3] as f64, size[1] as f64 + params[3] as f64);
-                let blur_pad = params[2] as f64 * 3.0;
+                if half_w <= 0.0 || half_h <= 0.0 {
+                    return None;
+                }
+                let blur_pad = params[2].max(0.0) as f64 * 3.0;
                 let ox = params[0] as f64;
                 let oy = params[1] as f64;
                 bounds = union(
@@ -214,6 +230,11 @@ impl RenderCommand {
                         oy + half_h + blur_pad,
                     ),
                 );
+            },
+            RenderCommand::PathShadow {
+                outlines, params, ..
+            } => {
+                bounds = super::shadow::bounds(outlines, *params);
             },
         }
         bounds
@@ -246,30 +267,7 @@ fn execute_paths(paths: &[VelloPath], scene: &mut Scene, transform: &kurbo::Affi
         }
         if let Some((mut sc, sw)) = path.stroke {
             sc = sc.with_alpha(sc.components[3] * opacity);
-            let cap = match path.line_cap {
-                1 => kurbo::Cap::Round,
-                2 => kurbo::Cap::Square,
-                _ => kurbo::Cap::Butt,
-            };
-            let join = match path.line_join {
-                1 => kurbo::Join::Round,
-                2 => kurbo::Join::Bevel,
-                _ => kurbo::Join::Miter,
-            };
-            let dash: Vec<f64> = path
-                .dash_pattern
-                .as_ref()
-                .map(|p| p.iter().map(|f| f64::from(*f)).collect())
-                .unwrap_or_default();
-            let stroke = kurbo::Stroke {
-                width: sw as f64,
-                join,
-                miter_limit: 10.0,
-                start_cap: cap,
-                end_cap: cap,
-                dash_pattern: dash.into(),
-                dash_offset: f64::from(path.dash_offset),
-            };
+            let stroke = path_stroke(path, sw);
             match &path.stroke_gradient {
                 Some(grad) => {
                     let g = grad.to_peniko(path.path.bounding_box(), sc.components[3] * opacity);
@@ -284,6 +282,33 @@ fn execute_paths(paths: &[VelloPath], scene: &mut Scene, transform: &kurbo::Affi
                 None => scene.stroke(&stroke, *transform, sc, None, path.path.as_ref()),
             }
         }
+    }
+}
+
+pub(super) fn path_stroke(path: &VelloPath, width: f32) -> kurbo::Stroke {
+    let cap = match path.line_cap {
+        1 => kurbo::Cap::Round,
+        2 => kurbo::Cap::Square,
+        _ => kurbo::Cap::Butt,
+    };
+    let join = match path.line_join {
+        1 => kurbo::Join::Round,
+        2 => kurbo::Join::Bevel,
+        _ => kurbo::Join::Miter,
+    };
+    let dash: Vec<f64> = path
+        .dash_pattern
+        .as_ref()
+        .map(|p| p.iter().map(|f| f64::from(*f)).collect())
+        .unwrap_or_default();
+    kurbo::Stroke {
+        width: f64::from(width),
+        join,
+        miter_limit: 10.0,
+        start_cap: cap,
+        end_cap: cap,
+        dash_pattern: dash.into(),
+        dash_offset: f64::from(path.dash_offset),
     }
 }
 
@@ -447,6 +472,9 @@ fn execute_shadow(
     }
     let half_w = size[0] + spread;
     let half_h = size[1] + spread;
+    if half_w <= 0.0 || half_h <= 0.0 {
+        return;
+    }
     if blur <= 0.5 {
         let shadow_rect = kurbo::Rect::new(
             (dx - half_w) as f64,

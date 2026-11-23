@@ -13,42 +13,25 @@ use crate::effect::{
 /// canonical film-grain strength, clamped so the noise never inverts a channel
 /// by more than its headroom); `seed` shifts the noise field; `monochrome`
 /// applies one noise sample to all channels. `animated` selects between a
-/// timeline-driven pattern and a fixed pattern.
+/// timeline-driven pattern and a fixed pattern. `size` is the noise spacing in
+/// raster pixels.
 pub const GRAIN_PARAMS: &[EffectParamSpec] = &[
     EffectParamSpec::new("amount", EffectParamKind::F32, EffectParamValue::F32(0.0), 0, 4),
     EffectParamSpec::new("seed", EffectParamKind::F32, EffectParamValue::F32(0.0), 4, 4),
     EffectParamSpec::new("monochrome", EffectParamKind::Bool, EffectParamValue::Bool(false), 8, 4),
     EffectParamSpec::new("animated", EffectParamKind::Bool, EffectParamValue::Bool(true), 12, 4),
+    EffectParamSpec::new("size", EffectParamKind::F32, EffectParamValue::F32(1.0), 16, 4),
 ];
 
 pub(crate) const GRAIN_WGSL: &str = concat!(
     include_str!("effect_context.wgsl"),
+    include_str!("grain_common.wgsl"),
     r#"
-struct GrainParams {
-    amount: f32,
-    seed: f32,
-    monochrome: u32,
-    animated: u32,
-}
-
 @group(0) @binding(0) var src: texture_2d<f32>;
 @group(0) @binding(1) var dst: texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(2) var<uniform> params: GrainParams;
 @group(0) @binding(3) var<uniform> ctx: EffectContext;
 @group(0) @binding(4) var samp: sampler;
-
-// PCG-ish integer hash: well-distributed, deterministic for a given
-// (pixel, seed, time) triple, no state.
-fn hash32(x: u32) -> u32 {
-    var h = x * 747796405u + 2891336453u;
-    let shifted = ((h >> ((h >> 28u) + 4u)) ^ h) * 277803737u;
-    h = (shifted >> 22u) ^ shifted;
-    return h;
-}
-
-fn unit_noise(x: u32) -> f32 {
-    return f32(hash32(x) & 0x00ffffffu) / f32(0x01000000u);
-}
 
 @compute @workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -60,32 +43,16 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
 
     let texel = textureLoad(src, vec2<i32>(coord), 0);
-    let amount = clamp(params.amount, 0.0, 1.0);
-    if (amount <= 0.0) {
-        textureStore(dst, coord, texel);
-        return;
-    }
-
-    // The frame index comes from time_ms so grain animates without a new
-    // parameter; 60 fps frames stay distinct for ~1.1 years of timeline.
-    let frame = select(0u, u32(ctx.time_ms * 0.06), params.animated != 0u);
-    let pixel = coord.x + coord.y * size.x;
-    let salt = u32(params.seed * 4096.0);
-
-    if (params.monochrome != 0u) {
-        let n = unit_noise(pixel ^ (frame << 12u) ^ salt) - 0.5;
-        let rgb = texel.rgb + vec3<f32>(n * amount);
-        textureStore(dst, coord, vec4<f32>(clamp(rgb, vec3<f32>(0.0), vec3<f32>(1.0)), texel.a));
-        return;
-    }
-
-    let r = unit_noise(pixel ^ (frame << 12u) ^ salt);
-    let g = unit_noise(pixel ^ (frame << 13u) ^ (salt + 7919u));
-    let b = unit_noise(pixel ^ (frame << 14u) ^ (salt + 15485u));
-    let rgb = texel.rgb + (vec3<f32>(r, g, b) - vec3<f32>(0.5)) * amount;
-    textureStore(dst, coord, vec4<f32>(clamp(rgb, vec3<f32>(0.0), vec3<f32>(1.0)), texel.a));
+    textureStore(dst, coord, apply_grain(texel, coord, params, ctx));
 }
 "#
+);
+
+const GRAIN_FRAGMENT_WGSL: &str = concat!(
+    include_str!("effect_context.wgsl"),
+    include_str!("fullscreen_vertex.wgsl"),
+    include_str!("grain_common.wgsl"),
+    include_str!("portable/grain.wgsl"),
 );
 
 const GRAIN_PASSES: &[EffectPassSpec] = &[EffectPassSpec::new("grain", GRAIN_WGSL, "main")];
@@ -110,7 +77,7 @@ impl Effect for Grain {
     }
 
     fn fragment_shader(&self) -> Option<&'static str> {
-        Some(super::portable::GRAIN_FRAGMENT_WGSL)
+        Some(GRAIN_FRAGMENT_WGSL)
     }
 
     fn pack(&self, params: &EffectParams, out: &mut [u8]) {
@@ -126,6 +93,11 @@ impl Effect for Grain {
         let animated =
             u32::from(!matches!(params.values.get(3), Some(EffectParamValue::Bool(false))));
         out[12..16].copy_from_slice(&animated.to_le_bytes());
+        out[16..20].copy_from_slice(&params.f32_at(4).max(1.0).to_le_bytes());
+    }
+
+    fn is_identity(&self, params: &EffectParams) -> bool {
+        params.f32_at(0) <= 0.0
     }
 
     /// Reads only the pixel itself.

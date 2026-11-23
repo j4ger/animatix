@@ -262,7 +262,7 @@ pub(crate) fn evaluate_shape_render(
     let dash = sample_dash(ctx);
     let has_gradient =
         style_tracks.fill_gradient.is_some() || style_tracks.stroke_gradient.is_some();
-    let shadow = shape_shadow_command(ctx, state);
+    let shadow = sample_shape_shadow(ctx);
     let bounds_changed = progress < 1.0 || shadow.is_some();
     let mut commands = if progress < 1.0 {
         let built = ctx.world.expect("shape memo requires a world").build_shape_commands(
@@ -329,7 +329,9 @@ pub(crate) fn evaluate_shape_render(
         )?
     };
 
-    if let Some(shadow) = shadow {
+    if let Some((params, color)) = shadow
+        && let Some(shadow) = super::shadow::command(state, &commands, params, color)
+    {
         commands.insert(0, shadow);
     }
     if bounds_changed {
@@ -346,7 +348,7 @@ pub(crate) fn evaluate_shape_render(
     Ok(Some(commands))
 }
 
-fn shape_shadow_command(ctx: &EvaluateCtx, state: &VectorShapeState) -> Option<RenderCommand> {
+fn sample_shape_shadow(ctx: &EvaluateCtx) -> Option<([f32; 4], [f32; 4])> {
     use crate::timeline::ActorField;
     use crate::timeline::property_engine::PropertyValue;
     let params = ctx
@@ -378,16 +380,7 @@ fn shape_shadow_command(ctx: &EvaluateCtx, state: &VectorShapeState) -> Option<R
                 _ => [0.0, 0.0, 0.0, 0.25],
             }
         });
-    let (size, corner_radius) = match state {
-        VectorShapeState::Rect(r) => (r.size, r.corner_radius),
-        _ => ([50.0, 50.0], 0.0),
-    };
-    Some(RenderCommand::Shadow {
-        size,
-        corner_radius,
-        params,
-        color,
-    })
+    Some((params, color))
 }
 
 /// Stamp the shared stroke decorations (dash, gradient) onto a plot's commands.

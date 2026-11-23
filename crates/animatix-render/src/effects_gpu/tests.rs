@@ -82,6 +82,25 @@ fn all_builtin_fragment_shaders_validate_and_expose_fullscreen_entries() {
         )
         .validate(&module)
         .unwrap_or_else(|error| panic!("{} WGSL validation failed: {error}", effect.type_name()));
+        let (_, params) = module
+            .global_variables
+            .iter()
+            .find(|(_, global)| {
+                global
+                    .binding
+                    .as_ref()
+                    .is_some_and(|binding| binding.group == 0 && binding.binding == 2)
+            })
+            .unwrap_or_else(|| panic!("{} has no author uniform", effect.type_name()));
+        let naga::TypeInner::Struct { span, .. } = module.types[params.ty].inner else {
+            panic!("{} author uniform must be a struct", effect.type_name());
+        };
+        assert_eq!(
+            span,
+            effect.author_uniform_size(),
+            "{} WGSL author uniform must match the 16-byte-aligned host buffer",
+            effect.type_name(),
+        );
         assert!(module.entry_points.iter().any(|entry| {
             entry.name == FULLSCREEN_VERTEX && entry.stage == naga::ShaderStage::Vertex
         }));

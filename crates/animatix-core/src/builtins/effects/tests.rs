@@ -43,6 +43,22 @@ fn bloom_intensity_identity_is_zero() {
     );
 }
 
+#[test]
+fn grain_at_zero_amount_is_identity_even_with_texture_settings() {
+    let mut params = EffectParams {
+        values: vec![
+            EffectParamValue::F32(0.0),
+            EffectParamValue::F32(8.0),
+            EffectParamValue::Bool(true),
+            EffectParamValue::Bool(false),
+            EffectParamValue::F32(6.0),
+        ],
+    };
+    assert!(grain::GRAIN.is_identity(&params));
+    params.values[0] = EffectParamValue::F32(0.01);
+    assert!(!grain::GRAIN.is_identity(&params));
+}
+
 /// `threshold` is a gate, not an amount: its identity is 0 (the gate is off),
 /// it lands at byte 8 of the 16-byte author uniform, and it is dimensionless.
 #[test]

@@ -96,6 +96,7 @@ Built-in identity values:
 | `Grain` | `seed` | `0` |
 | `Grain` | `monochrome` | `false` |
 | `Grain` | `animated` | `true` |
+| `Grain` | `size` | `1` |
 | `Levels` | `in_black` | `0` |
 | `Levels` | `in_white` | `1` |
 | `Levels` | `gamma` | `1` |
@@ -113,18 +114,21 @@ Built-in identity values:
 | `DropShadow` | `color` | `(0, 0, 0, 1)` |
 
 Set `Grain.animated` to `false` to keep its pattern fixed for a given seed
-and texture size. To add a subtle paper texture, use a small monochrome amount
-such as `0.012` and put only the backdrop inside the `Filter`. Declare text,
-fine rules and diagrams after the filter so their pixels bypass the effect.
+and texture size. `size` is the spacing of the grain in output pixels. At
+`size: 1` each pixel has independent noise. Higher values interpolate between
+noise samples to produce a smoother texture that compresses more readily.
+For a subtle paper texture, start with `amount: 0.012, monochrome: true,
+animated: false, size: 6` and put only the backdrop inside the `Filter`.
+Declare text, fine rules and diagrams after the filter to keep their edges
+clean. At zero amount the grain stage is skipped.
 
 **Parameter units.** Most parameters are unitless, normalized fractions, or
 angles. Exactly seven are lengths in **scene pixels**:
 `Blur.radius`, `ChromaticAberration.offset`, `Sharpen.radius`,
 `MotionBlur.length`, `DropShadow.offset`, `DropShadow.softness`, and
 `LensDistortion.amount`. All seven scale with the render resolution the same
-way actor geometry does; the remaining length-like parameters are fractions of
-a local reference (for example `Vignette.radius` and `Vignette.softness` are
-fractions of the shorter texture side).
+way actor geometry does. `Grain.size` uses output pixels. `Vignette.radius`
+and `Vignette.softness` are fractions of the shorter texture side.
 
 `Vignette.center` accepts an actor point such as `card.center` or a normalized
 effect-texture coordinate pair. Named points follow the actor and use the
