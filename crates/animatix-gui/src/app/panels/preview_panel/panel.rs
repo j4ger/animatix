@@ -66,14 +66,14 @@ pub(crate) fn preview_panel_ui(
             let (preview_rect, response) = allocate_canvas(ctx, ui, ruler_inset);
             draw_canvas_background(ui, &theme, preview_rect, in_presentation);
 
-            if !in_presentation {
-                draw_rulers(ctx, ui, preview_rect, ruler_inset, &theme);
-                draw_existing_guides(ctx, ui, preview_rect, &theme);
-            }
-
             handle_scroll_zoom(ctx, ui, preview_rect, &response);
             handle_middle_click_pan(ctx, ui, preview_rect);
             clear_frame_snap_state(ctx);
+            let guide_in_progress = if in_presentation {
+                None
+            } else {
+                draw_rulers(ctx, ui, preview_rect, ruler_inset, &theme)
+            };
 
             let is_dragging = ctx.selection.marquee_start.is_some();
             if !in_presentation {
@@ -87,6 +87,8 @@ pub(crate) fn preview_panel_ui(
                 return;
             }
 
+            // The preview image is opaque. Guides must be painted after it.
+            draw_guides(ctx, ui, preview_rect, &theme, guide_in_progress);
             draw_preview_overlays(ctx, ui, preview_rect, &theme, is_dragging);
             handle_file_drop(ctx, ui, preview_rect, &response);
         });
@@ -145,3 +147,6 @@ fn draw_canvas_background(
         ui.painter().rect_filled(preview_rect, 0.0, theme.palette.surface.base);
     }
 }
+
+#[cfg(test)]
+mod tests;

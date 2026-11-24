@@ -3,40 +3,61 @@
 use super::hud::*;
 use super::*;
 
-pub(super) fn draw_existing_guides(
+#[derive(Clone, Copy)]
+pub(super) enum GuideLine {
+    Horizontal(f32),
+    Vertical(f32),
+}
+
+pub(super) fn draw_guides(
     ctx: &PreviewContext<'_>,
-    ui: &mut egui::Ui,
+    ui: &egui::Ui,
     preview_rect: egui::Rect,
     theme: &eparts::Theme,
+    in_progress: Option<GuideLine>,
 ) {
+    let painter = ui.painter().with_clip_rect(ui.clip_rect().intersect(preview_rect));
+    let stroke = egui::Stroke::new(STROKE_WIDTH, theme.palette.status.warning);
+    let paint = |guide| {
+        use egui::pos2;
+        match guide {
+            GuideLine::Horizontal(y) => {
+                let p = ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(0.0, y as f64));
+                if preview_rect.y_range().contains(p.y) {
+                    painter.line_segment(
+                        [
+                            pos2(preview_rect.left(), p.y),
+                            pos2(preview_rect.right(), p.y),
+                        ],
+                        stroke,
+                    );
+                }
+            },
+            GuideLine::Vertical(x) => {
+                let p = ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(x as f64, 0.0));
+                if preview_rect.x_range().contains(p.x) {
+                    painter.line_segment(
+                        [
+                            pos2(p.x, preview_rect.top()),
+                            pos2(p.x, preview_rect.bottom()),
+                        ],
+                        stroke,
+                    );
+                }
+            },
+        }
+    };
     if ctx.preview.overlay.show_guides {
-        let guide_color = theme.palette.status.warning;
-        for &guide_y in &ctx.preview.guides.horizontal_guides {
-            let screen_pt =
-                ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(0.0, guide_y as f64));
-            if screen_pt.y >= preview_rect.min.y && screen_pt.y <= preview_rect.max.y {
-                ui.painter().line_segment(
-                    [
-                        egui::pos2(preview_rect.min.x, screen_pt.y),
-                        egui::pos2(preview_rect.max.x, screen_pt.y),
-                    ],
-                    egui::Stroke::new(STROKE_WIDTH, guide_color),
-                );
-            }
+        for &y in &ctx.preview.guides.horizontal_guides {
+            paint(GuideLine::Horizontal(y));
         }
-        for &guide_x in &ctx.preview.guides.vertical_guides {
-            let screen_pt =
-                ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(guide_x as f64, 0.0));
-            if screen_pt.x >= preview_rect.min.x && screen_pt.x <= preview_rect.max.x {
-                ui.painter().line_segment(
-                    [
-                        egui::pos2(screen_pt.x, preview_rect.min.y),
-                        egui::pos2(screen_pt.x, preview_rect.max.y),
-                    ],
-                    egui::Stroke::new(STROKE_WIDTH, guide_color),
-                );
-            }
+        for &x in &ctx.preview.guides.vertical_guides {
+            paint(GuideLine::Vertical(x));
         }
+    }
+    // A ruler drag previews its placement even when existing guides are hidden.
+    if let Some(guide) = in_progress {
+        paint(guide);
     }
 }
 

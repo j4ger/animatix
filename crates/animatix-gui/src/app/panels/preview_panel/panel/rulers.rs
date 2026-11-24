@@ -29,7 +29,7 @@ pub(super) fn draw_rulers(
     preview_rect: egui::Rect,
     inset: Vec2,
     theme: &eparts::Theme,
-) {
+) -> Option<GuideLine> {
     let corner = egui::Rect::from_min_max(preview_rect.min - inset, preview_rect.min);
     let h = egui::Rect::from_min_max(corner.right_top(), preview_rect.right_top());
     let v = egui::Rect::from_min_max(corner.left_bottom(), preview_rect.left_bottom());
@@ -44,7 +44,7 @@ pub(super) fn draw_rulers(
         ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(scene_tl.x, value))
             .y
     });
-    handle_ruler_drag(ctx, ui, preview_rect, theme, h, v);
+    handle_ruler_drag(ctx, ui, preview_rect, h, v)
 }
 
 fn draw_strip(painter: &egui::Painter, theme: &eparts::Theme, rect: egui::Rect) {
@@ -150,84 +150,56 @@ fn ruler_label_rect(
     (lane.contains_rect(label) && start >= previous_end + LABEL_GAP).then_some(label)
 }
 
-pub(super) fn handle_ruler_drag(
+fn handle_ruler_drag(
     ctx: &mut PreviewContext<'_>,
     ui: &mut egui::Ui,
     preview_rect: egui::Rect,
-    theme: &eparts::Theme,
     h_ruler_rect: egui::Rect,
     v_ruler_rect: egui::Rect,
-) {
-    // ── Ruler drag interaction ──
-    let ruler_drag_id = ui.scope_id().with("guide_ruler_drag_v2");
-    let raw_pointer_pos = ui.ctx().input(|i| i.pointer.latest_pos());
-    let h_ruler_resp = ui.allocate_rect(h_ruler_rect, egui::Sense::drag());
-    let v_ruler_resp = ui.allocate_rect(v_ruler_rect, egui::Sense::drag());
+) -> Option<GuideLine> {
+    let drag_id = ui.scope_id().with("guide_ruler_drag_v2");
+    let h = ui.allocate_rect(h_ruler_rect, egui::Sense::drag());
+    let v = ui.allocate_rect(v_ruler_rect, egui::Sense::drag());
 
-    if h_ruler_resp.drag_started()
-        && let Some(mouse) = raw_pointer_pos
+    let started = if h.drag_started() {
+        Some(Axis::Horizontal)
+    } else if v.drag_started() {
+        Some(Axis::Vertical)
+    } else {
+        None
+    };
+    if let Some(axis) = started
+        && let Some(origin) = ui.input(|i| i.pointer.press_origin())
     {
-        let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
-        ui.data_mut(|d| d.insert_temp(ruler_drag_id, Some((false, scene.y as f32, mouse))));
+        ui.data_mut(|d| d.insert_temp(drag_id, (axis, origin)));
     }
-    if v_ruler_resp.drag_started()
-        && let Some(mouse) = raw_pointer_pos
-    {
-        let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
-        ui.data_mut(|d| d.insert_temp(ruler_drag_id, Some((true, scene.x as f32, mouse))));
+    let (axis, start): (Axis, egui::Pos2) = ui.data(|d| d.get_temp(drag_id))?;
+    let stopped = h.drag_stopped() || v.drag_stopped() || ui.input(|i| i.pointer.any_released());
+    let pointer = ui.input(|i| i.pointer.latest_pos());
+    let guide = pointer.map(|position| {
+        let scene = ctx.preview_screen_to_scene(preview_rect, position);
+        match axis {
+            Axis::Horizontal => GuideLine::Horizontal(scene.y as f32),
+            Axis::Vertical => GuideLine::Vertical(scene.x as f32),
+        }
+    });
+    if !stopped {
+        return guide;
     }
 
-    let ruler_drag_active: Option<(bool, f32, egui::Pos2)> = ui.data(|d| d.get_temp(ruler_drag_id));
-    if let Some((is_vertical, _start_val, _start_pos)) = ruler_drag_active
-        && let Some(mouse) = raw_pointer_pos
+    ui.data_mut(|d| d.remove::<(Axis, egui::Pos2)>(drag_id));
+    // The result is persisted in scene units only when dropped in the canvas.
+    if let Some(position) = pointer
+        && preview_rect.contains(position)
+        && (position - start).length() >= 5.0
     {
-        let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
-        let guide_color = theme.palette.status.warning;
-        if is_vertical {
-            let ghost_screen =
-                ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(scene.x, 0.0));
-            if ghost_screen.x >= preview_rect.min.x && ghost_screen.x <= preview_rect.max.x {
-                ui.painter().line_segment(
-                    [
-                        egui::pos2(ghost_screen.x, preview_rect.min.y),
-                        egui::pos2(ghost_screen.x, preview_rect.max.y),
-                    ],
-                    egui::Stroke::new(STROKE_WIDTH, guide_color),
-                );
-            }
-        } else {
-            let ghost_screen =
-                ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(0.0, scene.y));
-            if ghost_screen.y >= preview_rect.min.y && ghost_screen.y <= preview_rect.max.y {
-                ui.painter().line_segment(
-                    [
-                        egui::pos2(preview_rect.min.x, ghost_screen.y),
-                        egui::pos2(preview_rect.max.x, ghost_screen.y),
-                    ],
-                    egui::Stroke::new(STROKE_WIDTH, guide_color),
-                );
-            }
+        match guide {
+            Some(GuideLine::Horizontal(y)) => ctx.preview.guides.horizontal_guides.push(y),
+            Some(GuideLine::Vertical(x)) => ctx.preview.guides.vertical_guides.push(x),
+            None => {},
         }
     }
-
-    let pointer_released = ui.input(|i| i.pointer.any_released());
-    if let Some((is_vertical, _start_val, start_pos)) = ruler_drag_active
-        && (pointer_released || h_ruler_resp.drag_stopped() || v_ruler_resp.drag_stopped())
-    {
-        if let Some(mouse) = raw_pointer_pos {
-            // Require at least 5 px of movement to avoid accidental clicks
-            let dragged_far_enough = (mouse - start_pos).length() >= 5.0;
-            if dragged_far_enough && preview_rect.contains(mouse) {
-                let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
-                if is_vertical {
-                    ctx.preview.guides.vertical_guides.push(scene.x as f32);
-                } else {
-                    ctx.preview.guides.horizontal_guides.push(scene.y as f32);
-                }
-            }
-        }
-        ui.data_mut(|d| d.remove::<Option<(bool, f32, egui::Pos2)>>(ruler_drag_id));
-    }
+    None
 }
 
 #[cfg(test)]
