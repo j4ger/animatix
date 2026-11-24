@@ -242,6 +242,7 @@ fn test_qualified_play_target_uses_namespace_alias() {
             name: "SceneName".into(),
             config: vec![],
             body: vec![Stmt::Keyframe {
+                cue_group: None,
                 time: crate::ast::Time::Seconds(1.0),
                 body: vec![],
                 span: None,

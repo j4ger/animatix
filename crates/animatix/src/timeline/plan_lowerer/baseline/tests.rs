@@ -37,6 +37,7 @@ fn always_only_plan_does_not_add_a_world_track_baseline() {
         // The reactive clip still needs a finite time extent to be mounted.
         // An empty boundary gives it one without writing a static World track.
         Stmt::Keyframe {
+            cue_group: None,
             time: animatix_syntax::ast::Time::Seconds(1.0),
             body: Vec::new(),
             span: None,

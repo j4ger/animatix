@@ -612,6 +612,38 @@ fn parse_snippet_keyframe() {
 }
 
 #[test]
+fn named_cue_headers_round_trip_with_their_order() {
+    let source = "#1s // overridden\n#voice@intro\n#cue:start\n#cue:also\n  card.opacity = 1\n\n#2s\n#cue:end\n";
+    let parsed = parse_ok(source);
+    let [
+        Stmt::Keyframe {
+            time,
+            cue_group: Some(group),
+            body,
+            ..
+        },
+        end,
+    ] = parsed.as_slice()
+    else {
+        panic!("expected two cue groups: {parsed:?}");
+    };
+    assert!(matches!(time, Time::SpeechMarker { marker, .. } if marker == "intro"));
+    assert_eq!(group.preceding, vec![(false, Time::Seconds(1.0))]);
+    assert_eq!(group.names, ["start", "also"]);
+    assert_eq!(body.len(), 1);
+    assert!(end.is_cue_only_keyframe());
+
+    let formatter = crate::formatter::Formatter::default();
+    let formatted = formatter.format_source(source, &parsed);
+    assert!(
+        formatted.contains("#1s  // overridden\n#voice@intro\n#cue:start\n#cue:also"),
+        "{formatted}"
+    );
+    assert_eq!(formatted, formatter.format_source(&formatted, &parse_ok(&formatted)));
+    assert!(!super::parse_source("#cue:orphan\n").1.is_empty());
+}
+
+#[test]
 fn parse_snippet_always() {
     let stmts = snippet_stmts("always {\n    ${1:}\n}");
     assert_eq!(stmts.len(), 1);

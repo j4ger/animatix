@@ -20,9 +20,11 @@ pub(super) fn timeline_markers(stmts: &[Stmt], target: &BuildTarget) -> Vec<Mark
                 markers.push(MarkerDto {
                     t,
                     kind: "keyframe".to_string(),
+                    id: None,
                     dur: 0.0,
                 });
             }
+            markers.extend(timeline.named_cues().map(|(id, t)| cue(id.to_owned(), t)));
         },
         BuildTarget::MultiScene(composition) => {
             for (name, start) in &composition.scene_start_times {
@@ -30,6 +32,7 @@ pub(super) fn timeline_markers(stmts: &[Stmt], target: &BuildTarget) -> Vec<Mark
                     markers.push(MarkerDto {
                         t: *start,
                         kind: "scene".to_string(),
+                        id: None,
                         dur: 0.0,
                     });
                 }
@@ -42,8 +45,17 @@ pub(super) fn timeline_markers(stmts: &[Stmt], target: &BuildTarget) -> Vec<Mark
                     markers.push(MarkerDto {
                         t: *start,
                         kind: "transition".to_string(),
+                        id: None,
                         dur: edge.transition.duration_ms as f64 / 1000.0,
                     });
+                }
+                if let Some(scene) = composition.scenes.get(name) {
+                    markers.extend(
+                        scene
+                            .timeline
+                            .named_cues()
+                            .map(|(id, t)| cue(format!("{name}::{id}"), start + t)),
+                    );
                 }
             }
             for stmt in stmts {
@@ -61,6 +73,7 @@ pub(super) fn timeline_markers(stmts: &[Stmt], target: &BuildTarget) -> Vec<Mark
                     markers.push(MarkerDto {
                         t,
                         kind: "keyframe".to_string(),
+                        id: None,
                         dur: 0.0,
                     });
                 }
@@ -71,12 +84,22 @@ pub(super) fn timeline_markers(stmts: &[Stmt], target: &BuildTarget) -> Vec<Mark
         markers.push(MarkerDto {
             t: ms as f64 / 1000.0,
             kind: "step".to_string(),
+            id: None,
             dur: 0.0,
         });
     }
     markers.sort_by(|a, b| a.t.partial_cmp(&b.t).unwrap_or(std::cmp::Ordering::Equal));
-    markers.dedup_by(|a, b| a.kind == b.kind && (a.t - b.t).abs() < 1e-6);
+    markers.dedup_by(|a, b| a.kind == b.kind && a.id == b.id && (a.t - b.t).abs() < 1e-6);
     markers
+}
+
+fn cue(id: String, t: f64) -> MarkerDto {
+    MarkerDto {
+        t,
+        kind: "cue".to_owned(),
+        id: Some(id),
+        dur: 0.0,
+    }
 }
 
 /// Use the compiler's resolved clock rather than evaluating source expressions
@@ -89,6 +112,7 @@ fn collect_keyframe_stmt_times(
 ) {
     for stmt in stmts {
         match stmt {
+            stmt if stmt.is_cue_only_keyframe() => {},
             Stmt::Keyframe { body, span, .. } | Stmt::RelativeKeyframe { body, span, .. } => {
                 if let Some(time) = span.and_then(|span| timeline.marker_time(span)) {
                     out.push(base + time / 1000.0);

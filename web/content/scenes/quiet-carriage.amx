@@ -12,6 +12,7 @@ let domain = (0, 15)
 let pressure = (-1.2, 1.2)
 
 #0s
+#cue:train
   backdrop: Backdrop, center: (0.76, 0.2), strength: 1
   signals: Col, anchor: scene.center, offset: (0, -36), gap: 10, align: "start" {
     legend: Row, gap: 32, align: "center" {
@@ -42,8 +43,14 @@ let pressure = (-1.2, 1.2)
   caption.text = "The speaker pushes when the rumble pulls."
   fade_in(targets: {signals.outside.opposing, signals.legend.headphones}, duration: 500ms)
 
+#8s
+#cue:speaker
+
 #10s
   caption.text = "The two pressures add at your ear."
 
 #12s
   caption.text = if speaker_level == 1 { "Equal and opposite, this tone cancels." } else { "A mismatch leaves some rumble." }
+
+#16s
+#cue:ear

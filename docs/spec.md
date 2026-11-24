@@ -202,6 +202,32 @@ fade_in(target: A, duration: 1s)
 B.color = red [2s]
 ```
 
+### Named time anchors
+
+Add `#cue:name` below a scene time header to give that time a name. The
+last consecutive time header before the cue sets the time for the cue and
+any following actions. Earlier headers in the group are kept in the source
+and skipped during the build. A relative header resolves from the previous
+effective keyframe outside the group.
+
+```animatix
+#1s
+#voice@intro
+#cue:start
+#cue:opening
+  card.opacity = 1
+
+#8s
+#cue:summary
+```
+
+Here `start` and `opening` both use `voice@intro`. Move `#1s` below the
+voice header to use one second. A cue can also name a time such as `summary`
+with an empty body. These anchors leave the build clock and scene duration
+as they were. The last definition of each name within its scene wins. Cues
+beyond the playable duration produce a build warning and are omitted from
+the playback landmarks.
+
 **Speech & Voiceover Synchronization:**
 Keyframes can be anchored to spoken markers or word timestamps from an `Audio`
 track transcript. Word anchors require word-timed Universal JSON or Whisper JSON.

@@ -178,6 +178,7 @@ impl SpeechScan<'_> {
                     self.load(label, props, env, start_ms, ty == "Audio");
                 },
                 Stmt::Keyframe { time, body, .. } if is_script_only(time, body) => {},
+                stmt if stmt.is_cue_only_keyframe() => {},
                 Stmt::Keyframe { time, body, .. } => {
                     time_ms = self.timestamp(time, env);
                     self.walk(body, env, time_ms);
@@ -597,13 +598,25 @@ fn lower_stmt(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Stmt {
     match stmt {
-        Stmt::Keyframe { time, body, span } => Stmt::Keyframe {
+        Stmt::Keyframe {
+            time,
+            cue_group,
+            body,
+            span,
+        } => Stmt::Keyframe {
             time: lower_time(time, context, *span, diagnostics),
+            cue_group: cue_group.clone(),
             body: lower_speech_block(body, context, diagnostics),
             span: *span,
         },
-        Stmt::RelativeKeyframe { offset, body, span } => Stmt::RelativeKeyframe {
+        Stmt::RelativeKeyframe {
+            offset,
+            cue_group,
+            body,
+            span,
+        } => Stmt::RelativeKeyframe {
             offset: lower_time(offset, context, *span, diagnostics),
+            cue_group: cue_group.clone(),
             body: lower_speech_block(body, context, diagnostics),
             span: *span,
         },

@@ -94,21 +94,29 @@ impl<'a> StmtExpander<'a> {
     fn expand(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::Keyframe {
-                time, body, span, ..
+                time,
+                cue_group,
+                body,
+                span,
             } => {
                 let expanded_body = self.expand_body(body);
                 self.output.push(Stmt::Keyframe {
                     time: expand_time(time, self.components, self.ctx),
+                    cue_group: cue_group.clone(),
                     body: expanded_body,
                     span: *span,
                 });
             },
             Stmt::RelativeKeyframe {
-                offset, body, span, ..
+                offset,
+                cue_group,
+                body,
+                span,
             } => {
                 let expanded_body = self.expand_body(body);
                 self.output.push(Stmt::RelativeKeyframe {
                     offset: expand_time(offset, self.components, self.ctx),
+                    cue_group: cue_group.clone(),
                     body: expanded_body,
                     span: *span,
                 });

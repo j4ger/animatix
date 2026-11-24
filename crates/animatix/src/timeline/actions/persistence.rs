@@ -423,6 +423,7 @@ mod tests {
     #[test]
     fn persist_via_build_sets_flag() {
         let ast = vec![Stmt::Keyframe {
+            cue_group: None,
             time: Time::Seconds(0.0),
             body: vec![
                 text_decl("headline"),
@@ -452,6 +453,7 @@ mod tests {
     #[test]
     fn remove_via_build_clears_flag_and_sets_opacity() {
         let ast = vec![Stmt::Keyframe {
+            cue_group: None,
             time: Time::Seconds(0.0),
             body: vec![
                 text_decl("headline"),

@@ -281,12 +281,14 @@ fn group_plan_items(items: Vec<PlanItem>) -> Vec<Stmt> {
                     body.push(if was_relative {
                         Stmt::RelativeKeyframe {
                             offset: old_time,
+                            cue_group: None,
                             body: statements,
                             span: None,
                         }
                     } else {
                         Stmt::Keyframe {
                             time: old_time,
+                            cue_group: None,
                             body: statements,
                             span: None,
                         }
@@ -308,12 +310,14 @@ fn group_plan_items(items: Vec<PlanItem>) -> Vec<Stmt> {
         body.push(if relative {
             Stmt::RelativeKeyframe {
                 offset: time,
+                cue_group: None,
                 body: statements,
                 span: None,
             }
         } else {
             Stmt::Keyframe {
                 time,
+                cue_group: None,
                 body: statements,
                 span: None,
             }

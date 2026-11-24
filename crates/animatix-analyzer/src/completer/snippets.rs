@@ -24,6 +24,13 @@ pub(super) fn snippet_completions() -> Vec<CompletionItem> {
             insert_text: Some("#+ ${1:1s}\n${2:}".to_string()),
         },
         CompletionItem {
+            label: "cue".to_string(),
+            kind: CompletionKind::Snippet,
+            detail: Some("Named time anchor".to_string()),
+            documentation: Some("Name the time header above for page-driven playback".to_string()),
+            insert_text: Some("#cue:${1:name}".to_string()),
+        },
+        CompletionItem {
             label: "component".to_string(),
             kind: CompletionKind::Snippet,
             detail: Some("Component definition".to_string()),

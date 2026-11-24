@@ -374,6 +374,9 @@ Behavior:
   In narrow embeds, the timeline takes its own row above playback, time, and
   speed. A host with its own controls can read `player.timelineMarkers` for a
   snapshot of the current document's landmarks (`{ t, kind, dur }`, times in seconds).
+  An AMX `#cue:name` appears as `{ t, kind: "cue", id: "name", dur: 0 }`.
+  Compositions prefix the name with `Scene::` and report the time on the
+  composition clock. These anchors are available to host scripts.
 
   **`debug-frame`** replaces the time chip with a readout for locating a broken
   frame: `f<frame> / <total>  <seconds>  @60fps  rs<render scale>`. The frame
@@ -560,6 +563,36 @@ reader. Two attributes and one event back that mode:
   `time` (current position, clamped to `duration`) getters read 0 until
   then, so page drivers wait for the event before computing scrub
   mappings.
+
+### Bind page sections to named times
+
+Write `#cue:speaker` beneath the chosen AMX time header and give the page
+section the same name. This example shows a still when a section moves into
+the reading area. The `/journey/` example interpolates between names as the
+reader scrolls.
+
+```html
+<amx-player src="story.amx" sealed></amx-player>
+<section data-amx-cue="speaker">How the speaker cancels noise</section>
+<script type="module">
+  const player = document.querySelector('amx-player');
+  const section = document.querySelector('[data-amx-cue="speaker"]');
+  player.addEventListener('amxready', () => {
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.intersectionRatio < 0.5) return;
+      const cue = player.timelineMarkers.find(marker =>
+        marker.kind === 'cue' && marker.id === section.dataset.amxCue);
+      if (!cue) return;
+      player.pause();
+      player.seek(cue.t);
+    }, {threshold: 0.5});
+    observer.observe(section);
+  }, {once: true});
+</script>
+```
+
+Recompute any cached cue map after a successful `applySource()` or `setVars()`.
+A failed rebuild leaves the installed scene and its cue snapshot available.
 
 ### The ink design system
 

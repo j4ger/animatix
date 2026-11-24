@@ -15,29 +15,20 @@ impl Timeline {
         for statement in body {
             let first_new_entity_index = self.world.len();
             match statement {
-                Stmt::Keyframe { time, body, span } => {
+                Stmt::Keyframe {
+                    time, body, span, ..
+                }
+                | Stmt::RelativeKeyframe {
+                    offset: time,
+                    body,
+                    span,
+                    ..
+                } => {
                     if let Some((marker, nested_extent)) = self.mount_plan_marker(
                         time,
                         body,
                         *span,
-                        false,
-                        origin_ms,
-                        rate,
-                        local_extent_ms,
-                        parent_label,
-                        cursor_local_ms,
-                        diagnostics,
-                    ) {
-                        cursor_local_ms = marker;
-                        extent = extent.max(nested_extent);
-                    }
-                },
-                Stmt::RelativeKeyframe { offset, body, span } => {
-                    if let Some((marker, nested_extent)) = self.mount_plan_marker(
-                        offset,
-                        body,
-                        *span,
-                        true,
+                        matches!(statement, Stmt::RelativeKeyframe { .. }),
                         origin_ms,
                         rate,
                         local_extent_ms,

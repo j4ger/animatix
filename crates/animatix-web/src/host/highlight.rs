@@ -22,7 +22,9 @@ pub fn highlight_source(source: &str) -> Vec<(usize, usize, &'static str)> {
     let mut byte = 0;
     let mut utf16 = 0;
     while let Some(token) = tokens.first() {
-        let (count, role) = if let Some(count) = keyframe_prefix(tokens) {
+        let (count, role) = if is_cue_header(tokens) {
+            (4, "cue")
+        } else if let Some(count) = keyframe_prefix(tokens) {
             (count, "keyframe")
         } else {
             let role = roles
@@ -42,34 +44,47 @@ pub fn highlight_source(source: &str) -> Vec<(usize, usize, &'static str)> {
     ranges
 }
 
+fn is_cue_header(tokens: &[Token]) -> bool {
+    use TokenKind::{Colon, Hash, Ident};
+    matches!(tokens, [Token { kind: Hash, .. }, Token { kind: Ident(name), .. },
+        Token { kind: Colon, .. }, Token { kind: Ident(_), .. }, ..] if name == "cue")
+}
+
 fn keyframe_prefix(tokens: &[Token]) -> Option<usize> {
-    use TokenKind::{BeatTime, Hash, Ident, Keyword, Plus, Time};
-    match tokens {
+    use TokenKind::{At, BeatTime, Hash, Ident, Keyword, LBracket, LParen, Plus, Time};
+    let [Token { kind: Hash, .. }, rest @ ..] = tokens else {
+        return None;
+    };
+    let (prefix, rest) = match rest {
+        [Token { kind: Plus, .. }, rest @ ..] => (2, rest),
+        _ => (1, rest),
+    };
+    match rest {
         [
-            Token { kind: Hash, .. },
             Token {
-                kind: Time { .. } | BeatTime { .. },
+                kind: Time { .. } | BeatTime { .. } | LParen,
                 ..
             },
             ..,
-        ] => Some(2),
+        ] => Some(prefix + 1),
         [
-            Token { kind: Hash, .. },
-            Token { kind: Plus, .. },
-            Token {
-                kind: Time { .. } | BeatTime { .. },
-                ..
-            },
+            Token { kind: Ident(_), .. },
+            Token { kind: At, .. },
+            Token { kind: Ident(_), .. },
             ..,
-        ] => Some(3),
+        ] => Some(prefix + 3),
         [
-            Token { kind: Hash, .. },
+            Token { kind: Ident(_), .. },
+            Token { kind: LBracket, .. },
+            ..,
+        ] => Some(prefix + 2),
+        [
             Token {
                 kind: Keyword(name) | Ident(name),
                 ..
             },
             ..,
-        ] if matches!(name.as_str(), "step" | "pause") => Some(2),
+        ] if prefix == 1 && matches!(name.as_str(), "step" | "pause") => Some(2),
         _ => None,
     }
 }
@@ -97,5 +112,13 @@ mod tests {
         ] {
             assert!(marked.iter().any(|(s, r)| s == text && *r == role), "{marked:?}");
         }
+    }
+
+    #[test]
+    fn colors_cue_annotations_separately_from_time_headers() {
+        let source = "#voice@intro\n#cue:start\n";
+        let marked = highlight_source(source);
+        assert!(marked.contains(&(0, 12, "keyframe")));
+        assert!(marked.contains(&(13, 23, "cue")));
     }
 }

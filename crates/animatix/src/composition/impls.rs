@@ -228,6 +228,19 @@ impl BuildTarget {
                 diagnostics,
             }
         };
+        match &mut report.output {
+            BuildTarget::SingleScene(timeline) => {
+                timeline.validate_cue_range(
+                    timeline.playback_duration_seconds(),
+                    &mut report.diagnostics,
+                );
+            },
+            BuildTarget::MultiScene(composition) => {
+                for scene in composition.scenes.values_mut() {
+                    scene.timeline.validate_cue_range(scene.duration_s, &mut report.diagnostics);
+                }
+            },
+        }
         if let Some(path) = source_path {
             for diag in &mut report.diagnostics {
                 if diag.location.path.is_none() {

@@ -56,6 +56,7 @@ const poster = url(posterPath);
         <p class="recording-caption">{t('Recording of the original settings.', '按原始设置录制。')}</p>
       </div>}
       <p class="scene-status" role="status" aria-live="polite"></p>
+      <slot name="playback-status"/>
       {recording && <div class="scene-fallback" hidden>
         <button class="button watch-recording" type="button">{t('Play recording', '播放录制视频')}</button>
       </div>}

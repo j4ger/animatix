@@ -280,6 +280,8 @@ pub struct Timeline {
     pub(crate) plan_clock_rate: f64,
     /// Resolved absolute keyframe marker times indexed by authored source span.
     pub(crate) resolved_markers: Vec<(crate::ast::Span, f64)>,
+    /// Named scene times in seconds and their source locations.
+    pub(crate) named_cues: std::collections::BTreeMap<String, (f64, Option<crate::ast::Span>)>,
     /// Next auto-color slot for `color: auto`: a scene-level allocation counter,
     /// not per-entity state (the slot itself lives in [`AutoColorComponent`]).
     pub(crate) next_auto_color_index: usize,

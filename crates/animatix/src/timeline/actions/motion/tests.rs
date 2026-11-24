@@ -47,6 +47,7 @@ fn scale_action(target: &str, by: Expr) -> Stmt {
 #[test]
 fn move_animates_motion_offset_to_target_value() {
     let ast = vec![Stmt::Keyframe {
+        cue_group: None,
         time: Time::Seconds(0.0),
         body: vec![
             circle_decl("badge"),
@@ -67,6 +68,7 @@ fn move_animates_motion_offset_to_target_value() {
 #[test]
 fn rotate_animates_rotation_track_over_duration() {
     let ast = vec![Stmt::Keyframe {
+        cue_group: None,
         time: Time::Seconds(0.0),
         body: vec![
             circle_decl("badge"),
@@ -87,6 +89,7 @@ fn rotate_animates_rotation_track_over_duration() {
 #[test]
 fn scale_animates_scale_track_over_duration() {
     let ast = vec![Stmt::Keyframe {
+        cue_group: None,
         time: Time::Seconds(0.0),
         body: vec![circle_decl("badge"), scale_action("badge", Expr::Num(1.5))],
         span: None,
@@ -104,6 +107,7 @@ fn scale_animates_scale_track_over_duration() {
 #[test]
 fn shift_animates_motion_offset_over_duration() {
     let ast = vec![Stmt::Keyframe {
+        cue_group: None,
         time: Time::Seconds(0.0),
         body: vec![
             circle_decl("badge"),
@@ -133,6 +137,7 @@ fn motion_actions_reject_invalid_modifier_values() {
 
     for (verb, modifier, action, invalid_value) in cases {
         let ast = vec![Stmt::Keyframe {
+            cue_group: None,
             time: Time::Seconds(0.0),
             body: vec![circle_decl("badge"), action("badge", invalid_value)],
             span: None,
@@ -153,6 +158,7 @@ fn motion_actions_reject_invalid_modifier_values() {
 #[test]
 fn shift_preserves_layout_managed_targets() {
     let ast = vec![Stmt::Keyframe {
+        cue_group: None,
         time: Time::Seconds(0.0),
         body: vec![
             Stmt::ActorDecl {

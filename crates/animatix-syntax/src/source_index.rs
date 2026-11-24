@@ -285,6 +285,7 @@ mod tests {
         // Real-world style: ast_rt creates Property without value_span via module rewrite
         // but our parser now populates it. This verifies the index works end-to-end.
         let stmts = vec![Stmt::Keyframe {
+            cue_group: None,
             time: Time::Seconds(0.0),
             body: vec![actor_with_props(
                 "card",

@@ -322,10 +322,65 @@ async function inlineEditorJourney(cdp, checkErrors, {duration, stamp}) {
 }
 
 async function storyEditorJourney(cdp, checkErrors) {
-  await cdp.evaluate(`window.scrollTo({top: document.querySelector('#speaker').offsetTop, behavior: 'instant'})`);
-  await until('reading scroll seeks the shared player', () => cdp.evaluate(`
-    document.querySelector('amx-player').time > 0 && document.querySelector('amx-player').time < 16
+  await until('story exposes the three AMX cue names', () => cdp.evaluate(`
+    JSON.stringify(document.querySelector('amx-player').timelineMarkers
+      .filter(marker => marker.kind === 'cue').map(({id, t}) => [id, t])) ===
+      JSON.stringify([['train', 0], ['speaker', 8], ['ear', 16]])
   `));
+  await scrollStory(cdp, 0.5, 4);
+  await scrollStory(cdp, 1, 8);
+  await scrollStory(cdp, 0, 0);
+
+  try {
+    await cdp.send('Emulation.setDeviceMetricsOverride', {width: 620, height: 850, deviceScaleFactor: 1, mobile: false});
+    await until('story switched to its narrow layout', () => cdp.evaluate(`matchMedia('(max-width: 740px)').matches`));
+    await scrollStory(cdp, 1, 8);
+    await scrollStory(cdp, 0.5, 4);
+    await cdp.send('Emulation.setEmulatedMedia', {features: [{name: 'prefers-reduced-motion', value: 'reduce'}]});
+    await scrollStory(cdp, 0.8, 8);
+    await scrollStory(cdp, 0.2, 0);
+  } finally {
+    await cdp.send('Emulation.setEmulatedMedia', {features: []});
+    await cdp.send('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});
+  }
+
+  await cdp.evaluate(`(() => {
+    document.querySelector('.inspect').click();
+    const editor = document.querySelector('.source-editor textarea');
+    editor.value = editor.value.replace('#8s\\n#cue:speaker', '#9s\\n#cue:speaker');
+    editor.dispatchEvent(new Event('input', {bubbles: true}));
+  })()`);
+  await until('editing AMX moves the speaker cue to 9 seconds', () => cdp.evaluate(`
+    document.querySelector('amx-player').timelineMarkers.some(m => m.id === 'speaker' && m.t === 9)
+  `));
+  const retained = await cdp.evaluate(`(async () => {
+    const player = document.querySelector('amx-player');
+    const installed = JSON.stringify(player.timelineMarkers);
+    try { await player.applySource('config {'); } catch {
+      return JSON.stringify(player.timelineMarkers) === installed;
+    }
+    return false;
+  })()`);
+  if (!retained) throw Error('A failed build changed the installed cue snapshot');
+  await cdp.evaluate(`document.querySelector('.inspect').click()`);
+  await scrollStory(cdp, 1, 9);
+
+  await cdp.evaluate(`(() => {
+    document.querySelector('.inspect').click();
+    const editor = document.querySelector('.source-editor textarea');
+    editor.value = editor.value.replace('#cue:speaker', '#cue:renamed');
+    editor.dispatchEvent(new Event('input', {bubbles: true}));
+  })()`);
+  await until('a missing cue is reported without disabling playback', () => cdp.evaluate(`
+    document.querySelector('[data-cue-status]').textContent.includes('speaker') &&
+      !document.querySelector('.sample-play').disabled
+  `));
+  await cdp.evaluate(`document.querySelector('.reset-source').click()`);
+  await until('reset restores the original cue binding', () => cdp.evaluate(`
+    !document.querySelector('[data-cue-status]').textContent &&
+      document.querySelector('amx-player').timelineMarkers.some(m => m.id === 'speaker' && m.t === 8)
+  `));
+
   await cdp.evaluate(`document.querySelector('[data-edit-film="half"]').click()`);
   await until('half strength edits and replays the scene inline', async () => {
     await checkErrors();
@@ -344,6 +399,22 @@ async function storyEditorJourney(cdp, checkErrors) {
   if (!containsPortableLayout(result.source, result.draft)) {
     throw Error('Journey download did not preserve the edited scene and include its layout');
   }
+}
+
+async function scrollStory(cdp, progress, seconds) {
+  await cdp.evaluate(`(async () => {
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    const speaker = document.querySelector('#speaker').getBoundingClientRect();
+    const film = document.querySelector('.film');
+    const narrow = matchMedia('(max-width: 740px)').matches;
+    const offset = narrow ? -film.offsetHeight - 20 : (speaker.height - innerHeight) / 2;
+    const stop = Math.max(0, Math.min(document.documentElement.scrollHeight - innerHeight,
+      speaker.top + scrollY + offset));
+    window.scrollTo({top: stop * ${progress}, behavior: 'instant'});
+  })()`);
+  await until('reading scroll seeks to ' + seconds + ' seconds', () => cdp.evaluate(`
+    Math.abs(document.querySelector('amx-player').time - ${seconds}) < 0.04
+  `));
 }
 
 function containsPortableLayout(source, draft) {

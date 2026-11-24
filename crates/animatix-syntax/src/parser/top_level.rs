@@ -69,13 +69,18 @@ pub(crate) fn parser<'src>(
         .as_context();
 
     let keyframe_source = source.clone();
+    let cue_name = hash()
+        .ignore_then(select! { TokenKind::Ident(name) if name == "cue" => () })
+        .ignore_then(colon())
+        .ignore_then(ident().labelled("cue name"));
     let keyframe = hash()
         .ignore_then(plus().or_not())
         .then(time)
         .then_ignore(colon().or_not())
+        .then(cue_name.repeated().collect::<Vec<_>>())
         .then(common::scoped(stmt.clone().repeated().collect::<Vec<_>>()))
         .map_with(
-            move |((is_relative, t), body),
+            move |(((is_relative, t), names), body),
                   extra: &mut MapExtra<
                 'src,
                 '_,
@@ -83,15 +88,23 @@ pub(crate) fn parser<'src>(
                 common::ParserExtra<'src>,
             >| {
                 let span = common::source_span(&keyframe_source, extra.span());
+                let cue_group = (!names.is_empty()).then(|| {
+                    Box::new(CueGroup {
+                        preceding: Vec::new(),
+                        names,
+                    })
+                });
                 if is_relative.is_some() {
                     Stmt::RelativeKeyframe {
                         offset: t,
+                        cue_group,
                         body,
                         span,
                     }
                 } else {
                     Stmt::Keyframe {
                         time: t,
+                        cue_group,
                         body,
                         span,
                     }
@@ -109,6 +122,7 @@ pub(crate) fn parser<'src>(
                 marker,
                 offset_ms: 0,
             },
+            cue_group: None,
             body,
             span,
         });
@@ -149,6 +163,7 @@ pub(crate) fn parser<'src>(
             Stmt::Expr(Expr::Call(..), _) | Stmt::Sequence { .. } | Stmt::Stagger { .. } => {
                 Stmt::Keyframe {
                     time: Time::Seconds(0.0),
+                    cue_group: None,
                     body: vec![s],
                     span: None,
                 }
@@ -162,8 +177,53 @@ pub(crate) fn parser<'src>(
     .recover_with(skip_then_retry_until(any().ignored(), statement_start))
     .repeated()
     .collect::<Vec<_>>()
-    .map(|flat| group_scenes(prefer_explicit_keyframes(flat)))
+    .map(|flat| group_scenes(group_cue_headers(prefer_explicit_keyframes(flat))))
     .boxed()
+}
+
+fn group_cue_headers(flat: Vec<Stmt>) -> Vec<Stmt> {
+    let mut result = Vec::with_capacity(flat.len());
+    for mut stmt in flat {
+        if let Stmt::Keyframe {
+            cue_group: Some(group),
+            ..
+        }
+        | Stmt::RelativeKeyframe {
+            cue_group: Some(group),
+            ..
+        } = &mut stmt
+        {
+            while let Some((relative, time)) = result.last().and_then(empty_time_header) {
+                group.preceding.push((relative, time.clone()));
+                result.pop();
+            }
+            group.preceding.reverse();
+        }
+        result.push(stmt);
+    }
+    result
+}
+
+fn empty_time_header(stmt: &Stmt) -> Option<(bool, &Time)> {
+    match stmt {
+        Stmt::Keyframe {
+            time,
+            body,
+            cue_group: None,
+            ..
+        } if body.is_empty()
+            && !matches!(time, Time::SpeechMarker { marker, .. } if crate::narration::is_implicit_anchor(marker)) =>
+        {
+            Some((false, time))
+        },
+        Stmt::RelativeKeyframe {
+            offset,
+            body,
+            cue_group: None,
+            ..
+        } if body.is_empty() => Some((true, offset)),
+        _ => None,
+    }
 }
 
 fn prefer_explicit_keyframes(flat: Vec<Stmt>) -> Vec<Stmt> {

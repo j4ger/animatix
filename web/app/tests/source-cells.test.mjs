@@ -19,3 +19,11 @@ test('a keyframe on the first line does not create a blank definitions cell', ()
     {start: 0, end: 1, next: 2, keyframe: true},
   ]);
 });
+
+test('named cues stay in the time header’s cell', () => {
+  const source = '#voice@intro\n#cue:start\n  actor.opacity = 1\n';
+  const cue = source.indexOf('#cue:start');
+  assert.deepEqual(sourceCells(source.split('\n'), [[0, 12, 'keyframe'], [cue, cue + 10, 'cue']]), [
+    {start: 0, end: 3, next: 4, keyframe: true},
+  ]);
+});

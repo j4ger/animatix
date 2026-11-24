@@ -1,4 +1,4 @@
-/** @typedef {{t: number, kind: string, dur?: number}} TimelineMarker */
+/** @typedef {{t: number, kind: string, dur?: number, id?: string}} TimelineMarker */
 
 /**
  * @param {HTMLElement} layer
@@ -8,6 +8,7 @@
 export function renderTimelineMarks(layer, markers, duration) {
   const marks = document.createDocumentFragment();
   for (const { t, kind, dur = 0 } of markers) {
+    if (kind === "cue") continue;
     const frac = duration > 0 ? Math.min(t / duration, 1) : 0;
     const mark = document.createElement("div");
     mark.className = kind === "transition" && dur > 0 ? "span"
@@ -34,6 +35,7 @@ export function findTimelineSnap(markers, time, duration, width) {
   let best = null;
   let distance = Infinity;
   for (const { t, kind, dur = 0 } of markers) {
+    if (kind === "cue") continue;
     for (const point of kind === "transition" && dur > 0 ? [t, t + dur] : [t]) {
       const delta = Math.abs(time - point);
       if (delta <= tolerance && delta < distance) {

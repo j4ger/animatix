@@ -399,6 +399,7 @@ fn ir_matches_ast_for_environment_functions() {
 fn modifier_ir_can_lower_post_expansion_program() {
     let program = vec![
         Stmt::Keyframe {
+            cue_group: None,
             time: Time::Seconds(0.0),
             body: always(vec![assignment(
                 static_target(&["pulse"]),
@@ -568,6 +569,7 @@ fn ir_reactive_runtime_executes() {
 #[test]
 fn ir_nested_modifier_targets_execute() {
     let ast = vec![Stmt::Keyframe {
+        cue_group: None,
         time: Time::Seconds(0.0),
         body: vec![
             actor(

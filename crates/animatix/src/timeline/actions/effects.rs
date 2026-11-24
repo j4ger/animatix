@@ -299,6 +299,7 @@ mod tests {
     #[test]
     fn shake_adds_motion_keyframes() {
         let ast = vec![Stmt::Keyframe {
+            cue_group: None,
             time: Time::Seconds(0.0),
             body: vec![circle_decl("badge"), shake_action("badge", 15.0)],
             span: None,
@@ -322,6 +323,7 @@ mod tests {
     #[test]
     fn pulse_adds_scale_keyframes() {
         let ast = vec![Stmt::Keyframe {
+            cue_group: None,
             time: Time::Seconds(0.0),
             body: vec![
                 circle_decl("badge"),

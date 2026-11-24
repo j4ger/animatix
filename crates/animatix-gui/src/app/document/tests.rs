@@ -67,6 +67,7 @@ formula: Typst, text: "Price: \$10", opacity: 1
 fn duration_scans_latest_track_keyframe() {
     let ast = vec![
         Stmt::Keyframe {
+            cue_group: None,
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
@@ -88,6 +89,7 @@ fn duration_scans_latest_track_keyframe() {
             span: None,
         },
         Stmt::RelativeKeyframe {
+            cue_group: None,
             offset: Time::Seconds(2.0),
             body: vec![Stmt::Assignment {
                 target: vec![animatix_syntax::ast::TargetSegment::Static(
@@ -150,6 +152,7 @@ fn timeline_keyframe_times_handles_missing_and_empty_timeline() {
 fn timeline_keyframe_times_are_sorted_and_deduped() {
     let ast = vec![
         Stmt::Keyframe {
+            cue_group: None,
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
@@ -168,6 +171,7 @@ fn timeline_keyframe_times_are_sorted_and_deduped() {
             span: None,
         },
         Stmt::RelativeKeyframe {
+            cue_group: None,
             offset: Time::Seconds(1.0),
             body: vec![Stmt::Assignment {
                 target: vec![animatix_syntax::ast::TargetSegment::Static(
@@ -183,6 +187,7 @@ fn timeline_keyframe_times_are_sorted_and_deduped() {
             span: None,
         },
         Stmt::RelativeKeyframe {
+            cue_group: None,
             offset: Time::Seconds(1.0),
             body: vec![Stmt::Assignment {
                 target: vec![animatix_syntax::ast::TargetSegment::Static(
@@ -198,6 +203,7 @@ fn timeline_keyframe_times_are_sorted_and_deduped() {
             span: None,
         },
         Stmt::RelativeKeyframe {
+            cue_group: None,
             offset: Time::Seconds(1.5),
             body: vec![Stmt::Assignment {
                 target: vec![animatix_syntax::ast::TargetSegment::Static(

@@ -216,6 +216,7 @@ mod tests {
     #[test]
     fn fade_in_animates_text_opacity() {
         let ast = vec![Stmt::Keyframe {
+            cue_group: None,
             time: Time::Seconds(0.0),
             body: vec![
                 Stmt::ActorDecl {
@@ -280,6 +281,7 @@ mod tests {
     #[test]
     fn wipe_in_animates_stroke_and_fill_together() {
         let ast = vec![Stmt::Keyframe {
+            cue_group: None,
             time: Time::Seconds(0.0),
             body: vec![rect_decl("panel"), action_stmt("wipe_in", "panel", 1.0)],
             span: None,
@@ -324,6 +326,7 @@ mod tests {
     #[test]
     fn fade_in_settles_on_the_authored_opacity() {
         let ast = vec![Stmt::Keyframe {
+            cue_group: None,
             time: Time::Seconds(0.0),
             body: vec![
                 rect_decl_with_opacity("panel", 0.25),
@@ -349,6 +352,7 @@ mod tests {
     fn entrance_actions_treat_an_authored_zero_as_a_seed() {
         for verb in ["fade_in", "wipe_in", "draw_in", "reveal_in"] {
             let ast = vec![Stmt::Keyframe {
+                cue_group: None,
                 time: Time::Seconds(0.0),
                 body: vec![
                     rect_decl_with_opacity("panel", 0.0),
@@ -374,6 +378,7 @@ mod tests {
         // Only 0 is a seed: a wipe must not fade a target that was authored at
         // 0.25, it should wipe it in at 0.25.
         let ast = vec![Stmt::Keyframe {
+            cue_group: None,
             time: Time::Seconds(0.0),
             body: vec![
                 rect_decl_with_opacity("panel", 0.25),
@@ -393,6 +398,7 @@ mod tests {
     fn wipe_in_on_text_proceeds_without_diagnostics() {
         // Text targets are now allowed through vector reveal actions.
         let ast = vec![Stmt::Keyframe {
+            cue_group: None,
             time: Time::Seconds(0.0),
             body: vec![
                 text_decl("headline"),
@@ -420,6 +426,7 @@ mod tests {
         let ast = vec![
             rect_decl("panel"),
             Stmt::Keyframe {
+                cue_group: None,
                 time: Time::Seconds(0.5),
                 body: vec![action_stmt("wipe_in", "panel", 0.7)],
                 span: None,
@@ -457,6 +464,7 @@ mod tests {
         let ast = vec![
             declared,
             Stmt::Keyframe {
+                cue_group: None,
                 time: Time::Seconds(0.5),
                 body: vec![action_stmt("wipe_in", "panel", 0.7)],
                 span: None,

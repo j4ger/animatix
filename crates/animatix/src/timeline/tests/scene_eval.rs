@@ -34,6 +34,7 @@ fn config_stmt(settings: Vec<Property>) -> Stmt {
 
 fn keyframe(body: Vec<Stmt>) -> Stmt {
     Stmt::Keyframe {
+        cue_group: None,
         time: crate::ast::Time::Seconds(0.0),
         body,
         span: None,

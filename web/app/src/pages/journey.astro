@@ -27,11 +27,13 @@ const editor = pageUrl(language, `playground/?scene=${noiseCancellation.id}`);
         <EditableScene id={noiseCancellation.id} {title} source={sceneSource(noiseCancellation.id)}
           posterPath="content/journey/quiet-carriage.webp" width={960} height={560} duration={16}
           posterAlt={t("The gold train rumble and green sound at the ear initially have identical waves.", "开头的金色列车轰鸣和绿色耳边声压具有相同波形。")}
-          download/>
+          download>
+          <p slot="playback-status" class="scene-status" data-cue-status role="status"></p>
+        </EditableScene>
       </div>
 
       <div class="story-copy">
-        <section id="train" aria-labelledby="question" data-cue="0">
+        <section id="train" aria-labelledby="question" data-amx-cue="train">
           <div class="passage">
             <p class="eyebrow"><span class="swatch rumble"></span>{t("On the train", "在列车上")}</p>
             <h1 id="question">{t('How do headphones ', '降噪耳机如何')}<em>{t('cancel noise?', '消掉噪声？')}</em></h1>
@@ -39,7 +41,7 @@ const editor = pageUrl(language, `playground/?scene=${noiseCancellation.id}`);
             <a class="turn" href="#speaker">{t("Switch on the headphones", "打开降噪")} <span aria-hidden="true">↓</span></a>
           </div>
         </section>
-        <section id="speaker" aria-labelledby="speaker-title" data-cue="8">
+        <section id="speaker" aria-labelledby="speaker-title" data-amx-cue="speaker">
           <div class="passage">
             <p class="eyebrow"><span class="swatch speaker"></span>{t("Inside the headphones", "耳机如何降噪")}</p>
             <h2 id="speaker-title">{t('One wave meets ', '原声遇到')}<em>{t('its opposite.', '反向的波')}</em></h2>
@@ -47,7 +49,7 @@ const editor = pageUrl(language, `playground/?scene=${noiseCancellation.id}`);
             <a class="turn" href="#ear">{t("See what reaches your ear", "看看耳朵听到了什么")} <span aria-hidden="true">↓</span></a>
           </div>
         </section>
-        <section id="ear" aria-labelledby="ear-title" data-cue="16">
+        <section id="ear" aria-labelledby="ear-title" data-amx-cue="ear">
           <div class="passage">
             <p class="eyebrow"><span class="swatch ear"></span>{t("At your ear", "到达耳朵的声音")}</p>
             <h2 id="ear-title">{t('The train keeps moving. ', '列车继续开。')}<em>{t('The hum fades.', '耳边安静了。')}</em></h2>

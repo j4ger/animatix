@@ -452,13 +452,25 @@ pub fn walk_fold_stmt<F: AstFolder + ?Sized>(folder: &mut F, stmt: Stmt) -> Stmt
             span,
         },
         Stmt::TypeAlias { .. } | Stmt::Import { .. } => stmt,
-        Stmt::Keyframe { time, body, span } => Stmt::Keyframe {
+        Stmt::Keyframe {
+            time,
+            cue_group,
+            body,
+            span,
+        } => Stmt::Keyframe {
             time: fold_time(folder, time),
+            cue_group,
             body: folder.fold_stmts(body),
             span,
         },
-        Stmt::RelativeKeyframe { offset, body, span } => Stmt::RelativeKeyframe {
+        Stmt::RelativeKeyframe {
+            offset,
+            cue_group,
+            body,
+            span,
+        } => Stmt::RelativeKeyframe {
             offset: fold_time(folder, offset),
+            cue_group,
             body: folder.fold_stmts(body),
             span,
         },
@@ -850,6 +862,7 @@ mod tests {
     #[test]
     fn computed_keyframe_times_are_visited_and_folded() {
         let stmt = Stmt::Keyframe {
+            cue_group: None,
             time: Time::Expression(Box::new(Expr::Ident("old".into()))),
             body: vec![],
             span: None,
@@ -861,6 +874,7 @@ mod tests {
 
         let folded = IdentifierRenamer.fold_stmt(stmt);
         let Stmt::Keyframe {
+            cue_group: None,
             time: Time::Expression(expr),
             ..
         } = folded

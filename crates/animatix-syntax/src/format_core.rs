@@ -570,10 +570,18 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             Some(a) => format!(r#"import "{}" as {}"#, path, a),
             None => format!(r#"import "{}""#, path),
         },
-        Stmt::Keyframe { time, body, .. } => format_keyframe(time, body, depth, indent_size),
-        Stmt::RelativeKeyframe { offset, body, .. } => {
-            format_relative_keyframe(offset, body, depth, indent_size)
-        },
+        Stmt::Keyframe {
+            time,
+            cue_group,
+            body,
+            ..
+        } => format_keyframe(time, false, cue_group.as_deref(), body, depth, indent_size),
+        Stmt::RelativeKeyframe {
+            offset,
+            cue_group,
+            body,
+            ..
+        } => format_keyframe(offset, true, cue_group.as_deref(), body, depth, indent_size),
         Stmt::Assignment {
             target,
             property,
@@ -683,9 +691,17 @@ fn format_actor_decl(
     if is_pub { format!("pub {}", s) } else { s }
 }
 
-/// Serialize an absolute keyframe header and its body.
-fn format_keyframe(time: &Time, body: &[Stmt], depth: usize, indent_size: usize) -> String {
-    if let Time::SpeechMarker { marker, .. } = time
+/// Serialize a time header, its cue annotations and its body.
+fn format_keyframe(
+    time: &Time,
+    relative: bool,
+    cue_group: Option<&CueGroup>,
+    body: &[Stmt],
+    depth: usize,
+    indent_size: usize,
+) -> String {
+    if !relative
+        && let Time::SpeechMarker { marker, .. } = time
         && crate::narration::is_implicit_anchor(marker)
     {
         let statements = format_stmts_raw(body, depth, indent_size);
@@ -695,19 +711,27 @@ fn format_keyframe(time: &Time, body: &[Stmt], depth: usize, indent_size: usize)
             None => statements,
         };
     }
-    let body_str = format_stmts_raw(body, depth + 1, indent_size);
-    format!("#{}\n{}", format_time(time), body_str)
-}
-
-/// Serialize a relative keyframe header and its body.
-fn format_relative_keyframe(
-    offset: &Time,
-    body: &[Stmt],
-    depth: usize,
-    indent_size: usize,
-) -> String {
-    let body_str = format_stmts_raw(body, depth + 1, indent_size);
-    format!("#+{}\n{}", format_time(offset), body_str)
+    let mut output = String::new();
+    let headers = cue_group
+        .into_iter()
+        .flat_map(|group| group.preceding.iter().map(|(relative, time)| (*relative, time)));
+    for (relative, time) in headers.chain(std::iter::once((relative, time))) {
+        output.push('#');
+        if relative {
+            output.push('+');
+        }
+        output.push_str(&format_time(time));
+        output.push('\n');
+    }
+    if let Some(group) = cue_group {
+        for name in &group.names {
+            output.push_str("#cue:");
+            output.push_str(name);
+            output.push('\n');
+        }
+    }
+    output.push_str(&format_stmts_raw(body, depth + 1, indent_size));
+    output
 }
 
 /// Serialize a property assignment, its modifiers and any lifted easing.

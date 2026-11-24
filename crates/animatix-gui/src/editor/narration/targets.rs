@@ -90,8 +90,12 @@ fn collect_scope(
             )
         });
         let (time, body, span) = match stmt {
-            Stmt::Keyframe { time, body, span } => (time, body.as_slice(), *span),
-            Stmt::RelativeKeyframe { offset, body, span } => (offset, body.as_slice(), *span),
+            Stmt::Keyframe {
+                time, body, span, ..
+            } => (time, body.as_slice(), *span),
+            Stmt::RelativeKeyframe {
+                offset, body, span, ..
+            } => (offset, body.as_slice(), *span),
             Stmt::Assignment { .. } if next_is_absolute => {
                 let Some(span) = action_span(stmt) else {
                     continue;

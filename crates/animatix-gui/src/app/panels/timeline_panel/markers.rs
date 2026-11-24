@@ -63,11 +63,15 @@ fn collect_scope(
                 let offset = composition.and_then(|c| c.scene_start_times.get(name)).copied();
                 collect_scope(body, timeline, composition, Some(name), offset, out);
             },
-            Stmt::Keyframe { time, body, span }
+            statement if statement.is_cue_only_keyframe() => {},
+            Stmt::Keyframe {
+                time, body, span, ..
+            }
             | Stmt::RelativeKeyframe {
                 offset: time,
                 body,
                 span,
+                ..
             } => {
                 if let Time::SpeechMarker { marker, .. } = time
                     && animatix_syntax::narration::is_implicit_anchor(marker)
@@ -271,11 +275,13 @@ mod tests {
     fn negative_relative_offset_is_not_clamped_before_addition() {
         let ast = vec![
             Stmt::Keyframe {
+                cue_group: None,
                 time: Time::Seconds(4.0),
                 body: vec![],
                 span: None,
             },
             Stmt::RelativeKeyframe {
+                cue_group: None,
                 offset: Time::Seconds(-1.0),
                 body: vec![],
                 span: None,
@@ -313,16 +319,19 @@ mod tests {
     fn relative_chain_does_not_guess_after_unknown_beat() {
         let ast = vec![
             Stmt::Keyframe {
+                cue_group: None,
                 time: Time::Beats(2.0),
                 body: vec![],
                 span: None,
             },
             Stmt::RelativeKeyframe {
+                cue_group: None,
                 offset: Time::Seconds(1.0),
                 body: vec![],
                 span: None,
             },
             Stmt::Keyframe {
+                cue_group: None,
                 time: Time::Seconds(4.0),
                 body: vec![],
                 span: None,

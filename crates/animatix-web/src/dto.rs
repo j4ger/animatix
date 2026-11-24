@@ -41,15 +41,18 @@ impl DiagnosticDto {
     }
 }
 
-/// One structural landmark on the document's timeline, for the embed's
-/// scrubber. Points (`keyframe`, `scene`, `step`) carry `dur == 0`; `transition`
+/// One structural landmark or named anchor on the document's timeline.
+/// Points (`keyframe`, `scene`, `step`, `cue`) carry `dur == 0`; `transition`
 /// markers span `[t, t + dur]`.
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct MarkerDto {
     /// Global time in seconds.
     pub t: f64,
-    /// "keyframe" | "scene" | "transition" | "step".
+    /// "keyframe" | "scene" | "transition" | "step" | "cue".
     pub kind: String,
+    /// The public anchor name for a cue, qualified by scene in compositions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
     /// Span length in seconds (transitions only, else 0).
     pub dur: f64,
 }

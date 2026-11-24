@@ -371,6 +371,7 @@ export class AmxPlayerLoad extends AmxPlayerView {
   _nextLandmark(dir) {
     const pts = [];
     for (const m of this._markers) {
+      if (m.kind === "cue") continue;
       pts.push(m.t);
       if (m.kind === "transition" && m.dur > 0) pts.push(m.t + m.dur);
     }

@@ -125,6 +125,16 @@ pub fn is_array_member_label(s: &str) -> Option<&str> {
     }
 }
 
+/// Authored time headers superseded by the last header of a named keyframe.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct CueGroup {
+    /// Preceding headers in source order, kept for formatting.
+    pub preceding: Vec<(bool, Time)>,
+    /// Names assigned to the effective header.
+    pub names: Vec<String>,
+}
+
 /// Statement types for the Animatix language.
 ///
 /// Traversal is centralized in [`crate::visit`]: implement
@@ -197,6 +207,12 @@ pub enum Stmt {
     Keyframe {
         /// Keyframe time.
         time: Time,
+        /// Optional named anchors on this header.
+        #[cfg_attr(
+            feature = "serde",
+            serde(default, skip_serializing_if = "Option::is_none")
+        )]
+        cue_group: Option<Box<CueGroup>>,
         /// Body statements at this keyframe.
         body: Vec<Stmt>,
         /// Source span for this keyframe.
@@ -207,6 +223,12 @@ pub enum Stmt {
     RelativeKeyframe {
         /// Time offset from the previous keyframe.
         offset: Time,
+        /// Optional named anchors on this header.
+        #[cfg_attr(
+            feature = "serde",
+            serde(default, skip_serializing_if = "Option::is_none")
+        )]
+        cue_group: Option<Box<CueGroup>>,
         /// Body statements at this keyframe.
         body: Vec<Stmt>,
         /// Source span for this keyframe.
@@ -395,6 +417,14 @@ pub enum Stmt {
 
     /// Standalone comment statement.
     Comment(String, Option<Span>),
+}
+
+impl Stmt {
+    /// Whether a time header only names a point and leaves the build clock untouched.
+    pub fn is_cue_only_keyframe(&self) -> bool {
+        matches!(self, Self::Keyframe { cue_group: Some(_), body, .. }
+            | Self::RelativeKeyframe { cue_group: Some(_), body, .. } if body.is_empty())
+    }
 }
 
 /// Build-time context attached to an indexed component-method call block.

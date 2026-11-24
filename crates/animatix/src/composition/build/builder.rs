@@ -147,6 +147,7 @@ impl Composition {
         }
         for stmt in body {
             match stmt {
+                stmt if stmt.is_cue_only_keyframe() => {},
                 Stmt::Keyframe {
                     time: crate::ast::Time::SpeechMarker { marker, .. },
                     body,

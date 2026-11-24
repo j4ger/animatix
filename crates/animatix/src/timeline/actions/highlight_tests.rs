@@ -5,6 +5,7 @@ use crate::timeline::Timeline;
 /// Helper: create a minimal Fragment track inside an Equation track.
 fn make_equation_with_fragment() -> Vec<Stmt> {
     vec![Stmt::Keyframe {
+        cue_group: None,
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
@@ -43,6 +44,7 @@ fn make_equation_with_fragments(labels: &[&str]) -> Vec<Stmt> {
         .collect();
 
     vec![Stmt::Keyframe {
+        cue_group: None,
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
@@ -62,6 +64,7 @@ fn make_equation_with_fragments(labels: &[&str]) -> Vec<Stmt> {
 /// Helper: create two Equations, each with its own Fragments.
 fn make_two_equations() -> Vec<Stmt> {
     vec![Stmt::Keyframe {
+        cue_group: None,
         time: Time::Seconds(0.0),
         body: vec![
             Stmt::ActorDecl {

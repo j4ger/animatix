@@ -237,6 +237,7 @@ pub(crate) fn actor(label: &str, ty: &str, props: Vec<Property>) -> Stmt {
 
 pub(crate) fn keyframe(seconds: f64, body: Vec<Stmt>) -> Stmt {
     Stmt::Keyframe {
+        cue_group: None,
         time: crate::ast::Time::Seconds(seconds),
         body,
         span: None,

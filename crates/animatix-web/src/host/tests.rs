@@ -323,6 +323,95 @@ t: Text, text: "Step 0", at: (10, 10)
 }
 
 #[test]
+fn named_cues_use_the_effective_time_and_keep_the_build_clock_for_actions() {
+    let mut cache = animatix::timeline::assets::AssetCache::new();
+    cache.insert_transcript_text("words.json", r#"{"markers":{"intro":1.5},"segments":[]}"#);
+    let cache = Arc::new(cache);
+    for (headers, time) in [("#1s\n#voice@intro", 1.5), ("#voice@missing\n#1s", 1.0)] {
+        let source = format!(
+            r#"
+config {{ bpm: 60 }}
+let beat = 1s
+#0s
+voice: Audio, source: "voice.wav", transcript: "words.json"
+card: Rect, size: (20, 20), opacity: 1
+{headers}
+#cue:start
+#cue:alias
+  card.opacity = 0.5
+#8s
+#cue:out_of_range
+#6s
+#+500ms
+#cue:relative
+  card.opacity = 1
+#(beat / 2)
+#cue:computed
+#cue:overwritten
+#4b
+#cue:beat
+#1s
+#cue:overwritten
+"#
+        );
+        let doc = build_document_with_assets(
+            &source,
+            Arc::new(FontContext::new()),
+            BuildQuality::Draft,
+            Some(cache.clone()),
+        );
+        assert!(doc.result.ok, "{:?}", doc.result.diagnostics);
+        assert_eq!(doc.result.duration_s, time + 0.5);
+        let cues: Vec<_> = doc
+            .result
+            .markers
+            .iter()
+            .filter_map(|m| m.id.as_deref().map(|id| (id, m.t)))
+            .collect();
+        assert!(cues.contains(&("start", time)) && cues.contains(&("alias", time)), "{cues:?}");
+        assert!(cues.contains(&("relative", time + 0.5)), "{cues:?}");
+        assert!(cues.contains(&("computed", 0.5)), "{cues:?}");
+        assert_eq!(cues.iter().filter(|(name, _)| *name == "overwritten").count(), 1);
+        assert!(cues.contains(&("overwritten", 1.0)));
+        assert!(doc.result.markers.iter().all(|m| m.t <= time + 0.5));
+        assert!(doc.result.diagnostics.iter().any(|d| d.message.contains("Cue 'out_of_range'")));
+        assert!(doc.result.diagnostics.iter().any(|d| d.message.contains("Cue 'beat' at 4s")));
+    }
+}
+
+#[test]
+fn named_cues_in_compositions_are_qualified_and_offset() {
+    let source = r#"
+#First
+config { duration: 3 }
+#1s
+#cue:start
+play Second
+#Second
+config { duration: 2 }
+#500ms
+#cue:start
+#cue:alias
+"#;
+    let doc = build_document(source, Arc::new(FontContext::new()), BuildQuality::Draft);
+    assert!(doc.result.ok, "{:?}", doc.result.diagnostics);
+    let cues: Vec<_> = doc
+        .result
+        .markers
+        .iter()
+        .filter_map(|m| m.id.as_deref().map(|id| (id, m.t, m.dur)))
+        .collect();
+    assert_eq!(
+        cues,
+        [
+            ("First::start", 1.0, 0.0),
+            ("Second::alias", 3.5, 0.0),
+            ("Second::start", 3.5, 0.0)
+        ]
+    );
+}
+
+#[test]
 fn load_result_exposes_single_scene_runtime_input_names_only() {
     let source = r#"
 config { runtime_inputs: { "phase", gain } }

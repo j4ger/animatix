@@ -109,7 +109,7 @@ fn explicit_and_implicit_timing_keep_their_actions_and_spans() {
     );
     assert!(matches!(first, Stmt::Keyframe { body, .. } if body.is_empty()));
     assert!(matches!(second, Stmt::Keyframe {
-        time: Time::SpeechMarker { marker, .. }, body, span: Some(span)
+        time: Time::SpeechMarker { marker, .. }, body, span: Some(span), ..
     } if is_implicit_anchor(marker) && span.start_line == 5 &&
         matches!(&body[0], Stmt::Assignment { span: Some(span), .. } if span.start_line == 6)));
     assert!(matches!(third, Stmt::Keyframe { body, .. } if body.is_empty()));

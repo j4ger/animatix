@@ -955,6 +955,7 @@ mod extent_tests {
                 span: None,
             },
             Stmt::Keyframe {
+                cue_group: None,
                 time: Time::Expression(Box::new(Expr::Ident("pause".into()))),
                 body: Vec::new(),
                 span: None,

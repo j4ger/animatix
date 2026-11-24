@@ -75,6 +75,7 @@ impl Timeline {
             audio_segments: Vec::new(),
             action_events: Vec::new(),
             resolved_markers: Vec::new(),
+            named_cues: Default::default(),
             plot_path_cache: std::collections::HashMap::new(),
             modifier_ir_cache: None,
         }
@@ -330,6 +331,35 @@ impl Timeline {
     /// stays the inferred extent.
     pub fn playback_duration_seconds(&self) -> f64 {
         self.declared_duration_s.unwrap_or_else(|| self.duration_seconds())
+    }
+
+    /// Resolved anchor names and scene-local times, in seconds.
+    pub fn named_cues(&self) -> impl Iterator<Item = (&str, f64)> {
+        self.named_cues.iter().map(|(name, (time, _))| (name.as_str(), *time))
+    }
+
+    pub(crate) fn validate_cue_range(
+        &mut self,
+        duration_s: f64,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        self.named_cues.retain(|name, (time, span)| {
+            if *time <= duration_s {
+                return true;
+            }
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::InvalidModifierValue,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "Cue '{name}' at {time}s is outside the playable duration of {duration_s}s."
+                    ),
+                )
+                .with_subject(name)
+                .with_ast_span(*span),
+            );
+            false
+        });
     }
 
     /// Returns all keyframe time positions across all tracks, in seconds.

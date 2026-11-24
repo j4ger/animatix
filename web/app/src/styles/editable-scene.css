@@ -54,7 +54,7 @@
 .source-highlight[data-highlighted] .source-line-text { visibility: visible; }
 .source-highlight[data-highlighted] textarea { background: transparent; color: transparent; caret-color: var(--ink); }
 .source-highlight[data-highlighted] textarea::selection { background: var(--accent-soft); color: var(--ink); }
-.source-line-text [data-role="keyframe"] { color: var(--accent); }
+.source-line-text :is([data-role="keyframe"], [data-role="cue"]) { color: var(--accent); }
 .source-line-text [data-role="comment"] { color: var(--muted); }
 .source-line-text :is([data-role="keyword"], [data-role="boolean"], [data-role="wildcard"]) { color: light-dark(#7e3387, #d8aff1); }
 .source-line-text :is([data-role="type"], [data-role="function"]) { color: light-dark(#135c75, #92d8ed); }

@@ -68,21 +68,38 @@ fn walk_statements_inner(
     for stmt in ast {
         match stmt {
             Stmt::Config { .. } => {},
-            Stmt::Keyframe { time, body, span } => {
+            Stmt::Keyframe {
+                time,
+                cue_group,
+                body,
+                span,
+            }
+            | Stmt::RelativeKeyframe {
+                offset: time,
+                cue_group,
+                body,
+                span,
+            } => {
+                let base = if matches!(stmt, Stmt::RelativeKeyframe { .. }) {
+                    state.current_build_time_ms
+                } else {
+                    0.0
+                };
+                let resolved =
+                    timeline.resolve_marker_time(time, *span, diagnostics).map(|time| base + time);
+                if let (Some(group), Some(time)) = (cue_group, resolved) {
+                    for name in &group.names {
+                        timeline.named_cues.insert(name.clone(), (time / 1000.0, *span));
+                    }
+                }
+                if stmt.is_cue_only_keyframe() {
+                    continue;
+                }
                 state.has_seen_keyframe = true;
                 timeline.default_opacity = 1.0;
-                if let Some(time_ms) = timeline.resolve_marker_time(time, *span, diagnostics) {
+                if let Some(time_ms) = resolved {
                     state.current_build_time_ms = time_ms;
                     timeline.record_resolved_marker(*span, time_ms);
-                }
-                timeline.process_body(state.current_build_time_ms, body, None, diagnostics);
-            },
-            Stmt::RelativeKeyframe { offset, body, span } => {
-                state.has_seen_keyframe = true;
-                timeline.default_opacity = 1.0;
-                if let Some(offset_ms) = timeline.resolve_marker_time(offset, *span, diagnostics) {
-                    state.current_build_time_ms += offset_ms;
-                    timeline.record_resolved_marker(*span, state.current_build_time_ms);
                 }
                 timeline.process_body(state.current_build_time_ms, body, None, diagnostics);
             },

@@ -50,6 +50,9 @@ impl AstFolder for ImportStripper {
 
 /// An import-only body leaves nothing behind for these container variants.
 fn drops_when_empty(stmt: &Stmt) -> bool {
+    if stmt.is_cue_only_keyframe() {
+        return false;
+    }
     // A standalone narration paragraph supplies the source identity for
     // bindings that put their actions under a separate authored keyframe.
     if matches!(stmt, Stmt::Keyframe { time: Time::SpeechMarker { marker, .. }, .. } if is_implicit_anchor(marker))

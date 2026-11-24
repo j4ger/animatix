@@ -56,6 +56,7 @@ mod tests {
     #[test]
     fn fade_out_animates_opacity_to_zero() {
         let ast = vec![Stmt::Keyframe {
+            cue_group: None,
             time: Time::Seconds(0.0),
             body: vec![
                 text_decl_with("headline", "Bye"),

@@ -105,6 +105,7 @@ fn action_stmt(verb: &str, target: &str, duration_s: f64) -> Stmt {
 #[test]
 fn draw_in_sets_stroke_progress_and_delays_fill_until_end() {
     let ast = vec![Stmt::Keyframe {
+        cue_group: None,
         time: Time::Seconds(0.0),
         body: vec![circle_decl("shape"), action_stmt("draw_in", "shape", 1.0)],
         span: None,
@@ -127,6 +128,7 @@ fn vector_reveal_lifts_hidden_by_default_opacity() {
         let ast = vec![
             circle_decl("shape"),
             Stmt::Keyframe {
+                cue_group: None,
                 time: Time::Seconds(0.5),
                 body: vec![action_stmt(verb, "shape", 0.7)],
                 span: None,
@@ -157,6 +159,7 @@ fn draw_in_typewriter_lifts_hidden_by_default_opacity() {
     let ast = vec![
         text_decl("headline"),
         Stmt::Keyframe {
+            cue_group: None,
             time: Time::Seconds(0.5),
             body: vec![action_stmt("draw_in", "headline", 0.7)],
             span: None,
@@ -175,6 +178,7 @@ fn draw_in_typewriter_lifts_hidden_by_default_opacity() {
 #[test]
 fn wipe_out_reports_unsupported_image_targets() {
     let ast = vec![Stmt::Keyframe {
+        cue_group: None,
         time: Time::Seconds(0.0),
         body: vec![image_decl("photo"), action_stmt("wipe_out", "photo", 1.0)],
         span: None,
@@ -193,6 +197,7 @@ fn wipe_out_reports_unsupported_image_targets() {
 #[test]
 fn reveal_out_hides_fill_then_erases_stroke() {
     let ast = vec![Stmt::Keyframe {
+        cue_group: None,
         time: Time::Seconds(0.0),
         body: vec![
             circle_decl("shape"),
@@ -216,6 +221,7 @@ fn reveal_out_hides_fill_then_erases_stroke() {
 #[test]
 fn reveal_out_preserves_prior_state_for_delayed_instant_change() {
     let ast = vec![Stmt::Keyframe {
+        cue_group: None,
         time: Time::Seconds(0.0),
         body: vec![
             circle_decl("shape"),
@@ -259,6 +265,7 @@ fn reveal_out_preserves_prior_state_for_delayed_instant_change() {
 fn text_vector_reveal_proceeds_without_diagnostics() {
     for verb in ["wipe_out", "reveal_out", "draw_out"] {
         let ast = vec![Stmt::Keyframe {
+            cue_group: None,
             time: Time::Seconds(0.0),
             body: vec![text_decl("headline"), action_stmt(verb, "headline", 1.0)],
             span: None,
@@ -284,6 +291,7 @@ fn text_vector_reveal_proceeds_without_diagnostics() {
 #[test]
 fn draw_out_keeps_fill_until_the_end() {
     let ast = vec![Stmt::Keyframe {
+        cue_group: None,
         time: Time::Seconds(0.0),
         body: vec![circle_decl("shape"), action_stmt("draw_out", "shape", 1.0)],
         span: None,
@@ -307,6 +315,7 @@ fn draw_out_keeps_fill_until_the_end() {
 fn draw_in_on_text_animates_char_progress() {
     // draw_in on Text should animate char_progress 0→1 instead of stroke_progress.
     let ast = vec![Stmt::Keyframe {
+        cue_group: None,
         time: Time::Seconds(0.0),
         body: vec![
             text_decl("headline"),
@@ -337,6 +346,7 @@ fn draw_in_on_text_animates_char_progress() {
 fn draw_in_on_text_does_not_set_stroke_progress() {
     // draw_in on Text should NOT modify stroke_progress or fill_opacity.
     let ast = vec![Stmt::Keyframe {
+        cue_group: None,
         time: Time::Seconds(0.0),
         body: vec![text_decl("msg"), action_stmt("draw_in", "msg", 1.0)],
         span: None,
@@ -369,6 +379,7 @@ fn draw_in_on_text_does_not_set_stroke_progress() {
 fn draw_in_on_regular_shape_still_animates_stroke_progress() {
     // Verify that draw_in on regular shapes still uses stroke_progress.
     let ast = vec![Stmt::Keyframe {
+        cue_group: None,
         time: Time::Seconds(0.0),
         body: vec![circle_decl("shape"), action_stmt("draw_in", "shape", 1.0)],
         span: None,
@@ -394,6 +405,7 @@ fn draw_in_on_regular_shape_still_animates_stroke_progress() {
 #[test]
 fn reveal_in_draws_stroke_then_pops_fill() {
     let ast = vec![Stmt::Keyframe {
+        cue_group: None,
         time: Time::Seconds(0.0),
         body: vec![circle_decl("shape"), action_stmt("reveal_in", "shape", 1.0)],
         span: None,

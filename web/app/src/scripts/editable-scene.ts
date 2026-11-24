@@ -81,6 +81,7 @@ function bindEditableScene(sample: HTMLElement) {
   let downloadUrl: string | undefined;
   const hasUnsaved = () => editor.value !== original && editor.value !== savedCopy;
   const signalInteraction = () => sample.dispatchEvent(new Event('scene-interaction'));
+  const signalDocument = () => sample.dispatchEvent(new Event('scene-document'));
   bindRecording(shell);
 
   function markCurrentCell() {
@@ -251,6 +252,7 @@ function bindEditableScene(sample: HTMLElement) {
     compiled = canonical;
     problem = true;
     showPlaybackFailure(shell, error);
+    signalDocument();
     paint();
     updateControls();
   }
@@ -272,6 +274,7 @@ function bindEditableScene(sample: HTMLElement) {
       timeline.setDocument(player);
       seek(seconds);
       if (autoplay && (sourceWasOpen || panel.hidden)) play();
+      signalDocument();
       if (buildTimer === undefined) buildPending = editor.value !== compiled;
     } catch (error) {
       fail(error);
@@ -312,6 +315,7 @@ function bindEditableScene(sample: HTMLElement) {
         if (seconds >= preview.duration) pause();
         paint();
       }
+      signalDocument();
     } catch (error) {
       if (player === preview && editor.value === submitted) {
         showDiagnostics(error);
@@ -389,6 +393,7 @@ function bindEditableScene(sample: HTMLElement) {
     editor.scrollTop = 0;
     clearDiagnostics();
     timeline.setDocument({duration: Math.max(1, seconds)});
+    signalDocument();
     if (scene.draft) restoreEditor(scene.draft);
     reading = false;
     renderSource();
@@ -477,5 +482,8 @@ function bindEditableScene(sample: HTMLElement) {
   updateControls();
   const autoplay = sample.hasAttribute('data-autoplay');
   if (id) void start(autoplay && !transferred && !media.matches);
-  return {seek, showSource, selectLine, changeParameter, snapshot, hasUnsaved, setReading, sourceError, replaceScene};
+  return {
+    seek, showSource, selectLine, changeParameter, snapshot, hasUnsaved, setReading, sourceError, replaceScene,
+    get timelineMarkers() { return player ? player.timelineMarkers ?? [] : undefined; },
+  };
 }
