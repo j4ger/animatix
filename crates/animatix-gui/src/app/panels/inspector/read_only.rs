@@ -46,20 +46,21 @@ pub(crate) fn inspector_panel_ui(ctx: &mut InspectorContext<'_>, ui: &mut egui::
 fn scene_summary(ctx: &InspectorContext<'_>, timeline: &Timeline, ui: &mut egui::Ui) {
     ui.add_space(8.0);
     ui.strong(ctx.active_scene.unwrap_or("Scene"));
-    value_row(
-        ui,
-        "Canvas",
-        format!("{} × {}", ctx.scene_dimensions.width, ctx.scene_dimensions.height),
-    );
-    value_row(ui, "Local duration", format!("{:.3} s", timeline.duration_seconds()));
-    value_row(ui, "Objects", timeline.tracks().len().to_string());
+    let mut rows = vec![
+        (
+            "Canvas",
+            format!("{} × {}", ctx.scene_dimensions.width, ctx.scene_dimensions.height),
+        ),
+        ("Local duration", format!("{:.3} s", timeline.duration_seconds())),
+        ("Objects", timeline.tracks().len().to_string()),
+    ];
     if let Some(composition) = ctx.composition {
-        value_row(
-            ui,
+        rows.push((
             "Composition",
             format!("{} scenes · {:.3} s", composition.scenes.len(), composition.global_duration_s),
-        );
+        ));
     }
+    value_rows(ui, rows);
     ui.add_space(crate::app::design_tokens::spatial::SPACE_5);
     ui.label("Select an object to inspect it.");
 }
@@ -94,16 +95,14 @@ fn actor_summary(
     ui.strong("At the playhead");
     let global_s = ctx.preview.playback.current_time_s();
     let local_s = local_time(ctx, global_s);
-    value_row(ui, "Scene time", format!("{local_s:.3} s"));
+    let mut rows = vec![("Scene time", format!("{local_s:.3} s"))];
     if ctx.composition.is_some() {
-        value_row(ui, "Global time", format!("{global_s:.3} s"));
+        rows.push(("Global time", format!("{global_s:.3} s")));
     }
-    ui.small("Sampled tracks and defaults, not a post-layout property dump. Expressions and layout can change the final rendered result.");
     let parent = timeline.world().hierarchy(id).parent.and_then(|p| timeline.get_entity_label(p));
-    value_row(ui, "Parent", parent.unwrap_or("Scene root").to_owned());
+    rows.push(("Parent", parent.unwrap_or("Scene root").to_owned()));
     if let Some(bounds) = timeline.world().local_bounds(id) {
-        value_row(
-            ui,
+        rows.push((
             "Last measured local bounds",
             format!(
                 "({:.1}, {:.1}) · {:.1} × {:.1}",
@@ -112,8 +111,10 @@ fn actor_summary(
                 bounds.width(),
                 bounds.height()
             ),
-        );
+        ));
     }
+    value_rows(ui, rows);
+    ui.small("Sampled tracks and defaults, not a post-layout property dump. Expressions and layout can change the final rendered result.");
     ui.add_space(10.0);
     let time_ms = (local_s.max(0.0) * 1000.0) as u64;
     for group in build_property_groups(timeline, id, time_ms) {
@@ -193,11 +194,60 @@ pub(super) fn local_time(ctx: &InspectorContext<'_>, global_s: f64) -> f64 {
         .map_or(global_s, |start| (global_s - start).max(0.0))
 }
 
-fn value_row(ui: &mut egui::Ui, name: &str, value: String) {
-    ui.horizontal_wrapped(|ui| {
-        ui.label(RichText::new(name).small().weak());
-        ui.label(value);
-    });
+fn value_rows(ui: &mut egui::Ui, rows: Vec<(&str, String)>) {
+    use egui::{Label, TextWrapMode, WidgetText};
+    let gap = eparts::spatial(ui).space_3;
+    let mut key_width = 0.0_f32;
+    let mut value_width = 0.0_f32;
+    for (key, value) in &rows {
+        let key = WidgetText::from(RichText::new(*key).small().weak());
+        let value = WidgetText::from(RichText::new(value).monospace());
+        key_width = key_width.max(
+            key.into_galley(
+                ui,
+                Some(TextWrapMode::Extend),
+                f32::INFINITY,
+                egui::FontSelection::Default,
+            )
+            .size()
+            .x,
+        );
+        value_width = value_width.max(
+            value
+                .into_galley(
+                    ui,
+                    Some(TextWrapMode::Extend),
+                    f32::INFINITY,
+                    egui::FontSelection::Default,
+                )
+                .size()
+                .x,
+        );
+    }
+    // Switch the whole group so neighbouring rows never drift to different columns.
+    let columns = key_width + gap + value_width <= ui.available_width();
+    for (key, value) in rows {
+        let key = Label::new(RichText::new(key).small().weak());
+        let value = Label::new(RichText::new(value).monospace());
+        if columns {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = gap;
+                ui.allocate_ui_with_layout(
+                    egui::vec2(key_width, 0.0),
+                    egui::Layout::left_to_right(egui::Align::Center),
+                    |ui| {
+                        ui.set_min_width(key_width);
+                        ui.add(key.extend());
+                    },
+                );
+                ui.add(value.extend());
+            });
+        } else {
+            ui.add(key.wrap());
+            ui.add(value.wrap());
+            ui.add_space(eparts::spatial(ui).space_1);
+        }
+    }
 }
 
 pub(super) fn display_value(kind: &PropertyKind) -> String {
@@ -283,4 +333,63 @@ fn cached_source_location(
         )
     });
     location
+}
+
+#[cfg(test)]
+mod summary_layout_tests {
+    use super::*;
+
+    #[test]
+    fn compact_values_align_in_two_columns_and_stack_when_space_runs_out() {
+        fn rendered_text(width: f32) -> Vec<egui::epaint::TextShape> {
+            let ctx = egui::Context::default();
+            crate::fonts::install_fonts(&ctx);
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(width, 300.0),
+                )),
+                ..Default::default()
+            };
+            let mut output = ctx.run_ui(input, |ui| {
+                value_rows(
+                    ui,
+                    vec![
+                        ("Canvas", "1,920 × 1,080".into()),
+                        ("Local duration", "20.000 s".into()),
+                        ("Objects", "6".into()),
+                    ],
+                );
+            });
+            output.textures_delta.clear();
+            output
+                .shapes
+                .into_iter()
+                .filter_map(|clipped| match clipped.shape {
+                    egui::Shape::Text(text) => Some(text),
+                    _ => None,
+                })
+                .collect()
+        }
+        for width in [240.0, 118.0] {
+            let texts = rendered_text(width);
+            let find = |label| texts.iter().find(|text| text.galley.job.text == label).unwrap();
+            let keys = ["Canvas", "Local duration", "Objects"].map(find);
+            let values = ["1,920 × 1,080", "20.000 s", "6"].map(find);
+            assert!(keys.iter().all(|key| key.pos.x == keys[0].pos.x));
+            assert!(values.iter().all(|value| value.pos.x == values[0].pos.x));
+            assert!(values.iter().all(|value| value.pos.x + value.galley.size().x <= width));
+            if width > 200.0 {
+                for (key, value) in keys.into_iter().zip(values) {
+                    assert!(value.pos.x > key.pos.x + key.galley.size().x);
+                    assert!((value.pos.y - key.pos.y).abs() < 8.0);
+                }
+            } else {
+                for (key, value) in keys.into_iter().zip(values) {
+                    assert_eq!(value.pos.x, key.pos.x);
+                    assert!(value.pos.y >= key.pos.y + key.galley.size().y);
+                }
+            }
+        }
+    }
 }

@@ -1,179 +1,153 @@
-//! Preview panel body.
+//! Preview ruler marks, labels, and drag-to-create guides.
 
 use super::*;
+
+const MAJOR_TICK: f32 = 8.0;
+const MINOR_TICK: f32 = 4.0;
+const LABEL_PAD: f32 = 2.0;
+const LABEL_GAP: f32 = 3.0;
+
+#[derive(Clone, Copy)]
+enum Axis {
+    Horizontal,
+    Vertical,
+}
+
+pub(super) fn ruler_inset(ui: &egui::Ui) -> Vec2 {
+    // Measure the active UI font so fallback fonts cannot consume the label lane.
+    let size = ui
+        .painter()
+        .layout_no_wrap("-8888".into(), TextRole::Micro.font_id(), egui::Color32::PLACEHOLDER)
+        .size();
+    let allowance = LABEL_PAD + MAJOR_TICK + LABEL_GAP + 1.0;
+    Vec2::new((size.x + allowance).ceil(), (size.y + allowance).ceil())
+}
 
 pub(super) fn draw_rulers(
     ctx: &mut PreviewContext<'_>,
     ui: &mut egui::Ui,
     preview_rect: egui::Rect,
+    inset: Vec2,
     theme: &eparts::Theme,
 ) {
-    let h_ruler_rect = horizontal_ruler_rect(preview_rect);
-    let v_ruler_rect = vertical_ruler_rect(preview_rect);
-    draw_ruler_corner(ui, theme, preview_rect);
-    draw_horizontal_ruler(ctx, ui, preview_rect, theme);
-    draw_vertical_ruler(ctx, ui, preview_rect, theme);
-    handle_ruler_drag(ctx, ui, preview_rect, theme, h_ruler_rect, v_ruler_rect);
-}
-
-pub(super) fn horizontal_ruler_rect(preview_rect: egui::Rect) -> egui::Rect {
-    egui::Rect::from_min_size(
-        egui::pos2(preview_rect.min.x, preview_rect.min.y - RULER_SIZE),
-        Vec2::new(preview_rect.width(), RULER_SIZE),
-    )
-}
-
-pub(super) fn vertical_ruler_rect(preview_rect: egui::Rect) -> egui::Rect {
-    egui::Rect::from_min_size(
-        egui::pos2(preview_rect.min.x - RULER_SIZE, preview_rect.min.y),
-        Vec2::new(RULER_SIZE, preview_rect.height()),
-    )
-}
-
-pub(super) fn draw_ruler_corner(
-    ui: &mut egui::Ui,
-    theme: &eparts::Theme,
-    preview_rect: egui::Rect,
-) {
-    let ruler_bg = theme.palette.surface.panel;
-    let corner_rect = egui::Rect::from_min_size(
-        egui::pos2(preview_rect.min.x - RULER_SIZE, preview_rect.min.y - RULER_SIZE),
-        Vec2::new(RULER_SIZE, RULER_SIZE),
-    );
-    let ruler_stroke = egui::Stroke::new(STROKE_WIDTH, theme.palette.border.default);
-    ui.painter().rect_filled(corner_rect, 0.0, ruler_bg);
-    ui.painter()
-        .rect_stroke(corner_rect, 0.0, ruler_stroke, egui::StrokeKind::Outside);
-}
-
-pub(super) fn draw_horizontal_ruler(
-    ctx: &PreviewContext<'_>,
-    ui: &mut egui::Ui,
-    preview_rect: egui::Rect,
-    theme: &eparts::Theme,
-) {
-    let ruler_bg = theme.palette.surface.panel;
-    let ruler_tick_color = theme.palette.text.muted;
-    let ruler_text_color = theme.palette.text.muted;
-    let ruler_label_color = theme.palette.text.secondary;
-    let ruler_stroke = egui::Stroke::new(STROKE_WIDTH, theme.palette.border.default);
-    let h_ruler_rect = egui::Rect::from_min_size(
-        egui::pos2(preview_rect.min.x, preview_rect.min.y - RULER_SIZE),
-        Vec2::new(preview_rect.width(), RULER_SIZE),
-    );
+    let corner = egui::Rect::from_min_max(preview_rect.min - inset, preview_rect.min);
+    let h = egui::Rect::from_min_max(corner.right_top(), preview_rect.right_top());
+    let v = egui::Rect::from_min_max(corner.left_bottom(), preview_rect.left_bottom());
     let scene_tl = ctx.preview_screen_to_scene(preview_rect, preview_rect.left_top());
     let scene_br = ctx.preview_screen_to_scene(preview_rect, preview_rect.right_bottom());
-    let visible_w = (scene_br.x - scene_tl.x) as f32;
-    // Horizontal ruler
-    ui.painter().rect_filled(h_ruler_rect, 0.0, ruler_bg);
-    ui.painter()
-        .rect_stroke(h_ruler_rect, 0.0, ruler_stroke, egui::StrokeKind::Outside);
-    let h_interval = nice_tick_interval(visible_w, h_ruler_rect.width() / 60.0).max(1.0);
-    let h_start = ((scene_tl.x as f32) / h_interval).floor() as i32 * h_interval as i32;
-    let h_end = ((scene_br.x as f32) / h_interval).ceil() as i32 * h_interval as i32;
-    let mut tick_x = h_start as f32;
-    while tick_x <= h_end as f32 {
-        let screen_pt =
-            ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(tick_x as f64, scene_tl.y));
-        if screen_pt.x >= h_ruler_rect.min.x && screen_pt.x <= h_ruler_rect.max.x {
-            let rel_x = screen_pt.x - h_ruler_rect.min.x;
-            let is_major = (tick_x as i32) % (h_interval as i32 * 5) == 0;
-            let tick_h = if is_major {
-                RULER_SIZE * 0.6
-            } else {
-                RULER_SIZE * 0.3
-            };
-            ui.painter().line_segment(
-                [
-                    egui::pos2(h_ruler_rect.min.x + rel_x, h_ruler_rect.max.y),
-                    egui::pos2(h_ruler_rect.min.x + rel_x, h_ruler_rect.max.y - tick_h),
-                ],
-                egui::Stroke::new(
-                    STROKE_WIDTH,
-                    if is_major {
-                        ruler_label_color
-                    } else {
-                        ruler_tick_color
-                    },
-                ),
+    draw_strip(ui.painter(), theme, corner);
+    draw_ruler(ui, theme, h, Axis::Horizontal, scene_tl.x..=scene_br.x, |value| {
+        ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(value, scene_tl.y))
+            .x
+    });
+    draw_ruler(ui, theme, v, Axis::Vertical, scene_tl.y..=scene_br.y, |value| {
+        ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(scene_tl.x, value))
+            .y
+    });
+    handle_ruler_drag(ctx, ui, preview_rect, theme, h, v);
+}
+
+fn draw_strip(painter: &egui::Painter, theme: &eparts::Theme, rect: egui::Rect) {
+    painter.rect_filled(rect, 0.0, theme.palette.surface.panel);
+    painter.rect_stroke(
+        rect,
+        0.0,
+        egui::Stroke::new(STROKE_WIDTH, theme.palette.border.default),
+        egui::StrokeKind::Inside,
+    );
+}
+
+fn draw_ruler(
+    ui: &egui::Ui,
+    theme: &eparts::Theme,
+    rect: egui::Rect,
+    axis: Axis,
+    scene: std::ops::RangeInclusive<f64>,
+    to_screen: impl Fn(f64) -> f32,
+) {
+    use Axis::{Horizontal, Vertical};
+    draw_strip(ui.painter(), theme, rect);
+    let (lo, hi) = (*scene.start(), *scene.end());
+    let (first, last) = match axis {
+        Horizontal => (rect.left(), rect.right()),
+        Vertical => (rect.top(), rect.bottom()),
+    };
+    let interval = f64::from(nice_tick_interval((hi - lo) as f32, (last - first) / 60.0)).max(1.0);
+    // Iterate by index so the major cadence is stable across zero and fractional pans.
+    let start = (lo / interval).ceil();
+    let end = (hi / interval).floor();
+    if !start.is_finite() || !end.is_finite() {
+        return;
+    }
+    let mut previous_label_end = f32::NEG_INFINITY;
+    let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
+    for index in (start as i64)..=(end as i64) {
+        let value = index as f64 * interval;
+        let along = to_screen(value);
+        if !(first..=last).contains(&along) {
+            continue;
+        }
+        let major = index.rem_euclid(5) == 0;
+        let depth = if major { MAJOR_TICK } else { MINOR_TICK };
+        let end_points = match axis {
+            Horizontal => [
+                egui::pos2(along, rect.bottom()),
+                egui::pos2(along, rect.bottom() - depth),
+            ],
+            Vertical => [
+                egui::pos2(rect.right(), along),
+                egui::pos2(rect.right() - depth, along),
+            ],
+        };
+        let color = if major {
+            theme.palette.text.secondary
+        } else {
+            theme.palette.text.muted
+        };
+        painter.line_segment(end_points, egui::Stroke::new(STROKE_WIDTH, color));
+        if major {
+            let galley = painter.layout_no_wrap(
+                format!("{value:.0}"),
+                TextRole::Micro.font_id(),
+                theme.palette.text.muted,
             );
-            if is_major {
-                ui.painter().text(
-                    egui::pos2(h_ruler_rect.min.x + rel_x, h_ruler_rect.min.y + RULER_SIZE * 0.3),
-                    egui::Align2::CENTER_CENTER,
-                    format!("{}", tick_x as i32),
-                    TextRole::Micro.font_id(),
-                    ruler_text_color,
-                );
+            if let Some(label) =
+                ruler_label_rect(rect, axis, along, galley.size(), previous_label_end)
+            {
+                painter.galley(label.min, galley, theme.palette.text.muted);
+                previous_label_end = match axis {
+                    Horizontal => label.right(),
+                    Vertical => label.bottom(),
+                };
             }
         }
-        tick_x += h_interval;
     }
 }
 
-pub(super) fn draw_vertical_ruler(
-    ctx: &PreviewContext<'_>,
-    ui: &mut egui::Ui,
-    preview_rect: egui::Rect,
-    theme: &eparts::Theme,
-) {
-    let ruler_bg = theme.palette.surface.panel;
-    let ruler_tick_color = theme.palette.text.muted;
-    let ruler_text_color = theme.palette.text.muted;
-    let ruler_label_color = theme.palette.text.secondary;
-    let ruler_stroke = egui::Stroke::new(STROKE_WIDTH, theme.palette.border.default);
-    let v_ruler_rect = egui::Rect::from_min_size(
-        egui::pos2(preview_rect.min.x - RULER_SIZE, preview_rect.min.y),
-        Vec2::new(RULER_SIZE, preview_rect.height()),
-    );
-    let scene_tl = ctx.preview_screen_to_scene(preview_rect, preview_rect.left_top());
-    let scene_br = ctx.preview_screen_to_scene(preview_rect, preview_rect.right_bottom());
-    let visible_h = (scene_br.y - scene_tl.y) as f32;
-    // Vertical ruler
-    ui.painter().rect_filled(v_ruler_rect, 0.0, ruler_bg);
-    ui.painter()
-        .rect_stroke(v_ruler_rect, 0.0, ruler_stroke, egui::StrokeKind::Outside);
-    let v_interval = nice_tick_interval(visible_h, v_ruler_rect.height() / 60.0).max(1.0);
-    let v_start = ((scene_tl.y as f32) / v_interval).floor() as i32 * v_interval as i32;
-    let v_end = ((scene_br.y as f32) / v_interval).ceil() as i32 * v_interval as i32;
-    let mut tick_y = v_start as f32;
-    while tick_y <= v_end as f32 {
-        let screen_pt =
-            ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(scene_tl.x, tick_y as f64));
-        if screen_pt.y >= v_ruler_rect.min.y && screen_pt.y <= v_ruler_rect.max.y {
-            let rel_y = screen_pt.y - v_ruler_rect.min.y;
-            let is_major = (tick_y as i32) % (v_interval as i32 * 5) == 0;
-            let tick_w = if is_major {
-                RULER_SIZE * 0.6
-            } else {
-                RULER_SIZE * 0.3
-            };
-            ui.painter().line_segment(
-                [
-                    egui::pos2(v_ruler_rect.max.x, v_ruler_rect.min.y + rel_y),
-                    egui::pos2(v_ruler_rect.max.x - tick_w, v_ruler_rect.min.y + rel_y),
-                ],
-                egui::Stroke::new(
-                    STROKE_WIDTH,
-                    if is_major {
-                        ruler_label_color
-                    } else {
-                        ruler_tick_color
-                    },
-                ),
-            );
-            if is_major {
-                ui.painter().text(
-                    egui::pos2(v_ruler_rect.min.x + RULER_SIZE * 0.3, v_ruler_rect.min.y + rel_y),
-                    egui::Align2::CENTER_CENTER,
-                    format!("{}", tick_y as i32),
-                    TextRole::Micro.font_id(),
-                    ruler_text_color,
-                );
-            }
-        }
-        tick_y += v_interval;
-    }
+fn ruler_label_rect(
+    strip: egui::Rect,
+    axis: Axis,
+    along: f32,
+    size: Vec2,
+    previous_end: f32,
+) -> Option<egui::Rect> {
+    let mut lane = strip.shrink(LABEL_PAD);
+    let (anchor, align) = match axis {
+        Axis::Horizontal => {
+            lane.max.y = strip.bottom() - MAJOR_TICK - LABEL_GAP;
+            (egui::pos2(along, lane.center().y), egui::Align2::CENTER_CENTER)
+        },
+        Axis::Vertical => {
+            lane.max.x = strip.right() - MAJOR_TICK - LABEL_GAP;
+            (egui::pos2(lane.right(), along), egui::Align2::RIGHT_CENTER)
+        },
+    };
+    let label = align.anchor_size(anchor, size);
+    let start = match axis {
+        Axis::Horizontal => label.left(),
+        Axis::Vertical => label.top(),
+    };
+    (lane.contains_rect(label) && start >= previous_end + LABEL_GAP).then_some(label)
 }
 
 pub(super) fn handle_ruler_drag(
@@ -253,5 +227,37 @@ pub(super) fn handle_ruler_drag(
             }
         }
         ui.data_mut(|d| d.remove::<Option<(bool, f32, egui::Pos2)>>(ruler_drag_id));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::{Pos2, Rect};
+
+    #[test]
+    fn signed_four_digit_labels_clear_major_ticks_and_strip_edges() {
+        let ctx = egui::Context::default();
+        crate::fonts::install_fonts(&ctx);
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let galley = ui.painter().layout_no_wrap(
+                "-4321".into(),
+                TextRole::Micro.font_id(),
+                egui::Color32::WHITE,
+            );
+            let inset = ruler_inset(ui);
+            let h = Rect::from_min_size(Pos2::ZERO, Vec2::new(140.0, inset.y));
+            let v = Rect::from_min_size(Pos2::ZERO, Vec2::new(inset.x, 140.0));
+            let size = galley.size();
+            let x = ruler_label_rect(h, Axis::Horizontal, 60.0, size, 0.0).unwrap();
+            let y = ruler_label_rect(v, Axis::Vertical, 60.0, size, 0.0).unwrap();
+            assert!(x.bottom() + LABEL_GAP <= h.bottom() - MAJOR_TICK);
+            assert!(y.right() + LABEL_GAP <= v.right() - MAJOR_TICK);
+            assert!(ruler_label_rect(h, Axis::Horizontal, 1.0, size, 0.0).is_none());
+            assert!(ruler_label_rect(h, Axis::Horizontal, 139.0, size, 0.0).is_none());
+            assert!(ruler_label_rect(v, Axis::Vertical, 139.0, size, 0.0).is_none());
+            assert!(ruler_label_rect(v, Axis::Vertical, 60.0, size, y.bottom()).is_none());
+        });
+        output.textures_delta.clear();
     }
 }

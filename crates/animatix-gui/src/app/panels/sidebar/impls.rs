@@ -2,7 +2,6 @@
 //! dispatch, and the merged-tab section switcher.
 
 use crate::app::components::button::Button;
-use crate::app::components::layout;
 use crate::app::panels::{COMPACT_RAIL_WIDTH, CompactDrawer, SIDEBAR_TABS, SidebarTab};
 
 use super::{
@@ -183,7 +182,15 @@ fn section_switcher<T: PartialEq + Copy + Send + Sync + 'static>(
 }
 
 fn render_sidebar_tab_bar(ui: &mut egui::Ui, active_tab: &mut SidebarTab) {
-    if let Some(new_tab) = layout::pill_tab_bar(ui, *active_tab, &SIDEBAR_TABS) {
-        *active_tab = new_tab;
+    let labels = SIDEBAR_TABS.map(|entry| entry.2);
+    let icons = SIDEBAR_TABS.map(|entry| entry.1);
+    let mut selected = SIDEBAR_TABS.iter().position(|entry| entry.0 == *active_tab).unwrap_or(0);
+    if eparts::TabBar::new(ui.next_auto_id(), &mut selected, &labels)
+        .with_icons(&icons)
+        .uniform_content()
+        .show(ui)
+        .changed()
+    {
+        *active_tab = SIDEBAR_TABS[selected].0;
     }
 }

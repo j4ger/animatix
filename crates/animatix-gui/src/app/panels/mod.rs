@@ -51,5 +51,3 @@ pub(crate) enum CompactDrawer {
     /// Inspector / Code, promoted to a right overlay.
     Detail,
 }
-
-pub(super) const RULER_SIZE: f32 = 20.0;

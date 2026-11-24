@@ -112,6 +112,12 @@ view modes retain a visible active state; unavailable actions remain disabled.
 
 Filename, preview validity, timecode, scene names, track names and panel headings
 remain text because they describe the current document rather than an action.
+Project, Outline and Library keep their names as space tightens, before
+switching together to named, tooltipped icons. Inspector summaries align compact
+labels and values in two columns, stacking them when space is tight. Preview
+ruler labels occupy a separate lane from the ticks; drag from either ruler to
+place a guide.
+
 Action descriptions and keyboard shortcuts belong in tooltips. Iconification does
 not expand editing permissions: timeline controls still change review state only.
 

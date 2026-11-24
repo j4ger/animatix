@@ -56,14 +56,18 @@ pub(crate) fn preview_panel_ui(
     };
     stage.fill(theme.palette.surface.base).show(ui, |ui| {
         ui.vertical(|ui| {
-            let ruler_size = if in_presentation { 0.0 } else { RULER_SIZE };
+            let ruler_inset = if in_presentation {
+                Vec2::ZERO
+            } else {
+                ruler_inset(ui)
+            };
 
             apply_fit_zoom_request(ctx);
-            let (preview_rect, response) = allocate_canvas(ctx, ui, ruler_size);
+            let (preview_rect, response) = allocate_canvas(ctx, ui, ruler_inset);
             draw_canvas_background(ui, &theme, preview_rect, in_presentation);
 
             if !in_presentation {
-                draw_rulers(ctx, ui, preview_rect, &theme);
+                draw_rulers(ctx, ui, preview_rect, ruler_inset, &theme);
                 draw_existing_guides(ctx, ui, preview_rect, &theme);
             }
 
@@ -103,23 +107,19 @@ fn apply_fit_zoom_request(ctx: &mut PreviewContext<'_>) {
 fn allocate_canvas(
     ctx: &PreviewContext<'_>,
     ui: &mut egui::Ui,
-    ruler_size: f32,
+    ruler_inset: Vec2,
 ) -> (egui::Rect, egui::Response) {
     let avail_rect = ui.available_rect_before_wrap();
     let avail_size = avail_rect.size();
-    let preview_available =
-        Vec2::new((avail_size.x - ruler_size).max(10.0), (avail_size.y - ruler_size).max(10.0));
+    let preview_available = (avail_size - ruler_inset).max(Vec2::splat(10.0));
     let desired = fit_preview(ctx.scene_dimensions, preview_available);
-    let total_size = desired + Vec2::new(ruler_size, ruler_size);
+    let total_size = desired + ruler_inset;
 
     let offset_x = ((avail_size.x - total_size.x) * 0.5).max(0.0);
     let offset_y = ((avail_size.y - total_size.y) * 0.5).max(0.0);
     let total_origin = egui::pos2(avail_rect.min.x + offset_x, avail_rect.min.y + offset_y);
     let total_rect = egui::Rect::from_min_size(total_origin, total_size);
-    let preview_rect = egui::Rect::from_min_size(
-        egui::pos2(total_rect.min.x + ruler_size, total_rect.min.y + ruler_size),
-        desired,
-    );
+    let preview_rect = egui::Rect::from_min_size(total_rect.min + ruler_inset, desired);
     let _ = ui.allocate_rect(avail_rect, egui::Sense::hover());
     let response = ui.allocate_rect(preview_rect, egui::Sense::click_and_drag());
     (preview_rect, response)

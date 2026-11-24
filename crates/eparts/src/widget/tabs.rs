@@ -31,6 +31,7 @@ pub struct TabBar<'a> {
     icons: &'a [&'a str],
     tooltips: &'a [&'a str],
     underlined: bool,
+    uniform_content: bool,
     height: f32,
     gap: f32,
     sense: Sense,
@@ -50,6 +51,7 @@ impl<'a> TabBar<'a> {
             icons: &[],
             tooltips: &[],
             underlined: false,
+            uniform_content: false,
             height: crate::tokens::spatial::component::PILL_TAB_HEIGHT,
             gap: crate::tokens::spatial::component::PILL_TAB_GAP,
             sense: Sense::hover(),
@@ -71,6 +73,12 @@ impl<'a> TabBar<'a> {
     /// Draw a flat secondary navigation row with an underline for selection.
     pub fn underlined(mut self) -> Self {
         self.underlined = true;
+        self
+    }
+
+    /// Reserve breathing room and choose the same icon/label mode for every tab.
+    pub fn uniform_content(mut self) -> Self {
+        self.uniform_content = true;
         self
     }
 
@@ -191,6 +199,23 @@ impl<'a> TabBar<'a> {
                 );
             }
         }
+        let uniform_mode = self.uniform_content.then(|| {
+            let sizes = self.tabs.iter().enumerate().map(|(idx, label)| {
+                let painter = ui.painter();
+                let icon = self.icons.get(idx).copied().unwrap_or("");
+                let width = |text: &str, role: TextRole| {
+                    painter
+                        .layout_no_wrap(text.to_owned(), role.font_id(), egui::Color32::WHITE)
+                        .size()
+                        .x
+                };
+                (
+                    width(label, TextRole::BodyS),
+                    (!icon.is_empty()).then(|| width(icon, TextRole::Body)),
+                )
+            });
+            uniform_mode(tab_w - s.space_3 * 2.0, s.space_2, sizes)
+        });
         for (idx, response) in responses.into_iter().enumerate() {
             let label = self.tabs[idx];
             let active = *self.selected_index == idx;
@@ -216,6 +241,19 @@ impl<'a> TabBar<'a> {
             let icon = self.icons.get(idx).copied().unwrap_or("");
             let painter = ui.painter().with_clip_rect(face.intersect(ui.clip_rect()));
             let text = painter.layout_no_wrap(label.to_owned(), TextRole::BodyS.font_id(), slot.fg);
+            if let Some(mode) = uniform_mode {
+                paint_uniform_content(
+                    painter,
+                    face,
+                    text,
+                    icon,
+                    mode,
+                    s.space_2,
+                    (slot.fg, if active { slot.indicator } else { slot.fg }),
+                );
+                finish_response(ui, response, self.tooltips.get(idx).copied().unwrap_or(label));
+                continue;
+            }
             let icon_space = s.component.icon_slot_width + s.space_2;
             let width = (face.width() - s.space_2).max(0.0);
             let both_fit = !icon.is_empty() && text.size().x + icon_space <= width;
@@ -246,10 +284,85 @@ impl<'a> TabBar<'a> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UniformMode {
+    Both,
+    Labels,
+    Icons,
+}
+
+fn uniform_mode(
+    width: f32,
+    gap: f32,
+    tabs: impl IntoIterator<Item = (f32, Option<f32>)>,
+) -> UniformMode {
+    let mut both = true;
+    let mut labels = true;
+    let mut have_icons = true;
+    for (label, icon) in tabs {
+        both &= icon.is_some_and(|icon| label + icon + gap <= width);
+        labels &= label <= width;
+        have_icons &= icon.is_some();
+    }
+    if both {
+        UniformMode::Both
+    } else if labels || !have_icons {
+        UniformMode::Labels
+    } else {
+        UniformMode::Icons
+    }
+}
+
+fn paint_uniform_content(
+    painter: egui::Painter,
+    face: Rect,
+    text: std::sync::Arc<egui::Galley>,
+    icon: &str,
+    mode: UniformMode,
+    gap: f32,
+    (text_color, icon_color): (egui::Color32, egui::Color32),
+) {
+    use egui::Align2;
+    let mut center = face.center();
+    if mode != UniformMode::Labels {
+        let galley = painter.layout_no_wrap(icon.to_owned(), TextRole::Body.font_id(), icon_color);
+        let icon_center = if mode == UniformMode::Both {
+            let pos = center - egui::vec2((text.size().x + gap) / 2.0, 0.0);
+            center.x += (galley.size().x + gap) / 2.0;
+            pos
+        } else {
+            center
+        };
+        painter.galley(
+            Align2::CENTER_CENTER.anchor_size(icon_center, galley.size()).min,
+            galley,
+            icon_color,
+        );
+    }
+    if mode != UniformMode::Icons {
+        let (align, anchor) = if mode == UniformMode::Labels && text.size().x > face.width() {
+            (Align2::LEFT_CENTER, face.left_center())
+        } else {
+            (Align2::CENTER_CENTER, center)
+        };
+        painter.galley(align.anchor_size(anchor, text.size()).min, text, text_color);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::widget::traits::Sizable;
+
+    #[test]
+    fn uniform_mode_changes_the_whole_group_and_prefers_labels() {
+        let tabs = [(36.0, Some(14.0)), (42.0, Some(16.0)), (39.0, Some(13.0))];
+        assert_eq!(uniform_mode(64.0, 6.0, tabs), UniformMode::Both);
+        assert_eq!(uniform_mode(63.0, 6.0, tabs), UniformMode::Labels);
+        assert_eq!(uniform_mode(42.0, 6.0, tabs), UniformMode::Labels);
+        assert_eq!(uniform_mode(41.0, 6.0, tabs), UniformMode::Icons);
+        assert_eq!(uniform_mode(30.0, 6.0, [(42.0, None)]), UniformMode::Labels);
+    }
 
     #[test]
     fn builder_fields() {
