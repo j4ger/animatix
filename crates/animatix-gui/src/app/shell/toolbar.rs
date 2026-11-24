@@ -144,7 +144,7 @@ impl GuiShell {
                     }
                 }
             });
-            if ui.button("Narration Takes…").clicked() {
+            if ui.button("Voiceover…").clicked() {
                 self.open_narration_takes(ui.ctx());
                 ui.close();
             }

@@ -198,6 +198,7 @@ fn inject_carried_state(
             scoped_options.function_context = Some(context);
         }
         let scene_options = BuildOptions {
+            draft_cue_times: scoped_options.draft_cue_times.for_scene(&scene_name),
             carry: Some(crate::timeline::CarryInput {
                 bag: &carry_bag,
                 source_timeline: &pred_timeline_clone,

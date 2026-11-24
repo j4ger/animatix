@@ -41,6 +41,8 @@ pub struct BuildOptions<'a> {
     pub font_context: Option<Arc<crate::renderer::text::FontContext>>,
     /// Build fidelity. `None` is [`BuildQuality::Production`].
     pub quality: Option<BuildQuality>,
+    /// Previously resolved narration cues for this document's draft preview.
+    pub draft_cue_times: crate::narration::DraftCueTimes<'a>,
     /// Carried state from a predecessor scene (multi-scene composition).
     pub carry: Option<CarryInput<'a>>,
     /// Asset cache carried from a previous build.

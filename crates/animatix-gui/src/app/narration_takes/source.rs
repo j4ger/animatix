@@ -2,7 +2,7 @@ use std::ops::Range;
 use std::path::{Path, PathBuf};
 
 use animatix_syntax::ast::{Expr, Property, Stmt, Time};
-use animatix_syntax::narration::{NarrationParagraph, TRACK, decode_anchor, paragraphs};
+use animatix_syntax::narration::{AnchorKey, NarrationParagraph, TRACK, decode_anchor, paragraphs};
 use animatix_syntax::parser::parse_source_complete;
 use animatix_syntax::token::{LineIndex, Token, TokenKind};
 use animatix_syntax::visit::{AstVisitor, walk_stmt};
@@ -75,6 +75,8 @@ impl Target {
         let mut anchors = AnchorVisitor {
             track: &edits.track,
             paragraphs: &paragraphs,
+            editor: &source.editor,
+            scene: scene.as_deref(),
             found: vec![],
         };
         for statement in scene_stmts.iter().filter(|stmt| !matches!(stmt, Stmt::Scene { .. })) {
@@ -110,6 +112,10 @@ impl Target {
         self.anchors.clone()
     }
 
+    pub fn audio_track(&self) -> &str {
+        &self.edits.track
+    }
+
     pub fn is_current(&self, source: &SourceStore) -> bool {
         self.path == source.file_path()
             && self.epoch == source.epoch()
@@ -127,7 +133,7 @@ impl Target {
         let audio = relative_literal(&self.folder, &adopted.audio)?;
         let transcript = relative_literal(&self.folder, &adopted.transcript)?;
         let (range, replacement) = self.edits.apply(&self.source, &audio, &transcript)?;
-        SourcePatch::new(&source.editor, self.epoch, range, replacement, "Adopt narration take")
+        SourcePatch::new(&source.editor, self.epoch, range, replacement, "Update voiceover")
             .ok_or_else(|| "Could not apply the narration paths to the current source.".into())
     }
 }
@@ -412,23 +418,38 @@ fn required_literal<'a>(
 pub(super) struct BoundAnchor {
     name: String,
     time: Time,
+    previous_keys: Vec<AnchorKey>,
 }
 
 struct AnchorVisitor<'a> {
     track: &'a str,
     paragraphs: &'a [NarrationParagraph],
+    editor: &'a crate::editor::EditorBuffer,
+    scene: Option<&'a str>,
     found: Vec<BoundAnchor>,
 }
 
 impl<'ast> AstVisitor<'ast> for AnchorVisitor<'_> {
     fn visit_stmt(&mut self, stmt: &'ast Stmt) {
-        if let Stmt::Keyframe { time, .. } = stmt
-            && let Some(name) = self.name(time)
+        if let Stmt::Keyframe { time, span, .. } = stmt
+            && let Some(mut name) = self.name(time)
             && !self.found.iter().any(|anchor| anchor.time == *time)
         {
+            if let Some(span) = span
+                && !matches!(time, Time::SpeechMarker { marker, .. }
+                    if animatix_syntax::narration::is_implicit_anchor(marker))
+            {
+                name = format!("Action at line {} · {name}", span.start_line);
+            }
             self.found.push(BoundAnchor {
                 name,
                 time: time.clone(),
+                previous_keys: match time {
+                    Time::SpeechMarker { marker, .. } => decode_anchor(marker)
+                        .map(|key| self.editor.previous_narration_keys(self.scene, key))
+                        .unwrap_or_default(),
+                    _ => Vec::new(),
+                },
             });
         }
         walk_stmt(self, stmt);
@@ -499,7 +520,17 @@ pub(super) fn review_anchors(
                     .map(|(start, _)| start + *offset_ms as f64 / 1000.0),
                 _ => None,
             };
-            let before = previous.as_ref().and_then(resolve);
+            let before = previous.as_ref().and_then(|transcript| {
+                resolve(transcript).or_else(|| {
+                    let Time::SpeechMarker { offset_ms, .. } = &anchor.time else {
+                        return None;
+                    };
+                    anchor.previous_keys.iter().find_map(|key| {
+                        animatix::narration::resolve_anchor(transcript, key)
+                            .map(|position| position + *offset_ms as f64 / 1000.0)
+                    })
+                })
+            });
             let after = updated.as_ref().and_then(resolve);
             (before != after).then(|| MarkerChange {
                 marker: anchor.name.clone(),

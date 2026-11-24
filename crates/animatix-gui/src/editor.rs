@@ -87,6 +87,7 @@ impl EditorBuffer {
         self.source_revision = self.source_revision.wrapping_add(1);
         self.document_path = path.to_path_buf();
         self.text = text;
+        self.clear_narration_anchor_changes();
         self.analyzer = analyzer_for_path(path, &self.text);
         self.reset_ephemeral_state();
         self.advance_widget_generation();
@@ -273,8 +274,16 @@ impl EditorBuffer {
             },
         );
         self.current_scroll_area_id = Some(scroll.id);
-        let output = scroll.inner;
+        let mut output = scroll.inner;
         let mut response = output.response.response.clone();
+        let source_changed = response.changed() || self.text != cache_source;
+        if source_changed && (cache_source.contains("///") || self.text.contains("///")) {
+            let previous = cache_source.to_owned();
+            if self.rebase_full_source(&previous, output.cursor_range.as_mut()) {
+                output.state.cursor.set_char_range(output.cursor_range);
+                output.state.store(ui.ctx(), edit_id);
+            }
+        }
 
         if should_focus {
             response.request_focus();
@@ -290,7 +299,6 @@ impl EditorBuffer {
                     .0,
             );
         }
-        let source_changed = response.changed() || self.text != cache_source;
         if source_changed {
             self.after_source_replaced();
             response.mark_changed();

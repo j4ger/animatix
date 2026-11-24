@@ -86,14 +86,14 @@ impl EditorBuffer {
             };
             ui.horizontal_wrapped(|ui| {
                 ui.label(format!("{instruction} for line {}.", target.line + 1));
-                if ui.add(Button::ghost("Cancel repair")).clicked() {
+                if ui.add(Button::ghost("Cancel")).clicked() {
                     self.narration.repair = None;
                 }
             });
             return;
         }
 
-        let response = ui.add(Button::ghost("Repair binding…"));
+        let response = ui.add(Button::ghost("Choose timing phrase…"));
         if index.stale_bindings.len() == 1 {
             if response.clicked() {
                 self.start_repair(0);
@@ -173,7 +173,7 @@ impl EditorBuffer {
         true
     }
 
-    pub(super) fn show_repair_dialog(
+    pub(super) fn show_binding_choices(
         &mut self,
         ui: &mut egui::Ui,
         index: &Index,
@@ -188,54 +188,45 @@ impl EditorBuffer {
         }
         let target = &index.targets[binding.target];
         let mut close = false;
-        let modal =
-            egui::Modal::new(egui::Id::unique(("repair-narration-binding", self.instance_id)))
-                .show(ui.ctx(), |ui| {
-                    ui.set_width(380.0);
-                    ui.heading("Repair narration binding");
-                    ui.label(target_label(target));
-                    ui.label(match binding.key.edge() {
-                        AnchorEdge::Start => "Timing uses the start of the selection.",
-                        AnchorEdge::End => "Timing uses the end of the selection.",
-                    });
-                    if binding.candidates.is_empty() {
-                        ui.label("Choose replacement text in the script.");
-                    } else {
-                        ui.label("Choose the intended occurrence.");
-                        egui::ScrollArea::vertical().max_height(250.0).show(ui, |ui| {
-                            let lines = LineIndex::new(self.text());
-                            for (ordinal, candidate) in binding.candidates.iter().enumerate() {
-                                let paragraph = &index.paragraphs[candidate.paragraph];
-                                let line = lines.byte_to_line_col(paragraph.span.start).0 + 1;
-                                ui.label(format!("Paragraph at line {line}"));
-                                ui.label(candidate_preview(
-                                    ui,
-                                    &paragraph.text,
-                                    candidate.phrase.clone(),
-                                ));
-                                if ui
-                                    .add(Button::ghost(format!("Use match {}", ordinal + 1)))
-                                    .clicked()
-                                    && let Some(anchor) = anchor_for_phrase(
-                                        paragraph,
-                                        Some(candidate.phrase.clone()),
-                                        binding.key.edge(),
-                                    )
-                                    && let Some(patch) = patch_binding(self, epoch, target, &anchor)
-                                {
-                                    commands.push_back(Command::ApplySourcePatch(patch).into());
-                                    close = true;
-                                }
-                                ui.separator();
-                            }
-                        });
+        egui::Frame::group(ui.style()).show(ui, |ui| {
+            ui.strong("Which words should time this action?");
+            ui.label(target_label(target));
+            ui.label(match binding.key.edge() {
+                AnchorEdge::Start => "Timing uses the start of the selection.",
+                AnchorEdge::End => "Timing uses the end of the selection.",
+            });
+            if binding.candidates.is_empty() {
+                ui.label("Choose replacement text in the script.");
+            } else {
+                ui.label("Choose the intended occurrence.");
+                egui::ScrollArea::vertical().max_height(250.0).show(ui, |ui| {
+                    let lines = LineIndex::new(self.text());
+                    for (ordinal, candidate) in binding.candidates.iter().enumerate() {
+                        let paragraph = &index.paragraphs[candidate.paragraph];
+                        let line = lines.byte_to_line_col(paragraph.span.start).0 + 1;
+                        ui.label(format!("Paragraph at line {line}"));
+                        ui.label(candidate_preview(ui, &paragraph.text, candidate.phrase.clone()));
+                        if ui.add(Button::ghost(format!("Use match {}", ordinal + 1))).clicked()
+                            && let Some(anchor) = anchor_for_phrase(
+                                paragraph,
+                                Some(candidate.phrase.clone()),
+                                binding.key.edge(),
+                            )
+                            && let Some(patch) = patch_binding(self, epoch, target, &anchor)
+                        {
+                            commands.push_back(Command::ApplySourcePatch(patch).into());
+                            close = true;
+                        }
+                        ui.separator();
                     }
-                    ui.horizontal_wrapped(|ui| {
-                        session.manual = ui.add(Button::ghost("Select in script")).clicked();
-                        close |= ui.add(Button::ghost("Cancel")).clicked();
-                    });
                 });
-        self.narration.repair = (!close && !modal.should_close()).then_some(session);
+            }
+            ui.horizontal_wrapped(|ui| {
+                session.manual = ui.add(Button::ghost("Select in script")).clicked();
+                close |= ui.add(Button::ghost("Cancel")).clicked();
+            });
+        });
+        self.narration.repair = (!close).then_some(session);
     }
 }
 
@@ -250,7 +241,7 @@ fn patch_binding(
         epoch,
         target.marker_span.clone()?,
         encode_anchor(anchor)?,
-        "Repair narration binding",
+        "Choose narration timing",
     )
 }
 

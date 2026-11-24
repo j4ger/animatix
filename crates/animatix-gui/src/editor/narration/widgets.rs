@@ -15,15 +15,16 @@ impl EditorBuffer {
         &mut self,
         ui: &mut egui::Ui,
         epoch: SourceEpoch,
-        active_scene: Option<&str>,
+        document: &crate::app::document::DocumentSession,
         commands: &mut ActionQueue,
     ) {
         let index = self.narration_index();
-        self.show_repair_control(ui, &index);
         let revealed = self.narration.reveal.take();
         let generation = self.narration.widgets_generation;
         let reveal_scroll_id = ("script-projection-scroll", self.instance_id, generation);
         egui::ScrollArea::vertical().id_salt(reveal_scroll_id).show(ui, |ui| {
+            self.show_repair_control(ui, &index);
+            self.show_binding_choices(ui, &index, epoch, commands);
             let mut last_scene = None;
             for (ordinal, paragraph) in index.paragraphs.iter().enumerate() {
                 if let Some(scene) = paragraph.scene.as_deref()
@@ -91,13 +92,13 @@ impl EditorBuffer {
                         })
                     });
                 }
-                self.script_actions(ui, &index, ordinal, epoch, commands);
+                let status = self.voiceover_status(document, paragraph);
+                self.script_actions(ui, &index, ordinal, epoch, commands, status);
                 ui.add_space(ui.spacing().item_spacing.y);
             }
-            self.add_paragraph_ui(ui, &index, epoch, active_scene, commands);
+            self.add_paragraph_ui(ui, &index, epoch, document.active_scene.as_deref(), commands);
         });
         self.binding_dialog(ui, &index, epoch, commands);
-        self.show_repair_dialog(ui, &index, epoch, commands);
     }
 
     pub(crate) fn show_code_projection(&mut self, ui: &mut egui::Ui) {
@@ -154,6 +155,7 @@ impl EditorBuffer {
         ordinal: usize,
         epoch: SourceEpoch,
         commands: &mut ActionQueue,
+        voiceover_status: &str,
     ) {
         let paragraph = &index.paragraphs[ordinal];
         let selection = self
@@ -191,7 +193,7 @@ impl EditorBuffer {
                     });
                 }
             }
-            if ui.add(Button::ghost("Voice takes…").with_size(eparts::Size::Sm)).clicked() {
+            if ui.add(Button::ghost("Voiceover…").with_size(eparts::Size::Sm)).clicked() {
                 commands.push_back(
                     Command::OpenParagraphTakes {
                         epoch,
@@ -201,6 +203,7 @@ impl EditorBuffer {
                     .into(),
                 );
             }
+            ui.weak(voiceover_status);
             let mut linked = index
                 .targets
                 .iter()
@@ -444,6 +447,11 @@ mod tests {
     #[test]
     fn review_reveals_actual_text_edit_selection_and_typing_changes_only_that_phrase() {
         let source = "/// 开场，欢迎开场。\n#1s\n";
+        let document = crate::app::document::DocumentSession::from_source(
+            Path::new("script.amx").to_owned(),
+            source.to_owned(),
+        )
+        .unwrap();
         let mut editor = EditorBuffer::new(Path::new("script.amx"), source.to_owned());
         let marker = encode_anchor(&NarrationAnchor {
             paragraph: "开场，欢迎开场。".into(),
@@ -470,7 +478,7 @@ mod tests {
                     ..Default::default()
                 },
                 |ui| {
-                    editor.show_script(ui, SourceEpoch::initial(), None, &mut commands);
+                    editor.show_script(ui, SourceEpoch::initial(), &document, &mut commands);
                 },
             )
             .drop_without_applying_deltas();

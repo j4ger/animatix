@@ -139,6 +139,9 @@ impl DocumentStore {
                 diagnostic.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error
             });
         if success {
+            self.source
+                .editor
+                .remember_narration_cues(self.source.document.resolved_narration_cues());
             // Skip re-publishing if current is already Clean with the same hash
             if !self.source.media_changed
                 && let Some(ref current) = self.current

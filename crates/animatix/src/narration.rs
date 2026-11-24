@@ -5,6 +5,58 @@ use animatix_text::transcript::{TranscriptSegment, TranscriptWord};
 
 pub use animatix_text::transcript::{SpeechTranscript, parse_transcript_auto};
 
+/// A previously resolved cue that an editor can supply to a draft build.
+#[derive(Clone)]
+pub struct DraftCueTime {
+    /// Authored scene, or `None` for a single timeline.
+    pub scene: Option<String>,
+    /// Track name authored by the cue.
+    pub track: String,
+    /// Narration selector authored by the cue.
+    pub key: AnchorKey,
+    /// Authored offset, used to identify the cue.
+    pub offset_ms: i64,
+    /// Previously resolved scene-local time, including the authored offset.
+    pub time_ms: u64,
+    /// Earlier selectors for the same cue, newest first.
+    pub previous_keys: Vec<AnchorKey>,
+}
+
+/// Preview timing supplied for the current document, scoped to one scene at build time.
+#[derive(Clone, Copy, Default)]
+pub struct DraftCueTimes<'a> {
+    cues: &'a [DraftCueTime],
+    scene: Option<&'a str>,
+}
+
+impl<'a> DraftCueTimes<'a> {
+    /// Use the supplied cue history for this document's draft.
+    pub fn new(cues: &'a [DraftCueTime]) -> Self {
+        Self { cues, scene: None }
+    }
+
+    pub(crate) fn for_scene(self, scene: &'a str) -> Self {
+        Self {
+            scene: Some(scene),
+            ..self
+        }
+    }
+
+    pub(crate) fn find(
+        self,
+        track: &str,
+        key: &AnchorKey,
+        offset_ms: i64,
+    ) -> Option<&'a DraftCueTime> {
+        self.cues.iter().find(|cue| {
+            cue.scene.as_deref() == self.scene
+                && cue.track == track
+                && cue.key == *key
+                && cue.offset_ms == offset_ms
+        })
+    }
+}
+
 /// Resolve an anchor to clip-relative seconds.
 ///
 /// Whole paragraphs can use segment boundaries in a subtitle-only transcript.

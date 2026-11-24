@@ -203,6 +203,7 @@ pub(super) fn seed_environment(
         ast,
         &transcripts,
         timeline.build_quality,
+        options.draft_cue_times,
         diagnostics,
     );
 

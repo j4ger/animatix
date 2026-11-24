@@ -76,6 +76,7 @@ pub(crate) fn draw_loop_region(
 }
 
 pub(crate) struct TimelineContext<'a> {
+    pub(crate) anchor_changes: &'a [Vec<crate::editor::narration::AnchorChange>],
     pub preview: &'a mut PreviewPaneState,
     pub statements: &'a [animatix_syntax::ast::Stmt],
     pub source_current: bool,
@@ -457,6 +458,7 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
         &sp,
         ScriptReview {
             source: ctx.source_text,
+            anchor_changes: ctx.anchor_changes,
             current: ctx.source_current,
             epoch: ctx.source_epoch,
             revision: ctx.audio_revision,

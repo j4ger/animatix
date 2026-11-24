@@ -28,7 +28,8 @@ pub struct SourceStore {
 }
 
 impl SourceStore {
-    pub fn new(document: DocumentSession, editor: EditorBuffer) -> Self {
+    pub fn new(document: DocumentSession, mut editor: EditorBuffer) -> Self {
+        editor.remember_narration_cues(document.resolved_narration_cues());
         Self {
             document,
             editor,

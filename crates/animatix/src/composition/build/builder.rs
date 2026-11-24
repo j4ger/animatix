@@ -342,6 +342,7 @@ fn collect_scenes(
                     options.function_context.and_then(|context| context.scene_paths.get(name));
                 let mut scene_options =
                     source_options(options, source.map(std::path::PathBuf::as_path));
+                scene_options.draft_cue_times = options.draft_cue_times.for_scene(name);
                 let methods = options
                     .scene_methods
                     .and_then(|scenes| scenes.get(name))
@@ -529,6 +530,7 @@ fn collect_cross_file_scenes(
             }
             state.merged_bodies.insert(target.clone(), merged.clone());
             let mut scene_options = source_options(options, Some(&scene_data.definition_path));
+            scene_options.draft_cue_times = Default::default();
             scene_options.instance_methods = state.scene_instance_methods.get(&target);
             if let Some(context) = state.scene_function_contexts.get(&target) {
                 scene_options.function_context = Some(context);

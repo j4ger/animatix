@@ -69,10 +69,9 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                 let diagnostics = self.document_store.combined_diagnostics();
                 let mut ctx = editor::EditorContext {
                     source_epoch: self.document_store.source.epoch(),
-                    active_scene: self.document_store.source.document.active_scene.as_deref(),
                     editor: &mut self.document_store.source.editor,
                     diagnostics: &diagnostics,
-                    source_dirty: &mut self.document_store.source.document.source_text,
+                    document: &self.document_store.source.document,
                     commands: self.commands,
                 };
                 editor::editor_ui(&mut ctx, ui);
@@ -153,6 +152,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     .document
                     .audio_waveform_revision(self.document_store.generation.0);
                 let mut ctx = timeline_panel::TimelineContext {
+                    anchor_changes: self.document_store.source.editor.narration_anchor_changes(),
                     diagnostics: &self.document_store.source.document.diagnostics,
                     source_epoch: self.document_store.source.epoch(),
                     source_text: &self.document_store.source.document.source_text,

@@ -17,6 +17,8 @@ pub(super) enum Action {
     DiscardRecording,
     Cancel,
     Refresh,
+    UndoUpdate,
+    ReviewTiming(f64),
 }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
@@ -100,14 +102,19 @@ impl Default for Inputs {
 }
 
 impl NarrationTakes {
-    pub(super) fn show(&mut self, ctx: &Context) -> Option<Action> {
+    pub(super) fn show(
+        &mut self,
+        ctx: &Context,
+        can_undo: bool,
+        can_review: bool,
+    ) -> Option<Action> {
         if !self.open {
             return None;
         }
         let mut open = self.open;
         let mut action = None;
         let sp = eparts::tokens::spatial::spatial_from_ctx(ctx);
-        egui::Window::new("Narration Takes")
+        egui::Window::new("Voiceover")
             .id(egui::Id::unique("narration_takes"))
             .open(&mut open)
             .default_width(640.0)
@@ -122,6 +129,10 @@ impl NarrationTakes {
             .show(ctx, |ui| {
                 ui.spacing_mut().item_spacing.y = sp.space_3;
                 self.status_ui(ui, &mut action);
+                if can_undo && ui.small_button("Undo voiceover update").clicked() {
+                    action = Some(Action::UndoUpdate);
+                }
+                self.review_ui(ui, &mut action, can_review);
                 if self.target.is_none() {
                     return;
                 }
@@ -136,7 +147,6 @@ impl NarrationTakes {
                 ui.add_enabled_ui(self.job.is_none(), |ui| {
                     self.inputs_ui(ui, &mut action);
                 });
-                self.review_ui(ui);
             });
         if !open {
             self.close();
@@ -210,9 +220,9 @@ impl NarrationTakes {
                 });
             if let Some(state) = selected_status {
                 let (label, color) = match state.status.as_str() {
-                    "ready" => ("Adopted", ui.visuals().text_color()),
-                    "stale" => ("Text changed since last take", ui.visuals().warn_fg_color),
-                    _ => ("No adopted take", ui.visuals().weak_text_color()),
+                    "ready" => ("Voiceover up to date", ui.visuals().text_color()),
+                    "stale" => ("Using previous voiceover", ui.visuals().warn_fg_color),
+                    _ => ("Needs voiceover", ui.visuals().weak_text_color()),
                 };
                 ui.label(RichText::new(label).color(color));
             }
@@ -249,6 +259,12 @@ impl NarrationTakes {
         let Some(state) = takes.paragraphs.iter().find(|state| state.id == *selected) else {
             return;
         };
+        if state.status == "stale"
+            && let Some(path) = state.active_take.as_deref().and_then(std::path::Path::parent)
+            && ui.small_button("Play previous reading").clicked()
+        {
+            *action = Some(Action::Audition(path.join("take.wav")));
+        }
         if state.candidates.is_empty() {
             return;
         }
@@ -266,7 +282,7 @@ impl NarrationTakes {
                             _ => "Voice take".to_owned(),
                         };
                         let active = state.active_take.as_ref() == Some(&candidate.candidate);
-                        let active_label = if active { " · adopted" } else { "" };
+                        let active_label = if active { " · in use" } else { "" };
                         let label = format!(
                             "{}. {label} · {:.2}s · {} timed words{active_label}",
                             i + 1,
@@ -290,7 +306,7 @@ impl NarrationTakes {
                 && state.candidates.iter().any(|candidate| &candidate.candidate == *chosen)
         });
         if ui
-            .add_enabled(selected_candidate.is_some(), Button::new("Adopt selected take"))
+            .add_enabled(selected_candidate.is_some(), Button::new("Use selected take"))
             .clicked()
             && let Some(candidate) = selected_candidate
         {
@@ -306,6 +322,7 @@ impl NarrationTakes {
         let Some(paragraph) = self.selected.as_deref() else {
             return;
         };
+        let revision = self.takes.as_ref().map(|takes| takes.revision.as_str());
         ui.add_space(8.0);
         ui.separator();
         if let Some(capture) = &self.capture {
@@ -333,7 +350,7 @@ impl NarrationTakes {
         if eparts::TabBar::new(
             ui.scope_id().with("take_input"),
             &mut mode,
-            &["Generate a take", "Record or import audio"],
+            &["Generate voiceover", "Record or import audio"],
         )
         .with_icons(&[
             egui_phosphor::regular::SPARKLE,
@@ -345,7 +362,7 @@ impl NarrationTakes {
             self.inputs.mode = [InputMode::Synthesize, InputMode::Import][mode];
         }
         let operation = match self.inputs.mode {
-            InputMode::Synthesize => self.inputs.synthesis_ui(ui, paragraph),
+            InputMode::Synthesize => self.inputs.synthesis_ui(ui, paragraph, revision),
             InputMode::Import => {
                 if let Some(recording) = &self.recording {
                     ui.horizontal_wrapped(|ui| {
@@ -364,7 +381,7 @@ impl NarrationTakes {
                 {
                     *action = Some(Action::Record);
                 }
-                self.inputs.recording_ui(ui, paragraph, self.recording.as_ref())
+                self.inputs.recording_ui(ui, paragraph, self.recording.as_ref(), revision)
             },
         };
         if let Some(operation) = operation {
@@ -379,33 +396,42 @@ impl NarrationTakes {
         });
     }
 
-    fn review_ui(&self, ui: &mut Ui) {
+    fn review_ui(&self, ui: &mut Ui, action: &mut Option<Action>, can_review: bool) {
         if self.affected.is_empty() {
             return;
         }
         ui.separator();
-        CollapsingHeader::new("Changed speech timing")
-            .default_open(true)
-            .show(ui, |ui| {
-                ui.label("Times are relative to the narration clip.");
-                egui::Grid::new("retake_timing_changes").striped(true).show(ui, |ui| {
-                    ui.strong("Anchor");
-                    ui.strong("Before");
-                    ui.strong("After");
-                    ui.end_row();
-                    for change in &self.affected {
-                        ui.label(&change.marker);
-                        ui.label(seconds(change.before));
-                        ui.label(seconds(change.after));
-                        ui.end_row();
+        CollapsingHeader::new(format!("Timing changes ({})", self.affected.len())).show(ui, |ui| {
+            ui.label("Times are relative to the narration clip.");
+            egui::Grid::new("retake_timing_changes").striped(true).show(ui, |ui| {
+                ui.strong("Anchor");
+                ui.strong("Before");
+                ui.strong("After");
+                ui.label("");
+                ui.end_row();
+                for change in &self.affected {
+                    ui.label(&change.marker);
+                    ui.label(seconds(change.before));
+                    ui.label(seconds(change.after));
+                    if let Some(time) = change.after
+                        && ui.add_enabled(can_review, Button::new("Show in Review")).clicked()
+                    {
+                        *action = Some(Action::ReviewTiming(time));
                     }
-                });
+                    ui.end_row();
+                }
             });
+        });
     }
 }
 
 impl Inputs {
-    fn synthesis_ui(&mut self, ui: &mut Ui, paragraph: &str) -> Option<Result<Operation, String>> {
+    fn synthesis_ui(
+        &mut self,
+        ui: &mut Ui,
+        paragraph: &str,
+        revision: Option<&str>,
+    ) -> Option<Result<Operation, String>> {
         ui.horizontal_wrapped(|ui| {
             ui.label("Voice provider");
             let previous = self.provider;
@@ -452,12 +478,15 @@ impl Inputs {
                 });
             },
         }
-        ui.button("Generate candidate")
-            .clicked()
-            .then(|| self.synthesis_request(paragraph))
+        take_actions(ui, "Update this paragraph", revision)
+            .map(|apply_revision| self.synthesis_request(paragraph, apply_revision))
     }
 
-    fn synthesis_request(&self, paragraph: &str) -> Result<Operation, String> {
+    fn synthesis_request(
+        &self,
+        paragraph: &str,
+        apply_revision: Option<String>,
+    ) -> Result<Operation, String> {
         if self.voice.trim().is_empty() {
             return Err("Enter a voice name for the selected provider.".into());
         }
@@ -489,6 +518,7 @@ impl Inputs {
             voice: self.voice.trim().to_owned(),
             rate: self.rate.trim().to_owned(),
             provider,
+            apply_revision,
         })
     }
 
@@ -497,6 +527,7 @@ impl Inputs {
         ui: &mut Ui,
         paragraph: &str,
         microphone: Option<&Arc<Recording>>,
+        revision: Option<&str>,
     ) -> Option<Result<Operation, String>> {
         if microphone.is_none()
             && path_ui(
@@ -520,7 +551,7 @@ impl Inputs {
             );
             self.alignment_ui(ui);
         }
-        ui.button("Prepare recording candidate").clicked().then(|| {
+        take_actions(ui, "Use this recording", revision).map(|apply_revision| {
             let audio = match microphone {
                 Some(recording) => RecordingInput::Microphone(Arc::clone(recording)),
                 None => RecordingInput::File(
@@ -536,6 +567,7 @@ impl Inputs {
                 paragraph: paragraph.to_owned(),
                 audio,
                 timing,
+                apply_revision,
             })
         })
     }
@@ -553,6 +585,19 @@ impl Inputs {
             lexicon: path(&self.alignment_lexicon),
         })
     }
+}
+
+fn take_actions(ui: &mut Ui, apply: &str, revision: Option<&str>) -> Option<Option<String>> {
+    ui.horizontal_wrapped(|ui| {
+        if ui.add_enabled(revision.is_some(), eparts::Button::primary(apply)).clicked() {
+            return revision.map(|value| Some(value.to_owned()));
+        }
+        ui.add(eparts::Button::ghost("Prepare for comparison"))
+            .on_hover_text("Create a take to audition before using it in the scene")
+            .clicked()
+            .then_some(None)
+    })
+    .inner
 }
 
 fn path_ui(

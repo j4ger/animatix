@@ -26,6 +26,7 @@ pub(crate) enum SpeechDetail {
 
 pub(super) struct ScriptReview<'a> {
     pub source: &'a str,
+    pub anchor_changes: &'a [Vec<crate::editor::narration::AnchorChange>],
     pub current: bool,
     pub epoch: SourceEpoch,
     pub revision: u64,
@@ -230,6 +231,25 @@ impl ScriptReview<'_> {
             };
         }
         let mut selected: Option<String> = ui.data(|d| d.get_temp(selection_id));
+        if let Some(marker) = &selected
+            && !paragraphs.iter().any(|paragraph| paragraph.marker == *marker)
+            && let Some(mut key) = narration::decode_anchor(marker)
+        {
+            for edits in self.anchor_changes {
+                if let Some(change) = edits
+                    .iter()
+                    .find(|change| change.scene.as_deref() == self.scene && change.before == key)
+                {
+                    key = change.after.clone();
+                }
+            }
+            if let Some(paragraph) = paragraphs
+                .iter()
+                .find(|p| narration::decode_anchor(&p.marker).as_ref() == Some(&key))
+            {
+                selected = Some(paragraph.marker.clone());
+            }
+        }
         let mut detail = SpeechDetail::Paragraphs;
         ui.horizontal_wrapped(|ui| {
             ui.strong("Script");
@@ -354,6 +374,7 @@ mod tests {
         assert_eq!(markers.last().unwrap().line, Some(6));
         let review = ScriptReview {
             source: &source,
+            anchor_changes: &[],
             current: true,
             epoch: SourceEpoch::initial(),
             revision: 0,

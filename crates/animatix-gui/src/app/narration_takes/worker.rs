@@ -91,11 +91,13 @@ pub(super) enum Operation {
         voice: String,
         rate: String,
         provider: Provider,
+        apply_revision: Option<String>,
     },
     Import {
         paragraph: String,
         audio: RecordingInput,
         timing: ImportTiming,
+        apply_revision: Option<String>,
     },
     Adopt {
         paragraph: String,
@@ -105,6 +107,16 @@ pub(super) enum Operation {
 }
 
 impl Operation {
+    pub fn updates_scene(&self) -> bool {
+        match self {
+            Self::Synthesize { apply_revision, .. } | Self::Import { apply_revision, .. } => {
+                apply_revision.is_some()
+            },
+            Self::Adopt { .. } => true,
+            Self::Inspect => false,
+        }
+    }
+
     pub fn status(&self) -> &'static str {
         match self {
             Self::Inspect => "Reading scene takes…",
@@ -249,18 +261,22 @@ fn run(request: Request, cancel: &AtomicBool) -> Result<Output, String> {
             voice,
             rate,
             provider,
+            apply_revision,
         } => {
             let using_edge = matches!(provider, Provider::Edge);
             let mut cmd = cli.command("synthesize", Some(paragraph), using_edge);
             cmd.args(["--voice", voice]).arg(format!("--rate={rate}"));
             provider.add_args(&mut cmd, &request.python, scratch.path());
-            let candidate: Candidate = cli.run(cmd)?;
-            latest = Some(candidate.candidate);
+            latest = Some(cli.run::<Candidate>(cmd)?.candidate);
+            if let (Some(candidate), Some(revision)) = (&latest, apply_revision) {
+                return cli.adopt(paragraph, candidate, revision);
+            }
         },
         Operation::Import {
             paragraph,
             audio,
             timing,
+            apply_revision,
         } => {
             let mut cmd = cli.command("import", Some(paragraph), false);
             cmd.arg("--audio").arg(audio.path());
@@ -270,33 +286,16 @@ fn run(request: Request, cancel: &AtomicBool) -> Result<Output, String> {
                 },
                 ImportTiming::Align(alignment) => alignment.add_args(&mut cmd, false),
             }
-            let candidate: Candidate = cli.run(cmd)?;
-            latest = Some(candidate.candidate);
+            latest = Some(cli.run::<Candidate>(cmd)?.candidate);
+            if let (Some(candidate), Some(revision)) = (&latest, apply_revision) {
+                return cli.adopt(paragraph, candidate, revision);
+            }
         },
         Operation::Adopt {
             paragraph,
             candidate,
             expected_revision,
-        } => {
-            let mut cmd = cli.command("adopt", Some(paragraph), false);
-            cmd.arg("--candidate")
-                .arg(candidate)
-                .arg("--expected-revision")
-                .arg(expected_revision);
-            let mut adopted: Adopted = cli.run(cmd)?;
-            let before = request.base.as_ref().map(|(_, transcript)| transcript.as_path());
-            let reviewed = review_anchors(&request.anchors, before, &adopted.transcript);
-            adopted.affected_markers.retain(|change| {
-                !reviewed.iter().any(|reviewed| {
-                    reviewed
-                        .marker
-                        .rsplit_once('@')
-                        .is_some_and(|(_, marker)| marker == change.marker)
-                })
-            });
-            adopted.affected_markers.extend(reviewed);
-            return Ok(Output::Adopted(adopted));
-        },
+        } => return cli.adopt(paragraph, candidate, expected_revision),
     }
     cli.run(cli.command("inspect", None, false))
         .map(|scene| Output::Scene(scene, latest))
@@ -310,6 +309,24 @@ struct Cli<'a> {
 }
 
 impl Cli<'_> {
+    fn adopt(&self, paragraph: &str, candidate: &Path, revision: &str) -> Result<Output, String> {
+        let mut cmd = self.command("adopt", Some(paragraph), false);
+        cmd.arg("--candidate").arg(candidate).arg("--expected-revision").arg(revision);
+        let mut adopted: Adopted = self.run(cmd)?;
+        let before = self.request.base.as_ref().map(|(_, transcript)| transcript.as_path());
+        let reviewed = review_anchors(&self.request.anchors, before, &adopted.transcript);
+        adopted.affected_markers.retain(|change| {
+            !reviewed.iter().any(|reviewed| {
+                reviewed
+                    .marker
+                    .rsplit_once('@')
+                    .is_some_and(|(_, marker)| marker == change.marker)
+            })
+        });
+        adopted.affected_markers.extend(reviewed);
+        Ok(Output::Adopted(adopted))
+    }
+
     fn command(&self, action: &str, paragraph: Option<&str>, edge: bool) -> Command {
         let mut cmd = if edge {
             let mut uv = Command::new("uv");

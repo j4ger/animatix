@@ -191,19 +191,9 @@ impl GuiShell {
                                 let diagnostics = self.document_store.combined_diagnostics();
                                 let mut ctx = panels::editor::EditorContext {
                                     source_epoch: self.document_store.source.epoch(),
-                                    active_scene: self
-                                        .document_store
-                                        .source
-                                        .document
-                                        .active_scene
-                                        .as_deref(),
                                     editor: &mut self.document_store.source.editor,
                                     diagnostics: &diagnostics,
-                                    source_dirty: &mut self
-                                        .document_store
-                                        .source
-                                        .document
-                                        .source_text,
+                                    document: &self.document_store.source.document,
                                     commands,
                                 };
                                 panels::editor::editor_ui(&mut ctx, ui);

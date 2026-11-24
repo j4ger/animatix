@@ -14,9 +14,8 @@ use crate::editor::narration::SourceView;
 pub(crate) struct EditorContext<'a> {
     pub editor: &'a mut EditorBuffer,
     pub diagnostics: &'a [Diagnostic],
-    pub source_dirty: &'a mut String,
+    pub document: &'a crate::app::document::DocumentSession,
     pub source_epoch: SourceEpoch,
-    pub active_scene: Option<&'a str>,
     pub commands: &'a mut ActionQueue,
 }
 
@@ -118,10 +117,8 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
                             .with_tooltip("Format source code"),
                     )
                     .clicked()
-                    && ctx.editor.format_source()
                 {
-                    *ctx.source_dirty = ctx.editor.text().to_string();
-                    ctx.commands.push_back(Command::EditorChanged.into());
+                    ctx.editor.format_source();
                 }
             });
         });
@@ -172,7 +169,7 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
         let changed = match ctx.editor.source_view() {
             SourceView::Full => ctx.editor.show(ui).changed(),
             SourceView::Script => {
-                ctx.editor.show_script(ui, ctx.source_epoch, ctx.active_scene, ctx.commands);
+                ctx.editor.show_script(ui, ctx.source_epoch, ctx.document, ctx.commands);
                 false
             },
             SourceView::Code => {
@@ -180,8 +177,7 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
                 false
             },
         };
-        if changed || ctx.editor.text() != ctx.source_dirty.as_str() {
-            *ctx.source_dirty = ctx.editor.text().to_string();
+        if changed || ctx.editor.text() != ctx.document.source_text {
             ctx.commands.push_back(Command::EditorChanged.into());
         }
     });

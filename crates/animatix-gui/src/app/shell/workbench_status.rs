@@ -10,7 +10,11 @@ impl GuiShell {
         let failed = self.document_store.source.document.last_rebuild_error.is_some();
         let stale = self.document_store.snapshot_is_stale();
         let generation = self.document_store.last_good_snapshot().map(|s| s.generation.0);
-        let (label, detail, warning) = preview_provenance(pending, failed, stale, generation);
+        let narration_pending = self.document_store.source.document.diagnostics.iter().any(|d| {
+            d.code == animatix_syntax::diagnostics::DiagnosticCode::NarrationBindingUnresolved
+        });
+        let (label, detail, warning) =
+            preview_provenance(pending, failed, stale, generation, narration_pending);
         let color = if warning {
             theme.palette.status.warning
         } else {
@@ -32,6 +36,7 @@ fn preview_provenance(
     failed: bool,
     stale: bool,
     generation: Option<u64>,
+    narration_pending: bool,
 ) -> (String, &'static str, bool) {
     let build = generation
         .map(|n| format!("build {n}"))
@@ -56,6 +61,12 @@ fn preview_provenance(
         )
     } else if generation.is_none() {
         ("No preview built".into(), "Open a source file to build a preview.", true)
+    } else if narration_pending {
+        (
+            "Preview · narration needs attention".into(),
+            "Check the script for a voiceover update or a timing choice.",
+            true,
+        )
     } else {
         (
             format!("Preview current · {build}"),
@@ -70,10 +81,15 @@ mod tests {
     use super::preview_provenance;
     #[test]
     fn pending_and_failed_never_claim_current() {
-        assert!(preview_provenance(true, false, false, Some(2)).0.starts_with("Building"));
-        assert!(preview_provenance(false, true, false, Some(2)).0.starts_with("Build failed"));
-        assert!(preview_provenance(false, false, true, Some(2)).2);
-        assert!(preview_provenance(false, false, false, None).2);
-        assert!(!preview_provenance(false, false, false, Some(2)).2);
+        assert!(preview_provenance(true, false, false, Some(2), false).0.starts_with("Building"));
+        assert!(
+            preview_provenance(false, true, false, Some(2), false)
+                .0
+                .starts_with("Build failed")
+        );
+        assert!(preview_provenance(false, false, true, Some(2), false).2);
+        assert!(preview_provenance(false, false, false, None, false).2);
+        assert!(preview_provenance(false, false, false, Some(2), true).2);
+        assert!(!preview_provenance(false, false, false, Some(2), false).2);
     }
 }

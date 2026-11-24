@@ -234,6 +234,7 @@ impl SpeechScan<'_> {
                     tracks: self.tracks,
                     paragraphs: &self.paragraphs,
                     quality: BuildQuality::Draft,
+                    draft_cue_times: Default::default(),
                 };
                 let Time::Milliseconds(ms) = lower_time(time, &context, None, &mut errors) else {
                     return None;
@@ -365,6 +366,7 @@ pub(super) fn lower_speech_keyframes(
     ast: &[Stmt],
     transcripts: &HashMap<String, SpeechTrack>,
     quality: BuildQuality,
+    draft_cue_times: crate::narration::DraftCueTimes<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<Stmt> {
     let paragraphs = source_paragraph_keys(ast);
@@ -372,6 +374,7 @@ pub(super) fn lower_speech_keyframes(
         tracks: transcripts,
         paragraphs: &paragraphs,
         quality,
+        draft_cue_times,
     };
     lower_speech_block(ast, &context, diagnostics)
 }
@@ -397,6 +400,7 @@ struct SpeechLowering<'a> {
     tracks: &'a HashMap<String, SpeechTrack>,
     paragraphs: &'a [AnchorKey],
     quality: BuildQuality,
+    draft_cue_times: crate::narration::DraftCueTimes<'a>,
 }
 
 fn lower_speech_block(
@@ -544,12 +548,30 @@ fn lower_narration_time(
     } else {
         DiagnosticCode::NarrationBindingUnresolved
     };
+    let fallback = (context.quality == BuildQuality::Draft)
+        .then(|| context.draft_cue_times.find(label, key, offset_ms))
+        .flatten()
+        .map(|cue| {
+            let previous = track.and_then(|track| {
+                let start = track.start_ms?;
+                std::iter::once(&cue.key).chain(&cue.previous_keys).find_map(|key| {
+                    let position = crate::narration::resolve_anchor(&track.transcript, key)?;
+                    Some((start + position * 1000.0 + offset_ms as f64).round().max(0.0) as u64)
+                })
+            });
+            previous.unwrap_or(cue.time_ms)
+        });
+    let message = if fallback.is_some() {
+        format!("{error} Preview is using the previous timing.")
+    } else {
+        error.to_owned()
+    };
     diagnostics.push(
-        diagnostic(code, DiagnosticPhase::Build, error)
+        diagnostic(code, DiagnosticPhase::Build, message)
             .with_subject(label)
             .with_ast_span(span),
     );
-    Time::Milliseconds(0)
+    Time::Milliseconds(fallback.unwrap_or(0))
 }
 
 fn lower_stmt(

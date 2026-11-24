@@ -31,6 +31,7 @@ pub struct RebuildRequest {
     pub asset_cache: Option<std::sync::Arc<animatix::timeline::assets::AssetCache>>,
     /// Scene-independent modifier IR from the last accepted rebuild.
     pub modifier_ir_caches: Vec<super::session_rebuild::ModifierIrCache>,
+    pub draft_cues: Vec<animatix::narration::DraftCueTime>,
     /// Shared document extension context; the worker never reloads plugins.
     pub extension_context: std::sync::Arc<animatix::extension_context::ExtensionContext>,
     /// Analyzer manifest for the shared extension context.
@@ -156,6 +157,7 @@ impl RebuildWorker {
                 source.document.asset_cache()
             },
             modifier_ir_caches: source.document.modifier_ir_caches(),
+            draft_cues: source.editor.draft_narration_cues().to_vec(),
             extension_context: source.document.extension_context.clone(),
             extension_manifest: source.document.extension_manifest.clone(),
             workspace_root: source.document.workspace_root.clone(),
@@ -228,8 +230,11 @@ impl RebuildWorker {
             }
 
             let asset_cache = request.asset_cache.clone();
-            let rebuild_result =
-                session.rebuild_with_caches(asset_cache, &request.modifier_ir_caches);
+            let rebuild_result = session.rebuild_with_caches(
+                asset_cache,
+                &request.modifier_ir_caches,
+                &request.draft_cues,
+            );
 
             // Check cancellation after rebuild (don't send stale data)
             if request.cancellation.is_cancelled() {
@@ -361,6 +366,7 @@ mod tests {
                 source_text: "#0s\n".to_string(),
                 asset_cache: None,
                 modifier_ir_caches: Vec::new(),
+                draft_cues: Vec::new(),
                 extension_context: std::sync::Arc::new(
                     animatix::extension_context::ExtensionContext::new(),
                 ),

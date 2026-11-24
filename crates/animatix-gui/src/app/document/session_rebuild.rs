@@ -49,13 +49,14 @@ impl DocumentSession {
         &mut self,
         asset_cache: Option<std::sync::Arc<animatix::timeline::assets::AssetCache>>,
     ) -> Result<(), GuiError> {
-        self.rebuild_with_caches(asset_cache, &self.modifier_ir_caches())
+        self.rebuild_with_caches(asset_cache, &self.modifier_ir_caches(), &[])
     }
 
     pub(crate) fn rebuild_with_caches(
         &mut self,
         asset_cache: Option<std::sync::Arc<animatix::timeline::assets::AssetCache>>,
         modifier_ir_caches: &[ModifierIrCache],
+        draft_cues: &[animatix::narration::DraftCueTime],
     ) -> Result<(), GuiError> {
         // Skip rebuild if source text hasn't changed since last successful build.
         // A failure marker forces a retry even when the timeline survived, so
@@ -123,6 +124,7 @@ impl DocumentSession {
             Some(&self.file_path),
             animatix::timeline::BuildOptions {
                 quality: Some(animatix::timeline::BuildQuality::Draft),
+                draft_cue_times: animatix::narration::DraftCueTimes::new(draft_cues),
                 function_context: Some(&result.function_context),
                 asset_cache,
                 modifier_ir_caches,

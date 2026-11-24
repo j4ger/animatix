@@ -30,6 +30,7 @@ pub(super) struct NarrationTakes {
     refresh_pending: bool,
     feedback: Option<Feedback>,
     affected: Vec<MarkerChange>,
+    updated_epoch: Option<SourceEpoch>,
     inputs: Inputs,
     audition: Option<Audition>,
     capture: Option<Capture>,
