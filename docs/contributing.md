@@ -116,9 +116,10 @@ animatix video "My Narrated Project/main.amx" --hold 0 --output narrated.mp4
 
 Use the paths to the extracted binaries if they are outside `PATH`. On Windows
 the binaries have an `.exe` suffix. In the workbench, choose **New project… → Narrated Explainer** to create and open the starter. Choose a new or empty
-directory. Keep `narration.mp3` and `narration.speech.json` beside `main.amx`
-when moving the project. The scene uses the transcript's cue markers to time
-the graphics and displays captions from the same transcript.
+directory. The starter uses `narration.mp3` and `narration.speech.json` beside
+`main.amx`. The scene uses the transcript's cue markers to time the graphics and
+displays captions from the same transcript. When moving an edited project, keep
+the narration files currently referenced by the source. [Recording and sharing](narration.md#record-in-the-native-workbench)
 
 Run `animatix-gui --doctor` from a terminal if the workbench cannot open a
 preview or export. The report checks the renderer, text shaping, and the linked

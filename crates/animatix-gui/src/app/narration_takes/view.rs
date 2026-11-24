@@ -1,31 +1,26 @@
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
-use egui::{Button, CollapsingHeader, ComboBox, Context, RichText, ScrollArea, TextEdit, Ui};
+use egui::{CollapsingHeader, ComboBox, Context, RichText, ScrollArea, TextEdit, Ui};
 
 use super::NarrationTakes;
-use super::capture::Recording;
-use super::worker::{ImportTiming, LocalAlignment, Operation, Provider, RecordingInput};
+use super::history::TakeSummary;
+use super::worker::{ImportTiming, LocalAlignment, Operation, Provider};
 
 pub(super) enum Action {
-    Prepare(Operation),
-    Audition(PathBuf),
-    Stop,
     Record,
     StopRecording,
-    DiscardRecording,
-    Cancel,
-    Refresh,
-    UndoUpdate,
-    ReviewTiming(f64),
+    Select(String),
+    Listen(String),
+    StopListening,
+    Start(Operation, Option<String>),
 }
 
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
-enum InputMode {
-    #[default]
-    Synthesize,
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Advanced {
     Import,
+    Synthesize,
+    Alignment,
 }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
@@ -55,7 +50,7 @@ impl VoiceProvider {
 }
 
 pub(super) struct Inputs {
-    mode: InputMode,
+    advanced: Option<Advanced>,
     provider: VoiceProvider,
     voice: String,
     rate: String,
@@ -66,8 +61,8 @@ pub(super) struct Inputs {
     alignment_model: String,
     alignment_tokens: String,
     alignment_lexicon: String,
-    pub recording: String,
-    pub timing: String,
+    recording: String,
+    timing: String,
     pub python: String,
 }
 
@@ -83,7 +78,7 @@ impl Default for Inputs {
                 VoiceProvider::Qwen
             };
         Self {
-            mode: InputMode::Synthesize,
+            advanced: None,
             provider,
             voice: provider.default_voice().into(),
             rate: "+0%".into(),
@@ -102,336 +97,278 @@ impl Default for Inputs {
 }
 
 impl NarrationTakes {
-    pub(super) fn show(
-        &mut self,
-        ctx: &Context,
-        can_undo: bool,
-        can_review: bool,
-    ) -> Option<Action> {
+    pub(super) fn show(&mut self, ctx: &Context) -> Option<Action> {
         if !self.open {
             return None;
         }
         let mut open = self.open;
         let mut action = None;
-        let sp = eparts::tokens::spatial::spatial_from_ctx(ctx);
         egui::Window::new("Voiceover")
             .id(egui::Id::unique("narration_takes"))
             .open(&mut open)
-            .default_width(640.0)
-            .default_height((ctx.content_rect().height() * 0.7).min(640.0))
-            .pivot(egui::Align2::CENTER_CENTER)
-            .default_pos(ctx.content_rect().center())
-            .frame(
-                egui::Frame::window(&ctx.global_style())
-                    .inner_margin(egui::Margin::same(sp.space_6 as i8)),
-            )
-            .vscroll(true)
+            .auto_sized()
+            .default_width(416.0)
+            .default_pos(ctx.content_rect().left_top() + egui::vec2(185.0, 54.0))
+            .collapsible(false)
             .show(ctx, |ui| {
-                ui.spacing_mut().item_spacing.y = sp.space_3;
-                self.status_ui(ui, &mut action);
-                if can_undo && ui.small_button("Undo voiceover update").clicked() {
-                    action = Some(Action::UndoUpdate);
+                ui.set_width(416.0);
+                ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
+                self.controls(ui, &mut action);
+                self.history_ui(ui, &mut action);
+                if let Some(error) = self.history_error.as_ref().or(self.feedback.as_ref()) {
+                    let summary = if error.contains('\n') || error.len() > 150 {
+                        "Voiceover needs attention."
+                    } else {
+                        error
+                    };
+                    ui.colored_label(ui.visuals().error_fg_color, summary).on_hover_text(error);
                 }
-                self.review_ui(ui, &mut action, can_review);
-                if self.target.is_none() {
-                    return;
-                }
-                let busy = self.job.is_some() || self.capture.is_some();
-                let current_scene = self.scene.as_deref().unwrap_or("Current timeline");
-                ui.label(RichText::new(current_scene).strong());
-                ui.separator();
-                ui.add_enabled_ui(!busy, |ui| {
-                    self.paragraph_ui(ui);
-                    self.candidate_ui(ui, &mut action);
-                });
-                ui.add_enabled_ui(self.job.is_none(), |ui| {
-                    self.inputs_ui(ui, &mut action);
-                });
             });
         if !open {
             self.close();
-            return None;
         }
         action
     }
 
-    fn status_ui(&mut self, ui: &mut Ui, action: &mut Option<Action>) {
-        if let Some(job) = &self.job {
-            ui.horizontal_wrapped(|ui| {
-                ui.spinner();
-                let cancelling = job.cancelling();
-                ui.label(if cancelling {
-                    "Cancelling…"
-                } else {
-                    job.status
-                });
-                if ui.add_enabled(!cancelling, Button::new("Cancel job")).clicked() {
-                    *action = Some(Action::Cancel);
-                }
-            });
-        } else {
-            ui.horizontal_wrapped(|ui| {
-                if self.target.is_some()
-                    && self.capture.is_none()
-                    && ui.small_button("Refresh takes").clicked()
-                {
-                    *action = Some(Action::Refresh);
-                }
-                if self.audition.is_some() && ui.small_button("Stop audition").clicked() {
-                    *action = Some(Action::Stop);
-                }
-            });
-        }
-        if let Some(feedback) = &self.feedback {
-            let color = if feedback.error {
-                ui.visuals().error_fg_color
-            } else {
-                ui.visuals().text_color()
-            };
-            ui.label(RichText::new(&feedback.text).color(color));
-        }
-    }
-
-    fn paragraph_ui(&mut self, ui: &mut Ui) {
+    fn controls(&mut self, ui: &mut Ui, action: &mut Option<Action>) {
         let Some(target) = self.target.as_ref() else {
-            return;
-        };
-        let mut selection = self.selected.clone();
-        let current_index = self.selected_index(target);
-        let selected_text = current_index
-            .map_or_else(|| "Choose paragraph".into(), |i| format!("Paragraph {}", i + 1));
-        let selected_status = current_index.and_then(|i| {
-            let id = target.paragraphs[i].id();
-            self.takes.as_ref()?.paragraphs.iter().find(|state| state.id == id)
-        });
-        ui.horizontal_wrapped(|ui| {
-            ComboBox::from_id_salt("narration_paragraph")
-                .selected_text(selected_text)
-                .show_ui(ui, |ui| {
-                    for paragraph in &target.paragraphs {
-                        let excerpt: String = paragraph.text.chars().take(52).collect();
-                        let label = if excerpt.len() < paragraph.text.len() {
-                            format!("{}. {excerpt}…", paragraph.index)
-                        } else {
-                            format!("{}. {excerpt}", paragraph.index)
-                        };
-                        ui.selectable_value(&mut selection, Some(paragraph.id()), label);
-                    }
-                });
-            if let Some(state) = selected_status {
-                let (label, color) = match state.status.as_str() {
-                    "ready" => ("Voiceover up to date", ui.visuals().text_color()),
-                    "stale" => ("Using previous voiceover", ui.visuals().warn_fg_color),
-                    _ => ("Needs voiceover", ui.visuals().weak_text_color()),
-                };
-                ui.label(RichText::new(label).color(color));
+            if self.feedback.is_none() && self.history_error.is_none() {
+                ui.weak("Write a narration paragraph in Script view.");
             }
-        });
-        if selection != self.selected
-            && let Some(paragraph) = selection
-        {
-            self.set_paragraph(paragraph);
-        }
-        let Some(target) = self.target.as_ref() else {
             return;
         };
-        if let Some(index) = self.selected_index(target) {
-            ui.add_space(4.0);
-            let theme = eparts::theme(ui);
-            let sp = eparts::spatial(ui);
-            egui::Frame::new()
-                .fill(theme.palette.surface.base)
-                .corner_radius(eparts::tokens::spatial::RADIUS_L)
-                .inner_margin(egui::Margin::symmetric(sp.space_5 as i8, sp.space_4 as i8))
-                .show(ui, |ui| {
-                    ui.set_min_width(ui.available_width());
-                    let text = RichText::new(&target.paragraphs[index].text)
-                        .size(eparts::tokens::typography::TextRole::Subheading.size());
-                    ui.add(egui::Label::new(text).wrap().selectable(true));
-                });
-        }
-    }
-
-    fn candidate_ui(&mut self, ui: &mut Ui, action: &mut Option<Action>) {
-        let (Some(takes), Some(selected)) = (&self.takes, &self.selected) else {
-            return;
-        };
-        let Some(state) = takes.paragraphs.iter().find(|state| state.id == *selected) else {
-            return;
-        };
-        if state.status == "stale"
-            && let Some(path) = state.active_take.as_deref().and_then(std::path::Path::parent)
-            && ui.small_button("Play previous reading").clicked()
-        {
-            *action = Some(Action::Audition(path.join("take.wav")));
-        }
-        if state.candidates.is_empty() {
-            return;
-        }
-        ui.add_space(8.0);
-        ui.label(RichText::new("Candidate takes").strong());
-        ScrollArea::vertical()
-            .id_salt("narration_candidates")
-            .max_height(155.0)
-            .show(ui, |ui| {
-                for (i, candidate) in state.candidates.iter().enumerate() {
-                    ui.horizontal_wrapped(|ui| {
-                        let label = match (&candidate.voice, &candidate.rate) {
-                            (Some(voice), Some(rate)) => format!("{voice} · {rate}"),
-                            _ if candidate.kind == "recorded" => "Recording".to_owned(),
-                            _ => "Voice take".to_owned(),
-                        };
-                        let active = state.active_take.as_ref() == Some(&candidate.candidate);
-                        let active_label = if active { " · in use" } else { "" };
-                        let label = format!(
-                            "{}. {label} · {:.2}s · {} timed words{active_label}",
-                            i + 1,
-                            candidate.duration,
-                            candidate.word_count,
-                        );
-                        ui.selectable_value(
-                            &mut self.chosen,
-                            Some(candidate.candidate.clone()),
-                            label,
-                        );
-                        if ui.button("Play").on_hover_text("Audition this take").clicked() {
-                            self.chosen = Some(candidate.candidate.clone());
-                            *action = Some(Action::Audition(candidate.audio.clone()));
-                        }
-                    });
+        ComboBox::from_id_salt("voiceover_paragraph")
+            .width(400.0)
+            .selected_text(
+                target
+                    .paragraphs
+                    .iter()
+                    .find(|paragraph| self.selected.as_deref() == Some(paragraph.id().as_str()))
+                    .map_or("Select a paragraph", |paragraph| paragraph.text.as_str()),
+            )
+            .show_ui(ui, |ui| {
+                for paragraph in &target.paragraphs {
+                    let id = paragraph.id();
+                    if ui
+                        .selectable_label(self.selected.as_ref() == Some(&id), &paragraph.text)
+                        .clicked()
+                    {
+                        *action = Some(Action::Select(id));
+                    }
                 }
             });
-        let selected_candidate = self.chosen.as_ref().filter(|chosen| {
-            state.active_take.as_ref() != Some(chosen)
-                && state.candidates.iter().any(|candidate| &candidate.candidate == *chosen)
-        });
-        if ui
-            .add_enabled(selected_candidate.is_some(), Button::new("Use selected take"))
-            .clicked()
-            && let Some(candidate) = selected_candidate
-        {
-            *action = Some(Action::Prepare(Operation::Adopt {
-                paragraph: selected.clone(),
-                candidate: candidate.clone(),
-                expected_revision: takes.revision.clone(),
-            }));
-        }
-    }
-
-    fn inputs_ui(&mut self, ui: &mut Ui, action: &mut Option<Action>) {
-        let Some(paragraph) = self.selected.as_deref() else {
-            return;
-        };
-        let revision = self.takes.as_ref().map(|takes| takes.revision.as_str());
-        ui.add_space(8.0);
-        ui.separator();
-        if let Some(capture) = &self.capture {
-            let elapsed = capture.elapsed();
-            ui.horizontal_wrapped(|ui| {
-                let label = match (capture.stopping, elapsed) {
-                    (true, _) => "Finishing recording…".into(),
-                    (false, Some(elapsed)) => format!("Recording · {:.1}s", elapsed.as_secs_f64()),
-                    (false, None) => "Opening microphone…".into(),
-                };
-                ui.label(RichText::new(label).strong());
-                if ui
-                    .add_enabled(elapsed.is_some() && !capture.stopping, Button::new("Stop"))
-                    .clicked()
-                {
+        let busy = self.capture.is_some() || self.job.is_some();
+        let enabled = self.selected.is_some() && self.history_error.is_none();
+        ui.horizontal(|ui| {
+            if let Some((capture, _, _)) = &self.capture {
+                let label = capture.elapsed().map_or_else(
+                    || "Stop".into(),
+                    |elapsed| format!("Stop · {:.1}s", elapsed.as_secs_f32()),
+                );
+                if ui.add_enabled(!capture.stopping, eparts::Button::primary(label)).clicked() {
                     *action = Some(Action::StopRecording);
                 }
-                if ui.button("Discard").clicked() {
-                    *action = Some(Action::DiscardRecording);
+            } else if let Some((job, _)) = &self.job {
+                ui.spinner();
+                ui.label(job.status);
+            } else if ui.add_enabled(enabled, eparts::Button::primary("Record")).clicked() {
+                *action = Some(Action::Record);
+            }
+            ui.menu_button("More", |ui| {
+                for (item, label) in [
+                    (Advanced::Import, "Import audio…"),
+                    (Advanced::Synthesize, "Generate voiceover…"),
+                    (Advanced::Alignment, "Speech alignment settings…"),
+                ] {
+                    if ui.add_enabled(!busy, egui::Button::new(label)).clicked() {
+                        self.inputs.advanced = Some(item);
+                        ui.close();
+                    }
                 }
             });
-            return;
-        }
-        let mut mode = usize::from(self.inputs.mode == InputMode::Import);
-        if eparts::TabBar::new(
-            ui.scope_id().with("take_input"),
-            &mut mode,
-            &["Generate voiceover", "Record or import audio"],
-        )
-        .with_icons(&[
-            egui_phosphor::regular::SPARKLE,
-            egui_phosphor::regular::MICROPHONE,
-        ])
-        .show(ui)
-        .changed()
-        {
-            self.inputs.mode = [InputMode::Synthesize, InputMode::Import][mode];
-        }
-        let operation = match self.inputs.mode {
-            InputMode::Synthesize => self.inputs.synthesis_ui(ui, paragraph, revision),
-            InputMode::Import => {
-                if let Some(recording) = &self.recording {
-                    ui.horizontal_wrapped(|ui| {
-                        ui.label(format!("Microphone recording · {:.1}s", recording.seconds));
-                        if ui.button("Play recording").clicked() {
-                            *action = Some(Action::Audition(recording.path().to_owned()));
-                        }
-                        if ui.button("Discard").clicked() {
-                            *action = Some(Action::DiscardRecording);
-                        }
-                    });
-                } else if ui
-                    .button("Record")
-                    .on_hover_text("Use the default microphone for up to 10 minutes or 128 MiB")
-                    .clicked()
-                {
-                    *action = Some(Action::Record);
+        });
+        if !busy && let Some(advanced) = self.inputs.advanced {
+            ui.horizontal(|ui| {
+                ui.strong(match advanced {
+                    Advanced::Import => "Import audio",
+                    Advanced::Synthesize => "Generate voiceover",
+                    Advanced::Alignment => "Speech alignment settings",
+                });
+                if ui.small_button("Close").clicked() {
+                    self.inputs.advanced = None;
                 }
-                self.inputs.recording_ui(ui, paragraph, self.recording.as_ref(), revision)
-            },
-        };
-        if let Some(operation) = operation {
+            });
+            let operation = match advanced {
+                Advanced::Import => self.inputs.import_ui(ui, &target.folder),
+                Advanced::Synthesize => self.inputs.synthesis_ui(ui),
+                Advanced::Alignment => {
+                    self.inputs.alignment_ui(ui);
+                    ui.horizontal(|ui| {
+                        ui.label("Python");
+                        ui.add(
+                            TextEdit::singleline(&mut self.inputs.python)
+                                .hint_text(if cfg!(windows) { "python" } else { "python3" }),
+                        );
+                    });
+                    None
+                },
+            };
             match operation {
-                Ok(operation) => *action = Some(Action::Prepare(operation)),
-                Err(error) => self.error(error),
+                Some(Ok(operation)) => {
+                    self.inputs.advanced = None;
+                    *action = Some(Action::Start(operation, None));
+                },
+                Some(Err(error)) => self.feedback = Some(error),
+                None => {},
             }
         }
-        CollapsingHeader::new("Python settings").show(ui, |ui| {
-            path_ui(ui, "Python executable", &mut self.inputs.python, &[], false);
-            ui.label("Leave blank to use Python from PATH.");
-        });
     }
 
-    fn review_ui(&self, ui: &mut Ui, action: &mut Option<Action>, can_review: bool) {
-        if self.affected.is_empty() {
+    fn history_ui(&mut self, ui: &mut Ui, action: &mut Option<Action>) {
+        let Some(session) = self.session.as_ref() else {
+            return;
+        };
+        let binding = self
+            .selected
+            .as_deref()
+            .and_then(|selector| session.binding(self.scene.as_deref(), selector));
+        let takes: Vec<_> = self
+            .takes
+            .iter()
+            .filter(|take| binding.is_some_and(|binding| take.paragraph == binding.id))
+            .collect();
+        let unmatched: Vec<_> = self
+            .takes
+            .iter()
+            .filter(|take| !session.bindings.iter().any(|binding| binding.id == take.paragraph))
+            .collect();
+        if takes.is_empty() && unmatched.is_empty() {
             return;
         }
-        ui.separator();
-        CollapsingHeader::new(format!("Timing changes ({})", self.affected.len())).show(ui, |ui| {
-            ui.label("Times are relative to the narration clip.");
-            egui::Grid::new("retake_timing_changes").striped(true).show(ui, |ui| {
-                ui.strong("Anchor");
-                ui.strong("Before");
-                ui.strong("After");
-                ui.label("");
-                ui.end_row();
-                for change in &self.affected {
-                    ui.label(&change.marker);
-                    ui.label(seconds(change.before));
-                    ui.label(seconds(change.after));
-                    if let Some(time) = change.after
-                        && ui.add_enabled(can_review, Button::new("Show in Review")).clicked()
-                    {
-                        *action = Some(Action::ReviewTiming(time));
+        let busy = self.capture.is_some() || self.job.is_some();
+        let history = CollapsingHeader::new(format!("History ({})", takes.len() + unmatched.len()))
+            .id_salt("voiceover_history")
+            .show(ui, |ui| {
+                ScrollArea::vertical().max_height(270.0).show(ui, |ui| {
+                    if self.audition.is_some() && ui.small_button("Stop playback").clicked() {
+                        *action = Some(Action::StopListening);
                     }
-                    ui.end_row();
+                    for (index, take) in takes.iter().enumerate() {
+                        let matches = binding.is_some_and(|binding| binding.text == take.text);
+                        let current = self.active.contains(&take.id);
+                        take_row(ui, take, takes.len() - index, current, action);
+                        if !busy && matches && !current {
+                            if take.aligned && ui.small_button("Use this take").clicked() {
+                                *action =
+                                    Some(Action::Start(Operation::Use, Some(take.id.clone())));
+                            }
+                            if !take.aligned && take.issue.is_some() && take.status != "interrupted"
+                            {
+                                if matches!(self.inputs.import_timing(), ImportTiming::Missing) {
+                                    if ui.small_button("Set up speech alignment").clicked() {
+                                        self.inputs.advanced = Some(Advanced::Alignment);
+                                    }
+                                } else if ui.small_button("Retry alignment").clicked() {
+                                    *action = Some(Action::Start(
+                                        Operation::Import {
+                                            audio: None,
+                                            timing: self.inputs.import_timing(),
+                                        },
+                                        Some(take.id.clone()),
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                    if !unmatched.is_empty() {
+                        CollapsingHeader::new("Unmatched recordings").show(ui, |ui| {
+                            for (index, take) in unmatched.iter().enumerate() {
+                                if let Some(scene) = &take.scene {
+                                    ui.weak(scene);
+                                }
+                                take_row(
+                                    ui,
+                                    take,
+                                    unmatched.len() - index,
+                                    self.active.contains(&take.id),
+                                    action,
+                                );
+                            }
+                        });
+                    }
+                });
+            });
+        if !busy
+            && history.body_response.is_none()
+            && let Some(take) = takes.first().filter(|take| take.issue.is_some() && !take.aligned)
+        {
+            if take.status == "interrupted" {
+                ui.weak("Recording interrupted. Audio kept.");
+                return;
+            }
+            ui.horizontal(|ui| {
+                ui.label("Recording saved. Alignment needed.");
+                if matches!(self.inputs.import_timing(), ImportTiming::Missing) {
+                    if ui.small_button("Set up").clicked() {
+                        self.inputs.advanced = Some(Advanced::Alignment);
+                    }
+                } else if ui.small_button("Retry").clicked()
+                    && binding.is_some_and(|b| b.text == take.text)
+                {
+                    *action = Some(Action::Start(
+                        Operation::Import {
+                            audio: None,
+                            timing: self.inputs.import_timing(),
+                        },
+                        Some(take.id.clone()),
+                    ));
                 }
             });
-        });
+        }
     }
 }
 
+fn take_row(
+    ui: &mut Ui,
+    take: &TakeSummary,
+    number: usize,
+    current: bool,
+    action: &mut Option<Action>,
+) {
+    ui.push_id(&take.id, |ui| {
+        ui.horizontal_wrapped(|ui| {
+            let label = match take.kind.as_str() {
+                "imported" => "Imported",
+                "synthesized" => "Generated",
+                _ => "Take",
+            };
+            ui.label(format!("{label} {number} · {:.1}s", take.seconds));
+            if current {
+                ui.strong("In use");
+            }
+            if take.status == "interrupted" {
+                ui.label("Interrupted");
+            }
+            if ui.small_button("Play").clicked() {
+                *action = Some(Action::Listen(take.id.clone()));
+            }
+        });
+        ui.label(RichText::new(&take.text).weak());
+        if let Some(issue) = &take.issue {
+            let message = if take.status == "interrupted" {
+                "Captured audio saved"
+            } else if take.aligned {
+                "Saved to history · scene not updated"
+            } else {
+                "Saved to history · alignment needed"
+            };
+            ui.label(RichText::new(message).weak()).on_hover_text(issue);
+        }
+    });
+}
+
 impl Inputs {
-    fn synthesis_ui(
-        &mut self,
-        ui: &mut Ui,
-        paragraph: &str,
-        revision: Option<&str>,
-    ) -> Option<Result<Operation, String>> {
+    fn synthesis_ui(&mut self, ui: &mut Ui) -> Option<Result<Operation, String>> {
         ui.horizontal_wrapped(|ui| {
             ui.label("Voice provider");
             let previous = self.provider;
@@ -478,15 +415,12 @@ impl Inputs {
                 });
             },
         }
-        take_actions(ui, "Update this paragraph", revision)
-            .map(|apply_revision| self.synthesis_request(paragraph, apply_revision))
+        ui.add(eparts::Button::primary("Generate voiceover"))
+            .clicked()
+            .then(|| self.synthesis_request())
     }
 
-    fn synthesis_request(
-        &self,
-        paragraph: &str,
-        apply_revision: Option<String>,
-    ) -> Result<Operation, String> {
+    fn synthesis_request(&self) -> Result<Operation, String> {
         if self.voice.trim().is_empty() {
             return Err("Enter a voice name for the selected provider.".into());
         }
@@ -514,68 +448,52 @@ impl Inputs {
             },
         };
         Ok(Operation::Synthesize {
-            paragraph: paragraph.to_owned(),
             voice: self.voice.trim().to_owned(),
             rate: self.rate.trim().to_owned(),
             provider,
-            apply_revision,
         })
     }
 
-    fn recording_ui(
-        &mut self,
-        ui: &mut Ui,
-        paragraph: &str,
-        microphone: Option<&Arc<Recording>>,
-        revision: Option<&str>,
-    ) -> Option<Result<Operation, String>> {
-        if microphone.is_none()
-            && path_ui(
-                ui,
-                "Audio recording",
-                &mut self.recording,
-                &["wav", "mp3", "m4a", "flac", "ogg", "opus", "aac"],
-                false,
-            )
-        {
-            self.timing = path(&self.recording)
-                .map(|recording| recording.with_extension("speech.json"))
-                .filter(|timing| timing.is_file())
-                .map(|timing| timing.display().to_string())
-                .unwrap_or_default();
-        }
-        path_ui(ui, "Word timing JSON", &mut self.timing, &["json"], false);
-        if self.timing.trim().is_empty() {
-            ui.label(
-                "Choose word timing JSON or align the recording with a local SenseVoice model.",
-            );
-            self.alignment_ui(ui);
-        }
-        take_actions(ui, "Use this recording", revision).map(|apply_revision| {
-            let audio = match microphone {
-                Some(recording) => RecordingInput::Microphone(Arc::clone(recording)),
-                None => RecordingInput::File(
-                    path(&self.recording)
-                        .ok_or("Record or choose an audio file for the selected paragraph.")?,
-                ),
-            };
-            let timing = match path(&self.timing) {
-                Some(path) => ImportTiming::Sidecar(path),
-                None => ImportTiming::Align(self.alignment()?),
-            };
-            Ok(Operation::Import {
-                paragraph: paragraph.to_owned(),
-                audio,
-                timing,
-                apply_revision,
+    pub fn import_timing(&self) -> ImportTiming {
+        self.alignment().map_or(ImportTiming::Missing, ImportTiming::Align)
+    }
+
+    fn import_ui(&mut self, ui: &mut Ui, folder: &Path) -> Option<Result<Operation, String>> {
+        path_ui(
+            ui,
+            "Audio",
+            &mut self.recording,
+            &["wav", "mp3", "m4a", "flac", "ogg", "opus", "aac"],
+            false,
+        );
+        path_ui(ui, "Timing file (optional)", &mut self.timing, &["json"], false);
+        ui.add_enabled(path(&self.recording).is_some(), eparts::Button::primary("Import"))
+            .clicked()
+            .then(|| {
+                let audio = folder.join(path(&self.recording).ok_or("Choose an audio file.")?);
+                if !audio.is_file() {
+                    return Err("Choose an existing audio file.".into());
+                }
+                let timing = path(&self.timing)
+                    .map(|path| folder.join(path))
+                    .or_else(|| {
+                        let sidecar = audio.with_extension("speech.json");
+                        sidecar.is_file().then_some(sidecar)
+                    })
+                    .map_or_else(|| self.import_timing(), ImportTiming::Sidecar);
+                self.recording.clear();
+                self.timing.clear();
+                Ok(Operation::Import {
+                    audio: Some(audio),
+                    timing,
+                })
             })
-        })
     }
 
     fn alignment_ui(&mut self, ui: &mut Ui) {
         path_ui(ui, "SenseVoice ONNX model", &mut self.alignment_model, &["onnx"], false);
         path_ui(ui, "SenseVoice tokens", &mut self.alignment_tokens, &["txt"], false);
-        path_ui(ui, "Lexicon JSON (optional)", &mut self.alignment_lexicon, &["json"], false);
+        path_ui(ui, "Lexicon (optional)", &mut self.alignment_lexicon, &["json"], false);
     }
 
     fn alignment(&self) -> Result<LocalAlignment, String> {
@@ -585,19 +503,6 @@ impl Inputs {
             lexicon: path(&self.alignment_lexicon),
         })
     }
-}
-
-fn take_actions(ui: &mut Ui, apply: &str, revision: Option<&str>) -> Option<Option<String>> {
-    ui.horizontal_wrapped(|ui| {
-        if ui.add_enabled(revision.is_some(), eparts::Button::primary(apply)).clicked() {
-            return revision.map(|value| Some(value.to_owned()));
-        }
-        ui.add(eparts::Button::ghost("Prepare for comparison"))
-            .on_hover_text("Create a take to audition before using it in the scene")
-            .clicked()
-            .then_some(None)
-    })
-    .inner
 }
 
 fn path_ui(
@@ -641,8 +546,4 @@ fn path(value: &str) -> Option<PathBuf> {
 
 fn env(name: &str) -> String {
     std::env::var(name).unwrap_or_default()
-}
-
-fn seconds(value: Option<f64>) -> String {
-    value.map_or_else(|| "Unresolved".into(), |seconds| format!("{seconds:.3}s"))
 }

@@ -8,11 +8,7 @@ fn adopted_at(folder: &Path) -> Adopted {
     let transcript = media.join("chapter.speech.json");
     std::fs::write(&audio, []).unwrap();
     std::fs::write(&transcript, "{}").unwrap();
-    Adopted {
-        audio,
-        transcript,
-        affected_markers: vec![],
-    }
+    Adopted { audio, transcript }
 }
 
 #[test]

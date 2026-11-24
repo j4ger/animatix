@@ -72,13 +72,22 @@ impl GuiShell {
                     .set_file_name(&default_name)
                     .save_file()
                 {
-                    Some(path) => file::handle_save_as(
-                        &mut self.document_store,
-                        &mut self.workspace_store,
-                        &mut self.preview_store,
-                        &mut self.plugin_manager,
-                        path,
-                    ),
+                    Some(path) => {
+                        self.narration_takes.checkpoint(&self.document_store.source, false);
+                        let effects = file::handle_save_as(
+                            &mut self.document_store,
+                            &mut self.workspace_store,
+                            &mut self.preview_store,
+                            &mut self.plugin_manager,
+                            path.clone(),
+                        );
+                        if self.document_store.source.file_path() == path
+                            && !self.document_store.source.is_dirty()
+                        {
+                            self.narration_takes.checkpoint(&self.document_store.source, true);
+                        }
+                        effects
+                    },
                     None => vec![],
                 }
             },

@@ -352,7 +352,10 @@ impl GuiShell {
                             // decided on yet; make them resolve that first.
                             self.ui_store.toasts.push(self.recovery_prompt_save_blocked());
                             save_failed = true;
-                        } else if let Err(err) = file::save_document(&mut self.document_store) {
+                        } else if let Err(err) = {
+                            self.narration_takes.checkpoint(&self.document_store.source, false);
+                            file::save_document(&mut self.document_store)
+                        } {
                             // Keep the dialog open if saving fails so unsaved edits are not lost.
                             self.preview_store
                                 .preview
@@ -360,6 +363,7 @@ impl GuiShell {
                             self.ui_store.toasts.push(Toast::error(format!("Save failed: {err}")));
                             save_failed = true;
                         } else {
+                            self.narration_takes.checkpoint(&self.document_store.source, true);
                             let was_close = self.ui_store.unsaved_changes.pending_close;
                             self.execute_unsaved_pending_action();
                             self.ui_store.unsaved_changes.close();

@@ -249,13 +249,15 @@ to the start or end of a paragraph or of a selected phrase within it. These
 markers use the same narration audio track selection as paragraph timing.
 They resolve from the transcript's segment and word timings. A repeated
 phrase uses the selected occurrence within its paragraph. For Chinese, a
-phrase boundary within a timed token uses that token's start or end. If a
-paragraph edit changes the text used to identify it, choose a suggested match
-or select the phrase again to rebind it. New phrase bindings can suggest matches
-based on the phrase and its surrounding text.
-Managed transcripts identify their voiced paragraphs, so a partial take keeps
-repeated paragraphs distinct. Unresolved explicit bindings warn in the draft
-preview and fail a production build.
+phrase boundary within a timed token uses that token's start or end. The
+workbench carries bindings across unambiguous paragraph edits. If several
+matches remain possible, select the intended phrase or a suggested match.
+
+Managed transcripts identify their voiced paragraphs, including repeated
+paragraphs. While drafting, a paragraph awaiting its take can use the last
+resolved timing from the editing session, or the start of the scene. Production
+builds warn when implicit paragraph timing is missing. Unresolved explicit
+bindings warn in the draft preview and fail a production build.
 
 The timeline maintains a hierarchical `scene_graph`; transforms/opacities cascade via depth-first search.
 

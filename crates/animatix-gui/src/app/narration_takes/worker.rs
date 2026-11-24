@@ -1,6 +1,7 @@
+use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, File};
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
@@ -11,9 +12,9 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
-use super::capture::Recording;
-use super::source::{BoundAnchor, review_anchors};
-
+use super::assets::{self, Pair};
+use super::bindings::Binding;
+use super::history::{History, Mix, Take};
 const TAKES: &str = "narration_takes.py";
 const QWEN: &str = "qwen_chapter_provider.py";
 const TOOLS: &[(&str, &str)] = &[
@@ -30,7 +31,7 @@ const TOOLS: &[(&str, &str)] = &[
     ("speech_sync.py", include_str!("../../../../../tools/quality/speech_sync.py")),
 ];
 
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Eq, Serialize)]
 pub(super) struct ManifestParagraph {
     pub id: String,
     pub text: String,
@@ -38,12 +39,15 @@ pub(super) struct ManifestParagraph {
 
 pub(super) struct Request {
     pub folder: PathBuf,
-    pub output_prefix: PathBuf,
+    pub name: String,
     pub paragraphs: Vec<ManifestParagraph>,
-    pub base: Option<(PathBuf, PathBuf)>,
-    pub anchors: Vec<BoundAnchor>,
+    pub bindings: Vec<Binding>,
+    pub base: Option<Pair>,
     pub python: OsString,
     pub operation: Operation,
+    pub take: Take,
+    pub selector: String,
+    pub history: Arc<History>,
 }
 
 pub(super) struct LocalAlignment {
@@ -68,112 +72,51 @@ pub(super) enum Provider {
 pub(super) enum ImportTiming {
     Sidecar(PathBuf),
     Align(LocalAlignment),
-}
-
-pub(super) enum RecordingInput {
-    File(PathBuf),
-    Microphone(Arc<Recording>),
-}
-
-impl RecordingInput {
-    fn path(&self) -> &Path {
-        match self {
-            Self::File(path) => path,
-            Self::Microphone(recording) => recording.path(),
-        }
-    }
+    Missing,
 }
 
 pub(super) enum Operation {
-    Inspect,
     Synthesize {
-        paragraph: String,
         voice: String,
         rate: String,
         provider: Provider,
-        apply_revision: Option<String>,
     },
     Import {
-        paragraph: String,
-        audio: RecordingInput,
+        audio: Option<PathBuf>,
         timing: ImportTiming,
-        apply_revision: Option<String>,
     },
-    Adopt {
-        paragraph: String,
-        candidate: PathBuf,
-        expected_revision: String,
-    },
+    Use,
 }
 
 impl Operation {
-    pub fn updates_scene(&self) -> bool {
+    fn status(&self) -> &'static str {
         match self {
-            Self::Synthesize { apply_revision, .. } | Self::Import { apply_revision, .. } => {
-                apply_revision.is_some()
-            },
-            Self::Adopt { .. } => true,
-            Self::Inspect => false,
-        }
-    }
-
-    pub fn status(&self) -> &'static str {
-        match self {
-            Self::Inspect => "Reading scene takes…",
-            Self::Synthesize { .. } => "Synthesizing and aligning take…",
-            Self::Import { .. } => "Loading and aligning recording…",
-            Self::Adopt { .. } => "Assembling scene narration…",
+            Self::Synthesize { .. } => "Generating voiceover…",
+            Self::Import { .. } => "Aligning recording…",
+            Self::Use => "Updating voiceover…",
         }
     }
 }
 
 #[derive(Deserialize)]
-pub(super) struct SceneTakes {
-    pub revision: String,
-    pub paragraphs: Vec<ParagraphTakes>,
-}
-
-#[derive(Deserialize)]
-pub(super) struct ParagraphTakes {
-    pub id: String,
-    pub status: String,
-    pub active_take: Option<PathBuf>,
-    pub candidates: Vec<Candidate>,
-}
-
-#[derive(Deserialize)]
-pub(super) struct Candidate {
-    pub candidate: PathBuf,
-    pub audio: PathBuf,
-    pub kind: String,
-    pub voice: Option<String>,
-    pub rate: Option<String>,
-    pub duration: f64,
-    pub word_count: usize,
+struct Candidate {
+    candidate: PathBuf,
 }
 
 #[derive(Deserialize)]
 pub(super) struct Adopted {
     pub audio: PathBuf,
     pub transcript: PathBuf,
-    pub affected_markers: Vec<MarkerChange>,
 }
 
-#[derive(Deserialize)]
-pub(super) struct MarkerChange {
-    pub marker: String,
-    pub before: Option<f64>,
-    pub after: Option<f64>,
-}
-
-pub(super) enum Output {
-    Scene(SceneTakes, Option<PathBuf>),
-    Adopted(Adopted),
+pub(super) struct Finished {
+    pub adopted: Adopted,
+    pub base_hashes: Option<(String, String)>,
 }
 
 pub(super) struct Job {
     cancel: Arc<AtomicBool>,
-    result: Receiver<Result<Output, String>>,
+    result: Receiver<Result<Finished, String>>,
     thread: Option<JoinHandle<()>>,
     pub status: &'static str,
 }
@@ -199,15 +142,15 @@ impl Job {
         })
     }
 
-    pub fn cancel(&self) {
+    fn cancel(&self) {
         self.cancel.store(true, Ordering::Relaxed);
     }
 
-    pub fn cancelling(&self) -> bool {
+    fn cancelling(&self) -> bool {
         self.cancel.load(Ordering::Relaxed)
     }
 
-    pub fn poll(&self) -> Option<Result<Output, String>> {
+    pub fn poll(&self) -> Option<Result<Finished, String>> {
         match self.result.try_recv() {
             Ok(_) if self.cancelling() => Some(Err("Narration job cancelled.".into())),
             Ok(result) => Some(result),
@@ -228,106 +171,226 @@ impl Drop for Job {
     }
 }
 
-fn run(request: Request, cancel: &AtomicBool) -> Result<Output, String> {
-    let scratch = tempfile::tempdir()
-        .map_err(|error| format!("Could not prepare narration tools: {error}"))?;
-    for (name, contents) in TOOLS {
-        fs::write(scratch.path().join(name), contents)
-            .map_err(|error| format!("Could not prepare {name}: {error}"))?;
+fn run(request: Request, cancel: &AtomicBool) -> Result<Finished, String> {
+    let outcome = run_update(&request, cancel);
+    if let Err(error) = &outcome {
+        tracing::debug!(%error, take = request.take.id, "Voiceover update did not finish");
+        if let Err(error) = request.history.issue(&request.take.id, Some(error)) {
+            tracing::warn!(%error, "Could not save voiceover issue");
+        }
     }
+    outcome
+}
 
-    let mut manifest = tempfile::Builder::new()
-        .prefix(".animatix-narration-")
-        .suffix(".json")
-        .tempfile_in(&request.folder)
-        .map_err(|error| format!("Could not prepare narration inputs beside the scene: {error}"))?;
-    serde_json::to_writer(&mut manifest, &serde_json::json!({ "sentences": request.paragraphs }))
-        .map_err(|error| format!("Could not write narration inputs: {error}"))?;
-    manifest
-        .flush()
-        .map_err(|error| format!("Could not write narration inputs: {error}"))?;
+fn run_update(request: &Request, cancel: &AtomicBool) -> Result<Finished, String> {
+    let scratch = tempfile::tempdir().map_err(|error| error.to_string())?;
+    for (name, contents) in TOOLS {
+        fs::write(scratch.path().join(name), contents).map_err(|error| error.to_string())?;
+    }
+    let manifest = scratch.path().join("script.json");
+    fs::write(
+        &manifest,
+        serde_json::to_vec(&serde_json::json!({ "sentences": request.paragraphs }))
+            .map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+    let prefix = scratch.path().join("chapter");
+    let cache = scratch.path().join("chapter.takes");
 
+    // Even when an authored pair is missing or changes, keep the take.
+    let original = request.base.as_ref().map(assets::fingerprint).transpose();
     let cli = Cli {
-        request: &request,
+        request,
         scripts: scratch.path(),
-        manifest: manifest.path(),
+        manifest: &manifest,
+        prefix: &prefix,
         cancel,
     };
-    let mut latest = None;
-    match &request.operation {
-        Operation::Inspect => {},
+    prepare(&cli, scratch.path())?;
+
+    let base_hashes =
+        original.map_err(|error| format!("Could not read the current narration: {error}"))?;
+    let base = stage_baseline(request, &cache, base_hashes.as_ref())?;
+    let candidate = cache.join("candidates").join(&request.take.id);
+    request
+        .history
+        .candidate(&request.take.id, &request.selector, &candidate)
+        .map_err(|error| error.to_string())?;
+    let bindings_path = scratch.path().join("bindings.json");
+    let selectors: HashMap<_, _> = request
+        .bindings
+        .iter()
+        .map(|binding| (&binding.id, &binding.selector))
+        .collect();
+    let takes = request.history.takes().map_err(|error| error.to_string())?;
+    let bindings: HashMap<_, _> = takes
+        .iter()
+        .filter_map(|take| selectors.get(&take.paragraph).map(|selector| (&take.id, *selector)))
+        .collect();
+    fs::write(
+        &bindings_path,
+        serde_json::to_vec(&bindings).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+    let mut cmd = cli.command("adopt", false);
+    cmd.arg("--candidate")
+        .arg(candidate.join("take.json"))
+        .arg("--workbench-bindings")
+        .arg(bindings_path);
+    if let Some((audio, transcript)) = &base {
+        cmd.arg("--base-audio").arg(audio).arg("--base-transcript").arg(transcript);
+    } else {
+        cmd.arg("--empty-base");
+    }
+    let output: Adopted = cli.run(cmd)?;
+    if request
+        .base
+        .as_ref()
+        .map(assets::fingerprint)
+        .transpose()
+        .map_err(|error| error.to_string())?
+        != base_hashes
+    {
+        return Err("The narration changed while this take was processing.".into());
+    }
+    let layout =
+        fs::read(output.audio.with_file_name("state.json")).map_err(|error| error.to_string())?;
+    let (pair, (audio_digest, transcript_digest)) =
+        assets::publish(&request.folder, &request.name, &(output.audio, output.transcript))
+            .map_err(|error| error.to_string())?;
+    let relative = |path: &Path| {
+        path.strip_prefix(&request.folder)
+            .map(Path::to_path_buf)
+            .map_err(|error| error.to_string())
+    };
+    let mut mix = Mix {
+        audio_digest,
+        transcript_digest,
+        layout,
+        parts: HashMap::new(),
+    };
+    let state: serde_json::Value =
+        serde_json::from_slice(&mix.layout).map_err(|error| error.to_string())?;
+    if let Some(takes) = state["chapter"]["takes"].as_object() {
+        mix.parts.extend(takes.iter().filter_map(|(selector, take)| {
+            take["candidate"].as_str().map(|id| (selector.clone(), id.to_owned()))
+        }));
+    }
+    request
+        .history
+        .store_mix(&relative(&pair.0)?, &relative(&pair.1)?, &mix)
+        .map_err(|error| error.to_string())?;
+    request
+        .history
+        .issue(&request.take.id, None)
+        .map_err(|error| error.to_string())?;
+    Ok(Finished {
+        adopted: Adopted {
+            audio: pair.0,
+            transcript: pair.1,
+        },
+        base_hashes,
+    })
+}
+
+fn prepare(cli: &Cli<'_>, scratch: &Path) -> Result<(), String> {
+    let request = cli.request;
+    let mut cmd = match &request.operation {
+        Operation::Use => return Ok(()),
         Operation::Synthesize {
-            paragraph,
             voice,
             rate,
             provider,
-            apply_revision,
         } => {
-            let using_edge = matches!(provider, Provider::Edge);
-            let mut cmd = cli.command("synthesize", Some(paragraph), using_edge);
+            let mut cmd = cli.command("synthesize", matches!(provider, Provider::Edge));
             cmd.args(["--voice", voice]).arg(format!("--rate={rate}"));
-            provider.add_args(&mut cmd, &request.python, scratch.path());
-            latest = Some(cli.run::<Candidate>(cmd)?.candidate);
-            if let (Some(candidate), Some(revision)) = (&latest, apply_revision) {
-                return cli.adopt(paragraph, candidate, revision);
-            }
+            provider.add_args(&mut cmd, &request.python, scratch);
+            cmd
         },
-        Operation::Import {
-            paragraph,
-            audio,
-            timing,
-            apply_revision,
-        } => {
-            let mut cmd = cli.command("import", Some(paragraph), false);
-            cmd.arg("--audio").arg(audio.path());
+        Operation::Import { audio, timing } => {
+            let raw = scratch.join("original.wav");
+            if let Some(audio) = audio {
+                cli.decode(audio, &raw)?;
+                request
+                    .history
+                    .import_wave(&request.take, &raw)
+                    .map_err(|error| error.to_string())?;
+            } else {
+                request
+                    .history
+                    .raw_wave(&request.take.id, &raw)
+                    .map_err(|error| error.to_string())?;
+            }
+            let mut cmd = cli.command("import", false);
+            cmd.arg("--audio").arg(&raw);
             match timing {
                 ImportTiming::Sidecar(path) => {
                     cmd.arg("--timing").arg(path);
                 },
                 ImportTiming::Align(alignment) => alignment.add_args(&mut cmd, false),
+                ImportTiming::Missing => {
+                    return Err("Configure local speech alignment to use this recording.".into());
+                },
             }
-            latest = Some(cli.run::<Candidate>(cmd)?.candidate);
-            if let (Some(candidate), Some(revision)) = (&latest, apply_revision) {
-                return cli.adopt(paragraph, candidate, revision);
-            }
+            cmd
         },
-        Operation::Adopt {
-            paragraph,
-            candidate,
-            expected_revision,
-        } => return cli.adopt(paragraph, candidate, expected_revision),
+    };
+    cmd.arg("--empty-base");
+    let output: Candidate = cli.run(cmd)?;
+    if matches!(&request.operation, Operation::Synthesize { .. }) {
+        request
+            .history
+            .import_wave(&request.take, &output.candidate.with_file_name("take.wav"))
+            .map_err(|error| error.to_string())?;
     }
-    cli.run(cli.command("inspect", None, false))
-        .map(|scene| Output::Scene(scene, latest))
+    request
+        .history
+        .store_alignment(&request.take.id, &output.candidate)
+        .map_err(|error| error.to_string())
+}
+
+fn stage_baseline(
+    request: &Request,
+    cache: &Path,
+    hashes: Option<&(String, String)>,
+) -> Result<Option<Pair>, String> {
+    let Some((original, hashes)) = request.base.as_ref().zip(hashes) else {
+        return Ok(None);
+    };
+    let directory = cache.join("revisions").join("00000000000000000000000000000000");
+    let local = if let (Ok(audio), Ok(transcript)) = (
+        original.0.strip_prefix(&request.folder),
+        original.1.strip_prefix(&request.folder),
+    ) {
+        request.history.mix(audio, transcript).map_err(|error| error.to_string())?
+    } else {
+        None
+    };
+    if let Some(mix) =
+        local.filter(|mix| mix.audio_digest == hashes.0 && mix.transcript_digest == hashes.1)
+    {
+        fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
+        let audio = directory.join("chapter.wav");
+        let transcript = directory.join("chapter.speech.json");
+        fs::copy(&original.0, &audio).map_err(|error| error.to_string())?;
+        fs::copy(&original.1, &transcript).map_err(|error| error.to_string())?;
+        fs::write(directory.join("state.json"), mix.layout).map_err(|error| error.to_string())?;
+        Ok(Some((audio, transcript)))
+    } else {
+        Ok(Some(original.clone()))
+    }
 }
 
 struct Cli<'a> {
     request: &'a Request,
     scripts: &'a Path,
     manifest: &'a Path,
+    prefix: &'a Path,
     cancel: &'a AtomicBool,
 }
 
 impl Cli<'_> {
-    fn adopt(&self, paragraph: &str, candidate: &Path, revision: &str) -> Result<Output, String> {
-        let mut cmd = self.command("adopt", Some(paragraph), false);
-        cmd.arg("--candidate").arg(candidate).arg("--expected-revision").arg(revision);
-        let mut adopted: Adopted = self.run(cmd)?;
-        let before = self.request.base.as_ref().map(|(_, transcript)| transcript.as_path());
-        let reviewed = review_anchors(&self.request.anchors, before, &adopted.transcript);
-        adopted.affected_markers.retain(|change| {
-            !reviewed.iter().any(|reviewed| {
-                reviewed
-                    .marker
-                    .rsplit_once('@')
-                    .is_some_and(|(_, marker)| marker == change.marker)
-            })
-        });
-        adopted.affected_markers.extend(reviewed);
-        Ok(Output::Adopted(adopted))
-    }
-
-    fn command(&self, action: &str, paragraph: Option<&str>, edge: bool) -> Command {
+    fn command(&self, action: &str, edge: bool) -> Command {
         let mut cmd = if edge {
             let mut uv = Command::new("uv");
             uv.args([
@@ -342,17 +405,13 @@ impl Cli<'_> {
         } else {
             Command::new(&self.request.python)
         };
-        cmd.arg(self.scripts.join(TAKES)).arg(action).arg(self.manifest);
-        if let Some(paragraph) = paragraph {
-            cmd.arg(paragraph);
-        }
-        cmd.arg("-o").arg(&self.request.output_prefix);
-        if let Some((audio, transcript)) = &self.request.base {
-            cmd.arg("--base-audio").arg(audio).arg("--base-transcript").arg(transcript);
-        } else {
-            cmd.arg("--empty-base");
-        }
-        cmd.current_dir(&self.request.folder)
+        cmd.arg(self.scripts.join(TAKES))
+            .arg(action)
+            .arg(self.manifest)
+            .arg(&self.request.selector)
+            .arg("-o")
+            .arg(self.prefix)
+            .current_dir(&self.request.folder)
             .stdin(Stdio::null())
             .env("PYTHONUTF8", "1");
         if let Some(path) = tool_search_path() {
@@ -361,7 +420,32 @@ impl Cli<'_> {
         cmd
     }
 
-    fn run<T: for<'de> Deserialize<'de>>(&self, mut cmd: Command) -> Result<T, String> {
+    fn decode(&self, audio: &Path, raw: &Path) -> Result<(), String> {
+        if hound::WavReader::open(audio).is_ok_and(|wave| {
+            wave.spec().bits_per_sample == 16
+                && wave.spec().sample_format == hound::SampleFormat::Int
+        }) {
+            fs::copy(audio, raw).map_err(|error| error.to_string())?;
+            return Ok(());
+        }
+        let ffmpeg = crate::app::audio::packaged_ffmpeg().unwrap_or_else(|| "ffmpeg".into());
+        let mut cmd = Command::new(ffmpeg);
+        cmd.args(["-nostdin", "-v", "error", "-xerror", "-i"])
+            .arg(audio)
+            .args(["-map", "0:a:0", "-c:a", "pcm_s16le"])
+            .arg(raw);
+        self.run_process(cmd)?;
+        Ok(())
+    }
+
+    fn run<T: for<'de> Deserialize<'de>>(&self, cmd: Command) -> Result<T, String> {
+        let output = self.run_process(cmd)?;
+        let json = output.lines().rev().find(|line| !line.trim().is_empty()).unwrap_or_default();
+        serde_json::from_str(json)
+            .map_err(|error| format!("Invalid narration tool response: {error}"))
+    }
+
+    fn run_process(&self, mut cmd: Command) -> Result<String, String> {
         if self.cancel.load(Ordering::Relaxed) {
             return Err("Narration job cancelled.".into());
         }
@@ -400,9 +484,7 @@ impl Cli<'_> {
             let shortened = details.chars().take(4000).collect::<String>();
             return Err(format!("Narration tools exited with {status}. {shortened}"));
         }
-        let json = output.lines().rev().find(|line| !line.trim().is_empty()).unwrap_or_default();
-        serde_json::from_str(json)
-            .map_err(|error| format!("Invalid narration tool response: {error}"))
+        Ok(output)
     }
 }
 

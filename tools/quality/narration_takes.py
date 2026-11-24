@@ -240,6 +240,27 @@ def candidate_region(path, record, sentence):
     return Region(take.pcm, [segment], markers)
 
 
+def reconcile_workbench(chapter, sentences, bindings, selected):
+    current = {sentence.id for sentence in sentences}
+    takes = {}
+    for index, name in enumerate(chapter.order):
+        take = chapter.takes.get(name)
+        if take is None:
+            continue
+        mapped = name if take.candidate is None else bindings.get(take.candidate)
+        target = mapped if mapped in current else f"unmapped-workbench-{index}"
+        if target in takes:
+            raise ValueError("Could not uniquely match the current narration paragraphs.")
+        chapter.order[index] = target
+        take.unmapped = target not in current
+        takes[target] = take
+    chapter.takes = takes
+    chapter.order = list(dict.fromkeys(chapter.order))
+    if selected not in chapter.takes and any(take.unmapped for take in chapter.takes.values()):
+        raise ValueError("Could not safely place this take in the current narration.")
+    chapter.reconcile(sentences, transfer_edited=False)
+
+
 def adopt(store, sentences, sentence, args):
     store.cache.mkdir(parents=True, exist_ok=True)
     with output_lock(store.cache), tempfile.TemporaryDirectory(dir=store.cache) as directory:
@@ -248,7 +269,10 @@ def adopt(store, sentences, sentence, args):
             sentences, args.base_audio, args.base_transcript, args.empty_base)
         if args.expected_revision is not None and previous != args.expected_revision:
             raise ValueError("the chapter changed since review; refresh the takes and choose again")
-        chapter.reconcile(sentences)
+        if args.workbench_bindings is not None:
+            reconcile_workbench(chapter, sentences, read_json(args.workbench_bindings), sentence.id)
+        else:
+            chapter.reconcile(sentences)
         path, record = store.candidate(args.candidate)
         region = candidate_region(path, record, sentence)
         old = chapter.takes.get(sentence.id)
@@ -318,6 +342,7 @@ def parser_for_worker():
         elif name == "adopt":
             action.add_argument("--candidate", required=True, type=Path, help="Candidate take.json file")
             action.add_argument("--expected-revision", help="Chapter revision from the editor's last review")
+            action.add_argument("--workbench-bindings", type=Path, help="GUI take UUIDs mapped to current paragraph selectors")
     return parser
 
 

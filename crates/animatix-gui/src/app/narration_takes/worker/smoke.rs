@@ -1,108 +1,198 @@
 use super::*;
+use crate::app::narration_takes::bindings;
+
+struct Project {
+    folder: PathBuf,
+    history: Arc<History>,
+    python: OsString,
+}
+
+impl Project {
+    fn apply(
+        &self,
+        bindings: &[Binding],
+        index: usize,
+        operation: Operation,
+        id: &str,
+        base: Option<Pair>,
+    ) -> Result<Finished, String> {
+        let binding = &bindings[index];
+        let kind = if matches!(&operation, Operation::Synthesize { .. }) {
+            "synthesized"
+        } else {
+            "imported"
+        };
+        let request = Request {
+            folder: self.folder.clone(),
+            name: "Intro".into(),
+            paragraphs: bindings
+                .iter()
+                .map(|binding| ManifestParagraph {
+                    id: binding.selector.clone(),
+                    text: binding.text.clone(),
+                })
+                .collect(),
+            bindings: bindings.to_vec(),
+            base,
+            python: self.python.clone(),
+            operation,
+            take: Take {
+                id: id.into(),
+                paragraph: binding.id.clone(),
+                scene: None,
+                text: binding.text.clone(),
+                kind,
+            },
+            selector: binding.selector.clone(),
+            history: Arc::clone(&self.history),
+        };
+        run(request, &AtomicBool::new(false))
+    }
+}
+
+fn fixture(folder: &Path, text: &str, samples: usize) -> Operation {
+    let wave = folder.join("fixture.wav");
+    let timing = folder.join("fixture.speech.json");
+    let mut out = hound::WavWriter::create(
+        &wave,
+        hound::WavSpec {
+            channels: 1,
+            sample_rate: 24_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        },
+    )
+    .unwrap();
+    for _ in 0..samples {
+        out.write_sample(42i16).unwrap();
+    }
+    out.finalize().unwrap();
+    fs::write(
+        &timing,
+        serde_json::to_vec(&serde_json::json!([{
+            "word": text, "start": 0.01, "end": 0.08
+        }]))
+        .unwrap(),
+    )
+    .unwrap();
+    Operation::Import {
+        audio: Some(wave),
+        timing: ImportTiming::Sidecar(timing),
+    }
+}
+
+fn pair(output: Finished) -> Pair {
+    (output.adopted.audio, output.adopted.transcript)
+}
 
 #[test]
 #[ignore = "requires Python 3 on PATH"]
-fn bundled_worker_supports_comparison_and_direct_voiceover_updates() {
+fn bundled_worker_splices_reopened_history_and_keeps_the_previous_pair() {
     let directory = tempfile::tempdir().unwrap();
     let folder = directory.path().canonicalize().unwrap();
-    let audio = folder.join("recorded.wav");
-    let timing = folder.join("recorded.json");
-    let python = if cfg!(windows) { "python" } else { "python3" };
-    let generator = r#"
-import sys, wave
-with wave.open(sys.argv[1], 'wb') as output:
-    output.setparams((1, 2, 24000, 0, 'NONE', 'not compressed'))
-    output.writeframes(bytes(4800))
-"#;
-    assert!(
-        Command::new(python)
-            .args(["-c", generator])
-            .arg(&audio)
-            .status()
-            .unwrap()
-            .success()
-    );
-    fs::write(&timing, r#"[{"word":"Hello.","start":0.01,"end":0.08}]"#).unwrap();
-    let request = |operation| Request {
+    let source = folder.join("demo.amx");
+    let project = Project {
         folder: folder.clone(),
-        output_prefix: folder.join("voice"),
-        paragraphs: vec![ManifestParagraph {
-            id: "p_ab_1".into(),
-            text: "Hello.".into(),
-        }],
-        base: None,
-        anchors: Vec::new(),
-        python: python.into(),
-        operation,
+        history: Arc::new(History::open(&source, true).unwrap().unwrap()),
+        python: OsString::from(if cfg!(windows) { "python" } else { "python3" }),
     };
-    let cancel = AtomicBool::new(false);
-    let Output::Scene(scene, Some(candidate)) = run(
-        request(Operation::Import {
-            paragraph: "p_ab_1".into(),
-            audio: RecordingInput::File(audio.clone()),
-            timing: ImportTiming::Sidecar(timing.clone()),
-            apply_revision: None,
-        }),
-        &cancel,
-    )
-    .unwrap() else {
-        panic!("expected staged take")
-    };
-    assert_eq!(scene.revision, "empty");
-    assert_eq!(scene.paragraphs[0].candidates[0].word_count, 1);
-    assert!(scene.paragraphs[0].active_take.is_none());
+    let before = "/// Hello.\n\n/// Again.\n";
+    let bindings = bindings::reconcile(before, &[]);
+    let first = pair(
+        project
+            .apply(
+                &bindings,
+                0,
+                fixture(&folder, "Hello.", 3_000),
+                "10000000000000000000000000000000",
+                None,
+            )
+            .unwrap(),
+    );
+    let second = pair(
+        project
+            .apply(
+                &bindings,
+                1,
+                fixture(&folder, "Again.", 3_500),
+                "20000000000000000000000000000000",
+                Some(first.clone()),
+            )
+            .unwrap(),
+    );
+    project.history.snapshot(before, &bindings, true).unwrap();
+    drop(project);
 
-    let Output::Adopted(adopted) = run(
-        request(Operation::Adopt {
-            paragraph: "p_ab_1".into(),
-            candidate,
-            expected_revision: scene.revision,
-        }),
-        &cancel,
-    )
-    .unwrap() else {
-        panic!("expected versioned assets")
+    let after = "/// Welcome.\n\n/// Again.\n";
+    let project = Project {
+        folder: folder.clone(),
+        history: Arc::new(History::open(&source, false).unwrap().unwrap()),
+        python: OsString::from(if cfg!(windows) { "python" } else { "python3" }),
     };
-    assert!(adopted.audio.is_file());
-    assert!(adopted.transcript.is_file());
-    assert!(!folder.join("voice.takes/current.json").exists());
+    let (_, previous) = project.history.bindings(before).unwrap();
+    let bindings = bindings::edit(before, after, &previous);
+    let third = pair(
+        project
+            .apply(
+                &bindings,
+                0,
+                fixture(&folder, "Welcome.", 4_000),
+                "30000000000000000000000000000000",
+                Some(second.clone()),
+            )
+            .unwrap(),
+    );
+    assert_eq!(project.history.takes().unwrap().len(), 3);
+    assert_ne!(third, second);
+    assert!(first.0.is_file() && second.0.is_file());
+    assert!(!folder.join(".animatix-narration").exists());
+    let read = |path: &Path| {
+        let text = fs::read_to_string(path).unwrap();
+        animatix::narration::parse_transcript_auto(&text).unwrap()
+    };
+    let previous = read(&second.1);
+    let updated = read(&third.1);
+    assert_eq!(
+        updated.segments.iter().map(|segment| segment.text.as_str()).collect::<Vec<_>>(),
+        ["Welcome.", "Again."]
+    );
+    assert!(updated.segments[1].start_s > previous.segments[1].start_s);
+    assert_eq!(third.0.parent(), Some(folder.join("narration").as_path()));
 
-    let Output::Adopted(updated) = run(
-        request(Operation::Import {
-            paragraph: "p_ab_1".into(),
-            audio: RecordingInput::File(audio),
-            timing: ImportTiming::Sidecar(timing),
-            apply_revision: Some("empty".into()),
-        }),
-        &cancel,
-    )
-    .unwrap() else {
-        panic!("the update should return the audio and transcript in one job");
-    };
-    assert!(updated.audio.is_file());
-    assert!(updated.transcript.is_file());
-    assert!(adopted.audio.is_file());
-    assert!(!folder.join("voice.takes/current.json").exists());
+    let copy = tempfile::tempdir().unwrap();
+    let relative = (third.0.strip_prefix(&folder).unwrap(), third.1.strip_prefix(&folder).unwrap());
+    let portable = (copy.path().join(relative.0), copy.path().join(relative.1));
+    assets::copy_pair(&third, &portable).unwrap();
+    assert_eq!(read(&portable.1), updated);
+    assert_eq!(assets::fingerprint(&portable).unwrap(), assets::fingerprint(&third).unwrap());
+}
 
-    let provider =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/quality/test-speech-chapter.py");
-    let Output::Adopted(synthesized) = run(
-        request(Operation::Synthesize {
-            paragraph: "p_ab_1".into(),
-            voice: "test-voice".into(),
-            rate: "+0%".into(),
-            provider: Provider::Local {
-                executable: python.into(),
-                arguments: vec![provider.to_str().unwrap().to_owned(), "--fixture".into()],
-                revision: String::new(),
-            },
-            apply_revision: Some("empty".into()),
-        }),
-        &cancel,
-    )
-    .unwrap() else {
-        panic!("the generated voiceover should also apply in one job");
+#[test]
+fn missing_alignment_keeps_imported_audio() {
+    let directory = tempfile::tempdir().unwrap();
+    let folder = directory.path().canonicalize().unwrap();
+    let project = Project {
+        folder: folder.clone(),
+        history: Arc::new(History::open(&folder.join("demo.amx"), true).unwrap().unwrap()),
+        python: OsString::from("unused"),
     };
-    assert!(synthesized.audio.is_file());
-    assert!(synthesized.transcript.is_file());
+    let bindings = bindings::reconcile("/// Hello.\n", &[]);
+    let Operation::Import { audio, .. } = fixture(&folder, "Hello.", 3_000) else {
+        unreachable!()
+    };
+    let result = project.apply(
+        &bindings,
+        0,
+        Operation::Import {
+            audio,
+            timing: ImportTiming::Missing,
+        },
+        "10000000000000000000000000000000",
+        None,
+    );
+    assert!(result.is_err());
+    let takes = project.history.takes().unwrap();
+    assert_eq!(takes.len(), 1);
+    assert!(takes[0].issue.is_some() && !takes[0].aligned);
+    assert!(!folder.join("narration").exists());
 }

@@ -335,9 +335,19 @@ pub fn handle_save_as(
 ) -> Vec<Effect> {
     let previous_path = document_store.source.file_path().to_path_buf();
     let text = document_store.source.editor.text().to_string();
+    let narration =
+        match crate::app::narration_takes::SaveAsNarration::prepare(&previous_path, &path, &text) {
+            Ok(narration) => narration,
+            Err(error) => {
+                return vec![Effect::Toast(Toast::error(format!(
+                    "Save As failed: {error}"
+                )))];
+            },
+        };
     document_store.source.document.file_path = path.clone();
     match save_document(document_store) {
         Ok(()) => {
+            narration.commit();
             document_store.source.editor.set_document(&path, text);
             // The rebind means the edits now live in `path`; a sidecar left over
             // from the old document no longer belongs to the current source and
@@ -477,10 +487,12 @@ fn rebuild_succeeded_with_diff(
         status.push_str(&format!(" • removed {}", removed_selected_actors.join(", ")));
     }
     sync_preview_from_document(document_store, preview_store, status, false, false);
-    ui_store.toasts.push(Toast::success(format!(
-        "Built timeline • {:.2}s",
-        document_store.source.document.duration_s.max(0.1)
-    )));
+    if preview_store.quiet_rebuild.take() != Some(document_store.source.epoch()) {
+        ui_store.toasts.push(Toast::success(format!(
+            "Built timeline • {:.2}s",
+            document_store.source.document.duration_s.max(0.1)
+        )));
+    }
     vec![]
 }
 

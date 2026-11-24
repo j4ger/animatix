@@ -1,423 +1,477 @@
 use std::ffi::OsString;
 use std::fs::File;
 use std::io::BufReader;
-use std::path::Path;
-use std::sync::Arc;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use egui::Context;
 use rodio::{Decoder, OutputStream, Sink};
+use uuid::Uuid;
 
+use super::NarrationTakes;
+use super::assets::{self, Pair};
 use super::capture::Capture;
+use super::history::Take;
+use super::session::Session;
 use super::source::{Target, selected_paragraph, source_scene};
 use super::view::Action;
-use super::worker::{Adopted, Job, Operation, Output, Request};
-use super::{Feedback, NarrationTakes};
+use super::worker::{Finished, Job, ManifestParagraph, Operation, Request};
 use crate::app::GuiShell;
 use crate::app::commands::Command;
 use crate::app::stores::SourceStore;
 
-impl NarrationTakes {
-    fn open(&mut self, source: &SourceStore, ctx: &Context) {
-        self.open = true;
-        self.scene = source_scene(source);
-        self.feedback = None;
-        self.affected.clear();
-        self.updated_epoch = None;
-        self.inputs.recording.clear();
-        self.inputs.timing.clear();
-        self.retarget(source, true);
-        self.try_refresh(ctx);
-    }
+pub(super) struct Origin {
+    path: PathBuf,
+    editor: u64,
+    take: Take,
+    base: Option<Pair>,
+    script: Vec<ManifestParagraph>,
+}
 
-    pub(in crate::app) fn open_paragraph(
+impl NarrationTakes {
+    pub(crate) fn open_paragraph(
         &mut self,
         source: &SourceStore,
         scene: Option<String>,
-        id: &str,
+        selector: &str,
     ) {
-        self.close();
+        self.open_for(source, scene);
+        if self.target.as_ref().is_some_and(|target| {
+            target.paragraphs.iter().any(|paragraph| paragraph.id() == selector)
+        }) {
+            self.selected = Some(selector.to_owned());
+        }
+    }
+
+    fn open_for(&mut self, source: &SourceStore, scene: Option<String>) {
         self.open = true;
         self.scene = scene;
+        self.source_revision = None;
         self.feedback = None;
-        self.affected.clear();
-        self.updated_epoch = None;
-        self.inputs.recording.clear();
-        self.inputs.timing.clear();
-        self.retarget(source, false);
-        if self.target.as_ref().is_some_and(|t| t.paragraphs.iter().any(|p| p.id() == id)) {
-            self.selected = Some(id.to_owned());
-        }
+        self.history_error = None;
+        self.active_stamp = None;
+        self.retarget(source, true);
     }
 
     pub(super) fn close(&mut self) {
         self.open = false;
         self.audition = None;
-        self.clear_recording();
-        self.refresh_pending = false;
-        self.cancel_for_target_change();
-        self.target = None;
-        self.source_revision = None;
-        self.takes = None;
-        self.chosen = None;
+        if let Some((capture, _, _)) = &mut self.capture {
+            capture.stop();
+        }
     }
 
-    fn cancel_for_target_change(&mut self) {
-        if let Some(job) = &self.job {
-            job.cancel();
-            self.discard_job = true;
+    fn sync_session(&mut self, source: &SourceStore) -> Result<(), String> {
+        if self.session.as_ref().is_none_or(|session| !session.is_for(source.file_path())) {
+            self.session = Some(Session::open(source)?);
+        }
+        if let Some(session) = &mut self.session {
+            session.update(source)?;
+        }
+        Ok(())
+    }
+
+    pub(in crate::app) fn checkpoint(&mut self, source: &SourceStore, saved: bool) {
+        if self.session.is_none() && !super::history::path_for(source.file_path()).is_file() {
+            return;
+        }
+        let result = self.sync_session(source).and_then(|()| {
+            self.session
+                .as_mut()
+                .map_or(Ok(()), |session| session.checkpoint(source, saved))
+        });
+        if let Err(error) = result {
+            tracing::warn!(%error, "Could not save narration paragraph bindings");
+            self.history_error = Some(error);
         }
     }
 
     fn retarget(&mut self, source: &SourceStore, from_cursor: bool) {
-        let epoch = source.epoch();
-        let identity = source.editor.source_identity();
-        if let Some((path, old_epoch, old_identity)) = &self.source_revision {
-            if path != source.file_path() {
-                self.close();
-                return;
-            }
-            if !from_cursor && *old_epoch == epoch && *old_identity == identity {
-                return;
-            }
+        let revision =
+            (source.file_path().to_owned(), source.epoch(), source.editor.source_identity());
+        if self.source_revision.as_ref() == Some(&revision) {
+            return;
         }
-        self.source_revision = Some((source.file_path().to_owned(), epoch, identity));
-        if self.updated_epoch.is_some_and(|updated| updated != epoch) {
-            self.updated_epoch = None;
-            self.affected.clear();
-            self.feedback = None;
+        self.source_revision = Some(revision);
+        let old_binding = self.selected.as_deref().and_then(|selector| {
+            self.session
+                .as_ref()?
+                .binding(self.scene.as_deref(), selector)
+                .map(|binding| binding.id.clone())
+        });
+        if let Err(error) = self.sync_session(source) {
+            self.session = None;
+            self.history_error = Some(error);
         }
-        let previous = self.target.as_ref().and_then(|target| self.selected_index(target));
-        if self.job.is_some() && !self.discard_job {
-            self.info("The scene changed. Start the voiceover update again for this draft.");
-        }
-        self.cancel_for_target_change();
-        self.audition = None;
-        self.clear_recording();
-        self.takes = None;
-        self.chosen = None;
-        match Target::open(source, self.scene.clone()) {
-            Ok(target) => {
-                self.selected = from_cursor
-                    .then(|| selected_paragraph(source, &target))
-                    .flatten()
-                    .or_else(|| {
-                        self.selected.take().filter(|selected| {
-                            target.paragraphs.iter().any(|paragraph| paragraph.id() == *selected)
-                        })
-                    })
-                    .or_else(|| target.paragraphs.get(previous.unwrap_or(0)).map(|item| item.id()))
-                    .or_else(|| target.paragraphs.first().map(|item| item.id()));
-                self.target = Some(target);
-                self.refresh_pending = true;
+        self.feedback = None;
+        let has_script = self.session.as_ref().is_none_or(|session| {
+            session.bindings.iter().any(|binding| binding.scene == self.scene)
+        });
+        self.target = match has_script.then(|| Target::open(source, self.scene.clone())) {
+            Some(Ok(target)) => Some(target),
+            Some(Err(error)) => {
+                self.feedback = Some(error);
+                None
             },
-            Err(error) => {
-                self.target = None;
-                self.refresh_pending = false;
-                self.error(error);
-            },
-        }
+            None => None,
+        };
+        self.selected = self.target.as_ref().and_then(|target| {
+            from_cursor
+                .then(|| selected_paragraph(source, target))
+                .flatten()
+                .or_else(|| {
+                    let binding = old_binding.as_ref()?;
+                    self.session
+                        .as_ref()?
+                        .bindings
+                        .iter()
+                        .find(|candidate| candidate.id == *binding && candidate.scene == self.scene)
+                        .map(|binding| binding.selector.clone())
+                })
+                .or_else(|| target.paragraphs.first().map(|paragraph| paragraph.id()))
+        });
+        self.refresh();
     }
 
-    pub(super) fn selected_index(&self, target: &Target) -> Option<usize> {
-        let selected = self.selected.as_deref()?;
-        target.paragraphs.iter().position(|paragraph| paragraph.id() == selected)
-    }
-
-    fn try_refresh(&mut self, ctx: &Context) {
-        if self.refresh_pending && self.job.is_none() {
-            self.refresh_pending = false;
-            self.start(Operation::Inspect, ctx);
-        }
-    }
-
-    fn start(&mut self, operation: Operation, ctx: &Context) {
-        let Some(target) = self.target.as_ref() else {
+    fn refresh(&mut self) {
+        self.takes.clear();
+        let Some(history) = self.session.as_ref().and_then(|session| session.history.as_ref())
+        else {
+            self.active.clear();
+            self.active_stamp = None;
             return;
         };
-        if self.job.is_some() {
+        match history.takes() {
+            Ok(takes) => self.takes = takes,
+            Err(error) => self.history_error = Some(error.to_string()),
+        }
+        let target = self.target.as_ref();
+        let pair = target.and_then(|target| target.base.as_ref());
+        let stamp = pair.and_then(|pair| assets::PairStamp::read(pair).ok());
+        if stamp.is_some() && stamp == self.active_stamp {
             return;
         }
-        self.discard_job = false;
+        self.active.clear();
+        self.active_stamp = None;
+        let Some((target, pair)) = target.zip(pair) else {
+            return;
+        };
+        let (Ok(audio), Ok(timing)) =
+            (pair.0.strip_prefix(&target.folder), pair.1.strip_prefix(&target.folder))
+        else {
+            return;
+        };
+        match history.mix(audio, timing) {
+            Ok(Some(mix))
+                if assets::fingerprint(pair).is_ok_and(|hashes| {
+                    hashes == (mix.audio_digest.clone(), mix.transcript_digest.clone())
+                }) =>
+            {
+                self.active.extend(mix.parts.into_values());
+                self.active_stamp = stamp;
+            },
+            Err(error) => self.history_error = Some(error.to_string()),
+            _ => {},
+        }
+    }
+
+    fn request(
+        &mut self,
+        source: &SourceStore,
+        operation: Operation,
+        existing: Option<String>,
+    ) -> Result<(Request, Origin), String> {
+        self.sync_session(source)?;
+        let target = self.target.as_ref().ok_or("Select a narration paragraph first.")?;
+        let selector = self.selected.clone().ok_or("Select a narration paragraph first.")?;
+        let session = self.session.as_mut().ok_or("Could not open voiceover history.")?;
+        let history = session.history_for_write()?;
+        let binding = session
+            .binding(self.scene.as_deref(), &selector)
+            .ok_or("The selected paragraph is no longer in the script.")?;
+        let kind = match &operation {
+            Operation::Synthesize { .. } => "synthesized",
+            Operation::Import { audio: Some(_), .. } => "imported",
+            _ => "recorded",
+        };
+        if existing.as_ref().is_some_and(|id| {
+            !self.takes.iter().any(|take| {
+                take.id == *id && take.paragraph == binding.id && take.text == binding.text
+            })
+        }) {
+            return Err("This recording belongs to a different version of the script.".into());
+        }
+        let take = Take {
+            id: existing.unwrap_or_else(|| Uuid::new_v4().simple().to_string()),
+            paragraph: binding.id.clone(),
+            scene: binding.scene.clone(),
+            text: binding.text.clone(),
+            kind,
+        };
+        let paragraphs = target.manifest();
+        let origin = Origin {
+            path: source.file_path().to_owned(),
+            editor: source.editor.source_identity().0,
+            take: take.clone(),
+            base: target.base.clone(),
+            script: paragraphs.clone(),
+        };
         let python = self.inputs.python.trim();
         let python = if python.is_empty() {
             OsString::from(if cfg!(windows) { "python" } else { "python3" })
         } else {
             OsString::from(python)
         };
-        let request = Request {
-            folder: target.folder.clone(),
-            output_prefix: target.prefix.clone(),
-            paragraphs: target.manifest(),
-            base: target.base.clone(),
-            anchors: if operation.updates_scene() {
-                target.anchors()
-            } else {
-                Vec::new()
+        self.feedback = None;
+        self.history_error = None;
+        Ok((
+            Request {
+                folder: target.folder.clone(),
+                name: target.name.clone(),
+                paragraphs,
+                bindings: session
+                    .bindings
+                    .iter()
+                    .filter(|binding| binding.scene == self.scene)
+                    .cloned()
+                    .collect(),
+                base: target.base.clone(),
+                python,
+                operation,
+                take,
+                selector,
+                history,
             },
-            python,
-            operation,
-        };
-        match Job::start(request, ctx.clone()) {
-            Ok(job) => self.job = Some(job),
-            Err(error) => self.error(error),
-        }
+            origin,
+        ))
     }
 
-    fn collect(&mut self) -> Option<Adopted> {
-        let result = self.job.as_ref()?.poll()?;
-        let cancelled = self.job.take().is_some_and(|job| job.cancelling());
-        if std::mem::take(&mut self.discard_job) {
-            return None;
-        }
-        if cancelled {
-            self.info("Narration job cancelled.");
-            return None;
-        }
-        match result {
-            Ok(Output::Scene(takes, latest)) => {
-                if let Some(candidate) = latest {
-                    self.chosen = Some(candidate);
-                    self.info("Take ready to audition.");
-                }
-                self.takes = Some(takes);
-                None
-            },
-            Ok(Output::Adopted(result)) => Some(result),
-            Err(error) => {
-                self.error(error);
-                None
-            },
-        }
-    }
-
-    pub(super) fn set_paragraph(&mut self, paragraph: String) {
-        self.selected = Some(paragraph);
-        self.chosen = None;
-        self.audition = None;
-        self.clear_recording();
-        self.inputs.recording.clear();
-        self.inputs.timing.clear();
-    }
-
-    fn clear_recording(&mut self) {
-        let capturing = self.capture.take().is_some();
-        let recorded = self.recording.take().is_some();
-        if capturing || recorded {
-            self.inputs.timing.clear();
-        }
-    }
-
-    fn collect_recording(&mut self) {
-        let Some(result) = self.capture.as_ref().and_then(Capture::poll) else {
-            return;
-        };
-        self.capture = None;
-        match result {
-            Ok(recording) => {
-                let status = if recording.reached_limit {
-                    "Recording reached its limit and is ready to align."
-                } else {
-                    "Recording ready to align."
-                };
-                self.recording = Some(Arc::new(recording));
-                self.info(status);
-            },
-            Err(error) => self.error(error),
-        }
-    }
-
-    fn info(&mut self, text: impl Into<String>) {
-        self.feedback = Some(Feedback {
-            text: text.into(),
-            error: false,
-        });
-    }
-
-    pub(super) fn error(&mut self, text: impl Into<String>) {
-        self.feedback = Some(Feedback {
-            text: text.into(),
-            error: true,
-        });
+    fn start_job(&mut self, ctx: &Context, request: Request, origin: Origin) -> Result<(), String> {
+        let job = Job::start(request, ctx.clone())?;
+        self.job = Some((job, origin));
+        Ok(())
     }
 }
 
 impl GuiShell {
-    pub(crate) fn open_narration_takes(&mut self, ctx: &Context) {
-        self.narration_takes.open(&self.document_store.source, ctx);
+    pub(crate) fn open_narration_takes(&mut self, _ctx: &Context) {
+        let source = &self.document_store.source;
+        self.narration_takes.open_for(source, source_scene(source));
     }
 
     pub(crate) fn narration_takes_ui(&mut self, ctx: &Context) {
-        if self.pending_open.is_some() || self.ui_store.view.welcome_open {
-            if self.narration_takes.open {
-                self.narration_takes.close();
-            }
-        } else if self.narration_takes.open {
-            self.narration_takes.retarget(&self.document_store.source, false);
-        }
-        if let Some(adopted) = self.narration_takes.collect() {
-            self.apply_narration_take(adopted);
-        }
-        self.narration_takes.collect_recording();
-        self.narration_takes.try_refresh(ctx);
-        if self.preview_store.preview.playback.is_playing
-            || self
-                .narration_takes
-                .audition
+        let source = &self.document_store.source;
+        let state = &mut self.narration_takes;
+        if self.pending_open.is_some()
+            || self.ui_store.view.welcome_open
+            || state
+                .session
                 .as_ref()
-                .is_some_and(|audition| audition.sink.empty())
+                .is_some_and(|session| !session.is_for(source.file_path()))
         {
-            self.narration_takes.audition = None;
+            state.close();
+            state.session = None;
+            state.source_revision = None;
+            state.active_stamp = None;
+        } else if state.open || state.session.is_some() {
+            state.retarget(source, false);
         }
-        if self.narration_takes.audition.is_some() || self.narration_takes.capture.is_some() {
-            ctx.request_repaint_after(Duration::from_millis(150));
+        self.finish_narration_capture(ctx);
+        self.finish_narration_job();
+
+        let state = &mut self.narration_takes;
+        if self.preview_store.preview.playback.is_playing
+            || state.audition.as_ref().is_some_and(|audition| audition.sink.empty())
+        {
+            state.audition = None;
         }
-        let can_undo =
-            self.narration_takes.updated_epoch == Some(self.document_store.source.epoch());
-        let can_review = !self.preview_store.has_pending_rebuild()
-            && !self.preview_store.rebuild_in_progress
-            && self.preview_store.in_flight_rebuild.is_none()
-            && self.document_store.source.document.last_rebuild_error.is_none();
-        let Some(action) = self.narration_takes.show(ctx, can_undo, can_review) else {
+        if state.audition.is_some() || state.capture.is_some() {
+            ctx.request_repaint_after(Duration::from_millis(100));
+        }
+        if let Some(action) = state.show(ctx)
+            && let Err(error) = self.narration_action(ctx, action)
+        {
+            self.narration_takes.feedback = Some(error);
+        }
+    }
+
+    fn finish_narration_capture(&mut self, ctx: &Context) {
+        let state = &mut self.narration_takes;
+        let Some(result) = state.capture.as_ref().and_then(|(capture, _, _)| capture.poll()) else {
             return;
         };
+        let (_, mut request, origin) = state.capture.take().unwrap();
+        let was_current = origin.path == self.document_store.source.file_path();
+        let history = request.history.clone();
+        let id = request.take.id.clone();
+        let outcome = result.and_then(|()| {
+            request.operation = Operation::Import {
+                audio: None,
+                timing: state.inputs.import_timing(),
+            };
+            state.start_job(ctx, request, origin)
+        });
+        if let Err(error) = &outcome
+            && let Err(write_error) = history.issue(&id, Some(error))
+        {
+            tracing::warn!(%write_error, "Could not save the recording issue");
+        }
+        if was_current {
+            state.refresh();
+            if let Err(error) = outcome
+                && !state.takes.iter().any(|take| take.id == id && take.issue.is_some())
+            {
+                state.feedback = Some(error);
+            }
+        }
+    }
+
+    fn finish_narration_job(&mut self) {
+        let state = &mut self.narration_takes;
+        let Some(result) = state.job.as_ref().and_then(|(job, _)| job.poll()) else {
+            return;
+        };
+        let (_, origin) = state.job.take().unwrap();
+        let source = &self.document_store.source;
+        if origin.path != source.file_path()
+            || origin.editor != source.editor.source_identity().0
+            || self.pending_open.is_some()
+        {
+            return;
+        }
+        state.refresh();
+        match result {
+            Ok(finished) => self.apply_narration(origin, finished),
+            Err(error)
+                if !state
+                    .takes
+                    .iter()
+                    .any(|take| take.id == origin.take.id && take.issue.is_some()) =>
+            {
+                state.feedback = Some(error);
+            },
+            Err(_) => {},
+        }
+    }
+
+    fn apply_narration(&mut self, origin: Origin, finished: Finished) {
+        let source = &self.document_store.source;
+        let state = &mut self.narration_takes;
+        let Ok(target) = Target::open(source, origin.take.scene.clone()) else {
+            return;
+        };
+        let still_matches = state.session.as_ref().is_some_and(|session| {
+            session.bindings.iter().any(|binding| {
+                binding.id == origin.take.paragraph
+                    && binding.scene == origin.take.scene
+                    && binding.text == origin.take.text
+            })
+        });
+        let hash_matches = || {
+            target
+                .base
+                .as_ref()
+                .map(assets::fingerprint)
+                .transpose()
+                .is_ok_and(|hashes| hashes == finished.base_hashes)
+        };
+        if !still_matches
+            || target.manifest() != origin.script
+            || target.base != origin.base
+            || !hash_matches()
+        {
+            return;
+        }
+        match target.patch(source, &finished.adopted) {
+            Ok(patch) => {
+                let before = source.epoch();
+                let effects = self.handle_command(Command::ApplySourcePatch(patch));
+                self.apply_effects(effects);
+                let after = self.document_store.source.epoch();
+                if before != after {
+                    self.preview_store.quiet_rebuild = Some(after);
+                }
+            },
+            Err(error) => self.narration_takes.feedback = Some(error),
+        }
+    }
+
+    fn narration_action(&mut self, ctx: &Context, action: Action) -> Result<(), String> {
+        let state = &mut self.narration_takes;
+        let source = &self.document_store.source;
         match action {
-            Action::Prepare(operation) => {
-                self.narration_takes.audition = None;
-                self.narration_takes.feedback = None;
-                self.narration_takes.start(operation, ctx);
-            },
-            Action::Audition(path) => {
-                self.preview_store.preview.playback.is_playing = false;
-                self.preview_store.preview_dirty = true;
-                self.narration_takes.audition = None;
-                match Audition::start(&path) {
-                    Ok(audition) => self.narration_takes.audition = Some(audition),
-                    Err(error) => self.narration_takes.error(error),
-                }
-            },
-            Action::Stop => self.narration_takes.audition = None,
             Action::Record => {
-                self.preview_store.preview.playback.is_playing = false;
-                self.preview_store.preview_dirty = true;
-                self.narration_takes.audition = None;
-                self.narration_takes.feedback = None;
-                match Capture::start(ctx.clone()) {
-                    Ok(capture) => {
-                        self.narration_takes.inputs.timing.clear();
-                        self.narration_takes.capture = Some(capture);
-                    },
-                    Err(error) => self.narration_takes.error(error),
-                }
+                let operation = Operation::Import {
+                    audio: None,
+                    timing: state.inputs.import_timing(),
+                };
+                let (request, origin) = state.request(source, operation, None)?;
+                let capture =
+                    Capture::start(ctx.clone(), request.history.clone(), request.take.clone())?;
+                state.capture = Some((capture, request, origin));
+                self.pause_for_narration();
             },
             Action::StopRecording => {
-                if let Some(capture) = &mut self.narration_takes.capture {
+                if let Some((capture, _, _)) = &mut state.capture {
                     capture.stop();
                 }
             },
-            Action::DiscardRecording => {
-                self.narration_takes.audition = None;
-                self.narration_takes.clear_recording();
-                self.narration_takes.info("Recording discarded.");
+            Action::Start(operation, existing) => {
+                let (request, origin) = state.request(source, operation, existing)?;
+                state.start_job(ctx, request, origin)?;
             },
-            Action::Cancel => {
-                if let Some(job) = &self.narration_takes.job {
-                    job.cancel();
-                }
+            Action::Listen(id) => {
+                let audition = {
+                    let history = state
+                        .session
+                        .as_ref()
+                        .and_then(|session| session.history.as_ref())
+                        .ok_or("Could not open voiceover history.")?;
+                    let wave = tempfile::NamedTempFile::new().map_err(|error| error.to_string())?;
+                    history.raw_wave(&id, wave.path()).map_err(|error| error.to_string())?;
+                    Audition::start(wave)?
+                };
+                self.pause_for_narration();
+                self.narration_takes.audition = Some(audition);
             },
-            Action::Refresh => {
-                self.narration_takes.feedback = None;
-                self.narration_takes.refresh_pending = true;
-                self.narration_takes.try_refresh(ctx);
+            Action::StopListening => state.audition = None,
+            Action::Select(selector) => {
+                state.selected = Some(selector);
+                state.feedback = None;
+                state.audition = None;
             },
-            Action::UndoUpdate => {
-                let effects = self.handle_command(Command::Undo);
-                self.apply_effects(effects);
-                self.narration_takes.updated_epoch = None;
-                self.narration_takes.affected.clear();
-                self.narration_takes.info("Previous voiceover restored.");
-            },
-            Action::ReviewTiming(time) => self.review_voiceover_timing(time),
         }
+        Ok(())
     }
 
-    fn review_voiceover_timing(&mut self, time: f64) {
-        let source = &self.document_store.source.document;
-        let Some(target) = &self.narration_takes.target else {
-            return;
-        };
-        let (timeline, scene_start) = if let Some(scene) = &self.narration_takes.scene {
-            let Some(composition) = &source.composition else {
-                return;
-            };
-            let Some(scene_timeline) = composition.scenes.get(scene) else {
-                return;
-            };
-            (
-                &scene_timeline.timeline,
-                composition.scene_start_times.get(scene).copied().unwrap_or(0.0),
-            )
-        } else {
-            let Some(timeline) = &source.timeline else {
-                return;
-            };
-            (timeline, 0.0)
-        };
-        let Some(clip) = timeline
-            .get_entity_id(target.audio_track())
-            .and_then(|id| timeline.audio_segment_for_actor(id))
-        else {
-            return;
-        };
-        let absolute_time = (scene_start + clip.start_time_s + time).max(scene_start);
-        self.narration_takes.close();
-        let mut effects = crate::app::handlers::ui::handle_apply_layout(
-            &mut self.ui_store,
-            crate::app::LayoutPreset::Animate,
-        );
-        effects.extend(self.handle_command(Command::ScrubTo(absolute_time)));
-        self.apply_effects(effects);
-    }
-
-    fn apply_narration_take(&mut self, adopted: Adopted) {
-        let Some(target) = self.narration_takes.target.as_ref() else {
-            return;
-        };
-        match target.patch(&self.document_store.source, &adopted) {
-            Ok(patch) => {
-                let before = self.document_store.source.epoch();
-                let effects = self.handle_command(Command::ApplySourcePatch(patch));
-                self.apply_effects(effects);
-                if before == self.document_store.source.epoch() {
-                    self.narration_takes.error("The current source could not use this take.");
-                } else {
-                    self.narration_takes
-                        .info("Voiceover updated. Save the scene to keep the change.");
-                    self.narration_takes.affected = adopted.affected_markers;
-                    self.narration_takes.updated_epoch = Some(self.document_store.source.epoch());
-                }
-                self.narration_takes.retarget(&self.document_store.source, false);
-            },
-            Err(error) => self.narration_takes.error(error),
-        }
+    fn pause_for_narration(&mut self) {
+        self.preview_store.preview.playback.is_playing = false;
+        self.preview_store.preview_dirty = true;
+        self.narration_takes.audition = None;
     }
 }
 
 pub(super) struct Audition {
     sink: Sink,
     _stream: OutputStream,
+    _wave: tempfile::NamedTempFile,
 }
 
 impl Audition {
-    fn start(path: &Path) -> Result<Self, String> {
-        let file = File::open(path).map_err(|error| format!("Could not open the take: {error}"))?;
+    fn start(wave: tempfile::NamedTempFile) -> Result<Self, String> {
+        let file = File::open(wave.path())
+            .map_err(|error| format!("Could not open this recording: {error}"))?;
         let decoded = Decoder::new(BufReader::new(file))
-            .map_err(|error| format!("Could not decode the take: {error}"))?;
-        let (_stream, handle) = OutputStream::try_default()
+            .map_err(|error| format!("Could not decode this recording: {error}"))?;
+        let (stream, handle) = OutputStream::try_default()
             .map_err(|error| format!("Could not open audio output: {error}"))?;
         let sink = Sink::try_new(&handle)
-            .map_err(|error| format!("Could not start take playback: {error}"))?;
+            .map_err(|error| format!("Could not play this recording: {error}"))?;
         sink.append(decoded);
-        Ok(Self { sink, _stream })
+        Ok(Self {
+            sink,
+            _stream: stream,
+            _wave: wave,
+        })
     }
 }

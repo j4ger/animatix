@@ -1,18 +1,26 @@
+mod assets;
+mod bindings;
 mod capture;
 mod controller;
+mod history;
+mod save_as;
+mod session;
 mod source;
 mod view;
 mod worker;
 
 use std::path::PathBuf;
-use std::sync::Arc;
 
-use self::capture::{Capture, Recording};
-use self::controller::Audition;
+use self::capture::Capture;
+use self::controller::{Audition, Origin};
+use self::history::TakeSummary;
+use self::session::Session;
 use self::source::Target;
 use self::view::Inputs;
-use self::worker::{Job, MarkerChange, SceneTakes};
+use self::worker::{Job, Request};
 use crate::app::document::version::SourceEpoch;
+
+pub(super) use self::save_as::SaveAsNarration;
 
 type SourceRevision = (PathBuf, SourceEpoch, (u64, u64));
 
@@ -22,22 +30,15 @@ pub(super) struct NarrationTakes {
     scene: Option<String>,
     source_revision: Option<SourceRevision>,
     target: Option<Target>,
+    session: Option<Session>,
     selected: Option<String>,
-    chosen: Option<PathBuf>,
-    takes: Option<SceneTakes>,
-    job: Option<Job>,
-    discard_job: bool,
-    refresh_pending: bool,
-    feedback: Option<Feedback>,
-    affected: Vec<MarkerChange>,
-    updated_epoch: Option<SourceEpoch>,
+    takes: Vec<TakeSummary>,
+    active: Vec<String>,
+    active_stamp: Option<assets::PairStamp>,
+    job: Option<(Job, Origin)>,
+    feedback: Option<String>,
+    history_error: Option<String>,
     inputs: Inputs,
     audition: Option<Audition>,
-    capture: Option<Capture>,
-    recording: Option<Arc<Recording>>,
-}
-
-struct Feedback {
-    text: String,
-    error: bool,
+    capture: Option<(Capture, Request, Origin)>,
 }

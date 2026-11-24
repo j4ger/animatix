@@ -93,13 +93,18 @@ impl EditorBuffer {
             return;
         }
 
-        let response = ui.add(Button::ghost("Choose timing phrase…"));
         if index.stale_bindings.len() == 1 {
-            if response.clicked() {
-                self.start_repair(0);
-            }
+            let target = &index.targets[index.stale_bindings[0].target];
+            ui.horizontal_wrapped(|ui| {
+                ui.weak(target_label(target));
+                if ui.add(Button::ghost("Rebind timing…")).clicked() {
+                    self.start_repair(0);
+                }
+            });
             return;
         }
+        let response =
+            ui.add(Button::ghost(format!("{} cues need timing…", index.stale_bindings.len())));
         egui::Popup::menu(&response).show(|ui| {
             egui::ScrollArea::vertical().max_height(250.0).show(ui, |ui| {
                 for (ordinal, binding) in index.stale_bindings.iter().enumerate() {

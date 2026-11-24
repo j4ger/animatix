@@ -1,5 +1,37 @@
 # Audition and retake chapter narration
 
+## Record in the native workbench
+
+In Write, choose **Only script**, then open **Voiceover…** for a paragraph. Press **Record** and
+**Stop**. The workbench keeps the original audio, aligns it locally, and
+updates the scene in a single undoable edit. **More** contains audio import,
+voice generation, and speech alignment settings.
+
+For microphone alignment, use a Python 3 environment with NumPy and
+`sherpa-onnx`, and make FFmpeg available to the workbench. In **More → Speech
+alignment settings…**, select that Python executable, a local SenseVoice ONNX
+model, and its token file. The corresponding environment variables are
+`ANIMATIX_NARRATION_PYTHON`, `ANIMATIX_NARRATION_ASR_MODEL`, and
+`ANIMATIX_NARRATION_ASR_TOKENS`. If alignment needs attention, the recording
+stays available under **History**. For imported audio, the workbench can also
+read an existing word-timed file such as `clip.speech.json` beside `clip.wav`.
+
+The workbench keeps recordings beside the source in a same-named `.amxn`
+file. Expand a paragraph's history to hear earlier reads and see the script as
+it was recorded. Recordings are saved as they are captured, so completed audio
+blocks can be recovered after an interruption. Use the normal scene save to
+keep changes to the active voiceover. **Save As** copies the recording history
+and brings along the current generated narration when saving to another folder.
+
+Generated audio and its matching `.speech.json` are under `narration/` beside
+the source, with the scene name and a content suffix in both filenames. The
+transcript carries subtitle intervals, word timings, and cues for the scene's
+animations. To share a runnable scene, copy the `.amx` and the assets it
+references, including both narration files. Include the `.amxn` to share the
+editing history. It can be copied as a single file after closing the editor.
+
+## Command-line chapter tools
+
 Use `tools/quality/speech_chapter.py` to compare voices and speaking rates for a
 single sentence, then assemble chapter audio and a word-timed transcript for
 Animatix. The default backend uses Edge TTS through `uv` and needs network access

@@ -182,6 +182,22 @@ fn shortcuts_for_name_returns_all_redo_bindings() {
 }
 
 #[test]
+fn shift_command_z_redoes_instead_of_undoing() {
+    let registry = ShortcutRegistry::new();
+    let context = Context::default();
+    let focus = canvas_focus(false);
+    context.begin_pass(test_input(vec![egui::Event::Key {
+        key: Key::Z,
+        physical_key: Some(Key::Z),
+        pressed: true,
+        repeat: false,
+        modifiers: Modifiers::COMMAND.plus(Modifiers::SHIFT),
+    }]));
+    assert!(matches!(registry.check(&context, &focus), Some(KeyboardAction::Redo)));
+    context.end_pass().drop_without_applying_deltas();
+}
+
+#[test]
 fn writer_shortcuts_are_not_registered() {
     let registry = ShortcutRegistry::new();
     for name in [

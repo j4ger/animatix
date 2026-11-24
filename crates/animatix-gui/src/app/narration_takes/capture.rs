@@ -1,53 +1,34 @@
-use std::fs::File;
-use std::io::BufWriter;
-use std::path::Path;
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
+use super::history::{History, Take};
 use crossbeam_channel::{Receiver, Sender, TryRecvError, bounded, select_biased};
 use rodio::cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use rodio::cpal::{self, FromSample, Sample, SampleFormat, SizedSample};
-use tempfile::NamedTempFile;
 
 const BLOCK_SAMPLES: usize = 4096;
 const AUDIO_BLOCKS: usize = 32;
 const MAX_SECONDS: u64 = 10 * 60;
 const MAX_SAMPLES: u64 = 64 * 1024 * 1024;
 
-pub(super) struct Recording {
-    wav: NamedTempFile,
-    pub seconds: f64,
-    pub reached_limit: bool,
-}
-
-impl Recording {
-    pub fn path(&self) -> &Path {
-        self.wav.path()
-    }
-}
-
-enum Control {
-    Stop,
-    Discard,
-}
-
 pub(super) struct Capture {
-    control: Sender<Control>,
-    result: Receiver<Result<Recording, String>>,
+    control: Sender<()>,
+    result: Receiver<Result<(), String>>,
     started: Arc<OnceLock<Instant>>,
     pub stopping: bool,
+    thread: Option<std::thread::JoinHandle<()>>,
 }
 
 impl Capture {
-    pub fn start(ctx: egui::Context) -> Result<Self, String> {
+    pub fn start(ctx: egui::Context, history: Arc<History>, take: Take) -> Result<Self, String> {
         let (control, requests) = bounded(2);
         let (done, result) = bounded(1);
         let started = Arc::new(OnceLock::new());
         let worker_started = Arc::clone(&started);
-        std::thread::Builder::new()
+        let thread = std::thread::Builder::new()
             .name("narration-microphone".into())
             .spawn(move || {
-                let _ = done.send(record(requests, &worker_started, &ctx));
+                let _ = done.send(record(requests, &worker_started, &ctx, &history, &take));
                 ctx.request_repaint();
             })
             .map_err(|error| format!("Could not start the microphone worker: {error}"))?;
@@ -56,6 +37,7 @@ impl Capture {
             result,
             started,
             stopping: false,
+            thread: Some(thread),
         })
     }
 
@@ -66,11 +48,11 @@ impl Capture {
     pub fn stop(&mut self) {
         if !self.stopping {
             self.stopping = true;
-            let _ = self.control.try_send(Control::Stop);
+            let _ = self.control.try_send(());
         }
     }
 
-    pub fn poll(&self) -> Option<Result<Recording, String>> {
+    pub fn poll(&self) -> Option<Result<(), String>> {
         match self.result.try_recv() {
             Ok(result) => Some(result),
             Err(TryRecvError::Empty) => None,
@@ -81,15 +63,20 @@ impl Capture {
 
 impl Drop for Capture {
     fn drop(&mut self) {
-        let _ = self.control.try_send(Control::Discard);
+        self.stop();
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
     }
 }
 
 fn record(
-    requests: Receiver<Control>,
+    requests: Receiver<()>,
     started: &OnceLock<Instant>,
     ctx: &egui::Context,
-) -> Result<Recording, String> {
+    history: &History,
+    take: &Take,
+) -> Result<(), String> {
     let device = cpal::default_host()
         .default_input_device()
         .ok_or("No default microphone is available.")?;
@@ -100,7 +87,6 @@ fn record(
         return Err("Recording cancelled.".into());
     }
 
-    let mut wav = CaptureWav::new(config.sample_rate().0, config.channels())?;
     let (free, spare) = bounded(AUDIO_BLOCKS);
     let (filled, blocks) = bounded(AUDIO_BLOCKS);
     let (errors, stream_errors) = bounded(1);
@@ -120,26 +106,22 @@ fn record(
     if !matches!(requests.try_recv(), Err(TryRecvError::Empty)) {
         return Err("Recording cancelled.".into());
     }
+    let mut recording = Recording::new(history, take, config.sample_rate().0, config.channels())?;
     stream
         .play()
         .map_err(|error| format!("Could not start microphone capture: {error}"))?;
     let _ = started.set(Instant::now());
     ctx.request_repaint();
 
-    while !wav.full() {
+    while !recording.full() {
         select_biased! {
-            recv(requests) -> request => {
-                if matches!(request, Ok(Control::Stop)) {
-                    break;
-                }
-                return Err("Recording discarded.".into());
-            },
+            recv(requests) -> _ => break,
             recv(stream_errors) -> error => {
                 return Err(error.unwrap_or_else(|_| "The microphone disconnected.".into()));
             },
             recv(blocks) -> block => {
                 let mut block = block.map_err(|_| "The microphone stopped sending audio.")?;
-                wav.append(&block)?;
+                recording.append(&block)?;
                 block.clear();
                 let _ = free.try_send(block);
             },
@@ -151,12 +133,12 @@ fn record(
     }
     // The callback has stopped. Keep samples it queued before the stop request.
     for block in blocks.try_iter() {
-        wav.append(&block)?;
-        if wav.full() {
+        recording.append(&block)?;
+        if recording.full() {
             break;
         }
     }
-    wav.finish()
+    recording.finish()
 }
 
 struct InputBuffers {
@@ -224,76 +206,86 @@ fn pcm16(sample: f32) -> i16 {
     (sample * 32768.0).round() as i16
 }
 
-struct CaptureWav {
-    writer: hound::WavWriter<BufWriter<File>>,
-    wav: NamedTempFile,
-    rate: u32,
+struct Recording<'a> {
+    history: &'a History,
+    id: &'a str,
     channels: u16,
-    samples: u64,
-    limit: u64,
+    batch: usize,
+    samples: usize,
+    limit: usize,
+    pending: Vec<i16>,
+    complete: bool,
 }
 
-impl CaptureWav {
-    fn new(rate: u32, channels: u16) -> Result<Self, String> {
+impl<'a> Recording<'a> {
+    fn new(history: &'a History, take: &'a Take, rate: u32, channels: u16) -> Result<Self, String> {
         if rate == 0 || channels == 0 {
             return Err("Invalid microphone sample layout.".into());
         }
-        let wav = tempfile::Builder::new()
-            .prefix("animatix-microphone-")
-            .suffix(".wav")
-            .tempfile()
-            .map_err(|error| format!("Could not create the recording: {error}"))?;
-        let file =
-            wav.reopen().map_err(|error| format!("Could not open the recording: {error}"))?;
-        let spec = hound::WavSpec {
-            channels,
-            sample_rate: rate,
-            bits_per_sample: 16,
-            sample_format: hound::SampleFormat::Int,
-        };
-        let writer = hound::WavWriter::new(BufWriter::new(file), spec)
-            .map_err(|error| format!("Could not write the recording header: {error}"))?;
-        let frames = (MAX_SECONDS * u64::from(rate)).min(MAX_SAMPLES / u64::from(channels));
+        let rate = u64::from(rate);
+        let channel_count = u64::from(channels);
+        let frames = (MAX_SECONDS * rate).min(MAX_SAMPLES / channel_count);
+        history
+            .start_recording(take, rate as u32, channels)
+            .map_err(|error| error.to_string())?;
         Ok(Self {
-            wav,
-            writer,
-            rate,
+            history,
+            id: &take.id,
             channels,
+            batch: rate.min(MAX_SAMPLES / channel_count) as usize * usize::from(channels),
             samples: 0,
-            limit: frames * u64::from(channels),
+            limit: (frames * channel_count) as usize,
+            pending: Vec::new(),
+            complete: false,
         })
     }
 
     fn append(&mut self, block: &[i16]) -> Result<(), String> {
-        let available = usize::try_from(self.limit - self.samples).unwrap_or(usize::MAX);
-        let count = block.len().min(available);
-        for &sample in &block[..count] {
-            self.writer
-                .write_sample(sample)
-                .map_err(|error| format!("Could not write the recording: {error}"))?;
+        let count = block.len().min(self.limit - self.samples);
+        self.pending.extend_from_slice(&block[..count]);
+        self.samples += count;
+        if self.pending.len() >= self.batch {
+            self.flush()?;
         }
-        self.samples += count as u64;
+        Ok(())
+    }
+
+    fn flush(&mut self) -> Result<(), String> {
+        let channels = usize::from(self.channels);
+        let usable = self.pending.len() / channels * channels;
+        self.history
+            .append_recording(self.id, &self.pending[..usable], self.channels)
+            .map_err(|error| error.to_string())?;
+        self.pending.drain(..usable);
         Ok(())
     }
 
     fn full(&self) -> bool {
-        self.samples == self.limit
+        self.samples >= self.limit
     }
 
-    fn finish(self) -> Result<Recording, String> {
-        if self.samples == 0 {
+    fn finish(mut self) -> Result<(), String> {
+        if self.samples < usize::from(self.channels) {
             return Err("The microphone recorded no audio.".into());
         }
-        let reached_limit = self.full();
-        self.writer
-            .finalize()
-            .map_err(|error| format!("Could not finalize the recording: {error}"))?;
-        let seconds = self.samples as f64 / (f64::from(self.rate) * f64::from(self.channels));
-        Ok(Recording {
-            wav: self.wav,
-            seconds,
-            reached_limit,
-        })
+        self.flush()?;
+        self.history
+            .finish_recording(self.id, true)
+            .map_err(|error| error.to_string())?;
+        self.complete = true;
+        Ok(())
+    }
+}
+
+impl Drop for Recording<'_> {
+    fn drop(&mut self) {
+        if !self.complete
+            && let Err(error) = self.flush().and_then(|()| {
+                self.history.finish_recording(self.id, false).map_err(|error| error.to_string())
+            })
+        {
+            tracing::warn!(%error, "Could not finish interrupted microphone recording");
+        }
     }
 }
 

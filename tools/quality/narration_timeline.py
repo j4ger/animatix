@@ -130,7 +130,7 @@ class Chapter:
             raise ValueError("revision sample ranges do not cover the chapter")
         return cls(order, takes, leading)
 
-    def reconcile(self, sentences):
+    def reconcile(self, sentences, transfer_edited=True):
         """Transfer a retake's identity across an unambiguous one-paragraph edit."""
         current = [sentence.id for sentence in sentences]
         text = {sentence.id: normalized(sentence.text) for sentence in sentences}
@@ -139,7 +139,7 @@ class Chapter:
                 a=self.order, b=current, autojunk=False).get_opcodes():
             old = self.order[old_start:old_end]
             new = current[new_start:new_end]
-            if tag == "replace" and len(old) == len(new) == 1 and old[0] in self.takes:
+            if transfer_edited and tag == "replace" and len(old) == len(new) == 1 and old[0] in self.takes:
                 previous = self.takes[old[0]]
                 if (old[0] not in current and new[0] not in self.takes
                         and (not previous.unmapped or normalized(previous.text) == text[new[0]])):

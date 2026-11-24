@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use animatix::timeline::{BuildOptions, SceneDimensions, Timeline, TrackAccessor};
+use animatix::timeline::{BuildOptions, BuildQuality, SceneDimensions, Timeline, TrackAccessor};
 use animatix_syntax::module::ModuleGraph;
 
 const DIMS: SceneDimensions = SceneDimensions {
@@ -19,6 +19,13 @@ fn setup_temp_workspace(test_name: &str) -> tempfile::TempDir {
 }
 
 fn build_timeline(path: &std::path::Path) -> animatix_syntax::diagnostics::BuildReport<Timeline> {
+    build_timeline_with_quality(path, BuildQuality::Production)
+}
+
+fn build_timeline_with_quality(
+    path: &std::path::Path,
+    quality: BuildQuality,
+) -> animatix_syntax::diagnostics::BuildReport<Timeline> {
     let mut graph = ModuleGraph::new();
     let program = graph.load_program(path).expect("load program");
     let expanded = program.expand_components().expect("component expansion");
@@ -28,10 +35,39 @@ fn build_timeline(path: &std::path::Path) -> animatix_syntax::diagnostics::Build
         &expanded.statements,
         &program.namespaces,
         BuildOptions::default()
+            .with_quality(quality)
             .with_asset_cache(std::sync::Arc::new(assets))
             .with_function_context(&program.function_context)
             .with_expanded(&expanded),
     )
+}
+
+#[test]
+fn a_partial_managed_narration_is_quiet_while_drafting() {
+    let dir = setup_temp_workspace("partial_voiceover");
+    let path = dir.path().join("main.amx");
+    let text = "narration: Audio, source: \"tone.wav\", transcript: \"timing.json\"\n\
+                card: Rect\n\n\
+                /// First.\ncard.opacity = 1\n\n\
+                /// Second.\ncard.opacity = 0\n";
+    let first = animatix_syntax::narration::paragraphs(text)[0].id();
+    let transcript = serde_json::json!({
+        "duration": 1,
+        "segments": [{ "text": "First.", "start": 0.2, "end": 0.8 }],
+        "narration_takes": { first: { "start": 0, "end": 1 } }
+    });
+    fs::write(&path, text).unwrap();
+    fs::write(dir.path().join("timing.json"), transcript.to_string()).unwrap();
+    let missing_take = |d: &animatix_syntax::diagnostics::Diagnostic| {
+        d.message.contains("Update the voice take for this paragraph")
+    };
+    assert!(build_timeline(&path).diagnostics.iter().any(missing_take));
+    assert!(
+        !build_timeline_with_quality(&path, BuildQuality::Draft)
+            .diagnostics
+            .iter()
+            .any(missing_take)
+    );
 }
 
 #[test]

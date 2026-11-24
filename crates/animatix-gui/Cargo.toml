@@ -35,17 +35,20 @@ ron = "0.12.0"
 regex = "1"
 serde = { workspace = true }
 serde_json = "1"
+sha2 = "0.10"
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3.19", features = ["fmt", "env-filter"] }
 notify = { version = "7.0.0", default-features = false, features = ["macos_fsevent"] }
 rfd = "0.15"
 rodio = "0.20"
+rusqlite = { version = "0.37", features = ["backup", "bundled"] }
 # Preview decodes AAC and ISO BMFF directly so the demuxer can seek on a File.
 symphonia = { version = "0.5", default-features = false, features = ["aac", "isomp4", "mp3"] }
 # eframe's wgpu feature selects the desktop backend defaults.
 wgpu = { workspace = true }
 tempfile = "3"
+uuid = { version = "1", features = ["v4"] }
 
 [[bin]]
 name = "widget-screenshot"

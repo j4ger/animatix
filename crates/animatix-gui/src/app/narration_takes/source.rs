@@ -1,13 +1,13 @@
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 
-use animatix_syntax::ast::{Expr, Property, Stmt, Time};
-use animatix_syntax::narration::{AnchorKey, NarrationParagraph, TRACK, decode_anchor, paragraphs};
+use animatix_syntax::ast::{Expr, Property, Stmt};
+use animatix_syntax::narration::{NarrationParagraph, TRACK, paragraphs};
 use animatix_syntax::parser::parse_source_complete;
 use animatix_syntax::token::{LineIndex, Token, TokenKind};
-use animatix_syntax::visit::{AstVisitor, walk_stmt};
 
-use super::worker::{Adopted, ManifestParagraph, MarkerChange};
+use super::assets::Pair;
+use super::worker::{Adopted, ManifestParagraph};
 use crate::app::document::version::SourceEpoch;
 use crate::app::stores::SourceStore;
 use crate::editor::source_patch::SourcePatch;
@@ -20,11 +20,10 @@ pub(super) struct Target {
     epoch: SourceEpoch,
     editor_identity: (u64, u64),
     pub folder: PathBuf,
-    pub prefix: PathBuf,
+    pub name: String,
     pub base: Option<(PathBuf, PathBuf)>,
     pub paragraphs: Vec<NarrationParagraph>,
     edits: SourceEdits,
-    anchors: Vec<BoundAnchor>,
 }
 
 impl Target {
@@ -54,35 +53,16 @@ impl Target {
             None => ast.as_slice(),
         };
 
-        let file_name = path.file_name().ok_or("Save the scene to an .amx file first.")?;
         let folder = path
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
             .unwrap_or_else(|| Path::new("."))
             .canonicalize()
-            .map_err(|error| format!("Could not open the scene's folder: {error}"))?;
-        let scene_id = scene.as_ref().map_or_else(
-            || "timeline".to_owned(),
-            |name| format!("scene-{}", path_component(name)),
-        );
-        let prefix = folder
-            .join(".animatix-narration")
-            .join(path_component(&file_name.to_string_lossy()))
-            .join(scene_id);
-
+            .map_err(|error| format!("Could not open the scene’s folder: {error}"))?;
+        let name = scene
+            .unwrap_or_else(|| path.file_stem().unwrap_or_default().to_string_lossy().into_owned());
         let (base, edits) =
             SourceEdits::discover(text, &parsed.tokens, scene_stmts, first.span.start, &folder)?;
-        let mut anchors = AnchorVisitor {
-            track: &edits.track,
-            paragraphs: &paragraphs,
-            editor: &source.editor,
-            scene: scene.as_deref(),
-            found: vec![],
-        };
-        for statement in scene_stmts.iter().filter(|stmt| !matches!(stmt, Stmt::Scene { .. })) {
-            anchors.visit_stmt(statement);
-        }
-        let anchors = anchors.found;
 
         Ok(Self {
             source: text.to_owned(),
@@ -90,11 +70,10 @@ impl Target {
             epoch: source.epoch(),
             editor_identity: source.editor.source_identity(),
             folder,
-            prefix,
+            name,
             base,
             paragraphs,
             edits,
-            anchors,
         })
     }
 
@@ -108,14 +87,6 @@ impl Target {
             .collect()
     }
 
-    pub fn anchors(&self) -> Vec<BoundAnchor> {
-        self.anchors.clone()
-    }
-
-    pub fn audio_track(&self) -> &str {
-        &self.edits.track
-    }
-
     pub fn is_current(&self, source: &SourceStore) -> bool {
         self.path == source.file_path()
             && self.epoch == source.epoch()
@@ -126,9 +97,7 @@ impl Target {
 
     pub fn patch(&self, source: &SourceStore, adopted: &Adopted) -> Result<SourcePatch, String> {
         if !self.is_current(source) {
-            return Err(
-                "The source changed. Open the latest scene before adopting the take.".into()
-            );
+            return Err("The scene changed before voiceover could be updated.".into());
         }
         let audio = relative_literal(&self.folder, &adopted.audio)?;
         let transcript = relative_literal(&self.folder, &adopted.transcript)?;
@@ -329,18 +298,6 @@ fn property_name_span(
     .then_some(name.span.start..name.span.end)
 }
 
-fn path_component(name: &str) -> String {
-    let hash = name.bytes().fold(0xcbf29ce484222325_u64, |hash, byte| {
-        (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
-    });
-    let readable: String = name
-        .chars()
-        .take(50)
-        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '-' })
-        .collect();
-    format!("{readable}-{hash:016x}")
-}
-
 fn relative_literal(folder: &Path, asset: &Path) -> Result<String, String> {
     let asset = asset
         .canonicalize()
@@ -414,129 +371,35 @@ fn required_literal<'a>(
     })
 }
 
-#[derive(Clone)]
-pub(super) struct BoundAnchor {
-    name: String,
-    time: Time,
-    previous_keys: Vec<AnchorKey>,
-}
-
-struct AnchorVisitor<'a> {
-    track: &'a str,
-    paragraphs: &'a [NarrationParagraph],
-    editor: &'a crate::editor::EditorBuffer,
-    scene: Option<&'a str>,
-    found: Vec<BoundAnchor>,
-}
-
-impl<'ast> AstVisitor<'ast> for AnchorVisitor<'_> {
-    fn visit_stmt(&mut self, stmt: &'ast Stmt) {
-        if let Stmt::Keyframe { time, span, .. } = stmt
-            && let Some(mut name) = self.name(time)
-            && !self.found.iter().any(|anchor| anchor.time == *time)
-        {
-            if let Some(span) = span
-                && !matches!(time, Time::SpeechMarker { marker, .. }
-                    if animatix_syntax::narration::is_implicit_anchor(marker))
-            {
-                name = format!("Action at line {} · {name}", span.start_line);
-            }
-            self.found.push(BoundAnchor {
-                name,
-                time: time.clone(),
-                previous_keys: match time {
-                    Time::SpeechMarker { marker, .. } => decode_anchor(marker)
-                        .map(|key| self.editor.previous_narration_keys(self.scene, key))
-                        .unwrap_or_default(),
-                    _ => Vec::new(),
-                },
-            });
-        }
-        walk_stmt(self, stmt);
-    }
-}
-
-impl AnchorVisitor<'_> {
-    fn name(&self, time: &Time) -> Option<String> {
-        match time {
-            Time::SpeechMarker { track, marker, .. } if track == self.track || track == TRACK => {
-                let Some(key) = decode_anchor(marker) else {
-                    return Some(format!("{track}@{marker}"));
-                };
-                let paragraph =
-                    self.paragraphs.iter().find(|paragraph| key.matches_paragraph(paragraph))?;
-                let phrase = key.phrase_range(&paragraph.text).map(|range| &paragraph.text[range]);
-                Some(match phrase {
-                    Some(phrase) => format!("Paragraph {} · {phrase}", paragraph.index),
-                    None => format!("Paragraph {}", paragraph.index),
-                })
-            },
-            Time::SpeechWord {
-                track,
-                word,
-                occurrence,
-                ..
-            } if track == self.track => Some(format!("{word} · occurrence {occurrence}")),
-            _ => None,
-        }
-    }
-}
-
-pub(super) fn review_anchors(
-    anchors: &[BoundAnchor],
-    before: Option<&Path>,
-    after: &Path,
-) -> Vec<MarkerChange> {
-    if anchors.is_empty() {
+/// Voiceover pairs generated beside a document have safe relative paths and
+/// can be copied without rewriting any source literals, including captions.
+pub(super) fn managed_pairs(source: &str) -> Vec<Pair> {
+    let Some(ast) = parse_source_complete(source).ast else {
         return Vec::new();
-    }
-    let load = |path: &Path| {
-        let text = std::fs::read_to_string(path).ok()?;
-        animatix::narration::parse_transcript_auto(&text).ok()
     };
-    let previous = before.and_then(load);
-    let updated = load(after);
-    anchors
-        .iter()
-        .filter_map(|anchor| {
-            let resolve = |transcript: &animatix::narration::SpeechTranscript| match &anchor.time {
-                Time::SpeechMarker {
-                    marker, offset_ms, ..
-                } => {
-                    let position = if let Some(key) = decode_anchor(marker) {
-                        animatix::narration::resolve_anchor(transcript, &key)
-                    } else {
-                        transcript.find_marker(marker)
-                    };
-                    position.map(|time| time + *offset_ms as f64 / 1000.0)
-                },
-                Time::SpeechWord {
-                    word,
-                    occurrence,
-                    offset_ms,
-                    ..
-                } => transcript
-                    .find_word(word, *occurrence)
-                    .map(|(start, _)| start + *offset_ms as f64 / 1000.0),
-                _ => None,
-            };
-            let before = previous.as_ref().and_then(|transcript| {
-                resolve(transcript).or_else(|| {
-                    let Time::SpeechMarker { offset_ms, .. } = &anchor.time else {
-                        return None;
-                    };
-                    anchor.previous_keys.iter().find_map(|key| {
-                        animatix::narration::resolve_anchor(transcript, key)
-                            .map(|position| position + *offset_ms as f64 / 1000.0)
-                    })
-                })
-            });
-            let after = updated.as_ref().and_then(resolve);
-            (before != after).then(|| MarkerChange {
-                marker: anchor.name.clone(),
-                before,
-                after,
-            })
+    let statements =
+        std::iter::once(ast.as_slice()).chain(ast.iter().filter_map(|stmt| match stmt {
+            Stmt::Scene { body, .. } => Some(body.as_slice()),
+            _ => None,
+        }));
+    statements
+        .flat_map(actors)
+        .filter_map(|(_, ty, props)| {
+            if ty != "Audio" {
+                return None;
+            }
+            let (audio, _) = literal(props, "source")?;
+            let (timing, _) = literal(props, "transcript")?;
+            let mut path = Path::new(audio).components();
+            if path.next()?.as_os_str() != "narration"
+                || !matches!(path.next(), Some(std::path::Component::Normal(_)))
+                || path.next().is_some()
+            {
+                return None;
+            }
+            let stem = audio.strip_suffix(".wav")?;
+            (timing == format!("{stem}.speech.json"))
+                .then(|| (PathBuf::from(audio), PathBuf::from(timing)))
         })
         .collect()
 }

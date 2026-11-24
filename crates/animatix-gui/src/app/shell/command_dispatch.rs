@@ -80,6 +80,7 @@ impl GuiShell {
                 // The new document will have its own snapshot state; a
                 // rebuild response for the old document must not land.
                 self.preview_store.pending_rebuild_at = None;
+                self.preview_store.quiet_rebuild = None;
                 self.preview_store.in_flight_rebuild = None;
                 self.preview_store.rebuild_in_progress = false;
                 self.preview_store.preview.error = None;
@@ -118,7 +119,12 @@ impl GuiShell {
         if self.recovery_prompt_pending() {
             return vec![Effect::Toast(self.recovery_prompt_save_blocked())];
         }
-        file::handle_save(&mut self.document_store, &mut self.preview_store)
+        self.narration_takes.checkpoint(&self.document_store.source, false);
+        let effects = file::handle_save(&mut self.document_store, &mut self.preview_store);
+        if !self.document_store.source.is_dirty() {
+            self.narration_takes.checkpoint(&self.document_store.source, true);
+        }
+        effects
     }
 
     fn command_reload(&mut self) -> Vec<Effect> {

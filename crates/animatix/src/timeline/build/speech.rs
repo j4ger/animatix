@@ -518,7 +518,8 @@ fn lower_narration_time(
         // The script is previewable before its first voice take.
         return Time::Milliseconds(0);
     }
-    let error = if !context.paragraphs.iter().any(|paragraph| key.same_paragraph(paragraph)) {
+    let has_paragraph = context.paragraphs.iter().any(|paragraph| key.same_paragraph(paragraph));
+    let error = if !has_paragraph {
         "Narration binding refers to a changed or missing paragraph. Select the paragraph or phrase again."
     } else if let Some(track) = track {
         if let Some(start) = track.start_ms {
@@ -561,6 +562,22 @@ fn lower_narration_time(
             });
             previous.unwrap_or(cue.time_ms)
         });
+    if implicit
+        && has_paragraph
+        && context.quality == BuildQuality::Draft
+        && track.is_some_and(|track| {
+            track.start_ms.is_some()
+                && track
+                    .transcript
+                    .narration_takes
+                    .as_ref()
+                    .is_some_and(|takes| !takes.contains_key(&key.paragraph_id()))
+        })
+    {
+        // The workbench shows when a paragraph needs voiceover. A partial
+        // chapter is routine while recording it one paragraph at a time.
+        return Time::Milliseconds(fallback.unwrap_or(0));
+    }
     let message = if fallback.is_some() {
         format!("{error} Preview is using the previous timing.")
     } else {

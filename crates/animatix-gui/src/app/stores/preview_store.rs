@@ -2,6 +2,7 @@ use std::time::Instant;
 
 use crate::app::PreviewPaneState;
 use crate::app::document::rebuild::RebuildToken;
+use crate::app::document::version::SourceEpoch;
 use crate::app::preview::performance::PerformanceMetrics;
 
 /// Owns the preview pane state, playback timing, and pending rebuild scheduling.
@@ -9,6 +10,8 @@ pub struct PreviewStore {
     pub preview: PreviewPaneState,
     pub preview_dirty: bool,
     pub pending_rebuild_at: Option<Instant>,
+    /// Automatic edits can update the status bar without a success toast.
+    pub quiet_rebuild: Option<SourceEpoch>,
     pub last_frame_at: Instant,
     /// True while a timeline rebuild is running. Shown in preview status.
     pub rebuild_in_progress: bool,
@@ -24,6 +27,7 @@ impl PreviewStore {
             preview,
             preview_dirty: true,
             pending_rebuild_at: None,
+            quiet_rebuild: None,
             last_frame_at: Instant::now(),
             rebuild_in_progress: false,
             in_flight_rebuild: None,

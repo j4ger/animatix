@@ -131,20 +131,21 @@ impl ShortcutRegistry {
 
     /// Undo/Redo (TextSafe).
     fn register_edit_shortcuts(&mut self) {
-        self.register(
-            KeyboardShortcut::new(Modifiers::COMMAND, Key::Z),
-            Shortcut {
-                name: "Undo",
-                scope: ShortcutScope::TextSafe,
-                action: KeyboardAction::Undo,
-            },
-        );
+        // Egui's logical match also accepts an unspecified Shift modifier.
         self.register(
             KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::Z),
             Shortcut {
                 name: "Redo",
                 scope: ShortcutScope::TextSafe,
                 action: KeyboardAction::Redo,
+            },
+        );
+        self.register(
+            KeyboardShortcut::new(Modifiers::COMMAND, Key::Z),
+            Shortcut {
+                name: "Undo",
+                scope: ShortcutScope::TextSafe,
+                action: KeyboardAction::Undo,
             },
         );
         self.register(

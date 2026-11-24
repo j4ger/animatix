@@ -1,8 +1,8 @@
 # Code-first GUI workbench
 
-The GUI is a source editor with a preview and a time-review workbench, not a second
-scene authoring model. The `.amx` source, imports, audio and transcripts are the
-source of truth; no timing sidecar is introduced.
+The GUI combines source editing, preview, and timing review. The `.amx` source
+and its referenced files define scene playback and export. The companion
+`.amxn` database holds the workbench's recording history.
 
 ## Workflow
 
@@ -32,11 +32,25 @@ Open `crates/animatix/tests/fixtures/amx/animation/41_speech_sync_captions.amx` 
 
 Select a word or phrase in **Only script** and click **Bind phrase**, then choose **Start** or **End** and a timing target in the scene. **Bind paragraph** uses the full paragraph boundary. Timing targets include authored keyframes and direct actions that can receive independent timing while preserving their siblings. Each binding updates the source in one undoable edit. **Bound cues** links back to the source and to timing in Review.
 
-When you edit one paragraph, the editor carries whole-paragraph bindings and unambiguous phrase bindings into the new text. If the phrase disappeared or has multiple possible matches, use **Choose timing phrase…** in the script to pick its new location. The editor keeps the original start or end choice and any timing offset. During the editing session, draft builds can use the last resolved cue time until the current voiceover and script resolve it again.
+When you edit one paragraph, the editor carries whole-paragraph bindings and
+unambiguous phrase bindings into the new text. If the phrase disappeared or
+has multiple possible matches, use **Rebind timing…** by the affected cue, or
+open the **cues need timing…** menu when several cues need attention. The editor
+preserves the start or end choice and the timing offset. During the editing
+session, draft builds can use the last resolved cue time.
 
-Open **Voiceover…** beside the paragraph, or from the file menu. Choose **Update this paragraph** to generate and use the new voiceover in one step. With an existing audio file or a microphone recording, choose **Use this recording** after supplying word timing JSON or configuring local SenseVoice alignment. **Record** uses the default microphone. **Stop** finishes the recording and **Discard** clears it. Each recording fits up to ten minutes or 128 MiB of PCM audio, whichever comes first.
+Open **Voiceover…** beside the paragraph or from the file menu. **Record**
+uses the default microphone. After **Stop**, the workbench keeps the audio,
+aligns it with local SenseVoice, and applies the result. The recording limit
+is ten minutes or 128 MiB of PCM audio, whichever comes first. **More** contains
+audio import, voice generation, and speech alignment settings.
 
-Synthesis uses Edge or a configured local provider such as Qwen. **Prepare for comparison** creates a take for auditioning. Choose **Use selected take** when you want to switch to it. A successful update replaces the audio and transcript references in one source edit. Use **Undo voiceover update** to return to the previous references, or save the scene to keep the new ones. Open **Timing changes** to see how later paragraphs and actions moved and jump to their times in Review. If the source changes while a job runs, start the update again for the latest text.
+Expand **History** to audition recordings and see the script each was recorded
+against. **Use this take** is available for an aligned take that matches the
+current text. Applying a take updates the audio and transcript references in
+one source edit. Use the editor's normal Undo, Redo, and Save commands. If the
+target script or current narration changes during processing, the new take
+stays in history. [Set up and share a narrated scene](narration.md#record-in-the-native-workbench)
 
 In Review, click a paragraph in the timeline or select it from the Script menu to see its words. Use **Bindings** to inspect the actions and **Show in Write** to return to the text. A paragraph awaiting alignment remains accessible in the menu. External changes to an attached audio file or transcript refresh the preview, including when the script has unsaved edits.
 
