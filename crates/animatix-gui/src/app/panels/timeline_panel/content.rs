@@ -23,7 +23,7 @@ use super::track_lanes::{
 use super::track_tree::{
     ActorRowHeaderLayout, build_actor_tree, render_actor_row_header, render_property_row_header,
 };
-use super::{audio, markers, review};
+use super::{audio, curves, markers, review};
 use crate::app::PreviewPaneState;
 use crate::app::commands::{ActionQueue, Command};
 use crate::app::components::layout;
@@ -154,6 +154,7 @@ fn layout_sections(
     has_audio: bool,
     total_track_rows: usize,
     has_loop: bool,
+    curve_height: f32,
 ) -> TimelineSections {
     let ruler_top = content_top;
     let ruler_bot = ruler_top + sp.timeline.ruler_height;
@@ -171,12 +172,9 @@ fn layout_sections(
     let speech_track_top = audio_bot;
     let speech_track_bot = speech_track_top + transcript_rows as f32 * sp.timeline.track_row_height;
 
-    let actor_first_top = if transcript_rows > 0 {
-        speech_track_bot
-    } else {
-        speech_track_top
-    };
-    let actor_last_bot = actor_first_top + total_track_rows as f32 * sp.timeline.track_row_height;
+    let actor_first_top = speech_track_bot;
+    let actor_last_bot =
+        actor_first_top + total_track_rows as f32 * sp.timeline.track_row_height + curve_height;
 
     let range_top = actor_last_bot;
     let range_bot = range_top
@@ -213,6 +211,7 @@ struct TimelineRowCtx<'a> {
     scroll_rect: Rect,
     bar_origin_x: f32,
     playhead_x: f32,
+    scene_offset: f64,
     active_scene: Option<&'a str>,
     scene_for_selection: Option<String>,
     shift_held: bool,
@@ -223,6 +222,9 @@ struct TimelineRowCtx<'a> {
     expanded_properties: &'a mut HashSet<String>,
     selected_actors: &'a mut HashSet<String>,
     selected_keyframes: &'a mut Vec<KeyframeId>,
+    curve: &'a curves::Control<'a>,
+    curve_height: f32,
+    commands: &'a mut ActionQueue,
 }
 
 impl TimelineRowCtx<'_> {
@@ -231,6 +233,7 @@ impl TimelineRowCtx<'_> {
             coords: self.coords,
             preview: self.preview,
             active_scene: self.active_scene,
+            scene_offset: self.scene_offset,
             scene_for_selection: self.scene_for_selection.clone(),
             selected_keyframes: &mut *self.selected_keyframes,
             shift_held: self.shift_held,
@@ -284,7 +287,16 @@ impl TimelineRowCtx<'_> {
         );
 
         if let Some(tl) = timeline {
-            render_action_blocks(ui, tl, actor_label, track_idx, bar_area, self.coords, self.theme);
+            render_action_blocks(
+                ui,
+                tl,
+                actor_label,
+                track_idx,
+                bar_area,
+                self.coords,
+                self.scene_offset,
+                self.theme,
+            );
         }
 
         if let Some(tl) = timeline
@@ -339,6 +351,7 @@ impl TimelineRowCtx<'_> {
     ) -> f32 {
         let prop_lanes = collect_actor_lanes(timeline, id);
         let mut current_y = start_y;
+        let channels = curves::collect(timeline, actor_label, self.theme);
 
         for (prop_name, kf_times) in &prop_lanes {
             let prop_top = current_y;
@@ -348,8 +361,10 @@ impl TimelineRowCtx<'_> {
                 .map(|g| property_group_color(g, self.theme))
                 .unwrap_or(self.theme.palette.status.warning);
 
-            render_property_row_header(
-                ui.painter(),
+            let options = curves::property_channels(&channels, prop_name);
+            let open = self.curve.active(actor_label, prop_name);
+            if render_property_row_header(
+                ui,
                 prop_name,
                 depth,
                 track_idx,
@@ -360,7 +375,11 @@ impl TimelineRowCtx<'_> {
                 group_col,
                 self.theme,
                 self.sp,
-            );
+                (!options.is_empty()).then_some(open.is_some()),
+            ) && let Some(first) = options.first()
+            {
+                self.curve.toggle(ui, actor_label, prop_name, &first.base_label);
+            }
 
             let prop_bar_area = Rect::from_min_max(
                 Pos2::new(self.bar_origin_x, prop_top),
@@ -390,9 +409,51 @@ impl TimelineRowCtx<'_> {
             );
             self.draw_track_guides(ui, prop_bar_area, prop_bot);
             current_y = prop_bot;
+            if let Some(active) = open
+                && let Some(channel) = options
+                    .iter()
+                    .copied()
+                    .find(|c| c.base_label == active)
+                    .or_else(|| options.first().copied())
+            {
+                current_y +=
+                    self.draw_curve_row(ui, prop_top, prop_bot, prop_name, channel, &options);
+            }
         }
 
         current_y
+    }
+
+    fn draw_curve_row(
+        &mut self,
+        ui: &mut egui::Ui,
+        prop_top: f32,
+        prop_bot: f32,
+        property: &str,
+        channel: &crate::app::panels::curve_plot::CurveChannel,
+        options: &[&crate::app::panels::curve_plot::CurveChannel],
+    ) -> f32 {
+        let rect = Rect::from_min_max(
+            Pos2::new(self.scroll_rect.left(), prop_bot),
+            Pos2::new(self.scroll_rect.right(), prop_bot + self.curve_height),
+        );
+        let gutter = Rect::from_min_max(rect.min, Pos2::new(self.bar_origin_x, rect.bottom()));
+        curves::lane(
+            ui,
+            rect,
+            self.coords,
+            channel,
+            self.scene_offset,
+            self.preview,
+            self.commands,
+            options.len() > 1 && gutter.width() >= 28.0,
+        );
+        if ui.is_rect_visible(rect) {
+            self.curve.choose_channel(ui, gutter, property, channel, options);
+        }
+        let with_header = Rect::from_min_max(Pos2::new(rect.left(), prop_top), rect.max);
+        self.curve.reveal(ui, with_header);
+        self.curve_height
     }
 
     /// Per-row playhead tick and the separator below the row.
@@ -457,6 +518,7 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
         .and_then(|c| active_scene.and_then(|s| c.scene_start_times.get(s)))
         .copied()
         .unwrap_or(0.0);
+    let curve = curves::Control::new(ui, panel_id, active_scene);
     let (show_debug, script_track) = review_controls(
         ui,
         preview,
@@ -495,6 +557,7 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
         } else {
             0
         };
+        let curve_height = curves::lane_height(ui.clip_rect().height() * 0.4);
         let sections = layout_sections(
             viewport.scroll_rect.top(),
             &sp,
@@ -503,6 +566,13 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
             !ctx.audio_segments.is_empty(),
             total_track_rows,
             preview.playback.loop_start_s.is_some() && preview.playback.loop_end_s.is_some(),
+            if show_debug
+                && has_open_curve(*timeline, &actor_tree, expanded_properties, &curve, theme)
+            {
+                curve_height
+            } else {
+                0.0
+            },
         );
 
         ui.allocate_space(Vec2::new(
@@ -514,26 +584,12 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
         render_ruler_and_scrubber(ui, &viewport, &sections, &sp, theme, commands);
         let playhead_x = viewport.coords.time_to_x(preview.playback.current_time_s());
 
-        if let Some(comp) = composition {
-            review::scene_track(
-                ui,
-                comp,
-                viewport.scroll_rect,
-                sections.scene_track_top,
-                sections.scene_track_bot,
-                &viewport.coords,
-                commands,
-            );
-        }
-        let marker_rect = Rect::from_min_max(
-            Pos2::new(viewport.scroll_rect.left(), sections.marker_top),
-            Pos2::new(viewport.scroll_rect.right(), sections.marker_top + 36.0),
-        );
-        markers::render_markers(ui, marker_rect, &viewport.coords, &source_markers, commands);
-        render_audio_lane(
+        render_review_tracks(
             ui,
             &viewport,
             &sections,
+            *composition,
+            &source_markers,
             ctx.audio_segments,
             ctx.audio_revision,
             commands,
@@ -577,6 +633,7 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
                 scroll_rect: viewport.scroll_rect,
                 bar_origin_x: viewport.coords.bar_origin_x,
                 playhead_x,
+                scene_offset,
                 active_scene,
                 scene_for_selection: scene_for_selection.clone(),
                 shift_held,
@@ -587,6 +644,9 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
                 expanded_properties,
                 selected_actors,
                 selected_keyframes,
+                curve: &curve,
+                curve_height,
+                commands,
             };
             let mut current_y = sections.actor_first_top;
             for (track_idx, (actor_label, depth)) in actor_tree.iter().enumerate() {
@@ -645,6 +705,35 @@ fn render_timeline_overlays(
             Stroke::new(STROKE_WIDTH, theme.palette.border.default),
         );
     }
+}
+
+fn render_review_tracks(
+    ui: &mut egui::Ui,
+    viewport: &TimelineViewport,
+    sections: &TimelineSections,
+    composition: Option<&Composition>,
+    source_markers: &[markers::TimingMarker],
+    audio_segments: &[animatix::timeline::AudioSegment],
+    audio_revision: u64,
+    commands: &mut ActionQueue,
+) {
+    if let Some(comp) = composition {
+        review::scene_track(
+            ui,
+            comp,
+            viewport.scroll_rect,
+            sections.scene_track_top,
+            sections.scene_track_bot,
+            &viewport.coords,
+            commands,
+        );
+    }
+    let marker_rect = Rect::from_min_max(
+        Pos2::new(viewport.scroll_rect.left(), sections.marker_top),
+        Pos2::new(viewport.scroll_rect.right(), sections.marker_top + 36.0),
+    );
+    markers::render_markers(ui, marker_rect, &viewport.coords, source_markers, commands);
+    render_audio_lane(ui, viewport, sections, audio_segments, audio_revision, commands);
 }
 
 fn render_audio_lane(
@@ -816,6 +905,29 @@ fn actor_rows(
     (actor_tree, extra_prop_lanes)
 }
 
+fn has_open_curve(
+    timeline: Option<&Timeline>,
+    actors: &[(String, usize)],
+    expanded: &HashSet<String>,
+    control: &curves::Control<'_>,
+    theme: eparts::Theme,
+) -> bool {
+    let Some((actor, property)) = control.owner() else {
+        return false;
+    };
+    let Some(timeline) = timeline else {
+        return false;
+    };
+    if !expanded.contains(actor) || !actors.iter().any(|(label, _)| label == actor) {
+        return false;
+    }
+    let Some(id) = timeline.get_entity_id(actor) else {
+        return false;
+    };
+    collect_actor_lanes(timeline, id).iter().any(|(name, _)| name == property)
+        && !curves::property_channels(&curves::collect(timeline, actor, theme), property).is_empty()
+}
+
 fn collect_actor_lanes(timeline: &Timeline, id: EntityId) -> Vec<(String, Vec<u64>)> {
     collect_property_lanes(
         timeline.world(),
@@ -827,3 +939,7 @@ fn collect_actor_lanes(timeline: &Timeline, id: EntityId) -> Vec<(String, Vec<u6
         None,
     )
 }
+
+#[cfg(test)]
+#[path = "row_tests.rs"]
+mod row_tests;

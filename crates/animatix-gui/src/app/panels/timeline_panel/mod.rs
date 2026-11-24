@@ -22,6 +22,7 @@
 
 mod audio;
 mod content;
+mod curves;
 pub mod keyframes;
 mod marker_source;
 mod markers;

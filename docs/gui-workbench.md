@@ -61,6 +61,18 @@ alignment, and the selected paragraph still shows any voiceover issue. External
 changes to an attached audio file or transcript refresh the preview, including
 when the script has unsaved edits.
 
+## Inspecting an animation curve
+
+In Review, enable **Property tracks** with the sliders button in the Timeline
+toolbar. Expand an animated object's properties using the list icon beside its
+name. Click the graph icon on a keyed property row to show the read-only curve
+directly underneath that row; click again to close it. Vector and color tracks
+offer a channel selector beside the graph. The graph shares the Timeline time
+scale and playhead, and clicking or dragging it seeks the preview. It shows
+compiled keyframe interpolation, not subsequent expression or layout effects.
+Edit the source to change the animation. The standalone Curves panel remains
+available for viewing multiple objects together.
+
 ## Read-only boundaries
 
 Inspector fields, canvas transforms, object insertion, scene reordering and

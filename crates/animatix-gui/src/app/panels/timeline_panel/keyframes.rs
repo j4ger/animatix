@@ -61,6 +61,7 @@ pub(crate) struct KeyframeRenderCtx<'a> {
     pub coords: &'a TimelineCoords,
     pub preview: &'a PreviewPaneState,
     pub active_scene: Option<&'a str>,
+    pub scene_offset: f64,
     pub scene_for_selection: Option<String>,
     pub selected_keyframes: &'a mut Vec<KeyframeId>,
     pub shift_held: bool,
@@ -123,7 +124,8 @@ fn render_aggregate_diamond(
     bar_area: Rect,
     ctx: &mut KeyframeRenderCtx<'_>,
 ) {
-    let x = ctx.coords.time_to_x(diamond.time_s);
+    let global_time_s = ctx.scene_offset + diamond.time_s;
+    let x = ctx.coords.time_to_x(global_time_s);
     if x < bar_area.left() || x > bar_area.right() {
         return;
     }
@@ -133,7 +135,7 @@ fn render_aggregate_diamond(
         diamond.actor,
         diamond.time_ms,
     );
-    let active = (diamond.time_s - ctx.preview.playback.current_time_s()).abs() < 0.01;
+    let active = (global_time_s - ctx.preview.playback.current_time_s()).abs() < 0.01;
     let color = if selected {
         ctx.theme.palette.accent.primary
     } else if active {
@@ -173,7 +175,7 @@ fn render_aggregate_diamond(
         ui,
         response.id.with("tooltip"),
         &response,
-        &format!("{} @ {:.2}s", diamond.label(), diamond.time_s),
+        &format!("{} @ {:.2}s", diamond.label(), global_time_s),
     );
     select_keyframes(
         &response,
@@ -216,7 +218,7 @@ pub(crate) fn render_property_keyframes(
     ctx: &mut KeyframeRenderCtx<'_>,
 ) {
     for &time_ms in keyframe_times {
-        let time_s = time_ms as f64 / 1000.0;
+        let time_s = ctx.scene_offset + time_ms as f64 / 1000.0;
         let x = ctx.coords.time_to_x(time_s);
         if x < bar_area.left() || x > bar_area.right() {
             continue;

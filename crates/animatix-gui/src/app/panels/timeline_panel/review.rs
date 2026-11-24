@@ -75,7 +75,7 @@ pub(crate) fn toolbar(
         if ui
             .add(
                 Button::icon(egui_phosphor::regular::SLIDERS_HORIZONTAL)
-                    .with_tooltip("Show evaluated property tracks · read-only, not authored timing")
+                    .with_tooltip("Show actor and property tracks · read-only")
                     .active(debug),
             )
             .clicked()

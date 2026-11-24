@@ -8,6 +8,7 @@ pub(crate) fn render_action_blocks(
     track_idx: usize,
     bar_area: Rect,
     coords: &TimelineCoords,
+    scene_offset: f64,
     theme: eparts::Theme,
 ) {
     let painter = ui.painter();
@@ -15,8 +16,8 @@ pub(crate) fn render_action_blocks(
         if !event.targets.iter().any(|target| target == actor_label) {
             continue;
         }
-        let start_s = event.start_time_ms as f64 / 1000.0;
-        let end_s = (event.start_time_ms + event.duration_ms) as f64 / 1000.0;
+        let start_s = scene_offset + event.start_time_ms as f64 / 1000.0;
+        let end_s = scene_offset + (event.start_time_ms + event.duration_ms) as f64 / 1000.0;
         let left = coords.time_to_x(start_s);
         let right = coords.time_to_x(end_s);
         if right <= bar_area.left() || left >= bar_area.right() {

@@ -278,6 +278,8 @@ pub(crate) fn draw_legend(
 pub(crate) struct Axis {
     pub plot_rect: Rect,
     pub duration_s: f64,
+    start_s: f64,
+    clip_time: bool,
     pub min_val: f32,
     pub max_val: f32,
 }
@@ -289,9 +291,20 @@ impl Axis {
         Self {
             plot_rect,
             duration_s: duration_s.max(0.1),
+            start_s: 0.0,
+            clip_time: false,
             min_val,
             max_val,
         }
+    }
+
+    /// Plot a panned interval, clipping strokes at the viewport rather than
+    /// pinning out-of-range keyframes to the viewport edges.
+    pub fn with_time_window(mut self, start_s: f64, duration_s: f64) -> Self {
+        self.start_s = start_s;
+        self.duration_s = duration_s.max(f64::EPSILON);
+        self.clip_time = true;
+        self
     }
 
     fn val_range(&self) -> f32 {
@@ -300,8 +313,13 @@ impl Axis {
 
     /// X pixel for a time in seconds.
     pub fn x(&self, time_s: f64) -> f32 {
-        let tx = (time_s / self.duration_s) as f32;
-        egui::lerp(self.plot_rect.left()..=self.plot_rect.right(), tx.clamp(0.0, 1.0))
+        let tx = ((time_s - self.start_s) / self.duration_s) as f32;
+        let tx = if self.clip_time {
+            tx
+        } else {
+            tx.clamp(0.0, 1.0)
+        };
+        self.plot_rect.left() + tx * self.plot_rect.width()
     }
 
     /// Y pixel for a value.
@@ -319,7 +337,7 @@ impl Axis {
     pub fn time_at_x(&self, x: f32) -> f64 {
         let frac = ((x - self.plot_rect.left()) / self.plot_rect.width().max(0.001)).clamp(0.0, 1.0)
             as f64;
-        frac * self.duration_s
+        self.start_s + frac * self.duration_s
     }
 }
 
@@ -348,11 +366,17 @@ pub(crate) fn value_window(curves: &[&CurveChannel]) -> (f32, f32) {
     pad_range(min_val, max_val)
 }
 
-/// Draw the background grid and value labels.
-pub(crate) fn draw_value_grid(painter: &Painter, axis: &Axis, theme: Theme) {
-    for i in 0..=4 {
-        let t = i as f32 / 4.0;
+pub(crate) fn value_ticks(axis: &Axis) -> impl Iterator<Item = (f32, f32)> + '_ {
+    let intervals = if axis.plot_rect.height() < 64.0 { 2 } else { 4 };
+    (0..=intervals).map(move |i| {
+        let t = i as f32 / intervals as f32;
         let y = egui::lerp(axis.plot_rect.top()..=axis.plot_rect.bottom(), t);
+        (y, axis.max_val - t * axis.val_range())
+    })
+}
+
+pub(crate) fn draw_grid_lines(painter: &Painter, axis: &Axis) {
+    for (y, _) in value_ticks(axis) {
         painter.line_segment(
             [
                 Pos2::new(axis.plot_rect.left(), y),
@@ -360,11 +384,17 @@ pub(crate) fn draw_value_grid(painter: &Painter, axis: &Axis, theme: Theme) {
             ],
             Stroke::new(STROKE_WIDTH, canvas::grid_line()),
         );
-        let val_label = format!("{:.1}", axis.max_val - t * axis.val_range());
+    }
+}
+
+/// Draw the background grid and value labels in the standalone plot.
+pub(crate) fn draw_value_grid(painter: &Painter, axis: &Axis, theme: Theme) {
+    draw_grid_lines(painter, axis);
+    for (y, value) in value_ticks(axis) {
         painter.text(
             Pos2::new(axis.plot_rect.left() + 2.0, y),
             egui::Align2::LEFT_CENTER,
-            val_label,
+            format!("{value:.1}"),
             crate::app::design_tokens::typography::TextRole::Micro.font_id(),
             theme.palette.text.muted,
         );
@@ -388,9 +418,7 @@ pub(crate) fn draw_curve(
         let mut prev = axis.point(t0, v0);
         for s in 1..=SEGMENTS_PER_SPAN {
             let progress = s as f32 / SEGMENTS_PER_SPAN as f32;
-            let eased = animatix_syntax::easing::apply_easing(progress, easing);
-            let time_s = t0 + (t1 - t0) * eased as f64;
-            let val = v0 + (v1 - v0) * eased;
+            let (time_s, val) = sample_span((t0, v0), (t1, v1), easing, progress);
             let curr = axis.point(time_s, val);
             painter.line_segment([prev, curr], Stroke::new(2.0, curve.color));
             prev = curr;
@@ -399,6 +427,9 @@ pub(crate) fn draw_curve(
 
     for (time_s, val) in &curve.points {
         let p = axis.point(*time_s, *val);
+        if !axis.plot_rect.x_range().contains(p.x) {
+            continue;
+        }
         let is_current = (*time_s - current_time_s).abs() < 0.05;
         let size = if is_current { 4.0 } else { 2.5 };
         painter.circle_filled(p, size, curve.color);
@@ -410,6 +441,11 @@ pub(crate) fn draw_curve(
             );
         }
     }
+}
+
+fn sample_span(a: (f64, f32), b: (f64, f32), easing: Easing, progress: f32) -> (f64, f32) {
+    let eased = animatix_syntax::easing::apply_easing(progress, easing);
+    (a.0 + (b.0 - a.0) * f64::from(progress), a.1 + (b.1 - a.1) * eased)
 }
 
 /// Shared test fixture: two `Rect`s animating the same property.
@@ -439,6 +475,14 @@ mod tests {
 
     fn rect() -> Rect {
         Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(100.0, 50.0))
+    }
+
+    #[test]
+    fn eased_values_do_not_distort_the_time_axis() {
+        let easing = Easing::EaseIn;
+        let (time, value) = sample_span((2.0, 50.0), (4.0, 150.0), easing, 0.5);
+        assert_eq!(time, 3.0);
+        assert!(value < 100.0, "expected ease-in below linear midpoint: {value}");
     }
 
     #[test]

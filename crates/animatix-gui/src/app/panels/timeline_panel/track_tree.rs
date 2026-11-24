@@ -166,6 +166,11 @@ fn render_property_expand_toggle(
             theme.palette.text.muted
         },
     );
+    let prop_toggle_resp = prop_toggle_resp.on_hover_text(if layout.prop_expanded {
+        "Hide properties"
+    } else {
+        "Show properties"
+    });
     if prop_toggle_resp.clicked() {
         if layout.prop_expanded {
             expanded_properties.remove(actor_label);
@@ -207,9 +212,15 @@ fn render_actor_label(
         },
     );
 
-    // Click on label to select actor.
+    // The left controls have their own hit targets. Covering the whole gutter
+    // with the later label interaction prevents either control receiving clicks.
+    let mut label_hit = layout.label_rect();
+    label_hit.min.x = label_x.clamp(label_hit.left(), label_hit.right());
+    if label_hit.width() <= 0.0 {
+        return;
+    }
     let label_resp = ui.interact(
-        layout.label_rect(),
+        label_hit,
         ui.scope_id().with(("actor_label", layout.track_idx)),
         Sense::click(),
     );
@@ -247,7 +258,8 @@ pub(crate) fn render_actor_row_header(
 ) {
     paint_actor_row_background(ui.painter(), layout, theme);
 
-    let indent = layout.depth as f32 * 14.0;
+    let gutter = layout.bar_origin_x - layout.scroll_rect.left();
+    let indent = (layout.depth as f32 * 14.0).min((gutter - 54.0).max(0.0));
     let chevron_x = layout.scroll_rect.left() + sp.base.space_2 + indent;
     if layout.has_children {
         render_actor_chevron(ui, layout, chevron_x, collapsed_actors, theme, sp);
@@ -262,7 +274,7 @@ pub(crate) fn render_actor_row_header(
 
 /// Render the left header column of an expanded property lane row (colored dot, indented property name).
 pub(crate) fn render_property_row_header(
-    painter: &egui::Painter,
+    ui: &mut egui::Ui,
     prop_name: &str,
     depth: usize,
     track_idx: usize,
@@ -273,7 +285,9 @@ pub(crate) fn render_property_row_header(
     group_col: Color32,
     theme: eparts::Theme,
     sp: &Spatial,
-) {
+    curve: Option<bool>,
+) -> bool {
+    let painter = ui.painter().clone();
     let prop_rect = Rect::from_min_max(
         Pos2::new(scroll_rect.left(), prop_top),
         Pos2::new(scroll_rect.right(), prop_bot),
@@ -294,19 +308,77 @@ pub(crate) fn render_property_row_header(
         theme.palette.surface.base,
     );
 
-    // Property label (indented deeper than actor label)
-    let prop_indent = depth as f32 * 14.0 + 18.0;
-
-    // Small colored dot indicator
-    let dot_x = scroll_rect.left() + sp.base.space_2 + prop_indent;
-    painter.circle_filled(Pos2::new(dot_x + 3.0, prop_rect.center().y), 3.0, group_col);
-
-    let prop_label_x = dot_x + 10.0;
-    painter.text(
-        Pos2::new(prop_label_x, prop_rect.center().y),
+    let label_right = bar_origin_x - if curve.is_some() { 24.0 } else { 3.0 };
+    let label_area = Rect::from_min_max(
+        Pos2::new(scroll_rect.left(), prop_top),
+        Pos2::new(label_right, prop_bot),
+    );
+    let label_painter = painter.with_clip_rect(label_area.intersect(ui.clip_rect()));
+    let depth_x = scroll_rect.left() + sp.base.space_2 + depth as f32 * 14.0 + 18.0;
+    let dot_x = depth_x.min((label_right - 24.0).max(scroll_rect.left() + 2.0));
+    label_painter.circle_filled(Pos2::new(dot_x + 3.0, prop_rect.center().y), 3.0, group_col);
+    let font = TextRole::Micro.font_id();
+    let label_x = dot_x + 10.0;
+    let label = elide_to_width(prop_name, (label_right - label_x).max(0.0), |s| {
+        label_painter
+            .layout_no_wrap(s.to_owned(), font.clone(), Color32::WHITE)
+            .size()
+            .x
+    });
+    label_painter.text(
+        Pos2::new(label_x, prop_rect.center().y),
         Align2::LEFT_CENTER,
-        prop_name,
-        TextRole::Micro.font_id(),
+        label,
+        font,
         theme.palette.text.muted,
     );
+    curve.is_some_and(|open| {
+        let button_rect = curve_button_rect(bar_origin_x, prop_rect);
+        if !ui.is_rect_visible(button_rect) {
+            return false;
+        }
+        let tooltip = if open {
+            format!("Hide {prop_name} curve")
+        } else {
+            format!("Show {prop_name} curve")
+        };
+        let response = ui.interact(
+            button_rect,
+            ui.scope_id().with(("property_curve", track_idx, prop_name)),
+            Sense::click(),
+        );
+        response.widget_info(|| {
+            egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &tooltip)
+        });
+        if open || response.hovered() || response.has_focus() {
+            painter.rect_filled(
+                button_rect.shrink(1.0),
+                3.0,
+                if open {
+                    theme.components.tab.active.bg
+                } else {
+                    theme.components.tab.hover.bg
+                },
+            );
+        }
+        painter.text(
+            button_rect.center(),
+            Align2::CENTER_CENTER,
+            egui_phosphor::regular::CHART_LINE,
+            TextRole::BodyS.font_id(),
+            if open {
+                theme.palette.accent.primary
+            } else {
+                theme.palette.text.secondary
+            },
+        );
+        response.on_hover_text(tooltip).clicked()
+    })
+}
+
+fn curve_button_rect(bar_origin_x: f32, row: Rect) -> Rect {
+    Rect::from_center_size(
+        Pos2::new(bar_origin_x - 12.0, row.center().y),
+        Vec2::new(20.0, row.height()),
+    )
 }
