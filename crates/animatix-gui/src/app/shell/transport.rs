@@ -92,7 +92,7 @@ fn player_buttons(
     let playing = preview.playback.is_playing;
     let verb = if playing { "Pause" } else { "Play" };
     let tooltip = tooltip_with_shortcut(shortcuts, verb, &Key::TogglePlayback, ui.ctx());
-    let play = Button::primary(verb).with_icon(play_pause_icon(playing)).with_tooltip(tooltip);
+    let play = Button::primary("").with_icon(play_pause_icon(playing)).with_tooltip(tooltip);
     if ui.add(play).clicked() {
         commands.push_back(Command::TogglePlayback.into());
     }

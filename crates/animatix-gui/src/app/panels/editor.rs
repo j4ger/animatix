@@ -98,12 +98,6 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
                     let col = warn.location.column.unwrap_or(1).saturating_sub(1);
                     ctx.editor.focus_diagnostic(line, col);
                 }
-            } else {
-                ui.label(
-                    egui::RichText::new(format!("{} Ready", egui_phosphor::regular::CHECK_CIRCLE))
-                        .size(TextRole::Caption.size())
-                        .color(theme.palette.status.success),
-                );
             }
 
             // Right-aligned action: Format source.

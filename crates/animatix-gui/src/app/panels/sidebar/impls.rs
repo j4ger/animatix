@@ -2,8 +2,7 @@
 //! dispatch, and the merged-tab section switcher.
 
 use crate::app::components::button::Button;
-use crate::app::components::{layout, text_tooltip};
-use crate::app::design_tokens::typography::TextRole;
+use crate::app::components::layout;
 use crate::app::panels::{COMPACT_RAIL_WIDTH, CompactDrawer, SIDEBAR_TABS, SidebarTab};
 
 use super::{
@@ -26,11 +25,6 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
         let prev_tab = *ctx.sidebar_tab;
 
         ui.add_space(sp.base.space_2);
-        ui.horizontal(|ui| {
-            ui.add_space(sp.base.space_2);
-            ui.label(egui::RichText::new("Workspace").font(TextRole::Title.font_id()));
-        });
-        ui.add_space(sp.base.space_3);
         render_sidebar_tab_bar(ui, &mut active_tab);
         ui.add_space(sp.base.space_4);
 
@@ -72,8 +66,7 @@ fn sidebar_rail_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                 // is actually open, so the rail reflects what is on screen.
                 let active =
                     *ctx.sidebar_tab == tab && *ctx.compact_drawer == Some(CompactDrawer::Sidebar);
-                let resp = ui.add(Button::icon(icon).active(active));
-                text_tooltip(ui, resp.id.with(("compact_rail", label)), &resp, label);
+                let resp = ui.add(Button::icon(icon).active(active).with_tooltip(label));
                 if resp.clicked() {
                     *ctx.sidebar_tab = tab;
                     *ctx.compact_drawer = Some(CompactDrawer::Sidebar);

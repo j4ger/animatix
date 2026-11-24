@@ -10,9 +10,11 @@ and its referenced files define scene playback and export. The companion
    **Review** for timing, or **Inspect** for object analysis. **Focus** hides the
    surrounding panels. Smaller windows group the presets in the layout menu.
 2. Use the controls below the preview to play, seek, step frames, or loop. The
-   playback menu also offers speed, ping-pong, and presentation mode. Grid,
-   guides, and preview zoom are above the scene. These actions affect the
-   workspace. Scene and object lists change the selection.
+   timeline bracket button sets the loop to the visible interval; its range
+   row appears when a loop range is set. The playback menu also offers speed,
+   ping-pong, and presentation mode. Grid, guides, and preview zoom are above
+   the scene. These actions affect the workspace. Scene and object lists change
+   the selection.
 3. Inspect an object and its sampled values, or jump to its source when a direct,
    unambiguous source location is available. Generated/imported instances do not
    guess a location by label.
@@ -52,7 +54,12 @@ one source edit. Use the editor's normal Undo, Redo, and Save commands. If the
 target script or current narration changes during processing, the new take
 stays in history. [Set up and share a narrated scene](narration.md#record-in-the-native-workbench)
 
-In Review, click a paragraph in the timeline or select it from the Script menu to see its words. Use **Bindings** to inspect the actions and **Show in Write** to return to the text. A paragraph awaiting alignment remains accessible in the menu. External changes to an attached audio file or transcript refresh the preview, including when the script has unsaved edits.
+In Review, click a paragraph in the timeline or choose it from the paragraph
+selector to see its words. Use **Bindings** to inspect the actions and
+**Go to script** to return to the text. The selector includes paragraphs awaiting
+alignment, and the selected paragraph still shows any voiceover issue. External
+changes to an attached audio file or transcript refresh the preview, including
+when the script has unsaved edits.
 
 ## Read-only boundaries
 

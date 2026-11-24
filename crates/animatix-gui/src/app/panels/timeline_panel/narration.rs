@@ -236,7 +236,6 @@ impl ScriptReview<'_> {
         }
         let mut detail = SpeechDetail::Paragraphs;
         ui.horizontal_wrapped(|ui| {
-            ui.strong("Script");
             let title = selected
                 .as_ref()
                 .and_then(|s| paragraphs.iter().position(|p| p.marker == *s))
@@ -266,7 +265,7 @@ impl ScriptReview<'_> {
                 selected.as_ref().and_then(|s| paragraphs.iter().find(|p| p.marker == *s))
             {
                 detail = SpeechDetail::Selected(p.interval);
-                if ui.add_enabled(self.current, egui::Button::new("Show in Write")).clicked() {
+                if ui.add_enabled(self.current, egui::Button::new("Go to script")).clicked() {
                     self.reveal(commands, &p.marker);
                 }
                 if self.current && !p.bindings.is_empty() {
@@ -282,8 +281,9 @@ impl ScriptReview<'_> {
                         }
                     });
                 }
-                ui.weak(p.status.label());
-                ui.add(egui::Label::new(&p.text).truncate()).on_hover_text(&p.text);
+                if p.status != VoiceoverStatus::Current {
+                    ui.weak(p.status.label());
+                }
             }
         });
         ui.data_mut(|d| {

@@ -153,6 +153,7 @@ fn layout_sections(
     transcript_rows: usize,
     has_audio: bool,
     total_track_rows: usize,
+    has_loop: bool,
 ) -> TimelineSections {
     let ruler_top = content_top;
     let ruler_bot = ruler_top + sp.timeline.ruler_height;
@@ -178,7 +179,12 @@ fn layout_sections(
     let actor_last_bot = actor_first_top + total_track_rows as f32 * sp.timeline.track_row_height;
 
     let range_top = actor_last_bot;
-    let range_bot = range_top + sp.timeline.range_height;
+    let range_bot = range_top
+        + if has_loop {
+            sp.timeline.range_height
+        } else {
+            0.0
+        };
 
     TimelineSections {
         ruler_top,
@@ -496,6 +502,7 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
             transcript_rows,
             !ctx.audio_segments.is_empty(),
             total_track_rows,
+            preview.playback.loop_start_s.is_some() && preview.playback.loop_end_s.is_some(),
         );
 
         ui.allocate_space(Vec2::new(
@@ -587,18 +594,20 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
             }
         }
 
-        // ── Range slider for work/export region ──
-        render_range_slider(
-            ui,
-            sections.range_top,
-            sections.range_bot,
-            viewport.scroll_rect,
-            &viewport.coords,
-            duration_s,
-            preview,
-            theme,
-            &sp,
-        );
+        // Keep the range handles available only while looping.
+        if sections.range_bot > sections.range_top {
+            render_range_slider(
+                ui,
+                sections.range_top,
+                sections.range_bot,
+                viewport.scroll_rect,
+                &viewport.coords,
+                duration_s,
+                preview,
+                theme,
+                &sp,
+            );
+        }
 
         render_timeline_overlays(ui, &viewport, &sections, playhead_x, theme);
     });

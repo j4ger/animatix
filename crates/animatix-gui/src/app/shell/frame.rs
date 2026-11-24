@@ -390,7 +390,7 @@ impl GuiShell {
         } else {
             format!("{errors} errors · {warnings} warnings")
         };
-        let button = if compact {
+        let button = if compact || errors + warnings == 0 {
             Button::icon(icon)
         } else {
             Button::ghost(&label).with_icon(icon)

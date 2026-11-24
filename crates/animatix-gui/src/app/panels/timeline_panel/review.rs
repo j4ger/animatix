@@ -48,7 +48,7 @@ pub(crate) fn toolbar(
         if ui
             .add(
                 Button::ghost("")
-                    .with_icon(egui_phosphor::regular::REPEAT)
+                    .with_icon(egui_phosphor::regular::BRACKETS_SQUARE)
                     .with_tooltip("Set loop to visible interval · preview only")
                     .active(has_loop),
             )
@@ -74,14 +74,9 @@ pub(crate) fn toolbar(
         }
         if ui
             .add(
-                Button::ghost(if ui.available_width() >= 165.0 {
-                    "Properties"
-                } else {
-                    ""
-                })
-                .with_icon(egui_phosphor::regular::WAVEFORM)
-                .with_tooltip("Show evaluated property tracks · read-only, not authored timing")
-                .active(debug),
+                Button::icon(egui_phosphor::regular::SLIDERS_HORIZONTAL)
+                    .with_tooltip("Show evaluated property tracks · read-only, not authored timing")
+                    .active(debug),
             )
             .clicked()
         {

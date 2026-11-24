@@ -69,7 +69,7 @@ fn preview_provenance(
         )
     } else {
         (
-            format!("Preview current · {build}"),
+            "Preview current".into(),
             "The preview matches the latest successful source build.",
             false,
         )

@@ -61,7 +61,7 @@ fn scene_summary(ctx: &InspectorContext<'_>, timeline: &Timeline, ui: &mut egui:
         );
     }
     ui.add_space(crate::app::design_tokens::spatial::SPACE_5);
-    ui.label("Select an object in the preview or outline to inspect its properties.");
+    ui.label("Select an object to inspect it.");
 }
 
 fn selection_summary(ctx: &mut InspectorContext<'_>, ui: &mut egui::Ui) {
