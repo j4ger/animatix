@@ -5,7 +5,7 @@ use animatix::composition::Composition;
 use animatix::timeline::Timeline;
 use animatix_syntax::ast::{Stmt, Time};
 use animatix_syntax::to_source::ToSource;
-use egui::{Align2, FontId, Pos2, Rect, Sense, Stroke};
+use egui::{Pos2, Rect, Sense, Stroke};
 
 #[derive(Debug, Clone)]
 pub(crate) struct TimingMarker {
@@ -171,57 +171,59 @@ pub(crate) fn navigate(marker: &TimingMarker, commands: &mut ActionQueue) {
     }
 }
 
-pub(crate) fn render_markers(
+/// Authoring markers share the ruler with the labels. Their short click targets
+/// occupy its lower edge; the label area and spaces between markers still scrub.
+pub(super) fn render_ruler_markers(
     ui: &mut egui::Ui,
-    rect: Rect,
+    bar: Rect,
     coords: &TimelineCoords,
     markers: &[TimingMarker],
     commands: &mut ActionQueue,
 ) {
     let theme = eparts::theme(ui);
-    let painter = ui.painter().clone();
-    painter.rect_filled(rect, 0.0, theme.palette.surface.base);
-    painter.text(
-        Pos2::new(rect.left() + 8.0, rect.center().y),
-        Align2::LEFT_CENTER,
-        "# Source markers",
-        FontId::proportional(11.0),
-        theme.palette.text.secondary,
-    );
-    let bar = Rect::from_min_max(Pos2::new(coords.bar_origin_x, rect.top()), rect.max);
-    let painter = painter.with_clip_rect(bar.intersect(ui.clip_rect()));
+    let band = super::ruler::marker_band(bar);
+    let painter = ui.painter().with_clip_rect(band.intersect(ui.clip_rect()));
     for group in clusters(markers, coords) {
         let marker = &markers[group[0]];
-        let center = Pos2::new(coords.time_to_x(marker.time_s.unwrap()), rect.center().y);
-        let r = 5.0;
-        painter.add(egui::Shape::convex_polygon(
-            vec![
-                center + egui::vec2(0.0, -r),
-                center + egui::vec2(r, 0.0),
-                center + egui::vec2(0.0, r),
-                center + egui::vec2(-r, 0.0),
-            ],
-            theme.palette.accent.primary,
-            Stroke::NONE,
-        ));
-        let response = ui.interact(
-            Rect::from_center_size(center, egui::vec2(18.0, rect.height())),
-            ui.scope_id().with(("source_marker", group[0])),
-            Sense::click(),
-        );
+        let center = Pos2::new(coords.time_to_x(marker.time_s.unwrap()), band.center().y);
+        let hit = Rect::from_center_size(center, egui::vec2(18.0, band.height())).intersect(band);
+        if !ui.is_rect_visible(hit) {
+            continue;
+        }
+        let response =
+            ui.interact(hit, ui.scope_id().with(("source_marker", group[0])), Sense::click());
+        let color = if response.hovered() || response.has_focus() {
+            theme.palette.text.primary
+        } else {
+            theme.palette.accent.primary
+        };
+        let paint_diamond = |at: Pos2, r: f32| {
+            painter.add(egui::Shape::convex_polygon(
+                vec![
+                    at + egui::vec2(0.0, -r),
+                    at + egui::vec2(r, 0.0),
+                    at + egui::vec2(0.0, r),
+                    at + egui::vec2(-r, 0.0),
+                ],
+                color,
+                Stroke::NONE,
+            ));
+        };
+        paint_diamond(center, 3.5);
         if response.clicked() {
             navigate(marker, commands);
         }
         if group.len() == 1 {
             response.on_hover_text(marker_label(marker));
         } else {
-            painter.text(
-                center + egui::vec2(8.0, -9.0),
-                Align2::LEFT_CENTER,
-                format!("×{}", group.len()),
-                FontId::monospace(10.0),
-                theme.palette.text.primary,
-            );
+            // A smaller neighboring lozenge denotes a cluster without a numeric
+            // label colliding with time text or a nearby marker.
+            let direction = if band.right() - center.x < 8.0 {
+                -1.0
+            } else {
+                1.0
+            };
+            paint_diamond(center + egui::vec2(direction * 6.0, 0.0), 1.5);
             response.context_menu(|ui| {
                 for index in &group {
                     if ui.button(marker_label(&markers[*index])).clicked() {
@@ -230,14 +232,21 @@ pub(crate) fn render_markers(
                     }
                 }
             });
-            response.on_hover_text(
-                "Several authored markers. Click first; right-click to choose a source location.",
-            );
+            response.on_hover_text(format!(
+                "{} authored markers · Click first or right-click to choose",
+                group.len()
+            ));
         }
     }
 }
 
-pub(crate) fn marker_menu(ui: &mut egui::Ui, markers: &[TimingMarker], commands: &mut ActionQueue) {
+pub(super) fn marker_menu(
+    ui: &mut egui::Ui,
+    markers: &[TimingMarker],
+    commands: &mut ActionQueue,
+    size: eparts::Size,
+    source_current: bool,
+) {
     use crate::app::components::button::Button;
     use egui_phosphor::regular::DIAMOND;
 
@@ -246,10 +255,16 @@ pub(crate) fn marker_menu(ui: &mut egui::Ui, markers: &[TimingMarker], commands:
     } else {
         Button::icon(DIAMOND)
     };
-    let response = ui
-        .add(button.with_tooltip(format!("Source markers · {} authored anchors", markers.len(),)));
+    let mut tooltip = format!("Source markers · {} authored anchors", markers.len());
+    if !source_current {
+        tooltip.push_str("\nSource links resume after a successful rebuild.");
+    }
+    let response = ui.add(button.with_size(size).with_tooltip(tooltip));
     egui::Popup::menu(&response).show(|ui| {
         ui.label("Authored # markers in source order");
+        if !source_current {
+            ui.weak("Source links paused until a successful rebuild");
+        }
         for marker in markers {
             if ui.button(marker_label(marker)).clicked() {
                 navigate(marker, commands);
@@ -305,6 +320,78 @@ mod tests {
         ];
         assert_eq!(clusters(&marks, &coords), vec![vec![1, 2]]);
     }
+    #[test]
+    fn shared_ruler_separates_cluster_navigation_from_scrubbing() {
+        use crate::app::commands::ShellAction;
+        use egui::{Event, Modifiers, PointerButton, RawInput, pos2};
+
+        let ctx = egui::Context::default();
+        let bar = Rect::from_min_max(pos2(100.0, 32.0), pos2(350.0, 54.0));
+        let coords = TimelineCoords {
+            bar_origin_x: bar.left(),
+            bar_width: bar.width(),
+            scroll_s: 8.0,
+            visible_s: 2.0,
+        };
+        let markers = [
+            marker(Some(7.9), 1),   // panned out of view
+            marker(Some(8.50), 10), // first member of a visible cluster
+            marker(Some(8.55), 11),
+            marker(Some(9.0), 20),  // independent below a labeled tick
+            marker(Some(10.1), 23), // panned out of view
+        ];
+        assert_eq!(clusters(&markers, &coords), vec![vec![1, 2], vec![3]]);
+        let mut commands = ActionQueue::default();
+        let mut frame = |events| {
+            let mut output = ctx.run_ui(
+                RawInput {
+                    screen_rect: Some(Rect::from_min_max(pos2(0.0, 0.0), pos2(370.0, 200.0))),
+                    events,
+                    ..Default::default()
+                },
+                |ui| {
+                    super::super::ruler::bar_interaction(ui, bar, "ruler", &mut commands, |x| {
+                        coords.x_to_time(x)
+                    });
+                    render_ruler_markers(ui, bar, &coords, &markers, &mut commands);
+                },
+            );
+            output.textures_delta.clear();
+        };
+        frame(vec![]);
+        let mut click = |pos| {
+            let event = |pressed| Event::PointerButton {
+                pos,
+                button: PointerButton::Primary,
+                pressed,
+                modifiers: Modifiers::NONE,
+            };
+            frame(vec![Event::PointerMoved(pos), event(true)]);
+            frame(vec![event(false)]);
+        };
+        let lower = super::super::ruler::marker_band(bar).center().y;
+        click(pos2(coords.time_to_x(8.50), lower));
+        // The exact same x a few pixels above the annotation, plus the gap
+        // between annotations, remain regular ruler scrub targets.
+        click(pos2(coords.time_to_x(8.50), 37.0));
+        click(pos2(coords.time_to_x(8.75), lower));
+        click(pos2(coords.time_to_x(9.0), lower));
+
+        for (t, line) in [(8.5, Some(10)), (8.5, None), (8.75, None), (9.0, Some(20))] {
+            assert!(matches!(
+                commands.pop_front(),
+                Some(ShellAction::Command(Command::ScrubTo(actual))) if (actual - t).abs() < 1e-6
+            ));
+            if let Some(line) = line {
+                assert!(matches!(
+                    commands.pop_front(),
+                    Some(ShellAction::Command(Command::ScrollToLine(actual, 0))) if actual == line
+                ));
+            }
+        }
+        assert!(commands.pop_front().is_none());
+    }
+
     #[test]
     fn unresolved_marker_only_navigates_source() {
         let mut queue = ActionQueue::default();

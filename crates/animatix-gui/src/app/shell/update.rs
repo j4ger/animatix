@@ -134,6 +134,9 @@ impl GuiShell {
         let editor = EditorBuffer::new(&document.file_path, document.source_text.clone());
 
         let mut ui_store = UiStore::new(tree);
+        if let Some(preset) = persistence.as_ref().and_then(|p| p.layout_preset) {
+            ui_store.view.layout_preset = preset;
+        }
         ui_store.recent_files = crate::app::persistence::load_recent_files();
         ui_store.view.welcome_open = is_welcome;
 

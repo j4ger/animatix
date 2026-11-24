@@ -193,8 +193,14 @@ impl ScriptReview<'_> {
             .collect()
     }
 
-    pub(super) fn show(&self, ui: &mut egui::Ui, commands: &mut ActionQueue) -> ReviewTrack {
-        let id = ui.scope_id().with(("script_review", self.scene));
+    pub(super) fn show(
+        &self,
+        ui: &mut egui::Ui,
+        commands: &mut ActionQueue,
+        panel_id: egui::Id,
+    ) -> ReviewTrack {
+        // Selection and cache are independent of toolbar wrapping on resize.
+        let id = panel_id.with(("script_review", self.scene));
         let key = (self.epoch.0, self.revision, self.history.revision, self.current);
         let data: Option<ParagraphCache> = ui.data(|d| d.get_temp(id));
         let paragraphs = match data {

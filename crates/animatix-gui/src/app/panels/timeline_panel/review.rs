@@ -16,11 +16,13 @@ pub(crate) fn toolbar(
     markers: &[TimingMarker],
     commands: &mut ActionQueue,
     id: egui::Id,
+    size: eparts::Size,
+    source_current: bool,
 ) -> bool {
     let debug_id = id.with("review_debug_tracks");
     let mut debug = ui.data(|d| d.get_temp::<bool>(debug_id)).unwrap_or(false);
     ui.horizontal(|ui| {
-        markers::marker_menu(ui, markers, commands);
+        markers::marker_menu(ui, markers, commands, size, source_current);
         let current = preview.playback.current_time_s();
         for (icon, label, forward) in [
             (
@@ -36,7 +38,10 @@ pub(crate) fn toolbar(
         ] {
             let target = adjacent_marker(markers, current, forward);
             if ui
-                .add_enabled(target.is_some(), Button::icon(icon).with_tooltip(label))
+                .add_enabled(
+                    target.is_some(),
+                    Button::icon(icon).with_size(size).with_tooltip(label),
+                )
                 .clicked()
                 && let Some(marker) = target
             {
@@ -47,8 +52,8 @@ pub(crate) fn toolbar(
             preview.playback.loop_start_s.is_some() || preview.playback.loop_end_s.is_some();
         if ui
             .add(
-                Button::ghost("")
-                    .with_icon(egui_phosphor::regular::BRACKETS_SQUARE)
+                Button::icon(egui_phosphor::regular::BRACKETS_SQUARE)
+                    .with_size(size)
                     .with_tooltip("Set loop to visible interval · preview only")
                     .active(has_loop),
             )
@@ -65,7 +70,9 @@ pub(crate) fn toolbar(
         if ui
             .add_enabled(
                 has_loop,
-                Button::icon(egui_phosphor::regular::X).with_tooltip("Clear review loop"),
+                Button::icon(egui_phosphor::regular::X)
+                    .with_size(size)
+                    .with_tooltip("Clear review loop"),
             )
             .clicked()
         {
@@ -75,6 +82,7 @@ pub(crate) fn toolbar(
         if ui
             .add(
                 Button::icon(egui_phosphor::regular::SLIDERS_HORIZONTAL)
+                    .with_size(size)
                     .with_tooltip("Show actor and property tracks · read-only")
                     .active(debug),
             )

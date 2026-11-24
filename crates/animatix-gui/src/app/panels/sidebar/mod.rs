@@ -29,18 +29,13 @@ const LAYERS_FILTER_ID: &str = "layers_filter";
 /// need. Individual tabs receive focused sub-contexts (e.g. `ExplorerContext`)
 /// so their signatures don't depend on the full surface.
 pub(crate) struct SidebarContext<'a> {
-    pub active_scene: Option<&'a str>,
-    pub composition: Option<&'a animatix::composition::Composition>,
-    pub current_file: &'a Path,
+    pub document: &'a crate::app::document::DocumentSession,
     pub expanded_dirs: &'a mut HashSet<PathBuf>,
     pub file_tree: &'a [FileTreeEntry],
     pub commands: &'a mut ActionQueue,
-    pub timeline: Option<&'a Timeline>,
     pub selected_actors: &'a mut HashSet<String>,
     pub collapsed_actors: &'a mut HashSet<String>,
     pub sidebar_tab: &'a mut SidebarTab,
-    pub components: &'a HashMap<String, animatix_syntax::module::ComponentEntry>,
-    pub asset_cache: Option<&'a animatix::timeline::assets::AssetCache>,
     /// True when the window is narrow enough to render the compact icon rail
     /// instead of the tab bar + content.
     pub compact: bool,
@@ -59,7 +54,6 @@ pub(crate) struct ExplorerContext<'a> {
 
 pub(crate) struct LayersContext<'a> {
     pub timeline: Option<&'a Timeline>,
-    pub active_scene: Option<&'a str>,
     pub selected_actors: &'a mut HashSet<String>,
     pub collapsed_actors: &'a mut HashSet<String>,
 }
@@ -68,28 +62,6 @@ pub(crate) struct ScenesContext<'a> {
     pub composition: Option<&'a animatix::composition::Composition>,
     pub active_scene: Option<&'a str>,
     pub commands: &'a mut ActionQueue,
-}
-
-pub(crate) struct ComponentsContext<'a> {
-    pub components: &'a HashMap<String, animatix_syntax::module::ComponentEntry>,
-}
-
-pub(crate) struct AssetsContext<'a> {
-    pub asset_cache: Option<&'a animatix::timeline::assets::AssetCache>,
-}
-
-/// Sub-view within the merged Project tab.
-#[derive(Clone, Copy, PartialEq)]
-enum ProjectSection {
-    Files,
-    Assets,
-}
-
-/// Sub-view within the merged Outline tab.
-#[derive(Clone, Copy, PartialEq)]
-enum OutlineSection {
-    Layers,
-    Scenes,
 }
 
 mod assets;
@@ -104,4 +76,7 @@ use components::components_content_ui;
 use explorer::explorer_content_ui;
 pub(crate) use impls::{sidebar_tab_content_ui, sidebar_ui};
 use layers::layers_content_ui;
-use scenes::scenes_content_ui;
+use scenes::scene_picker_ui;
+
+#[cfg(test)]
+mod tests;

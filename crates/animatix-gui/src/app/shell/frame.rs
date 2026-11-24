@@ -137,7 +137,7 @@ impl GuiShell {
         // modal Escapes remain inline below.
 
         // The document and workspace controls belong to the open workbench.
-        if !self.ui_store.view.welcome_open {
+        if !self.ui_store.view.welcome_open && !self.ui_store.view.preview_fullscreen {
             egui::Panel::top("toolbar")
                 .frame(egui::Frame::NONE)
                 .resizable(false)
@@ -147,12 +147,16 @@ impl GuiShell {
         let diagnostics = self.document_store.combined_diagnostics();
 
         // Diagnostics panel (collapsible)
-        if self.ui_store.view.diagnostics_panel_visible {
+        if self.ui_store.view.diagnostics_panel_visible && !self.ui_store.view.preview_fullscreen {
             self.diagnostics_panel_ui(ui, &diagnostics);
         }
 
         // The diagnostics button in the footer anchors its peek overlay.
-        let diagnostics_chip_rect = self.status_bar_ui(ui, &diagnostics, &theme);
+        let diagnostics_chip_rect = if self.ui_store.view.preview_fullscreen {
+            None
+        } else {
+            self.status_bar_ui(ui, &diagnostics, &theme)
+        };
 
         if self.ui_store.view.diagnostics_peek_open {
             match diagnostics_chip_rect {
@@ -191,16 +195,25 @@ impl GuiShell {
                 self.document_store.source.document.timeline_index.time_s_for_line(line)
             });
 
+        let was_fullscreen = self.ui_store.view.preview_fullscreen;
         self.handle_actions(commands);
+        if was_fullscreen != self.ui_store.view.preview_fullscreen {
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Fullscreen(
+                self.ui_store.view.preview_fullscreen,
+            ));
+        }
 
         // Compact-mode overlay drawers (icon-rail sidebar and detail region).
         // Rendered below the modals and skipped while one is open, so a modal
         // always owns the screen (and the Escape key). Anchored to the central
         // workspace rect so they do not cover the toolbar or status bar.
-        if !self.ui_store.view.welcome_open && !self.modal_open() {
+        if !self.ui_store.view.welcome_open
+            && !self.modal_open()
+            && !self.ui_store.view.preview_fullscreen
+        {
             let mut drawer_cmds = ActionQueue::default();
             self.compact_sidebar_drawer_ui(ui, workspace_rect, &mut drawer_cmds);
-            self.compact_detail_drawer_ui(ui, workspace_rect, &mut drawer_cmds);
+            self.inspector_drawer_ui(ui, workspace_rect, &mut drawer_cmds);
             self.handle_actions(drawer_cmds);
         }
 
@@ -427,9 +440,10 @@ impl GuiShell {
         // overlay drawer); on exit the pane visibility captured on entry is
         // restored so explicit user choices are not overridden.
         let avail = ui.available_size();
+        let fullscreen = self.ui_store.view.preview_fullscreen;
         let compact = crate::app::persistence::compact_for_width(avail.x);
         let was_compact = self.ui_store.view.compact;
-        if compact != was_compact {
+        if !fullscreen && compact != was_compact {
             let transition = crate::app::persistence::reconcile_compact(
                 &mut self.ui_store.view.tree,
                 was_compact,
@@ -444,13 +458,25 @@ impl GuiShell {
                     "workspace compact-mode changed"
                 );
             }
-            // Overlay drawers are compact-only, and any open drawer is stale
-            // after a breakpoint crossing.
+            // Compact mode moves a pinned inspector to the overlay until there is room again.
             self.ui_store.set_compact(compact);
+            if compact
+                && self.ui_store.view.compact_restore.is_some_and(|state| state.detail_visible)
+            {
+                self.ui_store.view.compact_drawer = Some(crate::app::panels::CompactDrawer::Detail);
+            }
+            if !compact
+                && crate::app::persistence::detail_visible(&self.ui_store.view.tree)
+                && self.ui_store.view.compact_drawer
+                    == Some(crate::app::panels::CompactDrawer::Detail)
+            {
+                self.ui_store.view.compact_drawer = None;
+            }
         }
 
         let preset = self.ui_store.view.layout_preset;
-        if compact {
+        // Do not resize the saved dock while Preview owns the viewport.
+        if !fullscreen && compact {
             // The sidebar is a fixed-width icon rail; ignore the preset's
             // sidebar pixel floor and give the rest to the preview.
             crate::app::persistence::enforce_compact_layout(
@@ -459,7 +485,7 @@ impl GuiShell {
                 avail.x,
                 avail.y,
             );
-        } else {
+        } else if !fullscreen {
             // Keep region sizes inside the preset's pixel bounds before layout,
             // so a window smaller than the build-time reference does not scale
             // panels below their floors.
@@ -501,9 +527,19 @@ impl GuiShell {
             sidebar_tab: &mut self.ui_store.sidebar_tab,
             compact,
             compact_drawer: &mut self.ui_store.view.compact_drawer,
+            preview_fullscreen: fullscreen,
             debug_layout: self.ui_store.view.debug_layout,
             debug_spacing: self.ui_store.view.debug_spacing,
         };
-        tree.ui(&mut behavior, ui);
+        if fullscreen {
+            use egui_tiles::Behavior as _;
+            let _ = behavior.pane_ui(
+                ui,
+                egui_tiles::TileId::from_u64(0),
+                &mut crate::app::WorkspaceTab::Preview,
+            );
+        } else {
+            tree.ui(&mut behavior, ui);
+        }
     }
 }

@@ -127,7 +127,7 @@ pub(super) fn preview_header_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui)
 
     let theme = eparts::theme(ui);
     let sp = spatial(ui);
-    let max_scene_width = (ui.available_width() - 260.0).clamp(0.0, 220.0);
+    let max_scene_width = (ui.available_width() - 290.0).clamp(0.0, 220.0);
     ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
     ui.label(RichText::new("Preview").font(TextRole::Title.font_id()));
 
@@ -161,6 +161,16 @@ pub(super) fn preview_header_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui)
     }
 
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        let (icon, tip) = if ctx.preview_fullscreen {
+            (icons::CORNERS_IN, "Exit fullscreen (Esc)")
+        } else {
+            (icons::CORNERS_OUT, "Fullscreen preview")
+        };
+        if ui.add(Button::icon(icon).with_tooltip(tip)).clicked() {
+            ctx.commands.push_back(crate::app::commands::ShellAction::View(
+                crate::app::commands::ViewAction::TogglePreviewFullscreen,
+            ));
+        }
         let zoom = ctx.preview.viewport.preview_zoom;
         let zoom_label = format!("{:.0}%", zoom * 100.0);
         let response = ui.add(

@@ -52,10 +52,29 @@ pub fn timeline_keyframe_times_s(
 pub(crate) fn review_scene_at_time(composition: &Composition, time_s: f64) -> Option<String> {
     let (scene, _, blend) = composition.evaluate(time_s);
     let scene = match blend {
-        Some(blend) if blend.progress >= 1.0 => blend.to_scene,
+        Some(blend) if transition_complete(composition, &blend, time_s) => blend.to_scene,
         _ => scene,
     };
     (!scene.is_empty()).then_some(scene)
+}
+
+fn transition_complete(
+    composition: &Composition,
+    blend: &animatix::composition::TransitionBlend,
+    time_s: f64,
+) -> bool {
+    if blend.progress >= 1.0 {
+        return true;
+    }
+    // A completed fade can have progress 0.999… because evaluate subtracts
+    // the incoming start before dividing. Compare against the authored end
+    // on the global clock instead, as SelectScene does when seeking.
+    composition
+        .edges
+        .get(&blend.from_scene)
+        .filter(|edge| edge.to_scene == blend.to_scene)
+        .zip(composition.scene_start_times.get(&blend.to_scene))
+        .is_some_and(|(edge, start)| time_s >= start + edge.transition.duration_ms as f64 / 1000.0)
 }
 
 #[cfg(test)]

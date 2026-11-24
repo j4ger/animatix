@@ -97,6 +97,8 @@ pub enum Command {
 #[derive(Debug, Clone)]
 pub enum ViewAction {
     ShowInspector,
+    UnpinInspector,
+    TogglePreviewFullscreen,
     ShowCode,
     /// Show the bottom Curves tab (or hide the bottom region when it is
     /// already the active tab).

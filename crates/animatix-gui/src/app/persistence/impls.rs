@@ -2,12 +2,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use directories::ProjectDirs;
-use egui_tiles::{Container, Tile, Tree};
+use egui_tiles::Tree;
 
 use super::{
     AppState, AutosavePrefs, COMPACT_BREAKPOINT, CompactRestore, CompactTransition, LayoutPreset,
-    MAX_RECENT_FILES, WorkspaceTab, detail_visible, enforce_vertical_bounds, set_detail_visible,
-    set_pane_visible,
+    MAX_RECENT_FILES, WorkspaceTab, detail_visible, enforce_horizontal_bounds,
+    enforce_vertical_bounds, set_detail_visible, set_pane_visible,
 };
 
 /// Whether a given window width should use the compact layout.
@@ -78,26 +78,7 @@ pub(in crate::app) fn restore_compact_tree(tree: &mut Tree<WorkspaceTab>, state:
 /// `Behavior::min_size` only constrains interactive resizing, so the rail can be
 /// narrower than `LEFT_MIN`.
 pub(in crate::app) fn enforce_compact_rail(tree: &mut Tree<WorkspaceTab>, width: f32) {
-    if width <= 0.0 {
-        return;
-    }
-    let (Some(sidebar), Some(preview)) = (
-        tree.tiles.find_pane(&WorkspaceTab::Sidebar),
-        tree.tiles.find_pane(&WorkspaceTab::Preview),
-    ) else {
-        return;
-    };
-    let Some(top_row) = tree.tiles.parent_of(sidebar) else {
-        return;
-    };
-    if !(tree.is_visible(sidebar) && tree.is_visible(preview)) {
-        return;
-    }
-    let rail = crate::app::panels::COMPACT_RAIL_WIDTH.min((width * 0.25).max(0.0));
-    if let Some(Tile::Container(Container::Linear(linear))) = tree.tiles.get_mut(top_row) {
-        linear.shares.set_share(sidebar, rail);
-        linear.shares.set_share(preview, (width - rail).max(0.0));
-    }
+    enforce_horizontal_bounds(tree, LayoutPreset::Animate, width, true);
 }
 
 /// Per-frame layout pass for compact mode: fixed rail on the left plus the

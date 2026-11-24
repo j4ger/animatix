@@ -296,21 +296,18 @@ impl GuiShell {
 
     fn command_scroll_to_line(&mut self, line: usize, column: usize) -> Vec<Effect> {
         self.reveal_source_editor();
+        self.document_store
+            .source
+            .editor
+            .set_source_view(crate::editor::narration::SourceView::Full);
         ui::handle_scroll_to_line(&mut self.document_store, line, column)
     }
 
     fn reveal_source_editor(&mut self) {
-        // Source navigation must reveal the editor, not focus a hidden pane.
-        let detail_visible = if self.ui_store.view.compact {
-            self.ui_store.view.compact_drawer == Some(crate::app::panels::CompactDrawer::Detail)
-        } else {
-            crate::app::persistence::detail_visible(&self.ui_store.view.tree)
-        };
-        if !detail_visible
-            || crate::app::persistence::active_detail_tab(&self.ui_store.view.tree)
-                != Some(crate::app::WorkspaceTab::Code)
-        {
-            ui::handle_show_code(&mut self.ui_store);
+        self.ui_store.view.preview_fullscreen = false;
+        crate::app::persistence::show_editor(&mut self.ui_store.view.tree);
+        if self.ui_store.view.compact_drawer == Some(crate::app::panels::CompactDrawer::Detail) {
+            self.ui_store.view.compact_drawer = None;
         }
     }
 

@@ -31,7 +31,11 @@ pub(crate) fn bar_interaction(
 }
 
 /// Timeline-local controls: zoom. Playback transport is global (`shell::transport`).
-pub(crate) fn render_timeline_zoom_bar(ui: &mut egui::Ui, preview: &mut PreviewPaneState) {
+pub(super) fn render_timeline_zoom_bar(
+    ui: &mut egui::Ui,
+    preview: &mut PreviewPaneState,
+    size: eparts::Size,
+) {
     use egui_phosphor::regular as icons;
     let out = (icons::MINUS, 0.8, "Zoom out (Ctrl+wheel)");
     let zoom_in = (icons::PLUS, 1.25, "Zoom in (Ctrl+wheel)");
@@ -41,29 +45,50 @@ pub(crate) fn render_timeline_zoom_bar(ui: &mut egui::Ui, preview: &mut PreviewP
         (out, zoom_in)
     };
 
-    zoom_step(ui, preview, first);
+    zoom_step(ui, preview, first, size);
     let zoom_text = format!("{:.0}%", preview.timeline_zoom * 100.0);
     if ui
-        .add(Button::secondary(zoom_text).with_tooltip("Reset timeline zoom"))
+        .add(Button::secondary(zoom_text).with_size(size).with_tooltip("Reset timeline zoom"))
         .clicked()
     {
         preview.timeline_zoom = 1.0;
         preview.timeline_scroll_offset = 0.0;
     }
-    zoom_step(ui, preview, last);
+    zoom_step(ui, preview, last, size);
+}
+
+/// Reserve all three controls before laying out the toolbar to avoid wrapping
+/// a second, almost-empty row when the paragraph control consumes spare room.
+pub(super) fn zoom_controls_width(ui: &egui::Ui, size: eparts::Size) -> f32 {
+    let density = eparts::density(ui);
+    let reset_label = ui.painter().layout_no_wrap(
+        "800%".into(),
+        TextRole::BodyS.font_id(),
+        egui::Color32::PLACEHOLDER,
+    );
+    2.0 * (size.row_height_for(density) + size.pad_x_for(density) + ui.spacing().item_spacing.x)
+        + reset_label.size().x
 }
 
 fn zoom_step(
     ui: &mut egui::Ui,
     preview: &mut PreviewPaneState,
     (icon, factor, tooltip): (&'static str, f32, &'static str),
+    size: eparts::Size,
 ) {
-    if ui.add(Button::icon(icon).with_tooltip(tooltip)).clicked() {
+    if ui.add(Button::icon(icon).with_size(size).with_tooltip(tooltip)).clicked() {
         preview.timeline_zoom = (preview.timeline_zoom * factor).clamp(0.25, 8.0);
         if preview.timeline_zoom <= 1.0 {
             preview.timeline_scroll_offset = 0.0;
         }
     }
+}
+
+pub(super) fn marker_band(ruler_bar: Rect) -> Rect {
+    Rect::from_min_max(
+        Pos2::new(ruler_bar.left(), ruler_bar.bottom() - 9.0),
+        ruler_bar.right_bottom(),
+    )
 }
 
 /// Render the time scale ruler ticks and time labels.
@@ -101,6 +126,15 @@ pub(crate) fn render_ruler(
         theme.palette.text.secondary,
     );
 
+    let bar = Rect::from_min_max(
+        Pos2::new(coords.bar_origin_x, ruler_top),
+        Pos2::new(scroll_rect.right(), ruler_bot),
+    );
+    let band = marker_band(bar);
+    let labels = Rect::from_min_max(bar.min, Pos2::new(bar.right(), band.top()));
+    let labels_painter = painter.with_clip_rect(labels.intersect(painter.clip_rect()));
+    let font = TextRole::Mono.font_id();
+    let color = theme.palette.text.muted;
     let tick_step = if coords.visible_s <= 2.0 {
         0.25
     } else if coords.visible_s <= 5.0 {
@@ -113,27 +147,33 @@ pub(crate) fn render_ruler(
         10.0
     };
     let mut t = (coords.scroll_s / tick_step).floor() * tick_step;
+    let mut label_edge = bar.left();
     while t <= coords.scroll_s + coords.visible_s {
         let x = coords.time_to_x(t);
-        if x >= coords.bar_origin_x && x <= coords.bar_origin_x + coords.bar_width {
+        if x >= bar.left() && x <= bar.right() {
             painter.line_segment(
-                [Pos2::new(x, ruler_bot - 6.0), Pos2::new(x, ruler_bot)],
+                [Pos2::new(x, ruler_bot - 4.0), Pos2::new(x, ruler_bot)],
                 Stroke::new(STROKE_WIDTH, theme.palette.border.default),
             );
-            painter.text(
-                Pos2::new(
-                    (x + 4.0).max(coords.bar_origin_x + 8.0),
-                    ruler_top + sp.timeline.ruler_height * 0.35,
-                ),
-                Align2::LEFT_CENTER,
-                if tick_step >= 1.0 {
-                    format!("{:.0}s", t)
+            let left = (x + 4.0).max(bar.left() + 8.0);
+            if left >= label_edge {
+                let text = if tick_step >= 1.0 {
+                    format!("{t:.0}s")
+                } else if tick_step >= 0.5 {
+                    format!("{t:.1}s")
                 } else {
-                    format!("{:.1}s", t)
-                },
-                TextRole::Mono.font_id(),
-                theme.palette.text.muted,
-            );
+                    format!("{t:.2}s")
+                };
+                let galley = labels_painter.layout_no_wrap(text, font.clone(), color);
+                if left + galley.size().x <= bar.right() {
+                    label_edge = left + galley.size().x + 4.0;
+                    labels_painter.galley(
+                        Pos2::new(left, labels.center().y - galley.size().y * 0.5),
+                        galley,
+                        color,
+                    );
+                }
+            }
         }
         t += tick_step;
     }

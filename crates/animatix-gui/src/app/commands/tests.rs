@@ -124,35 +124,30 @@ outro: Text, text: "Outro"
     }
 
     #[test]
-    fn source_navigation_reveals_code_without_toggling_it_closed() {
+    fn source_navigation_reveals_the_shared_editor_without_toggling_it_closed() {
         let mut shell = shell();
-        shell.ui_store.view.compact = false;
-        persistence::set_active_detail_tab(&mut shell.ui_store.view.tree, WorkspaceTab::Inspector);
-        persistence::set_detail_visible(&mut shell.ui_store.view.tree, false);
-        for _ in 0..2 {
+        shell.ui_store.selection.selected_actors.insert("pulse".into());
+        let initial_time = shell.preview_store.preview.playback.current_time_s();
+        for compact in [false, true] {
+            shell.ui_store.view.compact = compact;
+            shell.ui_store.view.compact_drawer = Some(crate::app::panels::CompactDrawer::Detail);
             shell.handle_action(Command::ScrollToLine(1, 1).into());
-            assert!(persistence::detail_visible(&shell.ui_store.view.tree));
-            assert_eq!(
-                persistence::active_detail_tab(&shell.ui_store.view.tree),
-                Some(WorkspaceTab::Code)
-            );
+            assert!(persistence::pane_visible(&shell.ui_store.view.tree, WorkspaceTab::Code));
+            assert!(shell.ui_store.view.compact_drawer.is_none());
+            assert_eq!(shell.preview_store.preview.playback.current_time_s(), initial_time);
+            assert!(shell.ui_store.selection.selected_actors.contains("pulse"));
         }
     }
 
     #[test]
-    fn source_navigation_opens_compact_code_drawer() {
+    fn fullscreen_is_a_reversible_view_without_dock_mutation() {
         let mut shell = shell();
-        shell.ui_store.view.compact = true;
-        shell.ui_store.view.compact_drawer = None;
-        shell.handle_action(Command::ScrollToLine(1, 1).into());
-        assert_eq!(
-            shell.ui_store.view.compact_drawer,
-            Some(crate::app::panels::CompactDrawer::Detail)
-        );
-        assert_eq!(
-            persistence::active_detail_tab(&shell.ui_store.view.tree),
-            Some(WorkspaceTab::Code)
-        );
+        let before = ron::to_string(&shell.ui_store.view.tree).unwrap();
+        for expected in [true, false] {
+            shell.handle_action(ShellAction::View(ViewAction::TogglePreviewFullscreen));
+            assert_eq!(shell.ui_store.view.preview_fullscreen, expected);
+            assert_eq!(ron::to_string(&shell.ui_store.view.tree).unwrap(), before);
+        }
     }
 
     #[test]

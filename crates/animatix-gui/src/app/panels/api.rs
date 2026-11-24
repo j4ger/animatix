@@ -9,7 +9,6 @@ pub(crate) fn sidebar_tab_label(tab: SidebarTab) -> &'static str {
     match tab {
         SidebarTab::Project => "Project",
         SidebarTab::Outline => "Outline",
-        SidebarTab::Library => "Library",
     }
 }
 

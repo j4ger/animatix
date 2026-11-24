@@ -12,10 +12,9 @@ use animatix::timeline::{EntityId, Timeline};
 use egui::{Pos2, Rect, Stroke, Vec2};
 
 use super::keyframes::{self, KeyframeRenderCtx};
-use super::narration::{ReviewTrack, ScriptReview};
-use super::ruler::{
-    bar_interaction, render_playhead, render_range_slider, render_ruler, render_timeline_zoom_bar,
-};
+use super::narration::ScriptReview;
+use super::ruler::{bar_interaction, render_playhead, render_range_slider, render_ruler};
+use super::toolbar::review_controls;
 use super::track_lanes::{
     property_group_color, property_group_for_prop, render_action_blocks, render_speech_track,
     speech_row_count,
@@ -97,6 +96,23 @@ pub(crate) struct TimelineContext<'a> {
     pub selected_keyframes: &'a mut Vec<KeyframeId>,
 }
 
+impl TimelineContext<'_> {
+    fn authored_markers(&self, ui: &egui::Ui) -> Vec<markers::TimingMarker> {
+        let mut markers = markers::review_markers(
+            self.statements,
+            self.timeline,
+            self.composition,
+            self.diagnostics,
+        );
+        if self.source_current {
+            super::marker_source::locate_cached(ui, self.source_text, &mut markers);
+        } else {
+            markers.iter_mut().for_each(|marker| marker.line = None);
+        }
+        markers
+    }
+}
+
 /// Horizontal geometry shared by every lane in one frame.
 struct TimelineViewport {
     scroll_rect: Rect,
@@ -135,7 +151,6 @@ struct TimelineSections {
     ruler_bot: f32,
     scene_track_top: f32,
     scene_track_bot: f32,
-    marker_top: f32,
     audio_top: f32,
     audio_bot: f32,
     speech_track_top: f32,
@@ -162,12 +177,11 @@ fn layout_sections(
     let scene_track_top = ruler_bot;
     let scene_track_bot = scene_track_top + sp.timeline.track_row_height;
 
-    let marker_top = if has_composition {
+    let audio_top = if has_composition {
         scene_track_bot
     } else {
         ruler_bot
     };
-    let audio_top = marker_top + 36.0;
     let audio_bot = audio_top + if has_audio { 56.0 } else { 0.0 };
     let speech_track_top = audio_bot;
     let speech_track_bot = speech_track_top + transcript_rows as f32 * sp.timeline.track_row_height;
@@ -189,7 +203,6 @@ fn layout_sections(
         ruler_bot,
         scene_track_top,
         scene_track_bot,
-        marker_top,
         audio_top,
         audio_bot,
         speech_track_top,
@@ -478,6 +491,18 @@ impl TimelineRowCtx<'_> {
 pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
     let theme = eparts::theme(ui);
     let sp = crate::app::design_tokens::spatial::spatial(ui);
+    // Empty state when no timeline is loaded
+    if ctx.timeline.is_none() && ctx.composition.is_none() {
+        layout::empty_state(
+            ui,
+            egui_phosphor::regular::FILM_STRIP,
+            "No timeline loaded",
+            "Open or create a scene to begin",
+        );
+        return;
+    }
+
+    let source_markers = ctx.authored_markers(ui);
     let TimelineContext {
         preview,
         timeline,
@@ -490,30 +515,11 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
         ..
     } = ctx;
 
-    // Empty state when no timeline is loaded
-    if timeline.is_none() && composition.is_none() {
-        layout::empty_state(
-            ui,
-            egui_phosphor::regular::FILM_STRIP,
-            "No timeline loaded",
-            "Open or create a scene to begin",
-        );
-        return;
-    }
-
     let duration_s = preview.playback.duration_s.max(0.1);
     let panel_id = ui.scope_id().with("timeline_panel");
     let active_scene = ctx.active_scene;
     let scene_for_selection = active_scene.map(ToOwned::to_owned);
     let shift_held = ui.input(|i| i.modifiers.shift);
-    let mut source_markers =
-        markers::review_markers(ctx.statements, *timeline, *composition, ctx.diagnostics);
-    if ctx.source_current {
-        super::marker_source::locate_cached(ui, ctx.source_text, &mut source_markers);
-    }
-    if !ctx.source_current {
-        source_markers.iter_mut().for_each(|marker| marker.line = None);
-    }
     let scene_offset = composition
         .and_then(|c| active_scene.and_then(|s| c.scene_start_times.get(s)))
         .copied()
@@ -589,7 +595,6 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
             &viewport,
             &sections,
             *composition,
-            &source_markers,
             ctx.audio_segments,
             ctx.audio_revision,
             commands,
@@ -669,16 +674,26 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
             );
         }
 
-        render_timeline_overlays(ui, &viewport, &sections, playhead_x, theme);
+        render_timeline_overlays(
+            ui,
+            &viewport,
+            &sections,
+            playhead_x,
+            theme,
+            &source_markers,
+            commands,
+        );
     });
 }
 
 fn render_timeline_overlays(
-    ui: &egui::Ui,
+    ui: &mut egui::Ui,
     viewport: &TimelineViewport,
     sections: &TimelineSections,
     playhead_x: f32,
     theme: eparts::Theme,
+    source_markers: &[markers::TimingMarker],
+    commands: &mut ActionQueue,
 ) {
     render_playhead(
         ui.painter(),
@@ -687,6 +702,16 @@ fn render_timeline_overlays(
         sections.content_bottom,
         &viewport.coords,
         theme,
+    );
+
+    // Keep the marker glyph legible at coincident times. Its short hit target
+    // takes priority over the ruler's general scrub target in the lower band.
+    markers::render_ruler_markers(
+        ui,
+        ruler_bar(viewport, sections),
+        &viewport.coords,
+        source_markers,
+        commands,
     );
 
     // Continue the track-name gutter below the final track.
@@ -712,7 +737,6 @@ fn render_review_tracks(
     viewport: &TimelineViewport,
     sections: &TimelineSections,
     composition: Option<&Composition>,
-    source_markers: &[markers::TimingMarker],
     audio_segments: &[animatix::timeline::AudioSegment],
     audio_revision: u64,
     commands: &mut ActionQueue,
@@ -728,11 +752,6 @@ fn render_review_tracks(
             commands,
         );
     }
-    let marker_rect = Rect::from_min_max(
-        Pos2::new(viewport.scroll_rect.left(), sections.marker_top),
-        Pos2::new(viewport.scroll_rect.right(), sections.marker_top + 36.0),
-    );
-    markers::render_markers(ui, marker_rect, &viewport.coords, source_markers, commands);
     render_audio_lane(ui, viewport, sections, audio_segments, audio_revision, commands);
 }
 
@@ -756,53 +775,6 @@ fn render_audio_lane(
     }
 }
 
-fn review_controls(
-    ui: &mut egui::Ui,
-    preview: &mut PreviewPaneState,
-    commands: &mut ActionQueue,
-    panel_id: egui::Id,
-    sp: &Spatial,
-    script: ScriptReview<'_>,
-) -> (bool, ReviewTrack) {
-    let theme = eparts::theme(ui);
-    egui::Frame::new()
-        .fill(theme.palette.surface.panel)
-        .inner_margin(egui::Margin::symmetric(sp.base.space_4 as i8, sp.base.space_2 as i8))
-        .show(ui, |ui| {
-            ui.horizontal_wrapped(|ui| {
-                ui.spacing_mut().item_spacing.x = sp.base.space_2;
-                let show_debug = review::toolbar(ui, preview, script.markers, commands, panel_id);
-                // Leave space on the right so a selected paragraph's text can
-                // truncate without pushing the zoom buttons onto another row.
-                let zoom_width = 105.0;
-                let mut script_rect = ui.available_rect_before_wrap();
-                if script_rect.width() >= 285.0 {
-                    script_rect.max.x -= zoom_width;
-                }
-                let script_track = ui
-                    .scope_builder(
-                        egui::UiBuilder::new().id_salt("script_controls").max_rect(script_rect),
-                        |ui| script.show(ui, commands),
-                    )
-                    .inner;
-                if ui.available_width() >= zoom_width {
-                    if !script.current && ui.available_width() > 310.0 {
-                        ui.label("Source navigation paused")
-                            .on_hover_text("Source links resume after a successful rebuild.");
-                    }
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        render_timeline_zoom_bar(ui, preview);
-                    });
-                } else {
-                    ui.horizontal(|ui| render_timeline_zoom_bar(ui, preview));
-                }
-                (show_debug, script_track)
-            })
-            .inner
-        })
-        .inner
-}
-
 fn render_ruler_and_scrubber(
     ui: &mut egui::Ui,
     viewport: &TimelineViewport,
@@ -821,11 +793,16 @@ fn render_ruler_and_scrubber(
         sp,
     );
 
-    let ruler_rect = Rect::from_min_max(
-        Pos2::new(viewport.scroll_rect.left(), sections.ruler_top),
+    bar_interaction(ui, ruler_bar(viewport, sections), "ruler", commands, |x| {
+        viewport.coords.x_to_time(x)
+    });
+}
+
+fn ruler_bar(viewport: &TimelineViewport, sections: &TimelineSections) -> Rect {
+    Rect::from_min_max(
+        Pos2::new(viewport.coords.bar_origin_x, sections.ruler_top),
         Pos2::new(viewport.scroll_rect.right(), sections.ruler_bot),
-    );
-    bar_interaction(ui, ruler_rect, "ruler", commands, |x| viewport.coords.x_to_time(x));
+    )
 }
 
 /// Wheel navigation: ctrl/cmd zooms around the cursor, plain horizontal wheel pans.

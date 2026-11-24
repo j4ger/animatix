@@ -188,6 +188,7 @@ pub struct ViewStore {
     pub reduce_motion: bool,
     pub density: eparts::Density,
     pub layout_size: (f32, f32),
+    pub preview_fullscreen: bool,
     pub layout_preset: crate::app::LayoutPreset,
     /// True when the window is narrow enough for the compact layout (icon rail +
     /// overlay detail drawer); recomputed from `layout_size`.
@@ -229,6 +230,7 @@ impl ViewStore {
             reduce_motion: false,
             density: eparts::Density::Default,
             layout_size: (1440.0, 960.0),
+            preview_fullscreen: false,
             layout_preset: crate::app::LayoutPreset::Animate,
             compact: false,
             compact_restore: None,
@@ -309,7 +311,9 @@ impl UiStore {
     /// tree is reconciled separately (`persistence::reconcile_compact`).
     pub fn set_compact(&mut self, compact: bool) {
         self.view.compact = compact;
-        self.view.compact_drawer = None;
+        if self.view.compact_drawer == Some(crate::app::panels::CompactDrawer::Sidebar) {
+            self.view.compact_drawer = None;
+        }
     }
 
     /// Capture UI state plus playback/timeline state for undo/redo.
@@ -429,13 +433,13 @@ mod tests {
     }
 
     #[test]
-    fn set_compact_tracks_flag_and_clears_drawer() {
+    fn compact_breakpoint_keeps_inspector_but_dismisses_navigator() {
         let mut store = ui_store();
         store.view.compact_drawer = Some(crate::app::panels::CompactDrawer::Detail);
 
         store.set_compact(true);
         assert!(store.view.compact);
-        assert!(store.view.compact_drawer.is_none(), "entering compact starts with no drawer");
+        assert_eq!(store.view.compact_drawer, Some(crate::app::panels::CompactDrawer::Detail));
 
         store.view.compact_drawer = Some(crate::app::panels::CompactDrawer::Sidebar);
         store.set_compact(false);

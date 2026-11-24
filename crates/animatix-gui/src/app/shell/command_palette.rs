@@ -218,7 +218,7 @@ fn push_palette_view_items(items: &mut Vec<PaletteItem>) {
         keywords: "code source editor panel detail",
     });
     items.push(PaletteItem {
-        label: "Toggle Curves Review".into(),
+        label: "Toggle Curve Comparison".into(),
         icon: egui_phosphor::regular::CHART_LINE,
         action: ShellAction::View(ViewAction::ShowCurves),
         keywords: "curves graph fcurve keyframe easing panel bottom",
@@ -228,6 +228,12 @@ fn push_palette_view_items(items: &mut Vec<PaletteItem>) {
         icon: egui_phosphor::regular::FILM_STRIP,
         action: ShellAction::View(ViewAction::ShowTimeline),
         keywords: "timeline keyframes panel bottom",
+    });
+    items.push(PaletteItem {
+        label: "Toggle Fullscreen Preview".into(),
+        icon: egui_phosphor::regular::CORNERS_OUT,
+        action: ShellAction::View(ViewAction::TogglePreviewFullscreen),
+        keywords: "focus preview fullscreen",
     });
     for preset in crate::app::LayoutPreset::ALL {
         items.push(PaletteItem {

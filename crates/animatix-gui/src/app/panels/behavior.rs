@@ -31,6 +31,7 @@ pub(crate) struct WorkspaceBehavior<'a> {
     pub(crate) compact: bool,
     /// Compact-mode overlay drawer slot (opened by the sidebar rail).
     pub(crate) compact_drawer: &'a mut Option<crate::app::panels::CompactDrawer>,
+    pub(crate) preview_fullscreen: bool,
     pub(crate) debug_layout: bool,
     pub(crate) debug_spacing: bool,
 }
@@ -44,29 +45,21 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
     ) -> UiResponse {
         match pane {
             WorkspaceTab::Sidebar => {
-                let timeline = self.document_store.source.document.timeline.as_ref();
-                let asset_cache = timeline.map(|t| t.asset_cache());
                 let mut ctx = sidebar::SidebarContext {
-                    active_scene: self.document_store.source.document.active_scene.as_deref(),
-                    composition: self.document_store.source.document.composition.as_ref(),
-                    current_file: &self.document_store.source.document.file_path,
+                    document: &self.document_store.source.document,
                     expanded_dirs: &mut self.workspace_store.expanded_dirs,
                     file_tree: &self.workspace_store.file_tree,
                     commands: self.commands,
-                    timeline,
                     selected_actors: self.selected_actors,
                     collapsed_actors: self.collapsed_actors,
                     sidebar_tab: self.sidebar_tab,
                     compact: self.compact,
                     compact_drawer: self.compact_drawer,
-                    components: &self.document_store.source.document.components,
-                    asset_cache,
                 };
                 sidebar::sidebar_ui(&mut ctx, ui);
             },
             WorkspaceTab::Code => {
-                // Source editor; shares the right detail tab group with the
-                // Inspector.
+                // The single shared source editor.
                 let diagnostics = self.document_store.combined_diagnostics();
                 let mut ctx = editor::EditorContext {
                     voiceover_history: self.voiceover_history,
@@ -98,6 +91,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     active_scene: self.document_store.source.document.active_scene.as_deref(),
                     performance_metrics: &mut self.preview_store.performance_metrics,
                     debug_layout: self.debug_layout,
+                    preview_fullscreen: self.preview_fullscreen,
                     debug_spacing: self.debug_spacing,
                     rebuild_in_progress: self.preview_store.rebuild_in_progress,
                     has_scene,
@@ -107,6 +101,22 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                 preview_panel::preview_panel_ui(&mut ctx, ui, self.shortcut_registry);
             },
             WorkspaceTab::Inspector => {
+                ui.horizontal(|ui| {
+                    ui.strong("Inspector");
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .add(
+                                eparts::Button::icon(egui_phosphor::regular::PUSH_PIN_SLASH)
+                                    .with_tooltip("Unpin Inspector"),
+                            )
+                            .clicked()
+                        {
+                            self.commands.push_back(crate::app::commands::ShellAction::View(
+                                crate::app::commands::ViewAction::UnpinInspector,
+                            ));
+                        }
+                    });
+                });
                 let active_tl = self.document_store.source.document.active_timeline();
                 let mut ctx = inspector::InspectorContext {
                     preview: &self.preview_store.preview,
@@ -219,8 +229,8 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
 
     fn tab_title_for_pane(&mut self, pane: &WorkspaceTab) -> egui::WidgetText {
         let title = match pane {
-            WorkspaceTab::Sidebar => "Project",
-            WorkspaceTab::Code => "Code",
+            WorkspaceTab::Sidebar => "Navigator",
+            WorkspaceTab::Code => "Editor",
             WorkspaceTab::Preview => "Preview",
             WorkspaceTab::Inspector => "Inspector",
             WorkspaceTab::Timeline => "Timeline",
@@ -232,6 +242,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
     fn simplification_options(&self) -> SimplificationOptions {
         SimplificationOptions {
             all_panes_must_have_tabs: false,
+            prune_single_child_tabs: false,
             ..Default::default()
         }
     }
@@ -365,17 +376,6 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
             let text_pos =
                 egui::pos2(left + icon_w + sp.space_3, hit.center().y - label.size().y * 0.5);
             ui.painter().galley_with_override_text_color(text_pos, label, slot.fg);
-            if selected > 0.0 {
-                let mark = egui::Rect::from_center_size(
-                    egui::pos2(face.center().x, hit.bottom() - 1.5),
-                    egui::vec2(sp.space_7 * selected, 2.0),
-                );
-                ui.painter().rect_filled(
-                    mark,
-                    1.0,
-                    slots.active.indicator.gamma_multiply(selected),
-                );
-            }
         }
         self.on_tab_button(tiles, tile_id, response)
     }

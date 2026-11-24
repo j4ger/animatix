@@ -238,14 +238,12 @@ impl GuiShell {
     fn toolbar_presets(&mut self, ui: &mut egui::Ui, commands: &mut ActionQueue) {
         let presets = LayoutPreset::ALL;
         let labels = presets.map(LayoutPreset::label);
-        let icons = presets.map(LayoutPreset::icon);
         let tips = presets.map(LayoutPreset::description);
         let mut active = presets
             .iter()
             .position(|&p| p == self.ui_store.view.layout_preset)
             .expect("the toolbar includes every layout preset");
         if eparts::TabBar::new(ui.scope_id().with("layouts"), &mut active, &labels)
-            .with_icons(&icons)
             .with_tooltips(&tips)
             .height(34.0)
             .show(ui)
@@ -276,33 +274,30 @@ impl GuiShell {
         });
 
         let frame_view = &self.ui_store.view;
-        let drawer_open = frame_view.compact
-            && frame_view.compact_drawer == Some(crate::app::panels::CompactDrawer::Detail);
-        let dock_open =
-            !frame_view.compact && crate::app::persistence::detail_visible(&frame_view.tree);
-        let active_tab = (drawer_open || dock_open)
-            .then(|| crate::app::persistence::active_detail_tab(&frame_view.tree))
-            .flatten();
-        for (tab, icon, label, key, action) in [
+        let drawer_open =
+            frame_view.compact_drawer == Some(crate::app::panels::CompactDrawer::Detail);
+        let inspector_open =
+            drawer_open || crate::app::persistence::detail_visible(&frame_view.tree);
+        let editor_open =
+            crate::app::persistence::pane_visible(&frame_view.tree, WorkspaceTab::Code);
+        for (active, icon, label, key, action) in [
             (
-                WorkspaceTab::Inspector,
+                inspector_open,
                 icons::MAGNIFYING_GLASS,
                 "Inspector",
                 KeyboardAction::ToggleInspector,
                 ViewAction::ShowInspector,
             ),
             (
-                WorkspaceTab::Code,
+                editor_open,
                 icons::CODE,
-                "Code editor",
+                "Source editor",
                 KeyboardAction::ToggleCode,
                 ViewAction::ShowCode,
             ),
         ] {
             let tip = tooltip_with_shortcut(&self.shortcut_registry, label, &key, ui.ctx());
-            let response =
-                ui.add(Button::icon(icon).with_tooltip(tip).active(active_tab == Some(tab)));
-            if response.clicked() {
+            if ui.add(Button::icon(icon).with_tooltip(tip).active(active)).clicked() {
                 commands.push_back(ShellAction::View(action));
             }
         }

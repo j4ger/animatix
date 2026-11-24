@@ -1,14 +1,12 @@
 use super::*;
 
 impl LayoutPreset {
-    pub const ALL: [Self; 4] = [Self::Code, Self::Animate, Self::Inspect, Self::Focus];
+    pub const ALL: [Self; 2] = [Self::Code, Self::Animate];
 
     pub fn label(self) -> &'static str {
         match self {
             Self::Animate => "Review",
             Self::Code => "Write",
-            Self::Inspect => "Inspect",
-            Self::Focus => "Focus",
         }
     }
 
@@ -17,8 +15,6 @@ impl LayoutPreset {
         match self {
             Self::Code => icons::CODE,
             Self::Animate => icons::FILM_STRIP,
-            Self::Inspect => icons::MAGNIFYING_GLASS,
-            Self::Focus => icons::CORNERS_OUT,
         }
     }
 
@@ -26,8 +22,6 @@ impl LayoutPreset {
         match self {
             Self::Code => "Write · give the code editor more room",
             Self::Animate => "Review · balance preview and timeline",
-            Self::Inspect => "Inspect · give sampled properties more room",
-            Self::Focus => "Focus · show only the preview",
         }
     }
 }

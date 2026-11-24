@@ -20,6 +20,29 @@ pub(crate) struct EditorContext<'a> {
     pub commands: &'a mut ActionQueue,
 }
 
+fn source_projection_menu(editor: &mut EditorBuffer, ui: &mut egui::Ui) {
+    let current = editor.source_view();
+    let name = SourceView::ALL
+        .iter()
+        .find(|(view, _)| *view == current)
+        .map(|(_, label)| *label)
+        .unwrap_or("Full");
+    let menu = ui.add(
+        eparts::Button::ghost(format!("View: {name}"))
+            .with_icon(egui_phosphor::regular::CARET_DOWN)
+            .with_size(eparts::Size::Sm)
+            .with_tooltip("Choose source view"),
+    );
+    egui::Popup::menu(&menu).show(|ui| {
+        for (view, label) in SourceView::ALL {
+            if ui.selectable_label(current == view, label).clicked() {
+                editor.set_source_view(view);
+                ui.close();
+            }
+        }
+    });
+}
+
 pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
     let theme = eparts::theme(ui);
     let sp = spatial(ui);
@@ -45,6 +68,8 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
                 .strong()
                 .color(theme.palette.text.primary),
             );
+
+            source_projection_menu(ctx.editor, ui);
 
             // Diagnostics status pill
             let error_count = ctx
@@ -129,21 +154,6 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
         );
         ui.add_space(sp.base.space_2);
 
-        let views = SourceView::ALL;
-        let mut active = views
-            .iter()
-            .position(|&(view, _)| view == ctx.editor.source_view())
-            .expect("all source projections have a tab");
-        let labels = views.map(|(_, label)| label);
-        use egui_phosphor::regular as icons;
-        if eparts::TabBar::new(ui.scope_id().with("source_views"), &mut active, &labels)
-            .with_icons(&[icons::FILE_TEXT, icons::TEXT_ALIGN_LEFT, icons::CODE])
-            .show(ui)
-            .changed()
-        {
-            ctx.editor.set_source_view(views[active].0);
-        }
-        ui.add_space(sp.base.space_2);
         if ctx.editor.source_view() == SourceView::Full
             && let Some((scene, marker)) = ctx.editor.cursor_narration_marker()
             && ui

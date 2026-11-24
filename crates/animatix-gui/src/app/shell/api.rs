@@ -11,6 +11,15 @@ impl GuiShell {
 
     fn handle_view_action(&mut self, view: ViewAction) -> Vec<Effect> {
         match view {
+            ViewAction::TogglePreviewFullscreen => {
+                self.ui_store.view.preview_fullscreen = !self.ui_store.view.preview_fullscreen;
+                vec![]
+            },
+            ViewAction::UnpinInspector => {
+                crate::app::persistence::set_detail_visible(&mut self.ui_store.view.tree, false);
+                self.ui_store.view.compact_drawer = Some(crate::app::panels::CompactDrawer::Detail);
+                vec![]
+            },
             ViewAction::ShowInspector => ui::handle_show_inspector(&mut self.ui_store),
             ViewAction::ShowCode => ui::handle_show_code(&mut self.ui_store),
             ViewAction::ShowCurves => ui::handle_show_curves(&mut self.ui_store),

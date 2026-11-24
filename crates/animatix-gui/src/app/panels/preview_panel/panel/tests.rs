@@ -35,6 +35,7 @@ fn frame(ctx: &egui::Context, preview: &mut PreviewPaneState, events: Vec<Event>
         active_scene: None,
         performance_metrics: &mut performance,
         debug_layout: false,
+        preview_fullscreen: false,
         debug_spacing: false,
         rebuild_in_progress: false,
         has_scene: true,

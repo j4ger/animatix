@@ -7,8 +7,9 @@ and its referenced files define scene playback and export. The companion
 ## Workflow
 
 1. Open an `.amx` file from the filename menu. Choose **Write** for source editing,
-   **Review** for timing, or **Inspect** for object analysis. **Focus** hides the
-   surrounding panels. Smaller windows group the presets in the layout menu.
+   **Review** for timing. Open **Inspector** on demand, or pin it while checking
+   several objects. The fullscreen button in **Preview** hides the surrounding
+   workspace until you press Escape or its exit button.
 2. Use the controls below the preview to play, seek, step frames, or loop. The
    timeline bracket button sets the loop to the visible interval; its range
    row appears when a loop range is set. The playback menu also offers speed,
@@ -30,9 +31,9 @@ and source navigation remain available.
 
 ## Writing and reviewing narrated scenes
 
-Open `crates/animatix/tests/fixtures/amx/animation/41_speech_sync_captions.amx` to try a scene with a recorded voice. In Write, **Only script** shows editable standalone `///` paragraphs. Use **Add paragraph** to start a draft. Consecutive narration lines form one paragraph, and a blank line starts another. **Only code** hides the script and supports localized code edits. Switch to **Full source** for changes that span a hidden paragraph or use formatting, completion, and source diagnostics.
+Open `crates/animatix/tests/fixtures/amx/animation/41_speech_sync_captions.amx` to try a scene with a recorded voice. In Write, **View: Script** shows editable standalone `///` paragraphs. Use **Add paragraph** to start a draft. Consecutive narration lines form one paragraph, and a blank line starts another. **View: Code** hides the script and supports localized code edits. Switch to **View: Full** for changes that span a hidden paragraph or use formatting, completion, and source diagnostics.
 
-Select a word or phrase in **Only script** and click **Bind phrase**, then choose **Start** or **End** and a timing target in the scene. **Bind paragraph** uses the full paragraph boundary. Timing targets include authored keyframes and direct actions that can receive independent timing while preserving their siblings. Each binding updates the source in one undoable edit. **Bound cues** links back to the source and to timing in Review.
+Select a word or phrase in **View: Script** and click **Bind phrase**, then choose **Start** or **End** and a timing target in the scene. **Bind paragraph** uses the full paragraph boundary. Timing targets include authored keyframes and direct actions that can receive independent timing while preserving their siblings. Each binding updates the source in one undoable edit. **Bound cues** links back to the source and to timing in Review.
 
 When you edit one paragraph, the editor carries whole-paragraph bindings and
 unambiguous phrase bindings into the new text. If the phrase disappeared or
@@ -70,8 +71,8 @@ directly underneath that row; click again to close it. Vector and color tracks
 offer a channel selector beside the graph. The graph shares the Timeline time
 scale and playhead, and clicking or dragging it seeks the preview. It shows
 compiled keyframe interpolation, not subsequent expression or layout effects.
-Edit the source to change the animation. The standalone Curves panel remains
-available for viewing multiple objects together.
+Edit the source to change the animation. To compare curves across objects, use
+**Toggle Curve Comparison** in the command palette; it does not open by default.
 
 ## Read-only boundaries
 
@@ -106,8 +107,12 @@ view state must remain distinct as those features are added.
 The first phase indexes direct scene/top-level `#` declarations. Numeric and
 relative seconds and speech anchors can be resolved; beat-based or generated
 control-flow timing is explicitly unresolved rather than inferred with a guessed
-tempo. Dense markers can be selected from the marker menu. Debug property tracks
-are opt-in, read-only, and remain distinct from authored keyframes.
+tempo. Resolved source markers appear as small diamonds along the lower edge of
+the time ruler. Click a diamond to seek and reveal its source. A double diamond
+denotes a cluster; right-click it or use the Markers menu to choose a specific
+source location. The rest of the ruler scrubs without navigating to source.
+Debug property tracks are opt-in, read-only, and remain distinct from authored
+keyframes.
 
 Audio-backed transcript cues use the clip's start in the scene and the scene's start in the composition. A standalone transcript uses scene-relative timestamps. Source timing markers use the engine's compiled resolution for speech. Identical Audio/Captions transcripts at the same time share a review row.
 
@@ -124,8 +129,10 @@ view modes retain a visible active state; unavailable actions remain disabled.
 
 Filename, preview validity, timecode, scene names, track names and panel headings
 remain text because they describe the current document rather than an action.
-Project, Outline and Library keep their names as space tightens, before
-switching together to named, tooltipped icons. Inspector summaries align compact
+Project opens the file tree and a collapsible Resources section with referenced
+assets and components from the current build. Outline lists the active scene's layers beneath
+a scene chooser that appears only for a multi-scene composition. At narrow
+window widths the sidebar switches to two named, tooltipped icons. Inspector summaries align compact
 labels and values in two columns, stacking them when space is tight. Preview
 ruler labels occupy a separate lane from the ticks; drag from either ruler to
 place a guide.

@@ -71,8 +71,14 @@ impl GuiShell {
         {
             tracing::warn!("Failed to create persistence directory: {}", e);
         }
+        let mut tree = self.ui_store.view.tree.clone();
+        if let Some(restore) = self.ui_store.view.compact_restore {
+            crate::app::persistence::restore_compact_tree(&mut tree, restore);
+        }
         let persistence = WorkspacePersistence {
-            tree: self.ui_store.view.tree.clone(),
+            tree,
+            layout_version: crate::app::persistence::WORKSPACE_LAYOUT_VERSION,
+            layout_preset: Some(self.ui_store.view.layout_preset),
             window_size: Some(self.window_size),
             window_maximized: Some(self.window_maximized),
             settings: Some(SettingsPersistence {

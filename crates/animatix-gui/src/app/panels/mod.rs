@@ -23,20 +23,17 @@ pub(crate) use api::{panel_frame, sidebar_tab_label};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum SidebarTab {
-    /// Files + assets (merged Explorer/Assets).
+    /// Files and referenced resources.
     Project,
-    /// Composition structure: layers + scenes (merged Layers/Scenes).
+    /// Scene chooser and current scene layers.
     Outline,
-    /// Reusable pieces: components.
-    Library,
 }
 
 /// Top-level sidebar views, shared by the tab bar and the compact icon rail so
 /// both stay in sync (icon + tooltip come from one definition).
-pub(crate) const SIDEBAR_TABS: [(SidebarTab, &str, &str); 3] = [
+pub(crate) const SIDEBAR_TABS: [(SidebarTab, &str, &str); 2] = [
     (SidebarTab::Project, egui_phosphor::regular::FOLDER, "Project"),
     (SidebarTab::Outline, egui_phosphor::regular::STACK, "Outline"),
-    (SidebarTab::Library, egui_phosphor::regular::CUBE, "Library"),
 ];
 
 /// Width of the compact-mode sidebar icon rail.

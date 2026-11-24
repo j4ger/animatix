@@ -1,11 +1,11 @@
 //! Compact-mode overlay drawers for narrow-screen layouts.
 //!
-//! Provides the slide-out drawers for Sidebar and Detail (Inspector/Code)
-//! that take over when the window is too narrow for docked side panels.
+//! The Navigator becomes a drawer at narrow widths. Inspector can be opened
+//! as a drawer at any width and pinned when there is room.
 
 use egui::Stroke;
 
-use super::{GuiShell, WorkspaceTab};
+use super::GuiShell;
 use crate::app::commands::ActionQueue;
 use crate::app::components::button::Button;
 use crate::app::design_tokens::spatial::{RADIUS_L, STROKE_WIDTH};
@@ -81,26 +81,14 @@ impl GuiShell {
                         });
                         ui.separator();
 
-                        let timeline = self.document_store.source.document.timeline.as_ref();
-                        let asset_cache = timeline.map(|t| t.asset_cache());
                         let mut ctx = panels::sidebar::SidebarContext {
-                            active_scene: self
-                                .document_store
-                                .source
-                                .document
-                                .active_scene
-                                .as_deref(),
-                            composition: self.document_store.source.document.composition.as_ref(),
-                            current_file: &self.document_store.source.document.file_path,
+                            document: &self.document_store.source.document,
                             expanded_dirs: &mut self.workspace_store.expanded_dirs,
                             file_tree: &self.workspace_store.file_tree,
                             commands,
-                            timeline,
                             selected_actors: &mut self.ui_store.selection.selected_actors,
                             collapsed_actors: &mut self.ui_store.view.collapsed_actors,
                             sidebar_tab: &mut self.ui_store.sidebar_tab,
-                            components: &self.document_store.source.document.components,
-                            asset_cache,
                             compact: false,
                             compact_drawer: &mut self.ui_store.view.compact_drawer,
                         };
@@ -113,12 +101,8 @@ impl GuiShell {
         }
     }
 
-    /// Compact-mode detail overlay drawer (Inspector or Code).
-    ///
-    /// The docked detail column is hidden while compact, so this is the only
-    /// place the active detail tab renders — no double render. The tab is shared
-    /// with the dock tree, so toolbar/preset switches land here too.
-    pub(crate) fn compact_detail_drawer_ui(
+    /// The unpinned Inspector, anchored to the right of the workbench.
+    pub(crate) fn inspector_drawer_ui(
         &mut self,
         ui: &mut egui::Ui,
         screen: egui::Rect,
@@ -127,15 +111,12 @@ impl GuiShell {
         if self.ui_store.view.compact_drawer != Some(panels::CompactDrawer::Detail) {
             return;
         }
-        // Fall back to Inspector if the tree has no active detail tab.
-        let active_tab = crate::app::persistence::active_detail_tab(&self.ui_store.view.tree)
-            .unwrap_or(WorkspaceTab::Inspector);
-
         let theme = eparts::theme(ui);
         let width = (screen.width() * 0.42).clamp(260.0, 420.0);
         let margin = 8.0;
         let mut close = false;
-        let mut switch_to: Option<WorkspaceTab> = None;
+        let mut pin = false;
+        let can_pin = !self.ui_store.view.compact;
 
         egui::Area::new(egui::Id::unique("compact_detail_drawer"))
             .order(egui::Order::Foreground)
@@ -159,16 +140,9 @@ impl GuiShell {
                             egui::Sense::drag(),
                         );
                         ui.horizontal(|ui| {
-                            for (tab, label) in [
-                                (WorkspaceTab::Inspector, "Inspector"),
-                                (WorkspaceTab::Code, "Code"),
-                            ] {
-                                let active = active_tab == tab;
-                                let resp = ui.add(Button::ghost(label).active(active));
-                                if resp.clicked() && !active {
-                                    switch_to = Some(tab);
-                                }
-                            }
+                            ui.label(
+                                egui::RichText::new("Inspector").font(TextRole::Title.font_id()),
+                            );
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
@@ -181,78 +155,61 @@ impl GuiShell {
                                     {
                                         close = true;
                                     }
+                                    if ui
+                                        .add_enabled(
+                                            can_pin,
+                                            Button::icon(egui_phosphor::regular::PUSH_PIN)
+                                                .with_tooltip("Pin Inspector to workspace"),
+                                        )
+                                        .clicked()
+                                    {
+                                        pin = true;
+                                    }
                                 },
                             );
                         });
                         ui.separator();
 
-                        match active_tab {
-                            WorkspaceTab::Code => {
-                                let diagnostics = self.document_store.combined_diagnostics();
-                                let mut ctx = panels::editor::EditorContext {
-                                    voiceover_history: &self.narration_takes.voiceover_history,
-                                    source_epoch: self.document_store.source.epoch(),
-                                    editor: &mut self.document_store.source.editor,
-                                    diagnostics: &diagnostics,
-                                    document: &self.document_store.source.document,
-                                    commands,
-                                };
-                                panels::editor::editor_ui(&mut ctx, ui);
-                            },
-                            _ => {
-                                let active_tl =
-                                    self.document_store.source.document.active_timeline();
-                                let mut ctx = panels::inspector::InspectorContext {
-                                    preview: &self.preview_store.preview,
-                                    timeline: active_tl,
-                                    composition: self
-                                        .document_store
-                                        .source
-                                        .document
-                                        .composition
-                                        .as_ref(),
-                                    active_scene: self
-                                        .document_store
-                                        .source
-                                        .document
-                                        .active_scene
-                                        .as_deref(),
-                                    selected_actors: &mut self.ui_store.selection.selected_actors,
-                                    commands,
-                                    raw_statements: self
-                                        .document_store
-                                        .source
-                                        .document
-                                        .raw_statements
-                                        .as_deref(),
-                                    source_path: &self.document_store.source.document.file_path,
-                                    source_text: &self.document_store.source.document.source_text,
-                                    source_current: !self.preview_store.has_pending_rebuild()
-                                        && !self.preview_store.rebuild_in_progress
-                                        && self.preview_store.in_flight_rebuild.is_none()
-                                        && self
-                                            .document_store
-                                            .source
-                                            .document
-                                            .last_rebuild_error
-                                            .is_none(),
-                                    scene_dimensions: self
-                                        .document_store
-                                        .source
-                                        .document
-                                        .scene_dimensions,
-                                };
-                                panels::inspector::inspector_panel_ui(&mut ctx, ui);
-                            },
-                        }
+                        let active_tl = self.document_store.source.document.active_timeline();
+                        let mut ctx = panels::inspector::InspectorContext {
+                            preview: &self.preview_store.preview,
+                            timeline: active_tl,
+                            composition: self.document_store.source.document.composition.as_ref(),
+                            active_scene: self
+                                .document_store
+                                .source
+                                .document
+                                .active_scene
+                                .as_deref(),
+                            selected_actors: &mut self.ui_store.selection.selected_actors,
+                            commands,
+                            raw_statements: self
+                                .document_store
+                                .source
+                                .document
+                                .raw_statements
+                                .as_deref(),
+                            source_path: &self.document_store.source.document.file_path,
+                            source_text: &self.document_store.source.document.source_text,
+                            source_current: !self.preview_store.has_pending_rebuild()
+                                && !self.preview_store.rebuild_in_progress
+                                && self.preview_store.in_flight_rebuild.is_none()
+                                && self.document_store.source.document.last_rebuild_error.is_none(),
+                            scene_dimensions: self.document_store.source.document.scene_dimensions,
+                        };
+                        panels::inspector::inspector_panel_ui(&mut ctx, ui);
                     });
             });
 
-        if let Some(tab) = switch_to {
-            crate::app::persistence::set_active_detail_tab(&mut self.ui_store.view.tree, tab);
+        if pin {
+            crate::app::persistence::show_inspector(&mut self.ui_store.view.tree);
+            close = true;
         }
         if close || (!self.modal_open() && ui.input(|i| i.key_pressed(egui::Key::Escape))) {
             self.ui_store.view.compact_drawer = None;
+            if let Some(restore) = self.ui_store.view.compact_restore.as_mut() {
+                restore.detail_visible = false;
+            }
         }
     }
 }

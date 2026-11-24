@@ -66,10 +66,8 @@ impl AnimatixApp {
                 .to_ascii_lowercase()
                 .as_str()
             {
-                "code" => Some(crate::app::LayoutPreset::Code),
-                "inspect" => Some(crate::app::LayoutPreset::Inspect),
-                "focus" => Some(crate::app::LayoutPreset::Focus),
-                "animate" => Some(crate::app::LayoutPreset::Animate),
+                "code" | "write" => Some(crate::app::LayoutPreset::Code),
+                "animate" | "review" => Some(crate::app::LayoutPreset::Animate),
                 _ => None,
             };
             if let Some(preset) = preset {
@@ -168,9 +166,7 @@ impl AnimatixApp {
 
     pub(super) fn handle_keyboard_shortcuts(&mut self, ctx: &egui::Context) {
         use crate::app::interaction::keyboard::{FocusContext, KeyboardAction};
-        // The dialog is drawn after global shortcuts. Leave its dismissal
-        // key in the event queue so it can run its own exit and focus restore.
-        if self.shell.modal_open() && ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
+        if route_workspace_escape(ctx, &mut self.shell) {
             return;
         }
         let focus = FocusContext {
@@ -302,7 +298,7 @@ impl AnimatixApp {
         self.shell.ui_store.pending_actions.push_back(command.into());
     }
 
-    /// Escape: leave presentation mode or cancel a marquee selection.
+    /// Escape: dismiss a preview mode or cancel a marquee selection.
     fn handle_escape_shortcut(&mut self) {
         apply_escape_shortcut(&mut self.shell.ui_store, &mut self.shell.preview_store.preview);
     }
@@ -462,6 +458,25 @@ impl AnimatixApp {
     }
 }
 
+/// Escape belongs to a modal first. Fullscreen then receives a dedicated
+/// exit key before the shortcut registry can consume it as a canvas action.
+fn route_workspace_escape(ctx: &egui::Context, shell: &mut crate::app::GuiShell) -> bool {
+    if !ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
+        return false;
+    }
+    // Modals render after keyboard dispatch; leave the key in their queue.
+    if shell.modal_open() {
+        return true;
+    }
+    if shell.ui_store.view.preview_fullscreen
+        && ctx.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+    {
+        apply_escape_shortcut(&mut shell.ui_store, &mut shell.preview_store.preview);
+        return true;
+    }
+    false
+}
+
 /// Shared Escape handler, independent of the GPU surface so cancellation is testable.
 fn apply_escape_shortcut(
     ui_store: &mut crate::app::stores::UiStore,
@@ -472,12 +487,16 @@ fn apply_escape_shortcut(
     } else if ui_store.selection.selection.marquee_start.take().is_some() {
         ui_store.selection.selection.marquee_current = None;
         preview.status = "Selection cancelled".to_string();
+    } else if ui_store.view.preview_fullscreen {
+        ui_store
+            .pending_actions
+            .push_back(ShellAction::View(ViewAction::TogglePreviewFullscreen));
     }
 }
 
 #[cfg(test)]
 mod escape_tests {
-    use super::apply_escape_shortcut;
+    use super::{apply_escape_shortcut, route_workspace_escape};
     use crate::app::test_support::{preview_store, ui_store};
 
     #[test]
@@ -495,5 +514,40 @@ mod escape_tests {
         assert_eq!(preview.preview.status, "Selection cancelled");
         apply_escape_shortcut(&mut ui, &mut preview.preview);
         assert!(ui.pending_actions.is_empty());
+    }
+
+    #[test]
+    fn fullscreen_routes_native_escape_before_the_registry_but_leaves_it_for_a_modal() {
+        use crate::app::{
+            GuiShell,
+            commands::{ShellAction, ViewAction},
+        };
+        let dir = crate::app::test_support::TestTempDir::new("fullscreen-escape");
+        let source = dir.path().join("scene.amx");
+        std::fs::write(&source, "#0s\nbox: Rect\n").unwrap();
+        let mut shell = GuiShell::load(source, false);
+        shell.ui_store.view.preview_fullscreen = true;
+        let ctx = egui::Context::default();
+        for modal in [true, false] {
+            shell.ui_store.view.settings_open = modal;
+            ctx.begin_pass(egui::RawInput {
+                events: vec![egui::Event::Key {
+                    key: egui::Key::Escape,
+                    physical_key: Some(egui::Key::Escape),
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                }],
+                ..Default::default()
+            });
+            assert!(route_workspace_escape(&ctx, &mut shell));
+            assert_eq!(ctx.input(|input| input.key_pressed(egui::Key::Escape)), modal);
+            ctx.end_pass().drop_without_applying_deltas();
+        }
+        assert_eq!(shell.ui_store.pending_actions.len(), 1);
+        assert!(matches!(
+            shell.ui_store.pending_actions.pop_front(),
+            Some(ShellAction::View(ViewAction::TogglePreviewFullscreen))
+        ));
     }
 }
