@@ -163,6 +163,10 @@ impl GuiShell {
             }
         }
 
+        if self.pending_open.is_none() && !self.ui_store.view.welcome_open {
+            self.narration_takes.update_voiceover_history(&self.document_store.source);
+        }
+
         // Keep the dock’s panel background continuous across resized tiles.
         let workspace_rect = egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(theme.palette.surface.panel))
@@ -481,6 +485,7 @@ impl GuiShell {
 
         let tree = &mut self.ui_store.view.tree;
         let mut behavior = panels::behavior::WorkspaceBehavior {
+            voiceover_history: &self.narration_takes.voiceover_history,
             document_store: &mut self.document_store,
             workspace_store: &mut self.workspace_store,
             preview_store: &mut self.preview_store,

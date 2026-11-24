@@ -76,6 +76,7 @@ pub(crate) fn draw_loop_region(
 }
 
 pub(crate) struct TimelineContext<'a> {
+    pub(crate) voiceover_history: &'a crate::app::document::narration::VoiceoverHistory,
     pub(crate) anchor_changes: &'a [Vec<crate::editor::narration::AnchorChange>],
     pub preview: &'a mut PreviewPaneState,
     pub statements: &'a [animatix_syntax::ast::Stmt],
@@ -457,6 +458,7 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
         panel_id,
         &sp,
         ScriptReview {
+            history: ctx.voiceover_history,
             source: ctx.source_text,
             anchor_changes: ctx.anchor_changes,
             current: ctx.source_current,

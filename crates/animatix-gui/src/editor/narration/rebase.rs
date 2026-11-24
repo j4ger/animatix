@@ -10,6 +10,7 @@ use super::{anchor_for_phrase, phrase_ranges, targets};
 pub(crate) struct AnchorChange {
     pub scene: Option<String>,
     pub before: AnchorKey,
+    pub before_text: String,
     pub after: AnchorKey,
 }
 
@@ -56,6 +57,7 @@ pub(super) fn after_script_edit(
         result.anchors.push(AnchorChange {
             scene: before.scene.clone(),
             before: whole(before)?,
+            before_text: before.text.clone(),
             after: whole(after)?,
         });
     }
@@ -128,6 +130,7 @@ pub(super) fn after_script_edit(
         result.anchors.push(AnchorChange {
             scene: target.scene,
             before: key,
+            before_text: old[index].text.clone(),
             after: next_key,
         });
         result.edits.push((span, updated));

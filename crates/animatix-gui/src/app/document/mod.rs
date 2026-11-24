@@ -10,7 +10,7 @@
 
 mod audio;
 mod load;
-mod narration;
+pub(crate) mod narration;
 mod query;
 mod save;
 mod session_rebuild;

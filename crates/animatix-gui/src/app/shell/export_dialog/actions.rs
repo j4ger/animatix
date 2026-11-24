@@ -8,7 +8,7 @@ impl GuiShell {
         ui.horizontal(|ui| {
             // Status message (left side)
             match &self.export_store.export_status {
-                ExportStatus::Idle => {},
+                ExportStatus::Idle | ExportStatus::ConfirmDraft(_) => {},
                 ExportStatus::Complete { path } => {
                     let path_str = path.display().to_string();
                     let label = truncate_middle(&path_str, 15, 15);
@@ -165,6 +165,10 @@ impl GuiShell {
     }
 
     pub(super) fn start_export(&mut self) {
+        self.submit_export(None);
+    }
+
+    pub(super) fn submit_export(&mut self, confirmed: Option<Vec<narration::AffectedParagraph>>) {
         use crate::app::document::export_target::{ExportTargetOwned, ExportTargetRef};
 
         // Recheck at submission: source may change while the dialog is open.
@@ -181,6 +185,7 @@ impl GuiShell {
             return;
         }
 
+        self.narration_takes.update_voiceover_history(&self.document_store.source);
         let scope = self.export_store.export_state.export_scope.clone();
 
         let target = match self.document_store.source.document.export_target(scope) {
@@ -192,17 +197,7 @@ impl GuiShell {
             },
         };
 
-        let cloned_target = match target {
-            ExportTargetRef::Timeline { timeline, .. } => {
-                ExportTargetOwned::Timeline(Box::new(timeline.clone()))
-            },
-            ExportTargetRef::Composition { composition, .. } => {
-                ExportTargetOwned::Composition(Box::new(composition.clone()))
-            },
-        };
-
         let effective_duration_s = target.duration_s();
-
         let state = self.export_store.export_state.clone();
         let output_path = if state.output_path.is_empty() {
             self.suggest_export_filename()
@@ -246,6 +241,26 @@ impl GuiShell {
                 ExportStatus::Failed(format!("Directory does not exist: {}", parent.display()));
             return;
         }
+
+        let affected = narration::affected_paragraphs(
+            &self.document_store.source,
+            &self.narration_takes.voiceover_history,
+            target,
+            &state,
+        );
+        if !affected.is_empty() && confirmed.as_deref() != Some(affected.as_slice()) {
+            self.export_store.export_status = ExportStatus::ConfirmDraft(affected);
+            return;
+        }
+
+        let cloned_target = match target {
+            ExportTargetRef::Timeline { timeline, .. } => {
+                ExportTargetOwned::Timeline(Box::new(timeline.clone()))
+            },
+            ExportTargetRef::Composition { composition, .. } => {
+                ExportTargetOwned::Composition(Box::new(composition.clone()))
+            },
+        };
 
         let debug = animatix::timeline::DebugRenderOptions {
             draw_bounds: self.ui_store.view.debug_bounds,
@@ -350,7 +365,7 @@ impl GuiShell {
 impl ExportDialogState {
     /// Effective export duration for motion formats: the timeline length plus
     /// the configured hold, or the manual override. Never below half a second.
-    fn motion_duration_s(&self, effective_duration_s: f64) -> f32 {
+    pub(super) fn motion_duration_s(&self, effective_duration_s: f64) -> f32 {
         if self.auto_duration {
             (effective_duration_s as f32 + self.hold_s.max(0.0)).max(0.5)
         } else {

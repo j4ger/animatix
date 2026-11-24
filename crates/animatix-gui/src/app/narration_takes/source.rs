@@ -257,7 +257,7 @@ impl SourceEdits {
         }
         if self.insert_captions {
             declarations.push_str(&format!(
-                "{CAPTIONS}: Captions, source: \"{}\", opacity: 1{newline}",
+                "{CAPTIONS}: Captions, source: \"{}\", at: (50%, 85%), opacity: 1{newline}",
                 self.track,
             ));
         }

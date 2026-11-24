@@ -1,6 +1,75 @@
+use std::ops::Range;
+
 use super::Timeline;
+use crate::timeline::{EntityId, TrackAccessor};
 
 impl Timeline {
+    /// Whether a caption from the specified audio transcript and segment range
+    /// contributes at this scene time. Used by export preflight, off the render path.
+    pub fn has_narration_caption_at(
+        &self,
+        source: EntityId,
+        segments: Option<&Range<usize>>,
+        time_s: f64,
+    ) -> bool {
+        let time_ms = (time_s * 1000.0) as u64;
+        let time_s = time_ms as f64 / 1000.0;
+        let Some(source) = self.world.transcript.get(source) else {
+            return false;
+        };
+        let solo = self.resolve_solo_state(time_ms);
+        self.world.tracks.iter().any(|(label, id)| {
+            if self.world.actor_type(id) != "Captions"
+                || self.world.first_seen(id) > time_ms
+                || !self.is_actor_visible(label)
+                || (solo.is_active() && !solo.is_soloed(id))
+                || !self.caption_has_opacity(id, time_ms)
+                || self.world.hierarchy(id).children.iter().any(|&child| {
+                    self.world.first_seen(child) <= time_ms && self.world.actor_type(child) == "Cue"
+                })
+            {
+                return false;
+            }
+            let Some((transcript, offset, limit)) = self.caption_transcript(id, time_ms) else {
+                return false;
+            };
+            if !std::ptr::eq(transcript, &source.0) || time_s >= limit {
+                return false;
+            }
+            let time = time_s - offset;
+            let active = transcript
+                .segments
+                .iter()
+                .enumerate()
+                .filter(|(_, cue)| cue.start_s <= time && time < cue.end_s)
+                .max_by(|(_, a), (_, b)| a.start_s.total_cmp(&b.start_s));
+            active.is_some_and(|(index, cue)| {
+                if cue.text.trim().is_empty()
+                    || segments.is_some_and(|range| !range.contains(&index))
+                {
+                    return false;
+                }
+                let plan = self.world.property_plan(id);
+                let enter = plan
+                    .sample_f32_prop("caption_enter", time_ms, 0.0)
+                    .max(plan.sample_f32_prop("transition_time", time_ms, 0.0));
+                enter <= 0.0 || time > cue.start_s
+            })
+        })
+    }
+
+    fn caption_has_opacity(&self, mut id: EntityId, time_ms: u64) -> bool {
+        loop {
+            if self.world.style(id).opacity.get(time_ms, 1.0) <= 0.0 {
+                return false;
+            }
+            match self.world.hierarchy(id).parent {
+                Some(parent) => id = parent,
+                None => return true,
+            }
+        }
+    }
+
     /// Collect logical subtitle cues on the scene clock. An optional label
     /// selects one Captions actor; each actor resolves its own overlapping cues.
     pub fn subtitle_cues(

@@ -54,6 +54,7 @@ pub(crate) struct ExportDialogState {
 
 #[derive(Clone, Debug)]
 pub(crate) enum ExportStatus {
+    ConfirmDraft(Vec<narration::AffectedParagraph>),
     Idle,
     Running,
     Complete { path: PathBuf },
@@ -62,6 +63,7 @@ pub(crate) enum ExportStatus {
 
 mod actions;
 mod impls;
+mod narration;
 mod progress;
 mod settings;
 #[cfg(test)]

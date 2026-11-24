@@ -5,8 +5,7 @@ use std::sync::Arc;
 
 use animatix::narration::DraftCueTime;
 use animatix_syntax::narration::{
-    AnchorEdge, AnchorKey, NarrationAnchor, NarrationParagraph, decode_anchor, encode_anchor,
-    paragraphs, phrase_ranges,
+    AnchorEdge, NarrationAnchor, NarrationParagraph, decode_anchor, paragraphs, phrase_ranges,
 };
 use animatix_syntax::token::LineIndex;
 
@@ -118,68 +117,6 @@ impl NarrationEditor {
 impl EditorBuffer {
     pub(crate) fn narration_anchor_changes(&self) -> &[Vec<AnchorChange>] {
         &self.narration.anchor_changes
-    }
-
-    fn voiceover_status(
-        &self,
-        document: &crate::app::document::DocumentSession,
-        paragraph: &NarrationParagraph,
-    ) -> &'static str {
-        let Some(transcript) = document.narration_transcript(paragraph.scene.as_deref()) else {
-            return "Needs voiceover";
-        };
-        let Some(key) = anchor_for_phrase(paragraph, None, AnchorEdge::Start)
-            .and_then(|anchor| encode_anchor(&anchor))
-            .and_then(|marker| decode_anchor(&marker))
-        else {
-            return "Needs voiceover";
-        };
-        let has_take =
-            |key: &AnchorKey| animatix::narration::resolve_anchor(transcript, key).is_some();
-        if has_take(&key) {
-            let text_changed = transcript
-                .narration_takes
-                .as_ref()
-                .and_then(|takes| takes.get(&paragraph.id()))
-                .and_then(|range| transcript.segments.get(range.clone()))
-                .is_some_and(|segments| {
-                    !segments
-                        .iter()
-                        .flat_map(|s| s.text.split_whitespace())
-                        .eq(paragraph.text.split_whitespace())
-                });
-            return if text_changed {
-                "Using previous voiceover"
-            } else {
-                "Voiceover up to date"
-            };
-        }
-        if self
-            .previous_narration_keys(paragraph.scene.as_deref(), key)
-            .iter()
-            .any(has_take)
-        {
-            return "Using previous voiceover";
-        }
-        "Needs voiceover"
-    }
-
-    pub(crate) fn previous_narration_keys(
-        &self,
-        scene: Option<&str>,
-        mut key: AnchorKey,
-    ) -> Vec<AnchorKey> {
-        let mut previous = Vec::new();
-        for edits in self.narration.anchor_changes.iter().rev() {
-            if let Some(change) = edits
-                .iter()
-                .find(|change| change.scene.as_deref() == scene && change.after == key)
-            {
-                key = change.before.clone();
-                previous.push(key.clone());
-            }
-        }
-        previous
     }
 
     pub(super) fn clear_narration_anchor_changes(&mut self) {
@@ -437,6 +374,7 @@ mod retake_tests {
     use crate::app::document::DocumentSession;
     use crate::app::stores::SourceStore;
     use crate::app::test_support::TestTempDir;
+    use animatix_syntax::narration::encode_anchor;
 
     #[test]
     fn revised_cue_previews_previous_audio_and_restores_its_clock_after_undo() {

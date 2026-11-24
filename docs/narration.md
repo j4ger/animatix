@@ -13,8 +13,10 @@ alignment settings…**, select that Python executable, a local SenseVoice ONNX
 model, and its token file. The corresponding environment variables are
 `ANIMATIX_NARRATION_PYTHON`, `ANIMATIX_NARRATION_ASR_MODEL`, and
 `ANIMATIX_NARRATION_ASR_TOKENS`. If alignment needs attention, the recording
-stays available under **History**. For imported audio, the workbench can also
-read an existing word-timed file such as `clip.speech.json` beside `clip.wav`.
+stays available under **History**. **Set up speech alignment** or **Retry
+alignment** stays above History for the selected paragraph. For imported audio,
+the workbench can also read an existing word-timed file such as
+`clip.speech.json` beside `clip.wav`.
 
 The workbench keeps recordings beside the source in a same-named `.amxn`
 file. Expand a paragraph's history to hear earlier reads and see the script as
@@ -26,7 +28,16 @@ and brings along the current generated narration when saving to another folder.
 Generated audio and its matching `.speech.json` are under `narration/` beside
 the source, with the scene name and a content suffix in both filenames. The
 transcript carries subtitle intervals, word timings, and cues for the scene's
-animations. To share a runnable scene, copy the `.amx` and the assets it
+animations. New automatic subtitles are centered horizontally at 85% of the
+logical canvas height. Existing caption positions are kept.
+
+If you edit a recorded paragraph, Write and Review show when the previous
+voiceover is still in use. Export lists affected paragraphs before starting.
+Choose **Export Draft** to continue with the current scene and its existing
+assets. Still images warn when the selected frame includes previous subtitles.
+Unresolved narration timing bindings must be fixed before exporting.
+
+To share a runnable scene, copy the `.amx` and the assets it
 references, including both narration files. Include the `.amxn` to share the
 editing history. It can be copied as a single file after closing the editor.
 

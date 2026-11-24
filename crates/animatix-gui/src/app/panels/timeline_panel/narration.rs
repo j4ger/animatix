@@ -3,16 +3,20 @@ use std::sync::Arc;
 
 use super::markers::TimingMarker;
 use crate::app::commands::{ActionQueue, Command};
+use crate::app::document::narration::{
+    NarrationTrack, VoiceoverHistory, VoiceoverStatus, voiceover,
+};
 use crate::app::document::version::SourceEpoch;
 use animatix::timeline::Timeline;
 use animatix_syntax::narration::{self, AnchorEdge, NarrationAnchor};
 
-type ParagraphCache = ((u64, u64, bool), Arc<Vec<Paragraph>>);
+type ParagraphCache = ((u64, u64, u64, bool), Arc<Vec<Paragraph>>);
 
 struct Paragraph {
     text: String,
     marker: String,
     interval: Option<(f64, f64)>,
+    status: VoiceoverStatus,
     bindings: Vec<(String, Option<f64>, String)>,
 }
 
@@ -25,6 +29,7 @@ pub(crate) enum SpeechDetail {
 }
 
 pub(super) struct ScriptReview<'a> {
+    pub history: &'a VoiceoverHistory,
     pub source: &'a str,
     pub anchor_changes: &'a [Vec<crate::editor::narration::AnchorChange>],
     pub current: bool,
@@ -107,13 +112,18 @@ impl ReviewTrack {
                 ui.data_mut(|d| d.insert_temp(self.selection_id, p.marker.clone()));
                 commands.push_back(Command::ScrubTo(start + offset).into());
             }
-            response.on_hover_text(&p.text);
+            response.on_hover_text(format!("{}\n{}", p.text, p.status.label()));
         }
-        if !aligned {
+        if !aligned && let Some(first) = self.paragraphs.first() {
+            let label = if self.paragraphs.iter().all(|p| p.status == first.status) {
+                first.status.label()
+            } else {
+                "Select a paragraph to see its voiceover status"
+            };
             ui.painter().text(
                 Pos2::new(coords.bar_origin_x + 8., rect.center().y),
                 Align2::LEFT_CENTER,
-                "Awaiting alignment",
+                label,
                 font,
                 theme.palette.text.secondary,
             );
@@ -123,48 +133,21 @@ impl ReviewTrack {
 
 impl ScriptReview<'_> {
     fn paragraphs(&self) -> Vec<Paragraph> {
-        let track = self.timeline.and_then(|tl| {
-            ["narration", "voice"]
-                .iter()
-                .find_map(|name| {
-                    let transcript = tl.transcript(name)?;
-                    let clip =
-                        tl.get_entity_id(name).and_then(|id| tl.audio_segment_for_actor(id))?;
-                    Some((transcript, clip.start_time_s))
-                })
-                .or_else(|| {
-                    let mut clips = tl.transcripts_iter().filter_map(|(id, t)| {
-                        tl.audio_segment_for_actor(id).map(|clip| (t, clip.start_time_s))
-                    });
-                    let first = clips.next()?;
-                    clips.next().is_none().then_some(first)
-                })
-        });
+        let track = self.timeline.and_then(NarrationTrack::find);
         narration::paragraphs(self.source)
             .into_iter()
             .filter(|p| p.scene.as_deref() == self.scene)
             .filter_map(|p| {
-                let mut anchor = NarrationAnchor {
+                let marker = narration::encode_anchor(&NarrationAnchor {
                     paragraph: p.text.clone(),
                     paragraph_occurrence: p.occurrence,
                     phrase: None,
                     phrase_occurrence: 1,
                     edge: AnchorEdge::Start,
-                };
-                let marker = narration::encode_anchor(&anchor)?;
-                anchor.edge = AnchorEdge::End;
-                let end = narration::encode_anchor(&anchor)?;
-                let interval = track.and_then(|(transcript, clip_start)| {
-                    let start = animatix::narration::resolve_anchor(
-                        transcript,
-                        &narration::decode_anchor(&marker)?,
-                    )?;
-                    let end = animatix::narration::resolve_anchor(
-                        transcript,
-                        &narration::decode_anchor(&end)?,
-                    )?;
-                    Some((clip_start + start, clip_start + end))
-                });
+                })?;
+                let (status, timing) =
+                    voiceover(self.history, track.as_ref(), &p, self.anchor_changes);
+                let interval = timing.map(|timing| timing.interval);
                 let bindings =
                     self.markers
                         .iter()
@@ -203,6 +186,7 @@ impl ScriptReview<'_> {
                     text: p.text,
                     marker,
                     interval,
+                    status,
                     bindings,
                 })
             })
@@ -211,7 +195,7 @@ impl ScriptReview<'_> {
 
     pub(super) fn show(&self, ui: &mut egui::Ui, commands: &mut ActionQueue) -> ReviewTrack {
         let id = ui.scope_id().with(("script_review", self.scene));
-        let key = (self.epoch.0, self.revision, self.current);
+        let key = (self.epoch.0, self.revision, self.history.revision, self.current);
         let data: Option<ParagraphCache> = ui.data(|d| d.get_temp(id));
         let paragraphs = match data {
             Some((cached, entries)) if cached == key => entries,
@@ -267,7 +251,7 @@ impl ScriptReview<'_> {
                             .selectable_value(
                                 &mut selected,
                                 Some(p.marker.clone()),
-                                format!("{}   {}", i + 1, p.text),
+                                format!("{}   {} · {}", i + 1, p.text, p.status.label()),
                             )
                             .clicked()
                             && let Some((start, _)) = p.interval
@@ -298,9 +282,7 @@ impl ScriptReview<'_> {
                         }
                     });
                 }
-                if p.interval.is_none() {
-                    ui.weak("Awaiting alignment");
-                }
+                ui.weak(p.status.label());
                 ui.add(egui::Label::new(&p.text).truncate()).on_hover_text(&p.text);
             }
         });
@@ -373,6 +355,7 @@ mod tests {
         );
         assert_eq!(markers.last().unwrap().line, Some(6));
         let review = ScriptReview {
+            history: &VoiceoverHistory::default(),
             source: &source,
             anchor_changes: &[],
             current: true,

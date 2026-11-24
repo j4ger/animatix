@@ -6,6 +6,7 @@ use super::projection::cursor_to_byte;
 use super::{Binding, EditorBuffer, Index, ScriptSelection, anchor_for};
 use crate::app::commands::{ActionQueue, Command};
 use crate::app::components::button::Button;
+use crate::app::document::narration::{NarrationTrack, VoiceoverHistory, voiceover};
 use crate::app::document::version::SourceEpoch;
 use crate::editor::source_patch::SourcePatch;
 use crate::highlighting::highlight_source;
@@ -16,6 +17,7 @@ impl EditorBuffer {
         ui: &mut egui::Ui,
         epoch: SourceEpoch,
         document: &crate::app::document::DocumentSession,
+        history: &VoiceoverHistory,
         commands: &mut ActionQueue,
     ) {
         let index = self.narration_index();
@@ -92,7 +94,12 @@ impl EditorBuffer {
                         })
                     });
                 }
-                let status = self.voiceover_status(document, paragraph);
+                let track = document
+                    .narration_timeline(paragraph.scene.as_deref())
+                    .and_then(NarrationTrack::find);
+                let (status, _) =
+                    voiceover(history, track.as_ref(), paragraph, self.narration_anchor_changes());
+                let status = status.label();
                 self.script_actions(ui, &index, ordinal, epoch, commands, status);
                 ui.add_space(ui.spacing().item_spacing.y);
             }
@@ -478,7 +485,13 @@ mod tests {
                     ..Default::default()
                 },
                 |ui| {
-                    editor.show_script(ui, SourceEpoch::initial(), &document, &mut commands);
+                    editor.show_script(
+                        ui,
+                        SourceEpoch::initial(),
+                        &document,
+                        &VoiceoverHistory::default(),
+                        &mut commands,
+                    );
                 },
             )
             .drop_without_applying_deltas();

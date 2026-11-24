@@ -13,6 +13,7 @@ use crate::app::preview::selection;
 use crate::app::stores::{DocumentStore, PreviewStore, WorkspaceStore};
 
 pub(crate) struct WorkspaceBehavior<'a> {
+    pub(crate) voiceover_history: &'a crate::app::document::narration::VoiceoverHistory,
     pub(crate) document_store: &'a mut DocumentStore,
     pub(crate) workspace_store: &'a mut WorkspaceStore,
     pub(crate) preview_store: &'a mut PreviewStore,
@@ -68,6 +69,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                 // Inspector.
                 let diagnostics = self.document_store.combined_diagnostics();
                 let mut ctx = editor::EditorContext {
+                    voiceover_history: self.voiceover_history,
                     source_epoch: self.document_store.source.epoch(),
                     editor: &mut self.document_store.source.editor,
                     diagnostics: &diagnostics,
@@ -152,6 +154,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     .document
                     .audio_waveform_revision(self.document_store.generation.0);
                 let mut ctx = timeline_panel::TimelineContext {
+                    voiceover_history: self.voiceover_history,
                     anchor_changes: self.document_store.source.editor.narration_anchor_changes(),
                     diagnostics: &self.document_store.source.document.diagnostics,
                     source_epoch: self.document_store.source.epoch(),

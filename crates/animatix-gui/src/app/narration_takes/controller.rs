@@ -44,6 +44,7 @@ impl NarrationTakes {
     }
 
     fn open_for(&mut self, source: &SourceStore, scene: Option<String>) {
+        self.update_voiceover_history(source);
         self.open = true;
         self.scene = scene;
         self.source_revision = None;
@@ -61,7 +62,7 @@ impl NarrationTakes {
         }
     }
 
-    fn sync_session(&mut self, source: &SourceStore) -> Result<(), String> {
+    pub(super) fn sync_session(&mut self, source: &SourceStore) -> Result<(), String> {
         if self.session.as_ref().is_none_or(|session| !session.is_for(source.file_path())) {
             self.session = Some(Session::open(source)?);
         }
@@ -86,7 +87,7 @@ impl NarrationTakes {
         }
     }
 
-    fn retarget(&mut self, source: &SourceStore, from_cursor: bool) {
+    pub(super) fn retarget(&mut self, source: &SourceStore, from_cursor: bool) {
         let revision =
             (source.file_path().to_owned(), source.epoch(), source.editor.source_identity());
         if self.source_revision.as_ref() == Some(&revision) {
@@ -273,7 +274,7 @@ impl GuiShell {
             state.session = None;
             state.source_revision = None;
             state.active_stamp = None;
-        } else if state.open || state.session.is_some() {
+        } else if state.open {
             state.retarget(source, false);
         }
         self.finish_narration_capture(ctx);
@@ -317,6 +318,7 @@ impl GuiShell {
             tracing::warn!(%write_error, "Could not save the recording issue");
         }
         if was_current {
+            state.history_revision = None;
             state.refresh();
             if let Err(error) = outcome
                 && !state.takes.iter().any(|take| take.id == id && take.issue.is_some())
@@ -339,6 +341,7 @@ impl GuiShell {
         {
             return;
         }
+        state.history_revision = None;
         state.refresh();
         match result {
             Ok(finished) => self.apply_narration(origin, finished),
@@ -475,3 +478,6 @@ impl Audition {
         })
     }
 }
+
+#[cfg(test)]
+mod tests;

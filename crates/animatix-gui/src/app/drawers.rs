@@ -190,6 +190,7 @@ impl GuiShell {
                             WorkspaceTab::Code => {
                                 let diagnostics = self.document_store.combined_diagnostics();
                                 let mut ctx = panels::editor::EditorContext {
+                                    voiceover_history: &self.narration_takes.voiceover_history,
                                     source_epoch: self.document_store.source.epoch(),
                                     editor: &mut self.document_store.source.editor,
                                     diagnostics: &diagnostics,

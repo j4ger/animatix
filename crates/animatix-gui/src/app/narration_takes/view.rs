@@ -246,7 +246,34 @@ impl NarrationTakes {
             return;
         }
         let busy = self.capture.is_some() || self.job.is_some();
-        let history = CollapsingHeader::new(format!("History ({})", takes.len() + unmatched.len()))
+        let recoverable = |take: &TakeSummary| {
+            binding.is_some_and(|binding| binding.text == take.text && binding.scene == take.scene)
+                && !take.aligned
+                && take.status != "interrupted"
+        };
+        let pending = takes.iter().copied().find(|take| recoverable(take));
+        let timing = self.inputs.import_timing();
+        if let Some(take) = pending {
+            ui.horizontal_wrapped(|ui| {
+                ui.label("Recording saved · awaiting alignment");
+                if !busy {
+                    if matches!(timing, ImportTiming::Missing) {
+                        if ui.small_button("Set up speech alignment").clicked() {
+                            self.inputs.advanced = Some(Advanced::Alignment);
+                        }
+                    } else if ui.small_button("Retry alignment").clicked() {
+                        *action = Some(Action::Start(
+                            Operation::Import {
+                                audio: None,
+                                timing: self.inputs.import_timing(),
+                            },
+                            Some(take.id.clone()),
+                        ));
+                    }
+                }
+            });
+        }
+        CollapsingHeader::new(format!("History ({})", takes.len() + unmatched.len()))
             .id_salt("voiceover_history")
             .show(ui, |ui| {
                 ScrollArea::vertical().max_height(270.0).show(ui, |ui| {
@@ -262,21 +289,18 @@ impl NarrationTakes {
                                 *action =
                                     Some(Action::Start(Operation::Use, Some(take.id.clone())));
                             }
-                            if !take.aligned && take.issue.is_some() && take.status != "interrupted"
+                            if recoverable(take)
+                                && pending.is_some_and(|pending| pending.id != take.id)
+                                && !matches!(timing, ImportTiming::Missing)
+                                && ui.small_button("Retry alignment").clicked()
                             {
-                                if matches!(self.inputs.import_timing(), ImportTiming::Missing) {
-                                    if ui.small_button("Set up speech alignment").clicked() {
-                                        self.inputs.advanced = Some(Advanced::Alignment);
-                                    }
-                                } else if ui.small_button("Retry alignment").clicked() {
-                                    *action = Some(Action::Start(
-                                        Operation::Import {
-                                            audio: None,
-                                            timing: self.inputs.import_timing(),
-                                        },
-                                        Some(take.id.clone()),
-                                    ));
-                                }
+                                *action = Some(Action::Start(
+                                    Operation::Import {
+                                        audio: None,
+                                        timing: self.inputs.import_timing(),
+                                    },
+                                    Some(take.id.clone()),
+                                ));
                             }
                         }
                     }
@@ -298,33 +322,6 @@ impl NarrationTakes {
                     }
                 });
             });
-        if !busy
-            && history.body_response.is_none()
-            && let Some(take) = takes.first().filter(|take| take.issue.is_some() && !take.aligned)
-        {
-            if take.status == "interrupted" {
-                ui.weak("Recording interrupted. Audio kept.");
-                return;
-            }
-            ui.horizontal(|ui| {
-                ui.label("Recording saved. Alignment needed.");
-                if matches!(self.inputs.import_timing(), ImportTiming::Missing) {
-                    if ui.small_button("Set up").clicked() {
-                        self.inputs.advanced = Some(Advanced::Alignment);
-                    }
-                } else if ui.small_button("Retry").clicked()
-                    && binding.is_some_and(|b| b.text == take.text)
-                {
-                    *action = Some(Action::Start(
-                        Operation::Import {
-                            audio: None,
-                            timing: self.inputs.import_timing(),
-                        },
-                        Some(take.id.clone()),
-                    ));
-                }
-            });
-        }
     }
 }
 

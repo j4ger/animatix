@@ -12,6 +12,7 @@ use crate::editor::EditorBuffer;
 use crate::editor::narration::SourceView;
 
 pub(crate) struct EditorContext<'a> {
+    pub voiceover_history: &'a crate::app::document::narration::VoiceoverHistory,
     pub editor: &'a mut EditorBuffer,
     pub diagnostics: &'a [Diagnostic],
     pub document: &'a crate::app::document::DocumentSession,
@@ -169,7 +170,13 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
         let changed = match ctx.editor.source_view() {
             SourceView::Full => ctx.editor.show(ui).changed(),
             SourceView::Script => {
-                ctx.editor.show_script(ui, ctx.source_epoch, ctx.document, ctx.commands);
+                ctx.editor.show_script(
+                    ui,
+                    ctx.source_epoch,
+                    ctx.document,
+                    ctx.voiceover_history,
+                    ctx.commands,
+                );
                 false
             },
             SourceView::Code => {

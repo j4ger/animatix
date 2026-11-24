@@ -43,12 +43,13 @@ impl GuiShell {
         // Backdrop click → close (only when not running)
         let backdrop_id = ui.scope_id().with("export_backdrop");
         let backdrop_response = ui.interact(screen_rect, backdrop_id, egui::Sense::click());
-        if backdrop_response.clicked() && !is_running {
+        let confirming = matches!(self.export_store.export_status, ExportStatus::ConfirmDraft(_));
+        if backdrop_response.clicked() && !is_running && !confirming {
             self.export_store.export_dialog_open = false;
         }
 
         // Close on Escape (only when not running)
-        if ui.input(|i| i.key_pressed(egui::Key::Escape)) && !is_running {
+        if ui.input(|i| i.key_pressed(egui::Key::Escape)) && !is_running && !confirming {
             self.export_store.export_dialog_open = false;
         }
 
@@ -181,6 +182,39 @@ impl GuiShell {
             ui.scope_builder(egui::UiBuilder::new().max_rect(action_rect), |ui| {
                 self.render_export_action_bar(ui);
             });
+        }
+
+        self.export_draft_confirmation(ui.ctx());
+    }
+
+    fn export_draft_confirmation(&mut self, ctx: &egui::Context) {
+        if let ExportStatus::ConfirmDraft(affected) = &self.export_store.export_status {
+            let response =
+                egui::Modal::new(egui::Id::unique("confirm_narration_draft")).show(ctx, |ui| {
+                    ui.set_max_width(440.0);
+                    ui.heading("Export with unfinished voiceover?");
+                    egui::ScrollArea::vertical().max_height(220.0).show(ui, |ui| {
+                        for paragraph in affected {
+                            ui.label(&paragraph.title);
+                            ui.weak(paragraph.effect);
+                        }
+                    });
+                    let mut proceed = false;
+                    let mut back = false;
+                    ui.horizontal(|ui| {
+                        back = ui.button("Back").clicked();
+                        proceed = ui.button("Export Draft").clicked();
+                    });
+                    (proceed, back)
+                });
+            if response.inner.0 {
+                self.submit_export(Some(affected.clone()));
+            } else if response.inner.1
+                || response.should_close()
+                || !self.export_store.export_dialog_open
+            {
+                self.export_store.export_status = ExportStatus::Idle;
+            }
         }
     }
 }
