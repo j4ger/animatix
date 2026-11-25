@@ -460,8 +460,19 @@ bottom` selects the anchored edge of the visible region for `wipe_in` and
 `wipe_out`. The default is `left`. An entrance grows from that edge and an
 exit shrinks towards it.
 `draw_in` and `reveal_in` reveal complete glyph clusters, words, or visual lines
-according to `by`. With stagger, offset, or a baseline mask, every group has
-its own reveal interval. A duration-valued `stagger` measures time between starts.
+according to `by`. On a literal `Text` actor, `text_cursor: true` follows the
+last displayed glyph cluster during a character reveal.
+
+```amx
+#0s
+prompt: Text, text: "What should we ship?", at: (120, 180),
+  text_anchor: "left", text_cursor: true, font_size: 36
+
+#250ms
+draw_in(target: prompt, by: char, duration: 1s, ease: linear)
+```
+
+With stagger, offset, or a baseline mask, every group has its own reveal interval. A duration-valued `stagger` measures time between starts.
 Easing then applies within each interval. The engine shortens an interval
 between starts if it would push groups past the action's end. `mask: baseline`
 clips each glyph to the resting band of its own line, including descenders.

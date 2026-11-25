@@ -494,3 +494,69 @@ highlight(target: t, duration: 1s)
         _ => panic!("Expected [HighlightLayer, Text], got: {cmds:?}"),
     }
 }
+
+#[test]
+fn text_cursor_follows_proportional_clusters_across_wrapped_lines() {
+    use crate::primitives::RenderCommand;
+    use crate::timeline::{DebugRenderOptions, SceneDimensions};
+    use kurbo::Shape;
+
+    // The first W is wide, i is narrow, and e + combining acute is one cluster.
+    // Both words fit separately but together they wrap to a second visual line.
+    let timeline = super::support::build_timeline(
+        r#"
+#0s
+prompt: Text, text: "iWié Wide\nHi", text_cursor: true, text_anchor: "left",
+  text_max_width: 100, font_size: 36, at: (60, 80)
+#100ms
+draw_in(target: prompt, by: char, duration: 1s, ease: linear)
+"#,
+    );
+    let dims = SceneDimensions {
+        width: 320,
+        height: 180,
+    };
+    let mut stops = std::collections::BTreeMap::new();
+    for ms in (120..=1100).step_by(20) {
+        let program = timeline.evaluate_program_with_debug(
+            f64::from(ms) / 1000.0,
+            dims,
+            DebugRenderOptions::default(),
+            &mut None,
+        );
+        let paths = program
+            .items
+            .iter()
+            .find(|item| item.label == "prompt")
+            .and_then(|item| {
+                item.commands.iter().find_map(|command| match command {
+                    RenderCommand::Text { paths, .. } => Some(paths),
+                    _ => None,
+                })
+            })
+            .expect("revealed Text emits an observable text command");
+        let caret = paths
+            .iter()
+            .find(|path| path.source_range.is_none())
+            .expect("Text emits one separate caret path");
+        let bounds = caret.path.bounding_box();
+        let last = paths
+            .iter()
+            .filter_map(|path| Some((path.source_range?, path.caret?.0, path.baseline_y)))
+            .max_by(|a, b| a.0[1].cmp(&b.0[1]).then(a.1.total_cmp(&b.1)));
+        let ([_, end], x, baseline) = last.expect("a positive reveal has visible glyphs");
+        assert!((bounds.x0 - x).abs() < 0.01, "caret x at {ms}ms");
+        assert!((bounds.y0 - (baseline - 36.0 * 0.8)).abs() < 0.01, "caret y at {ms}ms");
+        stops.insert(end, (bounds.x0, bounds.y0));
+    }
+    let start = stops[&1];
+    let wide = stops[&2];
+    let narrow = stops[&3];
+    assert!(wide.0 - start.0 > narrow.0 - wide.0, "{stops:?}");
+    assert!(stops.contains_key(&5) && !stops.contains_key(&4), "{stops:?}");
+    let second_line = stops[&7];
+    assert!(second_line.0 < stops[&5].0 && second_line.1 > stops[&5].1, "{stops:?}");
+    let explicit_break = stops[&12];
+    assert!(explicit_break.0 < stops[&10].0 && explicit_break.1 > stops[&10].1, "{stops:?}");
+    assert!(stops.contains_key(&13), "{stops:?}");
+}
